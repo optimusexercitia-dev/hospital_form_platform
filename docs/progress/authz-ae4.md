@@ -1080,13 +1080,11 @@ as `ratio = k·x + (1 − x)` with `k ≈ 20–50` and a measured ratio of 1.53.
   E2E-invalidating set lands (`BUG-AE49-D6-REKEY-INCOMPLETE` at minimum).
 - **Did not fix the QA review's F-BLOCK-3 or F-MAJOR-1.** Both filed; neither touched.
 
-## State snapshot 2026-09-03 (re-homed from PROGRESS.md § Now, ADR 0185 D2)
+## Session log
 
-The five bullets below are re-homed **verbatim** from PROGRESS.md § Now as it stood on the
-`docs-restructure` branch at commit `88c70964`, because they carry more live AE4 detail than the
-[AE4 hub](../features/ae4.md)'s 60-line Current-state cap can hold. Per ADR 0185 D2, § Now itself
-is retired in favor of the hub; this section is the record of what it said about AE4 at the moment
-of the cut.
+### 2026-09-03 — state snapshot (re-homed from the retired Now section of PROGRESS.md)
+
+*Source: `docs-restructure` @ `88c70964`.*
 
 > - **🔓 DB WINDOW CLOSED 2026-09-02 (lead) — the local stack is free.** Ran in it: the write-arm sweep (4 gates, 4 COVERED, exit 0) and **four IA-F9 acceptance runs**. Left clean — postflight §9.4 verified `dc1_body_stuck=f`, `staff_admin_state=authoritative`, `trigger_disabled=f`. ⚠ The perf fixture is NOT in the tree after the last reset; any perf re-run needs a full reload first.
 > - **▶ PO RULINGS 2026-09-02 — three, and one reversed my ask.** (1) **C2 runs on ANOTHER MACHINE:** branch **`authz-c2-tier1`** cut at `8ca976d7` and pushed to origin. ⛔ **NOT merged to main — the HOLD stands** (measured after: main is 0 ahead / 103 behind; the schema-first rule stays *armed*, not fired). Branching **off** AE4 is not folding **into** it, so ADR 0162 §3 holds. ⚠ **`c2-tier1-neutralizer` still exists locally and on origin, 105 commits behind, carrying only a resume handoff** — the neutralizer itself is already in AE4 (`66b31cd1`). It is a **trap for whoever reaches for the C2-sounding name**; delete it or retire it deliberately. (2) **Rollback §6 verification DEFERRED until AE4 is concluded and merged** — staged and unrun ( ·  · , expectations written BEFORE any run so a surprise cannot become the expectation). (3) **`scope_reaches` fix spun off to its own session.**
@@ -1094,13 +1092,10 @@ of the cut.
 > - **▶ GATE-AE4 WAVE — 4 of 4 BACK 2026-09-02: one new blocker, one verdict, one instrument repaired.** ⛔ **A FINAL `e2e:prod` IS CERTAIN** — `BUG-AE49-D6-REKEY-INCOMPLETE`'s fix is a migration, so the *"the single-run green already describes the merged tree"* reading is **dead**; it was only ever contingent on the E2E-invalidating set being empty. ✅ **WRITE ARM — re-aimed AND swept CLEAN.** Its domain was an embedded **33-row snapshot** bounded on a **syntax** (`cmd in (INSERT,UPDATE,DELETE)`), and `FOR ALL` is a write command: the live catalog holds **107** write-capable policies, so **74 were invisible**, including all four D6 policies and **3 `storage.objects` INSERT policies `ARM=census` also misses**. Re-bounded to `polcmd <> 'r'` (`d2069603`), then swept — `policy=4/107`, **4 COVERED, 0 BLIND, exit 0** — and the verdicts MERGED into the committed baseline (`974328e6`; 33 → **37 of 107**). ⚠ All four are **`snapshot:ABSENT`** (no §7.2 drift tripwire protects them) and the guard arm selected **0 of 13** — the same shape as the blank it just fixed, and not a pass. ⛔ **GATE AE4 QA = CHANGES REQUESTED** (`a6ff4ad0`) → [review](../reviews/authz-ae4-gate-review.md). ⭐ **IA-F9 HAS A VERDICT — `AE4 ACCEPTANCE NOT MET (3 of 7 rows PASS)`** (`8ca976d7`), earned over **four runs**; every figure and each run's defect → [authz-ae4.md § IA-F9](../progress/authz-ae4.md). DC1 ✅ · DC2 ✅ · P2 ✅ · P3 ✅ · P4 ✅ · **P1 ❌** · **P5 ❌** (6.19× / 6.21× against a 4× threshold; six readings across four runs, 5.20–6.27). ⛔ **F9's FOUNDING PREMISE IS OVERTURNED:** the non-inlinable DEFINER SRF evaluated per row is real, is per-row, and is **CHEAP** — **~1–3 %** of per-protected-row cost, established by a planted-cost control and a pre-registered prediction, not by argument. The cost is **`authz.scope_reaches`**'s hospitals ascent (**8 240** seq scans; `O(protected_rows × M × |hospitals|)` — **the only part of the chain that scales with TENANT COUNT**) → `FUP-SCOPE-REACHES-HOSPITALS-SEQ-SCAN`, fix running in its own session on `authz-ae4-scope-reaches-fix`.
 > - ✅ **Gate 7's cap breach is CLEARED** — rotated 2026-09-02; `npm run lint` re-measured **12/12, exits read DIRECTLY**, so the AE4.9 D6 record's `lint 12/12` no longer rests on a pre-red measurement. Incident, and why rotation **cannot** reach the soft target (the OPEN index + § Critical FUP are **61 %** of the file, measured 2026-09-02) → [2026-Q3.md](../progress/2026-Q3.md).
 
-## State snapshot 2026-09-03 — after the C2 and scope-reaches folds (re-homed from PROGRESS.md § Now, ADR 0185 D2)
+### 2026-09-03 — state snapshot, after the C2 and scope-reaches folds (re-homed from the retired Now section of PROGRESS.md)
 
-The seven bullets below are re-homed **verbatim** from PROGRESS.md § Now as it stood on the
-`docs-restructure` branch at commit `f09cad10`, because they carry more live AE4/C2 detail than
-the [AE4](../features/ae4.md) and [C2-TIER1](../features/c2-tier1.md) hubs' 60-line Current-state
-caps can hold. Links are repointed `docs/… → ../…` for this subdirectory, per
-`.claude/rules/progress-contract.md`'s rotation rule — no other change from the source text.
+*Source: `docs-restructure` @ `f09cad10`; links already repointed `docs/… → ../…` for this
+subdirectory — no other change from the source text.*
 
 - **🔀 C2 MERGED INTO `authz-ae4-catalog` 2026-09-03 — `origin/authz-c2-tier1` (13 commits) folded in: three textual conflicts, plus one collision git reported as CLEAN.** ⭐ **Both branches minted an ADR `0180`** — different filenames, so the merge auto-resolved it silently and the tree briefly carried two. ⛔ **It is not undetectable, though — `lint:adr-index` carries a dedicated duplicate-number check and REDS on it** (measured here with a throwaway probe, exit 1: *"duplicate ADR number 0180 … A citation 'ADR 0180' is ambiguous"*). ⚠ **The trap is reading "no conflict" as "nothing to reconcile"** and shipping the merge without running the chain. Renumbered the **INCOMING** side: C2's sweep ADR → **[0184](../decisions/0184-c2-sweep-runs-against-the-current-branch-schema.md)**, its 8 hand-written references rewritten, back-pointers + INDEX regenerated (182 ADRs, next free **0185**). ⛔ **Any record written before this merge that cites "ADR 0180" for the C2 sweep now resolves to the `scope_reaches` ascent instead** — the other machine's notes included. The three conflicts (§ Now · `follow-ups-open.md` · `INDEX.md`) were resolved with **no side dropped, verified mechanically** — every line either parent added is present in the merged file (register alone: 0 missing of 344 ours / 300 theirs). Gates on the merged tree: **lint 12/12 — all twelve confirmed EXECUTED, not inferred from a single exit 0** · **tsc 0**. ⛔ **No DB gate was re-run and none is owed BY THIS MERGE:** C2 contributed **zero** `supabase/`, `src/` and `e2e/` files (docs + `package.json` + one `.py`), so every pgTAP / E2E / authz-ARM verdict is untouched by it; ⚠ the perf fixture is still loaded and a reset would destroy it. ⚠ **Gate 12 now shells `python3`** (C2's fix — `python` does not exist on macOS/modern Linux); **verified working on this Windows host** (`python3` → 3.14.3), but it is a NEW host dependency and a machine carrying only `python` on PATH now REDS gate 12. ⛔ The AE4 hold stands: no `db:push`, no push to `main`. ⚠ **One stale claim C2's own *"retire every «the sweep has not run» claim"* commit MISSED, found here:** `authz-c2-command-door-neutralizer.md` **§8's HEADING** still said the full sweep had not run while its own body 55 lines below said it had — corrected in this merge. ⛔ **A heading is prose and rots like prose;** a sweep for the claim that skips headings re-reads as clean.
 - **⭐⭐ EXTERNAL AUDIT DISPOSED + RUN 7, 2026-09-03 (`authz-ae4-scope-reaches-fix`) — P2 was re-specified and MEASURED for the first time.** Four findings, **none upheld as filed** → [response](../reviews/authz-ae4-external-audit-response-2026-09-03.md). ⭐ **The defect the audit buried:** §13.2's P2 said `assignment_facts` is invoked *"once per STATEMENT"*, run 6 recorded **7** and scored **PASS** on *"every node `loops=1`"* — a property **invariant to D, which cannot fail**. Re-specified as `A = 1 + U` + two slopes + a committed checker (`scripts/authz-ae4-p2-invocation-count.sql`), ADR [0183](../decisions/0183-p2-invocation-count-respecification.md). ⛔ **The 7 was never anomalous** — 3 resolver + 4 off-path (1 ELSE arm + 3 `holds_role`, which `authz-ae4-perf-harness.sql:41` calls *"not even ON this path"*); the defect is that P2's evidence **counted off-path nodes into its subject**. **Run 7 `RESET=0 LOAD=0 PASSA=3 PASSB=3 P1PROBE=0 P2PROBE=0`** · pgTAP **`262f/8745 PASS`** · lint 12/12 · tsc 0 · record → acceptance **§17**. ⛔ **Run 7's FIRST attempt VOIDed and that is the point** (`pg_stat_get_function_calls` returns **NULL not 0** cold; the checker had only ever passed because its own prior runs primed the stats) → **§17.1**. Also: `413` pins **both** siblings to the constant (the sibling-differential defined safety as equality with a **mutable** object) and new pgTAP **`414`** sweeps the class — **890** `prosecdef` functions, **0** offenders, 3 controls that must fire. ⛔ **The audit's Finding 2 (BLOCKER) is DECLINED** — it quotes this tracker's own `NOT Gate AE4` / `no e2e` labels back at it. ⚠ **`e2e:prod` still owed at Gate AE4.** ⛔ **No `db:push`, no `git push` — the hold on `main` STANDS;** the spin-off folds back into `authz-ae4-catalog` only, which is PO ruling 3's completion and **not** the phase merge.
@@ -1109,3 +1104,138 @@ caps can hold. Links are repointed `docs/… → ../…` for this subdirectory, 
 - **✅ C2 FULL SWEEP COMPLETE 2026-09-02 — the DB window is CLOSED and the stack is FREE.** ⭐ **171 of 171 enforcers swept — the FIRST verdicts the C2 command-door class has ever had** (before this it was sized and instrumented, never run). ⭐ **COVERED 109 · BLIND 40 · ERROR 22** — ⚠ the committed [findings file](../reviews/c2-command-door-findings.md) says 106/40/25 and is **derived, do not hand-edit**; three of its ERROR rows are tail-drift artifacts re-measured to COVERED in isolation (`FUP-C2-NEUTRALIZER-TAIL-DRIFT-INVALIDATES-LATE-VERDICTS`). Baseline `Files=259, Tests=8685, PASS`; **53 s/run, ~5 h** — ⛔ the design doc's ~2.2 h assumed ~23 s and was wrong. ⭐ **Verdict integrity is stronger than the counts look:** COVERED demands a red-then-**green** pair and BLIND demands the baseline shape, so all 149 real verdicts were taken at `Tests=8685` — **drift cannot masquerade as coverage.** DB verified restored (`Files=259, Tests=8685, PASS` after reset; **zero** `ROLLBACK FAILED`). ⛔ **C2 IS NOT CLOSED — see the three bounds in ADR [0184](../decisions/0184-c2-sweep-runs-against-the-current-branch-schema.md) points 4–5.**
 - **⚖ PO RULING 2026-09-02 — the C2 branch-order hold is LIFTED, and the sweep runs against THIS branch (519 migrations, AE4's 18 included), not `main`'s 501.** Facts that unblocked it: C2's entire apparatus (neutralizer, worklist, sizing script, design doc) **is already merged to `main`** — the branch named `authz-c2-tier1` carries 104 commits of **AE4** work, so the name is a misnomer. ⛔ **This CONTRADICTS ADR [0162](../decisions/0162-authz-evolution-plan-audit-corrections.md) §3** (*"runs as its own increment, never folded into AE1's or AE4's branch"*). The PO accepted the tradeoff knowingly: broader coverage in one pass, at the cost that **C2's findings are NOT independently mergeable to `main` until AE4 lands**. ⛔ **An ADR amending 0162 §3 is OWED at the Record step** ⭐ **Context that makes the ruling coherent (2026-09-02): `origin/authz-c2-tier1` IS the shared AE4+C2 line** — it carries the other machine's IA-F9 and AE4-run commits, and **AE4 is under implementation on that machine, BLOCKED awaiting C2 to land**. So C2 is not being folded into a foreign branch; it is landing on the integration line AE4 already shares. ▶ **Delivery path: commit the findings, then push to `origin/authz-c2-tier1`** — that branch, not a merge to `main`, is how C2 reaches the waiting session. — without it the next session reads 0162 §3 as current law and treats this run as a protocol breach. 0162 §3's corollary still binds: state the uncovered door population beside the covered one.
 - **🔓 DB WINDOW CLOSED 2026-09-02 (`authz-ae4-scope-reaches-fix`, off `authz-ae4-catalog`) — the local stack is free; the perf fixture IS loaded (reset before using it).** PO ruling 3's spin-off, built + measured: `20261003007310` + pgTAP `412` + ADR 0180, then **IA-F9 run 5**. ⭐ **ACCEPTANCE STILL NOT MET, now on ONE condition — a PARTIAL result, recorded as one.** P2/P3/P4/DC1/DC2 **PASS**. **P1: FAIL as worded** (`Seq Scan on hospitals` **8240→4120**, the untargeted half; 603 executed) **→ PASS re-specified** (PO ruled 2026-09-02, ADR 0181: P1 bounds the **index path**, not the scan node; instrument `scripts/authz-ae4-p1-index-path.sql`, vacuity control **bundled**, both verdicts proven reachable). ⛔ **Both P1 verdicts stand; neither erases the other.** **P5 FAIL 5.28×/4.99×** (was 6.19×/6.21×; **K=4 not moved** — 25 % over — and not argued down from P1's re-spec). ⛔ **The residue is NOT a plan defect:** DC1b 17–18× says `scope_reaches` is still dominant as *volume* — ~170 000 lookups re-resolving the same 20 assignment facts per protected row — which is `entailed_grants`' invocation structure, a **different increment** ▶ **the one open technical question for Gate AE4**. Record → acceptance doc **§12**. ⛔ No merge, no `db:push`, no `git push` — the AE4 hold stands.
+
+### 2026-09-03 — folded from the AE4 handoff at ADR 0186 Wave 3
+
+Folded from `docs/handoffs/authz-ae4-2026-09-03.md` (created 2026-09-01, deleted this wave per ADR
+0186 D3) before deletion. The handoff's RESUME HERE and Trust sections are resume-layer content
+with no residual value once the branch is landed and the file is gone; not carried forward.
+
+**Goal and scope boundary.** AE4 substitutes `staff_admin` end-to-end against the `authz` catalog
+and makes 3 of 43 permissions load-bearing on real production doors. Explicitly NOT in scope: the
+other 40 permissions (`pending-rekey` by design — ADR 0176 D6 confirmed the three representatives
+as the gate minimum); the AE5 role-by-role substitution; the D8 compatibility bundle; and
+`authz.scope_reaches`'s plan defect (its own increment, folded back in and verified — see the
+hub's Done since start).
+
+**State — Done, VERIFIED (as of the handoff):**
+
+| What | Witness | When |
+| --- | --- | --- |
+| Build committed, tree clean | `git status --porcelain` → 0 lines at `cf30dfe9` | 09-03 |
+| `main` untouched — the HOLD stood | `git rev-list --left-right --count main...HEAD` → `0 104` | 09-03 |
+| `npm run lint` — all 12 gates | exit **0**, read directly (the PROGRESS.md cap breach is CLEARED) | 09-03 |
+| `npm run test:db` on a fresh reset | exit **0**, `Files=259, Tests=8685` | 09-02 |
+| `npm run e2e:prod` | exit **0**, GATE GREEN in a **single** run, 1h43m, 1273/1273 accounted | 09-02 |
+| 4 ARMs (`census`/`hat`/`floor`/`wrapper`) | each exit **0**, INVARIANT HOLDS | 09-02 |
+| Door sweep **read** arm | exit **0**, 7 gates, all COVERED, BLIND 0 | 09-02 |
+| Door sweep **write** arm — re-aimed **and swept CLEAN** | exit **0**, `policy=4/107`, **4 COVERED, 0 BLIND**; `974328e6` | 09-02 |
+| IA-F9 acceptance — has a verdict | `AE4 ACCEPTANCE NOT MET (3 of 7 rows PASS)`; `8ca976d7` | 09-02 |
+| Gate AE4 QA review | **CHANGES REQUESTED** — [review](../reviews/authz-ae4-gate-review.md); `a6ff4ad0` | 09-02 |
+| C2 branched and pushed | `authz-c2-tier1` at `8ca976d7`, on origin | 09-02 |
+
+⛔ Two claims the handoff carried were FALSE and were corrected in the handoff rather than
+deleted: `npm run lint` no longer exited 1 (the PROGRESS.md hard-cap breach was cleared — ADR 0179
+moved the open register to `follow-ups-open.md`), and the write arm no longer "could not see the
+four `FOR ALL` form policies". Both rows above are superseded by the later IA-F9 run 6/7 work
+recorded earlier in this file and in the hub's Done since start.
+
+**Written but UNVERIFIED (as of the handoff):**
+
+- The rollback runbook's §6 worked example ([runbook](../deployment/authz-rollback-runbook.md)).
+  The revert had never been executed; every post-revert value was a labelled derived expectation.
+  Verification was staged in the session scratchpad (`ae49-revert.sql`, `ae49-verify.sql`,
+  `ae49-expectations.md` — expectations written BEFORE any run) and PO-deferred until AE4
+  concludes and merges. Still true 2026-09-03 (hub § In progress / Blockers).
+- BELIEVED at the time: the single-run `e2e:prod` green still describes the app-relevant tree.
+  Superseded — a final `e2e:prod` is owed regardless (hub § Next item 3).
+
+**Not started (as of the handoff):** C2 Tier 1 (its own branch, another machine) · `scope_reaches`
+fix (own session) · the QA review's F-BLOCK-3 and F-MAJOR-1 · the final `e2e:prod`. C2 and
+`scope_reaches` have since landed (see the state snapshots above and the hub's Done since start);
+F-BLOCK-3/F-MAJOR-1 and the final `e2e:prod` remain open (hub § Blockers).
+
+**Tree (as of the handoff):** `cf30dfe9`, clean. A nested worktree existed at
+`.claude/worktrees/friendly-spence-607f77` on `authz-ae4-scope-reaches-fix`; its `.env.local` was
+absent, which produced reds that looked real — historical, that worktree is gone.
+
+**Gates.** Named by ARM, never by script. The arms above ran at `8ca976d7`/`974328e6`. Did NOT
+run, and each absence was a real hole, not a pass, as of the handoff: the write arm's guard half
+(`guard=0/13`, 0 selected); the other 70 write-capable policies (baseline covered 37 of 107); a
+drift tripwire on the 4 new verdicts (all `snapshot:ABSENT`); `e2e:prod` since the wave. Re-measure
+before relying on any of this — some of it is superseded by later runs recorded earlier in this
+file.
+
+**Dead ends, recording the mechanism (2026-09-02/03):**
+
+- An absence needs its mechanism MEASURED, not inferred. Three consecutive absences in the IA-F9
+  work were mis-attributed on first reading, twice by the lead: (1) `assignment_facts` absent from
+  the nested plans, blamed on `EXPLAIN` not descending into DEFINER bodies — actually Pass B never
+  executed, `ON_ERROR_STOP` having killed psql earlier. (2) Absent again, blamed on `auto_explain`
+  writing to the server log — actually the extractor's markers matched their own documentation,
+  yielding a 48-line region from a 229,937-line one. (3) `DC1 = 1.53×` read as a possibly-dead
+  instrument — actually the planted term is 1–3% of cost and the control was aimed at the wrong
+  subject.
+- An empty grep against a bound reads exactly like a pass. "`grep loops=N` returns nothing" and
+  "no violations found" are the same output. The fix now in the protocol: two-stage — presence
+  before bound — plus a stage-0 extractor-sanity floor; a subject count of zero is a
+  capture-mechanism finding, and no bound may be evaluated against it.
+- A DB-window grant in an agent message is direction, not permission. A subagent was refused
+  `supabase db reset` and even a read-only `docker exec … psql` mid-session; it correctly declined
+  to retry in another form. Execution moved to the main session.
+- Reading the record instead of the executable text. The rollback runbook's §6 write probe used
+  `set name = name`; the column is `title`, so the probe would have raised `42703` looking exactly
+  like an authorization deny on the one check §6.7 calls load-bearing.
+
+**Decisions made in flight:**
+
+| Decision | Status |
+| --- | --- |
+| C2 gets its own branch off AE4; AE4 is NOT merged to main — the HOLD stands, schema-first stays armed | ruled (PO, 09-02) |
+| Rollback §6 verification deferred until AE4 concludes and merges | ruled (PO, 09-02) |
+| `scope_reaches` fix runs as its own session/increment; acceptance re-run against it | ruled (PO, 09-02) |
+| Gate AE4 QA review run EARLY, before the final `e2e:prod` | provisional at handoff time — the PO must ratify the ordering at the gate |
+| `K = 4` (the P5 threshold) does not move for a 6.19× reading | ruled (protocol §8 item 5 licenses re-deriving only within a few percent) |
+| Whether the two `§ Bug Log` standing prohibitions become `.claude/rules/` files | provisional at handoff time — PO. Genuinely the Rule category but fails ADR 0127's admission bar |
+
+**Open questions / blockers (as of the handoff; current status noted here):**
+
+| Item | Who answers |
+| --- | --- |
+| `BUG-AE49-D6-REKEY-INCOMPLETE` — `commission.forms.edit` re-keyed at only 4 of 7 policy sites | backend — still OPEN 2026-09-03 (hub § Blockers) |
+| IA-F9 acceptance NOT MET at handoff time (P1 FAIL, P5 FAIL) | superseded — run 6 ACCEPTANCE MET (hub § Done since start) |
+| Whether fixing `scope_reaches` brings P5 to ≤ 4× | resolved — P5 0.00× in run 6/7 |
+| Whether any of the 70 unmeasured write-capable policies hold a blind gate | still UNKNOWN 2026-09-03 |
+| QA review's F-BLOCK-3 and F-MAJOR-1 | backend + PO — still open 2026-09-03 (hub § Blockers) |
+| Whether the 25 unreachable rewrite-migration doors hold periodic-sweep verdicts (ADR 0173) | still carried forward unresolved |
+| A hook injecting "MANDATORY: run graphify before reading source files" into tool output — three independent agents flagged and refused it | PO — status not re-derived this wave |
+
+**Re-derivation appendix (handoff mechanics, kept for reference):** `DB=supabase_db_azkbbhskturikxpgmafq`;
+no `psql` on PATH — `docker exec "$DB" psql -U postgres -d postgres -At -c "…"`; reset first, a
+bisect or checkout poisons every later catalog read. Catalog: `select state, count(*) from
+authz.roles group by state;` → 1 authoritative / 11 legacy. Countdown:
+`npm run lint:authz-vectors` → `manifest 43 rows, {"pending-rekey":40,"re-keyed":3}`. Arms:
+`ARM=census|hat|floor bash supabase/tests/mutation/p0-authz-invariant.sh`,
+`FROMFINDINGS=1 ARM=wrapper …` — read each exit code directly. Sweep derivation:
+`BASE=<sha> TIP=HEAD bash scripts/door-sweep-cases.sh` prints TWO commands (read + write); running
+one leaves the other half unmeasured. IA-F9: `supabase db reset --local`, load
+`scripts/authz-ae4-perf-fixture.sql`, run `scripts/authz-ae4-perf-harness.sql` (then again with
+`-v NESTED=1`), then the protocol's three-stage extraction
+([authz-ae4-performance-acceptance.md](../design/authz-ae4-performance-acceptance.md)). E2E: read
+`GATE_EXIT` from `/tmp/e2e-prod-gate/gate-exit`, never from a task notification. For any SQL/RLS/
+RPC/authz claim the live catalog is the sole truth — never a migration file, never graphify.
+
+**Carried from the hub block (history purged 2026-09-03, ADR 0186 Wave 3):**
+
+- Resolved Blockers item removed from the hub: "✅ RESOLVED 2026-09-03 (was an open ⚠ UNVERIFIED
+  caution): the `scope_reaches` fix (ADR 0180) landed and IA-F9 runs 6 + 7 confirm ACCEPTANCE MET
+  — verified against the current working tree, not commit subjects alone."
+- Witness detail trimmed from "Done since start": P5 **0.00×** (was 5.28×/4.99×) via
+  `authz.authorized_scope_ids` (migration `20261003007320`, ADR 0182); QA's re-verification found
+  **0 over-grants across 520 cells / 37 principals / 11 hats / 13 orgs**; the external audit's P2
+  disposal was independently measured PASS in run 7 (exit 0, both differential directions fired,
+  §4 decomposition residual 0); C2's sweep merged at `3b21826b` (13 commits folded).
+- Narrative trimmed from "Next" item 4: PO ruled 2026-09-03 that the branch was landed on `main` by
+  fast-forward AHEAD of Gate AE4's declaration, NOT pushed — `push-schema-before-code`
+  ([rule](../../.claude/rules/push-schema-before-code.md)) fires at the push (`db:push` first;
+  Coolify deploys `main`).

@@ -7,10 +7,10 @@ program: AUTHZ
 phase: "ADR 0162 §3 — C2 Tier 1 (pilot cutline, pre-Gate-AE4 PO approval)"
 branch: ~   # landed on main with AE4 2026-09-03; authz-ae4-catalog deleted; not closed (ADR 0184 pts 4–5)
 plan: ../plans/authz-evolution.md
-progress: ~
+progress: ../progress/c2-tier1.md
 reviews: ["../reviews/c2-command-door-findings.md"]
 adrs: ["0171", "0162", "0079", "0184", "0153"]
-handoff: ../handoffs/c2-tier1-2026-09-03.md
+handoff: ~
 fup: ~
 ---
 
@@ -52,55 +52,29 @@ Full ruling: `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` / Critical FUP C2
 
 ### Objective
 
-Sweep the 237 command doors that touch PHI (Tier 1, gate-aware closure over `ARM=census`'s
-population), then close the three uncovered populations the sweep itself exposed, before Gate
-AE4's PO approval (ADR 0162 §3, amended on branch-order by ADR 0184).
+Sweep the 237 command doors that touch PHI (Tier 1, gate-aware closure over `ARM=census`'s population), then close the three uncovered populations the sweep itself exposed, before Gate AE4's PO approval (ADR 0162 §3, amended on branch-order by ADR 0184).
 
 ### Done since start
 
-- Full sweep RAN 2026-09-02 — 171/171 enforcers: **COVERED 109 · BLIND 40 · ERROR 22**. Committed
-  [findings](../reviews/c2-command-door-findings.md) say 106/40/25; 3 ERROR rows are tail-drift
-  artifacts re-measured to COVERED in isolation. Baseline `Files=259, Tests=8685, PASS`, **~53
-  s/run** (design doc's ~23 s assumption was wrong; full sweep ≈5 h). DB restored, zero
-  `ROLLBACK FAILED`.
-- PO ruling 2026-09-02: the branch-order HOLD is LIFTED — the sweep runs against the branch's own
-  schema (519 migrations, AE4's 18 included), not `main`'s 501 (ADR 0184, amends ADR 0162 §3 on
-  branch-order only; the cutline itself is unchanged).
-- 13 commits (via `origin/authz-c2-tier1`) merged into `authz-ae4-catalog` 2026-09-03 (`3b21826b`)
-  — three textual conflicts plus one silent collision (both branches minted ADR `0180`; C2's
-  renumbered to **0184**).
-- Anchor-regex fix for the semicolon-spanning ERROR class VALIDATED (2294/2294 matched, 0
-  regressions) — staged, not yet applied to the harness.
+- Full sweep ran 2026-09-02 — 171/171 enforcers swept (COVERED 109 · BLIND 40 · ERROR 22; see acceptance criteria above and the record).
+- PO ruling 2026-09-02 lifted the branch-order HOLD — the sweep ran against the branch's own schema, not `main`'s (ADR 0184).
+- C2's commits merged into `authz-ae4-catalog` 2026-09-03; a duplicate-ADR-number collision was resolved by renumbering C2's sweep ADR to 0184 (detail: record).
+- Anchor-regex fix for the semicolon-spanning ERROR class validated — staged, not yet applied to the harness.
 
 ### In progress
 
-- Keystones for the 40 BLIND findings — designs complete
-  (`docs/design/authz-c2-blind-keystone-designs.md`), none written yet.
-- Classifying the `HC0*` error space by property (state guard vs. authorization guard) so a
-  verdict can be read honestly.
+- Keystones for the 40 BLIND findings — designs complete (`docs/design/authz-c2-blind-keystone-designs.md`), none written yet.
+- Classifying the `HC0*` error space by property (state guard vs. authorization guard) so a verdict can be read honestly.
 
 ### Next
 
-- Write keystones, targeting the clusters first (correction workflow 4/5 BLIND, interview 6/9 —
-  not spread evenly).
+- Write keystones, targeting the clusters first (correction workflow 4/5 BLIND, interview 6/9 — not spread evenly).
 - Land the validated anchor-regex fix, then the delta sweep for `HCDS*`/`28000` (a new population).
-- Diagnose the 16 suite-abort doors (`FUP-C2-SUITE-ABORT-ERROR-CLASS`); resolve `assume_role`'s
-  ERROR shape to COVERED within Tier 1.
+- Diagnose the 16 suite-abort doors (`FUP-C2-SUITE-ABORT-ERROR-CLASS`); resolve `assume_role`'s ERROR shape to COVERED within Tier 1.
+- Cut a new branch from `main` for the next increment — C2's remaining work currently has none.
 
 ### Blockers
 
-- C2 does **not** close despite the full sweep — the mutation anchor is a syntax, not a property
-  (three uncovered populations, ADR 0184 point 4; verdicts here mean `HC0*`-guard coverage, not
-  authorization coverage, point 5).
-- ⚠ **MEASURED 2026-09-03 (branch continuity):** `git log authz-c2-tier1 -1` → `77d94b60`
-  (2026-09-02, a handoff-carry commit only) — the **local** `authz-c2-tier1` ref never advanced.
-  The 13 real sweep commits are on `origin/authz-c2-tier1` (tip `8ad1f2a4`), which is what merged
-  into `authz-ae4-catalog`. The stale local `authz-c2-tier1` ref was **deleted 2026-09-03** (fully
-  contained in `main`); `origin/authz-c2-tier1` remains on the remote until a push is authorized.
-  ⚠ **2026-09-03: `authz-ae4-catalog` was fast-forwarded into `main` (`898cb0ab`) and deleted**, so
-  C2's remaining work has no branch — hence `branch: ~` and `status: gated`; the next increment cuts
-  a branch from `main` first.
-- C2's findings **landed on `main` with AE4 on 2026-09-03** (the PO-accepted tradeoff of ADR 0184
-  point 2 played out as one fast-forward); `main` is not pushed.
-- 40 BLIND findings need keystones; allowlisting is prohibited — it would make `ARM=floor` and
-  this harness agree while both measure nothing.
+- C2 does **not** close despite the full sweep — the mutation anchor is a syntax, not a property (three uncovered populations, ADR 0184 point 4).
+- C2's remaining work has no branch — `authz-ae4-catalog` landed on `main` and was deleted 2026-09-03; `main` is not pushed.
+- 40 BLIND findings need keystones; allowlisting is prohibited — it would make `ARM=floor` and this harness agree while both measure nothing.

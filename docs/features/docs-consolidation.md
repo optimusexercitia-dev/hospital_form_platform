@@ -66,20 +66,25 @@ with gates that red on the live population, in seven waves with five PO checkpoi
   which links it); ledger holds completed rows only; planned hubs forbid a state block;
   legacy-codes moved to `docs/followups/`.
 
+- ADR 0186 accepted 2026-09-03 (PO: "continue"). Wave 3: HUBS arm requires a record with a
+  `## Session log` (dates non-decreasing) for in-progress/gated hubs; HANDOFFS arm requires
+  `branch:` or `expires:` and reds past expiry; the handoff skill is a four-section resume
+  pointer; C2 got its record, AE4's snapshots became log entries, both landed handoffs folded
+  into the records and deleted; AE4 and C2 hub blocks purged to 35 / 32 lines.
+
 ### In progress
 
-- Nothing — paused at the first PO checkpoint.
+- Wave 5 (registers) and Wave 6 (gate hygiene) — neither touches CLAUDE.md.
 
 ### Next
 
-- PO: accept or amend ADR 0186; rule on D3. Then Wave 3 (one summary, one log per unit).
-- Wave 4 needs the PO-approved CLAUDE.md diff; it also deletes the CURRENT.md stub and its
-  `docs/INDEX.md` row, and the progress-contract rule file.
+- Wave 4: the CLAUDE.md diff, presented for explicit approval; it also deletes the CURRENT.md
+  stub, its `docs/INDEX.md` row, and the progress-contract rule file.
 
 ### Blockers
 
-- PO checkpoints, not yet reached: ADR 0186 acceptance (Waves 3–6), D3 (Wave 3), the CLAUDE.md
-  diff (Wave 4), gate 9's proposed-ADR review due 2026-09-24 (Wave 6.5).
+- The Wave 4 diff needs the PO's explicit approval (CLAUDE.md §5); gate 9's proposed-ADR review
+  is due 2026-09-24 (Wave 6.5).
 - CLAUDE.md holds two citations of retired sections, three CURRENT.md links and a §7 sentence
   naming "the generated feature roll-up" — all only the Wave 4 diff may change; the RETIRED arm
   excludes CLAUDE.md until then by a named constant.

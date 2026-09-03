@@ -18,7 +18,7 @@
 
 - **Missing numbers:** 0034, 0077 — a gap is not automatically a defect (0077 was withdrawn by the PO and its subject re-filed as 0078; 0034 was never used), but a gap nobody can explain usually means a lost file.
 - **No parseable `Status:`:** none
-- **Still proposed / draft / deferred (9):** 0022, 0031, 0033, 0058, 0094, 0108, 0115, 0160, 0186 — an ADR's status is the author's claim on the day it was written, and nothing updates it when the code ships. The last review of this list is stamped in `proposed-review.json`; gate 9 reds when that review is more than 30 days old or this set has drifted from it.
+- **Still proposed / draft / deferred (8):** 0022, 0031, 0033, 0058, 0094, 0108, 0115, 0160 — an ADR's status is the author's claim on the day it was written, and nothing updates it when the code ships. The last review of this list is stamped in `proposed-review.json`; gate 9 reds when that review is more than 30 days old or this set has drifted from it.
 
 ## Index
 
@@ -207,4 +207,4 @@
 | 0183 | [Acceptance condition P2 counts INVOCATIONS against a bound, not `loops` values](0183-p2-invocation-count-respecification.md) | accepted | 2026-09-03 | amends 0182 | – |
 | 0184 | [C2's full sweep runs against the current branch's schema, not against `main`](0184-c2-sweep-runs-against-the-current-branch-schema.md) | accepted | 2026-09-02 | amends 0162 | – |
 | 0185 | [Documentation restructure: feature hubs, CURRENT.md, and gated registers for bugs, foll…](0185-documentation-restructure-feature-hubs-and-gated-registers.md) | accepted | 2026-09-03 | amends 0124, 0139, 0140, 0179 | ⚠ amended by 0186 |
-| 0186 | [Documentation consolidation: one home per fact, one summary and one log per unit](0186-documentation-consolidation-one-home-per-fact.md) | ⚠ proposed | 2026-09-03 | amends 0179, 0185 | – |
+| 0186 | [Documentation consolidation: one home per fact, one summary and one log per unit](0186-documentation-consolidation-one-home-per-fact.md) | accepted | 2026-09-03 | amends 0179, 0185 | – |

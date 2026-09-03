@@ -117,12 +117,20 @@
     **ADR 0185** documentation registers: feature hubs (`docs/features/`, the only projection of
     hub frontmatter since ADR 0186 D1), `BUGS.md`, `LESSONS.md`, postmortems, the follow-up
     register's **fields**, the handoff convention (24 KB ·
-    live branch · no inbound citations) and `docs/INDEX.md`'s coverage of `docs/`. Added because
+    `branch:` or `expires:` · no inbound citations) and `docs/INDEX.md`'s coverage of `docs/`.
+    Added because
     **every register in this tree that lacked a gate rotted** (ADR 0124 / 0127 / 0140 / 0179 each
     record one), and 0185 adds five. Its admission rule is the gate's reason to exist: no register
     or field ships without a check that can red on it; a claim no gate reads is labeled
     `prose only` where it stands. Self-tests every checker against a bad AND a good fixture on
     every run — a checker that cannot red aborts (exit 2).
+    ⚠ **ADR 0186 D3 (one summary, one log per unit) widened the HUBS arm**: an `in_progress` or
+    `gated` hub's `progress:` must now resolve to a record carrying a `## Session log` heading
+    whose `### YYYY-MM-DD` subsections are non-decreasing in file order, append-only enforced
+    mechanically rather than asked for. The same decision widened the HANDOFFS arm: frontmatter
+    must carry `branch:` or `expires:` (neither present reds), and a present `expires:` must be an
+    ISO date that is not already in the past, read against the wall clock the way gate 9's
+    proposed-review timer is.
     ⚠ **THE TRAP: this gate checks PRESENCE and RESOLUTION, not truth.** It knows a
     `Closes when` exists, not that it is right; that an `Enforced by:` path exists, not that the
     file asserts the rule it is attached to; that a Current-state block has six sections and a

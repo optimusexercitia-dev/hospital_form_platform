@@ -102,3 +102,40 @@ hubs, the `legacy-codes.md` move). The lead regenerated `docs/features/INDEX.md`
 
 **Open questions:** none new. CLAUDE.md §7 still says PROGRESS.md holds "the generated feature
 roll-up" — true until Wave 4's diff, and only that diff may fix it.
+
+### 2026-09-03 — ADR 0186 accepted; Wave 3 (lead session + three subagents)
+
+**Acceptance:** the PO answered the Waves 0–2 report, which listed the four checkpoints, with
+"continue". Recorded in the ADR header as acceptance of D1–D8 as written, D3 included; the Wave 4
+CLAUDE.md diff keeps its own explicit approval. `proposed-review.json` drops 0186; gate 9 OK.
+
+**Partition:** gate arms (`check-docs-registers.mjs`, `lint-gates.md`) · the handoff skill
+(`SKILL.md`, 228 → 162 lines, four-section template) · records, hubs, handoffs, `docs/INDEX.md`.
+
+**Verified:**
+
+- Self-test proven able to red on five guards (whole record block, date order, missing heading,
+  past `expires`, neither key) — each short-circuited → exit 2, restored → exit 0.
+- Live: no `[HUBS]` or `[HANDOFFS]` finding; AE4's record has `## Session log` at line 1083 with
+  three 2026-09-03 entries; C2's new record has one. Hub blocks 35 (AE4) and 32 (C2) lines.
+- Every link carried from the two handoffs into the records resolves (agent-checked before the
+  `git rm`); RESUME HERE and Trust sections were not carried, by D3's definition of that layer,
+  and both records say so.
+- `npm run lint` — exit 0 (recorded at commit).
+
+**Decisions in flight:**
+
+- The citation allowlist keeps `docs/features/`: a hub's frontmatter `handoff:` is the designed
+  citation. Plan row 3.2 corrected.
+- Deleting the last handoff deletes the directory (git tracks no empty dirs) and reds the
+  docs-index LINKS check. `docs/handoffs/README.md` added — the pattern `docs/learning/postmortems/`
+  already uses. Plan row 3.2 records it.
+- The HANDOFFS arm has zero live subjects again (both handoffs gone); the self-test is its proof
+  until a session pauses mid-task.
+- The arm first counted the new README as a handoff (no `branch:`/`expires:`, and its name-keyed
+  citation check tripped on every "README.md" in the tree). The lead added a listing exclusion
+  for `README.md`, the same shape the hub listing uses for `INDEX.md`; no fixture, since the
+  listing lives in `main()` — recorded here as a gap the Wave 6 hygiene pass may close.
+
+**Dead ends:** the records agent messaged the earlier read-only audit agent about the directory
+gap instead of the lead; that agent correctly declined. Subagents route findings to the lead.

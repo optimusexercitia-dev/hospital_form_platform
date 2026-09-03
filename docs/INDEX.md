@@ -36,7 +36,7 @@ describe why we arrived there; **git** describes what changed.
 | [`deployment/`](deployment/) | runbooks and run logs (PHI disposal, backups) | reference |
 | [`design/`](design/) | design notes and audits; `design/temp/` holds historical audits and pre-skill handoffs; `Pictures/` binaries | historical / design |
 | [`features/`](features/INDEX.md) | **feature hubs** — one per unit with its own branch or gate; frontmatter status, links, acceptance criteria, `## Current state`; `INDEX.md` generated. ADR 0185 D1 | tracker |
-| [`handoffs/`](handoffs/) | on-demand session handoffs, one per branch, ≤ 24 KB, deleted at the branch's Record step; written by the `handoff` skill | ephemeral |
+| [`handoffs/`](handoffs/) | resume pointers only — written when a session pauses mid-task, `branch:` or `expires:` mandatory, ≤ 24 KB, deleted on resume or at landing; state lives in the hub, witnesses in the record (ADR 0186 D3) | ephemeral |
 | [`lead-playbook.md`](lead-playbook.md) | lead-only orchestration protocol | process |
 | [`learning/`](learning/LESSONS.md) | `LESSONS.md` (one row per lesson, with its **enforcer**) and `postmortems/` for failures that earn a file. ADR 0185 D7 | knowledge |
 | [`lint-gates.md`](lint-gates.md) | why each `npm run lint` gate exists, and the trap in reading each | reference |

@@ -20,7 +20,10 @@
  *             `parked` carries `Revisit when`; `complete` has a phase-ledger row or an
  *             APPROVED review. When the current git branch IS the hub's branch, `Updated`
  *             may not be older than the newest commit touching src/ supabase/ e2e/ —
- *             "always maintained" is enforced, not asked for (skipped on main).
+ *             "always maintained" is enforced, not asked for (skipped on main). `in_progress` /
+ *             `gated` also needs a `progress:` that resolves, and that record must carry a
+ *             `## Session log` heading whose `### YYYY-MM-DD` subsections are non-decreasing in
+ *             file order (ADR 0186 D3 — append-only, enforced mechanically, not asked for).
  *   CODES     a new BUG-/FUP- id (opened/filed on or after CODE_WATERMARK) uses a code that
  *             is a hub id or a row in legacy-codes.md. ⛔ The watermark grandfathers the
  *             legacy prefixes (72 / 123 distinct); never bump it to pass — that flips the
@@ -40,8 +43,11 @@
  *             each exist (lint:<script> in package.json, ARM=<arm>, a path, a rule file).
  *   POSTMORT  docs/learning/postmortems/LEARN-*.md — nine sections, all non-empty, and a
  *             LESSONS row with the same id.
- *   HANDOFFS  docs/handoffs/*.md — ≤ 24 KB; `branch:` exists; not cited from outside the
- *             allowed set (hubs, CURRENT.md, handoffs, reviews) — the skill's own rule.
+ *   HANDOFFS  docs/handoffs/*.md — ≤ 24 KB; frontmatter carries `branch:` (checked against
+ *             `git branch --list`) OR `expires:` (an ISO date that must not be before today —
+ *             ADR 0186 D3: a unit with a hub carries `branch:`, hubless work `expires:`; neither
+ *             present reds); not cited from outside the allowed set (hubs, CURRENT.md, handoffs,
+ *             reviews) — the skill's own rule.
  *   LINKS     relative links in every file this gate owns resolve.
  *   INDEX     docs/INDEX.md names every top-level entry of docs/ — a new directory cannot
  *             go unmapped.
@@ -231,6 +237,31 @@ export function parseEntries(text) {
   return out
 }
 
+/**
+ * The `### YYYY-MM-DD` dates under a `## Session log` heading (ADR 0186 D3), in file order,
+ * stopping at the next `## ` heading or EOF — or `null` when the heading itself is absent, so a
+ * caller can tell "no log" from "log with zero dated sessions yet".
+ */
+export function sessionLogEntries(text) {
+  const lines = text.split('\n')
+  const start = lines.findIndex((l) => /^## Session log\b/.test(l))
+  if (start === -1) return null
+  const out = []
+  for (let i = start + 1; i < lines.length; i++) {
+    if (/^## /.test(lines[i])) break
+    const m = lines[i].match(/^### (\d{4}-\d{2}-\d{2})\b/)
+    if (m) out.push({ date: m[1], line: i + 1 })
+  }
+  return out
+}
+
+/** A YAML timestamp scalar (js-yaml auto-boxes a bare `YYYY-MM-DD` into a `Date`) or a plain
+ *  string, normalized to `YYYY-MM-DD` — or `null` for anything else (an object, a number, …). */
+export function isoDateOf(v) {
+  if (v instanceof Date) return v.toISOString().slice(0, 10)
+  return typeof v === 'string' ? v : null
+}
+
 export function relLinks(text) {
   const out = []
   const rx = /\]\(([^)\s]+)\)/g
@@ -275,6 +306,32 @@ export function checkHub(hub, ctx) {
   if (fm.status === 'in_progress') {
     if (!fm.branch) at('status in_progress requires a `branch:`')
     else if (!ctx.branches.includes(fm.branch)) at(`branch \`${fm.branch}\` does not exist`)
+  }
+  // ADR 0186 D3: an in_progress/gated hub's record carries the session-by-session log; the
+  // summary (this file) is replaced every session, so history that matters (what was verified,
+  // its witness, gate exit codes) has exactly one home — the record — and this is its gate.
+  if (fm.status === 'in_progress' || fm.status === 'gated') {
+    if (!fm.progress) {
+      at('status in_progress/gated requires a `progress:` that resolves')
+    } else {
+      const recordRel = join(PATHS.featuresDir, fm.progress)
+      if (ctx.exists(recordRel)) {
+        const entries = sessionLogEntries(ctx.readRel(recordRel) || '')
+        if (entries === null) {
+          at(`in_progress/gated hub's progress record \`${fm.progress}\` has no "## Session log"`)
+        } else {
+          for (let i = 1; i < entries.length; i++) {
+            if (entries[i].date < entries[i - 1].date) {
+              at(
+                `progress record \`${fm.progress}\` Session log date out of order at line ${entries[i].line}: ` +
+                  `\`### ${entries[i].date}\` follows \`### ${entries[i - 1].date}\` (append-only — dates must be non-decreasing)`,
+              )
+            }
+          }
+        }
+      }
+      // else: already reported above by the generic `plan`/`progress`/`handoff` resolve loop.
+    }
   }
   if (fm.status === 'parked' && !/\*\*Revisit when:\*\*\s*\S/.test(hub.body)) at('status parked requires a `**Revisit when:**` line')
   if (fm.status === 'complete') {
@@ -581,12 +638,28 @@ export function checkPostmortems(files, lessonIds) {
   return F
 }
 
-export function checkHandoffs(files, branches, citations) {
+/**
+ * `today` is the wall-clock date as `YYYY-MM-DD` — same pattern as gate 9's proposed-review
+ * timer (`build-adr-index.mjs` `checkProposedReview`, `new Date().toISOString().slice(0, 10)`
+ * computed once at the call site). Passed in rather than read here so the self-test can fix it
+ * instead of the result depending on the day the suite happens to run.
+ */
+export function checkHandoffs(files, branches, citations, today) {
   const F = []
   for (const f of files) {
     const at = (msg) => F.push(`[HANDOFFS] ${PATHS.handoffsDir}/${f.name} — ${msg}`)
     if (f.bytes > HANDOFF_MAX_BYTES) at(`${f.bytes} bytes exceeds the ${HANDOFF_MAX_BYTES}-byte cap (compress by CUTTING, never by dropping qualifiers)`)
-    if (f.fm && f.fm.branch && !branches.includes(String(f.fm.branch))) at(`branch \`${f.fm.branch}\` no longer exists — stale handoff, delete or promote`)
+    const branch = f.fm && f.fm.branch ? String(f.fm.branch) : null
+    const expiresRaw = f.fm ? f.fm.expires : null
+    const expires = expiresRaw != null ? isoDateOf(expiresRaw) : null
+    // ADR 0186 D3: a unit with a hub carries `branch:`; hubless work carries `expires:` instead.
+    // Neither present is a stale/malformed handoff — it has no way to ever be judged stale.
+    if (!branch && expiresRaw == null) at('frontmatter carries neither `branch:` nor `expires:` — one is required (ADR 0186 D3)')
+    if (branch && !branches.includes(branch)) at(`branch \`${f.fm.branch}\` no longer exists — stale handoff, delete or promote`)
+    if (expiresRaw != null) {
+      if (expires === null || !DATE_RX.test(expires)) at(`expires \`${expiresRaw}\` is not an ISO date (YYYY-MM-DD)`)
+      else if (expires < today) at(`expires ${expires} is in the past — stale handoff, delete or promote`)
+    }
     for (const c of citations.filter((x) => x.handoff === f.name)) {
       if (!HANDOFF_CITATION_ALLOWED.some((p) => c.file.startsWith(p))) at(`cited from ${c.file}:${c.line} — a handoff may not be cited; promote the claim into a durable record`)
     }
@@ -728,7 +801,9 @@ function selfTest() {
   const okCtx = {
     exists: () => true,
     globExists: () => true,
-    readRel: () => '## Root cause\nx\n## Regression protection\ny\nAPPROVED',
+    // Carries a compliant `## Session log` (one dated entry) ahead of the BUGS-doc sections below
+    // it, so a hub fixture's progress record and a bug fixture's linked doc can share one context.
+    readRel: () => '## Session log\n\n### 2026-09-01 — s1\n\nbody\n\n## Root cause\nx\n## Regression protection\ny\nAPPROVED',
     adrExists: () => true,
     fupExists: () => true,
     bugIds: new Set(['BUG-X-ONE']),
@@ -743,7 +818,7 @@ function selfTest() {
   const goodBlock = '\n## Current state\n\n**Updated:** 2026-09-02\n\n### Objective\na\n### Done since start\nb\n### In progress\nc\n### Next\nd\n### Blockers\ne\n'
   const goodHub = {
     file: 'docs/features/x1.md',
-    fm: { id: 'X1', title: 't', status: 'in_progress', kind: 'feature', program: 'X', branch: 'feat-a', plan: null, progress: null, reviews: [], adrs: ['0001'], handoff: null },
+    fm: { id: 'X1', title: 't', status: 'in_progress', kind: 'feature', program: 'X', branch: 'feat-a', plan: null, progress: '../progress/x1.md', reviews: [], adrs: ['0001'], handoff: null },
     body: '# X1\n' + goodBlock,
     error: null,
   }
@@ -767,6 +842,26 @@ function selfTest() {
   must('HUBS parked w/o revisit', checkHub({ ...goodHub, fm: { ...goodHub.fm, status: 'parked' } }, okCtx), true)
   must('HUBS parked ok', checkHub({ ...goodHub, fm: { ...goodHub.fm, status: 'parked' }, body: goodHub.body + '\n**Revisit when:** later\n' }, okCtx), false)
   must('HUBS bad adr', checkHub(goodHub, { ...okCtx, adrExists: () => false }), true)
+  // ADR 0186 D3: in_progress/gated needs `progress:` resolving to a record with `## Session log`
+  // whose dated subsections are non-decreasing.
+  must('HUBS gated missing progress', checkHub({ ...goodHub, fm: { ...goodHub.fm, status: 'gated', progress: null } }, okCtx), true)
+  must('HUBS in_progress missing progress', checkHub({ ...goodHub, fm: { ...goodHub.fm, progress: null } }, okCtx), true)
+  must('HUBS progress record has no Session log', checkHub({ ...goodHub, fm: { ...goodHub.fm, status: 'gated' } }, { ...okCtx, readRel: () => '## Some other heading\ntext\n' }), true)
+  must(
+    'HUBS progress record dates out of order',
+    checkHub({ ...goodHub, fm: { ...goodHub.fm, status: 'gated' } }, { ...okCtx, readRel: () => '## Session log\n\n### 2026-09-05 — a\n\nx\n\n### 2026-09-01 — b\n\ny\n' }),
+    true,
+  )
+  must(
+    'HUBS progress record dates non-decreasing ok',
+    checkHub({ ...goodHub, fm: { ...goodHub.fm, status: 'gated' } }, { ...okCtx, readRel: () => '## Session log\n\n### 2026-09-01 — a\n\nx\n\n### 2026-09-05 — b\n\ny\n' }),
+    false,
+  )
+  must('sessionLogEntries no heading', [sessionLogEntries('# X\nno log here\n') === null ? '' : 'x'].filter(Boolean), false)
+  must('sessionLogEntries stops at next ## heading', [sessionLogEntries('## Session log\n### 2026-09-01 — a\n## Other\n### 2020-01-01 — b\n').length === 1 ? '' : 'x'].filter(Boolean), false)
+  must('isoDateOf Date', [isoDateOf(new Date('2026-09-17T00:00:00.000Z')) === '2026-09-17' ? '' : 'x'].filter(Boolean), false)
+  must('isoDateOf string', [isoDateOf('2026-09-17') === '2026-09-17' ? '' : 'x'].filter(Boolean), false)
+  must('isoDateOf other', [isoDateOf(42) === null ? '' : 'x'].filter(Boolean), false)
   must('HUBS unparsed', checkHub({ file: 'docs/features/x1.md', fm: null, body: '', error: 'frontmatter does not parse' }, okCtx), true)
 
   const reg = new Set(['AE4', 'DM5'])
@@ -854,11 +949,23 @@ function selfTest() {
   must('POSTMORT no row', checkPostmortems([{ name: 'LEARN-001-x.md', text: pm }], new Set()), true)
   must('POSTMORT bad name', checkPostmortems([{ name: 'storage-incident.md', text: pm }], new Set(['LEARN-001'])), true)
 
+  const HO_TODAY = '2026-09-10'
   const ho = { name: 'a.md', bytes: 100, fm: { branch: 'feat-a' } }
-  must('HANDOFFS good', checkHandoffs([ho], ['feat-a'], [{ handoff: 'a.md', file: 'docs/features/x.md', line: 1 }]), false)
-  must('HANDOFFS too big', checkHandoffs([{ ...ho, bytes: HANDOFF_MAX_BYTES + 1 }], ['feat-a'], []), true)
-  must('HANDOFFS branch gone', checkHandoffs([ho], ['main'], []), true)
-  must('HANDOFFS cited', checkHandoffs([ho], ['feat-a'], [{ handoff: 'a.md', file: 'docs/progress/x.md', line: 3 }]), true)
+  must('HANDOFFS good', checkHandoffs([ho], ['feat-a'], [{ handoff: 'a.md', file: 'docs/features/x.md', line: 1 }], HO_TODAY), false)
+  must('HANDOFFS too big', checkHandoffs([{ ...ho, bytes: HANDOFF_MAX_BYTES + 1 }], ['feat-a'], [], HO_TODAY), true)
+  must('HANDOFFS branch gone', checkHandoffs([ho], ['main'], [], HO_TODAY), true)
+  must('HANDOFFS cited', checkHandoffs([ho], ['feat-a'], [{ handoff: 'a.md', file: 'docs/progress/x.md', line: 3 }], HO_TODAY), true)
+  // ADR 0186 D3: branch OR expires is mandatory; expires must be an ISO date, not already past.
+  must('HANDOFFS neither branch nor expires', checkHandoffs([{ name: 'b.md', bytes: 100, fm: {} }], ['feat-a'], [], HO_TODAY), true)
+  must('HANDOFFS no frontmatter at all', checkHandoffs([{ name: 'b.md', bytes: 100, fm: null }], ['feat-a'], [], HO_TODAY), true)
+  must('HANDOFFS expires in the past', checkHandoffs([{ name: 'b.md', bytes: 100, fm: { expires: '2026-01-01' } }], ['feat-a'], [], HO_TODAY), true)
+  must('HANDOFFS expires today is not past', checkHandoffs([{ name: 'b.md', bytes: 100, fm: { expires: HO_TODAY } }], ['feat-a'], [], HO_TODAY), false)
+  must('HANDOFFS expires in the future ok', checkHandoffs([{ name: 'b.md', bytes: 100, fm: { expires: '2026-12-31' } }], ['feat-a'], [], HO_TODAY), false)
+  must('HANDOFFS expires malformed string', checkHandoffs([{ name: 'b.md', bytes: 100, fm: { expires: 'soon' } }], ['feat-a'], [], HO_TODAY), true)
+  // js-yaml auto-boxes a bare `expires: 2026-12-31` scalar into a Date — must be honored, not
+  // misread as malformed just because it isn't a plain string at parse time.
+  must('HANDOFFS expires as YAML Date object, future, ok', checkHandoffs([{ name: 'b.md', bytes: 100, fm: { expires: new Date('2026-12-31T00:00:00.000Z') } }], ['feat-a'], [], HO_TODAY), false)
+  must('HANDOFFS expires as YAML Date object, past, reds', checkHandoffs([{ name: 'b.md', bytes: 100, fm: { expires: new Date('2026-01-01T00:00:00.000Z') } }], ['feat-a'], [], HO_TODAY), true)
 
   must('LINKS good', checkLinks('docs/x.md', '[a](../README.md)', () => true), false)
   must('LINKS bad', checkLinks('docs/x.md', '[a](nope.md)', () => false), true)
@@ -920,6 +1027,8 @@ function main() {
   const hubs = listHubs()
   if (!hubs.length) F.push(`[HUBS] ${PATHS.featuresDir} — no hubs found; ADR 0185 D1 requires one per unit in flight`)
   for (const h of hubs) F.push(...checkHub(h, ctx))
+  // Distinct progress records a hub's `progress:` resolves to (ADR 0186 D3 subject count).
+  const recordsChecked = new Set(hubs.filter((h) => h.fm?.progress && ctx.exists(join(PATHS.featuresDir, h.fm.progress))).map((h) => join(PATHS.featuresDir, h.fm.progress))).size
   const ids = hubs.filter((h) => h.fm?.id).map((h) => String(h.fm.id))
   const dup = ids.filter((id, i) => ids.indexOf(id) !== i)
   for (const d of new Set(dup)) F.push(`[HUBS] duplicate hub id ${d}`)
@@ -962,7 +1071,9 @@ function main() {
   // HANDOFFS
   const hoFiles = existsSync(join(ROOT, PATHS.handoffsDir))
     ? readdirSync(join(ROOT, PATHS.handoffsDir))
-        .filter((f) => f.endsWith('.md'))
+        // README.md is the directory's placeholder (keeps it in git when empty — ADR 0186 Wave 3),
+        // not a handoff: it carries no branch/expires and its name appears in every README mention.
+        .filter((f) => f.endsWith('.md') && f !== 'README.md')
         .map((f) => {
           const rel = `${PATHS.handoffsDir}/${f}`
           return { name: f, bytes: statSync(join(ROOT, rel)).size, fm: parseFrontmatter(read(rel)).fm }
@@ -979,7 +1090,8 @@ function main() {
       })
     }
   }
-  F.push(...checkHandoffs(hoFiles, ctx.branches, citations))
+  const todayIso = new Date().toISOString().slice(0, 10) // wall clock, like gate 9's proposed-review timer
+  F.push(...checkHandoffs(hoFiles, ctx.branches, citations, todayIso))
 
   // LINKS over every file this gate owns
   const owned = [PATHS.docsIndex, PATHS.bugs, PATHS.lessons, PATHS.legacyCodes, `${PATHS.postmortemsDir}/README.md`, `${PATHS.bugsDir}/README.md`]
@@ -1010,7 +1122,7 @@ function main() {
     process.exit(1)
   }
   console.log(
-    `check-docs-registers: OK (self-test + ${hubs.length} hubs, ${ctx.bugsTable?.rows.length ?? 0} bugs, ${ctx.bugDocFiles.length} bug docs, ${fupCount} follow-ups, ${les.ids.size} lessons, ${hoFiles.length} handoffs, ${retiredFiles.length} md files scanned for retired citations)`,
+    `check-docs-registers: OK (self-test + ${hubs.length} hubs, ${recordsChecked} records, ${ctx.bugsTable?.rows.length ?? 0} bugs, ${ctx.bugDocFiles.length} bug docs, ${fupCount} follow-ups, ${les.ids.size} lessons, ${hoFiles.length} handoffs, ${retiredFiles.length} md files scanned for retired citations)`,
   )
 }
 

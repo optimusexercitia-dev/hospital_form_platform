@@ -1,7 +1,7 @@
 # ADR 0186 — Documentation consolidation: one home per fact, one summary and one log per unit
 
-**Status:** proposed
-**Date:** 2026-09-03
+**Status:** accepted
+**Date:** 2026-09-03 (accepted the same day — the PO's instruction "continue" after Waves 0–2 were presented with the checkpoint list; D1–D8 as written, D3 included. The Wave 4 CLAUDE.md diff still needs its own explicit approval, CLAUDE.md §5.)
 **Area:** documentation / tracking apparatus
 **Amends:** ADR 0185, ADR 0179
 **Related:** ADR 0127 (rules admission), ADR 0124 (the PROGRESS.md contract 0185 D6 rewrote), ADR 0079 (a gate record names the arm, never the script — the proof column below follows it)
