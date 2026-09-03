@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 # AE4.5 differential-oracle cell generator.
 #
-#   python scripts/gen-authz-differential-cells.py            # regenerate the .psql
-#   python scripts/gen-authz-differential-cells.py --check    # verify, exit 1 on drift (gate 12)
-#   python scripts/gen-authz-differential-cells.py --self-test # prove every coverage arm fires
+#   python3 scripts/gen-authz-differential-cells.py            # regenerate the .psql
+#   python3 scripts/gen-authz-differential-cells.py --check    # verify, exit 1 on drift (gate 12)
+#   python3 scripts/gen-authz-differential-cells.py --self-test # prove every coverage arm fires
 #
 # ⛔ THE AXES COME FROM THE JSON, NOT FROM THIS FILE. An earlier revision hard-coded every axis
 # list here while sha-stamping a JSON it never read, so `principalState: offboarded` — a value the

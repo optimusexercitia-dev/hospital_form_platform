@@ -259,7 +259,10 @@ its own recorded verdict.
 
 ## 10. What this does NOT do
 
-- It does **not** sweep anything. No door has a recorded verdict as a result of this work.
+- ~~It does not sweep anything.~~ ✅ **The sweep RAN 2026-09-02 — 171/171: COVERED 109 · BLIND 40 ·
+  ERROR 22** ([findings](../reviews/c2-command-door-findings.md)). ⛔ It still does **not close C2**:
+  the harness anchor excludes the `HCDS*`/`28000` families and conflates state guards with authz
+  ones → `FUP-C2-NEUTRALIZER-ANCHOR-BLIND-TO-HCDS-AND-28000`, ADR 0184 points 4–5.
 - It does **not** close C2, either tier, and it does not close either absorbed item.
 - `assume_role` remains **ERROR-shaped, not COVERED**, and must be resolved *within* Tier 1.
 - The 3-door neutralization sample still closes nothing.
