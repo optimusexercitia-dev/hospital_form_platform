@@ -21,6 +21,11 @@ never execute this protocol. See CLAUDE.md §4 (Agent Team), §6 (Phase Gate), �
   teammate is genuinely done). The **lead** runs cleanup, never a teammate. Spinning the
   team down each phase only to rebuild it throws away context you then pay to re-inject.
 
+**The delegation floor, measured.** 2026-08-24: a session that skipped CLAUDE.md §4's floor
+(spawn Explore before reading more than ~3 files to answer one question) climbed 79k → 489k
+tokens by accumulation of small reads and loop chatter, with no single big read. The floor is
+cheap; the alternative is not.
+
 ## 2. Sequencing & task breakdown
 
 - **Contract-first.** At phase start, have `backend` post the typed query/action

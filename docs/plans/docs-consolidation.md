@@ -2,8 +2,8 @@
 
 - **Written:** 2026-09-03, from the read-only audit of the ADR 0185 restructure (audit findings
   are summarized in § 1; the measurements were taken at commit `8e0ecd1a`).
-- **Status:** IN PROGRESS since 2026-09-03 on branch `docs-consolidation`. Live state is the
-  hub, `docs/features/docs-consolidation.md`, never this file.
+- **Status:** COMPLETE 2026-09-03 — review APPROVED (`docs/reviews/docs-consolidation-review.md`);
+  the record is `docs/progress/docs-consolidation.md`. Merge into `main` is the PO's.
 - **Decision record:** ADR [0186](../decisions/0186-documentation-consolidation-one-home-per-fact.md)
   (proposed; numbered by CLAUDE.md §8's rule, highest on any live branch + 1). It **amends**
   ADR 0185 D2 (CURRENT.md, handoffs, record timing), D5 (register shape), D6 (roll-up, contract
@@ -48,8 +48,9 @@ the `PO to rule` lists stay the PO's; this plan only stops them growing.
       entries outside the parked status — all **gated**.
 - [ ] `PO to rule` and `per emoji at consolidation` counts cannot increase — **ratcheted**.
 - [ ] The two link checkers and the two resolved-heading regexes are one each.
-- [ ] A status change for one unit touches ≤ 3 hand-written files (hub; PROGRESS.md row only if
-      the unit is a phase; ledger only at completion).
+- [ ] A status change for one unit touches ≤ 3 hand-written files (the hub block; the record's
+      session-log entry; a PROGRESS.md row only if the unit is a phase, the ledger only at
+      completion — review F-4 named the record).
 - [ ] Read-only review, `docs/reviews/docs-consolidation-review.md`, answers: does every cut
       leave one canonical home, and can every new check red on a live subject.
 
@@ -193,7 +194,7 @@ Preconditions: Waves 1–3 merged. The lead writes the diff; the PO approves it 
 | §1 `case_patient` callout; hospital_admin / AFF / AFF2 lore; BUG-AUTHZ-001 noun-rule detail; PHI paragraph to 3 lines | −30 | ARCHITECTURE.md §2 / Rule 12; `docs/backend-state.md`; ADR 0133 |
 | §2 tree-comment histories | −8 | git |
 | §3 inline ⚠ lore under Rules 2, 12, 13 | −10 | ARCHITECTURE.md |
-| §4 the 79k→489k anecdote | −2 | LESSONS.md row |
+| §4 the 79k→489k anecdote | −2 | lead-playbook §1 (a LESSONS row would raise the prose-only ratchet — review F-1) |
 | §5 the pilot-gate rotation note; the authz-handoff blockquote → one line to LESSONS.md | −14 | LESSONS.md; backend/qa agent files |
 | §6 step 1 → 3 lines (the gate names + "recipe: lead-playbook §4"); step 5 → "lead-playbook §§4–5" | −38 | lead-playbook |
 | §7 → 6 lines: state → hub; registers → `docs/INDEX.md`; gates 7/13. Delete "must survive any trim", the review-cadence paragraph, the "presence not truth" note | −30 | `docs/INDEX.md`; lead-playbook |

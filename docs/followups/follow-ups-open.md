@@ -18,7 +18,9 @@ is what this file is for (ADR [0179](../decisions/0179-follow-up-register-consol
 _**PO-curated. Entries land here ONLY on the PO's explicit instruction.** No implementer, reviewer or
 lead may promote an item into this section, and nothing arrives here as a side effect of a review
 round. It is the short list of follow-ups whose loss would be materially costly, **pinned at the top
-of the register precisely so that the register's length cannot bury them**._
+of the register precisely so that the register's length cannot bury them**._ The pre-pilot
+rulings behind these rows — the two 🔴 pilot-gate checks CLAUDE.md §5 once pointed at — are in
+[dm5-po-decisions.md](../progress/dm5-po-decisions.md) § Remaining pre-pilot work.
 
 ⛔ **NEVER ROTATE THIS SECTION.** It lived in PROGRESS.md as that file's only protected section (ADR
 [0179](../decisions/0179-follow-up-register-consolidation.md)) until ADR

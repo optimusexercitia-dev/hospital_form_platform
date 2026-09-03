@@ -44,8 +44,9 @@ phase against these documents.
    evaluators agree. **A policy-shaped audit is structurally blind to
    `SECURITY DEFINER` gates** — a DEFINER's gate *replaces* RLS, so check
    `prosecdef` beside `pg_policies` for every door the phase touched. Before
-   this item, read `docs/progress/authz-handoff.md` §7 (keystone vacuity,
-   "text is not truth") — it is your audit method, not background.
+   this item, read the lessons register `docs/learning/LESSONS.md` (keystone vacuity,
+   "text is not truth"; long form `docs/progress/authz-handoff.md` §7) — it is your audit
+   method, not background.
 3. **Code quality**: TypeScript `strict` respected (`any` justified inline);
    data access flows through `src/lib/queries/` with the canonical filters;
    Server Components by default; file ownership boundaries respected.

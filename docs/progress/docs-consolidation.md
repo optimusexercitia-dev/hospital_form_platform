@@ -220,3 +220,56 @@ chain green at commit.
 **Decisions in flight:** the cut table in the diff page names each removed block's home; two
 blocks were compressed rather than moved (forms/responses concepts, the modules list) because a
 teammate needs the concept, not the schema detail ARCHITECTURE.md holds.
+
+### 2026-09-03 — Record: review APPROVED; the final Current state, cut from the hub
+
+**Review:** `docs/reviews/docs-consolidation-review.md`, read-only Sonnet reviewer,
+**Verdict: APPROVED**, four non-blocking findings, each addressed in the Record commit:
+
+- F-1 (medium) — the delegation-floor measurement (79k → 489k tokens) had no home after the
+  Wave 4 cut. Home: lead-playbook §1, not a LESSONS row — a new `prose only` row would have
+  raised that ratchet, and the ratchet is the point. The plan's Wave 4 table says so now.
+- F-2 (low) — the pointer to the pre-pilot rulings (`docs/progress/dm5-po-decisions.md`) was
+  orphaned. Home: one sentence in the Critical pin's preamble, whose rows those rulings back.
+- F-3 (low) — two agent files cited the authz handoff §7 directly. They now cite the lessons
+  register first and keep the long-form pointer.
+- F-4 (low) — the "≤ 3 hand-written files" criterion named the hub and the ledger but not the
+  record. Criterion text corrected in the hub and the plan; the count was already right.
+
+The reviewer's own mutation proofs: a 61st Current-state line reds the HUBS arm; raising a
+ratchet's live count reds `[RATCHET]`; both reverted, tree clean. Checks that are fixture-only
+today (no live subject): the HANDOFFS `expires` and branch checks (zero handoffs), the CODES
+watermark (starts 2026-09-04). Stated in the review, not hidden.
+
+**Final Current state (verbatim from the hub at completion):**
+
+**Updated:** 2026-09-03 · **Objective:** collapse the ADR 0185 apparatus to one home per fact
+and one summary plus one log per unit, with gates that red on the live population, in seven
+waves with five PO checkpoints. · **Done since start:** Waves 0–3 (`8f96e223` … `0ccabf95`):
+branch, plan, ADR 0186 accepted; RETIRED arm + sweep (95 → 0); CURRENT arm and roll-up gone;
+one summary + one log per unit, handoffs folded and deleted. Wave 5 (`4384f204`): the register
+is an index (152 KB, 204 entries, 159 body files); backlog merged and deleted; eight ratchets
+set; BUGS.md links 48 archive bodies; LESSONS 72 → 75 with the first postmortem. Wave 6
+(`dfdda783`): one link checker; row-grade `complete` check; YAML block scalars; tombstones out;
+lint-gates.md thirteen paragraphs. Wave 4 (`600db943`, PO-authorized): CLAUDE.md 37,734 →
+20,454 B; CURRENT.md, its directory and the progress-contract rule deleted; the contract table
+in `docs/INDEX.md`; the RETIRED arm covers CLAUDE.md. · **In progress:** nothing. · **Next:**
+the PO's merge of this branch into `main` (fast-forward; `main` unpushed), then the branch
+deleted and the graphify refresh. · **Blockers:** gate 9's proposed-ADR review due 2026-09-24;
+the three ruling lists behind the ratchets (147 closing conditions, 38 revisit triggers,
+10 untriaged bugs) are the PO's.
+
+**Before / after, the audit's table re-measured:**
+
+| Measure | Audit (2026-09-03, `8e0ecd1a`) | Record |
+|---|---|---|
+| CLAUDE.md | 37,734 B, 499 lines | 20,454 B, 289 lines |
+| Retired-section citations in living files | 95 lines / 36 files | 0 / 394 files, gated |
+| Projections of hub frontmatter | 3 + a hand-written phase row | 1 |
+| State documents per landed unit | hub + handoff (verbatim pairs) | hub + record log |
+| `follow-ups-open.md` | 737,876 B, 89 % prose | 151,978 B index + 159 body files |
+| Backlog file | 34 blocks, 29 without an id | merged; every item has an id |
+| Contract copies (living) | 5 | 1 (`docs/INDEX.md`) |
+| Gate-13 checks with zero live subjects | 11 of 74 | stated per check in the review |
+| BUGS.md rows with a reachable body | 2 | 50 |
+| Rule files | 11 of 12 | 10 |

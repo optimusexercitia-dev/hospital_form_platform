@@ -80,8 +80,8 @@ skill conflicts with ARCHITECTURE.md or CLAUDE.md, our binding rules win.
   Never grep a migration and believe it.
 - **"Text is not truth" is broader than files** — a flag's `description` vs its `enabled`
   column, a `prosrc` regex matching comments, a persona named `admin` with
-  `is_admin = false`. Resolve the VALUE, not the noun. Pre-read:
-  `docs/progress/authz-handoff.md` §7.2.
+  `is_admin = false`. Resolve the VALUE, not the noun. Pre-read the lesson's row in
+  `docs/learning/LESSONS.md` (long form: `docs/progress/authz-handoff.md` §7.2).
 - **Column-list grants**: `profiles` (and other hardened tables, e.g. `case_referral`)
   carry COLUMN-list SELECT grants, not table-wide ones — every new column needs its own
   GRANT in the same migration, or reads fail with 42501.
@@ -101,7 +101,8 @@ skill conflicts with ARCHITECTURE.md or CLAUDE.md, our binding rules win.
   sibling policy, a pre-existing deny, or a wrong-arm fixture is satisfying it, not the
   predicate you mean to test. Green-on-first-run is a **finding**: fix the assertion before
   writing the SQL. This is the cheap half of the mutation audit — it catches four of the six
-  vacuity shapes for free (`docs/progress/authz-handoff.md` §7.1). It does **not** cover a fix
+  vacuity shapes for free (`docs/learning/LESSONS.md`; long form `docs/progress/authz-handoff.md`
+  §7.1). It does **not** cover a fix
   you invented that no one specified a test for; those still need an explicit keystone.
 - **Require lead plan-approval before any task touching migrations or RLS — but
   right-sized.** A migration that follows an **already-approved pattern** (routine
