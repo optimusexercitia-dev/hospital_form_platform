@@ -505,6 +505,35 @@ both are stated here, not left to the gate record to imply.
 **CEILING: 752.** **MERGE RULE:** no increment may raise the count without a **named justification
 in its own gate record**, and **the ceiling moves only by PO ruling**.
 
+> ⛔⛔ **RE-MEASURED 2026-09-03 AT HEAD `20261003007330`: THE BUDGET IS 759 — SEVEN OVER THE
+> CEILING, AND THE BREACH PREDATES THE INCREMENT THAT FOUND IT.**
+>
+> | | measured 2026-09-03 | recorded above (2026-08-27, head `…005300`) |
+> | --- | ---: | ---: |
+> | DEFINER in `app` + `public` | **880** (`app` 415 · `public` 465) | 856 |
+> | …`authenticated` may EXECUTE — **the budget** | **759** (`app` 326 · `public` 433) | 752 |
+>
+> Query, so it is re-run rather than quoted:
+> `select n.nspname, count(*) filter (where p.prosecdef) definer, count(*) filter (where p.prosecdef and has_function_privilege('authenticated', p.oid,'EXECUTE')) auth_exec from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname in ('app','public') group by 1;`
+>
+> ⭐ **NAMED JUSTIFICATION for the +1 this increment owes** (ADR
+> [0182](decisions/0182-statement-scoped-authorized-scope-ids.md)):
+> **`app.current_professional_read_organizations()`** — the narrow door
+> `professional_profiles_select` consults so the permission answer is computed once per
+> *statement* rather than once per protected row. It must hold `authenticated` EXECUTE because an
+> RLS policy predicate is evaluated as the invoking role. It takes **no principal argument** (the
+> principal is bound to `auth.uid()` internally) and is fixed to one permission and one resolution
+> kind, precisely so it is not the generic capability-map reader a wider signature would be.
+> Its two `authz.*` collaborators are **postgres-only** and enter no client-reachable population.
+>
+> ⛔ **THE OTHER SIX ARE UNATTRIBUTED, AND THAT IS THE FINDING.** This increment accounts for one.
+> Six more `authenticated`-executable DEFINER functions arrived between 2026-08-27 and 2026-09-03
+> and **no gate record names them** — which is exactly what the merge rule exists to prevent and
+> exactly what the ⭐ note below predicts: *"it rises silently, one convenient `grant execute … to
+> authenticated` at a time, each individually defensible."* ⛔ **The ceiling is NOT edited here** —
+> it moves only by PO ruling, and quietly raising it to 759 would convert a breach into a baseline.
+> Filed as `FUP-PRIVILEGE-BUDGET-CEILING-BREACHED-BY-SEVEN`.
+
 ⚠ **Re-derive, never quote.** The figures above were catalog-measured 2026-08-27 at head
 `20261003004300` and are re-derived at each Record step. Two changes since are believed not to
 move the count and must be **confirmed** rather than assumed: AE1.3's six doors grant
@@ -795,7 +824,15 @@ call `app.can_administer_person_for`, which is unchanged). The fifth,
 targeted case: `supabase/tests/mutation/ae3-targeted-cases.sh`, **both cases COVERED**, rollback
 fingerprint-proven.
 
-## AE4 — the `authz` catalog exists, and THREE of 43 permissions are load-bearing (2026-09-02; ADR **0155** / **0162** §2 / **0172** / **0174** / **0175** / **0176** / **0177** / **0178**; migrations `20261003007100`–`…007300`, **17**; pgTAP `401`–`411`, **11**; **NO flag — the migrations ARE the cutover**)
+## AE4 — the `authz` catalog exists, and THREE of 43 permissions are load-bearing (2026-09-03; ADR **0155** / **0162** §2 / **0172** / **0174** / **0175** / **0176** / **0177** / **0178** / **0180** / **0181** / **0182**; migrations `20261003007100`–`…007330`, **21**; pgTAP `401`–`413`, **13**; **NO flag — the migrations ARE the cutover**)
+
+⛔ **THE COUNTS ABOVE WERE RE-DERIVED BY COUNTING FILES 2026-09-03, and both were wrong in the same
+direction.** This header read *"`…007100`–`…007300`, **17**; pgTAP `401`–`411`, **11**"*. The cited
+migration range actually holds **18** files, so the count was **one low before three more landed** —
+`…007310` (ADR 0180, the `scope_reaches` ascent), `…007320` (ADR 0182, statement-scoped resolution)
+and `…007330` (its `search_path` correction) — and pgTAP had gained `412` and `413`. ⚠ Two errors
+compounding: a stale range hid a miscount, and the miscount made the stale range look plausible.
+*Count the files; never increment a recorded number.*
 
 ⛔ **THE CATALOG IS AUTHORITY-ELECT, NOT AUTHORITY** (ADR 0162 §2). Until assignment storage is
 bound to it, `authz.roles` is an **additional** role authority beside `memberships_role_check`, the
@@ -811,8 +848,8 @@ authorizers.
 
 | Layer | Objects | Who may call it |
 | --- | --- | --- |
-| 3 — domain authorizer | `app.can_edit_commission_forms` (new, D6) · `app.can_create_professional` · `app.can_read_professional_profile` — each carries its permission code as a **string literal** (D7: statically greppable) | RLS policies, command doors, server actions |
-| 2 — resolver | `authz.has_permission` (runtime; `authoritative` only, fails closed) · `authz.candidate_has_permission` (pre-cutover oracle; also sees `test_validation`, **never** EXECUTE-granted) · `authz.explain_permission` · `authz.entailed_grants` | layer 3, and tests |
+| 3 — domain authorizer | `app.can_edit_commission_forms` (new, D6) · `app.can_create_professional` · `app.can_read_professional_profile` — each carries its permission code as a **string literal** (D7: statically greppable) · **`app.current_professional_read_organizations`** (ADR 0182; SET-valued, no principal argument — binds `auth.uid()` internally) | RLS policies, command doors, server actions |
+| 2 — resolver | `authz.has_permission` (runtime; `authoritative` only, fails closed) · `authz.candidate_has_permission` (pre-cutover oracle; also sees `test_validation`, **never** EXECUTE-granted) · `authz.explain_permission` · `authz.entailed_grants` · **`authz.authorized_scope_ids`** + **`authz.candidate_authorized_scope_ids`** (ADR 0182 — the SET-valued twins: they PROPOSE a candidate scope per assignment fact and let `has_permission` / `candidate_has_permission` CONFIRM each, so over-granting is impossible by construction and a wrong candidate map can only DENY) | layer 3, and tests |
 | 1 — assignment projection | `authz.holds_role` · `authz.assignment_facts` · `authz.scope_reaches` | layer 2, and the transitional role wrappers |
 
 ⛔ A policy or door calling layer 1 or 2 **directly for a permission decision** is a finding; the
@@ -826,7 +863,7 @@ enforcement manifest is how it is found.
 | --- | --- | --- |
 | roles by state | **1 `authoritative` (`staff_admin`) / 11 `legacy`** | `select state, count(*) from authz.roles group by state` |
 | permissions | **43** | `select count(*) from authz.permissions` |
-| `authz` functions, all `prosecdef` | **8** | `select proname, prosecdef from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='authz'` |
+| `authz` functions, all `prosecdef` | **10** (was 8; ADR 0182 added the two SET-valued twins) — ⚠ pgTAP `401` **18.4** is the cardinality control that reds when this moves, and `20.3` the domain control; ⛔ neither may be bumped without grant-checking what was added | `select proname, prosecdef from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='authz'` |
 | **no client role reaches `authz`** — anon, authenticated **and service_role** | **all false**, and `authz` is absent from `config.toml`'s exposed schemas | `select r, has_schema_privilege(r,'authz','USAGE') from unnest(array['anon','authenticated','service_role']) r` |
 | permission-code **literals** in `app`+`public` (the seam's existence, falsifiable) | **3** — one per re-keyed site; was **0** before `…007300` | `pg_proc` × `authz.permissions`, comment-stripped `prosrc` containing the code |
 | manifest countdown | **43 rows, `{"pending-rekey":40,"re-keyed":3}`** | `npm run lint:authz-vectors` |

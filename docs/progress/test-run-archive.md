@@ -1157,3 +1157,13 @@ and AE4.7b repaired it; that arc is in [authz-ae4.md](authz-ae4.md).
 | --- | --- | --- |
 | 2026-09-01 | **AE4.7c — the gate split** (⛔ NOT Gate AE4) | pgTAP **254f/8498 GREEN** (8467→8498; +406) · lint 12/12 · tsc 0 · vitest 2021 · **6 ARMs HOLD**, exits read DIRECTLY · sweeps BOTH arms **6/6** + **4/4 COVERED** after fixing 2 **ERROR neutralize-failed**; both **3 UNPROVEN**, 6 vocab RPCs (C2) — [authz-ae4.md](authz-ae4.md) |
 | 2026-09-01 | **AE4 Inc 1 — `e2e:prod`** (lead-run) | run 1 **RED** `GATE_EXIT=1` — 1242p/1f/5 flaky/**8 never ran**, 1256 of **1267** accounted. b6 re-run **GREEN 69/69**, 0 flaky, 0 unrun. `ethics-e4:888` was **retry-induced** (`:844` shares a fixture name). ⛔ **11 tests unaccounted** — gate arithmetic, not this increment |
+
+## Rotated from PROGRESS.md § Test Run Summary 2026-09-03 — the AE4.9 D6+D5 row, replaced by the AE4/IA-F9 statement-scoped row
+
+> ⚠ Its **WRITE UNPROVEN exit 3** is not carried forward as an open item by the replacement row: the
+> 2026-09-03 sweep derived **0 write cases** from a diff that alters only a SELECT policy, which is a
+> different claim (ruled, not silent) and not a discharge of this one.
+
+| Date | Run | Result |
+| --- | --- | --- |
+| 2026-09-02 | **AE4.9 D6+D5 re-key + manifest** (⛔ build gates, **NOT** Gate AE4) | pgTAP **259f/8685** · lint 12/12 · tsc 0 · vitest 151f/2056 · **4 ARMs HOLD** · sweep **READ CLEAN 7/7** · ⛔ **WRITE UNPROVEN exit 3 — NOT a pass** · ⭐ **`e2e:prod` GREEN, SINGLE run**, 1273/1273 — supersedes the composite → [detail](authz-ae4.md) |

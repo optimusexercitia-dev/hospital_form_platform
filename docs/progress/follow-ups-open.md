@@ -8099,6 +8099,17 @@ code is **0, not 1** — the handoff into this increment predicted exit 1, and t
 wrong because the ALTERed policy alone is enough to make the derivation non-empty. **A non-empty
 derivation is not evidence that the derivation was complete.**
 
+⭐ **A SECOND MEASUREMENT, and it is the more instructive one.** The follow-on migration
+`20261003007330` (ADR 0182 § Corrections) `create or replace`s the same door with no policy change
+at all. The deriver over that diff returns **exit 1 — FINDING: "the diff TOUCHED
+supabase/migrations and ZERO cases were derived"** with an EMPTY case list. ⛔ So the same door
+produces **exit 0 and exit 1 from the same apparatus** depending on whether an unrelated policy
+happens to be in the diff beside it — the door itself is invisible to the selector in both runs,
+and only the *company it keeps* moves the exit code. Ruled here rather than passed: 7330 creates and
+alters no policy, and its one function already holds a targeted mutation verdict. ⚠ That verdict had
+to be **RE-EARNED**, not carried: pgTAP 413 grew five assertions and the suite shape moved
+`Files=261, Tests=8733` → `8738`, and a verdict recorded at one shape is not a verdict at another.
+
 **What would close it.** Extend `PRED_DOMAIN` along the return-type axis (a `prosecdef` function in
 `authz`, or one whose result is a scope-id set consumed by a policy, is in domain regardless of
 `typname`) and re-baseline the findings file; **or** rule that set-valued resolvers are swept by
@@ -8111,3 +8122,84 @@ they are three functions, measured once, by hand, outside any arm. ⛔ Nor a gre
 `ARM=census`/`hat`/`floor`/`wrapper` — every one of those bounds its domain on `p.prosecdef` over a
 name/identity regex and is silent about this population. *An arm that cannot select a gate has not
 cleared it.*
+
+### 🟡 FUP-NO-GATE-CATCHES-A-COLLAPSED-SEARCH-PATH — a `SET search_path` that silently resolves to nothing passes every gate in the chain
+
+**Filed:** 2026-09-03 (QA review of the AE4/IA-F9 statement-scoped increment — ADR
+[0182](../decisions/0182-statement-scoped-authorized-scope-ids.md) § Corrections; fixed instance
+`20261003007330`) · **Owner:** backend/lead · **Severity:** 🟡 — the whole known population is
+**one** function and it is fixed, measured below, so this is a missing gate rather than a live
+exposure. Above 🔵 because the class is silent by construction on the authorization path and the
+one instance survived pgTAP, twelve lint gates, four authz arms and a door sweep.
+
+**What is wrong.** `set search_path to 'app, public, pg_catalog'` — single-quoted — is accepted by
+Postgres as **ONE identifier** naming a schema that does not exist, not a three-element list, and a
+non-existent schema in `search_path` is skipped rather than erroring. A `SECURITY DEFINER` function
+written that way declares a schema resolution order it does not have. **Nothing in this repo
+notices.** `npm run lint`'s twelve gates do not read `proconfig`; pgTAP only checks the functions
+someone thought to assert, and the assertion that *should* have caught this instead **pinned it**,
+because its expected value was hand-typed by copying the broken catalog output.
+
+**How it was MEASURED.** 2026-09-03, live catalog: `current_schemas(true)` inside
+`app.current_professional_read_organizations` returned `{pg_temp_N, pg_catalog}` against its sibling
+`app.can_read_professional_profile`'s `{pg_temp_N, app, public, pg_catalog}`. ⭐ **The whole
+population was then swept**: `prosecdef` functions in `app`/`public`/`authz` whose `proconfig`
+contains a quote, excluding the legitimate empty form `search_path=""` — **0 rows**. So the class is
+currently clean and **a gate added today would start green**, which is the cheapest moment to add
+one.
+
+**What would close it.** A `lint:*` gate (or a pgTAP catalog assertion, which is cheaper — it needs
+no new script and the DB is already the authority) asserting that for every `prosecdef` function
+in `app`/`public`/`authz`, `proconfig`'s `search_path` either is the empty form or splits into
+schemas that **all exist in `pg_namespace`**. ⛔ Text-matching for a quote is the *symptom*; the
+property is *"every named schema resolves"*, and only the second survives someone writing
+`set search_path to 'app'` (one identifier, quoted, and it happens to exist).
+
+⛔ **What must NOT be mistaken for closing it.** The `20261003007330` fix — that is one function.
+⛔ Nor pgTAP `413`'s new sibling-differential and no-quote assertions: they bound **one** function
+by name, which is exactly the name-keyed shape that lets the next one through. The gap is that
+**nothing sweeps the class**.
+
+
+### 🟠 FUP-PRIVILEGE-BUDGET-CEILING-BREACHED-BY-SEVEN — the `authenticated`-executable DEFINER budget is 759 against a ceiling of 752, and six of the seven are unattributed
+
+**Filed:** 2026-09-03 (AE4/IA-F9 statement-scoped increment — found while recording the one function
+that increment adds, ADR [0182](../decisions/0182-statement-scoped-authorized-scope-ids.md)) ·
+**Owner:** lead/PO · **Severity:** 🟠 — the budget's whole purpose is that it may not rise silently,
+and it has risen silently. Not 🔴 because no individual grant is known to be wrong and the count is
+an aggregate risk measure, not an exposure. Above 🟡 because the merge rule was breached six times
+without anyone noticing, which is a fact about the *process*, not about any one function.
+
+**What is wrong.** `docs/backend-state.md` § Privilege budget records **CEILING: 752** with the
+merge rule *"no increment may raise the count without a named justification in its own gate record,
+and the ceiling moves only by PO ruling."* The live count is **759**.
+
+**How it was MEASURED.** 2026-09-03 at head `20261003007330`, live catalog:
+
+```
+select n.nspname,
+       count(*) filter (where p.prosecdef) as definer,
+       count(*) filter (where p.prosecdef and has_function_privilege('authenticated', p.oid, 'EXECUTE')) as auth_exec
+  from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+ where n.nspname in ('app','public') group by 1;
+```
+
+→ `app` 415 DEFINER / **326** authenticated-executable · `public` 465 / **433**. Totals **880** and
+**759**, against the recorded **856** and **752** (measured 2026-08-27 at head `…005300`).
+**One** of the seven is attributed: `app.current_professional_read_organizations`, justified by name
+in backend-state § Privilege budget and in ADR 0182. **Six are not.**
+
+**What would close it.** Attribute the six — diff the `authenticated`-executable DEFINER set between
+head `…005300` and head `…007330` (the query above, run against each), name each function and the
+increment that added it — then put the aggregate to the PO: either the ceiling moves by ruling to
+the justified number, or the unjustified grants are revoked. ⭐ **A gate would be cheap and is the
+durable form**: the count is one query, and a `lint:*` step that reds when it exceeds a committed
+figure converts "nobody noticed for a week" into "the next commit noticed".
+
+⛔ **What must NOT be mistaken for closing it.** ⛔ **Editing the ceiling to 759.** That converts a
+breach into a baseline and is precisely what the merge rule reserves to the PO. ⛔ Nor does ADR
+0182's named justification close it — that accounts for exactly one of the seven, and the section's
+own ⭐ note already predicted this shape: *"it rises silently, one convenient `grant execute … to
+authenticated` at a time, each individually defensible."* ⚠ Note also that a **revoke may not create
+sweep blindness** — revoking `authenticated` EXECUTE removes a function from `ARM=floor`'s domain
+(RV0's load-bearing ruling), so the remedy is not simply "revoke until the number fits".
