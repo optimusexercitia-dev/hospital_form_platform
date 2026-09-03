@@ -12,8 +12,8 @@ sweep) · [0153](./0153-subset-sweeps-write-to-scratch-not-the-committed-baselin
 (subset runs write to SCRATCH) ·
 [c2-command-door-findings.md](../reviews/c2-command-door-findings.md) (the sweep's verdicts) ·
 [authz-c2-tier1-sizing.md](../design/authz-c2-tier1-sizing.md) (the worklist's derivation).
-_A link to `docs/handoffs/c2-tier1-neutralizer.md` stood here until 2026-09-03: a handoff may not
-be cited (handoff skill, load-bearing rule; gated by `lint:registers` since ADR 0185) — the durable
+_A link to the C2 branch's session handoff stood here until 2026-09-03: a handoff may not be
+cited (handoff skill, load-bearing rule; gated by `lint:registers` since ADR 0185) — the durable
 records above are what it described._
 
 ## Context
