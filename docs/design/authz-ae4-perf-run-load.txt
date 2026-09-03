@@ -1,120 +1,120 @@
 Timing is on.
 Pager usage is off.
-Time: 3.812 ms
+Time: 4.045 ms
 BEGIN
-Time: 0.099 ms
+Time: 0.104 ms
 DO
-Time: 0.413 ms
+Time: 0.493 ms
 CREATE SCHEMA
-Time: 0.780 ms
+Time: 0.806 ms
 COMMENT
-Time: 0.400 ms
+Time: 0.268 ms
 CREATE FUNCTION
-Time: 0.622 ms
+Time: 0.533 ms
 CREATE TABLE
-Time: 1.452 ms
+Time: 1.441 ms
 ALTER TABLE
-Time: 0.651 ms
+Time: 0.510 ms
 ALTER TABLE
-Time: 0.576 ms
+Time: 0.505 ms
 ALTER TABLE
-Time: 0.325 ms
+Time: 0.210 ms
 ALTER TABLE
-Time: 0.369 ms
+Time: 0.310 ms
 ALTER TABLE
-Time: 0.472 ms
+Time: 0.300 ms
 ALTER TABLE
-Time: 0.596 ms
-ALTER TABLE
-Time: 0.316 ms
+Time: 0.478 ms
 ALTER TABLE
 Time: 0.500 ms
+ALTER TABLE
+Time: 0.619 ms
 INSERT 0 10
-Time: 1.464 ms
+Time: 1.704 ms
 INSERT 0 120
-Time: 2.795 ms
+Time: 2.705 ms
 INSERT 0 960
-Time: 40.502 ms
+Time: 40.538 ms
 INSERT 0 12000
-Time: 583.563 ms
+Time: 519.331 ms
 INSERT 0 1
-Time: 1.263 ms
+Time: 1.127 ms
 INSERT 0 12
-Time: 0.972 ms
+Time: 0.934 ms
 INSERT 0 4
-Time: 0.706 ms
+Time: 0.532 ms
 INSERT 0 3
-Time: 0.810 ms
+Time: 0.760 ms
 INSERT 0 47996
-Time: 1718.421 ms (00:01.718)
+Time: 1565.356 ms (00:01.565)
 INSERT 0 720
-Time: 30.114 ms
+Time: 26.649 ms
 INSERT 0 20
-Time: 1.300 ms
+Time: 1.258 ms
 INSERT 0 10000
-Time: 97.948 ms
+Time: 101.833 ms
 INSERT 0 40
-Time: 1.051 ms
+Time: 1.187 ms
 INSERT 0 80
-Time: 1.769 ms
+Time: 1.861 ms
 INSERT 0 640
-Time: 11.338 ms
+Time: 11.520 ms
 INSERT 0 16000
-Time: 572.336 ms
+Time: 575.526 ms
 INSERT 0 22
-Time: 0.705 ms
+Time: 0.773 ms
 ALTER TABLE
-Time: 0.353 ms
+Time: 0.354 ms
 ALTER TABLE
-Time: 0.356 ms
+Time: 0.345 ms
 ALTER TABLE
-Time: 0.282 ms
+Time: 0.401 ms
 ALTER TABLE
-Time: 0.224 ms
+Time: 0.275 ms
 ALTER TABLE
-Time: 0.199 ms
+Time: 0.253 ms
 ALTER TABLE
-Time: 0.321 ms
+Time: 0.336 ms
 ALTER TABLE
-Time: 0.251 ms
+Time: 0.299 ms
 ALTER TABLE
-Time: 0.269 ms
+Time: 0.427 ms
 DO
-Time: 0.998 ms
+Time: 0.963 ms
 COMMIT
-Time: 3.328 ms
+Time: 3.808 ms
 ANALYZE
-Time: 53.641 ms
+Time: 77.900 ms
 ANALYZE
-Time: 156.679 ms
+Time: 154.733 ms
 ANALYZE
-Time: 12.354 ms
+Time: 8.994 ms
 ANALYZE
-Time: 1.741 ms
+Time: 1.501 ms
 ANALYZE
-Time: 0.943 ms
+Time: 0.767 ms
 ANALYZE
-Time: 16.157 ms
+Time: 13.986 ms
 ANALYZE
-Time: 0.962 ms
+Time: 0.787 ms
 ANALYZE
-Time: 1.047 ms
+Time: 0.977 ms
 ANALYZE
-Time: 1.059 ms
+Time: 0.739 ms
 ANALYZE
-Time: 1.266 ms
+Time: 1.034 ms
 ANALYZE
-Time: 1.425 ms
+Time: 1.254 ms
 ANALYZE
-Time: 41.688 ms
+Time: 35.897 ms
 ANALYZE
-Time: 0.862 ms
+Time: 1.203 ms
 ANALYZE
-Time: 1.707 ms
+Time: 1.243 ms
 ANALYZE
-Time: 0.862 ms
+Time: 1.137 ms
 ANALYZE
-Time: 0.846 ms
+Time: 0.802 ms
 
 === AE4 perf fixture: post-load census ===
                t               | count 
@@ -133,34 +133,34 @@ Time: 0.846 ms
  profiles                      | 12036
 (12 rows)
 
-Time: 10.604 ms
+Time: 10.664 ms
 
 === ANALYZE state (every row must show a last_analyze timestamp) ===
             relname             | reltuples |         last_analyze          
 --------------------------------+-----------+-------------------------------
- commissions                    |       966 | 2026-09-03 00:32:45.656507+00
- form_items                     |     16020 | 2026-09-03 00:32:45.723477+00
- form_sections                  |       648 | 2026-09-03 00:32:45.681968+00
- form_versions                  |        84 | 2026-09-03 00:32:45.680486+00
- forms                          |        44 | 2026-09-03 00:32:45.679147+00
- hospitals                      |       124 | 2026-09-03 00:32:45.658758+00
- memberships                    |     48799 | 2026-09-03 00:32:45.487573+00
- permission_implication_closure |        43 | 2026-09-03 00:32:45.728142+00
- permissions                    |        43 | 2026-09-03 00:32:45.727281+00
- professional_profiles          |     10001 | 2026-09-03 00:32:45.675664+00
- profiles                       |     12036 | 2026-09-03 00:32:45.644123+00
- role_permissions               |        42 | 2026-09-03 00:32:45.72546+00
- roles                          |        12 | 2026-09-03 00:32:45.724596+00
+ commissions                    |       966 | 2026-09-03 02:06:34.605941+00
+ form_items                     |     16020 | 2026-09-03 02:06:34.663189+00
+ form_sections                  |       648 | 2026-09-03 02:06:34.627579+00
+ form_versions                  |        84 | 2026-09-03 02:06:34.626238+00
+ forms                          |        44 | 2026-09-03 02:06:34.625271+00
+ hospitals                      |       124 | 2026-09-03 02:06:34.607717+00
+ memberships                    |     48799 | 2026-09-03 02:06:34.442027+00
+ permission_implication_closure |        43 | 2026-09-03 02:06:34.668028+00
+ permissions                    |        43 | 2026-09-03 02:06:34.667147+00
+ professional_profiles          |     10001 | 2026-09-03 02:06:34.622513+00
+ profiles                       |     12036 | 2026-09-03 02:06:34.596761+00
+ role_permissions               |        42 | 2026-09-03 02:06:34.665961+00
+ roles                          |        12 | 2026-09-03 02:06:34.664573+00
 (13 rows)
 
-Time: 2.092 ms
+Time: 2.355 ms
 
 === Fixture manifest ===
           k           |                  v                   
 ----------------------+--------------------------------------
  legacy_principal_hat | org_admin
  legacy_principal_id  | e99e0dbb-b2f8-f842-364f-9125b189f680
- loaded_at            | 2026-09-03 00:32:42.352217+00
+ loaded_at            | 2026-09-03 02:06:31.496973+00
  n_comm               | 960
  n_fanout             | 20
  n_form               | 40
@@ -182,6 +182,6 @@ Time: 2.092 ms
  target_version_id    | 160fb036-65bf-aeb0-51c6-1575451ce8ad
 (22 rows)
 
-Time: 0.216 ms
+Time: 0.270 ms
 
 === AE4 perf fixture loaded. Next: scripts/authz-ae4-perf-harness.sql ===

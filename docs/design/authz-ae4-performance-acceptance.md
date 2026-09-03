@@ -6,14 +6,25 @@ Gate AE4 item per ADR [0176](../decisions/0176-authz-permission-layer-made-real.
 *Performance evidence [PA-F6]* — nested plans over a scaled, `ANALYZE`d fixture, on the **final** path.
 **Author:** `backend` · **Written:** 2026-09-02 · **Branch:** `authz-ae4-catalog`.
 
-> ⛔ **STATUS after run 3 (2026-09-02): still VOID — and the open question is now one function.**
+> ⛔ **STATUS after run 5 (2026-09-02): NOT MET — but no longer VOID, and the residue is now two
+> named things rather than one unexplained number.** Run 5 is the first run against a FIXED
+> `authz.scope_reaches` (migration `20261003007310`, ADR
+> [0180](../decisions/0180-scope-reaches-commission-org-ascent-plan-fix.md)). Controls PASS, so the
+> conditions are verdicts and not VOID. **P2, P3, P4, DC1, DC2 PASS. P1 FAILS** — `Seq Scan on
+> hospitals` **8 240 → 4 120**, exactly the half the fix did not target. **P5 FAILS at 5.28x /
+> 4.99x** (was 6.19x / 6.21x), improved but over K=4. ⛔ **That is a PARTIAL RESULT and is recorded
+> as one: the threshold does not move.** Record: **§12**.
+>
+> ~~**STATUS after run 3 (2026-09-02): still VOID — and the open question is now one function.**~~
 > P5 has FAILED on **five** readings (6.13 / 5.20 / 6.21 / 6.27 / 6.04 vs K=4). P2, P3, DC2 and P4
 > **PASS**. P1 **FAILS** on a located mechanism: `authz.scope_reaches` seq-scans the whole `hospitals`
 > table on every call. DC1 ran for the first time and **failed at 1.53x** — which the arithmetic and
 > P2 together explain as `assignment_facts` holding only **1–3 %** of per-row cost, not as a dead
 > instrument (DC2 read 775x on the same apparatus). DC1 is **re-aimed**, not reinterpreted: §11.
-> Every condition remains VOID under the dependency rule. Records: **§11** (run 3), **§10** (run 2),
-> **§9** (run 1).
+> Every condition remains VOID under the dependency rule. Records: **§12** (run 5), **§11** (run 3),
+> **§10** (run 2), **§9** (run 1). ⚠ **Run 4 has no numbered section** — it is the run that first
+> executed the verdict table, its artifacts are the ones commit `8ca976d7` carries, and its figures
+> are quoted throughout §12 as the pre-fix baseline.
 >
 > ~~**STATUS after run 1 (2026-09-02): VOID.**~~ The fixture loaded clean and five of nine harness
 > sections completed, but the harness aborted in section 7 (`permission denied for function
@@ -646,9 +657,11 @@ InitPlan 1
         ->  Seq Scan on hospitals h  (rows=124)       Buffers: shared hit=2
 ```
 
-The correct plan is a PK lookup of the commission followed by a PK lookup of its one hospital. This
+The correct plan is a PK lookup of the commission followed by a PK lookup of its one hospital. ~~This
 term is `O(protected_rows × M × |hospitals|)` — the one part of the chain that grows with the
-**tenant count** rather than with the principal.
+**tenant count** rather than with the principal.~~ ⚠ **BOTH claims in this paragraph are corrected by
+§12:** the 8 240 are **two** InitPlans of 4 120, not one (§12.1), and the `O(|hospitals|)` scaling
+does not survive measurement — the planner self-corrects to an index by ~2 000 rows (§12.2).
 
 ⚠ This revises §9.3's second-order note, which said `hospitals` was reached *by primary key* and that
 P1's load-bearing member was `memberships`. **`memberships` is fine; `hospitals` is the defect.**
@@ -769,8 +782,12 @@ on five consistent readings. But the shape of the likely outcome is now sharp, a
 - the cost is concentrated in **one branch of one function**, `authz.scope_reaches`'s
   organization-from-commission ascent, which seq-scans and hashes the whole `hospitals` table per
   call instead of doing two primary-key lookups;
-- that term is `O(protected_rows × M × |hospitals|)` — **the only part of the chain that scales with
-  tenant count**, and therefore the only part whose cost grows as the platform onboards customers.
+- ~~that term is `O(protected_rows × M × |hospitals|)` — **the only part of the chain that scales with
+  tenant count**, and therefore the only part whose cost grows as the platform onboards customers.~~
+  ⚠ **CORRECTED by §12.2** — measured against `ANALYZE`d copies of `hospitals` at 124 / 620 / 1 984 /
+  19 964 rows, the planner leaves the seq scan on its own by ~2 000 rows. It is a small-table
+  artifact, not a tenant-count term. The waste it *did* carry is real and is paid at every
+  cardinality; that is what `20261003007310` removed.
 
 If run 4's DC1b confirms it, this stops being *"the seam is 6× expensive"* — an argument against the
 permission layer — and becomes *"one branch has a fixable plan defect"*, which is a much smaller and
@@ -780,3 +797,114 @@ much more actionable finding, and a genuine input to the PO's Gate AE4 decision.
 against a `SECURITY DEFINER` function on the authorization path: it needs its own plan approval and
 its own pgTAP keystone, and changing the subject mid-measurement would invalidate five runs. The fix
 is a separate increment, and the acceptance re-runs against it afterwards.
+
+---
+
+## 12. Run 5 (2026-09-02) — the first run against a FIXED `scope_reaches`. NOT MET, and the two halves of the residue are different
+
+Subject: `20261003007310` (ADR [0180](../decisions/0180-scope-reaches-commission-org-ascent-plan-fix.md)).
+The commission→organization ascent stopped joining `public.hospitals` for a column
+`public.commissions` already carries; `commissions_hospital_org_fkey` makes the two provably the
+same value. Fresh `db reset` at head `20261003007310`, full fixture reload, both passes.
+`RESET=0 · LOAD=0 · PASSA=3 · PASSB=3` — each read from its own file. ⛔ The two 3s are the
+harness **working**: section 10 raises once at the end when a condition fails (§10.2).
+
+| | pass A | pass B | run 4 (pre-fix) | threshold | |
+| --- | --- | --- | --- | --- | --- |
+| DC1a `assignment_facts` | 1.58× | 1.68× | 1.52× | — | — |
+| DC1b `scope_reaches` | **18.12×** | **17.01×** | 14.17× | ≥ 10 (either arm) | **PASS** |
+| DC2 | 704.31× | 686.08× | 548.67× | ≥ 5 | **PASS** |
+| P4 | 9.30 | 9.43 | 10.59 | ≤ 30 | **PASS** |
+| P5 | **5.28×** | **4.99×** | 6.19× | ≤ 4 | ⛔ **FAIL** |
+
+Externally, per §9.7 — stage 0 nested region **212 149** lines; stage 1 presence `assignment_facts`
+**418**, `scope_reaches` **412**; only then the bounds:
+
+| | Verdict | Evidence |
+| --- | --- | --- |
+| **P2** | **PASS** | 209 `Function Scan on assignment_facts`, **every one `loops=1`**. Unchanged by the fix, as expected — it touches table access, not invocation structure. |
+| **P3** | **PASS** | 206 `Filter: authz.scope_reaches` nodes on that Function Scan. Unchanged. |
+| **P1** | ⛔ **FAIL** | `memberships` 0 · `profiles` 0 · `commissions` 0 · **`hospitals` 4 120** (was 8 240). |
+
+### 12.1 P1 — the count halved, and the surviving half is the half that was never the target
+
+Run 4's 8 240 `Seq Scan on hospitals` were **two InitPlans of 4 120 each**, not one — a fact §10.3
+does not record, because it attributes all 8 240 to the ascent. Run 5 removes exactly one of them:
+
+- **gone:** InitPlan 1's `hospitals h` at **width 32** — the join node. 4 120 → 0.
+- **remains:** the organization-from-**hospital** arm, 4 120 nodes, of which **603 execute** and
+  3 517 are `never executed`. ⭐ 603 is the *identical* executed count run 4 measured for that arm,
+  which is the strongest available confirmation that the fix removed the intended node and only it.
+
+The ascent now shows up as `Index Scan using commissions_pkey`, whose count rose to **8 253**.
+
+⛔ **P1 is recorded as FAIL.** The surviving nodes cost 2 buffers, an `Index Only Scan` on
+`hospitals_id_org_uq` was measured to cost 2 as well, and the arm self-corrects to that index at
+620 rows (§12.2) — so removing them would move no cost and would satisfy P1's wording while its
+stated subject was never present. The wording gap is `FUP-AE4-P1-BOUNDS-A-SYNTAX-NOT-A-PROPERTY`,
+for the PO. **It is not closed by editing P1 here.**
+
+### 12.2 ⚠ A claim in §§10.3 and 11.4 does not survive measurement
+
+Both call the term `O(protected_rows × M × |hospitals|)` — *"the only part of the chain that scales
+with tenant count"*. Measured 2026-09-02 with `EXPLAIN (GENERIC_PLAN)` against `ANALYZE`d copies of
+`hospitals` carrying identical indexes:
+
+| `hospitals` rows / pages | organization←hospital arm | the ascent's join |
+| --- | --- | --- |
+| 124 / 2 (the fixture) | `Seq Scan` (cost 3.55) | `Hash Join` + `Seq Scan` (11.88) |
+| 620 / 9 | **`Index Only Scan`** (8.29) | `Hash Join` + `Seq Scan` |
+| 1 984 / 28 | `Index Only Scan` | **`Nested Loop` + `Index Only Scan`** (16.60) |
+| 19 964 / 285 | `Index Only Scan` | `Nested Loop` + `Index Only Scan` |
+
+`public.hospitals` is **2 pages**, so a full scan at 3.24 genuinely beats a `hospitals_pkey`
+descent at 8.29 — the planner was locally correct, and it **self-corrects long before any
+interesting tenant count**. The seq scan is a small-table artifact, not a tenant-count term.
+
+⭐ **This does not weaken the finding, it re-describes it.** What was actually wrong is paid at
+*every* cardinality: the ascent fetched `h.organization_id` across a join when `c.organization_id`
+was already in the driving row — 5 buffers and a 124-row hash build per call, 17 calls per
+protected row for the measured principal. That is what run 5 removed. **Corrected in place and kept
+visible**, same as §10.3's own correction of §9.3.
+
+### 12.3 A prediction recorded before the run, and wrong in its direction
+
+§11.2's arithmetic (`k·x + (1 − x)`) was used to predict that DC1b would **fall** — making
+`scope_reaches` cheaper should shrink the share `x` a plant multiplies, so 14.17× was expected to
+land at 8–14×, with a real risk of dropping under 10 and voiding the whole run. **It rose, to
+18.12× / 17.01×.**
+
+The model was the wrong shape. DC1b's plant adds a roughly **fixed absolute** cost per call, not a
+multiple of the term's own cost, so the observed ratio is `1 + N·C / T_base` — and shrinking
+`T_base` *raises* it. **The control got stronger because the subject got faster.** Recorded because
+the arithmetic in §11.1 is still used there to size `assignment_facts` at 1–3 %, and that use is
+unaffected: it reasons about a plant applied to a term at *fixed* baseline, which is the case it fits.
+
+### 12.4 Where P5 now stands — a partial result, stated as one
+
+**P5 FAILS on eight readings across five runs:** 6.13 / 5.20 / 6.21 / 6.27 / 6.04 / 6.19 / **5.28**
+/ **4.99**. The fix moved the permission arm from 13 111 ms to 11 560 ms (pass A) and 10 745 ms
+(pass B) over the identical 10 000 rows, against a legacy arm holding steady at ~2 150 ms.
+
+⛔ **K = 4 does not move, and P5 is not "nearly met".** §8 item 5 licenses re-deriving a threshold
+for a value landing within a few percent of it; 4.99 is **25 % over** and 5.28 is **32 % over**.
+⛔ **And P5 may not be argued down from P1's outcome.** P1 turning out to be partly a specification
+artifact says nothing about P5 — the two conditions are independent and P5 has never rested on P1.
+
+What the run *does* settle: the remaining cost is **not** the plan defect that was fixed, and not
+`assignment_facts` (DC1a still ~1.6×). DC1b at 17–18× says `scope_reaches` is still the dominant
+term — but now as *volume*, not as a bad plan: 17 index-scan ascents per protected row × 10 000
+protected rows is ~170 000 lookups of the same 20 assignment facts, re-resolved for every row.
+Removing **that** is a change to `authz.entailed_grants`' invocation structure, not to
+`scope_reaches`, and it is a different increment with its own approval. That, not a threshold edit,
+is the honest next move — and it is a genuine input to the PO's Gate AE4 decision.
+
+### 12.5 A stale snippet, found by running it
+
+§9.4's standalone postflight query tests `prosrc like '%ae4dc1%'` on **`authz.assignment_facts`
+only**. Since §11.2 added DC1b, which plants into **`authz.scope_reaches`**, that snippet is
+half-aimed: a stuck DC1b body would read as a clean stack. ⚠ The **harness's own** section 9 is
+fine — it asks "any authz body still contains a DC1 planted marker" and covers both. Run 5's
+postflight was executed with both bodies checked explicitly: `dc1a_body_stuck=f`,
+`dc1b_body_stuck=f`, `staff_admin_state=authoritative`, `trigger_disabled=f`, and
+`ascent_join_back=f` (the fix survived its own measurement).
