@@ -6,7 +6,13 @@ Gate AE4 item per ADR [0176](../decisions/0176-authz-permission-layer-made-real.
 *Performance evidence [PA-F6]* — nested plans over a scaled, `ANALYZE`d fixture, on the **final** path.
 **Author:** `backend` · **Written:** 2026-09-02 · **Branch:** `authz-ae4-catalog`.
 
-> ⛔ **STATUS after run 1 (2026-09-02): VOID.** The fixture loaded clean and five of nine harness
+> ⛔ **STATUS after run 2 (2026-09-02): still VOID — but far less open than it was.** P5 has now
+> FAILED on three independent readings (6.13x / 5.20x / 6.21x vs K=4), P2 and P3 **PASS** on run 2's
+> artifact (§10.3), and P1 **FAILS** with a located mechanism: `authz.scope_reaches` seq-scans the
+> whole `hospitals` table on every call. DC1 has still never run, so every condition is VOID under
+> the new dependency rule (§10.2). Rulings: **§10**. Run 1 record: **§9**.
+>
+> ~~**STATUS after run 1 (2026-09-02): VOID.**~~ The fixture loaded clean and five of nine harness
 > sections completed, but the harness aborted in section 7 (`permission denied for function
 > ae4_time`), so **DC1, DC2, P4, P5 and all of Pass B never ran**. A VOID run is re-run; it is
 > never recorded as a pass. Diagnosis, rulings and fixes: **§9**. Outputs:
@@ -457,7 +463,8 @@ structural changes:
 2. ⛔ **An absent subject is VOID, never PASS.** *An empty grep against "loops ≤ N" reads exactly
    like a pass* — a real defect in how P1–P3 were specified. Every structural check is now
    **two-stage: presence first, bound second**, and the evidence region is delimited by
-   `AE4-PASSB-BEGIN` / `AE4-PASSB-END` markers so the greps can be scoped with `awk` (the same file
+   `AE4-PASSB-BEGIN` / `AE4-PASSB-END` markers so the greps can be scoped with `awk` — ⚠ **those
+   markers were themselves defective and are SUPERSEDED by the tokenised sentinels, §10.1** — (the same file
    also contains Pass A). A zero subject count is a finding about the **capture mechanism**, and no
    bound may be evaluated against it.
 
@@ -471,7 +478,7 @@ M4 is labelled ATTRIBUTION ONLY. P1 was never meant to bind on the outer measure
 `FROM`; it bounds access **inside the DEFINER bodies**, which only Pass B can show. The grep was
 unscoped, so it read the driver as the seam.
 
-**Fix:** P1 is scoped to the `AE4-PASSB-BEGIN`/`END` region, and the harness now prints the
+**Fix (superseded in form by §10.1, unchanged in substance):** P1 is scoped to the nested region, and the harness now prints the
 exclusion beside M4 so the next reader does not re-raise it.
 
 ⚠ **Second-order note, recorded rather than left implicit.** Inside `scope_reaches`, `commissions`
@@ -536,18 +543,134 @@ The fixture is dropped by the reset releasing the DB to the rollback-runbook ver
 full reload (§7 step 1) before re-running; the harness's fixture gate aborts immediately if it is
 skipped, which is the intended behaviour.
 
-### 9.7 P1/P2/P3 evaluation commands (revised — presence first, scoped second)
+### 9.7 P1/P2/P3 evaluation commands (revised twice — see §10.1 for why)
+
+⛔ The region sentinels are **tokenised and anchored**, and the token is never written in prose
+anywhere in this repository except the command below. Run 2's extraction failed precisely because
+the old markers were plain words that also appeared in the text explaining them (§10.1).
 
 ```bash
 B=docs/design/authz-ae4-perf-run-passB.txt
-awk '/AE4-PASSB-BEGIN/,/AE4-PASSB-END/' "$B" > /tmp/ae4-nested.txt
+awk '/^@@AE4_NESTED_BEGIN@@$/{f=1;next} /^@@AE4_NESTED_END@@$/{f=0} f' "$B" > /tmp/ae4-nested.txt
+
+# STAGE 0 — EXTRACTOR SANITY. The nested region is tens of thousands of lines.
+# A region of a few dozen means the EXTRACTOR is broken, not that the subjects
+# are missing. Run 2 returned 48 lines and it read as a clean absence.
+wc -l < /tmp/ae4-nested.txt          # expect >> 1000; a small number is an extractor finding
 
 # STAGE 1 — PRESENCE. Zero here is VOID (capture-mechanism finding), never a pass.
 grep -c 'assignment_facts' /tmp/ae4-nested.txt
 grep -c 'scope_reaches'    /tmp/ae4-nested.txt
 
-# STAGE 2 — BOUNDS. Only run these once stage 1 is non-zero for both.
-grep -nE 'Seq Scan on (memberships|profiles|commissions|hospitals)\b' /tmp/ae4-nested.txt  # P1: empty
-grep -nE 'assignment_facts.*loops=[0-9]+'                             /tmp/ae4-nested.txt  # P2: <= protected rows
-grep -nE 'scope_reaches.*loops=[0-9]+'                                /tmp/ae4-nested.txt  # P3: <= M (20) per row
+# STAGE 2 — BOUNDS. Only once stages 0 and 1 are satisfied.
+grep -oE 'Seq Scan on [a-z_]+' /tmp/ae4-nested.txt | sort | uniq -c | sort -rn     # P1
+grep -oE 'Function Scan on assignment_facts af .*loops=[0-9]+' /tmp/ae4-nested.txt \
+  | grep -oE 'loops=[0-9]+' | sort | uniq -c                                       # P2
+grep -c 'Filter: authz.scope_reaches' /tmp/ae4-nested.txt                          # P3
 ```
+
+---
+
+## 10. Run 2 (2026-09-02) — the rulings, and the structural verdict the artifact already held
+
+Run 2 confirmed the §9.1 fix: the harness reached its own conditions and raised a real verdict.
+P5 failed reproducibly — **5.20×** (pass A) and **6.21×** (pass B), against run 1's **6.13×**.
+Three independent readings, all well past K = 4.
+
+### 10.1 Ruling on the empty nested region — the hypothesis is disproven; the defect was mine
+
+The offered hypothesis was that `auto_explain` writes to the **server log** and so can never appear
+in `passB.txt`. **That is disproven by the artifact.** `passB.txt` is **230 815 lines**; the nested
+region alone is **229 939**. `client_min_messages = log` forwarded the LOG-level output to psql
+exactly as AE0.2 established. The capture mechanism has been working the whole time.
+
+The zero came from **my extraction markers matching their own documentation**. The old range
+expression opened at line **709** — an advisory line beside M4 that *named* the two markers — and
+closed at line **756**, the BEGIN banner's own second line, which spelled the END marker in prose.
+48 lines, both subject counts zero, and the two-stage rule dutifully reported VOID.
+
+⭐ **The two-stage rule worked. It is the reason no false pass was reported.** What failed was the
+extractor, and this is the *third* consecutive absence in this workstream whose mechanism was
+mis-attributed on first reading — run 1's Pass B (blamed on `EXPLAIN` semantics, actually an
+ordering defect), run 1's P1 hit (blamed on cardinality, actually grep scope), and now this. The
+standing lesson holds and has now been paid for three times: **an absence's mechanism is measured,
+not inferred from its gate.**
+
+**Fixes:** the sentinels are now tokenised (`@@…@@`), alone on their line, matched with `^…$`
+anchors, and the token appears in prose nowhere; the M4 advisory no longer names it. And a
+**stage-0 extractor-sanity check** was added — the region must be thousands of lines, because a
+broken extractor and a genuine absence are otherwise indistinguishable.
+
+### 10.2 Ruling on DC1 — both shapes, plus a dependency rule
+
+The observation is correct and is a protocol defect: the control that excludes a dead instrument sat
+**downstream of the condition it validates**, so it could not run in exactly the case that matters.
+Adopted, per the second offered shape and more:
+
+1. **Conditions no longer raise where they are evaluated.** DC2, P4 and P5 write into a
+   `pg_temp.ae4_verdict` table; **section 10 raises once**, at the end, *after* DC1 and *after* the
+   postflight. A P5 failure can no longer hide P4, and can no longer prevent DC1.
+2. **Every condition is pre-registered `UNRUN`.** A row never written stays `UNRUN` and is reported;
+   a condition that silently vanished from the table would otherwise read as a clean sheet.
+3. ⭐ **The dependency rule, which is the real answer:** a condition whose controls did not PASS is
+   rewritten **VOID** — never PASS, never FAIL. *"A reproducible failure is still not reportable as
+   a verdict"* stops being something a human has to argue and becomes what the table says, with the
+   reason attached. Statuses are now four: `PASS` / `FAIL` (a regression) / `VOID` (nothing was
+   measured) / `UNRUN` (never reached).
+
+DC1's ratio is carried out of its rolled-back transaction in a psql variable (`\gset` is client
+state and survives the rollback) and its verdict is written afterwards.
+
+### 10.3 ⭐ P1, P2 and P3 — evaluated from run 2's committed artifact
+
+Once the region was extracted correctly, the evidence was already there. Presence: `assignment_facts`
+**418**, `scope_reaches` **412**, `memberships` **1 067**.
+
+| | Verdict | Evidence |
+| --- | --- | --- |
+| **P2** | **PASS** | `Function Scan on assignment_facts af` appears **209** times, **every one `loops=1`**. The SRF is invoked once per `entailed_grants` call, i.e. once per protected row — *not* once per assignment fact. The `O(M²)` shape P2 exists to catch is **not present**. |
+| **P3** | **PASS** | `scope_reaches` is planned as a `Filter:` **on the `assignment_facts` Function Scan node** — evaluated at most once per assignment fact per call, exactly the `≤ M` bound. 206 filter nodes, one per call. |
+| **P1** | ⛔ **FAIL** | Not on `memberships`, which is clean: **209 `Index Scan on memberships_principal_idx`** plus 209 `Bitmap Heap Scan`, zero sequential scans. It fails on **`hospitals`: 8 240 sequential scans.** |
+
+**The P1 mechanism, located exactly.** Inside `authz.scope_reaches`, the `organization`←`commission`
+ascent runs as an **InitPlan Hash Join** whose inner side is `Seq Scan on hospitals h (rows=124)` —
+it scans and hashes the **whole** `hospitals` table on every call, then joins it to the single
+commission row:
+
+```
+InitPlan 1
+  ->  Hash Join   Hash Cond: (h.id = c.hospital_id)   Buffers: shared hit=5
+        ->  Seq Scan on hospitals h  (rows=124)       Buffers: shared hit=2
+```
+
+The correct plan is a PK lookup of the commission followed by a PK lookup of its one hospital. This
+term is `O(protected_rows × M × |hospitals|)` — the one part of the chain that grows with the
+**tenant count** rather than with the principal.
+
+⚠ This revises §9.3's second-order note, which said `hospitals` was reached *by primary key* and that
+P1's load-bearing member was `memberships`. **`memberships` is fine; `hospitals` is the defect.**
+That note reasoned from the function's SQL text; the plan says otherwise. Corrected in place and
+kept visible — it is the same class as everything else in §10.1.
+
+### 10.4 What this means for P5, and what it does not
+
+A seq-scan-and-hash of 124 rows per `scope_reaches` call, tens of times per protected row, is a
+strong candidate for the bulk of P5's ~6× — and the legacy arm (`is_org_admin_of`) performs **no**
+commission→hospital→organization ascent at all, so it pays none of it.
+
+⛔ **Still not a verdict, and the reason is now narrower than it was.** DC1 has never run, so the
+instrument remains unvalidated and every condition above is VOID under §10.2's dependency rule. But
+the open question has changed shape: it is no longer *"is the seam inherently ~6× more expensive"* —
+P2 and P3 say the layer's invocation structure is sound, and P1 names a **specific, local, probably
+fixable plan defect** in one branch of `scope_reaches`.
+
+**Run 3 must, in order:** (i) DC1 PASS; (ii) re-confirm P2/P3 with the corrected extractor;
+(iii) confirm P1's `hospitals` finding; (iv) only then is P5 a verdict. If P1's defect is later
+fixed and P5 falls under 4×, the acceptance is met and no AE5 sizing concern arises from it. If P5
+stays ~6× with P1 clean, the seam legitimately costs ~6× per protected row, it becomes the AE5
+sizing finding — 11 roles multiplying it — and a genuine input to the PO's gate decision.
+
+⛔ **Do not fix `scope_reaches` inside this workstream.** It is a migration against a `SECURITY
+DEFINER` function on the authorization path; it needs its own plan approval and its own pgTAP
+keystone, and changing the subject mid-measurement would leave the acceptance measuring something
+the previous three runs did not.

@@ -147,6 +147,50 @@ begin
   raise notice 'AE4 fixture gate OK — declared scale present, chain tables analyzed.';
 end $$;
 
+-- --------------------------------------------------------------------------
+-- THE VERDICT TABLE (added after run 2).
+--
+-- ⛔ Run 2's P5 raised in section 7 under ON_ERROR_STOP and killed psql, so
+--    DC1 -- the control that excludes a dead instrument -- never ran, AGAIN.
+--    The control that validates a condition sat DOWNSTREAM of it and could not
+--    run in exactly the case where it matters: a failing condition. P4's
+--    verdict was collateral: a P5 failure hid whatever P4 would have said.
+--
+--    So conditions no longer raise where they are evaluated. They record a
+--    verdict, everything runs, and section 10 raises ONCE at the end -- after
+--    the controls and after the postflight.
+--
+-- ⛔ AND the verdict carries a DEPENDENCY RULE: a condition whose controls did
+--    not PASS is recorded VOID, never PASS and never FAIL. That is the
+--    structural answer to "a reproducible failure is still not reportable as a
+--    verdict" -- the table says so, and says why, instead of a human arguing
+--    it from the fact that the numbers looked discriminating.
+drop table if exists pg_temp.ae4_verdict;
+create temp table ae4_verdict(
+  id      text primary key,
+  kind    text not null check (kind in ('CONTROL','CONDITION')),
+  status  text not null check (status in ('PASS','FAIL','VOID','UNRUN')),
+  detail  text
+);
+
+create or replace function pg_temp.ae4_say(p_id text, p_kind text, p_status text, p_detail text)
+returns void language sql as $$
+  insert into pg_temp.ae4_verdict(id, kind, status, detail)
+  values (p_id, p_kind, p_status, p_detail)
+  on conflict (id) do update set kind = excluded.kind, status = excluded.status, detail = excluded.detail;
+$$;
+
+-- Pre-register every condition as UNRUN. An id that never gets written stays
+-- UNRUN and is reported as such: a condition that silently vanished from the
+-- table would otherwise read as a clean sheet.
+select pg_temp.ae4_say('P1','CONDITION','UNRUN','evaluated externally from the nested region -- acceptance doc section 9.7');
+select pg_temp.ae4_say('P2','CONDITION','UNRUN','evaluated externally from the nested region -- acceptance doc section 9.7');
+select pg_temp.ae4_say('P3','CONDITION','UNRUN','evaluated externally from the nested region -- acceptance doc section 9.7');
+select pg_temp.ae4_say('P4','CONDITION','UNRUN','section 7 did not reach it');
+select pg_temp.ae4_say('P5','CONDITION','UNRUN','section 7 did not reach it');
+select pg_temp.ae4_say('DC1','CONTROL','UNRUN','section 8 did not reach it');
+select pg_temp.ae4_say('DC2','CONTROL','UNRUN','section 7 did not reach it');
+
 \echo '--- cardinalities the plans below are taken over ---'
 select 'memberships' as t, count(*) from public.memberships
 union all select 'profiles',              count(*) from public.profiles
@@ -519,8 +563,8 @@ rollback;
 \echo '   for every commission, and at 966 rows with loops=1 that is the'
 \echo '   correct plan. It is NOT a P1 hit: P1 bounds access INSIDE the'
 \echo '   DEFINER bodies, which only Pass B can show. Run 1 flagged this'
-\echo '   line because the P1 grep was unscoped. Scope it to the'
-\echo '   AE4-PASSB-BEGIN/END region.'
+\echo '   line because the P1 grep was unscoped -- scope it to the nested'
+\echo '   region sentinels (acceptance doc section 9.7).'
 begin;
   set local request.jwt.claims = :'c_perm';
   explain (analyze, buffers)
@@ -555,10 +599,15 @@ rollback;
 \echo '################################################################'
 
 \if :{?NESTED}
-\echo '=== AE4-PASSB-BEGIN — everything between this marker and'
-\echo '=== AE4-PASSB-END is the P1/P2/P3 evidence region. Scope every'
-\echo '=== structural grep to it with awk; the same file also contains'
-\echo '=== PASS A, and M4 there legitimately seq-scans commissions.'
+-- ⛔ SENTINELS, and why they look like this. Run 2's extraction returned a
+--    48-line region and presence 0 -- not because auto_explain failed (it
+--    emitted 229 939 lines) but because the OLD markers were plain words that
+--    also appeared in the prose EXPLAINING them: the range opened on an
+--    advisory line beside M4 and closed on this banner's own second line. A
+--    detector matched its own documentation. These sentinels are tokenised,
+--    alone on their line, and the token is NEVER written in prose anywhere in
+--    this repository except the extraction command itself.
+\echo '@@AE4_NESTED_BEGIN@@'
 set auto_explain.log_min_duration = 0;
 set auto_explain.log_nested_statements = on;
 set auto_explain.log_analyze = on;
@@ -597,7 +646,7 @@ reset auto_explain.log_buffers;
 reset auto_explain.log_timing;
 reset client_min_messages;
 
-\echo '=== AE4-PASSB-END — nested capture completed ==='
+\echo '@@AE4_NESTED_END@@'
 \echo '⛔ If the marker above is present but the subject greps in the'
 \echo '   acceptance doc section 7 return ZERO, that is a finding about the'
 \echo '   CAPTURE MECHANISM (auto_explain not reaching the client), not a'
@@ -734,45 +783,46 @@ begin
 end $$;
 
 do $$
-declare v10 numeric; v1k numeric; v10k numeric; vp numeric; vl numeric;
+declare v10 numeric; v1k numeric; v10k numeric; vp numeric; vl numeric; r numeric;
 begin
   select ms_best into v10  from pg_temp.ae4_timing where label = 'DC2/N=10';
   select ms_best into v1k  from pg_temp.ae4_timing where label = 'DC2/N=1000';
   select ms_best into v10k from pg_temp.ae4_timing where label = 'DC2/N=10000';
 
-  -- DC2 — is the instrument alive? 1000x the rows must cost meaningfully more.
+  -- DC2 -- is the instrument alive? 1000x the rows must cost meaningfully more.
+  r := round(v10k / nullif(v10, 0), 2);
   if v10k < v10 * 5 then
-    raise exception
-      'AE4 DC2 FAILED (run is VOID): 1000x the protected rows cost only %x (% ms -> % ms). Either the fixture did not scale or the per-row evaluation is not happening — a green number here would be indistinguishable from a dead instrument.',
-      round(v10k / nullif(v10, 0), 2), v10, v10k;
+    perform pg_temp.ae4_say('DC2','CONTROL','FAIL',
+      format('1000x the protected rows cost only %sx (%s ms -> %s ms): the fixture did not scale or the per-row evaluation is not happening', r, v10, v10k));
+  else
+    perform pg_temp.ae4_say('DC2','CONTROL','PASS', format('cost tracks N: %s ms -> %s ms (%sx)', v10, v10k, r));
   end if;
-  raise notice 'AE4 DC2 OK — cost tracks N (10 rows: % ms, 10000 rows: % ms, ratio %).',
-    v10, v10k, round(v10k / nullif(v10, 0), 2);
+  raise notice 'AE4 DC2: 10 rows % ms, 10000 rows % ms, ratio %.', v10, v10k, r;
 
-  -- P4 — is that growth at worst LINEAR? Measured across the 1000 -> 10 000
-  -- decade, where the fixed per-statement overhead that distorts the N=10
-  -- reading has already been amortised. Linear = 10x; the threshold allows 3x
-  -- linear before calling it a regression.
-  raise notice 'AE4 P4 decade ratio (N=1000 -> N=10000) = % (% ms -> % ms). Pass condition: <= 30.',
-    round(v10k / nullif(v1k, 0), 2), v1k, v10k;
+  -- P4 -- is that growth at worst LINEAR? Measured across the 1000 -> 10 000
+  -- decade, where the fixed per-statement overhead has been amortised.
+  r := round(v10k / nullif(v1k, 0), 2);
   if v10k > v1k * 30 then
-    raise exception
-      'AE4 PASS CONDITION P4 FAILED: 10x the protected rows cost %x (% ms -> % ms). Growth is super-linear in the protected-row count — this is the hazard AE5 multiplies across eleven roles.',
-      round(v10k / nullif(v1k, 0), 2), v1k, v10k;
+    perform pg_temp.ae4_say('P4','CONDITION','FAIL',
+      format('10x the protected rows cost %sx (%s ms -> %s ms), over the linear-plus-3x threshold of 30', r, v1k, v10k));
+  else
+    perform pg_temp.ae4_say('P4','CONDITION','PASS', format('decade ratio %s (threshold 30; linear = 10)', r));
   end if;
+  raise notice 'AE4 P4 decade ratio (N=1000 -> N=10000) = % (% ms -> % ms). Threshold <= 30.', r, v1k, v10k;
 
-  -- P5 — the permission arm against the legacy arm, identical statement,
-  -- identical rows. Valid ONLY because sections 2 and 3 proved that the
-  -- measured principal reaches these rows through the permission arm alone.
+  -- P5 -- the permission arm against the legacy arm, identical statement,
+  -- identical rows. Valid ONLY because sections 2 and 3 proved the measured
+  -- principal reaches those rows through the permission arm alone.
   select ms_best into vp from pg_temp.ae4_timing where label = 'P5/permission-arm';
   select ms_best into vl from pg_temp.ae4_timing where label = 'P5/legacy-arm';
-  raise notice 'AE4 P5 ratio (permission arm / legacy arm) = % (% ms / % ms). Pass condition: <= 4.',
-    round(vp / nullif(vl, 0), 2), vp, vl;
+  r := round(vp / nullif(vl, 0), 2);
   if vp > vl * 4 then
-    raise exception
-      'AE4 PASS CONDITION P5 FAILED: the permission arm costs %x the legacy arm on the identical statement (% ms vs % ms), over the threshold of 4x.',
-      round(vp / nullif(vl, 0), 2), vp, vl;
+    perform pg_temp.ae4_say('P5','CONDITION','FAIL',
+      format('the permission arm costs %sx the legacy arm on the identical statement (%s ms vs %s ms), over the threshold of 4x', r, vp, vl));
+  else
+    perform pg_temp.ae4_say('P5','CONDITION','PASS', format('ratio %s (threshold 4)', r));
   end if;
+  raise notice 'AE4 P5 ratio (permission arm / legacy arm) = % (% ms / % ms). Threshold <= 4.', r, vp, vl;
 end $$;
 
 
@@ -819,24 +869,35 @@ begin;
 
   select pg_temp.ae4_time('DC1/planted', :'c_perm', 'select count(*) from (select 1 from public.professional_profiles limit 200) t');
 
+  select round(
+           (select ms_best from pg_temp.ae4_timing where label = 'DC1/planted')
+         / nullif((select ms_best from pg_temp.ae4_timing where label = 'DC1/baseline'), 0), 2) as dc1_ratio
+  \gset
   do $$
   declare v_base numeric; v_slow numeric;
   begin
     select ms_best into v_base from pg_temp.ae4_timing where label = 'DC1/baseline';
     select ms_best into v_slow from pg_temp.ae4_timing where label = 'DC1/planted';
     raise notice 'AE4 DC1: baseline % ms -> planted % ms (%x).', v_base, v_slow, round(v_slow / nullif(v_base, 0), 2);
-    if v_slow < v_base * 10 then
-      raise exception
-        'AE4 DC1 FAILED (run is VOID): a deliberately ~50x-more-expensive assignment_facts moved the measurement only %x. The instrument cannot see an expensive seam, so no green number above can be distinguished from a dead instrument.',
-        round(v_slow / nullif(v_base, 0), 2);
-    end if;
   end $$;
 rollback;
 
--- ⚠ `DC1/planted` is written inside the transaction above and therefore
---    disappears with the ROLLBACK. Its value is reported by the NOTICE and
---    asserted inside that transaction; it is deliberately not persisted,
---    because persisting it would require the mutation to survive.
+-- ⚠ `DC1/planted` is written INSIDE the transaction above and disappears with
+--    the ROLLBACK -- persisting the row would require the mutation to survive.
+--    So the RATIO rides out in a psql variable (\gset above, which is client
+--    state and survives), and the verdict is recorded here, after the rollback.
+do $$
+declare v_r numeric := nullif(:'dc1_ratio', '')::numeric;  -- \gset stores NULL as an EMPTY STRING, and ''::numeric raises
+begin
+  if v_r is null then
+    perform pg_temp.ae4_say('DC1','CONTROL','VOID','the planted-cost ratio could not be computed (a baseline or planted timing is missing)');
+  elsif v_r < 10 then
+    perform pg_temp.ae4_say('DC1','CONTROL','FAIL',
+      format('a deliberately ~50x-more-expensive assignment_facts moved the measurement only %sx: the instrument cannot see an expensive seam, so no green number is distinguishable from a dead one', v_r));
+  else
+    perform pg_temp.ae4_say('DC1','CONTROL','PASS', format('planted cost moved the measurement %sx (threshold 10)', v_r));
+  end if;
+end $$;
 
 -- Restoration half, same discipline as section 3.
 do $$
@@ -906,3 +967,46 @@ end $$;
 \echo ''
 \echo '=== AE4 perf harness complete. Evaluate P1-P6 per'
 \echo '=== docs/design/authz-ae4-performance-acceptance.md section 6. ==='
+
+
+\echo ''
+\echo '################################################################'
+\echo '## SECTION 10 — THE VERDICT. One raise, at the end, after the ##'
+\echo '##  controls AND after the postflight, so no condition can    ##'
+\echo '##  abort the run before the control that validates it.       ##'
+\echo '################################################################'
+
+-- THE DEPENDENCY RULE. A condition whose controls did not PASS is VOID --
+-- never PASS, never FAIL. A failing P5 measured on an unvalidated instrument
+-- is not a finding about the seam; it is an unfinished measurement, and the
+-- table has to say so rather than leaving a human to argue it from the fact
+-- that the numbers looked discriminating.
+do $$
+declare v_ctl_bad text;
+begin
+  select string_agg(id || '=' || status, ', ' order by id) into v_ctl_bad
+    from pg_temp.ae4_verdict where kind = 'CONTROL' and status <> 'PASS';
+  if v_ctl_bad is not null then
+    update pg_temp.ae4_verdict
+       set status = 'VOID',
+           detail = detail || format('  [VOIDED: controls not passing -- %s]', v_ctl_bad)
+     where kind = 'CONDITION' and status in ('PASS','FAIL');
+    raise notice 'AE4: conditions VOIDED because controls did not pass (%).', v_ctl_bad;
+  end if;
+end $$;
+
+\echo '--- AE4 VERDICT TABLE ---'
+select kind, id, status, detail from pg_temp.ae4_verdict order by kind desc, id;
+
+do $$
+declare v_bad text; v_pass int; v_tot int;
+begin
+  select count(*) filter (where status = 'PASS'), count(*) into v_pass, v_tot from pg_temp.ae4_verdict;
+  select string_agg(id || '=' || status, ', ' order by id) into v_bad
+    from pg_temp.ae4_verdict where status <> 'PASS';
+  if v_bad is not null then
+    raise exception E'AE4 ACCEPTANCE NOT MET (% of % rows PASS).\nNot passing: %\nRead the verdict table above: FAIL is a regression, VOID means nothing was measured and the run is repeated, UNRUN means the row was never reached.',
+      v_pass, v_tot, v_bad;
+  end if;
+  raise notice 'AE4 ACCEPTANCE MET — all % verdict rows PASS.', v_tot;
+end $$;
