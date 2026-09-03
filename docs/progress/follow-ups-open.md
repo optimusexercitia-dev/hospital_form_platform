@@ -8187,3 +8187,88 @@ mention is `121_interviews.sql:381`, a `has_function_privilege` ACL assertion th
 and is *structurally* incapable of noticing a body mutation). ~60 doors in this suite carry that profile,
 so **any "which doors have coverage?" answer derived by grepping test files for a door name overcounts
 by that set.**
+
+### 🟠 FUP-C2-NEUTRALIZER-TAIL-DRIFT-INVALIDATES-LATE-VERDICTS — a long sweep degrades its own DB, and the harness's baseline is captured once at the top
+
+**Filed:** 2026-09-02 (C2 Tier-1 full sweep, run 1 — observed in its final three enforcers) ·
+**Owner:** backend · **Severity:** 🟠 — it cost no wrong verdict *this* run (the harness caught it
+and refused to score), so it is not 🔴. It is not 🟡 because the protection is a **detector, not a
+preventer**: it converts late verdicts into ERROR rather than preserving them, and a longer worklist
+loses a longer tail.
+
+The full sweep runs the pgTAP suite **twice per enforcer — ~342 consecutive runs over ~5 h** against
+**one** database that is reset only at the start. The suite mutates data; the drift accumulates.
+
+**Measured, run 1:** the suite ran at `Files=259, Tests=8685, PASS` for **168** enforcers, then
+degraded to `Tests=8288` at enforcer **169** and never recovered. The final three
+(`app.assert_accreditation_enabled`, `app.affiliate_person_to_org_impl`, `app.affiliate_person_impl`)
+all recorded **ERROR**, not verdicts.
+
+⭐ **Proof it is drift and NOT a property of those doors — the falsification is the evidence.** The
+first hypothesis was that neutralizing the *feature-flag* gate `assert_accreditation_enabled` let the
+suite perform writes the gate exists to prevent, which then persisted. **That is FALSE.** Re-measured
+in isolation after a fresh reset, each of the three came back **COVERED** with the suite green:
+
+| enforcer | in the full sweep | re-measured in isolation |
+| --- | --- | --- |
+| `app.affiliate_person_impl` | ERROR (SHAPE → 8288) | **COVERED** |
+| `app.affiliate_person_to_org_impl` | ERROR (SHAPE → 8288) | **COVERED** |
+| `app.assert_accreditation_enabled` | ERROR (restored run not green) | **COVERED** |
+
+Same mutation, same door, clean DB → a verdict. **The door was never the variable; run position was.**
+
+⛔ **Why the existing guards are not a fix.** `BASE_S` is captured **once, at the top of a 5-hour
+run**, and every later comparison is against that frozen shape. The guards (`S != BASE_S` → ERROR;
+COVERED demands a restored run green at `BASE_S`) make drift *visible* and keep it from becoming a
+false COVERED — which is why run 1 lost no correctness. But they cannot keep a verdict: **drift is
+converted into ERROR, and the tail is simply not measured.**
+
+**What would close it:** reset the DB periodically inside the sweep (every N enforcers) and re-capture
+`BASE_S` after each reset, so drift is *bounded* instead of merely detected. A cheaper partial: after
+any ERROR whose note is `SHAPE changed` or `did not come back green`, reset and retry that enforcer
+once before recording — which would have recovered all three automatically.
+
+⛔ **What must NOT be mistaken for closing it:**
+- **Run 1's clean correctness record.** No wrong verdict was produced, and that is *the guards
+  working*, not the absence of the defect.
+- **Re-measuring these three.** Done (they are COVERED), but that fixes the three, not the mechanism.
+  The next full sweep will lose a different tail.
+- ⛔ **Reading the committed findings file as final.** Three of its 25 ERROR rows are this artifact,
+  not door findings. Corrected tally: **COVERED 109 · BLIND 40 · ERROR 22.**
+
+### 🟠 FUP-C2-SUITE-ABORT-ERROR-CLASS — 16 enforcers abort a pgTAP file when neutralized, so they finish the sweep with no verdict
+
+**Filed:** 2026-09-02 (C2 Tier-1 full sweep, run 1) · **Owner:** backend ·
+**Severity:** 🟠 — 16 doors with **no** coverage verdict, including the response-lifecycle authority.
+Not 🔴 because there is no evidence any is unguarded; not 🟡 because "no verdict" is being counted
+nowhere and would otherwise vanish behind a COVERED-heavy summary.
+
+Of run 1's 25 ERROR rows, **16** carry `run SHAPE changed (… → …) — the suite aborted rather than
+failed; not a verdict` and are genuine per-door findings. (Of the other 9: **5** are the semicolon
+anchor defect, **3** are tail drift, **1** is `save_block_to_library`, all covered by their own
+entries.)
+
+**Mechanism, determined without the DB:** `Files=259` is UNCHANGED in every case while `Tests` drops
+— so no file failed to *run*; a file ran and **aborted partway**, contributing fewer tests than its
+plan. Removing the guard makes a test file raise where it previously did not. The harness refuses to
+score this, correctly: a lower test count is not a failing assertion, and calling it COVERED would be
+a false positive.
+
+Deltas observed range from 16 to 190 tests. Localizations by plan arithmetic:
+
+| door | tests lost | candidate file | plan |
+| --- | ---: | --- | ---: |
+| `public.submit_response` | 190 | 4+ files (`100_dashboard` 22, `130_audit` 25, `160_phase_results` 45, `161_recommend_result_source` 20) — wider than these | — |
+| `public.resolve_referral` | 101 | `150_referrals.sql` | 218 |
+| `public.submit_minutes_job` | 71 | `305_audio_minutes.sql` — the ONLY file naming it | 115 |
+
+⚠ **`public.submit_response` is the sharp one** — the response-lifecycle authority (Architecture
+Rule 3, the `submit_response` RPC). It has **no coverage verdict**.
+
+**What would close it:** per door, mutate it, run the suite, and read from the TAP output **which**
+file aborted and at which assertion — minutes each, needing only a free DB. Then either fix the test
+to fail rather than abort, or record why the abort is itself the signal.
+
+⛔ **What must NOT be mistaken for closing it:** a COVERED verdict for the same door from a *different*
+arm — the arms bound their domains differently (ADR 0079), and this class is defined by this arm's
+mutation. ⛔ Nor an allowlist entry: the door is not *never called*, it is **never scored**.
