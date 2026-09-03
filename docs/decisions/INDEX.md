@@ -12,7 +12,7 @@
 >
 > Edges are **advisory** and over-inclusive by design; the ADR text is truth.
 
-**177 ADRs** · next free number: **0180** · 56 carry an inbound supersedes/amends edge
+**178 ADRs** · next free number: **0181** · 56 carry an inbound supersedes/amends edge
 
 ## ⚠ Anomalies
 
@@ -201,3 +201,4 @@
 | 0177 | [AE4.9 D4/D7 as built: the candidate's state set, the denial precedence, and the state g…](0177-ae49-resolver-contract-implementation-choices.md) | accepted | 2026-09-02 | – | – |
 | 0178 | [AE4.9 D6 as built: the narrow authorizer, where the preserved legacy arm lives, and the…](0178-ae49-d6-rekey-as-built.md) | accepted | 2026-09-02 | amends 0175 | – |
 | 0179 | [One open follow-up register: the PROGRESS.md index is folded into the bodies](0179-follow-up-register-consolidation.md) | accepted | 2026-09-02 | amends 0124, 0140 | – |
+| 0180 | [`authz.scope_reaches`: the commission→organization ascent reads `commissions.organizati…](0180-scope-reaches-commission-org-ascent-plan-fix.md) | accepted | 2026-09-02 | – | – |
