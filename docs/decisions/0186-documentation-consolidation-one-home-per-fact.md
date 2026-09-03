@@ -185,6 +185,10 @@ two citations — until then the exclusion is stated in the arm, not hidden.
   both stands, including 0185's severity scale, bug table, lessons register and index generation.
 - The three PO ruling lists (untriaged bugs, blank closing conditions, blank revisit triggers) are
   untouched; the ratchets stop them growing.
+- **The register split was performed by `scripts/migrate-fup-bodies.mjs`**, committed with Wave 5
+  at `4384f204` (idempotent; its summary output is in the Wave 5 session-log entry of
+  `docs/progress/docs-consolidation.md`) and deleted at the Record step — it exists only in
+  that commit, by design: the migration is not a standing tool.
 
 ## Implementation constraints
 
