@@ -12,7 +12,7 @@
 >
 > Edges are **advisory** and over-inclusive by design; the ADR text is truth.
 
-**177 ADRs** · next free number: **0180** · 56 carry an inbound supersedes/amends edge
+**178 ADRs** · next free number: **0181** · 56 carry an inbound supersedes/amends edge
 
 ## ⚠ Anomalies
 
@@ -183,7 +183,7 @@
 | 0159 | [an invariant backstop runs as DEFINER; two correct decisions can compose into a break](0159-invariant-backstops-run-as-definer.md) | accepted | 2026-08-26 | amends 0151 | – |
 | 0160 | [AE0 corrections to ADR 0155's measured figures: the `anon` residue never grew, and the…](0160-ae0-corrections-to-adr-0155-measured-figures.md) | ⚠ proposed | 2026-08-26 | amends 0155 | – |
 | 0161 | [The person-authority SQL twin: ADR 0133 D4's "no SQL twin" is retired](0161-person-authority-sql-twin-retires-no-twin-prohibition.md) | accepted | 2026-08-27 | amends 0133 | – |
-| 0162 | [Plan-audit corrections to the authorization-evolution program: rollback artifact, catal…](0162-authz-evolution-plan-audit-corrections.md) | accepted | 2026-08-27 | amends 0155 | ⚠ amended by 0172 |
+| 0162 | [Plan-audit corrections to the authorization-evolution program: rollback artifact, catal…](0162-authz-evolution-plan-audit-corrections.md) | accepted | 2026-08-27 | amends 0155 | ⚠ amended by 0172, 0180 |
 | 0163 | [lifecycle authority over a fully-offboarded person: last-org retention](0163-offboarded-person-lifecycle-authority.md) | accepted | 2026-08-27 | amends 0151 | ⚠ amended by 0164 |
 | 0164 | [tenant containment moves from creation time to the destructive event](0164-tenant-containment-moves-from-creation-time-to-the-destructive-event.md) | accepted | 2026-08-28 | amends 0151, 0163 | ⚠ amended by 0165, 0166, 0168 |
 | 0165 | [the affiliation-derived tenant gate, what it widens, and the alternative rejected for n…](0165-affiliation-derived-tenant-gate-and-its-widening.md) | accepted | 2026-08-28 | amends 0151, 0164 | ⚠ amended by 0168 |
@@ -201,3 +201,4 @@
 | 0177 | [AE4.9 D4/D7 as built: the candidate's state set, the denial precedence, and the state g…](0177-ae49-resolver-contract-implementation-choices.md) | accepted | 2026-09-02 | – | – |
 | 0178 | [AE4.9 D6 as built: the narrow authorizer, where the preserved legacy arm lives, and the…](0178-ae49-d6-rekey-as-built.md) | accepted | 2026-09-02 | amends 0175 | – |
 | 0179 | [One open follow-up register: the PROGRESS.md index is folded into the bodies](0179-follow-up-register-consolidation.md) | accepted | 2026-09-02 | amends 0124, 0140 | – |
+| 0180 | [C2's full sweep runs against the current branch's schema, not against `main`](0180-c2-sweep-runs-against-the-current-branch-schema.md) | accepted | 2026-09-02 | amends 0162 | – |
