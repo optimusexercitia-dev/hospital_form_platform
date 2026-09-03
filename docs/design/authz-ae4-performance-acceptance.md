@@ -367,8 +367,34 @@ control at the same time.
 `supabase db reset --local` — a bisect or an E2E run leaves a schema that poisons every catalog
 read. No parallel agent writing to the DB.
 
+⛔ **BEFORE STEP 0 — RENAME THE PREVIOUS RUN'S ARTIFACTS, or you silently invalidate every
+citation of them.** Steps 1–3 **overwrite** `authz-ae4-perf-run-{load,passA,passB}.txt` in place.
+Those files are not scratch: §14, §16, ADR 0183 and the external-audit response all cite them by
+**line number** (`run6-passB.txt:2818`, `run6-passA.txt:340`, …), and an overwrite leaves every one
+of those pointing at whatever now occupies that line — the citation still *looks* checkable, which
+is the whole failure this document exists to distrust. Run 6's pair was preserved as
+`authz-ae4-perf-run6-*.txt` on 2026-09-03 for exactly this reason; ⚠ it was preserved **after**
+§16 had already been written against the un-suffixed names, so the repoint was a repair, not a
+convention that was followed. Do it first from now on:
+
 ```bash
-# 0. Fresh, quiet stack.
+# -1. Preserve the outgoing run under its own number, and repoint nothing —
+#     citations already name run6-*, and run N names runN-*.
+git mv docs/design/authz-ae4-perf-run-passA.txt docs/design/authz-ae4-perf-run<N>-passA.txt
+git mv docs/design/authz-ae4-perf-run-passB.txt docs/design/authz-ae4-perf-run<N>-passB.txt
+git mv docs/design/authz-ae4-perf-run-load.txt  docs/design/authz-ae4-perf-run<N>-load.txt
+```
+
+⚠ An earlier instance of this same rot is still visible and is left as a marker: §9.2 states a
+count "in `authz-ae4-perf-run-passB.txt`; the file ends at line 593" — a **run 2** artifact that
+run 6 overwrote long ago. Nothing flagged it, because a stale line number cannot fail a gate.
+
+```bash
+# 0. Fresh, quiet stack. ⛔ Run this from the WORKTREE you are testing, not the primary
+#    checkout — both share project_id azkbbhskturikxpgmafq, so `db reset` applies whichever
+#    directory's migrations you happen to be standing in. Measured 2026-09-03: a reset run
+#    from the wrong checkout left the DB at head 20261003007300 with authz.authorized_scope_ids
+#    ABSENT, and reported "clean".
 supabase db reset --local
 
 # 1. Load the scaled fixture and ANALYZE (expect a few minutes).
@@ -392,14 +418,32 @@ docker exec -i supabase_db_azkbbhskturikxpgmafq \
   > docs/design/authz-ae4-perf-run-passB.txt 2>&1
 echo "passB exit: $?"
 
-# 4. Evaluate P1-P3 from the Pass B output — TWO STAGES, presence before bounds.
+# 4. The COMMITTED CHECKERS — P1's verdict and, from run 7 on, P2's. Added
+#    2026-09-03 (ADR 0183): P1's checker existed from run 6 but was never a step
+#    here, so it lived only in whoever remembered to run it.
+#    ⛔ Read each exit code DIRECTLY. Both need the fixture loaded; P2's also
+#    needs superuser (track_functions) and takes ~10 s.
+docker exec -i supabase_db_azkbbhskturikxpgmafq \
+  psql -U postgres -d postgres -X -f - < scripts/authz-ae4-p1-index-path.sql
+echo "P1PROBE: $?"
+docker exec -i supabase_db_azkbbhskturikxpgmafq \
+  psql -U postgres -d postgres -X -f - < scripts/authz-ae4-p2-invocation-count.sql
+echo "P2PROBE: $?"
+
+# 5. Evaluate P3 — and P1/P2's EVIDENCE — from the Pass B output. TWO STAGES,
+#    presence before bounds.
 #    ⛔ Do not run the bound greps unscoped or before the presence greps: run 1
 #    showed an unscoped P1 grep reading M4's driver as the seam, and an empty
 #    bound grep reads exactly like a pass. Commands: section 9.7.
 
-# 5. Teardown — OR, preferred, a reset (see below).
+# 6. Teardown — OR, preferred, a reset (see below).
 supabase db reset --local
 ```
+
+⛔ **The run ledger line gains `P2PROBE` from run 7 on**:
+`RESET=… · LOAD=… · PASSA=… · PASSB=… · P1PROBE=… · P2PROBE=…`. The run-6 lines (§14, §15.2) carry
+no `P2PROBE` and must not be given one — that run had no P2 probe, and back-filling a field into a
+record of a run that did not produce it is how a record stops being one.
 
 ⛔ **Read every exit code directly, never through a pipe or a trailing `echo`** — a pipe erases the
 exit code, and this project has already recorded gate runs reported as 0 that were 1.
@@ -593,11 +637,27 @@ grep -c 'assignment_facts' /tmp/ae4-nested.txt
 grep -c 'scope_reaches'    /tmp/ae4-nested.txt
 
 # STAGE 2 — BOUNDS. Only once stages 0 and 1 are satisfied.
-grep -oE 'Seq Scan on [a-z_]+' /tmp/ae4-nested.txt | sort | uniq -c | sort -rn     # P1
-grep -oE 'Function Scan on assignment_facts af .*loops=[0-9]+' /tmp/ae4-nested.txt \
-  | grep -oE 'loops=[0-9]+' | sort | uniq -c                                       # P2
+grep -oE 'Seq Scan on [a-z_]+' /tmp/ae4-nested.txt | sort | uniq -c | sort -rn     # P1 (evidence)
+grep -c 'Function Scan on assignment_facts af' /tmp/ae4-nested.txt                 # P2 (evidence)
 grep -c 'Filter: authz.scope_reaches' /tmp/ae4-nested.txt                          # P3
 ```
+
+⛔ **P1's and P2's VERDICTS no longer come from this region.** Both are now committed checkers with
+exit codes; the greps above are kept because presence and the raw census are still worth reporting,
+and stages 0–1 above still bind (an absent subject is VOID, never PASS — §9.2).
+
+| condition | verdict from | this region now supplies |
+| --- | --- | --- |
+| **P1** | `scripts/authz-ae4-p1-index-path.sql` (ADR 0181) | the raw `Seq Scan` census, as evidence |
+| **P2** | `scripts/authz-ae4-p2-invocation-count.sql` (ADR 0183, §16) | the raw node count, as evidence |
+| **P3** | this region | the bound |
+
+⛔ **The retired P2 command was**
+`grep -oE 'Function Scan on assignment_facts af .*loops=[0-9]+' | grep -oE 'loops=[0-9]+' | sort | uniq -c`.
+It counted `loops` **values**, never the node count against a bound. Every nested `has_permission`
+emits its own plan with its own node at `loops=1`, so *"every node `loops=1`"* is true for any
+number of candidate scopes and **cannot fail** — it is stated here in full so the next reader can
+see why it is gone rather than re-inventing it. §16 has the replacement.
 
 ---
 
@@ -1023,7 +1083,15 @@ what show the converted path is doing real work.
 - It does **not** retire any run-1..5 verdict. Every table above §13 stands as measured, under the
   wording in force at the time.
 - ⛔ It does **not** convert `professional_participants_select`. That policy stays per-row on
-  purpose — it is DC1's new subject, and converting it would take the re-aimed control away again.
+  purpose. ~~it is DC1's new subject, and converting it would take the re-aimed control away
+  again.~~ ⛔ **STRUCK 2026-09-03 (ADR
+  [0183](../decisions/0183-p2-invocation-count-respecification.md)): the reason was already dead
+  when it was written.** §13.5 — *four lines below this one* — records that the re-aim onto
+  `professional_participants_select` was measured and **killed** (the target is empty), and §13.2's
+  DC1 row was rewritten to keep the legacy predicate instead. So this bullet's *conclusion* stands
+  (the policy is not converted, and `FUP-PROFESSIONAL-PARTICIPANTS-SELECT-STILL-PER-ROW` tracks it)
+  while its *reason* names a control that does not exist. Struck rather than deleted: a reader who
+  met the claim elsewhere needs to find it retired, not absent.
 
 ### 13.5 A re-aim that was written, measured, and killed — recorded rather than quietly replaced
 
@@ -1141,8 +1209,18 @@ all non-zero, so **not VOID**; only then the bounds:
 
 **Settles.** The residue §12.4 localized is gone, and it was removed the way §12.4 predicted — by
 changing `entailed_grants`' *invocation structure*, not `scope_reaches`. The permission arm went
-**1 001 345 buffers / 12 178 ms → 402 buffers / ~2.8 ms** on the identical statement over the
-identical 10 000 rows, with the legacy arm unmoved at ~2 100 ms. DC3 is what makes that
+**1 001 345 buffers / 12 178 ms → 402 buffers / 3.842 ms** on the identical statement over the
+identical 10 000 rows, with the legacy arm unmoved at ~2 100 ms.
+⛔ **CORRECTED 2026-09-03 (ADR [0183](../decisions/0183-p2-invocation-count-respecification.md)):
+this read `402 buffers / ~2.8 ms`, which matches neither artifact and contradicted this section's
+own table.** The coherent pair — same statement, same `explain (analyze, buffers)` node — is
+`run6-passA.txt:340` (402 buffers) with `run6-passA.txt:348` (3.842 ms); the harness §7 best-of-5 on
+the identical statement is **3.996 ms** (`run6-passA.txt:947`), which is the figure §15.2's P5 row already
+carries. `~2.8 ms` is neither, and a buffers count paired with a latency from no stated apparatus
+is the shape §14.1's own "does not settle" item 1 warns about. ⚠ **This does not contradict ADR
+0182's `8.3 ms`** — that is a *different apparatus*, honestly labelled there: the pre-commit
+candidate installed in a rolled-back transaction and read off EXPLAIN, not the shipped body under
+the harness. DC3 is what makes that
 attributable rather than merely fast: with the set builder emptied the row count is **unchanged**
 (the `ELSE` arm still grants — the policy did not narrow) while cost returns to **10 390 ms**, and
 with it over-broadened a **foreign-organization** row becomes visible. The set arm is therefore
@@ -1233,6 +1311,213 @@ Externally per §9.7 — stage 0 **9 735** lines; presence `assignment_facts` **
 Two of the four defects were **a test pinning what it should have measured**: `413` hand-typed a
 `proconfig` string copied from a broken catalog, and P7 asserted a plan shape without ever showing
 it could report the other answer. Both were green, and both were green for a reason unrelated to
-the property. ⭐ *The repair in each case was to replace a literal with a comparison — the sibling's
-`search_path`, the pre-change predicate's plan — because a hand-typed expected value cannot tell a
-defect from a design.*
+the property. ⭐ *The repair in each case was to replace a literal with a comparison — ~~the
+sibling's `search_path`~~, the pre-change predicate's plan — because a hand-typed expected value
+cannot tell a defect from a design.*
+
+⛔ **HALF OF THAT LESSON WAS REVERSED 2026-09-03, and the reversal is the sharper reading.** `413`
+no longer compares `app.current_professional_read_organizations`' `search_path` to its **sibling's**;
+it pins **both** siblings independently against the direct constant
+`search_path=app, public, pg_catalog`, which is the house pattern (`341:222-225`, `393:241-244`,
+`396:157-161`, `292:42-45`). Sibling-equality defines a *security* invariant as equality with a
+**mutable object**: if both siblings drift to the same unsafe value it stays green, which is the one
+outcome a `search_path` pin exists to catch. ⭐ What made the original defect a defect was copying a
+constant **out of a broken catalog** — not the use of a constant. The remedy is to type the value
+the migration is **required to emit**. The P7 half of the lesson (compare against the pre-change
+predicate's plan) is untouched and still stands: there the reference is a *shape the code must not
+have*, not a value it must keep. The class — rather than these two names — is swept by
+`supabase/tests/414_definer_search_path_resolves.sql`; ⛔ do not grow a per-name list in `413`.
+
+---
+
+## 16. P2 re-specified — a falsifiable bound with a committed checker (2026-09-03) — ADR 0183
+
+Subject: acceptance condition **P2**, as amended by §13.2 and as scored in run 6. This section
+**replaces P2's wording and its instrument**; every run-1..6 verdict stands as measured, under the
+wording in force at the time.
+
+### 16.1 Why the §13.2 wording could not fail
+
+§13.2 re-stated P2 as *"`authz.assignment_facts` is invoked **once per STATEMENT** on the converted
+read path"* — the right property, for the right reason: the old *"≤ 1 per protected row"* form had
+gone vacuous the moment the read stopped being per-row. But the **instrument** was left where it
+was, at §9.7 stage 2:
+
+```
+grep -oE 'Function Scan on assignment_facts af .*loops=[0-9]+' | grep -oE 'loops=[0-9]+' | sort | uniq -c
+```
+
+That pipeline counts **`loops` values**, never the node count against a bound. Each nested
+`has_permission` is a separate `SECURITY DEFINER` body and emits its own plan carrying its own node
+at `loops=1`, so *"every node `loops=1`"* — the sentence run 6's PASS was justified with — is true
+for **every** candidate count and cannot report the other answer. ⭐ **This is the second time P2
+went vacuous the same way**: §13.2 re-specified the *condition* and left the *measurement* one level
+down, where it went vacuous again. A condition and its instrument are re-specified together or not
+at all.
+
+The second half of the defect is scope. Run 6 recorded **7** invocations against a condition reading
+"once per statement" and scored **PASS**. Decomposed against the committed artifact
+(`authz-ae4-perf-run6-passB.txt`, M1-nested region = lines 857–5960):
+
+| line(s) | caller | rows | P2's subject? |
+| --- | --- | --- | --- |
+| 2818 | the `candidate` CTE inside `authorized_scope_ids` | 20 (= M) | **yes** — the one resolver entry |
+| 1820, 2746 | `entailed_grants`, the two candidate confirmations | 16 + 4 = 20 | **yes** — `U = 2` |
+| 3822 | `entailed_grants` from the policy's **ELSE** arm | 0 | no |
+| 4049, 4792, 5535 | `authz.holds_role` via `app.can_manage_professional` | 0 | no |
+
+**3 of the 7 are the resolver (`1 + U`, `U = 2`, exactly as the structure predicts); 4 are its
+neighbours.** Nothing was anomalous — M1-nested is `limit 200` **unfiltered**, so one row missed the
+set arm and fell through to `app.can_read_professional_profile`. ⛔ The defect is that run 6's P2
+evidence **counted off-path nodes into its subject**. *A criterion that cannot tell its own subject
+from its neighbours is the same failure as one whose observable cannot move.*
+
+⭐ **And this was not a borderline call — the harness forbids it in its own header.**
+`scripts/authz-ae4-perf-harness.sql:41-44`, forty lines into the file that produced the evidence:
+
+```
+-- ⛔ NEVER `authz.holds_role` alone. It is not even ON this path: has_permission
+--    reaches assignment_facts directly through entailed_grants. holds_role is
+--    the layer-1 sibling used by app.is_staff_admin_of{,_for}. Measuring it
+--    measures the pre-D6 world.
+```
+
+Three of the four off-path nodes are exactly that. So P2's PASS did not merely apply a criterion
+that could not fail — it **broke a written rule sitting in the right place**, and neither the run's
+own scoring, the internal QA review, nor the later external audit noticed. ⛔ That is the argument
+for §16.2 being an executable checker rather than a better-worded grep: the rule already existed in
+prose, in the correct file, and prose did not enforce it. It is also why §16.2's `§4` reports the
+decomposition as **per-function invocation counters keyed by OID** rather than as node text scraped
+from a plan — a counter attributed to `authz.holds_role`'s own OID cannot be read as the resolver's,
+which is precisely the mistake the `loops=1` grep made possible.
+
+### 16.2 The replacement
+
+Let `A` = `authz.assignment_facts` invocations per statement, `U` = the **measured** number of
+candidate confirmations the resolver performs, `N` = protected rows.
+
+| | Condition | Read from | FAILS when |
+| --- | --- | --- | --- |
+| **P2 (bound)** | `A = 1 + U` on the converted path, with `authz.authorized_scope_ids` itself entered exactly **once** per statement | `scripts/authz-ae4-p2-invocation-count.sql` §3 (verdict) + the Pass B node census (evidence) | `A ≠ 1 + U` at either `N`, or the resolver was entered more than once. ⛔ The bundled §0 calibration and the §1/§2 controls must FIRE, or the run is **VOID**. |
+| **P2a (row independence)** | `ΔA = 0` when `N` goes 200 → 400, measured on the **org-filtered** statement so the `ELSE` arm is `never executed` **by construction** — and that is asserted (`Δcan_read_professional_profile = 0`), not assumed | checker §2 | `A` moves with `N` — the resolver is being re-entered per row. **VOID** if the ELSE arm executed at all, because the count is then not about the resolver. |
+| **P2b (the candidate slope)** | Planting candidate scopes gives `ΔA = ΔU`, with `ΔU` **measured**, never predicted from the number of memberships added | checker §1 | `ΔA ≠ ΔU`. ⛔ **Verdict precedence:** `ΔU > 0 ∧ ΔA = 0` is **VOID** (a dead instrument), never FAIL — collapsing the two loses the finding that matters. |
+| **P2 scope** | P2's subject is the **resolver's own re-entry**. `holds_role` and `ELSE`-arm contributions are reported as a **decomposition** and are never folded into the count | checker §4 | The decomposition identity leaves a residual — reported as a **named unexplained term**, never absorbed. |
+
+| | Amendment | Why |
+| --- | --- | --- |
+| **The instrument** | `pg_stat_get_function_calls(oid)` under a per-session `track_functions = 'all'`, keyed by **OID** via `::regprocedure`. | No text scraping, no queryid matching, no plan parsing — and it counts `has_permission` / `entailed_grants` / `holds_role` / `can_read_professional_profile` in the same pass, so §16.1's decomposition comes for free and becomes an assertion instead of a hand attribution. |
+| **`U` is measured, not read off a plan** | `U` = `authz.has_permission` invocations attributable to the resolver, on the same counter. | ⛔ **`U` is NOT readable off the resolver's plan, and that is a catalog fact:** `authorized_scope_ids` is `SECURITY DEFINER` ⇒ never inlined ⇒ `EXPLAIN (ANALYZE)` stops at `Function Scan on authz.authorized_scope_ids`. The `candidate` / `Unique` nodes exist only in the auto_explain nested log (`passB.txt:2810-2814`) — which cannot carry an exit code and cannot attribute a node to its caller, *which is exactly how three `holds_role` nodes became P2 evidence*. It is also **not** the `SubPlan → ProjectSet rows=` reading (`passA.txt:342`): that is the **granted** count, a different quantity, and the checker's §1 arm C separates them by construction. And it is **not** a hand-copy of the resolver's candidate `CASE` — a harness holding a copy of production text is a duplicate no gate protects. |
+| **Two controls, and they are different things** | **§0 liveness** (`Δ = 1` for one direct call over `M` rows) and **§1 discrimination** (the candidate differential). Both must fire. | ⭐ **§0 is a gate, not a formality.** For a `language sql` SRF, fmgr may be entered once per invocation or once per *row*; `Δ = M` means every number is inflated `M`-fold and is reported **VOID with a remedy**, never as a number. ⭐ And **measured 2026-09-03**: without a top-level `pg_stat_force_next_flush()` before each read the delta is **0** — a silent dead instrument, because pending function stats are invisible inside a transaction block and are not flushed immediately after one. §0 is what catches that. |
+| **§1 carries a `ΔU = 0` arm and a non-authorizing arm** | A seat planted in an **already-proposed** organization must give `ΔU = 0 ∧ ΔA = 0`; a seat in a new organization in a **non-authorizing** role must give `ΔU > 0` while the **granted** count does not move. | Without the `ΔU = 0` arm, an instrument counting **facts** rather than **invocations** passes anyway — that arm is where the two disagree. Without the non-authorizing arm, the count is not shown to track **proposals** rather than **grants**, which is the whole content of "`1 + U`". A plant-only control measures the `INSERT`'s own trigger cost rather than assuming it is zero. |
+| **§2 carries its own control** | With the **pre-change** per-row predicate installed in a rolled-back transaction, `ΔA` **must** differ between the two `N`; if it does not, §2 is VOID. | "`ΔA` is the same at both `N`" is precisely the shape that reads as a pass when nothing ran. Measured: control `ΔA` = **200 / 400**, live `ΔA` = **3 / 3**. |
+| **P1 · P3 · P4 · P5 · P7 · DC1 · DC2 · DC3** | **UNCHANGED.** No threshold moves. | P2 is an invocation count, not a cost; nothing in it re-derives a latency or a ratio. |
+
+⛔ **Do not fold P7 into this and do not rely on it here.** P7 bounds the *outer* structure on M1b,
+and its `never executed` holds **only because M1b is org-filtered**. Run 6 is the proof of the gap:
+on the unfiltered M1-nested statement the fallback *did* execute, four times. Row-independence
+therefore belongs in **P2a**, not P7.
+
+### 16.3 The checker
+
+`scripts/authz-ae4-p2-invocation-count.sql`, beside P1's, same shape: `ON_ERROR_STOP on`, structured
+extraction, **exit 0 = clear · exit 3 = FAIL, or a control did not fire (VOID)** via one
+`raise exception` in a closing `do $verdict$`. ⛔ Read the exit code **directly**; a pipe erases it.
+Layout: §0 calibration → §1 candidate differential (plant-only control + three arms + a coverage
+requirement that **both** polarities actually occurred) → §2 `N`-differential with its
+pre-change-predicate control → §3 the bound → §4 decomposition → postflight → verdict. Every
+mutation runs inside `begin … rollback`; the postflight asserts that `memberships` / `profiles` /
+`organizations` counts, the `professional_profiles_select` predicate and every body on the
+`assignment_facts` chain are as the run found them. Function-call counters survive `ROLLBACK`, which
+is what makes that possible.
+
+§4 mechanizes §16.1's hand attribution as an identity over **every** catalog function that enters
+`assignment_facts` —
+
+```
+ΔA = Δauthorized_scope_ids + Δentailed_grants + Δholds_role
+       + Δcandidate_authorized_scope_ids + Δexplain_permission
+```
+
+— and the caller list is **checked against the catalog** rather than trusted, so a caller added later
+makes the checker say so instead of silently producing a residual. On the same unfiltered `limit 200`
+statement run 6 captured, this returns `A = 7 = 1 + 3 + 3 + 0 + 0`, **residual 0** — §16.1's table,
+re-derived by machine.
+
+**First run, 2026-09-03 (perf fixture loaded, exit 0):** calibration `Δ = 1` over `M = 20`; baseline
+`A = 3, U = 2, granted = 2`; arms — *new org, authorizing* `ΔA = ΔU = 1` (granted 2 → 3),
+*same org* `ΔA = ΔU = 0`, *new org, non-authorizing* `ΔA = ΔU = 1` (granted **unchanged**);
+`N` 200 → 400 gives `ΔA` **3 → 3** with the ELSE arm at 0 calls, against a control at **200 → 400**.
+⭐ **Every failure mode was forced and observed**, because a checker that has only ever printed CLEAR
+is worth nothing: dropping the forced flush ⇒ §0 **VOID**; planting all three arms into
+already-proposed organizations ⇒ §1 coverage **VOID** (*"the differential never fired"*, not PASS);
+freezing the counter ⇒ §1 **VOID** *"DEAD INSTRUMENT, not a pass"*, with VOID outranking the FAILs it
+also produces; and a resolver mutated to enter `assignment_facts` once more — in a rolled-back
+transaction, derived from `pg_get_functiondef` so the mutation is not a hand-copy either — ⇒ §3
+**FAIL** `A = 4, 1 + U = 3`. All four exited **3**; all four postflights passed and the fixture was
+unmoved at `48 799 / 12 036 / 13`.
+
+### 16.4 Run 6 is re-decomposable but **NOT re-scorable** — a fresh run is owed
+
+Re-scoring run 6 under §16.2 was attempted before a re-run was proposed, and it provably fails. The
+committed artifacts yield `U = 2`, `1 + U = 3` and the full seven-node attribution in §16.1 with **no
+re-run at all** — that decomposition lands for free. What they cannot yield is a **verdict**, on four
+independent counts:
+
+| | The new wording needs | The artifacts hold |
+| --- | --- | --- |
+| i | an **org-filtered** nested capture (P2a) | M1-nested is `limit 200` **unfiltered**, so the ELSE arm contaminates it; M1b is org-filtered but carries no nested capture |
+| ii | a **second `N`** | only `N = 200` exists |
+| iii | the **candidate differential** and its `ΔU = 0` arm (P2b) | never run, in any form |
+| iv | **any invocation counter** | `track_functions` was `none` for every run to date |
+
+⇒ **P2 is `UNRUN` until run 7.** Run 6's P2 row stands as recorded — a PASS under the wording then in
+force — and is **not** retroactively converted into a fail; what §16 retires is the wording and the
+instrument, not the measurement. ⛔ And the run-6 ledger lines (§14, §15.2) carry no `P2PROBE`; they
+must not be given one.
+
+## 17. Run 7 (2026-09-03) — the first run scored under §16. **P2 MEASURED, and it PASSES.**
+
+Subject: `20261003007320` + `20261003007330`, branch `authz-ae4-scope-reaches-fix`, judged under §16.
+Fresh `supabase db reset --local` **run from the worktree under test** (see §7's ⛔ — a reset run from
+the primary checkout left the stack at head `20261003007300` with `authz.authorized_scope_ids`
+**absent**, and reported "clean"), full fixture reload, both passes, both committed checkers.
+Run 6's artifacts were preserved as `authz-ae4-perf-run6-*.txt` **before** this run overwrote the
+canonical pair — §7's other ⛔.
+
+`RESET=0 · LOAD=0 · PASSA=3 · PASSB=3 · P1PROBE=0 · P2PROBE=0` — each read from its own file.
+⛔ The two 3s are the harness working: section 10 raises because P1/P2/P3 are `UNRUN` in-process by
+design. ⭐ This is the **first ledger line to carry `P2PROBE`**, per §16.4.
+
+| | Verdict | Evidence |
+| --- | --- | --- |
+| **P1** | **PASS** | `scripts/authz-ae4-p1-index-path.sql` exit **0**; the bundled vacuity control FIRED; all four chain tables CLEAR. |
+| **P2** | **PASS** | `scripts/authz-ae4-p2-invocation-count.sql` exit **0**. Calibration `Δ = 1` over `M = 20` (counts invocations, not rows). Differential fired in BOTH directions: `1a` new authorizing org `ΔA = +1, granted 2→3`; `1b` same org `ΔU = 0 ⇒ ΔA = 0`; **`1c` new NON-authorizing org `ΔA = +1` while `granted` stayed 2** — the count tracks PROPOSALS, not grants. N-differential control FIRED (`ΔA` 200/400 on the pre-change predicate) against live **3 / 3**. Bound `A = 1 + U` holds at both `N`. §4 decomposition closes with **residual 0**: `A = 7 = asi 1 + entailed_grants 3 + holds_role 3`. |
+
+Full pgTAP on the same fresh reset, before the fixture was loaded: **`Files=262, Tests=8745, PASS`**
+(run 6: `261 / 8738`; the deltas are `414`'s new file and its `plan(7)` — `413` is unchanged at 29,
+which is the arithmetic confirming its 2-for-2 swap added no assertions). Lint **12/12**, tsc clean.
+
+### 17.1 ⛔ The first attempt at run 7 VOIDed, and the reason is the point
+
+Recorded rather than quietly replaced, per §13.5's precedent. The first execution returned
+**`P2PROBE=3` — VOID, not FAIL**, on two controls: `§0 calibration` reported *"delta=, neither 1 nor
+M. The instrument is not understood; no number below may be read"*, and `§1 coverage` reported *"the
+differential never fired"*.
+
+**Cause.** `pg_stat_get_function_calls(oid)` returns **NULL, not 0**, for a function with no stats
+row yet. On a freshly reset stack under a per-session `track_functions = 'all'`, **nothing** has a
+stats row when the baseline snapshot is taken, so every baseline read NULL and every delta computed
+as `new - NULL` = NULL. Fixed with `coalesce(..., 0)` on all eleven counter reads.
+
+⚠ **Why it survived development.** The checker had been run four times against a long-lived stack —
+so the stats rows it needed had been created **by its own earlier runs**. The instrument only worked
+once it had already been used. Re-running is the natural way to gain confidence in a probe and is
+precisely the action that cannot find this: every run after the first is warm. ⛔ Note also that
+`pg_stat_reset()` and `pg_stat_reset_single_function_counters()` are **permission denied even to
+`postgres`** on Supabase, so the only route back to a cold instrument is a full `db reset` — budget
+for it rather than skipping the test.
+
+⭐ **What this says about §16.** A checker whose controls must FIRE reported VOID on its first cold
+start instead of a confident PASS built on NULL deltas. The retired instrument — `every node
+loops=1` — had no such control and would have reported the same PASS it always did. That is the
+§16 argument, demonstrated on §16's own checker within a day of writing it.

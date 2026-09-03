@@ -17,11 +17,14 @@ import type { ProfessionalLinkState } from '@/lib/participants/actions'
  *   - `participants_select` — `app.is_org_member(organization_id) ∨ app.is_admin()`.
  *     Org-scoped for every non-patient type (ADR 0091 Decision 2). Backs the
  *     EXTERNAL lane.
- *   - `professional_profiles_select` — `app.can_read_professional_profile(id, auth.uid())`.
- *     Backs the PROFESSIONAL lane. ETH·E4 §1.4 widens that predicate with an
- *     org-manager disjunct; without it the picker is unusable, because today the
- *     gate resolves true only for a platform admin or for a professional ALREADY
- *     seated on a case the caller can read (ADR 0108 D5).
+ *   - `professional_profiles_select` — a two-armed `CASE` (ADR 0182): a statement-scoped
+ *     SET arm, `organization_id IN (SELECT app.current_professional_read_organizations())`,
+ *     short-circuits to `true`; the ELSE falls back to the per-row
+ *     `app.can_read_professional_profile(id, auth.uid())`. Backs the PROFESSIONAL lane.
+ *     ETH·E4 §1.4 widened that fallback with an org-manager disjunct; without it the
+ *     picker is unusable, because absent that disjunct the gate resolves true only for
+ *     a platform admin or for a professional ALREADY seated on a case the caller can
+ *     read (ADR 0108 D5).
  *
  * ⚠ The professional lane searches `professional_profiles`, NOT `participants`.
  * A profile minted by `create_professional_profile` has **no registry row** until

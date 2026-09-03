@@ -8040,7 +8040,7 @@ function, measured once, by hand, outside any arm. ⛔ Nor a green from `ARM=cen
 silent about exactly this population. *A green arm bounds its own domain* (ADR 0079); an arm that
 cannot select a gate has not cleared it.
 
-### 🟡 FUP-PROFESSIONAL-PARTICIPANTS-SELECT-STILL-PER-ROW — the second policy on the same authorizer was NOT converted, and is now load-bearing as a control
+### 🟡 FUP-PROFESSIONAL-PARTICIPANTS-SELECT-STILL-PER-ROW — the second policy on the same authorizer was NOT converted, and it cannot serve as a control either
 
 **Filed:** 2026-09-03 (AE4 / IA-F9 statement-scoped increment, `20261003007320` — ADR
 [0182](../decisions/0182-statement-scoped-authorized-scope-ids.md)) ·
@@ -8152,13 +8152,43 @@ one.
 no new script and the DB is already the authority) asserting that for every `prosecdef` function
 in `app`/`public`/`authz`, `proconfig`'s `search_path` either is the empty form or splits into
 schemas that **all exist in `pg_namespace`**. ⛔ Text-matching for a quote is the *symptom*; the
-property is *"every named schema resolves"*, and only the second survives someone writing
-`set search_path to 'app'` (one identifier, quoted, and it happens to exist).
+property is *"every named schema resolves"*.
+
+⭐ **THE SWEEP HALF IS DONE — 2026-09-03, pgTAP `414_definer_search_path_resolves.sql`.** It asserts
+exactly the property above over **890** `prosecdef` functions in `app`/`public`/`authz` (**0**
+offenders; the gate starts green as predicted), tokenizing by *matching* quoted-or-unquoted runs
+rather than splitting on `,`, and it carries three proofs it can bite — a planted collapsed DEFINER,
+a dead-instrument control (`§1` stays green while `§2a` reds, the VOID-not-PASS reading), and a
+naive-comma-split control. This entry stays OPEN for the two halves below.
+
+⛔ **CORRECTION — this entry's own example was mis-measured, and it argued the case backwards.** It
+read: *"only the second survives someone writing `set search_path to 'app'` (one identifier, quoted,
+and it happens to exist)"*. Measured on the live catalog 2026-09-03, in a rolled-back transaction:
+`set search_path to 'app'` stores as `{search_path=app}` — **the quotes are NOT stored**, so a
+quote-matcher would never have flagged it, and the case is harmless anyway. The conclusion was right
+and its evidence was not. The shape that actually defeats a quote-matcher is the opposite one:
+`set search_path to no_such_schema` stores as `{search_path=no_such_schema}` — **no quote, genuinely
+broken**, and a quote-matcher misses it entirely. (For completeness, the historical bug shape does
+store one: `set search_path to 'app, public, pg_catalog'` → `{search_path="app, public, pg_catalog"}`.)
+So the false NEGATIVE, not the false positive, is why the property beats the symptom. `414`'s header
+carries the full six-shape measurement table.
+
+**What is still open — two halves.**
+1. ⭐ **A DEFINER carrying NO `search_path` at all** is the same hijack shape one step earlier, and it
+   leaves the sweep's domain silently rather than failing inside it. `414 §0b` pins the population at
+   **890/890 declaring one** today, so this is currently green — but it is a second class this entry
+   never named, and it is pinned rather than ruled. Disposition owed.
+2. **The value convention.** Supabase guidance is `search_path = ''` with fully-qualified bodies;
+   this tree runs **400** `prosecdef` functions in `app` on `app, public, pg_catalog` against **7** on
+   `''` (all 10 in `authz` use `''`). Raised by the 2026-09-03 external audit and **deliberately
+   deferred** — flipping one function buys no risk reduction, and no application role holds CREATE on
+   `app`/`public`/`authz`, so there is no live exposure. It is a platform-wide decision owing an ADR,
+   not a one-line fix.
 
 ⛔ **What must NOT be mistaken for closing it.** The `20261003007330` fix — that is one function.
-⛔ Nor pgTAP `413`'s new sibling-differential and no-quote assertions: they bound **one** function
-by name, which is exactly the name-keyed shape that lets the next one through. The gap is that
-**nothing sweeps the class**.
+⛔ Nor pgTAP `413`'s per-name pins (which replaced the sibling-differential on 2026-09-03): they bound
+**two** functions by name, which is still the name-keyed shape that lets the next one through. `414`
+is what sweeps the class; `413` is what pins these two.
 
 
 ### 🟠 FUP-PRIVILEGE-BUDGET-CEILING-BREACHED-BY-SEVEN — the `authenticated`-executable DEFINER budget is 759 against a ceiling of 752, and six of the seven are unattributed
@@ -8203,3 +8233,43 @@ own ⭐ note already predicted this shape: *"it rises silently, one convenient `
 authenticated` at a time, each individually defensible."* ⚠ Note also that a **revoke may not create
 sweep blindness** — revoking `authenticated` EXECUTE removes a function from `ARM=floor`'s domain
 (RV0's load-bearing ruling), so the remedy is not simply "revoke until the number fits".
+
+### 🟡 FUP-AE4-CANDIDATE-SCOPE-FANOUT-IS-UNBOUNDED — the statement-scoped resolver costs `(1 + D) × O(M)` per statement, and nothing states or watches `D`
+
+**Filed:** 2026-09-03 (external audit of the AE4/IA-F9 statement-scoped increment, finding 1 —
+disposition in [authz-ae4-external-audit-response-2026-09-03.md](../reviews/authz-ae4-external-audit-response-2026-09-03.md);
+ADR [0182](../decisions/0182-statement-scoped-authorized-scope-ids.md)) · **Owner:** backend/lead ·
+**Severity:** 🟡 — a known, bounded residual with no failing condition driving it, and the measured
+operating point is orders of magnitude inside any concern. Not 🟠 because no product path approaches
+it and the shape it replaced was strictly worse at every point measured; above 🔵 because the bound
+lives in one migration comment and **no instrument watches either term**.
+
+**What is wrong.** `authz.authorized_scope_ids` scans `authz.assignment_facts` once to propose
+candidates, then calls `authz.has_permission` once per DISTINCT candidate scope — and each of those
+re-enters `authz.entailed_grants` → `authz.assignment_facts` again. Both functions are
+`SECURITY DEFINER`, so Postgres never inlines them and the re-entry is real. Per statement the work is
+`(1 + D) × O(M)`, where `M` is the principal's assignment-fact count and `D` the distinct candidate
+scopes proposed. `D` and `M` rise together for a principal seated across many organizations, so the
+term is quadratic in that direction. Nothing in the schema bounds either, and nothing reports them.
+
+**How it was MEASURED.** 2026-09-03, rolled-back two-factor probes against the loaded AE4 perf fixture
+(every probe in `begin … rollback`; `memberships`/`profiles`/`organizations` counts verified restored).
+With `D` held at 3, buffers go **409** (M=7) → **1 017** (32) → **1 617** (57) → **2 833** (107) — linear
+in `M`. With `D` rising 2→10, **342 → 843** buffers. Fitted `buffers ≈ (1 + D) · (96 + 5.7·M)`. The
+fixture's real ceiling across all 12 036 principals is **`max M = 20, max D = 5`** over **13**
+organizations (`D_proposed ∈ {1,2,4,5}`; 11 555 principals sit at 4). ⚠ The audit's condemning reading
+(100 memberships / 82 candidates / 28 376 buffers) required ~80 **synthetic** organizations and
+describes one person as `staff_admin` across 82 tenants — and even there the path is far cheaper than
+the `1 001 345`-buffer form it replaced.
+
+**What would close it.** Either a stated ceiling on `D` per principal with something that reds when it
+is exceeded, **or** a ruling that the org→hospital→commission tenancy model makes a large `D`
+unreachable in practice — recorded together with the census that shows it, so the next reader does not
+have to re-measure to find out whether anyone ever checked.
+
+⛔ **What must NOT be mistaken for closing it.** ADR [0183](../decisions/0183-p2-invocation-count-respecification.md)'s
+re-specified P2 measures the **slope** (`ΔA = ΔU`) and the row-independence of the invocation count: it
+proves the instrument can *see* `D`, it does not *bound* `D`. ⛔ Nor does the migration header's
+`⚠ SHAPE BOUND` comment — it states the shape and the fixture's maximum, which is a description, not a
+gate. ⛔ Nor does a green P5: P5 is timed at the fixture's `D = 2` principal, which is the cheapest
+point on the curve.

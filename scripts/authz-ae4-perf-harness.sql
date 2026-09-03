@@ -183,8 +183,8 @@ $$;
 -- Pre-register every condition as UNRUN. An id that never gets written stays
 -- UNRUN and is reported as such: a condition that silently vanished from the
 -- table would otherwise read as a clean sheet.
-select pg_temp.ae4_say('P1','CONDITION','UNRUN','evaluated externally from the nested region -- acceptance doc section 9.7');
-select pg_temp.ae4_say('P2','CONDITION','UNRUN','evaluated externally from the nested region -- acceptance doc section 9.7');
+select pg_temp.ae4_say('P1','CONDITION','UNRUN','VERDICT from scripts/authz-ae4-p1-index-path.sql (exit 0 = clear, 3 = fail/VOID; ADR 0181); the raw seq-scan census stays evidence from the nested region -- acceptance doc section 9.7');
+select pg_temp.ae4_say('P2','CONDITION','UNRUN','VERDICT from scripts/authz-ae4-p2-invocation-count.sql (exit 0 = clear, 3 = fail/VOID; ADR 0183, acceptance doc section 16). ⛔ The section 9.7 loops= grep is RETIRED as a verdict: it counts loops VALUES, is invariant to the candidate count, and cannot fail.');
 select pg_temp.ae4_say('P3','CONDITION','UNRUN','evaluated externally from the nested region -- acceptance doc section 9.7');
 select pg_temp.ae4_say('P4','CONDITION','UNRUN','section 7 did not reach it');
 select pg_temp.ae4_say('P5','CONDITION','UNRUN','section 7 did not reach it');

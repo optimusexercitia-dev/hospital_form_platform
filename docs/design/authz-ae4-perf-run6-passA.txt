@@ -1,7 +1,7 @@
 Timing is on.
 Pager usage is off.
-Time: 0.820 ms
-Time: 0.245 ms
+Time: 1.021 ms
+Time: 0.301 ms
 
 ################################################################
 ## SECTION 0 — FIXTURE GATE                                   ##
@@ -11,56 +11,56 @@ Time: 0.245 ms
 ################################################################
 psql:<stdin>:148: NOTICE:  AE4 fixture gate OK — declared scale present, chain tables analyzed.
 DO
-Time: 7.932 ms
+Time: 8.904 ms
 psql:<stdin>:168: NOTICE:  schema "pg_temp" does not exist, skipping
 DROP TABLE
-Time: 0.426 ms
+Time: 0.493 ms
 CREATE TABLE
-Time: 1.939 ms
+Time: 3.316 ms
 CREATE FUNCTION
-Time: 0.841 ms
+Time: 0.935 ms
  ae4_say 
 ---------
  
 (1 row)
 
-Time: 0.335 ms
+Time: 0.328 ms
  ae4_say 
 ---------
  
 (1 row)
 
-Time: 0.150 ms
+Time: 0.149 ms
  ae4_say 
 ---------
  
 (1 row)
 
-Time: 0.223 ms
+Time: 0.189 ms
  ae4_say 
 ---------
  
 (1 row)
 
-Time: 0.181 ms
+Time: 0.162 ms
  ae4_say 
 ---------
  
 (1 row)
 
-Time: 0.173 ms
+Time: 0.177 ms
  ae4_say 
 ---------
  
 (1 row)
 
-Time: 0.202 ms
+Time: 0.406 ms
  ae4_say 
 ---------
  
 (1 row)
 
-Time: 0.180 ms
+Time: 0.411 ms
 --- cardinalities the plans below are taken over ---
            t           | count 
 -----------------------+-------
@@ -73,7 +73,7 @@ Time: 0.180 ms
  profiles              | 12036
 (7 rows)
 
-Time: 8.017 ms
+Time: 9.867 ms
 
 ################################################################
 ## SECTION 1 — POSITIVE CONTROL (AE0.2 idiom)                 ##
@@ -82,71 +82,71 @@ Time: 8.017 ms
 ################################################################
 psql:<stdin>:212: NOTICE:  table "ae4_control" does not exist, skipping
 DROP TABLE
-Time: 0.252 ms
+Time: 0.212 ms
 CREATE TABLE
-Time: 1.336 ms
+Time: 1.607 ms
 GRANT
-Time: 0.880 ms
+Time: 0.749 ms
 BEGIN
-Time: 0.072 ms
+Time: 0.077 ms
 SET
-Time: 0.175 ms
+Time: 0.182 ms
+SET
+Time: 0.146 ms
+INSERT 0 1
+Time: 15688.941 ms (00:15.689)
+RESET
+Time: 0.135 ms
+COMMIT
+Time: 0.762 ms
+BEGIN
+Time: 0.081 ms
+SET
+Time: 0.131 ms
 SET
 Time: 0.139 ms
 INSERT 0 1
-Time: 14191.395 ms (00:14.191)
+Time: 18384.379 ms (00:18.384)
 RESET
-Time: 0.275 ms
+Time: 0.172 ms
 COMMIT
-Time: 1.242 ms
+Time: 1.149 ms
 BEGIN
-Time: 0.121 ms
+Time: 0.110 ms
 SET
-Time: 0.099 ms
+Time: 0.135 ms
 SET
-Time: 0.102 ms
+Time: 0.292 ms
 INSERT 0 1
-Time: 15391.906 ms (00:15.392)
+Time: 38280.217 ms (00:38.280)
 RESET
-Time: 0.124 ms
+Time: 0.128 ms
 COMMIT
-Time: 0.919 ms
+Time: 0.816 ms
 BEGIN
-Time: 0.087 ms
+Time: 0.091 ms
 SET
-Time: 0.109 ms
+Time: 0.149 ms
 SET
-Time: 0.212 ms
+Time: 0.178 ms
 INSERT 0 1
-Time: 33773.053 ms (00:33.773)
+Time: 37620.602 ms (00:37.621)
 RESET
-Time: 0.113 ms
+Time: 0.250 ms
 COMMIT
-Time: 0.535 ms
+Time: 1.050 ms
 BEGIN
-Time: 0.217 ms
+Time: 0.117 ms
 SET
-Time: 0.158 ms
-SET
-Time: 0.221 ms
+Time: 0.159 ms
 INSERT 0 1
-Time: 33676.715 ms (00:33.677)
+Time: 2240.153 ms (00:02.240)
 RESET
-Time: 0.101 ms
+Time: 0.147 ms
 COMMIT
-Time: 0.694 ms
-BEGIN
-Time: 0.065 ms
-SET
-Time: 0.141 ms
+Time: 0.161 ms
 INSERT 0 1
-Time: 1996.234 ms (00:01.996)
-RESET
-Time: 0.136 ms
-COMMIT
-Time: 0.179 ms
-INSERT 0 1
-Time: 1.540 ms
+Time: 1.434 ms
                      arm                      | prof_rows | form_rows | can_edit 
 ----------------------------------------------+-----------+-----------+----------
  1a MEASURED principal / hat=staff_admin      |     10000 |     16000 | t
@@ -157,10 +157,10 @@ Time: 1.540 ms
  1f postgres / RLS BYPASSED (the trap)        |     10001 |     16020 | 
 (6 rows)
 
-Time: 0.338 ms
+Time: 0.251 ms
 psql:<stdin>:293: NOTICE:  AE4 positive control OK: 3 distinct readings; hat is load-bearing.
 DO
-Time: 0.670 ms
+Time: 0.856 ms
 
 ################################################################
 ## SECTION 2 — THE PRINCIPAL PROOF                            ##
@@ -168,9 +168,9 @@ Time: 0.670 ms
 ##  assertion per competing arm, not asserted in prose.       ##
 ################################################################
 BEGIN
-Time: 0.109 ms
+Time: 0.090 ms
 SET
-Time: 0.121 ms
+Time: 0.295 ms
                                        check                                        | result 
 ------------------------------------------------------------------------------------+--------
  a. app.can_edit_commission_forms  (must be TRUE)                                   | t
@@ -185,12 +185,12 @@ Time: 0.121 ms
  j. case-participant traversal arm of can_read_professional_profile (must be FALSE) | f
 (10 rows)
 
-Time: 4.615 ms
+Time: 5.986 ms
 psql:<stdin>:376: NOTICE:  AE4 principal proof OK — every competing arm is FALSE and the authorizers are TRUE.
 DO
-Time: 4.327 ms
+Time: 3.611 ms
 ROLLBACK
-Time: 0.119 ms
+Time: 0.166 ms
 
 ################################################################
 ## SECTION 3 — THE ABLATION                                   ##
@@ -203,38 +203,38 @@ Time: 0.119 ms
 ##  finding.                                                  ##
 ################################################################
 BEGIN
-Time: 0.097 ms
+Time: 0.077 ms
 UPDATE 1
-Time: 0.304 ms
+Time: 0.357 ms
 SET
-Time: 0.106 ms
+Time: 0.108 ms
                            check                            | result 
 ------------------------------------------------------------+--------
  ABLATED: app.can_edit_commission_forms (must be FALSE)     | f
  ABLATED: app.can_read_professional_profile (must be FALSE) | f
 (2 rows)
 
-Time: 2.982 ms
+Time: 3.469 ms
+DO
+Time: 2.949 ms
 psql:<stdin>:418: NOTICE:  AE4 ablation OK — layer 2 off => both authorizers FALSE.
-DO
-Time: 3.086 ms
 ROLLBACK
-Time: 0.134 ms
+Time: 0.117 ms
 BEGIN
-Time: 0.064 ms
+Time: 0.081 ms
 SET
-Time: 0.089 ms
-DO
-Time: 2.328 ms
+Time: 0.222 ms
 psql:<stdin>:438: NOTICE:  AE4 ablation rollback OK — both authorizers restored to TRUE.
+DO
+Time: 2.829 ms
 ROLLBACK
-Time: 0.093 ms
+Time: 0.084 ms
            check            |    code     |     state     
 ----------------------------+-------------+---------------
  authz.roles.state restored | staff_admin | authoritative
 (1 row)
 
-Time: 0.227 ms
+Time: 0.260 ms
 
 ################################################################
 ## PASS A — EXPLAIN (ANALYZE, BUFFERS), 3 reps per path       ##
@@ -246,232 +246,232 @@ Time: 0.227 ms
 === sole permissive SELECT policy => can_read_professional_profile
 === is evaluated ONCE PER ROW with nothing able to short-circuit it.
 BEGIN
-Time: 0.070 ms
+Time: 0.074 ms
 SET
-Time: 0.098 ms
+Time: 0.132 ms
 SET
-Time: 0.078 ms
+Time: 0.099 ms
                                                                        QUERY PLAN                                                                        
 ---------------------------------------------------------------------------------------------------------------------------------------------------------
- Aggregate  (cost=2809.56..2809.57 rows=1 width=8) (actual time=9.693..9.694 rows=1 loops=1)
-   Buffers: shared hit=763
+ Aggregate  (cost=2810.56..2810.57 rows=1 width=8) (actual time=9.155..9.156 rows=1 loops=1)
+   Buffers: shared hit=735
    InitPlan 2
      ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.002..0.002 rows=1 loops=1)
-   ->  Seq Scan on professional_profiles  (cost=7.77..2797.03 rows=5000 width=0) (actual time=8.238..9.346 rows=10000 loops=1)
+   ->  Seq Scan on professional_profiles  (cost=7.77..2798.03 rows=5000 width=0) (actual time=7.740..8.805 rows=10000 loops=1)
          Filter: CASE WHEN (ANY (organization_id = (hashed SubPlan 1).col1)) THEN true ELSE app.can_read_professional_profile(id, (InitPlan 2).col1) END
          Rows Removed by Filter: 1
-         Buffers: shared hit=763
+         Buffers: shared hit=735
          SubPlan 1
-           ->  ProjectSet  (cost=0.00..5.27 rows=1000 width=16) (actual time=1.617..2.474 rows=2 loops=1)
-                 Buffers: shared hit=238
+           ->  ProjectSet  (cost=0.00..5.27 rows=1000 width=16) (actual time=1.427..2.234 rows=2 loops=1)
+                 Buffers: shared hit=237
                  ->  Result  (cost=0.00..0.01 rows=1 width=0) (actual time=0.000..0.000 rows=1 loops=1)
  Planning:
    Buffers: shared hit=1
- Planning Time: 0.111 ms
- Execution Time: 9.729 ms
+ Planning Time: 0.089 ms
+ Execution Time: 9.199 ms
 (16 rows)
 
-Time: 10.039 ms
+Time: 9.514 ms
                                                                        QUERY PLAN                                                                        
 ---------------------------------------------------------------------------------------------------------------------------------------------------------
- Aggregate  (cost=2809.56..2809.57 rows=1 width=8) (actual time=8.172..8.173 rows=1 loops=1)
-   Buffers: shared hit=761
+ Aggregate  (cost=2810.56..2810.57 rows=1 width=8) (actual time=10.580..10.582 rows=1 loops=1)
+   Buffers: shared hit=734
    InitPlan 2
      ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.002..0.002 rows=1 loops=1)
-   ->  Seq Scan on professional_profiles  (cost=7.77..2797.03 rows=5000 width=0) (actual time=6.811..7.844 rows=10000 loops=1)
+   ->  Seq Scan on professional_profiles  (cost=7.77..2798.03 rows=5000 width=0) (actual time=8.861..10.170 rows=10000 loops=1)
          Filter: CASE WHEN (ANY (organization_id = (hashed SubPlan 1).col1)) THEN true ELSE app.can_read_professional_profile(id, (InitPlan 2).col1) END
          Rows Removed by Filter: 1
-         Buffers: shared hit=761
+         Buffers: shared hit=734
          SubPlan 1
-           ->  ProjectSet  (cost=0.00..5.27 rows=1000 width=16) (actual time=1.327..2.081 rows=2 loops=1)
-                 Buffers: shared hit=238
-                 ->  Result  (cost=0.00..0.01 rows=1 width=0) (actual time=0.000..0.000 rows=1 loops=1)
+           ->  ProjectSet  (cost=0.00..5.27 rows=1000 width=16) (actual time=1.408..2.220 rows=2 loops=1)
+                 Buffers: shared hit=237
+                 ->  Result  (cost=0.00..0.01 rows=1 width=0) (actual time=0.000..0.001 rows=1 loops=1)
  Planning:
    Buffers: shared hit=1
- Planning Time: 0.140 ms
- Execution Time: 8.193 ms
+ Planning Time: 0.072 ms
+ Execution Time: 10.607 ms
 (16 rows)
 
-Time: 8.639 ms
+Time: 10.888 ms
                                                                        QUERY PLAN                                                                        
 ---------------------------------------------------------------------------------------------------------------------------------------------------------
- Aggregate  (cost=2809.56..2809.57 rows=1 width=8) (actual time=9.507..9.508 rows=1 loops=1)
-   Buffers: shared hit=761
+ Aggregate  (cost=2810.56..2810.57 rows=1 width=8) (actual time=9.668..9.669 rows=1 loops=1)
+   Buffers: shared hit=734
    InitPlan 2
      ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.003..0.003 rows=1 loops=1)
-   ->  Seq Scan on professional_profiles  (cost=7.77..2797.03 rows=5000 width=0) (actual time=8.112..9.143 rows=10000 loops=1)
+   ->  Seq Scan on professional_profiles  (cost=7.77..2798.03 rows=5000 width=0) (actual time=8.066..9.293 rows=10000 loops=1)
          Filter: CASE WHEN (ANY (organization_id = (hashed SubPlan 1).col1)) THEN true ELSE app.can_read_professional_profile(id, (InitPlan 2).col1) END
          Rows Removed by Filter: 1
-         Buffers: shared hit=761
+         Buffers: shared hit=734
          SubPlan 1
-           ->  ProjectSet  (cost=0.00..5.27 rows=1000 width=16) (actual time=1.293..2.062 rows=2 loops=1)
-                 Buffers: shared hit=238
-                 ->  Result  (cost=0.00..0.01 rows=1 width=0) (actual time=0.000..0.000 rows=1 loops=1)
+           ->  ProjectSet  (cost=0.00..5.27 rows=1000 width=16) (actual time=1.394..2.426 rows=2 loops=1)
+                 Buffers: shared hit=237
+                 ->  Result  (cost=0.00..0.01 rows=1 width=0) (actual time=0.000..0.001 rows=1 loops=1)
  Planning:
    Buffers: shared hit=1
- Planning Time: 0.047 ms
- Execution Time: 9.528 ms
+ Planning Time: 0.071 ms
+ Execution Time: 9.702 ms
 (16 rows)
 
-Time: 9.732 ms
+Time: 9.977 ms
 RESET
-Time: 0.096 ms
+Time: 0.125 ms
 ROLLBACK
-Time: 0.130 ms
+Time: 0.145 ms
 
 === M1b — READ, org-filtered (the realistic list read). THIS IS THE
 === P5 STATEMENT: the same rows are reachable by the legacy-arm
 === principal below, so the two runs differ ONLY in which arm grants.
 BEGIN
-Time: 0.058 ms
+Time: 0.093 ms
 SET
-Time: 0.145 ms
+Time: 0.155 ms
 SET
-Time: 0.124 ms
+Time: 0.229 ms
                                                                                                            QUERY PLAN                                                                                                           
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Aggregate  (cost=2834.56..2834.57 rows=1 width=8) (actual time=3.808..3.809 rows=1 loops=1)
+ Aggregate  (cost=2835.56..2835.57 rows=1 width=8) (actual time=3.796..3.797 rows=1 loops=1)
    Buffers: shared hit=402
    InitPlan 2
      ->  Result  (cost=0.00..0.03 rows=1 width=16) (never executed)
-   ->  Seq Scan on professional_profiles  (cost=7.77..2822.03 rows=5000 width=0) (actual time=2.413..3.479 rows=10000 loops=1)
+   ->  Seq Scan on professional_profiles  (cost=7.77..2823.03 rows=5000 width=0) (actual time=2.333..3.429 rows=10000 loops=1)
          Filter: ((organization_id = '6bd19175-606a-c9ad-88c2-1efd7bd6cf8b'::uuid) AND CASE WHEN (ANY (organization_id = (hashed SubPlan 1).col1)) THEN true ELSE app.can_read_professional_profile(id, (InitPlan 2).col1) END)
          Rows Removed by Filter: 1
          Buffers: shared hit=402
          SubPlan 1
-           ->  ProjectSet  (cost=0.00..5.27 rows=1000 width=16) (actual time=1.657..2.393 rows=2 loops=1)
-                 Buffers: shared hit=238
+           ->  ProjectSet  (cost=0.00..5.27 rows=1000 width=16) (actual time=1.393..2.318 rows=2 loops=1)
+                 Buffers: shared hit=237
+                 ->  Result  (cost=0.00..0.01 rows=1 width=0) (actual time=0.000..0.000 rows=1 loops=1)
+ Planning:
+   Buffers: shared hit=1
+ Planning Time: 0.168 ms
+ Execution Time: 3.842 ms
+(16 rows)
+
+Time: 4.296 ms
+                                                                                                           QUERY PLAN                                                                                                           
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=2835.56..2835.57 rows=1 width=8) (actual time=3.775..3.777 rows=1 loops=1)
+   Buffers: shared hit=402
+   InitPlan 2
+     ->  Result  (cost=0.00..0.03 rows=1 width=16) (never executed)
+   ->  Seq Scan on professional_profiles  (cost=7.77..2823.03 rows=5000 width=0) (actual time=2.102..3.398 rows=10000 loops=1)
+         Filter: ((organization_id = '6bd19175-606a-c9ad-88c2-1efd7bd6cf8b'::uuid) AND CASE WHEN (ANY (organization_id = (hashed SubPlan 1).col1)) THEN true ELSE app.can_read_professional_profile(id, (InitPlan 2).col1) END)
+         Rows Removed by Filter: 1
+         Buffers: shared hit=402
+         SubPlan 1
+           ->  ProjectSet  (cost=0.00..5.27 rows=1000 width=16) (actual time=1.312..2.091 rows=2 loops=1)
+                 Buffers: shared hit=237
                  ->  Result  (cost=0.00..0.01 rows=1 width=0) (actual time=0.000..0.001 rows=1 loops=1)
  Planning:
    Buffers: shared hit=1
- Planning Time: 0.147 ms
- Execution Time: 3.869 ms
+ Planning Time: 0.079 ms
+ Execution Time: 3.802 ms
 (16 rows)
 
-Time: 4.247 ms
+Time: 4.081 ms
                                                                                                            QUERY PLAN                                                                                                           
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Aggregate  (cost=2834.56..2834.57 rows=1 width=8) (actual time=3.339..3.339 rows=1 loops=1)
+ Aggregate  (cost=2835.56..2835.57 rows=1 width=8) (actual time=4.034..4.050 rows=1 loops=1)
    Buffers: shared hit=402
    InitPlan 2
      ->  Result  (cost=0.00..0.03 rows=1 width=16) (never executed)
-   ->  Seq Scan on professional_profiles  (cost=7.77..2822.03 rows=5000 width=0) (actual time=1.972..3.011 rows=10000 loops=1)
+   ->  Seq Scan on professional_profiles  (cost=7.77..2823.03 rows=5000 width=0) (actual time=2.289..3.662 rows=10000 loops=1)
          Filter: ((organization_id = '6bd19175-606a-c9ad-88c2-1efd7bd6cf8b'::uuid) AND CASE WHEN (ANY (organization_id = (hashed SubPlan 1).col1)) THEN true ELSE app.can_read_professional_profile(id, (InitPlan 2).col1) END)
          Rows Removed by Filter: 1
          Buffers: shared hit=402
          SubPlan 1
-           ->  ProjectSet  (cost=0.00..5.27 rows=1000 width=16) (actual time=1.192..1.963 rows=2 loops=1)
-                 Buffers: shared hit=238
-                 ->  Result  (cost=0.00..0.01 rows=1 width=0) (actual time=0.000..0.000 rows=1 loops=1)
+           ->  ProjectSet  (cost=0.00..5.27 rows=1000 width=16) (actual time=1.544..2.274 rows=2 loops=1)
+                 Buffers: shared hit=237
+                 ->  Result  (cost=0.00..0.01 rows=1 width=0) (actual time=0.000..0.001 rows=1 loops=1)
  Planning:
    Buffers: shared hit=1
- Planning Time: 0.074 ms
- Execution Time: 3.359 ms
+ Planning Time: 0.104 ms
+ Execution Time: 4.090 ms
 (16 rows)
 
-Time: 3.599 ms
-                                                                                                           QUERY PLAN                                                                                                           
---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Aggregate  (cost=2834.56..2834.57 rows=1 width=8) (actual time=3.667..3.668 rows=1 loops=1)
-   Buffers: shared hit=402
-   InitPlan 2
-     ->  Result  (cost=0.00..0.03 rows=1 width=16) (never executed)
-   ->  Seq Scan on professional_profiles  (cost=7.77..2822.03 rows=5000 width=0) (actual time=2.280..3.336 rows=10000 loops=1)
-         Filter: ((organization_id = '6bd19175-606a-c9ad-88c2-1efd7bd6cf8b'::uuid) AND CASE WHEN (ANY (organization_id = (hashed SubPlan 1).col1)) THEN true ELSE app.can_read_professional_profile(id, (InitPlan 2).col1) END)
-         Rows Removed by Filter: 1
-         Buffers: shared hit=402
-         SubPlan 1
-           ->  ProjectSet  (cost=0.00..5.27 rows=1000 width=16) (actual time=1.433..2.271 rows=2 loops=1)
-                 Buffers: shared hit=238
-                 ->  Result  (cost=0.00..0.01 rows=1 width=0) (actual time=0.000..0.000 rows=1 loops=1)
- Planning:
-   Buffers: shared hit=1
- Planning Time: 0.077 ms
- Execution Time: 3.692 ms
-(16 rows)
-
-Time: 3.925 ms
+Time: 4.502 ms
 RESET
-Time: 0.086 ms
+Time: 0.172 ms
 ROLLBACK
-Time: 0.111 ms
+Time: 0.158 ms
 
 === M1b-LEGACY — the SAME statement, the LEGACY-arm principal.
 === org_admin reaches these rows through app.can_manage_professional
 === and never evaluates authz.has_permission. P5 = M1b / M1b-LEGACY.
 BEGIN
-Time: 0.086 ms
+Time: 0.111 ms
 SET
-Time: 0.163 ms
+Time: 0.129 ms
 SET
-Time: 0.207 ms
+Time: 0.118 ms
                                                                                                            QUERY PLAN                                                                                                           
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Aggregate  (cost=2834.56..2834.57 rows=1 width=8) (actual time=2008.430..2008.432 rows=1 loops=1)
-   Buffers: shared hit=170408
+ Aggregate  (cost=2835.56..2835.57 rows=1 width=8) (actual time=2177.708..2177.710 rows=1 loops=1)
+   Buffers: shared hit=160408
    InitPlan 2
-     ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.006..0.006 rows=1 loops=1)
-   ->  Seq Scan on professional_profiles  (cost=7.77..2822.03 rows=5000 width=0) (actual time=3.819..2006.720 rows=10000 loops=1)
+     ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.012..0.013 rows=1 loops=1)
+   ->  Seq Scan on professional_profiles  (cost=7.77..2823.03 rows=5000 width=0) (actual time=5.758..2175.432 rows=10000 loops=1)
          Filter: ((organization_id = '6bd19175-606a-c9ad-88c2-1efd7bd6cf8b'::uuid) AND CASE WHEN (ANY (organization_id = (hashed SubPlan 1).col1)) THEN true ELSE app.can_read_professional_profile(id, (InitPlan 2).col1) END)
          Rows Removed by Filter: 1
-         Buffers: shared hit=170408
+         Buffers: shared hit=160408
          SubPlan 1
-           ->  ProjectSet  (cost=0.00..5.27 rows=1000 width=16) (actual time=3.519..3.519 rows=0 loops=1)
-                 Buffers: shared hit=244
-                 ->  Result  (cost=0.00..0.01 rows=1 width=0) (actual time=0.000..0.001 rows=1 loops=1)
+           ->  ProjectSet  (cost=0.00..5.27 rows=1000 width=16) (actual time=5.293..5.294 rows=0 loops=1)
+                 Buffers: shared hit=243
+                 ->  Result  (cost=0.00..0.01 rows=1 width=0) (actual time=0.001..0.001 rows=1 loops=1)
  Planning:
    Buffers: shared hit=1
- Planning Time: 0.151 ms
- Execution Time: 2008.463 ms
+ Planning Time: 0.230 ms
+ Execution Time: 2177.760 ms
 (16 rows)
 
-Time: 2008.797 ms (00:02.009)
+Time: 2178.376 ms (00:02.178)
                                                                                                            QUERY PLAN                                                                                                           
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Aggregate  (cost=2834.56..2834.57 rows=1 width=8) (actual time=2121.045..2121.046 rows=1 loops=1)
-   Buffers: shared hit=170408
+ Aggregate  (cost=2835.56..2835.57 rows=1 width=8) (actual time=2372.686..2372.688 rows=1 loops=1)
+   Buffers: shared hit=160408
    InitPlan 2
-     ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.006..0.006 rows=1 loops=1)
-   ->  Seq Scan on professional_profiles  (cost=7.77..2822.03 rows=5000 width=0) (actual time=3.823..2118.861 rows=10000 loops=1)
+     ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.005..0.006 rows=1 loops=1)
+   ->  Seq Scan on professional_profiles  (cost=7.77..2823.03 rows=5000 width=0) (actual time=3.901..2369.852 rows=10000 loops=1)
          Filter: ((organization_id = '6bd19175-606a-c9ad-88c2-1efd7bd6cf8b'::uuid) AND CASE WHEN (ANY (organization_id = (hashed SubPlan 1).col1)) THEN true ELSE app.can_read_professional_profile(id, (InitPlan 2).col1) END)
          Rows Removed by Filter: 1
-         Buffers: shared hit=170408
+         Buffers: shared hit=160408
          SubPlan 1
-           ->  ProjectSet  (cost=0.00..5.27 rows=1000 width=16) (actual time=3.499..3.499 rows=0 loops=1)
-                 Buffers: shared hit=244
+           ->  ProjectSet  (cost=0.00..5.27 rows=1000 width=16) (actual time=3.618..3.619 rows=0 loops=1)
+                 Buffers: shared hit=243
+                 ->  Result  (cost=0.00..0.01 rows=1 width=0) (actual time=0.001..0.001 rows=1 loops=1)
+ Planning:
+   Buffers: shared hit=1
+ Planning Time: 0.145 ms
+ Execution Time: 2372.734 ms
+(16 rows)
+
+Time: 2373.211 ms (00:02.373)
+                                                                                                           QUERY PLAN                                                                                                           
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=2835.56..2835.57 rows=1 width=8) (actual time=2311.559..2311.561 rows=1 loops=1)
+   Buffers: shared hit=160408
+   InitPlan 2
+     ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.006..0.006 rows=1 loops=1)
+   ->  Seq Scan on professional_profiles  (cost=7.77..2823.03 rows=5000 width=0) (actual time=3.917..2308.982 rows=10000 loops=1)
+         Filter: ((organization_id = '6bd19175-606a-c9ad-88c2-1efd7bd6cf8b'::uuid) AND CASE WHEN (ANY (organization_id = (hashed SubPlan 1).col1)) THEN true ELSE app.can_read_professional_profile(id, (InitPlan 2).col1) END)
+         Rows Removed by Filter: 1
+         Buffers: shared hit=160408
+         SubPlan 1
+           ->  ProjectSet  (cost=0.00..5.27 rows=1000 width=16) (actual time=3.639..3.640 rows=0 loops=1)
+                 Buffers: shared hit=243
                  ->  Result  (cost=0.00..0.01 rows=1 width=0) (actual time=0.000..0.000 rows=1 loops=1)
  Planning:
    Buffers: shared hit=1
- Planning Time: 0.069 ms
- Execution Time: 2121.070 ms
+ Planning Time: 0.078 ms
+ Execution Time: 2311.595 ms
 (16 rows)
 
-Time: 2121.631 ms (00:02.122)
-                                                                                                           QUERY PLAN                                                                                                           
---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Aggregate  (cost=2834.56..2834.57 rows=1 width=8) (actual time=1975.269..1975.272 rows=1 loops=1)
-   Buffers: shared hit=170408
-   InitPlan 2
-     ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.028..0.028 rows=1 loops=1)
-   ->  Seq Scan on professional_profiles  (cost=7.77..2822.03 rows=5000 width=0) (actual time=4.162..1973.591 rows=10000 loops=1)
-         Filter: ((organization_id = '6bd19175-606a-c9ad-88c2-1efd7bd6cf8b'::uuid) AND CASE WHEN (ANY (organization_id = (hashed SubPlan 1).col1)) THEN true ELSE app.can_read_professional_profile(id, (InitPlan 2).col1) END)
-         Rows Removed by Filter: 1
-         Buffers: shared hit=170408
-         SubPlan 1
-           ->  ProjectSet  (cost=0.00..5.27 rows=1000 width=16) (actual time=3.832..3.832 rows=0 loops=1)
-                 Buffers: shared hit=244
-                 ->  Result  (cost=0.00..0.01 rows=1 width=0) (actual time=0.000..0.000 rows=1 loops=1)
- Planning:
-   Buffers: shared hit=1
- Planning Time: 0.195 ms
- Execution Time: 1975.303 ms
-(16 rows)
-
-Time: 1975.728 ms (00:01.976)
+Time: 2311.954 ms (00:02.312)
 RESET
-Time: 0.181 ms
+Time: 0.159 ms
 ROLLBACK
-Time: 0.396 ms
+Time: 0.242 ms
 
 === M2 — WRITE, single row: public.forms.
 === forms_staff_admin_write is the ONLY policy applicable to an UPDATE
@@ -479,130 +479,130 @@ Time: 0.396 ms
 === short-circuited by a sibling policy the way a SELECT can be.
 === Rolled back — EXPLAIN ANALYZE EXECUTES the statement.
 BEGIN
-Time: 0.096 ms
+Time: 0.083 ms
 SET
-Time: 0.185 ms
+Time: 0.173 ms
 SET
-Time: 0.181 ms
+Time: 0.183 ms
                                                                                                               QUERY PLAN                                                                                                              
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Update on forms  (cost=0.27..9.29 rows=0 width=0) (actual time=3.894..3.896 rows=0 loops=1)
+ Update on forms  (cost=0.27..9.29 rows=0 width=0) (actual time=3.574..3.575 rows=0 loops=1)
    Buffers: shared hit=138
    InitPlan 1
      ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.003..0.003 rows=1 loops=1)
    InitPlan 2
-     ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.003..0.003 rows=1 loops=1)
+     ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.002..0.002 rows=1 loops=1)
    InitPlan 3
-     ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.008..0.008 rows=1 loops=1)
+     ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.011..0.012 rows=1 loops=1)
    InitPlan 4
      ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.002..0.002 rows=1 loops=1)
-   ->  Index Scan using forms_pkey on forms  (cost=0.14..9.16 rows=1 width=30) (actual time=1.896..1.897 rows=1 loops=1)
+   ->  Index Scan using forms_pkey on forms  (cost=0.14..9.16 rows=1 width=30) (actual time=1.895..1.896 rows=1 loops=1)
          Index Cond: (id = '24fe5757-a7bd-fc3e-77ae-12625b9f597b'::uuid)
          Filter: (app.can_edit_commission_forms(commission_id, (InitPlan 3).col1) AND (app.can_edit_commission_forms(commission_id, (InitPlan 4).col1) OR app.is_member_of(commission_id) OR app.is_tenancy_admin_of(commission_id)))
          Buffers: shared hit=56
  Planning:
    Buffers: shared hit=3
- Planning Time: 0.153 ms
- Trigger audit_forms_trg: time=2.273 calls=1
- Trigger touch_forms_updated_at: time=0.060 calls=1
- Execution Time: 6.208 ms
+ Planning Time: 0.205 ms
+ Trigger audit_forms_trg: time=2.212 calls=1
+ Trigger touch_forms_updated_at: time=0.061 calls=1
+ Execution Time: 5.852 ms
 (20 rows)
 
-Time: 6.593 ms
+Time: 6.354 ms
 RESET
-Time: 0.093 ms
+Time: 0.156 ms
 ROLLBACK
-Time: 0.111 ms
+Time: 0.143 ms
 BEGIN
-Time: 0.080 ms
+Time: 0.161 ms
 SET
-Time: 0.098 ms
+Time: 0.160 ms
 SET
-Time: 0.112 ms
+Time: 0.269 ms
                                                                                                               QUERY PLAN                                                                                                              
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Update on forms  (cost=0.27..9.29 rows=0 width=0) (actual time=3.301..3.302 rows=0 loops=1)
+ Update on forms  (cost=0.27..9.29 rows=0 width=0) (actual time=3.845..3.846 rows=0 loops=1)
    Buffers: shared hit=114
-   InitPlan 1
-     ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.002..0.002 rows=1 loops=1)
-   InitPlan 2
-     ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.002..0.002 rows=1 loops=1)
-   InitPlan 3
-     ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.008..0.008 rows=1 loops=1)
-   InitPlan 4
-     ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.002..0.002 rows=1 loops=1)
-   ->  Index Scan using forms_pkey on forms  (cost=0.14..9.16 rows=1 width=30) (actual time=1.674..1.674 rows=1 loops=1)
-         Index Cond: (id = '24fe5757-a7bd-fc3e-77ae-12625b9f597b'::uuid)
-         Filter: (app.can_edit_commission_forms(commission_id, (InitPlan 3).col1) AND (app.can_edit_commission_forms(commission_id, (InitPlan 4).col1) OR app.is_member_of(commission_id) OR app.is_tenancy_admin_of(commission_id)))
-         Buffers: shared hit=56
- Planning Time: 0.130 ms
- Trigger audit_forms_trg: time=0.533 calls=1
- Trigger touch_forms_updated_at: time=0.011 calls=1
- Execution Time: 3.866 ms
-(18 rows)
-
-Time: 4.204 ms
-RESET
-Time: 0.096 ms
-ROLLBACK
-Time: 0.097 ms
-
-=== M3 — WRITE, one version (200 items). The per-row write gate.
-BEGIN
-Time: 0.105 ms
-SET
-Time: 0.145 ms
-SET
-Time: 0.184 ms
-                                                                                                                                                                                                           QUERY PLAN                                                                                                                                                                                                            
----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Update on form_items  (cost=5.99..735.19 rows=0 width=0) (actual time=602.034..602.036 rows=0 loops=1)
-   Buffers: shared hit=29351 dirtied=7 written=7
    InitPlan 1
      ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.005..0.005 rows=1 loops=1)
    InitPlan 2
-     ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.004..0.004 rows=1 loops=1)
+     ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.005..0.006 rows=1 loops=1)
+   InitPlan 3
+     ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.008..0.009 rows=1 loops=1)
+   InitPlan 4
+     ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.002..0.002 rows=1 loops=1)
+   ->  Index Scan using forms_pkey on forms  (cost=0.14..9.16 rows=1 width=30) (actual time=1.827..1.828 rows=1 loops=1)
+         Index Cond: (id = '24fe5757-a7bd-fc3e-77ae-12625b9f597b'::uuid)
+         Filter: (app.can_edit_commission_forms(commission_id, (InitPlan 3).col1) AND (app.can_edit_commission_forms(commission_id, (InitPlan 4).col1) OR app.is_member_of(commission_id) OR app.is_tenancy_admin_of(commission_id)))
+         Buffers: shared hit=56
+ Planning Time: 0.146 ms
+ Trigger audit_forms_trg: time=0.671 calls=1
+ Trigger touch_forms_updated_at: time=0.029 calls=1
+ Execution Time: 4.552 ms
+(18 rows)
+
+Time: 5.122 ms
+RESET
+Time: 0.116 ms
+ROLLBACK
+Time: 0.118 ms
+
+=== M3 — WRITE, one version (200 items). The per-row write gate.
+BEGIN
+Time: 0.068 ms
+SET
+Time: 0.102 ms
+SET
+Time: 0.071 ms
+                                                                                                                                                                                                           QUERY PLAN                                                                                                                                                                                                            
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Update on form_items  (cost=5.99..735.19 rows=0 width=0) (actual time=697.321..697.324 rows=0 loops=1)
+   Buffers: shared hit=29245 dirtied=12 written=8
+   InitPlan 1
+     ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.005..0.006 rows=1 loops=1)
+   InitPlan 2
+     ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.006..0.007 rows=1 loops=1)
    InitPlan 3
      ->  Result  (cost=0.00..0.03 rows=1 width=16) (never executed)
    InitPlan 4
-     ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.009..0.009 rows=1 loops=1)
+     ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.013..0.014 rows=1 loops=1)
    InitPlan 5
-     ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.004..0.004 rows=1 loops=1)
+     ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.004..0.005 rows=1 loops=1)
    InitPlan 6
      ->  Result  (cost=0.00..0.03 rows=1 width=16) (never executed)
-   ->  Bitmap Heap Scan on form_items  (cost=5.80..734.99 rows=53 width=10) (actual time=2.096..294.352 rows=200 loops=1)
+   ->  Bitmap Heap Scan on form_items  (cost=5.80..734.99 rows=53 width=10) (actual time=2.389..338.028 rows=200 loops=1)
          Recheck Cond: (form_version_id = '160fb036-65bf-aeb0-51c6-1575451ce8ad'::uuid)
          Filter: (app.can_edit_commission_forms(app.commission_of_version(form_version_id), (InitPlan 4).col1) AND (app.can_edit_commission_forms(app.commission_of_version(form_version_id), (InitPlan 5).col1) OR app.can_access_targeted_version(form_version_id, (InitPlan 6).col1) OR app.is_member_of(app.commission_of_version(form_version_id)) OR app.is_tenancy_admin_of(app.commission_of_version(form_version_id))))
          Heap Blocks: exact=5
          Buffers: shared hit=12023
-         ->  Bitmap Index Scan on form_items_version_idx  (cost=0.00..5.79 rows=200 width=0) (actual time=0.013..0.013 rows=200 loops=1)
+         ->  Bitmap Index Scan on form_items_version_idx  (cost=0.00..5.79 rows=200 width=0) (actual time=0.067..0.067 rows=200 loops=1)
                Index Cond: (form_version_id = '160fb036-65bf-aeb0-51c6-1575451ce8ad'::uuid)
                Buffers: shared hit=2
  Planning:
    Buffers: shared hit=3
- Planning Time: 0.227 ms
- Trigger audit_form_items_trg: time=52.306 calls=200
- Trigger guard_published_items_trg: time=3.413 calls=200
- Execution Time: 654.457 ms
+ Planning Time: 0.257 ms
+ Trigger audit_form_items_trg: time=60.643 calls=200
+ Trigger guard_published_items_trg: time=5.038 calls=200
+ Execution Time: 758.109 ms
 (28 rows)
 
-Time: 655.047 ms
+Time: 758.809 ms
 RESET
-Time: 0.113 ms
+Time: 0.137 ms
 ROLLBACK
-Time: 0.219 ms
+Time: 0.131 ms
 BEGIN
-Time: 0.099 ms
+Time: 0.081 ms
 SET
-Time: 0.135 ms
+Time: 0.130 ms
 SET
-Time: 0.270 ms
+Time: 0.111 ms
                                                                                                                                                                                                            QUERY PLAN                                                                                                                                                                                                            
 ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Update on form_items  (cost=6.02..746.53 rows=0 width=0) (actual time=596.682..596.685 rows=0 loops=1)
-   Buffers: shared hit=30266 dirtied=5 written=5
+ Update on form_items  (cost=6.02..746.53 rows=0 width=0) (actual time=729.137..729.140 rows=0 loops=1)
+   Buffers: shared hit=30004 dirtied=3 written=3
    InitPlan 1
-     ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.004..0.004 rows=1 loops=1)
+     ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.005..0.005 rows=1 loops=1)
    InitPlan 2
      ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.003..0.003 rows=1 loops=1)
    InitPlan 3
@@ -613,25 +613,25 @@ Time: 0.270 ms
      ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.003..0.003 rows=1 loops=1)
    InitPlan 6
      ->  Result  (cost=0.00..0.03 rows=1 width=16) (never executed)
-   ->  Bitmap Heap Scan on form_items  (cost=5.82..746.34 rows=54 width=10) (actual time=1.936..289.675 rows=200 loops=1)
+   ->  Bitmap Heap Scan on form_items  (cost=5.82..746.34 rows=54 width=10) (actual time=1.940..355.514 rows=200 loops=1)
          Recheck Cond: (form_version_id = '160fb036-65bf-aeb0-51c6-1575451ce8ad'::uuid)
          Filter: (app.can_edit_commission_forms(app.commission_of_version(form_version_id), (InitPlan 4).col1) AND (app.can_edit_commission_forms(app.commission_of_version(form_version_id), (InitPlan 5).col1) OR app.can_access_targeted_version(form_version_id, (InitPlan 6).col1) OR app.is_member_of(app.commission_of_version(form_version_id)) OR app.is_tenancy_admin_of(app.commission_of_version(form_version_id))))
          Heap Blocks: exact=10
          Buffers: shared hit=12028
-         ->  Bitmap Index Scan on form_items_version_idx  (cost=0.00..5.81 rows=203 width=0) (actual time=0.012..0.012 rows=400 loops=1)
+         ->  Bitmap Index Scan on form_items_version_idx  (cost=0.00..5.81 rows=203 width=0) (actual time=0.012..0.013 rows=395 loops=1)
                Index Cond: (form_version_id = '160fb036-65bf-aeb0-51c6-1575451ce8ad'::uuid)
                Buffers: shared hit=2
- Planning Time: 0.268 ms
- Trigger audit_form_items_trg: time=53.540 calls=200
- Trigger guard_published_items_trg: time=3.425 calls=200
- Execution Time: 650.302 ms
+ Planning Time: 0.197 ms
+ Trigger audit_form_items_trg: time=55.529 calls=200
+ Trigger guard_published_items_trg: time=5.903 calls=200
+ Execution Time: 784.768 ms
 (26 rows)
 
-Time: 650.967 ms
+Time: 785.309 ms
 RESET
-Time: 0.176 ms
+Time: 0.217 ms
 ROLLBACK
-Time: 0.169 ms
+Time: 0.174 ms
 
 === M3b — WRITE, every version of the measured commission (16 000 items).
 ⛔ M2 / M3 / M3b TIMINGS MAY NOT BE USED FOR A RATIO. public.form_items
@@ -642,141 +642,141 @@ Time: 0.169 ms
    SHAPE ONLY (pass condition P1). The linearity condition P4 is
    measured on the READ path in section 7, where no trigger fires.
 BEGIN
-Time: 0.119 ms
+Time: 0.074 ms
 SET
-Time: 0.145 ms
+Time: 0.149 ms
 SET
-Time: 0.068 ms
+Time: 0.124 ms
                                                                                                                                                                                                               QUERY PLAN                                                                                                                                                                                                               
 ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Update on form_items  (cost=641.41..20510.37 rows=0 width=0) (actual time=49115.022..49115.029 rows=0 loops=1)
-   Buffers: shared hit=2349255 dirtied=550 written=550
+ Update on form_items  (cost=641.41..20507.81 rows=0 width=0) (actual time=55008.996..55009.004 rows=0 loops=1)
+   Buffers: shared hit=2348873 dirtied=553 written=550
    InitPlan 1
-     ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.003..0.004 rows=1 loops=1)
+     ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.004..0.004 rows=1 loops=1)
    InitPlan 2
-     ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.003..0.003 rows=1 loops=1)
+     ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.003..0.004 rows=1 loops=1)
    InitPlan 3
      ->  Result  (cost=0.00..0.03 rows=1 width=16) (never executed)
    InitPlan 4
      ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.003..0.003 rows=1 loops=1)
    InitPlan 5
-     ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.004..0.004 rows=1 loops=1)
+     ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.003..0.003 rows=1 loops=1)
    InitPlan 6
      ->  Result  (cost=0.00..0.03 rows=1 width=16) (never executed)
    InitPlan 9
-     ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.002..0.002 rows=1 loops=1)
+     ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.003..0.003 rows=1 loops=1)
    InitPlan 10
      ->  Result  (cost=0.00..0.03 rows=1 width=16) (never executed)
    InitPlan 11
      ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.007..0.008 rows=1 loops=1)
-   ->  Nested Loop  (cost=641.12..20510.08 rows=2246 width=22) (actual time=149.146..24183.839 rows=16000 loops=1)
-         Buffers: shared hit=966195
-         ->  HashAggregate  (cost=640.83..641.26 rows=43 width=28) (actual time=147.464..147.645 rows=80 loops=1)
+   ->  Nested Loop  (cost=641.12..20507.51 rows=2246 width=22) (actual time=155.770..26936.250 rows=16000 loops=1)
+         Buffers: shared hit=966215
+         ->  HashAggregate  (cost=640.83..641.26 rows=43 width=28) (actual time=154.062..154.299 rows=80 loops=1)
                Group Key: v.id
                Batches: 1  Memory Usage: 32kB
-               Buffers: shared hit=5642
-               ->  Nested Loop  (cost=0.14..640.72 rows=43 width=28) (actual time=2.583..147.373 rows=80 loops=1)
-                     Buffers: shared hit=5642
-                     ->  Seq Scan on forms f  (cost=0.00..34.55 rows=28 width=22) (actual time=0.953..29.701 rows=40 loops=1)
+               Buffers: shared hit=5668
+               ->  Nested Loop  (cost=0.14..640.72 rows=43 width=28) (actual time=2.378..153.924 rows=80 loops=1)
+                     Buffers: shared hit=5668
+                     ->  Seq Scan on forms f  (cost=0.00..34.55 rows=28 width=22) (actual time=0.875..30.784 rows=40 loops=1)
                            Filter: ((commission_id = '0585641f-07df-2b46-928e-bfaae13d22e2'::uuid) AND (app.can_edit_commission_forms(commission_id, (InitPlan 11).col1) OR app.is_member_of(commission_id) OR app.is_tenancy_admin_of(commission_id)))
                            Rows Removed by Filter: 4
                            Buffers: shared hit=1081
-                     ->  Index Scan using form_versions_form_idx on form_versions v  (cost=0.14..21.63 rows=2 width=38) (actual time=1.469..2.940 rows=2 loops=40)
+                     ->  Index Scan using form_versions_form_idx on form_versions v  (cost=0.14..21.63 rows=2 width=38) (actual time=1.547..3.076 rows=2 loops=40)
                            Index Cond: (form_id = f.id)
                            Filter: (app.can_edit_commission_forms((SubPlan 8), (InitPlan 9).col1) OR app.can_access_targeted_version(id, (InitPlan 10).col1) OR app.is_member_of(app.commission_of_version(id)) OR app.is_tenancy_admin_of(app.commission_of_version(id)))
-                           Buffers: shared hit=4561
+                           Buffers: shared hit=4587
                            SubPlan 8
-                             ->  Index Scan using forms_pkey on forms f_1  (cost=0.17..8.94 rows=1 width=16) (actual time=0.736..0.736 rows=1 loops=80)
-                                   Index Cond: (id = v.form_id)
-                                   Filter: (app.can_edit_commission_forms(commission_id, (InitPlan 7).col1) OR app.is_member_of(commission_id) OR app.is_tenancy_admin_of(commission_id))
-                                   Buffers: shared hit=2320
-                                   InitPlan 7
-                                     ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.004..0.004 rows=1 loops=1)
-         ->  Index Scan using form_items_version_idx on form_items  (cost=0.29..461.55 rows=52 width=26) (actual time=1.521..300.353 rows=200 loops=80)
-               Index Cond: (form_version_id = v.id)
-               Filter: (app.can_edit_commission_forms(app.commission_of_version(form_version_id), (InitPlan 4).col1) AND (app.can_edit_commission_forms(app.commission_of_version(form_version_id), (InitPlan 5).col1) OR app.can_access_targeted_version(form_version_id, (InitPlan 6).col1) OR app.is_member_of(app.commission_of_version(form_version_id)) OR app.is_tenancy_admin_of(app.commission_of_version(form_version_id))))
-               Buffers: shared hit=960553
- Planning:
-   Buffers: shared hit=35
- Planning Time: 1.063 ms
- Trigger audit_form_items_trg: time=4379.591 calls=16000
- Trigger guard_published_items_trg: time=296.422 calls=16000
- Execution Time: 53498.534 ms
-(53 rows)
-
-Time: 53500.162 ms (00:53.500)
-RESET
-Time: 0.174 ms
-ROLLBACK
-Time: 4.854 ms
-BEGIN
-Time: 0.085 ms
-SET
-Time: 0.187 ms
-SET
-Time: 0.137 ms
-                                                                                                                                                                                                              QUERY PLAN                                                                                                                                                                                                               
----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Update on form_items  (cost=641.41..39840.40 rows=0 width=0) (actual time=49060.953..49060.961 rows=0 loops=1)
-   Buffers: shared hit=2393511 dirtied=253 written=253
-   InitPlan 1
-     ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.003..0.004 rows=1 loops=1)
-   InitPlan 2
-     ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.003..0.003 rows=1 loops=1)
-   InitPlan 3
-     ->  Result  (cost=0.00..0.03 rows=1 width=16) (never executed)
-   InitPlan 4
-     ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.003..0.003 rows=1 loops=1)
-   InitPlan 5
-     ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.003..0.004 rows=1 loops=1)
-   InitPlan 6
-     ->  Result  (cost=0.00..0.03 rows=1 width=16) (never executed)
-   InitPlan 9
-     ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.002..0.002 rows=1 loops=1)
-   InitPlan 10
-     ->  Result  (cost=0.00..0.03 rows=1 width=16) (never executed)
-   InitPlan 11
-     ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.010..0.010 rows=1 loops=1)
-   ->  Nested Loop  (cost=641.12..39840.11 rows=4432 width=22) (actual time=147.205..24160.236 rows=16000 loops=1)
-         Buffers: shared hit=966456
-         ->  HashAggregate  (cost=640.83..641.26 rows=43 width=28) (actual time=145.573..145.738 rows=80 loops=1)
-               Group Key: v.id
-               Batches: 1  Memory Usage: 32kB
-               Buffers: shared hit=5642
-               ->  Nested Loop  (cost=0.14..640.72 rows=43 width=28) (actual time=2.426..145.492 rows=80 loops=1)
-                     Buffers: shared hit=5642
-                     ->  Seq Scan on forms f  (cost=0.00..34.55 rows=28 width=22) (actual time=0.910..28.187 rows=40 loops=1)
-                           Filter: ((commission_id = '0585641f-07df-2b46-928e-bfaae13d22e2'::uuid) AND (app.can_edit_commission_forms(commission_id, (InitPlan 11).col1) OR app.is_member_of(commission_id) OR app.is_tenancy_admin_of(commission_id)))
-                           Rows Removed by Filter: 4
-                           Buffers: shared hit=1081
-                     ->  Index Scan using form_versions_form_idx on form_versions v  (cost=0.14..21.63 rows=2 width=38) (actual time=1.444..2.931 rows=2 loops=40)
-                           Index Cond: (form_id = f.id)
-                           Filter: (app.can_edit_commission_forms((SubPlan 8), (InitPlan 9).col1) OR app.can_access_targeted_version(id, (InitPlan 10).col1) OR app.is_member_of(app.commission_of_version(id)) OR app.is_tenancy_admin_of(app.commission_of_version(id)))
-                           Buffers: shared hit=4561
-                           SubPlan 8
-                             ->  Index Scan using forms_pkey on forms f_1  (cost=0.17..8.94 rows=1 width=16) (actual time=0.732..0.733 rows=1 loops=80)
+                             ->  Index Scan using forms_pkey on forms f_1  (cost=0.17..8.94 rows=1 width=16) (actual time=0.772..0.773 rows=1 loops=80)
                                    Index Cond: (id = v.form_id)
                                    Filter: (app.can_edit_commission_forms(commission_id, (InitPlan 7).col1) OR app.is_member_of(commission_id) OR app.is_tenancy_admin_of(commission_id))
                                    Buffers: shared hit=2320
                                    InitPlan 7
                                      ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.002..0.002 rows=1 loops=1)
-         ->  Index Scan using form_items_version_idx on form_items  (cost=0.29..910.57 rows=103 width=26) (actual time=1.496..300.090 rows=200 loops=80)
+         ->  Index Scan using form_items_version_idx on form_items  (cost=0.29..461.49 rows=52 width=26) (actual time=1.702..334.608 rows=200 loops=80)
                Index Cond: (form_version_id = v.id)
                Filter: (app.can_edit_commission_forms(app.commission_of_version(form_version_id), (InitPlan 4).col1) AND (app.can_edit_commission_forms(app.commission_of_version(form_version_id), (InitPlan 5).col1) OR app.can_access_targeted_version(form_version_id, (InitPlan 6).col1) OR app.is_member_of(app.commission_of_version(form_version_id)) OR app.is_tenancy_admin_of(app.commission_of_version(form_version_id))))
-               Buffers: shared hit=960814
+               Buffers: shared hit=960547
  Planning:
-   Buffers: shared hit=12
- Planning Time: 0.431 ms
- Trigger audit_form_items_trg: time=4658.931 calls=16000
- Trigger guard_published_items_trg: time=292.746 calls=16000
- Execution Time: 53723.834 ms
+   Buffers: shared hit=35 dirtied=1
+ Planning Time: 0.489 ms
+ Trigger audit_form_items_trg: time=5226.481 calls=16000
+ Trigger guard_published_items_trg: time=416.866 calls=16000
+ Execution Time: 60240.229 ms
 (53 rows)
 
-Time: 53724.703 ms (00:53.725)
+Time: 60241.158 ms (01:00.241)
 RESET
-Time: 0.107 ms
+Time: 0.110 ms
 ROLLBACK
-Time: 5.122 ms
+Time: 5.166 ms
+BEGIN
+Time: 0.083 ms
+SET
+Time: 0.098 ms
+SET
+Time: 0.138 ms
+                                                                                                                                                                                                              QUERY PLAN                                                                                                                                                                                                               
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Update on form_items  (cost=641.41..39840.40 rows=0 width=0) (actual time=57955.959..57955.968 rows=0 loops=1)
+   Buffers: shared hit=2404507 dirtied=642 written=289
+   InitPlan 1
+     ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.004..0.005 rows=1 loops=1)
+   InitPlan 2
+     ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.003..0.004 rows=1 loops=1)
+   InitPlan 3
+     ->  Result  (cost=0.00..0.03 rows=1 width=16) (never executed)
+   InitPlan 4
+     ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.004..0.004 rows=1 loops=1)
+   InitPlan 5
+     ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.003..0.003 rows=1 loops=1)
+   InitPlan 6
+     ->  Result  (cost=0.00..0.03 rows=1 width=16) (never executed)
+   InitPlan 9
+     ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.002..0.003 rows=1 loops=1)
+   InitPlan 10
+     ->  Result  (cost=0.00..0.03 rows=1 width=16) (never executed)
+   InitPlan 11
+     ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.009..0.009 rows=1 loops=1)
+   ->  Nested Loop  (cost=641.12..39840.11 rows=4432 width=22) (actual time=157.428..28287.096 rows=16000 loops=1)
+         Buffers: shared hit=966599 dirtied=26
+         ->  HashAggregate  (cost=640.83..641.26 rows=43 width=28) (actual time=155.624..155.882 rows=80 loops=1)
+               Group Key: v.id
+               Batches: 1  Memory Usage: 32kB
+               Buffers: shared hit=5668
+               ->  Nested Loop  (cost=0.14..640.72 rows=43 width=28) (actual time=2.958..155.513 rows=80 loops=1)
+                     Buffers: shared hit=5668
+                     ->  Seq Scan on forms f  (cost=0.00..34.55 rows=28 width=22) (actual time=1.021..31.116 rows=40 loops=1)
+                           Filter: ((commission_id = '0585641f-07df-2b46-928e-bfaae13d22e2'::uuid) AND (app.can_edit_commission_forms(commission_id, (InitPlan 11).col1) OR app.is_member_of(commission_id) OR app.is_tenancy_admin_of(commission_id)))
+                           Rows Removed by Filter: 4
+                           Buffers: shared hit=1081
+                     ->  Index Scan using form_versions_form_idx on form_versions v  (cost=0.14..21.63 rows=2 width=38) (actual time=1.541..3.108 rows=2 loops=40)
+                           Index Cond: (form_id = f.id)
+                           Filter: (app.can_edit_commission_forms((SubPlan 8), (InitPlan 9).col1) OR app.can_access_targeted_version(id, (InitPlan 10).col1) OR app.is_member_of(app.commission_of_version(id)) OR app.is_tenancy_admin_of(app.commission_of_version(id)))
+                           Buffers: shared hit=4587
+                           SubPlan 8
+                             ->  Index Scan using forms_pkey on forms f_1  (cost=0.17..8.94 rows=1 width=16) (actual time=0.770..0.770 rows=1 loops=80)
+                                   Index Cond: (id = v.form_id)
+                                   Filter: (app.can_edit_commission_forms(commission_id, (InitPlan 7).col1) OR app.is_member_of(commission_id) OR app.is_tenancy_admin_of(commission_id))
+                                   Buffers: shared hit=2320
+                                   InitPlan 7
+                                     ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.003..0.003 rows=1 loops=1)
+         ->  Index Scan using form_items_version_idx on form_items  (cost=0.29..910.57 rows=103 width=26) (actual time=1.739..351.450 rows=200 loops=80)
+               Index Cond: (form_version_id = v.id)
+               Filter: (app.can_edit_commission_forms(app.commission_of_version(form_version_id), (InitPlan 4).col1) AND (app.can_edit_commission_forms(app.commission_of_version(form_version_id), (InitPlan 5).col1) OR app.can_access_targeted_version(form_version_id, (InitPlan 6).col1) OR app.is_member_of(app.commission_of_version(form_version_id)) OR app.is_tenancy_admin_of(app.commission_of_version(form_version_id))))
+               Buffers: shared hit=960931 dirtied=26
+ Planning:
+   Buffers: shared hit=12
+ Planning Time: 0.406 ms
+ Trigger audit_form_items_trg: time=5663.493 calls=16000
+ Trigger guard_published_items_trg: time=486.977 calls=16000
+ Execution Time: 63625.085 ms
+(53 rows)
+
+Time: 63626.235 ms (01:03.626)
+RESET
+Time: 0.393 ms
+ROLLBACK
+Time: 10.735 ms
 
 === M4 — ATTRIBUTION ONLY, NOT THE ACCEPTANCE. The isolated seam:
 === ~10 000 direct authz.has_permission calls. Reported so the
@@ -793,29 +793,29 @@ Time: 5.122 ms
    line because the P1 grep was unscoped -- scope it to the nested
    region sentinels (acceptance doc section 9.7).
 BEGIN
-Time: 0.124 ms
+Time: 0.184 ms
 SET
-Time: 0.256 ms
+Time: 0.235 ms
                                                           QUERY PLAN                                                           
 -------------------------------------------------------------------------------------------------------------------------------
- Aggregate  (cost=2848.08..2848.09 rows=1 width=8) (actual time=6902.244..6902.244 rows=1 loops=1)
+ Aggregate  (cost=2848.08..2848.09 rows=1 width=8) (actual time=8252.686..8252.687 rows=1 loops=1)
    Buffers: shared hit=276483
-   ->  Nested Loop  (cost=0.00..165.01 rows=10626 width=16) (actual time=0.035..5.870 rows=10626 loops=1)
+   ->  Nested Loop  (cost=0.00..165.01 rows=10626 width=16) (actual time=0.028..8.182 rows=10626 loops=1)
          Buffers: shared hit=20
-         ->  Function Scan on generate_series g  (cost=0.00..0.11 rows=11 width=0) (actual time=0.006..0.011 rows=11 loops=1)
-         ->  Materialize  (cost=0.00..34.49 rows=966 width=16) (actual time=0.003..0.209 rows=966 loops=11)
+         ->  Function Scan on generate_series g  (cost=0.00..0.11 rows=11 width=0) (actual time=0.009..0.014 rows=11 loops=1)
+         ->  Materialize  (cost=0.00..34.49 rows=966 width=16) (actual time=0.002..0.299 rows=966 loops=11)
                Buffers: shared hit=20
-               ->  Seq Scan on commissions c  (cost=0.00..29.66 rows=966 width=16) (actual time=0.026..0.368 rows=966 loops=1)
+               ->  Seq Scan on commissions c  (cost=0.00..29.66 rows=966 width=16) (actual time=0.015..0.583 rows=966 loops=1)
                      Buffers: shared hit=20
  Planning:
    Buffers: shared hit=9
- Planning Time: 0.119 ms
- Execution Time: 6902.300 ms
+ Planning Time: 0.183 ms
+ Execution Time: 8252.744 ms
 (13 rows)
 
-Time: 6902.827 ms (00:06.903)
+Time: 8253.549 ms (00:08.254)
 ROLLBACK
-Time: 0.114 ms
+Time: 0.196 ms
 
 ################################################################
 ## PASS B — NESTED BODY PLANS  (opt-in:  -v NESTED=1)         ##
@@ -855,113 +855,113 @@ Time: 0.114 ms
 ################################################################
 psql:<stdin>:673: NOTICE:  table "ae4_timing" does not exist, skipping
 DROP TABLE
-Time: 0.316 ms
+Time: 0.610 ms
 CREATE TABLE
-Time: 2.939 ms
+Time: 2.574 ms
 GRANT
-Time: 0.921 ms
+Time: 0.897 ms
 CREATE FUNCTION
-Time: 1.123 ms
+Time: 1.842 ms
 BEGIN
-Time: 0.094 ms
+Time: 0.282 ms
 SET
-Time: 0.072 ms
+Time: 0.172 ms
 SET
-Time: 0.073 ms
+Time: 0.145 ms
 INSERT 0 1
-Time: 3.653 ms
+Time: 5.322 ms
 RESET
-Time: 0.131 ms
+Time: 0.130 ms
 COMMIT
-Time: 0.090 ms
+Time: 0.156 ms
 BEGIN
-Time: 0.098 ms
+Time: 0.147 ms
 SET
-Time: 0.119 ms
+Time: 0.155 ms
 SET
-Time: 0.091 ms
+Time: 0.143 ms
 INSERT 0 1
-Time: 2187.081 ms (00:02.187)
+Time: 2383.410 ms (00:02.383)
 RESET
-Time: 0.113 ms
+Time: 0.147 ms
 COMMIT
-Time: 0.122 ms
+Time: 0.216 ms
 DO
-Time: 0.569 ms
+Time: 0.608 ms
 psql:<stdin>:751: NOTICE:  AE4 P5 precondition OK — both arms see the same 10000 rows.
 BEGIN
-Time: 0.126 ms
+Time: 0.070 ms
  ae4_time 
 ----------
- 6.507000
+ 6.610000
 (1 row)
 
-Time: 35.307 ms
+Time: 43.907 ms
  ae4_time 
 ----------
- 6.316000
+ 6.873000
 (1 row)
 
-Time: 33.705 ms
+Time: 38.029 ms
  ae4_time 
 ----------
- 6.470000
+ 7.077000
 (1 row)
 
-Time: 35.057 ms
+Time: 48.787 ms
+ ae4_time  
+-----------
+ 11.416000
+(1 row)
+
+Time: 67.225 ms
  ae4_time 
 ----------
- 7.016000
+ 3.996000
 (1 row)
 
-Time: 36.228 ms
- ae4_time 
-----------
- 2.602000
-(1 row)
-
-Time: 14.343 ms
+Time: 25.230 ms
   ae4_time   
 -------------
- 1947.806000
+ 2391.518000
 (1 row)
 
-Time: 10166.715 ms (00:10.167)
+Time: 12184.769 ms (00:12.185)
 COMMIT
-Time: 2.728 ms
+Time: 1.851 ms
 BEGIN
-Time: 0.131 ms
+Time: 0.080 ms
 ALTER POLICY
-Time: 0.553 ms
-Time: 78.214 ms
-Time: 48941.413 ms (00:48.941)
+Time: 0.952 ms
+Time: 92.375 ms
+Time: 58507.635 ms (00:58.508)
 ROLLBACK
-Time: 1.400 ms
+Time: 1.451 ms
        label       |   ms_best   | reps |  measured_as  
 -------------------+-------------+------+---------------
- DC2/N=10          |    6.507000 |    5 | authenticated
- DC2/N=100         |    6.316000 |    5 | authenticated
- DC2/N=1000        |    6.470000 |    5 | authenticated
- DC2/N=10000       |    7.016000 |    5 | authenticated
- P5/legacy-arm     | 1947.806000 |    5 | authenticated
- P5/permission-arm |    2.602000 |    5 | authenticated
+ DC2/N=10          |    6.610000 |    5 | authenticated
+ DC2/N=100         |    6.873000 |    5 | authenticated
+ DC2/N=1000        |    7.077000 |    5 | authenticated
+ DC2/N=10000       |   11.416000 |    5 | authenticated
+ P5/legacy-arm     | 2391.518000 |    5 | authenticated
+ P5/permission-arm |    3.996000 |    5 | authenticated
 (6 rows)
 
-Time: 0.457 ms
+Time: 0.300 ms
 psql:<stdin>:814: NOTICE:  AE4 impersonation gate OK — every timing was taken as `authenticated`.
 DO
-Time: 0.374 ms
-psql:<stdin>:854: NOTICE:  AE4 live-path N-differential (evidence, not DC2): 10 rows 6.507000 ms, 10000 rows 7.016000 ms, ratio 1.08.
-psql:<stdin>:854: NOTICE:  AE4 P4 decade ratio (N=1000 -> N=10000) = 1.08 (6.470000 ms -> 7.016000 ms). Threshold <= 30.
-psql:<stdin>:854: NOTICE:  AE4 P5 ratio (permission arm / legacy arm) = 0.00 (2.602000 ms / 1947.806000 ms). Threshold <= 4.
+Time: 0.493 ms
+psql:<stdin>:854: NOTICE:  AE4 live-path N-differential (evidence, not DC2): 10 rows 6.610000 ms, 10000 rows 11.416000 ms, ratio 1.73.
+psql:<stdin>:854: NOTICE:  AE4 P4 decade ratio (N=1000 -> N=10000) = 1.61 (7.077000 ms -> 11.416000 ms). Threshold <= 30.
+psql:<stdin>:854: NOTICE:  AE4 P5 ratio (permission arm / legacy arm) = 0.00 (3.996000 ms / 2391.518000 ms). Threshold <= 4.
 DO
-Time: 1.212 ms
+Time: 1.180 ms
  ae4_say 
 ---------
  
 (1 row)
 
-Time: 0.397 ms
+Time: 0.488 ms
 
 ################################################################
 ## SECTION 8 — DISCRIMINATION CONTROL DC1 (planted cost)      ##
@@ -973,73 +973,73 @@ Time: 0.397 ms
 ##  and every green number above is uninterpretable.          ##
 ################################################################
 BEGIN
-Time: 0.062 ms
+Time: 0.077 ms
 ALTER POLICY
-Time: 0.570 ms
-Time: 1018.065 ms (00:01.018)
+Time: 0.594 ms
+Time: 1226.092 ms (00:01.226)
 ROLLBACK
-Time: 0.305 ms
+Time: 0.295 ms
 BEGIN
-Time: 0.130 ms
+Time: 0.073 ms
 ALTER POLICY
-Time: 0.682 ms
+Time: 0.740 ms
 CREATE FUNCTION
-Time: 0.430 ms
+Time: 0.549 ms
   ae4_time  
 ------------
- 315.358000
+ 346.331000
 (1 row)
 
-Time: 1636.287 ms (00:01.636)
-Time: 0.264 ms
+Time: 1897.467 ms (00:01.897)
+Time: 0.462 ms
 ROLLBACK
-Time: 0.248 ms
+Time: 0.818 ms
 BEGIN
-Time: 0.096 ms
+Time: 0.091 ms
 ALTER POLICY
-Time: 0.693 ms
+Time: 0.797 ms
 CREATE FUNCTION
-Time: 0.509 ms
+Time: 0.711 ms
   ae4_time   
 -------------
- 3442.361000
+ 3858.416000
 (1 row)
 
-Time: 17751.793 ms (00:17.752)
-Time: 0.195 ms
+Time: 19844.324 ms (00:19.844)
+Time: 0.494 ms
 ROLLBACK
-Time: 0.257 ms
+Time: 0.547 ms
  ae4_say 
 ---------
  
 (1 row)
 
-Time: 0.496 ms
+Time: 0.888 ms
 --- DC1 ATTRIBUTION: which term carries the per-protected-row cost ---
  assignment_facts_ratio | scope_reaches_ratio |                                   reading                                    
 ------------------------+---------------------+------------------------------------------------------------------------------
- 1.69                   | 18.43               | a large ratio localises the cost to that term; both small = it is in neither
+ 1.52                   | 16.92               | a large ratio localises the cost to that term; both small = it is in neither
 (1 row)
 
-Time: 0.218 ms
+Time: 0.373 ms
 psql:<stdin>:1073: NOTICE:  AE4 DC1 rollback OK — authz.assignment_facts is the shipped body again.
 DO
-Time: 1.481 ms
+Time: 1.034 ms
 BEGIN
-Time: 0.069 ms
+Time: 0.061 ms
 ALTER POLICY
-Time: 0.950 ms
-Time: 1047.685 ms (00:01.048)
+Time: 0.816 ms
+Time: 1178.729 ms (00:01.179)
 ROLLBACK
-Time: 0.180 ms
+Time: 0.279 ms
                                         dc1_restore_check                                        
 -------------------------------------------------------------------------------------------------
- AE4 DC1 restore OK — 193.065000 ms vs 186.814000 ms baseline (both on the pre-change predicate)
+ AE4 DC1 restore OK — 209.271000 ms vs 227.992000 ms baseline (both on the pre-change predicate)
 (1 row)
 
-Time: 0.441 ms
+Time: 0.296 ms
 DO
-Time: 0.324 ms
+Time: 0.298 ms
 
 ################################################################
 ## SECTION 8b — DC3 (semantic ablation) and P7 (short-circuit) ##
@@ -1049,77 +1049,77 @@ Time: 0.324 ms
 ##  and NEITHER is a timing ratio — flattening the timing IS    ##
 ##  the change, so a ratio cannot be the instrument.            ##
 ################################################################
-Time: 10.367 ms
+Time: 12.798 ms
 --- DC3 preflight: the foreign organization, and the two baselines ---
 BEGIN
-Time: 0.106 ms
-SET
-Time: 0.103 ms
-SET
-Time: 0.103 ms
-Time: 10.847 ms
-RESET
 Time: 0.098 ms
+SET
+Time: 0.135 ms
+SET
+Time: 0.129 ms
+Time: 12.491 ms
+RESET
+Time: 0.138 ms
 ROLLBACK
-Time: 0.165 ms
+Time: 0.109 ms
              foreign_org              | own_org_rows_visible | foreign_org_rows_visible 
 --------------------------------------+----------------------+--------------------------
  0c000000-0000-0000-0000-00000000000a | 10000                | 0
 (1 row)
 
-Time: 0.198 ms
+Time: 0.126 ms
 BEGIN
-Time: 0.086 ms
+Time: 0.084 ms
 CREATE FUNCTION
-Time: 0.432 ms
+Time: 0.517 ms
 SET
-Time: 0.165 ms
+Time: 0.095 ms
 SET
-Time: 0.129 ms
-Time: 9881.219 ms (00:09.881)
+Time: 0.090 ms
+Time: 10845.918 ms (00:10.846)
 RESET
-Time: 0.109 ms
-Time: 48981.395 ms (00:48.981)
+Time: 0.200 ms
+Time: 55607.876 ms (00:55.608)
 ROLLBACK
-Time: 1.757 ms
+Time: 1.943 ms
 BEGIN
-Time: 0.086 ms
-CREATE FUNCTION
-Time: 0.664 ms
-SET
 Time: 0.108 ms
+CREATE FUNCTION
+Time: 0.446 ms
 SET
-Time: 0.213 ms
-Time: 0.885 ms
+Time: 0.154 ms
+SET
+Time: 0.095 ms
+Time: 0.784 ms
 RESET
-Time: 0.079 ms
+Time: 0.084 ms
 ROLLBACK
-Time: 0.113 ms
+Time: 0.143 ms
 DO
-Time: 5.490 ms
+Time: 5.848 ms
 psql:<stdin>:1193: NOTICE:  AE4 DC3 rollback OK — authz.authorized_scope_ids is the shipped body again.
  ae4_say 
 ---------
  
 (1 row)
 
-Time: 0.351 ms
+Time: 0.378 ms
 CREATE FUNCTION
-Time: 1.217 ms
+Time: 1.810 ms
 BEGIN
-Time: 0.066 ms
+Time: 0.091 ms
 ALTER POLICY
-Time: 0.412 ms
-Time: 9789.344 ms (00:09.789)
+Time: 0.487 ms
+Time: 10967.422 ms (00:10.967)
 ROLLBACK
-Time: 0.535 ms
-Time: 4.325 ms
+Time: 0.206 ms
+Time: 5.042 ms
  ae4_say 
 ---------
  
 (1 row)
 
-Time: 0.258 ms
+Time: 0.303 ms
 
 ################################################################
 ## SECTION 9 — POSTFLIGHT: THE STACK MUST BE UNMUTATED        ##
@@ -1131,9 +1131,10 @@ Time: 0.258 ms
  any public trigger left DISABLED (must be f)                   | f
 (3 rows)
 
-Time: 5.789 ms
+Time: 5.955 ms
+psql:<stdin>:1299: NOTICE:  AE4 harness: stack unmutated.
 DO
-Time: 5.638 ms
+Time: 6.530 ms
 
 === AE4 perf harness complete. Evaluate P1-P6 per
 === docs/design/authz-ae4-performance-acceptance.md section 6. ===
@@ -1143,26 +1144,25 @@ Time: 5.638 ms
 ##  controls AND after the postflight, so no condition can    ##
 ##  abort the run before the control that validates it.       ##
 ################################################################
-psql:<stdin>:1299: NOTICE:  AE4 harness: stack unmutated.
 DO
-Time: 0.346 ms
+Time: 0.622 ms
 --- AE4 VERDICT TABLE ---
-   kind    | id  | status |                                                                                                                                                   detail                                                                                                                                                    
------------+-----+--------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- CONTROL   | DC1 | PASS   | DC1a assignment_facts=1.69x, DC1b scope_reaches=18.43x (pair passes when EITHER >= 10x; if neither moves, the instrument is blind)
- CONTROL   | DC2 | PASS   | 1000x the protected rows: 13.496000 ms -> 9702.889000 ms (718.95x) on the PRE-CHANGE predicate. Threshold >= 5x. A ratio below it means the fixture did not scale, not that the optimisation worked — that is why this is measured where the per-row evaluation still happens (ADR 0182, acceptance §13.6).
- CONTROL   | DC3 | PASS   | DC3a empty-set: own-org rows 10000 -> 10000 (MUST NOT move: the ELSE arm still grants) at 9718.612000 ms. DC3b over-broad: foreign-org rows 0 -> 1 (MUST become > 0: the set arm is consulted and load-bearing).
- CONDITION | P1  | UNRUN  | VERDICT from scripts/authz-ae4-p1-index-path.sql (exit 0 = clear, 3 = fail/VOID; ADR 0181); the raw seq-scan census stays evidence from the nested region -- acceptance doc section 9.7
- CONDITION | P2  | UNRUN  | VERDICT from scripts/authz-ae4-p2-invocation-count.sql (exit 0 = clear, 3 = fail/VOID; ADR 0183, acceptance doc section 16). ⛔ The section 9.7 loops= grep is RETIRED as a verdict: it counts loops VALUES, is invariant to the candidate count, and cannot fail.
+   kind    | id  | status |                                                                                                                                                    detail                                                                                                                                                    
+-----------+-----+--------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ CONTROL   | DC1 | PASS   | DC1a assignment_facts=1.52x, DC1b scope_reaches=16.92x (pair passes when EITHER >= 10x; if neither moves, the instrument is blind)
+ CONTROL   | DC2 | PASS   | 1000x the protected rows: 14.245000 ms -> 11428.683000 ms (802.29x) on the PRE-CHANGE predicate. Threshold >= 5x. A ratio below it means the fixture did not scale, not that the optimisation worked — that is why this is measured where the per-row evaluation still happens (ADR 0182, acceptance §13.6).
+ CONTROL   | DC3 | PASS   | DC3a empty-set: own-org rows 10000 -> 10000 (MUST NOT move: the ELSE arm still grants) at 10796.597000 ms. DC3b over-broad: foreign-org rows 0 -> 1 (MUST become > 0: the set arm is consulted and load-bearing).
+ CONDITION | P1  | UNRUN  | evaluated externally from the nested region -- acceptance doc section 9.7
+ CONDITION | P2  | UNRUN  | evaluated externally from the nested region -- acceptance doc section 9.7
  CONDITION | P3  | UNRUN  | evaluated externally from the nested region -- acceptance doc section 9.7
- CONDITION | P4  | PASS   | decade ratio 1.08 (threshold 30; linear = 10)
+ CONDITION | P4  | PASS   | decade ratio 1.61 (threshold 30; linear = 10)
  CONDITION | P5  | PASS   | ratio 0.00 (threshold 4)
  CONDITION | P7  | PASS   | live [hashed=t,loops1=t,never=t] — all three required: an uncorrelated set built ONCE, and the row authorizer not reached. CONTROL on the pre-change predicate [hashed=f,loops1=f,never=f] MUST NOT be all-true, or the probe is not measuring the subplan at all.
 (9 rows)
 
-Time: 0.354 ms
+Time: 0.273 ms
 psql:<stdin>:1346: ERROR:  AE4 ACCEPTANCE NOT MET (6 of 9 rows PASS).
 Not passing: P1=UNRUN, P2=UNRUN, P3=UNRUN
 Read the verdict table above: FAIL is a regression, VOID means nothing was measured and the run is repeated, UNRUN means the row was never reached.
 CONTEXT:  PL/pgSQL function inline_code_block line 8 at RAISE
-Time: 0.457 ms
+Time: 0.403 ms

@@ -167,23 +167,34 @@ select is(
 -- BROKEN CATALOG, so the suite would have gone RED when someone fixed the migration. Found by
 -- QA review, 2026-09-03; fixed by 20261003007330.
 --
--- ⭐ THE REPAIR IS STRUCTURAL, NOT A CORRECTED CONSTANT. The reference is now the SIBLING
--- authorizer — `app.can_read_professional_profile`, which has always been right — so this
--- cannot be satisfied by re-encoding whatever the last migration happened to produce. The
--- quote check beside it is the direct tell: the two forms differ by exactly that character,
--- and a stale sibling could otherwise let the collapsed form pass by matching it.
+-- ⭐ A DIRECT CONSTANT IS THE RIGHT INSTRUMENT HERE — this is a PIN, not a neutralizer, and
+-- the next reader must not "repair" it back into a differential. The intermediate form of this
+-- pair asserted that this function's proconfig EQUALS its sibling's, on the reasoning that a
+-- hand-typed constant is what pinned the defect. That conflates two different failure modes.
+-- What pinned the defect was copying a constant OUT OF A BROKEN CATALOG; the fix for that is
+-- to type the value the migration is REQUIRED to emit — which is exactly what 341/393/396/292
+-- all do for this field. A sibling differential instead defines a SECURITY INVARIANT AS
+-- EQUALITY WITH A MUTABLE OBJECT: if both siblings drift to the same unsafe value it stays
+-- green, and that is the one outcome a search_path pin exists to catch. So both siblings are
+-- pinned, each independently, against the constant.
+--
+-- ⛔ These two assertions bound TWO FUNCTIONS BY NAME and nothing else — which is the
+-- name-keyed shape that lets the next collapsed search_path through. The CLASS ("every
+-- prosecdef function in app/public/authz declares a search_path whose every named schema
+-- resolves in pg_namespace") is swept by `414_definer_search_path_resolves.sql`. Add a new
+-- function there, not to a growing per-name list here.
 select is(
   (select array_to_string(p.proconfig, ',') from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'app' and p.proname = 'current_professional_read_organizations'),
-  (select array_to_string(p.proconfig, ',') from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'app' and p.proname = 'can_read_professional_profile'),
-  'app.current_professional_read_organizations declares the SAME search_path as its sibling app.can_read_professional_profile — a differential, never a hand-typed constant'
+  'search_path=app, public, pg_catalog',
+  'app.current_professional_read_organizations pins search_path=app, public, pg_catalog — an identifier LIST of three schemas that all exist. ⛔ A RED here means the value DRIFTED; do NOT re-copy whatever the catalog now holds, because copying the catalog is what pinned the collapsed single-quoted form as expected the first time'
 );
 
-select ok(
+select is(
   (select array_to_string(p.proconfig, ',') from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'app' and p.proname = 'current_professional_read_organizations') not like '%"%',
-  'app.current_professional_read_organizations search_path contains NO quote — i.e. it is an identifier LIST and did not collapse to one non-existent schema'
+    where n.nspname = 'app' and p.proname = 'can_read_professional_profile'),
+  'search_path=app, public, pg_catalog',
+  'app.can_read_professional_profile pins the SAME constant INDEPENDENTLY — it is §5''s subset oracle and the policy''s fallback arm, so its resolution order is load-bearing for this suite; pinning the two separately is the thing a sibling-equality differential could not do'
 );
 
 -- 5. The door takes NO principal argument. If it ever gains one, a caller could ask about
