@@ -8086,6 +8086,46 @@ Consequences, and they are not cosmetic:
 and split the anchor, so the harness can report the two populations separately. ⛔ **Not closed by**
 widening the anchor for the HCDS half — that fixes the narrowness and leaves the mislabelling untouched.
 
+#### The third direction — CONFIRMED LIVE: 39 raises fail closed as ERROR, concentrated on the PHI lane
+
+⭐ **Predicted by code reading, then observed in the running sweep — the strongest form of this finding.**
+
+The mutation anchor is `raise\s+exception[^;]*?errcode…`. `[^;]*?` is a **negated semicolon class**, so it
+cannot span a `;` **inside the message literal**. Such a raise is a clean non-match: `v_before` still counts
+it (that counter anchors on the *errcode*, which sits after the message), so `v_after <> 0` and the harness
+raises `C2MUT: N raise(s) survived the rewrite`. `execute v_new` is **downstream** of that check, so the
+function is never half-mutated — it is **not mutated at all** and gets **NO VERDICT**.
+
+**Measured 2026-09-02** (multiline scan of the 519 migration files — ⛔ line-based `grep` finds ZERO of
+these, because the message and its `using errcode` sit on **different lines**; a single-line grep here
+returns a false all-clear):
+
+- **2294** anchored authz raises total; **39** carry a `;` inside the message literal (~26 distinct shapes).
+- **Confirmed live in the run:** `public.set_referral_patient` (2 survived) and
+  `public.set_professional_link_state` (1 survived) both recorded **ERROR · MUTATION DID NOT LAND**.
+  The culprit in the first is verbatim `20261003001700_referral_phi_amend_is_draft_only.sql:109-110`:
+  `raise exception 'encaminhamento concluído; os dados do paciente não podem mais ser alterados'` /
+  `using errcode = 'HC078';`
+- Observed ERROR-by-this-mechanism rate **2 of 33 enforcers (~6 %)** → expect **~10 of the 171 to finish
+  the sweep with no verdict**.
+
+⛔ **Why this is the sharp end and not a curiosity: it concentrates on the PHI surface.** `HC078` appears
+**twice**, both in the referral-PHI lane, and `dispose_referral_phi` is a third. ADR
+[0162](../decisions/0162-authz-evolution-plan-audit-corrections.md) §3 makes **the tenant-boundary/PHI
+subset** the part of C2 that must close before Gate AE4's PO approval — so the defect removes verdicts
+from precisely the doors the gate depends on. **`set_referral_patient` is a Rule 12 PHI door
+(`referral_patient`) and currently has NO coverage verdict.**
+
+✅ **The good news, and it is real:** this fails **closed**. It can never produce a false COVERED or a
+silent wrong verdict — only a visible ERROR. The harness's own rule (*ERROR IS NOT A PASS — each is an
+obligation*) is what makes the class recoverable.
+
+**Candidate fix (UNTESTED — the harness may not be edited while the sweep runs):** consume the message as
+a proper quoted literal before scanning for the errcode, i.e.
+`raise\s+exception\s+'(?:[^']|'')*'[^;]*?errcode\s*(=|=>)\s*'(…)'\s*;`. That absorbs a `;` inside the
+message and should clear all 39. ⚠ It does **not** cover a `;` inside a `detail =`/`hint =` clause after
+the errcode; that residue must be measured, not assumed empty.
+
 ⭐ **The generalisable lesson, and it is ADR 0078's:** this is an enumeration **bounded by a syntax
 rather than by a property**. The same shape produced the false P0 in ADR 0078's METHODOLOGY FINDING and
 the 15-BLIND-gate miss in ADR 0079. A related instance found in the same audit: a **t19 REVOKE-guard
