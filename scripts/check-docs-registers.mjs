@@ -79,7 +79,11 @@ export const PATHS = {
   decisionsDir: 'docs/decisions',
 }
 
-export const CODE_WATERMARK = '2026-09-04' // ids opened/filed on or after this must use a registered code
+// Ids opened/filed on or after this date must use a registered code. The ADR shipped 2026-09-03;
+// the rule takes effect the NEXT day because a parallel branch filed three code-less ids on the
+// ship day under the old "SCREAMING-KEBAB claim" convention (review F-1, measured), and an id is a
+// permanent join key that cannot be renamed to comply. ⛔ Never bump this to pass.
+export const CODE_WATERMARK = '2026-09-04'
 export const CURRENT_STATE_MAX_LINES = 60
 export const HANDOFF_MAX_BYTES = 24 * 1024
 export const CRITICAL_PIN_REQUIRED = true // ADR 0185 D5: § Critical FUP lives at the top of the register

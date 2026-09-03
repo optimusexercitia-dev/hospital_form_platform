@@ -52,24 +52,29 @@ after AE4.
   jargon, ARCHITECTURE.md admission header + 13 `Enforced by:` lines, `docs/INDEX.md`, register
   normalized by an idempotent script (165 entries after AE4's 9 landed). ADR 0184's handoff
   citation promoted to durable records.
-- Staged for commit C (working tree, full chain exit 0): PROGRESS.md cut to § Phase Status +
-  roll-up + § State with the seven retired sections forbidden by gate 7; register + bug archive
-  moved to `docs/followups/` and `docs/bugs/`; ⭐⭐ Critical pinned in the register; 6 open § Now
-  items filed as entries; § Now / Decisions / Test Run / QA rotated verbatim; two open-bug docs;
-  ~130 references repointed; `progress-contract.md`, `lint-gates.md`, CLAUDE.md edited.
+- Commit C (`159b9f26`, PO-approved CLAUDE.md diff, full chain exit 0): PROGRESS.md cut to
+  § Phase Status + roll-up + § State with the seven retired sections forbidden by gate 7; register
+  + bug archive moved to `docs/followups/` and `docs/bugs/`; ⭐⭐ Critical pinned in the register;
+  6 open § Now items filed as entries; § Now / Decisions / Test Run / QA rotated verbatim; two
+  open-bug docs; ~130 references repointed; `progress-contract.md`, `lint-gates.md`, CLAUDE.md.
+- Read-only review **APPROVED** ([docs-restructure-review.md](../reviews/docs-restructure-review.md)):
+  every register has a red+green-proven arm; 6 live counterexamples caught. Findings F-1 (watermark
+  excludes the ship day — accepted: three AE4 ids filed that day under the old code-less rule; ids
+  cannot be renamed), F-4 (this block was stale — fixed), F-5 (`.prettierignore` — fixed);
+  F-2/F-3 are the disclosed presence-not-truth bound, accepted.
 
 ### In progress
 
-- Commit C, held for the PO's approval of the CLAUDE.md diff (61 insertions, 43 deletions).
+- Commit D: the review file + the three F-fixes. Nothing else is open on this branch.
 
 ### Next
 
-1. Commit C on approval; regenerate nothing by hand — `npm run features:index` + `adr:index`.
-2. Read-only review → `docs/reviews/docs-restructure-review.md`: one question, does every new
-   register have a gate that can red.
-3. Rebase once more onto AE4's tip when AE4 is ready to merge; merge after it.
+1. Rebase once more onto `authz-ae4-catalog`'s tip when AE4 is ready to merge; merge after it;
+   C2-TIER1 and any other live branch rebase once.
+2. PO rules on the three lists in [the progress record](../progress/docs-restructure.md).
 
 ### Blockers
 
-- CLAUDE.md commit waits on the PO's diff approval (CLAUDE.md's own rule).
 - AE4 is still being committed to; the final rebase target is not fixed until it merges.
+- ⚠ The `Updated`-staleness arm cannot fire on a docs-only branch (it watches `src/`, `supabase/`,
+  `e2e/`), so this block's freshness rests on the author — review F-4 caught it stale once.

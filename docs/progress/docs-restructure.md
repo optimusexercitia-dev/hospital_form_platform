@@ -110,7 +110,22 @@ match is not a derivable condition.
 - **One red shipped and was corrected in the next commit** (`6135abab`): commit B' landed with
   `lint:registers` red on ADR 0184's handoff citation because the gate ran through a pipe to
   `tail`, which erased its exit code — the pipe lesson, hit live.
-- **Commit C** (this working tree): the PROGRESS.md cut, the moves, the Critical pin, six § Now
+- **Review** (`docs/reviews/docs-restructure-review.md`, read-only, one question): **APPROVED**.
+  Every register/field has an arm with both a red and a green fixture; six live counterexamples
+  against the exported checkers all reded. Findings and dispositions: **F-1 MINOR** `CODE_WATERMARK`
+  is 2026-09-04, so ids filed on the ship day evade the code check → **accepted, deliberately**:
+  moving it to 2026-09-03 reds three ids AE4 filed that day under the old code-less convention
+  (`FUP-PROFESSIONAL-PARTICIPANTS-SELECT-STILL-PER-ROW`, `FUP-NO-GATE-CATCHES-A-COLLAPSED-SEARCH-PATH`,
+  `FUP-PRIVILEGE-BUDGET-CEILING-BREACHED-BY-SEVEN` — measured), and an id is a permanent join key
+  that cannot be renamed to comply. The rule takes effect the day after the ADR lands; the script
+  comment now says so. **F-2 INFO** the `complete` cross-check's APPROVED half is a
+  substring match on the linked review, not a verdict about that hub → accepted as the disclosed
+  presence-not-truth bound. **F-3 INFO** the C2 handoff names `authz-c2-tier1`, which exists but is
+  a stale ref → the branch-exists arm cannot see staleness; accepted, noted in the C2 hub. **F-4
+  INFO** this branch's own Current-state block was stale (said commit C pending after it landed) and
+  the `Updated` arm cannot fire on a docs-only branch → block rewritten; the bound is now stated in
+  its Blockers. **F-5 INFO** `.prettierignore` did not cover the new register homes → added.
+- **Commit C** (`159b9f26`): the PROGRESS.md cut, the moves, the Critical pin, six § Now
   items filed as entries (`FUP-AUTHZ-AE3-CUTOVER-OPERATOR-OBLIGATIONS-OWED`,
   `FUP-ENV-LINT-AUTHZ-VECTORS-NEEDS-PYTHON3`, `FUP-ENV-STALE-ORIGIN-BRANCH-C2-TIER1-NEUTRALIZER`,
   `FUP-ENV-NVM-DEFAULT-NODE-20-KILLS-GATE-8`, `FUP-DISPOSAL-RUNBOOK-THREE-CORRECTIONS-OWED`,
