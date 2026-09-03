@@ -2,12 +2,15 @@
 
 > ⚙ **GENERATED FILE — do not edit by hand.** Every row is derived from a hub's YAML frontmatter
 > (`docs/features/<slug>.md`). Rebuild with `npm run features:index`; `npm run lint:registers`
-> (gate 13 of `npm run lint`) reds when this file is out of date. ADR 0185 D1.
+> (gate 13 of `npm run lint`) reds when this file is out of date. ADR 0185 D1; ADR 0186 D1 —
+> this file is the only projection of hub frontmatter; nothing else lists it separately.
 >
-> A hub exists **before** a branch is cut. Codes for historical work that never had a hub:
-> [legacy-codes.md](legacy-codes.md). The live working state of an in-progress hub is its
-> `## Current state` block; the list of in-progress hubs is
-> [../planning/CURRENT.md](../planning/CURRENT.md).
+> **This file IS the live list** — sorted `in_progress` → `gated` → `planned` → `parked` →
+> `complete`, so "what is in flight" reads off its first rows. A hub exists **before** a
+> branch is cut. Codes for historical work that never had a hub:
+> [legacy-codes.md](../followups/legacy-codes.md).
+> A hub's `## Current state` is its summary; its progress record's `## Session log`
+> (`docs/progress/<code>.md`) is its detail (ADR 0186 D3).
 
 **6 hubs** · in progress 1 · gated 2 · planned 2 · parked 0 · complete 1
 

@@ -6,7 +6,8 @@
  * banner went stale about its own size (ADR 0124), rules described renamed symbols
  * (ADR 0127), a follow-up index drifted from its bodies in both directions (ADR 0140,
  * 0179). ADR 0185 adds five registers — feature hubs, CURRENT.md, BUGS.md, LESSONS.md and
- * postmortems — plus fields on the follow-up register and a handoff convention that had
+ * postmortems (CURRENT.md's arm retired by ADR 0186 D1: docs/features/INDEX.md is the only
+ * projection of hub frontmatter) — plus fields on the follow-up register and a handoff convention that had
  * "no gate" by its own admission. Its admission rule: NO register or field ships without
  * a gate that can red on it. This is that gate.
  *
@@ -14,13 +15,12 @@
  *   HUBS      docs/features/<slug>.md — YAML frontmatter with the required keys; id ↔ file
  *             name; status/kind enums; links + ADR numbers resolve; `in_progress` needs a
  *             branch that exists; the `## Current state` block (required for in_progress /
- *             gated, FORBIDDEN for complete) has the six sections in order, an `Updated`
- *             date, and ≤ 60 lines; `parked` carries `Revisit when`; `complete` has a
- *             phase-ledger row or an APPROVED review. When the current git branch IS the
- *             hub's branch, `Updated` may not be older than the newest commit touching
- *             src/ supabase/ e2e/ — "always maintained" is enforced, not asked for
- *             (skipped on main).
- *   CURRENT   docs/planning/CURRENT.md lists exactly the in_progress hubs, both ways.
+ *             gated, FORBIDDEN for complete and planned — a planned unit has a plan, not a
+ *             state) has the six sections in order, an `Updated` date, and ≤ 60 lines;
+ *             `parked` carries `Revisit when`; `complete` has a phase-ledger row or an
+ *             APPROVED review. When the current git branch IS the hub's branch, `Updated`
+ *             may not be older than the newest commit touching src/ supabase/ e2e/ —
+ *             "always maintained" is enforced, not asked for (skipped on main).
  *   CODES     a new BUG-/FUP- id (opened/filed on or after CODE_WATERMARK) uses a code that
  *             is a hub id or a row in legacy-codes.md. ⛔ The watermark grandfathers the
  *             legacy prefixes (72 / 123 distinct); never bump it to pass — that flips the
@@ -70,8 +70,7 @@ export const ROOT = process.cwd()
 export const PATHS = {
   featuresDir: 'docs/features',
   featuresIndex: 'docs/features/INDEX.md',
-  legacyCodes: 'docs/features/legacy-codes.md',
-  current: 'docs/planning/CURRENT.md',
+  legacyCodes: 'docs/followups/legacy-codes.md',
   bugs: 'docs/bugs/BUGS.md',
   bugsDir: 'docs/bugs',
   fupOpen: 'docs/followups/follow-ups-open.md',
@@ -290,6 +289,7 @@ export function checkHub(hub, ctx) {
     if (fm.status === 'in_progress' || fm.status === 'gated') at('`## Current state` block is required for in_progress / gated')
   } else {
     if (fm.status === 'complete') at('`## Current state` must be cut when status is complete (into the progress record)')
+    if (fm.status === 'planned') at('`## Current state` is forbidden for status planned (a planned unit has a plan, not a state)')
     let end = lines.length
     for (let i = start + 1; i < lines.length; i++) {
       if (/^## /.test(lines[i])) {
@@ -314,16 +314,6 @@ export function checkHub(hub, ctx) {
       }
     }
   }
-  return F
-}
-
-export function checkCurrent(text, inProgressIds) {
-  const F = []
-  if (text == null) return [`[CURRENT] ${PATHS.current} — missing`]
-  const listed = new Set()
-  for (const m of text.matchAll(/^- \*\*([A-Z0-9][A-Z0-9-]*)\*\*/gm)) listed.add(m[1])
-  for (const id of inProgressIds) if (!listed.has(id)) F.push(`[CURRENT] ${PATHS.current} — in_progress hub ${id} is not listed`)
-  for (const id of listed) if (!inProgressIds.includes(id)) F.push(`[CURRENT] ${PATHS.current} — lists ${id}, which is not an in_progress hub`)
   return F
 }
 
@@ -766,6 +756,8 @@ function selfTest() {
   must('HUBS no block', checkHub({ ...goodHub, body: '# X1\n' }, okCtx), true)
   must('HUBS block on complete', checkHub({ ...goodHub, fm: { ...goodHub.fm, status: 'complete' } }, okCtx), true)
   must('HUBS complete ok', checkHub({ ...goodHub, fm: { ...goodHub.fm, status: 'complete' }, body: '# X1\n' }, okCtx), false)
+  must('HUBS block on planned', checkHub({ ...goodHub, fm: { ...goodHub.fm, status: 'planned' } }, okCtx), true)
+  must('HUBS planned ok', checkHub({ ...goodHub, fm: { ...goodHub.fm, status: 'planned' }, body: '# X1\n' }, okCtx), false)
   must('HUBS complete unrecorded', checkHub({ ...goodHub, fm: { ...goodHub.fm, status: 'complete' }, body: '# X1\n' }, { ...okCtx, ledgerText: '', readRel: () => '' }), true)
   must('HUBS sections out of order', checkHub({ ...goodHub, body: '# X1\n' + goodBlock.replace('### Next\nd\n### Blockers\ne\n', '### Blockers\ne\n### Next\nd\n') }, okCtx), true)
   must('HUBS no Updated', checkHub({ ...goodHub, body: '# X1\n' + goodBlock.replace(/\*\*Updated:\*\* \S+\n/, '') }, okCtx), true)
@@ -776,11 +768,6 @@ function selfTest() {
   must('HUBS parked ok', checkHub({ ...goodHub, fm: { ...goodHub.fm, status: 'parked' }, body: goodHub.body + '\n**Revisit when:** later\n' }, okCtx), false)
   must('HUBS bad adr', checkHub(goodHub, { ...okCtx, adrExists: () => false }), true)
   must('HUBS unparsed', checkHub({ file: 'docs/features/x1.md', fm: null, body: '', error: 'frontmatter does not parse' }, okCtx), true)
-
-  must('CURRENT good', checkCurrent('- **X1** — a → [hub](../features/x1.md)\n', ['X1']), false)
-  must('CURRENT missing', checkCurrent('', ['X1']), true)
-  must('CURRENT extra', checkCurrent('- **X1** — a\n- **X2** — b\n', ['X1']), true)
-  must('CURRENT absent file', checkCurrent(null, []), true)
 
   const reg = new Set(['AE4', 'DM5'])
   const newRow = (id, opened) => ({ cells: { ID: id, Opened: opened }, line: 1 })
@@ -929,15 +916,13 @@ function main() {
   const W = []
   const allMd = walkMd('.')
 
-  // HUBS + CURRENT + CODES
+  // HUBS + CODES
   const hubs = listHubs()
   if (!hubs.length) F.push(`[HUBS] ${PATHS.featuresDir} — no hubs found; ADR 0185 D1 requires one per unit in flight`)
   for (const h of hubs) F.push(...checkHub(h, ctx))
   const ids = hubs.filter((h) => h.fm?.id).map((h) => String(h.fm.id))
   const dup = ids.filter((id, i) => ids.indexOf(id) !== i)
   for (const d of new Set(dup)) F.push(`[HUBS] duplicate hub id ${d}`)
-  const inProgress = hubs.filter((h) => h.fm?.status === 'in_progress').map((h) => String(h.fm.id))
-  F.push(...checkCurrent(read(PATHS.current), inProgress))
   const legacy = parseTable(read(PATHS.legacyCodes) || '', LEGEND_HEADER_RX)
   const registered = new Set([...ids, ...(legacy?.rows || []).map((r) => r.raw[0].replace(/`/g, '').trim())])
   F.push(...checkCodes({ bugRows: ctx.bugsTable?.rows || [], fupEntries: fupEntriesOf(read(PATHS.fupOpen) || ''), registered, legacyRows: legacy?.rows.length || 0 }))
@@ -952,10 +937,12 @@ function main() {
   const backlog = read(PATHS.fupBacklog)
   if (open == null) F.push(`[FOLLOWUPS] ${PATHS.fupOpen} — missing`)
   if (backlog == null) F.push(`[FOLLOWUPS] ${PATHS.fupBacklog} — missing`)
+  let fupCount = 0
   if (open != null && backlog != null) {
     const fu = checkFollowups({ open, backlog, criticalIds: criticalIdsOf(open) })
     F.push(...fu.findings)
     W.push(...fu.warnings)
+    fupCount = fupEntriesOf(open).length
   }
 
   // LESSONS + POSTMORTEMS
@@ -995,7 +982,7 @@ function main() {
   F.push(...checkHandoffs(hoFiles, ctx.branches, citations))
 
   // LINKS over every file this gate owns
-  const owned = [PATHS.docsIndex, PATHS.current, PATHS.bugs, PATHS.lessons, PATHS.legacyCodes, `${PATHS.postmortemsDir}/README.md`, `${PATHS.bugsDir}/README.md`]
+  const owned = [PATHS.docsIndex, PATHS.bugs, PATHS.lessons, PATHS.legacyCodes, `${PATHS.postmortemsDir}/README.md`, `${PATHS.bugsDir}/README.md`]
     .concat(hubs.map((h) => h.file))
     .concat(ctx.bugDocFiles.map((f) => `${PATHS.bugsDir}/${f}`))
     .concat(pmFiles.map((p) => `${PATHS.postmortemsDir}/${p.name}`))
@@ -1023,7 +1010,7 @@ function main() {
     process.exit(1)
   }
   console.log(
-    `check-docs-registers: OK (self-test + ${hubs.length} hubs, ${ctx.bugsTable?.rows.length ?? 0} bugs, ${les.ids.size} lessons, ${hoFiles.length} handoffs, ${retiredFiles.length} md files scanned for retired citations)`,
+    `check-docs-registers: OK (self-test + ${hubs.length} hubs, ${ctx.bugsTable?.rows.length ?? 0} bugs, ${ctx.bugDocFiles.length} bug docs, ${fupCount} follow-ups, ${les.ids.size} lessons, ${hoFiles.length} handoffs, ${retiredFiles.length} md files scanned for retired citations)`,
   )
 }
 

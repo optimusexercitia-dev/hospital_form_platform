@@ -163,7 +163,7 @@ not Haiku.
 
 | Step | Change | Proof |
 |---|---|---|
-| 2.1 | Delete `docs/planning/CURRENT.md` and the directory; delete `checkCurrent` (13.22/13.23) and its fixture; remove the `planning/` row from `docs/INDEX.md`; `build-features-index.mjs` banner no longer names it. Same commit. | gate 13 INDEX arm (a listed entry that no longer exists is the reverse failure — check the arm tolerates it, it should) |
+| 2.1 | Delete the CURRENT arm (13.22/13.23) and its fixture; `build-features-index.mjs` banner no longer names CURRENT.md; CURRENT.md becomes a one-line stub pointing at the index. ⚠ **Found at implementation (2026-09-03):** gate 7 link-checks CLAUDE.md, which links CURRENT.md three times and may only change in the Wave 4 diff — so the file, its directory and its `docs/INDEX.md` row are deleted in Wave 4 together with those pointers. | gate 13 self-test; gate 7 |
 | 2.2 | Delete the roll-up block and markers from PROGRESS.md; `build-features-index.mjs` loses the PROGRESS.md write and `--check` compare (13.72/13.74); PROGRESS.md gets one line: "Live feature state: `docs/features/INDEX.md`". | gate 7 + `features:index --check` |
 | 2.3 | Ledger rule (D7): delete the four not-started rows (9, 18, 19, DLB) from `phase-ledger.md`; preamble says "completed rows only". DLB's PROGRESS.md row: Status cell → "planned — state in [hub]"; the status sentence lives once. | gate 7 (no `complet` in live rows) |
 | 2.4 | `planned` hubs lose `## Current state` (c1b-disposal, dlb); gate 13.15 extended: the block is forbidden for `planned` and `complete`, required for `in_progress` and `gated`. | gate 13 self-test |
@@ -199,7 +199,7 @@ Preconditions: Waves 1–3 merged. The lead writes the diff; the PO approves it 
 | §9 comment histories; the seed-persona "measured" note | −6 | git |
 | § graphify → 8 lines (query first; never `update`; the SQL exception); refresh policy → lead-playbook §6 | −16 | lead-playbook §6 |
 | Every dated "this line said / measured / rotated" annotation (13) and the wrong-direction "rule below" | −13 | git |
-| The three CURRENT.md pointers | −3 | deleted in Wave 2 |
+| The three CURRENT.md pointers — and with them the stub file, its directory and its `docs/INDEX.md` row (Wave 2.1's finding) | −3 | retired in Wave 2 |
 
 Also in the same diff: `.claude/rules/progress-contract.md` deleted (D5); `docs/INDEX.md`
 gains the "where a line belongs" table verbatim from the rule; PROGRESS.md header shrinks to

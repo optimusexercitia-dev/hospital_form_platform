@@ -25,11 +25,11 @@ Rows are ordered by measured BUG-/FUP- id frequency under `docs/progress/`, most
 | AFF2 | Affiliation-scoped administration + user-management redesign | [aff2.md](../progress/aff2.md) (ADR 0097/0133) |
 | ETH | The Ethics module tracks (E1 access spine … E4 participant seating) | [eth-e1-access-spine.md](../progress/eth-e1-access-spine.md) .. [eth-e4-participant-seating.md](../progress/eth-e4-participant-seating.md) |
 | NSP | Núcleo de Segurança do Paciente — patient-safety event → triage → RCA → CAPA | CLAUDE.md §1; [nsp-per-org.md](../progress/nsp-per-org.md), [nsp-per-hospital.md](../progress/nsp-per-hospital.md) |
-| AE4 | Authz-evolution Phase AE4 — catalog cutover, `staff_admin` substituted | [ae4.md](ae4.md) hub; [authz-ae4.md](../progress/authz-ae4.md) (ADR 0155) |
+| AE4 | Authz-evolution Phase AE4 — catalog cutover, `staff_admin` substituted | [ae4.md](../features/ae4.md) hub; [authz-ae4.md](../progress/authz-ae4.md) (ADR 0155) |
 | DISPOSE | The four column-erasing PHI disposal doors (`dispose_case_phi` et al.) | [phi-column-disposal-procedure.md](../deployment/phi-column-disposal-procedure.md) |
 | PDF | PDF document printing (forms, meetings, reconciliation) | [pdf-p1-forms-skeleton.md](../progress/pdf-p1-forms-skeleton.md), [pdf-p2-meetings.md](../progress/pdf-p2-meetings.md), [pdf-p3.md](../progress/pdf-p3.md) |
 | DSS | Deferred Staff-admin Signoff — attests frozen content | [0136-deferred-staff-admin-signoff-attests-frozen-content.md](../decisions/0136-deferred-staff-admin-signoff-attests-frozen-content.md) |
-| DISPOSAL | The Storage-bytes PHI-disposal queue/pipeline (`file_objects` `disposal_pending` → `disposed`) | [c1b-disposal.md](c1b-disposal.md) hub; [phi-disposal-runbook.md](../deployment/phi-disposal-runbook.md) |
+| DISPOSAL | The Storage-bytes PHI-disposal queue/pipeline (`file_objects` `disposal_pending` → `disposed`) | [c1b-disposal.md](../features/c1b-disposal.md) hub; [phi-disposal-runbook.md](../deployment/phi-disposal-runbook.md) |
 | DM2 | Document Model Redesign — orchestration + Wave A | [dm2-orchestration-wave-a.md](../progress/dm2-orchestration-wave-a.md) |
 | DM4 | Document Model Redesign — Wave C: referrals | [dm4-referrals.md](../progress/dm4-referrals.md) |
 | DM1 | Document Model Redesign — substrate cutover | [dm1-substrate-cutover.md](../progress/dm1-substrate-cutover.md) |

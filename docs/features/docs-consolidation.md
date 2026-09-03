@@ -61,18 +61,25 @@ with gates that red on the live population, in seven waves with five PO checkpoi
   sentences, the prettier caps, the AE4 hub contradiction, the BUGS.md header, three unreachable
   SHAs. 43 files, full lint green.
 
+- Wave 2: the CURRENT arm and the PROGRESS.md roll-up deleted with their gate code; the features
+  index is the one projection; CURRENT.md a stub until Wave 4 (gate 7 link-checks CLAUDE.md,
+  which links it); ledger holds completed rows only; planned hubs forbid a state block;
+  legacy-codes moved to `docs/followups/`.
+
 ### In progress
 
-- Wave 2: delete CURRENT.md and the roll-up with their arms; ledger to completed rows only;
-  planned hubs lose Current state; legacy-codes moves.
+- Nothing — paused at the first PO checkpoint.
 
 ### Next
 
-- Stop for the ADR 0186 acceptance and the D3 ruling before Wave 3.
+- PO: accept or amend ADR 0186; rule on D3. Then Wave 3 (one summary, one log per unit).
+- Wave 4 needs the PO-approved CLAUDE.md diff; it also deletes the CURRENT.md stub and its
+  `docs/INDEX.md` row, and the progress-contract rule file.
 
 ### Blockers
 
 - PO checkpoints, not yet reached: ADR 0186 acceptance (Waves 3–6), D3 (Wave 3), the CLAUDE.md
   diff (Wave 4), gate 9's proposed-ADR review due 2026-09-24 (Wave 6.5).
-- CLAUDE.md holds two citations of retired sections that only the Wave 4 diff may remove; the
-  RETIRED arm states that exclusion until then.
+- CLAUDE.md holds two citations of retired sections, three CURRENT.md links and a §7 sentence
+  naming "the generated feature roll-up" — all only the Wave 4 diff may change; the RETIRED arm
+  excludes CLAUDE.md until then by a named constant.

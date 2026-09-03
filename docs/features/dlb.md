@@ -30,35 +30,3 @@ D1–D20) and [deliberations.md § Slice 0](../plans/deliberations.md). Still op
       `commission_meeting_settings`/`meetings`/`meeting_cases`/`commission_member_titles`/
       `memberships`/`controlled_documents.doc_type`, `btree_gist` availability, grant style per
       touched table) (docs/plans/deliberations.md § Slice 0, item 3)
-
-## Current state
-
-**Updated:** 2026-09-03
-
-### Objective
-
-Ratify ADR 0115 and complete Slice 0's catalog-verification checklist — the gate for everything
-else; "no phase may start before ratification" (docs/plans/deliberations.md § Status banner).
-
-### Done since start
-
-None.
-
-### In progress
-
-None — status is **ADR PROPOSED, NOT ratified; nothing built and nothing may start**
-(PROGRESS.md § Phase Status, DLB row).
-
-### Next
-
-Slice 0 (lead + backend, ~half day): the PO ratification decision, including the Slice-6/ADR-0114
-dependency question above; then the catalog-verification checklist; then migration + pgTAP suite
-window allocation (docs/plans/deliberations.md § Slice 0).
-
-### Blockers
-
-- **ADR 0115 is not ratified.** Not a scheduling gap — the plan states explicitly that no phase
-  may start before it (docs/plans/deliberations.md § Status banner).
-- Slice 6 (resolution promotion, D14) additionally depends on ADR 0114's document-model substrate,
-  which is ratified but **not built** (ADR 0115 D14); the plan recommends shipping v1 without
-  Slice 6 rather than waiting.

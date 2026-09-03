@@ -21,10 +21,10 @@ source: ADR 0124, ADR 0185
 
 ## Where a line belongs (ADR 0185)
 
-- **Phase status** → PROGRESS.md § Phase Status. Nothing else lives in that file but § State,
-  the generated roll-up and pointers; a cut section that comes back reds.
+- **Phase status** → PROGRESS.md § Phase Status. Nothing else lives in that file but § State
+  and pointers; a cut section that comes back reds (ADR 0186 D2 removed the roll-up).
 - **Working state of a unit** → its hub's `## Current state` (`docs/features/<code>.md`): six
-  sections, replace never append, ≤ 60 lines; the unit is listed in `docs/planning/CURRENT.md`.
+  sections, replace never append, ≤ 60 lines; the unit is listed in `docs/features/INDEX.md`.
 - **Bug** → one row in `docs/bugs/BUGS.md`; status is a cell, there is no rotation.
 - **Follow-up** → one entry in `docs/followups/follow-ups-open.md` with Filed · Owner ·
   Severity · Closes when; parked → `deferred-backlog.md` with **Revisit when**; resolved →

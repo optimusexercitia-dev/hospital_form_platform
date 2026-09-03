@@ -114,8 +114,9 @@
     role list is asserted by **pgTAP 401 §12**, because a Node script cannot reach the DB at lint
     time. Neither half alone closes the loop.
   - `lint:registers` (`check-docs-registers.mjs` + `build-features-index.mjs --check`) — the
-    **ADR 0185** documentation registers: feature hubs (`docs/features/`), `CURRENT.md`, `BUGS.md`,
-    `LESSONS.md`, postmortems, the follow-up register's **fields**, the handoff convention (24 KB ·
+    **ADR 0185** documentation registers: feature hubs (`docs/features/`, the only projection of
+    hub frontmatter since ADR 0186 D1), `BUGS.md`, `LESSONS.md`, postmortems, the follow-up
+    register's **fields**, the handoff convention (24 KB ·
     live branch · no inbound citations) and `docs/INDEX.md`'s coverage of `docs/`. Added because
     **every register in this tree that lacked a gate rotted** (ADR 0124 / 0127 / 0140 / 0179 each
     record one), and 0185 adds five. Its admission rule is the gate's reason to exist: no register

@@ -70,3 +70,35 @@ The Critical pin's C2 row no longer states a population figure; the entry does.
 
 **Dead ends:** a Bash heredoc mangled the census script's `\\` escapes twice; written with the
 Write tool instead (the recorded lesson: shell round-trips corrupt).
+
+### 2026-09-03 — Wave 2 (lead session + two subagents, branch `docs-consolidation`)
+
+**Partition:** scripts (`check-docs-registers.mjs`, `build-features-index.mjs`, `lint-gates.md`)
+· docs (`PROGRESS.md`, `docs/INDEX.md`, the CURRENT.md stub, `phase-ledger.md`, the two planned
+hubs, the `legacy-codes.md` move). The lead regenerated `docs/features/INDEX.md` after both.
+
+**Verified:**
+
+- `node scripts/check-docs-registers.mjs --self-test` — OK; the new `planned` forbid proven able
+  to red (short-circuited → exit 2, restored → exit 0).
+- Live gate 13 — exit 0 after both halves; `build-features-index --check` red only until the
+  regeneration, as designed.
+- Ledger: the four deleted rows (9, 18, 19, DLB) were byte-identical to their PROGRESS.md rows
+  modulo the documented link-prefix transform — checked before deletion.
+- The two planned hubs' Current-state blocks held nothing not already in the runbook, the DLB
+  plan's status banner, or `2026-Q3.md` — checked before deletion; nothing moved.
+- `npm run lint` — exit 0 (recorded at commit).
+
+**Decisions in flight:**
+
+- **Plan correction (2.1):** gate 7 link-checks CLAUDE.md, which links `docs/planning/CURRENT.md`
+  three times; CLAUDE.md may only change in the Wave 4 PO diff. So CURRENT.md is a one-line
+  stub now and is deleted in Wave 4 with those pointers, its directory and its `docs/INDEX.md`
+  row. Written into the plan's rows 2.1 and Wave 4.
+- `listHubs()`'s by-name exclusion of `legacy-codes.md` was left in place as inert (the file can
+  no longer appear in `docs/features/`); the scripts agent's call, recorded here.
+- `docs/INDEX.md`'s authority-order row dropped `planning/CURRENT.md` from the trackers list — one
+  edit beyond the docs agent's list, same file, same defect.
+
+**Open questions:** none new. CLAUDE.md §7 still says PROGRESS.md holds "the generated feature
+roll-up" — true until Wave 4's diff, and only that diff may fix it.

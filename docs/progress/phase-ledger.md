@@ -1,12 +1,13 @@
-# Phase Ledger — every phase, forever
+# Phase Ledger — every completed phase, forever
 
-> **The append-only ledger of every phase this project has run.** Moved here from
+> **The append-only ledger of every completed phase.** Moved here from
 > `PROGRESS.md § Phase Status` on 2026-08-18 (the live-state restructure; ADR
-> [0124](../decisions/0124-progress-live-state-contract.md)). The old rule transfers intact: **rows never
-> leave — a missing row breaks the many places that point here.** What changed is the
-> *address*: completed rows live here, and `PROGRESS.md` keeps only rows that are not
-> yet `✅ complete` (enforced by `npm run lint:progress` — a completed row in the live
-> file fails the gate and must move here, verbatim, in the same change).
+> [0124](../decisions/0124-progress-live-state-contract.md)). **One rule (ADR
+> [0186](../decisions/0186-documentation-consolidation-one-home-per-fact.md) D7): completed
+> phases, forever — a completed row never leaves, a missing one breaks the many places that
+> point here.** Not-started rows live only in `PROGRESS.md` § Phase Status, never here
+> (enforced by `npm run lint:progress` — a completed row in the live file fails the gate and
+> must move here, verbatim, in the same change).
 >
 > Content below was moved **verbatim** except for one mechanical transform, applied
 > because this file lives in `docs/progress/`: link prefixes `](docs/progress/` →
@@ -22,8 +23,9 @@
 
 ## Phase Status
 
-<!-- THE INDEX: every phase keeps a row here, forever. What rotates out is verbose cell text, not
-     rows — a missing row would break the many places that point here. -->
+<!-- THE INDEX: completed phases keep a row here, forever (ADR 0186 D7); not-started rows live
+     only in PROGRESS.md § Phase Status. What rotates out of a completed row is verbose cell
+     text, not the row — a missing row would break the many places that point here. -->
 
 > Gate **headlines** (pgTAP counts, e2e:prod result, ARM verdicts, QA verdict + review link) stay in
 > this table; the **verbose** Build/Tests/QA/Commit prose rotates. Rotated **2026-08-10** (11 rows:
@@ -46,7 +48,6 @@
 | 6 | Section Sign-offs & Submission Lifecycle | ✅ complete | ✅ | ✅ 70/70 | ✅ APPROVED | ✅ 2026-06-13 | 2026-06-13 | `94566f2` |
 | 7 | Multi-Phase Cases | ✅ complete | ✅ | ✅ 81/81 | ✅ APPROVED | ✅ 2026-06-13 | 2026-06-13 | `28e0405` |
 | 8 | Dashboards & Submissions Browser | ✅ complete | ✅ | ✅ 106/106 | ✅ APPROVED | ✅ 2026-06-14 | 2026-06-14 | `a50e0e0` |
-| 9 | Deployment | 🔜 not started | – | – | – | – | – | – |
 | 10 | Meetings | ✅ complete | ✅ | ✅ 141/141 | ✅ APPROVED | ✅ 2026-06-15 | 2026-06-15 | `5e2780c` |
 | 11 | Interviews | ✅ complete | ✅ | ✅ 152/152 | ✅ APPROVED | ✅ 2026-06-15 | 2026-06-15 | `3d7376b` |
 | 12 | Case Timeline | ✅ complete | ✅ | ✅ 169/169 | ✅ APPROVED | ✅ 2026-06-16 | 2026-06-16 | `0feaa9a` |
@@ -57,8 +58,6 @@
 | 16 | Standards Crosswalk & Readiness v2 [0093](../decisions/0093-phase-16-standards-crosswalk-replan.md) · [record](phase-16-standards-crosswalk.md) | ✅ complete | ✅ | 151f/4623 | ✅ [APPROVED](../reviews/phase-16-review.md) | ✅ 2026-08-04 | 2026-08-04 | `484a254` → `main`, pushed |
 | 17 | Controlled-Document Lifecycle | ✅ complete | ✅ (tsc/lint 0 · Vitest 206) | ✅ pgTAP 47/47 (full 1717) · phase E2E 14/14 · full regr 588p/10 env-only (0 Phase-17 reg) | ✅ APPROVED (3 MINOR cleared) [review](../reviews/phase-17-review.md) | ✅ 2026-07-06 | 2026-07-06 | merge `1152d75` (ff-only from `feat/phase-17-controlled-documents`; pushed) |
 | 17-v2 | Controlled-Document Redesign | ✅ complete | ✅ (tsc/lint 0 · Vitest 369) | ✅ tester 25/25 · pgTAP `201` 29/29 · e2e:prod triaged-green (0 redesign reg) | ✅ APPROVED (0/0/0/4 INFO) [review](../reviews/document-control-redesign-review.md) | ✅ 2026-07-21 | 2026-07-21 | ff→`main` (branch `feat/document-control-redesign`) |
-| 18 | Self-Assessment & Internal Audit | 🔜 not started | – | – | – | – | – | – |
-| 19 | Surveyor Access & Evidence Export | 🔜 not started | – | – | – | – | – | – |
 | 20 | Notifications & Escalation [0071](../decisions/0071-pre-pilot-release-scope-expansion.md) | ✅ complete | ✅ | ✅ pgTAP `226` 52/52 (full 2255) + `notifications.spec.ts` 8/8 | ✅ APPROVED (0B/0M/3 MINOR) [review](../reviews/s1-n-notifications-review.md) | ✅ 2026-07-13 | 2026-07-13 | `aac7c1c` |
 | 21 | Committee Charters & Cadence [0080](../decisions/0080-committee-charters-cadence-model.md) | ✅ complete | ✅ | ✅ E2E 10/10 + pgTAP 260/261/262 = 11/29/10 | ✅ APPROVED r1 [review](../reviews/phase-CH-review.md) | ✅ 2026-07-20 | 2026-07-20 | BE `458aedb`…`13750b1` · FE `d982401`+`5d366db` · `14c4381`/`cb6a671` |
 | 22 | Inter-Committee Case Referrals | ✅ complete | ✅ | ✅ 29/29 + full 276/326 | ✅ APPROVED 2026-06-21 | ✅ 2026-06-21 | 2026-06-21 | `768b9f1` |
@@ -66,7 +65,6 @@
 | 22-v2 | **Referral Detail Redesign (RDR)** [0109](../decisions/0109-referral-registros-and-case-access-summary.md) (⚠ **D2 superseded** by 0110) · [record](referral-detail-redesign.md) | ✅ complete | ✅ Vitest 1254 | ✅ pgTAP **183f/5870** · 3 ARMs HOLD · e2e:prod **1074p/1f** (pre-existing, outside the branch) | ✅ [APPROVED](../reviews/referral-detail-redesign-review.md) (0B/2m/3i) | ✅ 2026-08-12 | 2026-08-12 | `81e1dc9` → `main`, ✅ **PUSHED** |
 | 22-v3 | **REG·KIND — one Registro vocabulary** [0110](../decisions/0110-shared-registro-kind-vocabulary.md) (supersedes [0109](../decisions/0109-referral-registros-and-case-access-summary.md) **D2** only) | ✅ complete — **all five gate steps, closed 2026-08-25** (~~⚠ merged, gates 2–4 UNRUN~~; struck-and-corrected 2026-08-25, see the Commit cell) | ✅ tsc 0 · Vitest 1254 | ✅ pgTAP **183f/5857** · 3 ARMs HOLD (2026-08-12) · **`e2e:prod` GREEN 1227p/0f at `77b0a467`** (2026-08-24). ⚠ **INHERITED, not a dedicated tester pass** — `9a20c8a` is an ancestor of `77b0a467`, and the suite has no allowlist (`testDir: './e2e'`, no `testMatch`/`testIgnore`; the gate script batches by count), so both REG·KIND specs (`referral-registros` · `cases-extras`) ran in it. ⛔ Never cite the 2026-08-12 run — it was `GATE RED (UNRUN)` | ✅ **APPROVED (r1)** [review](../reviews/fup-batch-2026-08-12-review.md) — reviewed inside the 2026-08-12 FUP batch. ⚠ **CATALOG/SCHEMA SCOPE, not a phase QA**: its own § "Not re-derived" took the test evidence from record, which was step-1-only at the time; the two `kind` pickers were never UI-reviewed | ✅ **2026-08-25** (PO; gate 2 accepted as inherited and gate 3 as schema-scoped, both stated before approval) | 2026-08-12 (build) · **2026-08-25 (closed)** | `9a20c8a` → `main`, ✅ PUSHED · ✅ remote `db push` DONE. **Re-verified against the LIVE CATALOG 2026-08-25:** `referral_note_types` → 0 relations, 0 policies, 0 routines by name, 0 routines referencing it; the six-value `referral_internal_notes_kind_check` is live; `20260920000100`+`…000200` both registered. ⚠ Two residues closed at Record: 3 dead mutation cases in `p0b-isolation-mutation-audit.sh` firing at objects this phase DELETED (permanent false `NOT PROVEN → ABSENT(aborted)` — loud, never a false green), and `docs/backend-state.md` still calling this pair the unpushed drift needing a pre-push read |
 | DM | **Document Model Redesign** [0114](../decisions/0114-document-model-redesign.md) (+Amdt 1/2) · ADRs [0116](../decisions/0116-dm1-substrate-cutover-decisions.md)/[0117](../decisions/0117-dm2-s1-confidentiality-ceiling-decisions.md)/[0118](../decisions/0118-dm2-s2-command-layer-decisions.md)/[0119](../decisions/0119-dm4-referral-document-substrate-decisions.md)/**[0120](../decisions/0120-dm5-wave-d-retirement-decisions.md)**/**[0121](../decisions/0121-disposal-lifecycle-inflow-outflow-and-evidence.md)**/**[0122](../decisions/0122-recusal-case-read-arm-at-the-referral-freeze-door.md)** · [plan](../plans/document-model-redesign.md) | PROGRAM COMPLETE — DM0–DM5 all closed; DM5 (the FINAL phase) closed 2026-08-18, all five gate steps. | ✅ DM4: 5 migrations `20260926000100`–`000500` · pgTAP `340` | 191f/6231 | APPROVED (r2) | ✅ **2026-08-14** (DM4) · batch **2026-08-17** | 2026-08-14 | Read § "State" (a TOP-LEVEL section since 2026-08-18) for the measured remote/push facts |
-| DLB | **Deliberation & Voting Model** [0115](../decisions/0115-deliberation-and-voting-model.md) ([plan](../plans/deliberations.md)) | ADR PROPOSED — NOT ratified; nothing built and nothing may start | – | – | – | ⛔ **not ratified** | – | taken |
 | MT | **Multi-Tenancy** [0041](../decisions/0041-multi-tenancy-organizations-hospitals.md) | ✅ complete | ✅ | ✅ pgTAP 1029 + E2E 292/0 | ✅ APPROVED 2026-06-25 [review](../reviews/multitenancy-review.md) | ✅ 2026-06-25 | 2026-06-25 | `ee35299…82ea157` |
 | NSP-per-org | **NSP-per-org** [0042](../decisions/0042-nsp-per-org.md) | ✅ complete | ✅ | ✅ pgTAP 1102/1102 + full E2E 421/0 | ✅ APPROVED A [core](../reviews/nsp-per-org-a-review.md) + B [whole](../reviews/nsp-per-org-b-review.md) | ✅ 2026-06-25 | 2026-06-25 | `b0e15f4…9c53035` |
 | result-rec | **Result-based phase recommendation** [0043](../decisions/0043-phase-result-based-recommendation.md) | ✅ complete | ✅ | ✅ pgTAP 1122 + Vitest 164 + E2E 431/0 | ✅ APPROVED 2026-06-26 [review](../reviews/result-rec-review.md) | ✅ 2026-06-26 | 2026-06-26 | `6c5baeb…` · ✅ remote re-baselined 2026-07-01 |
