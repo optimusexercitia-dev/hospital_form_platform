@@ -38,9 +38,17 @@ documented; bugs are poorly documented. A survey of the tree on the same day mea
 | ADRs on this branch / mean length in lines, against CLAUDE.md §8's "5–10 line ADR" rule | 178 / ~184 |
 
 Three facts the proposal that prompted this ADR had not accounted for: a glossary already exists
-(`CONTEXT.md`, root) and CLAUDE.md references it zero times; the `handoff` skill cites a gate
-(`scripts/check-handoffs.mjs`) that does not exist; ARCHITECTURE.md has no admission rule — its
-only text about what belongs in it is the phrase "extend, never contradict".
+(`CONTEXT.md`, root) and CLAUDE.md references it zero times; the `handoff` skill's convention
+(24 KB cap, stale-branch sweep, no inbound citations) **has no gate** — the skill says so itself
+and names `scripts/check-handoffs.mjs` as "the durable form, and this skill is the interim";
+ARCHITECTURE.md has no admission rule — its only text about what belongs in it is the phrase
+"extend, never contradict".
+
+> ⚠ **Correction (2026-09-03, same day, commit after 8cdc1549).** The first version of this
+> paragraph said the skill "cites a gate that does not exist". False: the skill correctly states
+> the gate does not exist yet. The claim came from a survey paraphrase and was written into this
+> ADR without reading the sentence it summarized — the exact class this ADR is about. Left
+> visible rather than silently fixed.
 
 ## Problem
 
@@ -198,8 +206,10 @@ The two 🔵 follow-ups are re-rated. Existing 🔴 entries keep `critical`; any
 - **ADR headers** gain `**Area:**` and `**Related:**` labels (no edge verb, so the index ignores
   them by construction — verified against `parseEdges` before this file was written); new ADRs
   carry *Considered options* and *Consequences* sections, as this one does.
-- The handoff skill's **phantom gate is built**: a 24 KB cap on `docs/handoffs/*.md` and a red
-  when a handoff's `branch:` no longer exists.
+- The handoff gate the skill asks for **is built**, as an arm of `lint:registers` rather than a
+  separate `check-handoffs.mjs`: a 24 KB cap on `docs/handoffs/*.md`, a red when a handoff's
+  `branch:` no longer exists, and the **inbound-citation check** ("a handoff may not be cited" —
+  citations allowed only from hubs, CURRENT.md, other handoffs and review files).
 - All of the above land in **one new gate**, `scripts/check-docs-registers.mjs`, wired as
   **`lint:registers`** (the 13th link of `npm run lint`), self-tested on every run like
   `check-progress-doc.mjs`, and documented in `docs/lint-gates.md`.
