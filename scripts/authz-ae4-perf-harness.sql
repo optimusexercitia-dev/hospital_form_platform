@@ -860,53 +860,128 @@ begin;
       from public.profiles p
      where p.id = p_principal and p.is_admin and app.is_active(p_principal)
     union all
-    -- DC1 PLANTED COST — returns nothing, costs ~50 membership scans + md5s.
+    -- DC1a PLANTED COST — returns nothing, costs ~50 membership scans + md5s.
     select null::text, null::text, null::uuid
       from public.memberships m2, generate_series(1, 50) g
      where m2.principal_id = p_principal
        and md5(m2.id::text || g::text) = 'ae4dc1-never-matches'
   $ae4dc1$;
 
-  select pg_temp.ae4_time('DC1/planted', :'c_perm', 'select count(*) from (select 1 from public.professional_profiles limit 200) t');
+  select pg_temp.ae4_time('DC1a/planted', :'c_perm', 'select count(*) from (select 1 from public.professional_profiles limit 200) t');
 
   select round(
-           (select ms_best from pg_temp.ae4_timing where label = 'DC1/planted')
-         / nullif((select ms_best from pg_temp.ae4_timing where label = 'DC1/baseline'), 0), 2) as dc1_ratio
-  \gset
-  do $$
-  declare v_base numeric; v_slow numeric;
-  begin
-    select ms_best into v_base from pg_temp.ae4_timing where label = 'DC1/baseline';
-    select ms_best into v_slow from pg_temp.ae4_timing where label = 'DC1/planted';
-    raise notice 'AE4 DC1: baseline % ms -> planted % ms (%x).', v_base, v_slow, round(v_slow / nullif(v_base, 0), 2);
-  end $$;
+           (select ms_best from pg_temp.ae4_timing where label = 'DC1a/planted')
+         / nullif((select ms_best from pg_temp.ae4_timing where label = 'DC1/baseline'), 0), 2) as dc1a_ratio
+\gset
 rollback;
 
--- ⚠ `DC1/planted` is written INSIDE the transaction above and disappears with
---    the ROLLBACK -- persisting the row would require the mutation to survive.
---    So the RATIO rides out in a psql variable (\gset above, which is client
---    state and survives), and the verdict is recorded here, after the rollback.
-do $$
-declare v_r numeric := nullif(:'dc1_ratio', '')::numeric;  -- \gset stores NULL as an EMPTY STRING, and ''::numeric raises
-begin
-  if v_r is null then
-    perform pg_temp.ae4_say('DC1','CONTROL','VOID','the planted-cost ratio could not be computed (a baseline or planted timing is missing)');
-  elsif v_r < 10 then
-    perform pg_temp.ae4_say('DC1','CONTROL','FAIL',
-      format('a deliberately ~50x-more-expensive assignment_facts moved the measurement only %sx: the instrument cannot see an expensive seam, so no green number is distinguishable from a dead one', v_r));
-  else
-    perform pg_temp.ae4_say('DC1','CONTROL','PASS', format('planted cost moved the measurement %sx (threshold 10)', v_r));
-  end if;
-end $$;
+-- ==========================================================================
+-- DC1b — THE SAME CONTROL, RE-AIMED AT authz.scope_reaches.
+--
+-- ⛔ Why this exists. Run 3's DC1 (now DC1a) moved the measurement 1.53x
+--    against a >=10x threshold. That is NOT a dead instrument -- DC2 read 775x
+--    on the same apparatus, the same statements and the same timing function,
+--    and a dead instrument cannot produce 775x. It is a LIVE control planted
+--    in a term that turned out not to be dominant: P2 shows assignment_facts
+--    running at loops=1 per protected row, and P1 shows 8 240 sequential scans
+--    of `hospitals` inside scope_reaches. DC1a's small movement MEASURES
+--    assignment_facts' share of per-row cost; it does not validate the
+--    instrument against the dominant term, and nothing else did either.
+--
+--    So the control is RE-AIMED, not reinterpreted. ⛔ A failed control may
+--    never be argued into a pass -- that is the move this whole acceptance
+--    exists to prevent. DC1a is KEPT (its 1.53x is now a reading, not an
+--    anomaly) and DC1b plants in scope_reaches. Together they ATTRIBUTE cost
+--    instead of merely detecting it.
+--
+-- ⛔ The pair passes only if at least one arm moves >=10x. If NEITHER moves,
+--    the instrument really is blind and the run is VOID -- the pair must not
+--    be able to pass by being spread across two small numbers.
+--
+-- ⚠ PREDICTION, recorded BEFORE the run so it cannot be fitted afterwards:
+--    DC1a ~1.5x, DC1b >=10x. If DC1b also returns ~1.5x then the cost lives in
+--    NEITHER term, P1's hospital-scan attribution is wrong too, and that is a
+--    genuinely informative surprise rather than a tuning problem.
+--
+-- ⚠ If DC1b overshoots into minutes, lower the generate_series bound from 10
+--    to 3 and re-run; the threshold is about detectability, not magnitude.
+-- ==========================================================================
+begin;
+  -- Same answers, deliberately expensive. Two anti-optimiser properties, both
+  -- load-bearing: (1) the planted subquery is the CASE SELECTOR, so it MUST be
+  -- evaluated to choose a branch -- as an AND conjunct the planner would order
+  -- it last and short-circuit past it on the ~19-in-20 calls that return false,
+  -- under-planting exactly where the cost is; (2) it is CORRELATED on
+  -- p_assignment_id, so it cannot be hoisted into a once-per-statement InitPlan.
+  create or replace function authz.scope_reaches(p_assignment_kind text, p_assignment_id uuid, p_resolution_kind text, p_requested_id uuid)
+  returns boolean language sql stable security definer set search_path to '' as $ae4dc1b$
+    select case (select count(*)
+                   from public.hospitals h, pg_catalog.generate_series(1, 10) g
+                  where pg_catalog.md5(h.id::text || g::text || p_assignment_id::text) = 'ae4dc1b-never-matches')
+      when 0 then
+        case
+          when p_assignment_kind = p_resolution_kind then
+            p_assignment_id = p_requested_id
+          when p_resolution_kind = 'organization' and p_assignment_kind = 'commission' then
+            p_requested_id = (select h.organization_id
+                                from public.commissions c
+                                join public.hospitals h on h.id = c.hospital_id
+                               where c.id = p_assignment_id)
+          when p_resolution_kind = 'organization' and p_assignment_kind = 'hospital' then
+            p_requested_id = (select h.organization_id from public.hospitals h where h.id = p_assignment_id)
+          when p_resolution_kind = 'hospital' and p_assignment_kind = 'commission' then
+            p_requested_id = (select c.hospital_id from public.commissions c where c.id = p_assignment_id)
+          else false
+        end
+      else false
+    end
+  $ae4dc1b$;
+
+  select pg_temp.ae4_time('DC1b/planted', :'c_perm', 'select count(*) from (select 1 from public.professional_profiles limit 200) t');
+
+  select round(
+           (select ms_best from pg_temp.ae4_timing where label = 'DC1b/planted')
+         / nullif((select ms_best from pg_temp.ae4_timing where label = 'DC1/baseline'), 0), 2) as dc1b_ratio
+\gset
+rollback;
+
+-- ⚠ Both planted timings are written INSIDE their rolled-back transactions and
+--    vanish with them. The RATIOS ride out in psql variables, which are client
+--    state and survive a rollback.
+--
+-- ⛔ AND THE VERDICT BELOW IS PLAIN SQL, NOT A `do` BLOCK. psql does NOT
+--    interpolate :'var' inside a dollar-quoted body -- the server received the
+--    literal `:'dc1_ratio'` and raised `syntax error at or near ":"`, which is
+--    why section 10 never executed in run 3. Interpolation works in ordinary
+--    SQL statements, so the verdict is written as one. Measured: this is the
+--    ONLY such site in the harness; sections 2 and 3 read fixture_meta through
+--    subqueries precisely to avoid it.
+select pg_temp.ae4_say(
+  'DC1', 'CONTROL',
+  case
+    when nullif(:'dc1a_ratio','')::numeric is null or nullif(:'dc1b_ratio','')::numeric is null then 'VOID'
+    when greatest(nullif(:'dc1a_ratio','')::numeric, nullif(:'dc1b_ratio','')::numeric) >= 10 then 'PASS'
+    else 'FAIL'
+  end,
+  format('DC1a assignment_facts=%sx, DC1b scope_reaches=%sx (pair passes when EITHER >= 10x; if neither moves, the instrument is blind)',
+         coalesce(nullif(:'dc1a_ratio',''), '(null)'), coalesce(nullif(:'dc1b_ratio',''), '(null)'))
+);
+
+\echo '--- DC1 ATTRIBUTION: which term carries the per-protected-row cost ---'
+select :'dc1a_ratio' as assignment_facts_ratio,
+       :'dc1b_ratio' as scope_reaches_ratio,
+       'a large ratio localises the cost to that term; both small = it is in neither' as reading;
 
 -- Restoration half, same discipline as section 3.
 do $$
 declare v_src text;
 begin
-  select p.prosrc into v_src from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-   where n.nspname = 'authz' and p.proname = 'assignment_facts';
-  if v_src like '%ae4dc1%' then
-    raise exception 'AE4 DC1 ROLLBACK FAILED: the planted body is still installed in authz.assignment_facts. FIX THIS BEFORE ANYTHING ELSE.';
+  select string_agg(p.proname, ', ') into v_src
+    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'authz' and p.proname in ('assignment_facts','scope_reaches')
+     and p.prosrc like '%ae4dc1%';
+  if v_src is not null then
+    raise exception 'AE4 DC1 ROLLBACK FAILED: a planted body is still installed in authz.%. FIX THIS BEFORE ANYTHING ELSE.', v_src;
   end if;
   raise notice 'AE4 DC1 rollback OK — authz.assignment_facts is the shipped body again.';
 end $$;
@@ -934,9 +1009,9 @@ end $$;
 \echo '## SECTION 9 — POSTFLIGHT: THE STACK MUST BE UNMUTATED        ##'
 \echo '################################################################'
 
-select 'authz.assignment_facts prosrc contains DC1 planted body (must be f)' as check,
-       (select p.prosrc like '%ae4dc1%' from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-         where n.nspname = 'authz' and p.proname = 'assignment_facts') as result
+select 'any authz body still contains a DC1 planted marker (must be f)' as check,
+       exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                where n.nspname = 'authz' and p.prosrc like '%ae4dc1%') as result
 union all
 select 'authz.roles staff_admin state is authoritative (must be t)',
        (select state::text = 'authoritative' from authz.roles where code = 'staff_admin')
@@ -949,9 +1024,9 @@ select 'any public trigger left DISABLED (must be f)',
 do $$
 declare v_bad text := '';
 begin
-  if (select p.prosrc like '%ae4dc1%' from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-       where n.nspname = 'authz' and p.proname = 'assignment_facts')
-    then v_bad := v_bad || 'DC1 planted body still installed; '; end if;
+  if exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+              where n.nspname = 'authz' and p.prosrc like '%ae4dc1%')
+    then v_bad := v_bad || 'a DC1 planted body is still installed; '; end if;
   if (select state::text from authz.roles where code = 'staff_admin') <> 'authoritative'
     then v_bad := v_bad || 'authz.roles.staff_admin.state not restored; '; end if;
   if exists (select 1 from pg_trigger t join pg_class c on c.oid = t.tgrelid

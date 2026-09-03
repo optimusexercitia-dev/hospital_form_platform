@@ -6,11 +6,14 @@ Gate AE4 item per ADR [0176](../decisions/0176-authz-permission-layer-made-real.
 *Performance evidence [PA-F6]* — nested plans over a scaled, `ANALYZE`d fixture, on the **final** path.
 **Author:** `backend` · **Written:** 2026-09-02 · **Branch:** `authz-ae4-catalog`.
 
-> ⛔ **STATUS after run 2 (2026-09-02): still VOID — but far less open than it was.** P5 has now
-> FAILED on three independent readings (6.13x / 5.20x / 6.21x vs K=4), P2 and P3 **PASS** on run 2's
-> artifact (§10.3), and P1 **FAILS** with a located mechanism: `authz.scope_reaches` seq-scans the
-> whole `hospitals` table on every call. DC1 has still never run, so every condition is VOID under
-> the new dependency rule (§10.2). Rulings: **§10**. Run 1 record: **§9**.
+> ⛔ **STATUS after run 3 (2026-09-02): still VOID — and the open question is now one function.**
+> P5 has FAILED on **five** readings (6.13 / 5.20 / 6.21 / 6.27 / 6.04 vs K=4). P2, P3, DC2 and P4
+> **PASS**. P1 **FAILS** on a located mechanism: `authz.scope_reaches` seq-scans the whole `hospitals`
+> table on every call. DC1 ran for the first time and **failed at 1.53x** — which the arithmetic and
+> P2 together explain as `assignment_facts` holding only **1–3 %** of per-row cost, not as a dead
+> instrument (DC2 read 775x on the same apparatus). DC1 is **re-aimed**, not reinterpreted: §11.
+> Every condition remains VOID under the dependency rule. Records: **§11** (run 3), **§10** (run 2),
+> **§9** (run 1).
 >
 > ~~**STATUS after run 1 (2026-09-02): VOID.**~~ The fixture loaded clean and five of nine harness
 > sections completed, but the harness aborted in section 7 (`permission denied for function
@@ -674,3 +677,106 @@ sizing finding — 11 roles multiplying it — and a genuine input to the PO's g
 DEFINER` function on the authorization path; it needs its own plan approval and its own pgTAP
 keystone, and changing the subject mid-measurement would leave the acceptance measuring something
 the previous three runs did not.
+
+---
+
+## 11. Run 3 (2026-09-02) — DC1 ran, failed at 1.53×, and the failure is informative
+
+Stages 0 and 1 were satisfied for the first time: nested region **229 937** lines, `assignment_facts`
+**418**, `scope_reaches` **412**. The tokenised sentinels fixed the extractor. Run 3 reproduces run 2
+exactly on the bounds — P1 **FAIL** (`Seq Scan on hospitals` = 8 240; memberships/profiles/commissions
+= 0, memberships taking 429 *index* scans), P2 **PASS**, P3 412 nodes.
+
+| | pass A | pass B | threshold | |
+| --- | --- | --- | --- | --- |
+| DC2 | 775.71 | 693.13 | ≥ 5 | PASS |
+| P4 | 10.49 | 6.79 | ≤ 30 | PASS |
+| P5 | 6.27 | 6.04 | ≤ 4 | **FAIL** (five readings: 6.13 / 5.20 / 6.21 / 6.27 / 6.04) |
+| DC1 | 1.53× | 1.55× | ≥ 10 | **FAIL** |
+
+### 11.1 Ruling — the instrument is demonstrably alive, and DC1's verdict still stands
+
+**The offered reading is right, and there is a stronger form of it available than the one argued.**
+The argument offered was that P1 + P2 make `scope_reaches` the plausible dominant term, so DC1 planted
+cost in the wrong place. That is an inference. **DC2 = 775.71× is a measurement**, taken by *the same
+timing function, on the same statements, in the same run*. **A dead instrument cannot produce 775×.**
+The apparatus is not dead, and that is settled by evidence rather than by plausibility.
+
+**What else could produce 1.53×?** Four candidates, three of them already refuted by evidence in hand:
+
+| Candidate | Status |
+| --- | --- |
+| The planted body never installed | **Refuted** — the restoration check fires on `prosrc like '%ae4dc1%'` and had something to find and clear; had the `create or replace` not applied, the transaction would have raised. |
+| The planner folded the plant away | **Refuted** — the plant is a `union all` branch whose filter is `md5(...) = <literal>`, opaque to the planner; it cannot be proven empty at plan time. |
+| `assignment_facts` results cached across rows, so the plant is paid once per statement rather than once per row | **Refuted** — P2 measured **209 `Function Scan on assignment_facts` nodes, every one `loops=1`**, i.e. one invocation per protected row. No cross-row reuse. |
+| `assignment_facts` is simply a small share of per-row cost | **The remaining explanation.** |
+
+Quantified: for a planted multiplier `k` on a term holding share `x` of per-row cost, the observed
+ratio is `k·x + (1 − x)`. With `k ≈ 20–50` and ratio `1.53`, `x ≈ 1–3 %`. **`authz.assignment_facts`
+is one to three per cent of the per-protected-row cost** — which is why F9's premise (*"a non-inlinable
+DEFINER SRF evaluated per row"* as the regression) does not survive contact with the plans: the SRF
+is real, it is per-row, and it is cheap.
+
+⛔ **DC1's verdict nevertheless stands as FAIL, and the dependency rule holds: every condition
+including P5 is VOID.** A failed control may not be argued into a pass — that is the single move this
+acceptance exists to prevent, and it does not become acceptable because the argument is a good one.
+What the reading licenses is **re-aiming the control**, not reinterpreting its result.
+
+### 11.2 The re-aim — DC1 becomes an attribution instrument, not just a detector
+
+Both offered shapes, taken together, because the pair is strictly more informative than either arm:
+
+- **DC1a** — plant in `authz.assignment_facts`. **Kept.** Its 1.53× is now a *reading* of that term's
+  share, not an unexplained failure.
+- **DC1b** — plant in `authz.scope_reaches`. New, aimed at the term P1 indicts.
+- **Pass condition:** the pair passes iff **at least one arm moves ≥ 10×**. ⛔ It must not be able to
+  pass by spreading two small numbers across two arms — if neither moves, the instrument is blind and
+  the run is VOID.
+
+Two anti-optimiser properties in DC1b's plant, both load-bearing and both learned from earlier defects
+in this workstream: the planted subquery is the **`CASE` selector**, so it must be evaluated to choose
+a branch (as an `AND` conjunct the planner would order it last and short-circuit past it on the
+~19-in-20 calls returning false — under-planting in exactly the place being measured); and it is
+**correlated on `p_assignment_id`**, so it cannot be hoisted into a once-per-statement InitPlan, which
+is the same folding hazard that M4 hit in §5.
+
+⚠ **Prediction, recorded before run 4 so it cannot be fitted afterwards: DC1a ≈ 1.5×, DC1b ≥ 10×.**
+If DC1b also returns ≈ 1.5×, the cost is in neither term, P1's hospital-scan attribution is wrong too,
+and that is a genuinely informative surprise rather than a tuning problem.
+
+### 11.3 The verdict table has still never executed
+
+`declare v_r numeric := nullif(:'dc1_ratio', '')::numeric;` — **psql does not interpolate `:'var'`
+inside a dollar-quoted body.** The server received the literal text and raised `syntax error at or
+near ":"`, so section 10 — the single-raise verdict table built in §10.2 — never ran, and run 3's
+numbers were read out of `NOTICE`s by hand.
+
+**Fix:** the DC1 verdict is now an ordinary SQL statement, where interpolation does work. Measured
+across the whole harness: **that was the only such site** — sections 2 and 3 read `fixture_meta`
+through subqueries precisely to avoid it, which is why they have worked since run 1.
+
+⛔ **Recorded as an open risk: the verdict table has been specified for two runs and executed in
+none.** Until run 4 exercises it, "the harness raises one verdict at the end" is a claim about code
+that has never run. Treat run 4's first job as confirming that section 10 produces a table.
+
+### 11.4 Where the finding now stands
+
+Nothing here is yet a verdict — DC1 has not passed, so §10.2's dependency rule holds and P5 is VOID
+on five consistent readings. But the shape of the likely outcome is now sharp, and it is the good one:
+
+- the permission layer's **invocation structure is sound** — P2 and P3 pass, and `assignment_facts`
+  measures at 1–3 % of per-row cost;
+- the cost is concentrated in **one branch of one function**, `authz.scope_reaches`'s
+  organization-from-commission ascent, which seq-scans and hashes the whole `hospitals` table per
+  call instead of doing two primary-key lookups;
+- that term is `O(protected_rows × M × |hospitals|)` — **the only part of the chain that scales with
+  tenant count**, and therefore the only part whose cost grows as the platform onboards customers.
+
+If run 4's DC1b confirms it, this stops being *"the seam is 6× expensive"* — an argument against the
+permission layer — and becomes *"one branch has a fixable plan defect"*, which is a much smaller and
+much more actionable finding, and a genuine input to the PO's Gate AE4 decision.
+
+⛔ **`authz.scope_reaches` is still not to be touched from this workstream.** It is a migration
+against a `SECURITY DEFINER` function on the authorization path: it needs its own plan approval and
+its own pgTAP keystone, and changing the subject mid-measurement would invalidate five runs. The fix
+is a separate increment, and the acceptance re-runs against it afterwards.
