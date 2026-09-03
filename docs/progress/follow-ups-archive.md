@@ -8035,3 +8035,71 @@ member of it**, and the entry had been read as a decision for that reason ever s
 
 Ratchet re-pinned 237 → 236 (and its control 238 → 237) with the measurement recorded in 320's
 own header, because lowering a ratchet is only legitimate with the removal named and measured.
+
+### ⬛ FUP-AE4-P1-BOUNDS-A-SYNTAX-NOT-A-PROPERTY — ✅ **RESOLVED 2026-09-02** — PO ruled: P1 bounds the INDEX PATH, not the `Seq Scan` node (ADR [0181](../decisions/0181-p1-bounds-the-index-path-not-the-scan-node.md))
+
+**Closure.** Put to the PO with four candidate wordings; ruled the same day. **Adopted:** a `Seq
+Scan` on the four chain tables is a finding only when it **survives `enable_seqscan = off`** — i.e.
+when no index path exists and the scan can never self-correct. The raw census stays *reported*, not
+pass/fail. Instrument: `scripts/authz-ae4-p1-index-path.sql`, committed so it cannot drift, with its
+**vacuity control bundled inside it** — §0 builds an index-less copy and the script raises VOID
+unless that control produces a surviving scan.
+
+⭐ **One filed option was killed by measuring it rather than by argument:** "count only nodes that
+executed" does not change the verdict — **603 of the 4 120 `hospitals` nodes do execute**. It had
+been filed as a candidate without that check.
+
+⛔ **This flipped P1 FAIL → PASS, and the three safeguards are the reason that is readable as a
+correction:** the subject never changed (P1's FAILS-when column has named the property since
+`82613268`; only the instrument moved), the earlier verdicts are preserved and labelled with the
+wording they were judged under, and **both of the new probe's verdicts are proven reachable** —
+control fires, a §1 subject aimed at the index-less copy raises and exits 3, and dropping
+`hospitals`' real indexes in a rolled-back transaction produced a surviving scan with the index path
+returning afterwards.
+
+⛔ **What this did NOT do:** it did not touch P5, which still fails at 5.28x / 4.99x against K = 4,
+and it licenses nothing about K. Full record: acceptance doc §§6.1, 12.2, 12.6.
+
+### 🟡 FUP-AE4-P1-BOUNDS-A-SYNTAX-NOT-A-PROPERTY — P1 forbids the token `Seq Scan`, but the hazard it was written for is a table large enough for one to matter
+
+**Filed:** 2026-09-02 (AE4 / IA-F9 acceptance, the `authz.scope_reaches` fix increment — ADR
+[0180](../decisions/0180-scope-reaches-commission-org-ascent-plan-fix.md)) ·
+**Owner:** PO (backend to implement whichever wording is ruled) · **Severity:** 🟡 — the condition
+is over-tight, not wrong, and it currently fails on a real finding as well; it is not blocking
+because nothing depends on P1 reading PASS. It is above 🟢 because the next reader inherits a FAIL
+whose two halves have different meanings and no way to tell them apart.
+
+**What is wrong.** P1 reads *"No `Seq Scan` on `public.memberships`, `public.profiles`,
+`public.commissions` or `public.hospitals` anywhere in the nested plans"*
+(`docs/design/authz-ae4-performance-acceptance.md` §6.1), and its FAILS-when column names the
+hazard: *"a seq scan is the regression F9 predicts, and it is the one that turns linear into
+quadratic at production scale."* Those are two different predicates. On a table of **2 pages** a
+sequential scan is what a correct planner chooses and it does not scale with anything — the
+condition binds on the plan node's **name**, while its stated subject is the plan node's
+**growth**.
+
+**How it was MEASURED.** `public.hospitals` is 124 rows / 2 pages, so `Seq Scan` costs `3.24`
+against `hospitals_pkey`'s `8.29`. Against `ANALYZE`d copies carrying identical indexes at 124 /
+620 / 1 984 / 19 964 rows (`EXPLAIN (GENERIC_PLAN)`, 2026-09-02): the organization-from-hospital
+arm flips to `Index Only Scan` at **620 rows / 9 pages**, and the commission ascent's `Hash Join`
+flips to `Nested Loop` + `Index Only Scan` by **~2 000 rows**. Both self-correct far below any
+interesting tenant count. Forcing the hospital arm onto `hospitals_id_org_uq` was measured
+**buffer-neutral** — 2 buffers either way — so the node's presence costs nothing to remove and
+nothing to keep. Separately, of the 8 240 `Seq Scan on hospitals` in the run-4 nested region,
+**4 120 are in the commission ascent and 4 120 in the hospital arm**, and only 3 417 / 603
+respectively ever execute; §§10.3/11.4 attribute all 8 240 to the ascent.
+
+**What would close it.** A PO ruling on P1's wording, then the harness/protocol edit implementing
+it. Three shapes were considered and are recorded rather than chosen here: bound only nodes that
+**executed** (`never executed` nodes are planned alternatives, not work); bound only tables above
+the seq-scan crossover, stated as a page count; or keep the literal wording and record a standing
+allowlist entry for `public.hospitals` with the crossover measurement attached.
+
+⛔ **What must NOT be mistaken for closing it.** Making P1 pass by
+`ALTER FUNCTION authz.scope_reaches(...) SET enable_seqscan = off`. It was measured
+buffer-neutral, so it moves no cost; it would satisfy the condition's **text** while its **subject**
+— a plan whose cost grows with the table — was never present. That is the one move the acceptance
+protocol exists to prevent, and it is worse here than a relaxed threshold would be, because it
+leaves a planner override baked into a `SECURITY DEFINER` function on the authorization path.
+⛔ Equally not closing it: relaxing P5's `K = 4` on the grounds that P1 turned out to be partly a
+specification artifact. The two conditions are independent and P5 has never been argued from P1.

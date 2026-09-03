@@ -10,10 +10,16 @@ Gate AE4 item per ADR [0176](../decisions/0176-authz-permission-layer-made-real.
 > named things rather than one unexplained number.** Run 5 is the first run against a FIXED
 > `authz.scope_reaches` (migration `20261003007310`, ADR
 > [0180](../decisions/0180-scope-reaches-commission-org-ascent-plan-fix.md)). Controls PASS, so the
-> conditions are verdicts and not VOID. **P2, P3, P4, DC1, DC2 PASS. P1 FAILS** — `Seq Scan on
-> hospitals` **8 240 → 4 120**, exactly the half the fix did not target. **P5 FAILS at 5.28x /
-> 4.99x** (was 6.19x / 6.21x), improved but over K=4. ⛔ **That is a PARTIAL RESULT and is recorded
-> as one: the threshold does not move.** Record: **§12**.
+> conditions are verdicts and not VOID. **P2, P3, P4, DC1, DC2 PASS.** **P1 FAILED** as worded —
+> `Seq Scan on hospitals` **8 240 → 4 120**, exactly the half the fix did not target — and then
+> **PASSES** under the re-specification the PO ruled afterwards (§12.6, ADR
+> [0181](../decisions/0181-p1-bounds-the-index-path-not-the-scan-node.md)); ⛔ **both verdicts
+> stand, neither erases the other.** **P5 FAILS at 5.28x / 4.99x** (was 6.19x / 6.21x), improved
+> but over K=4. ⛔ **That is a PARTIAL RESULT and is recorded as one: K does not move, and P5 is
+> not argued down from P1's re-specification.** ⭐ **The one condition still failing is P5, and its
+> cause is named:** not a plan defect but VOLUME — ~170 000 lookups re-resolving the same 20
+> assignment facts, once per protected row. That is `authz.entailed_grants`' invocation structure
+> and a separate increment. Record: **§12**.
 >
 > ~~**STATUS after run 3 (2026-09-02): still VOID — and the open question is now one function.**~~
 > P5 has FAILED on **five** readings (6.13 / 5.20 / 6.21 / 6.27 / 6.04 vs K=4). P2, P3, DC2 and P4
@@ -318,7 +324,8 @@ is re-run; it is never recorded as a pass. *Absence of a verdict is not absence 
 
 | | Condition | Read from | FAILS when |
 | --- | --- | --- | --- |
-| **P1** | No `Seq Scan` on `public.memberships`, `public.profiles`, `public.commissions` or `public.hospitals` anywhere in the nested plans | Pass B | Any of the four is seq-scanned. Post-`ANALYZE` at 48 800 memberships the index is the only correct plan; a seq scan is the regression F9 predicts, and it is the one that turns linear into quadratic at production scale. |
+| **P1** | ⭐ **RE-SPECIFIED — ADR [0181](../decisions/0181-p1-bounds-the-index-path-not-the-scan-node.md), PO ruling 2026-09-02.** No `Seq Scan` on `public.memberships`, `public.profiles`, `public.commissions` or `public.hospitals` **that SURVIVES `enable_seqscan = off`** — i.e. no access on those four with **no index path at all**. The raw seq-scan census over the nested region is still **reported**, as evidence; it is no longer the pass/fail. | `scripts/authz-ae4-p1-index-path.sql` (verdict) + Pass B (census) | A scan survives the probe ⇒ the planner has no alternative to it and it can never self-correct at any cardinality — the regression F9 predicts. ⛔ **The bundled vacuity control must FIRE**, or the run is VOID: "no scan survived" and "the probe is broken" are the same string. |
+| ~~**P1** (original wording, kept because runs 1–5 were judged under it)~~ | ~~No `Seq Scan` on those four anywhere in the nested plans~~ | ~~Pass B~~ | ~~Any of the four is seq-scanned.~~ ⚠ **Retired for a measured reason, not because it failed:** its FAILS-when column names the property (*"the one that turns linear into quadratic at production scale"*) while its condition bound a **token**. On a 2-page table a sequential scan is the correct plan and self-corrects by 620 rows (§12.2), so the two predicates had come apart. **Post-`ANALYZE` at 48 800 memberships the index is the only correct plan** — that rationale is unchanged and is what the new form measures directly. |
 | **P2** | `authz.assignment_facts` is invoked **once per protected row**, not once per protected row **per assignment fact** | Pass B `loops` on the `assignment_facts` node | `loops` exceeds the protected-row count. That means the SRF is re-invoked inside the fact loop — an `O(M²)` shape. |
 | **P3** | `authz.scope_reaches` invocations ≤ `M` (= 20) per protected row | Pass B `loops` on the `scope_reaches` node | `loops` is `M ×` the role-permission row count or worse, i.e. the join order pushed `scope_reaches` below the implication-closure join. |
 | **P4** | Growth in the protected-row count is **at worst linear**: `t(N=10 000) / t(N=1 000) ≤ 30` (linear = 10; 3× headroom) | harness §7, machine-asserted | Ratio > 30. Super-linear growth in protected rows is precisely the hazard AE5 multiplies across eleven roles. |
@@ -824,7 +831,7 @@ Externally, per §9.7 — stage 0 nested region **212 149** lines; stage 1 prese
 | --- | --- | --- |
 | **P2** | **PASS** | 209 `Function Scan on assignment_facts`, **every one `loops=1`**. Unchanged by the fix, as expected — it touches table access, not invocation structure. |
 | **P3** | **PASS** | 206 `Filter: authz.scope_reaches` nodes on that Function Scan. Unchanged. |
-| **P1** | ⛔ **FAIL** | `memberships` 0 · `profiles` 0 · `commissions` 0 · **`hospitals` 4 120** (was 8 240). |
+| **P1** | ⛔ **FAIL** under the wording in force at the time; **PASS** under the re-specification ruled afterwards (§12.6) | `memberships` 0 · `profiles` 0 · `commissions` 0 · **`hospitals` 4 120** (was 8 240). ⛔ **Both verdicts stand and neither replaces the other** — the FAIL is what run 5 measured against the condition as written, and it is not erased by the ruling that followed it. |
 
 ### 12.1 P1 — the count halved, and the surviving half is the half that was never the target
 
@@ -908,3 +915,47 @@ fine — it asks "any authz body still contains a DC1 planted marker" and covers
 postflight was executed with both bodies checked explicitly: `dc1a_body_stuck=f`,
 `dc1b_body_stuck=f`, `staff_admin_state=authoritative`, `trigger_disabled=f`, and
 `ascent_join_back=f` (the fix survived its own measurement).
+
+### 12.6 P1 re-specified, and re-evaluated — PASS, with the control that makes that readable
+
+`FUP-AE4-P1-BOUNDS-A-SYNTAX-NOT-A-PROPERTY` was put to the PO with four candidate wordings and
+ruled on 2026-09-02. **Adopted: bound the property — a `Seq Scan` on the four chain tables is a
+finding only when it SURVIVES `enable_seqscan = off`.** Rationale, instrument, the two rejected
+options and the measurement that killed a third: ADR
+[0181](../decisions/0181-p1-bounds-the-index-path-not-the-scan-node.md).
+
+⛔ **This flips P1 from FAIL to PASS, which is the single move this document exists to distrust.**
+Three things make it a correction rather than a fudge, and all three are checkable:
+
+1. **The subject did not change.** P1's FAILS-when column has said *"the one that turns linear into
+   quadratic at production scale"* since `82613268`. The **instrument** was a token match that had
+   measurably come apart from it (§12.2). The re-spec makes the instrument match the subject that
+   was written down first, not the result that was measured last.
+2. **The old verdict is preserved, not overwritten** — §12's table and §10.3 both still read FAIL,
+   labelled with the wording each was judged under.
+3. ⭐ **The new check is proven able to return both verdicts, and the proof ships inside it.**
+   `scripts/authz-ae4-p1-index-path.sql` builds an index-less copy of `hospitals` as §0 and
+   **raises VOID if that control does not produce a surviving scan** — so the check cannot
+   silently become vacuous the way an empty grep can. Measured 2026-09-02: the control fires, and
+   pointing a §1 subject at the index-less copy makes the whole probe raise and exit **3**. The
+   stronger control — dropping `hospitals`' real indexes in a rolled-back transaction — was also
+   run once by hand and produced a surviving `Seq Scan`, with the index path returning after
+   rollback.
+
+**Run 5, re-evaluated (`P1_PROBE_EXIT=0`):**
+
+| Subject | Node under `enable_seqscan=off` | |
+| --- | --- | --- |
+| §0 control — `p1_noindex`, no index by construction | `Seq Scan` | **SURVIVES — control FIRED** |
+| `hospitals` — `scope_reaches` organization←hospital | `Index Only Scan` | CLEAR |
+| `commissions` — the ascent / hospital←commission | `Index Scan` | CLEAR |
+| `memberships` — `assignment_facts` by principal | `Index Only Scan` | CLEAR |
+| `profiles` — `assignment_facts` platform_admin arm | `Index Scan` | CLEAR |
+
+⚠ **What P1 now asserts, exactly:** every one of those four accesses *has* an index path, so none
+of them can degrade without bound as rows accumulate. It does **not** assert that the planner will
+choose that path at production scale — for `hospitals` that was measured separately (§12.2) and
+holds; for any table added to P1's list later, its own crossover is owed.
+
+⛔ **P5 is untouched by this.** It failed at 5.28× / 4.99× against K = 4 and still does. The two
+conditions are independent, and nothing in this ruling licenses re-deriving K.
