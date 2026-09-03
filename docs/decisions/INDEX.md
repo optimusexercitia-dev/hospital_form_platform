@@ -12,7 +12,7 @@
 >
 > Edges are **advisory** and over-inclusive by design; the ADR text is truth.
 
-**182 ADRs** · next free number: **0185** · 57 carry an inbound supersedes/amends edge
+**183 ADRs** · next free number: **0186** · 59 carry an inbound supersedes/amends edge
 
 ## ⚠ Anomalies
 
@@ -145,7 +145,7 @@
 | 0121 | [Disposal lifecycle: inflow, outflow, and what `disposed` asserts](0121-disposal-lifecycle-inflow-outflow-and-evidence.md) | accepted | 2026-08-17 | – | – |
 | 0122 | [A case-read arm at the referral freeze door (FUP-DM4-RECUSAL)](0122-recusal-case-read-arm-at-the-referral-freeze-door.md) | accepted | 2026-08-17 | – | – |
 | 0123 | [Discarding a draft that has emitted documents](0123-discarding-a-draft-that-has-emitted-documents.md) | accepted | 2026-08-18 | – | – |
-| 0124 | [PROGRESS.md live-state contract, machine-enforced](0124-progress-live-state-contract.md) | accepted | 2026-08-18 | – | ⚠ amended by 0139, 0140, 0179 |
+| 0124 | [PROGRESS.md live-state contract, machine-enforced](0124-progress-live-state-contract.md) | accepted | 2026-08-18 | – | ⚠ amended by 0139, 0140, 0179, 0185 |
 | 0125 | [`Imprimir prévia` (ephemeral) vs `Emitir documento` (registered)](0125-previa-ephemeral-and-emission-registered.md) | accepted | 2026-08-18 | amends 0104 | – |
 | 0126 | [A print belongs to a SERIES, and currency is DERIVED](0126-print-series-and-derived-currency.md) | accepted | 2026-08-18 | – | – |
 | 0127 | [standing rules get a path-scoped home, and a staleness gate](0127-standing-rules-home-and-staleness-gate.md) | accepted | 2026-08-19 | – | – |
@@ -160,8 +160,8 @@
 | 0136 | [Deferred `staff_admin` sign-off: attest a FROZEN response, block the PHASE not the SUBM…](0136-deferred-staff-admin-signoff-attests-frozen-content.md) | accepted | 2026-08-23 | amends 0004, 0016, 0017 | – |
 | 0137 | [MRN as the LGPD erasure key; the case/referral usability batch](0137-mrn-erasure-key-and-case-referral-usability-batch.md) | accepted | 2026-08-23 | amends 0037, 0038, 0134 | ⚠ amended by 0142 |
 | 0138 | [Unified (non-PHI) action_items hub](0138-unified-action-items.md) | accepted | 2026-07-02 | – | – |
-| 0139 | [Quarterly home for concluded § Now rotations](0139-quarterly-home-for-concluded-now-rotations.md) | accepted | 2026-08-24 | amends 0124 | – |
-| 0140 | [Tracking-apparatus hardening batch (labels, caps, residue, cadence, sweep)](0140-tracking-apparatus-hardening-batch.md) | accepted | 2026-08-24 | amends 0124 | ⚠ amended by 0179 |
+| 0139 | [Quarterly home for concluded § Now rotations](0139-quarterly-home-for-concluded-now-rotations.md) | accepted | 2026-08-24 | amends 0124 | ⚠ amended by 0185 |
+| 0140 | [Tracking-apparatus hardening batch (labels, caps, residue, cadence, sweep)](0140-tracking-apparatus-hardening-batch.md) | accepted | 2026-08-24 | amends 0124 | ⚠ amended by 0179, 0185 |
 | 0141 | [Cases board (`manage/cases`) filter redesign: actionable KPIs, saved views, advanced pa…](0141-cases-board-filter-redesign.md) | accepted | 2026-08-24 | – | – |
 | 0142 | [One PHI dialog layout; the Atividade composer removed; the Process rail reordered](0142-phi-dialog-layout-atividade-composer-removal-process-rail.md) | accepted | 2026-08-24 | amends 0137 | – |
 | 0143 | [A gate for double-encoded UTF-8 (mojibake) in tracked text](0143-mojibake-gate-double-encoded-utf8.md) | accepted | 2026-08-25 | – | – |
@@ -200,9 +200,10 @@
 | 0176 | [The permission layer made real: three interfaces, a manifest countdown, and the re-key…](0176-authz-permission-layer-made-real.md) | accepted | 2026-09-02 | amends 0155, 0174 | – |
 | 0177 | [AE4.9 D4/D7 as built: the candidate's state set, the denial precedence, and the state g…](0177-ae49-resolver-contract-implementation-choices.md) | accepted | 2026-09-02 | – | – |
 | 0178 | [AE4.9 D6 as built: the narrow authorizer, where the preserved legacy arm lives, and the…](0178-ae49-d6-rekey-as-built.md) | accepted | 2026-09-02 | amends 0175 | – |
-| 0179 | [One open follow-up register: the PROGRESS.md index is folded into the bodies](0179-follow-up-register-consolidation.md) | accepted | 2026-09-02 | amends 0124, 0140 | – |
+| 0179 | [One open follow-up register: the PROGRESS.md index is folded into the bodies](0179-follow-up-register-consolidation.md) | accepted | 2026-09-02 | amends 0124, 0140 | ⚠ amended by 0185 |
 | 0180 | [`authz.scope_reaches`: the commission→organization ascent reads `commissions.organizati…](0180-scope-reaches-commission-org-ascent-plan-fix.md) | accepted | 2026-09-02 | – | – |
 | 0181 | [Acceptance condition P1 bounds the INDEX PATH, not the `Seq Scan` node](0181-p1-bounds-the-index-path-not-the-scan-node.md) | accepted | 2026-09-02 | – | – |
 | 0182 | [The permission answer is computed once per STATEMENT, not once per protected row](0182-statement-scoped-authorized-scope-ids.md) | accepted | 2026-09-03 | – | ⚠ amended by 0183 |
 | 0183 | [Acceptance condition P2 counts INVOCATIONS against a bound, not `loops` values](0183-p2-invocation-count-respecification.md) | accepted | 2026-09-03 | amends 0182 | – |
 | 0184 | [C2's full sweep runs against the current branch's schema, not against `main`](0184-c2-sweep-runs-against-the-current-branch-schema.md) | accepted | 2026-09-02 | amends 0162 | – |
+| 0185 | [Documentation restructure: feature hubs, CURRENT.md, and gated registers for bugs, foll…](0185-documentation-restructure-feature-hubs-and-gated-registers.md) | accepted | 2026-09-03 | amends 0124, 0139, 0140, 0179 | – |
