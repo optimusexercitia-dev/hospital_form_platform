@@ -1,0 +1,14 @@
+anchored authz raises examined : 2294
+  matched by CURRENT anchor    : 2259
+  matched by CANDIDATE anchor  : 2294
+  NEWLY matched (the fix)      : 35
+  REGRESSIONS (cur ok, new not): 0
+
+  FIXED: raise exception 'há encaminhamentos aguardando resposta; conclua, recu
+  FIXED: raise exception 'o desfecho atualmente atribuído a este caso não pode 
+  FIXED: raise exception 'encaminhamento concluído; os dados do paciente não po
+  FIXED: raise exception 'este indicador é derivado; use o cálculo automático' 
+  FIXED: raise exception 'este indicador é manual; use o lançamento manual'    
+  FIXED: raise exception 'há encaminhamentos aguardando resposta; conclua, recu
+
+residue still unmatched by candidate: 0

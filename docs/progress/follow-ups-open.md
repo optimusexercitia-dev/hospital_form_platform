@@ -8120,11 +8120,32 @@ from precisely the doors the gate depends on. **`set_referral_patient` is a Rule
 silent wrong verdict — only a visible ERROR. The harness's own rule (*ERROR IS NOT A PASS — each is an
 obligation*) is what makes the class recoverable.
 
-**Candidate fix (UNTESTED — the harness may not be edited while the sweep runs):** consume the message as
-a proper quoted literal before scanning for the errcode, i.e.
-`raise\s+exception\s+'(?:[^']|'')*'[^;]*?errcode\s*(=|=>)\s*'(…)'\s*;`. That absorbs a `;` inside the
-message and should clear all 39. ⚠ It does **not** cover a `;` inside a `detail =`/`hint =` clause after
-the errcode; that residue must be measured, not assumed empty.
+✅ **FIX VALIDATED OFFLINE 2026-09-02 — 35 fixed, 0 regressions, 0 residue.** Consume the message as a
+proper quoted literal *before* scanning for the errcode:
+
+```
+raise\s+exception\s+'(?:[^']|'')*'[^;]*?errcode\s*(=|=>)\s*'(42501|HC0[A-Z0-9]{2})'\s*;
+```
+
+Measured by replaying both anchors over every anchored authz raise in the 519 migration files
+(`scratchpad/regex-fix-validation.txt`; each raise located by windowing back from the errcode the
+harness's own counter matches):
+
+| | raises matched |
+| --- | ---: |
+| examined (the counter's population) | **2294** |
+| matched by the CURRENT anchor | 2259 — **misses 35** |
+| matched by the CANDIDATE anchor | **2294** |
+| regressions (current matched, candidate did not) | **0** |
+| residue still unmatched | **0** |
+
+⚠ **Two honest caveats.** (1) This is Python `re`, not Postgres **ARE**, where the harness actually
+runs. The construct `'(?:[^']|'')*'` is supported by both and the two engines agree on it, but
+**confirmation with `regexp_replace` in Postgres is owed** once the DB window closes. (2) The earlier
+figure in this entry — *39* raises with a `;` — was measured with `.*?` between message and errcode,
+which under `re.S` can span **across** statements and therefore overcounts. **35 is the better
+number**; the windowed re-measurement is the one to trust, and residue is what matters: it is 0, so
+the `detail =`/`hint =` worry raised alongside the original estimate is **empty in practice**.
 
 ⭐ **The generalisable lesson, and it is ADR 0078's:** this is an enumeration **bounded by a syntax
 rather than by a property**. The same shape produced the false P0 in ADR 0078's METHODOLOGY FINDING and
