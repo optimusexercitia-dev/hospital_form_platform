@@ -202,6 +202,48 @@ export const LEGEND_HEADER_RX = /^\s*\|\s*Code\s*\|/
 /** Same shape as check-progress-doc's RESOLVED_HEADING: the entry is resolved (and, if it is still in the open register, gate 7 requires a **Retained** line). */
 export const RESOLVED_HEADING_RX = /⬛|✅ ?\*{0,2}(RESOLVED|CLOSED)\b/u
 
+/**
+ * ADR 0186 D8 / plan 6.1: the `complete` cross-check is ROW-grade — a ledger TABLE ROW whose
+ * first cell is the id, never "the id string appears anywhere in the ledger". The old
+ * `\b${id}\b` scan passed on a MENTION ("see AE4 for context") with no row behind it at all.
+ */
+export function hubHasLedgerRow(id, ledgerText) {
+  const esc = String(id).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const rx = new RegExp(`^\\| *${esc} *\\|`)
+  return ledgerText.split('\n').some((l) => rx.test(l))
+}
+
+/**
+ * ADR 0186 D8 / plan 6.7: how many rows `hubHasLedgerRow` actually has to search — every
+ * `|`-prefixed line minus the divider row(s) and ONE header row. Printed on the OK line as an
+ * orientation figure (never gated): a census whose parts don't sum is wrong, so this is scoped
+ * to exactly the population the row-grade check scans, not a re-derivation by a different rule.
+ * BOUNDED, STATED: a file with a SECOND header block further down (a second `| Col | Col |`
+ * table) would still have only one header subtracted — phase-ledger.md has never had one.
+ */
+export function countLedgerDataRows(text) {
+  const dividerRx = /^\s*\|[\s:|-]+\|\s*$/
+  const pipeLines = text.split('\n').filter((l) => /^\s*\|/.test(l) && !dividerRx.test(l))
+  return Math.max(0, pipeLines.length - 1)
+}
+
+/**
+ * A review's VERDICT LINE says APPROVED — never "the word APPROVED appears anywhere in the
+ * file" (the old `\bAPPROVED\b` scan passed on "**Verdict: NOT APPROVED**"). Covers the two
+ * bold-paragraph forms the plan names (`**Verdict: APPROVED**`, `**Verdict:** APPROVED`) AND
+ * the heading form most reviews actually use (`## Verdict: **APPROVED**`) — DOCS-RESTRUCTURE,
+ * the one hub this gate has to keep passing, is recorded that way; a regex built only from the
+ * plan's two literal examples would have reintroduced a red on the live tree. `[\s*]{0,4}`
+ * skips up to 4 chars of space/bold decoration IN EITHER ORDER between the colon and the verdict
+ * word, but no more — "Verdict: NOT APPROVED" stops at "NOT" (not whitespace/`*`) and does not
+ * match, so a genuine non-approval still reds.
+ */
+export const REVIEW_VERDICT_APPROVED_RX = /^#{0,6} *\*{0,2}Verdict:[\s*]{0,4}APPROVED\b/m
+
+export function reviewHasApprovedVerdict(text) {
+  return REVIEW_VERDICT_APPROVED_RX.test(text || '')
+}
+
 // ─── parsing helpers (pure) ──────────────────────────────────────────────────────────────
 
 export function parseFrontmatter(text) {
@@ -319,20 +361,52 @@ export function isoDateOf(v) {
   return typeof v === 'string' ? v : null
 }
 
-export function relLinks(text) {
-  const out = []
-  // A link pattern quoted inside a code span or a fenced block is prose ABOUT links, not a
-  // link (the split register bodies talk about `](./NNNN-*.md)`); blank both before scanning.
-  // Same rule gate 7's checker applies — ADR 0186 D8 unifies the two in Wave 6.
+/** Alphanumeric-only form of a heading, for in-file anchor comparison that emoji/punctuation
+ *  can't break. ADR 0186 D8 / plan 6.3: the copy check-progress-doc.mjs (gate 7) used before
+ *  the two link checkers merged into this one — now the one export both import. */
+export function anchorKey(s) {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, '')
+}
+
+/**
+ * Every `](target)` markdown link in `text`, as `{ target, line }` — fenced blocks and inline
+ * code spans blanked first (offsets preserved) so a link pattern QUOTED in prose (the split
+ * register bodies talk about `](./NNNN-*.md)`) is not read as a link, and http(s)/mailto/data
+ * targets skipped. ADR 0186 D8 / plan 6.3: the ONE link-extraction pass gate 7
+ * (check-progress-doc.mjs, which imports `checkLinks` from here) and gate 13 both run on —
+ * before this it existed twice and could disagree.
+ */
+function markdownLinks(text) {
   const scanned = text
     .replace(/```[\s\S]*?```/g, (m) => m.replace(/[^\n]/g, ' '))
     .replace(/`[^`\n]*`/g, (m) => ' '.repeat(m.length))
+  const out = []
   const rx = /\]\(([^)\s]+)\)/g
-  let m
-  while ((m = rx.exec(scanned))) {
-    const t = m[1]
-    if (/^(https?:|mailto:|#)/.test(t)) continue
-    out.push(t.replace(/#.*$/, ''))
+  scanned.split('\n').forEach((line, i) => {
+    rx.lastIndex = 0
+    let m
+    while ((m = rx.exec(line))) {
+      const t = m[1]
+      if (/^(https?:|mailto:|data:)/.test(t)) continue
+      out.push({ target: t, line: i + 1 })
+    }
+  })
+  return out
+}
+
+/**
+ * Repo-relative FILE link targets in `text` — a bare in-file `#anchor` link is excluded (that
+ * is `checkLinks`' job, checked against the file's own headings, not a repo path) and so is a
+ * target with no `.md` suffix and no 2-4-letter extension (a directory path or a bare slug is
+ * not a file link — the extension filter gate 7 used before the merge).
+ */
+export function relLinks(text) {
+  const out = []
+  for (const { target } of markdownLinks(text)) {
+    if (target.startsWith('#')) continue
+    const path = target.split('#')[0]
+    if (!path.endsWith('.md') && !/\.[a-z]{2,4}$/.test(path)) continue
+    out.push(path)
   }
   return out
 }
@@ -398,9 +472,15 @@ export function checkHub(hub, ctx) {
   }
   if (fm.status === 'parked' && !/\*\*Revisit when:\*\*\s*\S/.test(hub.body)) at('status parked requires a `**Revisit when:**` line')
   if (fm.status === 'complete') {
-    const inLedger = ctx.ledgerText.includes(`| ${fm.id} |`) || new RegExp(`\\b${fm.id}\\b`).test(ctx.ledgerText)
-    const approved = (Array.isArray(fm.reviews) ? fm.reviews : []).some((r) => /\bAPPROVED\b/.test(ctx.readRel(join(PATHS.featuresDir, r)) || ''))
-    if (!inLedger && !approved) at('status complete requires a phase-ledger row or an APPROVED review')
+    const inLedger = hubHasLedgerRow(String(fm.id), ctx.ledgerText)
+    const approved = (Array.isArray(fm.reviews) ? fm.reviews : []).some((r) => reviewHasApprovedVerdict(ctx.readRel(join(PATHS.featuresDir, r))))
+    if (!inLedger && !approved) {
+      at(
+        'status complete requires a phase-ledger ROW (`| ID | ... |`) or a linked review whose ' +
+          'VERDICT LINE says APPROVED — a mention elsewhere in either file, or a verdict of NOT ' +
+          'APPROVED / CHANGES REQUESTED, does not satisfy it (ADR 0186 D8)',
+      )
+    }
   }
   // Current-state block
   const lines = hub.body.split('\n')
@@ -707,6 +787,26 @@ export function checkFollowupBodies(entries, bodyFiles) {
   return F
 }
 
+/**
+ * ADR 0185 D5: a resolved entry's body lives INLINE in follow-ups-archive.md — the pointer-to-
+ * a-separate-file shape (`**Body:**`) is the OPEN register's mechanism for an entry too long to
+ * keep in the index, and has no reason to exist once the entry is archived (the whole entry,
+ * body included, moves there verbatim). A `**Body:**` line surviving into the archive is a
+ * rotation that dropped the file it pointed at, or forgot to fold the body in.
+ */
+export function checkArchiveNoBodyLink(archiveText) {
+  const F = []
+  archiveText.split('\n').forEach((l, i) => {
+    if (/\*\*Body:\*\*/.test(l)) {
+      F.push(
+        `[FOLLOWUPS] ${PATHS.fupArchive}:${i + 1} — a resolved entry's body lives INLINE in the ` +
+          `archive (ADR 0185 D5); a \`**Body:**\` link belongs only in the open register`,
+      )
+    }
+  })
+  return F
+}
+
 export function checkFollowups({ open, criticalIds, bodyFiles = [] }) {
   const F = []
   const counts = { poToRule: 0, severityPerEmoji: 0, severityUnrated: 0, revisitWhenPoToRule: 0, longHeadings: 0 }
@@ -899,6 +999,16 @@ export function checkPostmortems(files, lessonIds) {
  * computed once at the call site). Passed in rather than read here so the self-test can fix it
  * instead of the result depending on the day the suite happens to run.
  */
+/**
+ * Is `name` a handoff file — not the directory's `README.md` placeholder (kept in git when the
+ * directory is otherwise empty, ADR 0186 Wave 3: it carries no `branch:`/`expires:` and its
+ * name appears in every README mention) and not some other non-Markdown file? ADR 0186 D8 /
+ * plan 6.7: lifted out of `main()`, which had this filter with no fixture of its own.
+ */
+export function isHandoffFile(name) {
+  return name.endsWith('.md') && name !== 'README.md'
+}
+
 export function checkHandoffs(files, branches, citations, today) {
   const F = []
   for (const f of files) {
@@ -922,11 +1032,28 @@ export function checkHandoffs(files, branches, citations, today) {
   return F
 }
 
+/**
+ * ADR 0186 D8 / plan 6.3: the ONE link checker for both gate 7 and gate 13 — the union of what
+ * each had alone. Fence + code-span blanking and the extension filter came from whichever gate
+ * had them; new here for gate 13 is the in-file `#anchor` check (alphanumeric-only substring
+ * match against this file's own headings, so emoji/punctuation slugging can't false-red) that
+ * only gate 7 used to run.
+ */
 export function checkLinks(file, text, exists) {
   const F = []
-  for (const l of relLinks(text)) {
-    const p = resolve(dirname(file), l)
-    if (!exists(relative('.', p))) F.push(`[LINKS] ${file} — link \`${l}\` does not resolve`)
+  const headings = [...text.matchAll(/^#{1,6} +(.+)$/gm)].map((m) => anchorKey(m[1]))
+  for (const { target, line } of markdownLinks(text)) {
+    if (target.startsWith('#')) {
+      const key = anchorKey(decodeURIComponent(target.slice(1)))
+      if (key && !headings.some((h) => h.includes(key) || key.includes(h))) {
+        F.push(`[LINKS] ${file}:${line} — in-file anchor does not match any heading: ${target}`)
+      }
+      continue
+    }
+    const path = target.split('#')[0]
+    if (!path.endsWith('.md') && !/\.[a-z]{2,4}$/.test(path)) continue
+    const p = resolve(dirname(file), path)
+    if (!exists(relative('.', p))) F.push(`[LINKS] ${file}:${line} — link \`${target}\` does not resolve`)
   }
   return F
 }
@@ -1094,6 +1221,46 @@ function selfTest() {
   must('HUBS block on planned', checkHub({ ...goodHub, fm: { ...goodHub.fm, status: 'planned' } }, okCtx), true)
   must('HUBS planned ok', checkHub({ ...goodHub, fm: { ...goodHub.fm, status: 'planned' }, body: '# X1\n' }, okCtx), false)
   must('HUBS complete unrecorded', checkHub({ ...goodHub, fm: { ...goodHub.fm, status: 'complete' }, body: '# X1\n' }, { ...okCtx, ledgerText: '', readRel: () => '' }), true)
+  // ADR 0186 D8 / plan 6.1: the cross-check is ROW-grade — a mere MENTION of the id in the
+  // ledger (no table row) must still red, and a review's verdict must say APPROVED on its
+  // VERDICT LINE, not merely contain the word "APPROVED" or "NOT APPROVED" somewhere.
+  must(
+    'HUBS complete ledger mention-only reds (row-grade, not a string search)',
+    checkHub({ ...goodHub, fm: { ...goodHub.fm, status: 'complete' }, body: '# X1\n' }, { ...okCtx, ledgerText: 'See X1 in the summary.\n', readRel: () => '' }),
+    true,
+  )
+  must(
+    // reviews: ['review.md'] so this exercises reviewHasApprovedVerdict's rejection — an EMPTY
+    // reviews array would red here too, but vacuously (it never looks at the text at all).
+    'HUBS complete via review NOT APPROVED reds',
+    checkHub({ ...goodHub, fm: { ...goodHub.fm, status: 'complete', reviews: ['review.md'] }, body: '# X1\n' }, { ...okCtx, ledgerText: '', readRel: () => '**Verdict: NOT APPROVED**\n' }),
+    true,
+  )
+  must(
+    'HUBS complete via review CHANGES REQUESTED reds',
+    checkHub({ ...goodHub, fm: { ...goodHub.fm, status: 'complete', reviews: ['review.md'] }, body: '# X1\n' }, { ...okCtx, ledgerText: '', readRel: () => '**Verdict: CHANGES REQUESTED**\n' }),
+    true,
+  )
+  must(
+    // The one live complete hub, DOCS-RESTRUCTURE, is recorded this way — its review's verdict
+    // line is a HEADING, not the plan's two literal bold-paragraph examples. A regex built only
+    // from those two examples would red on the live tree; this fixture is what keeps it honest.
+    'HUBS complete via review heading-form APPROVED ok',
+    checkHub({ ...goodHub, fm: { ...goodHub.fm, status: 'complete', reviews: ['review.md'] }, body: '# X1\n' }, { ...okCtx, ledgerText: '', readRel: () => '## Verdict: **APPROVED**\n' }),
+    false,
+  )
+  must(
+    'HUBS complete via review bold-colon-outside APPROVED ok',
+    checkHub({ ...goodHub, fm: { ...goodHub.fm, status: 'complete', reviews: ['review.md'] }, body: '# X1\n' }, { ...okCtx, ledgerText: '', readRel: () => '**Verdict:** APPROVED\n' }),
+    false,
+  )
+  must('hubHasLedgerRow row', [hubHasLedgerRow('X1', '| X1 | done |') ? '' : 'x'].filter(Boolean), false)
+  must('hubHasLedgerRow mention only', [hubHasLedgerRow('X1', 'mentions X1 in prose') ? 'x' : ''].filter(Boolean), false)
+  must('reviewHasApprovedVerdict bold', [reviewHasApprovedVerdict('**Verdict: APPROVED**') ? '' : 'x'].filter(Boolean), false)
+  must('reviewHasApprovedVerdict bold-colon-outside', [reviewHasApprovedVerdict('**Verdict:** APPROVED') ? '' : 'x'].filter(Boolean), false)
+  must('reviewHasApprovedVerdict heading', [reviewHasApprovedVerdict('## Verdict: **APPROVED**') ? '' : 'x'].filter(Boolean), false)
+  must('reviewHasApprovedVerdict not approved', [reviewHasApprovedVerdict('**Verdict: NOT APPROVED**') ? 'x' : ''].filter(Boolean), false)
+  must('reviewHasApprovedVerdict changes requested', [reviewHasApprovedVerdict('**Verdict: CHANGES REQUESTED**') ? 'x' : ''].filter(Boolean), false)
   must('HUBS sections out of order', checkHub({ ...goodHub, body: '# X1\n' + goodBlock.replace('### Next\nd\n### Blockers\ne\n', '### Blockers\ne\n### Next\nd\n') }, okCtx), true)
   must('HUBS no Updated', checkHub({ ...goodHub, body: '# X1\n' + goodBlock.replace(/\*\*Updated:\*\* \S+\n/, '') }, okCtx), true)
   must('HUBS stale Updated', checkHub({ ...goodHub, body: '# X1\n' + goodBlock.replace('2026-09-02', '2026-08-01') }, okCtx), true)
@@ -1299,6 +1466,15 @@ function selfTest() {
   must('FOLLOWUPS body link with no file reds', checkFollowups({ open: fupWithBody, criticalIds: [], bodyFiles: [] }).findings, true)
   must('FOLLOWUPS body linked ok', checkFollowups({ open: fupWithBody, criticalIds: [], bodyFiles: ['FUP-BODY-1.md'] }).findings, false)
 
+  // ADR 0185 D5 / plan Wave 6 "also": the ARCHIVE may not carry a `**Body:**` link — a resolved
+  // entry's body lives INLINE there, not behind a pointer to a separate file.
+  must('checkArchiveNoBodyLink clean archive ok', checkArchiveNoBodyLink('### ⬛ FUP-X-1 — done\n\nbody lives right here\n'), false)
+  must(
+    'checkArchiveNoBodyLink reds on a Body link',
+    checkArchiveNoBodyLink('### ⬛ FUP-X-1 — done\n\n**Status:** open · **Body:** [FUP-X-1.md](FUP-X-1.md)\n\nsee body\n'),
+    true,
+  )
+
   // RATCHETS (ADR 0186 D6): a live count over its constant reds; Infinity never fires.
   must('checkRatchets exceeded reds', checkRatchets({ x: 5 }, { x: 3 }), true)
   must('checkRatchets under cap ok', checkRatchets({ x: 2 }, { x: 3 }), false)
@@ -1353,7 +1529,16 @@ function selfTest() {
 
   must('LINKS good', checkLinks('docs/x.md', '[a](../README.md)', () => true), false)
   must('LINKS bad', checkLinks('docs/x.md', '[a](nope.md)', () => false), true)
-  must('LINKS ignores http', checkLinks('docs/x.md', '[a](https://x) [b](#h)', () => false), false)
+  // ADR 0186 D8 / plan 6.3: this fixture CHANGED. Before the merge a bare `#anchor` link was
+  // skipped outright (no anchor checker existed here), so `[b](#h)` with no `# H` heading in
+  // the fixture text was silently ignored. The unified checker adds gate 7's anchor check, so
+  // the union is STRICTER — a heading now has to actually back the anchor for this to stay
+  // green, which is the behavior gate 7 already had and gate 13 is adopting.
+  must('LINKS ignores http', checkLinks('docs/x.md', '# H\n[a](https://x) [b](#h)', () => false), false)
+  must('LINKS extension filter skips a non-file target', checkLinks('docs/x.md', '[a](some-directory)', () => false), false)
+  must('LINKS anchor resolves', checkLinks('docs/x.md', '# My Title\n[a](#my-title)', () => true), false)
+  must('LINKS anchor does not resolve', checkLinks('docs/x.md', '# My Title\n[a](#nope)', () => true), true)
+  must('LINKS code span is a mention, not a link', checkLinks('docs/x.md', 'prose `](docs/gone.md)` about links', () => false), false)
 
   must('INDEX good', checkDocsIndex('decisions/ and backend-state.md', ['decisions', 'backend-state.md', 'INDEX.md']), false)
   must('INDEX unmapped', checkDocsIndex('decisions/', ['decisions', 'newdir']), true)
@@ -1368,6 +1553,14 @@ function selfTest() {
   must('parseTable first by default', [parseTable(twoTables)?.columns.join() === 'Level,Emoji' ? '' : 'x'].filter(Boolean), false)
   must('parseTable header absent', [parseTable(twoTables, /^\|\s*Nope\s*\|/) === null ? '' : 'x'].filter(Boolean), false)
   must('hubSlug', [hubSlug('C2-TIER1') === 'c2-tier1' && hubSlug('AE4') === 'ae4' ? '' : 'x'].filter(Boolean), false)
+
+  // ADR 0186 D8 / plan 6.7: subject-count helpers, each with its own fixture instead of being
+  // asserted only by the live run.
+  must('countLedgerDataRows counts data rows only', [countLedgerDataRows('| H1 | H2 |\n|---|---|\n| a | b |\n| c | d |\n') === 2 ? '' : 'x'].filter(Boolean), false)
+  must('countLedgerDataRows empty text is zero rows', [countLedgerDataRows('') === 0 ? '' : 'x'].filter(Boolean), false)
+  must('isHandoffFile excludes the README placeholder', [isHandoffFile('README.md') ? 'x' : ''].filter(Boolean), false)
+  must('isHandoffFile includes a handoff', [isHandoffFile('some-branch.md') ? '' : 'x'].filter(Boolean), false)
+  must('isHandoffFile excludes a non-Markdown file', [isHandoffFile('notes.txt') ? 'x' : ''].filter(Boolean), false)
 
   // RETIRED — a citation must red; the same text quoted (code span or fence) must not.
   must('RETIRED bare § Now reds', checkRetired('x.md', 'See § Now for details.\n'), true)
@@ -1439,6 +1632,8 @@ function main() {
     W.push(...fu.warnings)
     fupCount = fupEntriesOf(open).length
   }
+  const archiveText = read(PATHS.fupArchive)
+  if (archiveText != null) F.push(...checkArchiveNoBodyLink(archiveText))
 
   // LESSONS + POSTMORTEMS
   const lessonsText = read(PATHS.lessons)
@@ -1457,9 +1652,7 @@ function main() {
   // HANDOFFS
   const hoFiles = existsSync(join(ROOT, PATHS.handoffsDir))
     ? readdirSync(join(ROOT, PATHS.handoffsDir))
-        // README.md is the directory's placeholder (keeps it in git when empty — ADR 0186 Wave 3),
-        // not a handoff: it carries no branch/expires and its name appears in every README mention.
-        .filter((f) => f.endsWith('.md') && f !== 'README.md')
+        .filter(isHandoffFile)
         .map((f) => {
           const rel = `${PATHS.handoffsDir}/${f}`
           return { name: f, bytes: statSync(join(ROOT, rel)).size, fm: parseFrontmatter(read(rel)).fm }
@@ -1515,6 +1708,10 @@ function main() {
   }
   F.push(...checkRatchets(ratchetCounts))
 
+  // ADR 0186 D8 / plan 6.7: the population the row-grade `complete` check (hubHasLedgerRow)
+  // actually scans, printed on the OK line so a reader doesn't have to re-derive it.
+  const ledgerRowsChecked = countLedgerDataRows(ctx.ledgerText)
+
   for (const w of W) console.log('check-docs-registers: WARN ' + w)
   if (F.length) {
     console.error(`check-docs-registers: ${F.length} finding(s)`)
@@ -1525,7 +1722,10 @@ function main() {
     .map(([name, cap]) => `${name}=${ratchetCounts[name]}/${cap === Infinity ? '∞' : cap}`)
     .join(' ')
   console.log(
-    `check-docs-registers: OK (self-test + ${hubs.length} hubs, ${recordsChecked} records, ${ctx.bugsTable?.rows.length ?? 0} bugs, ${ctx.bugDocFiles.length} bug docs, ${fupCount} follow-ups, ${fupBodyFiles.length} follow-up bodies, ${les.ids.size} lessons, ${hoFiles.length} handoffs, ${retiredFiles.length} md files scanned for retired citations)`,
+    `check-docs-registers: OK (self-test + ${hubs.length} hubs, ${recordsChecked} records, ` +
+      `${ledgerRowsChecked} ledger rows, ${ctx.bugsTable?.rows.length ?? 0} bugs, ${ctx.bugDocFiles.length} bug docs, ` +
+      `${fupCount} follow-ups, ${fupBodyFiles.length} follow-up bodies, ${les.ids.size} lessons, ` +
+      `${pmFiles.length} postmortems, ${hoFiles.length} handoffs, ${retiredFiles.length} md files scanned for retired citations)`,
   )
   console.log(`check-docs-registers: ratchets: ${ratchetsLine}`)
 }

@@ -1,176 +1,29 @@
 # The `npm run lint` gates — why each one exists
 
-> **Rotated verbatim out of CLAUDE.md §8 on 2026-08-29**, links repointed (the transform was
-> verified by its own inverse). CLAUDE.md is loaded by every session and every teammate spawn and
-> was at **40,791 of its 40,960-byte cap** — 169 bytes — so it could no longer absorb a
-> correction. §8 keeps the chain and the rules; this file keeps the rationale.
->
-> ⛔ **`package.json` is the authority on WHAT the chain runs, not this file and not §8.** Each
-> gate below was added after the class it gates shipped a live defect.
->
-> ⚠ **Nothing gates this file.** `lint:rules` covers `.claude/rules/`, `lint:progress` link-checks
-> `docs/progress/` — neither reaches here. If a gate is added, removed or re-scoped, this file can
-> go stale with nothing able to contradict it. Re-derive from `package.json` and the script
-> headers (every one carries its own, 1.5–5 KB each) before trusting a claim below.
+> Rotated out of CLAUDE.md §8 on 2026-08-29, rewritten per ADR 0186 D8 on 2026-09-03. `package.json`'s `lint` script is the sole authority on what runs, in what order, with what flags — this file carries rationale and the trap in reading each gate's output, one paragraph per gate, never a check list. Every gate below, the base linter's own scope and policy included, was locked down only after the defect class it now catches had already shipped live. Most self-test their own checkers against a bad and a good fixture on every invocation and refuse outright (exit 2) if a checker cannot fail on the bad one: `lint:client-server-imports`, `lint:progress`, `lint:rules`, `lint:adr-index`, `lint:mojibake`, `lint:service-role-registry` and `lint:registers` all do this; `lint:vacuous` and `lint:set-local` run the same shape but exit 1, not 2; `lint:css-vars` and `lint:memberships-door` carry no self-test; `lint:authz-vectors`'s self-test is a separate, opt-in invocation the gate never runs for you — its own trap, below. Nothing gates this file: verify a claim here against `package.json` and the script's own header before trusting it.
 
-  - `lint:css-vars` (`check-tailwind-css-vars.mjs`) — the Tailwind-v4 bare `[--var]` form, which
-    compiles to dead CSS; added after it shipped nine dead motion utilities.
-  - `lint:memberships-door` (`check-memberships-door.mjs`) — direct `memberships` reads that
-    bypass the `has_role` doors.
-  - `lint:client-server-imports` (`check-client-server-imports.mjs`) — a client value-import from
-    a server query module, which **aborts `next build`** while tsc/lint/vitest stay green.
-  - `lint:vacuous` (`check-vacuous-assertions.mjs`) — a test that can go GREEN having asserted
-    nothing. Record: [docs/reviews/vacuous-assertion-audit.md](reviews/vacuous-assertion-audit.md).
-  - `lint:set-local` (`check-migration-set-local.mjs`) — a top-level `set local` in a migration,
-    which is a **silent no-op** outside a transaction (Postgres warns `25P01` and continues) and so
-    passes every local gate; where it wraps a data-dependent backfill a fresh reset matches zero rows
-    and hides it. Bounded by a **watermark, not an allowlist** — ⛔ **the watermark grandfathers the 12
-    pre-existing files and must NOT be bumped on a `db push`**, or it grandfathers the files you just
-    wrote and flips the rot direction from stricter to weaker. Rationale + the 3-layer positive
-    control: the script header and `FUP-DM5-SETLOCAL-MIGRATION`.
-  - `lint:progress` (`check-progress-doc.mjs`) — the PROGRESS.md live-state contract (§7): size
-    (**20 KB target / 30 KB hard since ADR 0185 D6**; 80 / 100 before), the two required sections
-    (§ Phase Status, § State) present and the **seven retired sections absent** (`§ Now`, `§ Bug Log`,
-    `§ Critical FUP`, `§ Follow-ups`, `§ Decisions`, `§ Test Run Summary`, `§ QA Verdicts` — the first heading
-    back reds, because a cut section regrows one line at a time), no completed phase rows, link
-    integrity, LF — plus, since ADR 0140: **CLAUDE.md's 40 KB cap** (never raised to pass; rotate
-    content out instead) and a **registry-free link sweep of all `docs/progress/`, `docs/followups/`
-    and `docs/bugs/`** (new files covered on creation). ⭐ **Since ADR 0179 the follow-up half checks
-    the REGISTER, not an index** — `docs/followups/follow-ups-open.md` is self-indexing, one entry
-    carries everything — so it asserts: (a) no RESOLVED entry left in the register, (b) no duplicate
-    id within it, (c) no id held by both the register and `follow-ups-archive.md`. ⛔ Three checks
-    were **retired with their subjects**: "`§ Follow-ups` must not re-grow an index" and "a
-    `§ Critical FUP` row must have a register entry" (ADR 0185 — both sections are now forbidden in
-    PROGRESS.md, so kept they would pass VACUOUSLY; the Critical orphan check lives in
-    `lint:registers` against the pin at the top of the register), and "an id entered in both the
-    register and `deferred-backlog.md`" (ADR 0186 D4 — that file is deleted, merged into the
-    register as `**Status:** parked` entries, so a comparison against it would pass vacuously too).
-    The FIELDS on an entry (Filed · Owner · Severity · Closes when · Status · Revisit when · Body)
-    are `lint:registers`' job, not this gate's. Every prior version of the contract lived in
-    prose and each clause was violated while green; the script self-red-proves every checker on
-    each run.
-  - `lint:rules` (`check-rules-staleness.mjs`) — a `.claude/rules/` rule that has gone stale.
-    Standing rules have **no resolution event**, and path-scoped they are **invisible until they
-    fire**, so a rule describing a renamed symbol loads and is believed forever with nothing able
-    to contradict it. Keystone: **a rule whose own `paths:` glob matches zero files is orphaned.**
-    Every rule must also declare checkable `anchors:` — which makes "can this be shown stale?" a
-    precondition for admitting a rule. ⚠ Anchors cap what is **admissible**, NOT how many rules
-    accumulate, and path-scoping bounds **when** a rule loads, not **how many** load together —
-    so volume has its own bounds: ≤ 40 files matched per rule (waivable only by declaring
-    `broad: <reason>`), ≤ 2 KB per rule, ≤ 12 rules. The first population had one rule matching
-    **659** files; it was retired (ADR 0127 Amdt 1).
-    ⚠ Bounded, stated: DB anchors (`prosecdef`, ACLs, policies) are **not** checkable in `lint` —
-    those belong in pgTAP. Retirement → `docs/progress/rules-archive.md`, never deletion.
-  - `lint:adr-index` (`build-adr-index.mjs`) — a stale `docs/decisions/INDEX.md`, a stale
-    `<!-- adr-backpointers -->` banner inside an amended ADR, two ADRs sharing a number, or an
-    ADR citing a number that has no file. Both artefacts are **generated** (`npm run adr:index`)
-    and byte-compared, so neither can drift. What they carry is the **inverse** edge — "0033 was
-    amended by 0038" — the one fact an ADR cannot record about itself, being written later, by
-    someone else, elsewhere. Measured 2026-08-24 across 136 ADRs: 42 source→target pairs over
-    **30 amended ADRs**, only **5** of which had a back-pointer anyone had written by hand; a
-    session opening 0033 read a superseded rule with nothing in the file able to contradict it.
-    ⚠ **The gate cannot detect a MISSING `Amends:` label** — no gate can, because an undeclared
-    amendment leaves no trace; a human checks it at the Record step (lead-playbook §4). A
-    **declared-but-malformed** label IS caught: a colon-less `**Amends**` is invisible to the
-    parser and now a **blocking** finding — 4 were live when the detector first ran (ADR 0140).
-    Gate 9 also reds on a stale proposed-ADR review stamp (`proposed-review.json`, 30-day cadence). ⚠ **Voice
-    is direction:** `**Amends:**` claims *this ADR changes another*; `**Amended:**` records that
-    *this one was changed* and is deliberately not an edge — conflating them inverts the arrow,
-    which it did until fixed. The index also states the **next free ADR number**: take it from
-    there, never by eyeballing the directory (two sessions eyeballing it both filed an "ADR 0050").
-  - `lint:mojibake` (`check-mojibake.mjs`) — **double-encoded UTF-8**: a tool read a file as
-    cp1252 and re-saved it, so `⬛` (`E2 AC 9B`) became `â`+`¬`+`›` — permanently, and it **COMPOUNDS**
-    per repeat. The file stays **valid UTF-8**, so there is no bad byte to find. Found **2,059
-    lines / 3 files**, all pre-existing, none detectable by any gate. ⛔ Not cosmetic: a grep for
-    `✅` misses every affected line, so **recorded work reads as absent**. ⚠ **A pattern match is
-    a CANDIDATE, not a finding** — `por quê…` is valid pt-BR of the same shape (2 live in
-    `src/components`); the discriminator is that real mojibake **decodes back**. On Windows the
-    vector is a shell round-trip (`sed -i`, `>` through a cp1252 console) — edit these files with
-    explicit UTF-8. ADR 0143.
-  - `lint:service-role-registry` (`check-service-role-registry.mjs`) — the AE1.4 service-role DML
-    registry drifting from what the census actually derives. ⚠ **The census alone is not the
-    truth**: it detects *member* calls (`client.rpc(…)`), so the free function `callDoor(admin,
-    'name', …)` is invisible to it — one placeholder row stood in for **five** real service-role
-    door calls, and a registry written to match that number would have greened over all five. The
-    gate re-derives those from the TS AST and compares as a **multiset** (one door legitimately
-    appears twice), so a deleted duplicate reds even though the count still matches.
-  - `lint:authz-vectors` (`gen-authz-matrix-cells.mjs --check`) — the AE4.5 authorization-matrix
-    cell enumeration drifting from the axes JSON it is generated from. Same shape as gate 9
-    (`build-adr-index.mjs --check`): a generated artifact whose source and output must agree.
-    Added because the AE1.3 precedent it copies (`gen-person-scope-vectors.mjs`) has its `--check`
-    wired into **no gate at all** — its only drift protection is a vitest sha assertion, and AE4
-    Increment 1 ships no vitest twin, so without this gate the generated `.psql` would be
-    uncovered entirely. ADR 0172.
-    ⚠ **THE TRAP: green here does NOT mean coverage was verified.** `--check` proves the emitted
-    `.psql` and coverage JSON match the axes JSON — a *drift* check. The generator also carries
-    **coverage arms** ("every catalog permission has a test mapping", "every non-legacy role has an
-    approved matrix"), and in AE4 Increment 1 both range over an **empty set**: the catalog holds
-    zero permissions and every role is `legacy`. So the arms pass having checked nothing, and the
-    reassuring `in sync (N cells, M skipped)` line says nothing about them. The discharge is
-    `node scripts/gen-authz-matrix-cells.mjs --self-test`, which feeds synthetic inputs where each
-    arm HAS a subject and asserts the gate exits 1 — **it is not part of `--check`**, so run it
-    when you change the coverage logic. Its own fourth arm was **vacuous on first writing** (it
-    named a condition the constraint rules made unreachable, so it reported NOT CAUGHT) — the
-    self-test caught its own bad arm, which is the only reason it is trustworthy now.
-    ⚠ The JSON↔database half is **not** this gate's job: `authz.roles` matching the axes file's
-    role list is asserted by **pgTAP 401 §12**, because a Node script cannot reach the DB at lint
-    time. Neither half alone closes the loop.
-  - `lint:registers` (`check-docs-registers.mjs` + `build-features-index.mjs --check`) — the
-    **ADR 0185** documentation registers: feature hubs (`docs/features/`, the only projection of
-    hub frontmatter since ADR 0186 D1), `BUGS.md`, `LESSONS.md`, postmortems, the follow-up
-    register's **fields**, the handoff convention (24 KB ·
-    `branch:` or `expires:` · no inbound citations) and `docs/INDEX.md`'s coverage of `docs/`.
-    Added because
-    **every register in this tree that lacked a gate rotted** (ADR 0124 / 0127 / 0140 / 0179 each
-    record one), and 0185 adds five. Its admission rule is the gate's reason to exist: no register
-    or field ships without a check that can red on it; a claim no gate reads is labeled
-    `prose only` where it stands. Self-tests every checker against a bad AND a good fixture on
-    every run — a checker that cannot red aborts (exit 2).
-    ⚠ **ADR 0186 D3 (one summary, one log per unit) widened the HUBS arm**: an `in_progress` or
-    `gated` hub's `progress:` must now resolve to a record carrying a `## Session log` heading
-    whose `### YYYY-MM-DD` subsections are non-decreasing in file order, append-only enforced
-    mechanically rather than asked for. The same decision widened the HANDOFFS arm: frontmatter
-    must carry `branch:` or `expires:` (neither present reds), and a present `expires:` must be an
-    ISO date that is not already in the past, read against the wall clock the way gate 9's
-    proposed-review timer is.
-    ⚠ **THE TRAP: this gate checks PRESENCE and RESOLUTION, not truth.** It knows a
-    `Closes when` exists, not that it is right; that an `Enforced by:` path exists, not that the
-    file asserts the rule it is attached to; that a Current-state block has six sections and a
-    recent `Updated` date, not that it is honest. `PO to rule` is a legal value and is COUNTED as
-    a warning on every run — an invented value is invisible to it. Truth is a review question.
-    ⚠ **A BUGS.md `Doc` link to `archive.md#<slug>` (plan 5.7's pre-2026-07 bodies) is exempt from
-    the Root-cause/Regression-protection completeness check that applies to a per-ID
-    `docs/bugs/BUG-*.md`** — archive.md is free-form history with no such headings anywhere — and
-    instead the `#<slug>` fragment is checked against every heading in archive.md, GitHub-slugged;
-    any other Doc form reds as unrecognized.
-    ⚠ **ADR 0186 D4 turned the follow-up register from a set of fields into a shaped index**: an
-    entry over 20 lines, a nested `##`/`####` heading, or a surviving `**Register line**` paragraph
-    now reds outright; `**Owner:**` must draw from a closed vocabulary joined by `' + '` in a fixed
-    order; every entry needs a `**Status:**` of `open` or `parked`, `parked` needs a non-empty
-    `**Revisit when:**`, and the old bare `**Parked**` marker with no matching `**Status:**` is
-    itself a finding now; a `**Body:**` link is cross-checked both ways against
-    `docs/followups/FUP-*.md` so an orphan file and a dangling link both red; and each `## ⭐⭐
-    Critical` pin data row is capped at 300 chars, the gate-7 per-cell idea applied to the whole
-    row. ⚠ **ADR 0186 D6 turns
-    every count this gate used to print as a bare warning into a named RATCHET** (`Closes when: PO
-    to rule`, `Severity: … per emoji at consolidation`, legacy `unrated`, a long verbatim heading,
-    BUGS `untriaged`/`unrated`, LESSONS `prose only`) — each is a constant in `RATCHETS` that may
-    only be LOWERED, printed on every OK line as `name=live/cap`, starting at `∞` until the data
-    that made these counts honest has landed and the constants are set to match.
-    ⚠ **`CODE_WATERMARK` (2026-09-04) grandfathers the 72 / 123 legacy id prefixes** — the same
-    shape as `lint:set-local`'s watermark, with the same rule: never bump it to pass.
-  - `lint:registers`' **RETIRED** arm (ADR 0186 D8) — a citation of a PROGRESS.md section ADR
-    0185 D6 retired, left standing in a living Markdown file. Added because the day after 0185
-    shipped, 36 living files still cited a retired section — three of the four live hubs
-    included — and nothing could contradict a stale pointer once written. ⚠ **THE TRAP: a
-    quotation is not a citation.** `§ Now` inside a fenced block or an inline code span is
-    someone showing the old heading text, not telling a reader to go there, so the arm blanks
-    both (spaces of equal length, so line numbers still land true) before matching — a naive
-    grep over the raw text would red on every example in this very file. ⚠ **CLAUDE.md is
-    excluded from the domain until ADR 0186 Wave 4**, when its two citations are removed by a
-    PO-approved diff (CLAUDE.md §5 "always ask") rather than by this gate. To fix a finding,
-    point at where the content actually lives now: the unit's hub for live state, the retired
-    `§ Now` prose in `docs/progress/2026-Q3.md`, bugs in `docs/bugs/BUGS.md`, the pinned Critical
-    list in `docs/followups/follow-ups-open.md`, decisions in `docs/decisions/INDEX.md`, and
-    test-run / QA-verdict history in `docs/progress/test-run-archive.md` /
-    `docs/progress/qa-verdicts-archive.md`.
+- **`eslint --max-warnings=0`** — restores a meaningful base lint after the whole-tree config drifted into linting compiled build output inside agent-team worktrees, burying real findings under noise nobody could act on (ADR 0067). Trap: scope is first-party source only (`src/`, `e2e/`, `*.test.*`) — `.claude/` is permanently excluded, so a red is always application code, and one warning fails the gate exactly like an error. When it reds: fix the finding, prefix an intentionally-unused binding with `_`; never widen scope or relax the threshold to get green.
+
+- **`lint:css-vars`** (`check-tailwind-css-vars.mjs`) — Tailwind v4 dropped the shorthand that turned a bare `[--var]` arbitrary value into a `var()` wrap, so the class now compiles to invalid CSS the browser silently drops, invisible to tsc and to a diff review alike; it has shipped as dead motion utilities and once as a menu running off-screen with no way to reach it. Trap: it scans `e2e/` too, because Tailwind v4 mines it as source, so a class literal inside a comment still mints a dead selector into the bundle. When it reds: rewrite to the `(--x)` or `[var(--x)]` form; don't ignore the file.
+
+- **`lint:memberships-door`** (`check-memberships-door.mjs`) — application code must never write `memberships` or `hospital_affiliations` directly; every grant/revoke goes through a door RPC, because a raw insert/update/delete produces a row indistinguishable from a door-written one, and review does not scale to catching that forever — it already got through once. Trap: it matches the DML verb right after `.from('<table>')`, so `.select()` on the same table is deliberately allowed, not a blind spot — actions often must read what a principal holds before asking the door for anything. When it reds: replace the raw write with the door RPC; never widen the ACL instead.
+
+- **`lint:client-server-imports`** (`check-client-server-imports.mjs --gate`) — a Client Component value-importing from a `server-only` module drags server code into the browser bundle and aborts `next build`, invisible to tsc, eslint and vitest alike because types erase and values don't; it has shipped twice. Trap: a `'use server'` module deliberately terminates the traversal (Server Actions are an RPC seam, not a bundling boundary), and comments are stripped before matching, because more than one module here warns about this exact bug in prose containing the words the detector looks for. When it reds: move the shared value behind a server boundary or split the module; don't just rerun `next build` and assume tsc would have caught it.
+
+- **`lint:vacuous`** (`check-vacuous-assertions.mjs --gate`) — a test whose every assertion sits inside a conditional can finish having asserted nothing and reports the same green as a test that checked the real thing; nothing else in the chain can tell the two apart. Trap: the property enforced is only that some assertion runs unconditionally, not that the test is strong — green is a floor, not a coverage verdict — and the detector self-tests first, so a run that never reaches the real scan is a broken detector, not a clean file. When it reds: move or duplicate the assertion outside the conditional; don't delete the branch to silence it.
+
+- **`lint:set-local`** (`check-migration-set-local.mjs`) — a top-level `SET LOCAL` in a migration has no effect outside a transaction; Postgres only warns and continues, so it passes every local gate while silently no-op'ing a guard meant to protect a data-dependent backfill, invisible on a fresh local reset because the backfill matches nothing there. Trap: the boundary is a watermark, never an allowlist, and must never be advanced — bumping it after a push grandfathers the migration you just wrote instead of the ones already applied, flipping the gate from stricter over time to weaker. When it reds: wrap the GUC and its statements in one `do $$ … $$` block or an explicit `begin`/`commit`; never advance the watermark to pass.
+
+- **`lint:progress`** (`check-progress-doc.mjs`) — PROGRESS.md loads on every session and teammate spawn, and every rule that once kept it small and true lived only in prose; attention lost every time — its own size banner went stale about its own size, a rotation once nearly destroyed follow-up entries whose index lines had no bodies, completed-phase rows kept being paid for by every spawn long after the phase closed. Trap: the size band only warns, so a warning on an otherwise-clean run is not a red; gate 7 and gate 13 now share one link-checking implementation (7 imports it from 13) rather than duplicating it, so a fixture that fools one fools both identically — by design. When it reds: cut the content to its real home (a hub's current-state block, the bug table, the follow-up register, the ADR index) in the same edit; never widen the cap or restore a cut heading.
+
+- **`lint:rules`** (`check-rules-staleness.mjs`) — a standing rule in `.claude/rules/` has no resolution event, so a rule describing a renamed or deleted symbol loads forever with nothing able to contradict it; the keystone is a rule's own `paths:` glob matching zero files, since that glob already exists for loading and costs nothing extra as a staleness probe. Trap: a red because an `anchors:` literal moved is the gate working, not a false positive — fix the rule's text, never loosen the anchor; a `broad:`/`source:` value written as a YAML folded scalar is now parsed correctly rather than read as the literal `>-`/`>` marker, and seeing that marker as the value is itself a red; a repo with no `.claude/rules/` directory reds too, rather than passing vacuously. When it reds: repoint the anchor or retire the rule verbatim to `docs/progress/rules-archive.md`; never delete it outright, never widen `paths:` past its volume bound to dodge the orphan check.
+
+- **`lint:adr-index`** (`build-adr-index.mjs --check`) — the back-pointer from an amended ADR to the one that amended it is the one fact an ADR cannot record about itself, being written later, by someone else, in a different file; measured once (2026-08-24) that almost none of this tree's amended ADRs carried one by hand, so a session opening the amended one read a superseded rule with nothing able to contradict it. Trap: it also carries a 30-day review timer on a proposed ADR, and that arm reds on the calendar alone, no file touched, once overdue — a nudge to do the review, not a drift bug; a missing `**Amends:**` label is invisible to every gate, only a malformed one (no colon) is caught. When it reds: run `npm run adr:index` after fixing the label, or do the review; never hand-edit `INDEX.md` or backdate the stamp to silence the timer.
+
+- **`lint:mojibake`** (`check-mojibake.mjs`) — a tool that reads UTF-8 as cp1252 and saves it back re-encodes a multi-byte character into several separate, still-valid UTF-8 characters, and the damage compounds on every repeat; the file stays valid UTF-8 throughout, so there is no bad byte to find and no other gate notices — a grep for the original character misses every affected line, so recorded work reads as if it never happened. Found live 2026-08-24, all pre-existing. Trap: a lead-then-continuation-byte shape is only a candidate — ordinary accented pt-BR text can match it by coincidence — so the real test is that genuine mojibake decodes back to its original character and coincidence doesn't; on Windows the usual vector is a shell round-trip through a cp1252 console. When it reds: re-save the file as UTF-8 with the Edit tool, not a shell redirect.
+
+- **`lint:service-role-registry`** (`check-service-role-registry.mjs`) — the registry documenting every service-role write in `docs/backend-state.md` used to be hand-maintained prose and drifted from the code within a single commit once real writes moved behind a door. Trap: comparison is a multiset, not a set, so a legitimately-duplicated call site (one door called twice for two grants) must appear twice in the registry too — collapsing it to one row reds even though the lists look equal at a glance; the plain call census also undercounts because it only sees a shared wrapper's own inner call, so this script expands that placeholder into the real sites and checks the substitution both ways. When it reds: update the row for the sites that actually changed, keeping duplicates duplicated; never delete a row just to make the count match.
+
+- **`lint:authz-vectors`** (`gen-authz-matrix-cells.mjs --check && gen-authz-differential-cells.py --check`) — the authorization-matrix cells and the differential-oracle cells are both generated from one axes file, and an earlier sibling generator of the same shape had its drift check wired into no gate at all; this closes that gap for both together. THE TRAP, load-bearing: a green `--check` proves only that the generated files still match the axes file — it says nothing about whether the generator's own coverage arms (every catalog permission has a test mapping, every non-legacy role has an approved matrix) exercised anything, because those arms can range over an empty set and pass having checked nothing. Discharging that needs each generator's own `--self-test`, which the gate never runs for you. When it reds: regenerate with the write form after fixing the axes file or the generator, and run `--self-test` yourself whenever the coverage logic changes; the JSON-to-database half of the loop is a pgTAP suite's job, not this gate's.
+
+- **`lint:registers`** (`check-docs-registers.mjs && build-features-index.mjs --check`) — every documentation register in this tree that shipped without a gate rotted, so this is that admission rule made concrete: no register or field exists without a check that can red on it, across feature hubs, the bug table, the lessons table, postmortems, the follow-up register and the handoff convention. The `complete` cross-check on a hub is row-grade: a real ledger row, or a review whose verdict line actually reads APPROVED — "NOT APPROVED" and "CHANGES REQUESTED" both red rather than matching on the word "Verdict" alone. THE TRAP: this gate checks presence and resolution, never truth — it knows a closing condition exists, not that it is right, and `PO to rule` is a legal, counted value, not an invisible one; several of its counts (`PO to rule`, `unrated`, `untriaged`, a duplicated register-line paragraph) are ratchets that may only be lowered, so they print on every clean run and are not themselves a red — a rising ratchet on an otherwise-clean run is the thing to chase, and each arm's printed subject count is how you tell it exercised something real rather than an empty population. Its RETIRED arm reds on a living file's citation of a PROGRESS.md section this tree already cut; a code-span or fenced quotation of the old heading is not a citation and is deliberately excluded. (The old CURRENT.md cross-check and the deferred-backlog id comparison were both retired with the files they checked, not weakened — that's why they're gone if you go looking.) When it reds: point the stale reference at the section's real home, add the missing field, or lower a ratchet you've earned; never raise a ratchet's cap to match a rising count.

@@ -41,33 +41,18 @@
  *   3. PHASES    — no row in § Phase Status has "complet…" in its Status cell. A
  *                  completed row's home is docs/progress/phase-ledger.md; the row
  *                  moves there VERBATIM in the same change that would make this red.
- *   4. REGISTER  — ADR 0179 folded the § Follow-ups one-line index INTO the bodies, so
- *                  the OPEN register is ONE file (docs/followups/follow-ups-open.md — moved
- *                  out of docs/progress/ by ADR 0185 D5; REGISTER_DIR is the one place that
- *                  knows) and an item is ONE `### ` entry. The properties below replace the
- *                  two that the merge would have left VACUOUSLY GREEN rather than red; the
- *                  FIELDS on each entry (Filed · Owner · Severity · Closes when · Status ·
- *                  Revisit when · Body) are lint:registers' job, not this gate's:
+ *   4. REGISTER  — ADR 0179 folded the § Follow-ups one-line index INTO the bodies, so the
+ *                  OPEN register is ONE file (docs/followups/follow-ups-open.md — moved out
+ *                  of docs/progress/ by ADR 0185 D5; REGISTER_DIR is the one place that
+ *                  knows) and an item is ONE `### ` entry. The FIELDS on each entry (Filed ·
+ *                  Owner · Severity · Closes when · Status · Revisit when · Body) are
+ *                  lint:registers' job, not this gate's; this gate keeps two properties a
+ *                  merged register needs that its split predecessor didn't:
  *                    a. no RESOLVED entry left in the open register — opt-out only via
  *                       an explicit, ENTRY-SCOPED `**Retained**` line, so the exemption
  *                       is readable where it applies instead of allowlisted in here;
  *                    b. no duplicate id, and no id with an entry in BOTH the register
- *                       and follow-ups-archive.md (open-vs-resolved answered both ways);
- *                    c. RETIRED by ADR 0185 D6 — § Follow-ups itself may no longer exist in
- *                       PROGRESS.md (SECTIONS forbids the heading), so "must not re-grow an
- *                       index" has no section to check; a check kept against an absent
- *                       section passes vacuously, which is the shape this file refuses.
- *                       History: that section was 125 lines / 51 KB (53 % of the file);
- *                    d. RETIRED by ADR 0185 D5 — § Critical FUP moved INTO the register as a
- *                       pinned section; its orphan check lives in lint:registers
- *                       (criticalIdsOf). Same vacuity argument as c;
- *                    e. RETIRED by ADR 0186 D4 — deferred-backlog.md is DELETED, merged into
- *                       the register as `**Status:** parked` entries, so "an id entered in
- *                       both the register and the backlog" has no second file to compare
- *                       against; checkDoubleRegistration and its indexEntryRe helper retired
- *                       with it (a `**Status:** parked` entry with no Revisit when is now
- *                       lint:registers' job, same file, one register). Same vacuity argument
- *                       as c and d — a comparison against a deleted file passes vacuously.
+ *                       and follow-ups-archive.md (open-vs-resolved answered both ways).
  *                  Bounded property, unchanged: ids matching FUP-[A-Z0-9-]+ only;
  *                  legacy un-prefixed items (e.g. "AUTHZ Gate-2 MINOR-1") are outside
  *                  the domain. Partial states (HALF / PARTIALLY / PO-RULED) are OPEN.
@@ -102,8 +87,9 @@
  *   node scripts/check-progress-doc.mjs [--self-test]   (--self-test: fixtures only)
  */
 import { readFileSync, existsSync, statSync, readdirSync } from 'node:fs'
-import { join, dirname, resolve } from 'node:path'
+import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { checkLinks, RESOLVED_HEADING_RX } from './check-docs-registers.mjs'
 
 const ROOT = process.cwd()
 const SIZE_TARGET = 20 * 1024 // ADR 0185 D6 (was 80 KB, ADR 0124 Amdt 3)
@@ -275,29 +261,13 @@ export function checkPhaseRows(text) {
 }
 
 /**
- * ⛔ RESOLVED_LINE (`/^- (⬛|.*✅ ?\*{0,2}(RESOLVED|CLOSED)\b)/u`) lived here and matched a
- * BULLET. ADR 0179 left no bullets to match, so it was replaced by RESOLVED_HEADING rather
- * than retargeted — a bullet regex pointed at a file of headings is not a stricter check, it
- * is a check that never fires.
- */
-
-/**
  * An entry heading in the OPEN register (REGISTER_DIR/follow-ups-open.md). ADR 0179 merged
  * the one-line index that lived in PROGRESS.md § Follow-ups INTO the bodies, so an item is
  * now ONE `### ` entry and the headings ARE the index.
  */
 const REGISTER_ENTRY = /^### (.*?(FUP-[A-Z0-9-]+).*)$/gmu
-const RESOLVED_HEADING = /⬛|✅ ?\*{0,2}(RESOLVED|CLOSED)\b/u
 /** The opt-out for a resolved entry deliberately kept as a review lens — must be EXPLICIT. */
 const RETAINED = /\*\*Retained\*\*|body deliberately STAYS/u
-
-/**
- * ⛔ RETIRED (ADR 0185 D6): checkNoIndexInProgress asked whether PROGRESS.md § Follow-ups had
- * re-grown an index line. That section may no longer EXIST (FORBIDDEN_SECTIONS), so the check
- * would have passed vacuously on every run — the shape this file exists to refuse — and its
- * concern is now the stricter one: the heading itself reds. Retired with its self-tests rather
- * than retargeted, the same way RESOLVED_LINE was.
- */
 
 /**
  * A RESOLVED entry left in the OPEN register. Succeeds checkFupIndex, which asked the same
@@ -314,7 +284,7 @@ export function checkRegisterResolved(registerText) {
   lines.forEach((line, i) => {
     if (!line.startsWith('### ')) return
     const id = /FUP-[A-Z0-9-]+/u.exec(line)
-    if (!id || !RESOLVED_HEADING.test(line)) return
+    if (!id || !RESOLVED_HEADING_RX.test(line)) return
     // the entry body runs to the next `### ` heading
     let j = i + 1
     while (j < lines.length && !lines[j].startsWith('### ')) j++
@@ -366,22 +336,6 @@ export function checkRegisterIntegrity(registerText, archiveText) {
   }
   return out
 }
-
-/**
- * ⛔ RETIRED (ADR 0185 D5): checkCriticalRowsHaveEntries asked whether a PROGRESS.md § Critical
- * FUP row pointed at a register entry. The section moved INTO the register as a pinned
- * `## ⭐⭐ Critical` block, so the same question — a Critical id with no entry — is asked there by
- * lint:registers (criticalIdsOf + CRITICAL_PIN_REQUIRED). Kept here it would pass vacuously on a
- * section FORBIDDEN_SECTIONS forbids. Retired with its self-tests, criticalRowRe with it.
- *
- * ⛔ RETIRED (ADR 0186 D4): `indexEntryRe` and `checkDoubleRegistration` asked whether a FUP id
- * was entered in BOTH the register and `deferred-backlog.md` — a WARNING, bounded on purpose,
- * because parked-vs-actionable was a judgement this script could not make. That second file is
- * DELETED: every parked item merged into the register as its own `**Status:** parked` entry
- * (with `**Revisit when:**`, lint:registers' job now, same file). A comparison against a file
- * that no longer exists passes vacuously — the exact shape this file exists to refuse — so both
- * are retired with their self-tests rather than retargeted, the same way RESOLVED_LINE was.
- */
 
 /** `[line, lineNo]` for every line inside a CAPPED_SECTIONS section (headings excluded). */
 function cappedLines(text) {
@@ -452,40 +406,9 @@ export function checkBulletLength(text) {
   return out
 }
 
-/** Alphanumeric-only form of a heading, for anchor comparison that emoji can't break. */
-const anchorKey = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '')
-
-export function checkLinks(file, text, fileExists) {
-  const out = []
-  const headings = [...text.matchAll(/^#{1,6} +(.+)$/gm)].map((m) => anchorKey(m[1]))
-  const linkRe = /\]\(([^)\s]+)\)/g
-  const lines = text.split('\n')
-  lines.forEach((rawLine, i) => {
-    // Blank out inline code spans, preserving offsets: a `](docs/x.md)` inside backticks
-    // is prose ABOUT a link, not a link. follow-ups.md documents this very defect class
-    // in a code span, and without this it reds on its own explanation of the rule.
-    // BOUNDED: inline spans only — fenced blocks are not tracked here.
-    const line = rawLine.replace(/`[^`]*`/g, (m) => ' '.repeat(m.length))
-    for (const m of line.matchAll(linkRe)) {
-      const target = m[1]
-      if (/^(https?:|mailto:|data:)/.test(target)) continue
-      if (target.startsWith('#')) {
-        const key = anchorKey(decodeURIComponent(target.slice(1)))
-        if (key && !headings.some((h) => h.includes(key) || key.includes(h))) {
-          out.push(`${file}:${i + 1} — in-file anchor does not match any heading: ${target}`)
-        }
-        continue
-      }
-      const path = target.split('#')[0]
-      if (!path.endsWith('.md') && !/\.[a-z]{2,4}$/.test(path)) continue // not a file link
-      const rel = join(dirname(file), path)
-      if (!fileExists(rel)) {
-        out.push(`${file}:${i + 1} — broken relative link: ${target}`)
-      }
-    }
-  })
-  return out
-}
+// checkLinks lives in check-docs-registers.mjs (imported above) — ADR 0186 D8 / plan 6.3
+// unified it with gate 13's copy so the two gates run one link checker, not two that could
+// disagree.
 
 export function checkEol(file, buf) {
   return buf.includes('\r')
@@ -528,10 +451,8 @@ function selfTest() {
   expectRed('claude-size', checkClaudeSize(CLAUDE_SIZE_CAP + 1))
   expectGreen('claude-size-green', checkClaudeSize(CLAUDE_SIZE_CAP))
 
-  // ── ADR 0185 D6: the cut sections may not come back ─────────────────────────────────
-  // Asserted before anything else here: the first heading back reds, and a clean file with
-  // the two required sections is green. (ADR 0179's "no index line back in § Follow-ups"
-  // test lived here; the section itself is forbidden now, so the check and its tests retired.)
+  // ADR 0185 D6: the cut sections may not come back — the first heading back reds; a clean
+  // file with the two required sections stays green.
   for (const heading of ['## Now — x', '## Bug Log', '## ⭐⭐ Critical FUP — y', '## Follow-ups / Deferred', '## Decisions', '## Test Run Summary', '## QA Verdicts']) {
     expectRed(`forbidden-section:${heading}`, checkForbiddenSections(`# P\n\n${heading}\n\nbody\n`))
   }
@@ -586,11 +507,6 @@ function selfTest() {
     checkRegisterIntegrity('### 🟡 FUP-OK-1 — open\n', '### ⬛ FUP-OTHER-1 — archived\n'),
   )
 
-  // (Double-registration-vs-backlog and the § Critical FUP orphan test lived here. Both are
-  // retired: deferred-backlog.md is deleted (ADR 0186 D4 — merged into the register as
-  // `**Status:** parked` entries) and § Critical FUP moved into the register (ADR 0185 D5).
-  // lint:registers asserts both questions now, with its own fixtures.)
-
   expectRed('sections', checkSections('# empty file\n'))
 
   const phaseFixture =
@@ -600,15 +516,6 @@ function selfTest() {
     'phase-open-green',
     checkPhaseRows('## Phase Status\n| P | N | S | B |\n| - | - | - | - |\n| 9 | Deploy | 🔜 not started | – |\n'),
   )
-
-  // ⛔ The retired checkFupIndex / checkFupBodies self-tests lived here. Both asked their
-  // question of PROGRESS.md index lines that ADR 0179 removed, so BOTH would have passed
-  // vacuously rather than failed — the exact shape this file exists to refuse. ADR 0185 then
-  // retired checkNoIndexInProgress and checkCriticalRowsHaveEntries for the same reason (their
-  // sections are FORBIDDEN now); ADR 0186 D4 retired checkDoubleRegistration/indexEntryRe the
-  // same way (deferred-backlog.md, their subject, is deleted). The survivors
-  // (checkRegisterResolved, checkRegisterIntegrity) and the successor (checkForbiddenSections)
-  // are asserted above.
 
   const cell = (body) => `## Phase Status\n| 2026-01-01 | ${body} | ref |\n`
   expectRed('cell-long', checkCellShape(cell('x'.repeat(MAX_CELL + 1))))
