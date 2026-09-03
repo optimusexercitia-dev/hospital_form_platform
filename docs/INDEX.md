@@ -41,13 +41,33 @@ describe why we arrived there; **git** describes what changed.
 | [`learning/`](learning/LESSONS.md) | `LESSONS.md` (one row per lesson, with its **enforcer**) and `postmortems/` for failures that earn a file. ADR 0185 D7 | knowledge |
 | [`lint-gates.md`](lint-gates.md) | why each `npm run lint` gate exists, and the trap in reading each | reference |
 | [`phases/`](phases/) | phase specs + acceptance criteria for the accreditation track (13–21) and other multi-phase tracks | plan |
-| [`planning/`](planning/CURRENT.md) | retired stub (ADR 0186 D1) — deleted in Wave 4; the live list is `features/INDEX.md` | tracker |
 | [`plans/`](plans/) | feature plans and build notes (approach, not status) | plan |
 | [`progress/`](progress/) | phase and program records, and the archives (`phase-ledger.md`, the quarterly archives of the retired Now section, `decisions-log.md`, `test-run-archive.md`, `qa-verdicts-archive.md`). The follow-up register and the bug archive left for `followups/` and `bugs/` on 2026-09-03 | tracker / historical |
 | [`quality-track-context.md`](quality-track-context.md) | orientation for the accreditation track — read first when working in phases 13–21 | reference |
 | [`reviews/`](reviews/) | QA and gate reviews, `<subject>-review.md`, verdict `APPROVED` / `CHANGES REQUESTED` | historical |
 | [`testing/`](testing/) | E2E gate mechanics (`e2e-prod-build-gate.md`) | reference |
 | [`worktrees.md`](worktrees.md) | parallel sessions on this repo; `scripts/worktree-setup.sh` | process |
+
+## Where a line belongs
+
+The one table (ADR 0186 D5; the mechanical checks are gates 7 and 13, not this text):
+
+| A line that is… | goes to |
+|---|---|
+| a phase's status | PROGRESS.md § Phase Status — nothing else lives in that file but § State and pointers |
+| a unit's **state** (done, in progress, next, blocked) | its hub `docs/features/<code>.md` § Current state: six sections, replaced never appended, ≤ 60 lines |
+| a unit's **witness** (a command, a SHA, a file:line, an exit code, a dead end) | its record `docs/progress/<code>.md` § Session log, one dated entry per session, appended |
+| a bug | one row in `docs/bugs/BUGS.md`; status is a cell, there is no rotation; a `docs/bugs/<ID>.md` file when severity ≥ high |
+| a follow-up | one entry in `docs/followups/follow-ups-open.md` with Filed · Owner · Severity · Closes when · Status; parked = `Status: parked` + Revisit when; a body over ten lines in `docs/followups/<FUP-ID>.md`; resolved → `follow-ups-archive.md`. `PO to rule` is the honest value; an invented one is not |
+| a lesson | one row in `docs/learning/LESSONS.md` with its enforcer or `prose only`; a postmortem file when it earns one |
+| a decision | an ADR in `decisions/`, numbered highest-on-any-live-branch + 1, then `npm run adr:index` |
+| a standing prohibition with no resolution event | `.claude/rules/`, under ADR 0127's admission bar |
+| a paused session's resume pointer | `handoffs/`, `branch:` or `expires:`, deleted on resume or landing |
+
+**Rotation at the Record step:** the completed phase row → `progress/phase-ledger.md` verbatim ·
+the completed hub → `status: complete`, its block appended to its record, `npm run
+features:index` · the resolved entry → the archive · the handoff deleted. Repoint links in the
+same edit: root-relative `docs/…` becomes `../…` from a subdirectory.
 
 Root files that are not under `docs/` but belong to the same apparatus: [`CONTEXT.md`](../CONTEXT.md)
 (the glossary — the only home for term definitions), `.claude/rules/` (path-scoped standing rules,

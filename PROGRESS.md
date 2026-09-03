@@ -1,24 +1,10 @@
 # PROGRESS.md — Live Project State
 
-> **LIVE STATE ONLY — the roll-up.** Two things live here and nothing else: **§ Phase Status**
-> (the phase rows not yet complete) and **§ State** (the remote facts still awaiting a concluding
-> event); live feature state is a pointer, not a copy — see
-> [docs/features/INDEX.md](docs/features/INDEX.md) (ADR
-> [0186](docs/decisions/0186-documentation-consolidation-one-home-per-fact.md) D1–D2). Everything
-> that used to accrete here has a gated home (ADR [0185](docs/decisions/0185-documentation-restructure-feature-hubs-and-gated-registers.md)
-> D6): the working state of a unit → its hub `docs/features/<code>.md`, listed in
-> [docs/features/INDEX.md](docs/features/INDEX.md) · bugs → [docs/bugs/BUGS.md](docs/bugs/BUGS.md) ·
-> follow-ups, the ⭐⭐ Critical list included → [docs/followups/follow-ups-open.md](docs/followups/follow-ups-open.md) ·
-> decisions → [docs/decisions/INDEX.md](docs/decisions/INDEX.md) · gate results and QA verdicts → the
-> owning hub and its review file. **A retired section that comes back reds `npm run lint:progress`.**
-> What the retired sections said on the day they were cut is preserved verbatim in the
-> `docs/progress/` archives (2026-09-03).
->
-> **The contract lives elsewhere, deliberately** — judgment in
-> [progress-contract.md](.claude/rules/progress-contract.md), mechanics in
-> `npm run lint:progress` (gate 7) and `npm run lint:registers` (gate 13), and **those scripts are
-> the authority**. Restating a check here creates the second copy that drifts, which is what this
-> file has been recovering from since 2026-08.
+> **Live state only.** Two things live here: **§ Phase Status** (rows not yet complete) and
+> **§ State** (remote facts awaiting a concluding event). Everything else has one home — the
+> table in [docs/INDEX.md](docs/INDEX.md) § Where a line belongs; units in
+> [docs/features/INDEX.md](docs/features/INDEX.md). Gates 7 and 13 red on a retired section
+> that comes back (ADR [0186](docs/decisions/0186-documentation-consolidation-one-home-per-fact.md)).
 
 ## Phase Status — live rows only
 

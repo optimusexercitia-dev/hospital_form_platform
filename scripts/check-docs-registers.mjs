@@ -142,7 +142,7 @@ export const POSTMORTEM_SECTIONS = [
   'New rule',
   'Applies to',
 ]
-export const HANDOFF_CITATION_ALLOWED = ['docs/features/', 'docs/planning/', 'docs/handoffs/', 'docs/reviews/']
+export const HANDOFF_CITATION_ALLOWED = ['docs/features/', 'docs/handoffs/', 'docs/reviews/']
 
 // ─── RATCHETS (ADR 0186 D6): a count this gate used to print as a WARNING is now a named
 // constant that may only be LOWERED — a commit that raises the live count above it reds. Every
@@ -190,9 +190,6 @@ export const RETIRED_SECTION_RX =
 export const RETIRED_EXCLUDE_PATH_PREFIXES = ['docs/progress/', 'docs/decisions/', 'docs/reviews/', 'docs/design/temp/']
 /** Individual historical files excluded from the RETIRED domain for the same reason as the prefixes above. */
 export const RETIRED_EXCLUDE_PATHS = new Set(['docs/bugs/archive.md', 'docs/followups/follow-ups-archive.md', '.claude/claude-md-review-queue.md'])
-// CLAUDE.md joins this arm's domain in Wave 4 of ADR 0186 — its two citations may only be removed
-// by the PO-approved diff (CLAUDE.md §5 "always ask"). One named constant so Wave 4 deletes one line.
-export const RETIRED_EXCLUDE_CLAUDE_MD = 'CLAUDE.md'
 
 const DATE_RX = /^\d{4}-\d{2}-\d{2}$/
 const ID_RX = /^[A-Z0-9][A-Z0-9-]*$/
@@ -1070,7 +1067,6 @@ export function checkDocsIndex(indexText, docsEntries) {
 
 /** Is a repo-relative path (forward slashes) in the RETIRED arm's domain? */
 export function inRetiredDomain(file) {
-  if (file === RETIRED_EXCLUDE_CLAUDE_MD) return false
   if (RETIRED_EXCLUDE_PATHS.has(file)) return false
   return !RETIRED_EXCLUDE_PATH_PREFIXES.some((p) => file.startsWith(p))
 }
@@ -1571,7 +1567,7 @@ function selfTest() {
   must('RETIRED bare § Decisions does not red (ambiguous)', checkRetired('x.md', 'See § Decisions for rules.\n'), false)
   must('RETIRED bare § Follow-ups does not red (ambiguous)', checkRetired('x.md', 'See § Follow-ups for rules.\n'), false)
   must('RETIRED line number survives blanking', [checkRetired('x.md', '`x`\n`y`\n§ Now\n')[0]?.startsWith('[RETIRED] x.md:3') ? '' : 'x'].filter(Boolean), false)
-  must('inRetiredDomain excludes CLAUDE.md', [inRetiredDomain(RETIRED_EXCLUDE_CLAUDE_MD) ? 'x' : ''].filter(Boolean), false)
+  must('inRetiredDomain includes CLAUDE.md (Wave 4 lifted the exclusion)', [inRetiredDomain('CLAUDE.md') ? '' : 'x'].filter(Boolean), false)
   must('inRetiredDomain excludes docs/decisions', [inRetiredDomain('docs/decisions/0001-x.md') ? 'x' : ''].filter(Boolean), false)
   must('inRetiredDomain excludes docs/progress', [inRetiredDomain('docs/progress/2026-Q3.md') ? 'x' : ''].filter(Boolean), false)
   must('inRetiredDomain excludes docs/reviews', [inRetiredDomain('docs/reviews/phase-9-review.md') ? 'x' : ''].filter(Boolean), false)

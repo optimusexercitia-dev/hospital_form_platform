@@ -55,43 +55,29 @@ with gates that red on the live population, in seven waves with five PO checkpoi
 
 ### Done since start
 
-- Wave 0 (`8f96e223`): branch + worktree from `main` at `8e0ecd1a`; plan, ADR 0186 (proposed),
-  this hub, the record with the baseline, the CURRENT.md line; indexes regenerated.
-- Wave 1: the RETIRED arm of gate 13 (self-test proven non-vacuous) and the sweep it gates —
-  0 retired-section citations in 237 living files (baseline 95 lines / 36 files); lead-playbook
-  §5, the four agent files, the handoff skill's promote table and RESUME step, the two numbering
-  sentences, the prettier caps, the AE4 hub contradiction, the BUGS.md header, three unreachable
-  SHAs. 43 files, full lint green.
-
-- Wave 2: the CURRENT arm and the PROGRESS.md roll-up deleted with their gate code; the features
-  index is the one projection; CURRENT.md a stub until Wave 4 (gate 7 link-checks CLAUDE.md,
-  which links it); ledger holds completed rows only; planned hubs forbid a state block;
-  legacy-codes moved to `docs/followups/`.
-
-- ADR 0186 accepted 2026-09-03 (PO: "continue"). Wave 3: HUBS arm requires a record with a
-  `## Session log` (dates non-decreasing) for in-progress/gated hubs; HANDOFFS arm requires
-  `branch:` or `expires:` and reds past expiry; the handoff skill is a four-section resume
-  pointer; C2 got its record, AE4's snapshots became log entries, both landed handoffs folded
-  into the records and deleted; AE4 and C2 hub blocks purged to 35 / 32 lines.
-
-- Wave 5: the open register is an index (152 KB, 204 entries, 159 body files, 0 Register-line
-  paragraphs); the backlog merged as 33 parked entries and deleted; archive cleaned; Critical
-  pin rows ≤ 300 chars; BUGS.md links 48 archive bodies; LESSONS +3 rows, first postmortem;
-  eight ratchets set from the measured counts; every new check proven able to red.
+- Waves 0–3 (`8f96e223` … `0ccabf95`): branch, plan, ADR 0186 (accepted 2026-09-03); RETIRED
+  arm + sweep (95 → 0 citations); CURRENT arm and roll-up gone; one summary + one log per unit,
+  handoffs folded into records and deleted. Detail: the record's session log.
+- Wave 5 (`4384f204`): the register is an index (152 KB, 204 entries, 159 body files); backlog
+  merged and deleted; eight ratchets set from measured counts; BUGS.md links 48 archive bodies;
+  LESSONS 72 → 75 with the first postmortem.
+- Wave 6 (`dfdda783`): one link checker shared by gates 7 and 13; row-grade `complete` check;
+  YAML block scalars parsed; tombstones out; lint-gates.md is thirteen paragraphs.
+- Wave 4 (PO-authorized diff, 2026-09-03): CLAUDE.md 37,734 → 20,454 B; CURRENT.md, its
+  directory and the progress-contract rule deleted; the contract table lives in `docs/INDEX.md`;
+  the RETIRED arm now covers CLAUDE.md.
 
 ### In progress
 
-- Wave 6 (gate hygiene) — does not touch CLAUDE.md.
+- Nothing — Wave 7 (Record) is next.
 
 ### Next
 
-- Wave 4: the CLAUDE.md diff (drafted, 20,454 B), presented for explicit approval; it also
-  deletes the CURRENT.md stub, its `docs/INDEX.md` row, and the progress-contract rule file.
+- Wave 7: read-only review (`docs/reviews/docs-consolidation-review.md`); hub → complete, block
+  appended to the record; migration script deleted with its SHA recorded; branch deleted; PO
+  approval to merge to `main`.
 
 ### Blockers
 
-- The Wave 4 diff needs the PO's explicit approval (CLAUDE.md §5); gate 9's proposed-ADR review
-  is due 2026-09-24 (Wave 6.5).
-- CLAUDE.md holds two citations of retired sections, three CURRENT.md links and a §7 sentence
-  naming "the generated feature roll-up" — all only the Wave 4 diff may change; the RETIRED arm
-  excludes CLAUDE.md until then by a named constant.
+- Gate 9's proposed-ADR review is due 2026-09-24 (plan 6.5) — the PO's.
+- The merge to `main` is the PO's call; `main` is unpushed.

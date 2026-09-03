@@ -8,7 +8,6 @@ paths:
   - "docs/bugs/**"
   - "docs/features/**"
   - "docs/learning/**"
-  - "docs/planning/**"
 broad: >-
   The subjects ARE whole trees, and the rule must load while they are being edited — the only
   moment the formatter can still be run.

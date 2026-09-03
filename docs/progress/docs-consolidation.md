@@ -189,3 +189,34 @@ items' fuller bodies; the backlog's uniform 🟡 read as boilerplate, so merged 
 `#L…` line anchors into the register that the split invalidated — a historical review, left;
 CLAUDE.md §7 still names `deferred-backlog.md` (Wave 4). `scripts/migrate-fup-bodies.mjs` is
 committed with this wave and deleted at Record, its SHA recorded in the ADR then.
+
+### 2026-09-03 — Wave 6 (lead session + two subagents), commit `dfdda783`
+
+**Verified:** each gate's self-test OK; proof-of-red on the mention-only ledger case, the folded
+scalar, and an archive `**Body:**` link (exit 2 each, restored); full chain green on the Wave 6
+state alone — measured by stashing Wave 4's documents, linting, committing, then restoring.
+Ratchets unchanged. `check-progress-doc.mjs` 742 → 649 lines; `lint-gates.md` 131 → 29 lines
+(one long line per gate).
+
+**Decisions in flight:** the `complete` check's verdict regex also accepts the heading form
+`## Verdict: **APPROVED**`, which the one live complete hub's review uses — widened, not
+weakened (NOT APPROVED still reds, proven). The plan's "drop `docs/features/` from the citation
+allowlist" stays reverted (Wave 3). No live rule had an empty folded scalar behind `>-`.
+
+### 2026-09-03 — Wave 4 (lead session), the PO-authorized CLAUDE.md diff
+
+**Authorization:** the PO wrote "CLAUDE.md diff authorized" after the diff page was published
+(https://claude.ai/code/artifact/7d4166e9-2bc7-493a-97d3-ada0a2f374f7 — the diff and the full
+proposed file, with the home of every cut).
+
+**Verified:** CLAUDE.md 37,734 → **20,454 B**, 499 → 289 lines; every relative link resolves;
+no rule anchor pointed into cut text; 0 retired-section citations; gate 7's byte cap holds.
+`docs/planning/` deleted with the stub; `.claude/rules/progress-contract.md` deleted (rules
+11 → 10); its "where a line belongs" table lives once, in `docs/INDEX.md`; PROGRESS.md's header
+is five lines; the prettier rule's `paths:` drop the deleted directory; the RETIRED arm's
+CLAUDE.md exclusion constant and its guard are gone and the fixture asserts inclusion. Full
+chain green at commit.
+
+**Decisions in flight:** the cut table in the diff page names each removed block's home; two
+blocks were compressed rather than moved (forms/responses concepts, the modules list) because a
+teammate needs the concept, not the schema detail ARCHITECTURE.md holds.

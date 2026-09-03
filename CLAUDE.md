@@ -1,131 +1,72 @@
 # CLAUDE.md — Hospital Commission Forms Platform
 
-Loaded by the team lead **and every teammate** — keep it lean; every spawn pays
-for it. It holds the shared, stable rules and points to the docs that carry detail:
+Loaded by the team lead **and every teammate** — keep it lean; every spawn pays for it. It
+holds the shared, stable rules and points to the docs that carry detail:
 
-- **[ARCHITECTURE.md](./ARCHITECTURE.md)** — binding architecture rules + canonical
-  schema (authoritative; summarized in §3). Each rule names its enforcer, or `prose only`.
+- **[ARCHITECTURE.md](./ARCHITECTURE.md)** — binding architecture rules + canonical schema
+  (authoritative; indexed in §3). Each rule names its enforcer, or `prose only`.
 - **[PHASES.md](./PHASES.md)** — phased plan + per-phase acceptance criteria (§5).
-- **[PROGRESS.md](./PROGRESS.md)** — the roll-up, **live state ONLY** (§7): § Phase Status,
-  the generated feature roll-up, § State. History → [docs/progress/phase-ledger.md](./docs/progress/phase-ledger.md)
-  + the `docs/progress/` archives; contract machine-enforced by `npm run lint:progress`.
-- **[docs/planning/CURRENT.md](./docs/planning/CURRENT.md)** — the in-flight units; each one's
-  working state is its **hub**, `docs/features/<code>.md` (§7, ADR 0185).
-- **[docs/INDEX.md](./docs/INDEX.md)** — map of `docs/` + the **authority order** (live catalog >
-  code > ARCHITECTURE.md > ADRs > trackers). **[CONTEXT.md](./CONTEXT.md)** — the glossary.
-- **[docs/lead-playbook.md](./docs/lead-playbook.md)** — lead-only orchestration
-  protocol (the single lead session reads it once; teammates get task-specific prompts).
-- **[docs/worktrees.md](./docs/worktrees.md)** — git worktree setup + running parallel
-  Claude Code sessions on this repo efficiently.
+- **[PROGRESS.md](./PROGRESS.md)** — live state only: § Phase Status and § State (§7).
+- **[docs/features/INDEX.md](./docs/features/INDEX.md)** — every unit of work, in-progress
+  first; a unit's summary is its hub `docs/features/<code>.md`, its log is
+  `docs/progress/<code>.md` (§7, ADR 0186).
+- **[docs/INDEX.md](./docs/INDEX.md)** — map of `docs/`, the **authority order** (live catalog >
+  code > ARCHITECTURE.md > ADRs > trackers), and where each kind of line belongs.
+  **[CONTEXT.md](./CONTEXT.md)** — the glossary.
+- **[docs/lead-playbook.md](./docs/lead-playbook.md)** — lead-only orchestration protocol.
+- **[docs/worktrees.md](./docs/worktrees.md)** — parallel Claude Code sessions on this repo.
 - **`.claude/agents/*.md`** — role instructions, appended per teammate.
 
 ---
 
 ## 1. Project Overview
 
-A web platform that digitizes the manual checklists/forms hospital commissions fill
-out, so statistics come from **dashboards** instead of manual tabulation. Frontend
-design must be professional yet interactive and engaging — micro-animations via
-**GSAP** for a captivating experience.
+A web platform that digitizes the manual checklists/forms hospital commissions fill out, so
+statistics come from **dashboards** instead of manual tabulation. Frontend design must be
+professional yet interactive and engaging — micro-animations via **GSAP**.
 
-**Positioning: a governance / quality LAYER for hospital accreditation** (ONA in
-Brazil; JCI / Joint Commission internationally; the ANVISA/RDC backdrop). It
-documents committee **process, measurement, and improvement**, sitting *beside* the
-EHR, not duplicating it. Outside the three PHI modules it holds **no PHI by design**
-(minimum-necessary). Rationale: ADR
-[0030](./docs/decisions/0030-patient-safety-phi-and-pqs-architecture.md) (supersedes
-[0028](./docs/decisions/0028-accreditation-governance-roadmap.md)'s no-patient-data
-stance).
+**Positioning: a governance / quality LAYER for hospital accreditation** (ONA in Brazil; JCI
+internationally). It documents committee **process, measurement, and improvement**, sitting
+*beside* the EHR, not duplicating it; outside the three PHI modules it holds **no PHI by
+design** (ADR [0030](./docs/decisions/0030-patient-safety-phi-and-pqs-architecture.md)).
 
-**PHI posture (= Architecture Rule 12 — stated once here; elsewhere cite "Rule 12").**
-Patient data (PHI) is in scope on HIPAA-compliant infrastructure (Supabase, under a
-BAA), governed by the binding **LGPD + ANVISA/RDC + CFM 1821/2007** regime (20-yr
-retention; the BAA is the *infrastructure* safeguard, not the governing law — ADR
-[0035](./docs/decisions/0035-lgpd-anvisa-regulatory-posture.md)). PHI is collected
-minimum-necessary and confined to **exactly three isolated modules** — patient-safety
-/ NSP (`event_patient`), inter-committee **referral** (`referral_patient`), and
-**case** (`patient_identifiers`, anchored on `patient_participants`) — each behind the
-tightest RLS, PHI-access-audited, and protected by platform at-rest encryption
-(column-level encryption **declined**). ADRs 0030 / 0035 / 0037 / 0038. This
-**reverses** the platform's former "no patient data, ever" rule.
-
-> ⚠ **`case_patient` is a FEATURE-FLAG KEY, not a table** — the case module's PHI lives in
-> **`patient_identifiers`** keyed to **`patient_participants`**; the flag and the predicate
-> `app.can_read_case_patient` carry the name, **no relation does**. Verify against the
-> catalog, never this sentence — detail: ARCHITECTURE.md §2 (case module; ADRs 0038/0066).
+**PHI posture = Architecture Rule 12.** PHI is in scope on HIPAA-compliant infrastructure
+(Supabase under a BAA), governed by LGPD + ANVISA/RDC + CFM 1821/2007 (20-yr retention; ADR
+[0035](./docs/decisions/0035-lgpd-anvisa-regulatory-posture.md)), collected minimum-necessary
+and confined to exactly three isolated modules — patient-safety / NSP, inter-committee
+referral, and case — each behind the tightest RLS and PHI-access-audited. Table names, doors
+and the `case_patient` flag-vs-table trap: ARCHITECTURE.md §2 and Rule 12.
 
 ### Core domain concepts
 
-- **Tenancy**: multi-tenant **organizations → hospitals → commissions** (ADR 0041).
-  A commission belongs to one hospital, a hospital to one org.
-- **Commission**: the lowest unit (e.g., Infection Control). All forms, members, and
-  responses belong to exactly one commission.
-- **Roles** (full definitions + RLS: ADR 0041, `docs/backend-state.md`):
-  - `platform_admin` — global superuser. **May** administer **tenancy, identity, vocabulary and
-    audit** (orgs, hospitals, memberships, professional identity, catalogs, `audit_log`). **May NOT**
-    touch **commission content or PHI** — cases, responses, narratives, meetings, patient data.
-    *(The "noun rule" — ADR 0078 A35.)* ⚠ The census figures behind it are **TABLE-level reads
-    through RLS**, not proof the content is unreachable — a DEFINER function's gate bypasses RLS
-    entirely (BUG-AUTHZ-001; full record: `docs/bugs/archive.md` + the A35 amendment).
-    Cite the census as row-level. Corollary, the standing one: **`prosecdef` belongs beside `pg_policies`.**
-  - `org_admin` / `hospital_admin` — manage an org / a single hospital and its
-    commissions, users, members. ⚠ **`hospital_admin` is NOT confined to its own hospital's
-    people** — the user directory is org-scoped *by decision* (ADR 0048 D1), and the DEFINER door
-    `list_addable_commission_members` returns the whole org's active roster, wider than the
-    `profiles` policy allows (ratified: ADR
-    [0097](./docs/decisions/0097-hospital-affiliation-person-identity.md) finding 1 + Consequences).
-    ADR 0097 (AFF) also makes hospital **affiliation** a read-visibility input — reversing ADR
-    0048 D7's "hospital is never gated on". ⚠ **ADR
-    [0133](./docs/decisions/0133-aff2-affiliation-scoped-administration-um-redesign.md) (AFF2)
-    then makes it a WRITE input too, retiring 0097 D14's `org_admin`-only rule:** the bound is a
-    **footprint**, not a role, and it splits by capability — **INTERSECTION** for person-level
-    fields + credentials (any person whose active footprint *intersects* the caller's hospitals,
-    spanning people included), **SUBSET** for CPF-change + account lifecycle (only where the
-    *entire* footprint is inside them). Deactivation stays a platform-wide kill switch, which is
-    *why* lifecycle kept the tighter bound; a hospital admin's local offboarding is
-    `end_affiliation`, never deactivation.
-  - `staff_admin` (per commission) — builds/edits forms, manages that commission's
-    staff, views its dashboard.
-  - `staff` (per commission) — fills published forms.
-  - **NSP roles** (`nsp_org_admin`, `nsp_coordinator`) run the patient-safety / PQS
-    roster; **`administrativo`** is a per-commission delegated-capability grant (not a
-    role enum; ADR 0061).
+- **Tenancy**: multi-tenant **organizations → hospitals → commissions** (ADR 0041). A
+  commission belongs to one hospital, a hospital to one org.
+- **Commission**: the lowest unit (e.g., Infection Control). All forms, members, and responses
+  belong to exactly one commission.
+- **Roles** (definitions + RLS: ADR 0041, `docs/backend-state.md`):
+  - `platform_admin` — global superuser over **tenancy, identity, vocabulary and audit**; may
+    **not** touch commission content or PHI (the "noun rule", ADR 0078 A35).
+  - `org_admin` / `hospital_admin` — manage an org / a hospital and its commissions, users,
+    members; a hospital admin's write bound is an affiliation **footprint**, not a role (ADR
+    [0133](./docs/decisions/0133-aff2-affiliation-scoped-administration-um-redesign.md)).
+  - `staff_admin` (per commission) — builds/edits forms, manages that commission's staff,
+    views its dashboard. `staff` (per commission) — fills published forms.
+  - **NSP roles** (`nsp_org_admin`, `nsp_coordinator`) run the patient-safety / PQS roster;
+    **`administrativo`** is a per-commission delegated-capability grant, not a role (ADR 0061).
   - A user may hold different roles across commissions, hospitals, or organizations.
-- **Forms & responses** (schema-level detail authoritative in ARCHITECTURE.md §2 /
-  Rules 2–5):
-  - **Versioning**: draft → published → archived; published versions **IMMUTABLE**;
-    editing **clones** to a new draft, preserving `question_key`s + conditions.
-    Responses reference a specific `form_version_id`; input items keep a stable
-    `question_key` for cross-version dashboards.
-  - **Sections (first-class)**: a version is an ordered list of `form_sections` (≥1; a
-    lone `is_default` section renders flat/unsectioned); a section may carry
-    `visible_when` (conditional, on an earlier `question_key`) and `requires_signoff`.
-  - **Items**: **input items** collect answers (8 types — `multiple_choice` … `time`;
-    optional `question_explanation` help text); **display items** render only
-    (`section_text`, `image`) — no `question_key`, invisible to dashboards.
-  - **Filling** is a wizard with resume: answers persist on every navigation; lifecycle
-    `in_progress` (resumable, creator-only) → `submitted` (immutable, counted); one
-    `in_progress` response per user per version.
+- **Forms & responses** (schema detail: ARCHITECTURE.md §2 / Rules 2–5): versions go draft →
+  published (**IMMUTABLE**; editing clones a new draft, preserving `question_key`s + conditions)
+  → archived; a version is an ordered list of `form_sections` (conditional `visible_when`,
+  `requires_signoff`); **input items** carry a stable `question_key` for dashboards, **display
+  items** none; filling is a wizard with resume — `in_progress` (creator-only, one per
+  user/version) → `submitted` (immutable, counted).
 
 ### Governance & accreditation modules (Phases 13+)
 
-Each is feature-flagged; full detail in PHASES.md + `docs/phases/accreditation-track.md`
-+ its ADR. PHI-free unless flagged **(PHI — Rule 12)**:
-
-- **Audit trail** — append-only, hash-chained `audit_log` (Rule 11).
-- **Patient-safety event → triage → RCA → CAPA (NSP)** — notify → triage → root-cause
-  → closed CAPA loop. **(PHI — Rule 12; ADR 0030.)**
-- **Inter-committee referrals (Encaminhamentos)** — a `Case` sent to another committee
-  over a frozen snapshot; structured reply; QPS sees the full trajectory. **(PHI —
-  Rule 12; ADR 0037.)**
-- **Quality indicator** — numerator/denominator/target/periodicity/direction; manual or
-  **derived** from submitted-form aggregates via `question_key`.
-- **Accreditation standard & evidence link** — ONA/JCI/custom framework; commissions
-  link artifacts as evidence, driving a **readiness/gap report**.
-- **Controlled document** — policy/POP/protocol lifecycle with e-signatures,
-  effective/expiry dates, scheduled review cycle.
-- **Internal audit / mock tracer** — scored self-assessment; a non-conforming finding
-  opens a CAPA.
+Feature-flagged; detail in PHASES.md, `docs/phases/accreditation-track.md` and each ADR:
+**audit trail** (Rule 11) · **patient-safety event → triage → RCA → CAPA** (NSP; PHI) ·
+**inter-committee referrals** (PHI) · **quality indicator** · **accreditation standard &
+evidence link** · **controlled document** · **internal audit / mock tracer**.
 
 ## 2. Tech Stack (do not deviate without human approval)
 
@@ -138,62 +79,34 @@ Each is feature-flagged; full detail in PHASES.md + `docs/phases/accreditation-t
 | Charts      | Recharts                                                      |
 | E2E testing | Playwright (`@playwright/test`)                               |
 | Unit tests  | Vitest + Testing Library                                      |
-| Animation   | GSAP (`gsap` 3.15, pinned) — the §1 micro-animation mandate; tokens in `src/components/motion/` |
+| Animation   | GSAP (`gsap` 3.15, pinned); tokens in `src/components/motion/` |
 | Local dev   | Supabase CLI (`supabase start` — local Docker stack)          |
-| Deploy      | Docker (Next.js standalone) on Coolify (Dockerfile app type — no compose/Caddy; ADR 0059); Supabase Cloud in production |
+| Deploy      | Docker (Next.js standalone) on Coolify (ADR 0059); Supabase Cloud in production |
 
 ### Repository layout
 
 ```
 /
 ├── CLAUDE.md / ARCHITECTURE.md / PHASES.md / PROGRESS.md   # rules, schema, plan, status
-├── Dockerfile                 # Coolify deploy — root, Next.js standalone (ADR 0059)
-├── .claude/agents/            # teammate role definitions  (+ .claude/skills/)
-├── scripts/                   # e2e-prod-gate.sh (the §6 gate) · check-tailwind-css-vars.mjs
-│                              #   · door-sweep-cases.sh (§6 step 1) · the lint gates — ⛔ counted
-│                              #   in §8 ONLY; this line said "the 4" while §8 said eleven
-│                              #   · worktree-setup.sh
-├── supabase/
-│   ├── migrations/            # SQL migrations (Backend) — the live catalog, not this
-│   │                          #   text, is truth (see the graphify exception below)
-│   ├── tests/                 # pgTAP suites (Backend) — the numbered files
-│   ├── seed.sql               # local dev seed (2 orgs; persona roster in its header)
-│   ├── demo/ · snippets/ · templates/
-│   └── config.toml
-├── src/
-│   ├── app/                   # Next.js App Router (Frontend)
-│   │   ├── (auth)/ · auth/    # login, invite, password reset
-│   │   ├── admin/             # platform-admin area
-│   │   ├── api/               # route handlers (Backend)
-│   │   ├── c/ · conta/ · conta-inativa/   # commission picker · account · deactivated
-│   │   └── o/[org]/…/c/[commission]/  # tenant → commission areas (manage/forms/dashboard, NSP)
-│   ├── components/            # (Frontend)
-│   ├── proxy.ts               # (Backend)
-│   └── lib/                   # domain modules (Backend) — one per feature area
-│       │                      #   (cases, safety, referrals, ethics, documents, charters,
-│       │                      #   notifications, indicators, attachments, participants, …),
-│       │                      #   each typically actions.ts + queries; PLUS the three
-│       │                      #   Rule 8/9 anchors:
-│       ├── supabase/          # client factories + middleware session/gating helper
-│       ├── queries/           # typed data-access functions
-│       └── types/             # generated DB types + domain types
-├── e2e/                       # Playwright specs (Tester)
+├── Dockerfile                 # Coolify deploy — Next.js standalone (ADR 0059)
+├── .claude/agents/ · rules/ · skills/   # roles · standing rules · procedures
+├── scripts/                   # lint gates (docs/lint-gates.md), e2e-prod-gate.sh, door-sweep-cases.sh
+├── supabase/migrations/ · tests/ · seed.sql   # the LIVE CATALOG, not the SQL text, is truth (§ graphify)
+├── src/app/ · components/ · proxy.ts          # Next.js App Router; o/[org]/…/c/[commission]/ = tenant areas
+├── src/lib/                   # domain modules (actions.ts + queries) · supabase/ · queries/ (Rule 9) · types/ (Rule 8)
+├── e2e/                       # Playwright specs
 ├── worktrees/                 # parallel sessions — docs/worktrees.md
-└── docs/                      # INDEX.md (map + authority order) · decisions/ (ADRs) ·
-                               #   features/ (hubs) · planning/CURRENT.md · bugs/ · followups/ ·
-                               #   learning/ · backend-state.md · lead-playbook.md · progress/ ·
-                               #   reviews/ · phases/ · plans/ · design/ · testing/ · deployment/
+└── docs/                      # docs/INDEX.md is the map
 ```
 
 ## 3. Architecture Rules (index)
 
-**Read [ARCHITECTURE.md](./ARCHITECTURE.md) in full before any schema, RLS, query, or
-storage work — it is authoritative.** "Architecture Rule N" refers to its numbered
-rules:
+**Read [ARCHITECTURE.md](./ARCHITECTURE.md) in full before any schema, RLS, query, or storage
+work — it is authoritative.** "Architecture Rule N" refers to its numbered rules:
 
 1. **RLS is the security boundary** — explicit policies on every table; service-role keys server-side only; never rely on UI hiding.
-2. **Canonical schema** — `profiles`, `commissions`, `memberships`, `forms`, `form_versions`, `form_sections`, `form_items`, `responses`, `answers`, `response_section_signoffs` (+ sections-integrity rules); extend, never contradict. ⚠ **`memberships` is the single multi-scope table** (org + hospital + commission; keyed `principal_id`, **not** `user_id`) — **`commission_members` does not exist**; verify against the catalog, never this line. Detail + the scope-exclusivity CHECK: ARCHITECTURE.md §2.
-3. **Response lifecycle & resume** — `in_progress` → `submitted` via the `submit_response` RPC (the authority); one draft per user/version; condition evaluator mirrored SQL ↔ TS.
+2. **Canonical schema** — `profiles`, `commissions`, `memberships` (the single multi-scope table, keyed `principal_id`), `forms`, `form_versions`, `form_sections`, `form_items`, `responses`, `answers`, `response_section_signoffs`; extend, never contradict; verify names against the catalog.
+3. **Response lifecycle & resume** — `in_progress` → `submitted` via the `submit_response` RPC; one draft per user/version; condition evaluator mirrored SQL ↔ TS.
 4. **Sign-offs** — per (response, section); `signoff_role` gated by RLS; only while `in_progress`.
 5. **Published versions are IMMUTABLE** — editing clones to a new draft, preserving `question_key`s + conditions.
 6. **Storage immutability** — `form-assets` never overwritten; new path per upload; cloning copies the reference.
@@ -201,30 +114,26 @@ rules:
 8. **Generated types** regenerated after every migration; imported only from `src/lib/types/`.
 9. **Data access via `src/lib/queries/`** — no inline supabase-js.
 10. **User-facing text pt-BR**; code, comments, commits, docs in English.
-11. **Auditability** — append-only, tamper-evident trail; every mutation emits a row; reads of another member's data + every PHI read are logged (records *that* + *who*, never payloads/PHI).
-12. **PHI / HIPAA** — see §1: three isolated **Class-1 patient-PHI** modules (`event_patient` / `referral_patient` / **`patient_identifiers`+`patient_participants`** — ⚠ *not* `case_patient`, which is a flag key, see §1) under identical isolation + audited-door safeguards. ⚠ **The CASE module is no longer single-door on the WRITE side** — it has **one writer body with TWO gates** (the coordinator door, and the creation path: ADR 0134 Amdt 2, PO-ruled 2026-08-22). `event_patient` / `referral_patient` are unchanged and remain single-door; every **read** claim is unchanged for all three. A distinct **Class-2 professional-identity** class (`professional_profiles`; case-scoped RLS + audited reads, no single door) lands in F1 (ADR 0064/0065); others hold none by design.
-13. **Affiliations NEVER grant capabilities** — `hospital_affiliations` / `organization_affiliations` are visibility + lifecycle inputs. An affiliation **LOCATES** the scope; a `memberships` row **GRANTS**. ⛔ The collapsed one-join form type-checks identically, so keep the two steps separately visible. ADR [0163](./docs/decisions/0163-offboarded-person-lifecycle-authority.md) is **not** an exception — an ended row decides *where*, never *whether*. Asserted by pgTAP `392`, not reviewed for.
+11. **Auditability** — append-only, tamper-evident trail; every mutation emits a row; reads of another member's data + every PHI read are logged (that + who, never payloads).
+12. **PHI / HIPAA** — three isolated Class-1 patient-PHI modules under identical isolation + audited-door safeguards; a Class-2 professional-identity class (`professional_profiles`); others hold none by design. Door counts and gates: ARCHITECTURE.md.
+13. **Affiliations NEVER grant capabilities** — an affiliation **LOCATES** the scope; a `memberships` row **GRANTS**; keep the two steps separately visible. Asserted by pgTAP `392`.
 
 ## 4. Agent Team
 
-Development uses Claude Code **Agent Teams** (experimental; requires v2.1.32+), enabled
-via `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: "1"` in `.claude/settings.json`. The session
-that opens the project is the **team lead / orchestrator**: it coordinates, assigns,
-reviews plans, and does **not** write feature code. **Lead orchestration protocol →
-[docs/lead-playbook.md](./docs/lead-playbook.md)** (lead only).
+Development uses Claude Code **Agent Teams** (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: "1"` in
+`.claude/settings.json`). The session that opens the project is the **team lead**: it
+coordinates, assigns, reviews plans, and does **not** write feature code. Protocol:
+[docs/lead-playbook.md](./docs/lead-playbook.md) (lead only).
 
 **Delegation:** mechanical search/enumeration → Haiku · interpretive exploration &
 implementation → Sonnet · architecture, authz semantics & multi-file refactors → Opus ·
-read-only reviewers → Haiku/Sonnet. ⛔ **Fable is never agent-selected** — the user
-assigns it case-by-case.
+read-only reviewers → Haiku/Sonnet. ⛔ **Fable is never agent-selected** — the user assigns
+it case-by-case.
 
-**Delegation floor — binding on EVERY session, ad-hoc sessions included, not just leads:**
-before reading more than ~3 files, or running repeated grep/`sed` sweeps, to answer ONE
-question, spawn an **Explore** subagent and keep only its conclusions — raw exploration
-must not accumulate in the main context. Shell reads (`sed`/`cat`/`grep` via Bash) count
-as reads. graphify stays the FIRST move for codebase questions (§ graphify); Explore is
-for the file-reading that follows it. (Measured 2026-08-24: one session that skipped this
-climbed 79k→489k tokens — accumulation of small reads + loop chatter, no single big read.)
+**Delegation floor — binding on EVERY session, ad-hoc sessions included:** before reading more
+than ~3 files, or running repeated grep/`sed` sweeps, to answer ONE question, spawn an
+**Explore** subagent and keep only its conclusions. Shell reads count as reads. graphify stays
+the FIRST move for codebase questions (§ graphify).
 
 | Teammate   | Agent type          | Scope |
 | ---------- | ------------------- | ----- |
@@ -233,185 +142,94 @@ climbed 79k→489k tokens — accumulation of small reads + loop chatter, no sin
 | `tester`   | `qa-tester`         | Playwright E2E in `e2e/`, execution, bug reports. Never fixes app code. |
 | `qa`       | `qa-reviewer`       | Final phase review: requirements, code, security/RLS. Read-only on app code; writes only review reports. |
 
-**File ownership is binding**: two teammates never edit the same file in a phase;
-shared types change only via `backend`. Details of warm-team reuse, contract-first
-sequencing, and plan-approval right-sizing live in the lead-playbook. For work that
-needs to happen *beside* the phase instead — a parallel human session, an isolated
-spike — see [docs/worktrees.md](./docs/worktrees.md) rather than adding it to this
-tree's coordination.
+**File ownership is binding**: two teammates never edit the same file in a phase; shared types
+change only via `backend`. For work beside the phase — a parallel session, an isolated spike —
+use a worktree ([docs/worktrees.md](./docs/worktrees.md)).
 
 ## 5. Phased Development Plan
 
-The full plan + acceptance criteria live in **[PHASES.md](./PHASES.md)** (core
-platform 0–12 + the accreditation-track index). Accreditation track **13–21** detail is
-in **[docs/phases/accreditation-track.md](./docs/phases/accreditation-track.md)** (read
-**[docs/quality-track-context.md](./docs/quality-track-context.md)** first). **Live phase
-status lives in PROGRESS.md § Phase Status; live feature state in each hub** (`docs/features/`,
-listed in `docs/planning/CURRENT.md`); the completed-phase record lives in
-**[docs/progress/phase-ledger.md](./docs/progress/phase-ledger.md)** (append-only,
-every phase forever). One codebase, one schema, one rulebook.
+The plan + acceptance criteria: **[PHASES.md](./PHASES.md)** (core 0–12 + the accreditation
+index); track 13–21 detail: **[docs/phases/accreditation-track.md](./docs/phases/accreditation-track.md)**
+(read **[docs/quality-track-context.md](./docs/quality-track-context.md)** first). Live phase
+status: PROGRESS.md § Phase Status; live unit state: its hub, via
+[docs/features/INDEX.md](./docs/features/INDEX.md); completed phases:
+[docs/progress/phase-ledger.md](./docs/progress/phase-ledger.md). Phases 18–19 stay
+post-pilot (ADR 0071).
 
-**Hard rule:** no phase begins until the previous phase has passed the Phase Gate (§6)
-**and** the human has approved. Backend may run one phase ahead on schema work, but
-nothing merges ahead of its phase.
+**Hard rule:** no phase begins until the previous phase has passed the Phase Gate (§6) **and**
+the human has approved. Backend may run one phase ahead on schema work, but nothing merges
+ahead of its phase.
 
-**Live order: [docs/planning/CURRENT.md](./docs/planning/CURRENT.md) → each hub's
-`## Current state`** (the Phase Status rows alone do not carry sequencing; PROGRESS.md has had
-no § Now since ADR 0185). The two 🔴 pilot-gate checks were rotated to
-[docs/progress/dm5-po-decisions.md](./docs/progress/dm5-po-decisions.md) § "Remaining
-pre-pilot work". Phases 18–19 stay post-pilot (ADR 0071).
-
-> ⭐ **Before any authorization / RLS / security-test work, read
-> [docs/progress/authz-handoff.md §7](./docs/progress/authz-handoff.md)** — the ADR-0078
-> lessons: keystones that could not fail, the many ways "text is not truth", and
-> **`prosecdef` belongs beside `pg_policies`**. They are **not** authz-specific and they cost
-> six review rounds. ADR
+> ⭐ **Before any authorization / RLS / security-test work**, read the lessons register
+> [docs/learning/LESSONS.md](./docs/learning/LESSONS.md) — keystones that could not fail, "text
+> is not truth", and **`prosecdef` belongs beside `pg_policies`**. ADR
 > [0079](./docs/decisions/0079-authz-door-blindness-standing-invariant.md)'s door-audit sweep
-> is a **standing** gate, operationalized in **§6 step 1** — "standing" in prose alone once
-> meant it ran once in three weeks, and the next run found 15 BLIND gates.
+> is a **standing** gate, run in §6 step 1.
 
-When a decision in this file is superseded by an ADR, amend this file too — a stale
-`CLAUDE.md` is worse than a missing one, because it is loaded into every session. However, always ask before making changes to `CLAUDE.md`.
+When a decision in this file is superseded by an ADR, amend this file too. **Always ask before
+making changes to `CLAUDE.md`.**
 
 ## 6. Phase Gate (mandatory, in order)
 
-1. **Build complete** — all phase tasks done; lint, typecheck, unit tests, **and the pgTAP
-   suite (`npm run test:db`)** pass locally. Run pgTAP on a **fresh `supabase db reset`** — an
-   E2E-mutated DB yields spurious commission-count reds that are not defects.
-   **Authz gates** — `ARM=census` (~2 s), `ARM=hat` (~10 s), `ARM=floor` (~1 min) **and**
-   `FROMFINDINGS=1 ARM=wrapper` (~2 s) of
-   `supabase/tests/mutation/p0-authz-invariant.sh` must hold. **`ARM=census` is the one that
-   catches a gate you just added** — a brand-new gate is in no BLIND set, so it passes
-   `ARM=policy` **vacuously** (ADR 0079 Amendment 3). ⚠ **`ARM=wrapper` covers the
-   `prosecdef = f` half** (ADR 0079 Amendment 7): every other arm bounds its domain with
-   `p.prosecdef`, so a `public` INVOKER wrapper whose own probe is the only gate in front of an
-   `app` DEFINER body was in **no** arm's domain at all. Its census domain widened in the same
-   change — without that a NEW wrapper passes `ARM=wrapper` vacuously by being absent from the
-   findings. **If the phase touched any RLS policy or
-   `prosecdef` boolean gate**, also run the **diff-scoped** door sweep over exactly those
-   (~1 min/gate), deriving the list with **`scripts/door-sweep-cases.sh`**, never by hand —
-   it greps `alter policy` too, and its **exit 1** (migrations touched, ZERO gates derived)
-   is a finding to rule on, **never a pass**. ⛔ **The sweep is TWO arms** (read + write) and the
-   deriver prints both commands — running only the one it used to print left the write half
-   unmeasured (`FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED`); read each arm's exit code directly. ADR
-   [0079](./docs/decisions/0079-authz-door-blindness-standing-invariant.md) § The recipe.
-   **BLIND blocks the phase** (keystone it; allowlist only an unreachable backstop, never a
-   tenant-isolation policy); **`ERROR` is not a pass** (cover it in the phase's mutation
-   audit). ⛔ **Never `git checkout --` the findings file** — ADR 0153 retired that: a subset
-   run writes to SCRATCH. Confirm with `git diff --stat` on it. Mechanics: lead-playbook §4. The
-   **full** ~5 h sweep is a periodic audit, **not** a phase step — and `ARM=wrapper`'s own
-   full sweep (~100 min, 56 suite runs) is periodic for the same reason; the phase step is
-   the cheap `FROMFINDINGS=1` comparison against the committed findings.
-2. **Test pass** — `tester` writes/updates Playwright specs for the acceptance criteria
-   and files a bug per failure as a row in `docs/bugs/BUGS.md`. The fix loop reruns **failing +
-   current-phase** specs (chromium); the **full E2E suite runs once to declare green** —
-   via **`npm run e2e:prod`** (prod-standalone, batched + server-restart-per-batch; a plain
-   `npx playwright test` monolith collapses on Windows — see `docs/testing/e2e-prod-build-gate.md`).
-   Tester never edits app code; engineers never edit specs to pass without tester
-   sign-off.
-3. **QA review** — `qa` audits the phase and writes
-   `docs/reviews/phase-N-review.md` with `APPROVED` or `CHANGES REQUESTED`. Changes loop
-   to step 1.
-4. **Human approval** — lead presents a summary (built, test results, QA verdict, open
-   risks) and **waits** for explicit approval.
-5. **Record** — lead updates PROGRESS.md and **moves everything the phase completed out
-   of it in the same edit**: the phase row → `docs/progress/phase-ledger.md` (verbatim),
-   task detail → `docs/progress/<phase>.md`, the hub → `status: complete` with its
-   `## Current state` cut into that record (then `npm run features:index`), resolved follow-up
-   **entries** → `docs/followups/follow-ups-archive.md`, closed bugs → flip the `BUGS.md` status
-   cell (no rotation; ADR 0185 D3), the branch's handoff deleted (mechanics: lead-playbook
-   §§4–5; `npm run lint:progress` + `lint:registers` RED on anything completed left behind).
-   Updates `docs/backend-state.md` if the backend surface
-   changed, and commits `phase(N): complete — <summary>`. **Name the authz ARM, never the script:**
-   `ARM=floor` asks whether every door is *called*, a diff-scoped `ARM=policy` whether anything
-   *notices* when a gate is opened, `ARM=census` whether anything has *ever asked*, `ARM=hat`
-   whether any door reads `memberships` without the caller's hat — a gate record
-   naming the script reads as full coverage while delivering the cheap half (ADR 0079;
-   `docs/followups/follow-ups-archive.md`).
+1. **Build complete** — lint, typecheck, unit tests, and the pgTAP suite (`npm run test:db`,
+   on a **fresh `supabase db reset`**) pass; the **authz arms** (`census`, `hat`, `floor`,
+   `FROMFINDINGS=1 wrapper`) hold, plus the **diff-scoped door sweep, both arms**, if any RLS
+   policy or `prosecdef` gate changed. **BLIND blocks the phase; `ERROR` is not a pass.**
+   Recipe and what each ARM proves: lead-playbook §4, ADR 0079.
+2. **Test pass** — `tester` writes/updates Playwright specs for the acceptance criteria and
+   files a bug per failure as a row in `docs/bugs/BUGS.md`. The fix loop reruns failing +
+   current-phase specs; the **full suite runs once to declare green** via `npm run e2e:prod`
+   (`docs/testing/e2e-prod-build-gate.md`). Tester never edits app code; engineers never edit
+   specs to pass without tester sign-off.
+3. **QA review** — `qa` writes `docs/reviews/<subject>-review.md` with `APPROVED` or
+   `CHANGES REQUESTED`. Changes loop to step 1.
+4. **Human approval** — lead presents built / tests / QA verdict / open risks and **waits**.
+5. **Record** — lead-playbook §§4–5: the phase row → the ledger, the hub → `complete` with its
+   block appended to its record, bugs → status cells, follow-ups → the archive, the handoff
+   deleted; `npm run lint` reds on anything completed left behind. Commit
+   `phase(N): complete — <summary>`. **Name the authz ARM, never the script.**
 
 ## 7. Progress Tracking
 
-**PROGRESS.md is the roll-up, and it holds LIVE STATE ONLY** — § Phase Status, the generated
-feature roll-up, § State. **The working state of a unit under construction lives in its hub,
-`docs/features/<code>.md` § Current state** (six fixed sections, replace never append, ≤ 60
-lines, gated), and the hub is listed in **[docs/planning/CURRENT.md](./docs/planning/CURRENT.md)**.
-Update the block when a task starts/finishes or a gate passes — **never report status verbally
-without writing it there first**. Each branch owns its hub; the lead owns § Phase Status.
-⛔ **This paragraph must survive any trim** — a path-scoped rule cannot trigger its own
-trigger, so if nothing here sends you to the hub, the contract below never loads. ADR
-[0185](./docs/decisions/0185-documentation-restructure-feature-hubs-and-gated-registers.md).
-
-⛔ **Follow-ups, bugs and lessons do NOT live in PROGRESS.md.** Follow-ups: **one entry** per
-item in [docs/followups/follow-ups-open.md](docs/followups/follow-ups-open.md) with Filed ·
-Owner · Severity · **Closes when** (gated); the PO-curated ⭐⭐ Critical list is pinned at its
-top; parked → `deferred-backlog.md` (every entry carries **Revisit when**); resolved →
-`follow-ups-archive.md` (ADR 0179 + 0185 D5). Bugs: **one row** per bug in
-[docs/bugs/BUGS.md](docs/bugs/BUGS.md) — status is a column, severity from the shared
-five-level scale (D4); complex bugs get `docs/bugs/<ID>.md`. Lessons:
-[docs/learning/LESSONS.md](docs/learning/LESSONS.md) — one row + its **enforcer** or
-`prose only`; postmortems for failures that earn a file (D7).
-
-**The contract is not restated here** (that second copy is what drifted). It loads from
-[progress-contract.md](.claude/rules/progress-contract.md) when you open PROGRESS.md, a hub
-or a register, and `npm run lint:progress` (gate 7) + `npm run lint:registers` (gate 13) are
-its authority. ⚠ Both check **presence and resolution, never truth** — `PO to rule` is a legal
-value and is counted; an invented one is invisible. PROGRESS.md has **no protected section**
-since ADR 0185 moved § Critical FUP into the register. The durable backend-surface map is
-**`docs/backend-state.md`** — reference it instead of re-deriving the backend each phase.
-
-**Review cadence for CLAUDE.md _and_ `.claude/rules/`:** a `Stop` hook
-(`scripts/claude-md-review-signal.mjs`) scans each finished session's transcript for
-correction signals and queues candidates in `.claude/claude-md-review-queue.md`
-(gitignored). Process the queue with the **`/review-claude-md`** skill, which proposes
-diffs — the "always ask before changing CLAUDE.md" rule below applies to those proposals
-too. `npm run lint:rules` (gate 8) catches a rule whose **subject** vanished; a rule
-whose **claim** went false has no gate at all, so that queue is its only witness.
+A unit's **summary** is its hub's `## Current state` (`docs/features/<code>.md`; six fixed
+sections, replace never append, ≤ 60 lines, gated); its **log** is its record's `## Session log`
+(`docs/progress/<code>.md`; one dated entry per session, appended: witnesses, gate runs, dead
+ends). A state word goes to the hub; a witness goes to the record. **Never report status
+verbally without writing it there first.** PROGRESS.md holds only § Phase Status and § State.
+Where every other kind of line belongs — bugs (`docs/bugs/BUGS.md`, status is a cell),
+follow-ups (`docs/followups/follow-ups-open.md`, the ⭐⭐ Critical list pinned at its top),
+lessons (`docs/learning/LESSONS.md`), standing prohibitions (`.claude/rules/`) — is the table in
+[docs/INDEX.md](./docs/INDEX.md). `npm run lint:progress` (gate 7) and `lint:registers`
+(gate 13) enforce presence and shape, never truth: `PO to rule` is a legal value. ADR
+[0186](./docs/decisions/0186-documentation-consolidation-one-home-per-fact.md).
 
 ## 8. Conventions & Quality Bar
 
 - TypeScript `strict`; no `any` without an inline justification comment.
-- **Lint gate** — `npm run lint` is **THIRTEEN gates chained**; ALL must pass (verify against
-  `package.json`, not this list): `eslint --max-warnings=0` **&&** `lint:css-vars` **&&**
-  `lint:memberships-door` **&&** `lint:client-server-imports` **&&** `lint:vacuous` **&&**
-  `lint:set-local` **&&** `lint:progress` **&&** `lint:rules` **&&** `lint:adr-index` **&&**
-  `lint:mojibake` **&&** `lint:service-role-registry` **&&** `lint:authz-vectors` **&&**
-  `lint:registers`. Each was added after the class it gates
-  shipped a live defect; that rationale — and the traps in reading each gate's output — lives in
-  **[docs/lint-gates.md](./docs/lint-gates.md)**, rotated there 2026-08-29 when this file had 169
-  bytes of headroom left. ⛔ Verify the chain against `package.json`, never a prose list.
-  eslint itself must be **0 errors AND 0 warnings** (warnings fail the gate). Scope is first-party source (`src/`, `e2e/`, `*.test.*`);
-  `.claude/` tooling + build dirs are ignored; mark intentionally-unused bindings with a
-  `_` prefix; keep `eslint-config-next` pinned to the installed `next`. Rationale: ADR 0067.
-- ⛔ **Prettier does not govern this tree, in two directions** — the tracker docs are in
-  `.prettierignore` (padding table cells erodes the very headroom `lint:progress` protects),
-  and `src/` is **not**, which is the trap: `prettier --write` rewrites a whole component away
-  from its shadcn-style neighbourhood and no gate catches it. Full rule, rotated verbatim
-  2026-08-27: `.claude/rules/prettier-does-not-govern-this-tree.md`.
+- **Lint gate** — `npm run lint` chains every gate in `package.json`'s `lint` script; ALL must
+  pass, eslint at **0 errors AND 0 warnings**. Why each gate exists and the trap in reading its
+  output: **[docs/lint-gates.md](./docs/lint-gates.md)**. Scope is first-party source (`src/`,
+  `e2e/`, `*.test.*`); mark intentionally-unused bindings with a `_` prefix; keep
+  `eslint-config-next` pinned to the installed `next` (ADR 0067).
+- ⛔ **Prettier does not govern this tree** — never on `src/`, never on the tracker docs:
+  `.claude/rules/prettier-does-not-govern-this-tree.md`.
 - Conventional commits: `feat(scope):`, `fix:`, `test:`, `chore:`, `phase(N):`.
 - Server Components by default; `"use client"` only where interaction requires it.
-- Every form input accessible: labels, keyboard navigation, visible focus. The tester
-  includes at least one keyboard-only flow per phase.
+- Every form input accessible: labels, keyboard navigation, visible focus. The tester includes
+  at least one keyboard-only flow per phase.
 - Errors user-readable in pt-BR; raw Supabase/Postgres errors never reach the UI.
-- Secrets only in `.env.local` (gitignored). `NEXT_PUBLIC_` vars: Supabase URL + anon
-  key only. Service-role key is server-only — in client code, that's a phase-blocking bug.
-- Non-trivial decisions get an ADR in `docs/decisions/` — Context · Problem · Decision ·
-  Considered options · Consequences (ADRs here run ~180 lines; the old "5–10 lines" was never
-  true). Number: **the highest number on ANY live branch + 1**, never the index's "next free"
-  alone — two branches took the same next-free twice on 2026-09-03 (ADR 0185 header); gate 9
-  catches the duplicate at rebase. Header carries `**Status:**`, `**Area:**`, optional
-  `**Related:**`, plus a `**Supersedes:**` / `**Amends:**` label naming the ADR numbers if it
-  changes an earlier decision, then run `npm run adr:index`. That label is the ONLY input to
-  the index's back-pointer column, and no gate can notice it missing.
-  ⛔ Never create `docs/adr/` — that path appears in a generic skill; this repo's log is
-  `docs/decisions/`.
-- A standing prohibition with **no resolution event** ("never fix X by granting Y", "read
-  BUG-N before touching Z") is **not** a PROGRESS.md line — it can only accumulate there.
-  It belongs in **`.claude/rules/`**, path-scoped. ⛔ Admission: declare `paths:` (unscoped
-  = loaded on every session and spawn), declare checkable `anchors:`, name a `source:`,
-  stay inside the volume bounds — and **never write one a gate already enforces**. If it
-  cannot be shown stale, it is not admitted. ⚠ Rules fire in a **fresh** session but not
-  every session type (ADR [0127](./docs/decisions/0127-standing-rules-home-and-staleness-gate.md)
-  Amdt 4), so a rule is a strong hint and **never a substitute for a gate**.
+- Secrets only in `.env.local` (gitignored). `NEXT_PUBLIC_` vars: Supabase URL + anon key only.
+  Service-role key is server-only — in client code, that's a phase-blocking bug.
+- Non-trivial decisions get an ADR in `docs/decisions/` (Context · Problem · Decision ·
+  Considered options · Consequences; ~180 lines is normal). Number: **the highest number on
+  ANY live branch + 1**, never the index's "next free" alone; gate 9 catches a duplicate at
+  rebase. Header carries `**Status:**`, `**Area:**`, optional `**Related:**`, and a
+  `**Supersedes:**` / `**Amends:**` label if it changes an earlier decision — the only input to
+  the generated back-pointers; then `npm run adr:index`. ⛔ Never create `docs/adr/`.
+- A standing prohibition with **no resolution event** belongs in **`.claude/rules/`**,
+  path-scoped, under ADR [0127](./docs/decisions/0127-standing-rules-home-and-staleness-gate.md)'s
+  admission bar — never one a gate already enforces; a rule is a hint, never a substitute for a
+  gate.
 
 ## 9. Commands Reference
 
@@ -424,76 +242,48 @@ npm run db:push                # push migrations to remote
 npm run db:reset:linked        # reset REMOTE DB + seed (destructive!)
 npm run gen:types:linked       # regenerate types from the linked remote
 npm run dev                    # Next.js dev server (http://localhost:3000)
-npm run lint && npm run typecheck   # the chain + why each gate exists: §8. ⛔ Never re-list it
-                               #   here — this copy drifted to "all ten" while the chain grew to 11
-npm run adr:index              # regenerate docs/decisions/INDEX.md — run after writing or
-                               #   editing an ADR header; gate 9 reds until you do
-npm run features:index         # regenerate docs/features/INDEX.md + the PROGRESS.md roll-up after
-                               #   editing a hub's frontmatter; gate 13 reds until you do
-npm run format:check           # Prettier (npm run format writes) — manual, NOT a lint gate;
-                               #   tracker docs are .prettierignore'd (§8 — breaks lint:progress)
+npm run lint && npm run typecheck   # the chain: §8 / docs/lint-gates.md
+npm run adr:index              # regenerate docs/decisions/INDEX.md after an ADR header change
+npm run features:index         # regenerate docs/features/INDEX.md after a hub frontmatter change
+npm run format:check           # Prettier — manual, NOT a lint gate (§8)
 npm run test                   # Vitest unit tests (full suite)
 npm run test:db                # pgTAP suite (`supabase test db`) — Phase Gate step 1
 npx playwright test            # E2E on a dev server (quick loop; needs dev server + seeded DB)
-npm run e2e:prod               # FULL prod-standalone E2E gate — batches the suite + restarts the
-                               #   server per batch to avoid the Windows monolith collapse.
-                               #   Knobs: BATCH_SIZE / RESET / REBUILD / RETRIES / SPECS.
-                               #   Details: docs/testing/e2e-prod-build-gate.md
+npm run e2e:prod               # FULL prod-standalone E2E gate, batched with server restarts —
+                               #   knobs and details: docs/testing/e2e-prod-build-gate.md
 ```
 
 Single-test debug loops: `npx vitest run <file>` / `-t "<name>"`; `npx playwright test
 <spec>` / `-g "<title>"` / `--project=chromium`.
 
-**E2E seed personas** (`supabase/seed.sql`, applied by `db reset`). Two orgs — **Rede A**
-(commissions CCIH + Farmácia) and **Rede B** (cross-org boundary). Password for ALL:
-`Test1234!`. Key personas (full roster in the seed header): `platform@test.local`
-(`platform_admin`), `orgadmin.a@test.local` (`org_admin` A), `chefe.ccih@test.local`
-(`staff_admin` A / CCIH), `multi@test.local` (`staff` of **two commissions, both in
-Rede A** — commission picker), `nsporg.a@test.local` (`nsp_org_admin` A).
-⛔ **NO seeded persona holds a membership or affiliation outside its home org** — there is
-**no cross-org persona**, so a cross-org test written against `multi@test.local` passes
-while proving nothing. Measured 2026-08-26 (this line read *"of A **and** B"*).
+**E2E seed personas** (`supabase/seed.sql`; roster in its header). Two orgs, **Rede A** (CCIH +
+Farmácia) and **Rede B**; password for all `Test1234!`; `platform@test.local`,
+`orgadmin.a@test.local`, `chefe.ccih@test.local` (`staff_admin` CCIH), `multi@test.local`
+(`staff` of two Rede A commissions), `nsporg.a@test.local`. ⛔ **No persona crosses orgs** — a
+cross-org test written against `multi@test.local` passes while proving nothing.
 
 ## Loop Safety Rules
 
 - Never exceed 5 fix iterations without reporting to the user.
-- Each iteration must fix at least one new issue — if the same error recurs unchanged,
-  stop and escalate.
-- Track which files each agent modified to detect conflicts.
-- If two agents need to modify the same file, serialize those tasks.
-- Log every iteration: what was tested, what failed, what was fixed.
+- Each iteration must fix at least one new issue; if the same error recurs unchanged, escalate.
+- Track which files each agent modified; serialize tasks that share a file.
+- Log every iteration: tested, failed, fixed.
 
 ## graphify
 
-This project has a knowledge graph at `graphify-out/`.
+Knowledge graph at `graphify-out/`. For codebase questions run `graphify query "<question>"`
+first when `graphify-out/graph.json` exists; `graphify path` / `explain` for relationships and
+concepts. **Teammates never run `graphify update`** — refresh is lead-only, once per phase,
+after the merge (lead-playbook §6). The graph is stale by design; the code wins.
 
-- For codebase questions, run `graphify query "<question>"` first when
-  `graphify-out/graph.json` exists; `graphify path "<A>" "<B>"` for relationships and
-  `graphify explain "<concept>"` for focused concepts — these return a scoped subgraph,
-  usually much smaller than GRAPH_REPORT.md or raw grep.
-- Read `graphify-out/GRAPH_REPORT.md` only for broad architecture review.
-- **Refresh is lead-only, ONCE PER PHASE, after the merge to `main`, in its own
-  `chore(graphify):` commit. Teammates: do not run `graphify update` at all** — if you already
-  did, revert `graphify-out/` and say so. (A small fix regenerates the whole graph — a
-  near-certain conflict in a generated file; mechanics + rationale: lead-playbook §6.)
-  ⚠ Between refreshes the graph is **stale by design** — an orientation aid, never an
-  authority. When it disagrees with the code, the code wins (and for SQL, see the binding
-  exception below: the catalog wins over both).
-- ⛔ **Exception, binding: graphify does NOT index SQL — and migration file text is STALE by design**
-  (some migrations rewrite function bodies at runtime via `pg_get_functiondef()` + `replace()` +
-  `execute`). For **any** schema / RLS / RPC / authorization question the **live catalog is the sole
-  truth**: `pg_proc` (incl. **`prosecdef`** — a DEFINER's gate *replaces* RLS), `pg_policies`,
-  `pg_policy`, `pg_trigger`, and the **ACLs**. Never graphify it, never grep it, never read the
-  migration file and believe it. Reading files here has already produced a confident **false P0** and
-  burned an external auditor. ADR 0078 "METHODOLOGY FINDING"; the `Bash` graphify hook is off for
-  this reason.
-
-<!-- BEGIN:nextjs-agent-rules -->
+⛔ **Binding exception: graphify does NOT index SQL, and migration file text is STALE by
+design** (some migrations rewrite function bodies at runtime). For **any** schema / RLS / RPC /
+authorization question the **live catalog is the sole truth**: `pg_proc` (incl. **`prosecdef`**
+— a DEFINER's gate *replaces* RLS), `pg_policies`, `pg_policy`, `pg_trigger`, and the ACLs.
+Never graphify it, never grep it, never read the migration file and believe it (ADR 0078).
 
 # This is NOT the Next.js you know
 
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
 
 This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
-
-<!-- END:nextjs-agent-rules -->
