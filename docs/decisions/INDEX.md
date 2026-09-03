@@ -12,7 +12,7 @@
 >
 > Edges are **advisory** and over-inclusive by design; the ADR text is truth.
 
-**179 ADRs** · next free number: **0182** · 56 carry an inbound supersedes/amends edge
+**180 ADRs** · next free number: **0183** · 56 carry an inbound supersedes/amends edge
 
 ## ⚠ Anomalies
 
@@ -203,3 +203,4 @@
 | 0179 | [One open follow-up register: the PROGRESS.md index is folded into the bodies](0179-follow-up-register-consolidation.md) | accepted | 2026-09-02 | amends 0124, 0140 | – |
 | 0180 | [`authz.scope_reaches`: the commission→organization ascent reads `commissions.organizati…](0180-scope-reaches-commission-org-ascent-plan-fix.md) | accepted | 2026-09-02 | – | – |
 | 0181 | [Acceptance condition P1 bounds the INDEX PATH, not the `Seq Scan` node](0181-p1-bounds-the-index-path-not-the-scan-node.md) | accepted | 2026-09-02 | – | – |
+| 0182 | [The permission answer is computed once per STATEMENT, not once per protected row](0182-statement-scoped-authorized-scope-ids.md) | accepted | 2026-09-03 | – | – |

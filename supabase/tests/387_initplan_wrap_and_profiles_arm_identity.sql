@@ -338,7 +338,27 @@ select is(
   --    authorizer names BOTH arms) and §2.1 (all four policies call it in BOTH halves).
   --    ⭐ Losing reach is not the same as losing the subject -- but it is exactly the kind of
   --    loss a re-captured constant makes invisible, so it is written down beside the value.
-  '3901715193753db33f980f939c6467de',
+  --    ⭐ RE-CAPTURED 2026-09-03 by AE4/IA-F9's statement-scoped increment (migration
+  --    20261003007320, ADR 0182), from 3901715193753db33f980f939c6467de.  ONE policy moved:
+  --    `professional_profiles_select`, whose USING went from the bare
+  --    `app.can_read_professional_profile(id, auth.uid())` to a CASE that tests the row's
+  --    organization against `app.current_professional_read_organizations()` FIRST and falls
+  --    back to that same authorizer for every other arm.
+  --    ⚠ RE-DERIVED BY INVERSION, per the AE2.2/D6 rule directly above -- not read off the
+  --    catalog.  In a rolled-back transaction the policy was ALTERed back to its pre-7320
+  --    text and the aggregate returned 3901715193753db33f980f939c6467de EXACTLY, which is
+  --    what licenses the claim that the other 98 policies are bit-identical and that 7320
+  --    moved only what it declared.
+  --    ⛔ AND C1 IS ARM-BLIND TO THIS CHANGE TOO, in the same way D6's note records.  The
+  --    new predicate's first arm is a set-membership test whose CONTENT lives inside
+  --    `app.current_professional_read_organizations` -> `authz.authorized_scope_ids`, where a
+  --    policy-text hash cannot follow it: C1 would not move if that resolver started
+  --    returning every organization tomorrow.  ⭐ The behavioural cover is `413` -- §2's
+  --    differential against `authz.has_permission`, §4's base-table reads as `authenticated`,
+  --    and §5's SUBSET invariant -- plus `413` §7, which plants exactly that over-broad body
+  --    and requires the differential to go RED.  §B is silent here for D6's reason:
+  --    `professional_profiles` is not one of its five pinned tables.
+  'f2a0693be216cfe08eb6cf0283565e7c',
   'C1 un-wrapping every policy on the hot tables reproduces the pinned predicate set exactly -- no arm added, dropped or reordered beyond the three legs AE2.2 re-predicated and the three form-write policies AE4.9 D6 re-keyed, both on purpose');
 
 select is(

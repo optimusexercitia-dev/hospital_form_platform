@@ -1,0 +1,139 @@
+# ADR 0182 — The permission answer is computed once per STATEMENT, not once per protected row
+
+**Status:** accepted
+**Date:** 2026-09-03
+
+## Context
+
+The AE4 performance acceptance has failed condition **P5** on eight readings across five runs
+(6.13 / 5.20 / 6.21 / 6.27 / 6.04 / 6.19 / 5.28 / 4.99 against `K = 4`), and after ADR
+[0180](./0180-scope-reaches-commission-org-ascent-plan-fix.md) it is the **only** condition still
+failing. Acceptance doc §12.4 localized the residue and named the fix it would take:
+
+> ~170 000 lookups re-resolving the same 20 assignment facts per protected row — which is
+> `entailed_grants`' invocation structure, a **different increment** with its own approval.
+
+Measured on the ANALYZEd AE4 perf fixture, the P5 statement (10 000-row org-filtered read of
+`public.professional_profiles`) costs **1 001 345 buffers** on the permission arm against
+**170 164** on the legacy arm — 100 buffers per protected row, of which ~57 are the
+commission→organization ascent. Every one of the 10 000 rows re-resolves the identical 20
+assignment facts against the identical scope.
+
+The cause is structural, not a plan defect: `app.can_read_professional_profile(id, uid)` selects
+`organization_id` out of the ROW into `v_org` before calling `authz.has_permission`, so the
+argument is row-derived and the planner cannot hoist the call — even on a read where every row
+carries the same organization. §5's M4 note records the counterpart: the same function with four
+**constant** arguments folds to a single InitPlan.
+
+⛔ Attribution is by measurement, not inference. DC1b plants ~50× cost into `scope_reaches` and
+moves the statement 18.12× / 17.01×; DC1a plants into `assignment_facts` and moves it 1.58× / 1.68×.
+The non-inlinable DEFINER SRF that audit finding IA-F9 founded itself on is real, per-row, and
+**cheap** — 1–3 % of per-row cost.
+
+## Decision
+
+**Invert the operation for the list read.** Compute the set of scope ids where the current
+principal holds a permission **once per statement**, then test each protected row's
+`organization_id` against that set.
+
+Three new functions and one altered policy predicate (migration `20261003007320`). ⛔ Nothing
+existing is redefined — `scope_reaches`, `entailed_grants`, `assignment_facts`, `has_permission`,
+`candidate_has_permission` and `app.can_read_professional_profile` are all untouched, the last
+because it has two other DEFINER callers (`app._audit_access_authorized`,
+`public.get_case_professional`) that ask a single-row question and are not the subject.
+
+1. **`authz.authorized_scope_ids(principal, resolution_kind, permission_code)`** — the CASE inside
+   it only **PROPOSES** one candidate scope per assignment fact; **`authz.has_permission` itself
+   then CONFIRMS every candidate** before it is returned. Candidates are deduplicated *before*
+   confirmation, so the confirmer runs once per distinct scope (2 for the measured principal), not
+   once per fact.
+2. **`authz.candidate_authorized_scope_ids(...)`** — the `test_validation`-visible twin, differing
+   by exactly the one predicate that separates `candidate_has_permission` from `has_permission`.
+3. **`app.current_professional_read_organizations()`** — the narrow door the policy calls. It takes
+   **no principal argument**; the principal is bound to `auth.uid()` internally and the permission
+   and resolution kind are fixed.
+4. `professional_profiles_select` becomes
+   `case when organization_id in (select …) then true else app.can_read_professional_profile(…) end`.
+
+### Why the reuse is sound, and why it is not a cache
+
+For a fixed principal, permission and resolution kind, `has_permission`'s answer depends on the
+requested scope id through exactly one term — the `scope_reaches` conjunct in `entailed_grants`.
+Every other gate (the permission's `resolution_scope_kind`, `app.is_active`, `expires_at`,
+`roles.state`, `role_permissions`, the implication closure, the `hat_ok` asymmetry) is a function of
+the assignment fact and the session, never of the requested id. And in all four of its live arms
+`scope_reaches` is an **equality against a single derived value**, so per assignment fact exactly
+one id can satisfy it. Hence `has_permission(P,K,X,C) ⟺ X ∈ authorized_scope_ids(P,K,C)`.
+
+⛔ **The implementation does not rest on that argument being right.** Because `has_permission`
+confirms every candidate:
+
+- **over-granting is impossible by construction** — every returned id was approved by the
+  unmodified runtime resolver, on the real row, in this statement; and
+- **a wrong candidate map can only DENY** — a missing proposal yields an empty list, never an
+  escalation. That is the direction a bug on this path is allowed to point.
+
+Nothing is stored, memoized across statements, or carried in a GUC, session table or JWT claim. The
+set is an uncorrelated subplan inside ONE statement under ONE MVCC snapshot; the next statement
+recomputes it. A membership revoked concurrently was never visible mid-statement anyway. A design
+that reused an answer **across** statements would be privilege escalation wearing a performance
+argument, and is rejected.
+
+The policy uses `case … then true else …`, not `<set> or <fn>`: a disjunction lets the planner order
+the arms by its own cost estimate, and `app.can_read_professional_profile`'s default cost of 100 is
+not obviously worse than a hashed subplan. `CASE` fixes the evaluation order, which is what makes
+the short-circuit a guarantee rather than an observation.
+
+### The acceptance protocol is amended in the same change
+
+⛔ **Run 6 executed against the unamended protocol would be VOID, and the VOID would be caused by
+the optimization working.** DC1's measured statement is
+`select count(*) from (select 1 from public.professional_profiles limit 200) t` — a read through
+the very policy this ADR changes. Both DC1 arms plant into terms that are today paid 200× per
+statement and would afterwards be paid **once**, so neither could reach `≥ 10×`, DC1 would fail, P6
+would fail. P2 and P3 would meanwhile pass **vacuously**: "≤ 1 invocation per protected row" is
+trivially true at 200 rows and 1 invocation.
+
+Therefore, ruled together with this decision:
+
+- **DC1 keeps its statement and its `≥ 10×`, but re-installs the PRE-CHANGE policy predicate** for
+  the duration of the same rolled-back transaction that already installs its planted body. It then
+  measures in run 6 exactly what it measured in runs 1–5, so the readings stay comparable, and it
+  proves the *timing harness* is still able to resolve an expensive seam. ⛔ The obvious re-aim —
+  onto `professional_participants_select`, which is unconverted and still per-row — was written,
+  **measured, and killed**: that table holds **1** row on a fresh reset and the perf fixture
+  `analyze`s it without ever inserting into it, so the control would have planted into a chain
+  invoked once and reported a number either way. Recorded in acceptance §13.5 rather than quietly
+  replaced.
+- **A semantic ablation is added for the converted path**: mutate the set builder to return the
+  empty set (the read must yield 0 rows) and to return every organization (it must yield foreign
+  rows). Proves the set arm is load-bearing, using the pattern §3 already trusts, rather than a
+  timing ratio that the fix necessarily flattens.
+- **P2/P3 are re-stated as once-per-STATEMENT**, with an explicit assertion that the subplan is
+  uncorrelated at `loops=1` and the fallback InitPlan is `never executed` — so a policy that
+  silently stopped short-circuiting cannot pass them vacuously.
+- ⛔ **`K = 4` is not moved, and P1's re-specification is not borrowed.** The conditions are
+  independent (acceptance §12.4).
+
+## Consequences
+
+- Measured on the same fixture, candidate installed against the real policy: the permission arm goes
+  **1 001 345 buffers / 12 178 ms → 402 buffers / 8.3 ms**, and the legacy arm is unmoved
+  (170 164 → 170 254). The plan shows `hashed SubPlan 1` at `loops=1` returning 2 rows, with the
+  fallback `never executed`.
+- ⚠ **This is plan-shape and invocation-count evidence, not a production latency prediction** —
+  acceptance §8 item 2 still binds; the fixture is fully cache-resident.
+- The shape is O(distinct candidate scopes) confirmations per statement and **O(1) in protected
+  rows**, which is the acceptance's subject. Max memberships per principal on the fixture is 20
+  (avg 4.1, none above 50).
+- **`professional_participants_select` remains per-row.** Its product input is bounded to ≤ 20
+  profile ids (`src/lib/queries/participants.ts`) and it has no failing condition driving it.
+  Recorded as `FUP-PROFESSIONAL-PARTICIPANTS-SELECT-STILL-PER-ROW` rather than treated as solved.
+- ⛔ **The new functions are outside the door sweep's `PRED_DOMAIN`** — they return `SETOF uuid`, and
+  the domain requires `t.typname = 'bool'`. This is the same apparatus gap as
+  `FUP-DOOR-SWEEP-DOMAIN-MISSES-THE-AUTHZ-RESOLVERS`, now widened by two more functions; they are
+  covered here by targeted mutation cases, and the FUP is updated to say so.
+- pgTAP `413` pins the catalog attributes and ACLs, the differential against `has_permission` on
+  both polarities, the hat asymmetry on both branches, the base-table policy surface read as
+  `authenticated`, the SUBSET property the rewrite rests on, and a bundled vacuity control that
+  plants an over-broad body and requires the differential to go red.

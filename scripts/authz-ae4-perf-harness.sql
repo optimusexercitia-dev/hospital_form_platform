@@ -752,18 +752,49 @@ end $$;
 
 -- ⚠ The caller no longer switches role: ae4_time does, per measurement.
 begin;
+  -- ⭐ THESE FOUR ARE P4's, ON THE LIVE PREDICATE. P4 asks whether growth in protected rows is
+  --    at worst linear, and after 20261003007320 the honest place to ask that is the shipped
+  --    path. DC2's own copies are taken separately, below, under the pre-change predicate —
+  --    see the block after this one for why they had to be split.
   select pg_temp.ae4_time('DC2/N=10',    :'c_perm', 'select count(*) from (select 1 from public.professional_profiles limit 10) t');
   select pg_temp.ae4_time('DC2/N=100',   :'c_perm', 'select count(*) from (select 1 from public.professional_profiles limit 100) t');
   select pg_temp.ae4_time('DC2/N=1000',  :'c_perm', 'select count(*) from (select 1 from public.professional_profiles limit 1000) t');
   select pg_temp.ae4_time('DC2/N=10000', :'c_perm', 'select count(*) from (select 1 from public.professional_profiles limit 10000) t');
-  -- The DC1 baseline: the SAME statement DC1 will re-time under a planted cost.
-  select pg_temp.ae4_time('DC1/baseline', :'c_perm', 'select count(*) from (select 1 from public.professional_profiles limit 200) t');
+  -- ⛔ THE DC1 BASELINE MOVED TO SECTION 8 (acceptance §13.2, ADR 0182). It must be taken
+  --    under the SAME policy predicate as the planted runs, and after 20261003007320 those
+  --    run under the re-installed PRE-CHANGE predicate. Timing a new-predicate baseline
+  --    against a legacy-predicate plant would report the POLICY CHANGE as the plant's effect
+  --    — a ~3000x ratio that passes DC1 while measuring nothing it claims to measure.
   -- P5 pair, machine-checked (both read-only, so no rollback is needed).
   select pg_temp.ae4_time('P5/permission-arm', :'c_perm',
     'select count(*) from public.professional_profiles where organization_id = ' || quote_literal(:'t_org') || '::uuid');
   select pg_temp.ae4_time('P5/legacy-arm', :'c_legacy',
     'select count(*) from public.professional_profiles where organization_id = ' || quote_literal(:'t_org') || '::uuid');
 commit;
+
+-- ==========================================================================
+-- DC2's OWN COPIES, under the PRE-CHANGE predicate — split out 2026-09-03, ADR 0182.
+--
+-- ⛔ DC2 AND P4 CANNOT SHARE TIMINGS ANY MORE, and run 6 pass A is what proved it. DC2 asks
+--    "did the FIXTURE actually scale the work?" and fails when 1000x the rows costs < 5x.
+--    After 20261003007320 the authorization cost is O(1) in protected rows, so on the live
+--    predicate DC2 read **1.15x** and FAILED — i.e. it fired on exactly the state the change
+--    set out to produce, which would have made P6 fail and the whole run VOID.
+--    ⭐ That is the same trap as DC1's, and the amendment's first draft missed it here.
+--    It was caught by RUNNING the harness, not by reading it.
+--
+-- So DC2 keeps its question and moves to the predicate where the question still has meaning,
+-- exactly as DC1 did; P4 keeps the four LIVE timings above, because "is growth at worst
+-- linear" is a question about the SHIPPED path and is answerable there.
+-- ==========================================================================
+begin;
+  alter policy professional_profiles_select on public.professional_profiles
+    using (app.can_read_professional_profile(id, ( select auth.uid() )));
+  select pg_temp.ae4_time('DC2L/N=10',    :'c_perm', 'select count(*) from (select 1 from public.professional_profiles limit 10) t')::text as dc2l_10
+\gset
+  select pg_temp.ae4_time('DC2L/N=10000', :'c_perm', 'select count(*) from (select 1 from public.professional_profiles limit 10000) t')::text as dc2l_10k
+\gset
+rollback;
 
 select label, ms_best, reps, measured_as from pg_temp.ae4_timing order by label;
 
@@ -789,15 +820,12 @@ begin
   select ms_best into v1k  from pg_temp.ae4_timing where label = 'DC2/N=1000';
   select ms_best into v10k from pg_temp.ae4_timing where label = 'DC2/N=10000';
 
-  -- DC2 -- is the instrument alive? 1000x the rows must cost meaningfully more.
+  -- DC2 is no longer computed here — it moved to the pre-change predicate and its verdict is
+  -- an ordinary SQL statement below (psql cannot interpolate :'…' inside a dollar-quoted
+  -- block, which is what killed section 10 in run 3). The LIVE N-differential is still
+  -- reported, as evidence, because a reader comparing runs will look for it.
   r := round(v10k / nullif(v10, 0), 2);
-  if v10k < v10 * 5 then
-    perform pg_temp.ae4_say('DC2','CONTROL','FAIL',
-      format('1000x the protected rows cost only %sx (%s ms -> %s ms): the fixture did not scale or the per-row evaluation is not happening', r, v10, v10k));
-  else
-    perform pg_temp.ae4_say('DC2','CONTROL','PASS', format('cost tracks N: %s ms -> %s ms (%sx)', v10, v10k, r));
-  end if;
-  raise notice 'AE4 DC2: 10 rows % ms, 10000 rows % ms, ratio %.', v10, v10k, r;
+  raise notice 'AE4 live-path N-differential (evidence, not DC2): 10 rows % ms, 10000 rows % ms, ratio %.', v10, v10k, r;
 
   -- P4 -- is that growth at worst LINEAR? Measured across the 1000 -> 10 000
   -- decade, where the fixed per-statement overhead has been amortised.
@@ -825,6 +853,20 @@ begin
   raise notice 'AE4 P5 ratio (permission arm / legacy arm) = % (% ms / % ms). Threshold <= 4.', r, vp, vl;
 end $$;
 
+-- DC2's verdict, on the pre-change predicate. Same question, same >= 5x threshold, same
+-- meaning as runs 1-5; only the predicate under it is pinned back. See the DC2L block above.
+select pg_temp.ae4_say('DC2', 'CONTROL',
+  case
+    when nullif(:'dc2l_10','') is null or nullif(:'dc2l_10k','') is null then 'VOID'
+    when nullif(:'dc2l_10k','')::numeric < nullif(:'dc2l_10','')::numeric * 5 then 'FAIL'
+    else 'PASS'
+  end,
+  format('1000x the protected rows: %s ms -> %s ms (%sx) on the PRE-CHANGE predicate. Threshold >= 5x. '
+         'A ratio below it means the fixture did not scale, not that the optimisation worked — that is '
+         'why this is measured where the per-row evaluation still happens (ADR 0182, acceptance §13.6).',
+         :'dc2l_10', :'dc2l_10k',
+         round(nullif(:'dc2l_10k','')::numeric / nullif(nullif(:'dc2l_10','')::numeric, 0), 2)));
+
 
 \echo ''
 \echo '################################################################'
@@ -837,7 +879,42 @@ end $$;
 \echo '##  and every green number above is uninterpretable.          ##'
 \echo '################################################################'
 
+-- ==========================================================================
+-- ⭐ DC1 IS NOW A LEGACY-PREDICATE CONTROL (acceptance §13.2/§13.5, ADR 0182).
+--
+-- 20261003007320 made professional_profiles_select compute the permission answer ONCE PER
+-- STATEMENT. DC1a and DC1b plant into terms that were paid 200x per statement and are now
+-- paid ONCE, so on the live predicate neither arm could reach >=10x, DC1 would FAIL, P6
+-- would fail, and the run would be VOID *because the optimisation worked*.
+--
+-- So each DC1 block re-installs the PRE-CHANGE predicate inside its own rolled-back
+-- transaction, exactly as it already installs a planted function body. DC1 then measures in
+-- run 6 what it measured in runs 1-5, and the eight readings stay comparable.
+--
+-- ⛔ THE BASELINE MUST BE TAKEN UNDER THE SAME PREDICATE AS THE PLANT. Otherwise the ratio
+--    is dominated by the policy rewrite and reads as a spectacularly healthy control.
+-- ⛔ WHAT DC1 NO LONGER BOUNDS: the converted path. After the change that path has almost no
+--    authorization cost left to attribute, so no plant can move it. DC3 and P7 below are what
+--    bound it, and neither is a timing ratio -- which is the point, because flattening the
+--    timing IS the change.
+-- ==========================================================================
+-- ⛔ THE BASELINE IS CAPTURED WITH \gset, NOT READ BACK FROM pg_temp.ae4_timing.
+--    A temp table's CONTENTS are transactional like any other table's, so the row
+--    ae4_time inserts here is discarded by this block's own `rollback` — and the ratio
+--    below would then divide by a NULL and report DC1 as VOID. (Found by construction
+--    while writing this block, not by a run.)
 begin;
+  alter policy professional_profiles_select on public.professional_profiles
+    using (app.can_read_professional_profile(id, ( select auth.uid() )));
+  select pg_temp.ae4_time('DC1/baseline', :'c_perm', 'select count(*) from (select 1 from public.professional_profiles limit 200) t')::text as dc1_base_ms
+\gset
+rollback;
+
+begin;
+  -- The pre-change predicate, re-installed for this measurement only. See the block above.
+  alter policy professional_profiles_select on public.professional_profiles
+    using (app.can_read_professional_profile(id, ( select auth.uid() )));
+
   -- Same result set, deliberately expensive. The extra branch cannot be
   -- folded away: the md5 comparison is opaque to the planner, so it really
   -- scans the principal's memberships 50 times per call.
@@ -869,9 +946,11 @@ begin;
 
   select pg_temp.ae4_time('DC1a/planted', :'c_perm', 'select count(*) from (select 1 from public.professional_profiles limit 200) t');
 
+  -- ⚠ The baseline comes from :'dc1_base_ms', not from pg_temp.ae4_timing: its row was rolled
+  --    back with the block that took it. Reading the table here returns NULL and reports VOID.
   select round(
            (select ms_best from pg_temp.ae4_timing where label = 'DC1a/planted')
-         / nullif((select ms_best from pg_temp.ae4_timing where label = 'DC1/baseline'), 0), 2) as dc1a_ratio
+         / nullif(nullif(:'dc1_base_ms','')::numeric, 0), 2) as dc1a_ratio
 \gset
 rollback;
 
@@ -907,6 +986,13 @@ rollback;
 --    to 3 and re-run; the threshold is about detectability, not magnitude.
 -- ==========================================================================
 begin;
+  -- The pre-change predicate, re-installed for this measurement only — same reason as DC1a,
+  -- and doubly so here: after 20261003007320 the converted read path does not call
+  -- authz.scope_reaches at all on its set arm, so on the live predicate this plant would
+  -- move NOTHING and DC1b would read 1.00x.
+  alter policy professional_profiles_select on public.professional_profiles
+    using (app.can_read_professional_profile(id, ( select auth.uid() )));
+
   -- Same answers, deliberately expensive. Two anti-optimiser properties, both
   -- load-bearing: (1) the planted subquery is the CASE SELECTOR, so it MUST be
   -- evaluated to choose a branch -- as an AND conjunct the planner would order
@@ -941,7 +1027,7 @@ begin;
 
   select round(
            (select ms_best from pg_temp.ae4_timing where label = 'DC1b/planted')
-         / nullif((select ms_best from pg_temp.ae4_timing where label = 'DC1/baseline'), 0), 2) as dc1b_ratio
+         / nullif(nullif(:'dc1_base_ms','')::numeric, 0), 2) as dc1b_ratio
 \gset
 rollback;
 
@@ -986,23 +1072,176 @@ begin
   raise notice 'AE4 DC1 rollback OK — authz.assignment_facts is the shipped body again.';
 end $$;
 
+-- ⛔ THE RESTORE CHECK MUST USE THE SAME PREDICATE AS THE BASELINE. Left on the LIVE
+--    predicate it would compare a ~4 ms statement against a ~40 ms legacy baseline, pass by a
+--    factor of ten, and prove NOTHING about whether the planted body is gone — a vacuous
+--    green produced by the policy rewrite, not by the restore.
 begin;
-  select pg_temp.ae4_time('DC1/restored', :'c_perm', 'select count(*) from (select 1 from public.professional_profiles limit 200) t');
-commit;
+  alter policy professional_profiles_select on public.professional_profiles
+    using (app.can_read_professional_profile(id, ( select auth.uid() )));
+  select pg_temp.ae4_time('DC1/restored', :'c_perm', 'select count(*) from (select 1 from public.professional_profiles limit 200) t')::text as dc1_rest_ms
+\gset
+rollback;
+
+-- ⚠ Both figures arrive as psql variables (the timing rows were rolled back with their
+--    transactions), so the comparison is an ordinary SQL statement — psql does not
+--    interpolate `:'…'` inside a dollar-quoted block, which is what killed section 10 in run 3.
+select case
+         when nullif(:'dc1_rest_ms','')::numeric > nullif(:'dc1_base_ms','')::numeric * 2
+           then 'AE4 DC1 RESTORE CHECK FAILED: after rollback the statement still costs '
+                || :'dc1_rest_ms' || ' ms against a ' || :'dc1_base_ms' || ' ms baseline'
+         else 'AE4 DC1 restore OK — ' || :'dc1_rest_ms' || ' ms vs ' || :'dc1_base_ms' || ' ms baseline (both on the pre-change predicate)'
+       end as dc1_restore_check;
 
 do $$
-declare v_base numeric; v_rest numeric;
 begin
-  select ms_best into v_base from pg_temp.ae4_timing where label = 'DC1/baseline';
-  select ms_best into v_rest from pg_temp.ae4_timing where label = 'DC1/restored';
-  if v_rest > v_base * 2 then
-    raise exception 'AE4 DC1 RESTORE CHECK FAILED: after rollback the statement still costs % ms against a % ms baseline', v_rest, v_base;
+  if to_regclass('pg_temp.ae4_timing') is null then
+    raise exception 'AE4 DC1: the timing table vanished';
   end if;
-  raise notice 'AE4 DC1 restore OK — % ms vs % ms baseline.', v_rest, v_base;
 end $$;
 
 
 
+
+
+\echo ''
+\echo '################################################################'
+\echo '## SECTION 8b — DC3 (semantic ablation) and P7 (short-circuit) ##'
+\echo '##  Acceptance §13.2, ADR 0182. DC1 above is a LEGACY-PREDICATE ##'
+\echo '##  control: it proves the harness can see a seam, on the path  ##'
+\echo '##  20261003007320 replaced. These two bound the LIVE path,     ##'
+\echo '##  and NEITHER is a timing ratio — flattening the timing IS    ##'
+\echo '##  the change, so a ratio cannot be the instrument.            ##'
+\echo '################################################################'
+
+-- A genuinely foreign organization: one the measured principal does NOT hold
+-- org.professionals.read at, and which actually carries professional_profiles rows.
+-- ⛔ Without the second condition the over-broad half is vacuous — it would "fail to see
+-- foreign rows" because there are none, not because the gate is shut.
+select coalesce((
+  select o.id::text
+    from public.organizations o
+   where not authz.has_permission(
+           (select v::uuid from ae4perf.fixture_meta where k = 'principal_id'),
+           'organization', o.id, 'org.professionals.read')
+     and exists (select 1 from public.professional_profiles pp where pp.organization_id = o.id)
+   order by o.id limit 1), '') as f_org
+\gset
+
+\echo '--- DC3 preflight: the foreign organization, and the two baselines ---'
+begin;
+  set local role authenticated;
+  set local request.jwt.claims = :'c_perm';
+  select (select count(*) from public.professional_profiles where organization_id = :'t_org'::uuid)::text as dc3_own_base,
+         (select count(*) from public.professional_profiles where organization_id = :'f_org'::uuid)::text as dc3_foreign_base
+\gset
+  reset role;
+rollback;
+select :'f_org' as foreign_org, :'dc3_own_base' as own_org_rows_visible, :'dc3_foreign_base' as foreign_org_rows_visible;
+
+-- ==========================================================================
+-- DC3a — THE EMPTY HALF. The set builder returns nothing.
+-- ⛔ THE ROW COUNT MUST NOT MOVE. The policy's ELSE arm is the untouched authorizer, so an
+--    empty set arm is a pure loss of the short-circuit, never a loss of the grant. A row
+--    count that DROPS here means the rewrite NARROWED the policy — the one thing the subset
+--    argument says it cannot do.
+-- ⭐ And the cost must RISE, which is what shows the set arm was carrying the speed.
+-- ==========================================================================
+begin;
+  create or replace function authz.authorized_scope_ids(p_principal uuid, p_resolution_kind text, p_permission_code text)
+  returns setof uuid language sql stable security definer set search_path to ''
+  as $ae4dc3$ select null::uuid where false $ae4dc3$;
+
+  set local role authenticated;
+  set local request.jwt.claims = :'c_perm';
+  select (select count(*) from public.professional_profiles where organization_id = :'t_org'::uuid)::text as dc3a_own
+\gset
+  reset role;
+  select pg_temp.ae4_time('DC3a/empty-set', :'c_perm',
+    'select count(*) from public.professional_profiles where organization_id = ' || quote_literal(:'t_org') || '::uuid')::text as dc3a_ms
+\gset
+rollback;
+
+-- ==========================================================================
+-- DC3b — THE OVER-BROAD HALF. The set builder returns every organization.
+-- ⛔ FOREIGN ROWS MUST BECOME VISIBLE. If they do not, the set arm is not being consulted at
+--    all and every green above is about a predicate nothing evaluates.
+-- ==========================================================================
+begin;
+  create or replace function authz.authorized_scope_ids(p_principal uuid, p_resolution_kind text, p_permission_code text)
+  returns setof uuid language sql stable security definer set search_path to ''
+  as $ae4dc3$ select o.id from public.organizations o $ae4dc3$;
+
+  set local role authenticated;
+  set local request.jwt.claims = :'c_perm';
+  select (select count(*) from public.professional_profiles where organization_id = :'f_org'::uuid)::text as dc3b_foreign
+\gset
+  reset role;
+rollback;
+
+-- Restoration proof: the shipped body must be back, and no DC3 marker may survive.
+do $$
+declare v_src text;
+begin
+  select string_agg(p.proname, ', ') into v_src
+    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'authz' and p.prosrc like '%ae4dc3%';
+  if v_src is not null then
+    raise exception 'AE4 DC3 ROLLBACK FAILED: a planted body is still installed in authz.%. FIX THIS BEFORE ANYTHING ELSE.', v_src;
+  end if;
+  raise notice 'AE4 DC3 rollback OK — authz.authorized_scope_ids is the shipped body again.';
+end $$;
+
+select pg_temp.ae4_say('DC3', 'CONTROL',
+  case
+    when nullif(:'dc3_own_base','') is null or nullif(:'dc3a_own','') is null or nullif(:'dc3b_foreign','') is null then 'VOID'
+    when nullif(:'dc3_foreign_base','')::bigint <> 0 then 'VOID'
+    when nullif(:'dc3a_own','')::bigint <> nullif(:'dc3_own_base','')::bigint then 'FAIL'
+    when nullif(:'dc3b_foreign','')::bigint = 0 then 'FAIL'
+    else 'PASS'
+  end,
+  format('DC3a empty-set: own-org rows %s -> %s (MUST NOT move: the ELSE arm still grants) at %s ms. DC3b over-broad: foreign-org rows %s -> %s (MUST become > 0: the set arm is consulted and load-bearing).',
+         :'dc3_own_base', :'dc3a_own', :'dc3a_ms', :'dc3_foreign_base', :'dc3b_foreign'));
+
+-- ==========================================================================
+-- P7 — THE SHORT-CIRCUIT IS REAL, asserted on the plan rather than on a timing.
+-- A policy that silently stopped short-circuiting would pass the re-stated P2/P3 vacuously
+-- (their subjects simply would not run) and surface only as a slow P5.
+-- ⚠ Reads fixture_meta through subqueries: psql does not interpolate inside `do $$`.
+-- ==========================================================================
+do $$
+declare
+  r record; v_plan text := ''; v_org uuid; v_claims text;
+  v_hashed boolean; v_loops1 boolean; v_never boolean;
+begin
+  select v::uuid into v_org from ae4perf.fixture_meta where k = 'target_org_id';
+  select json_build_object('sub', (select v from ae4perf.fixture_meta where k = 'principal_id'),
+                           'role','authenticated','is_admin',false,'active_role','staff_admin')::text
+    into v_claims;
+  perform set_config('request.jwt.claims', v_claims, true);
+  execute 'set local role authenticated';
+  for r in execute format(
+      'explain (analyze, buffers) select count(*) from public.professional_profiles where organization_id = %L::uuid', v_org)
+  loop
+    v_plan := v_plan || r."QUERY PLAN" || chr(10);
+  end loop;
+  execute 'reset role';
+
+  v_hashed := v_plan like '%hashed SubPlan%';
+  -- ⛔ PARENTHESISED. `~` and `||` share a precedence level and associate LEFT, so
+  --    `v_plan ~ 'a[^' || chr(10) || ']*b'` parses as `((v_plan ~ 'a[^') || …)` and the
+  --    regex engine sees an unterminated bracket expression: "brackets [] not balanced".
+  --    Found by running it — pass A of run 6 died here.
+  v_loops1 := v_plan ~ ('ProjectSet[^' || chr(10) || ']*loops=1');
+  v_never  := v_plan like '%never executed%';
+
+  perform pg_temp.ae4_say('P7', 'CONDITION',
+    case when v_hashed and v_loops1 and v_never then 'PASS' else 'FAIL' end,
+    format('hashed SubPlan=%s, scope subplan at loops=1=%s, fallback arm never executed=%s '
+           '(all three required: an uncorrelated set built ONCE, and the row authorizer not reached)',
+           v_hashed, v_loops1, v_never));
+  raise notice 'AE4 P7: hashed=% loops1=% never_executed=%', v_hashed, v_loops1, v_never;
+end $$;
 
 \echo ''
 \echo '################################################################'

@@ -8039,3 +8039,75 @@ function, measured once, by hand, outside any arm. ⛔ Nor a green from `ARM=cen
 `wrapper`: **their domains are bounded by `p.prosecdef` on a name/identity regex too**, so they are
 silent about exactly this population. *A green arm bounds its own domain* (ADR 0079); an arm that
 cannot select a gate has not cleared it.
+
+### 🟡 FUP-PROFESSIONAL-PARTICIPANTS-SELECT-STILL-PER-ROW — the second policy on the same authorizer was NOT converted, and is now load-bearing as a control
+
+**Filed:** 2026-09-03 (AE4 / IA-F9 statement-scoped increment, `20261003007320` — ADR
+[0182](../decisions/0182-statement-scoped-authorized-scope-ids.md)) ·
+**Owner:** backend/lead · **Severity:** 🟡 — a known, bounded residual with no failing condition
+driving it. Not 🟠 because the product input is small and the policy is correct; above 🔵 because
+"the per-row authorizer was fixed" is now true of one of its **two** policies and reads as true of
+both.
+
+**What is wrong.** `app.can_read_professional_profile` is the predicate of TWO policies —
+`professional_profiles_select` and `professional_participants_select`. `20261003007320` converted
+only the first to the statement-scoped set arm. The second still evaluates the full layer-3 → 2 → 1
+chain once per protected row.
+
+**How it was MEASURED.** `pg_policies` where `qual like '%can_read_professional_profile%'` returns
+exactly those two rows (2026-09-03, live catalog). The product flow performs the org-filtered
+profile search first and then queries `professional_participants` for the returned profile ids,
+bounded to **≤ 20** by the page size in `src/lib/queries/participants.ts` — which is why this is a
+residual and not the same severity as the 10 000-row read that failed P5.
+
+**What would close it.** Either convert it to the same statement-scoped arm (it needs its own
+candidate map, because the policy's column is `professional_profile_id`, not `organization_id` —
+the set would have to be a set of profile ids or the predicate would need a join), **or** rule
+explicitly that a ≤ 20-row per-row evaluation is accepted and record the bound as a product
+invariant with something that reds when the page size grows.
+
+⛔ **What must NOT be mistaken for closing it.** `20261003007320`'s green does not make this
+covered: pgTAP `413` asserts the *converted* policy's surface and asserts nothing about this one.
+⚠ **And do not reach for this policy as a measurement subject without filling the table first** —
+acceptance §13.5 records the attempt: DC1 was briefly re-aimed here and the re-aim was killed on
+measurement, because `professional_participants` holds **1** row on a fresh reset and
+`scripts/authz-ae4-perf-fixture.sql` `analyze`s it without ever inserting into it. Any future
+conversion or measurement of this policy owes a fixture that actually populates it.
+
+### 🟠 FUP-DOOR-SWEEP-DOMAIN-GAP-WIDENED-BY-SET-VALUED-RESOLVERS — three more authorization functions are outside `PRED_DOMAIN`, this time by RETURN TYPE
+
+**Filed:** 2026-09-03 (diff-scoped door sweep, AE4 `20261003007320` — ADR
+[0182](../decisions/0182-statement-scoped-authorized-scope-ids.md)) ·
+**Owner:** backend/lead · **Severity:** 🟠 — same class and same reason as
+`FUP-DOOR-SWEEP-DOMAIN-MISSES-THE-AUTHZ-RESOLVERS`, which this compounds. Not 🔴 because all three
+are covered behaviourally by targeted mutation cases run in this increment; above 🟡 because the
+population the apparatus cannot select has now grown twice in two increments, which is a trend.
+
+**What is wrong.** `p0-authz-door-audit.sh`'s `PRED_DOMAIN` bounds itself with `t.typname = 'bool'`.
+The three functions added by `20261003007320` — `authz.authorized_scope_ids`,
+`authz.candidate_authorized_scope_ids`, `app.current_professional_read_organizations` — all return
+`SETOF uuid`. They are therefore excluded **structurally**, by return type, before the name and
+identity regexes are even consulted. The existing FUP records exclusion by *name/identity* regex;
+this is a third exclusion axis, and it cannot be fixed by widening those regexes.
+
+**How it was MEASURED.** `bash scripts/door-sweep-cases.sh` on 2026-09-03 returned **exit 0
+(DERIVED, 1 case)** — the altered policy `professional_profiles_select` — and printed all three new
+functions on its `⛔ EXCLUDED BY NAME — A REVIEW LIST, NOT A DROP` list, with the script's own
+ruling: *"If any of these is an authorization gate, it owes a TARGETED mutation case (the door sweep
+can only neutralize a boolean predicate), and the ruling belongs in the gate record."* ⚠ The exit
+code is **0, not 1** — the handoff into this increment predicted exit 1, and that prediction was
+wrong because the ALTERed policy alone is enough to make the derivation non-empty. **A non-empty
+derivation is not evidence that the derivation was complete.**
+
+**What would close it.** Extend `PRED_DOMAIN` along the return-type axis (a `prosecdef` function in
+`authz`, or one whose result is a scope-id set consumed by a policy, is in domain regardless of
+`typname`) and re-baseline the findings file; **or** rule that set-valued resolvers are swept by
+targeted cases and give those cases a committed home so they run on a schedule. Either way this
+should be resolved together with `FUP-DOOR-SWEEP-DOMAIN-MISSES-THE-AUTHZ-RESOLVERS` — they are one
+apparatus gap with two symptoms.
+
+⛔ **What must NOT be mistaken for closing it.** The targeted mutation cases run in this increment:
+they are three functions, measured once, by hand, outside any arm. ⛔ Nor a green from
+`ARM=census`/`hat`/`floor`/`wrapper` — every one of those bounds its domain on `p.prosecdef` over a
+name/identity regex and is silent about this population. *An arm that cannot select a gate has not
+cleared it.*

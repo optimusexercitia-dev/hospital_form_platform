@@ -326,8 +326,8 @@ is re-run; it is never recorded as a pass. *Absence of a verdict is not absence 
 | --- | --- | --- | --- |
 | **P1** | ⭐ **RE-SPECIFIED — ADR [0181](../decisions/0181-p1-bounds-the-index-path-not-the-scan-node.md), PO ruling 2026-09-02.** No `Seq Scan` on `public.memberships`, `public.profiles`, `public.commissions` or `public.hospitals` **that SURVIVES `enable_seqscan = off`** — i.e. no access on those four with **no index path at all**. The raw seq-scan census over the nested region is still **reported**, as evidence; it is no longer the pass/fail. | `scripts/authz-ae4-p1-index-path.sql` (verdict) + Pass B (census) | A scan survives the probe ⇒ the planner has no alternative to it and it can never self-correct at any cardinality — the regression F9 predicts. ⛔ **The bundled vacuity control must FIRE**, or the run is VOID: "no scan survived" and "the probe is broken" are the same string. |
 | ~~**P1** (original wording, kept because runs 1–5 were judged under it)~~ | ~~No `Seq Scan` on those four anywhere in the nested plans~~ | ~~Pass B~~ | ~~Any of the four is seq-scanned.~~ ⚠ **Retired for a measured reason, not because it failed:** its FAILS-when column names the property (*"the one that turns linear into quadratic at production scale"*) while its condition bound a **token**. On a 2-page table a sequential scan is the correct plan and self-corrects by 620 rows (§12.2), so the two predicates had come apart. **Post-`ANALYZE` at 48 800 memberships the index is the only correct plan** — that rationale is unchanged and is what the new form measures directly. |
-| **P2** | `authz.assignment_facts` is invoked **once per protected row**, not once per protected row **per assignment fact** | Pass B `loops` on the `assignment_facts` node | `loops` exceeds the protected-row count. That means the SRF is re-invoked inside the fact loop — an `O(M²)` shape. |
-| **P3** | `authz.scope_reaches` invocations ≤ `M` (= 20) per protected row | Pass B `loops` on the `scope_reaches` node | `loops` is `M ×` the role-permission row count or worse, i.e. the join order pushed `scope_reaches` below the implication-closure join. |
+| **P2** ⭐ **AMENDED — §13** | `authz.assignment_facts` is invoked **once per protected row**, not once per protected row **per assignment fact** | Pass B `loops` on the `assignment_facts` node | `loops` exceeds the protected-row count. That means the SRF is re-invoked inside the fact loop — an `O(M²)` shape. |
+| **P3** ⭐ **AMENDED — §13** | `authz.scope_reaches` invocations ≤ `M` (= 20) per protected row | Pass B `loops` on the `scope_reaches` node | `loops` is `M ×` the role-permission row count or worse, i.e. the join order pushed `scope_reaches` below the implication-closure join. |
 | **P4** | Growth in the protected-row count is **at worst linear**: `t(N=10 000) / t(N=1 000) ≤ 30` (linear = 10; 3× headroom) | harness §7, machine-asserted | Ratio > 30. Super-linear growth in protected rows is precisely the hazard AE5 multiplies across eleven roles. |
 | **P5** | The permission arm costs **≤ 4×** the legacy arm on the identical statement over identical rows | harness §7, machine-asserted | Ratio > 4. Rationale for K = 4: layer 3→2→1 adds one DEFINER SRF, three indexed joins and `M` `scope_reaches` calls over a path that is one indexed `EXISTS`; 4× is generous for that and still catches an order of magnitude. ⚠ Valid **only** because §4 proved the principal reaches those rows through the permission arm alone. |
 | **P6** | Every control holds (§6.2) | harness §§0–3, 7, 8 | Any control failing makes the run **VOID**, not FAIL. |
@@ -341,7 +341,7 @@ is re-run; it is never recorded as a pass. *Absence of a verdict is not absence 
 | **Principal proof** (§2) | Is any competing arm granting? | Any of (b), (d), (e), (h), (j) TRUE. |
 | **Ablation** (§3) | Is the permission arm merely *true*, or *load-bearing*? | Either authorizer still TRUE with layer 2 disabled — **or** either still FALSE after the rollback. |
 | **P5 precondition** (§7) | Do P5's two arms do the **same work**? | The two principals see different row counts through the org-filtered read, or either sees zero. A ratio over unequal work is two statements wearing one label, not a comparison. |
-| **DC1 — planted cost** (§8) | **Could this measurement have shown a regression at all?** | A deliberately ~50×-more-expensive `authz.assignment_facts` (same rows, opaque extra work, installed and rolled back in one transaction) moves the measured statement by **< 10×**. Then the instrument is blind and no green number above is distinguishable from a dead one. Paired with a restore check: after rollback the statement must return within 2× of baseline, and `prosrc` must no longer contain the planted marker. |
+| **DC1 — planted cost** (§8) ⭐ **RE-AIMED — §13** | **Could this measurement have shown a regression at all?** | A deliberately ~50×-more-expensive `authz.assignment_facts` (same rows, opaque extra work, installed and rolled back in one transaction) moves the measured statement by **< 10×**. Then the instrument is blind and no green number above is distinguishable from a dead one. Paired with a restore check: after rollback the statement must return within 2× of baseline, and `prosrc` must no longer contain the planted marker. |
 | **DC2 — N-differential** (§7) | Did the **fixture**, as opposed to the instrument, actually scale the work? | 1000× the protected rows costs < 5× more. Then either the fixture did not scale or the per-row evaluation is not happening — and a flat green number is uninterpretable either way. |
 
 **DC1 is the discrimination control the obligation asks for**, and DC2 is its cheap companion: DC1
@@ -959,3 +959,198 @@ holds; for any table added to P1's list later, its own crossover is owed.
 
 ⛔ **P5 is untouched by this.** It failed at 5.28× / 4.99× against K = 4 and still does. The two
 conditions are independent, and nothing in this ruling licenses re-deriving K.
+
+---
+
+## 13. Amendment for the statement-scoped increment (2026-09-03) — ADR 0182
+
+⛔ **READ THIS BEFORE RUNNING RUN 6.** Migration `20261003007320` computes the permission answer
+**once per statement** instead of once per protected row. Three of the conditions below were
+calibrated against the per-row amplification that change removes, and **run 6 executed against the
+unamended protocol would be VOID — with the VOID caused by the optimization working.** That is the
+single failure mode this document exists to distrust, so the amendment is ruled *before* the run and
+its reasoning is recorded here rather than after a surprising result.
+
+### 13.1 Why DC1 cannot survive unamended — measured, not predicted
+
+DC1's measured statement is, verbatim from harness §8:
+
+```sql
+select count(*) from (select 1 from public.professional_profiles limit 200) t
+```
+
+That is a read through `professional_profiles_select` — **the exact policy `20261003007320`
+rewrites.** DC1a plants into `authz.assignment_facts` and DC1b into `authz.scope_reaches`; both
+terms are today paid 200× per statement and are afterwards paid **once**. Neither arm can then reach
+`≥ 10×`, so DC1 fails, P6 fails, and the run is VOID.
+
+⛔ **The threshold is not the problem and must not be lowered.** DC1's `≥ 10×` is a correct measure
+of *per-row amplification*; once the amplification is gone, no plant into the authorization chain
+can move a 200-row read by 10×. Lowering it would be editing an instrument to accommodate a result.
+
+### 13.2 What is ruled instead
+
+| | Amendment | Why |
+| --- | --- | --- |
+| **DC1** | **Unchanged statement, unchanged `≥ 10×`, but the PRE-CHANGE policy predicate is re-installed for the duration** — in the same rolled-back transaction that already installs and removes the planted body. Recorded from now on as **DC1 (legacy-predicate control)**. | Keeps DC1 measuring exactly what it measured in runs 1–5 — the 200-row per-row read — so the eight readings stay comparable, and proves the *timing harness* can still see an expensive seam. ⛔ See §13.5: the obvious re-aim was measured and killed. |
+| **DC3 — semantic ablation** (NEW) | On the converted path, mutate `authz.authorized_scope_ids` in a rolled-back transaction: return the **empty set** ⇒ the org-filtered read must yield **0 rows**; return **every organization** ⇒ it must yield **foreign** rows. Both must hold, or the run is VOID. | The converted path needs a discrimination control that a once-per-statement plant cannot provide. This is the §3 ablation pattern — *is the arm merely true, or load-bearing?* — applied to the set arm, and it is a **semantic** probe, so flattening the timing cannot flatten it. |
+| **P2** | Re-stated: `authz.assignment_facts` is invoked **once per STATEMENT** on the converted read path (and unchanged, once per protected row, everywhere else). | ⛔ Under the old wording P2 passes **vacuously** after the change: "≤ 1 invocation per protected row" is trivially true at 200 rows and 1 invocation. A condition that passes because its subject stopped running is not a pass. |
+| **P3** | Re-stated: `authz.scope_reaches` invocations are bounded by `M` **per statement** on the converted read path; the `≤ M` per-protected-row bound still governs every unconverted path. | Same vacuity, same remedy. |
+| **P7 — short-circuit shape** (NEW) | On the M1b plan: the policy's scope subplan must appear as a **`hashed SubPlan`** at **`loops=1`**, and the fallback arm's InitPlan must read **`never executed`**. | A policy that silently stopped short-circuiting — a planner change, a lost `CASE`, a widened candidate set — would pass the re-stated P2/P3 vacuously and surface only as a slow P5. This asserts the mechanism directly. |
+| **P1 · P4 · P5 · DC2** | **UNCHANGED.** `K = 4` is not moved. | ⛔ P5 has never rested on P1 and does not rest on this amendment either; the conditions are independent (§12.4). §8 item 5 licenses re-deriving a threshold only for a value within a few percent of it. |
+
+### 13.3 The P5 precondition still binds, and gains a reading
+
+§6.2's P5 precondition — both arms must see the same rows through the org-filtered read — is
+unchanged and is now *more* load-bearing, because the two arms take structurally different paths
+through the same policy. ⚠ **A new reading hazard:** after the change the permission arm is expected
+to be **cheaper than the legacy arm**, so P5's ratio falls far below 1. That is a pass, but it means
+P5 has stopped discriminating in the direction it was written for. DC3 and P7, not P5's margin, are
+what show the converted path is doing real work.
+
+### 13.4 What this amendment does NOT do
+
+- It does **not** touch the fixture, the measured principal, §4's proof, or the ablation in §3.
+- It does **not** retire any run-1..5 verdict. Every table above §13 stands as measured, under the
+  wording in force at the time.
+- ⛔ It does **not** convert `professional_participants_select`. That policy stays per-row on
+  purpose — it is DC1's new subject, and converting it would take the re-aimed control away again.
+
+### 13.5 A re-aim that was written, measured, and killed — recorded rather than quietly replaced
+
+The first draft of §13.2 re-aimed DC1 onto **`professional_participants_select`**, on the reasoning
+that it shares the same per-row authorizer, was deliberately left unconverted, and would therefore
+still present the seam DC1 plants into. The reasoning was sound and the target was **empty**.
+
+**Measured 2026-09-03, on a fresh `supabase db reset --local`:**
+
+| relation | rows |
+| --- | --- |
+| `public.professional_participants` | **1** |
+| `public.professional_profiles` | 1 |
+| `public.participants` | 5 |
+
+and `scripts/authz-ae4-perf-fixture.sql` **`analyze`s `public.professional_participants` without
+ever inserting into it** — it scales `professional_profiles`, not the link table. So the re-aimed
+DC1 would have planted into a chain invoked **once**, over a one-row protected population, and
+reported some number. ⛔ *A control aimed at a table the fixture never fills is not a weak control;
+it is a control measuring nothing, and it would have reported a ratio either way.*
+
+This is the §6.2 fixture-gate hazard turned on the controls themselves: **a fixture that cannot
+reach the failing state cannot produce a pass** — and the same is true of an instrument pointed
+somewhere the fixture never went.
+
+⚠ **Why the fixture was NOT extended instead.** Populating `professional_participants` at 10 000
+rows is a §2 fixture change, and §2's bound is the `audit_log` row count being identical before and
+after load and teardown. Growing the fixture to rescue a control is a larger and riskier change than
+re-installing a predicate that already exists, and it would have to be justified on its own. The
+residual is filed as `FUP-PROFESSIONAL-PARTICIPANTS-SELECT-STILL-PER-ROW`.
+
+⛔ **What DC1 does and does not bound after this.** It bounds the **harness** — `pg_temp.ae4_time`
+plus the 200-row statement can still resolve a ~50× plant. It does **not** bound the converted
+path, because after `20261003007320` that path has almost no authorization cost left to attribute.
+**DC3 (semantic ablation) and P7 (short-circuit shape) are what bound the converted path**, and
+neither is a timing ratio — which is the point, since flattening the timing is the change itself.
+
+### 13.6 DC2 fell to the same trap, and §13 missed it — found by RUNNING, not by reading
+
+§13.1 reasoned carefully about DC1 and did not ask the same question of DC2. Run 6's first pass A
+answered it anyway:
+
+```
+AE4 DC2: 10 rows 6.590000 ms, 10000 rows 7.583000 ms, ratio 1.15.
+```
+
+**DC2 FAILED at 1.15× against its `≥ 5×` threshold** — and it failed *because the change worked*.
+DC2 asks whether the **fixture** scaled the work, and infers it from cost tracking the protected-row
+count. Once the authorization answer is computed once per statement, cost stops tracking N by
+design, so DC2's failure condition — *"either the fixture did not scale or the per-row evaluation is
+not happening"* — now describes the intended state. Under §6.2 that fails P6 and VOIDs the run.
+
+⭐ **This is the same structural trap as DC1's, one control further along, and reasoning did not
+catch it — running did.** Recorded rather than folded silently into §13.2, because the lesson is
+about the amendment's method, not about DC2: *a change that flattens a cost curve invalidates every
+control that reads that curve, and they must be enumerated, not remembered.*
+
+**Ruled, consistent with DC1:** DC2 keeps its question, its `≥ 5×` threshold and its meaning, and
+moves onto the **pre-change predicate** (harness label `DC2L/N=*`). **P4 keeps the LIVE timings**,
+because *"is growth in protected rows at worst linear"* is a question about the shipped path and is
+answerable there — P4 read **1.11** against its `≤ 30`. The live N-differential is still printed as
+evidence; it is no longer a verdict.
+
+⛔ **The controls now split cleanly by what they can still see, and the split is the honest
+statement of this run's coverage:**
+
+| Control | Predicate it runs on | What it bounds |
+| --- | --- | --- |
+| DC1a / DC1b | pre-change | the **harness** can resolve a planted seam |
+| DC2 (`DC2L`) | pre-change | the **fixture** scaled the protected-row population |
+| DC3a / DC3b | **live** | the set arm is **consulted** and **load-bearing**, semantically |
+| P7 | **live** | the short-circuit is **real** — uncorrelated subplan, fallback not reached |
+| P4 · P5 | **live** | growth and relative cost on the shipped path |
+
+---
+
+## 14. Run 6 (2026-09-03) — the first run against the statement-scoped path. **ACCEPTANCE MET.**
+
+Subject: `20261003007320` (ADR [0182](../decisions/0182-statement-scoped-authorized-scope-ids.md)),
+judged under the §13 amendment, which was ruled and written **before** the run. Fresh
+`supabase db reset --local` at head `20261003007320`, full fixture reload, both passes.
+`RESET=0 · LOAD=0 · PASSA=3 · PASSB=3 · P1PROBE=0` — each read from its own file.
+⛔ The two 3s are the harness **working**: section 10 raises once at the end because P1/P2/P3 are
+`UNRUN` in-process by design and are evaluated externally per §9.7.
+
+| | pass A | pass B | run 5 | threshold | |
+| --- | --- | --- | --- | --- | --- |
+| DC1a `assignment_facts` | 1.60× | 1.63× | 1.58× / 1.68× | — | — |
+| DC1b `scope_reaches` | 17.86× | 18.48× | 18.12× / 17.01× | ≥ 10 (either) | **PASS** |
+| DC2 (pre-change predicate) | 685.91× | 684.38× | 704.31× / 686.08× | ≥ 5 | **PASS** |
+| DC3a empty set — own-org rows | 10 000 → **10 000** @ 10 390 ms | 10 000 → **10 000** @ 10 487 ms | *(new)* | must NOT move | **PASS** |
+| DC3b over-broad — foreign rows | 0 → **1** | 0 → **1** | *(new)* | must become > 0 | **PASS** |
+| P4 | 1.16 | 1.16 | 9.30 / 9.43 | ≤ 30 | **PASS** |
+| P5 | **0.00** (2.779 ms / 2 097.155 ms) | **0.00** (2.863 ms / 2 113.220 ms) | 5.28× / 4.99× | ≤ 4 | ⭐ **PASS** |
+| P7 short-circuit shape | hashed=t, loops=1=t, never-executed=t | same | *(new)* | all three | **PASS** |
+
+Externally, per §9.7 — stage 0 nested region **9 735** lines (≫ 1 000, so the extractor is live);
+stage 1 presence `assignment_facts` **24**, `scope_reaches` **16**, `authorized_scope_ids` **1** —
+all non-zero, so **not VOID**; only then the bounds:
+
+| | Verdict | Evidence |
+| --- | --- | --- |
+| **P1** | **PASS** | `scripts/authz-ae4-p1-index-path.sql` exit **0**, and ⭐ **the bundled vacuity control FIRED** (`p1_noindex` → `Seq Scan` SURVIVES). All four chain tables CLEAR: `commissions` Index Scan · `hospitals` Index Only Scan · `memberships` Index Only Scan · `profiles` Index Scan. Raw census, reported as evidence: `memberships` 0 · `profiles` 0 · `commissions` 0 · **`hospitals` 161** (was 4 120). ⛔ Under P1's *retired* wording that is still a FAIL; ADR 0181 is what makes it a PASS, and both readings are stated. |
+| **P2** | **PASS** | Segmented by named path: **M1-nested 7** `Function Scan on assignment_facts` nodes over **200 protected rows** — once per *statement*, not per row (was ~200). M2-nested 4, SEAM-nested 1, both unconverted and unchanged. **Every node `loops=1`**, all 12. |
+| **P3** | **PASS** | **M1-nested 3** `Filter: authz.scope_reaches` nodes per statement, far inside the `M = 20` bound. M2-nested 4, SEAM-nested 1. |
+
+### 14.1 What the run settles, and what it explicitly does not
+
+**Settles.** The residue §12.4 localized is gone, and it was removed the way §12.4 predicted — by
+changing `entailed_grants`' *invocation structure*, not `scope_reaches`. The permission arm went
+**1 001 345 buffers / 12 178 ms → 402 buffers / ~2.8 ms** on the identical statement over the
+identical 10 000 rows, with the legacy arm unmoved at ~2 100 ms. DC3 is what makes that
+attributable rather than merely fast: with the set builder emptied the row count is **unchanged**
+(the `ELSE` arm still grants — the policy did not narrow) while cost returns to **10 390 ms**, and
+with it over-broadened a **foreign-organization** row becomes visible. The set arm is therefore
+consulted, load-bearing, and bounded.
+
+**Does not settle.**
+1. ⛔ **§8 item 2 still binds.** The fixture is fully cache-resident. This is plan-shape and
+   invocation-count evidence, **not** a production latency prediction, and AE7's entry condition 2
+   is a separate obligation.
+2. ⚠ **P5 has stopped discriminating in the direction it was written for** (§13.3). At 0.00× the
+   permission arm is ~750× *cheaper* than the legacy arm, so P5's margin is no longer informative
+   about the converted path. **DC3 and P7 are what bound it**, and that is by design, not by
+   accident.
+3. **`professional_participants_select` is untouched and still per-row** —
+   `FUP-PROFESSIONAL-PARTICIPANTS-SELECT-STILL-PER-ROW`.
+4. **40 of 43 permissions remain `pending-rekey`** (§8 item 4). Unchanged.
+5. The three new functions are **outside every sweep arm's domain by return type** and hold their
+   verdicts from targeted mutation cases, not from an arm —
+   `FUP-DOOR-SWEEP-DOMAIN-GAP-WIDENED-BY-SET-VALUED-RESOLVERS`.
+
+### 14.2 K = 4 was not moved, and did not need to be
+
+Eight readings across five runs failed P5 at 6.13 / 5.20 / 6.21 / 6.27 / 6.04 / 6.19 / 5.28 / 4.99.
+⭐ **No threshold was re-derived, in either direction.** §8 item 5's licence — for a value landing
+within a few percent of a threshold — was never invoked, and the two readings that came closest
+(4.99, 25 % over) were recorded as FAIL and left as FAIL. The condition was met by removing the
+cost, which is the only way it was ever going to be met honestly.

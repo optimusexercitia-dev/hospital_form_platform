@@ -132,15 +132,32 @@ language sql stable as $$
     from b join authz.permissions pm on b.src like '%' || pm.code || '%';
 $$;
 
-select is((select string_agg(site || ' => ' || code, ' | ' order by code) from pg_temp.code_sites()),
+-- ⛔ `order by code, site` — NOT `order by code` alone, which is what this was until
+--    20261003007320 made `org.professionals.read` a TWO-SITE code. With two rows sharing a
+--    sort key the aggregate's order was unspecified, so the assertion would have passed or
+--    failed on whatever order the executor happened to produce. A pin that can flip without
+--    the subject changing is worse than no pin.
+select is((select string_agg(site || ' => ' || code, ' | ' order by code, site) from pg_temp.code_sites()),
   'app.can_edit_commission_forms => commission.forms.edit | '
   'app.can_create_professional => org.professionals.create | '
-  'app.can_read_professional_profile => org.professionals.read',
-  '1.1 ⭐ THE SEAM, AS A NAMED SET RATHER THAN A COUNT: exactly three (site, code) pairs exist '
-  'across `app` + `public`, each code at exactly one site and no site carrying two. ⛔ A count '
-  'would pass on a swap; this reds if a code moves, is duplicated, or lands at the wrong gate. '
+  'app.can_read_professional_profile => org.professionals.read | '
+  'app.current_professional_read_organizations => org.professionals.read',
+  '1.1 ⭐ THE SEAM, AS A NAMED SET RATHER THAN A COUNT: exactly FOUR (site, code) pairs exist '
+  'across `app` + `public`. ⛔ A count would pass on a swap; this reds if a code moves, is '
+  'duplicated, or lands at the wrong gate. '
   '⚠ The probe strips `--` comments first — a prosrc text match otherwise counts comments '
-  '(authz-handoff §7.2 case 2).');
+  '(authz-handoff §7.2 case 2). '
+  '⭐ 3 -> 4 at AE4/IA-F9 (20261003007320, ADR 0182), and the added pair is a DELIBERATE '
+  'SECOND SITE for org.professionals.read, ruled rather than absorbed: this section previously '
+  'read "each code at exactly one site", which was a description of the D6 state and not a '
+  'requirement D7 imposes. D7 asks that the code be a LITERAL AT the enforcement site, and the '
+  'new site satisfies that. WHY THE DUPLICATION IS SAFE, and it is a subset argument rather '
+  'than an assurance: app.current_professional_read_organizations cannot grant anything '
+  'app.can_read_professional_profile would not, because every scope id it returns has been '
+  'reconfirmed by authz.has_permission itself before being returned, and the policy consults '
+  'it as the THEN arm of a CASE whose ELSE is the original authorizer. Pinned as an invariant '
+  'by 413 §5 (SUBSET) and measured on both polarities by 413 §2. ⛔ A THIRD site for this code '
+  'is NOT covered by that reasoning — re-rule it, do not extend the string.');
 
 select is((select count(*)::int from pg_temp.code_sites() where code = 'org.professionals.manage'), 0,
   '1.2 DISCRIMINATION CONTROL for 1.1: the SAME probe returns ZERO for a code that is NOT '

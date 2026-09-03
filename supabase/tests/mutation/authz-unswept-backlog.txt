@@ -888,3 +888,51 @@ authz.entailed_grants(p_principal uuid, p_resolution_kind text, p_scope_id uuid,
 # role's catalog row proves the fail-closed branch. 315 keeps the pre-existing
 # holds-the-role assertions.
 public.assume_role(p_role platform_role)
+
+# ── CATEGORY (b) · 2026-09-03 · AE4/IA-F9 statement-scoped increment ──────
+#
+# app.current_professional_read_organizations() — ADR 0182, migration 20261003007320. The
+# narrow current-principal door the rewritten `professional_profiles_select` policy consults
+# FIRST: it returns the organizations where auth.uid() holds `org.professionals.read`, so the
+# policy can test each row's organization against a set built ONCE PER STATEMENT instead of
+# re-resolving the same 20 assignment facts for every protected row. `prosecdef`,
+# set-returning, EXECUTE held by `authenticated` and `service_role` — squarely inside ARM 3's
+# stated domain ("prosecdef set-returning + reachable"), and the census rightly demanded a
+# verdict the first time it ran after the migration.
+#
+# ⛔ IT IS AN AUTHORIZATION GATE. Do NOT reclassify it as a helper. It is the THEN arm of the
+# policy predicate: whatever it returns is read without the row-level authorizer being
+# consulted at all.
+#
+# WHY NO ARM CAN PRODUCE A VERDICT — MEASURED, NOT ASSUMED (2026-09-03):
+#   * `scripts/door-sweep-cases.sh` put it on the ⛔ EXCLUDED-BY-NAME review list.
+#   * ARM 1 with the census's own exact key, CASES="current_professional_read_organizations",
+#     reported `ARM-DOMAIN predicate=0/125 policy=0/226` and
+#     "=== RESULT: UNPROVEN — NOTHING WAS MEASURED. This is NOT a pass. ===" (exit 3).
+# The sweep was ATTEMPTED and could not reach. ARM 1 neutralizes a BOOLEAN predicate or an RLS
+# policy; `PRED_DOMAIN` bounds itself with `t.typname='bool'` and this returns `SETOF uuid`, so
+# there is no boolean to flip. ⚠ This is a THIRD exclusion axis — by RETURN TYPE — distinct
+# from the name/identity-regex axis in FUP-DOOR-SWEEP-DOMAIN-MISSES-THE-AUTHZ-RESOLVERS.
+# Filed as FUP-DOOR-SWEEP-DOMAIN-GAP-WIDENED-BY-SET-VALUED-RESOLVERS.
+#
+# WHAT DOES COVER IT, proven by TARGETED MUTATION rather than claimed (2026-09-03):
+#   Body swapped to `select o.id from public.organizations o` — every organization, no
+#   confirmation — with signature, DEFINER, search_path and ACL re-emitted unchanged and the
+#   edit asserted LANDED from the catalog (md5 a62e7809… -> ead6fbfe…, ACL byte-identical), and
+#   the opened gate proven SEMANTICALLY LIVE (3 organizations became reachable that
+#   authz.has_permission denies). The FULL suite then went **Result: FAIL at the IDENTICAL
+#   shape — Files=261, Tests=8733** (a shape change would be ERROR, not COVERED), noticed by
+#   FIVE suites:
+#     252_authz_p0_isolation (1) · 311_oversight_readonly_perimeter (1) ·
+#     321_eth_e4_participant_seating (1) · 409_ae49_d6_rekey_differential (4) ·
+#     413_ae4_authorized_scope_ids (5)
+#   Restore replayed from the captured pg_get_functiondef() and proven byte-identical
+#   (md5 back to a62e7809a7d8cf7e57ac7adf1458aabb, ACL unchanged).
+#
+# THE KEYSTONE: pgTAP 413 — §4 reads the BASE TABLE as `authenticated` and requires the
+# foreign-organization profile to stay invisible; §5 pins the SUBSET invariant (everything the
+# set arm grants was already granted by app.can_read_professional_profile); §7 plants this very
+# over-broad body and requires the §2 differential to go RED, so the suite carries its own
+# proof that it can fail. ⭐ 252_authz_p0_isolation noticing is the load-bearing one: tenant
+# isolation, not a suite written for this feature.
+app.current_professional_read_organizations()

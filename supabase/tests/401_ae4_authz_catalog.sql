@@ -1188,10 +1188,14 @@ select is(
        'authz.entailed_grants(uuid,text,uuid,text)',
        'authz.assignment_facts(uuid)',
        'authz.scope_reaches(text,uuid,text,uuid)',
-       'authz.rebuild_implication_closure()']) f
+       'authz.rebuild_implication_closure()',
+       -- AE4/IA-F9 statement-scoped increment (20261003007320, ADR 0182). Set-valued
+       -- resolvers, and they carry the SAME rule: the app layer is the only door.
+       'authz.authorized_scope_ids(uuid,text,text)',
+       'authz.candidate_authorized_scope_ids(uuid,text,text)']) f
     where has_function_privilege(r, f, 'EXECUTE')),
   0,
-  '18.1 no application role holds EXECUTE on ANY of the SEVEN resolver-family functions (21 '
+  '18.1 no application role holds EXECUTE on ANY of the NINE resolver-family functions (27 '
   'probes). ⚠ FIVE -> SEVEN at AE4.9 (ADR 0176 D4): the pair became a quartet '
   '(has_permission / candidate_has_permission / explain_permission / entailed_grants). ⛔ A new '
   'door must inherit every sibling arm, and this list is keyed on NAMES — if a resolver function '
@@ -1209,13 +1213,17 @@ select ok(not has_function_privilege('anon', 'authz.has_permission(uuid,text,uui
 select is(
   (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'authz'),
-  8,
-  '18.4 ⭐ CARDINALITY CONTROL for § 18.1: the `authz` schema holds exactly EIGHT functions, and '
-  '18.1 names seven of them. The eighth is authz.holds_role, whose grants are asserted by 405 '
+  10,
+  '18.4 ⭐ CARDINALITY CONTROL for § 18.1: the `authz` schema holds exactly TEN functions, and '
+  '18.1 names nine of them. The tenth is authz.holds_role, whose grants are asserted by 405 '
   '§5.4 — so every function in the schema is covered by one list or the other. ⛔ 18.1 is '
   'NAME-KEYED; without this, adding a resolver function and forgetting to list it leaves it '
   'ungated and every existing assertion still green. ⚠ 6 -> 8 at AE4.9 (dropped 2 old names, '
-  'added 4). If this reds, do not adjust the number — find what was added and grant-check it.');
+  'added 4). ⚠ 8 -> 10 at AE4/IA-F9 (20261003007320, ADR 0182): authorized_scope_ids and '
+  'candidate_authorized_scope_ids, the set-valued resolvers. WHAT WAS ADDED WAS GRANT-CHECKED '
+  'BEFORE THE NUMBER MOVED — both are now named in 18.1 (seven -> nine functions, 21 -> 27 '
+  'probes) and both measured 0 EXECUTE for anon/authenticated/service_role. If this reds, do '
+  'not adjust the number — find what was added and grant-check it.');
 
 -- ============================================================================
 -- §19 - AE4.5 PRE-WORK: the permission->gate mapping, and the CHEAP per-permission half.
@@ -1419,9 +1427,9 @@ select is(
     where n.nspname = 'authz'
        or (n.nspname = 'app' and p.proname in ('is_active','has_role','is_staff_admin_of',
                                                'is_staff_admin_of_for','is_org_commission_staff_admin'))),
-  13,
-  '20.3 DOMAIN CARDINALITY CONTROL for § 20.1: the probe ranged over exactly THIRTEEN functions '
-  '(8 authz.* + 5 named legacy predicates). ⛔ § 20.1 is keyed on NAMES, and a rename orphans a '
+  15,
+  '20.3 DOMAIN CARDINALITY CONTROL for § 20.1: the probe ranged over exactly FIFTEEN functions '
+  '(10 authz.* + 5 named legacy predicates). ⛔ § 20.1 is keyed on NAMES, and a rename orphans a '
   'name-keyed verdict SILENTLY - the in-list would match fewer, § 20.1 would pass having checked '
   'less, and nothing else would notice. If this reds, do not adjust the number: find what moved. '
   '⚠ 11 -> 13 at AE4.9 (ADR 0176 D4), and this is exactly the red the message predicts: the '
@@ -1429,7 +1437,12 @@ select is(
   'candidate_has_permission, explain_permission, entailed_grants replacing the two *_direct_* '
   'names). WHAT MOVED WAS FOUND BEFORE THE NUMBER WAS CHANGED — the `app` half is untouched at '
   'five, and none of the four new bodies mentions an affiliation relation, which is why 20.1 '
-  'stays at zero.');
+  'stays at zero. ⚠ 13 -> 15 at AE4/IA-F9 (20261003007320, ADR 0182): the authz half went '
+  '8 -> 10 with authorized_scope_ids and candidate_authorized_scope_ids. SAME DISCIPLINE — the '
+  '`app` half is again untouched at five, and both new bodies were measured comment-stripped '
+  'against `affiliat` and matched NOTHING, which is why 20.1 stays at zero. ⭐ Note § 20.1 is '
+  'SCHEMA-KEYED on the authz half, so both new functions entered its domain automatically; this '
+  'control is what makes that widening visible rather than silent.');
 
 select * from finish();
 rollback;
