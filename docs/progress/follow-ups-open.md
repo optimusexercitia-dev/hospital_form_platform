@@ -7995,7 +7995,9 @@ is deliberately not an enforcement site.
 manifest claim an enforcement site that does not enforce, and `FUP-AE4-MANIFEST-HAS-NO-SITE-AXIS-CLOSURE`'s
 eventual closure check would then be measuring a fiction.
 
-### 🟠 FUP-C2-NEUTRALIZER-ANCHOR-BLIND-TO-HCDS-AND-28000 — the C2 neutralizer's own anchor excludes the DSR error-code family, so LGPD Art. 18 doors were never in the population it sweeps
+### 🟠 FUP-C2-NEUTRALIZER-ANCHOR-BLIND-TO-HCDS-AND-28000 — the C2 neutralizer's anchor is a SYNTAX, not a property: it excludes the DSR authz family AND sweeps in non-authz state guards, so "458 authz raises" is wrong in both directions
+
+⚠ **The ID names only the first half.** It is kept unchanged because an ID is the join key and a rename orphans every name-keyed verdict (register header rule). The **second half — semantic over-breadth — is recorded in the same entry below** and is the half that changes what C2 may CLAIM.
 
 **Filed:** 2026-09-02 (C2 Tier-1 full sweep, pre-flight audit of the running harness) ·
 **Owner:** backend/lead · **Severity:** 🟠 — a measurement-domain gap, not a demonstrated live hole
@@ -8048,3 +8050,47 @@ valid for what they measured; this is additive, not a re-run.
   `prosecdef` and return type, not by errcode, so they neither cover this class nor notice it.
 - **Allowlisting the 3 partial-mutation rows.** Their BLIND verdicts are artifacts of a partial
   mutation; the fix is to widen the anchor and re-measure, never to record the artifact.
+
+---
+
+#### The second direction — the anchor is SEMANTICALLY TOO BROAD (added 2026-09-02, same root cause)
+
+`HC0[A-Z0-9]{2}` matches **every** `HC0*` code, and this project's `HC0*` space is not an authorization
+space — it is the whole application error space. **Measured** by reading the raise messages out of the
+migrations:
+
+| Code | Message (pt-BR, as raised) | What it actually guards |
+| --- | --- | --- |
+| `HC038` | *"esta entrevista não pode ser cancelada neste estado"* · *"apenas entrevistas em andamento podem ser concluídas"* | **state / lifecycle** |
+| `HC043` | *"apenas eventos notificados podem ser reconhecidos"* · *"este evento já está em um estado final"* | **state / lifecycle** |
+| `HC039` | *"você não pode editar esta entrevista"* · *"sem permissão para editar esta entrevista"* | **authorization** |
+
+Consequences, and they are not cosmetic:
+
+- ⛔ **The sweep does not measure authorization coverage. It measures `HC0*`-coded-guard coverage.**
+  Those are different populations, and only the first is what C2 exists to close. Every claim built on
+  this run must say which one it means.
+- **The handoff's "458 authz raises across the 171" is an OVERCOUNT** — an unknown share are state and
+  validation guards. The figure was never wrong as arithmetic; its **label** is wrong.
+- **A BLIND verdict may be about a state guard**, and would then read in a findings table as an
+  authorization hole. ⭐ **Worked example, measured:** `public.cancel_session`'s only anchored raise is
+  **HC038 — terminal-state**. Its authorization lives in `app.assert_interview_writable` (**HC039**), a
+  SEPARATE worklist row the mutation never touches. So the intuitive remedy — *"make a non-writer get
+  HC039"* — **would not flip that verdict**, while reading in a commit message exactly like a fix.
+  A keystone for `cancel_session` must assert **HC038**.
+- ⚠ This does **not** make the BLIND verdicts worthless: a state guard that can vanish with the whole
+  suite still green is a real coverage gap. It makes them **mislabelled**, which is the more dangerous
+  failure because it survives review.
+
+**What closes this half:** classify the `HC0*` space by property (authorization vs state vs validation)
+and split the anchor, so the harness can report the two populations separately. ⛔ **Not closed by**
+widening the anchor for the HCDS half — that fixes the narrowness and leaves the mislabelling untouched.
+
+⭐ **The generalisable lesson, and it is ADR 0078's:** this is an enumeration **bounded by a syntax
+rather than by a property**. The same shape produced the false P0 in ADR 0078's METHODOLOGY FINDING and
+the 15-BLIND-gate miss in ADR 0079. A related instance found in the same audit: a **t19 REVOKE-guard
+block makes a door grep-positive while leaving it mutation-blind** (`cancel_session`'s single pgTAP
+mention is `121_interviews.sql:381`, a `has_function_privilege` ACL assertion that reads `pg_proc.proacl`
+and is *structurally* incapable of noticing a body mutation). ~60 doors in this suite carry that profile,
+so **any "which doors have coverage?" answer derived by grepping test files for a door name overcounts
+by that set.**
