@@ -1,11 +1,11 @@
 ---
 id: C2-TIER1
 title: Command-door Tier 1 sweep — PHI-touching command doors, gate-aware closure
-status: in_progress
+status: gated
 kind: feature
 program: AUTHZ
 phase: "ADR 0162 §3 — C2 Tier 1 (pilot cutline, pre-Gate-AE4 PO approval)"
-branch: authz-ae4-catalog
+branch: ~   # landed on main with AE4 2026-09-03; authz-ae4-catalog deleted; not closed (ADR 0184 pts 4–5)
 plan: ../plans/authz-evolution.md
 progress: ~
 reviews: ["../reviews/c2-command-door-findings.md"]
@@ -96,9 +96,10 @@ AE4's PO approval (ADR 0162 §3, amended on branch-order by ADR 0184).
   (2026-09-02, a handoff-carry commit only) — the **local** `authz-c2-tier1` ref never advanced.
   The 13 real sweep commits are on `origin/authz-c2-tier1` (tip `8ad1f2a4`), which is what merged
   into `authz-ae4-catalog`. `git branch --list` still shows `authz-c2-tier1` locally, but it is a
-  stale, orphaned ref — remaining C2 work now continues on `authz-ae4-catalog`, hence `branch:`
-  above.
-- C2's findings are **not independently mergeable to `main`** until AE4 lands — a PO-accepted
-  tradeoff, not an oversight (ADR 0184 point 2).
+  stale, orphaned ref (fully contained in `main`; safe to delete). ⚠ **2026-09-03: `authz-ae4-catalog`
+  was fast-forwarded into `main` (`898cb0ab`) and deleted**, so C2's remaining work has no branch
+  — hence `branch: ~` and `status: gated`; the next increment cuts a branch from `main` first.
+- C2's findings **landed on `main` with AE4 on 2026-09-03** (the PO-accepted tradeoff of ADR 0184
+  point 2 played out as one fast-forward); `main` is not pushed.
 - 40 BLIND findings need keystones; allowlisting is prohibited — it would make `ARM=floor` and
   this harness agree while both measure nothing.

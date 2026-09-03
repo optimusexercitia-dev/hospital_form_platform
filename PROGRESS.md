@@ -40,8 +40,8 @@ complete ones live in [features/INDEX.md](docs/features/INDEX.md)); rebuild with
 
 | Feature | Title | Status | Branch | Hub |
 |---|---|---|---|---|
-| AE4 | Authz catalog cutover — staff_admin substituted, 3 of 43 permissions load-bearing | 🟢 in progress | `authz-ae4-catalog` | [hub](docs/features/ae4.md) |
-| C2-TIER1 | Command-door Tier 1 sweep — PHI-touching command doors, gate-aware closure | 🟢 in progress | `authz-ae4-catalog` | [hub](docs/features/c2-tier1.md) |
+| AE4 | Authz catalog cutover — staff_admin substituted, 3 of 43 permissions load-bearing | 🚧 gated | — | [hub](docs/features/ae4.md) |
+| C2-TIER1 | Command-door Tier 1 sweep — PHI-touching command doors, gate-aware closure | 🚧 gated | — | [hub](docs/features/c2-tier1.md) |
 | C1B-DISPOSAL | PHI-disposal Cloud rehearsal (C1b) | 🔜 planned | — | [hub](docs/features/c1b-disposal.md) |
 | DLB | Deliberation & Voting Model — typed committee decisions with vote arithmetic the database owns | 🔜 planned | — | [hub](docs/features/dlb.md) |
 

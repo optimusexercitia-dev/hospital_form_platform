@@ -1,16 +1,16 @@
 ---
 id: AE4
 title: Authz catalog cutover — staff_admin substituted, 3 of 43 permissions load-bearing
-status: in_progress
+status: gated
 kind: feature
 program: AUTHZ
 phase: "ADR 0155 — Phase AE4 (Gate AE4, pre-pilot)"
-branch: authz-ae4-catalog
+branch: ~   # landed on main 2026-09-03 (fast-forward, PO-ruled ahead of the gate); authz-ae4-catalog deleted
 plan: ../plans/authz-evolution.md
 progress: ../progress/authz-ae4.md
 reviews: ["../reviews/authz-ae4-review.md", "../reviews/authz-ae4-gate-review.md"]
 adrs: ["0079", "0155", "0162", "0172", "0174", "0175", "0176", "0177", "0178", "0179", "0180", "0181", "0182", "0183", "0184"]
-handoff: ../handoffs/authz-ae4-catalog.md
+handoff: ../handoffs/authz-ae4-2026-09-03.md
 fup: ~
 ---
 

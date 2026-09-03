@@ -9,12 +9,12 @@
 > `## Current state` block; the list of in-progress hubs is
 > [../planning/CURRENT.md](../planning/CURRENT.md).
 
-**5 hubs** · in progress 2 · gated 0 · planned 2 · parked 0 · complete 1
+**5 hubs** · in progress 0 · gated 2 · planned 2 · parked 0 · complete 1
 
 | ID | Title | Status | Kind | Program | Branch | Hub |
 |---|---|---|---|---|---|---|
-| AE4 | Authz catalog cutover — staff_admin substituted, 3 of 43 permissions load-bearing | 🟢 in progress | feature | AUTHZ | `authz-ae4-catalog` | [ae4.md](ae4.md) |
-| C2-TIER1 | Command-door Tier 1 sweep — PHI-touching command doors, gate-aware closure | 🟢 in progress | feature | AUTHZ | `authz-ae4-catalog` | [c2-tier1.md](c2-tier1.md) |
+| AE4 | Authz catalog cutover — staff_admin substituted, 3 of 43 permissions load-bearing | 🚧 gated | feature | AUTHZ | — | [ae4.md](ae4.md) |
+| C2-TIER1 | Command-door Tier 1 sweep — PHI-touching command doors, gate-aware closure | 🚧 gated | feature | AUTHZ | — | [c2-tier1.md](c2-tier1.md) |
 | C1B-DISPOSAL | PHI-disposal Cloud rehearsal (C1b) | 🔜 planned | feature | DM5 | — | [c1b-disposal.md](c1b-disposal.md) |
 | DLB | Deliberation & Voting Model — typed committee decisions with vote arithmetic the database owns | 🔜 planned | feature | DLB | — | [dlb.md](dlb.md) |
 | DOCS-RESTRUCTURE | Documentation restructure — feature hubs, CURRENT.md, gated registers (ADR 0185) | ✅ complete | feature | DOCS | `docs-restructure` | [docs-restructure.md](docs-restructure.md) |
