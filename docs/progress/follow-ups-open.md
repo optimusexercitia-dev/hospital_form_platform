@@ -6828,6 +6828,17 @@ measured the seam. Measure a principal whose ONLY grant path is the permission a
 AE4.9 D6 record claims it was done — both `PROGRESS.md` § Now and the increment record say plainly that
 it does not exist.
 
+⭐ **THE EVIDENCE NOW EXISTS, AND THE ACCEPTANCE FAILED — 2026-09-02.** Four runs on a scaled
+ANALYZEd fixture produced `AE4 ACCEPTANCE NOT MET (3 of 7 rows PASS)` (`8ca976d7`). DC1/DC2/P2/P3/P4
+PASS; **P1 FAIL** (8 240 `Seq Scan on hospitals`) and **P5 FAIL** (6.19×/6.21× against a 4× threshold;
+six readings, 5.20–6.27). ⛔ **This item's own premise is overturned by its own measurement:** the
+non-inlinable DEFINER SRF evaluated per row — named here as *the* regression — is **~1–3 %** of
+per-protected-row cost. The regression is `authz.scope_reaches` → `FUP-SCOPE-REACHES-HOSPITALS-SEQ-SCAN`.
+⛔ **Do NOT close this on the fix landing.** It closes when the acceptance is re-run *against* the fix
+and the verdict table reads PASS on every row; a partial improvement in P5 that does not reach ≤4× is a
+partial result, and the threshold does not move (protocol §8 item 5 licenses re-deriving only within a
+few percent). Protocol + run artifacts: `../design/authz-ae4-performance-acceptance.md`.
+
 ### 🟠 FUP-ADR-CROSS-LINKS-HAVE-NO-GATE — 13 broken ADR-to-ADR links, and gate 9 structurally cannot see them (owner: lead/backend; filed 2026-09-02 by `lead`, measured during AE4.9 D6)
 
 **Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟠 **FUP-ADR-CROSS-LINKS-HAVE-NO-GATE** — **13 broken ADR-to-ADR links measured 2026-09-02** (0053, 0056, 0063, 0064, 0072, 0073, 0078 ×5, 0105, 0177). `lint:adr-index` (gate 9) rebuilds the index and the back-pointer column but **never resolves a link target**, so a cited filename that was never right is indistinguishable from one that is. ⚠ The failure mode is *plausible reconstruction*: every broken target is a readable, on-topic slug for the ADR actually meant — 0177 cited 0175 as `…ae45-differential-oracle-scope-and-f3-discharge`, one day after writing it. ⛔ Two AE4-phase instances (0177, 0178) are FIXED; the other 11 predate the phase and are **untouched by ruling** — fixing them here would bury an unrelated 11-file diff inside an authz gate. The durable form is a target-resolution check inside gate 9, which will red on those 11 until they are repaired — lead/backend
@@ -7115,6 +7126,16 @@ invisible exception.
 > volume gate red twice during it. Every qualifier was preserved — the enumerate-never-count
 > discriminator, the ~10-by-design figure, "verify, the message is not proof", and the DB-silence
 > section — because compressing a record to fit a cap selects against exactly those.
+
+⭐ **PART 3's DOMAIN HALF IS FIXED — 2026-09-02 (`d2069603`).** The write arm was bounded by an
+embedded 33-row snapshot whose rows were all `cmd in (INSERT,UPDATE,DELETE)` — a **syntax**, not the
+property, and `FOR ALL` is a write command. Live catalog: **107** write-capable policies (62 `ALL` +
+17 + 17 + 11), so **74** were reported as *"matched no gate"*. Re-bounded to every `pg_policy` row with
+`polcmd <> 'r'`, lifted at run time, in every schema; an `ALL` policy opens its **`with check` half
+alone**, because the read arm already opens `using` and opening it here would let a READ keystone earn
+a false WRITE `COVERED`. Proven in both directions before use. ⛔ **Parts 1, 2 and 4 are untouched**
+(repaired 2026-08-29), and Part 3's own *reporting* half was already done — this closed the domain half
+only. ⚠ Consequence recorded: a full write-path sweep now costs **~19 → ~50 min** (120 cases).
 
 ### 🟡 FUP-AE1-UNREACHABLE-PUBLIC-DOORS — 11 `public` DEFINER doors `authenticated` can call that nothing in `src/` calls, + 3 no instrument references, + 15 comment-only (owner: backend/PO)
 
@@ -7917,6 +7938,13 @@ the committed findings file — not replacing it, since the 33 carry hand-merged
 merge: it is green *because* the 74 are absent. ⛔ Nor does the domain fix itself close it — the instrument
 was repaired, nothing was measured, and 4 gates *selected* is not 4 gates *measured*.
 
+⭐ **NOW 37 OF 107 — 2026-09-02.** The four AE4.9 D6 policies were swept (4 COVERED, 0 BLIND, exit 0)
+and their verdicts merged into the committed baseline per ADR 0079 Amdt 1 (`974328e6`), because a
+subset run writes only to SCRATCH (ADR 0153) and that directory is temporary. ⛔ **The item does not
+close on this:** 37 of 107 is not 107, the 70 unmeasured still pass any `FROMFINDINGS` arm vacuously
+by being absent, and all four new rows are `snapshot:ABSENT` — swept, but with no §7.2 drift tripwire
+protecting the verdict.
+
 ### 🟠 FUP-STORAGE-OBJECTS-INSERT-POLICIES-NEWLY-IN-DOMAIN — three policies that were in no arm's domain may return BLIND on their first sweep
 
 **Filed:** 2026-09-02 (write-arm re-aim, commit `d2069603`) ·
@@ -7994,3 +8022,41 @@ is deliberately not an enforcement site.
 ⛔ **What must NOT be mistaken for closing it.** Adding it to `enforcementSites`. That would make the
 manifest claim an enforcement site that does not enforce, and `FUP-AE4-MANIFEST-HAS-NO-SITE-AXIS-CLOSURE`'s
 eventual closure check would then be measuring a fiction.
+
+### 🟠 FUP-SCOPE-REACHES-HOSPITALS-SEQ-SCAN — `authz.scope_reaches` seq-scans the whole `hospitals` table on every call, and it is the only authz cost that grows with tenant count
+
+**Filed:** 2026-09-02 (IA-F9 performance acceptance, runs 2–4) ·
+**Owner:** backend · **Severity:** 🟠 — not a correctness or authorization defect; a scaling one, on the path every protected row takes, that gets worse as the platform onboards customers.
+
+`authz.scope_reaches`'s organization-from-commission ascent plans as an **InitPlan Hash Join that
+sequentially scans and hashes the entire `hospitals` table per call**, then joins it to a single
+commission row — instead of two primary-key lookups.
+
+```
+InitPlan 1
+  ->  Hash Join   Hash Cond: (h.id = c.hospital_id)   Buffers: shared hit=5
+        ->  Seq Scan on hospitals h  (rows=124)       Buffers: shared hit=2
+```
+
+The term is `O(protected_rows × M × |hospitals|)` — **the only part of the authorization chain that
+scales with TENANT COUNT.**
+
+**How it was measured.** Nested `EXPLAIN` plans over a scaled ANALYZEd fixture (12 000 users, 10 000
+`professional_profiles`, 16 000 form items, 48 800 memberships): **8 240** `Seq Scan on hospitals`,
+against **zero** sequential scans on `memberships`, `profiles` or `commissions` (`memberships` takes
+429 *index* scans). Attribution is by planted-cost control, not inference: ~50× cost planted into
+`authz.assignment_facts` moved the statement **1.52×**, the same plant into `scope_reaches` moved it
+**14.17×** — and that split was **predicted in writing before the run that confirmed it**. Artifacts:
+`../design/authz-ae4-perf-run-passB.txt`, protocol `../design/authz-ae4-performance-acceptance.md`.
+
+⛔ **What this overturns.** Audit finding IA-F9's premise was that the non-inlinable DEFINER
+set-returning function evaluated per row was the regression. It is real, it is per-row, and it is
+**cheap** — ~1–3 % of per-protected-row cost. Do not re-adopt that premise.
+
+**What would close it.** A migration re-planning the ascent as PK lookups, with its own plan approval,
+its own keystone, and the diff-scoped door sweep on both arms — it is a `SECURITY DEFINER` function on
+the authorization path. Then the acceptance re-run against it.
+
+⛔ **What must NOT be mistaken for closing it.** The fix landing without the acceptance re-run: P5 is
+the condition, and only a re-run can say whether the seam reaches ≤4×. ⛔ Nor a P5 that improves but
+stays above 4× — that is a partial result, and the threshold does not move to meet it.

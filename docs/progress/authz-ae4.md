@@ -984,3 +984,98 @@ and the *"the honest sentence is NOT 3 of 43 on layer 3"* correction.
 9. ⚠ **401 §16.10 went RED on first run and the GATE was right, the FIXTURE wrong** — its second granting role is `staff`, still `legacy`; §16.9b now pins that **a role's `role_permissions` rows are INERT until its state flips**, so an AE5 increment that forgets the flip looks identical to one that never seeded.
 
 10. `test:db` **259f/8685**, lint 12/12, tsc 0, vitest 151f/2056, **4 ARMs HOLD**, exits read DIRECTLY.
+
+## Gate AE4 wave + IA-F9 — 2026-09-02 (lead, 5 agents)
+
+Four agents on the work that **cannot change what the browser sees**, partitioned by that single
+question so none of it could invalidate the single-run `e2e:prod` green, plus a fifth on a
+PROGRESS.md rotation. The partition held for three of the four; the fourth produced a defect whose
+fix is a migration, which is what made a final `e2e:prod` certain again.
+
+### What each produced
+
+| Agent | Result | Commits |
+| --- | --- | --- |
+| write-arm | domain re-aimed 33 → 107 policies, then swept **4 COVERED / 0 BLIND / exit 0**; verdicts merged | `d2069603` `974328e6` |
+| rollback-runbook | §6 worked example (13 → ~570 lines), 6 template defects found FALSE, verification **staged not run** | `3634a3ad` `71c7c2c4` |
+| gate-qa | Gate AE4 review — **CHANGES REQUESTED**, F-BLOCK-1 found | `a6ff4ad0` |
+| perf-design | IA-F9 staged, then 4 runs to a verdict | `82613268` `c07aab3e` `38c620b5` `09f368ca` |
+| rotation | PROGRESS.md 102 286 → 93 550 B, set-identity proved | `dc0a5555` `c0e94d6a` |
+
+### The write arm was bounded by a SYNTAX, not a property
+
+Its domain was an embedded **33-row snapshot**, every row `cmd in (INSERT,UPDATE,DELETE)`. `FOR ALL`
+is a write command too. The live catalog holds **107** write-capable policies (62 `ALL` + 17 INSERT +
+17 UPDATE + 11 DELETE), so **74 were invisible** — including all four AE4.9 D6 policies (which is why
+4 requested → 0 selected → exit 3) and **3 `storage.objects` INSERT policies that `ARM=census` also
+misses**, since census bounds itself to `public`. Those three had been in **no arm's domain at all**.
+
+The 74 decompose exactly as 62 `ALL` + 9 + 3, and the 9 came back as precisely the names
+`FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED` Part 3 lists — a decomposition re-derived **from the property**,
+which is what makes it a cross-check rather than a restatement of the FUP.
+
+New bound: every `pg_policy` row with `polcmd <> 'r'`, lifted at run time, in every schema. An `ALL`
+policy opens its **`with check` half alone** — the read arm already opens `using`, so opening it here
+would let a READ keystone earn a false WRITE `COVERED`. ⛔ Stated rather than hidden: the DELETE /
+UPDATE-row-visibility half of an `ALL` policy is not opened by this arm.
+
+Sweep result: `guard=0/13 policy=4/107`, **4 COVERED, 0 BLIND, 0 ERROR**, exit 0, on a fresh reset.
+Each verdict names which suite noticed: `387` + `409` for `form_items` / `form_sections` /
+`form_versions`, **`409` alone** for `forms`.
+
+### IA-F9 — four runs, and every one was a different defect
+
+| Run | Outcome | The defect it exposed |
+| --- | --- | --- |
+| 1 | VOID | `permission denied for function ae4_time` — Section 7 died; DC2/P4/P5 never ran |
+| 2 | VOID | fixed by giving `ae4_time` the role switch; **Pass B never executed** (it sat after the aborting sections) |
+| 3 | VOID | extractor markers matched **their own documentation** → 48-line region, presence 0; DC1 ran and read **1.53×** |
+| 4 | **VERDICT** | verdict table executed for the first time; `AE4 ACCEPTANCE NOT MET (3 of 7 rows PASS)` |
+
+⭐ **Run 3's zero is the one worth remembering.** A broken extractor and a genuine absence are
+indistinguishable from the output alone, and *"grep for loops ≤ N returns nothing"* reads exactly like
+a pass. It was only looked at because Section 7 crashed first. The fixes were tokenised, anchor-matched
+sentinels appearing in prose nowhere, **plus a stage-0 extractor-sanity bound** — the region must be
+thousands of lines — and a two-stage **presence-before-bound** rule now guards every structural check.
+
+⛔ **Three consecutive absences in this workstream had their mechanism mis-attributed on first
+reading**, twice by the lead. The lesson is not "look harder"; it is that an absence needs its
+mechanism *measured*, and the file opened.
+
+### The verdict, and what it overturns
+
+```
+CONTROL   DC1  PASS   DC1a assignment_facts 1.52x / 1.51x · DC1b scope_reaches 14.17x / 15.92x
+CONTROL   DC2  PASS   548.67x
+CONDITION P2   PASS   zero assignment_facts nodes with loops != 1
+CONDITION P3   PASS   412 scope_reaches nodes, filter-shaped
+CONDITION P4   PASS   decade ratio 10.59 (threshold 30, linear = 10)
+CONDITION P1   FAIL   Seq Scan on hospitals = 8240; memberships/profiles/commissions = 0
+CONDITION P5   FAIL   6.19x / 6.21x (threshold 4)
+```
+
+**DC1's split was predicted in writing before the run that confirmed it** — DC1a ≈ 1.5×, DC1b ≥ 10× —
+so it could not be fitted afterwards. That is what turns a five-times-reproduced P5 failure from VOID
+into a verdict: a failed control makes every condition VOID by the protocol's own dependency rule, and
+DC1 passing is what lifted it.
+
+⛔ **IA-F9's founding premise does not survive its own measurement.** The non-inlinable DEFINER SRF
+evaluated per row is real, is per-row, and is **cheap** — ~1–3 % of per-protected-row cost, quantified
+as `ratio = k·x + (1 − x)` with `k ≈ 20–50` and a measured ratio of 1.53. The cost is
+`authz.scope_reaches` → `FUP-SCOPE-REACHES-HOSPITALS-SEQ-SCAN`.
+
+### What this session did NOT do
+
+- **Did not touch `authz.scope_reaches`.** It is `SECURITY DEFINER` on the authz path: its own
+  increment, plan approval and keystone, and changing the subject mid-measurement would have left the
+  acceptance measuring something the four runs did not. Spun off to `authz-ae4-scope-reaches-fix`.
+- **Did not run the rollback §6 verification.** Staged (`ae49-revert.sql`, `ae49-verify.sql`,
+  `ae49-expectations.md` — expectations written *before* any run so a surprise cannot become the
+  expectation), then PO-deferred until AE4 concludes and merges. ⚠ Its subagent was **blocked by the
+  permission classifier** mid-session and correctly refused to route around it; execution moved to the
+  main session. A DB-window grant in an agent message is direction, **not permission**.
+- **Did not run C2 Tier 1.** Branched to `authz-c2-tier1` at `8ca976d7` and pushed; runs on another
+  machine. ⛔ **Not merged to main** — the HOLD stands and the schema-first rule remains *armed*.
+- **Did not re-run `e2e:prod`.** It is owed once, at the end, on a quiet machine, after the
+  E2E-invalidating set lands (`BUG-AE49-D6-REKEY-INCOMPLETE` at minimum).
+- **Did not fix the QA review's F-BLOCK-3 or F-MAJOR-1.** Both filed; neither touched.

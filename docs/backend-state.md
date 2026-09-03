@@ -858,9 +858,14 @@ name as still present and hiding a rename.
 
 ### ⛔ What has NO verdict on this surface — state these beside any "gates green" claim
 
-- **The diff-scoped door sweep's WRITE arm cannot see the four `FOR ALL` form policies** — they are
-  outside its **embedded snapshot** (not the live catalog), so it reports **UNPROVEN (exit 3)**
-  rather than clean. `FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED` Part 3, an apparatus gap.
+- ✅ **RESOLVED 2026-09-02 — this bullet said the WRITE arm *cannot see* the four `FOR ALL` form
+  policies and reports UNPROVEN (exit 3). It can now, and they are CLEAN.** The arm was bounded by an
+  embedded 33-row snapshot keyed on `cmd in (INSERT,UPDATE,DELETE)` — a syntax, not the property, and
+  `FOR ALL` is a write command. Re-bounded to every `pg_policy` row with `polcmd <> 'r'` lifted at run
+  time (`d2069603`); swept `policy=4/107`, **4 COVERED, 0 BLIND, exit 0** (`974328e6`). ⚠ Two things
+  still carry NO verdict here: all four rows are **`snapshot:ABSENT`** (no §7.2 drift tripwire), and the
+  **guard arm selected 0 of 13** — the same shape as the blank this fixed, and not a pass. The committed
+  baseline covers **37 of 107**; a `FROMFINDINGS` arm cannot see the other 70.
 - The four altered policies carried **stale `COVERED` verdicts** from five unrelated suites, earned
   against the **pre-ALTER** predicate. ⛔ `ARM=census` structurally cannot catch this — the gate is
   not a newcomer, it already has a verdict, and that is exactly what makes it silent.
