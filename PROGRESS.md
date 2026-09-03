@@ -40,6 +40,7 @@ complete ones live in [features/INDEX.md](docs/features/INDEX.md)); rebuild with
 
 | Feature | Title | Status | Branch | Hub |
 |---|---|---|---|---|
+| DOCS-CONSOLIDATION | Documentation consolidation — one home per fact, one summary and one log per unit (ADR 0186) | 🟢 in progress | `docs-consolidation` | [hub](docs/features/docs-consolidation.md) |
 | AE4 | Authz catalog cutover — staff_admin substituted, 3 of 43 permissions load-bearing | 🚧 gated | — | [hub](docs/features/ae4.md) |
 | C2-TIER1 | Command-door Tier 1 sweep — PHI-touching command doors, gate-aware closure | 🚧 gated | — | [hub](docs/features/c2-tier1.md) |
 | C1B-DISPOSAL | PHI-disposal Cloud rehearsal (C1b) | 🔜 planned | — | [hub](docs/features/c1b-disposal.md) |

@@ -2,5 +2,5 @@
   "_comment": "Stamp for the proposed/draft/deferred ADR review cadence (ADR 0140). `reviewed: null` = no review recorded yet; the clock runs from `installed`, and gate 9 (lint:adr-index) reds when the review is >30 days old or the `proposed` set drifts from the live corpus. To discharge: re-read each listed ADR against what is actually built, correct any Status header that has gone stale, then set `reviewed` to that date and `proposed` to the then-current set.",
   "installed": "2026-08-24",
   "reviewed": null,
-  "proposed": ["0022", "0031", "0033", "0058", "0094", "0108", "0115", "0160"]
+  "proposed": ["0022", "0031", "0033", "0058", "0094", "0108", "0115", "0160", "0186"]
 }

@@ -12,13 +12,13 @@
 >
 > Edges are **advisory** and over-inclusive by design; the ADR text is truth.
 
-**183 ADRs** · next free number: **0186** · 59 carry an inbound supersedes/amends edge
+**184 ADRs** · next free number: **0187** · 60 carry an inbound supersedes/amends edge
 
 ## ⚠ Anomalies
 
 - **Missing numbers:** 0034, 0077 — a gap is not automatically a defect (0077 was withdrawn by the PO and its subject re-filed as 0078; 0034 was never used), but a gap nobody can explain usually means a lost file.
 - **No parseable `Status:`:** none
-- **Still proposed / draft / deferred (8):** 0022, 0031, 0033, 0058, 0094, 0108, 0115, 0160 — an ADR's status is the author's claim on the day it was written, and nothing updates it when the code ships. The last review of this list is stamped in `proposed-review.json`; gate 9 reds when that review is more than 30 days old or this set has drifted from it.
+- **Still proposed / draft / deferred (9):** 0022, 0031, 0033, 0058, 0094, 0108, 0115, 0160, 0186 — an ADR's status is the author's claim on the day it was written, and nothing updates it when the code ships. The last review of this list is stamped in `proposed-review.json`; gate 9 reds when that review is more than 30 days old or this set has drifted from it.
 
 ## Index
 
@@ -200,10 +200,11 @@
 | 0176 | [The permission layer made real: three interfaces, a manifest countdown, and the re-key…](0176-authz-permission-layer-made-real.md) | accepted | 2026-09-02 | amends 0155, 0174 | – |
 | 0177 | [AE4.9 D4/D7 as built: the candidate's state set, the denial precedence, and the state g…](0177-ae49-resolver-contract-implementation-choices.md) | accepted | 2026-09-02 | – | – |
 | 0178 | [AE4.9 D6 as built: the narrow authorizer, where the preserved legacy arm lives, and the…](0178-ae49-d6-rekey-as-built.md) | accepted | 2026-09-02 | amends 0175 | – |
-| 0179 | [One open follow-up register: the PROGRESS.md index is folded into the bodies](0179-follow-up-register-consolidation.md) | accepted | 2026-09-02 | amends 0124, 0140 | ⚠ amended by 0185 |
+| 0179 | [One open follow-up register: the PROGRESS.md index is folded into the bodies](0179-follow-up-register-consolidation.md) | accepted | 2026-09-02 | amends 0124, 0140 | ⚠ amended by 0185, 0186 |
 | 0180 | [`authz.scope_reaches`: the commission→organization ascent reads `commissions.organizati…](0180-scope-reaches-commission-org-ascent-plan-fix.md) | accepted | 2026-09-02 | – | – |
 | 0181 | [Acceptance condition P1 bounds the INDEX PATH, not the `Seq Scan` node](0181-p1-bounds-the-index-path-not-the-scan-node.md) | accepted | 2026-09-02 | – | – |
 | 0182 | [The permission answer is computed once per STATEMENT, not once per protected row](0182-statement-scoped-authorized-scope-ids.md) | accepted | 2026-09-03 | – | ⚠ amended by 0183 |
 | 0183 | [Acceptance condition P2 counts INVOCATIONS against a bound, not `loops` values](0183-p2-invocation-count-respecification.md) | accepted | 2026-09-03 | amends 0182 | – |
 | 0184 | [C2's full sweep runs against the current branch's schema, not against `main`](0184-c2-sweep-runs-against-the-current-branch-schema.md) | accepted | 2026-09-02 | amends 0162 | – |
-| 0185 | [Documentation restructure: feature hubs, CURRENT.md, and gated registers for bugs, foll…](0185-documentation-restructure-feature-hubs-and-gated-registers.md) | accepted | 2026-09-03 | amends 0124, 0139, 0140, 0179 | – |
+| 0185 | [Documentation restructure: feature hubs, CURRENT.md, and gated registers for bugs, foll…](0185-documentation-restructure-feature-hubs-and-gated-registers.md) | accepted | 2026-09-03 | amends 0124, 0139, 0140, 0179 | ⚠ amended by 0186 |
+| 0186 | [Documentation consolidation: one home per fact, one summary and one log per unit](0186-documentation-consolidation-one-home-per-fact.md) | ⚠ proposed | 2026-09-03 | amends 0179, 0185 | – |

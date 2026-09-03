@@ -9,10 +9,11 @@
 > `## Current state` block; the list of in-progress hubs is
 > [../planning/CURRENT.md](../planning/CURRENT.md).
 
-**5 hubs** · in progress 0 · gated 2 · planned 2 · parked 0 · complete 1
+**6 hubs** · in progress 1 · gated 2 · planned 2 · parked 0 · complete 1
 
 | ID | Title | Status | Kind | Program | Branch | Hub |
 |---|---|---|---|---|---|---|
+| DOCS-CONSOLIDATION | Documentation consolidation — one home per fact, one summary and one log per unit (ADR 0186) | 🟢 in progress | feature | DOCS | `docs-consolidation` | [docs-consolidation.md](docs-consolidation.md) |
 | AE4 | Authz catalog cutover — staff_admin substituted, 3 of 43 permissions load-bearing | 🚧 gated | feature | AUTHZ | — | [ae4.md](ae4.md) |
 | C2-TIER1 | Command-door Tier 1 sweep — PHI-touching command doors, gate-aware closure | 🚧 gated | feature | AUTHZ | — | [c2-tier1.md](c2-tier1.md) |
 | C1B-DISPOSAL | PHI-disposal Cloud rehearsal (C1b) | 🔜 planned | feature | DM5 | — | [c1b-disposal.md](c1b-disposal.md) |
