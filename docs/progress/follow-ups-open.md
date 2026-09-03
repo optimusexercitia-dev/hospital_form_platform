@@ -8147,6 +8147,38 @@ which under `re.S` can span **across** statements and therefore overcounts. **35
 number**; the windowed re-measurement is the one to trust, and residue is what matters: it is 0, so
 the `detail =`/`hint =` worry raised alongside the original estimate is **empty in practice**.
 
+#### Worked example that settles an open question — `public.save_block_to_library`
+
+The handoff recorded this as owed: *"5 authz raises, 4 anchored. The harness will record it ERROR ·
+UNMUTABLE rather than partially mutate. Someone must decide whether the 5th raise is authz-relevant."*
+It recorded **ERROR · UNMUTABLE** in this run, as predicted. **Ruling, from the raise texts**
+(`20260903000200_ff4_save_block_to_library.sql`):
+
+| errcode | message | anchored | what it actually guards |
+| --- | --- | :---: | --- |
+| `HC0Q7` | *a biblioteca de blocos não está disponível* | ✓ | feature availability |
+| `HC0Q8` | *informe um nome para o bloco* | ✓ | input validation |
+| **none** | *pergunta % não encontrada* | ✗ | **not-found** |
+| `HC0Q8` | *apenas um item de nível superior pode ser salvo…* | ✓ | input validation |
+| `42501` | *você não pode editar formulários nesta comissão* | ✓ | **authorization** |
+
+⭐ **The 5th raise is NOT authz-relevant** — it carries **no errcode at all** and is a not-found guard.
+The harness's refusal is therefore over-cautious *for this door*: the anchored 4 could be mutated
+safely. ⛔ But do not "fix" it by relaxing the partial-mutation refusal in general — that refusal is
+what keeps `set_referral_patient` from being half-neutralized, and a door with a genuinely authz
+5th raise would then mutate to a false verdict. The right change is the **validated anchor fix**,
+after which this door's counts reconcile on their own.
+
+⛔ **And it is the sharpest available illustration of the semantic half of this entry: of the FOUR
+anchored "authz raises" here, exactly ONE (`42501`) is authorization.** The other three are feature
+availability and input validation. Any figure of the form "N authz raises across the 171" carries
+that error at roughly this ratio — which is why point 5 of ADR
+[0180](../decisions/0180-c2-sweep-runs-against-the-current-branch-schema.md) forbids reading a
+verdict from this run as an authorization verdict.
+
+⚠ Derived from migration text (non-authoritative per CLAUDE.md); confirm against
+`pg_get_functiondef` once the DB window closes.
+
 ⭐ **The generalisable lesson, and it is ADR 0078's:** this is an enumeration **bounded by a syntax
 rather than by a property**. The same shape produced the false P0 in ADR 0078's METHODOLOGY FINDING and
 the 15-BLIND-gate miss in ADR 0079. A related instance found in the same audit: a **t19 REVOKE-guard
