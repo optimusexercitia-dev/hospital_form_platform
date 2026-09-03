@@ -64,8 +64,8 @@ When a phase passes human approval, the lead:
 2. **Moves everything the phase concluded out of PROGRESS.md in the same edit** (§5
    below): task detail, closed bugs, concluded gate/QA/decision rows — each to its
    archive, leaving pointers only where a live item still references them. In the same
-   pass, resolved follow-up **entries** move `docs/progress/follow-ups-open.md` →
-   `docs/progress/follow-ups-archive.md` (they no longer pass through PROGRESS.md at
+   pass, resolved follow-up **entries** move `docs/followups/follow-ups-open.md` →
+   `docs/followups/follow-ups-archive.md` (they no longer pass through PROGRESS.md at
    all — ADR [0179](./decisions/0179-follow-up-register-consolidation.md)).
 3. Archives the phase's task detail to `docs/progress/phase-N.md` (or a feature-named
    file).
@@ -125,7 +125,7 @@ skipped. At the Record step, move:
   append to it. Per-topic narrative files stay per-topic; only the § Now cut itself
   goes quarterly.
 - **Bug Log** → keep only **OPEN** bugs live; move resolved/closed rows to
-  `docs/progress/bug-log-archive.md`.
+  `docs/bugs/archive.md`.
 - **Test Run Summary** → keep only the **most recent gate's** row live; move the rest to
   `docs/progress/test-run-archive.md`.
 - **QA Verdicts** → **one line only**: verdict + date + link to
@@ -143,14 +143,14 @@ skipped. At the Record step, move:
   Take a **new ADR's number from `docs/decisions/INDEX.md`** (it states the next free one),
   never from the directory listing — two sessions eyeballing the listing on 2026-07-02 both
   filed an "ADR 0050", and the collision survived seven weeks and 87 further ADRs.
-- **Follow-ups / Deferred** → **one entry in `docs/progress/follow-ups-open.md`, and
+- **Follow-ups / Deferred** → **one entry in `docs/followups/follow-ups-open.md`, and
   nothing anywhere else.** Severity · id · title · owner · origin · body live together in
   that entry, so ⛔ **there is no dual-write**: PROGRESS.md carries a pointer to the file
   and a routing table, never an index, and re-growing one reds the gate (ADR
   [0179](./decisions/0179-follow-up-register-consolidation.md)). On a state change, edit
   the entry in place. Move a **resolved** entry verbatim to
-  `docs/progress/follow-ups-archive.md`, a **parked** one to
-  `docs/progress/deferred-backlog.md`. The register has **no size cap**, so length is
+  `docs/followups/follow-ups-archive.md`, a **parked** one to
+  `docs/followups/deferred-backlog.md`. The register has **no size cap**, so length is
   never a reason to compress or drop an open item (§ Critical FUP, which stays in
   PROGRESS.md and is *additive* to the entry here, never rotates at all).
 

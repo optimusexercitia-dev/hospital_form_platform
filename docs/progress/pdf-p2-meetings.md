@@ -57,7 +57,7 @@ FUP-PDF-1..4 · BUG-PDF2-002 (spun off as a task chip) · P3 carry-forwards (hel
   `returns printed_documents` re-exposes withheld columns · verification rate limiter is global +
   in-process.)
 - `[x]` **BUG-PDF2-002 — RESOLVED BY-DESIGN 2026-08-08.** Next's streamed-`notFound()` contract; no
-  app change, contract pinned in E2E. Full record → `bug-log-archive.md`. Session task chip withdrawn.
+  app change, contract pinned in E2E. Full record → `docs/bugs/archive.md`. Session task chip withdrawn.
 - `[x]` **`git push origin main` — DONE 2026-08-10** (user-authorized). The P2 merge reached `origin`
   inside the ACT push (`ff0e76a`); `origin/main` later `f3981a5`, verified in sync. The PO's
   2026-08-08 local-only hold on the *git* half is discharged.

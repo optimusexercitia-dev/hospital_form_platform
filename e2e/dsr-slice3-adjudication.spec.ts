@@ -1175,7 +1175,7 @@ test('the attestation form is fully keyboard-operable, on a second request', asy
  * broken copy would convert a red pin into a green one that documents a bug as
  * intended behaviour.
  *
- * BUG-DSR-S3-002 — ✅ FIXED 2026-08-20 (`docs/progress/bug-log-archive.md`). The
+ * BUG-DSR-S3-002 — ✅ FIXED 2026-08-20 (`docs/bugs/archive.md`). The
  * per-commission attestation card did not name its commission for the
  * Encarregado. `listMyDsrTasks` used to read the name through a PostgREST embed
  * on `commissions`, which is RLS-filtered; the Encarregado is a plain member of
@@ -1186,7 +1186,7 @@ test('the attestation form is fully keyboard-operable, on a second request', asy
  * `list_my_dsr_task_commissions` (same class as ADR 0130 Amendment 2 item 5's
  * HOSPITAL-name fix, one grain down at the commission).
  *
- * BUG-DSR-S3-003 — ✅ FIXED 2026-08-20 (`docs/progress/bug-log-archive.md`).
+ * BUG-DSR-S3-003 — ✅ FIXED 2026-08-20 (`docs/bugs/archive.md`).
  * `notify_scrub_check` was hospital-scoped BY DESIGN (Q12a: one residue check
  * per request, `commission_id` null), yet its card rendered the same "Comissão
  * fora do seu acesso" — a permission problem where none existed, collapsing two

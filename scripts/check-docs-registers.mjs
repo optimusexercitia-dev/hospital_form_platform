@@ -68,9 +68,9 @@ export const PATHS = {
   current: 'docs/planning/CURRENT.md',
   bugs: 'docs/bugs/BUGS.md',
   bugsDir: 'docs/bugs',
-  fupOpen: 'docs/progress/follow-ups-open.md',
-  fupBacklog: 'docs/progress/deferred-backlog.md',
-  fupArchive: 'docs/progress/follow-ups-archive.md',
+  fupOpen: 'docs/followups/follow-ups-open.md',
+  fupBacklog: 'docs/followups/deferred-backlog.md',
+  fupArchive: 'docs/followups/follow-ups-archive.md',
   lessons: 'docs/learning/LESSONS.md',
   postmortemsDir: 'docs/learning/postmortems',
   handoffsDir: 'docs/handoffs',
@@ -82,7 +82,7 @@ export const PATHS = {
 export const CODE_WATERMARK = '2026-09-04' // ids opened/filed on or after this must use a registered code
 export const CURRENT_STATE_MAX_LINES = 60
 export const HANDOFF_MAX_BYTES = 24 * 1024
-export const CRITICAL_PIN_REQUIRED = false // flipped in the commit that moves § Critical FUP into the register
+export const CRITICAL_PIN_REQUIRED = true // ADR 0185 D5: § Critical FUP lives at the top of the register
 
 export const HUB_STATUS = ['planned', 'in_progress', 'gated', 'complete', 'parked']
 export const HUB_KIND = ['feature', 'fup-fix']
@@ -299,9 +299,18 @@ export function checkCurrent(text, inProgressIds) {
   return F
 }
 
-export function codeOf(id) {
-  const m = String(id).match(/^(?:BUG|FUP)-([A-Z0-9]+)-/)
-  return m ? m[1] : null
+/**
+ * The registered code an id is filed under, or null. Codes may carry hyphens (hub ids such as
+ * C2-TIER1, DOCS-RESTRUCTURE), so the match is "the longest registered code that prefixes the
+ * remainder followed by '-'", never "the first hyphen-delimited segment" — that shape read
+ * BUG-C2-TIER1-X as code `C2` and would have rejected every multi-segment hub id.
+ */
+export function codeOf(id, registered) {
+  const rest = String(id).replace(/^(?:BUG|FUP)-/, '')
+  if (rest === String(id)) return null
+  let best = null
+  for (const c of registered) if (rest.startsWith(c + '-') && (!best || c.length > best.length)) best = c
+  return best
 }
 
 export function checkCodes({ bugRows, fupEntries, registered, legacyRows }) {
@@ -310,14 +319,12 @@ export function checkCodes({ bugRows, fupEntries, registered, legacyRows }) {
   for (const r of bugRows) {
     const opened = r.cells.Opened
     if (!DATE_RX.test(opened) || opened < CODE_WATERMARK) continue
-    const c = codeOf(r.cells.ID)
-    if (!c || !registered.has(c)) F.push(`[CODES] ${PATHS.bugs}:${r.line} — ${r.cells.ID} uses code \`${c}\`, not a hub id or legacy-codes row`)
+    if (!codeOf(r.cells.ID, registered)) F.push(`[CODES] ${PATHS.bugs}:${r.line} — ${r.cells.ID} uses no registered code (a hub id or a legacy-codes row must prefix it)`)
   }
   for (const e of fupEntries) {
     const filed = (e.fields.match(/\*\*Filed:\*\*\s*(\d{4}-\d{2}-\d{2})/) || [])[1]
     if (!filed || filed < CODE_WATERMARK) continue
-    const c = codeOf(e.id)
-    if (!c || !registered.has(c)) F.push(`[CODES] ${PATHS.fupOpen}:${e.line} — ${e.id} uses code \`${c}\`, not a hub id or legacy-codes row`)
+    if (!codeOf(e.id, registered)) F.push(`[CODES] ${PATHS.fupOpen}:${e.line} — ${e.id} uses no registered code (a hub id or a legacy-codes row must prefix it)`)
   }
   return F
 }
@@ -443,7 +450,13 @@ export function checkFollowups({ open, backlog, criticalIds }) {
   return { findings: F, warnings: W }
 }
 
-/** Ids inside a `## ⭐⭐ Critical` section of the register, or null when the section is absent. */
+/**
+ * Ids that are ROWS of the `## ⭐⭐ Critical` pin, or null when the section is absent. A row's item
+ * is its second cell's LEADING bold token (`| **C1** | 🔒 **`FUP-X`** — …`); an id merely NAMED in a
+ * row's prose is a mention, not a row — the pin's C1 row names three RESOLVED items in passing, and a
+ * bare id scan reported all three as orphans (measured 2026-09-03). Same discrimination the retired
+ * check-progress-doc `criticalRowRe` made.
+ */
 export function criticalIdsOf(text) {
   const lines = text.split('\n')
   const i = lines.findIndex((l) => /^## .*Critical/.test(l))
@@ -456,7 +469,10 @@ export function criticalIdsOf(text) {
     }
   }
   const ids = new Set()
-  for (const m of lines.slice(i, end).join('\n').matchAll(/\b(FUP-[A-Z0-9][A-Z0-9-]*)/g)) ids.add(m[1])
+  for (const l of lines.slice(i, end)) {
+    const m = /^\|[^|]*\|[^*|]*\*\*`?(FUP-[A-Z0-9][A-Z0-9-]*)`?\*\*/u.exec(l)
+    if (m) ids.add(m[1])
+  }
   return [...ids]
 }
 
@@ -713,6 +729,10 @@ function selfTest() {
   must('CODES bad bug', checkCodes({ bugRows: [newRow('BUG-ZZZ-A', '2026-09-05')], fupEntries: [], registered: reg, legacyRows: 1 }), true)
   must('CODES bad fup', checkCodes({ bugRows: [], fupEntries: [newFup('FUP-ZZZ-A', '2026-09-05')], registered: reg, legacyRows: 1 }), true)
   must('CODES no legend', checkCodes({ bugRows: [], fupEntries: [], registered: reg, legacyRows: 0 }), true)
+  const regMulti = new Set(['C2-TIER1', 'C2'])
+  must('CODES multi-segment hub id', checkCodes({ bugRows: [newRow('BUG-C2-TIER1-A', '2026-09-05')], fupEntries: [], registered: new Set(['C2-TIER1']), legacyRows: 1 }), false)
+  must('CODES multi-segment not a prefix', checkCodes({ bugRows: [newRow('BUG-C2-A', '2026-09-05')], fupEntries: [], registered: new Set(['C2-TIER1']), legacyRows: 1 }), true)
+  must('codeOf longest wins', [codeOf('FUP-C2-TIER1-X', regMulti) === 'C2-TIER1' ? '' : 'x'].filter(Boolean), false)
 
   const bugsHdr = `| ${BUG_COLUMNS.join(' | ')} |\n|${'---|'.repeat(BUG_COLUMNS.length)}\n`
   const bugRow = (o = {}) => {
@@ -737,23 +757,27 @@ function selfTest() {
 
   const fupOk = '### 🟠 FUP-X-A — claim\n\n**Filed:** 2026-09-01 (x) · **Owner:** lead · **Severity:** high — why\n**Closes when:** done\n\nbody\n'
   const blOk = '### 🟡 Title\n\n**Parked:** 2026-08-19 · **Revisit when:** phase 20\n\nbody\n'
-  must('FOLLOWUPS good', checkFollowups({ open: fupOk, backlog: blOk, criticalIds: null }).findings, false)
-  must('FOLLOWUPS no Filed', checkFollowups({ open: fupOk.replace('**Filed:** 2026-09-01 (x) · ', ''), backlog: blOk }).findings, true)
-  must('FOLLOWUPS bad date', checkFollowups({ open: fupOk.replace('2026-09-01', 'Sept 1'), backlog: blOk }).findings, true)
-  must('FOLLOWUPS no Owner', checkFollowups({ open: fupOk.replace('**Owner:** lead · ', ''), backlog: blOk }).findings, true)
-  must('FOLLOWUPS no Severity', checkFollowups({ open: fupOk.replace('**Severity:** high — why', ''), backlog: blOk }).findings, true)
-  must('FOLLOWUPS bad severity', checkFollowups({ open: fupOk.replace('high', 'MAJOR'), backlog: blOk }).findings, true)
-  must('FOLLOWUPS emoji mismatch', checkFollowups({ open: fupOk.replace('🟠', '🔴'), backlog: blOk }).findings, true)
-  must('FOLLOWUPS resolved-retained keeps ⬛', checkFollowups({ open: fupOk.replace('🟠', '⬛') + '\n**Retained** as a review lens\n', backlog: blOk }).findings, false)
-  must('FOLLOWUPS no Closes', checkFollowups({ open: fupOk.replace('**Closes when:** done\n', ''), backlog: blOk }).findings, true)
-  must('FOLLOWUPS PO to rule counted', checkFollowups({ open: fupOk.replace('done', 'PO to rule'), backlog: blOk }).warnings, true)
-  must('FOLLOWUPS parked w/o revisit', checkFollowups({ open: fupOk + '**Parked** since x\n', backlog: blOk }).findings, true)
-  must('FOLLOWUPS backlog no revisit', checkFollowups({ open: fupOk, backlog: blOk.replace(' · **Revisit when:** phase 20', '') }).findings, true)
-  must('FOLLOWUPS empty register', checkFollowups({ open: '', backlog: blOk }).findings, true)
-  must('FOLLOWUPS critical orphan', checkFollowups({ open: fupOk, backlog: blOk, criticalIds: ['FUP-X-NOPE'] }).findings, true)
-  must('FOLLOWUPS critical ok', checkFollowups({ open: fupOk, backlog: blOk, criticalIds: ['FUP-X-A'] }).findings, false)
+  // Every fixture below passes an EMPTY pin (`criticalIds: []`) so the only red is the property
+  // under test — with the pin required, a fixture that omits it reds for the pin and proves nothing.
+  must('FOLLOWUPS good', checkFollowups({ criticalIds: [], open: fupOk, backlog: blOk }).findings, false)
+  must('FOLLOWUPS pin required', checkFollowups({ criticalIds: [], open: fupOk, backlog: blOk, criticalIds: null }).findings, CRITICAL_PIN_REQUIRED)
+  must('FOLLOWUPS no Filed', checkFollowups({ criticalIds: [], open: fupOk.replace('**Filed:** 2026-09-01 (x) · ', ''), backlog: blOk }).findings, true)
+  must('FOLLOWUPS bad date', checkFollowups({ criticalIds: [], open: fupOk.replace('2026-09-01', 'Sept 1'), backlog: blOk }).findings, true)
+  must('FOLLOWUPS no Owner', checkFollowups({ criticalIds: [], open: fupOk.replace('**Owner:** lead · ', ''), backlog: blOk }).findings, true)
+  must('FOLLOWUPS no Severity', checkFollowups({ criticalIds: [], open: fupOk.replace('**Severity:** high — why', ''), backlog: blOk }).findings, true)
+  must('FOLLOWUPS bad severity', checkFollowups({ criticalIds: [], open: fupOk.replace('high', 'MAJOR'), backlog: blOk }).findings, true)
+  must('FOLLOWUPS emoji mismatch', checkFollowups({ criticalIds: [], open: fupOk.replace('🟠', '🔴'), backlog: blOk }).findings, true)
+  must('FOLLOWUPS resolved-retained keeps ⬛', checkFollowups({ criticalIds: [], open: fupOk.replace('🟠', '⬛') + '\n**Retained** as a review lens\n', backlog: blOk }).findings, false)
+  must('FOLLOWUPS no Closes', checkFollowups({ criticalIds: [], open: fupOk.replace('**Closes when:** done\n', ''), backlog: blOk }).findings, true)
+  must('FOLLOWUPS PO to rule counted', checkFollowups({ criticalIds: [], open: fupOk.replace('done', 'PO to rule'), backlog: blOk }).warnings, true)
+  must('FOLLOWUPS parked w/o revisit', checkFollowups({ criticalIds: [], open: fupOk + '**Parked** since x\n', backlog: blOk }).findings, true)
+  must('FOLLOWUPS backlog no revisit', checkFollowups({ criticalIds: [], open: fupOk, backlog: blOk.replace(' · **Revisit when:** phase 20', '') }).findings, true)
+  must('FOLLOWUPS empty register', checkFollowups({ criticalIds: [], open: '', backlog: blOk }).findings, true)
+  must('FOLLOWUPS critical orphan', checkFollowups({ criticalIds: [], open: fupOk, backlog: blOk, criticalIds: ['FUP-X-NOPE'] }).findings, true)
+  must('FOLLOWUPS critical ok', checkFollowups({ criticalIds: [], open: fupOk, backlog: blOk, criticalIds: ['FUP-X-A'] }).findings, false)
   must('criticalIdsOf absent', [criticalIdsOf(fupOk) === null ? '' : 'x'].filter(Boolean), false)
-  must('criticalIdsOf present', criticalIdsOf('## ⭐⭐ Critical\n| FUP-X-A |\n## Other\nFUP-X-B\n').join() === 'FUP-X-A' ? [] : ['wrong'], false)
+  must('criticalIdsOf present', criticalIdsOf('## ⭐⭐ Critical\n| **C1** | 🔒 **`FUP-X-A`** — x, see `FUP-X-MENTION` | do | now | PO |\n## Other\n| **C9** | **FUP-X-B** |\n').join() === 'FUP-X-A' ? [] : ['wrong'], false)
+  must('criticalIdsOf ignores prose mentions', criticalIdsOf('## ⭐⭐ Critical\n| **C1** | 🔒 **`FUP-X-A`** — resolved `FUP-X-OLD` and FUP-X-OLD2 | do | now | PO |\n').join() === 'FUP-X-A' ? [] : ['wrong'], false)
 
   const lesHdr = `| ${LESSON_COLUMNS.join(' | ')} |\n|${'---|'.repeat(LESSON_COLUMNS.length)}\n`
   const lesRow = (o = {}) => {

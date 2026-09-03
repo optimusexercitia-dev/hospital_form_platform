@@ -1,13 +1,13 @@
 ---
 paths:
-  - "docs/progress/follow-ups-open.md"
+  - "docs/followups/follow-ups-open.md"
   - "src/lib/dsr/messages.ts"
   - "src/components/dsr/disposal-copy-property.ts"
   - "src/components/dsr/dsr-disposal-overclaim.test.tsx"
   - "src/components/dsr/dsr-meeting-residue.test.tsx"
 anchors:
   - src/components/dsr/disposal-copy-property.ts#TOTALITY_QUANTIFIER
-  - docs/progress/follow-ups-archive.md#FUP-GREP-VERIFIED-FOLLOWUP-IS-SELF-DEFEATING
+  - docs/followups/follow-ups-archive.md#FUP-GREP-VERIFIED-FOLLOWUP-IS-SELF-DEFEATING
 source: FUP-GREP-VERIFIED-FOLLOWUP-IS-SELF-DEFEATING · FUP-OVERCLAIM-PROPERTY-ONE-SURFACE-ONLY
 ---
 

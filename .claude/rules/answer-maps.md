@@ -6,7 +6,7 @@ paths:
   - "src/lib/queries/responses.test.ts"
 anchors:
   - src/lib/queries/responses.ts#buildAnswerMaps
-  - docs/progress/bug-log-archive.md#BUG-FF4-001
+  - docs/bugs/archive.md#BUG-FF4-001
 source: BUG-FF4-001
 ---
 
@@ -17,5 +17,5 @@ source: BUG-FF4-001
 TypeScript; changing one side silently desynchronizes conditional visibility between
 what the DB enforces and what the wizard renders.
 
-Read the **BUG-FF4-001** entry in `docs/progress/bug-log-archive.md` before editing,
+Read the **BUG-FF4-001** entry in `docs/bugs/archive.md` before editing,
 and change both sides together or neither.

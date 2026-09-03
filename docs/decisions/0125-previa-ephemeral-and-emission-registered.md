@@ -9,7 +9,7 @@
   reversing D7 without knowing it existed). Settles the approach for
   `FUP-DM5-DRAFT-PRINT-INVISIBLE-TO-COORDINATION`; that item does **not** close until the
   prévia ships.
-- **Body:** [follow-ups-open.md](../progress/follow-ups-open.md).
+- **Body:** [follow-ups-open.md](../followups/follow-ups-open.md).
 
 ## Decisions
 

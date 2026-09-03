@@ -4,11 +4,15 @@ Loaded by the team lead **and every teammate** — keep it lean; every spawn pay
 for it. It holds the shared, stable rules and points to the docs that carry detail:
 
 - **[ARCHITECTURE.md](./ARCHITECTURE.md)** — binding architecture rules + canonical
-  schema (authoritative; summarized in §3).
+  schema (authoritative; summarized in §3). Each rule names its enforcer, or `prose only`.
 - **[PHASES.md](./PHASES.md)** — phased plan + per-phase acceptance criteria (§5).
-- **[PROGRESS.md](./PROGRESS.md)** — **live state ONLY** (§7): current phase, open
-  items, blockers. History → [docs/progress/phase-ledger.md](./docs/progress/phase-ledger.md)
+- **[PROGRESS.md](./PROGRESS.md)** — the roll-up, **live state ONLY** (§7): § Phase Status,
+  the generated feature roll-up, § State. History → [docs/progress/phase-ledger.md](./docs/progress/phase-ledger.md)
   + the `docs/progress/` archives; contract machine-enforced by `npm run lint:progress`.
+- **[docs/planning/CURRENT.md](./docs/planning/CURRENT.md)** — the in-flight units; each one's
+  working state is its **hub**, `docs/features/<code>.md` (§7, ADR 0185).
+- **[docs/INDEX.md](./docs/INDEX.md)** — map of `docs/` + the **authority order** (live catalog >
+  code > ARCHITECTURE.md > ADRs > trackers). **[CONTEXT.md](./CONTEXT.md)** — the glossary.
 - **[docs/lead-playbook.md](./docs/lead-playbook.md)** — lead-only orchestration
   protocol (the single lead session reads it once; teammates get task-specific prompts).
 - **[docs/worktrees.md](./docs/worktrees.md)** — git worktree setup + running parallel
@@ -62,7 +66,7 @@ tightest RLS, PHI-access-audited, and protected by platform at-rest encryption
     touch **commission content or PHI** — cases, responses, narratives, meetings, patient data.
     *(The "noun rule" — ADR 0078 A35.)* ⚠ The census figures behind it are **TABLE-level reads
     through RLS**, not proof the content is unreachable — a DEFINER function's gate bypasses RLS
-    entirely (BUG-AUTHZ-001; full record: `docs/progress/bug-log-archive.md` + the A35 amendment).
+    entirely (BUG-AUTHZ-001; full record: `docs/bugs/archive.md` + the A35 amendment).
     Cite the census as row-level. Corollary, the standing one: **`prosecdef` belongs beside `pg_policies`.**
   - `org_admin` / `hospital_admin` — manage an org / a single hospital and its
     commissions, users, members. ⚠ **`hospital_admin` is NOT confined to its own hospital's
@@ -175,9 +179,10 @@ Each is feature-flagged; full detail in PHASES.md + `docs/phases/accreditation-t
 │       └── types/             # generated DB types + domain types
 ├── e2e/                       # Playwright specs (Tester)
 ├── worktrees/                 # parallel sessions — docs/worktrees.md
-└── docs/                      # decisions/ (ADRs) · backend-state.md (backend surface
-                               #   map) · lead-playbook.md · progress/ · reviews/ · phases/ ·
-                               #   plans/ · design/ · testing/ · deployment/ · worktrees.md
+└── docs/                      # INDEX.md (map + authority order) · decisions/ (ADRs) ·
+                               #   features/ (hubs) · planning/CURRENT.md · bugs/ · followups/ ·
+                               #   learning/ · backend-state.md · lead-playbook.md · progress/ ·
+                               #   reviews/ · phases/ · plans/ · design/ · testing/ · deployment/
 ```
 
 ## 3. Architecture Rules (index)
@@ -240,8 +245,9 @@ tree's coordination.
 The full plan + acceptance criteria live in **[PHASES.md](./PHASES.md)** (core
 platform 0–12 + the accreditation-track index). Accreditation track **13–21** detail is
 in **[docs/phases/accreditation-track.md](./docs/phases/accreditation-track.md)** (read
-**[docs/quality-track-context.md](./docs/quality-track-context.md)** first). **Live
-status lives in PROGRESS.md**; the completed-phase record lives in
+**[docs/quality-track-context.md](./docs/quality-track-context.md)** first). **Live phase
+status lives in PROGRESS.md § Phase Status; live feature state in each hub** (`docs/features/`,
+listed in `docs/planning/CURRENT.md`); the completed-phase record lives in
 **[docs/progress/phase-ledger.md](./docs/progress/phase-ledger.md)** (append-only,
 every phase forever). One codebase, one schema, one rulebook.
 
@@ -249,8 +255,9 @@ every phase forever). One codebase, one schema, one rulebook.
 **and** the human has approved. Backend may run one phase ahead on schema work, but
 nothing merges ahead of its phase.
 
-**Live order and pilot status: PROGRESS.md § "Now"** (the Phase Status rows alone do not
-carry sequencing). The two 🔴 pilot-gate checks were rotated to
+**Live order: [docs/planning/CURRENT.md](./docs/planning/CURRENT.md) → each hub's
+`## Current state`** (the Phase Status rows alone do not carry sequencing; PROGRESS.md has had
+no § Now since ADR 0185). The two 🔴 pilot-gate checks were rotated to
 [docs/progress/dm5-po-decisions.md](./docs/progress/dm5-po-decisions.md) § "Remaining
 pre-pilot work". Phases 18–19 stay post-pilot (ADR 0071).
 
@@ -296,7 +303,7 @@ When a decision in this file is superseded by an ADR, amend this file too — a 
    full sweep (~100 min, 56 suite runs) is periodic for the same reason; the phase step is
    the cheap `FROMFINDINGS=1` comparison against the committed findings.
 2. **Test pass** — `tester` writes/updates Playwright specs for the acceptance criteria
-   and files a bug per failure in PROGRESS.md. The fix loop reruns **failing +
+   and files a bug per failure as a row in `docs/bugs/BUGS.md`. The fix loop reruns **failing +
    current-phase** specs (chromium); the **full E2E suite runs once to declare green** —
    via **`npm run e2e:prod`** (prod-standalone, batched + server-restart-per-batch; a plain
    `npx playwright test` monolith collapses on Windows — see `docs/testing/e2e-prod-build-gate.md`).
@@ -309,42 +316,47 @@ When a decision in this file is superseded by an ADR, amend this file too — a 
    risks) and **waits** for explicit approval.
 5. **Record** — lead updates PROGRESS.md and **moves everything the phase completed out
    of it in the same edit**: the phase row → `docs/progress/phase-ledger.md` (verbatim),
-   task detail → `docs/progress/<phase>.md`, resolved follow-up **entries** (register →
-   archive) → `follow-ups-archive.md`, closed bugs → `bug-log-archive.md` (mechanics:
-   lead-playbook §§4–5; `npm run lint:progress` REDS on anything completed left behind).
+   task detail → `docs/progress/<phase>.md`, the hub → `status: complete` with its
+   `## Current state` cut into that record (then `npm run features:index`), resolved follow-up
+   **entries** → `docs/followups/follow-ups-archive.md`, closed bugs → flip the `BUGS.md` status
+   cell (no rotation; ADR 0185 D3), the branch's handoff deleted (mechanics: lead-playbook
+   §§4–5; `npm run lint:progress` + `lint:registers` RED on anything completed left behind).
    Updates `docs/backend-state.md` if the backend surface
    changed, and commits `phase(N): complete — <summary>`. **Name the authz ARM, never the script:**
    `ARM=floor` asks whether every door is *called*, a diff-scoped `ARM=policy` whether anything
    *notices* when a gate is opened, `ARM=census` whether anything has *ever asked*, `ARM=hat`
    whether any door reads `memberships` without the caller's hat — a gate record
    naming the script reads as full coverage while delivering the cheap half (ADR 0079;
-   `docs/progress/follow-ups-archive.md`).
+   `docs/followups/follow-ups-archive.md`).
 
 ## 7. Progress Tracking
 
-**PROGRESS.md is the single source of truth for status, and it holds LIVE STATE ONLY.**
-Update it when a task starts/finishes, a bug is filed/fixed, a gate step passes, or a
-decision is made — **never report status verbally without writing it there first**.
-Every teammate updates **only their own** rows/sections; the lead owns § Now and
-§ Phase Status. ⛔ **This paragraph must survive any trim** — a path-scoped rule cannot
-trigger its own trigger, so if nothing here sends you to PROGRESS.md, the contract below
-never loads.
+**PROGRESS.md is the roll-up, and it holds LIVE STATE ONLY** — § Phase Status, the generated
+feature roll-up, § State. **The working state of a unit under construction lives in its hub,
+`docs/features/<code>.md` § Current state** (six fixed sections, replace never append, ≤ 60
+lines, gated), and the hub is listed in **[docs/planning/CURRENT.md](./docs/planning/CURRENT.md)**.
+Update the block when a task starts/finishes or a gate passes — **never report status verbally
+without writing it there first**. Each branch owns its hub; the lead owns § Phase Status.
+⛔ **This paragraph must survive any trim** — a path-scoped rule cannot trigger its own
+trigger, so if nothing here sends you to the hub, the contract below never loads. ADR
+[0185](./docs/decisions/0185-documentation-restructure-feature-hubs-and-gated-registers.md).
 
-⛔ **Follow-ups do NOT live in PROGRESS.md.** The OPEN register is
-**[docs/progress/follow-ups-open.md](docs/progress/follow-ups-open.md)** — **one entry per
-item** (severity · id · title · owner · **origin** · body), appended per the template in its
-header; there is no second index to keep in sync. PROGRESS.md keeps only § Critical FUP
-(PO-curated, and **additive** — a row there adds a trigger and a deadline to an item that
-still keeps its register entry). Parked → `deferred-backlog.md`; resolved →
-`follow-ups-archive.md`. ADR
-[0179](./docs/decisions/0179-follow-up-register-consolidation.md).
+⛔ **Follow-ups, bugs and lessons do NOT live in PROGRESS.md.** Follow-ups: **one entry** per
+item in [docs/followups/follow-ups-open.md](docs/followups/follow-ups-open.md) with Filed ·
+Owner · Severity · **Closes when** (gated); the PO-curated ⭐⭐ Critical list is pinned at its
+top; parked → `deferred-backlog.md` (every entry carries **Revisit when**); resolved →
+`follow-ups-archive.md` (ADR 0179 + 0185 D5). Bugs: **one row** per bug in
+[docs/bugs/BUGS.md](docs/bugs/BUGS.md) — status is a column, severity from the shared
+five-level scale (D4); complex bugs get `docs/bugs/<ID>.md`. Lessons:
+[docs/learning/LESSONS.md](docs/learning/LESSONS.md) — one row + its **enforcer** or
+`prose only`; postmortems for failures that earn a file (D7).
 
 **The contract is not restated here** (that second copy is what drifted). It loads from
-[progress-contract.md](.claude/rules/progress-contract.md) when you open PROGRESS.md or
-`docs/progress/`, and `npm run lint:progress` (gate 7) is its authority — what leaves,
-where it goes, the one-line form, and the **one** protected section (§ Critical FUP) all live
-there. ⛔ That used to read "the two protected sections"; ADR 0179 moved the OPEN follow-up
-index out of this tracker, so there is no second one. The durable backend-surface map is
+[progress-contract.md](.claude/rules/progress-contract.md) when you open PROGRESS.md, a hub
+or a register, and `npm run lint:progress` (gate 7) + `npm run lint:registers` (gate 13) are
+its authority. ⚠ Both check **presence and resolution, never truth** — `PO to rule` is a legal
+value and is counted; an invented one is invisible. PROGRESS.md has **no protected section**
+since ADR 0185 moved § Critical FUP into the register. The durable backend-surface map is
 **`docs/backend-state.md`** — reference it instead of re-deriving the backend each phase.
 
 **Review cadence for CLAUDE.md _and_ `.claude/rules/`:** a `Stop` hook
@@ -358,11 +370,12 @@ whose **claim** went false has no gate at all, so that queue is its only witness
 ## 8. Conventions & Quality Bar
 
 - TypeScript `strict`; no `any` without an inline justification comment.
-- **Lint gate** — `npm run lint` is **TWELVE gates chained**; ALL must pass (verify against
+- **Lint gate** — `npm run lint` is **THIRTEEN gates chained**; ALL must pass (verify against
   `package.json`, not this list): `eslint --max-warnings=0` **&&** `lint:css-vars` **&&**
   `lint:memberships-door` **&&** `lint:client-server-imports` **&&** `lint:vacuous` **&&**
   `lint:set-local` **&&** `lint:progress` **&&** `lint:rules` **&&** `lint:adr-index` **&&**
-  `lint:mojibake` **&&** `lint:service-role-registry` **&&** `lint:authz-vectors`. Each was added after the class it gates
+  `lint:mojibake` **&&** `lint:service-role-registry` **&&** `lint:authz-vectors` **&&**
+  `lint:registers`. Each was added after the class it gates
   shipped a live defect; that rationale — and the traps in reading each gate's output — lives in
   **[docs/lint-gates.md](./docs/lint-gates.md)**, rotated there 2026-08-29 when this file had 169
   bytes of headroom left. ⛔ Verify the chain against `package.json`, never a prose list.
@@ -381,11 +394,14 @@ whose **claim** went false has no gate at all, so that queue is its only witness
 - Errors user-readable in pt-BR; raw Supabase/Postgres errors never reach the UI.
 - Secrets only in `.env.local` (gitignored). `NEXT_PUBLIC_` vars: Supabase URL + anon
   key only. Service-role key is server-only — in client code, that's a phase-blocking bug.
-- Non-trivial decisions get a 5–10 line ADR in `docs/decisions/` — number from
-  `docs/decisions/INDEX.md` (it states the next free one; never eyeball the listing), header
-  carries `**Status:**` plus a `**Supersedes:**` / `**Amends:**` label naming the ADR numbers
-  if it changes an earlier decision, then run `npm run adr:index`. That label is the ONLY
-  input to the index's back-pointer column, and no gate can notice it missing.
+- Non-trivial decisions get an ADR in `docs/decisions/` — Context · Problem · Decision ·
+  Considered options · Consequences (ADRs here run ~180 lines; the old "5–10 lines" was never
+  true). Number: **the highest number on ANY live branch + 1**, never the index's "next free"
+  alone — two branches took the same next-free twice on 2026-09-03 (ADR 0185 header); gate 9
+  catches the duplicate at rebase. Header carries `**Status:**`, `**Area:**`, optional
+  `**Related:**`, plus a `**Supersedes:**` / `**Amends:**` label naming the ADR numbers if it
+  changes an earlier decision, then run `npm run adr:index`. That label is the ONLY input to
+  the index's back-pointer column, and no gate can notice it missing.
   ⛔ Never create `docs/adr/` — that path appears in a generic skill; this repo's log is
   `docs/decisions/`.
 - A standing prohibition with **no resolution event** ("never fix X by granting Y", "read
@@ -412,6 +428,8 @@ npm run lint && npm run typecheck   # the chain + why each gate exists: §8. ⛔
                                #   here — this copy drifted to "all ten" while the chain grew to 11
 npm run adr:index              # regenerate docs/decisions/INDEX.md — run after writing or
                                #   editing an ADR header; gate 9 reds until you do
+npm run features:index         # regenerate docs/features/INDEX.md + the PROGRESS.md roll-up after
+                               #   editing a hub's frontmatter; gate 13 reds until you do
 npm run format:check           # Prettier (npm run format writes) — manual, NOT a lint gate;
                                #   tracker docs are .prettierignore'd (§8 — breaks lint:progress)
 npm run test                   # Vitest unit tests (full suite)

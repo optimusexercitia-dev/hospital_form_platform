@@ -10,7 +10,7 @@
   concurrency hole beside it, and gives the two remainders 000700 left open a durable
   answer. Touches ADR 0104 D6/D7/D11 and ADR
   [0120](./0120-dm5-wave-d-retirement-decisions.md) D6/D8/D11/D13.
-- **Body:** [follow-ups-open.md](../progress/follow-ups-open.md).
+- **Body:** [follow-ups-open.md](../followups/follow-ups-open.md).
 
 ## Decisions
 

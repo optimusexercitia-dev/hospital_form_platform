@@ -405,7 +405,7 @@ partitions all ten roles into org-tier / hospital-tier / commission-tier.
 - The pre-existing service-path audit-attribution gap now covers more actors doing
   more things; its dedicated workstream inherits AFF2's surfaces (Decision 5).
 - **Follow-ups registered — SEVEN as of 2026-08-24** (it named ONE until 2026-08-23, and SIX until the seventh was filed). Bodies in
-  [follow-ups-open.md](../progress/follow-ups-open.md), index lines in PROGRESS.md:
+  [follow-ups-open.md](../followups/follow-ups-open.md), index lines in PROGRESS.md:
   - **FUP-AFF2-CONTA** — self-service DOB/phone view on `/conta`; **the LGPD titular-access
     control** for D9's two columns (Amdt 1 r5), not a nicety.
   - **FUP-AFF2-ACTIVE-MEANS-TWO-THINGS** — *"active membership"* is asserted by D13, the plan

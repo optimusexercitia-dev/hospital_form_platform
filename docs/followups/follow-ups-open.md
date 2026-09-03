@@ -5,10 +5,39 @@ severity, id, title, owner, origin and full body **together**. There is no separ
 in sync: that split lived in `PROGRESS.md` from 2026-08-08 until **2026-09-02**, and eliminating it
 is what this file is for (ADR [0179](../decisions/0179-follow-up-register-consolidation.md)).
 
-> ⛔ **New follow-ups are filed HERE, never in PROGRESS.md.** PROGRESS.md keeps a pointer to this
-> file and nothing else — except the PO-curated **§ Critical FUP** table, which stays there by
-> decision and is *additive*: a Critical entry adds a trigger and a deadline to an item that also
-> keeps its full entry here.
+> ⛔ **New follow-ups are filed HERE, never in PROGRESS.md.** PROGRESS.md holds no follow-up
+> material at all since ADR 0185 D5 — the PO-curated **⭐⭐ Critical** table moved here too, pinned
+> at the top so the register's length cannot bury it. It is *additive*: a Critical row adds a
+> trigger and a deadline to an item that also keeps its full entry below, and the gate reds on a
+> Critical id with no entry.
+
+---
+
+## ⭐⭐ Critical — the must-not-be-forgotten list
+
+_**PO-curated. Entries land here ONLY on the PO's explicit instruction.** No implementer, reviewer or
+lead may promote an item into this section, and nothing arrives here as a side effect of a review
+round. It is the short list of follow-ups whose loss would be materially costly, **pinned at the top
+of the register precisely so that the register's length cannot bury them**._
+
+⛔ **NEVER ROTATE THIS SECTION.** It lived in PROGRESS.md as that file's only protected section (ADR
+[0179](../decisions/0179-follow-up-register-consolidation.md)) until ADR
+[0185](../decisions/0185-documentation-restructure-feature-hubs-and-gated-registers.md) D5 moved it
+here, table verbatim, links repointed. ⚠ An entry leaves only when the work has **landed**, which is
+not the same as the phase it was filed in closing — *a deliverable assigned to a slice disappears when
+that slice closes cleanly* (ADR 0120's own O1/O2 correction, and the reason this section exists).
+⚠ **These rows are ADDITIVE, not the item's record**: each adds a trigger and a deadline to an item
+that keeps its full entry below in this file. A row here whose entry is missing is an orphan, and
+`lint:registers` reds on it.
+
+| # | item | what must happen | trigger — the point it can no longer wait | owner |
+|---|---|---|---|---|
+| **C1** | 🔒 **`FUP-DM5-DISPOSAL-JOB`** — the PHI-disposal path is **manual and UNREHEARSED**. `disposal_state` records an **intent, not a destruction guarantee**: **4 SET-form writers** put rows into `disposal_pending` — 3 `authenticated`-reachable (`request_document_disposition`, `dispose_case_phi`, `dispose_referral_phi`) **plus `complete_document_reclassification`, service-role-only** — against **exactly ONE** outflow door, and **nothing automated calls it** (no `pg_cron`, no cron schema, single-process Dockerfile). ⚠ *Corrected 2026-08-18: this said "three inflow doors", which is right only bounded to JWT-reachable doors — **the queue is fed wider than the item said**.* | ⭕ **SPLIT IN TWO 2026-08-18 (DM-FUP TRIAGE #3) — and C1 does NOT close on C1a.** **C1a (local)** — execute [`phi-disposal-runbook.md`](../deployment/phi-disposal-runbook.md) end-to-end against local test data, once, and record the run. ⭕ **PARTIAL 2026-08-19: the § 6b BACKUP half is DONE** — executed, verified, destroyed, recorded in [`phi-backup-run-log.md`](../deployment/phi-backup-run-log.md), which discharged `FUP-DM5-BACKUP-IS-PHI-EXPORT`'s destination path. ⛔ **The § 3 DISPOSAL half — which is what C1a is FOR — has still not run.** ⭐ **CORRECTED 2026-08-19:** it was recorded as blocked by `FUP-DISPOSAL-CHILD-LOCK-BLOCKS-PHI-ERASURE`; **it never was** — the runbook is the `file_objects`/Storage path and `dispose_meeting_minutes` is disjoint from it in the catalog (writes no `file_objects` row, never sets `disposal_pending`; the runbook says "meeting" zero times). That FUP is resolved anyway (ADR 0129), but § 3 is un-run for its own reasons, not newly released. The two halves are independently executable; do not read the backup run as C1a. **C1b (Cloud)** — the same run against the linked project; ⚠ it **cannot inherit** the backup half, which has no Cloud form at all (`FUP-DM5-BACKUP-HAS-NO-CLOUD-FORM`). ⛔ **Why the split is not bookkeeping:** the runbook itself says a local rehearsal *"runs against a local stack by construction, so it cannot exercise the Cloud paths"* (§6) — so a local-only run discharges this row's **wording** while leaving its **purpose** undischarged, which is [[a-predicate-quoted-at-the-wrong-grain]] in the highest-severity item in the register. | ⛔ **BEFORE ANY REAL PATIENT RECORD IS LOADED.** PO-accepted 2026-08-18 as a pilot risk **bounded by this rehearsal** (ADR 0121 **Amdt 3**) — the acceptance is not open-ended, and the pilot may not admit real PHI ahead of it. ⭐ **The bound is C1b, not C1a**: the pilot runs on Cloud, so a green local rehearsal does **not** release it. | PO (executor = whoever holds service-role reach — an ACL fact, not a choice) |
+| **C2** | 🟠 **`FUP-AUTHZ-COMMAND-DOOR-UNSWEPT`** — **427** reachable command doors sit outside `ARM=census`'s domain — ⛔ **re-derived by property 2026-08-31** (`prosecdef` ∧ not trigger ∧ not set-returning ∧ return ≠ `bool` ∧ `authenticated`/`anon` holds EXECUTE), **never incremented**; was 426 at the AE1 Record step and 407 on 2026-08-17. ⭐ **The figure is now DERIVED by `ARM=census`'s own banner each run**, so this row records a measurement rather than owning one — the banner printed the frozen 407 beside four green arms for two weeks. ⭐ **Decomposed, because the halves differ** (⛔ **re-derived 2026-08-31 with the headline; QA r2 B4 caught the OLD decomposition pasted beside the NEW total — 344+82 sums to 426, not 427**): **345** are `public` and therefore still inside `ARM=floor`'s domain (which carries no return-type filter); **82** are `app` and sit in **no** arm bounded on client-reachability (`ARM=census` is bounded to `bool`/set-returning; these return `jsonb`/`void`). ⛔ **NO LONGER 'covered-but-unpinned' — FALSIFIED 2026-08-31 (ADR 0171).** That reading rested on a 3-door sample from 2026-08-17 and stood two weeks; the purpose-built neutralizer found **3 BLIND** in its first 8 measurements (`FUP-C2-THREE-BLIND-COMMAND-DOOR-GUARDS`). *Three COVERED results were evidence about three doors, never about the population.* | **Tier 1 — sweep the subset that touches PHI or crosses a tenant boundary**, derived as a property over the catalog, never hand-listed ([[enumeration-boundary-is-a-syntax-not-a-property]]). **Tier 2 — the remainder is DEFERRED.** Each swept door gets a recorded verdict, so a regression reds and a **new** door cannot pass by absence. ⭕ **Tier 1 ABSORBED TWO ITEMS 2026-08-18** — `FUP-DM5-Q1-OPEN-BYTES-CUT-BROKEN` (successor named: `app.resolve_document_version_bytes`) and `FUP-DM5-SIBLING-GUARD-DIFF`. All three want the same door-mutation machinery over `prosecdef` gates; building it three times was declined. ⚠ **Absorption is not closure** — each keeps its own index line and its own verdict. | **Tier 1: SIZED 2026-08-31** — instrument `scripts/authz-c2-tier1-sizing.sql` (re-derives every figure; quotes none), record [authz-c2-tier1-sizing.md](../design/authz-c2-tier1-sizing.md). ⛔ **The split does not split — the ruled predicate returns 405/427 (94.8 %), leaving a Tier 2 of 22 internal helpers.** The **tenancy disjunct is the vacuous half** (395 alone / 92.5 %): a DEFINER door bypasses RLS and must re-establish tenancy itself, so every gated door reaches `profiles` (354), `memberships` (346), `commissions` (246) — it measures *is tenancy-gated*, not *crosses a boundary*. ⛔ **The PHI comment convention is NOT a usable marker** — prose polarity is not machine-decidable (a positive regex captures `patient_xref`'s *"is NOT a PHI store"*), and 50 base tables carry no comment; the PHI arm rides on the hard `has_table_privilege` door-only fact instead (6/6 canonical stores). ⛔ **Depth-0 grain is FALSIFIED** (drops `create_case` + `set_participant_patient`), as is the only population-cutting variant (hand-list, and falsified on `assume_role`). ▶ **PO ruling owed** — §8. ⚠ **No command-door neutralizer exists**: all three harnesses open a boolean gate or a policy `USING`; these doors return `jsonb`/`uuid`/`void`. **Tier 2: after the pilot ships, once there are real customers.** | lead + backend |
+| **C3** | 🔴 **`FUP-DM5-BACKUP-HAS-NO-CLOUD-FORM`** — § 6b's backup mechanism is `docker exec … tar`, **local-only by construction**. On Cloud: managed backups + PITR **exclude Storage objects by documented design**, *"Restore to a new project"* does not copy them, and `supabase storage cp -r` has **no streaming form** ⇒ **the pilot platform has NO Storage recovery point at all**, and § 6b's *"encrypted AT CREATION"* is **unsatisfiable** there. ⭐ **It INVERTS its parent**: `FUP-DM5-BACKUP-IS-PHI-EXPORT` graded an over-wide copy **existing**; this grades **no copy existing** — opposite failure, opposite remedy, which is why it is a separate item and not absorbed into that close. | **PO decision, two shapes:** (a) accept no Storage recovery point pre-pilot and say so **where the pilot decision is made**, not only here; or (b) **name a mechanism** — ⭐ only one shape can satisfy "encrypted at creation": the **S3 protocol endpoint** streamed into a client-side encryptor (`rclone crypt` and peers), which makes this **the same measurement as `FUP-DM5-CLOUD-ORPHAN-SURFACE`** (that endpoint is **UNPROBED**). ⛔ **Any destination inherits the SOURCE's blindness** — changing the bucket cannot change what the endpoint can enumerate, and a source-count ↔ destination-count check compares **metadata to metadata**. Then rehearse it **restore included**, and prove the restore recreates `storage.objects` rows and not merely bytes. Also owed for any new processor: **BAA posture + LGPD cross-border basis**. | ⛔ **BEFORE ANY REAL PATIENT RECORD IS LOADED.** From the moment the pilot holds data with no recovery point, every day is unrecoverable-loss exposure. ⚠ **Distinct from C1's trigger, and they are easy to conflate:** C1 is about **destroying** bytes on request; this is about **not being able to get them back**. | PO decision, then backend + lead |
+| **C4** | 🟠 **`FUP-DM5-DB-DUMP-AND-SCRATCH-DB-UNGOVERNED`** — § 6b's five values are scoped **literally** to *"a Storage backup" / "the archive"*, yet the same section requires a `supabase db dump` restored into a **scratch database** to earn the words *"verified good"*. **Neither artifact has a location, reader-set, retention or destruction rule**, and nothing tells the operator to drop the scratch DB — which this same page calls *"a data leak wearing one"* (**90 of 274** RLS policies restored). ⭐ The parent item's own sting one level down, **inside the section that resolved it**. | **PO extends the five values explicitly to both artifacts, OR rules the restore test out of the procedure.** ⚠ The interim mitigation already written into the runbook — apply the values by analogy, **drop the scratch DB as soon as the comparison is recorded**, record both in the run log — is a stopgap and **is not the decision**. | **The first time anyone runs `supabase db dump --linked`** — ⚠ **reachable on Cloud TODAY** (it needs only the DB password, unlike C3), and it is the natural next step of a C1b rehearsal. ⛔ Do not let a C1b run be the first execution of an ungoverned procedure. | PO decision, then backend |
+
+⚠ The C1–C4 emoji (🔒 🟠 🔴) predate the D4 scale and are the rows' own markers; each item's `**Severity:**` word lives in its entry below, and that is the rated one.
 
 ---
 
@@ -29,11 +58,13 @@ what would close it · and ⛔ what must NOT be mistaken for closing it.>
 
 ### The fields, and what each is for
 
-- **`<severity>`** — the leading emoji, repeated in the `**Severity:**` field with a reason.
-  There is no formal legend in this repo; the observed convention at the 2026-09-02 consolidation
-  was 🔴 13 · 🟠 46 · 🟡 61 · 🟢 1 · 🔵 2, read as *blocking · serious · minor · residual ·
-  informational*. ⛔ Because the legend is a convention and not a gate, **the inline justification
-  is the real signal** — an emoji with no reason beside it is unreviewable.
+- **`<severity>`** — the leading emoji, and the word in the `**Severity:**` field, on the
+  **shared five-level scale** (ADR 0185 D4, the same one `docs/bugs/BUGS.md` uses; the gate reds
+  when the two disagree): ⛔ `catastrophic` = PHI exposure, cross-tenant read or data loss ·
+  🔴 `critical` = blocks the pilot or returns a wrong authorization answer · 🟠 `high` = blocks a
+  phase gate · 🟡 `medium` = wrong behaviour with a workaround · 🟢 `low` = cosmetic or
+  documentation. The level is decided by **what the item blocks**, and the inline `— why` still
+  earns its place: an emoji with no reason beside it is unreviewable.
 - **`FUP-<ID>`** — `SCREAMING-KEBAB`, unique across this file, the archive and the backlog. It is
   the join key every other document uses, so **it is permanent**: a rename orphans every
   name-keyed verdict pointing at it. Name the *defect*, not the area.
@@ -72,7 +103,7 @@ narrative is indistinguishable from an oversight.
 The entry headings **are** the index — there is nothing to regenerate and nothing that can drift:
 
 ```bash
-grep -n '^### ' docs/progress/follow-ups-open.md
+grep -n '^### ' docs/followups/follow-ups-open.md
 ```
 
 ---
@@ -437,7 +468,7 @@ without a new PO ruling.
 > then made the one lane that really deletes bytes declare `unavailable_on_platform` instead of
 > riding the default. The open half was *"unless FUP-DM5-CLOUD-ORPHAN-SURFACE settles that an
 > orphan-visible surface exists"* — it was probed on 2026-08-18 and **all five Cloud surfaces are
-> metadata-bound** ([cloud-orphan-probe-2026-08-18.md](./cloud-orphan-probe-2026-08-18.md)). So
+> metadata-bound** ([cloud-orphan-probe-2026-08-18.md](../progress/cloud-orphan-probe-2026-08-18.md)). So
 > `unavailable_on_platform` is not a placeholder awaiting a better proof; it is the **true and
 > permanent** value there. The record no longer asserts more than the door verifies.
 >
@@ -623,7 +654,7 @@ carries a claim the platform cannot substantiate.
 > 2. **The Cloud question was MEASURED, and answered NO** — 2026-08-18, `cloud-orphan-probe.mjs`
 >    against the live project. All five customer-reachable surfaces are metadata-bound; a byte with
 >    no `storage.objects` row is invisible to every one of them *while provably still existing*
->    ([cloud-orphan-probe-2026-08-18.md](./cloud-orphan-probe-2026-08-18.md)).
+>    ([cloud-orphan-probe-2026-08-18.md](../progress/cloud-orphan-probe-2026-08-18.md)).
 >
 > ⭐ **The second point is what discharges this, and it is worth stating precisely.**
 > `unavailable_on_platform` was written as a holding value — true, but pending a better proof. The
@@ -1933,7 +1964,7 @@ left a gate open and `| tail` masked exit 2 as 0.
 >
 > **1. The blocker is discharged.** `FUP-DM5-CLOUD-ORPHAN-SURFACE`'s constructed-orphan probe
 > ran and settled: **no Cloud surface can see a byte-orphan**
-> ([run record](cloud-orphan-probe-2026-08-18.md)). Per TRIAGE #9 this item tracks *two*
+> ([run record](../progress/cloud-orphan-probe-2026-08-18.md)). Per TRIAGE #9 this item tracks *two*
 > questions and the probe answers the **byte** one only — so *"erased, not reconciled"*
 > survives it, and this may still never close as "reconciled": no per-row
 > freeze-or-tombstone decision was ever made and no manifest exists.
@@ -2681,7 +2712,7 @@ its own threat model and E2E. Until then the columns are write-only by design.
 
 **Parked** — open, but not actionable next session (rotated to the backlog’s deferred tail 2026-08-19; its index line and this body were consolidated into one entry here 2026-09-02).
 Carried out of **BUG-ETHE4-FOCUS-1** when that bug was rotated to
-[bug-log-archive.md](./bug-log-archive.md) on 2026-08-12. It was filed inside the bug as *"not
+[bug-log-archive.md](../bugs/archive.md) on 2026-08-12. It was filed inside the bug as *"not
 confirmed, flagged as a hypothesis for whoever fixes it"*; archiving it under the bug's ✅ would
 have converted an open question into an apparent closure.
 
@@ -2895,7 +2926,7 @@ Owner: lead + human. Before the pilot flag flips (runbook §6 checklist is autho
       gates closed (runbook §6).
 
 <!-- OPEN backlog only (reviewed at each phase start). Resolved [x] items archived →
-     docs/progress/follow-ups-archive.md (full snapshot). -->
+     docs/followups/follow-ups-archive.md (full snapshot). -->
 
 ### 🟢 FUP-QO-6 — oversight-toggle slow-confirm: **annoyance severity ACCEPTED provisionally (PO ruling 2026-08-07)**; open LOW priority, DB-vs-UI formally unclassified
 
@@ -3130,7 +3161,7 @@ called out in the Phase Status caveats above. Owner: unassigned unless noted.
 > consequence went unnamed: **TRUNCATE fires no DELETE trigger**, so it also walks past every
 > statement-level `AFTER DELETE` guard — including `storage.protect_delete`. Measured 2026-08-18:
 > a bare `DELETE` on `storage.objects` raises `42501`; a `TRUNCATE` succeeds, and the bytes stay on
-> disk as orphans. Combined with [the Cloud orphan probe](cloud-orphan-probe-2026-08-18.md) of the
+> disk as orphans. Combined with [the Cloud orphan probe](../progress/cloud-orphan-probe-2026-08-18.md) of the
 > same day, the blast radius is *"every byte in every bucket orphaned, and then unobservable on
 > Cloud forever"* — not *"rows lost, restorable"*.
 >
@@ -3300,7 +3331,7 @@ the whitespace case is reachable only for **legacy rows**, the same population B
 
 **Parked** — open, but not actionable next session (rotated to the backlog’s deferred tail 2026-08-19; its index line and this body were consolidated into one entry here 2026-09-02).
 All ruled non-blocking by `qa`. Detail rotated 2026-07-28 →
-[ff-1-repeating-groups.md](./ff-1-repeating-groups.md); canonical analysis →
+[ff-1-repeating-groups.md](../progress/ff-1-repeating-groups.md); canonical analysis →
 [phase-FF-1-review.md](../reviews/phase-FF-1-review.md) (the playbook's rule: never restate a
 review's rationale here).
 
@@ -3339,7 +3370,7 @@ a binding FF-2/FF-5 requirement — **both phases have since discharged it**).
 Three **known gaps** + two QA Minors, all the same class — *pre-existing scope decisions E1 does not own*, made
 **visible** by E1's stricter access model. QA and `backend` independently judged each out of E1's scope; the PO
 agreed and routed all of them to **ETH·E2**. **Full reasoning, measurements and the QA quotes →
-[eth-e1-access-spine.md §4](./eth-e1-access-spine.md)** (detail rotated there 2026-08-04; titles +
+[eth-e1-access-spine.md §4](../progress/eth-e1-access-spine.md)** (detail rotated there 2026-08-04; titles +
 owners kept live here).
 
 - [ ] **GAP-E1-1 — `action_items` `assignees_only` arm never consults `can_read_case`** (a respondent who is also
@@ -3520,7 +3551,7 @@ owners kept live here).
   cut was lost, here the destination write was.
 
 - ⚠ **I did not reconstruct the row.** AE2's figures are recoverable from
-  [authz-ae2.md](authz-ae2.md) and [2026-Q3.md](2026-Q3.md), but a ledger row assembled after the
+  [authz-ae2.md](../progress/authz-ae2.md) and [2026-Q3.md](../progress/2026-Q3.md), but a ledger row assembled after the
   fact by someone who did not run the phase is a *plausible* record, not a true one — and it would
   be indistinguishable from a contemporaneous one forever after. Whoever reconstructs it should
   mark it reconstructed, with its sources.
@@ -4886,7 +4917,7 @@ generalised precisely because the narrow *"don't `tail` `e2e:prod`"* form **exis
 transfer** to a different gate) — but memory is prose, and prose has now failed here once.
 
 ⭐ **This is filed in the same register as the ADR 0131 training premise at
-[dm5-po-decisions.md](dm5-po-decisions.md) item 2**: when a control rests entirely on a human, this
+[dm5-po-decisions.md](../progress/dm5-po-decisions.md) item 2**: when a control rests entirely on a human, this
 repo says so plainly rather than letting a green gate imply otherwise. Raised by QA in the round-2
 addendum, and the framing is theirs.
 
@@ -5291,12 +5322,12 @@ be built so it can fail — this repo has a recorded case of a positive control 
 cache and made the real assertion meaningless. Establishing the actual mechanism (watcher death vs
 dropped events) stays worth doing, but it is not a precondition for the guard.
 
-### 🟡 FUP-CS2-QA-RESIDUE — the twelve non-blocking QA findings from Increment 2, and four of them are the same class (owner: backend/tester/frontend; filed 2026-08-22 at the Record step; ⭕ **12 → 6 on 2026-08-22** — M-5/M-6/M-7/M-14/M-15/M-16 remediated red-first and QA C-3 discharged; **M-4 STRUCK as already-delivered**. Remaining: M-1, M-8, M-11, M-12, M-13, M-17. Record: [case-split-assertion-integrity.md](case-split-assertion-integrity.md))
+### 🟡 FUP-CS2-QA-RESIDUE — the twelve non-blocking QA findings from Increment 2, and four of them are the same class (owner: backend/tester/frontend; filed 2026-08-22 at the Record step; ⭕ **12 → 6 on 2026-08-22** — M-5/M-6/M-7/M-14/M-15/M-16 remediated red-first and QA C-3 discharged; **M-4 STRUCK as already-delivered**. Remaining: M-1, M-8, M-11, M-12, M-13, M-17. Record: [case-split-assertion-integrity.md](../progress/case-split-assertion-integrity.md))
 
 **Filed:** 2026-09-02 (ad-hoc: PROGRESS.md consolidation 2026-09-02) · **Owner:** backend/tester/frontend · **Severity:** medium — per emoji at consolidation
 **Closes when:** PO to rule
 
-**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-CS2-QA-RESIDUE** — ⭕ **12 → 6** (2026-08-22, [record](case-split-assertion-integrity.md)); ⛔ **remaining SIX: M-1, M-8, M-11, M-12, M-13, M-17** — full statements in the [r2 review](../reviews/case-surface-split-increment-2-review.md). ⭐ Four are ONE class, **an assertion that proves less than its name claims**: count-keyed door pins (a SWAP passes) · an `app`-bounded "one body" (a `public` copy passes) · a 2-item hand-list against a 16-member derived class · a 404 matcher that cannot say WHICH gate fired — backend/tester/frontend
+**Register line** (folded in from PROGRESS.md at the 2026-09-02 consolidation): 🟡 **FUP-CS2-QA-RESIDUE** — ⭕ **12 → 6** (2026-08-22, [record](../progress/case-split-assertion-integrity.md)); ⛔ **remaining SIX: M-1, M-8, M-11, M-12, M-13, M-17** — full statements in the [r2 review](../reviews/case-surface-split-increment-2-review.md). ⭐ Four are ONE class, **an assertion that proves less than its name claims**: count-keyed door pins (a SWAP passes) · an `app`-bounded "one body" (a `public` copy passes) · a 2-item hand-list against a 16-member derived class · a 404 matcher that cannot say WHICH gate fired — backend/tester/frontend
 
 ⛔ **Filed so the review's findings do not leave with the review.** QA r2 APPROVED with five record
 conditions; C-1 (gate figures), C-2, C-4 (verdict rows) and the M-3 / M-4 / M-9 / M-10 items are
@@ -5895,7 +5926,7 @@ Measured 2026-08-24: the sibling (`error.tsx` for the `usuarios` route) was **bu
 `src/app/o/[org]/manage/usuarios/error.tsx` exists — and this one appeared in **no register at
 all**: zero occurrences in `follow-ups-open.md` and `deferred-backlog.md`, and PROGRESS.md's only
 `registro` is the unrelated REG·KIND row (`:98`). ⚠ **That citation is spent as of 2026-08-25** —
-REG·KIND closed and its row rotated to [phase-ledger.md](phase-ledger.md), so PROGRESS.md now
+REG·KIND closed and its row rotated to [phase-ledger.md](../progress/phase-ledger.md), so PROGRESS.md now
 contains **no** `registro` at all. The finding STRENGTHENS: the last near-miss is gone too. ⭐ Of a pair named so that neither would become an
 omission, the one that became an omission is the one that stayed deferred — **naming a deferral
 inside an ADR is not filing it**, because nobody reads an ADR to find out what is open.
@@ -9080,3 +9111,45 @@ the authorization path. Then the acceptance re-run against it.
 ⛔ **What must NOT be mistaken for closing it.** The fix landing without the acceptance re-run: P5 is
 the condition, and only a re-run can say whether the seam reaches ≤4×. ⛔ Nor a P5 that improves but
 stays above 4× — that is a partial result, and the threshold does not move to meet it.
+
+### 🔴 FUP-AUTHZ-AE3-CUTOVER-OPERATOR-OBLIGATIONS-OWED — the AE3 cutover left two operator obligations undischarged: rotate the remote DB password, and destroy the preimage together with its passphrase
+
+**Filed:** 2026-09-03 (PROGRESS.md § Now retirement, ADR 0185 D6 — the bullet was written 2026-09-01 at the AE3 cutover) · **Owner:** PO · **Severity:** critical — a remote DB password treated as exposed must not reach the pilot; PO to confirm the level
+**Closes when:** both actions are done and each is recorded with a date in `../deployment/ae3-cutover-runbook.md`; destroying one of the two artifacts without the other discharges nothing.
+
+Verbatim from § Now (2026-09-01): *AE3 cutover complete — schema-first discharged end to end: 5 migrations applied → catalog-verified on the remote → `git push main` → Coolify green (after one build break, `a12b7c1d`) → § 3 smoke PASSED. Narrative + every figure → [2026-Q3.md](../progress/2026-Q3.md); runbook → [ae3-cutover-runbook.md](../deployment/ae3-cutover-runbook.md). ⛔ TWO CLOSING OBLIGATIONS STILL OWED — the operator's, not a session's: (1) ROTATE THE REMOTE DB PASSWORD (§ 4.1 — typed on a workstation during an incident-shaped procedure; treat it as exposed rather than reasoning about whether it was), (2) DESTROY `~/ae3-preimage.csv.gpg` TOGETHER WITH ITS PASSPHRASE (destroying one without the other discharges nothing).* ⚠ **Neither leaves an artifact in the tree — no gate, and no later session, can notice they were skipped.** This entry is the only witness now that § Now is retired.
+
+### 🟢 FUP-ENV-LINT-AUTHZ-VECTORS-NEEDS-PYTHON3 — gate 12 shells `python3`; a host with only `python` on PATH reds `npm run lint`
+
+**Filed:** 2026-09-03 (PROGRESS.md § Now retirement, ADR 0185 D6 — the fact was recorded at the C2 merge on 2026-09-03) · **Owner:** lead · **Severity:** low — a toolchain prerequisite recorded nowhere but a rotated bullet
+**Closes when:** `../lint-gates.md` (`lint:authz-vectors`) and `../worktrees.md` name `python3` as a host dependency, or the script falls back to `python`.
+
+Verbatim from § Now: *Gate 12 now shells `python3` (C2's fix — `python` does not exist on macOS/modern Linux); verified working on this Windows host (`python3` → 3.14.3), but it is a NEW host dependency and a machine carrying only `python` on PATH now REDS gate 12.* Measured: `package.json` `lint:authz-vectors` = `… && python3 scripts/gen-authz-differential-cells.py --check`.
+
+### 🟢 FUP-ENV-STALE-ORIGIN-BRANCH-C2-TIER1-NEUTRALIZER — `c2-tier1-neutralizer` may still exist on origin, 105+ commits behind, carrying only a resume handoff
+
+**Filed:** 2026-09-03 (PROGRESS.md § Now retirement, ADR 0185 D6 — recorded 2026-09-02 in PO ruling 1) · **Owner:** lead · **Severity:** low — a trap for whoever reaches for the C2-sounding name, not a defect
+**Closes when:** `git ls-remote --heads origin c2-tier1-neutralizer` returns nothing, or the branch is retired deliberately with a note.
+
+Verbatim from § Now: *`c2-tier1-neutralizer` still exists locally and on origin, 105 commits behind, carrying only a resume handoff — the neutralizer itself is already in AE4 (`66b31cd1`). It is a trap for whoever reaches for the C2-sounding name; delete it or retire it deliberately.* Measured 2026-09-03: absent from `git branch --list` locally; origin **unmeasured**.
+
+### 🟡 FUP-ENV-NVM-DEFAULT-NODE-20-KILLS-GATE-8 — nvm still defaults to Node 20 on the dev machine, and `npm run lint` dies at gate 8 there
+
+**Filed:** 2026-09-03 (PROGRESS.md § Now retirement, ADR 0185 D6 — the bullet dates from 2026-08-25, corrected 2026-08-31) · **Owner:** lead · **Severity:** medium — the lint chain aborts before its verdict on the default shell
+**Closes when:** `nvm alias default 24` is set on the machines that run the gate and recorded in `../worktrees.md`, or the chain fails fast with a clear message on Node < 24.
+
+Verbatim from § Now: *nvm still defaults to Node 20, and `npm run lint` DIES AT GATE 8 there (`globSync` needs 22+). `.nvmrc` + `engines` are set; `nvm alias default 24` is not. ⛔ CORRECTED 2026-08-31: this said `default 22`, and following it literally still left the tree BELOW the pin — `.nvmrc` is 24 and `engines` is `>=24.0.0` (measured, not quoted). The bullet's own remedy was the stale half. Kept live deliberately when the gate-tooling bullet was rotated 2026-08-25: it is the one item in that ✅-marked bullet with an unfired resolution event, it exists in no other file — owner: whoever next hits it.*
+
+### 🟡 FUP-DISPOSAL-RUNBOOK-THREE-CORRECTIONS-OWED — after C1a ran, `phi-disposal-runbook.md` still carries a false banner and omits two preconditions
+
+**Filed:** 2026-09-03 (PROGRESS.md § Now retirement, ADR 0185 D6 — recorded at C1a's discharge, 2026-08-31) · **Owner:** backend · **Severity:** medium — the runbook is the C1b instrument; a false banner and a missing precondition mislead the Cloud run
+**Closes when:** `../deployment/phi-disposal-runbook.md` (a) drops the `NEVER EXECUTED END-TO-END` banner, (b) § 3 Step B carries a retention-gate warning, (c) states that after a fresh reset the disposal queue is EMPTY and constructing the pending state is the first step.
+
+Verbatim from § Now (C1a, 2026-08-31): *§ 3 steps A–D ran end-to-end twice (`standard` + `phi` tier) via the `subject_request` lane; byte proof earned (−168 B per run). Still owed: the runbook's `NEVER EXECUTED END-TO-END` banner is now FALSE · § 3 Step B needs a retention-gate warning (delete-then-`HC0DR` manufactures the § 4 orphan class) · ⛔ after a fresh reset the disposal queue is EMPTY — `seed.sql` creates zero `file_objects`, so constructing the pending state is a mandatory first step the runbook omits. ⚠ `HC0DR` is still live: ADR 0114 O1's provisional catch-all blocks every file whose reason is neither `subject_request` nor `duplicate`. The run went around that gate by the lane designed for it — it did not open it.* Run log → [phi-backup-run-log.md](../deployment/phi-backup-run-log.md).
+
+### 🟡 FUP-AFF4-RESIDUE-UNFILED — AFF4's ~16 QA-review obligations and ~20 plan-discovered follow-ups were never filed as register entries
+
+**Filed:** 2026-09-03 (PROGRESS.md § Now retirement, ADR 0185 D6 — the residue was recorded at AFF4's Record step, 2026-08-26) · **Owner:** lead · **Severity:** medium — items invisible to the register the PO reads from
+**Closes when:** every item in [aff4.md](../progress/aff4.md) § "Residue this Record step did NOT file" is either filed here as its own entry or ruled out by the PO, and that section says which.
+
+Verbatim from § Now: *AFF4's unfiled residue is still live — ~16 QA-review obligations + ~20 plan-discovered follow-ups were never converted into `FUP-*` index lines at its Record step, so they are invisible to the register the PO reads from (pointer list: aff4.md § "Residue this Record step did NOT file"). ⛔ The one AFF4 item that has NOT concluded.*

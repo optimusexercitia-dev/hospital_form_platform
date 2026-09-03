@@ -5,7 +5,7 @@
 - **Context:** `FUP-DM4-RECUSAL`, found by `qa` at DM4 r1 (MAJOR-3) and demonstrated live
   in a rolled-back transaction. Touches ADR **0119** D4 (which reasoned about this seam
   for the D15 *clearance* plane) and ADR **0114** Amdt 1 D16 (the access plane the item
-  was deferred into). Body: [follow-ups-open.md](../progress/follow-ups-open.md).
+  was deferred into). Body: [follow-ups-open.md](../followups/follow-ups-open.md).
 
 ## Decisions
 

@@ -84,7 +84,7 @@
 > carries a correction note that reads as evidence someone checked it.
 > → [[a-control-described-wrong-by-three-writers-running]], [[your-own-measurement-goes-stale-like-any-other]].
 > Source of the original claim: **FUP-DM5-REMOTE-STATE-MEASURED** (resolved; body in
-> `docs/progress/follow-ups-archive.md`).
+> `docs/followups/follow-ups-archive.md`).
 >
 > Local `seed.sql` turns all six DM flags ON; `db push` never applies the seed, so the remote
 > measured all-OFF. Do not cite "ships OFF" as containment.
@@ -1201,7 +1201,7 @@ exists to remove). ⚠ **No `expires_at` filter, deliberately** (Amdt 2 r3).
 > paragraph said it did, and that closure was **proposed and rejected on 2026-08-25**. The item's open
 > question is whether the **membership** leg should ADD `expires_at`, so "zero `expires_at`" states the
 > defect and cannot also be its resolution; the asymmetry resolved **permissively**, which narrows the item
-> rather than discharging it. It stays 🟡 (`docs/progress/follow-ups-open.md`; ADR 0148
+> rather than discharging it. It stays 🟡 (`docs/followups/follow-ups-open.md`; ADR 0148
 > Consequences). Write authority is untouched — where the affiliation was the person's **only** active tie
 > they have an empty footprint in `resolvePersonFootprint`, so `personScopeAllows` denies all four
 > capabilities; ⚠ a surviving **commission-tier** seat at that hospital keeps the footprint non-empty and the
@@ -1522,7 +1522,7 @@ systematically the state *before* the lifecycle locks — i.e. the state the gua
 | scope | before | after | note |
 | --- | --- | --- | --- |
 | postgres-owned tables (local **and** remote) | **63** granted TRUNCATE to `authenticated` | **0** | pinned by pgTAP `191` §5, property-bounded by `relowner`, with a two-direction falsifiability control |
-| `storage.*` (3) + `net.*` (2), platform-owned | granted to `anon` **and** `authenticated` | **unchanged** | ⛔ **not revocable by us** — on Cloud the REVOKE returns **no error** and changes nothing (`t`→`t`). Accepted in writing: `docs/progress/follow-ups-open.md` FUP-PCITV-1 item 3 |
+| `storage.*` (3) + `net.*` (2), platform-owned | granted to `anon` **and** `authenticated` | **unchanged** | ⛔ **not revocable by us** — on Cloud the REVOKE returns **no error** and changes nothing (`t`→`t`). Accepted in writing: `docs/followups/follow-ups-open.md` FUP-PCITV-1 item 3 |
 
 ⭐ TRUNCATE fires **no DELETE trigger**, so it bypasses RLS *and* every statement-level guard,
 including `storage.protect_delete`. Verify a grant sweep by re-deriving the set from the catalog —
@@ -2383,7 +2383,7 @@ controlled-document surface.**
     green" remains no claim about these doors.
 
   Full statement: `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` + `FUP-C2-THREE-BLIND-COMMAND-DOOR-GUARDS` in
-  [follow-ups-open.md](./progress/follow-ups-open.md); sizing + harness design in
+  [follow-ups-open.md](./followups/follow-ups-open.md); sizing + harness design in
   [authz-c2-tier1-sizing.md](./design/authz-c2-tier1-sizing.md) §8b and
   [authz-c2-command-door-neutralizer.md](./design/authz-c2-command-door-neutralizer.md).
 

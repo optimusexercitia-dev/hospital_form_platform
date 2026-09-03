@@ -28,19 +28,25 @@
     pre-existing files and must NOT be bumped on a `db push`**, or it grandfathers the files you just
     wrote and flips the rot direction from stricter to weaker. Rationale + the 3-layer positive
     control: the script header and `FUP-DM5-SETLOCAL-MIGRATION`.
-  - `lint:progress` (`check-progress-doc.mjs`) — the PROGRESS.md live-state contract (§7): size,
-    no completed rows, link integrity, LF — plus, since ADR
-    0140: **CLAUDE.md's 40 KB cap** (never raised to pass; rotate content out instead) and a
-    **registry-free link sweep of all `docs/progress/`** (new files covered on creation). ⭐ **Since
-    ADR 0179 the follow-up half checks the REGISTER, not an index.** `docs/progress/follow-ups-open.md`
-    is self-indexing — one entry carries severity, id, title, owner and body together — so the old
-    two-way index↔body cross-check (and the resolved-body residue check that rode on it) is **gone
-    with its subject**, replaced by: (a) no RESOLVED entry left in the register, (b) no duplicate id
-    within it, (c) no id held by both the register and `follow-ups-archive.md`, (d) a **warning** when
-    an id is in both the register and `deferred-backlog.md`, and (e) PROGRESS.md § Follow-ups must not
-    **re-grow** an index — the check that keeps the consolidation from silently un-doing itself. Every
-    prior version of that contract lived in prose and each clause was violated while green; the
-    script self-red-proves every checker on each run.
+  - `lint:progress` (`check-progress-doc.mjs`) — the PROGRESS.md live-state contract (§7): size
+    (**20 KB target / 30 KB hard since ADR 0185 D6**; 80 / 100 before), the two required sections
+    (§ Phase Status, § State) present and the **seven retired sections absent** (§ Now, § Bug Log,
+    § Critical FUP, § Follow-ups, § Decisions, § Test Run Summary, § QA Verdicts — the first heading
+    back reds, because a cut section regrows one line at a time), no completed phase rows, link
+    integrity, LF — plus, since ADR 0140: **CLAUDE.md's 40 KB cap** (never raised to pass; rotate
+    content out instead) and a **registry-free link sweep of all `docs/progress/`, `docs/followups/`
+    and `docs/bugs/`** (new files covered on creation). ⭐ **Since ADR 0179 the follow-up half checks
+    the REGISTER, not an index** — `docs/followups/follow-ups-open.md` is self-indexing, one entry
+    carries everything — so it asserts: (a) no RESOLVED entry left in the register, (b) no duplicate
+    id within it, (c) no id held by both the register and `follow-ups-archive.md`, (d) a **warning**
+    when an id is in both the register and `deferred-backlog.md`. ⛔ Two checks were **retired with
+    their subjects** by ADR 0185 rather than kept: "§ Follow-ups must not re-grow an index" and "a
+    § Critical FUP row must have a register entry" — both sections are now forbidden in PROGRESS.md,
+    so kept they would pass VACUOUSLY; the Critical orphan check lives in `lint:registers` against
+    the pin at the top of the register. The FIELDS on an entry (Filed · Owner · Severity · Closes
+    when) are `lint:registers`' job, not this gate's. Every prior version of the contract lived in
+    prose and each clause was violated while green; the script self-red-proves every checker on
+    each run.
   - `lint:rules` (`check-rules-staleness.mjs`) — a `.claude/rules/` rule that has gone stale.
     Standing rules have **no resolution event**, and path-scoped they are **invisible until they
     fire**, so a rule describing a renamed symbol loads and is believed forever with nothing able

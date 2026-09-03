@@ -4,7 +4,7 @@ The **only** bug register (ADR 0185 D3): one row per bug; **status is a
 column, not a section** (edit `Status`, never cut/paste the row — the
 open→closed rotation this replaces was chronically skipped). Historical
 bodies (repro/root-cause/fix, ~152 pre-D3 bugs) stay in
-[docs/progress/bug-log-archive.md](../progress/bug-log-archive.md) — moves to
+[docs/progress/bug-log-archive.md](archive.md) — moves to
 `docs/bugs/archive.md` in a later step; link the current path till then.
 
 **Status:** `open` · `fixed` · `verified` · `wontfix` · `duplicate` ·
@@ -27,7 +27,7 @@ sequential numbers do.
 | ID | Status | Severity | Area | Description | Opened | Closed | Related | Doc |
 |---|---|---|---|---|---|---|---|---|
 | BUG-AE47C-LINKAGE-001 | verified | high | cases | Create-inline "possui conta" participant dialog never closed because the redundant follow-up link-state call hit AE4.7c's new bound and raised 42501 | 2026-09-02 | 2026-09-02 | AE4.7c, AE4.8, ethics-e4-participants.spec.ts | — |
-| BUG-AE49-D6-REKEY-INCOMPLETE | open | critical | authz | commission.forms.edit re-keyed at only 4 of 7 policy sites the PO-approved matrix names; two ALL policies still read pre-cutover text | 2026-09-02 | — | AE4, D6, authz-ae4-gate-review.md | — |
+| BUG-AE49-D6-REKEY-INCOMPLETE | open | critical | authz | commission.forms.edit re-keyed at only 4 of 7 policy sites the PO-approved matrix names; two ALL policies still read pre-cutover text | 2026-09-02 | — | AE4, D6, authz-ae4-gate-review.md | [doc](BUG-AE49-D6-REKEY-INCOMPLETE.md) |
 | BUG-CASEPHASE-DUEDATE-001 | fixed | high | forms | Clicking the "Prazo" phase due-date label CLEARED the value instead of opening the picker (label/control mis-association) | 2026-08-26 | 2026-08-26 | activate-phase-dialog.tsx, FUP-DATEPICKER-VALUE-ABSENT-FROM-ACCESSIBLE-NAME | — |
 | BUG-D5-REHIRE-HOSPADMIN-001 | fixed | critical | membership | D5 one-step rehire failed for every hospital_admin because the D4 containment backstop ran as INVOKER under caller RLS lacking a hospital tier | 2026-08-26 | 2026-08-26 | AFF4, ADR 0159, pgTAP 381, migration 20261003004300, 89793d43 | — |
 | BUG-REGWIZARD-NO-ORG-STARTDATE-001 | fixed | high | registration | RegisterPersonWizard create-path had no UI control for org-affiliation start date (D13), silently defaulting to current_date | 2026-08-26 | 2026-08-26 | AFF4 F4, bcf62723, register-person-flow.tsx | — |
@@ -35,7 +35,7 @@ sequential numbers do.
 | BUG-P3-PHI-REFUSAL-MESSAGE | verified | critical | authz | getCasePatients never returns null, so the NO_PATIENT_ACCESS refusal is dead code; unentitled callers see 'no patient data' | 2026-08-25 | 2026-08-25 | PDF P3, ADR 0144 Amdt 2 pt5 | — |
 | BUG-SIGNOFF-GROUPCOND-001 | fixed | critical | forms | A section's grouped visible_when made five signoff/notification routines raise, breaking saves on that form | 2026-08-24 | 2026-08-24 | ADR 0136, pgTAP 367 | — |
 | BUG-AFF2-PROFILE-SAVE-BANNER-UNMOUNTS | verified | unrated | membership | Dados pessoais save shows no confirmation — success banner mounts and unmounts in the same React commit | 2026-08-23 | 2026-08-23 | AFF2, form-name-attribute-invariant.spec.ts | — |
-| BUG-CASEEVT-KIND-001 | open | critical | cases | case_events UPDATE/DELETE policies carry no kind gate — a writer can silently re-kind or delete a procedural row | 2026-08-23 | — | ADR 0137 D12, case-surface-split, QA N-5 | — |
+| BUG-CASEEVT-KIND-001 | open | critical | cases | case_events UPDATE/DELETE policies carry no kind gate — a writer can silently re-kind or delete a procedural row | 2026-08-23 | — | ADR 0137 D12, case-surface-split, QA N-5 | [doc](BUG-CASEEVT-KIND-001.md) |
 | BUG-E2E-CORRECTIONS-KBD-FOCUS | fixed | high | cases | Phase 'Corrigir...' menu doesn't focus its first item on keyboard-open — an upstream Radix mount-order race, dev-only | 2026-08-23 | 2026-08-24 | ADR 0137, case-corrections.spec.ts | — |
 | BUG-E2E-CP-HELPER-COLLECTSPATIENT | verified | high | e2e | A dropped-column PostgREST error was silently caught, permanently disabling a case-patient.spec.ts negative-path assertion | 2026-08-23 | 2026-08-24 | ADR 0137, case-patient.spec.ts | — |
 | BUG-PHASE-RESULT-PREVIEW-1 | fixed | high | forms | Wizard's end-of-fill result preview never injected __total_score__/__flagged_count__, so scored rulesets showed the default | 2026-08-23 | 2026-08-23 | result-aggregates.ts, phase-result-preview.test.tsx | — |

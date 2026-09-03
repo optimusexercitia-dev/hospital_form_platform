@@ -1,6 +1,6 @@
 -- 414 — every SECURITY DEFINER search_path in app/public/authz actually RESOLVES.
 -- Closes the sweep half of `FUP-NO-GATE-CATCHES-A-COLLAPSED-SEARCH-PATH`
--- (docs/progress/follow-ups-open.md), filed out of the QA review of the AE4/IA-F9
+-- (docs/followups/follow-ups-open.md), filed out of the QA review of the AE4/IA-F9
 -- statement-scoped increment (ADR 0182 § Corrections; fixed instance `20261003007330`).
 --
 -- ⭐ THE DEFECT CLASS. `set search_path to 'app, public, pg_catalog'` — SINGLE-QUOTED — is

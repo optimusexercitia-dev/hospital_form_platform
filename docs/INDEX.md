@@ -17,7 +17,7 @@ is **stale**, not an alternative.
 | 2 | **The code** — `src/`, `supabase/tests/`, `e2e/`, `scripts/` | what the application and its gates actually do |
 | 3 | [`ARCHITECTURE.md`](../ARCHITECTURE.md) | the binding rules and the canonical-schema **list**; each rule names its enforcer or says `prose only` |
 | 4 | [`decisions/`](decisions/INDEX.md) (ADRs) | **why** we arrived here; the index and back-pointers are generated (gate 9) |
-| 5 | Trackers — [`PROGRESS.md`](../PROGRESS.md), [`planning/CURRENT.md`](planning/CURRENT.md), [`features/`](features/INDEX.md), [`bugs/BUGS.md`](bugs/BUGS.md), [`progress/follow-ups-open.md`](progress/follow-ups-open.md) | live state; each is gated for presence and resolution, never for truth |
+| 5 | Trackers — [`PROGRESS.md`](../PROGRESS.md), [`planning/CURRENT.md`](planning/CURRENT.md), [`features/`](features/INDEX.md), [`bugs/BUGS.md`](bugs/BUGS.md), [`followups/follow-ups-open.md`](followups/follow-ups-open.md) | live state; each is gated for presence and resolution, never for truth |
 | 6 | Generated files — `decisions/INDEX.md`, `features/INDEX.md`, the PROGRESS.md roll-up | derived; never edit by hand |
 | 7 | Historical — `progress/` archives, `design/temp/`, `reviews/`, `handoffs/` | what was true when written; **a handoff may not be cited** |
 
@@ -29,7 +29,8 @@ describe why we arrived there; **git** describes what changed.
 | Entry | Purpose | Kind |
 |---|---|---|
 | [`backend-state.md`](backend-state.md) | the backend surface map — tables, doors, flags, per feature area; reference it instead of re-deriving the backend | reference |
-| [`bugs/`](bugs/BUGS.md) | **the** bug register (`BUGS.md`, one row per bug, status is a column) + per-bug documents + `README.md` template. ADR 0185 D3 | tracker |
+| [`bugs/`](bugs/BUGS.md) | **the** bug register (`BUGS.md`, one row per bug, status is a column) + per-bug documents + `README.md` template + `archive.md` (the historical bodies, formerly `progress/bug-log-archive.md`). ADR 0185 D3 | tracker |
+| [`followups/`](followups/follow-ups-open.md) | the follow-up register: `follow-ups-open.md` (one entry per open item, ⭐⭐ Critical pinned at the top), `deferred-backlog.md` (parked, every entry with **Revisit when**), `follow-ups-archive.md` (resolved). ADR 0179 + 0185 D5 | tracker |
 | [`decisions/`](decisions/INDEX.md) | ADRs, `NNNN-slug.md`, bold-label headers; `INDEX.md` generated | decisions |
 | [`deploy-coolify.md`](deploy-coolify.md) | Coolify / Docker deploy recipe (ADR 0059) | reference |
 | [`deployment/`](deployment/) | runbooks and run logs (PHI disposal, backups) | reference |
@@ -42,7 +43,7 @@ describe why we arrived there; **git** describes what changed.
 | [`phases/`](phases/) | phase specs + acceptance criteria for the accreditation track (13–21) and other multi-phase tracks | plan |
 | [`planning/`](planning/CURRENT.md) | `CURRENT.md` — the in-flight units, one line each; the working state is in each hub. ADR 0185 D2 | tracker |
 | [`plans/`](plans/) | feature plans and build notes (approach, not status) | plan |
-| [`progress/`](progress/) | phase records, archives (`phase-ledger.md`, `bug-log-archive.md`, `follow-ups-archive.md`, quarterly § Now archives), the follow-up register (`follow-ups-open.md`, `deferred-backlog.md`) and program records | tracker / historical |
+| [`progress/`](progress/) | phase and program records, and the archives (`phase-ledger.md`, the quarterly § Now archives, `decisions-log.md`, `test-run-archive.md`, `qa-verdicts-archive.md`). The follow-up register and the bug archive left for `followups/` and `bugs/` on 2026-09-03 | tracker / historical |
 | [`quality-track-context.md`](quality-track-context.md) | orientation for the accreditation track — read first when working in phases 13–21 | reference |
 | [`reviews/`](reviews/) | QA and gate reviews, `<subject>-review.md`, verdict `APPROVED` / `CHANGES REQUESTED` | historical |
 | [`testing/`](testing/) | E2E gate mechanics (`e2e-prod-build-gate.md`) | reference |

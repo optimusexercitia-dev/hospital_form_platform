@@ -100,7 +100,7 @@ the raw logs that carried the names are overwritten by batch number):
 - `phase2-auth-shell.spec.ts:268`
 
 **Both are EXISTING named baseline entries — they are the two members of `FUP-E2E-REPEAT-FLAKY`
-([deferred-backlog.md](deferred-backlog.md)) — so this run produced ZERO new flaky names.** That
+([deferred-backlog.md](../followups/deferred-backlog.md)) — so this run produced ZERO new flaky names.** That
 sentence, not the number `2`, is the finding.
 
 ⛔ **`0 infra` IS A POST-RERUN FIGURE. Batch 9's first attempt COLLAPSED** — `server_dead=1`,
@@ -129,7 +129,7 @@ would have been wrong.
 ## What discharged here
 
 **Ten follow-ups** — bodies, closure notes and the verbatim PROGRESS.md index lines are in
-[follow-ups-archive.md](follow-ups-archive.md) § "Rotated 2026-08-26 — AFF4 Record":
+[follow-ups-archive.md](../followups/follow-ups-archive.md) § "Rotated 2026-08-26 — AFF4 Record":
 `FUP-AC4-SUSPEND-TEST-SUSPENDS-NOBODY` · `FUP-AFF2-CONTA` · `FUP-AFF2-REGISTRATION-HAS-NO-START-DATE` ·
 `FUP-AFF2-UPDATE-PROFILE-AFFILIATION-HALF-IS-DEAD` · `FUP-DATEPICKER-VALUE-ABSENT-FROM-ACCESSIBLE-NAME` ·
 `FUP-MANAGE-ROUTES-HAVE-NO-ERROR-BOUNDARY` · `FUP-AFF3-NO-REVOCATION-FOR-A-MIS-ENTERED-AFFILIATION`
@@ -138,7 +138,7 @@ pre-step (`FUP-DOOR-SWEEP-DESTROYS-ITS-OWN-BASELINE` · `FUP-OPEN-DOCUMENT-VERSI
 `FUP-DOOR-SWEEP-RECIPE-STILL-BLIND-TO-ALTER-POLICY`).
 
 **One bug** — `BUG-D5-REHIRE-HOSPADMIN-001`, AFF4's own regression, fixed in `89793d43` (ADR 0159) →
-[bug-log-archive.md](bug-log-archive.md).
+[bug-log-archive.md](../bugs/archive.md).
 
 ⛔ **ELEVEN were forecast, TEN discharged.** `FUP-AFF2-ACTIVE-MEANS-TWO-THINGS` stays OPEN by PO
 ruling at the Record step — see § "Two documents disagree".

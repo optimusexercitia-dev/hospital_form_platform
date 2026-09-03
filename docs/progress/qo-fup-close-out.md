@@ -2,7 +2,7 @@
 
 QA: **APPROVED (r2)** — [qo-fup-review.md](../reviews/qo-fup-review.md). ADRs 0101 / 0102 / 0103.
 Migrations `20260912000000` + `20260912000100`. Full E2E: all 1019 collected tests accounted green
-(main + scoped resume). Resolved follow-up entries: [follow-ups-archive.md](follow-ups-archive.md)
+(main + scoped resume). Resolved follow-up entries: [follow-ups-archive.md](../followups/follow-ups-archive.md)
 (2026-08-07 section).
 
 ### 🟦 QO·FUP — FUP-QO-1…6 close-out (started 2026-08-07, branch `feat/quality-office-oversight`)

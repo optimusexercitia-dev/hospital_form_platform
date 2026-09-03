@@ -18,15 +18,15 @@ fup: ~
 
 ## Acceptance criteria
 
-Full ruling: `FUP-DM5-DISPOSAL-JOB` / Critical FUP C1 (docs/progress/follow-ups-open.md, PO ruling
+Full ruling: `FUP-DM5-DISPOSAL-JOB` / Critical FUP C1 (docs/followups/follow-ups-open.md, PO ruling
 2026-08-18) and [phi-disposal-runbook.md](../deployment/phi-disposal-runbook.md). Still open:
 
 - [ ] "[phi-disposal-runbook.md] must be executed end-to-end, once, against test data, BEFORE any
       real patient record is loaded" — on Cloud (C1b); a green C1a (local) does not release the
-      pilot (docs/progress/follow-ups-open.md `FUP-DM5-DISPOSAL-JOB`, PO ruling 2026-08-18)
+      pilot (docs/followups/follow-ups-open.md `FUP-DM5-DISPOSAL-JOB`, PO ruling 2026-08-18)
 - [ ] "The pilot-risk acceptance is bounded by C1b" — not yet run; "C1b (Cloud) NOT discharged —
       the byte proof is local-only by construction; column PHI is a different procedure"
-      (docs/progress/follow-ups-open.md; PROGRESS.md § Now)
+      (docs/followups/follow-ups-open.md; PROGRESS.md § Now)
 
 ## Current state
 

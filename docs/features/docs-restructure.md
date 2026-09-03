@@ -45,31 +45,31 @@ after AE4.
 
 ### Done since start
 
-- Commit A (`8cdc1549`): ADR written, index + back-pointers regenerated. Commit A2 (`2c078f74`):
-  one false sentence corrected visibly.
-- Written, uncommitted at this Updated date: `lint:registers` (13th gate) + `features:index`
-  generator, both self-tested; hubs AE4 / C2-TIER1 / C1B-DISPOSAL / DLB; CURRENT.md;
-  legacy-codes legend (30 codes, 0 unknown); BUGS.md (161 rows) + template; LESSONS.md (72 rows,
-  48 `prose only`) + postmortems template; CONTEXT.md authz jargon; ARCHITECTURE.md admission
-  header + 13 `Enforced by:` lines; `docs/INDEX.md`; register field normalization (in flight).
+- Committed, rebased onto `authz-ae4-catalog` @ `3b21826b`: the ADR (written as 0183, renumbered
+  0185 at the rebase when AE4's own 0183/0184 appeared — the collision its header predicted),
+  one visible correction, and commit B: `lint:registers` (gate 13) + `features:index`, hubs,
+  CURRENT.md, legend, BUGS.md (161 rows), LESSONS.md (72 rows), postmortems template, CONTEXT.md
+  jargon, ARCHITECTURE.md admission header + 13 `Enforced by:` lines, `docs/INDEX.md`, register
+  normalized by an idempotent script (165 entries after AE4's 9 landed). ADR 0184's handoff
+  citation promoted to durable records.
+- Staged for commit C (working tree, full chain exit 0): PROGRESS.md cut to § Phase Status +
+  roll-up + § State with the seven retired sections forbidden by gate 7; register + bug archive
+  moved to `docs/followups/` and `docs/bugs/`; ⭐⭐ Critical pinned in the register; 6 open § Now
+  items filed as entries; § Now / Decisions / Test Run / QA rotated verbatim; two open-bug docs;
+  ~130 references repointed; `progress-contract.md`, `lint-gates.md`, CLAUDE.md edited.
 
 ### In progress
 
-- Follow-up register normalization to the three-line field template (agent pass, scripted so it
-  can be re-run on AE4's newer copy after the rebase).
+- Commit C, held for the PO's approval of the CLAUDE.md diff (61 insertions, 43 deletions).
 
 ### Next
 
-1. Commit B once `lint:registers` and the full chain are green.
-2. Rebase onto `authz-ae4-catalog` (moved 9+ commits since the cut; it holds ADRs 0180–0184, so
-   ADR 0185 here renumbers to the highest live number + 1); re-run the normalization on AE4's
-   register; re-derive AE4's Current state from its fresh § Now.
-3. Commit C: PROGRESS.md cut, follow-up files → `docs/followups/`, bug archive → `docs/bugs/`,
-   `check-progress-doc.mjs` + `progress-contract.md` + CLAUDE.md edits (diff to PO first).
-4. Read-only review → `docs/reviews/docs-restructure-review.md`; merge after AE4.
+1. Commit C on approval; regenerate nothing by hand — `npm run features:index` + `adr:index`.
+2. Read-only review → `docs/reviews/docs-restructure-review.md`: one question, does every new
+   register have a gate that can red.
+3. Rebase once more onto AE4's tip when AE4 is ready to merge; merge after it.
 
 ### Blockers
 
-- CLAUDE.md commit waits on the PO's diff approval.
-- AE4 is being committed to concurrently (measured twice on 2026-09-03, moving between two
-  `git diff --stat` runs) — the rebase target is not fixed until AE4 merges.
+- CLAUDE.md commit waits on the PO's diff approval (CLAUDE.md's own rule).
+- AE4 is still being committed to; the final rebase target is not fixed until it merges.

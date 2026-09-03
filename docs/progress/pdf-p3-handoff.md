@@ -281,7 +281,7 @@ rule).
 
 ### Follow-ups filed this phase — ALL OPEN
 
-Bodies in [follow-ups-open.md](./follow-ups-open.md); index lines in PROGRESS.md.
+Bodies in [follow-ups-open.md](../followups/follow-ups-open.md); index lines in PROGRESS.md.
 
 | id | sev |
 | --- | --- |

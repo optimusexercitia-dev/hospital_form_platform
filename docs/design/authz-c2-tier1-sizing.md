@@ -16,7 +16,7 @@
 ## 1. What sizing owed
 
 The PO ruling of 2026-08-18 (`FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` in
-`docs/progress/follow-ups-open.md`, `decisions-log.md:266`)
+`docs/followups/follow-ups-open.md`, `decisions-log.md:266`)
 split the command-door backlog into **Tier 1** — "the subset that **touches PHI or crosses a
 tenant boundary**", swept next — and **Tier 2**, deferred past the pilot. It then bounded the
 method: *"Tier 1's population is DERIVED FROM THE CATALOG AS A PROPERTY, never hand-listed"*,

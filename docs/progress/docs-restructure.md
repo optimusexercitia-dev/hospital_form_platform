@@ -91,13 +91,31 @@ BUG-TV-001 · BUG-UREG-002
 The live lists are **greps, not copies** (ADR 0179's principle — nothing generated to go stale):
 
 ```bash
-grep -n "Closes when:\*\* PO to rule" docs/progress/follow-ups-open.md      # 111 at normalization
-grep -n "Revisit when:\*\* PO to rule" docs/progress/deferred-backlog.md    # 27 at normalization
-grep -n "Owner:\*\* PO to rule" docs/progress/follow-ups-open.md           # 5 at normalization
+grep -n "Closes when:\*\* PO to rule" docs/followups/follow-ups-open.md      # 111 at normalization; 114 after AE4's 9 new entries
+grep -n "Revisit when:\*\* PO to rule" docs/followups/deferred-backlog.md    # 27 at normalization; 26 after one resolved item left
+grep -n "Owner:\*\* PO to rule" docs/followups/follow-ups-open.md           # 5 at normalization
 ```
 
-(Paths become `docs/followups/…` after the move.) The **111** is the survey's 68 re-derived by the
-pass that had to write the clause: a keyword match is not a derivable condition.
+The **111** is the survey's 68 re-derived by the pass that had to write the clause: a keyword
+match is not a derivable condition.
+
+## Landing record
+
+- **Commit A / A2** (ADR + visible correction) and **commit B** (gate + registers) landed on the
+  branch; the branch was then **rebased onto `authz-ae4-catalog` @ `3b21826b`** (one conflict:
+  the archive's tail, both sides appended; the 9,000-line register auto-merged, and the idempotent
+  normalization script normalized AE4's 9 new entries in place — 0-line diff on re-run).
+- **ADR renumbered 0183 → 0185 at the rebase**: AE4 had filed its own 0183 and 0184 while this
+  branch was in flight. 37 references repointed; the ADR's Number paragraph records the event.
+- **One red shipped and was corrected in the next commit** (`6135abab`): commit B' landed with
+  `lint:registers` red on ADR 0184's handoff citation because the gate ran through a pipe to
+  `tail`, which erased its exit code — the pipe lesson, hit live.
+- **Commit C** (this working tree): the PROGRESS.md cut, the moves, the Critical pin, six § Now
+  items filed as entries (`FUP-AUTHZ-AE3-CUTOVER-OPERATOR-OBLIGATIONS-OWED`,
+  `FUP-ENV-LINT-AUTHZ-VECTORS-NEEDS-PYTHON3`, `FUP-ENV-STALE-ORIGIN-BRANCH-C2-TIER1-NEUTRALIZER`,
+  `FUP-ENV-NVM-DEFAULT-NODE-20-KILLS-GATE-8`, `FUP-DISPOSAL-RUNBOOK-THREE-CORRECTIONS-OWED`,
+  `FUP-AFF4-RESIDUE-UNFILED`), the archives' final rotations, and the CLAUDE.md edit held for the
+  PO's diff approval.
 
 ### 2a. Re-ratings under D4 — confirm or overturn
 

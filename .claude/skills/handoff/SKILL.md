@@ -34,7 +34,7 @@ Both failures have the same cause: no rule said which genus the file belonged to
 | Content | Promote to |
 | --- | --- |
 | A decision, with its rationale | an ADR in `docs/decisions/` (+ `npm run adr:index`) |
-| An open item with no resolution event yet | one entry in `docs/progress/follow-ups-open.md` (never PROGRESS.md — ADR 0179) |
+| An open item with no resolution event yet | one entry in `docs/followups/follow-ups-open.md` (never PROGRESS.md — ADR 0179) |
 | A bug | PROGRESS.md § Bug Log |
 | A durable fact about the backend surface | `docs/backend-state.md` |
 | A standing prohibition | `.claude/rules/` (see CLAUDE.md §8 admission bar) |

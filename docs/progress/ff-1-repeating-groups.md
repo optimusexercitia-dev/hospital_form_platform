@@ -118,7 +118,7 @@ S1 [substrate (MEM/SUP/N)](s1-substrate.md) · [S0 gate](../../docs/plans/pre-pi
 ## Bug Log
 
 <!-- Filed by tester; status updated ONLY by tester after re-verification.
-     Resolved/closed bugs are archived at phase close → docs/progress/bug-log-archive.md. -->
+     Resolved/closed bugs are archived at phase close → docs/bugs/archive.md. -->
 
 **0 open bugs, 5 closed** (filed 2026-07-27, FF-1 test pass; re-verified same day, three times). All five
 were application-code defects, not spec issues — each traced to a specific line via live-catalog/source

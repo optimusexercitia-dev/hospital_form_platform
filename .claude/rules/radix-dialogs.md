@@ -5,7 +5,7 @@ paths:
   - "src/components/ui/dialog-focus-restore.tsx"
 anchors:
   - src/components/ui/dialog-focus-restore.tsx#onCloseAutoFocus
-  - docs/progress/bug-log-archive.md#BUG-RDR-001
+  - docs/bugs/archive.md#BUG-RDR-001
 source: BUG-RDR-001 · BUG-ETHE4-FOCUS-1
 ---
 
@@ -17,5 +17,5 @@ source: BUG-RDR-001 · BUG-ETHE4-FOCUS-1
 - A **bubble-phase** `stopPropagation()` cannot beat `DismissableLayer`'s
   **capture-phase** Escape handler. Intercepting Escape requires the capture phase.
 
-Sources: **BUG-RDR-001** and **BUG-ETHE4-FOCUS-1** in `docs/progress/bug-log-archive.md`.
+Sources: **BUG-RDR-001** and **BUG-ETHE4-FOCUS-1** in `docs/bugs/archive.md`.
 Untested residual: `FUP-ETH-KBD-1`.

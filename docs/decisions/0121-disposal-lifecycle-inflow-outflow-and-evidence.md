@@ -172,7 +172,7 @@
   `FUP-DM5-DISPOSAL-JOB` (no outflow), and instance 3 of
   `FUP-DM5-NO-ANSWER-VS-NOTHING` (the record asserts more than the door verifies).
   Amends **ADR 0120 D11**; introduces cron infrastructure that **ADR 0099 D10** declined
-  for its own feature. Bodies: [follow-ups-open.md](../progress/follow-ups-open.md).
+  for its own feature. Bodies: [follow-ups-open.md](../followups/follow-ups-open.md).
 - **Evidence base:** every catalog claim below was measured against the live local
   catalog on 2026-08-17 before the ruling was taken, not accepted from the follow-up
   text. Two of the follow-ups' own claims did not survive that check — see §Corrections.

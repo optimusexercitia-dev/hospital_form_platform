@@ -69,7 +69,7 @@ the time, not as outstanding work.
   domain (**Critical FUP C2**). Coverage is a **48-probe battery: 47 RED + 1 GREEN**, the GREEN recorded as a
   **finding, not a pass**. ⚠ **A RED is sound IFF its baseline was verified green** — a red baseline also
   yields a red post-probe run, which reads as COVERED (`FUP-AUTHZ-HARNESS-PRECONDITIONS`). All 48 clear that bar.
-  **10 bugs found and closed inside the slice** (8 product, 2 spec) → [bug-log-archive.md](../progress/bug-log-archive.md);
+  **10 bugs found and closed inside the slice** (8 product, 2 spec) → [bug-log-archive.md](../bugs/archive.md);
   ⭐ **four were visible only by EXECUTING something** — no static gate saw them. Build detail, the ARM bound,
   the ACL over-grant and the harness proofs → [dsr-slice-3.md](../progress/dsr-slice-3.md).
   ✅ **SLICE 4 BUILT 2026-08-20 — QA APPROVED at r3** (r1 + r2 were CHANGES REQUESTED). **Its item 1 was

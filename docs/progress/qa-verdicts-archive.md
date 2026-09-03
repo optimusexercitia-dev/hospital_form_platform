@@ -416,3 +416,22 @@ with it. ⛔ The **147 concluded rows** count line in PROGRESS.md was deliberate
 this row: that line says in terms it is re-derived by counting, never incremented.
 
 | **AE3** — restricted personal-detail extraction (ADR 0155 D4); reviewed on **Fable**, user-assigned; **4 rounds** (3→3→2→0 blocking) | ✅ **APPROVED** (r4) — its one Record-step MUST is **discharged**; ✅ **PO-approved** (⛔ this cell read *"PO approval still owed"* until 2026-08-31, contradicted by § Now **and** by the subject line of the very commit that wrote it, `acb89f3d`) | 2026-08-31 | [r1–r4](../reviews/authz-ae3-review.md) |
+
+---
+
+## ↩ Rotated from PROGRESS.md 2026-09-03 (ADR 0185 D6 — the section is retired; the verdict lives in the review file and the owning hub)
+
+<!-- ONE LINE per phase/feature: verdict + date + link. The full analysis lives in
+     docs/reviews/*.md — never restate rationale here or in the archive.
+     Struck-through rows are superseded rounds, kept only to show a phase looped.
+     Retention: current milestone only. Older concluded rows move VERBATIM to
+     qa-verdicts-archive.md's "Collapsed one-line index" (the index is not rationale —
+     it preserves the feature-name → review-file mapping). -->
+
+| Phase / Feature | Verdict | Date | Report |
+| --- | --- | --- | --- |
+| **AE4 / IA-F9** — statement-scoped permission resolution, `20261003007320` + ADR 0182, branch `authz-ae4-scope-reaches-fix` @ `9f7fa68d` | ⛔ **CHANGES REQUESTED** — over-grant claim **HOLDS** (0/520 cells). Blocking: DEFINER `search_path` = one nonexistent schema **and 413 pinned it** · DC3 spec ≠ run · §14 ordering false · no approval recorded. ▶ **Disposition `9a4bbd22`: all addressed + RE-VERIFIED (§15)** — ⛔ re-review + E2E owed | 2026-09-03 | [review](../reviews/authz-ae4-if9-statement-scoped-review.md) |
+| **AE4** — Gate AE4 review (AE4.1–4.9 incl. D5+D6), branch `authz-ae4-catalog` @ `e897b452`; ⚠ run EARLY, before the final `e2e:prod` — ordering provisional, PO to ratify | ⛔ **CHANGES REQUESTED** — F-BLOCK-1 (`commission.forms.edit` at **4 of 7** approved sites; no site-axis closure check) · F-BLOCK-2 (IA-F9 · C2 · rollback §6 absent) · F-BLOCK-3 · F-MAJOR-1, +4 MED +8 LOW. IA-F1 **answered**; 9 figures reproduced exactly | 2026-09-02 | [review](../reviews/authz-ae4-gate-review.md) |
+| **AE4** — external implementation audit of `authz-ae4-catalog` at `a0b27f3c` (AE0–AE3 as history, AE4.1–4.8 as built) | ⛔ **CHANGES REQUESTED** — F1 BLOCKER (the permission half has **zero production callers**) **reproduced on the catalog**; F2 + F10 BLOCKER; F3–F9. Disposition: **Option A**, ADR [0176](../decisions/0176-authz-permission-layer-made-real.md) | 2026-09-02 | [audit](../reviews/authz-evolution-implementation-audit-2026-09-02.md) |
+| _Six prior rotations_ (the 2026-08-25 pair: PDF·P3 + user-profile · ADR 0136 · ADR 0137 · the AFF2 pair · the seven DM rows · the 2026-08-14 verbose collapse) — each rotation's own date is recorded at the destination | — | — | [archive](../progress/qa-verdicts-archive.md) |
+| **147** concluded rows — ⛔ re-derived by counting 2026-08-27, never incremented (the hand-maintained **118** had drifted **27** low) | — | — | [collapsed index](../progress/qa-verdicts-archive.md) |

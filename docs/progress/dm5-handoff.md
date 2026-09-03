@@ -680,7 +680,7 @@ admitting the gap. 🟡 **FUP-DM5-DANGLING-PRINT-ON-DELETED-DRAFT** — a print 
 the deleted response: dangling `securable_resources` row, reachable by **no UI surface**; **6 of 9** local
 prints are `form_response`, which renders no panel at all. 🟡 **FUP-DM5-DEAD-CORE-PROJECTION** ·
 🟠 **FUP-DM5-SIBLING-GUARD-DIFF** · 🟠 **FUP-DM5-330-WRITE-BLIND** · 🟡 **FUP-ACL-APP-POPULATION** ·
-🟡 **FUP-PGTAP-WORKER-DEADLOCK**. Bodies in [follow-ups-open.md](./follow-ups-open.md).
+🟡 **FUP-PGTAP-WORKER-DEADLOCK**. Bodies in [follow-ups-open.md](../followups/follow-ups-open.md).
 
 **Never verified for S3, and must not be claimed:** `case`/`interview` prints are **unmintable** (D6 is
 satisfied at the *type* level only) · `add_referral_shared_item` never driven end-to-end · a print's

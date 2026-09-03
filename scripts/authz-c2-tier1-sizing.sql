@@ -23,7 +23,7 @@
 -- ============================================================================
 --
 -- BINDING METHOD RULES (PO ruling 2026-08-18; entry FUP-AUTHZ-COMMAND-DOOR-UNSWEPT in
---   docs/progress/follow-ups-open.md. ⛔ Keyed on the ENTRY ID, not a line range: the old
+--   docs/followups/follow-ups-open.md. ⛔ Keyed on the ENTRY ID, not a line range: the old
 --   citation read :946-990 and had ALREADY drifted off its subject before the file moved.)
 --  1. Derived from the catalog AS A PROPERTY, never hand-listed. Every component below is
 --     a catalog fact: return type, `has_table_privilege`, `pg_description`, `pg_constraint`.

@@ -194,7 +194,7 @@ closing a live exploit: no application role holds `CREATE` on `app`, `public`, o
 vulnerability class this recommendation guards against requires a writable schema ahead
 of the DEFINER's fixed path, which does not exist here. The repository's own existing
 follow-up, `FUP-NO-GATE-CATCHES-A-COLLAPSED-SEARCH-PATH`
-(`docs/progress/follow-ups-open.md`), already names this and prescribes the property-based
+(`docs/followups/follow-ups-open.md`), already names this and prescribes the property-based
 close implemented above — a better close than the audit's per-function value change, and
 one the audit did not need to independently derive.
 

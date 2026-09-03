@@ -1,6 +1,6 @@
 # Keystone design for the three BLIND command-door guards
 
-**For:** `FUP-C2-THREE-BLIND-COMMAND-DOOR-GUARDS` (`docs/progress/follow-ups-open.md` ~L1114)
+**For:** `FUP-C2-THREE-BLIND-COMMAND-DOOR-GUARDS` (`docs/followups/follow-ups-open.md` ~L1114)
 **Source finding:** `docs/design/authz-c2-command-door-neutralizer.md` §8
 **Written:** 2026-09-02, **design only** — no test file written, no DB touched (the
 `c2-command-door-neutralizer.sh` sweep owns the local DB and its `Files=259, Tests=8685` baseline (re-measured 2026-09-02 on this branch; the 248/8289 figure is the pre-AE4 one)).

@@ -135,7 +135,7 @@ rate is drifting **1/17 → 3/17 → 4/20**. Recovery is luck, not a property.
 _Nine were filed here. **All nine are now CLOSED**; the batch's tenth follow-up
 (`FUP-0137-PHI-MODE-SHIMS`, filed at Increment 0 rather than at gate-end) is deliberately
 HALF closed — see the sweep section below. Full resolutions:
-[follow-ups-archive.md](./follow-ups-archive.md)._
+[follow-ups-archive.md](../followups/follow-ups-archive.md)._
 
 | id | status | note |
 | --- | --- | --- |

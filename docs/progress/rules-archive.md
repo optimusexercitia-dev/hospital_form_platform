@@ -47,7 +47,7 @@ measurement that showed it came after admission.**
   was called borderline and admitted anyway.
 
 The prohibition itself is NOT lost: it is pinned by pgTAP `342` S3c3 and recorded in
-`bug-log-archive.md` (BUG-ACT-ACL-1 closure notes). Full text of the retired rule:
+`docs/bugs/archive.md` (BUG-ACT-ACL-1 closure notes). Full text of the retired rule:
 
 ```markdown
 ---

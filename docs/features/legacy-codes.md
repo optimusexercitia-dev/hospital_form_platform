@@ -38,3 +38,4 @@ Rows are ordered by measured BUG-/FUP- id frequency under `docs/progress/`, most
 | AE1 | Authz-evolution Phase AE1 — integrity and privilege hardening | [authz-ae1.md](../progress/authz-ae1.md) (ADR 0155 D9) |
 | AFF4 | Organization affiliation, per-hospital staff data | [aff4.md](../progress/aff4.md) |
 | BOOTSTRAP | The manual first-`platform_admin` bootstrap procedure (no in-app path) | coolify.md § 2.5 (`docs/deployment/coolify.md`) |
+| ENV | Developer environment and toolchain — nvm/Node pin, `python3`, worktrees, stale branches (added 2026-09-03 when § Now's environment bullets became register entries) | [worktrees.md](../worktrees.md); [lint-gates.md](../lint-gates.md) |

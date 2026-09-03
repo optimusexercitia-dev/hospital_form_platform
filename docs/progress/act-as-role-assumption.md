@@ -19,7 +19,7 @@ authorization, the LIVE CATALOG is the sole truth (`pg_proc` incl. `prosecdef`, 
 > `BUG-VACUOUS-ASSERT-1` (its 4 confirmed instances) were fixed together on branch
 > `worktree-fix-vacuous-assert-act-expiry-acl`; keystone `320` is new and `318` PART 2 was
 > amended with the expiry fix, exactly as that block's own comment had instructed. Detail:
-> [bug-log-archive.md](./bug-log-archive.md). ⚠ Two things did NOT close with them:
+> [bug-log-archive.md](../bugs/archive.md). ⚠ Two things did NOT close with them:
 > `BUG-ACT-ACL-1` fixed **one instance** of the standing *AUDIT-INVOKER-WRAPPER* population,
 > and `BUG-VACUOUS-ASSERT-1`'s repo-wide audit continues as **`FUP-VACUOUS-AUDIT-1`** —
 > now evidence-backed, because fixing Flow 4c exposed a live spec defect the vacuous branch
