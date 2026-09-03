@@ -10,7 +10,7 @@ plan: ../plans/authz-evolution.md
 progress: ~
 reviews: ["../reviews/c2-command-door-findings.md"]
 adrs: ["0171", "0162", "0079", "0184", "0153"]
-handoff: ~
+handoff: ../handoffs/c2-tier1-2026-09-03.md
 fup: ~
 ---
 
@@ -95,10 +95,11 @@ AE4's PO approval (ADR 0162 §3, amended on branch-order by ADR 0184).
 - ⚠ **MEASURED 2026-09-03 (branch continuity):** `git log authz-c2-tier1 -1` → `77d94b60`
   (2026-09-02, a handoff-carry commit only) — the **local** `authz-c2-tier1` ref never advanced.
   The 13 real sweep commits are on `origin/authz-c2-tier1` (tip `8ad1f2a4`), which is what merged
-  into `authz-ae4-catalog`. `git branch --list` still shows `authz-c2-tier1` locally, but it is a
-  stale, orphaned ref (fully contained in `main`; safe to delete). ⚠ **2026-09-03: `authz-ae4-catalog`
-  was fast-forwarded into `main` (`898cb0ab`) and deleted**, so C2's remaining work has no branch
-  — hence `branch: ~` and `status: gated`; the next increment cuts a branch from `main` first.
+  into `authz-ae4-catalog`. The stale local `authz-c2-tier1` ref was **deleted 2026-09-03** (fully
+  contained in `main`); `origin/authz-c2-tier1` remains on the remote until a push is authorized.
+  ⚠ **2026-09-03: `authz-ae4-catalog` was fast-forwarded into `main` (`898cb0ab`) and deleted**, so
+  C2's remaining work has no branch — hence `branch: ~` and `status: gated`; the next increment cuts
+  a branch from `main` first.
 - C2's findings **landed on `main` with AE4 on 2026-09-03** (the PO-accepted tradeoff of ADR 0184
   point 2 played out as one fast-forward); `main` is not pushed.
 - 40 BLIND findings need keystones; allowlisting is prohibited — it would make `ARM=floor` and
