@@ -2,6 +2,31 @@
 -- Matrix § 1.2 (the finding) · § 10 D2 (disposition (a): fix in a preceding, independently
 -- gated increment, before AE4.6). Bug entry: PROGRESS.md Bug Log.
 --
+-- door-sweep-targets: app.compute_due_charter_notifications()
+-- door-sweep-targets: app.compute_due_document_review_notifications()
+-- door-sweep-targets: public.compute_due_notifications()
+-- door-sweep-targets: public.save_section_answers(uuid, uuid, jsonb, uuid[], jsonb, jsonb, jsonb, jsonb, jsonb, jsonb, jsonb)
+--
+-- ⚠ MARKER ADDED 2026-09-04, AFTER THIS MIGRATION WAS APPLIED (gate AE4 review, F-MAJOR-3).
+-- COMMENT-ONLY: not one byte of SQL changed, so `supabase db reset` re-applies exactly what
+-- ran before and no follow-up migration is owed. This is the same post-apply annotation the
+-- tree already uses for corrections to shipped migrations (9d8ac6d3 on 20261003002000).
+-- ⛔ It is NOT cosmetic. ADR 0173 § 2 makes the declaration MANDATORY for any migration that
+-- rewrites bodies via `pg_get_functiondef()` + `replace()` + `execute`, and THIS migration is
+-- the one that motivated the ADR — it was the measured case where the deriver read a
+-- four-body rewrite as ZERO cases. Every sibling in the AE4 range complies; this one did not.
+-- ⚠ WHY FOUR SEPARATE MARKER LINES RATHER THAN ONE WITH CONTINUATIONS. The deriver greps
+-- `^[[:space:]]*--[[:space:]]*door-sweep-targets:.*` — a CONTINUATION line (`--    app.foo()`)
+-- does not match that prefix and is silently unread. 20261003007250 uses the continuation
+-- form; its other three targets survive only because it is a DROP+CREATE whose
+-- `create or replace function` lines are picked up by the deriver's name-selection block
+-- instead. Repeating the prefix is what makes each target actually readable here.
+-- ⚠ The deriver ALREADY resolved these four through its narrow array-literal fallback (block
+-- 4b (b): this file builds `v_targets constant text[]`). So the marker does not change any
+-- derivation TODAY — measured, not assumed. What it changes is that the target list no longer
+-- depends on a fallback whose own comment records it as deliberately narrow, and precedence
+-- rules put the explicit declaration first.
+--
 -- ============================================================================
 -- THE FINDING. `app.has_role` carries the seat-expiry gate for every AUTHORIZATION path:
 -- `expires_at is null or m.expires_at > now()`. Five sites resolve `staff_admin` holders by

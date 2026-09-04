@@ -14,7 +14,9 @@
 -- =============================================================================
 
 begin;
-select plan(25);
+select plan(27);
+-- ⚠ 25 -> 27 at the Gate AE4 review (F-REC-8): §1.9a/§1.9b pin the LANDING SEAM — that
+-- `memberships.hospital_id` reaches `g.hospital` with the right identity. See §1.9a.
 
 update app.feature_flags set enabled = true where key in ('audit_trail');
 
@@ -27,6 +29,15 @@ create temp table k on commit drop as
          (v->>'org_b')::uuid  as org_b,  (v->>'hosp_b')::uuid as hosp_b
   from ctx;
 grant select on k to authenticated;
+
+-- The expected hospital REFERENCE, captured here at the suite's default role rather than
+-- re-read under `authenticated` inside the assertion: §1.9a is a claim about what
+-- `session_context()` projects out of `memberships.hospital_id`, and an expected side that
+-- itself travels through hospitals' RLS would turn a policy change into a green.
+create temp table hb on commit drop as
+  select h.id, h.slug::text as slug, h.name from public.hospitals h
+   where h.id = (select hosp_b from k);
+grant select on hb to authenticated;
 
 -- =============================================================================
 -- §1 — THE RPC CONTRACT
@@ -101,6 +112,40 @@ select is(
     where g->>'role' = 'hospital_admin' limit 1),
   (select org_b::text from k),
   '1.9 a hospital grant carries hospital + parent org');
+
+-- ⭐⭐ THE LANDING SEAM (Gate AE4 review, F-REC-8). `partitionGrants` routes a `hospital_admin`
+-- grant on `g.role === 'hospital_admin' && g.hospital !== null` and then reads
+-- `g.hospital.slug` to build the path; the OLD `landingRouteForRole` required only the org, so
+-- a `hospital_admin` grant whose `hospital` came back null now silently lands on `/o` instead
+-- of the hospital manage area. `memberships_scope_shape` forces `hospital_id IS NOT NULL` for
+-- `hospital_admin`, so that state is unconstructible THROUGH A MEMBERSHIP — but the step the
+-- TS side actually depends on is the PROJECTION of that column into `g.hospital`, and until
+-- now nothing asserted it. 1.9 above comes close and does not reach it: it reads
+-- `g->'hospital'->>'organization_id'`, which is `hospitals.organization_id` — it would still
+-- pass if the projection carried the WRONG hospital, or dropped `id`/`slug` entirely.
+-- ⛔ SO THE PIN IS THE IDENTITY, NOT THE PRESENCE: id and slug, against the membership's own
+-- `hospital_id`. Proven able to fail by rewriting `session_context()` in-transaction to build
+-- the hospital object from `h.organization_id` — 1.9 stays green, this reds.
+select is(
+  (select (g->'hospital'->>'id') || '/' || (g->'hospital'->>'slug')
+     from jsonb_array_elements(public.session_context()->'grants') g
+    where g->>'role' = 'hospital_admin' limit 1),
+  (select id::text || '/' || slug from hb),
+  '1.9a ⭐⭐ THE LANDING SEAM: the hospital_admin grant projects `memberships.hospital_id` '
+  'into `g.hospital` with the right IDENTITY — id and slug, the two fields '
+  '`partitionGrants`/`camelHospital` route on. A grant that resolved to a different hospital, '
+  'or lost `slug`, would pass 1.9 and mis-route every hospital admin.');
+
+select is(
+  (select g->'hospital'
+     from jsonb_array_elements(public.session_context()->'grants') g
+    where g->>'role' = 'staff_admin' limit 1),
+  'null'::jsonb,
+  '1.9b DISCRIMINATION HALF of 1.9a, and it is what makes 1.9a an observation rather than a '
+  'probe that is non-null for everything: the SAME caller''s commission-scoped grant carries '
+  '`hospital` = JSON null, because its membership has no `hospital_id`. So the projection '
+  'tracks the column, and `g.hospital !== null` is a real discriminator for the route rather '
+  'than a constant.');
 
 reset role;
 

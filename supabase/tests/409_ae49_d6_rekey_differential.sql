@@ -39,16 +39,18 @@
 -- `authz` (401 §18), so layer-2 probes run at the suite's default role and door probes run under
 -- `set local role authenticated`. Deleting a grant likewise needs `reset role` first.
 --
--- RUN SHAPE: `Files=2, Tests=73` (72 here + 00_setup.sql's one). ⛔ Keep this line in step with
+-- RUN SHAPE: `Files=2, Tests=74` (73 here + 00_setup.sql's one). ⛔ Keep this line in step with
 -- plan() — a stale RUN SHAPE is read as the expected shape by the next person diagnosing a
 -- count mismatch.
 -- ⚠ 63 -> 72 at 20261003007340: § 2's mutated half now covers `form_item_options` and
 -- `form_item_validations`, the two sites BUG-AE49-D6-REKEY-INCOMPLETE found un-re-keyed. Before
 -- that migration §2 measured 4 of the 6 policy sites and its own caption called the result "the
 -- production door".
+-- ⚠ 72 -> 73 at the Gate AE4 review (F-MAJOR-4a): § 2.9a, the mutated twin `form_versions`
+-- never had. § 2.5 had been a one-sided baseline since the file was written.
 
 begin;
-select plan(72);
+select plan(73);
 
 -- ============================================================================
 -- §0 — FIXTURE + PRECONDITIONS. Every precondition is ASSERTED, never claimed: a reading is not
@@ -126,6 +128,20 @@ select ok(app.feature_enabled('case_participants'),
 -- 43 codes. This section pins the seam's existence as a falsifiable fact.
 -- ============================================================================
 
+-- ⛔ `position('''' || code || '''' in src)`, NOT `src like '%' || code || '%'`. TWO defects in
+--    the `like` form, and the SAME FILE already demonstrates the fix at § 2.10c:
+--      (1) `_` is a LIKE WILDCARD matching any single character, and every permission code
+--          contains them (`org.professionals.read`) — so `org.professionals.read` would match
+--          `orgxprofessionalsxread`, and worse, a code differing from another only in a
+--          separator would match its sibling's site.
+--      (2) The needle was UNANCHORED, so a code appearing inside a longer identifier, a string
+--          that merely mentions it, or a `/* */` block comment (only `--` comments are stripped)
+--          counted as an ENFORCEMENT SITE. D7's claim is that the code is a STRING LITERAL AT
+--          the gate; the quotes are therefore part of the needle, not decoration.
+--    ⚠ MEASURED BEFORE AND AFTER, because a fix that silently moves a pinned number is a
+--    finding of its own: both forms return the SAME 4 (site, code) pairs at this head, so
+--    § 1.1's named set and § 1.3's countdown of 40 are unchanged. This closes a live
+--    weakness in the instrument, not a live false positive. (Gate AE4 review, F-MAJOR-4c.)
 create or replace function pg_temp.code_sites() returns table(site text, code text)
 language sql stable as $$
   with b as (select n.nspname, p.proname,
@@ -133,7 +149,7 @@ language sql stable as $$
                from pg_proc p join pg_namespace n on n.oid = p.pronamespace
               where n.nspname in ('app','public'))
   select b.nspname || '.' || b.proname, pm.code
-    from b join authz.permissions pm on b.src like '%' || pm.code || '%';
+    from b join authz.permissions pm on position('''' || pm.code || '''' in b.src) > 0;
 $$;
 
 -- ⛔ `order by code, site` — NOT `order by code` alone, which is what this was until
@@ -248,7 +264,11 @@ select lives_ok($$ insert into public.forms (commission_id, title)
 select lives_ok($$ insert into public.form_versions (form_id, version_number, status)
                    values ((select fid from f409s), 9091, 'draft') $$,
   '2.5 BASELINE, WITH CHECK half through the FORMS SUBQUERY cid (form_versions'' own policy '
-  'derives the commission through `(select f.commission_id from forms f where f.id = form_id)`).');
+  'derives the commission through `(select f.commission_id from forms f where f.id = form_id)`). '
+  '⭐ ITS MUTATED TWIN IS 2.9a. Until the AE4 gate review (F-MAJOR-4a) this baseline had none: '
+  'it proved the subquery-cid derivation OPEN with the grant present and NOTHING proved it '
+  'CLOSES when the grant is deleted — "a one-directional mutation leaves the opposite polarity '
+  'unproven", which is this file''s own header standard.');
 
 select lives_ok($$ insert into public.form_sections (form_version_id, position, title)
                    values ((select id from public.form_versions where form_id = (select fid from f409s)
@@ -372,6 +392,21 @@ select throws_ok($$ insert into public.forms (commission_id, title)
   '2.9 ⭐⭐ THE GATE LINE, WITH CHECK half: the same deletion also blocks the NEW row. '
   '⛔ `USING` and `WITH CHECK` answer different questions and a gate present in only one is a '
   'real hole, so both halves are mutated separately. Differential against 2.4.');
+
+select throws_ok($$ insert into public.form_versions (form_id, version_number, status)
+                    values ((select fid from f409s), 9092, 'draft') $$, '42501', null,
+  '2.9a ⭐⭐ THE GATE LINE THROUGH THE FORMS-SUBQUERY CID: the same deletion also blocks a new '
+  '`form_versions` row, whose policy derives the commission through '
+  '`(select f.commission_id from forms f where f.id = form_id)` rather than holding it directly. '
+  'Differential against 2.5 — exactly one fact changed between them, a row in '
+  '`authz.role_permissions`. ⚠ Keyed on `42501` and NOT on a bare `throws_ok`: the unique index '
+  '`form_versions_form_id_version_number_key` raises `23505` on this table, so a bare catch '
+  'would read a version-number collision as the authority gate — which is why 9092 is a fresh '
+  'number and 2.5''s 9091 is left alone. ⛔ 2.5 is also this assertion''s DISCRIMINATION HALF: '
+  '`authenticated` demonstrably HOLDS INSERT on `form_versions` (2.5 inserted through it), so '
+  'the 42501 here is the POLICY closing and not a missing table grant — the trap 2.6d records '
+  'for `form_item_validations`, where exactly that confusion made a mutated twin pass for the '
+  'wrong reason.');
 
 select throws_ok($$ insert into public.form_sections (form_version_id, position, title)
                     values ((select id from public.form_versions where form_id = (select fid from f409s)
@@ -860,9 +895,12 @@ select ok(not has_function_privilege('anon', 'app.can_edit_commission_forms(uuid
 -- depend on. The enclosing transaction rolls back regardless; this is about the assertions that
 -- run between here and the rollback, and about what an out-of-transaction run would have to do.
 delete from public.professional_profiles where id = 'fb000000-0000-0000-0000-00000000f409';
+-- ⚠ 9092 as well as 9091: 2.9a's insert is expected to be REJECTED, but `throws_ok` runs the
+-- statement — if that assertion ever fails, the row it was supposed to be denied exists, and a
+-- cleanup keyed only on 9091 would leave it behind for an out-of-transaction run.
 delete from public.form_sections where form_version_id in
-  (select id from public.form_versions where form_id = (select fid from f409s) and version_number = 9091);
-delete from public.form_versions where form_id = (select fid from f409s) and version_number = 9091;
+  (select id from public.form_versions where form_id = (select fid from f409s) and version_number in (9091, 9092));
+delete from public.form_versions where form_id = (select fid from f409s) and version_number in (9091, 9092);
 delete from public.forms where title like '409 %';
 
 select * from finish();
