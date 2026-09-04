@@ -12,13 +12,13 @@
 >
 > Edges are **advisory** and over-inclusive by design; the ADR text is truth.
 
-**186 ADRs** · next free number: **0189** · 61 carry an inbound supersedes/amends edge
+**187 ADRs** · next free number: **0190** · 63 carry an inbound supersedes/amends edge
 
 ## ⚠ Anomalies
 
 - **Missing numbers:** 0034, 0077 — a gap is not automatically a defect (0077 was withdrawn by the PO and its subject re-filed as 0078; 0034 was never used), but a gap nobody can explain usually means a lost file.
 - **No parseable `Status:`:** none
-- **Still proposed / draft / deferred (8):** 0022, 0031, 0033, 0058, 0094, 0108, 0115, 0160 — an ADR's status is the author's claim on the day it was written, and nothing updates it when the code ships. The last review of this list is stamped in `proposed-review.json`; gate 9 reds when that review is more than 30 days old or this set has drifted from it.
+- **Still proposed / draft / deferred (9):** 0022, 0031, 0033, 0058, 0094, 0108, 0115, 0160, 0189 — an ADR's status is the author's claim on the day it was written, and nothing updates it when the code ships. The last review of this list is stamped in `proposed-review.json`; gate 9 reds when that review is more than 30 days old or this set has drifted from it.
 
 ## Index
 
@@ -174,7 +174,7 @@
 | 0150 | [The audit organization is derived from the hospital, and leg 5 means the platform chain](0150-audit-org-derived-from-hospital.md) | accepted | 2026-08-25 | amends 0149 | – |
 | 0151 | [AFF4: organization affiliation, per-hospital staff data, and the voided tense](0151-aff4-organization-affiliation-staff-data-voided-tense.md) | accepted | 2026-08-25 | amends 0097, 0148 | ⚠ amended by 0152, 0154, 0155, 0159, 0163, 0164, 0165, 0166 |
 | 0152 | [PostgREST maps the `P0*` SQLSTATE class to HTTP 500; the document-corridor 500 is a 73-…](0152-postgrest-p-class-sqlstate-maps-to-500.md) | accepted | 2026-08-26 | amends 0151 | – |
-| 0153 | [A subset door-sweep writes to scratch; the committed baseline is never opened for write](0153-subset-sweeps-write-to-scratch-not-the-committed-baseline.md) | accepted | 2026-08-26 | amends 0079 | – |
+| 0153 | [A subset door-sweep writes to scratch; the committed baseline is never opened for write](0153-subset-sweeps-write-to-scratch-not-the-committed-baseline.md) | accepted | 2026-08-26 | amends 0079 | ⚠ amended by 0189 |
 | 0154 | [the roster predicate is the query filter, not `list_org_people`](0154-roster-predicate-is-the-query-filter-not-list-org-people.md) | accepted | 2026-08-26 | amends 0151 | ⚠ amended by 0158 |
 | 0155 | [Post-AFF4 tenancy and person-model evolution: a staged sequence, not a redesign](0155-post-aff4-tenancy-and-person-model-evolution-sequence.md) | accepted | 2026-08-26 | amends 0151 | ⚠ amended by 0160, 0162, 0175, 0176 |
 | 0156 | [the door-SQLSTATE gate's domain is a structural property, not a list of names](0156-door-sqlstate-gate-domain-is-structural.md) | accepted | 2026-08-26 | amends 0098 | – |
@@ -192,7 +192,7 @@
 | 0168 | [orphan recovery is its own door: split the branch, do not lock the door](0168-orphan-recovery-is-its-own-door.md) | accepted | 2026-08-28 | amends 0133, 0164, 0165, 0166 | – |
 | 0169 | [the meeting-content recusal divergence is a time-boxed EXCEPTION, not a new rule](0169-meeting-content-recusal-divergence-is-a-time-boxed-exception.md) | accepted | 2026-08-31 | amends 0078 | – |
 | 0170 | [case deletion is not a client capability: DELETE on `public.cases` is revoked from `aut…](0170-case-deletion-is-not-a-client-capability.md) | accepted | 2026-08-31 | amends 0132 | – |
-| 0171 | [C2's Tier-1 predicate is re-grained, the tenancy disjunct is dropped, and the command-d…](0171-c2-tier1-regrain-and-the-command-door-neutralizer.md) | accepted | 2026-08-31 | – | – |
+| 0171 | [C2's Tier-1 predicate is re-grained, the tenancy disjunct is dropped, and the command-d…](0171-c2-tier1-regrain-and-the-command-door-neutralizer.md) | accepted | 2026-08-31 | – | ⚠ amended by 0189 |
 | 0172 | [AE4's catalog substrate: MATCH FULL is the assignment binding, unreachable scope kinds…](0172-ae4-catalog-substrate-match-full-binding-and-deferred-classification-columns.md) | accepted | 2026-09-01 | amends 0162 | – |
 | 0173 | [the door-sweep deriver is blind to runtime-rewrite migrations; a target-declaration con…](0173-door-sweep-deriver-blind-to-runtime-rewrite-migrations.md) | accepted | 2026-09-01 | amends 0079 | – |
 | 0174 | [`authz.holds_role`: one chokepoint for the hat, and `authz.roles.state` made load-beari…](0174-authz-holds-role-chokepoint-and-authoritative-state-gate.md) | accepted | 2026-09-01 | amends 0079, 0106 | ⚠ amended by 0176 |
@@ -210,3 +210,4 @@
 | 0186 | [Documentation consolidation: one home per fact, one summary and one log per unit](0186-documentation-consolidation-one-home-per-fact.md) | accepted | 2026-09-03 | amends 0179, 0185 | – |
 | 0187 | [C2 closes on DISCLOSURE, its BLIND set is labelled by PROPERTY, and three of ADR 0184's…](0187-c2-closes-on-disclosure-and-the-blind-set-is-labelled-by-property.md) | accepted | 2026-09-04 | amends 0184 | – |
 | 0188 | [A closure tally may be COMPOSITED across suite shapes, and must be stated as one](0188-a-closure-tally-may-be-composited-across-suite-shapes.md) | accepted | 2026-09-04 | – | – |
+| 0189 | [One crash-safety protocol across the mutation harnesses: a verified restore, a bounded…](0189-one-crash-safety-protocol-across-the-mutation-harnesses.md) | ⚠ proposed | 2026-09-04 | amends 0153, 0171 | – |

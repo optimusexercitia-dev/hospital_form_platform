@@ -259,7 +259,7 @@ assigned `FUP-BACKLOG-<slug>` ids (legend row: [legacy-codes.md](legacy-codes.md
 
 **Filed:** 2026-08-14 (DM5 S2, after it happened) · **Owner:** lead + backend · **Severity:** critical — per emoji at consolidation
 **Closes when:** PO to rule
-**Status:** open
+**Status:** open — ⏸ the residual (a committed marker written in the same transaction as the neutralization, so the two can never disagree) is **with the PO**: ruling Q2 of the HARNESS-CRASH-SAFETY plan, 2026-09-04, asks whether to BUILD it or to accept the detect-only posture. ⛔ Deliberately NOT built in that unit. The detect-only guards it relies on were all strengthened there (ADR 0189): a restore is now believed only when the catalog agrees, a failed restore keeps the sentinel, `RECOVER=1` verifies, and the degenerate-body preflight gained an arm for the C2 residue shape
 **Body:** [FUP-AUTHZ-HARNESS-TRANSACTIONAL.md](FUP-AUTHZ-HARNESS-TRANSACTIONAL.md)
 
 ### 🔴 FUP-DM4-PRODROW — reconcile the dangling frozen PRODUCTION snapshot row at the push/deploy step, not during DM4 (owner: lead + backend)
@@ -593,13 +593,6 @@ item exists so a future "rotate the pepper" task cannot be scoped without meetin
 **Closes when:** PO to rule
 **Status:** open
 **Body:** [FUP-VITEST-UNCAPTURED-FAILURE.md](FUP-VITEST-UNCAPTURED-FAILURE.md)
-
-### 🔴 FUP-AUTHZ-HARNESS-PRECONDITIONS — a neutralization verdict has at least TWO preconditions and the harness checks ONE (owner: backend/harness; **filed after two near-miss false BLINDs on the same live door in one session**)
-
-**Filed:** 2026-09-02 (ad-hoc: PROGRESS.md consolidation 2026-09-02) · **Owner:** backend · **Severity:** critical — per emoji at consolidation
-**Closes when:** PO to rule
-**Status:** open
-**Body:** [FUP-AUTHZ-HARNESS-PRECONDITIONS.md](FUP-AUTHZ-HARNESS-PRECONDITIONS.md)
 
 ### 🟡 FUP-PGTAP-184-T11-FLAKE — `184_hospital_admin_isolation.sql` test 11 failed once, undiagnosed but NAMED (owner: unassigned)
 
@@ -1271,26 +1264,12 @@ same commit, or not at all.**
 **Status:** open
 **Body:** [FUP-AUDIT-REGISTRY-CONSUMER-OF-READ-AUTHORIZER-UNRECORDED.md](FUP-AUDIT-REGISTRY-CONSUMER-OF-READ-AUTHORIZER-UNRECORDED.md)
 
-### 🟠 FUP-C2-NEUTRALIZER-TAIL-DRIFT-INVALIDATES-LATE-VERDICTS — a long sweep degrades its own DB, and the harness's baseline is captured once at the top
-
-**Filed:** 2026-09-02 (C2 Tier-1 full sweep, run 1 — observed in its final three enforcers) · **Owner:** backend · **Severity:** high — it cost no wrong verdict *this* run (the harness caught it
-**Closes when:** PO to rule
-**Status:** open
-**Body:** [FUP-C2-NEUTRALIZER-TAIL-DRIFT-INVALIDATES-LATE-VERDICTS.md](FUP-C2-NEUTRALIZER-TAIL-DRIFT-INVALIDATES-LATE-VERDICTS.md)
-
 ### 🟠 FUP-C2-TIER1-TRIGGER-ENFORCERS-OUT-OF-SWEEP-DOMAIN — a trigger guard has no call edge, so it is in 0 of the 171 and its door reads BLIND for the wrong cause
 
 **Filed:** 2026-09-04 (C2 Phase A, resolving `public.reopen_interview`'s contradiction) · **Owner:** lead + backend · **Severity:** high — a measurement-domain gap in a standing gate's instrument; it cannot produce a false COVERED, it produces a **correct BLIND that is not actionable as one**
 **Closes when:** the sweep's domain statement names trigger enforcers as out of domain, so a BLIND caused by a trigger is distinguishable from a BLIND caused by an absent assertion — ⛔ an allowlist entry does not close it
 **Status:** open — found because `121:292-294` pins `HC038` on `reopen_interview`'s only anchored raise and the door still came back BLIND; the `HC038` observed is raised by `app.guard_interview_status`, a **trigger** on `case_interviews`. It already changed two Phase B specs. ADR 0184 point 4 names three uncovered populations a gate record must state; **this is a fourth**
 **Body:** [FUP-C2-TIER1-TRIGGER-ENFORCERS-OUT-OF-SWEEP-DOMAIN.md](FUP-C2-TIER1-TRIGGER-ENFORCERS-OUT-OF-SWEEP-DOMAIN.md)
-
-### 🔴 FUP-C2-TIER1-INFLIGHT-SENTINEL-ERASED-BY-ITS-OWN-RESTORE — a killed run erases the sentinel its own restore needed, and DEGEN cannot see the strand
-
-**Filed:** 2026-09-04 (C2 Phase B2a — after a killed sweep stranded a live authorization gate) · **Owner:** backend · **Severity:** critical — both of this harness's crash-safety mechanisms fail for **its own mutation shape**, so a killed run can leave a door open **and leave no trace**. Realised, not hypothetical
-**Closes when:** `restore_inflight` verifies the restore before clearing the sentinel and leaves it intact on failure; the `DEGEN` preflight gains an arm that sees an anchored-raise count **below** the worklist's recorded `nraise`; both are **proven able to fire** by a deliberate strand, **and** `.claude/rules/mutation-harnesses-are-not-killable.md`'s "a kill is CAUGHT" claim is corrected — it was written for the policy harnesses and is false for this one. ⛔ **When items 1—3 land, BOTH rule files invert**: `c2-neutralizer-has-no-crash-safety.md` and the `⛔ NOT in C2` heading will then assert the opposite of the truth, and nothing else points at them — retire them in the same commit
-**Status:** open — ⚠ local dev DB only, no remote touched, and the ADR 0153 baseline guard held throughout. `public.cancel_event` sat with both anchored raises at `null;` for ~4 min. ⛔ The trap at `:94-95` covers `EXIT INT TERM HUP` — a `SIGKILL` or job-tree teardown runs no trap at all
-**Body:** [FUP-C2-TIER1-INFLIGHT-SENTINEL-ERASED-BY-ITS-OWN-RESTORE.md](FUP-C2-TIER1-INFLIGHT-SENTINEL-ERASED-BY-ITS-OWN-RESTORE.md)
 
 ### 🟠 FUP-C2-TIER1-VALUE-ASSERTIONS-ABORT-ON-AN-INLINE-RAISE — a value assertion evaluates its subject before it is entered, so a raising door aborts the file
 

@@ -3,7 +3,7 @@ paths:
   - "supabase/tests/mutation/*.sh"
 anchors:
   - supabase/tests/mutation/c2-command-door-neutralizer.sh#RESTORE FAILED
-  - docs/followups/FUP-C2-TIER1-INFLIGHT-SENTINEL-ERASED-BY-ITS-OWN-RESTORE.md
+  - supabase/tests/mutation/p0-authz-door-audit.sh#arm_inflight
 source: AE1.5 2026-08-27 open UPDATE policy; C2 B2a 2026-09-04 stranded gate
 ---
 

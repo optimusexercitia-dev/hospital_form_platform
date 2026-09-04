@@ -8443,3 +8443,365 @@ the approval. The oracle's soundness was never the thing in doubt here; its cite
 > lockstep with the anchor: it was a proxy wrong in **both** directions. ⚠ The entry's "458 authz
 > raises", "60 raises" and its `scratchpad/regex-fix-validation.txt` citation are all retired; the
 > file never existed.
+
+### ✅ FUP-C2-TIER1-INFLIGHT-SENTINEL-ERASED-BY-ITS-OWN-RESTORE — a killed run erases the sentinel its own restore needed, and DEGEN cannot see the strand — **RESOLVED 2026-09-04**
+
+> **RESOLVED 2026-09-04** — commits `18e9d7db`, `fbe4954b`, `bbb86bca` on
+> `authz-harness-crash-safety`; design in ADR
+> [0189](../decisions/0189-one-crash-safety-protocol-across-the-mutation-harnesses.md).
+>
+> **Finding 1 — `restore_inflight` erased the sentinel.** It now clears `$INFLIGHT` only when
+> **psql_f exits 0 AND** the live `md5(pg_get_functiondef(oid))` equals the md5 `snapshot()`
+> captured **from the catalog** before the mutation. Anything else — failure, mismatch, or a
+> sentinel whose sidecars are missing — **keeps** the sentinel and returns 2. `RECOVER=1` was
+> ported from `p0-authz-door-audit.sh` and runs before worklist derivation and any suite run.
+>
+> ⛔ **Close condition 1 had a vacuous half, and fixing it was a prerequisite.** `psql_f` carried
+> no `-v ON_ERROR_STOP=1`, so psql exits **0** on a SQL ERROR: "check `psql_f`'s exit status"
+> bolted onto the old `psql_f` could only ever read 0. Witnessed both ways with `select 1/0;` —
+> **exit 0** without the flag, **exit 3** with it.
+>
+> **Finding 2 — `DEGEN` blind to this harness's shape.** Closed by arm 4, in the two halves the
+> `**Amended 2026-09-04 (F1)**` paragraph on close condition 2 sets out — *not* by the filed
+> "live count below the recorded `nraise`", which is vacuous by construction (both columns are
+> derived from the live `prosrc` in the same instant, and a fully stranded enforcer leaves the
+> worklist altogether).
+>
+> **Proven able to fire**, every one on a fresh reset, detached, exit codes read bare:
+> - a corrupted restore with a real gate open →
+>   `*** RESTORE FAILED (psql rc=3, body hash live=c787e3dd… want=1636bd89…)`, **rc=2**, and the
+>   sentinel **survived** — the assertion that could not have passed before this fix;
+> - `kill -TERM -<pgid>` of the whole running process group (the incident's actual signal) while
+>   `public.withdraw_correction` was mutated → the trap ran and printed
+>   `restore VERIFIED in the catalog (psql rc=0, md5=334ae407…)`;
+> - `public.cancel_event` stranded with no sentinel →
+>   `*** PREFLIGHT FAILED (arm 4a) — a body carries THIS harness's residue shape:
+>   public.cancel_event`, **exit 2**, before any suite run;
+> - a strand arm 4a cannot see (`raise` → `perform 1;`) → `arm 4a: 0 residue shapes` and then
+>   `*** PREFLIGHT FAILED (arm 4b) … LEFT THE POPULATION public.cancel_event recorded nraise=2,
+>   now absent`, **exit 2**.
+>
+> Negative control in the same session: a clean-tree run printed `arm 4a: 0 residue shapes` and
+> `arm 4b: worklist matches its recorded expectation (171 enforcers)`, verdict `COVERED`
+> matching the committed baseline, **exit 0**. Catalog verified three ways after every plant
+> (md5 vs the pre-plant capture; live `nraise`/`nanchored` vs the worklist; degenerate
+> non-`SELECT` policies **enumerated** to zero rows).
+>
+> **Both rule files inverted in the same commit**, as this entry required:
+> `c2-neutralizer-has-no-crash-safety.md` retired verbatim to `docs/progress/rules-archive.md`,
+> and `mutation-harnesses-are-not-killable.md`'s "a kill is CAUGHT" heading corrected — a
+> sentinel survives SIGKILL but **not** a job-tree SIGTERM, and the two harnesses that still have
+> no sentinel are named (`FUP-AUTHZ-INVOKER-AND-ROWDOOR-HARNESSES-HAVE-NO-SENTINEL`).
+>
+> ---
+>
+> **The entry as filed, verbatim** (its body file is retired with it):
+>
+> # FUP-C2-TIER1-INFLIGHT-SENTINEL-ERASED-BY-ITS-OWN-RESTORE
+>
+> **Filed:** 2026-09-04 (C2 Phase B2a — after a killed sweep stranded a live authorization gate)
+> **Owner:** backend
+> **Severity:** critical — both of this harness's crash-safety mechanisms fail for **its own mutation
+> shape**, so a killed run can leave an authorization door open **and leave no trace that it did**.
+> Realised, not hypothetical: it happened on 2026-09-04.
+>
+> ## What happened
+>
+> A subset sweep of 18 enforcers, estimated at ~60 minutes, was launched under a 10-minute tool
+> timeout. The tool killed it mid-run. `public.cancel_event` was left with **both** anchored raises
+> rewritten to `null;` — baseline 2 → 0 — leaving its `HC044` custody gate open to any authenticated
+> caller who could read the event, for roughly four minutes.
+>
+> ⚠ **Scope: the local development database only.** No remote or production database was touched, and
+> the local stack had a single owner. The exposure is not the finding; **the silence is.**
+>
+> Restored by `supabase db reset --local`, then re-verified against the catalog: `cancel_event` back
+> to 2 anchored raises, **all 171/171** worklist enforcers at their full baseline counts, 0 degenerate
+> non-SELECT policies.
+>
+> ## Finding 1 — `restore_inflight()` erases the sentinel even when the restore failed
+>
+> `supabase/tests/mutation/c2-command-door-neutralizer.sh:88-93`, verbatim:
+>
+> ```sh
+> restore_inflight () {
+>   [ -s "$INFLIGHT" ] || return 0
+>   echo "    !! INFLIGHT mutation found — restoring $INFLIGHT" >&2
+>   psql_f "$INFLIGHT" >/dev/null 2>&1
+>   : > "$INFLIGHT"
+> }
+> ```
+>
+> The truncation is **unconditional**. It does not test `psql_f`'s exit status. When the harness is
+> killed, the restoring `psql` is killed in the same process group by the same signal — so the restore
+> does not happen, and the sentinel that would have told the *next* run to redo it is erased in the
+> same breath. `restore_inflight` is called at startup (`:96`) precisely to "replay anything a previous
+> killed run left behind"; that replay is disarmed by the very failure it exists to survive.
+>
+> Observed directly in the file timestamps: `INFLIGHT.sql.body` still held `cancel_event`'s real
+> 1194-byte body at 09:38, while `INFLIGHT.sql` was truncated to 0 bytes at 09:39.
+>
+> ⚠ The `trap` lines at `:94-95` cover `EXIT INT TERM HUP`. A `SIGKILL`, or a job-tree teardown that
+> kills the whole process group, runs no trap at all — so the traps are not a mitigation for this case.
+>
+> ## Finding 2 — the `DEGEN` preflight is structurally blind to this harness's own rewrite
+>
+> `:101-106`, the preflight whose comment reads *"A degenerate body means a previous harness died
+> mid-mutation. Every verdict below would be measured against a tree that is already open."*
+>
+> ```
+> p.prosrc ~ '^\s*begin\s+return\s+(true|false)\s*;\s*end'
+> p.prosrc ~ '^\s*select\s+(true|false)\s*;?\s*\$'
+> p.prosrc ~ '^\s*begin\s+return\s*;\s*end'
+> ```
+>
+> All three match a **whole body** replaced by a constant — the shape the *boolean-gate* mutation
+> audits produce. The C2 neutralizer does not do that. It rewrites `raise … ;` → `null;` **inside** an
+> otherwise intact body, which matches none of the three. **So this harness's preflight cannot detect
+> this harness's own strand**, and the run after a kill would have proceeded and reported verdicts
+> measured against an open tree — the exact scenario the comment describes, with the detector unable
+> to see it.
+>
+> ⭐ Together the two findings compose into the worst case: the sentinel is erased **and** the
+> preflight cannot see the damage, so a killed run leaves an open door with no evidence in either
+> mechanism designed to catch it.
+>
+> ## Closes when
+>
+> 1. `restore_inflight` verifies the restore before clearing the sentinel — check `psql_f`'s exit
+>    status, and re-verify the function's body hash against `$INFLIGHT.body` — and leaves
+>    `$INFLIGHT` **intact** on any failure so the next run replays it.
+> 2. The `DEGEN` preflight gains an arm that detects **this** harness's shape — for the C2 anchor, an
+>    enforcer in the derived worklist whose current anchored-raise count is **below** its recorded
+>    `nraise`. That is a per-run derivable property and needs no hand-list.
+>
+>    > **Amended 2026-09-04 (F1)** — the sentence above is kept **verbatim** because it is what was
+>    > filed; it is **not** what closes this item, and building it to the letter would have produced
+>    > a detector that cannot fire.
+>    >
+>    > **Why it is vacuous.** `c2-command-door-neutralizer.sh`'s worklist `\copy` derives **both**
+>    > numbers from the **live** `pg_proc.prosrc`, in the **same statement, in the same instant**:
+>    > column 5 `nraise` (errcodes of the class) and column 6 `nanchored` (anchor matches). On a
+>    > stranded stack the worklist therefore records the **already-reduced** count, so "current vs
+>    > recorded" compares a number to itself. Worse: a **fully** stranded enforcer loses its last
+>    > errcode of the class, drops out of the `c2n.gatefn` population filter, and **leaves the
+>    > worklist entirely** — `TOTAL` slides 171 → 170 and the arm has nothing left to compare
+>    > against. A detector built to this sentence would pass its own proof only if the strand were
+>    > planted *after* derivation, which is not the failure mode this entry describes.
+>    >
+>    > **What closes it instead** (ADR
+>    > [0189](../decisions/0189-one-crash-safety-protocol-across-the-mutation-harnesses.md) D3), two
+>    > halves, both proven able to fire on 2026-09-04:
+>    >
+>    > - **4a — residue shape, baseline-free.** A bare `null;` in a statement position in a body
+>    >   carrying **no** errcode of the anchor class. `mutate()` is all-or-nothing, so a function it
+>    >   stranded has lost *every* anchor-class errcode; that conjunct is the discriminator, and it
+>    >   is a **property**, not a hand-list. ⛔ Measured on a fresh reset **before** the shape was
+>    >   chosen: the residue shape alone matches **3** functions and the obvious narrow shape
+>    >   `then null; end if` matches **1** (`public.confirm_triage`, a deliberate no-op branch) — so
+>    >   "this count must be 0" on the obvious shape would have red-flagged a clean tree. With the
+>    >   errcode conjunct the clean-tree population is **0, enumerated to zero rows**.
+>    > - **4b — persisted expectation.** The derived worklist compared against a recorded one (a
+>    >   scratch sidecar, else the committed findings table). Only a **reduction** fails — a strand
+>    >   always reduces. With neither source the arm prints **NOT RUN**, never "clean".
+> 3. Both arms are proven able to fire: strand a function deliberately, confirm the preflight reds and
+>    the sentinel survives. ⛔ A detector that has never been shown to fire is exactly what this
+>    register keeps finding.
+>
+> ## Related
+>
+> - `.claude/rules/mutation-harnesses-are-not-killable.md` — the standing rule that was broken. This
+>   entry is the evidence that **the rule alone is not a mitigation**: the harness's own recovery path
+>   is what failed, so "do not kill it" is the only line of defence, and a tool timeout can break it
+>   without anyone choosing to.
+> - ADR [0153](../decisions/0153-subset-sweeps-write-to-scratch-not-the-committed-baseline.md) — the
+>   committed baseline was correctly untouched throughout; that guard worked.
+> - `docs/progress/c2-tier1.md` — the incident, and the three verdicts voided because of it.
+
+### ✅ FUP-AUTHZ-HARNESS-PRECONDITIONS — a neutralization verdict has at least TWO preconditions and the harness checks ONE (owner: backend/harness; **filed after two near-miss false BLINDs on the same live door in one session**) — **RESOLVED 2026-09-04**
+
+> **RESOLVED 2026-09-04** — commit `3cb7a0d3` on `authz-harness-crash-safety`; ADR
+> [0189](../decisions/0189-one-crash-safety-protocol-across-the-mutation-harnesses.md) D4/D5.
+>
+> ⛔ **The harness this entry describes no longer exists, and that is a finding, not a
+> technicality.** No committed harness has the `00_setup + 350` default: `SUITE` appears only in
+> `c2-command-door-neutralizer.sh` (default empty = the whole suite) and in
+> `cnv5-demotion-backstop-mutation-audit.sh` (hard-wired to one file with `00_setup` as its
+> `$SETUP`), and `git log --diff-filter=D` over `supabase/tests/mutation/` since 2026-08-15 shows
+> **no deleted harness**. The DSR Slice 3 battery was **ad-hoc and never committed**. The fix
+> therefore lands as a **property** of the harnesses that can still be narrowed, rather than as a
+> repair to the instrument that produced the two near-misses.
+>
+> **What was built.** A neutralization verdict now asserts **both** preconditions and prints
+> them: the baseline shape (already checked) *and* the swept domain. The report header carries
+> `domain:` and `worklist: N of TOTAL`; the summary banner reads
+> `preconditions: baseline GREEN (shape=…) · domain=… · resets=N`. Under a narrowed `SUITE=`, a
+> mutated run that **passes** records `ERROR — NARROWED DOMAIN`, never `BLIND`. ⭐ A `COVERED`
+> under a narrowed domain **stays** a verdict: the red-then-green pair proves the keystone was in
+> the domain and did notice — only the negative needs the full domain.
+>
+> **Found while fixing it, and fixed here (F4).** `SUITE=` narrowed the domain but **not** the
+> report target, so a narrowed run swept the full 171 against a one-file suite *and truncated the
+> committed baseline* — a live ADR 0153 violation and a second instance of this entry's own
+> *"the domain did not contain the subject"*. Narrowing **either** axis now makes a run a subset.
+>
+> **Proven able to fire, with the discrimination that makes it non-vacuous** — the same enforcer
+> under the two domains: full suite → `COVERED=1 BLIND=0 ERROR=0`, exit 0; the narrowed suite →
+> `COVERED=0 BLIND=0 ERROR=1`, exit 1, row `**ERROR** | NARROWED DOMAIN — the mutated run passed,
+> but SUITE=… ran only part of the suite`. The narrowed run wrote to `$WORK` and the committed
+> baseline's cksum was unchanged after it.
+>
+> ---
+>
+> **The entry as filed, verbatim** (its body file is retired with it):
+>
+> # FUP-AUTHZ-HARNESS-PRECONDITIONS — a neutralization verdict has at least TWO preconditions and the harness checks ONE (owner: backend/harness; **filed after two near-miss false BLINDs on the same live door in one session**)
+>
+> Index entry: [follow-ups-open.md](follow-ups-open.md) · filed 2026-09-02 · status open
+>
+> **2026-08-20, DSR Slice 3.** The neutralization harness returned **`PASS`** for two probes against
+> `create_dsr_request`'s authorization gate and `complete_dsr_task`'s effect check. Read literally, that
+> says **a live PHI-adjacent authorization gate is BLIND**. It said nothing of the kind — **twice, by two
+> different broken preconditions:**
+>
+> 1. **The baseline was already red.** The `db reset` before the run had **exited 1** and the suite was
+>    failing 73/75 before any probe fired. A probe verdict over a red baseline is not a weak verdict, it is
+>    **no verdict**.
+> 2. **The domain did not contain the subject.** The harness's `SUITE` defaulted to `00_setup + 350`, and
+>    **both keystones live in `349`.** The suite it ran never contained the assertion it was trying to
+>    falsify.
+>
+> ⛔ **The general form: *"nothing noticed the gate opening"* and *"nothing that could notice was running"*
+> are INDISTINGUISHABLE in the output.** A neutralization verdict rests on at least two preconditions —
+> **baseline green** and **the keystone present in the swept domain** — and the harness asserts only the
+> first. Both near-misses were on the **same door**, reached by different routes, within one session.
+>
+> ⚠ **How the second was caught: by wondering why a gate that had been watched working would suddenly be
+> unguarded.** The author's own words: *"that is luck, not method."* ⛔ Had either been piped through
+> `tail`, or believed, it would have been a **false P0 on a live authorization door** — the exact class
+> that burned an external auditor in ADR 0078.
+>
+> **Scope — ⛔ do NOT read this as "RED verdicts are unaffected".** This defect cannot manufacture a false
+> COVERED from a **green-verified** baseline: it fails toward PASS/BLIND, and the harness already asserts
+> the probe moved `md5(pg_get_functiondef)` (a dead write channel aborts loudly). ⚠ **It does NOT follow
+> that RED is unconditionally safe.** A **red baseline also yields a red post-probe run** — mutate a gate
+> in an already-failing suite and it stays failing, the harness prints `# Failed test …`, and that reads as
+> **RED = COVERED**, attributing a pre-existing failure to the mutation. That is a **false RED, failing in
+> the *reassuring* direction** — the one nobody re-checks. It is the exact inverse of the two near-misses,
+> and is **not** excluded by them.
+>
+> > **A RED verdict is sound iff the baseline was verified green for that run.**
+>
+> **Every verdict in DSR Slice 3 meets that bar:** each battery run gated on a printed green baseline, and
+> **no verdict rests on a PASS — 47 RED + 1 GREEN, and the GREEN was recorded as a finding, not a pass.**
+> So no Slice 3 verdict needs re-opening.
+>
+> ⛔ **Provenance of this scope note, because it is the point.** QA argued structurally that *"a RED entails
+> all three preconditions, so the harness defect cannot reach a RED"*, and **the lead endorsed it without
+> testing it.** `backend` refuted it: the argument holds for two preconditions and **fails for the
+> baseline**. An over-strong safety rule, adopted because its conclusion was correct for the case at hand,
+> would have been relied on later where the conclusion does not hold. *The conclusion being right is not
+> evidence that the reasoning is.*
+>
+> **A second instance of the same family, found fixing this one:** `350`'s verdict census. The strict
+> pattern (`\.\.+` dot-leader) returned **46** — it missed a line appended with a one-dot leader. The naive
+> pattern (`^--   .*RED`) returns **49** — inflated by prose lines merely containing the word. **Both
+> candidate shapes are wrong, in opposite directions.** True total **48 = 47 RED + 1 GREEN**, now derived
+> four ways and cross-checked. ⛔ The shape contract is written out — and **nothing enforces it**: a comment
+> cannot check itself.
+>
+> **The fix (filed, NOT built):** the harness must assert its own preconditions and refuse to emit a
+> verdict when either fails — baseline green ✅ *(already checked)*, and **keystone present in the domain
+> ❌ (not checked)**. A `PASS` with the subject absent must be an ERROR, never a verdict. This project
+> leans on this instrument for its entire authz coverage story.
+
+### ✅ FUP-C2-NEUTRALIZER-TAIL-DRIFT-INVALIDATES-LATE-VERDICTS — a long sweep degrades its own DB, and the harness's baseline is captured once at the top — **RESOLVED 2026-09-04**
+
+> **RESOLVED 2026-09-04** — commit `a8148126` on `authz-harness-crash-safety`; ADR
+> [0189](../decisions/0189-one-crash-safety-protocol-across-the-mutation-harnesses.md) D6.
+>
+> Drift is now **bounded**, not merely detected — both mechanisms this entry asked for, because
+> neither alone is enough:
+>
+> - **`RESET_EVERY` (default 20, `0` disables).** Every N enforcers the sweep resets the database
+>   and **re-captures `BASE_S`**, so the drift any verdict can carry is bounded by N rather than
+>   by the length of the run. Each reset is interlocked: it **refuses** while a mutation is in
+>   flight, re-runs *every* preflight arm afterwards, re-derives the worklist and aborts if it
+>   moved, and aborts if the post-reset baseline is not green. ⚠ It cannot fire on a worklist
+>   shorter than N, so `CASES=` subsets never reset.
+> - **Reset-and-retry-once.** An ERROR whose note is `SHAPE changed` or `did not come back green`
+>   triggers one reset and one retry before it is recorded, and the note carries
+>   `(retried after reset)`. That is exactly what would have recovered run 1's final three.
+>
+> ⛔ `cd "$ROOT"` before the reset is load-bearing: `supabase db reset` applies the migrations of
+> the directory you stand in, and this machine routinely has a second, unrelated stack up.
+>
+> **Proven able to fire** (detached, exit codes read bare):
+> - `RESET_EVERY=1` over 3 enforcers → two `--- PERIODIC RESET (scheduled — N enforcer(s) swept
+>   since the last baseline) ---` blocks, each followed by `arm 4a: 0 residue shapes` and
+>   `post-reset baseline: PASS (shape=Files=2, Tests=7) | worklist re-derived: 171 (unchanged)`;
+>   banner `resets=2 (RESET_EVERY=1)`.
+> - **The interlock**, driven against the harness's own `periodic_reset` text (eval'd out of the
+>   production file, never retyped): with a non-empty sentinel it printed
+>   `*** refusing to reset with a mutation in flight: …`, **exit 2**, and the sentinel was
+>   byte-unchanged (10 → 10).
+> - **The retry net** (`BASE_S_OVERRIDE`, a documented self-test knob): with the knob forcing a `SHAPE changed` ERROR on `public.withdraw_referral`, the run printed
+>   `drift suspected — resetting and retrying public.withdraw_referral ONCE`, reset, re-captured
+>   the TRUE baseline (`post-reset baseline: PASS (shape=Files=262, Tests=8876)`), and the retry
+>   scored **COVERED** with the row reading `… (retried after reset)`. Final tally
+>   `COVERED=1 BLIND=0 ERROR=0 … resets=1 (RESET_EVERY=1)`, **exit 0**, 605 s — a verdict
+>   RECOVERED that run 1 would have lost.
+> - **Negative control**: `RESET_EVERY=0`, same enforcer, full suite → `COVERED=1 BLIND=0 ERROR=0 … resets=0 (RESET_EVERY=0)`, **exit 0**, 329 s, no
+>   `(retried after reset)` suffix, and the verdict identical to the committed baseline row.
+>
+> ---
+>
+> **The entry as filed, verbatim** (its body file is retired with it):
+>
+> # FUP-C2-NEUTRALIZER-TAIL-DRIFT-INVALIDATES-LATE-VERDICTS — a long sweep degrades its own DB, and the harness's baseline is captured once at the top
+>
+> Index entry: [follow-ups-open.md](follow-ups-open.md) · filed 2026-09-02 · status open
+>
+> and refused to score), so it is not 🔴. It is not 🟡 because the protection is a **detector, not a
+> preventer**: it converts late verdicts into ERROR rather than preserving them, and a longer worklist
+> loses a longer tail.
+>
+> The full sweep runs the pgTAP suite **twice per enforcer — ~342 consecutive runs over ~5 h** against
+> **one** database that is reset only at the start. The suite mutates data; the drift accumulates.
+>
+> **Measured, run 1:** the suite ran at `Files=259, Tests=8685, PASS` for **168** enforcers, then
+> degraded to `Tests=8288` at enforcer **169** and never recovered. The final three
+> (`app.assert_accreditation_enabled`, `app.affiliate_person_to_org_impl`, `app.affiliate_person_impl`)
+> all recorded **ERROR**, not verdicts.
+>
+> ⭐ **Proof it is drift and NOT a property of those doors — the falsification is the evidence.** The
+> first hypothesis was that neutralizing the *feature-flag* gate `assert_accreditation_enabled` let the
+> suite perform writes the gate exists to prevent, which then persisted. **That is FALSE.** Re-measured
+> in isolation after a fresh reset, each of the three came back **COVERED** with the suite green:
+>
+> | enforcer | in the full sweep | re-measured in isolation |
+> | --- | --- | --- |
+> | `app.affiliate_person_impl` | ERROR (SHAPE → 8288) | **COVERED** |
+> | `app.affiliate_person_to_org_impl` | ERROR (SHAPE → 8288) | **COVERED** |
+> | `app.assert_accreditation_enabled` | ERROR (restored run not green) | **COVERED** |
+>
+> Same mutation, same door, clean DB → a verdict. **The door was never the variable; run position was.**
+>
+> ⛔ **Why the existing guards are not a fix.** `BASE_S` is captured **once, at the top of a 5-hour
+> run**, and every later comparison is against that frozen shape. The guards (`S != BASE_S` → ERROR;
+> COVERED demands a restored run green at `BASE_S`) make drift *visible* and keep it from becoming a
+> false COVERED — which is why run 1 lost no correctness. But they cannot keep a verdict: **drift is
+> converted into ERROR, and the tail is simply not measured.**
+>
+> **What would close it:** reset the DB periodically inside the sweep (every N enforcers) and re-capture
+> `BASE_S` after each reset, so drift is *bounded* instead of merely detected. A cheaper partial: after
+> any ERROR whose note is `SHAPE changed` or `did not come back green`, reset and retry that enforcer
+> once before recording — which would have recovered all three automatically.
+>
+> ⛔ **What must NOT be mistaken for closing it:**
+> - **Run 1's clean correctness record.** No wrong verdict was produced, and that is *the guards
+>   working*, not the absence of the defect.
+> - **Re-measuring these three.** Done (they are COVERED), but that fixes the three, not the mechanism.
+>   The next full sweep will lose a different tail.
+> - ⛔ **Reading the committed findings file as final.** Three of its 25 ERROR rows are this artifact,
+>   not door findings. Corrected tally: **COVERED 109 · BLIND 40 · ERROR 22.**
