@@ -69,7 +69,7 @@ Sweep the 237 command doors that touch PHI (Tier 1, gate-aware closure over `ARM
 - Full sweep 2026-09-02 — 171/171 enforcers (COVERED 109 · BLIND 40 · ERROR 22 after correction). ADR **0184**, then ADR **0187**'s three PO rulings and six corrections (2026-09-04).
 - ✅ **The anchor fix** (`ca328539`) — larger than the fix on record, which had been validated against migration text against a denominator that excluded the shape it missed. 813/813 in Postgres ARE.
 - ✅ **The ERROR class** — 25 → **0**. Phase A found all 18 suite-abort doors were a *scoring* gap, not a coverage gap (`ba876c1c`); B1 landed 25 statement edits (`97ff9f22`); 4 residual sites closed at `f33d9ba7`.
-- ✅ **The 39 keystones** — **39/39 COVERED** (`400b6d2c`, `2cefae8e`), 16 D2 property labels, all **10** allowlist entries retired and **earned** (each door has ≥1 recorded call).
+- ✅ **The 39 keystones** — **39/39 COVERED** (`400b6d2c`, `2cefae8e`), **16** D2 labels across **15** doors (classes count doors, labels count arms — `cancel_event` is A2 with a state-labelled second arm), all **10** allowlist entries retired and **earned** (each door has ≥1 recorded call).
 - ✅ **Final tally `170 COVERED · 1 BLIND · 0 ERROR = 171`**, merged row-by-row (ADR 0153). All four arms HOLD, each recorded with its **domain**. Suite **8876, PASS**.
 
 ### In progress

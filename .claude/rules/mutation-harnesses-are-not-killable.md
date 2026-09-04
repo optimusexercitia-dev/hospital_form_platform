@@ -15,7 +15,7 @@ It fails **silently** — no log line, no failing test, no gate red. The instanc
 
 ✅ **Let a contaminated run FINISH; discard its verdicts.** ⛔ Never kill it.
 
-## Since 2026-08-29 a kill is CAUGHT, not prevented
+## Since 2026-08-29 a kill is CAUGHT — ⛔ NOT in C2
 
 `INT`/`TERM`/`HUP` restore on exit; a **crash sentinel** survives what no trap can (SIGKILL,
 power cut, killed container), so the next run **REFUSES to start, exit 2** with the restore SQL.

@@ -1001,8 +1001,14 @@ No BLIND block; no `ERROR`.
 **The suite-shape assumption, stated rather than buried.** The 106 pre-existing COVERED rows were not
 re-swept (a full 171-enforcer run costs ~8 h at the measured 87 s/run). The lead's argument was that
 nothing deleted an assertion, so no red mutated run can have gone green — **verified, not assumed**:
-the keystone commits' only non-comment, non-`plan()` deletions are the 10 allowlist lines, and no
-`.sql` assertion was removed or weakened anywhere. ⛔ **But that argument covers only the PASS/FAIL
+no `.sql` assertion was removed or weakened anywhere — **zero** deleted `throws_ok`, zero
+`'CODE','message'` → NULL narrowings, zero changed expected values, and all 31 `plan()` changes
+upward. ⚠ The earlier phrasing — *"the only deletions are the 10 allowlist lines"* — is **literally
+false**: the range carries 128 further deleted lines (comments, `plan()` lines being rewritten
+upward, statements rewritten under `lives_ok`). All are benign and the conclusion survives, but the
+sentence did not, and a reviewer checked it rather than reading past it. ⭐ The stronger form,
+found by that review: **no migration and no `src/` file changed anywhere in the range** — so the
+doors themselves are byte-identical to what the 106 rows were measured against. ⛔ **But that argument covers only the PASS/FAIL
 axis.** COVERED also requires *shape stability*, and shape is **not** monotone under adding tests: a
 new arm that raises under some *other* door's mutation aborts its file and turns that door's COVERED
 into ERROR (LEARN-081, which bit three times inside B2a). That direction is **conservative** — it can
@@ -1041,8 +1047,16 @@ as one. `FUP-C2-TIER1-TRIGGER-ENFORCERS-OUT-OF-SWEEP-DOMAIN`.
 **The anti-promotion sentence (ADR 0184 point 5, operationalised by 0187 D2).** A COVERED verdict
 from this sweep means **`HC0*`-coded-guard coverage, not authorization coverage**, except where the
 row's keystone carries an explicit property label. The 39 keystoned doors split **A1 12 / A2 13 /
-B 14** by the caller-input rule; the **14 class-B doors' COVERED is state / lifecycle / validation
-coverage** and says so in its test-name string. ⛔ The **106 pre-existing COVERED rows are not
+B 14 = 39 BY DOOR** under the caller-input rule; the **14 class-B doors' COVERED is state /
+lifecycle / validation coverage** and says so in its test-name string.
+
+⚠ **The label count and the class count are different denominators, and reading them as one makes
+them look contradictory.** Measured in the tree: **16 labels** (9 `lifecycle` · 1 `state` ·
+6 `validation`) across **15 doors** — the 14 class-B doors **plus `public.cancel_event`**, an **A2**
+door whose *second* arm (`HC043`, already-terminal event) is a state guard and is labelled as one.
+`public.submit_ethics_appeal` carries two labels on its two arms. So: **classes count DOORS, labels
+count ARMS**, and 12 + 13 + 14 = 39 while 16 labels sit on 15 doors. Neither figure is wrong; the
+record previously stated both without the distinction. ⛔ The **106 pre-existing COVERED rows are not
 classified** — 0184 point 5 stands for them unchanged.
 
 **The single remaining BLIND, named so it is not read as an oversight.** `app.print_source_series`
@@ -1052,6 +1066,33 @@ depth > 1000, a shape its own body comment records as unconstructible under
 attempts a 1001-row fixture.
 
 ---
+
+### ⚠ The tally is a COMPOSITE, and ADR 0188 is the ruling that makes it admissible
+
+⛔ **170/1/0 was never produced by a single sweep.** Its 171 rows were measured across **six** suite
+shapes as the work proceeded: `Tests=8685` (the 2026-09-02 full sweep — 106 COVERED rows still stand
+from it) · `8764` (the anchor fix's 6) · `8788` (`assume_role`, `set_professional_link_state`) ·
+`8819` (batch A's 18) · `8866` (batch B's 21, then the 25-enforcer ERROR/tail-drift sweep) · `8876`
+(the four residual aborts). A full 171-enforcer re-sweep costs **~8 h** at the measured 87 s/run.
+
+ADR [0188](../decisions/0188-a-closure-tally-may-be-composited-across-suite-shapes.md) rules the
+composite admissible on three conditions, all checked here: no assertion deleted or weakened; **no
+migration and no `src/` change in the range**, so the doors are byte-identical to what the earlier
+rows were measured against; and the one unproven direction — COVERED → ERROR, via a newly-added arm
+aborting a file — is **conservative**, since it can only downgrade a real verdict to unmeasurable
+and can never manufacture a false COVERED. ⇒ the file may **overstate how many rows carry a live
+verdict**; it cannot assert coverage that was not measured.
+
+⚠ **A residual ADR 0188 does not remove:** the harness records a **suite-level** flip, not which
+assertion flipped. A COVERED verdict therefore attributes coverage to the **door**, never to a
+specific keystone — a keystone redundant with a pre-existing arm is indistinguishable from a
+load-bearing one. The closure review names this the highest-value instrument fix available; it is
+not done.
+
+⚠ **The merge tool is line-oriented and left 5 orphaned `CONTEXT:` fragments** — tails of the old
+multi-line `MUTATION DID NOT LAND` notes whose rows had been replaced. They broke the markdown table
+and were removed by hand after the review found them; 171 rows and the tally were re-verified
+unchanged. ⛔ It will recur on the next merge that replaces a multi-line note.
 
 ### What C2 discharges, and what it does not
 

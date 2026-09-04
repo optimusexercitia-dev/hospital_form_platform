@@ -12,7 +12,7 @@
 >
 > Edges are **advisory** and over-inclusive by design; the ADR text is truth.
 
-**185 ADRs** · next free number: **0188** · 61 carry an inbound supersedes/amends edge
+**186 ADRs** · next free number: **0189** · 61 carry an inbound supersedes/amends edge
 
 ## ⚠ Anomalies
 
@@ -209,3 +209,4 @@
 | 0185 | [Documentation restructure: feature hubs, CURRENT.md, and gated registers for bugs, foll…](0185-documentation-restructure-feature-hubs-and-gated-registers.md) | accepted | 2026-09-03 | amends 0124, 0139, 0140, 0179 | ⚠ amended by 0186 |
 | 0186 | [Documentation consolidation: one home per fact, one summary and one log per unit](0186-documentation-consolidation-one-home-per-fact.md) | accepted | 2026-09-03 | amends 0179, 0185 | – |
 | 0187 | [C2 closes on DISCLOSURE, its BLIND set is labelled by PROPERTY, and three of ADR 0184's…](0187-c2-closes-on-disclosure-and-the-blind-set-is-labelled-by-property.md) | accepted | 2026-09-04 | amends 0184 | – |
+| 0188 | [A closure tally may be COMPOSITED across suite shapes, and must be stated as one](0188-a-closure-tally-may-be-composited-across-suite-shapes.md) | accepted | 2026-09-04 | – | – |

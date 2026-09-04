@@ -1317,7 +1317,7 @@ same commit, or not at all.**
 ### 🔴 FUP-C2-TIER1-INFLIGHT-SENTINEL-ERASED-BY-ITS-OWN-RESTORE — a killed run erases the sentinel its own restore needed, and DEGEN cannot see the strand
 
 **Filed:** 2026-09-04 (C2 Phase B2a — after a killed sweep stranded a live authorization gate) · **Owner:** backend · **Severity:** critical — both of this harness's crash-safety mechanisms fail for **its own mutation shape**, so a killed run can leave a door open **and leave no trace**. Realised, not hypothetical
-**Closes when:** `restore_inflight` verifies the restore before clearing the sentinel and leaves it intact on failure; the `DEGEN` preflight gains an arm that sees an anchored-raise count **below** the worklist's recorded `nraise`; and both are **proven able to fire** by a deliberate strand
+**Closes when:** `restore_inflight` verifies the restore before clearing the sentinel and leaves it intact on failure; the `DEGEN` preflight gains an arm that sees an anchored-raise count **below** the worklist's recorded `nraise`; both are **proven able to fire** by a deliberate strand, **and** `.claude/rules/mutation-harnesses-are-not-killable.md`'s "a kill is CAUGHT" claim is corrected — it was written for the policy harnesses and is false for this one
 **Status:** open — ⚠ local dev DB only, no remote touched, and the ADR 0153 baseline guard held throughout. `public.cancel_event` sat with both anchored raises at `null;` for ~4 min. ⛔ The trap at `:94-95` covers `EXIT INT TERM HUP` — a `SIGKILL` or job-tree teardown runs no trap at all
 **Body:** [FUP-C2-TIER1-INFLIGHT-SENTINEL-ERASED-BY-ITS-OWN-RESTORE.md](FUP-C2-TIER1-INFLIGHT-SENTINEL-ERASED-BY-ITS-OWN-RESTORE.md)
 
@@ -1327,6 +1327,13 @@ same commit, or not at all.**
 **Closes when:** the 296 are triaged and the reachable subset converted to capture-then-assert, **or** a lint pass flags a value assertion whose first argument calls a door in the derived population — the same balanced-paren scan the census already implements. ⛔ Not closed by "no sweep has hit one yet"
 **Status:** open — `is`/`isnt`/`ok`/`cmp_ok` evaluate the subject **before** the assertion is entered, so a door raising there aborts rather than fails; `throws_ok`/`lives_ok` are immune because they `EXECUTE` the statement inside a handler. Hit **4 times in one day**. Measured: 6216 sites scanned, **296** match across 60 of 262 files. LEARN-083
 **Body:** [FUP-C2-TIER1-VALUE-ASSERTIONS-ABORT-ON-AN-INLINE-RAISE.md](FUP-C2-TIER1-VALUE-ASSERTIONS-ABORT-ON-AN-INLINE-RAISE.md)
+
+### 🟡 FUP-C2-TIER1-FLOOR-ARM-HAS-ZERO-SLACK — 8 of the 10 newly-retired allowlist doors sit at exactly one recorded call, so any lost allow leg reds the arm
+
+**Filed:** 2026-09-04 (C2 closure review) · **Owner:** backend · **Severity:** medium — no gate is wrong today; the arm is one lost allow leg away from a red that will read as a regression in whatever change removes it
+**Closes when:** the eight single-call doors gain a second independent successful call, **or** `ARM=floor` names its at-risk set (doors at exactly 1 call) so a future red is diagnosable from the arm's own output. ⛔ Re-allowlisting is prohibited as the remedy
+**Status:** open — `pg_stat_user_functions` does not count a call that raises, so only a door's successful leg keeps it off the offender list
+**Body:** [FUP-C2-TIER1-FLOOR-ARM-HAS-ZERO-SLACK.md](FUP-C2-TIER1-FLOOR-ARM-HAS-ZERO-SLACK.md)
 
 ### 🟠 FUP-DOOR-SWEEP-DOMAIN-MISSES-THE-AUTHZ-RESOLVERS — two `prosecdef` boolean authorization resolvers are in NEITHER sweep arm's domain, so neither arm can ever select them
 
