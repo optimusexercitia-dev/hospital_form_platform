@@ -36,6 +36,15 @@
 #   RECOVER=1 bash …         # a previous run died with a gate OPEN: apply the sentinel's
 #                            #   restore, VERIFY it in the catalog, then exit 2. Every
 #                            #   verdict from the killed run is void.
+#   RESET_EVERY=N bash …     # reset the DB + re-capture the baseline every N enforcers
+#                            #   (default 20; 0 disables). Bounds tail drift — see § bounded
+#                            #   tail drift. Cannot fire on a worklist shorter than N.
+#   BASELINE_REFRESH=1 bash … # re-record the worklist baseline arm 4b compares against.
+#                            #   ⛔ An explicit operator act: refreshing HIDES a strand.
+#   BASE_S_OVERRIDE="Files=1, Tests=1" bash …
+#                            #   ⛔ SELF-TEST KNOB ONLY. Forces every mutated run to look like
+#                            #   a SHAPE change so the reset-and-retry net can be proven able
+#                            #   to fire. Never set it for a real sweep.
 #
 # ⚠ FULL RUN COST: 171 enforcers x 2 suite runs = 342 runs. ⛔ The per-run figure in this header
 #   has been stale twice; RE-MEASURE IT, never quote it. History: "~23 s" (design-doc estimate,
@@ -193,20 +202,29 @@ fi
 # ---------------------------------------------------------------- preflight
 # A degenerate body means a previous harness died mid-mutation. Every verdict below
 # would be measured against a tree that is already open.
-DEGEN="$(psql_c -c "
-  select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace
-  where n.nspname in ('app','public')
-    and ( p.prosrc ~ '^\s*begin\s+return\s+(true|false)\s*;\s*end'
-       or p.prosrc ~ '^\s*select\s+(true|false)\s*;?\s*\$'
-       or p.prosrc ~ '^\s*begin\s+return\s*;\s*end' );")"
-if [ "${DEGEN:-0}" != "0" ]; then
-  echo "*** PREFLIGHT FAILED: $DEGEN function(s) have a degenerate body — a previous" >&2
-  echo "    mutation did not roll back. Fix that before trusting any verdict." >&2
-  exit 2
-fi
+# ⛔ A FUNCTION, not inline code, since 2026-09-04: the periodic reset (§ RESET_EVERY) must
+#    re-run EVERY preflight arm after each reset, and a second inline COPY of these queries
+#    would be a hand-written duplicate of production text that drifts silently.
+preflight_degenerate () {
+  local d
+  d="$(psql_c -c "
+    select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+    where n.nspname in ('app','public')
+      and ( p.prosrc ~ '^\s*begin\s+return\s+(true|false)\s*;\s*end'
+         or p.prosrc ~ '^\s*select\s+(true|false)\s*;?\s*\$'
+         or p.prosrc ~ '^\s*begin\s+return\s*;\s*end' );")"
+  if [ "${d:-0}" != "0" ]; then
+    echo "*** PREFLIGHT FAILED: $d function(s) have a degenerate body — a previous" >&2
+    echo "    mutation did not roll back. Fix that before trusting any verdict." >&2
+    return 2
+  fi
+  return 0
+}
+preflight_degenerate || exit 2
 
 # ---------------------------------------------------------------- worklist (DERIVED)
 # ⛔ Derived as a property every run, never hand-listed (the C2 method rule).
+derive_worklist () {   # $1 = destination .tsv on the HOST. Re-derived after every periodic reset.
 cat > "$WORK/worklist.sql" <<'SQL'
 drop schema if exists c2n cascade; create schema c2n;
 create table c2n.fns as
@@ -277,9 +295,12 @@ where f.body ~* 'errcode\s*(=|=>)\s*''(42501|HC0[A-Z0-9]{2})'''
 --    of line". The quotes are doubled by hand here and in mutate(); keep the two in lockstep.
 \copy (select p.oid, n.nspname||'.'||p.proname, n.nspname||'.'||p.proname||'('||pg_get_function_identity_arguments(p.oid)||')', (select count(distinct c.root) from c2n.clo_full c join c2n.tier1 t on t.oid=c.root where c.fn=p.oid), (select count(*) from regexp_matches(regexp_replace(p.prosrc,'--[^\n]*','','g'),'errcode\s*(=|=>)\s*''(42501|HC0[A-Z0-9]{2})''','g')), (select count(*) from regexp_matches(regexp_replace(p.prosrc,'--[^\n]*','','g'),'raise\s+exception\s+''(?:[^'']|'''')*''[^;]*?errcode\s*(=|=>)\s*''(42501|HC0[A-Z0-9]{2})''[^;]*;','g')) from (select distinct c.fn from c2n.clo_full c join c2n.tier1 t on t.oid=c.root where c.fn in (select oid from c2n.gatefn)) z join pg_proc p on p.oid=z.fn join pg_namespace n on n.oid=p.pronamespace join pg_type ty on ty.oid=p.prorettype where not (p.prosecdef and ty.typname='bool') order by 3 desc, 1) to '/tmp/c2n_worklist.tsv'
 SQL
-psql_f "$WORK/worklist.sql" >/dev/null || { echo "FATAL: worklist derivation failed" >&2; exit 2; }
-docker cp "$DB:/tmp/c2n_worklist.tsv" "$WORK/worklist.tsv" >/dev/null \
-  || { echo "FATAL: could not fetch worklist" >&2; exit 2; }
+  psql_f "$WORK/worklist.sql" >/dev/null || { echo "FATAL: worklist derivation failed" >&2; return 2; }
+  docker cp "$DB:/tmp/c2n_worklist.tsv" "$1" >/dev/null \
+    || { echo "FATAL: could not fetch worklist" >&2; return 2; }
+  [ -s "$1" ]
+}
+derive_worklist "$WORK/worklist.tsv" || exit 2
 TOTAL=$(wc -l < "$WORK/worklist.tsv" | tr -d ' ')
 [ "${TOTAL:-0}" -gt 0 ] || { echo "FATAL: worklist is EMPTY — refusing to report a clean run" >&2; exit 2; }
 
@@ -321,23 +342,28 @@ TOTAL=$(wc -l < "$WORK/worklist.tsv" | tr -d ' ')
 #       TMPDIR cannot silently disarm this arm). ⛔ With neither, the arm prints NOT RUN —
 #       never "clean": an arm that compared nothing must not read like an arm that agreed.
 # ─────────────────────────────────────────────────────────────────────────────────────
-RESIDUE="$(psql_c -c "
+preflight_residue () {
+  local residue
+  residue="$(psql_c -c "
   select n.nspname||'.'||p.proname
     from pg_proc p join pg_namespace n on n.oid=p.pronamespace
    where n.nspname in ('app','public')
      and p.prosrc ~ '(then|else|begin|loop|;)\s*null\s*;'
      and p.prosrc !~* 'errcode\s*(=|=>)\s*''(42501|HC0[A-Z0-9]{2})'''
    order by 1;" | grep -vE '^\s*$')"
-if [ -n "$RESIDUE" ]; then
-  echo "*** PREFLIGHT FAILED (arm 4a) — a body carries THIS harness's residue shape:" >&2
-  echo "$RESIDUE" | sed 's/^/      /' >&2
-  echo "    A raise statement was rewritten to a no-op and every errcode of the anchor" >&2
-  echo "    class is gone from the body. A previous run died mid-mutation: the gate is OPEN." >&2
-  echo "      RECOVER=1 bash $0        # if a sentinel survives, apply + VERIFY it" >&2
-  echo "      supabase db reset --local  # the blunt, certain option" >&2
-  exit 2
-fi
-echo "    arm 4a: 0 residue shapes (no body has a bare 'null;' with every anchor-class errcode gone)"
+  if [ -n "$residue" ]; then
+    echo "*** PREFLIGHT FAILED (arm 4a) — a body carries THIS harness's residue shape:" >&2
+    echo "$residue" | sed 's/^/      /' >&2
+    echo "    A raise statement was rewritten to a no-op and every errcode of the anchor" >&2
+    echo "    class is gone from the body. A previous run died mid-mutation: the gate is OPEN." >&2
+    echo "      RECOVER=1 bash $0        # if a sentinel survives, apply + VERIFY it" >&2
+    echo "      supabase db reset --local  # the blunt, certain option" >&2
+    return 2
+  fi
+  echo "    arm 4a: 0 residue shapes (no body has a bare 'null;' with every anchor-class errcode gone)"
+  return 0
+}
+preflight_residue || exit 2
 
 WLBASE="${C2_WORKLIST_BASELINE:-${TMPDIR:-/tmp}/c2-neutralizer-WORKLIST-BASELINE.tsv}"
 cut -f2,5 "$WORK/worklist.tsv" | sort > "$WORK/worklist.derived.tsv"
@@ -514,6 +540,12 @@ echo "    worklist: $TOTAL enforcer(s) derived  |  domain: $DOMAIN  |  report: $
 echo "--- capturing the unmutated baseline ---"
 BASE_OUT="$(run_suite)"; BASE_V="$(verdict_of "$BASE_OUT")"; BASE_S="$(shape_of "$BASE_OUT")"
 echo "    baseline: $BASE_V (shape=$BASE_S lines)"
+# ⛔ SELF-TEST KNOB (see USAGE). It falsifies the captured shape so the drift path is reachable
+#    on demand; a periodic reset re-captures the TRUE shape, which is what makes the retry work.
+if [ -n "${BASE_S_OVERRIDE:-}" ]; then
+  echo "    ⛔ BASE_S_OVERRIDE set — baseline shape FORCED to '$BASE_S_OVERRIDE'. SELF-TEST ONLY."
+  BASE_S="$BASE_S_OVERRIDE"
+fi
 if [ "$BASE_V" != "PASS" ]; then
   echo "*** ABORT: the suite is RED before any mutation. Every verdict below would be" >&2
   echo "    measured against a broken tree. Fix the tree, or pass SUITE= to narrow." >&2
@@ -565,47 +597,105 @@ if [ "$SELFTEST" = "1" ]; then
   echo "--- SELF-TEST PASSED — the harness can mutate, can undo, and REFUSES a bad undo ---"
 fi
 
+# ------------------------------------------------- bounded tail drift (2026-09-04)
+# FUP-C2-NEUTRALIZER-TAIL-DRIFT-INVALIDATES-LATE-VERDICTS. The suite MUTATES DATA, and a full
+# sweep runs it ~342 consecutive times against ONE database, reset only at the start. Measured
+# on run 1: `Files=259, Tests=8685, PASS` for 168 enforcers, then `Tests=8288` at enforcer 169
+# and never recovered — the final three scored ERROR, and re-measured in isolation after a
+# fresh reset all three came back COVERED. The door was never the variable; RUN POSITION was.
+#
+# ⛔ The existing guards are a DETECTOR, not a PREVENTER: BASE_S is captured once at the top, so
+#    drift is converted into ERROR and the tail is simply not measured. A longer worklist loses
+#    a longer tail. Two mechanisms, because each covers what the other cannot:
+#      · RESET_EVERY  — reset the DB every N enforcers and RE-CAPTURE the baseline, bounding the
+#                       drift any verdict can carry to N enforcers instead of to the whole run;
+#      · the retry net — on a `SHAPE changed` / `did not come back green` ERROR, reset and retry
+#                       that enforcer ONCE, which would have recovered all three of run 1's.
+# ⚠ RESET_EVERY cannot fire on a worklist shorter than N, so `CASES=` subsets never reset.
+RESET_EVERY="${RESET_EVERY:-20}"   # 0 disables
+RESETS=0
+periodic_reset () {   # $1 = why (printed)
+  local why="$1" pre_total now_total
+  echo "--- PERIODIC RESET ($why) ---"
+  # 1. ⛔ INTERLOCK FIRST. A reset with a mutation in flight destroys the evidence AND the
+  #    restore in one command — the same composition the sentinel fix exists to prevent.
+  if [ -s "$INFLIGHT" ]; then
+    echo "*** refusing to reset with a mutation in flight: $INFLIGHT" >&2
+    echo "    RECOVER=1 bash $0 first, then verify it in the catalog." >&2
+    exit 2
+  fi
+  # 2. ⛔ `cd "$ROOT"` IS LOAD-BEARING: `supabase db reset` applies the migrations of the
+  #    DIRECTORY YOU STAND IN, and this machine routinely has a second, unrelated stack up.
+  ( cd "$ROOT" && npx supabase db reset --local ) >/dev/null 2>&1 \
+    || { echo "*** db reset FAILED — aborting rather than measuring on an unknown DB" >&2; exit 2; }
+  RESETS=$((RESETS+1))
+  # 3. every preflight arm again — a reset is a new tree, and its cleanliness is not assumed
+  preflight_degenerate || exit 2
+  preflight_residue    || exit 2
+  # 4. re-derive and compare: if the worklist moved, the TREE changed under the run and every
+  #    verdict recorded so far is against a different population.
+  pre_total="$TOTAL"
+  derive_worklist "$WORK/worklist.reset.tsv" || exit 2
+  now_total=$(wc -l < "$WORK/worklist.reset.tsv" | tr -d ' ')
+  if ! cut -f2,5 "$WORK/worklist.reset.tsv" | sort | diff -q - "$WORK/worklist.derived.tsv" >/dev/null; then
+    echo "*** ABORT: the derived worklist CHANGED across the reset ($pre_total -> $now_total)." >&2
+    cut -f2,5 "$WORK/worklist.reset.tsv" | sort | diff - "$WORK/worklist.derived.tsv" | head -20 >&2
+    echo "    The tree moved under this run; every verdict so far is against another population." >&2
+    exit 2
+  fi
+  # 5. re-capture the baseline — the whole point: later verdicts compare against a FRESH shape
+  BASE_OUT="$(run_suite)"; BASE_V="$(verdict_of "$BASE_OUT")"; BASE_S="$(shape_of "$BASE_OUT")"
+  echo "    post-reset baseline: $BASE_V (shape=$BASE_S)  |  worklist re-derived: $now_total (unchanged)"
+  if [ "$BASE_V" != "PASS" ]; then
+    echo "*** ABORT: the suite is RED after a mid-sweep reset. Every later verdict would be" >&2
+    echo "    measured against a broken tree." >&2
+    exit 2
+  fi
+}
+
 # ---------------------------------------------------------------- sweep
-DONE=0; SKIPPED=0; N_COVERED=0; N_BLIND=0; N_ERROR=0
-while IFS=$'\t' read -r foid name sig ndoors nraise nanchored; do
-  [ -n "${sig:-}" ] || continue
-  if [ -n "$CASES" ]; then case " $CASES " in *" $name "*) : ;; *) SKIPPED=$((SKIPPED+1)); continue ;; esac; fi
-  DONE=$((DONE+1))
-  printf '[%3d/%s] %s (%s door(s), %s raise(s))\n' "$DONE" "$TOTAL" "$name" "$ndoors" "$nraise"
+# ⛔ ONE enforcer's work, extracted so the retry net can run it TWICE without a second COPY of
+#    it. It reports through SW_VERDICT / SW_NOTE (a verdict is DATA here); return 9 means the
+#    ROLLBACK FAILED and the caller must stop the run.
+SW_VERDICT=""; SW_NOTE=""
+sweep_one () {   # $1 oid  $2 sig  $3 ndoors  $4 nraise  $5 nanchored
+  local foid="$1" sig="$2" ndoors="$3" nraise="$4" nanchored="$5"
+  local h0 h1 h2 MUT_ERR OUT V S ROUT RV RS
+  SW_VERDICT=""; SW_NOTE=""
 
   # ⛔ Refuse a verdict we cannot fully neutralize. A PARTIAL mutation that still
   #    guards is indistinguishable from a covered door — it would report COVERED
   #    for the wrong reason. One visible ERROR beats a plausible wrong verdict.
   if [ "$nraise" != "$nanchored" ]; then
-    record "$sig" "$ndoors" "$nraise" "ERROR" "UNMUTABLE — $nraise authz raise(s) but only $nanchored match the anchor; refusing a partial mutation"
-    N_ERROR=$((N_ERROR+1)); continue
+    SW_VERDICT="ERROR"; SW_NOTE="UNMUTABLE — $nraise authz raise(s) but only $nanchored match the anchor; refusing a partial mutation"
+    return 0
   fi
 
   h0="$(hash_of "$foid")"
-  snapshot "$foid" || { record "$sig" "$ndoors" "$nraise" "ERROR" "snapshot failed"; N_ERROR=$((N_ERROR+1)); continue; }
+  snapshot "$foid" || { SW_VERDICT="ERROR"; SW_NOTE="snapshot failed"; return 0; }
   MUT_ERR="$(mutate "$foid")"
   h1="$(hash_of "$foid")"
   if [ "$h0" = "$h1" ]; then
     restore_inflight || { echo "*** FATAL: the restore REFUSED after a non-landing mutation on $sig" >&2; exit 2; }
-    record "$sig" "$ndoors" "$nraise" "ERROR" "MUTATION DID NOT LAND (hash unchanged): ${MUT_ERR//|/ }"
-    N_ERROR=$((N_ERROR+1)); continue
+    SW_VERDICT="ERROR"; SW_NOTE="MUTATION DID NOT LAND (hash unchanged): ${MUT_ERR//|/ }"
+    return 0
   fi
 
   OUT="$(run_suite)"; V="$(verdict_of "$OUT")"; S="$(shape_of "$OUT")"
   # ⛔ The restore is VERIFIED (psql rc AND live md5) before the sentinel is cleared; if it
   #    refuses, the sentinel is KEPT and this run stops rather than sweeping over an open gate.
   if ! restore_inflight; then
-    record "$sig" "$ndoors" "$nraise" "ERROR" "⛔ ROLLBACK FAILED — the gate is left OPEN and the sentinel is KEPT ($INFLIGHT); RECOVER=1 or 'supabase db reset --local'"
-    N_ERROR=$((N_ERROR+1)); echo "*** FATAL: rollback failed for $sig" >&2; exit 2
+    SW_VERDICT="ERROR"; SW_NOTE="⛔ ROLLBACK FAILED — the gate is left OPEN and the sentinel is KEPT ($INFLIGHT); RECOVER=1 or 'supabase db reset --local'"
+    return 9
   fi
   h2="$(hash_of "$foid")"
   if [ "$h2" != "$h0" ]; then
-    record "$sig" "$ndoors" "$nraise" "ERROR" "⛔ ROLLBACK FAILED — the tree is left mutated; stop and restore by hand"
-    N_ERROR=$((N_ERROR+1)); echo "*** FATAL: rollback failed for $sig" >&2; exit 2
+    SW_VERDICT="ERROR"; SW_NOTE="⛔ ROLLBACK FAILED — the tree is left mutated; stop and restore by hand"
+    return 9
   fi
   if [ "$S" != "$BASE_S" ]; then
-    record "$sig" "$ndoors" "$nraise" "ERROR" "run SHAPE changed ($BASE_S → $S) — the suite aborted rather than failed; not a verdict"
-    N_ERROR=$((N_ERROR+1)); continue
+    SW_VERDICT="ERROR"; SW_NOTE="run SHAPE changed ($BASE_S -> $S) — the suite aborted rather than failed; not a verdict"
+    return 0
   fi
   if [ "$V" = "FAIL" ]; then
     # ⛔ RED alone is not COVERED. The baseline was taken once, at the top of the run; if
@@ -614,26 +704,70 @@ while IFS=$'\t' read -r foid name sig ndoors nraise nanchored; do
     #    the red-then-GREEN pair that carries the verdict, never the red on its own.
     ROUT="$(run_suite)"; RV="$(verdict_of "$ROUT")"; RS="$(shape_of "$ROUT")"
     if [ "$RV" != "PASS" ] || [ "$RS" != "$BASE_S" ]; then
-      record "$sig" "$ndoors" "$nraise" "ERROR" "mutated run failed BUT the restored run did not come back green ($RV, shape=$RS) — the failure is not attributable to this mutation"
-      N_ERROR=$((N_ERROR+1)); continue
+      SW_VERDICT="ERROR"; SW_NOTE="mutated run failed BUT the restored run did not come back green ($RV, shape=$RS) — the failure is not attributable to this mutation"
+      return 0
     fi
     # ⭐ A COVERED under a narrowed domain STAYS a verdict: the red-then-green pair proves
     #    the keystone WAS in the domain and did notice. Only the negative needs the domain.
-    record "$sig" "$ndoors" "$nraise" "COVERED" "a keystone asserts through this guard (red under mutation, green restored)"
-    N_COVERED=$((N_COVERED+1))
-  elif [ -n "$SUITE" ]; then
+    SW_VERDICT="COVERED"; SW_NOTE="a keystone asserts through this guard (red under mutation, green restored)"
+    return 0
+  fi
+  if [ -n "$SUITE" ]; then
     # ⛔ THE SECOND PRECONDITION (FUP-AUTHZ-HARNESS-PRECONDITIONS). A neutralization verdict
     #    rests on TWO preconditions — a green baseline (asserted above) AND the keystone
     #    present in the swept domain. Only the first was ever checked, and "nothing noticed
     #    the gate opening" is INDISTINGUISHABLE from "nothing that could notice was running".
     #    Under SUITE= the domain is provably partial, so the mutated run passing is not a
     #    BLIND: it is an ERROR, an obligation to re-run against the full suite.
-    record "$sig" "$ndoors" "$nraise" "ERROR" "NARROWED DOMAIN — the mutated run passed, but SUITE=$SUITE ran only part of the suite; 'nothing noticed' and 'nothing that COULD notice ran' are indistinguishable here. Re-run this enforcer against the full suite before reading it as BLIND"
-    N_ERROR=$((N_ERROR+1))
-  else
-    record "$sig" "$ndoors" "$nraise" "BLIND" "nothing in the suite noticed the guard vanish — $ndoors Tier-1 door(s) depend on it"
-    N_BLIND=$((N_BLIND+1))
+    SW_VERDICT="ERROR"; SW_NOTE="NARROWED DOMAIN — the mutated run passed, but SUITE=$SUITE ran only part of the suite; 'nothing noticed' and 'nothing that COULD notice ran' are indistinguishable here. Re-run this enforcer against the full suite before reading it as BLIND"
+    return 0
   fi
+  SW_VERDICT="BLIND"; SW_NOTE="nothing in the suite noticed the guard vanish — $ndoors Tier-1 door(s) depend on it"
+  return 0
+}
+
+tally () {   # $1 = verdict word
+  case "$1" in
+    COVERED) N_COVERED=$((N_COVERED+1)) ;;
+    BLIND)   N_BLIND=$((N_BLIND+1)) ;;
+    *)       N_ERROR=$((N_ERROR+1)) ;;
+  esac
+}
+
+DONE=0; SKIPPED=0; N_COVERED=0; N_BLIND=0; N_ERROR=0
+while IFS=$'\t' read -r foid name sig ndoors nraise nanchored; do
+  [ -n "${sig:-}" ] || continue
+  if [ -n "$CASES" ]; then case " $CASES " in *" $name "*) : ;; *) SKIPPED=$((SKIPPED+1)); continue ;; esac; fi
+  DONE=$((DONE+1))
+  # Scheduled reset BEFORE this enforcer's work, so the baseline it is measured against is at
+  # most RESET_EVERY enforcers old. `DONE-1` so the FIRST enforcer never triggers one.
+  if [ "$RESET_EVERY" != "0" ] && [ "$DONE" -gt 1 ] && [ $(( (DONE - 1) % RESET_EVERY )) -eq 0 ]; then
+    periodic_reset "scheduled — $((DONE - 1)) enforcer(s) swept since the last baseline"
+  fi
+  printf '[%3d/%s] %s (%s door(s), %s raise(s))\n' "$DONE" "$TOTAL" "$name" "$ndoors" "$nraise"
+
+  sweep_one "$foid" "$sig" "$ndoors" "$nraise" "$nanchored"; SW_RC=$?
+  if [ "$SW_RC" = "9" ]; then
+    record "$sig" "$ndoors" "$nraise" "$SW_VERDICT" "$SW_NOTE"; tally ERROR
+    echo "*** FATAL: rollback failed for $sig" >&2; exit 2
+  fi
+  # THE RETRY NET. These two notes are drift-shaped, and a reset is what settles them; run 1
+  # lost three verdicts to exactly this and each came back COVERED on a clean DB.
+  case "$SW_NOTE" in
+    *"SHAPE changed"*|*"did not come back green"*)
+      if [ "$RESET_EVERY" != "0" ]; then
+        echo "    drift suspected — resetting and retrying $name ONCE"
+        periodic_reset "retry — $name recorded a drift-shaped ERROR"
+        sweep_one "$foid" "$sig" "$ndoors" "$nraise" "$nanchored"; SW_RC=$?
+        if [ "$SW_RC" = "9" ]; then
+          record "$sig" "$ndoors" "$nraise" "$SW_VERDICT" "$SW_NOTE"; tally ERROR
+          echo "*** FATAL: rollback failed for $sig" >&2; exit 2
+        fi
+        SW_NOTE="$SW_NOTE (retried after reset)"
+      fi ;;
+  esac
+  record "$sig" "$ndoors" "$nraise" "$SW_VERDICT" "$SW_NOTE"
+  tally "$SW_VERDICT"
 done < "$WORK/worklist.tsv"
 
 emit
@@ -642,7 +776,7 @@ echo "=== DONE — swept $DONE of $TOTAL derived enforcer(s) ==="
 echo "    COVERED=$N_COVERED  BLIND=$N_BLIND  ERROR=$N_ERROR   (skipped by CASES: $SKIPPED)"
 # ⛔ Both preconditions of every verdict above, on the same line as the counts — so a
 #    reader cannot take the tally without taking the conditions it was measured under.
-echo "    preconditions: baseline GREEN (shape=$BASE_S) · domain=$DOMAIN"
+echo "    preconditions: baseline GREEN (shape=$BASE_S) · domain=$DOMAIN · resets=$RESETS (RESET_EVERY=$RESET_EVERY)"
 echo "    report: $FINDINGS"
 [ "$DONE" -lt "$TOTAL" ] && echo "    ⚠ PARTIAL RUN — $((TOTAL-DONE)) enforcer(s) were NOT measured. This is not a clean sweep."
 echo
