@@ -3,7 +3,7 @@
 **Phase:** AE4 · **plan:** [`docs/plans/authz-evolution.md`](../plans/authz-evolution.md) § AE4.3 ·
 **authority:** ADR [0155](../decisions/0155-post-aff4-tenancy-and-person-model-evolution-sequence.md) D7,
 ADR [0162](../decisions/0162-authz-evolution-plan-audit-corrections.md) §2 (PA-F8) ·
-**owner:** backend · **status:** ✅ **PO-APPROVED 2026-09-01 — AT 42 ROWS**; the REGRESSION ORACLE from cutover. ⚠ **AMENDED 2026-09-01: row 30 splits by operation, +1 row (43) — § 12.8**, ✅ **BUILT in AE4.7c (§ 12.8.1)**; the live catalog holds **43** permissions and `staff_admin` holds **42 of 43** ·
+**owner:** backend · **status:** ✅ **PO-APPROVED 2026-09-01 — AT 42 ROWS**; the REGRESSION ORACLE from cutover. ⚠ **AMENDED 2026-09-01: row 30 splits by operation, +1 row (43) — § 12.8**, ✅ **BUILT in AE4.7c (§ 12.8.1)**; the live catalog holds **43** permissions and `staff_admin` holds **42 of 43** · ✅ **SCOPE RULED BY THE PO 2026-09-03** (Gate AE4 review F-BLOCK-3, which found this file stating its own approval scope three ways): the 2026-09-01 approval covers **all 42**, and **row 43 is inside it as an amendment**. This header is authoritative; § 4's former "approved at 33 rows" warning was stale and is deleted ·
 **derived:** 2026-09-01 · **stack:** local, fresh reset, head `20261003007120`.
 
 > ⛔ **On approval this matrix becomes the REGRESSION ORACLE** — from cutover, AE4.5 asserts
@@ -247,7 +247,7 @@ RLS, so a DEFINER door is the only control on its own path):
 
 ## 4. The matrix
 
-**42 rows** — 38 commission-scoped (1–29, 34–42) + 4 org-scoped (30–33, § 11). ⚠ **The PO approved this matrix at 33 rows (`e3297dad`). Rows 34–38 are OUTSIDE that approval**: row 34 came from the § 7.4 verification, rows 35–38 from the § 13 site reconciliation. **Nine rows of delta (34–42), for one PO pass** — 34 from the § 7.4 verification, 35–38 from § 13's bottom-up reconciliation, 39–40 from § 14's top-down one, 41–42 from § 15's read/write pairing pass. ⚠ The org-scoped four were
+**42 rows** — 38 commission-scoped (1–29, 34–42) + 4 org-scoped (30–33, § 11). ⛔ **The approval scope is stated in the header and NOWHERE ELSE** — deliberately, because this file previously stated it three ways (Gate AE4 review F-BLOCK-3) and a second copy here is how a fourth appears. **Provenance of the later rows, kept because it is not an approval claim:** 34 from the § 7.4 verification, 35–38 from § 13's bottom-up reconciliation, 39–40 from § 14's top-down one, 41–42 from § 15's read/write pairing pass. ⚠ The org-scoped four were
 **two** until § 12 re-derived row 30 into three codes; any figure quoting 31 rows, or "rows 30–31",
 predates that and is stale.
 
@@ -288,7 +288,7 @@ signal is UI text rather than a status or RPC error (§ 7.1).
 
 | # | permission code | resource_kind | risk_class | **sensitivity** | enforcement sites |
 | --- | --- | --- | --- | --- | --- |
-| 1 | `commission.forms.edit` | commission_content | write | none | **R** `forms/form_versions/form_sections/form_items/form_item_options/form_item_validations/form_block_library _staff_admin_write` (7 ALL) · **D** 8 form fns · **E2E** `phase4-builder.spec.ts:115-180`, `:261-389` |
+| 1 | `commission.forms.edit` | commission_content | write | none | ⛔ **CORRECTED 2026-09-03 against the live catalog** (Gate AE4 review F-REC-4; this cell read *"7 ALL"* and was wrong twice). **R — SIX `ALL` policies**, `forms` / `form_versions` / `form_sections` / `form_items` / `form_item_options` / `form_item_validations`, each `_staff_admin_write`, **all six now re-keyed onto `app.can_edit_commission_forms` in BOTH halves** (migration `20261003007340`). ⚠ Of the six, `form_item_validations`'s is an **unreachable backstop** — `authenticated` holds SELECT only on that table, so the policy gates nothing a client can reach; the real write path is the DEFINER `public.set_item_validations`, still layer-1. ⛔ **`form_block_library` is a `D` site, not an `R` site** — it carries **no write policy at all** (only `form_block_library_select`); writes go through `save_block_to_library` / `update_block_library_entry` / `delete_block_library_entry`, none re-keyed. Adding a policy there would be inert today and a latent widening tomorrow. · **D** form fns — ⛔ **0 carry a permission literal**; 22 DEFINER functions gate form-family tables on `is_staff_admin_of` and none is re-keyed, so "the production door" for this row means the **policy** door. · **E2E** `phase4-builder.spec.ts:115-180`, `:261-389` |
 | 2 | `commission.forms.publish` | commission_content | **irreversible** | none | **R** `form_versions_staff_admin_write` — ⭐ `publish_form_version` is **INVOKER with no body gate**; RLS is the whole control · immutability by `guard_published_version_trg` (Rule 5) · **E2E** `phase4-builder.spec.ts:180` |
 | 3 | `commission.forms.assets.upload` | commission_content | write | none | **R** `storage.objects.form_assets_insert_staff_admin` (INSERT) · new path per upload (Rule 6) · **E2E** `phase4-builder.spec.ts:466-532` |
 | 4 | `commission.responses.read` | commission_content | read | none | **R** 7 **SELECT-only** policies (`responses`, `answers`, `answer_*`, `response_group_instances`) · **E2E** `phase8-dashboard.spec.ts:720-735` |

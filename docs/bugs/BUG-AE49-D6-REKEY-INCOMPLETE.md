@@ -1,10 +1,10 @@
 ---
 id: BUG-AE49-D6-REKEY-INCOMPLETE
-status: open
+status: fixed
 severity: critical
 area: authz
 opened: 2026-09-02
-closed: ~
+closed: 2026-09-03
 feature: AE49
 related_adrs: []
 ---

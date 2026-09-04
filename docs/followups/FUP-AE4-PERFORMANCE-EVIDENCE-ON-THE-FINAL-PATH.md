@@ -29,6 +29,43 @@ measured the seam. Measure a principal whose ONLY grant path is the permission a
 AE4.9 D6 record claims it was done — both `PROGRESS.md § Now` and the increment record say plainly that
 it does not exist.
 
+## ⭐⭐ MEASUREMENT DISCHARGED 2026-09-03 (runs 6 + 7) — the record below this line is SUPERSEDED
+
+**Both sharp conditions of "What must be measured" were met, and verified independently on
+2026-09-03 rather than read off an acceptance banner.**
+
+- **Condition 2 — a principal whose ONLY grant path is the permission arm: PROVEN, as a machine
+  assertion, not prose.** § 4 of `../design/authz-ae4-performance-acceptance.md` is titled for
+  exactly this; § 4.1 turns it into ten VOIDing checks (one per competing arm), and both runs'
+  artifacts print the table — `is_tenancy_admin_of_for` FALSE, `can_manage_professional` FALSE, zero
+  `org_admin` / `hospital_admin` rows, `is_admin` FALSE, while `authz.has_permission` is TRUE. § 6.2
+  VOIDs the run if any competing arm reads TRUE. The P2 checker takes the principal from
+  `ae4perf.fixture_meta`, never from a literal.
+- **Condition 1 — the policy body through layers 3 → 2 → 1, never `holds_role` alone: MET at run 7,
+  and genuinely VIOLATED at run 6.** Run 6's P2 evidence folded three off-path `holds_role` nodes
+  (reached via `app.can_manage_professional`) into its own subject — breaking the rule written at
+  `scripts/authz-ae4-perf-harness.sql:41-44`. The acceptance record caught it, ruled **P2 `UNRUN`
+  until run 7**, and run 7's OID-keyed counter re-derived the decomposition with that term named and
+  excluded: `A = 7 = asi 1 + entailed_grants 3 + holds_role 3`, residual **0**.
+
+⛔ **Four bounds on that discharge, all disclosed by the acceptance document itself.** (1) Only
+**one** of the three named authorizers is measured at policy level — `can_read_professional_profile`;
+`can_create_professional` has no policy, and `can_edit_commission_forms` is measured for **plan shape
+only** (its audit trigger dominates, so § 5 forbids using M2/M3/M3b for a ratio). Every headline
+number is the professional-profile read path. (2) The "PASS on every row" clause is met as a
+**composite across two runs**, not by one table: run 6 supplies P3/P4/P5/P7/DC1–DC3 at head
+`20261003007320`, run 7 supplies P1/P2 at `…007320 + …007330` and does not re-table the rest.
+(3) Run 6's P2 PASS was withdrawn, not inherited. (4) It is plan-shape and invocation-count evidence
+on a fully cache-resident fixture — **not** a production latency prediction; AE7's entry condition 2
+is a separate obligation.
+
+**Still owed administratively:** this entry's `Closes when` is `PO to rule`, and no PO ruling is
+recorded. The measurement obligation is discharged; the ruling that closes the entry is not.
+
+---
+
+_Superseded record, kept because it is the history of the obligation:_
+
 ⭐ **THE EVIDENCE NOW EXISTS, AND THE ACCEPTANCE FAILED — 2026-09-02.** Four runs on a scaled
 ANALYZEd fixture produced `AE4 ACCEPTANCE NOT MET (3 of 7 rows PASS)` (`8ca976d7`). DC1/DC2/P2/P3/P4
 PASS; **P1 FAIL** (8 240 `Seq Scan on hospitals`) and **P5 FAIL** (6.19×/6.21× against a 4× threshold;

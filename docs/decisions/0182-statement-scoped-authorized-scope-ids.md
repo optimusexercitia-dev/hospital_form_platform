@@ -12,7 +12,10 @@
 
 **Status:** accepted
 **Date:** 2026-09-03
-**Approved:** operator, 2026-09-03 — the design was put up for plan approval before any code was
+**Approved:** **the PO**, 2026-09-03 — ⭐ *the authorising party was recorded as "operator" until
+2026-09-03, when the PO confirmed directly that this ADR is theirs; "operator" named a seat, not a
+person with authority to approve, which is the ambiguity IA-F9 MAJOR-4 was filed against.* The
+design was put up for plan approval before any code was
 written (acceptance §12.4 requires this increment to carry "its own approval") and approved as
 proposed, including the three decisions it turned on: the `has_permission`-confirmed resolver
 shape, re-aiming DC1 plus adding a semantic ablation, and deferring

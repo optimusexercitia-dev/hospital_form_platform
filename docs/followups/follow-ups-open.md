@@ -1209,19 +1209,26 @@ same commit, or not at all.**
 **Status:** open
 **Body:** [FUP-ONE-SUPABASE-PROJECT-SERVES-TEST-AND-PRODUCTION.md](FUP-ONE-SUPABASE-PROJECT-SERVES-TEST-AND-PRODUCTION.md)
 
-### 🔴 FUP-AE4-MANIFEST-HAS-NO-SITE-AXIS-CLOSURE — the enforcement manifest checks set difference on the PERMISSION axis only, so a declared-but-unre-keyed site cannot red
+### 🟠 FUP-VALIDATIONS-WRITE-PATH-IS-LAYER-1 — the re-keyed `form_item_validations` policy is unreachable; its real writer `set_item_validations` is still layer-1
 
-**Filed:** 2026-09-02 (Gate AE4 QA review, finding F-BLOCK-1's mechanism) · **Owner:** lead + backend · **Severity:** critical — ADR [0176](../decisions/0176-authz-permission-layer-made-real.md) D5 says generation "fails on set difference in either direction". On the **site** axis it does not fail in either direction, and that is not a gap in coverage but a false claim in the decision record.
-**Closes when:** A generated check, in both directions, over the site axis: every `enforcementSites` entry resolves to a catalog object that carries the row's permission literal, and every catalog object carrying that literal appears in exactly one row. It must be proven able to red — remove one site from a row and the gate must fail; add a spurious one and it must fail the other way.
+**Filed:** 2026-09-03 (Gate AE4 blocker batch, found while fixing `BUG-AE49-D6-REKEY-INCOMPLETE`) · **Owner:** backend · **Severity:** high — the permission is load-bearing on a door nothing opens, while the door actually used answers to the legacy role check.
+**Closes when:** Either `public.set_item_validations` is re-keyed onto the permission, or the split is recorded deliberately — policy as backstop, DEFINER as the enforcement site — with the manifest row saying so. ⛔ Pointing at the re-keyed policy does not close it; that is the half that does not matter.
 **Status:** open
-**Body:** [FUP-AE4-MANIFEST-HAS-NO-SITE-AXIS-CLOSURE.md](FUP-AE4-MANIFEST-HAS-NO-SITE-AXIS-CLOSURE.md)
+**Body:** [FUP-VALIDATIONS-WRITE-PATH-IS-LAYER-1.md](FUP-VALIDATIONS-WRITE-PATH-IS-LAYER-1.md)
 
-### 🟠 FUP-AE4-ORACLE-APPROVAL-SCOPE-STATED-THREE-WAYS — the regression oracle cites its own PO approval at 42, 33 and 43 rows
+### 🟡 FUP-READ-ORGANIZATIONS-LITERAL-IN-NO-MANIFEST-ROW — `app.current_professional_read_organizations` carries a permission literal that no manifest row declares
 
-**Filed:** 2026-09-02 (Gate AE4 QA review, finding F-BLOCK-3) · **Owner:** lead · **Severity:** high — the oracle is sound; what is unciteable is its **approval scope**, and an approval's scope is a fact that has to be written down once.
-**Closes when:** One sentence, PO-confirmed, naming the count approved, the date, and what the delta rows are — then every other statement of it deleted rather than corrected, so a fourth cannot appear.
+**Filed:** 2026-09-03 (surfaced by pgTAP `410` § 8.5, the new site-axis arm, on its first real run) · **Owner:** PO · **Severity:** medium — currently pinned by name as a visible disclosure, so nothing is silently blind; the debt is the hand-maintained pin.
+**Closes when:** the function is EITHER added to the `org.professionals.read` row's `enforcementSites` and measured like any other declared site, OR covered by a reviewed exclusion recorded in the manifest stating why one permission has a second site here and what bounds it — and in either case the by-name pin in `410` § 8.5 is deleted in the same change. ⛔ Deleting the pin without one of the two re-opens the blindness the arm was built to remove.
 **Status:** open
-**Body:** [FUP-AE4-ORACLE-APPROVAL-SCOPE-STATED-THREE-WAYS.md](FUP-AE4-ORACLE-APPROVAL-SCOPE-STATED-THREE-WAYS.md)
+**Body:** [FUP-READ-ORGANIZATIONS-LITERAL-IN-NO-MANIFEST-ROW.md](FUP-READ-ORGANIZATIONS-LITERAL-IN-NO-MANIFEST-ROW.md)
+
+### 🟠 FUP-AE4-ROLLBACK-RUNBOOK-SIX-SCOPED-TO-FOUR — § 6.2 asserts `EXPECT 4 rows`; the re-key makes it six, so an unamended revert leaves two tables re-keyed
+
+**Filed:** 2026-09-03 (Gate AE4 blocker batch, from review F-BLOCK-2 + `BUG-AE49-D6-REKEY-INCOMPLETE`) · **Owner:** backend · **Severity:** high — it is the 03:00 revert procedure, and it fails **silently green**, which is worse than missing.
+**Closes when:** § 6.2 is re-measured at the post-fix head and rewritten for six policies — pre/post state, `alter policy` count, `tablename` list and row-count assertion all at six, both halves of each `FOR ALL` — and the interim banner is deleted rather than left beside the corrected text.
+**Status:** open — **PO-deferred to post-merge, ruled 2026-09-03**; interim banner applied to § 6.2 the same day so the section is safe to run in the meantime.
+**Body:** [FUP-AE4-ROLLBACK-RUNBOOK-SIX-SCOPED-TO-FOUR.md](FUP-AE4-ROLLBACK-RUNBOOK-SIX-SCOPED-TO-FOUR.md)
 
 ### 🟠 FUP-AE4-HARDDENY-CLASSES-CANNOT-FAIL — `hardDenyClasses` is empty on all 43 rows and the lint arm that checks it iterates zero times
 

@@ -8271,3 +8271,77 @@ sight rather than shipped as a command, and the runbook now carries both the wor
 reached the document.**
 
 Moved 2026-09-03, ADR 0186 Wave 5; the lesson is a LEARN row + postmortem in `docs/learning/`.
+
+## FUP-AE4-MANIFEST-HAS-NO-SITE-AXIS-CLOSURE — ✅ CLOSED 2026-09-03 (Gate AE4 blocker batch, migration `20261003007340` / commit `e3f986b1`)
+
+_Entry moved verbatim out of `follow-ups-open.md` at closure; no id may sit in both files._
+
+### 🔴 FUP-AE4-MANIFEST-HAS-NO-SITE-AXIS-CLOSURE — the enforcement manifest checks set difference on the PERMISSION axis only, so a declared-but-unre-keyed site cannot red
+
+**Filed:** 2026-09-02 (Gate AE4 QA review, finding F-BLOCK-1's mechanism) · **Owner:** lead + backend · **Severity:** critical — ADR [0176](../decisions/0176-authz-permission-layer-made-real.md) D5 says generation "fails on set difference in either direction". On the **site** axis it did not fail in either direction, and that was not a gap in coverage but a false claim in the decision record.
+**Closes when:** A generated check, in both directions, over the site axis: every `enforcementSites` entry resolves to a catalog object that carries the row's permission literal, and every catalog object carrying that literal appears in exactly one row. It must be proven able to red — remove one site from a row and the gate must fail; add a spurious one and it must fail the other way.
+**Status:** ✅ resolved 2026-09-03 — pgTAP `410` § 8 adds the site-axis arm in both directions, **proven able to red in both**, plus an attribution control and a discrimination pair.
+
+`supabase/tests/vectors/authz-enforcement-manifest.json` declares an `enforcementSites` list per permission
+row. **Nothing compared that list to the catalog.** pgTAP `410`'s set differences were computed over
+permission **codes**; no arm asked whether every site a row names is actually re-keyed, nor whether every
+catalog site carrying the code appears in the row.
+
+**How it was measured.** The Gate AE4 QA review walked `commission.forms.edit` from its PO-approved matrix
+to the live catalog and found **4 of 7** sites re-keyed, with the manifest declaring 4, `status: "re-keyed"`,
+`callGraphBoundary: null` — and every gate green.
+
+**The vacuity proof, both directions and both orders** — this is what closed the entry, not the fix landing:
+
+| run | § 8.1 declared ⇒ enforcing | § 8.4 enforcing ⇒ declared |
+| --- | --- | --- |
+| pre-fix, 6 sites declared | **RED** (test 35), naming both legacy policies | green |
+| pre-fix, `composedWith` = the legacy pair (**attribution control**) | **RED** — while § 3.5 went **GREEN** | green |
+| post-fix | green | green |
+| post-fix, two sites deliberately undeclared | green — `(none)` | **RED** (test 38), naming both |
+
+⭐ Row 2 is the attribution proof: § 8.1 is **not** a restatement of the pre-existing § 3.5. Row 4 is why
+§ 8.1 cannot be satisfied by deleting manifest rows — the cheap way to make a set-difference check pass.
+§ 8 also carries a discrimination pair (8.2/8.3) anchored on a real same-table SELECT sibling that is
+**correct by design**, and a cardinality triple (8.6).
+
+⛔ **What must NOT have been mistaken for closing it** (recorded because both traps were live): fixing
+`BUG-AE49-D6-REKEY-INCOMPLETE` would close the *instance* and leave the axis unchecked, so the next re-key
+gets the same free pass; a green `410` proves nothing because its set differences were on the wrong axis;
+and `lint:authz-vectors` cannot substitute — it never touches a database, so it cannot see a
+catalog/manifest divergence at all.
+
+## FUP-AE4-ORACLE-APPROVAL-SCOPE-STATED-THREE-WAYS — ✅ CLOSED 2026-09-03 (Gate AE4 blocker batch, PO ruling)
+
+_Entry moved verbatim out of `follow-ups-open.md` at closure; no id may sit in both files._
+
+### 🟠 FUP-AE4-ORACLE-APPROVAL-SCOPE-STATED-THREE-WAYS — the regression oracle cites its own PO approval at 42, 33 and 43 rows
+
+**Filed:** 2026-09-02 (Gate AE4 QA review, finding F-BLOCK-3) · **Owner:** lead · **Severity:** high — the oracle is sound; what is unciteable is its **approval scope**, and an approval's scope is a fact that has to be written down once.
+**Closes when:** One sentence, PO-confirmed, naming the count approved, the date, and what the delta rows are — then every other statement of it deleted rather than corrected, so a fourth cannot appear.
+**Status:** ✅ resolved 2026-09-03 — PO ruled the 2026-09-01 approval covers **all 42**, with row 43 inside it as an amendment.
+
+Three statements of the same approval, in the same artifact family: the header says **"PO-APPROVED AT 42 ROWS"**;
+line 250 said the PO **"approved this matrix at 33 rows… nine rows of delta"**; the catalog holds **43**.
+Whichever is right, two are wrong, and a gate record citing "the PO-approved matrix" inherits the ambiguity.
+
+**How it was measured.** Read directly from the matrix document and cross-checked against
+`authz.permissions` on the live catalog during the Gate AE4 review.
+
+⛔ **What must NOT have been mistaken for closing it.** Reconciling the arithmetic (42 + 1, or 33 + 9 + 1)
+would not have been a ruling: it explains how the numbers *could* relate without establishing which one the
+PO actually approved.
+
+**The ruling.** The 2026-09-01 approval covers **all 42 rows**, and **row 43** (§ 12.8's operation split) is
+inside it **as an amendment**. The PO was asked directly, with all three statements and the catalog counts
+in front of them, and chose "all 42 approved, § 4 is stale" over "33 approved, 34–43 still outside".
+
+**What was done, in the shape this entry demanded.** The competing statement at § 4 of
+`../design/authz-ae43-staff-admin-permission-matrix.md` was **deleted, not corrected** — and § 4 now carries
+the reason it is absent: *the approval scope is stated in the header and nowhere else, because a second copy
+is how a fourth appears*. The header carries the ruling with its date and the F-BLOCK-3 provenance. § 4 keeps
+the **provenance** of rows 34–42 (which pass derived each), because that is not an approval claim and
+deleting it would lose a fact this entry never asked to lose.
+
+⚠ **What this does NOT establish.** That the 42 rows are individually *correct* — only that they are inside
+the approval. The oracle's soundness was never the thing in doubt here; its citeable scope was.

@@ -242,6 +242,23 @@ this paragraph's claim.
 
 ### 6.2 Site 1 — `commission.forms.edit`, four policies
 
+> ⛔ **THIS SECTION IS SCOPED TO FOUR POLICIES AND THE SITE COUNT IS NOW SIX. DO NOT RUN IT AS
+> WRITTEN.** `BUG-AE49-D6-REKEY-INCOMPLETE` (Gate AE4 review F-BLOCK-1) found this permission
+> re-keyed at 4 of the 7 sites its approved matrix names; the fix re-points
+> `form_item_options_staff_admin_write` and `form_item_validations_staff_admin_write` onto
+> `app.can_edit_commission_forms` as well. Everything below — the pre/post state, the
+> `alter policy` count, and **the verification's `tablename in (…)` list and its `EXPECT 4 rows`** —
+> was measured at head `20261003007300` and counts four.
+>
+> ⚠ **The failure mode is the one this section's own comment names, at a larger N:** run
+> unamended after the fix, it reverts four tables, reports a clean four-row census, and leaves
+> `form_item_options` and `form_item_validations` **enforcing the new authority alone**. The census
+> cannot see them because they are not in its `tablename` list.
+>
+> **Until this is extended: add both tables to the `tablename` list, expect SIX rows, and revert
+> both halves of each `FOR ALL`.** The full rewrite — worked example included — is **PO-deferred to
+> post-merge, ruled 2026-09-03**, tracked as `FUP-AE4-ROLLBACK-RUNBOOK-SIX-SCOPED-TO-FOUR`.
+
 **Pre-state (recorded).** Each of the four policies is `FOR ALL` PERMISSIVE to `authenticated`,
 with `USING` and `WITH CHECK` **identical to each other**, and gated on the two arms
 `app.is_staff_admin_of(<cid>)` and `app.is_tenancy_admin_of(<cid>)` — ⚠ **not in the same order at
