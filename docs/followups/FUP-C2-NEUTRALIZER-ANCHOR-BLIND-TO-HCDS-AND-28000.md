@@ -208,3 +208,83 @@ mention is `121_interviews.sql:381`, a `has_function_privilege` ACL assertion th
 and is *structurally* incapable of noticing a body mutation). ~60 doors in this suite carry that profile,
 so **any "which doors have coverage?" answer derived by grepping test files for a door name overcounts
 by that set.**
+
+---
+
+## ⭕ AMENDMENT 2026-09-04 — the fix LANDED, and the "residue: 0" above is FALSIFIED
+
+The anchor fix is in the harness as of commit `ca328539`. ⛔ **It is not the anchor recorded above,
+and the two honest caveats that entry raised both resolved against it.**
+
+### Caveat (1) — "confirmation with `regexp_replace` in Postgres is owed" — DISCHARGED, and it failed
+
+Re-measured in Postgres ARE against `pg_proc.prosrc`, over the 706 `prosecdef` non-trigger functions
+in `public`+`app` (the domain the harness actually runs in):
+
+| anchor | live `pg_proc` | `migrations/*.sql` |
+| --- | --- | --- |
+| the anchor in the harness before today | 793 / 813 — **15 functions short** | 2259 / 2302 |
+| the candidate validated above | 807 / 813 — **5 functions short** | 2294 / 2302 |
+| what landed (`ca328539`) | **813 / 813** — 0 short | **2302 / 2302** |
+
+0 overmatch, 0 regression, both corpora.
+
+### Caveat (2) — "residue is 0, so the `detail =`/`hint =` worry is empty in practice" — ⛔ FALSE
+
+**That worry was the residue.** The shape the validated candidate cannot match is exactly a trailing
+USING-option list after the errcode:
+
+```
+using errcode = 'X', detail = <expr>;
+```
+
+because the candidate terminates on `…'\s*;` and cannot cross the `, detail = …`. It occurs in five
+functions — `app.end_affiliation_impl`, `app.end_org_affiliation_impl`, `app.void_affiliation_impl`,
+`app.void_org_affiliation_impl`, `public.save_block_to_library` — worth **6** raises in the live
+catalog and **8** in migration text. The landed anchor keeps the message-literal consumption and
+replaces the terminator with `[^;]*;`.
+
+**⭐ How "residue: 0" was reached, because the mechanism is the reusable part.** The validation
+replayed both anchors over `supabase/migrations/*.sql` — reproduced today, exactly: 2259 and 2294.
+But its denominator was *"examined (the counter's population) = 2294"*, and 2294 **is** the
+candidate's own match count. A raise the candidate cannot match was never in the population it was
+scored against, so the residue it left could not appear. **A census whose parts do not sum**, one
+layer above the thing being measured — and it read as care, because it named two caveats and
+retracted its own overcount from 39 to 35.
+
+Two compounding factors worth naming separately:
+
+1. **The corpus was migration file text**, which CLAUDE.md and ADR 0078 call stale by design. The
+   live catalog is the only authority for a `prosrc` question, and it was reachable.
+2. **The `scratchpad/regex-fix-validation.txt` this entry cites does not exist**, nor does
+   `scratchpad/apply-anchor-fix.sh` cited at `docs/progress/c2-tier1.md:65-66`; there is no
+   `scratchpad/` directory in the tree and it is not gitignored. The surviving evidence is
+   `docs/reviews/c2-anchor-regex-fix-validation.txt`, whose 15 lines carry the numbers but not the
+   script — so **the denominator could not be audited from the artifact**, only re-derived. A
+   validation whose script is gone is a claim, not a measurement.
+
+### What the fix bought, and what it did not
+
+**All six affected Tier-1 enforcers now mutate cleanly** — 0 `MUTATION DID NOT LAND`, 0 `UNMUTABLE`,
+worklist re-derived at 171 rows with `sum(nraise) = sum(nanchored) = 460`. Subset sweep verdicts:
+`set_referral_patient` **COVERED** (the Rule 12 PHI door this entry flagged as having no verdict),
+`save_block_to_library` **COVERED**, `log_document_previa` **COVERED**,
+`delete_ad_hoc_case_narrative` **COVERED**.
+
+⛔ **But `set_professional_link_state` and `mint_printed_document` landed their mutation and then
+ABORTED the suite**, so the harness still refuses them a verdict. **The fix converts part of this
+class into `FUP-C2-SUITE-ABORT-ERROR-CLASS` rather than into verdicts** — that population grows
+**16 → 18**, and both new rows are PHI-lane doors. Tally: **COVERED 113 · BLIND 40 · ERROR 18 = 171**.
+
+This entry's *anchor-mechanism* arm is therefore **discharged**. Its second arm — that the anchor
+also sweeps in non-authz state guards — is not an anchor defect and is answered by ADR 0187 D2's
+property labels, which close with C2. Its `HCDS*`/`28000` arm was already amended by ADR 0187 C3: all
+8 of those functions pass the `:153` gate-fn filter, so none is excluded by it, and the 4 absent from
+the 171 are absent for a Tier-1 **membership** reason — measured 2026-09-04 and now discharged, since
+their gate-aware closure reaches no PHI-marked relation (`dsr_requests` is hash-only and says so in
+its own comment).
+
+⚠ **The `:153` gate-fn filter was deliberately NOT changed.** It is the *population*, not the anchor:
+moving it changes who is in the 171 and invalidates every verdict recorded against that denominator.
+Measured non-binding — **0** functions in the whole `public`+`app` catalog are admitted by it yet
+unmutable by the new anchor.
