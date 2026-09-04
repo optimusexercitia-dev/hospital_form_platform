@@ -42,15 +42,23 @@ open:
       **`D` site with no write policy**, and `form_item_validations`' policy is an **unreachable
       backstop** (`FUP-VALIDATIONS-WRITE-PATH-IS-LAYER-1`); row 1 corrected (F-REC-4). Equivalence
       proven over 6 204 cells, 0 disagreements, discrimination control firing exactly 5
-- [ ] "full §6 + e2e:prod" — no further `e2e:prod` run since the single 2026-09-02 run; still owed
-      at Gate AE4 (QA review MAJOR-3, unaddressed) (docs/reviews/authz-ae4-if9-statement-scoped-review.md
-      §7 MAJOR-3)
+- [x] "full §6 + e2e:prod" — **GATE GREEN 2026-09-03** against the re-key (`e3f986b1`): 1 256 passed
+      · 0 failed · 0 infra · **6 flaky** · 0 did-not-run, 21 batches, `E2E_PROD_EXIT=0` read bare.
+      6 flaky is well under the documented ~18–27 baseline, so no new flake class. IA-F9 MAJOR-3
+      discharged — and it asked only for a `SPECS=`-scoped subset, so the full suite exceeds it.
+      ⚠ **Not the FINAL pre-approval run**: C2 will land migrations, and a second is owed after it
 - [ ] "QA review" — findings addressed 2026-09-03, **verdicts not yet re-signed**. Broad Gate AE4
       review: F-BLOCK-1 fixed, F-BLOCK-3 closed by PO ruling, F-BLOCK-2 items 1 + 3 discharged
-      (item 2 = C2, still open), F-MAJOR-1 confirmed at depth 2 on BOTH arms — remediation (a)
-      recommended, not yet applied. IA-F9 review: MED-1/MAJOR-1/2a/2b/MED-2 all either already
-      fixed in code by `9a4bbd22` or now corrected in spec. ⚠ **That review is STALE against
-      `main`** — a re-review must verify and sign, not re-file (docs/reviews/authz-ae4-gate-review.md)
+      (item 2 = C2, still open), F-MAJOR-1 **remediation (a) APPLIED** (`1d913daf`) — § 6.2 is now
+      captioned depth-1 and provenance renamed `measured-depth1-at-sites-and-authorizer`, the zero
+      disclosed as a **search horizon, not an absence**. ⛔ **The review's "depth 2" is WRONG and
+      was propagated here**: re-derived on the catalog, `assignment_facts` sits at depth **4** on
+      all three rows and `org.professionals.read` reaches `respondent_exclusion` at depth **5** —
+      *layer* 1 was collapsed into *search depth* by paraphrase. It matters because it steers (b)
+      toward "raise the search one hop", which catches one path and leaves five unmeasured. IA-F9
+      review: MED-1/MAJOR-1/2a/2b/MED-2/MAJOR-5 all either already fixed in code by `9a4bbd22` or
+      now discharged. ⚠ **That review is STALE against `main`** — a re-review must verify and sign,
+      not re-file (docs/reviews/authz-ae4-gate-review.md)
 - [ ] "PO approval = the pilot-gate authz milestone" — ⛔ **PO ruled 2026-09-03: HOLD until C2
       closes.** Not sought, deliberately; nothing is re-scoped and ADR 0162's "closes before PO
       approval" clause stands (docs/plans/authz-evolution.md:1068)
@@ -73,9 +81,8 @@ Substitute `staff_admin` end-to-end against the `authz` catalog and make 3 of 43
 
 ### In progress
 
-- `e2e:prod` — running 2026-09-03 against the re-key. ⚠ It cannot be the FINAL pre-approval run: C2 will land more migrations, so a second is owed after C2 closes.
-- Formal QA **re-review** — the last open step of Gate AE4's own list. ⚠ Both reviews are now **stale against `main`**: most IA-F9 findings were already fixed by `9a4bbd22` and the rest are corrected. The re-review verifies and signs; re-filing them would be wrong.
-- F-MAJOR-1 remediation **(a)** — narrow `410` § 6.2's caption and provenance to depth-1. Confirmed at depth 2 on BOTH arms (`is_active` inside `assignment_facts` and inside `is_tenancy_admin_of_for`). ⛔ (b), the transitive form, must fix M7's zero-iteration loop in the same change or it buys nothing.
+- Formal QA **re-review** — the last open step of Gate AE4's own list, and the only one left before C2. ⚠ Both reviews are now **stale against `main`**: most IA-F9 findings were already fixed by `9a4bbd22` and the rest are corrected. The re-review verifies and signs; re-filing them would be wrong.
+- F-MAJOR-1 remediation **(a)** and IA-F9 MAJOR-5's door-sweep re-run — both with `backend` 2026-09-03. Neither writes a migration, so the E2E green above survives them.
 
 ### Next
 
