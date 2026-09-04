@@ -748,3 +748,110 @@ statement N says nothing about statement N+k. That loop was closed **by measurem
 doors** — `assume_role` (COVERED) and `set_professional_link_state` (clean FAIL, shape 19). For the
 other **16** the claim "ERROR → COVERED" is still a **prediction**. ⛔ A row that does not come back
 COVERED in Phase C is a finding, not a retry.
+
+#### Phase B2a — 18 keystones written, **18/18 COVERED**
+
+Clusters 9, 6, 1, 3, 4. Commit `400b6d2c` (the 7 test files; the allowlist deletions ride with
+batch B). Suite baseline **8788 → 8819, PASS** (94 s; a second fresh run gave the identical shape).
+
+Every one of the 18 came back **COVERED** — *"a keystone asserts through this guard (red under
+mutation, green restored)"*. ⛔ Nothing stayed BLIND, so no door in this batch needs a mechanism
+read. Verdicts, from `$WORK/c2-command-door-findings.SUBSET.md` (ADR 0153 — the committed baseline
+was cksum-verified untouched throughout; **Phase C owes the merge of these rows**):
+
+`withdraw_referral` · `update_event` · `unassign_referral_internal_note` · `unassign_narrative` ·
+`transfer_event_custody` · `start_correction_draft` · `set_event_patient` ·
+`save_correction_draft_body` · `review_correction` · `resubmit_correction` · `reopen_triage` ·
+`reopen_referral` · `reject_correction` · `conclude_referral` · `cancel_event` · `assign_narrative` ·
+`approve_correction` · `add_reserved_item` — all **COVERED**.
+
+**The +31 reconciles exactly: 20 deny arms + 5 new effect assertions + 1 new allow leg + 5 PRE
+fixture arms**, counted from the diff per file (2/5/8/6/1/8/1) with every `plan(N)` matching its
+file's real count. **No keystone landed deny-only**, so `ARM=floor` has a recorded call for all 18 —
+which matters because a deny-only keystone leaves a door at 0 recorded calls and the floor arm still
+reds. Two ADR 0187 D2 labels, on exactly the two class-B arms (`cancel_event`'s `HC043` **state**,
+`conclude_referral`'s `HC075` **validation**); the 16 A1/A2 arms carry none, where a label would be
+wrong.
+
+On the two doors whose allowlist lines were retired: **`cancel_event`** was the only door in the
+batch with *zero* successful calls anywhere in the suite, so it got the full triple — deny `HC044` +
+deny `HC043` + a **new** `lives_ok` allow leg (`140:427`) + a **new** `is(status='cancelled')` effect
+(`140:430`) — and that new allow leg is what makes deleting its line legal. **`conclude_referral`**
+already had three successful calls with standing effect assertions, so its line **was stale before
+anyone touched it** (specs §6.5 suspected exactly this): deleting it retires a dead entry rather than
+earning a new one.
+
+⚠ **One honest caveat carried forward: `set_event_patient`'s effect assertion is INDIRECT.**
+`event_patient` has direct `SELECT` revoked from `authenticated` (`140:283-300`), so no test can read
+the written row back. Its allow leg is proven at `140:317-325`, which asserts the
+`event_patient.updated` **audit row** exists and is PHI-free — that subquery returns NULL and fails
+if the door did nothing, so it is a genuine effect assertion, reached via Architecture Rule 11 rather
+than a row read.
+
+**Five things the specs got wrong, found by applying them:**
+
+1. ⭐ **§5.6's persona is unusable — the file promotes it.** `237:49-55` deliberately promotes both
+   candidate principals to `staff_admin` (its own PRE arms assert this). The prescribed
+   `claims_for(st_x, false, 'staff')` would have raised `HC0F1`, or worse produced a **hat-driven**
+   denial — `app.has_role`'s trailing hat clause failing for a principal who *is* `staff_admin` —
+   which reads as a passing authorization keystone and proves nothing. A genuine plain member was
+   added instead, with its PRE arm measured through the 3-arg `*_for` predicates whose hat condition
+   short-circuits when `p_user_id <> auth.uid()`, so the denial is attributable to the missing role.
+2. ⚠ **§5.6's message does not discriminate, and §3.3 over-generalises.** Both narrative doors raise
+   `42501` · *sem permissão*, and **94 `public`/`app` functions raise that exact pair** (measured on
+   the live catalog). The batch's other 16 pins are globally unique (code, message) pairs; these two
+   are not. Nothing in *their* call path re-raises it, so the keystones are sound — but §3.3's *"the
+   message is what distinguishes two worklist rows that share a code"* has **no purchase here**, and
+   the PRE arm is what gives these two a subject.
+3. **§5.1 cannot work for `save_correction_draft_body`.** It refuses a *phase* request at an
+   **unanchored** `check_violation` (*esta solicitação não é de narrativa*) whenever
+   `case_narrative_id is null` — **before** `HC0M1`. The prescribed r9-shaped fixture would have died
+   on a code the mutation cannot touch and measured nothing. It needs the narrative request.
+4. **Line numbers and plans drifted**, exactly as the specs' own §0 predicted: `150` is `plan(220)`
+   (spec: 218), `141` is `plan(45)` (spec: 44), `264` ends at K13 not "K12 ~L526".
+5. **A fourth instance of the downstream-enforcer trap.** Under mutation `start_correction_draft`
+   caught `42501` · *você não pode corrigir esta fase* from **`guard_supersession_coherent`**, further
+   down the write path — the same geometry as `reopen_interview`/`app.guard_interview_status`. The
+   trap is not confined to interviews, and a code-only pin there would have had no subject.
+
+**⭐ The hazard that dictated placement in three files → LEARN-081.** Under mutation the door **does
+not refuse — it succeeds and performs its effect**, so a deny arm is a *live fixture mutation* in the
+mutated run. Placed upstream of a bare (unwrapped) call on the same object, it consumes the state
+that call needs; the call raises, the file **aborts**, the suite shape changes, and the harness scores
+**`ERROR`, not `COVERED`** — a correct keystone whose measurement is thrown away. **Rule: place a
+deny arm downstream of every bare lifecycle call on the object it targets, or point it at a dedicated
+fixture nothing else reads.** It bit in `150` (a mutated `conclude_referral` would have concluded the
+referral the bare call at `150:885` needs), `141` (a `reopen_triage` arm before `141:281` would have
+consumed the `triaged` state), and `140` (a dedicated two-row fixture was hand-rolled so a mutated
+`transfer_event_custody` or `cancel_event` could not move `e1` out from under the file's state
+machine). ⭐ This is the **same failure class Phase A spent itself eliminating, arriving from the
+opposite direction**: Phase A removed 25 pre-existing aborts; a careless keystone creates new ones.
+
+**Incident — the not-killable rule was broken, and the harness could not see it → LEARN-082 and
+`FUP-C2-TIER1-INFLIGHT-SENTINEL-ERASED-BY-ITS-OWN-RESTORE`.** The first sweep was launched under the
+Bash tool's 10-minute maximum timeout on a ~60-minute run and was killed at the deadline, stranding
+`public.cancel_event` with **both anchored raises rewritten to `null;`** — its `HC044` custody gate
+open for roughly four minutes. ⚠ **Local development database only**; no remote was touched and the
+ADR 0153 committed-baseline guard held throughout. Restored by `supabase db reset --local` and
+re-verified against the catalog: `cancel_event` back to 2 anchored raises, **171/171** enforcers at
+full baseline count, 0 degenerate non-SELECT policies. The killed run's three verdicts were
+**discarded** — measured correctly, but the rule says discard — and the whole sweep re-run from a
+clean DB as a detached process with an isolated `WORK`. The verdicts above are that re-run's.
+
+⛔ **The second finding is the durable one: neither of the harness's crash-safety mechanisms can see
+this.** `restore_inflight` (`:88-93`) truncates its sentinel **unconditionally**, so when the
+restoring `psql` dies in the same process group the restore does not happen *and* the sentinel that
+would have told the next run to redo it is erased in the same breath — confirmed by the file
+timestamps (`INFLIGHT.sql.body` holding the real 1194-byte body at 09:38, `INFLIGHT.sql` emptied at
+09:39). And the `DEGEN` preflight (`:101-106`) matches only a whole body replaced by a constant — the
+*boolean-gate* audits' shape — which a `raise → null;` rewrite never produces. The traps at `:94-95`
+cover `EXIT INT TERM HUP`; a `SIGKILL` or job-tree teardown runs none of them. Detection was possible
+only by comparing per-enforcer anchored-raise counts against `worklist.tsv`, which found it
+immediately — and is the proposed second preflight arm.
+
+**Handoff to batch B: every remaining owed allowlist line has SHIFTED by 2.** Re-derived after the
+two deletions: `add_capa_action_evidence` **47** · `cancel_session` **73** · `nsp_org_capa_rollup`
+**97** · `set_interview_interviewer_participant` **125** · `set_interview_subject_participant` **126**
+· `update_interview` **138** · `update_interview_subject` **140** · `update_session` **145**. Specs
+§6.5's numbers are now wrong for seven of the eight, and they shift again with each deletion — match
+on the **entry text**, never on a line number.
