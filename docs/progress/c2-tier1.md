@@ -855,3 +855,92 @@ two deletions: `add_capa_action_evidence` **47** · `cancel_session` **73** · `
 · `update_interview` **138** · `update_interview_subject` **140** · `update_session` **145**. Specs
 §6.5's numbers are now wrong for seven of the eight, and they shift again with each deletion — match
 on the **entry text**, never on a line number.
+
+#### Phase B2b — the remaining 21 keystones, **21/21 COVERED**. All 39 are now written and measured.
+
+Clusters 2, 5, 7, 8. Commit `2cefae8e` (7 test files + all 10 allowlist deletions). Sweep verbatim:
+
+```
+=== DONE — swept 21 of 171 derived enforcer(s) ===
+    COVERED=21  BLIND=0  ERROR=0   (skipped by CASES: 150)
+```
+
+82 minutes, detached outside the tool's job tree with its own `WORK` and `C2_INFLIGHT`, **not
+killed**. Post-run catalog: 0 degenerate bodies, all 21 doors carrying their anchored raises again,
+INFLIGHT sentinel 0 bytes. Suite **8819 → 8866, `Files=262`, PASS** on a fresh reset (86 s), and the
+per-file assertion counts reconcile **exactly**: 121 +18 · 228 +8 · 142 +5 · 143 +7 · 189 +4 · 176 +1
+· 258 +4 = **+47**.
+
+**14 ADR 0187 D2 property labels across 13 class-B doors** — 9 `lifecycle`, 5 `validation`;
+`submit_ethics_appeal` carries one of each on its two arms. The 8 A1/A2 doors carry none, where a
+label would be wrong. ⇒ With batch A's 2, **16 labels stand across the 39**, and closure item 3 is
+complete.
+
+**All 10 allowlist entries retired under one commit.** Batch A's two deletions were deliberately held
+back from `400b6d2c` so the whole retirement lands together; the agent caught that they were sitting
+in the working tree owned by no commit, which was correct and worth catching.
+
+**Five pins are NOT globally unique (code, message) pairs — measured on the live catalog, after the
+sweep** (a mid-sweep `prosrc` scan would read a neutralized body and undercount):
+
+| pin | bodies carrying it | what supplies the subject |
+| --- | ---: | --- |
+| `HC048` · *você não pode editar…* | 3 | the CALL — `add_rca_member` reads its predicates directly and delegates to no other `HC048` raiser |
+| `HC0J0` · *ação inválida para o status…* | 5 | `create_case_decision`'s closure contains none of the other four |
+| `HC039` · *sem permissão para editar…* | 5 | the call + the object each arm targets; it **does** discriminate against the delegate `app.assert_interview_writable`, whose `HC039` string differs — the confusion that actually mattered |
+| `42501` · *…pode ver este relatório* | 2 | the call — `nsp_org_capa_rollup` and `nsp_org_event_rollup` share the identical string |
+| `HC0B1` / `HC0B2` | 2 each | the call — door plus its `create`/`add` sibling |
+
+⭐ In every case **the sweep is the independent check**: mutating the door *alone* turned the full
+suite red, which it could not do if a sibling were supplying the raise. Batch A's `42501` ·
+*sem permissão* = **94** was re-measured and confirmed.
+
+**Nine more things the specs got wrong.** The two that change what was believed:
+
+1. ⛔ **§3.1's predicted resolution is FALSIFIED, and the real mechanism is sharper.** The spec
+   predicted the `258:89` comment mis-attributes `HC0J0`. The catalog says the comment is **correct**
+   — `create_case_decision` *does* call `app.assert_ethics_typed`. The actual mechanism is that
+   `create_case_decision` **also raises `HC0J0` inline two lines later** on the same non-ethics
+   fixture, and the pin at `:92` passes `null` for the message, so neutralizing the delegate is
+   **silently absorbed by the inline raise**. Callers of `assert_ethics_typed` are exactly
+   `add_ethics_allegation`, `create_case_decision`, `decide_admissibility`,
+   `issue_ethics_notification`, `submit_ethics_appeal` — `schedule_ethics_hearing` and
+   `target_case_response` never call it, which is the part the spec got right.
+2. ⛔ **§3.2 resolves to a THIRD branch the spec never enumerated**, confirming Phase A: under
+   mutation `reopen_interview` reaches its UPDATE and **`app.guard_interview_status`, a trigger**,
+   refuses `cancelled → in_progress` with the *same* `HC038` the null-message pin accepts. So
+   `app.assert_interview_writable` raises `HC039`, branch (a) is false, and **`cancel_interview`
+   needs no D3 ruling**.
+
+And the operational ones: §5.2's claim that 228's subject/interviewer rows "are all standing" is
+false — the file contains **zero** `add_interview_subject`/`add_interview_interviewer` calls, so both
+fixtures had to be built; `update_interview_subject`'s prescribed host was wrong for the same reason
+and moved to 121; `add_capa_action_evidence`'s "BUILD on two tables" over-states the work but
+**misses the real precondition** — `app.guard_capa_child_lock` refuses evidence writes on a completed
+plan regardless of the feature flag, and reopening the plan is both the fix *and*
+`reopen_capa_plan`'s allow leg; §5.7's message claim is backwards (the two rollups share the
+identical string, the roster's differs); and plan lines drifted again (143 is `plan(39)`, 121 is
+`plan(61)`).
+
+⭐ **§5.2's discriminator does not transfer, and the fix was to change the CALLER.** `iv` is
+`legal_privileged`, so the prescribed principal reads **zero** `interview_sessions` under RLS: the
+`record_session_attendance` arm, written the way the file's own sibling writes it, refused with
+`P0002` *sessão não encontrada* — an **earlier guard** — leaving `HC039` untested. Observed live as a
+red test, then fixed by resolving the session id as owner. ⛔ The expectation was never touched.
+
+**Two defects introduced and repaired, both self-caught:**
+
+1. Multi-line `plan()` comments shifted every line below them in six files, **rotting the line
+   citations inside the agent's own descriptions** and any pre-existing reference. Collapsed back to
+   bare `select plan(N);` after the sweep, with every citation re-verified to resolve.
+2. Three claims written into comments were **falsified by the agent's own uniqueness scan** — *"only
+   the MESSAGE gives an arm a subject"*, *"differ only in the message tail"*, and the `HC048`
+   attribution. All three corrected in place with the measurement that falsified them.
+
+Both repairs were comment-only — no assertion, plan or shape change — so the sweep measurement
+stands, re-verified by the fresh reset and full suite above.
+
+⭐ **Method note worth adopting: the SUITE-scoped pre-flight.** The same harness pointed at just a
+keystone's host file (`SUITE=`) returned the identical 21/21 COVERED in **~4 minutes** against the
+full sweep's **82**. It caught nothing here only because the design work was done first — as a cheap
+red-first screen before committing an hour of wall clock, it should be standard.
