@@ -944,3 +944,125 @@ stands, re-verified by the fresh reset and full suite above.
 keystone's host file (`SUITE=`) returned the identical 21/21 COVERED in **~4 minutes** against the
 full sweep's **82**. It caught nothing here only because the design work was done first — as a cheap
 red-first screen before committing an hour of wall clock, it should be standard.
+
+#### Phase C+D and the residual aborts — **C2 CLOSES. 170 COVERED · 1 BLIND · 0 ERROR = 171.**
+
+Commits `f33d9ba7` (the last 4 abort sites + the merged findings). Suite **8876, PASS**, fresh reset,
+86 s. The findings file was merged **row by row by signature match, never copied** (ADR 0153): 171
+data rows intact, baseline cksum verified unchanged by the harness's own guard.
+
+**All three of ADR 0187 D1's closure conditions are discharged by measurement, not by argument:**
+
+| item | evidence |
+| --- | --- |
+| the anchor fix | `ca328539` — 813/813 in Postgres ARE, 0 overmatch, 0 regression; blast radius proven as **replace-output inequality** over 1081 functions, not a count comparison |
+| the ERROR class re-swept | 25 → **0**. Every row carries a scored verdict |
+| the 39 keystones | **39/39 COVERED**, 16 ADR 0187 D2 property labels across them |
+
+Sweep arithmetic, each step reconciling to 171: 106/40/25 → *(tail-drift re-measured)* 109/40/22 →
+*(anchor fix)* 113/40/18 → *(B1's 25 statement edits)* 131/40/0 → *(batch A)* 149/22/0 → *(batch B)*
+170/1/0. ⚠ Phase C measured **166/1/4** first — the target was **not** met on that pass, and the
+four-row shortfall was a real finding, not a rounding error.
+
+**The four ERROR rows were one defect, and it was Phase B1's.** B1 fixed the **first** aborting
+statement in each file; a **later, independent** statement aborted under the same mutation, so every
+delta *shrank* rather than vanishing (52→39, 71→59, 12→8, 2→1) — the abort moved down. This is B1's
+own recorded correction 6 left unfixed at a second site. ⛔ Two of the four diagnoses handed to the
+fix pass were **wrong on contact** (`312` was a bare `insert into public.responses` colliding on
+`responses_one_draft_per_user_idx`, not §10's `printed_documents` inserts; `305`'s "prime suspect"
+bare CTAS was harmless), and **a third site appeared in `274`** — fixing an abort moves it down until
+the whole *run* of statements is wrapped.
+
+⭐ **A new failure shape, measured and registered (LEARN-083,
+`FUP-C2-TIER1-VALUE-ASSERTIONS-ABORT-ON-AN-INLINE-RAISE`).** A pgTAP **value** assertion
+(`is`/`isnt`/`ok`/`cmp_ok`) evaluates its subject expression **before** the assertion is entered, so
+a door raising inside it **aborts the file instead of failing the test** — the harness reads a shape
+change and scores `ERROR`, so the verdict is *lost rather than earned*. `throws_ok`/`lives_ok` are
+immune, taking the statement as text and `EXECUTE`-ing it inside a handler. It was hit **four times
+in one day**, and `305` had already documented two *other* variants in its own comments. Census over
+the suite: **6216 value-assertion sites scanned, 296 latent across 60 of 262 files**, by a
+balanced-paren scan honouring dollar-quotes — an **upper** bound on latent aborts and a **lower**
+bound where a door is reached through a helper outside the 265-name population.
+
+**The four arms, on the final tree from a fresh reset, each named with its DOMAIN (ADR 0079):**
+
+- **`ARM=census`** — no unswept newcomer *within the prosecdef-bool / set-returning / INVOKER-plpgsql
+  / RLS-policy domain*. **HOLDS**, exit 0. ⚠ That domain **explicitly excludes** the C2 population,
+  so this arm says nothing about command doors — which is why C2 exists.
+- **`ARM=floor`** — every never-called *authenticated-reachable `public` SECURITY DEFINER door* is
+  allowlisted and every allowlist entry resolves live. **HOLDS**, exit 0. ⭐ The **10 deleted
+  allowlist entries are earned**: each of the ten has ≥ 1 recorded call in `pg_stat_user_functions`.
+  ⚠ **Eight sit at exactly one call — zero slack**, so losing any single allow leg reds this arm.
+- **`ARM=hat`** — ACT hat-blind sweep; 4 findings, all reasoned-allowlisted. **HOLDS**, exit 0.
+- **`FROMFINDINGS=1 ARM=wrapper`** — *invoker-wrapper* BLIND set of 41 ⊆ allowlist. **HOLDS**, exit 0.
+
+No BLIND block; no `ERROR`.
+
+**The suite-shape assumption, stated rather than buried.** The 106 pre-existing COVERED rows were not
+re-swept (a full 171-enforcer run costs ~8 h at the measured 87 s/run). The lead's argument was that
+nothing deleted an assertion, so no red mutated run can have gone green — **verified, not assumed**:
+the keystone commits' only non-comment, non-`plan()` deletions are the 10 allowlist lines, and no
+`.sql` assertion was removed or weakened anywhere. ⛔ **But that argument covers only the PASS/FAIL
+axis.** COVERED also requires *shape stability*, and shape is **not** monotone under adding tests: a
+new arm that raises under some *other* door's mutation aborts its file and turns that door's COVERED
+into ERROR (LEARN-081, which bit three times inside B2a). That direction is **conservative** — it can
+only downgrade a real verdict to unmeasurable, never manufacture a false COVERED — so none of the 106
+can be a false positive; at worst the file overstates how many carry a live verdict. Positive
+evidence the assumption holds: all 4 anchor rows were COVERED at 8764 and again at 8866 across all of
+B1 and all 39 keystones; `assume_role` COVERED at 8788 and again at 8866; and the four residual
+aborts all lived in files **untouched** by the keystone commits.
+
+---
+
+### ⛔ The disclosure block — required verbatim by ADR 0187 D1 in every gate record citing this sweep
+
+**1. Tier 2 — STILL UNCOVERED.** ⛔ **Tier 2's 190 doors stay deferred by ADR 0171 and are NOT
+cleared.** Nothing in this work touched them.
+
+**2. The `HCDS*` / `28000` lane — ⭕ DISCHARGED, and ADR 0184's diagnosis of it was wrong.** 0184
+recorded them as *"structurally absent from the worklist … because the gate-fn filter uses the same
+anchor"*. Measured: it is **8 functions**, not "60 raises + 6"; **all 8 raise an anchored `42501`**,
+so **none is excluded by the `:153` filter** (ADR 0187 C3). Four are in the 171 and now all COVERED
+(`create_dsr_request`, `complete_dsr_task`, `assume_role`, `adjudicate_dsr_request`). The other four
+are **correctly outside Tier 1**, and that is now a **measurement, not the ruling 0187 C3 said was
+owed**: their gate-aware closure reaches no PHI-marked relation, because `dsr_requests` is hash-only
+by design and says so in its own table comment — an explicitly *negative*-polarity PHI statement.
+
+**3. The ERROR class — ⭕ CLOSED.** 0184 estimated "~10 enforcers"; 0187 C2 corrected it to 22; it is
+now **0**.
+
+**4. ⭕ A FOURTH population, not in ADR 0184's three — UNCOVERED.** A **trigger** function has no call
+edge from the door whose write fires it, so it can never enter the worklist's call-edge closure:
+`app.guard_interview_status` is in **0 of the 171** while being the enforcer that actually refuses
+`reopen_interview` on the fixture the suite uses. A door whose refusal is delivered by a trigger
+reads BLIND for a reason the findings file cannot express — a *correct* BLIND that is not actionable
+as one. `FUP-C2-TIER1-TRIGGER-ENFORCERS-OUT-OF-SWEEP-DOMAIN`.
+
+**The anti-promotion sentence (ADR 0184 point 5, operationalised by 0187 D2).** A COVERED verdict
+from this sweep means **`HC0*`-coded-guard coverage, not authorization coverage**, except where the
+row's keystone carries an explicit property label. The 39 keystoned doors split **A1 12 / A2 13 /
+B 14** by the caller-input rule; the **14 class-B doors' COVERED is state / lifecycle / validation
+coverage** and says so in its test-name string. ⛔ The **106 pre-existing COVERED rows are not
+classified** — 0184 point 5 stands for them unchanged.
+
+**The single remaining BLIND, named so it is not read as an oversight.** `app.print_source_series`
+stays **BLIND by ruling** (ADR 0187 D3): its only anchored raise `HC0H4` fires at supersession-chain
+depth > 1000, a shape its own body comment records as unconstructible under
+`guard_supersession_coherent` plus the one-successor unique index. ⛔ Recorded so nobody later
+attempts a 1001-row fixture.
+
+---
+
+### What C2 discharges, and what it does not
+
+**Discharges:** Critical FUP C2 (`FUP-AUTHZ-COMMAND-DOOR-UNSWEPT`), and with it Gate AE4's acceptance
+clause *"the C2 subset closed (pilot cutline)"* (`docs/plans/authz-evolution.md:1067`) — the only
+external precondition gating on C2 in the plan or the phase docs.
+
+**Does not discharge, and must not be read as doing so:** Tier 2 (190 doors, deferred); the four
+follow-ups this work left open — `FUP-C2-TIER1-TRIGGER-ENFORCERS-OUT-OF-SWEEP-DOMAIN`,
+`FUP-C2-TIER1-INFLIGHT-SENTINEL-ERASED-BY-ITS-OWN-RESTORE`,
+`FUP-C2-TIER1-VALUE-ASSERTIONS-ABORT-ON-AN-INLINE-RAISE`, and
+`FUP-C2-NEUTRALIZER-TAIL-DRIFT-INVALIDATES-LATE-VERDICTS` (its harness defect — a baseline captured
+once at the top of a long run — is untouched, even though its three rows now carry full-scale
+verdicts); and **PO approval of Gate AE4 itself**, which is a separate decision.

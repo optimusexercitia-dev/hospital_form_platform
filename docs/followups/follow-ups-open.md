@@ -1321,6 +1321,13 @@ same commit, or not at all.**
 **Status:** open — ⚠ local dev DB only, no remote touched, and the ADR 0153 baseline guard held throughout. `public.cancel_event` sat with both anchored raises at `null;` for ~4 min. ⛔ The trap at `:94-95` covers `EXIT INT TERM HUP` — a `SIGKILL` or job-tree teardown runs no trap at all
 **Body:** [FUP-C2-TIER1-INFLIGHT-SENTINEL-ERASED-BY-ITS-OWN-RESTORE.md](FUP-C2-TIER1-INFLIGHT-SENTINEL-ERASED-BY-ITS-OWN-RESTORE.md)
 
+### 🟠 FUP-C2-TIER1-VALUE-ASSERTIONS-ABORT-ON-AN-INLINE-RAISE — a value assertion evaluates its subject before it is entered, so a raising door aborts the file
+
+**Filed:** 2026-09-04 (C2 closure — found while fixing the last 4 residual abort sites) · **Owner:** backend · **Severity:** high — **296 measured latent sites**, each invisible to a green suite and surfacing only as a lost verdict (`ERROR`) on some future sweep, never as a wrong answer
+**Closes when:** the 296 are triaged and the reachable subset converted to capture-then-assert, **or** a lint pass flags a value assertion whose first argument calls a door in the derived population — the same balanced-paren scan the census already implements. ⛔ Not closed by "no sweep has hit one yet"
+**Status:** open — `is`/`isnt`/`ok`/`cmp_ok` evaluate the subject **before** the assertion is entered, so a door raising there aborts rather than fails; `throws_ok`/`lives_ok` are immune because they `EXECUTE` the statement inside a handler. Hit **4 times in one day**. Measured: 6216 sites scanned, **296** match across 60 of 262 files. LEARN-083
+**Body:** [FUP-C2-TIER1-VALUE-ASSERTIONS-ABORT-ON-AN-INLINE-RAISE.md](FUP-C2-TIER1-VALUE-ASSERTIONS-ABORT-ON-AN-INLINE-RAISE.md)
+
 ### 🟠 FUP-DOOR-SWEEP-DOMAIN-MISSES-THE-AUTHZ-RESOLVERS — two `prosecdef` boolean authorization resolvers are in NEITHER sweep arm's domain, so neither arm can ever select them
 
 **Filed:** 2026-09-03 (AE4 `authz.scope_reaches` fix increment, 2026-09-02 — ADR [0180](../decisions/0180-scope-reaches-commission-org-ascent-plan-fix.md) · **Owner:** lead + backend · **Severity:** high — a standing gate has a hole in its domain, on the
