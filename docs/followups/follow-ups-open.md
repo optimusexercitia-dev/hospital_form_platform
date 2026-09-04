@@ -1314,6 +1314,13 @@ same commit, or not at all.**
 **Status:** open — found because `121:292-294` pins `HC038` on `reopen_interview`'s only anchored raise and the door still came back BLIND; the `HC038` observed is raised by `app.guard_interview_status`, a **trigger** on `case_interviews`. It already changed two Phase B specs. ADR 0184 point 4 names three uncovered populations a gate record must state; **this is a fourth**
 **Body:** [FUP-C2-TIER1-TRIGGER-ENFORCERS-OUT-OF-SWEEP-DOMAIN.md](FUP-C2-TIER1-TRIGGER-ENFORCERS-OUT-OF-SWEEP-DOMAIN.md)
 
+### 🔴 FUP-C2-TIER1-INFLIGHT-SENTINEL-ERASED-BY-ITS-OWN-RESTORE — a killed run erases the sentinel its own restore needed, and DEGEN cannot see the strand
+
+**Filed:** 2026-09-04 (C2 Phase B2a — after a killed sweep stranded a live authorization gate) · **Owner:** backend · **Severity:** critical — both of this harness's crash-safety mechanisms fail for **its own mutation shape**, so a killed run can leave a door open **and leave no trace**. Realised, not hypothetical
+**Closes when:** `restore_inflight` verifies the restore before clearing the sentinel and leaves it intact on failure; the `DEGEN` preflight gains an arm that sees an anchored-raise count **below** the worklist's recorded `nraise`; and both are **proven able to fire** by a deliberate strand
+**Status:** open — ⚠ local dev DB only, no remote touched, and the ADR 0153 baseline guard held throughout. `public.cancel_event` sat with both anchored raises at `null;` for ~4 min. ⛔ The trap at `:94-95` covers `EXIT INT TERM HUP` — a `SIGKILL` or job-tree teardown runs no trap at all
+**Body:** [FUP-C2-TIER1-INFLIGHT-SENTINEL-ERASED-BY-ITS-OWN-RESTORE.md](FUP-C2-TIER1-INFLIGHT-SENTINEL-ERASED-BY-ITS-OWN-RESTORE.md)
+
 ### 🟠 FUP-DOOR-SWEEP-DOMAIN-MISSES-THE-AUTHZ-RESOLVERS — two `prosecdef` boolean authorization resolvers are in NEITHER sweep arm's domain, so neither arm can ever select them
 
 **Filed:** 2026-09-03 (AE4 `authz.scope_reaches` fix increment, 2026-09-02 — ADR [0180](../decisions/0180-scope-reaches-commission-org-ascent-plan-fix.md) · **Owner:** lead + backend · **Severity:** high — a standing gate has a hole in its domain, on the
