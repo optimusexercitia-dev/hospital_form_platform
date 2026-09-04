@@ -162,7 +162,19 @@ export const RATCHETS = {
   longHeadings: 97, // FOLLOWUPS headings over FOLLOWUP_MAX_HEADING_CHARS (verbatim by decision)
   bugsUntriaged: 10, // BUGS.md rows with Status `untriaged`
   bugsUnrated: 40, // BUGS.md rows with Severity `unrated`
-  lessonsProseOnly: 47, // LESSONS.md rows with Enforcement `prose only`
+  // LESSONS.md rows with Enforcement `prose only`.
+  // ⛔ RAISED 47 -> 52 on 2026-09-04, deliberately, by the lead — which is the only way this number
+  // is allowed to move (ADR 0186 D6 made it a ratchet so unenforceable lessons cannot grow
+  // SILENTLY, not so they can never grow). The five are LEARN-076..080, one per error the Gate AE4
+  // blocker session actually paid for, and each is honestly unenforceable TODAY: no gate can red on
+  // "you read an exit code and did not branch on it", on a paraphrase swapping the metric under a
+  // numeral, or on a verdict outliving the object it was earned on — LEARN-080's own row records
+  // that `ARM=census` *structurally* cannot catch its class, because the policy is not a newcomer.
+  // ⭐ LEARN-078 is the one that could stop being prose: "an approval must not predate its subject"
+  // is a cheap check over ADR headers (`Approved:` date >= `Date:`), and writing it would let this
+  // cap come back to 51. Left undone deliberately — a new gate is a bigger change than the session
+  // that surfaced it, and a gate added in haste is the defect this register exists to record.
+  lessonsProseOnly: 52,
 }
 
 /** Every live count that exceeds its RATCHETS constant is a finding; may only be LOWERED. */

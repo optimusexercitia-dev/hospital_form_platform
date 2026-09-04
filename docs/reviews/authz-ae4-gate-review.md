@@ -2,6 +2,16 @@
 
 # ⛔ VERDICT: CHANGES REQUESTED
 
+> ⚠ **SUPERSEDED — this verdict was RE-SIGNED ✅ APPROVED on 2026-09-04.** Read
+> [`authz-ae4-gate-rereview.md`](./authz-ae4-gate-rereview.md) for the live disposition of every
+> finding below. All four grounds this review refused the gate on are discharged. **Nothing here is
+> edited** — the header stays as filed, because a review's verdict is a record of what was true at
+> its own commit. ⛔ **Every line number this file cites is stale by roughly 58–74 lines**; a reader
+> who greps a cited line and finds defect-shaped text there is reading unrelated content. ⚠ The
+> re-review's scope is these findings, **not** Gate AE4 as a whole: PO approval stays HELD until C2
+> closes. *(Banner added 2026-09-04 — the F-REC-6 defect class this very review filed: a verdict-
+> bearing file with no forward pointer is indistinguishable from a live one.)*
+
 - **Branch:** `authz-ae4-catalog` @ `e897b452` · **Reviewed:** 2026-09-02 · **Reviewer:** `qa`
   (read-only; live-catalog probes + four read-only reviewer agents).
 - **Subject:** Phase AE4 in full — AE4.1–AE4.6, AE4.7a/b/c, AE4.8, the AE4 PO batch, and AE4.9

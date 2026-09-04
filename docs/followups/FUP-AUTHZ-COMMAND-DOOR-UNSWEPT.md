@@ -29,11 +29,18 @@ Index entry: [follow-ups-open.md](follow-ups-open.md) · filed 2026-08-17 · sta
 > ⭕ **SWEPT 2026-09-02 — 171 of 171: COVERED 109 · BLIND 40 · ERROR 22**
 > ([findings](../reviews/c2-command-door-findings.md); ADR 0184 records the branch it ran against).
 > ⛔ **STILL OPEN.** The sweep produced verdicts; it did not close the class. Its own anchor is a
-> **syntax, not a property** — `HCDS*` (60 raises, LGPD Art. 18) and `28000` were never in the
-> worklist, non-authz **state** guards were swept in as authz, and **22 doors carry no verdict**.
+> **syntax, not a property** — ~~`HCDS*` (60 raises, LGPD Art. 18) and `28000` were never in the
+> worklist~~, non-authz **state** guards were swept in as authz, and **22 doors carry no verdict**.
 > A verdict here is `HC0*`-coded-guard coverage, **not** authorization coverage →
 > `FUP-C2-NEUTRALIZER-ANCHOR-BLIND-TO-HCDS-AND-28000`. Both absorbed items stay open; `assume_role`
 > stays ERROR-shaped.
+>
+> ⛔ **AMENDED 2026-09-04 (ADR [0187](../decisions/0187-c2-closes-on-disclosure-and-the-blind-set-is-labelled-by-property.md)) — the struck clause above is FALSIFIED on the live catalog, and this entry's CLOSURE CONDITION is re-scoped.** The same banner its two siblings carry, added late.
+> - **C3** — the `HCDS*`/`28000` population is **8 functions**, and **all 8 also raise an anchored `42501`**, so **none** is excluded by the `:153` gate-fn filter and none is "structurally absent". Four already carry verdicts inside the 171; four are absent for a **Tier-1 membership** reason that widening the anchor cannot fix. ⛔ **"60 raises + 6" is retired — do not re-quote it.**
+> - **C2** — the ERROR count is **22**, reconciling as 16 suite-abort + 5 semicolon-spanning + 1 `save_block_to_library`. ⛔ The findings file stays **106/40/25** and **must not be edited**.
+> - **D1** — closing this class does **not** require the three uncovered populations. It requires exactly: the anchor fix · the ERROR class re-swept · the keystones. **Tier 2's 190 doors stay deferred by ADR 0171 and are NOT cleared** — a disclosure every gate record must carry verbatim, not a blocker.
+> - **D3 / C1** — keystones are **39**, not 40 (`app.print_source_series` ruled out of the BLIND set), and ⛔ **their designs are NOT complete**: the design doc covers **3**, so **36 of 39 have no design**.
+> - **D2** — the 15 BLIND doors with no authorization raise close via keystones carrying an **explicit property label** (state / lifecycle / validation), **never** as authorization coverage.
 
 
 > ### ✅ PO RULING 2026-08-18 — **TWO TIERS. Sweep the PHI / tenancy-crossing subset first; DEFER the remainder to after the pilot ships.**

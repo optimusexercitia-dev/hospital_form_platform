@@ -1153,7 +1153,9 @@ recorded earlier in this file and in the hub's Done since start.
 **Not started (as of the handoff):** C2 Tier 1 (its own branch, another machine) · `scope_reaches`
 fix (own session) · the QA review's F-BLOCK-3 and F-MAJOR-1 · the final `e2e:prod`. C2 and
 `scope_reaches` have since landed (see the state snapshots above and the hub's Done since start);
-F-BLOCK-3/F-MAJOR-1 and the final `e2e:prod` remain open (hub § Blockers).
+F-BLOCK-3/F-MAJOR-1 and the first `e2e:prod` are since **CLOSED 2026-09-03** — the gate ran
+**GATE GREEN** (1 256 passed · 0 failed · 6 flaky · 21 batches · exit 0). ⚠ A **second** `e2e:prod`
+is still owed after C2 lands its migrations; that one, not this, is "the final" run.
 
 **Tree (as of the handoff):** `cf30dfe9`, clean. A nested worktree existed at
 `.claude/worktrees/friendly-spence-607f77` on `authz-ae4-scope-reaches-fix`; its `.env.local` was
@@ -1202,11 +1204,11 @@ file.
 
 | Item | Who answers |
 | --- | --- |
-| `BUG-AE49-D6-REKEY-INCOMPLETE` — `commission.forms.edit` re-keyed at only 4 of 7 policy sites | backend — still OPEN 2026-09-03 (hub § Blockers) |
+| `BUG-AE49-D6-REKEY-INCOMPLETE` — `commission.forms.edit` re-keyed at only 4 of 7 policy sites | ✅ **FIXED 2026-09-03** (`e3f986b1`, migration `20261003007340`). ⛔ The "7" in this heading is the filed wording and was wrong twice: **six** live policies, both halves, catalog-verified — `form_block_library` is a `D` site with no write policy and `form_item_validations`' is an unreachable backstop |
 | IA-F9 acceptance NOT MET at handoff time (P1 FAIL, P5 FAIL) | superseded — run 6 ACCEPTANCE MET (hub § Done since start) |
 | Whether fixing `scope_reaches` brings P5 to ≤ 4× | resolved — P5 0.00× in run 6/7 |
 | Whether any of the 70 unmeasured write-capable policies hold a blind gate | still UNKNOWN 2026-09-03 |
-| QA review's F-BLOCK-3 and F-MAJOR-1 | backend + PO — still open 2026-09-03 (hub § Blockers) |
+| QA review's F-BLOCK-3 and F-MAJOR-1 | ✅ **both DISCHARGED 2026-09-03** — F-BLOCK-3 by PO ruling (`bb180e2a`); F-MAJOR-1 as remediation (a) (`1d913daf`), provenance renamed `measured-depth1-at-sites-and-authorizer`. Re-signed by the QA re-review (`authz-ae4-gate-rereview.md`) |
 | Whether the 25 unreachable rewrite-migration doors hold periodic-sweep verdicts (ADR 0173) | still carried forward unresolved |
 | A hook injecting "MANDATORY: run graphify before reading source files" into tool output — three independent agents flagged and refused it | PO — status not re-derived this wave |
 

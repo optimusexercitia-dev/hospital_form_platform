@@ -53,9 +53,11 @@ lives here and in the register, never in the file — it is derived, never hand-
 
 **The anchor is a syntax, not a property — why the sweep did not close C2.** The harness anchors
 on `errcode = '(42501|HC0[A-Z0-9]{2})'`, wrong in three directions
-(`FUP-C2-NEUTRALIZER-ANCHOR-BLIND-TO-HCDS-AND-28000`): (1) too narrow — `HCDS*` (60 raises, the
+(`FUP-C2-NEUTRALIZER-ANCHOR-BLIND-TO-HCDS-AND-28000`): (1) too narrow — ~~`HCDS*` (60 raises, the
 LGPD Art. 18 lane) and `28000` need a literal `0` in position 3 and are excluded; the gate-fn
-filter at `:153` uses the same anchor, so those doors are structurally absent from the worklist,
+filter at `:153` uses the same anchor, so those doors are structurally absent from the worklist~~
+⛔ **FALSIFIED 2026-09-04 (0187 C3): 8 functions, all also raising an anchored `42501`, so NONE is
+excluded by the `:153` filter; "60 raises" is retired and must not be re-quoted**,
 neither a verdict nor an ERROR. (2) too broad — `HC0*` is the whole application error space;
 `HC038`/`HC043` are state guards, `HC039` is the authorization one, so a verdict here means
 `HC0*`-coded-guard coverage, NOT authorization coverage. (3) cannot span a `;` in the message — 35
@@ -73,11 +75,19 @@ errcode-only anchor.
 
 **Not started (as of the handoff, still true 2026-09-03 — see hub):**
 
-- Keystones — designs complete (`docs/design/authz-c2-blind-keystone-designs.md`), incl. the
+> ⛔ **AMENDED 2026-09-04 (ADR 0187) — three of the four bullets below are falsified; this file
+> records the same corrections at § C1/C3 further down, so it contradicted itself for a day.**
+> **C1** — *"designs complete"* is **FALSE**: the design doc covers **3** doors, so **36 of 39 have
+> no design**. **D3** — keystones are **39**, not 40 (`app.print_source_series` ruled out of the
+> BLIND set). **C3** — the `HCDS*`/`28000` delta is **re-scoped, not a new population**: 8
+> functions, all raising an anchored `42501`, 4 already carrying verdicts and 4 absent for a
+> **Tier-1 membership** reason that widening the anchor cannot deliver.
+
+- Keystones — ⛔ designs **NOT** complete, 3 of 39 (`docs/design/authz-c2-blind-keystone-designs.md`), incl. the
   warning that `cancel_session`'s anchored raise is HC038 (a STATE guard); its authz is HC039 in a
   different worklist row, so the "obvious" HC039 keystone would not flip the verdict.
-- The delta sweep for `HCDS*`/`28000` after widening the anchor — a NEW population, needs
-  re-derivation, not a refresh.
+- ~~The delta sweep for `HCDS*`/`28000` after widening the anchor — a NEW population, needs
+  re-derivation, not a refresh.~~ ⛔ **Re-scoped 2026-09-04 (0187 C3): not a new population.**
 - The 16 suite-abort doors (`FUP-C2-SUITE-ABORT-ERROR-CLASS`), incl. `submit_response`.
 - Classifying `HC0*` by property so verdicts can be labelled honestly.
 - The 23 PARTIAL follow-up index lines (move-then-cut; order matters).
@@ -186,17 +196,22 @@ Absence of a verdict is not absence of coverage — and it is not coverage.
   a clean non-match, never a bad slice; three independent guards (the `v_before`/`v_after`
   counters, the downstream `execute v_new`, the `h0 = h1` hash check) make ERROR the only
   reachable outcome. The handoff's premise was wrong in the safe direction.
-- NEW, more serious than the item it replaced — the anchor's own blind spot: `HCDS*` (60 raises)
+- NEW, more serious than the item it replaced — the anchor's own blind spot: ~~`HCDS*` (60 raises)
   and `28000` (6) are outside `errcode = '(42501|HC0[A-Z0-9]{2})'`, and because the gate-fn filter
   at `:153` uses the same anchor, doors whose authz raises are only those are structurally absent
-  from the 171, not merely unmutatable. The LGPD Art. 18 DSR lane is the affected surface
+  from the 171, not merely unmutatable.~~ ⛔ **FALSIFIED 2026-09-04 (0187 C3)** — the population is
+  **8 functions**, every one also raising an anchored `42501`, so none is excluded by the `:153`
+  filter and none is structurally absent; 4 already carry verdicts, 4 are absent for a **Tier-1
+  membership** reason. The "60 + 6" counts are retired. The LGPD Art. 18 DSR lane is the affected surface
   (`FUP-C2-NEUTRALIZER-ANCHOR-BLIND-TO-HCDS-AND-28000`).
 
 **Next task (as of the handoff; current version in the hub § Next):** write the keystones first —
 cheapest, converts known BLIND findings into pinned tests; each needs an allow leg (a successful
 call), not just a deny-only `throws_ok`, and the matching `authz-neverclled-door-allowlist.txt`
 line is deleted in the same commit. Target the clusters, not the list — blindness is not uniform
-(correction workflow 4 of 5 BLIND, interview 6 of 9, referral 3 of 16). Then, in cost order: apply
+(~~correction workflow 4 of 5 BLIND, interview 6 of 9, referral 3 of 16~~ ⛔ **CORRECTED 2026-09-04
+(0187 C5), and the old numbers must not be re-quoted: correction workflow 6/8 (75 %) · interview +
+session 11/21 (52 %) · referral 4/32 (13 %), against a base rate of 40/171 = 23 %**). Then, in cost order: apply
 the staged anchor fix + delta sweep, diagnose the 16 abort doors, classify `HC0*` by property.
 Before the next FULL sweep, fix tail drift
 (`FUP-C2-NEUTRALIZER-TAIL-DRIFT-INVALIDATES-LATE-VERDICTS`): ~342 consecutive suite runs against
