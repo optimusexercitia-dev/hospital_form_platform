@@ -671,3 +671,80 @@ the same run; if the conversion would make the file pass while noticing nothing,
   plan**, and is invariant under suite growth elsewhere.
 - `FUP-C2-SUITE-ABORT-ERROR-CLASS`'s `Files=259` and its localization table are stale, and its
   "16 enforcers" is now **18**.
+
+#### Phase B1 — the 18 suite-abort enforcers converted from aborts into scored assertions
+
+**25 statement edits across 21 files, 21 `plan(N)` bumps, net +24 assertions.** New baseline,
+measured on a fresh `supabase db reset --local`:
+
+```
+Files=262, Tests=8788, 87 wallclock secs
+Result: PASS
+```
+
+Zero `not ok`, zero `Bad plan`, zero `Dubious`; every one of the 21 files also verified individually
+before the full run. ⚠ **8788, not the diagnosis's projected ≈8789** — see correction 5 below.
+
+⭐ **`public.assume_role` → COVERED**, run twice, the second time on the freshly reset DB:
+
+```
+| `public.assume_role(p_role platform_role)` | 1 | 2 | **COVERED** | a keystone asserts through this guard (red under mutation, green restored) |
+```
+
+The ADR 0171 / sizing §10 obligation — *"`assume_role` remains ERROR-shaped, not COVERED, and must be
+resolved within Tier 1"* — is **discharged**, pending Phase C's full confirmation.
+
+**The `406:243` ruling, and the evidence it was conditioned on.** The `ok()` + `skip()` conversion
+landed with the `position(v_cut in v_src) = 0` predicate **byte-identical**: the preflight still
+refuses to run a no-op mutation, and now reports that refusal as scored test 5.0 instead of raising.
+Both conditions the lead attached were then met by **measurement, not argument** — the C2 mutation
+was reproduced on `public.set_professional_link_state` (harness anchor byte-for-byte, oid 23316,
+`h0 = ac10494454a7d8b1d0f2822339dda926`, restored byte-identical) and 406's TAP captured:
+
+- **the skips count toward the plan** — `Tests=19` against `plan(19)` with no `Bad plan`, so the
+  run's shape is unchanged and the harness reads a clean FAIL rather than an ERROR;
+- **the door's own assertions still fail in the same run** — tests 13, 14 and 16 (§4's door-coverage
+  arms, all upstream of the edit) are red. The file fails four ways, three of them about the door.
+
+5.1 and 5.2 skip rather than run, which is the point: with the bound already removed by the C2
+harness, running 5.1 would have reported a **false green** attributable to the wrong mutation.
+
+**Ten places the diagnosis was wrong when applied.** Recorded because the pattern — a remedy that
+reads correct and fails on contact — is the reusable part:
+
+1. **`max(organization_id)` does not compile.** §2.15 names it literally; PG 17.6 answers
+   `ERROR: function max(uuid) does not exist`. Replaced with `order by seq limit 1`.
+2. ⭐ **`315:194` is not one statement, it is two.** The very next assertion reads the *same*
+   multi-row subquery and would have aborted one line later. **Without catching this, `assume_role`
+   would still have scored ERROR** — the fix would have moved the abort, not removed it. This is
+   exactly the diagnosis's own §0 caveat ("I did not check whether any aborting statement is
+   load-bearing for a later assertion") biting on the highest-value row in the batch.
+3. **`305:638` is +0, not +1.** The remedy says "add a cardinality assertion and aggregate", but the
+   assertion on the line immediately above **already is** that cardinality check on the identical
+   predicate — the diagnosis calls this row "the cleanest illustration in the whole class" without
+   noticing that makes half of its own remedy redundant. Aggregated only; a second would be padding.
+4. **`406` §5 is +1, not plan-neutral** (18 → 19): the preflight *must* become a scored assertion or
+   the file passes while noticing nothing about §5. Corrections 3 and 4 cancel; the total stays +24.
+5. **The projected total was off by one**: 8764 + 24 = **8788**, not 8789.
+6. ⭐ **Four "W" sites name only the FIRST of a run of statements that all fail under mutation** —
+   `30` (three inserts), `121` (`add_interview_subject` + `conclude_interview`), `141`
+   (`save_triage` + `confirm_triage`), `143` (`complete_capa_action` + `close_capa_plan`). Wrapping
+   only the named line **moves the abort down one line** rather than removing it. Each run wrapped
+   in a single `lives_ok` (plpgsql `EXECUTE` accepts a multi-statement string), keeping the site +1.
+7. ⭐ **Three "W" sites are CTAS, where a plain wrap is not available.** `150:1225`, `281:222`,
+   `321:463` build a temp table *from* the RPC; **a CTAS whose query raises leaves no relation**, so
+   the downstream assertions would abort with `relation does not exist` — trading one abort for
+   another. Replaced with create-empty-then-`insert`-under-`lives_ok`, so a refused call leaves the
+   reads returning NULL (scored) instead of crashing. Same shape for the three value-capture sites.
+8. **`80:276` has a second assertion on the same raising call** (`80:279-284`, the
+   `observations_by_item` projection), unmentioned in the diagnosis. One capture serves both.
+9. **`80`'s temp table needed `grant select`, not just `insert`** — the reads run under
+   `set local role authenticated`. Observed red (`permission denied for table sgn_payload`, plan 20
+   ran 16) and fixed.
+10. Two files carry a header `-- Assertion count: N` line that also had to move (`203`, `305`).
+
+⚠ **Residual risk Phase C owns, stated by the agent that did the work.** Fixing an abort at
+statement N says nothing about statement N+k. That loop was closed **by measurement for exactly two
+doors** — `assume_role` (COVERED) and `set_professional_link_state` (clean FAIL, shape 19). For the
+other **16** the claim "ERROR → COVERED" is still a **prediction**. ⛔ A row that does not come back
+COVERED in Phase C is a finding, not a retry.

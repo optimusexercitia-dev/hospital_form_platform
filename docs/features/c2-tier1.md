@@ -74,20 +74,24 @@ Sweep the 237 command doors that touch PHI (Tier 1, gate-aware closure over `ARM
 - ✅ **Per-door keystone spec written 2026-09-04** (`40c3c588`) for all 39 — `docs/design/authz-c2-blind-keystone-specs.md`.
 - ✅ **PO ruling 2026-09-04** — the 3 doors where the caller-input rule and a message reading disagree are labelled **B**, provisionally; the conservative call cannot commit the promotion ADR 0184 point 5 forbids.
 
+- ✅ **Phase A 2026-09-04** ([diagnosis](../reviews/c2-suite-abort-diagnosis.md), `ba876c1c`) — all **18** suite-abort doors are a **scoring** gap, not a coverage gap: each already fails an assertion before its file aborts, so the class owes **zero** keystones and 39 stands. Both blocking catalog reads answered.
+- ✅ **Phase B1 2026-09-04** (`97ff9f22`) — 25 statement edits / 21 files / 21 plan bumps. Baseline **8764 → 8788, PASS**. ⭐ `assume_role` scores **COVERED**, discharging the ADR 0171 / sizing §10 obligation.
+
 ### In progress
 
-- **Phase A** — diagnosing the **18** suite-abort ERROR enforcers and 2 catalog reads that block two keystones (`docs/reviews/c2-suite-abort-diagnosis.md`).
+- **Phase B2a** — the first **18** of the 39 keystones (clusters 9, 6, 1, 3, 4).
 
 ### Next
 
-- **Phase B** — write the 39 keystones + the suite-abort fixes + delete the **10** owed `authz-neverclled-door-allowlist.txt` lines. Cluster order (specs §6.6): 9 → 6 → 1 → 3 → 5 → 7 → 4 → 2 → 8.
+- **Phase B2b** — the remaining **21** keystones (clusters 5, 7, 2, 8) + the rest of the **10** owed `authz-neverclled-door-allowlist.txt` lines.
 - **Phase C** — verification subset sweep over 39 + 18, rows **merged** into the findings file, never copied over it (ADR 0153). ⚠ Budget at the measured **~100–106 s/run**, not the 53 s on record.
 - **Phase D** — `ARM=census`, `ARM=floor` (its offender list changes by up to 10), `ARM=hat`, `FROMFINDINGS=1 ARM=wrapper`; then the records.
 - ⛔ The waves **serialize**: nothing under `supabase/tests/**` may be edited while a sweep runs — it changes the suite shape and voids the in-flight baseline.
 
 ### Blockers
 
-- C2 does **not** close yet — of ADR 0187 D1's three items the anchor fix is **done**; the ERROR class is unswept and 39 keystones unwritten. ⚠ Tier 2's 190 doors are **NOT** a blocker: they stay deferred by ADR 0171 and must be **stated** in every gate record, never cleared.
-- ⭐ The anchor fix **converts** part of the semicolon-spanning ERROR class into the suite-abort class rather than into verdicts, so that population **grew 16 → 18**. Landing a mutation is not the same as producing a verdict.
+- C2 does **not** close yet — of ADR 0187 D1's three items the anchor fix is **done** and the ERROR class is **edited but not yet re-swept**; 39 keystones remain. ⚠ Tier 2's 190 doors are **NOT** a blocker: they stay deferred by ADR 0171 and must be **stated** in every gate record, never cleared.
+- ⚠ **16 of the 18 ERROR → COVERED are a PREDICTION, not a measurement** — only `assume_role` and `set_professional_link_state` were closed by measurement. Phase C's sweep is the measurement; a row that does not come back COVERED is a **finding, not a retry**.
+- ⭕ A **fourth** uncovered population, found 2026-09-04 and not in ADR 0184 point 4's three: a **trigger** enforcer has no call edge, so it is in 0 of the 171 and its door reads BLIND for a reason the findings file cannot express (`FUP-C2-TIER1-TRIGGER-ENFORCERS-OUT-OF-SWEEP-DOMAIN`). It must be **stated** with the other three.
 - 39 BLIND findings need keystones; allowlisting is prohibited — it would make `ARM=floor` and this harness agree while both measure nothing.
 - ~~`main` is not pushed~~ — **struck 2026-09-04** (ADR 0187 C4). C2's remaining work lands on `main`; no branch is owed.
