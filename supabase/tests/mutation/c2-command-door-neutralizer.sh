@@ -277,6 +277,109 @@ docker cp "$DB:/tmp/c2n_worklist.tsv" "$WORK/worklist.tsv" >/dev/null \
 TOTAL=$(wc -l < "$WORK/worklist.tsv" | tr -d ' ')
 [ "${TOTAL:-0}" -gt 0 ] || { echo "FATAL: worklist is EMPTY — refusing to report a clean run" >&2; exit 2; }
 
+# ────────────────────────────────────────────────────────── DEGEN ARM 4 (2026-09-04)
+# THIS harness's own strand. The three DEGEN forms above match a whole body replaced by a
+# constant — the shape the BOOLEAN-gate audits produce. This one rewrites `raise … ;` to
+# `null;` INSIDE an otherwise intact body, which matches none of them, so until now the
+# preflight could not see the damage its own harness leaves behind.
+#
+# ⛔ WHY THE FOLLOW-UP'S OWN FORMULATION IS VACUOUS, AND IS NOT WHAT IS BUILT HERE.
+# FUP-C2-TIER1-INFLIGHT-SENTINEL-ERASED-BY-ITS-OWN-RESTORE asks for "an enforcer in the
+# derived worklist whose current anchored-raise count is BELOW its recorded nraise … a
+# per-run derivable property". It is not per-run derivable: the \copy above derives BOTH
+# columns from the LIVE pg_proc.prosrc in the same instant, so on a stranded stack the
+# worklist records the ALREADY-REDUCED count and the comparison is a number against
+# itself. Worse, a FULLY stranded enforcer loses its last errcode of the class, drops out
+# of the c2n.gatefn population filter and LEAVES THE WORKLIST — TOTAL slides 171 → 170 and
+# there is nothing left to compare. Hence two halves, neither of which is that check:
+#
+#   4a  RESIDUE SHAPE, baseline-free. A `null;` sitting where a statement was, in a body
+#       that carries NO errcode of the anchor class. mutate() is all-or-nothing (it aborts
+#       when v_after <> 0), so a function it stranded has lost EVERY anchor-class errcode
+#       — that conjunct is the discriminator, and it is a PROPERTY, never a name list.
+#       ⛔ MEASURED ON A FRESH RESET 2026-09-04, never assumed:
+#         the shape alone .................................... 3 functions
+#         `then null; end if` alone .......................... 1 (public.confirm_triage,
+#           a deliberate no-op branch — so shipping "count must be 0" on the narrow shape
+#           would have red-flagged a clean tree on its first run)
+#         the shape AND no anchor-class errcode .............. 0, ENUMERATED to zero rows
+#       Proven able to fire the same day against a REAL strand: while this harness held
+#       public.withdraw_correction mutated, the arm returned exactly that function; before
+#       and after, zero rows.
+#       ⚠ BOUND, stated: it sees a residue in a then/else/begin/loop/`;` position. A
+#       `null;` reachable by no other statement boundary is arm 4b's job.
+#
+#   4b  PERSISTED EXPECTATION. Compare the derived worklist against a recorded one, so a
+#       MEMBERSHIP loss (the mode 4a cannot express) is visible. Sources, in order: the
+#       scratch sidecar, then the COMMITTED findings table (version-controlled, so a wiped
+#       TMPDIR cannot silently disarm this arm). ⛔ With neither, the arm prints NOT RUN —
+#       never "clean": an arm that compared nothing must not read like an arm that agreed.
+# ─────────────────────────────────────────────────────────────────────────────────────
+RESIDUE="$(psql_c -c "
+  select n.nspname||'.'||p.proname
+    from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+   where n.nspname in ('app','public')
+     and p.prosrc ~ '(then|else|begin|loop|;)\s*null\s*;'
+     and p.prosrc !~* 'errcode\s*(=|=>)\s*''(42501|HC0[A-Z0-9]{2})'''
+   order by 1;" | grep -vE '^\s*$')"
+if [ -n "$RESIDUE" ]; then
+  echo "*** PREFLIGHT FAILED (arm 4a) — a body carries THIS harness's residue shape:" >&2
+  echo "$RESIDUE" | sed 's/^/      /' >&2
+  echo "    A raise statement was rewritten to a no-op and every errcode of the anchor" >&2
+  echo "    class is gone from the body. A previous run died mid-mutation: the gate is OPEN." >&2
+  echo "      RECOVER=1 bash $0        # if a sentinel survives, apply + VERIFY it" >&2
+  echo "      supabase db reset --local  # the blunt, certain option" >&2
+  exit 2
+fi
+echo "    arm 4a: 0 residue shapes (no body has a bare 'null;' with every anchor-class errcode gone)"
+
+WLBASE="${C2_WORKLIST_BASELINE:-${TMPDIR:-/tmp}/c2-neutralizer-WORKLIST-BASELINE.tsv}"
+cut -f2,5 "$WORK/worklist.tsv" | sort > "$WORK/worklist.derived.tsv"
+WLSRC=""; WLEXP="$WORK/worklist.expected.tsv"; : > "$WLEXP"
+if [ -s "$WLBASE" ]; then
+  sort "$WLBASE" > "$WLEXP"; WLSRC="sidecar $WLBASE"
+elif [ -f "$FINDINGS_COMMITTED" ]; then
+  # `| `sch.name(args)` | ndoors | nraise | **verdict** | note |` -> name<TAB>nraise
+  sed -n 's/^| `\([a-z_]*\.[a-z_0-9]*\)(\([^`]*\)` *| *[0-9]* *| *\([0-9]*\) *|.*/\1\t\3/p' \
+    "$FINDINGS_COMMITTED" | sort > "$WLEXP"
+  [ -s "$WLEXP" ] && WLSRC="committed findings $FINDINGS_COMMITTED"
+fi
+if [ "${BASELINE_REFRESH:-0}" = "1" ]; then
+  cp -f "$WORK/worklist.derived.tsv" "$WLBASE"
+  echo "    arm 4b: BASELINE_REFRESH=1 — worklist baseline REWRITTEN ($TOTAL enforcers) at $WLBASE"
+elif [ -z "$WLSRC" ]; then
+  echo "    arm 4b: NOT RUN — no recorded worklist to compare against."
+  echo "            ⛔ This is NOT 'clean': nothing was compared. From a tree you have"
+  echo "            verified clean, write one with:  BASELINE_REFRESH=1 bash $0"
+else
+  WLDIFF="$(awk -F'\t' '
+    NR==FNR { b[$1]=$2; next }
+    { cur[$1]=$2 }
+    END {
+      for (k in b) {
+        if (!(k in cur))                     printf "  LEFT THE POPULATION  %-52s recorded nraise=%s, now absent\n", k, b[k]
+        else if (cur[k]+0 < b[k]+0)          printf "  BELOW ITS BASELINE   %-52s recorded nraise=%s, live=%s\n", k, b[k], cur[k]
+      }
+    }' "$WLEXP" "$WORK/worklist.derived.tsv")"
+  if [ -n "$WLDIFF" ]; then
+    echo "*** PREFLIGHT FAILED (arm 4b) — the derived worklist LOST authz raises vs $WLSRC:" >&2
+    printf '%s\n' "$WLDIFF" >&2
+    echo "    TWO readings, and the direction does not tell them apart on its own:" >&2
+    echo "      · you CHANGED those functions' guards — re-derive: BASELINE_REFRESH=1 bash $0" >&2
+    echo "      · you did NOT — a previous run is STRANDED: RECOVER=1 bash $0, or" >&2
+    echo "        'supabase db reset --local'. ⛔ Refreshing hides a strand; verify first." >&2
+    exit 2
+  fi
+  WLGREW="$(awk -F'\t' '
+    NR==FNR { b[$1]=$2; next }
+    { if (!($1 in b)) n++; else if ($2+0 > b[$1]+0) g++ }
+    END { if (n+g > 0) printf "%d new enforcer(s), %d with MORE raises", n+0, g+0 }' \
+    "$WLEXP" "$WORK/worklist.derived.tsv")"
+  echo "    arm 4b: worklist matches its recorded expectation ($TOTAL enforcers, source: $WLSRC)"
+  [ -n "$WLGREW" ] && echo "            ⚠ the tree GREW since that record: $WLGREW — the sidecar is refreshed"
+  cp -f "$WORK/worklist.derived.tsv" "$WLBASE"   # only ever after a PASSING comparison
+fi
+
 # ---------------------------------------------------------------- helpers
 # ⛔ Addressed by OID, never by signature: `pg_get_function_identity_arguments` includes
 #    PARAMETER NAMES ("p_rca_id uuid"), which `regprocedure` rejects outright.
