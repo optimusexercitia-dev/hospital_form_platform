@@ -824,7 +824,7 @@ call `app.can_administer_person_for`, which is unchanged). The fifth,
 targeted case: `supabase/tests/mutation/ae3-targeted-cases.sh`, **both cases COVERED**, rollback
 fingerprint-proven.
 
-## AE4 — the `authz` catalog exists, and THREE of 43 permissions are load-bearing (2026-09-03; ADR **0155** / **0162** §2 / **0172** / **0174** / **0175** / **0176** / **0177** / **0178** / **0180** / **0181** / **0182**; migrations `20261003007100`–`…007330`, **21**; pgTAP `401`–`413`, **13**; **NO flag — the migrations ARE the cutover**)
+## AE4 — the `authz` catalog exists, and THREE of 43 permissions are load-bearing (2026-09-03; ADR **0155** / **0162** §2 / **0172** / **0174** / **0175** / **0176** / **0177** / **0178** / **0180** / **0181** / **0182**; migrations `20261003007100`–`…007340`, **22**; pgTAP `401`–`414`, **14**; **NO flag — the migrations ARE the cutover**)
 
 ⛔ **THE COUNTS ABOVE WERE RE-DERIVED BY COUNTING FILES 2026-09-03, and both were wrong in the same
 direction.** This header read *"`…007100`–`…007300`, **17**; pgTAP `401`–`411`, **11**"*. The cited

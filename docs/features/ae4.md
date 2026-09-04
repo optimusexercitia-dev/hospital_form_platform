@@ -56,7 +56,8 @@ open:
       all three rows and `org.professionals.read` reaches `respondent_exclusion` at depth **5** —
       *layer* 1 was collapsed into *search depth* by paraphrase. It matters because it steers (b)
       toward "raise the search one hop", which catches one path and leaves five unmeasured. IA-F9
-      review: MED-1/MAJOR-1/2a/2b/MED-2/MAJOR-5 all either already fixed in code by `9a4bbd22` or
+      review: MED-1/MAJOR-1/2a/2b/MED-2 and **IA-F9's** MAJOR-5 all either already fixed by
+      `9a4bbd22` or
       now discharged. ⚠ **That review is STALE against `main`** — a re-review must verify and sign,
       not re-file (docs/reviews/authz-ae4-gate-review.md)
 - [ ] "PO approval = the pilot-gate authz milestone" — ⛔ **PO ruled 2026-09-03: HOLD until C2
@@ -86,7 +87,7 @@ Substitute `staff_admin` end-to-end against the `authz` catalog and make 3 of 43
 
 ### Next
 
-1. QA re-review → verdict; apply F-MAJOR-1 (a); MAJOR-5's door-sweep re-run on a fresh reset.
+1. Re-review returned **CHANGES REQUESTED** (2026-09-03): 20 discharged · 2 partial · 16 open, **all four grounds the broad review refused the gate on discharged**, no security finding. Clear its N2–N8. ⛔ **Two different "MAJOR-5"s exist** — IA-F9's (door sweep) is CLOSED; the broad review's **F-MAJOR-5** (both vector generators' `--self-test` invoked by no gate; `lint:authz-vectors` is still `--check && --check`) is **STILL OPEN**. Never write "MAJOR-5" unqualified.
 2. **C2 is now the critical path** — 40 BLIND keystones designed, none written; two further populations. It has **no branch**.
 3. A second `e2e:prod` after C2, then PO approval, then the Record step.
 
@@ -94,5 +95,5 @@ Substitute `staff_admin` end-to-end against the `authz` catalog and make 3 of 43
 
 - ⛔ **PO ruled 2026-09-03: HOLD approval until C2 closes.** Nothing re-scoped; ADR 0162's "closes before PO approval" clause stands. AE4 stays `gated`.
 - C2 does not close — three uncovered populations named in ADR 0184 point 4.
-- ADR 0182 records **no authorising party** though § 12.4 required its own approval (IA-F9 MAJOR-4) — awaiting the PO; ⛔ not to be invented.
+- ✅ IA-F9 MAJOR-4 **CLOSED** — ADR 0182's authorising party is **the PO**, confirmed directly 2026-09-03; the ADR header carries it. "operator" had named a seat, not an authority. ⛔ This line previously said the ADR "records no authorising party — awaiting the PO" and was left standing after the header was fixed, so the tree asserted an approval two contradictory ways (re-review N1) — **the same defect as F-BLOCK-3, one artifact later, committed by the session that had just closed F-BLOCK-3.**
 - ⛔ **`main` HOLD stands and `main` is NOT pushed** — the branch landed by fast-forward ahead of the gate by PO ruling. `push-schema-before-code` fires at the PUSH (`db:push` first; Coolify deploys `main`). *(Restored 2026-09-03: a doc-consolidation compression had dropped this qualifier.)*
