@@ -74,3 +74,60 @@ depth and is one lock, tested twice.
 against migration text — migration files here are stale by design, since several rewrite
 function bodies at runtime. Source: **BUG-ACT-ACL-1** closure notes.
 ```
+
+---
+
+## ↩ Retired 2026-09-04 — `c2-neutralizer-has-no-crash-safety.md`
+
+**Why it stopped being true: its resolution event arrived.** Every claim the rule made about
+`supabase/tests/mutation/c2-command-door-neutralizer.sh` was inverted in the same commit that
+retires it (unit HARNESS-CRASH-SAFETY, ADR 0189):
+
+- *"`restore_inflight` truncates `$INFLIGHT` unconditionally"* — it now clears the sentinel only
+  when **psql rc = 0 AND** the live `md5(pg_get_functiondef(oid))` equals the snapshot taken before
+  the mutation. A failed restore **keeps** the sentinel and returns 2. Proven able to fire: with a
+  real enforcer mutated and the restore SQL corrupted, `*** RESTORE FAILED (psql rc=3, body hash
+  live=c787e3dd… want=1636bd89…)`, sentinel intact.
+- *"`RECOVER=1` does not exist in this script"* — it exists, ported from
+  `p0-authz-door-audit.sh:272-297`, and runs before worklist derivation and any suite run.
+- *"`DEGEN` matches only a whole body replaced by a constant"* — a fourth arm now matches the
+  neutralizer's own residue.
+
+**ADR 0127 precondition satisfied**: the surviving operational line ("launch outside the tool's job
+tree, own `WORK` + sentinel path, no timeout; full C2 sweep ≈ 9.5 h") was **moved verbatim in
+substance** into the sibling `.claude/rules/mutation-harnesses-are-not-killable.md`, which is
+path-scoped to the same `supabase/tests/mutation/*.sh` glob and therefore loads for exactly the same
+work. Nothing is lost by the retirement. Full text of the retired rule:
+
+```markdown
+---
+paths:
+  - "supabase/tests/mutation/c2-command-door-neutralizer.sh"
+anchors:
+  - supabase/tests/mutation/c2-command-door-neutralizer.sh
+  - docs/followups/FUP-C2-TIER1-INFLIGHT-SENTINEL-ERASED-BY-ITS-OWN-RESTORE.md
+source: C2 Phase B2a incident 2026-09-04 — a sweep killed by a 10-minute tool timeout left cancel_event's HC044 custody gate open ~4 min, with no sentinel and no preflight red
+---
+
+# ⛔ Run this harness DETACHED — never under a tool timeout
+
+Its sibling rule says a kill is *caught*. **Not here.** Measured 2026-09-04:
+
+- `restore_inflight` (`:88-93`) truncates `$INFLIGHT` **unconditionally**. A kill takes the
+  restoring `psql` too, so the restore never happens **and the sentinel is erased with it**.
+- **`RECOVER=1` does not exist** in this script.
+- `DEGEN` matches only a whole body replaced by a constant; a `raise → null;` rewrite matches none.
+
+⇒ A kill leaves **an open authorization gate and no trace**. "Do not kill it" is the only defence,
+and a tool timeout breaks it without anyone choosing to.
+
+✅ Launch outside the tool's job tree, own `WORK` + `C2_INFLIGHT`, no timeout. Full sweep ≈ 8 h.
+✅ Detector, if you suspect a strand: live anchored-raise count vs `worklist.tsv`'s `nraise`.
+```
+
+⚠ The retired rule's last line (*"live anchored-raise count vs `worklist.tsv`'s `nraise`"*) was
+**measured vacuous** while retiring it: both columns are derived from the live `pg_proc.prosrc` in
+the same instant, so on a stranded stack they compare a number to itself, and a fully stranded
+enforcer leaves the derivation's population entirely. The replacement detector is the harness's
+`DEGEN` arm 4 (residue shape **and** zero errcodes of the anchor class) plus a persisted worklist
+baseline — see ADR 0189 and the record `docs/progress/harness-crash-safety.md`.

@@ -2,39 +2,41 @@
 paths:
   - "supabase/tests/mutation/*.sh"
 anchors:
-  - supabase/tests/mutation/p0-authz-door-audit.sh
-  - supabase/tests/mutation/p0-authz-writepath-audit.sh
-  - docs/followups/FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED.md#meeting_cases_staff_admin_update
-source: AE1.5 incident 2026-08-27 — a killed sweep left an UPDATE policy qual=true wc=true for ~4 min
+  - supabase/tests/mutation/c2-command-door-neutralizer.sh#RESTORE FAILED
+  - docs/followups/FUP-C2-TIER1-INFLIGHT-SENTINEL-ERASED-BY-ITS-OWN-RESTORE.md
+source: AE1.5 2026-08-27 open UPDATE policy; C2 B2a 2026-09-04 stranded gate
 ---
 
 # ⛔ Never kill a running sweep — it opens live gates, then restores them
 
-It fails **silently** — no log line, no failing test, no gate red. The instance:
-`meeting_cases_staff_admin_update`, `FOR UPDATE`, left open to `authenticated`.
+✅ Let a contaminated run FINISH; discard its verdicts. ✅ Launch DETACHED, outside the
+tool's job tree, own `WORK` + sentinel path, **no timeout**. Full C2 sweep ≈ 9.5 h —
+RE-MEASURE it, never quote.
 
-✅ **Let a contaminated run FINISH; discard its verdicts.** ⛔ Never kill it.
+## A kill is CAUGHT — only where a harness has a SENTINEL
 
-## Since 2026-08-29 a kill is CAUGHT — ⛔ NOT in C2
+C2 + `p0-authz-{door,writepath}-audit.sh`; ⛔ NOT `p0-authz-{invoker,rowdoor}-audit.sh`
+(`FUP-INVOKER-AND-ROWDOOR-HARNESSES-HAVE-NO-SENTINEL`).
 
-`INT`/`TERM`/`HUP` restore on exit; a **crash sentinel** survives what no trap can (SIGKILL,
-power cut, killed container), so the next run **REFUSES to start, exit 2** with the restore SQL.
+⚠ A sentinel survives SIGKILL; 2026-09-04's signal was a job-tree **SIGTERM** — the trap
+runs, its `psql` child dies with the group, the restore fails. Believe a restore only when
+the **CATALOG agrees**: psql rc **and** live `md5(pg_get_functiondef)` = the snapshot. ⭐ **A failed restore KEEPS the sentinel**; the next run
+REFUSES, exit 2. An exit status alone was never proof — without `ON_ERROR_STOP=1` psql
+returns 0 on a SQL ERROR.
 
-- `RECOVER=1 bash <harness>` applies it — ⛔ then **VERIFY in the catalog**; that message
-  is not proof. `supabase db reset` stays the blunt, certain option.
-- ⛔ **Never delete the sentinel to clear the refusal** — it restores nothing and is the
-  only record a gate is open. ⚠ The killed run's verdicts are void; re-run in full.
+⛔ **Never delete the sentinel**: it restores nothing and is the only record a gate is
+open. `RECOVER=1 bash <harness>` applies it; VERIFY in the catalog — the message is not
+proof. `supabase db reset --local` is the blunt option.
 
 ## Hunting an open gate: ENUMERATE, never count
 
-`select … from pg_policies where coalesce(qual,'')='true' or coalesce(with_check,'')='true'`
-⚠ **~10 are `true` BY DESIGN** (vocabulary/lookup `SELECT` policies). A `count = 0` check
-shows ~11, reads as a pre-existing baseline, and walks past the open gate.
-⭐ **The discriminator is `cmd <> 'SELECT'`** — no lookup table has a degenerate
-non-`SELECT` policy. `degenerate_NON_SELECT` must be **0**.
+`pg_policies where coalesce(qual,'')='true' or coalesce(with_check,'')='true'`
+⚠ **~10 are `true` BY DESIGN** (vocabulary `SELECT` policies), so a `count = 0` check
+shows ~11 and reads as a baseline. ⭐ Discriminator: `cmd <> 'SELECT'` —
+`degenerate_NON_SELECT` must be **0**.
 
-## ⚠ "DB silence" is the wrong ask
+## "DB silence" is the wrong ask
 
-A sweep's baseline is the **suite's shape** (`Files=`/`Tests=`), so **adding a file under
-`supabase/tests/**` invalidates a run as surely as touching the database** — and to whoever
-adds it, that looks nothing like DB activity. Freeze the **tree**, not just the stack.
+A sweep's baseline is the suite's SHAPE (`Files=`/`Tests=`), so **adding a file under
+`supabase/tests/**` invalidates a run as surely as touching the database** — and looks
+nothing like DB activity. Freeze the TREE.

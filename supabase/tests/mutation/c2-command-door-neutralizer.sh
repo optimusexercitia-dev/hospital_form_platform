@@ -33,6 +33,9 @@
 #   CASES="app.assert_rca_writable app.assert_capa_writable" bash …   # subset
 #   SELFTEST=1 bash …        # prove the harness before trusting it (see § SELF-TEST)
 #   SUITE=supabase/tests/385_x.sql bash …    # one suite file instead of the full run
+#   RECOVER=1 bash …         # a previous run died with a gate OPEN: apply the sentinel's
+#                            #   restore, VERIFY it in the catalog, then exit 2. Every
+#                            #   verdict from the killed run is void.
 #
 # ⚠ FULL RUN COST: 171 enforcers x 2 suite runs = 342 runs. ⛔ The per-run figure in this header
 #   has been stale twice; RE-MEASURE IT, never quote it. History: "~23 s" (design-doc estimate,
@@ -91,19 +94,95 @@ verify_baseline_untouched () {
   return 1
 }
 
-# Crash safety: the restore SQL is written BEFORE the mutation and replayed on any exit.
+# ─────────────────────────────────────────────────────────────────────────────────────
+# CRASH SAFETY. The restore SQL is written BEFORE the mutation and replayed on any exit.
 # ⛔ Fixed path, deliberately NOT under $WORK — a $WORK-relative sentinel is invisible
 #    to the next run when WORK is unique per run.
+#
+# ⛔ THE 2026-09-04 DEFECT, AND WHY THE RESTORE IS NOW VERIFIED IN THE CATALOG.
+# The previous body truncated $INFLIGHT UNCONDITIONALLY after psql_f, ignoring its exit
+# status. When this harness is killed, the restoring psql is killed in the SAME PROCESS
+# GROUP by the SAME signal — so the restore does not happen, and the sentinel that would
+# have told the NEXT run to redo it is erased in the same breath. A recovery path disarmed
+# by the very failure it exists to survive. Measured that day: INFLIGHT.sql.body still held
+# public.cancel_event's real 1194-byte body at 09:38 while INFLIGHT.sql was 0 bytes at 09:39,
+# and the door's two HC044 custody raises sat at `null;` for ~4 minutes with nothing
+# anywhere reporting it (FUP-C2-TIER1-INFLIGHT-SENTINEL-ERASED-BY-ITS-OWN-RESTORE).
+#
+# TWO things must both hold before the sentinel may be cleared:
+#   1. psql_f exits 0 — real only since ON_ERROR_STOP=1 was added above; without it psql
+#      exits 0 on a SQL ERROR and this check reads a constant (witnessed: `select 1/0;`
+#      exited 0 pre-fix, 3 post-fix).
+#   2. md5(pg_get_functiondef(oid)) read LIVE FROM THE CATALOG equals the md5 captured by
+#      snapshot() BEFORE the mutation. ⛔ Never a hash of the local .body file: the file is
+#      what we are trying to apply, so comparing it to itself proves nothing about the DB.
+# Anything else — a failure, a mismatch, or a sentinel we cannot verify because its
+# sidecars are missing — KEEPS the sentinel and returns 2. "Cannot verify" resolves to
+# "do not clear": an escape hatch for the unmeasurable would also silence the measured.
+# ─────────────────────────────────────────────────────────────────────────────────────
 INFLIGHT="${C2_INFLIGHT:-${TMPDIR:-/tmp}/c2-neutralizer-INFLIGHT.sql}"
 restore_inflight () {
   [ -s "$INFLIGHT" ] || return 0
   echo "    !! INFLIGHT mutation found — restoring $INFLIGHT" >&2
+  local rc oid want live
   psql_f "$INFLIGHT" >/dev/null 2>&1
-  : > "$INFLIGHT"
+  rc=$?
+  oid=""; want=""; live=""
+  [ -s "$INFLIGHT.oid" ] && oid="$(cat "$INFLIGHT.oid")"
+  [ -s "$INFLIGHT.md5" ] && want="$(cat "$INFLIGHT.md5")"
+  if [ -n "$oid" ]; then live="$(psql_c -c "select md5(pg_get_functiondef($oid::oid));" 2>/dev/null)"; fi
+  if [ "$rc" = "0" ] && [ -n "$want" ] && [ "$live" = "$want" ]; then
+    echo "    restore VERIFIED in the catalog (psql rc=0, md5=$want)" >&2
+    : > "$INFLIGHT"
+    return 0
+  fi
+  echo "*** RESTORE FAILED (psql rc=$rc, body hash live=${live:-<unreadable>} want=${want:-<no sidecar>})" >&2
+  echo "    ⛔ THE SENTINEL IS KEPT ON PURPOSE: $INFLIGHT" >&2
+  echo "       It is the only record that an authorization gate is OPEN on this stack." >&2
+  echo "    Do ONE of:" >&2
+  echo "      RECOVER=1 bash $0                # re-apply it, then VERIFY in the catalog" >&2
+  echo "      supabase db reset --local        # the blunt, certain option" >&2
+  echo "    ⛔ Never delete the sentinel to clear the refusal — it restores nothing." >&2
+  echo "    ⚠ Do not hunt the open gate with a COUNT: ~10 policies are qual='true' BY" >&2
+  echo "      DESIGN (vocabulary SELECT policies). ENUMERATE with cmd <> 'SELECT'." >&2
+  return 2
 }
-trap 'restore_inflight; verify_baseline_untouched || exit 2' EXIT
+trap 'restore_inflight || exit 2; verify_baseline_untouched || exit 2' EXIT
 trap 'restore_inflight; exit 2' INT TERM HUP
-restore_inflight   # replay anything a previous killed run left behind
+
+# ⛔ STARTUP: a non-empty sentinel means the PREVIOUS run died with a gate still open.
+# Ported from p0-authz-door-audit.sh:272-297 so there is ONE crash-safety design across
+# the mutation harnesses. It runs HERE — before the DEGEN preflight, before worklist
+# derivation, before any suite run — because sweeping on top of a contaminated catalog
+# produces verdicts that look perfectly ordinary.
+if [ -s "$INFLIGHT" ]; then
+  if [ "${RECOVER:-0}" = "1" ]; then
+    echo "--- RECOVER=1: applying the abandoned restore from $INFLIGHT ---"
+    sed -n '1,40p' "$INFLIGHT"
+    cp -f "$INFLIGHT" "$INFLIGHT.recovered" 2>/dev/null || true
+    if restore_inflight; then
+      echo "*** RESTORE APPLIED and VERIFIED against the catalog (psql rc=0, md5 matches the"
+      echo "    pre-mutation snapshot). ⚠ VERIFY IT ANYWAY — this message is not proof."
+      echo "    Re-read the function from pg_get_functiondef; if in any doubt run"
+      echo "    'supabase db reset --local'."
+      echo "    ⛔ Every verdict from the killed run is VOID: re-run the sweep from scratch."
+      exit 2
+    fi
+    echo "*** RESTORE FAILED. The gate is STILL OPEN. Run 'supabase db reset --local' now." >&2
+    exit 2
+  fi
+  echo "*** ABORT — A PREVIOUS RUN DIED WITH A GATE STILL OPEN." >&2
+  echo "    Sentinel: $INFLIGHT   (it holds the SQL that restores it)" >&2
+  sed -n '1,12p' "$INFLIGHT" | sed 's/^/      | /' >&2
+  echo "    Do ONE of:" >&2
+  echo "      RECOVER=1 bash $0        # apply that restore, then VERIFY it in the catalog" >&2
+  echo "      supabase db reset --local  # the blunt, certain option" >&2
+  echo "    ⛔ Do not delete the sentinel to get past this: it restores nothing and is the" >&2
+  echo "       only record that a gate is open." >&2
+  echo "    ⚠ Do not hunt the open policy with a COUNT — ~10 are 'true' BY DESIGN" >&2
+  echo "      (vocabulary SELECT policies). The discriminator is cmd <> 'SELECT'." >&2
+  exit 2
+fi
 
 # ---------------------------------------------------------------- preflight
 # A degenerate body means a previous harness died mid-mutation. Every verdict below
@@ -202,8 +281,17 @@ TOTAL=$(wc -l < "$WORK/worklist.tsv" | tr -d ' ')
 # ⛔ Addressed by OID, never by signature: `pg_get_function_identity_arguments` includes
 #    PARAMETER NAMES ("p_rca_id uuid"), which `regprocedure` rejects outright.
 hash_of () { psql_c -c "select md5(pg_get_functiondef($1::oid));"; }
-snapshot () { # $1 = oid -> writes a restoring CREATE OR REPLACE to $INFLIGHT
+snapshot () { # $1 = oid -> writes a restoring CREATE OR REPLACE to $INFLIGHT + its verification sidecars
+  # ⛔ ORDER IS LOAD-BEARING. $INFLIGHT becoming non-empty is what ARMS the sentinel, so the
+  #    two sidecars restore_inflight verifies against must exist FIRST. Dying between them
+  #    then leaves a sentinel that CANNOT be verified — which refuses, the safe direction.
+  #    .md5 is read from the CATALOG here, before the mutation: it is the value the restored
+  #    function must hash back to, and it is never derived from the local .body file.
   psql_c -c "select pg_get_functiondef($1::oid);" > "$INFLIGHT.body" 2>/dev/null || return 1
+  [ -s "$INFLIGHT.body" ] || return 1
+  printf '%s\n' "$1" > "$INFLIGHT.oid" || return 1
+  psql_c -c "select md5(pg_get_functiondef($1::oid));" > "$INFLIGHT.md5" 2>/dev/null || return 1
+  [ -s "$INFLIGHT.md5" ] || return 1
   { cat "$INFLIGHT.body"; echo ";"; } > "$INFLIGHT"
   [ -s "$INFLIGHT" ]
 }
@@ -325,11 +413,38 @@ if [ "$SELFTEST" = "1" ]; then
   h0="$(hash_of "$T")"; snapshot "$T" || { echo "  NOT OK: snapshot failed"; exit 2; }
   mutate "$T" >/dev/null; h1="$(hash_of "$T")"
   [ "$h0" != "$h1" ] && echo "  ok   probe MOVES the hash ($TL)" || { echo "  NOT OK: mutation did not land"; exit 2; }
-  psql_f "$INFLIGHT" >/dev/null; h2="$(hash_of "$T")"; : > "$INFLIGHT"
+  restore_inflight >/dev/null 2>&1 || { echo "  NOT OK: the verified restore REFUSED on a clean rollback"; exit 2; }
+  h2="$(hash_of "$T")"
   [ "$h0" = "$h2" ] && echo "  ok   restore returns the hash EXACTLY" || { echo "  NOT OK: rollback did not restore"; exit 2; }
+
+  # ───────────────────────── PLANT A — the restore's proof of fire (2026-09-04) ─────
+  # ⛔ A detector that has only ever returned 0 is not evidence. This arm opens a REAL
+  #    gate, corrupts the restore SQL, and asserts BOTH halves of the 2026-09-04 defect
+  #    are now closed: restore_inflight REFUSES, and the sentinel SURVIVES its own failed
+  #    restore. Pre-fix the sentinel was truncated unconditionally, so the second assert
+  #    is the one that could not have passed.
+  snapshot "$T" || { echo "  NOT OK: plant A snapshot failed"; exit 2; }
+  mutate "$T" >/dev/null
+  hm="$(hash_of "$T")"
+  [ "$hm" != "$h0" ] || { echo "  NOT OK: plant A did not open the gate — the arm would be VACUOUS"; exit 2; }
+  printf 'select 1/0;\n' > "$INFLIGHT"     # corrupt the restore SQL; the sidecars stay valid
+  PA_OUT="$(restore_inflight 2>&1)"; PA_RC=$?
+  [ "$PA_RC" -ne 0 ] || { echo "  NOT OK: a corrupted restore reported SUCCESS (rc=0)"; exit 2; }
+  printf '  ok   a FAILED restore REFUSES — rc=%s | %s\n' "$PA_RC" \
+    "$(printf '%s' "$PA_OUT" | grep -m1 'RESTORE FAILED' || echo '(no RESTORE FAILED line)')"
+  [ -s "$INFLIGHT" ] || { echo "  NOT OK: the sentinel was ERASED BY ITS OWN FAILED RESTORE"; exit 2; }
+  echo "  ok   a FAILED restore KEEPS the sentinel ($INFLIGHT)"
+  [ "$(hash_of "$T")" = "$hm" ] || { echo "  NOT OK: the gate moved under a failed restore"; exit 2; }
+  echo "  ok   the gate is still open AND the sentinel still says so"
+  { cat "$INFLIGHT.body"; echo ";"; } > "$INFLIGHT"          # heal
+  restore_inflight >/dev/null 2>&1 || { echo "  NOT OK: the healed restore did not VERIFY"; exit 2; }
+  if [ -s "$INFLIGHT" ]; then echo "  NOT OK: a VERIFIED restore left the sentinel armed"; exit 2; fi
+  [ "$(hash_of "$T")" = "$h0" ] || { echo "  NOT OK: the healed restore did not return the hash"; exit 2; }
+  echo "  ok   a VERIFIED restore clears the sentinel and returns the hash EXACTLY"
+
   DEG="$(psql_c -c "select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname in ('app','public') and p.prosrc ~ '^\s*begin\s+return\s*;\s*end';")"
   echo "  ok   post-restore degenerate-body count = ${DEG}"
-  echo "--- SELF-TEST PASSED — the harness can mutate and can undo ---"
+  echo "--- SELF-TEST PASSED — the harness can mutate, can undo, and REFUSES a bad undo ---"
 fi
 
 # ---------------------------------------------------------------- sweep
@@ -353,13 +468,19 @@ while IFS=$'\t' read -r foid name sig ndoors nraise nanchored; do
   MUT_ERR="$(mutate "$foid")"
   h1="$(hash_of "$foid")"
   if [ "$h0" = "$h1" ]; then
-    psql_f "$INFLIGHT" >/dev/null; : > "$INFLIGHT"
+    restore_inflight || { echo "*** FATAL: the restore REFUSED after a non-landing mutation on $sig" >&2; exit 2; }
     record "$sig" "$ndoors" "$nraise" "ERROR" "MUTATION DID NOT LAND (hash unchanged): ${MUT_ERR//|/ }"
     N_ERROR=$((N_ERROR+1)); continue
   fi
 
   OUT="$(run_suite)"; V="$(verdict_of "$OUT")"; S="$(shape_of "$OUT")"
-  psql_f "$INFLIGHT" >/dev/null; h2="$(hash_of "$foid")"; : > "$INFLIGHT"
+  # ⛔ The restore is VERIFIED (psql rc AND live md5) before the sentinel is cleared; if it
+  #    refuses, the sentinel is KEPT and this run stops rather than sweeping over an open gate.
+  if ! restore_inflight; then
+    record "$sig" "$ndoors" "$nraise" "ERROR" "⛔ ROLLBACK FAILED — the gate is left OPEN and the sentinel is KEPT ($INFLIGHT); RECOVER=1 or 'supabase db reset --local'"
+    N_ERROR=$((N_ERROR+1)); echo "*** FATAL: rollback failed for $sig" >&2; exit 2
+  fi
+  h2="$(hash_of "$foid")"
   if [ "$h2" != "$h0" ]; then
     record "$sig" "$ndoors" "$nraise" "ERROR" "⛔ ROLLBACK FAILED — the tree is left mutated; stop and restore by hand"
     N_ERROR=$((N_ERROR+1)); echo "*** FATAL: rollback failed for $sig" >&2; exit 2
