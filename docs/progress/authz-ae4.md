@@ -1275,3 +1275,78 @@ arm of one row, and `org.professionals.read` reaches `respondent_exclusion` at d
 `cbe565c6`. The comment-stripping was load-bearing — on raw `prosrc`,
 `is_org_commission_staff_admin` reports as a live arm of `can_create_professional` where the catalog
 shows it only inside a **comment**.
+
+### 2026-09-04 — re-review N2 / N3 / N4 / N6, and the door sweep's WRITE arm finally verdicted
+
+**N3 — the sweep figures, out of a commit message and into the record, with BOTH arms named.** The
+re-review's point was not that the substance was wrong; it was that a gate verdict living only in
+`1d913daf`'s trailing paragraph is not in the record, and that *"door-sweep read arm CLEAN/COVERED"*
+reads as the sweep having run when one of its two arms had never been aimed at this subject.
+
+| arm | when | selection | result | exit |
+| --- | --- | --- | --- | --- |
+| **READ** (`p0-authz-door-audit.sh`) | 2026-09-03, fresh reset (`1d913daf`) | `CASES="professional_profiles_select"` — policy arm **1 selected of 226** | baseline suite `Files=262 Tests=8760 Result: PASS`; verdict **COVERED**; committed findings file byte-unchanged | **0**, read bare |
+| **WRITE** (`p0-authz-writepath-audit.sh`) | 2026-09-04, fresh `supabase db reset --local`, head `20261003007340` | `CASES="professional_profiles_select"` — guard arm **0 of 13**, policy arm **0 of 107** | ⛔ **UNPROVEN — nothing was measured** | **3**, read bare |
+
+⭐ **The write arm's zero is ATTRIBUTED, not silent, and the attribution is the harness's own** —
+which is the difference between a bounded zero and the silence the follow-up
+`FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED` is about. It printed:
+
+> `professional_profiles_select: POLICY public.professional_profiles FOR SELECT` →
+> *"correct exclusion. A SELECT policy has no write semantics; it belongs to
+> `p0-authz-door-audit.sh`. Sweep it THERE, and record the read arm's verdict — not a write-arm
+> silence."*
+
+Its policy-arm domain is the **live catalog** (`pg_policy`, `polcmd <> 'r'` — 107 write-capable
+policies), not the 33-row embedded snapshot that made ADR 0178's write arm select 0 for an apparatus
+reason. So the two zeroes have **different causes** and only this one is correct-by-construction.
+⛔ Exit 3 is still recorded as **UNPROVEN and NOT as a pass**, per the harness's own words. Both
+committed findings files verified untouched — `cksum` by the harness, and `git diff --stat` on
+`authz-door-audit-findings.md` + `authz-writepath-audit-findings.md` empty. No `git checkout --`.
+
+⭐ **A fact nobody had written down: that `CASES=` list was HAND-WIDENED, not derived.** Re-run
+today, `BASE=9a4bbd22^ TIP=9a4bbd22 bash scripts/door-sweep-cases.sh` exits **1 (FINDING)** — one
+migration touched, **ZERO** cases derived — because the only object `20261003007330` alters,
+`current_professional_read_organizations`, is **EXCLUDED BY NAME** by the recipe's
+`^(is_|can_|has_|…)` filter. `professional_profiles_select` is the *policy that calls it*, chosen by
+hand under Amendment 8 ruling 2 option (a). That is legitimate and is what the ruling asks for, but
+it may not be recorded as a derived selection: the deriver's own exit 1 is an obligation someone
+discharged by widening, and the record now says so instead of implying the recipe produced the list.
+
+**N2 — `ARM=census` had no extension exclusion, and CLAUDE.md §6 step 1 orders pgTAP beside it.**
+Fixed in `supabase/tests/mutation/p0-authz-invariant.sh` with the predicate pgTAP `100` test 19 has
+carried since FUP-QO-5 (2026-08-07) and this arm never inherited — extension membership
+(`pg_depend.deptype = 'e'`), a PROPERTY, never a name pattern. Measured four ways, bare exit codes:
+
+| state | live domain | excluded | exit |
+| --- | --- | --- | --- |
+| HEAD (no exclusion), pgtap absent | 581 | — | 0 |
+| HEAD (no exclusion), **pgtap installed** | **762** — 181 UNKNOWN newcomers | — | **1** |
+| fixed, pgtap installed | **581** | 181 (pgtap) | 0 |
+| fixed, pgtap absent | **581** | 0 | 0 |
+
+581 in every green cell is the not-over-broad proof: only pgTAP's 181 leave, and all six re-keyed
+`commission.forms.edit` policies, `app.can_edit_commission_forms` and `professional_profiles_select`
+are still enumerated. The out-of-domain command-door figure is 427 in all four.
+
+⭐ **The exclusion ships with a control that was DEMONSTRATED able to fire, not asserted** — an
+empty intersection is also what a dead control reports. The excluded set must be disjoint from
+`accounted`; planting a real, accounted door into the extension (`alter extension pgtap add
+function app.can_edit_commission_forms(uuid, uuid)`, as `supabase_admin` — `postgres` is not the
+owner and the first attempt ERRORed, so the plant was verified in `pg_depend` before the arm was
+read) drove the arm to **exit 1 naming that function**, and reverting restored exit 0. ⚠ In that
+run the newcomer diff still printed *"OK: no unswept newcomer"* — `comm -23 live accounted` is
+structurally blind to an object that LEAVES the domain while keeping its verdict, so the exit 1 came
+from the new assertion and from nothing else.
+
+**N6 — a phrase attributed to the review that the review never wrote.** `"depth 2 on both arms"`
+occurs **0 times** in `docs/reviews/authz-ae4-gate-review.md`. It entered the tree through the
+lead's spawn prompt, was echoed back in the implementing agent's report, and was written into
+`410` § 6.2 and the shipping manifest vector as *"the review's phrase"* / *"the review paraphrase"*.
+What the review wrote is *"a live depth-2 instance"* (`app.is_tenancy_admin_of_for` — correct at
+depth 2) and **layer** 1 for `assignment_facts` (the architectural layer — also correct); the error
+was collapsing *layer* into *search depth*, and it was ours. Both sites corrected in place, keeping
+the true observation and fixing only the attribution;
+`docs/followups/FUP-AE4-HARDDENY-CLASSES-CANNOT-FAIL.md` had it right all along (*"the AE4 hub
+recorded"*) and was the model. ⛔ Still open, and NOT touched here: `docs/features/ae4.md` lines 85
+and 89 still list the MAJOR-5 re-run under **In progress** and **Next** — the hub is the lead's.

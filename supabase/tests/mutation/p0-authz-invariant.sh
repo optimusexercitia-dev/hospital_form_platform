@@ -167,6 +167,34 @@ skipped_from_findings () {
     | sed -E 's/^- `//; s/`$//' | awk -F' / ' '{printf "%s.%s (%s)\n", $1, $2, $3}'
 }
 
+# ⭐ EXTENSION-OWNED FUNCTIONS ARE NOT AUTHZ GATES (N2, QA re-review 2026-09-04).
+# ARM 3's `public INVOKER plpgsql` clause is satisfied by pgTAP's own functions, so with the
+# extension installed the census reported 181 UNKNOWN gates and exited 1, in the same §6 step 1
+# that runs the suites. Measured both ways on this stack: pgtap present -> B clause 269, absent -> 88.
+#
+# ⚠ THE EXPOSURE IS NARROWER THAN IT FIRST LOOKS, AND SAYING SO IS THE POINT. Measured 2026-09-04:
+# `npm run test:db` DROPS pgtap when it finishes (census read 0 excluded immediately after a full
+# 262-file run), and all 26 mutation harnesses that install it as a preflight also drop it. So the
+# arm is not reliably red after a normal gate run. What leaves it installed is (a) the standalone
+# single-file run workflow, which creates it by hand — the same workflow `100`'s FUP-QO-5 header
+# names — and (b) a harness that did not reach its own drop, which this tree already knows happens
+# (`.claude/rules/mutation-harnesses-are-not-killable.md`). ⛔ An intermittent red is WORSE than a
+# constant one, not better: it arrives attached to whatever else that operator was doing.
+#
+# ⭐ THE SIBLING FIX ALREADY EXISTED AND WAS NEVER APPLIED HERE. pgTAP `100` test 19 met this
+# exact class on 2026-08-07 (FUP-QO-5) and was given the predicate below. `p0-authz-invariant.sh`
+# was not — the tree's own "a fix correct at MOST sites hides that it is wrong" shape. This is
+# that predicate, verbatim in property: a `pg_depend` row with `deptype = 'e'` pointing at a
+# `pg_extension`. ⛔ Excluded by PROPERTY, never by name — a `proname not like 'pg_tap%'` filter
+# would be a syntax boundary and would go stale on the next extension.
+#
+# ⚠ The damage direction here is a spurious RED, not a false green (unlike `100`, where pgtap's
+# grants made a real anon leak indistinguishable). But a phase-gate arm that reds with a wall of
+# extension noise is precisely what tempts an operator to widen a filter, and this arm's whole
+# subject is a filter that has quietly stopped seeing things.
+NOT_EXTENSION_OWNED="not exists (select 1 from pg_depend d where d.classid = 'pg_proc'::regclass and d.objid = p.oid and d.deptype = 'e')"
+IS_EXTENSION_OWNED="exists (select 1 from pg_depend d where d.classid = 'pg_proc'::regclass and d.objid = p.oid and d.deptype = 'e')"
+
 RC=0
 
 # ════════════════════════════════════════════════════════════════════════════════
@@ -422,29 +450,17 @@ run_arm_floor () {
   fi
 }
 
-# ════════════════════════════════════════════════════════════════════════════════
-# ARM 3 — CENSUS CLOSURE (the sixteenth-stopper)
-# ════════════════════════════════════════════════════════════════════════════════
-run_arm_census () {
-  echo "=== ARM 3: census closure — every gate IN THIS ARM'S DOMAIN carries a verdict ==="
-  echo "    domain: prosecdef bool | prosecdef set-returning+reachable | public INVOKER plpgsql | all RLS policies"
-  # ⚠ DERIVED, NEVER FROZEN. This line read "(407 reachable)" as a LITERAL from
-  # 2026-08-17 until 2026-08-31, when a live re-derivation returned 427 (345 public + 82
-  # app) — the banner had drifted by 20 while printing beside four green arms, and the
-  # register's own re-derivation (426, AE1 Record step) had drifted by one. A number a
-  # banner states about a population NOTHING re-derives is a claim with no owner, and
-  # this arm exists to stop exactly that shape. The predicate below IS the definition of
-  # the out-of-domain class, so the figure and the class can never disagree again.
-  local uncovered
-  uncovered="$(psql_c -c "select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname in ('public','app','authz') and p.prosecdef and p.prorettype <> 'pg_catalog.trigger'::regtype and not p.proretset and p.prorettype <> 'pg_catalog.bool'::regtype and (has_function_privilege('authenticated', p.oid, 'EXECUTE') or has_function_privilege('anon', p.oid, 'EXECUTE'));")"
-  echo "    NOT in domain: prosecdef scalar non-bool command doors (${uncovered:-?} reachable, DERIVED this run) — FUP-AUTHZ-COMMAND-DOOR-UNSWEPT"
-  local live="$WORK/census_live.txt" accounted="$WORK/census_accounted.txt"
-
-  # LIVE domain, from the catalog and nothing else (never migration text). Deliberately
-  # WIDER than either sweep's own worklist: ALL prosecdef boolean functions in app/public
-  # (no name-prefix filter — `capa_viewer_can_manage` and `member_can` are real gates the
-  # door audit's `^(is_|can_|has_)` regex has never had in scope) and ALL RLS policies
-  # (every polcmd — the door arm sees only SELECT/ALL, the write arm only its snapshot).
+# The two `pg_proc` halves of ARM 3's domain, as ONE definition. $1 is the extension-ownership
+# predicate: `$NOT_EXTENSION_OWNED` builds the DOMAIN, `$IS_EXTENSION_OWNED` builds the EXCLUDED
+# set that the control below checks. ⚠ Defined ONCE and used by BOTH, for `100` test 19c's reason:
+# a control built from a duplicated query proves the duplicate, not the exclusion. It also makes
+# the two polarities structurally the same measurement — a one-directional check would leave the
+# "did I exclude a real door?" direction unproven.
+census_proc_domain () {
+  local extpred="$1"
+  # ALL prosecdef boolean functions in app/public/authz (no name-prefix filter —
+  # `capa_viewer_can_manage` and `member_can` are real gates the door audit's `^(is_|can_|has_)`
+  # regex has never had in scope).
   #
   # ⚠ AND every authenticated-reachable DEFINER that RETURNS ROWS. Added 2026-08-05 after
   # BUG-AUTHZ-002: `hospital_document_register` and `hospital_indicator_rollup` are
@@ -454,30 +470,62 @@ run_arm_census () {
   # rule: a DEFINER's gate REPLACES RLS, so for these the internal gate IS the entire
   # boundary. A boolean predicate is a gate you can neutralize; a row-returning door is a
   # gate you can walk through.
-  { psql_c -c "
+  psql_c -c "
       select n.nspname||'.'||p.proname||'('||pg_get_function_identity_arguments(p.oid)||')'
       from pg_proc p
       join pg_namespace n on n.oid = p.pronamespace
       join pg_type      t on t.oid = p.prorettype
       where n.nspname in ('app','public','authz') and p.prosecdef
         and (t.typname = 'bool'
-             or (p.proretset and has_function_privilege('authenticated', p.oid, 'EXECUTE')));"
-    # ⚠ AND every authenticated-reachable PUBLIC INVOKER plpgsql function
-    # (AUDIT-INVOKER-WRAPPER). Added with ARM 5. Note what changes here: every OTHER
-    # clause in this census is bounded by `p.prosecdef`, and so were all three sweeps —
-    # which is exactly why this class had no verdict in any direction. A `prosecdef = f`
-    # wrapper whose own hand-written probe is the only gate in front of an `app` DEFINER
-    # body is an authorization decision by any honest reading, and until this line it was
-    # not in the enumeration at all. Widening ARM 5 without widening the census would let
-    # a NEW wrapper pass ARM 5 by simply being absent from the findings md.
-    psql_c -c "
+             or (p.proretset and has_function_privilege('authenticated', p.oid, 'EXECUTE')))
+        and $extpred;"
+  # ⚠ AND every authenticated-reachable PUBLIC INVOKER plpgsql function
+  # (AUDIT-INVOKER-WRAPPER). Added with ARM 5. Note what changes here: every OTHER
+  # clause in this census is bounded by `p.prosecdef`, and so were all three sweeps —
+  # which is exactly why this class had no verdict in any direction. A `prosecdef = f`
+  # wrapper whose own hand-written probe is the only gate in front of an `app` DEFINER
+  # body is an authorization decision by any honest reading, and until this line it was
+  # not in the enumeration at all. Widening ARM 5 without widening the census would let
+  # a NEW wrapper pass ARM 5 by simply being absent from the findings md.
+  # ⛔ This is also the clause pgTAP's ~181 plpgsql functions satisfy — see $NOT_EXTENSION_OWNED.
+  psql_c -c "
       select n.nspname||'.'||p.proname||'('||pg_get_function_identity_arguments(p.oid)||')'
       from pg_proc p
       join pg_namespace n on n.oid = p.pronamespace
       join pg_language l on l.oid = p.prolang
       where n.nspname = 'public' and not p.prosecdef and p.prokind = 'f'
         and l.lanname = 'plpgsql'
-        and has_function_privilege('authenticated', p.oid, 'EXECUTE');"
+        and has_function_privilege('authenticated', p.oid, 'EXECUTE')
+        and $extpred;"
+}
+
+# ════════════════════════════════════════════════════════════════════════════════
+# ARM 3 — CENSUS CLOSURE (the sixteenth-stopper)
+# ════════════════════════════════════════════════════════════════════════════════
+run_arm_census () {
+  echo "=== ARM 3: census closure — every gate IN THIS ARM'S DOMAIN carries a verdict ==="
+  echo "    domain: prosecdef bool | prosecdef set-returning+reachable | public INVOKER plpgsql | all RLS policies"
+  echo "            LESS extension-owned functions (pg_depend deptype='e') — see the control below"
+  # ⚠ DERIVED, NEVER FROZEN. This line read "(407 reachable)" as a LITERAL from
+  # 2026-08-17 until 2026-08-31, when a live re-derivation returned 427 (345 public + 82
+  # app) — the banner had drifted by 20 while printing beside four green arms, and the
+  # register's own re-derivation (426, AE1 Record step) had drifted by one. A number a
+  # banner states about a population NOTHING re-derives is a claim with no owner, and
+  # this arm exists to stop exactly that shape. The predicate below IS the definition of
+  # the out-of-domain class, so the figure and the class can never disagree again.
+  local uncovered
+  # ⚠ Carries $NOT_EXTENSION_OWNED too, so the IN-domain and OUT-of-domain figures are bounded
+  # the same way. Measured: no extension ships a prosecdef function here, so this reads 427 with
+  # pgtap present and 427 without — the exclusion is definitional consistency, not a narrowing.
+  uncovered="$(psql_c -c "select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname in ('public','app','authz') and p.prosecdef and p.prorettype <> 'pg_catalog.trigger'::regtype and not p.proretset and p.prorettype <> 'pg_catalog.bool'::regtype and (has_function_privilege('authenticated', p.oid, 'EXECUTE') or has_function_privilege('anon', p.oid, 'EXECUTE')) and $NOT_EXTENSION_OWNED;")"
+  echo "    NOT in domain: prosecdef scalar non-bool command doors (${uncovered:-?} reachable, DERIVED this run) — FUP-AUTHZ-COMMAND-DOOR-UNSWEPT"
+  local live="$WORK/census_live.txt" accounted="$WORK/census_accounted.txt"
+
+  # LIVE domain, from the catalog and nothing else (never migration text). Deliberately
+  # WIDER than either sweep's own worklist: the two `pg_proc` halves above in
+  # census_proc_domain, plus ALL RLS policies (every polcmd — the door arm sees only
+  # SELECT/ALL, the write arm only its snapshot).
+  { census_proc_domain "$NOT_EXTENSION_OWNED"
     psql_c -c "
       select c.relname||'.'||pol.polname||' ('||
              (case pol.polcmd when 'r' then 'SELECT' when '*' then 'ALL' when 'a' then 'INSERT'
@@ -504,6 +552,58 @@ run_arm_census () {
 
   echo "  live authz gates (catalog): $(wc -l < "$live" | tr -d '[:space:]')"
   echo "  gates carrying a verdict:   $(wc -l < "$accounted" | tr -d '[:space:]')"
+
+  # ⭐ CONTROL FOR THE EXTENSION EXCLUSION — an exclusion is a narrowing, and a narrowing that
+  # nothing measures is how a domain quietly stops seeing a real door. The SAME definition, run
+  # at the opposite polarity, so the excluded set is visible on every run instead of inferred:
+  #
+  #   • its SIZE is printed (0 on a plain `db reset`; 181 with pgtap installed, measured
+  #     2026-09-04 — and the domain is 581 either way, which is the not-over-broad proof), and
+  #   • it must be DISJOINT from `accounted`. That is the non-vacuous half: pgTAP's functions
+  #     carry no sweep verdict, but a first-party gate wrongly caught by the predicate almost
+  #     certainly WOULD — it would have been swept. So the check can fire, and what makes it
+  #     fire is exactly the failure this exclusion could introduce.
+  #
+  # ⛔ `comm -23 live accounted` cannot see this: it reports live-not-accounted only, so an
+  # object that LEAVES `live` while keeping its verdict is invisible to the census's own test.
+  #
+  # ⭐ DEMONSTRATED ABLE TO FIRE, 2026-09-04 — not asserted. An empty intersection is also what a
+  # control that CANNOT fire reports, so the state was constructed rather than reasoned about:
+  # with pgtap installed, `alter extension pgtap add function app.can_edit_commission_forms(uuid,
+  # uuid)` (as `supabase_admin`; `postgres` is not the extension owner here and the first attempt
+  # ERRORed — the plant was verified in `pg_depend` before the arm was read, because a mutation
+  # that did not apply reports GREEN). Readings, bare exit codes:
+  #     pgtap only ................. live 581, excluded 181, exit 0
+  #     + the planted door ......... live 580, excluded 182, exit 1  <- THIS control, by name
+  #     plant reverted ............. live 581, excluded 181, exit 0
+  #     pgtap dropped .............. live 581, excluded   0, exit 0
+  # ⚠ In the exit-1 run the newcomer diff printed "OK: no unswept newcomer" — so the failure came
+  # from THIS assertion and not from `comm -23`, which is the discrimination that makes the
+  # demonstration worth anything. ⛔ `alter extension … DROP` must precede any `drop extension`:
+  # a member function goes with the extension, and the member here is a live authorizer six
+  # policies call.
+  local extexcluded="$WORK/census_ext_excluded.txt" nexcl hijacked extowners
+  census_proc_domain "$IS_EXTENSION_OWNED" | grep -vE '^[[:space:]]*$' | sort -u > "$extexcluded"
+  nexcl=$(wc -l < "$extexcluded" | tr -d '[:space:]')
+  extowners=""
+  if [ "$nexcl" -gt 0 ]; then
+    # ⚠ The owning extensions are resolved from the EXCLUDED SIGNATURES THEMSELVES, never from
+    # `select extname from pg_extension` — that lists every installed extension and reads as if
+    # all of them had contributed (it printed all eight beside pgtap's 181 on the first cut of
+    # this line). Naming the wrong owner beside a correct figure is "text is not truth" wearing
+    # a measurement's badge.
+    extowners=" ($(psql_c -c "select coalesce(string_agg(distinct e.extname, ', ' order by e.extname), '?') from pg_proc p join pg_namespace n on n.oid = p.pronamespace join pg_depend d on d.classid = 'pg_proc'::regclass and d.objid = p.oid and d.deptype = 'e' join pg_extension e on e.oid = d.refobjid where n.nspname||'.'||p.proname = any(string_to_array('$(sed -E 's/\(.*$//' "$extexcluded" | sort -u | paste -sd'|' -)', '|'));"))"
+  fi
+  echo "  extension-owned, excluded:  ${nexcl}${extowners}"
+  hijacked=$(comm -12 "$extexcluded" "$accounted")
+  if [ -n "$hijacked" ]; then
+    echo "  *** EXCLUSION CONTROL VIOLATED — an extension-owned object CARRIES A SWEEP VERDICT:"
+    echo "$hijacked" | sed 's/^/      /'
+    echo "  Either a first-party gate is being reported as extension-owned (the exclusion is"
+    echo "  over-broad and has just removed a real door from the census domain), or a findings"
+    echo "  md has a row for an extension function. Resolve before trusting this arm's OK."
+    RC=1
+  fi
 
   local newcomers
   newcomers=$(comm -23 "$live" "$accounted")
@@ -550,6 +650,11 @@ run_arm_census () {
   # So: "outside my domain" and "does not exist" are different facts and get different lines.
   # Same shape as ADR 0128's clean/unproven/dirty partition — absence of evidence is its own
   # verdict, not the negative one.
+  # ⚠ `existing` deliberately does NOT carry $NOT_EXTENSION_OWNED, and the asymmetry is the point.
+  # It answers "does an object of this name exist in the catalog" — a catalog fact — where `live`
+  # answers "is it in THIS ARM'S DOMAIN". Excluding extension objects here would turn a backlog
+  # line naming one from `outofdomain` (keep it) into `prunable` (delete it), which is precisely
+  # the prune-on-absence failure the partition below was built to stop.
   local existing="$WORK/census_existing.txt"
   { psql_c -c "
       select n.nspname||'.'||p.proname||'('||pg_get_function_identity_arguments(p.oid)||')'

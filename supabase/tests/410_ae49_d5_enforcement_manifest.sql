@@ -469,9 +469,25 @@ select is(
 --   * org.professionals.read,    "     "    depth 3  app.can_manage_professional -> is_org_admin_of
 --   * org.professionals.read also reaches `respondent_exclusion` at depth 5, through
 --     app.can_read_case_committee -> ... -> app._case_caps -> app.is_case_respondent
--- ⛔ The review's phrase "depth 2 on both arms" holds for ONE arm of ONE row. Raising the
+-- ⛔ "depth 2 on both arms" holds for ONE arm of ONE row. Raising the
 -- search by a single hop would catch that path and leave the other five unmeasured — the
--- partial fix that reads as a complete one. The transitive measurement plus a positive
+-- partial fix that reads as a complete one.
+--
+-- ⚠ ATTRIBUTION CORRECTED 2026-09-04 (QA re-review N6). This line used to say *"THE REVIEW'S
+-- phrase"*, and the review never wrote it. Measured tree-wide with markdown-normalised,
+-- whitespace-collapsed matching: `depth 2 on both arms` occurs 0 times in
+-- docs/reviews/authz-ae4-gate-review.md, while the same instrument still finds other phrases
+-- from that file — so the zero is a real absence, not a dead detector. The phrase entered the
+-- tree through the LEAD'S SPAWN PROMPT, was echoed back in the implementing agent's report,
+-- and was written here as the review's. What the review actually wrote is *"there is a live
+-- depth-2 instance it cannot see"* (`app.is_tenancy_admin_of_for`, which IS at depth 2 —
+-- correct) and, for `assignment_facts`, *"layer 1"* — the architectural LAYER, also correct.
+-- The error was collapsing *layer* into *search depth*, and it was ours, not the reviewer's.
+-- ⭐ Kept rather than deleted because the observation above is TRUE; only the attribution was
+-- false. Model for the correct form: docs/followups/FUP-AE4-HARDDENY-CLASSES-CANNOT-FAIL.md,
+-- which said *"the AE4 hub recorded"* and got it right while this file and the manifest did not.
+--
+-- The transitive measurement plus a positive
 -- control is the END STATE, tracked as FUP-AE4-HARDDENY-CLASSES-CANNOT-FAIL; it must land
 -- together with that follow-up's M7 fix (lint's `hardDenyClasses` loop iterates an empty
 -- list zero times), or a transitive § 6.2 only moves the vacuity one level up.

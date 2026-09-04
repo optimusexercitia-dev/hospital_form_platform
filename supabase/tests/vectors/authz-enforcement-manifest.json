@@ -43,9 +43,20 @@
     "  * commission.forms.edit, preserved arm: depth 2 — app.is_tenancy_admin_of_for",
     "  * org.professionals.{create,read}, preserved arm: depth 3 — app.is_org_admin_of",
     "  * org.professionals.read also reaches `respondent_exclusion` at depth 5, via can_read_case_committee",
-    "⚠ The review paraphrase 'depth 2 on both arms' holds for ONE arm of ONE row. Raising the search",
+    "⚠ 'depth 2 on both arms' holds for ONE arm of ONE row. Raising the search",
     "by a single hop would catch that one and leave the other five paths unmeasured — a partial fix",
-    "that reads as a complete one. The transitive end state is FUP-AE4-HARDDENY-CLASSES-CANNOT-FAIL."
+    "that reads as a complete one. The transitive end state is FUP-AE4-HARDDENY-CLASSES-CANNOT-FAIL.",
+    "",
+    "⚠ ATTRIBUTION CORRECTED 2026-09-04 (QA re-review N6). This paragraph used to call that phrase",
+    "'the review paraphrase'. It is not the review's. Measured tree-wide with markdown-normalised,",
+    "whitespace-collapsed matching, 'depth 2 on both arms' occurs 0 times in the Gate AE4 review",
+    "(docs/reviews/authz-ae4-gate-review.md) while the same instrument still finds other phrases",
+    "from that file — the zero is a real absence, not a dead detector. It entered the tree through",
+    "the lead's spawn prompt, was echoed back in the implementing agent's report, and was written",
+    "here as the review's. The review said 'a live depth-2 instance' (app.is_tenancy_admin_of_for,",
+    "which really is at depth 2) and 'layer 1' for assignment_facts (the architectural LAYER). Both",
+    "are correct; collapsing layer into search depth was ours. ⭐ This file SHIPS as a fixture source,",
+    "so it is the copy a future reader is likeliest to hit — the correction matters most here."
   ],
 
   "schemaVersion": 1,

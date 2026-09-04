@@ -1,7 +1,7 @@
 -- GENERATED FILE — DO NOT EDIT BY HAND.
 -- Source:    supabase/tests/vectors/authz-enforcement-manifest.json
 -- Generator: scripts/gen-authz-matrix-cells.mjs
--- sourceSha256: 37b15f7f7943e353552f0fba6b588c02d90932850ab496aad43393215eaba225
+-- sourceSha256: 7831929128e70d952aa7a9fa121e6f16fe5a99ea3763aec327a3abd5cea694fc
 --
 -- ADR 0176 D5 — THE ENFORCEMENT MANIFEST, as a pgTAP fixture.
 --

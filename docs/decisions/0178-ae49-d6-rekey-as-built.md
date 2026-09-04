@@ -19,9 +19,14 @@ whose reduction §4 restores) · [0162](./0162-authz-evolution-plan-audit-correc
 Migration `20261003007300` and pgTAP `409` re-key `commission.forms.edit`,
 `org.professionals.create` and `org.professionals.read`. The F1 conformance defect was
 **reproduced first** on this stack, in rolled-back transactions: with the grant deleted, the
-resolver read `f` while the production door read `t` for all three. `409` was additionally run
-against the **pre-migration** catalog, where every gate-line assertion was observed **red** — the
-keystone is proven able to fail rather than assumed to be.
+resolver read `f` while the production **policy** door read `t` for all three. `409` was
+additionally run against the **pre-migration** catalog, where every gate-line assertion was observed
+**red** — the keystone is proven able to fail rather than assumed to be.
+
+⛔ **CORRECTION 2026-09-04 (QA re-review N4) — "policy" added, and it is a QUALIFICATION, not a
+change of decision.** This sentence read *"the production door"* unqualified. Nothing in §§1–4
+changes and no decision is reversed; what changes is a factual claim's scope, so this is recorded
+in place rather than as an amending ADR. The bound is in Consequences below.
 
 ## Decision
 
@@ -134,5 +139,25 @@ Rejected:
   gap). The four altered policies additionally carry **stale COVERED verdicts** held by five other
   suites, which must be **re-measured, not inherited**. Absence of a verdict is not absence of
   coverage; this is recorded as UNPROVEN and may not be written as a pass.
+- ⛔ **"The production door" means the production POLICY door — the bound, added 2026-09-04 (QA
+  re-review N4).** The re-key moves the **RLS policy** predicate onto the permission arm; it does
+  not touch the DEFINER surface, and the grant-deletion mutation therefore does not flip it.
+  For `commission.forms.edit`, matrix row 1 rules **22 DEFINER functions gate form-family tables on
+  `is_staff_admin_of` and none is re-keyed**. ⚠ That 22 is the matrix's ruled figure and is cited,
+  not re-derived here — a loose re-count on `prosrc` returns 24, which is a bounding difference, not
+  a correction. What IS re-measured on the live catalog 2026-09-04 is the load-bearing half:
+  **exactly ONE object in `app` + `public` + `authz` carries a `'commission.forms.edit'` literal,
+  and it is `app.can_edit_commission_forms` itself** — so 0 of the DEFINER form functions carry one.
+  And of the six re-keyed
+  policies, `form_item_validations_staff_admin_write` is an **unreachable backstop** —
+  `authenticated` holds SELECT only on that table, so no PostgREST write reaches the policy, and
+  the real writer `public.set_item_validations(uuid, jsonb)` (`SECURITY DEFINER`, EXECUTE to
+  `authenticated`) still gates on `app.is_staff_admin_of` at **layer 1**
+  (`FUP-VALIDATIONS-WRITE-PATH-IS-LAYER-1`). ⇒ Grant deletion closes **5 of the 6** policy doors and,
+  at the sixth, closes a door nothing opens. ⚠ **A qualification, not a relaxation:** ADR 0176 D6
+  scoped the gate to three representatives at layer 3 and matrix row 1 rules the DEFINER sites `D`,
+  so nothing here lowers the bar — it stops the sentence claiming a surface the bar never covered.
+  Pinned as an assertion by `409` § 2.10c, not left as prose. Same clause added to
+  [plan § AE4.9 and § Gate AE4](../plans/authz-evolution.md).
 - ⛔ **Does NOT**: make the catalog the authority · re-key any of the other 40 · retire
   `memberships_role_check` or `memberships_scope_shape` · merge or push anything.

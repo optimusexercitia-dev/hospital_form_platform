@@ -1029,7 +1029,7 @@ door**, not the generic resolver; every other permission enters the manifest as
 `pending-rekey`; each AE5 role increment re-keys the sites its bundle touches (per-role
 checklist, § AE5). ✅ **The Gate AE4 minimum re-key scope is CONFIRMED (PO, 2026-09-02): the
 three representatives**, each end-to-end, everything else `pending-rekey` — 0176 D6.
-⭐ **AND BUILT 2026-09-02 — this whole paragraph's future tense is DISCHARGED.** Migration `20261003007300` + pgTAP `409` (63/63): all three re-keyed, the grant-deletion mutation flips the **production door** on each, both polarities, with `409` run against the PRE-migration catalog so every gate-line assertion was observed RED first. ADR [0178](../decisions/0178-ae49-d6-rekey-as-built.md). ⛔ Its sequencing CLAIM still stands and is not discharged: the three are observationally near-identical to role-keyed sites until AE5 brings a second bundle, so this proves the **mechanism**, not the discrimination.
+⭐ **AND BUILT 2026-09-02 — this whole paragraph's future tense is DISCHARGED.** Migration `20261003007300` + pgTAP `409` (63/63): all three re-keyed, the grant-deletion mutation flips the **production POLICY door** on each, both polarities, with `409` run against the PRE-migration catalog so every gate-line assertion was observed RED first. ⛔ **"POLICY" added 2026-09-04 (re-review N4) and it is a qualification, not a relaxation** — the DEFINER surface never flipped and was never in D6's scope. For `commission.forms.edit`, **0 DEFINER form functions carry a permission literal** (re-measured 2026-09-04: the sole carrier anywhere in `app`+`public`+`authz` is `app.can_edit_commission_forms`), against the **22** the matrix rules gate form-family tables on `is_staff_admin_of` — so the unqualified phrase over-claimed the moment it was written. Full bound: ADR 0178 Consequences. ADR [0178](../decisions/0178-ae49-d6-rekey-as-built.md). ⛔ Its sequencing CLAIM still stands and is not discharged: the three are observationally near-identical to role-keyed sites until AE5 brings a second bundle, so this proves the **mechanism**, not the discrimination.
 
 **Authority repair — DONE 2026-09-02: ADR
 [0176](../decisions/0176-authz-permission-layer-made-real.md) `Amends:` 0155 D7 and 0174** —
@@ -1074,10 +1074,24 @@ non-`authoritative` roles while the candidate oracle stays testable and non-call
 product paths; scope kind validated; missing grant / unreachable scope / wrong active context /
 inactive principal explain distinctly and deterministically; `assume_role` enforces
 `session_selectable`; the enforcement manifest exists with no default arm and generation fails
-on set difference; the grant-deletion mutation flips the **production door** for each of the
+on set difference; the grant-deletion mutation flips the **production POLICY door** for each of the
 three representatives (`commission.forms.edit`, `org.professionals.create`,
 `org.professionals.read` — the PO-confirmed minimum, 0176 D6), every other permission
-`pending-rekey` in the manifest; performance acceptance measured on the **final** path. ⛔ `e2e:prod` is RED at
+`pending-rekey` in the manifest;
+⛔ **"POLICY" added 2026-09-04 (re-review N4).** This acceptance line said *"the production door"*
+unqualified, which is the sentence the PO signs, while the oracle and pgTAP `409` § 2.10c had
+already scoped the claim to the policy door. The bound: for `commission.forms.edit` **0 of the
+DEFINER form functions carry a permission literal** — re-measured on the live catalog 2026-09-04,
+exactly ONE object in `app`+`public`+`authz` carries a `'commission.forms.edit'` literal and it is
+`app.can_edit_commission_forms` itself — while matrix row 1 rules **22 gate form-family tables on
+`is_staff_admin_of`** with none re-keyed (that 22 is cited from the matrix, not re-derived).
+`form_item_validations`' real writer
+(`public.set_item_validations`, `SECURITY DEFINER`, EXECUTE to `authenticated`) is still layer 1
+while `authenticated` holds only SELECT on the table — so grant-deletion closes **5 of the 6**
+re-keyed policy doors and at the sixth it closes a door nothing opens
+(`FUP-VALIDATIONS-WRITE-PATH-IS-LAYER-1`). ⚠ **A qualification, not a relaxation**: ADR 0176 D6
+scoped the gate to three representatives at layer 3, and matrix row 1 rules the DEFINER sites `D`
+— nothing here lowers the bar, it stops the sentence claiming a surface the bar never covered. performance acceptance measured on the **final** path. ⛔ `e2e:prod` is RED at
 `a0b27f3c` (1183 p · 1 f · 62 infra-unproven · 3 flaky · 13 did-not-run); the recorded C2 Tier-1
 state is 8 of 171 new enforcers measured, 3 BLIND. None of these is "gate paperwork".
 
@@ -1134,7 +1148,9 @@ inside a role increment.
 helper-name forms swept) → PO approves → seed → generated-cell differential under the
 [PA-F8] diff rule → atomic wrapper cutover (to `holds_role`, layer 1) → **re-key the
 enforcement sites this role's bundle touches to their domain authorizers — manifest entries
-`pending-rekey` → done, the grant-deletion mutation flipping each production door (§ AE4.9)** →
+`pending-rekey` → done, the grant-deletion mutation flipping each production **policy** door
+(§ AE4.9; ⛔ qualified 2026-09-04 per re-review N4 — a re-key at the policy leaves the DEFINER
+surface on its legacy gate, and this template is what AE5 will copy)** →
 direct-call census → arms re-pointed (G8) → legacy branch removed + rollback runbook/template
 updated ([PA-F9] — never a committed migration) → Record.
 
