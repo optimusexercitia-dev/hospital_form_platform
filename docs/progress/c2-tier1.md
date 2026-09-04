@@ -355,3 +355,230 @@ handoff said; the numbers in it must not be re-quoted.
 - ⛔ **Untouched by ownership:** `supabase/tests/`, `supabase/migrations/`, `package.json`,
   `src/lib/role/` — a backend agent held them concurrently. Catalog access was read-only; no reset,
   no write.
+
+### 2026-09-04 (second session) — closure item 1 landed; the keystone set specified; the ERROR class re-shaped
+
+Phase 1 of actually closing C2, after the morning's record-only session. Everything below was
+measured this session unless it cites a commit. Commits: `ca328539` (the anchor fix),
+`40c3c588` (the keystone specs).
+
+**Environment baseline, re-measured — both figures on record were stale.** Fresh
+`supabase db reset --local`, then `npx supabase test db`: **Files=262, Tests=8764, PASS, ~100–106 s
+per run** (11 harness runs in 19m05s). The record carried 53 s/run and the harness header carried
+~23 s. A full 171-enforcer sweep therefore costs **~9.5 h**, not the ~2.2 h the header advertised or
+the ~5 h the record implies. The header's cost claim was corrected in the same commit.
+
+#### Closure item 1 — the anchor fix. LANDED, and it is not the fix that was on record.
+
+⛔ **The fix recorded as "FIX VALIDATED OFFLINE 2026-09-02 — 35 fixed, 0 regressions, 0 residue" was
+incomplete, and its "0 residue" is an artifact of its own denominator.** Measured in Postgres ARE —
+where the harness actually runs — against `pg_proc.prosrc` over the 706 `prosecdef` non-trigger
+functions in `public`+`app`:
+
+| anchor | `migrations/*.sql` | live `pg_proc` |
+| --- | --- | --- |
+| the one in the harness | 2259 / 2302 | 793 / 813 — 15 functions short |
+| the recorded fix | 2294 / 2302 | 807 / 813 — 5 functions short |
+| what landed | **2302 / 2302** | **813 / 813** — 0 short, 0 overmatch, 0 regression |
+
+The recorded validation reproduces **exactly** against `supabase/migrations/*.sql` (2259 → 2294) and
+not at all against the catalog. It was run on **migration file text**, the corpus this project's own
+rules call stale by design, and its "residue still unmatched by candidate: 0" was computed against a
+denominator of **2294** — which already excluded the eight raises it misses. A census whose parts do
+not sum, one layer up from the thing being measured.
+
+The residue's shape is uniform: `using errcode = 'X', detail = <expr>;` — a **trailing USING-option
+list** after the errcode, which a terminating `…'\s*;` cannot cross. It occurs in
+`app.end_affiliation_impl`, `app.end_org_affiliation_impl`, `app.void_affiliation_impl`,
+`app.void_org_affiliation_impl` and `public.save_block_to_library`. The landed anchor keeps the
+recorded fix's message-literal consumption (`'(?:[^']|'')*'`, which crosses a `;` *inside* the
+message) and replaces the terminator with `[^;]*;`.
+
+**Three sites moved, one deliberately did not** — the ruling on each matters more than the regex:
+
+- **The worklist's column 6 (`nanchored`) had to move in lockstep, and this was load-bearing.** It
+  was never the anchor; it was a *proxy* — "an errcode followed by a `;`" — which is neither the
+  anchor nor a bound on it. It was wrong in **both** directions: it let 5 enforcers past the
+  UNMUTABLE guard whose mutation then could not land, while refusing 1 it could have mutated.
+  ⛔ `docs/progress/c2-tier1.md`'s own instruction *"patch the `regexp_replace` only, the counters
+  must keep the errcode-only anchor"* errs in the dangerous direction: it would have cleared the 5
+  `MUTATION DID NOT LAND` rows while leaving `save_block_to_library` UNMUTABLE forever.
+- **`v_before` / `v_after` keep the errcode keying but DROP the terminator.** Tracking the anchor
+  there would be **vacuous** — a global `regexp_replace` cannot leave one of its own matches behind
+  (`null;` carries neither a raise nor an errcode), so an anchor-keyed `v_after` can only ever read
+  0. A dead instrument wearing the name of a guard; measured residue 0 for all 1081 functions.
+  Keeping the *terminated* form is worse than redundant: its blind spot is **congruent with the
+  anchor's old one** — it reads 0 residue for exactly the `, detail = …` shape — so the day the
+  anchor gains a new gap of that shape, the guard passes and `execute v_new` installs a
+  **half-mutated function with one authz guard still live**, which is the false COVERED the
+  UNMUTABLE guard exists to prevent. Spurious-fire ruled out: anchor-class errcodes inside `--` and
+  `/* */` comments = 0; `occ(pg_get_functiondef)` == `occ(comment-stripped prosrc)` for all 1081.
+- **The gate-fn filter (`:153`) was left alone, deliberately.** It is the **population**, not the
+  anchor — changing it changes who is in the 171 and invalidates every verdict recorded against that
+  denominator. Measured non-binding: **0** functions in the whole catalog are admitted by it yet
+  unmutable by the new anchor. Independently re-confirms ADR 0187 C3.
+
+**Blast radius was measured as replace-OUTPUT inequality, not as a count comparison** — a count can
+match while the replacement differs. **21 functions differ over all 1081**, of which **exactly 6 are
+in the freshly derived 171**; the other 165 produce byte-identical mutation text under both anchors.
+⚠ The lead's stated blast radius of 15 was population-bounded (`prosecdef` non-trigger only) and
+under-reported by 6; the extra 6 are trigger-returning or `prosecdef=false`, none in the worklist, so
+the conclusion survived but the boundary did not.
+
+**Proofs:** `SELFTEST=1` PASSED (hash moves, restore exact, 0 degenerate bodies). Re-derived worklist
+= **171 rows, `sum(nraise) = sum(nanchored) = 460`, 0 UNMUTABLE**. Simulating both harness paths over
+all 171: OLD → 1 UNMUTABLE + 5 DID-NOT-LAND with survivor counts 2,1,2,1,1 matching the committed
+baseline byte-for-byte; NEW → 0 refused, 0 survivors.
+
+**Subset sweep of the 6 affected enforcers** (`$WORK`, ADR 0153; committed baseline cksum verified
+unchanged at `1361193000 35013`):
+
+| enforcer | before | after |
+| --- | --- | --- |
+| `set_referral_patient` | ERROR · DID NOT LAND (2 survived) | **COVERED** |
+| `save_block_to_library` | ERROR · UNMUTABLE (5 raises, 4 anchored) | **COVERED** |
+| `log_document_previa` | ERROR · DID NOT LAND (1 survived) | **COVERED** |
+| `delete_ad_hoc_case_narrative` | ERROR · DID NOT LAND (1 survived) | **COVERED** |
+| `set_professional_link_state` | ERROR · DID NOT LAND (1 survived) | **ERROR · suite abort** 8764→8762 |
+| `mint_printed_document` | ERROR · DID NOT LAND (2 survived) | **ERROR · suite abort** 8764→8752 |
+
+⭐ **The honest framing, and it is the finding of this session: landing a mutation is not the same as
+producing a verdict.** All six mutations now land — no row returns `MUTATION DID NOT LAND` or
+`UNMUTABLE` any more — but two then **abort** the suite instead of failing it, and the harness
+correctly refuses a verdict. **The anchor fix converts part of the semicolon-spanning ERROR class
+into the suite-abort ERROR class rather than into verdicts.** ERROR drops by 4, not 6, and
+`FUP-C2-SUITE-ABORT-ERROR-CLASS`'s population **grows 16 → 18** — both new rows PHI-lane doors
+(`professional_profiles` link state, printed-document mint). Closure item 1 is discharged; closure
+item 2 is **not** discharged by it and now has more work than before.
+
+**Corrected tally: COVERED 113 · BLIND 40 · ERROR 18 = 171.**
+
+⚠ **A bug introduced and caught inside this work, worth more than the fix.** SQL comments placed
+inside `mutate()`'s **unquoted** heredoc (`<<MUTSQL`, unquoted because it must expand the oid) are
+expanded by bash: backticks there **run as a command** and their text is silently deleted from the
+generated SQL. Proven at runtime — `raise: command not found`, a glob into `/LICENSE.txt` which bash
+then tried to execute, and a `mut.sql` with the comment gutted — **while `bash -n` stayed green**,
+because an even number of backticks parses fine. Prose moved outside the heredoc; backticks and bare
+`$` banned inside it, documented in place. Also recorded there: psql's `\copy` parser **rejects
+dollar-quoted regexes** (`parse error at end of line`), which is why both regex sites hand-double
+their quotes and must be kept in lockstep.
+
+#### Closure item 3 — all 39 keystones specified (`docs/design/authz-c2-blind-keystone-specs.md`)
+
+**The property split reproduces ADR 0187 D-M2 exactly — 12 / 13 / 14 — by an auditable rule** rather
+than by message text: *a raise is authorization iff the guard immediately preceding it takes the
+**caller** as an input* (`auth.uid()`, `app.is_*_of`, `app.can_*`). B splits lifecycle 9 / validation
+5 by guard, but lifecycle 8 / validation 6 **by keystone**, because `update_interview` must pin
+`HC0B1` rather than its possibly-unreachable `HC038` branch.
+
+⛔ A regex over the messages gives 12/18/9 and is **wrong by 5 doors** — `reopen_capa_plan`,
+`reopen_interview`, `reopen_rca`, `submit_rca_for_review`, `submit_ethics_appeal` — every one
+over-called on **`apenas`** where `apenas` governs an *object*, not a principal (*"apenas um plano
+concluído pode ser reaberto"*). `apenas` is a syntax, not a property: the same failure class as the
+harness anchor, one layer up, and no better word list can fix it. This was the lead's error, caught
+by the adjudication.
+
+⛔ **ADR 0187 D-M1's "36 of the 40 BLIND doors are already invoked, only four with zero references"
+over-counts by 5 and should read 31 of 39.** Three have no mention at all; five more are
+grep-positive but **never entered**, appearing only in t19 `has_function_privilege` catalog
+assertions (`cancel_session`, `update_session`, `update_interview`,
+`set_interview_subject_participant`, `set_interview_interviewer_participant`). The mechanism is the
+one `authz-c2-blind-keystone-designs.md` §4.3 predicted **in writing** — an enumeration bounded by
+*the name appearing* rather than *the function being entered* — and §4.3's own worked example,
+`cancel_session`, sits inside D-M1's "36".
+
+⛔ **The existing design's mutation fact #2 ("all anchored raises go at once, so pinning any one is
+sufficient") has an exception.** `approve_correction`'s `HC061` sits inside
+`exception when others then … if sqlstate = 'HC061' then raise … end if; raise;`. Neutralized it
+becomes `null;` and the bare `raise;` **re-raises the delegate's `HC061` with the same SQLSTATE** —
+so a code-only keystone there stays **green under mutation**. Pin its `42501` instead.
+
+**Two contradictions, neither of which may be keystoned before a catalog read** (specs §6.4):
+`public.reopen_interview` (`121_interviews.sql:292-294` pins `HC038`, its only anchored raise, in its
+own body) and `app.assert_ethics_typed` (three `null`-message `HC0J0` pins at `258:92`, `256:118`,
+`255:137`). Shared mechanism: **a `null`-message `throws_ok` on a code that more than one enforcer in
+the chain raises** — which is what makes §4.2's "pin the message" give an assertion a *subject*,
+rather than merely defending against a missing EXECUTE grant. `public.cancel_interview` is a
+downstream casualty: if the read goes one way, its only anchored raise is unreachable and it needs an
+ADR 0187 D3-style ruling, not a test.
+
+Also recorded: **6 codes have zero pins anywhere in the suite** (`HC074`, `HC075`, `HC0M1`, `HC0M3`,
+`HC0M6`, `HC0M9` — the whole correction-draft authority lane plus both `conclude_referral` validation
+codes); **10 allowlist lines owed for deletion**, each needing a working ALLOW leg plus an effect
+assertion because a deny-only keystone leaves the door at 0 recorded calls and `ARM=floor` still
+reds — and **9 of those 10 are also in the not-invoked set**, i.e. the allowlist entry and the
+blindness are the same fact; and that the existing design's own `cancel_session` (§3.3) and
+`cancel_event` `HC043` (§2.3) strings are **non-conforming with D2**, which post-dates them.
+
+#### PO ruling, given directly 2026-09-04
+
+**The three doors where the caller-input rule and a message reading disagree are labelled B
+(state / lifecycle / validation), provisionally** — `public.add_capa_action_evidence` (`HC0D8`),
+`public.submit_ethics_appeal` (`HC0J0` #1), and `app.assert_ethics_typed` (`HC0J0`, whose message
+says *status* while its guard checks row existence — "text is not truth" sitting inside the
+classification input itself). Rationale accepted: D2's label is precisely what prevents promotion, so
+the conservative call can only ever understate coverage, never commit the promotion ADR 0184 point 5
+forbids.
+
+#### The `HCDS*` question ADR 0187 C3 left open is DISCHARGED — it was a measurement, not a ruling
+
+0187 C3 recorded *"whether the four absent `HCDS*` doors **should** be Tier 1 … is a ruling owed, not
+a measurement owed."* Applying the Tier-1 predicate verbatim — a command door whose gate-aware call
+closure reaches a PHI-marked relation, where PHI-marked (`scripts/authz-c2-tier1-sizing.sql:99-113`)
+is `not has_table_privilege('authenticated', rel, 'SELECT')` **or** a positive-polarity comment
+matching `isolated phi|phi[- ]bearing|class[- ]1 phi`:
+
+| relation | door-only | PHI comment | marked |
+| --- | --- | --- | --- |
+| `patient_xref`, `case_referral` | yes | yes | **YES** |
+| `patient_safety_event`, `meetings` | no | yes | **YES** |
+| `dsr_requests`, `dsr_tasks`, `hospital_dpos`, `commissions`, `cases` | no | no | no |
+
+`create_dsr_request` reaches `patient_xref`; `complete_dsr_task` reaches `case_referral` and
+`patient_safety_event`; `adjudicate_dsr_request` reaches `meetings` — all three in Tier 1, as found.
+`attest_dsr_task` and `close_dsr_request` reach only `dsr_requests`/`dsr_tasks`;
+`appoint_hospital_dpo` and `revoke_hospital_dpo` only `hospital_dpos`/`commissions` — **all four
+correctly out.** `dsr_requests`' own comment states it is HASH-ONLY (`patient_key` is
+`app.derive_patient_key` output; identity documents stay in the hospital's files) — an explicitly
+**negative**-polarity PHI statement, so neither marker arm fires; `dsr_tasks.attested_by_name` is
+labelled *"THE REVIEWER — a STAFF member's name, never the data subject's (Rule 12)"*.
+
+⇒ The 4/4 split is exactly what the predicate produces. **No gap, and no ruling owed** — what the
+record was missing was the *mechanism*, not a decision. ⚠ Caveat: the closure walked here is a
+body-level relation scan plus one level of called functions, not the sizing script's full gate-aware
+transitive closure; the stronger statement rests on the derivation itself, since
+`c2-tier1-doors.txt` **is** that script's output and the four are absent from it.
+
+#### Dead ends and stale citations found
+
+- The "staged patch" this record cites at its own `:65-66` — `scratchpad/apply-anchor-fix.sh` — and
+  `FUP-C2-NEUTRALIZER-ANCHOR-BLIND-TO-HCDS-AND-28000.md:152`'s `scratchpad/regex-fix-validation.txt`
+  **do not exist anywhere in the tree**; there is no `scratchpad/` directory and it is not
+  gitignored. Only the regex text and the committed
+  `docs/reviews/c2-anchor-regex-fix-validation.txt` survived. Both citations are stale.
+- An `awk` classification pass gave 12/17/10 and was discarded on inspection: `awk` was not matching
+  accented UTF-8 in the pattern, so `add_rca_member`'s *"você não pode editar…"* fell to B. The wrong
+  matcher read exactly like a live defect. Re-run in Postgres, then superseded entirely by the
+  caller-input rule above.
+
+#### Sequencing constraint, discovered and now binding on the remaining phases
+
+Nothing under `supabase/tests/**` may be edited while a sweep runs — it changes the suite's shape
+(`Files`/`Tests`) and voids the in-flight baseline the harness captured at the top of its run. So:
+**Phase A** diagnose the 18 suite-abort rows and run the 2 catalog reads (DB, no edits) → **Phase B**
+write the 39 keystones + the abort fixes + the 10 allowlist deletions (edits, no sweeps) → **Phase C**
+verification subset sweep, rows merged into the findings file, never copied over it →
+**Phase D** `ARM=census`, `ARM=floor`, `ARM=hat`, `FROMFINDINGS=1 ARM=wrapper`, then the records.
+
+#### Artifacts
+
+- **Written:** `docs/design/authz-c2-blind-keystone-specs.md` (`40c3c588`).
+- **Changed:** `supabase/tests/mutation/c2-command-door-neutralizer.sh` (`ca328539`) — anchor,
+  worklist column 6, both counters, the header's stale cost claim, and the heredoc trap documented
+  in place.
+- ⛔ **Untouched by design:** `docs/reviews/c2-command-door-findings.md` — derived per run (ADR
+  0153); cksum verified unchanged before and after every sweep. It still reads 106/40/25 against the
+  corrected 113/40/18, and the correction lives here.
+- **Not committed, not mine:** `docs/progress/phase-ledger.md` carries an uncommitted set of
+  2026-09-04 corrections from the previous session; left for the PO to rule on rather than folded
+  into a C2 commit.
