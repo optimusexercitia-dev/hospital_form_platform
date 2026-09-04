@@ -1,5 +1,13 @@
 import type { Database } from "@/lib/types/database";
 import type { OrganizationRef } from "@/lib/queries/session";
+// ⚠ VALUE import from `@/lib/queries` — and this module is imported by three
+// `"use client"` components, so the "Pure, no I/O" note below is about THIS file's
+// body, not about its import graph. Safe today only because `session-grants.ts`
+// carries no `server-only` marker and its own `session.ts` import is `import type`,
+// which is why `lint:client-server-imports` stays green. ⛔ Adding `server-only` to
+// `session-grants.ts` would break `next build` in those three client components, and
+// no gate warns first — the green is a property of that file, not of this one.
+// Gate AE4 review F-REC-5, caveat placed at the import site as the finding asked.
 import {
   partitionGrants,
   type SessionGrant,
@@ -15,8 +23,10 @@ import { commissionHref, nspHref, orgHref, qualidadeHref } from "@/lib/routing";
  * the same mapping (`docs/design/act-role-picker.md` §1 — extracted from
  * `src/app/page.tsx`'s own precedence chain, not invented here).
  *
- * Pure, no I/O, safe to import from Server AND Client Components alike
- * (mirrors `src/lib/routing.ts`'s own convention).
+ * Pure, no I/O **in this file's own body**, safe to import from Server AND Client
+ * Components alike (mirrors `src/lib/routing.ts`'s own convention). ⛔ The claim is
+ * about this body, NOT the import graph — see the caveat on the `session-grants`
+ * value import above, which is what makes the client-side safety conditional.
  *
  * ⚠ LIVES IN `src/lib/role/`, NOT `src/components/role/` — moved 2026-08-25. Its
  * consumers now include a `src/lib/queries` module, and a query module importing from

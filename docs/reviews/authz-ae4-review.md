@@ -9,6 +9,15 @@
 - ⛔ **This is a MID-PHASE review, not the Gate AE4 review.** It was run after AE4.6's
   cutover and before AE4.7, and its § "Recommended order" is what AE4.7a/b/c executed.
   The Gate AE4 review is a separate, later artifact.
+- ⛔ **NOT A VERDICT-BEARING ARTIFACT — it carries no `APPROVED` / `CHANGES REQUESTED`
+  line, deliberately** (banner added 2026-09-04, Gate AE4 review **F-REC-6**). Its
+  dispositions live in the increment record, and the verdicts that govern Phase AE4 are
+  in [`authz-ae4-gate-review.md`](authz-ae4-gate-review.md) and
+  [`authz-ae4-gate-rereview.md`](authz-ae4-gate-rereview.md). ⚠ F-REC-6's point stands and
+  is why this banner exists: *a review file with findings and no verdict is
+  indistinguishable from an abandoned one*. ⛔ A verdict was **not** appended
+  retroactively — inventing one nobody gave in 2026-09-01 would be worse than the gap it
+  fills. Read the absence as deliberate, not as unfinished work.
 - ⚠ **PROMOTED VERBATIM out of this branch's handoff on 2026-09-01.** It was
   written into that handoff, where an audit narrative may not live: a handoff is ephemeral
   resume-state bounded by its branch, and the moment anything cites it, it can never be
