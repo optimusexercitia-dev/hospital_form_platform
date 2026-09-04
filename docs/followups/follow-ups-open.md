@@ -1209,7 +1209,7 @@ same commit, or not at all.**
 **Status:** open
 **Body:** [FUP-ONE-SUPABASE-PROJECT-SERVES-TEST-AND-PRODUCTION.md](FUP-ONE-SUPABASE-PROJECT-SERVES-TEST-AND-PRODUCTION.md)
 
-### 🟠 FUP-DOOR-SWEEP-MARKER-BLIND-TO-CONTINUATION-LINES — a multi-line `door-sweep-targets:` declaration silently loses every target after the first, and a sibling already relies on a different code path
+### 🟠 FUP-DOOR-SWEEP-MARKER-BLIND-TO-CONTINUATION-LINES — a multi-line `door-sweep-targets:` declaration silently loses every target after the first
 
 **Filed:** 2026-09-04 (while clearing Gate AE4 review F-MAJOR-3) · **Owner:** backend · **Severity:** high — the declaration in `20261003007250` is **already non-functional** on the declaration path; its three targets survive only because that migration is a DROP+CREATE caught by the deriver's name-selection block. The two paths agree today and nothing says so.
 **Closes when:** the deriver either consumes continuation lines, or rejects them loudly (an unmatched `--` line following a `door-sweep-targets:` line is a named parse error, not silence) — and `20261003007250`'s three targets derive **from the declaration path**, provable by removing its `create or replace` lines from consideration and re-deriving. ⛔ Reformatting that one file to one-line-per-target does not close it: that leaves the parser narrower than the notation.
