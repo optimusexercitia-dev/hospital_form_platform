@@ -454,3 +454,138 @@ I am requesting changes on the record layer, not the measurement layer — becau
 record *is* a condition of the closure, and two of the three ADR 0187 D1 conditions are stated in
 sentences that are currently wrong or falsified. Fix **B1** and **B2**, regenerate **M1**, file
 **M2**, and this is an APPROVED closure.
+
+---
+---
+
+# Round 2 — re-review at `d2bdb372`
+
+**Verdict: APPROVED**
+
+**Date:** 2026-09-04 · **Tree:** `main` @ `d2bdb372`, clean · Round 1 above is left intact as the
+record of what was found.
+
+⛔ **Required disclosure (ADR 0187 D1), restated because this too is a gate record citing this
+sweep: Tier 2's 190 doors stay deferred by ADR 0171 and are NOT cleared.**
+
+## ⚠ B1 — WITHDRAWN. My finding was wrong, and the correction is the interesting part.
+
+I claimed `A1 12 / A2 13 / B 14 = 39` could not be reconciled with 15 labelled doors. **The
+coordinator's reading is correct and mine was not: the classification counts DOORS, the labels count
+ARMS.** I tested it the way I was asked to — the 14 B doors plus `cancel_event` must account for
+exactly the 15 labelled doors — and it holds:
+
+```
+raise exception 'apenas quem detém a custódia do evento pode cancelá-lo'   -- HC044
+raise exception 'este evento já está em um estado final' using errcode = 'HC043';
+```
+
+`public.cancel_event` raises **no `42501`** (catalog-verified), so it is not A1; its authorization
+raise `HC044` is a permission-worded `HC0*` message — and *"apenas quem detém a custódia…"* is
+verbatim one of the three exemplars the record itself cites for **A2**. Its **second** anchored
+raise `HC043` is a state guard, and that is the arm carrying the `state` label. So `cancel_event` is
+an **A2 door with a state-labelled second arm**, and:
+
+- 14 B doors + `cancel_event` = **15 labelled doors** ✅
+- 15 doors + `submit_ethics_appeal`'s second arm = **16 labels** ✅
+- label breakdown measured in the tree: **9 `lifecycle` · 1 `state` · 6 `validation` = 16** ✅ —
+  identical to my own independent count in round 1, which I had read as corroborating a
+  contradiction when it was corroborating the opposite.
+
+I got the diagnosis wrong: I inferred a stale pre-PO-ruling denominator where the real cause was two
+correct figures with different units. What I was right about is what got fixed — **the record stated
+neither denominator**, so two true numbers read as a contradiction to any auditor who checked them.
+`docs/progress/c2-tier1.md:1049-1058` now states both units explicitly and names `cancel_event` as
+the reason they differ. That is the right repair, and it is a better sentence than the one I asked
+for.
+
+Recording this plainly because the unit's own thesis cuts both ways: a reviewer's re-derivation goes
+stale and errs like any other measurement, and mine erred in the direction that reads as rigour.
+
+## What I verified in round 2
+
+| item | status | how |
+| --- | --- | --- |
+| **B1** | ⚠ **withdrawn** (see above) | catalog read of `cancel_event`'s raises; label breakdown re-counted 9/1/6 = 16 |
+| **B2** | ✅ **fixed, and better than asked** | heading now `## Since 2026-08-29 a kill is CAUGHT — ⛔ NOT in C2`; file 2038 B, under gate 8's 2048 cap. New `.claude/rules/c2-neutralizer-has-no-crash-safety.md` is path-scoped to `c2-command-door-neutralizer.sh` alone and carries the mechanism. It also states a fact **I missed**: `RECOVER=1` does not exist in this script — so the sibling rule's recovery instruction was false for C2 in a *second* way I did not catch |
+| **M1** | ✅ **fixed** | findings file re-counted by me: **171 data rows · 170 COVERED · 1 BLIND · 0 ERROR · 0 `CONTEXT:` fragments**; 5 non-table lines remain and all 5 are the header. Tally re-verified end to end |
+| **M2** | ✅ **filed** | `FUP-C2-TIER1-FLOOR-ARM-HAS-ZERO-SLACK.md`, registered twice in `follow-ups-open.md`. Its closes-when offers the two remedies and argues for the cheaper one on the right grounds — *"the risk is not that one call is insufficient, it is that nothing announces the fragility"* |
+| **M3** | ✅ **fixed** | `docs/progress/c2-tier1.md:1003-1011` now states the measured deletion census and carries the stronger form: no migration and no `src/` file changed anywhere in the range |
+| **M4** | ✅ **ADR 0188** | header well-formed (`**Status:** accepted`, `**Area:**`, `**Related:**` naming 0187/0184/0153/0079 and this review). Correctly **not** labelled `Supersedes`/`Amends` — it rules on ground no earlier ADR occupied. Number derivation documented per-ref; I re-checked and `0188-*.md` exists on `refs/heads/main` only |
+
+## Round-2 findings
+
+Neither blocks.
+
+- **r1 — the sentinel follow-up's `Closes when` still has three items, not four.** The rule repair
+  was made (so the round-1 blocker is genuinely gone), but the closes-when says nothing about the
+  rule files. **The residual is the inverse of the one I filed:** when items 1–3 land and the harness
+  *does* become crash-safe, both rule files will assert the opposite of the truth — "a kill is not
+  caught in C2" — and nothing tells the implementer to update them. That is the same failure class
+  with the arrow reversed. One line on
+  `FUP-C2-TIER1-INFLIGHT-SENTINEL-ERASED-BY-ITS-OWN-RESTORE`: *"items 1–3 falsify both rule files;
+  retire `c2-neutralizer-has-no-crash-safety.md` and unscope the sibling's heading in the same
+  commit."*
+- **r2 — hub `docs/features/c2-tier1.md:53` still reads "14 class-B keystones carry `[PROPERTY: …]`"
+  next to `:31`/`:72`'s "16 D2 property labels".** Both are true under the units the record now
+  states, but the hub is the summary a reader hits first and it does not carry the denominators. A
+  four-word fix — *"14 class-B **doors**; 16 labels across 15 doors, `cancel_event`'s second arm
+  included"* — makes it self-consistent without exceeding the 60-line cap (currently 30).
+
+## Your two questions
+
+**1. The two stale register entries.** I did name both, in round 1 § M5 — apologies if the line
+citations buried them. They are:
+
+- **`FUP-C2-SUITE-ABORT-ERROR-CLASS`** — `follow-ups-open.md:1303` and the body's own title line 1
+  both still read *"**16** enforcers abort a pgTAP file"*; the population grew to **18** and the
+  class is now **0**. Body `:13` still asserts *"`Files=259` is UNCHANGED in every case"* against
+  today's 262, and its localization table is falsified by Phase A (`submit_response` is six files,
+  not four).
+- **`FUP-C2-NEUTRALIZER-ANCHOR-BLIND-TO-HCDS-AND-28000`** — `follow-ups-open.md:1289` still carries
+  the *"458 authz raises"* headline, and the body still cites `scratchpad/regex-fix-validation.txt`
+  at `:152` — a path the session itself proved does not exist anywhere in the tree, and which the
+  body *already* records as non-existent at `:259`, so the entry contradicts itself. The retired
+  *"60 raises"* figure that ADR 0187 C3 says must not be re-quoted should be struck here too.
+
+Both are Record-step work, not closure blockers — but they are the entries the next session reads,
+and both are entries this closure claims to have discharged.
+
+**2. The fifth abort site — unproven, NOT unsafe. It does not block.**
+
+Here is the reasoning, and it turns on a distinction I under-stated in round 1. A latent abort site
+cannot manufacture a false `COVERED`. Every one of the 170 `COVERED` rows was scored on a run in
+which its file did **not** abort — that is what `COVERED` means. A later-added assertion can only
+flip a *future re-measurement* from `COVERED` to `ERROR`, and `ERROR` **blocks the phase gate**
+(CLAUDE.md §6 step 1: "`ERROR` is not a pass"). So the failure mode is a future gate going red and
+someone paying diagnosis cost — never a guard sitting unprotected while the record says otherwise.
+
+The security property is also carried by the assertion, not by the scoring run: all 39 keystones are
+in the tree, pin code **and** message, and fail under mutation whether or not any harness is
+watching. Scoring is bookkeeping over that fact.
+
+So this is a **measurement-completeness** gap, not a **safety** gap, and ADR 0188 is now the right
+home for it: the tally is stated as a composite, on stated conditions, with the per-door-attribution
+residual carried. I would not spend 8 hours of wall clock and a live-gate risk to convert
+"conservative and disclosed" into "proven". Two things I would keep on the record:
+
+- The existing standing instruction is already correct and should survive into the ledger row: **a
+  row that does not come back `COVERED` in a future sweep is a finding, not a retry.**
+- If a later sweep returns `ERROR` in `203`, `274`, `305` or `312`, that is the fifth site
+  announcing itself, and the diagnosis is already written down (B1 correction 6 — wrap the whole
+  *run* of statements, not the first).
+
+## Verdict
+
+**APPROVED.** The three ADR 0187 D1 conditions are discharged and independently corroborated; the
+tally reconciles to 171 by my own arithmetic in both rounds; the required disclosure is stated
+verbatim and does not restate ADR 0184's falsified bullets; no assertion was weakened anywhere in
+the range; and the five non-unique pins' subject claims hold against the live catalog. Both round-1
+blockers are resolved — one by a correction that was better than what I asked for, and one by
+showing my finding was wrong.
+
+The two round-2 items (**r1**, **r2**) and the two stale register entries are Record-step work. The
+unverified list from round 1 stands as filed: **U1** is now governed by ADR 0188 and does not block;
+**U2**, **U3** and **U5** are cheap re-derivations the lead can fold into the gate run; **U4** (have
+the harness record *which* assertion flipped) remains the single highest-value instrument
+improvement available to this program.

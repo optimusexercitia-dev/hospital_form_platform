@@ -51,7 +51,7 @@ Full ruling: `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` / Critical FUP C2
       C3); and **22** ERROR enforcers with no verdict (16 suite-abort + 5 semicolon-spanning + 1
       `save_block_to_library`; the "~10" was an in-flight extrapolation — ADR 0187 C2)
 - [x] ✅ **Operationalised 2026-09-04** — 14 class-B keystones carry `[PROPERTY: … — NOT authorization]`; the 106 pre-existing COVERED rows stay unclassified and 0184 point 5 stands for them. Original text: "A COVERED/BLIND verdict from this run means `HC0*`-coded-guard coverage, NOT authorization
-      coverage" (ADR 0184 point 5) — operationalised by ADR 0187 D2: the **14** BLIND doors with no
+      coverage" (ADR 0184 point 5) — operationalised by ADR 0187 D2: the **14 class-B DOORS** (labels count ARMS: 16 across 15 doors) with no
       authorization raise in their own body close via state-guard keystones carrying an **EXPLICIT
       PROPERTY LABEL** (state / lifecycle / validation), ⛔ never recorded as authorization coverage.
       The label is the condition of the closure
