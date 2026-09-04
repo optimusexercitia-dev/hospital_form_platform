@@ -451,7 +451,30 @@ select is(
   'so it is gated rather than trusted to be tidied.');
 
 -- ============================================================================
--- §6 — THE HARD-DENY VOCABULARY IS ALIVE, AND AN EMPTY MEASURED LIST IS FALSIFIABLE.
+-- §6 — THE HARD-DENY VOCABULARY IS ALIVE, AND AN EMPTY DEPTH-1 LIST IS FALSIFIABLE.
+--
+-- ⛔⛔ READ THE DEPTH BEFORE READING THE ZERO. § 6.2 searches exactly two body classes: the
+-- ENUMERATED SITE BODIES and the DOMAIN AUTHORIZER BODY. Call that depth 1. It does NOT walk
+-- the composed-call closure below them, and it never has. The label was renamed
+-- `measured-at-declared-sites` -> `measured-depth1-at-sites-and-authorizer` on 2026-09-03
+-- (review F-MAJOR-1, remediation (a)) because the old name read as a closure it never had.
+--
+-- ⚠ THE EMPTY LIST IS A BOUND, NOT AN ABSENCE. `principal_inactive` (`app.is_active`) IS
+-- enforced on ALL THREE rows carrying the measured label. Re-derived on the live catalog
+-- 2026-09-03 with comments stripped (depth 1 = the bodies this section searches):
+--   * permission arm, all 3 rows .......... depth 4  has_permission -> entailed_grants
+--                                                    -> assignment_facts -> is_active
+--   * commission.forms.edit, preserved arm  depth 2  app.is_tenancy_admin_of_for
+--   * org.professionals.create,  "     "    depth 3  app.can_manage_professional -> is_org_admin_of
+--   * org.professionals.read,    "     "    depth 3  app.can_manage_professional -> is_org_admin_of
+--   * org.professionals.read also reaches `respondent_exclusion` at depth 5, through
+--     app.can_read_case_committee -> ... -> app._case_caps -> app.is_case_respondent
+-- ⛔ The review's phrase "depth 2 on both arms" holds for ONE arm of ONE row. Raising the
+-- search by a single hop would catch that path and leave the other five unmeasured — the
+-- partial fix that reads as a complete one. The transitive measurement plus a positive
+-- control is the END STATE, tracked as FUP-AE4-HARDDENY-CLASSES-CANNOT-FAIL; it must land
+-- together with that follow-up's M7 fix (lint's `hardDenyClasses` loop iterates an empty
+-- list zero times), or a transitive § 6.2 only moves the vacuity one level up.
 -- ============================================================================
 
 select is(
@@ -471,7 +494,7 @@ select is(
      from authz_manifest_permissions m
      join authz_manifest_sites s on s.code = m.code
      cross join authz_manifest_hard_deny_vocab v
-    where m.hard_deny_provenance = 'measured-at-declared-sites'
+    where m.hard_deny_provenance = 'measured-depth1-at-sites-and-authorizer'
       and cardinality(m.hard_deny_classes) = 0
       and v.gate is not null
       and (position(v.gate || '(' in
@@ -486,21 +509,33 @@ select is(
                 coalesce(pg_temp.fn_body(split_part(coalesce(m.domain_authorizer, '.'), '.', 1),
                                          split_part(coalesce(m.domain_authorizer, '.'), '.', 2)), '')) > 0)),
   '(none)',
-  '6.2 ⭐⭐ AN EMPTY MEASURED HARD-DENY LIST IS FALSIFIABLE. Three rows declare '
-  '`measured-at-declared-sites` with ZERO classes, and an empty list looks exactly like a '
-  'lazy one. This asserts the measurement: no gate from the vocabulary appears at those '
-  'sites OR inside their authorizers. ⛔ If a re-key composes app.is_case_excluded into a '
-  'form policy or its authorizer, this reds and the row must record the class — the finding '
-  'this preserves is that the recusal / respondent hard denies live at the CASE-family sites, '
+  '6.2 ⭐⭐ NO HARD-DENY GATE IS INVOKED **DIRECTLY** AT THE DECLARED SITES OR IN THE '
+  'AUTHORIZER BODY — DEPTH 1, STATED AS DEPTH 1. Three rows declare '
+  '`measured-depth1-at-sites-and-authorizer` with ZERO classes, and an empty list looks '
+  'exactly like a lazy one; this asserts the depth-1 measurement and NOTHING about the '
+  'composed-call closure beneath it. ⛔ THE ZERO IS A SEARCH HORIZON, NOT AN ABSENCE: '
+  '`principal_inactive` (app.is_active) is enforced on all three of these rows at depth 2-4, '
+  'and org.professionals.read reaches `respondent_exclusion` at depth 5 — measured on the '
+  'live catalog 2026-09-03; the per-row paths are in this section header. This arm cannot see '
+  'any of them and is not meant to. The bound is DISCLOSED here, not repaired. ⛔ The end '
+  'state is the TRANSITIVE measurement plus a positive control that plants a vocabulary gate '
+  'and requires 6.2 to NAME it, landing together with the M7 fix in '
+  'FUP-AE4-HARDDENY-CLASSES-CANNOT-FAIL — neither half buys anything alone. ⛔ Still live as '
+  'a gate at its own depth: if a re-key composes app.is_case_excluded DIRECTLY into a form '
+  'policy or its authorizer, this reds and the row must record the class — the finding it '
+  'preserves is that the recusal / respondent hard denies live at the CASE-family sites, '
   'all of which are still pending-rekey.');
 
 select ok(
   (select count(*) from authz_manifest_permissions m join authz_manifest_sites s on s.code = m.code
-    where m.hard_deny_provenance = 'measured-at-declared-sites') > 0
+    where m.hard_deny_provenance = 'measured-depth1-at-sites-and-authorizer') > 0
   and (select count(*) from authz_manifest_hard_deny_vocab where gate is not null) > 0,
   '6.3 CARDINALITY CONTROL for 6.2: both sides of its cross join are non-empty. 6.2 is a '
   'cross product; either side going empty makes it assert nothing while still reporting '
-  '"(none)".');
+  '"(none)". ⚠ THIS IS A CARDINALITY CONTROL AND NOT A DISCRIMINATION ONE — it proves the '
+  'cross join has rows, never that 6.2''s position() predicate can evaluate true. The '
+  'positive control that would close that gap is (b) in '
+  'FUP-AE4-HARDDENY-CLASSES-CANNOT-FAIL; do not read this arm as supplying it.');
 
 select is(
   (select coalesce(string_agg(m.code, ', ' order by m.code), '(none)')

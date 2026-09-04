@@ -1233,8 +1233,8 @@ same commit, or not at all.**
 ### 🟠 FUP-AE4-HARDDENY-CLASSES-CANNOT-FAIL — `hardDenyClasses` is empty on all 43 rows and the lint arm that checks it iterates zero times
 
 **Filed:** 2026-09-02 (Gate AE4 QA review, finding F-MAJOR-1) · **Owner:** backend · **Severity:** high — a check that structurally cannot return the failing verdict is not a check; it is a green that reads like one.
-**Closes when:** Either populate `hardDenyClasses` from the catalog so the arm has something to iterate, or replace the loop with an assertion that can fail on the empty case — plus a discrimination control for §6.2, anchored on a class known to be present, and its search depth raised past the one hop that currently hides `app.is_active`.
-**Status:** open
+**Closes when:** Either populate `hardDenyClasses` from the catalog so the arm has something to iterate, or replace the loop with an assertion that can fail on the empty case — **plus** a discrimination control for §6.2 anchored on a class known to be present, **plus** §6.2's search made transitive over the composed-call closure, comment-stripped. ⛔ **Not "one hop"** — the measured depths are 2, 3 and 4, so a one-hop raise is a partial fix that reads as complete. ⛔ All of it in ONE change: a transitive §6.2 without the M7 fix only moves the vacuity up a level.
+**Status:** open — remediation **(a) landed 2026-09-03**: the label is now `measured-depth1-at-sites-and-authorizer` and §6.2's caption states the depth and the enforcement it cannot see. That is a **disclosure of the bound, not a closure**; (b) above is still owed.
 **Body:** [FUP-AE4-HARDDENY-CLASSES-CANNOT-FAIL.md](FUP-AE4-HARDDENY-CLASSES-CANNOT-FAIL.md)
 
 ### 🟠 FUP-WRITEPATH-FINDINGS-FILE-COVERS-33-OF-107 — the committed findings baseline predates the domain fix, and `FROMFINDINGS` arms structurally cannot notice

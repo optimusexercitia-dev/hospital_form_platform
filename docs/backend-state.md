@@ -911,7 +911,12 @@ name as still present and hiding a rename.
   keeps a row-count probe green with the write policy fully revoked).
 - **No performance evidence exists** for the final path (IA-F9). It must be measured through
   policy → layer 3 → layer 2 → layer 1, **never on `holds_role` alone**.
-- `hardDenyClasses` is **40/43 `not-attributable-until-rekey`** — honest bookkeeping, not coverage.
+- `hardDenyClasses` is **empty on 43/43** rows — 40 labelled `not-attributable-until-rekey`, 3
+  `measured-depth1-at-sites-and-authorizer`. Honest bookkeeping, **not coverage**, and the measured
+  label means only *no vocabulary gate is invoked DIRECTLY in a site or authorizer body*. ⛔ Those 3
+  rows DO enforce `principal_inactive` at depth 2–4 (and one reaches `respondent_exclusion` at
+  depth 5); `410` §6.2 cannot see it by construction. The zero is a search horizon, never an
+  absence — `FUP-AE4-HARDDENY-CLASSES-CANNOT-FAIL` carries the depths and the transitive end state.
 
 **Rollback:** [authz-rollback-runbook.md](deployment/authz-rollback-runbook.md) + its out-of-chain
 template. ⛔ Restore the **disjunct**, not the whole policy body, and **both halves** of a `FOR ALL`
