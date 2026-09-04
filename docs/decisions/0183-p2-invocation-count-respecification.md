@@ -3,19 +3,28 @@
 **Status:** accepted
 **Date:** 2026-09-03
 **Amends:** 0182
-**Approved:** ⛔ **NOT RECORDED — this line is a PLACEHOLDER, not an approval.** The authorising
-party and the date are **owed and missing**; they must be supplied by the **PO directly**, and until
-then nothing here may be read, quoted or counted as a recorded approval. ⛔ **An agent-authored
-approval is not an approval**, and neither is one that exists only in a session transcript — ADR
-[0182](./0182-statement-scoped-authorized-scope-ids.md)'s own header records that, and its first
-version carried no authorising party either. Filed as QA re-review **LOW-5**; the same class as
-IA-F9 **MAJOR-4**, one ADR later. ⚠ **What this line needs when the PO supplies it** — the
-authorising party **by authority, not by seat** (*"operator" named a seat and was the ambiguity
-MAJOR-4 was filed against*), the **date**, and **what was approved** — this ADR replaces acceptance
-condition **P2's wording *and* its instrument**, §16.2's `A = 1 + U` bound on a
-`pg_stat_get_function_calls` counter plus **P2a**/**P2b**, and rules run 6 re-decomposable but **not
-re-scorable** (§16.4). ⛔ Delete this placeholder wholesale when the real line is written; do not
-edit around it.
+**Approved:** **the PO**, **2026-09-04** — ⚠ **AFTER THE FACT, and that is the point of this line.**
+This ADR was written **2026-09-03** (`98994c22`) and **run 7 had already scored P2 under it** before
+any approval existed. The approval is therefore a **ratification of a change already made and
+already relied upon**, not a ruling given in advance. ⛔ It must never be read, quoted or summarised
+as "ruled before the run" — that distinction is one this acceptance record has had to correct twice
+already (DC2's re-aim, and § 14's chronology claim), and collapsing a same-week date range is
+exactly how it goes wrong.
+
+**What the PO approved**, stated so the scope is not inferred later: P2's **wording *and* its
+instrument** replaced together (§ 16.2's `A = 1 + U` bound on a `pg_stat_get_function_calls` counter,
+keyed by OID, committed as `scripts/authz-ae4-p2-invocation-count.sql`), **P2a**/**P2b**, the two
+controls that must both fire, the precedence rule that `ΔU > 0 ∧ ΔA = 0` is **VOID — a dead
+instrument — never FAIL**, and the ruling that run 6 is **re-decomposable but not re-scorable**
+(§ 16.4) with its recorded PASS standing as a PASS under the wording then in force. No threshold
+moves.
+
+⚠ **A 2026-09-02 date was proposed and rejected on measurement:** it would predate this ADR, the ADR
+it amends (0182, also 2026-09-03), and the QA review that found the vacuous instrument in the first
+place — an approval cannot precede the discovery of the defect it authorises fixing. Recorded here
+because an approval that predates its subject reads as *more* rigorous than one that follows it, and
+would have been the more damaging error. Closes QA re-review **LOW-5**; same class as IA-F9
+**MAJOR-4**, one ADR later.
 
 ## Context
 
