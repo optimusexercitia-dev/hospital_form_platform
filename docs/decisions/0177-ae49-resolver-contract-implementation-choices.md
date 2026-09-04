@@ -101,6 +101,17 @@ denial. The FK retires at AE5-complete (0162 §2); this gate is what stands behi
   `entailed_grants` is set-returning-and-unreachable — the C2 / row-door classes. ⛔ Same domain
   exclusion, **four different reasons**; they may not be recorded as one class, and absence of a
   verdict is absence of coverage.
+  ⚠ **DISAMBIGUATED 2026-09-04 (Gate AE4 review F-REC-2) — a caption, NOT an amendment.** Those
+  eight words carry a polarity only once the refused inference is named, and the one refused HERE is
+  *out of an arm's domain ⇒ swept clean*, about three objects **no arm has ever asked about**.
+  [0178](./0178-ae49-d6-rekey-as-built.md) § Consequences states the literal opposite — *"Absence of
+  a verdict is **not** absence of coverage"* — refusing the **converse** inference (*this arm
+  returned nothing ⇒ the subject is unprotected*) about a different subject: policies that **do**
+  hold COVERED verdicts from five other suites, merely stale. Both sentences are true, of different
+  subjects; neither ADR's decision moves, which is why no `Amends:` label was added. The reconciled
+  both-directions form the tree already uses is *absence of a verdict is not absence of coverage —
+  and it is not coverage* (`docs/progress/c2-tier1.md`), and it is why both ADRs land on **UNPROVEN**
+  instead of on either extreme. ⛔ Quote either half without its subject and it inverts.
 - **`public.assume_role` kept its NAME and changed its BODY**, which `ARM=census` cannot see by
   construction. `scripts/door-sweep-cases.sh` is what surfaced it — not recall.
 - **No product answer moves.** No policy, wrapper, door or ACL changed; `npm run gen:types` produced

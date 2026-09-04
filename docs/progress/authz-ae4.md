@@ -1350,3 +1350,32 @@ the true observation and fixing only the attribution;
 `docs/followups/FUP-AE4-HARDDENY-CLASSES-CANNOT-FAIL.md` had it right all along (*"the AE4 hub
 recorded"*) and was the model. ⛔ Still open, and NOT touched here: `docs/features/ae4.md` lines 85
 and 89 still list the MAJOR-5 re-run under **In progress** and **Next** — the hub is the lead's.
+
+### 2026-09-04 — F-MAJOR-2 discharged: `ARM=catalog` and `ARM=sites`, named by what each asks
+
+The two AE4-owned arms had last held at AE4.7b; the Gate AE4 re-reviewer re-ran both at
+**`9f382b99`** (both are pure read-only SELECT arms) and both returned **`INVARIANT HOLDS`**. The
+finding was that the *record* still owed the line — per CLAUDE.md § 6 step 5, **named by ARM, never
+by the script**, because a record naming the script reads as full coverage while delivering the
+cheap half.
+
+| ARM | the question it asks | result at `9f382b99` | exit |
+| --- | --- | --- | --- |
+| **`ARM=catalog`** (ARM 6) | *Does every role the catalog claims AUTHORITY over still have the two artifacts that make the claim checkable* — a PO-approved permission matrix **and** a differential suite? It refuses the state where a `state` flip has made a role authoritative with **nothing to compare it against**. | **HOLDS** — **1** non-legacy role, **both** artifacts present; vacuity control OK | **0** |
+| **`ARM=sites`** (ARM 7) | *Does every site naming a catalog-owned role go through the wrapper family, or is it an allowlisted VALUE use?* Anything else names the role directly and so does **not** go through the catalog — the bypass a cutover exists to eliminate. AE4.6's hand census, re-derived rather than remembered. | **HOLDS** — wrapper family **2**; `staff_admin` **14** sites, all wrapper-family or allowlisted; **both halves** of the paired vacuity control OK; no allowlist rot | **0** |
+
+⛔ **Each arm's own bound, stated — the harness demands it and the ARM name alone does not carry it.**
+
+- `ARM=catalog` **proves the artifacts EXIST, not that they are RIGHT.** pgTAP `403` is the oracle
+  that compares catalog to matrix; this arm only refuses the empty-comparand state. Both statements
+  belong in any record citing it, and the harness header says so in those words.
+- `ARM=sites` matches **quoted code in comment-stripped source**. A site that reached the same
+  decision through a variable, a join to `authz.roles`, or a computed string is **invisible** to it —
+  the text-vs-property admission every regex-bounded arm in that file carries. Strong signal, never
+  a proof of absence.
+
+⚠ **Not my run — the reviewer's, credited to its commit.** The one half re-measured here
+independently, on the live catalog 2026-09-04, is `ARM=catalog`'s comparand count: `authz.roles`
+holds **12** rows, of which exactly **one** — `staff_admin` — is `authoritative` and **11** are
+`legacy`. That is the "1 non-legacy role" the arm reports, so its domain was not empty and the
+HOLDS is not vacuous on that axis. The `ARM=sites` figures are cited, not re-derived.

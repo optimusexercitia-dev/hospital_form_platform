@@ -139,6 +139,17 @@ Rejected:
   gap). The four altered policies additionally carry **stale COVERED verdicts** held by five other
   suites, which must be **re-measured, not inherited**. Absence of a verdict is not absence of
   coverage; this is recorded as UNPROVEN and may not be written as a pass.
+  ⚠ **DISAMBIGUATED 2026-09-04 (Gate AE4 review F-REC-2) — a caption, NOT an amendment.** The
+  subject here is policies that **do** carry verdicts — five other suites', merely stale — so the
+  inference refused is *this arm returned nothing ⇒ the change is unprotected*.
+  [0177](./0177-ae49-resolver-contract-implementation-choices.md) § Consequences states the literal
+  opposite — *"absence of a verdict **is** absence of coverage"* — refusing the **converse**
+  inference (*out of an arm's domain ⇒ swept clean*) about objects no arm has ever asked about.
+  Both sentences are true, of different subjects; neither ADR's decision moves, which is why no
+  `Amends:` label was added between them. The clause after the semicolon above is the other half,
+  and the tree's reconciled form states both at once: *absence of a verdict is not absence of
+  coverage — and it is not coverage* (`docs/progress/c2-tier1.md`). ⛔ Quote either half without its
+  subject and it inverts.
 - ⛔ **"The production door" means the production POLICY door — the bound, added 2026-09-04 (QA
   re-review N4).** The re-key moves the **RLS policy** predicate onto the permission arm; it does
   not touch the DEFINER surface, and the grant-deletion mutation therefore does not flip it.
