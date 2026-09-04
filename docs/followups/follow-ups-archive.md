@@ -8345,3 +8345,101 @@ deleting it would lose a fact this entry never asked to lose.
 
 ⚠ **What this does NOT establish.** That the 42 rows are individually *correct* — only that they are inside
 the approval. The oracle's soundness was never the thing in doubt here; its citeable scope was.
+
+### ✅ FUP-AUTHZ-COMMAND-DOOR-UNSWEPT — Critical FUP C2: sweep the PHI-touching command doors — **RESOLVED 2026-09-04**
+
+> **RESOLVED at `170 COVERED · 1 BLIND · 0 ERROR = 171`.** Closure conditions were ADR 0187 D1's
+> three items, all discharged by measurement, not argument: **the anchor fix** (813/813 in Postgres
+> ARE, 0 overmatch, 0 regression; blast radius proven as replace-output inequality over 1081
+> functions), **the ERROR class re-swept** (25 → 0), and **39 keystones** (39/39 COVERED, 16
+> property labels across 15 doors). All four authz arms HOLD, each recorded with its domain. Suite
+> `Files=262, Tests=8876, PASS`. QA review **APPROVED**
+> (`docs/reviews/c2-tier1-closure-review.md`, round 2). PO approved Gate AE4 on the strength of it.
+>
+> ⛔ **The disclosure this closure does NOT discharge, required verbatim in every gate record
+> citing the sweep: Tier 2's 190 doors stay deferred by ADR 0171 and are NOT cleared.**
+>
+> ⚠ The one remaining BLIND is `app.print_source_series`, kept BLIND **by ruling** (ADR 0187 D3):
+> its only anchored raise fires at supersession-chain depth > 1000, unconstructible under
+> `guard_supersession_coherent` plus the one-successor unique index. Recorded so nobody attempts a
+> 1001-row fixture.
+>
+> ⭐ The tally is a **composite** across six suite shapes (8685 → 8876), admissible under ADR
+> **0188**'s three conditions — no assertion deleted or weakened, no migration and no `src/` change
+> in the range, and the one unproven direction (COVERED → ERROR via a newly-added arm aborting a
+> file) being conservative: it can downgrade a real verdict to unmeasurable, never manufacture a
+> false COVERED.
+>
+> Full method, every figure and every dead end: `docs/progress/c2-tier1.md`, the 2026-09-04 entries.
+> Still open and **not** discharged by this: `FUP-C2-TIER1-TRIGGER-ENFORCERS-OUT-OF-SWEEP-DOMAIN`,
+> `FUP-C2-TIER1-INFLIGHT-SENTINEL-ERASED-BY-ITS-OWN-RESTORE`,
+> `FUP-C2-TIER1-VALUE-ASSERTIONS-ABORT-ON-AN-INLINE-RAISE`,
+> `FUP-C2-TIER1-FLOOR-ARM-HAS-ZERO-SLACK`, `FUP-C2-NEUTRALIZER-TAIL-DRIFT-INVALIDATES-LATE-VERDICTS`.
+
+### ✅ FUP-C2-THREE-BLIND-COMMAND-DOOR-GUARDS — the BLIND command-door guards need keystones — **RESOLVED 2026-09-04**
+
+> **RESOLVED — 39/39 keystones written and swept COVERED** (`400b6d2c`, `2cefae8e`). Filed against
+> 3 doors from the first 8 measurements; the full sweep grew it to 40, and ADR 0187 D3 ruled
+> `app.print_source_series` out, leaving **39**.
+>
+> The property split was adjudicated by a stated rule — *a raise is authorization iff the guard
+> immediately preceding it takes the **caller** as an input* — giving **A1 12 / A2 13 / B 14 = 39
+> doors**, reproducing ADR 0187 D-M2 independently. ⛔ A regex over the pt-BR messages gives
+> 12/18/9 and is wrong by 5, every one over-called on `apenas` governing an **object** rather than a
+> principal. **16 D2 property labels sit across 15 doors** — classes count doors, labels count
+> arms, and `cancel_event` is an A2 door whose second arm is a state guard.
+>
+> ⛔ **ADR 0187 D-M1's "36 of 40 already invoked" over-counts — it is 31 of 39.** Five doors are
+> grep-positive but never *entered*, appearing only in t19 `has_function_privilege` assertions. The
+> mechanism was predicted in writing by the earlier design's §4.3, whose own worked example sits
+> inside the "36".
+>
+> Also landed: all **10** `authz-neverclled-door-allowlist.txt` entries retired and **earned** (every
+> door has ≥ 1 recorded call). ⚠ 8 of the 10 sit at exactly one — `FUP-C2-TIER1-FLOOR-ARM-HAS-ZERO-SLACK`.
+> Per-door specs: `docs/design/authz-c2-blind-keystone-specs.md`.
+
+### ✅ FUP-C2-SUITE-ABORT-ERROR-CLASS — enforcers that abort a pgTAP file when neutralized — **RESOLVED 2026-09-04**
+
+> **RESOLVED at 0.** The class was filed at 16, grew to **18** when the anchor fix made two more
+> enforcers mutate cleanly so they aborted rather than failed, and reached **0**.
+>
+> ⛔ **Its filed premise was wrong, and that is the durable part.** The entry read as a coverage
+> gap. Phase A measured all 18 and found every one already produced a genuine
+> `# Failed test N … caught: no exception … wanted: <code>` **before** its file aborted — the
+> abort was always collateral, usually a **second enforcement layer** catching the door proceeding.
+> So it was a **scoring** gap owing **zero** keystones: 25 statement edits, not 18 new tests.
+>
+> ⭐ Fixing the first aborting statement in a file does not finish it — the abort **moves down**.
+> Four rows came back ERROR after the first pass with their deltas *shrunk* rather than gone
+> (52→39, 71→59, 12→8, 2→1), and a third site appeared in one file. Two of the four
+> follow-up diagnoses were wrong on contact.
+>
+> ⚠ Its body's "16 enforcers", `Files=259` and localization table are all superseded; kept as the
+> historical filing. Diagnosis: `docs/reviews/c2-suite-abort-diagnosis.md`. `assume_role` scoring
+> COVERED here also discharged the ADR 0171 / sizing §10 obligation.
+
+### ✅ FUP-C2-NEUTRALIZER-ANCHOR-BLIND-TO-HCDS-AND-28000 — the neutralizer's anchor is a syntax, not a property — **RESOLVED 2026-09-04**
+
+> **RESOLVED** (`ca328539`). All three arms discharged, and **two of them were falsified rather than
+> fixed**:
+>
+> ⛔ **The entry's own "FIX VALIDATED OFFLINE — 0 residue" was false.** Re-measured in Postgres
+> ARE against the live catalog: the recorded candidate left **5 functions short**. The residue was
+> uniform — `using errcode = 'X', detail = <expr>;`, a trailing USING-option list the terminating
+> anchor cannot cross. **The `detail =` worry the entry dismissed as "empty in practice" WAS the
+> residue.** It was validated against `supabase/migrations/*.sql` — stale by design — with a
+> denominator equal to its own match count, so the residue it left could not appear. A census whose
+> parts do not sum, one layer above the thing measured. Landed anchor: 813/813, 0 overmatch, 0
+> regression.
+>
+> ⛔ **The `HCDS*`/`28000` diagnosis was wrong** (ADR 0187 C3): 8 functions, not "60 raises + 6";
+> all 8 raise an anchored `42501`, so **none** is excluded by the gate-fn filter. Four are in the
+> 171 and now COVERED; the other four are correctly outside Tier 1 — measured 2026-09-04, their
+> gate-aware closure reaches no PHI-marked relation, `dsr_requests` being hash-only by design and
+> saying so in its own comment. That converts the "ruling owed" into a measurement taken.
+>
+> ⭐ The third arm — that the anchor also sweeps in non-authz state guards — is answered by ADR
+> 0187 D2's property labels, which landed with the keystones. ⚠ Worklist column 6 had to move in
+> lockstep with the anchor: it was a proxy wrong in **both** directions. ⚠ The entry's "458 authz
+> raises", "60 raises" and its `scratchpad/regex-fix-validation.txt` citation are all retired; the
+> file never existed.

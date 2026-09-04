@@ -1107,3 +1107,41 @@ follow-ups this work left open — `FUP-C2-TIER1-TRIGGER-ENFORCERS-OUT-OF-SWEEP-
 `FUP-C2-NEUTRALIZER-TAIL-DRIFT-INVALIDATES-LATE-VERDICTS` (its harness defect — a baseline captured
 once at the top of a long run — is untouched, even though its three rows now carry full-scale
 verdicts); and **PO approval of Gate AE4 itself**, which is a separate decision.
+
+#### Hub `## Current state` at closure — cut from the hub 2026-09-04 (ADR 0186 D8)
+
+The hub carries no `## Current state` once its status is `complete`; the gate enforces it.
+Verbatim, as it stood at closure:
+
+---
+
+## Current state
+
+**Updated:** 2026-09-04 — ✅ **measurement COMPLETE**, awaiting QA review + PO approval
+
+### Objective
+
+Sweep the 237 command doors that touch PHI (Tier 1, gate-aware closure over `ARM=census`'s population) and close C2 on ADR 0187 D1's three items. ✅ **All three discharged by measurement 2026-09-04**; the unit stays `gated` until a review verdict and PO approval exist.
+
+### Done since start
+
+- Full sweep 2026-09-02 — 171/171 enforcers (COVERED 109 · BLIND 40 · ERROR 22 after correction). ADR **0184**, then ADR **0187**'s three PO rulings and six corrections (2026-09-04).
+- ✅ **The anchor fix** (`ca328539`) — larger than the fix on record, which had been validated against migration text against a denominator that excluded the shape it missed. 813/813 in Postgres ARE.
+- ✅ **The ERROR class** — 25 → **0**. Phase A found all 18 suite-abort doors were a *scoring* gap, not a coverage gap (`ba876c1c`); B1 landed 25 statement edits (`97ff9f22`); 4 residual sites closed at `f33d9ba7`.
+- ✅ **The 39 keystones** — **39/39 COVERED** (`400b6d2c`, `2cefae8e`), **16** D2 labels across **15** doors (classes count doors, labels count arms — `cancel_event` is A2 with a state-labelled second arm), all **10** allowlist entries retired and **earned** (each door has ≥1 recorded call).
+- ✅ **Final tally `170 COVERED · 1 BLIND · 0 ERROR = 171`**, merged row-by-row (ADR 0153). All four arms HOLD, each recorded with its **domain**. Suite **8876, PASS**.
+
+### In progress
+
+- **QA review** of the closure — the gate will not accept `complete` without a linked review whose verdict line says APPROVED, or a phase-ledger row (ADR 0186 D8).
+
+### Next
+
+- **PO approval** of the closure, then the ledger row / hub `complete`.
+- **PO approval of Gate AE4** — C2 discharges its acceptance clause *"the C2 subset closed (pilot cutline)"* ([plan](../plans/authz-evolution.md):1067), the only external precondition gating on C2. That approval is a separate decision.
+
+### Blockers
+
+- C2 is **measured** but not **approved** — the three ADR 0187 D1 items are discharged; the closure verdict is not yet written. ⛔ **Tier 2's 190 doors stay deferred by ADR 0171 and are NOT cleared** — required verbatim in every gate record citing this sweep (ADR 0187 D1).
+- ⚠ Four follow-ups remain open and are **not** discharged by this closure: `FUP-C2-TIER1-TRIGGER-ENFORCERS-OUT-OF-SWEEP-DOMAIN` (a fourth uncovered population), `FUP-C2-TIER1-INFLIGHT-SENTINEL-ERASED-BY-ITS-OWN-RESTORE`, `FUP-C2-TIER1-VALUE-ASSERTIONS-ABORT-ON-AN-INLINE-RAISE` (296 latent sites), and `FUP-C2-NEUTRALIZER-TAIL-DRIFT-INVALIDATES-LATE-VERDICTS`.
+- ⚠ `ARM=floor` has **zero slack**: 8 of the 10 newly-retired doors sit at exactly one recorded call, so losing any single allow leg reds it.

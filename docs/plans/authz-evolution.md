@@ -1059,7 +1059,9 @@ retirement, F7's single manifest entry. ⚠ The classification columns (`risk_cl
 explicitly and that deferral stands — layer 3 is where a consumer appears, or the column is
 removed with a named reason.
 
-**Gate AE4 [language per PA-F7/F8/F12, ADR 0162]:** before cutover, every required
+**Gate AE4 [language per PA-F7/F8/F12, ADR 0162]:** ✅ **APPROVED BY THE PO 2026-09-04.** The 2026-09-03 HOLD is discharged: C2 closed at **170 COVERED · 1 BLIND · 0 ERROR = 171** with a QA verdict of APPROVED, satisfying the "C2 subset closed (pilot cutline)" clause below — the only external precondition that gated on C2. ⛔ The approval does **not** clear Tier 2: its **190 doors stay deferred by ADR 0171 and are NOT cleared**. Record: [authz-ae4.md](../progress/authz-ae4.md) and [c2-tier1.md](../progress/c2-tier1.md), 2026-09-04; ledger row `AE4`. Original text follows.
+
+ before cutover, every required
 decision-table cell has a stable ID, an approved expected result, and an executed test
 result, and every legacy/catalog difference is fixed in a preceding gated increment or is a
 named compatibility exception with owner and expiry; single-evaluator assertion after; every

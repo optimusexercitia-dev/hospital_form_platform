@@ -35,7 +35,6 @@ that keeps its full entry below in this file. A row here whose entry is missing 
 | # | item | what must happen | trigger — the point it can no longer wait | owner |
 |---|---|---|---|---|
 | **C1** | 🔒 **`FUP-DM5-DISPOSAL-JOB`** | Run C1a (local) + C1b (Cloud) rehearsals of the disposal runbook; C1b is the release condition. | Before any real patient record is loaded. | PO (executor = whoever holds service-role reach — an ACL fact, not a choice) |
-| **C2** | 🟠 **`FUP-AUTHZ-COMMAND-DOOR-UNSWEPT`** | Sweep Tier 1 (PHI / tenant-boundary command doors) by property; Tier 2 deferred. | PO ruling owed (§8); Tier 2 after the pilot ships. | lead + backend |
 | **C3** | 🔴 **`FUP-DM5-BACKUP-HAS-NO-CLOUD-FORM`** | PO decision: accept no Storage recovery point pre-pilot, or name + rehearse a mechanism. | Before any real patient record is loaded. | PO decision, then backend + lead |
 | **C4** | 🟠 **`FUP-DM5-DB-DUMP-AND-SCRATCH-DB-UNGOVERNED`** | PO extends the five retention values to the DB-dump + scratch-DB artifacts, or rules the restore test out. | The first `supabase db dump --linked` run. | PO decision, then backend |
 
@@ -210,20 +209,6 @@ assigned `FUP-BACKLOG-<slug>` ids (legend row: [legacy-codes.md](legacy-codes.md
 **Closes when:** PO to rule
 **Status:** open
 **Body:** [FUP-DM5-SUPERSEDE-SERVING-COLLISION.md](FUP-DM5-SUPERSEDE-SERVING-COLLISION.md)
-
-### 🟠 FUP-C2-THREE-BLIND-COMMAND-DOOR-GUARDS — 3 BLIND from the first 8 measurements; ⭕ **the full sweep then found 40** (owner: backend)
-
-**Filed:** 2026-08-31 (from the subset that PROVED [`c2-command-door-neutralizer.sh`](../../supabase/tests/mutation/c2-command-door-neutralizer.sh) · **Owner:** backend · **Severity:** high — high — per emoji at consolidation
-**Closes when:** all 39 keystones are written and re-swept BLIND → COVERED, the 14 class-B ones carrying ADR 0187 D2's explicit property label
-**Status:** open — ⭕ **all 39 SPECIFIED 2026-09-04** ([specs](../design/authz-c2-blind-keystone-specs.md), `40c3c588`); **none written**. The split reproduces ADR 0187 D-M2's 12/13/14 by an auditable rule. ⛔ Two doors are blocked on a catalog read before any keystone may be written, and ADR 0187 D-M1's "36 of 40 already invoked" over-counts — **31 of 39**, five being grep-positive but never entered
-**Body:** [FUP-C2-THREE-BLIND-COMMAND-DOOR-GUARDS.md](FUP-C2-THREE-BLIND-COMMAND-DOOR-GUARDS.md)
-
-### 🟠 FUP-AUTHZ-COMMAND-DOOR-UNSWEPT — ⭕ **RE-SCOPED 2026-08-17 (pre-S6): the filed premise was FALSE, the population is 407 not one (⭕ **re-derived 426 at the AE1 Record step 2026-08-27, then **427** (345 `public` + 82 `app`) on 2026-08-31 — and the figure is now DERIVED by `ARM=census`'s own banner each run, so this chain ends here rather than needing a next link**), and the class was read as COVERED-BUT-UNPINNED — ⛔ FALSIFIED 2026-08-31, see the amendment below** — ⭐ **Critical FUP C2** (owner: lead + backend)
-
-**Filed:** 2026-08-17 (lead) · **Owner:** lead + backend · **Severity:** high — per emoji at consolidation
-**Closes when:** PO to rule
-**Status:** open
-**Body:** [FUP-AUTHZ-COMMAND-DOOR-UNSWEPT.md](FUP-AUTHZ-COMMAND-DOOR-UNSWEPT.md)
 
 ### 🟡 FUP-ACL-APP-POPULATION — ⭕ **RE-SCOPED 2026-08-17: the assertion is BUILT; the 237-function triage is what remains** (owner: backend + PO)
 
@@ -1286,26 +1271,12 @@ same commit, or not at all.**
 **Status:** open
 **Body:** [FUP-AUDIT-REGISTRY-CONSUMER-OF-READ-AUTHORIZER-UNRECORDED.md](FUP-AUDIT-REGISTRY-CONSUMER-OF-READ-AUTHORIZER-UNRECORDED.md)
 
-### 🟠 FUP-C2-NEUTRALIZER-ANCHOR-BLIND-TO-HCDS-AND-28000 — the C2 neutralizer's anchor is a SYNTAX, not a property: it excludes the DSR authz family AND sweeps in non-authz state guards, so "458 authz raises" is wrong in both directions — ⭕ **that figure is RETIRED 2026-09-04**, as is the body's "60 raises" (it is **8 functions**, ADR 0187 C3); and the body's `scratchpad/regex-fix-validation.txt` citation contradicts its own amendment, which records that the file does not exist
-
-**Filed:** 2026-09-02 (C2 Tier-1 full sweep, pre-flight audit of the running harness) · **Owner:** lead + backend · **Severity:** high — a measurement-domain gap, not a demonstrated live hole
-**Closes when:** ADR 0187 D2's property labels land with C2's keystones — the only arm of this entry still open
-**Status:** open — ⭕ **anchor arm DISCHARGED 2026-09-04** (`ca328539`), and the entry's own "residue: 0" is **FALSIFIED**: the `detail =` shape *was* the residue, and the validation's denominator was its own match count. The `HCDS*`/`28000` arm was amended by ADR 0187 C3 and discharged by measurement the same day. See the body's AMENDMENT
-**Body:** [FUP-C2-NEUTRALIZER-ANCHOR-BLIND-TO-HCDS-AND-28000.md](FUP-C2-NEUTRALIZER-ANCHOR-BLIND-TO-HCDS-AND-28000.md)
-
 ### 🟠 FUP-C2-NEUTRALIZER-TAIL-DRIFT-INVALIDATES-LATE-VERDICTS — a long sweep degrades its own DB, and the harness's baseline is captured once at the top
 
 **Filed:** 2026-09-02 (C2 Tier-1 full sweep, run 1 — observed in its final three enforcers) · **Owner:** backend · **Severity:** high — it cost no wrong verdict *this* run (the harness caught it
 **Closes when:** PO to rule
 **Status:** open
 **Body:** [FUP-C2-NEUTRALIZER-TAIL-DRIFT-INVALIDATES-LATE-VERDICTS.md](FUP-C2-NEUTRALIZER-TAIL-DRIFT-INVALIDATES-LATE-VERDICTS.md)
-
-### 🟠 FUP-C2-SUITE-ABORT-ERROR-CLASS — 16 enforcers abort a pgTAP file when neutralized — ⭕ the class reached **0** on 2026-09-04
-
-**Filed:** 2026-09-02 (C2 Tier-1 full sweep, run 1) · **Owner:** backend · **Severity:** high — 16 doors with **no** coverage verdict, including the response-lifecycle authority.
-**Closes when:** each enforcer in the class carries a real verdict, or a recorded ruling that its abort IS the signal — it is ADR 0187 D1's "the ERROR class re-swept"
-**Status:** open — ⭕ **closing condition MET 2026-09-04**: the class went 16 → **18** → **0**, so the entry is discharged and awaits the register move (the PO-curated Critical list is touched by it). ⛔ Its filed premise was wrong: Phase A measured that all 18 already failed an assertion *before* aborting, so it was a **scoring** gap owing **zero** keystones, not a coverage gap. ⚠ Its body still says "16 enforcers" and `Files=259` against today's 262, and its localization table is falsified — kept verbatim as the historical filing. Earlier note: **the class GREW 16 → 18 on 2026-09-04**, not by new doors but by reclassification: the anchor fix (`ca328539`) made `public.set_professional_link_state` and `public.mint_printed_document` mutate cleanly, and both then aborted the suite instead of failing it. **Landing a mutation is not the same as producing a verdict.** Both new rows are PHI-lane doors. Tally: COVERED 113 · BLIND 40 · ERROR 18
-**Body:** [FUP-C2-SUITE-ABORT-ERROR-CLASS.md](FUP-C2-SUITE-ABORT-ERROR-CLASS.md)
 
 ### 🟠 FUP-C2-TIER1-TRIGGER-ENFORCERS-OUT-OF-SWEEP-DOMAIN — a trigger guard has no call edge, so it is in 0 of the 171 and its door reads BLIND for the wrong cause
 
@@ -1334,6 +1305,13 @@ same commit, or not at all.**
 **Closes when:** the eight single-call doors gain a second independent successful call, **or** `ARM=floor` names its at-risk set (doors at exactly 1 call) so a future red is diagnosable from the arm's own output. ⛔ Re-allowlisting is prohibited as the remedy
 **Status:** open — `pg_stat_user_functions` does not count a call that raises, so only a door's successful leg keeps it off the offender list
 **Body:** [FUP-C2-TIER1-FLOOR-ARM-HAS-ZERO-SLACK.md](FUP-C2-TIER1-FLOOR-ARM-HAS-ZERO-SLACK.md)
+
+### 🟡 FUP-DOCS-CONSOLIDATION-LEDGER-ID-BOLD-DEFEATS-THE-COMPLETE-GATE — the ledger writes ids bold and the gate's regex cannot match them
+
+**Filed:** 2026-09-04 (Gate AE4 Record step — hit for real) · **Owner:** lead · **Severity:** medium — it blocks a correct `complete` and names the right rule, so it costs time, never truth; but the workaround now in the tree is an inconsistency the next editor will "fix"
+**Closes when:** `hubHasLedgerRow` tolerates `**` around the id **and** the verdict regex becomes case-insensitive and tolerant of a leading emoji, both **proven able to fire**; then the AE4 row is re-bolded so no row is load-bearing on its formatting. ⛔ Not by rewriting 76 rows to drop their bold
+**Status:** open — AE4 is the **first hub whose completion depends on a ledger row**, which is why a mismatch this old surfaced only now. `| AE4 |` currently sits unbolded alone among 76 rows
+**Body:** [FUP-DOCS-CONSOLIDATION-LEDGER-ID-BOLD-DEFEATS-THE-COMPLETE-GATE.md](FUP-DOCS-CONSOLIDATION-LEDGER-ID-BOLD-DEFEATS-THE-COMPLETE-GATE.md)
 
 ### 🟠 FUP-DOOR-SWEEP-DOMAIN-MISSES-THE-AUTHZ-RESOLVERS — two `prosecdef` boolean authorization resolvers are in NEITHER sweep arm's domain, so neither arm can ever select them
 
