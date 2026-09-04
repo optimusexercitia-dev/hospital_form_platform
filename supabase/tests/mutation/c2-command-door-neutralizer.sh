@@ -34,8 +34,13 @@
 #   SELFTEST=1 bash …        # prove the harness before trusting it (see § SELF-TEST)
 #   SUITE=supabase/tests/385_x.sql bash …    # one suite file instead of the full run
 #
-# ⚠ FULL RUN COST: 171 enforcers x 2 suite runs. At ~23 s a run that is ~2.2 h
-#   MINIMUM. This is a periodic audit, never a phase step.
+# ⚠ FULL RUN COST: 171 enforcers x 2 suite runs = 342 runs. ⛔ The per-run figure in this header
+#   has been stale twice; RE-MEASURE IT, never quote it. History: "~23 s" (design-doc estimate,
+#   never measured) -> 53 s (measured 2026-09-02, Files=259 Tests=8685) -> ~100 s (measured
+#   2026-09-04: 11 suite runs in 19m05s wall, Files=262 Tests=8764, fresh reset). The suite grows,
+#   so the cost grows with it. At ~100 s a run that is ~9.5 h MINIMUM, not the ~2.2 h this header
+#   used to claim -- a 4x under-estimate that survived because nobody re-timed it.
+#   This is a periodic audit, never a phase step.
 # ============================================================================
 
 set -u   # NOT -e: a failing suite run is DATA here, not an abort.
@@ -148,12 +153,34 @@ create table c2n.clo_full as
 with recursive w(root,fn,d) as (select r.oid,r.oid,0 from c2n.roots r
   union select w.root,e.callee,w.d+1 from w join c2n.edges e on e.caller=w.fn where w.d<8)
 select distinct root,fn from w;
+-- ⛔ THIS FILTER IS THE POPULATION, AND IT IS DELIBERATELY NOT THE ANCHOR. It admits any body
+--    that MENTIONS an errcode of the class; the anchor decides what can be neutralized. Widening
+--    or narrowing it changes WHO IS IN THE 171 and therefore invalidates every verdict already
+--    recorded against that denominator — so the 2026-09-04 anchor fix leaves it untouched, and
+--    it is measurably not the constraint on either side:
+--      · it is a strict superset of the mutable set — 0 functions in the whole public+app
+--        catalog are admitted here yet unmutable by the new anchor (nraise = nanchored for all);
+--      · it excludes none of the `HCDS*`/`28000` lane — all 8 of those functions also raise an
+--        anchored 42501, so all 8 match (ADR 0187 C3; the 4 that are absent from the 171 are
+--        absent for a Tier-1 MEMBERSHIP reason, which no anchor change can reach).
 create table c2n.gatefn as
 select f.oid from c2n.fns f
 where f.body ~* 'errcode\s*(=|=>)\s*''(42501|HC0[A-Z0-9]{2})'''
    or (f.is_gate and f.nm ~ '^(is_|can_|has_|member_can)');
 -- THE WORKLIST: enforcers reachable from a Tier-1 door and OUTSIDE the bool arm's domain
-\copy (select p.oid, n.nspname||'.'||p.proname, n.nspname||'.'||p.proname||'('||pg_get_function_identity_arguments(p.oid)||')', (select count(distinct c.root) from c2n.clo_full c join c2n.tier1 t on t.oid=c.root where c.fn=p.oid), (select count(*) from regexp_matches(regexp_replace(p.prosrc,'--[^\n]*','','g'),'errcode\s*(=|=>)\s*''(42501|HC0[A-Z0-9]{2})''','g')), (select count(*) from regexp_matches(regexp_replace(p.prosrc,'--[^\n]*','','g'),'errcode\s*(=|=>)\s*''(42501|HC0[A-Z0-9]{2})''\s*;','g')) from (select distinct c.fn from c2n.clo_full c join c2n.tier1 t on t.oid=c.root where c.fn in (select oid from c2n.gatefn)) z join pg_proc p on p.oid=z.fn join pg_namespace n on n.oid=p.pronamespace join pg_type ty on ty.oid=p.prorettype where not (p.prosecdef and ty.typname='bool') order by 3 desc, 1) to '/tmp/c2n_worklist.tsv'
+-- Column 5 `nraise`   = how many errcodes of the class the body carries (the denominator).
+-- Column 6 `nanchored`= how many of them THE MUTATION ANCHOR can consume. The UNMUTABLE guard
+--   (~line 265) refuses a verdict when the two disagree, so column 6 MUST be the anchor itself,
+--   byte-for-byte the regex in mutate(). Until 2026-09-04 it was a PROXY — "an errcode followed
+--   by a `;`" — which is neither the anchor nor a bound on it: it let 5 of the 171 past the guard
+--   whose mutation then could not land (`set_referral_patient`, `set_professional_link_state`,
+--   `mint_printed_document`, `log_document_previa`, `delete_ad_hoc_case_narrative`) while
+--   refusing 1 it could have mutated (`save_block_to_library`). With the anchor here the guard
+--   and mutate()'s own v_after check agree BY CONSTRUCTION rather than by luck: measured
+--   2026-09-04, nraise = nanchored for all 171 and for all 1081 public+app functions.
+-- ⛔ Do NOT dollar-quote these: psql's \copy parser rejects `$re$…$re$` with "parse error at end
+--    of line". The quotes are doubled by hand here and in mutate(); keep the two in lockstep.
+\copy (select p.oid, n.nspname||'.'||p.proname, n.nspname||'.'||p.proname||'('||pg_get_function_identity_arguments(p.oid)||')', (select count(distinct c.root) from c2n.clo_full c join c2n.tier1 t on t.oid=c.root where c.fn=p.oid), (select count(*) from regexp_matches(regexp_replace(p.prosrc,'--[^\n]*','','g'),'errcode\s*(=|=>)\s*''(42501|HC0[A-Z0-9]{2})''','g')), (select count(*) from regexp_matches(regexp_replace(p.prosrc,'--[^\n]*','','g'),'raise\s+exception\s+''(?:[^'']|'''')*''[^;]*?errcode\s*(=|=>)\s*''(42501|HC0[A-Z0-9]{2})''[^;]*;','g')) from (select distinct c.fn from c2n.clo_full c join c2n.tier1 t on t.oid=c.root where c.fn in (select oid from c2n.gatefn)) z join pg_proc p on p.oid=z.fn join pg_namespace n on n.oid=p.pronamespace join pg_type ty on ty.oid=p.prorettype where not (p.prosecdef and ty.typname='bool') order by 3 desc, 1) to '/tmp/c2n_worklist.tsv'
 SQL
 psql_f "$WORK/worklist.sql" >/dev/null || { echo "FATAL: worklist derivation failed" >&2; exit 2; }
 docker cp "$DB:/tmp/c2n_worklist.tsv" "$WORK/worklist.tsv" >/dev/null \
@@ -170,18 +197,62 @@ snapshot () { # $1 = oid -> writes a restoring CREATE OR REPLACE to $INFLIGHT
   { cat "$INFLIGHT.body"; echo ";"; } > "$INFLIGHT"
   [ -s "$INFLIGHT" ]
 }
-mutate () { # $1 = oid — rewrite EVERY anchored authz raise to `null;`
+# ⛔ THE HEREDOC BELOW IS UNQUOTED (<<MUTSQL), because it must expand $1 into the oid. That means
+#    bash ALSO expands backticks and $ inside it — a backtick pair in a COMMENT is run as a
+#    command and its text is silently deleted from the generated SQL. Proven 2026-09-04: a
+#    commented anchor explanation written with `backticks` made bash emit "raise: command not
+#    found", glob into /LICENSE.txt and try to execute it, and write a mut.sql with the comment
+#    gutted — while `bash -n` stayed green, because an EVEN number of backticks parses fine.
+#    ⭐ So: NO backticks and NO bare $ inside this heredoc. The long-form explanation of the
+#    anchor lives here, OUTSIDE it, where it is safe.
+#
+# THE ANCHOR (2026-09-04). Two failure modes it must survive, both live in this tree:
+#   (a) a ';' INSIDE the message literal — 'encaminhamento concluído; os dados …' — which a bare
+#       [^;]*? between "raise exception" and "errcode" cannot cross. Fixed by consuming the
+#       message as a PROPER quoted literal first:  '(?:[^']|'')*'
+#   (b) a trailing USING option list AFTER the errcode —  using errcode = 'X', detail = <expr>;
+#       — which a terminating  …'\s*;  cannot cross. Fixed by  [^;]*;  in place of  \s*;
+#   (a) alone (the shape recorded as "FIX VALIDATED OFFLINE 2026-09-02") leaves 5 functions
+#   unmatched; the pair leaves 0. Re-measured 2026-09-04 in Postgres ARE against the LIVE catalog
+#   — not against migration text, which is stale by design and whose denominator happened to
+#   exclude shape (b) entirely (that is how the recorded fix read as complete):
+#     errcode occurrences of the class ......... 813
+#     matched by the pre-2026-09-04 anchor ..... 793   (15 functions short)
+#     matched by the message-literal fix alone . 807   ( 5 functions short)
+#     matched by THIS anchor ................... 813   (0 short, 0 overmatch, 0 regression)
+#   Blast radius, measured as REPLACE-OUTPUT INEQUALITY over all 1081 public+app functions (not
+#   as a count comparison): 21 functions differ, of which exactly 6 are in the derived 171.
+#
+# THE COUNTERS (v_before / v_after) DELIBERATELY DO NOT TRACK THE ANCHOR. A global
+#   regexp_replace can never leave one of its OWN matches behind — the replacement 'null;'
+#   carries neither a raise nor an errcode, so it cannot manufacture a new match. Counting the
+#   anchor there would be a check that can only ever read 0: a DEAD INSTRUMENT wearing the name
+#   of a guard. They count the CLASS instead, and UN-TERMINATED, so v_after = 0 asserts the
+#   strictest available thing: NOTHING of the anchor class survives anywhere in the definition
+#   text — not in a trailing USING option, not in a comment, not in a "raise notice … using
+#   errcode", not in a shape this anchor has never seen. Measured 2026-09-04 over all 1081
+#   public+app functions: residue after the rewrite = 0, and anchor-class errcodes inside a
+#   line or block comment = 0, so the strict form does not fire spuriously on today's catalog.
+#   A future body that breaks that fails CLOSED, as a visible ERROR — never as a verdict.
+#
+# ⛔ Quoting style is forced. The worklist \copy above must stay in lockstep with this anchor,
+#    and psql's \copy parser rejects dollar-quoted strings outright ("parse error at end of
+#    line", verified 2026-09-04) — so BOTH sites double their quotes by hand. Change one, then
+#    re-derive the worklist and diff column 6 against column 5; they must be equal for all 171.
+mutate () { # $1 = oid — rewrite EVERY anchored authz raise to a no-op
   cat > "$WORK/mut.sql" <<MUTSQL
 do \$outer\$
 declare
   v_def text; v_new text; v_before int; v_after int;
 begin
   v_def := pg_get_functiondef($1::oid);
-  v_before := (select count(*) from regexp_matches(v_def,'errcode\s*(=|=>)\s*''(42501|HC0[A-Z0-9]{2})''\s*;','g'));
+  -- Counters count the CLASS, un-terminated; the anchor is the line below. See the block
+  -- comment above this function -- and do not put backticks in this heredoc.
+  v_before := (select count(*) from regexp_matches(v_def,'errcode\s*(=|=>)\s*''(42501|HC0[A-Z0-9]{2})''','g'));
   v_new := regexp_replace(v_def,
-    'raise\s+exception[^;]*?errcode\s*(=|=>)\s*''(42501|HC0[A-Z0-9]{2})''\s*;',
+    'raise\s+exception\s+''(?:[^'']|'''')*''[^;]*?errcode\s*(=|=>)\s*''(42501|HC0[A-Z0-9]{2})''[^;]*;',
     'null;', 'gi');
-  v_after := (select count(*) from regexp_matches(v_new,'errcode\s*(=|=>)\s*''(42501|HC0[A-Z0-9]{2})''\s*;','g'));
+  v_after := (select count(*) from regexp_matches(v_new,'errcode\s*(=|=>)\s*''(42501|HC0[A-Z0-9]{2})''','g'));
   if v_before = 0 then raise exception 'C2MUT: nothing to neutralize'; end if;
   if v_after <> 0 then raise exception 'C2MUT: % raise(s) survived the rewrite', v_after; end if;
   execute v_new;
