@@ -5,7 +5,7 @@
 -- superuser role to read freely.
 
 begin;
-select plan(8);
+select plan(9);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 create temp table r on commit drop as select gen_random_uuid() as id;
@@ -31,12 +31,18 @@ reset role;
 -- Answer the gate 'Não' (hides the conditional section), answer the required
 -- item in the respondent-signoff section, and drop a STRAY answer into the
 -- now-hidden conditional section to prove cleanup.
-insert into public.answers (response_id, item_id, question_key, value)
-select (select id from r), (c.v->>'it_gate')::uuid, 's_gate', '"Não"'::jsonb from ctx c;
-insert into public.answers (response_id, item_id, question_key, value)
-select (select id from r), (c.v->>'it_req')::uuid, 's_req', '"Sim"'::jsonb from ctx c;
-insert into public.answers (response_id, item_id, question_key, value)
-select (select id from r), (c.v->>'it_cond')::uuid, 's_cond', '"stray"'::jsonb from ctx c;
+-- ⚠ ASSERTED, not bare: if the submit above ever stops rejecting, this response is
+-- already `submitted` and guard_submitted_children refuses the INSERT — which would
+-- abort the whole FILE instead of failing one test. Wrapped so the refusal above stays
+-- readable as a scored failure.
+select lives_ok($$
+  insert into public.answers (response_id, item_id, question_key, value)
+  select (select id from r), (c.v->>'it_gate')::uuid, 's_gate', '"Não"'::jsonb from ctx c;
+  insert into public.answers (response_id, item_id, question_key, value)
+  select (select id from r), (c.v->>'it_req')::uuid, 's_req', '"Sim"'::jsonb from ctx c;
+  insert into public.answers (response_id, item_id, question_key, value)
+  select (select id from r), (c.v->>'it_cond')::uuid, 's_cond', '"stray"'::jsonb from ctx c;
+$$, 'fixture: the draft is still editable — the answers (incl. the stray) land');
 
 -- ---- 2) sign-off enforcement ON would reject (no sign-off rows). Flip the
 -- flag within this txn and assert rejection, then flip back. ----

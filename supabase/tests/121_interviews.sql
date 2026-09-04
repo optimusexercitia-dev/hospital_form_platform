@@ -12,7 +12,7 @@
 -- RPC; cross-commission isolation.
 
 begin;
-select plan(60);
+select plan(61);
 
 -- Enable the interviews flag for the whole test (ships ON in-phase; a hermetic test
 -- must not depend on migration order).
@@ -214,9 +214,14 @@ select throws_ok(
 select throws_ok(
   $$ select public.add_interview_subject((select id from i1), (select st_x2 from k), null, 'Enf', null, null, null) $$,
   'HC0B2', null, 'add_interview_subject without relationship_to_case raises HC0B2');           -- 31
-select public.add_interview_subject((select id from i1), (select st_x2 from k), null,
-                                     'Enfermeiro(a)', null, null, 'nurse');
-select public.conclude_interview((select id from i1));
+-- ⚠ ASSERTED, not bare: if the HC041 refusal above ever stops firing, i1 is already
+-- `completed` and app.guard_interview_child_lock refuses the subject INSERT — aborting
+-- the whole FILE instead of failing the one test that noticed.
+select lives_ok($$
+  select public.add_interview_subject((select id from i1), (select st_x2 from k), null,
+                                       'Enfermeiro(a)', null, null, 'nurse');
+  select public.conclude_interview((select id from i1));
+$$, 'fixture: i1 is still in_progress — the subject is added and the interview concludes');
 reset role;
 
 select is((select status from public.case_interviews where id = (select id from i1)),

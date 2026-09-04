@@ -9,7 +9,7 @@
 -- Sign-off enforcement is ON in this DB after migration 20260613090001.
 
 begin;
-select plan(19);
+select plan(20);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -267,18 +267,29 @@ reset role;
 
 -- ---- 10) get_response_for_signoff: the staff_admin reads r2 (pending
 -- staff_admin section); a non-staff_admin is denied. ----
+-- ⚠ `is()` evaluates its value expression BEFORE asserting, so an RPC that raises
+-- there aborts the whole FILE rather than failing one test. The payload is captured
+-- ONCE under lives_ok; the table is created EMPTY beforehand so that a refused read
+-- leaves the two projections below reading NULL — a scored failure — instead of a
+-- missing relation, which would abort just the same.
+create temp table sgn_payload (payload jsonb) on commit drop;
+grant select, insert on sgn_payload to authenticated;
 select test_helpers.claims_for((select (v->>'sa_x')::uuid from ctx), false);
 set local role authenticated;
+select lives_ok($$
+  insert into sgn_payload (payload)
+  select public.get_response_for_signoff((select id from r2));
+$$, 'get_response_for_signoff: r2 is still sign-off-eligible for the gated staff_admin');
 select is(
-  (select (public.get_response_for_signoff((select id from r2)) ->> 'response_id')),
+  (select payload ->> 'response_id' from sgn_payload),
   (select (id)::text from r2),
   'get_response_for_signoff returns the response payload for the gated staff_admin'
 );
 -- BE-8: the it_req observation is projected under observations_by_item, keyed by
 -- item_id (purely additive; gating unchanged — same caller, same response).
 select is(
-  (select public.get_response_for_signoff((select id from r2))
-            #>> array['observations_by_item', (select (v->>'it_req') from ctx)]),
+  (select payload #>> array['observations_by_item', (select (c.v->>'it_req') from ctx c)]
+     from sgn_payload),
   'nota do revisor',
   'get_response_for_signoff projects per-item observations (observations_by_item)'
 );

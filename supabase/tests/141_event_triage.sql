@@ -16,7 +16,7 @@
 --   * set_pqs_rca_due_window: is_pqs_member-gated + range-validated (HC046).
 
 begin;
-select plan(44);
+select plan(45);
 
 update app.feature_flags set enabled = true where key = 'patient_safety';
 update app.feature_flags set enabled = true where key = 'audit_trail';
@@ -215,8 +215,13 @@ reset role;
 select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
 -- clear the bad pathway, then confirm
-select public.save_triage((select sentinel_ev from ev), true, null, 'sentinel', 'death', false, null, null, '{}');
-select public.confirm_triage((select sentinel_ev from ev));
+-- ⚠ ASSERTED, not bare: if the HC046 refusal above ever stops firing, the event has
+-- already left `acknowledged` and save_triage refuses — aborting the whole FILE instead
+-- of failing the one test that noticed.
+select lives_ok($$
+  select public.save_triage((select sentinel_ev from ev), true, null, 'sentinel', 'death', false, null, null, '{}');
+  select public.confirm_triage((select sentinel_ev from ev));
+$$, 'fixture: the sentinel event is still acknowledged — the pathway clears and confirm runs');
 reset role;
 
 select is((select status from public.patient_safety_event where id = (select sentinel_ev from ev)),

@@ -32,7 +32,7 @@
 --   locally checkable: D1's "the backfill never produces `required`" rule.
 -- =========================================================================
 begin;
-select plan(58);
+select plan(59);
 
 -- (0) FLAG PRECONDITIONS — asserted, not assumed. `case_patient` OFF makes every
 -- PHI door raise `check_violation` from `assert_case_patient_enabled` FIRST,
@@ -249,8 +249,19 @@ select lives_ok(
   format($$ select public.set_case_patient(%L, 'Fulano', 'MRN-1') $$, (select case_req from fx)),
   '4.4 CONTROL: a COMPLETE payload is accepted — so 4.1-4.3 measure the required set and not a door that refuses everything');
 select test_helpers.reset_role_and_claims();
+-- ⚠ CARDINALITY FIRST, then an aggregated read. 4.1–4.3 are refusals: if any of them
+-- ever stops firing it WRITES a patient row, and the scalar subquery below stops being
+-- single-row — which would abort the whole FILE with "more than one row returned by a
+-- subquery" instead of failing here. The count is the assertion that says so out loud;
+-- min() only keeps the line below from crashing on the same defect.
 select is(
-  (select pi.mrn from public.patient_identifiers pi
+  (select count(*)::int from public.patient_identifiers pi
+   join public.case_participants cp on cp.participant_id = pi.participant_id
+   where cp.case_id = (select case_req from fx)),
+  1,
+  '4.5a: EXACTLY ONE identifier row is seated — 4.1–4.3''s refusals wrote nothing, so 4.5 below reads 4.4''s row and only 4.4''s');
+select is(
+  (select min(pi.mrn) from public.patient_identifiers pi
    join public.case_participants cp on cp.participant_id = pi.participant_id
    where cp.case_id = (select case_req from fx)),
   'MRN-1',

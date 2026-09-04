@@ -18,7 +18,7 @@
 
 begin;
 
-select plan(90);
+select plan(91);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -673,7 +673,13 @@ select lives_ok(
 -- would add an assertion this section does not own.
 reset role;
 select set_config('request.jwt.claims', null, true);
-delete from public.responses where id = 'ff200000-0000-0000-0000-000000000033';
+-- ⚠ ASSERTED, not bare: G3's draft is only deletable while it IS a draft. If §G's
+-- HC011 refusals ever stop firing it is already `submitted`, and
+-- public.guard_submitted_response refuses the DELETE — aborting the whole FILE instead
+-- of failing the tests that noticed.
+select lives_ok($$
+  delete from public.responses where id = 'ff200000-0000-0000-0000-000000000033';
+$$, 'fixture: G3''s response is still an in_progress draft and can be retired');
 
 select test_helpers.claims_for((select st_x from k), false);
 set local role authenticated;

@@ -19,7 +19,7 @@
 -- which is exactly when a suite quietly loses the arm it is not looking at.
 
 begin;
-select plan(79);
+select plan(81);
 
 -- ---------------------------------------------------------------------------
 -- Flags. ⚠ A missing flag-enable does not fail — it SILENTLY SKIPS the keystone
@@ -118,8 +118,13 @@ update app.feature_flags set enabled = true where key = 'deferred_staff_signoff'
 
 -- Sign it, then submit under the flag-OFF path: the phase must go straight to
 -- `completed`, never through `awaiting_signoff`.
-insert into public.response_section_signoffs (response_id, section_id, signed_by)
-select '00000000-0000-0000-0000-000000001301'::uuid, sec_a, sa_x from k;
+-- ⚠ ASSERTED, not bare: if 1.1's HC012 refusal ever stops firing the response is already
+-- `submitted`, and guard_submitted_signoffs refuses this INSERT — aborting the whole FILE
+-- instead of failing the one test that noticed.
+select lives_ok($$
+  insert into public.response_section_signoffs (response_id, section_id, signed_by)
+  select '00000000-0000-0000-0000-000000001301'::uuid, sec_a, sa_x from k;
+$$, 'fixture: the response is still in_progress — the staff_admin sign-off row lands');
 
 update app.feature_flags set enabled = false where key = 'deferred_staff_signoff';
 select test_helpers.claims_for((select st_x from k), false);
@@ -295,7 +300,12 @@ select is(
 -- is settled. Skipping it is setup, not an assertion.
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
-select public.skip_phase('00000000-0000-0000-0000-000000001313'::uuid);
+-- ⚠ ASSERTED, not bare: only a PENDING phase can be skipped. If the HC018 blocker
+-- refusal earlier in this file ever stops firing, phase 2 was already activated and
+-- skip_phase refuses it — aborting the whole FILE instead of failing the test that noticed.
+select lives_ok($$
+  select public.skip_phase('00000000-0000-0000-0000-000000001313'::uuid);
+$$, 'setup: phase 2 is still pending — no blocked phase was wrongly activated');
 select lives_ok(
   $$ select public.close_case('00000000-0000-0000-0000-000000001322'::uuid) $$,
   '4.6 the case can now be concluded — the HC031 gate releases with the attestation (and nothing else was unsettled)');

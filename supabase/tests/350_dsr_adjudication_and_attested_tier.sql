@@ -207,7 +207,7 @@
 -- =============================================================================
 
 begin;
-select plan(75);
+select plan(76);
 
 -- ---------------------------------------------------------------------------
 -- Flag preconditions.
@@ -549,9 +549,19 @@ select throws_ok(
   't25 KEYSTONE: nothing is escalated to erasure on a refusal or a withdrawal'
 );
 
+-- ⚠ `is()` evaluates its value expression BEFORE asserting, so an RPC that raises there
+-- aborts the whole FILE rather than failing one test. If the four denials at t18–t21
+-- ever stop firing they have already DECIDED req_a, and HCDS5's write-once guard refuses
+-- this human adjudication. Captured under lives_ok; the table is created EMPTY so a
+-- refused call leaves t26 reading NULL — a scored failure, not an abort.
+create temp table adj26 (n int) on commit drop;
+select lives_ok($$
+  insert into adj26 (n)
+  select public.adjudicate_dsr_request((select req_a from f), 'granted', null, 'Parecer 12/2026',
+                                array[(select meeting_farm from f)]::uuid[]);
+$$, 't26a: req_a is still undecided — no denied adjudication wrote a decision');
 select is(
-  public.adjudicate_dsr_request((select req_a from f), 'granted', null, 'Parecer 12/2026',
-                                array[(select meeting_farm from f)]::uuid[]),
+  (select n from adj26),
   1,
   't26 KEYSTONE: a HUMAN adjudication — and only that — mints the dispose_meeting '
   'task (Amdt 2 item 3: the escalation the fan-out deliberately refused to automate)'

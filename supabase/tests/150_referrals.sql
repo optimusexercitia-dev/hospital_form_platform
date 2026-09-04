@@ -21,7 +21,7 @@
 -- SECURITY DEFINER RPC, so a DB-side test can observe them).
 
 begin;
-select plan(218);
+select plan(220);
 
 -- Flags ON for the whole test (hermetic; must not depend on migration order).
 update app.feature_flags set enabled = true where key = 'case_referrals';
@@ -921,7 +921,12 @@ reset role;
 -- ---- K2: resolve → resolved RELEASES the close-gate ----
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
-select public.resolve_referral((select id from r6), 'Resumo da resolução SENSIVEL', false);
+-- ⚠ ASSERTED, not bare: if the two authority denials above ever stop firing, their
+-- resolutions have already landed and referral_resolutions_one_active refuses this
+-- legitimate K2 resolve — aborting the whole FILE instead of failing the tests that noticed.
+select lives_ok($$
+  select public.resolve_referral((select id from r6), 'Resumo da resolução SENSIVEL', false);
+$$, 'R3·K2: the source coordination''s resolve is accepted (no denied resolution occupies the active slot)');
 reset role;
 select is((select status from public.case_referral where id = (select id from r6)),
   'resolved', 'R3·K2: resolve_referral moves answered → resolved');
@@ -1218,13 +1223,19 @@ select throws_ok(
     (select id from r9), (select tgt_case from cs)),
   '42501', null, 'R4: a non-coordinator cannot link a related case (42501)');
 reset role;
+-- ⚠ A CTAS whose query raises leaves NO relation behind, so the two assertions below
+-- would abort the whole FILE rather than fail. The shape is created first, then filled
+-- under lives_ok: if the 42501 denial above ever stops firing, its link has already
+-- landed and referral_case_links_unique refuses this one.
+create temp table link1 (like public.referral_case_links) on commit drop;
+grant select, insert on link1 to authenticated;
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
-create temp table link1 on commit drop as
-  select * from public.link_referral_related_case(
+select lives_ok($$
+  insert into link1 select * from public.link_referral_related_case(
     (select id from r9), (select tgt_case from cs), 'related_case');
+$$, 'R4: the legitimate source-coordinator link is accepted (no denied link occupies it)');
 reset role;
-grant select on link1 to authenticated;
 select is((select relationship_type from link1), 'related_case', 'R4: link stores the relationship type');
 select is((select commission_id from link1), (select comm_x from k),
   'R4: the link is attributed to the acting (source) coordinator''s side');

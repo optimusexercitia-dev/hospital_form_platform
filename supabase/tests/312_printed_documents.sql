@@ -32,7 +32,7 @@ begin;
 -- 80 -> 85 (ADR 0123): +t77 (the non-vacuity control for the constructed
 -- zero-active state) +t78/+t79/+t80 (the D1 superseded keystone, its exit and
 -- its differential) +t81 (the D3 structural pin on the mint's row lock).
-select plan(90);
+select plan(91);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -871,16 +871,22 @@ on conflict (id) do nothing;
 create temp table ch9 on commit drop as
   select pg_temp.pd_chain(
     (select doc_draft from r9a), (select resp_prog from r), (select sa_x from k)) as ver;
-insert into public.printed_documents
-  (id, source_kind, source_id, source_series_id, source_revision, commission_id,
-   template_key, template_version, content_hash, verification_token,
-   verification_short_code, minted_by, document_id, document_version_id)
-select r9a.doc_draft, 'form_response', r.resp_prog, r.resp_prog, 0, k.comm_x,
-   'form_response', 1, repeat('77', 32),
-   'DRAFTPRINTTOKENAAAABBBBCCCCDDDDEEEE', 'STUVWX2345', k.sa_x,
-   (select dv.document_id from public.document_versions dv where dv.id = (select ver from ch9)),
-   (select ver from ch9)
-from r9a, r, k;
+-- ⚠ ASSERTED, not bare: printed_documents_one_active allows exactly one active print
+-- per source. If the mint denials earlier in this file ever stop firing, their documents
+-- have already taken that slot and this table-level insert collides — aborting the whole
+-- FILE instead of failing the tests that noticed.
+select lives_ok($$
+  insert into public.printed_documents
+    (id, source_kind, source_id, source_series_id, source_revision, commission_id,
+     template_key, template_version, content_hash, verification_token,
+     verification_short_code, minted_by, document_id, document_version_id)
+  select r9a.doc_draft, 'form_response', r.resp_prog, r.resp_prog, 0, k.comm_x,
+     'form_response', 1, repeat('77', 32),
+     'DRAFTPRINTTOKENAAAABBBBCCCCDDDDEEEE', 'STUVWX2345', k.sa_x,
+     (select dv.document_id from public.document_versions dv where dv.id = (select ver from ch9)),
+     (select ver from ch9)
+  from r9a, r, k;
+$$, 't73a: the active-print slot for resp_prog is free — no denied mint has occupied it');
 
 select is(
   (select status from public.printed_documents where id = (select doc_draft from r9a)),

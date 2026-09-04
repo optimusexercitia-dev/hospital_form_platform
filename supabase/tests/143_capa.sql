@@ -19,7 +19,7 @@
 --   * PHI-free capa audit rows (status/verdict only — no *_md body).
 
 begin;
-select plan(38);
+select plan(39);
 
 update app.feature_flags set enabled = true where key = 'patient_safety';
 update app.feature_flags set enabled = true where key = 'audit_trail';
@@ -184,8 +184,13 @@ reset role;
 -- Settle the action, then close succeeds.
 select test_helpers.claims_for((select admin from k), true, 'pqs_member');
 set local role authenticated;
-select public.complete_capa_action((select action_id from a));
-select public.close_capa_plan((select capa_id from c), 'Lições aprendidas registradas.');
+-- ⚠ ASSERTED, not bare: if the HC051 refusal above ever stops firing, the plan is
+-- already closed and app.guard_capa_child_lock refuses the settle step — aborting the
+-- whole FILE instead of failing the one test that noticed.
+select lives_ok($$
+  select public.complete_capa_action((select action_id from a));
+  select public.close_capa_plan((select capa_id from c), 'Lições aprendidas registradas.');
+$$, 'fixture: the plan is still open — the action settles and the plan then closes');
 reset role;
 select is((select status from public.capa_plan where id = (select capa_id from c)), 'completed',
   'close succeeds once actions are settled + effectiveness recorded');

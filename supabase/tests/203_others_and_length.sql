@@ -14,10 +14,10 @@
 --   §5 length limits at submit: min/max character bounds (HC061); a compliant
 --      answer submits.
 --
--- Assertion count: 17
+-- Assertion count: 18
 
 begin;
-select plan(17);
+select plan(18);
 
 update app.feature_flags set enabled = true
   where key in ('signoff_enforcement');
@@ -220,9 +220,14 @@ select throws_ok(
   'length: a free_text answer shorter than minLength is rejected at submit (HC061)');
 
 -- Too long (11 chars > 10) → HC061.
-select public.save_section_answers(
-  (select rid from rsp), (select sec_id from fx),
-  jsonb_build_object((select it_text from fx)::text, to_jsonb('12345678901'::text)));
+-- ⚠ ASSERTED, not bare: if the minLength refusal above ever stops firing, the response
+-- is already `submitted` and save_section_answers refuses the edit (23514) — aborting
+-- the whole FILE instead of failing the one test that noticed.
+select lives_ok($$
+  select public.save_section_answers(
+    (select rid from rsp), (select sec_id from fx),
+    jsonb_build_object((select it_text from fx)::text, to_jsonb('12345678901'::text)));
+$$, 'fixture: the draft is still editable — the over-long answer is saved for the maxLength case');
 select throws_ok(
   format($$ select public.submit_response(%L) $$, (select rid from rsp)),
   'HC061', null,

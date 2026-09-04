@@ -30,7 +30,7 @@
 -- records why the original twin was orphaned.
 
 begin;
-select plan(25);
+select plan(26);
 
 -- ── TRIPWIRE (ADR 0106 D11 no-op argument): the empirical claim behind D11's
 --    hat condition being safe to ship as a no-op today is "0 platform_admins
@@ -187,13 +187,27 @@ select ok(
 --    (not re-litigated here): an assumption of "org_admin of org_b" is an
 --    event ABOUT org_b; leaving it unscoped both breaks tenancy-scoped audit
 --    completeness and pollutes the platform-tier bucket with routine noise.
+-- ⭐ CARDINALITY FIRST (Architecture Rule 11). assume_role upserts
+--    app.active_role_selections ON CONFLICT (session_id) DO UPDATE — one selection row
+--    per session, overwritten — but audit_write stamps entity_id = session_id, so the
+--    audit rows ACCUMULATE. A denied assumption must therefore leave NO audit row at
+--    all, and nothing else in the suite asserts that. It is also what makes the two
+--    scope assertions below readable: both aggregate, so that when this property is
+--    violated the file reports a scored FAILURE instead of aborting the whole run with
+--    "more than one row returned by a subquery used as an expression".
+select is(
+  (select count(*)::int from public.audit_log
+    where action = 'active_role.assumed' and entity_id = (select v from sid)),
+  1,
+  'assume_role: exactly one active_role.assumed row per session — a DENIED assumption must not be audited');
 select is(
   (select organization_id from public.audit_log
-    where action = 'active_role.assumed' and entity_id = (select v from sid)),
+    where action = 'active_role.assumed' and entity_id = (select v from sid)
+    order by seq limit 1),
   (select org_b from k),
   'assume_role audit (org-tier): scoped to org_b (the assumed org_admin''s own org), not the platform bucket');
 select ok(
-  (select hospital_id is null and commission_id is null from public.audit_log
+  (select bool_and(hospital_id is null and commission_id is null) from public.audit_log
     where action = 'active_role.assumed' and entity_id = (select v from sid)),
   'assume_role audit (org-tier): hospital_id/commission_id stay NULL for an org-tier hat');
 

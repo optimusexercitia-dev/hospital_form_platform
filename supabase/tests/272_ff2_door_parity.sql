@@ -22,7 +22,7 @@
 
 begin;
 
-select plan(30);
+select plan(31);
 
 update app.feature_flags set enabled = true where key in ('ethics', 'audit_trail');
 
@@ -339,10 +339,15 @@ select throws_ok(
   'HC011', null,
   'Q2. …and submit_response refuses it — the per-instance arm is wired in the AUTHORITY too');
 
-select public.save_section_answers(
-  'dd200000-0000-0000-0000-0000000000b1', 'dd200000-0000-0000-0000-000000000004',
-  p_instance_answers => '[{"instance_id":"dd200000-0000-0000-0000-0000000000b2",
-                           "matrix_cells":{"dd200000-0000-0000-0000-000000000014":{"ir1":"ic_a","ir2":"ic_b"}}}]'::jsonb);
+-- ⚠ ASSERTED, not bare: if Q2's HC011 refusal ever stops firing the response is already
+-- `submitted` and save_section_answers refuses the edit (23514) — aborting the whole
+-- FILE instead of failing the one test that noticed.
+select lives_ok($$
+  select public.save_section_answers(
+    'dd200000-0000-0000-0000-0000000000b1', 'dd200000-0000-0000-0000-000000000004',
+    p_instance_answers => '[{"instance_id":"dd200000-0000-0000-0000-0000000000b2",
+                             "matrix_cells":{"dd200000-0000-0000-0000-000000000014":{"ir1":"ic_a","ir2":"ic_b"}}}]'::jsonb);
+$$, 'fixture: the draft is still editable — the instance grid is completed');
 
 select ok(
   app.response_required_complete('dd200000-0000-0000-0000-0000000000b1'),

@@ -15,7 +15,7 @@
 
 begin;
 
-select plan(96);
+select plan(98);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -1095,10 +1095,15 @@ select is(
   'E3. …with the author''s own pt-BR message, not a generic string');
 
 -- Fix the error, introduce a WARN violation in the same breath.
-select public.save_section_answers(
-  'ff300000-0000-0000-0000-0000000000a1', 'ff300000-0000-0000-0000-000000000003',
-  p_answers => '{"ff300000-0000-0000-0000-000000000011":7,
-                 "ff300000-0000-0000-0000-000000000012":"abc"}'::jsonb);
+-- ⚠ ASSERTED, not bare: if the HC0P9 submit refusal earlier in this file ever stops
+-- firing, a1 is already `submitted` and save_section_answers refuses the edit (23514) —
+-- aborting the whole FILE instead of failing the test that noticed.
+select lives_ok($$
+  select public.save_section_answers(
+    'ff300000-0000-0000-0000-0000000000a1', 'ff300000-0000-0000-0000-000000000003',
+    p_answers => '{"ff300000-0000-0000-0000-000000000011":7,
+                   "ff300000-0000-0000-0000-000000000012":"abc"}'::jsonb);
+$$, 'fixture: a1 is still an editable draft — the error is fixed and a warn introduced');
 
 select is(
   (select count(*)::int from public.get_response_validation_errors('ff300000-0000-0000-0000-0000000000a1')
@@ -1184,10 +1189,15 @@ select throws_ok(
 --          pins the exact 1 warn / 2 errors split, and one of those errors IS the
 --          config-bound row. Recorded so nobody reads M2 as severity-only.
 -- ===========================================================================
-select public.save_section_answers(
-  'ff300000-0000-0000-0000-0000000000a3', 'ff300000-0000-0000-0000-000000000003',
-  p_answers => '{"ff300000-0000-0000-0000-000000000011":3,
-                 "ff300000-0000-0000-0000-000000000012":"ab"}'::jsonb);
+-- ⚠ ASSERTED, not bare: if the legacy-lane HC061 refusal earlier in this file ever
+-- stops firing, a3 is already `submitted` and save_section_answers refuses the edit
+-- (23514) — aborting the whole FILE instead of failing the test that noticed.
+select lives_ok($$
+  select public.save_section_answers(
+    'ff300000-0000-0000-0000-0000000000a3', 'ff300000-0000-0000-0000-000000000003',
+    p_answers => '{"ff300000-0000-0000-0000-000000000011":3,
+                   "ff300000-0000-0000-0000-000000000012":"ab"}'::jsonb);
+$$, 'fixture: a3 is still an editable draft — the mixed-severity answers are saved');
 
 select is(
   (select count(distinct severity)::int

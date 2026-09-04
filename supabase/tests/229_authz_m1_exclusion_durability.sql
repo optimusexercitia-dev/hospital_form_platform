@@ -27,7 +27,7 @@
 -- =============================================================================
 
 begin;
-select plan(86);
+select plan(87);
 
 update app.feature_flags set enabled = true
   where key in ('cases_multi_phase', 'case_participants', 'audit_trail');
@@ -743,7 +743,13 @@ select is((select r.key from public.case_participants cp
 -- legitimate path is a regression, not a fix.
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
-select public.set_professional_link_state('00000000-0000-0000-0000-0000000f0902', 'no_account', null);
+-- ⚠ ASSERTED, not bare: if DOOR2's HC0F0 refusal above ever stops firing, the seating
+-- actually happened, the professional is a party to an active case, and
+-- app.guard_professional_linkage FREEZES his linkage (HC0F2) — aborting the whole FILE
+-- instead of failing the tests that noticed.
+select lives_ok($$
+  select public.set_professional_link_state('00000000-0000-0000-0000-0000000f0902', 'no_account', null);
+$$, 'M-1 DOOR2 fixture: the linkage is not frozen — the refused seating really was refused');
 select lives_ok(
   $$ select public.set_case_participant_role('00000000-0000-0000-0000-0000000f0903',
        '00000000-0000-0000-0000-0000000f0103') $$,

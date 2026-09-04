@@ -22,7 +22,7 @@
 -- RUN SHAPE: `Files=2, Tests=19` (18 here + 00_setup.sql's one).
 
 begin;
-select plan(18);
+select plan(19);
 
 -- ============================================================================
 -- §1 — the fixture. Three principals spanning the split, from the SEED (not bootstrap):
@@ -237,9 +237,19 @@ declare
 begin
   v_src := pg_get_functiondef('public.set_professional_link_state(uuid, text, uuid)'::regprocedure);
   perform set_config('ae47c.orig_link_door', v_src, false);
+  -- ⭐ THE PREFLIGHT IS AN ASSERTION NOW, NOT A RAISE — and the guard itself is unchanged.
+  -- It still refuses to run a no-op mutation; it just reports that refusal as 5.0 below
+  -- instead of aborting the file. The distinction matters because this file is not the
+  -- only mutation harness pointed at this door: the C2 command-door neutralizer
+  -- (supabase/tests/mutation/) removes the very `raise` that `v_cut` matches, and while
+  -- that sweep is in flight the preflight is CORRECT to fire. Aborting there discarded
+  -- §4's own genuine failures along with everything else in the run; failing 5.0 and
+  -- SKIPPING 5.1/5.2 keeps them readable and keeps the plan count identical.
+  -- ⛔ Do not weaken the `position(...) = 0` test itself. Without it §5's mutation becomes
+  -- a no-op and 5.1 reports a false green — the exact vacuity this section exists to stop.
+  perform set_config('ae47c.bound_present', (position(v_cut in v_src) > 0)::text, false);
   if position(v_cut in v_src) = 0 then
-    raise exception '406 §5: the link_state bound was not found VERBATIM — the mutation would be a no-op and the twin would report green.'
-      using errcode = 'check_violation';
+    return;  -- door untouched; 5.1/5.2 skip below rather than measure nothing
   end if;
   v_new := replace(v_src, v_cut, '');
   execute v_new;
@@ -249,24 +259,44 @@ begin
   end if;
 end $mut$;
 
+select ok(
+  current_setting('ae47c.bound_present', true)::boolean,
+  '5.0 ⭐ PREFLIGHT: the link_state bound is present in the live body VERBATIM. Without it §5''s '
+  'own mutation is a no-op and 5.1 reports a false green, so this is asserted BEFORE the twin '
+  'runs and the twin is skipped when it fails.');
+
 select test_helpers.claims_for((select sa from f406), false, 'staff_admin');
 set local role authenticated;
-select lives_ok(
-  format($$ select public.set_professional_link_state(%L, 'linked', %L) $$,
-         (select linked_profile from f406p), (select oa from f406)),
-  '5.1 ⭐⭐ MUTATION TWIN: with the `unknown` bound neutralized, the staff_admin refused at 4.2 '
-  'now WALKS THROUGH the door. ⛔ This is the fail-OPEN direction, and it is the only assertion '
-  'in the whole AE4.7c change set that measures it: every other suite this increment touched '
-  'measures access being removed, and a removal''s tests cannot see a replacement written too '
-  'wide.');
+select case when current_setting('ae47c.bound_present', true)::boolean then
+  (select lives_ok(
+    format($$ select public.set_professional_link_state(%L, 'linked', %L) $$,
+           (select linked_profile from f406p), (select oa from f406)),
+    '5.1 ⭐⭐ MUTATION TWIN: with the `unknown` bound neutralized, the staff_admin refused at 4.2 '
+    'now WALKS THROUGH the door. ⛔ This is the fail-OPEN direction, and it is the only assertion '
+    'in the whole AE4.7c change set that measures it: every other suite this increment touched '
+    'measures access being removed, and a removal''s tests cannot see a replacement written too '
+    'wide.'))
+else
+  (select skip('5.1 MUTATION TWIN not run: 5.0''s preflight failed, so the door was NOT mutated by '
+    '§5 and this twin would measure nothing', 1))
+end;
 reset role;
 
-do $rst$ begin execute current_setting('ae47c.orig_link_door', true); end $rst$;
-select is(
-  pg_get_functiondef('public.set_professional_link_state(uuid, text, uuid)'::regprocedure),
-  current_setting('ae47c.orig_link_door', true),
-  '5.2 RESTORE: the door is byte-identical to its pre-mutation definition. ⛔ pg_proc carries no '
-  'mtime, so a harness that left this door open could not be dated from the catalog afterwards.');
+do $rst$ begin
+  if current_setting('ae47c.bound_present', true)::boolean then
+    execute current_setting('ae47c.orig_link_door', true);
+  end if;
+end $rst$;
+select case when current_setting('ae47c.bound_present', true)::boolean then
+  (select is(
+    pg_get_functiondef('public.set_professional_link_state(uuid, text, uuid)'::regprocedure),
+    current_setting('ae47c.orig_link_door', true),
+    '5.2 RESTORE: the door is byte-identical to its pre-mutation definition. ⛔ pg_proc carries no '
+    'mtime, so a harness that left this door open could not be dated from the catalog afterwards.'))
+else
+  (select skip('5.2 RESTORE not run: 5.0''s preflight failed, so §5 never replaced the body and '
+    'there is nothing of its own to restore', 1))
+end;
 
 select test_helpers.reset_role_and_claims();
 

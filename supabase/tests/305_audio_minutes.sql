@@ -16,10 +16,10 @@
 -- it. A fixture missing a flag-enable silently SKIPS its own keystones and the suite
 -- still reports green (pgtap-fixture-flag-gaps). Never trust the self-reported total.
 --
--- Assertion count: 115
+-- Assertion count: 116
 
 begin;
-select plan(115);
+select plan(116);
 
 -- =========================================================================
 -- §0 PRECONDITIONS — asserted, not assumed.
@@ -352,9 +352,19 @@ select throws_ok(
             jsonb_build_object('minutes_md', repeat('a', 2100000))) $$, (select id from jid)),
   'HC0S4', null,
   '4.8 save_minutes_draft enforces the ~2 MB sanity cap so a broken client cannot balloon the row');
+-- ⚠ `isnt()` evaluates its value expression BEFORE asserting, so an RPC that raises
+-- there aborts the whole FILE rather than failing one test. If 4.x's submit/cancel
+-- denials ever stop firing, the job has left its draft-editable state and
+-- save_minutes_draft answers HC0S3. The table is created EMPTY first, so a refused save
+-- leaves 4.9 reading NULL — which is exactly what it asserts against.
+create temp table mdraft (ts timestamptz) on commit drop;
+select lives_ok($$
+  insert into mdraft (ts)
+  select public.save_minutes_draft((select id from jid),
+     (select draft from public.meeting_minutes_jobs where id = (select id from jid)));
+$$, '4.9a the job is still draft-editable — save_minutes_draft is reachable at all');
 select isnt(
-  (select public.save_minutes_draft((select id from jid),
-     (select draft from public.meeting_minutes_jobs where id = (select id from jid)))), null,
+  (select ts from mdraft), null,
   '4.9 ALLOW: a well-formed draft saves and returns its timestamp');
 reset role;
 
@@ -632,9 +642,14 @@ select is(
   (select count(*)::int from public.audit_log
     where action = 'minutes_job.applied' and entity_id = (select id from jid)), 1,
   '7.20 one minutes_job.applied audit row');
+-- ⚠ Aggregated deliberately. 7.20 immediately above is already this read's cardinality
+-- assertion; without the `limit 1` a second applied row would make THIS line raise
+-- "more than one row returned by a subquery" and abort the whole FILE — discarding
+-- 7.20's own report of the very same defect.
 select is(
   (select metadata->>'agenda_created' from public.audit_log
-    where action = 'minutes_job.applied' and entity_id = (select id from jid)), '2',
+    where action = 'minutes_job.applied' and entity_id = (select id from jid)
+    order by seq limit 1), '2',
   '7.21 ... carrying the COUNTS (never the content — Rule 11)');
 
 -- =========================================================================

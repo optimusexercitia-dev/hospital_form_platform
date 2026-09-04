@@ -3,7 +3,7 @@
 -- visible_when/config (BE-4).
 
 begin;
-select plan(7);
+select plan(8);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 
@@ -122,8 +122,13 @@ select throws_ok(
 reset role;
 
 -- ---- A third response: number ABOVE max blocks submit too. ----
-update public.answers set value = '11'::jsonb
-  where response_id = (select id from r2) and question_key = 'iv_count';  -- above max=10
+-- ⚠ ASSERTED, not bare: if the below-min refusal above ever stops firing, r2 is already
+-- `submitted` and public.guard_submitted_children refuses the UPDATE — aborting the whole
+-- FILE instead of failing the one test that noticed.
+select lives_ok($$
+  update public.answers set value = '11'::jsonb
+    where response_id = (select id from r2) and question_key = 'iv_count';  -- above max=10
+$$, 'fixture: r2 is still an in_progress draft — the answer is raised above its max');
 
 select test_helpers.claims_for((select (v->>'st_x2')::uuid from ctx), false);
 set local role authenticated;

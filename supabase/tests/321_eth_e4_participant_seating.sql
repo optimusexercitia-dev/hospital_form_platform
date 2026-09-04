@@ -40,7 +40,7 @@
 -- =============================================================================
 
 begin;
-select plan(77);
+select plan(78);
 
 update app.feature_flags set enabled = true
   where key in ('cases_multi_phase', 'case_participants', 'audit_trail');
@@ -458,9 +458,16 @@ reset role;
 
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
-create temp table seat_c on commit drop as
+-- ⚠ A CTAS whose query raises leaves NO relation behind, so the POSITIVE TWIN below
+-- would abort the whole FILE rather than fail. The shape is created first, then filled
+-- under lives_ok: if the HC0F0 refusal at K5 ever stops firing, that seating already
+-- landed and case_participants_case_id_participant_id_role_id_key refuses this one.
+create temp table seat_c (cpid uuid) on commit drop;
+select lives_ok($$
+  insert into seat_c (cpid)
   select public.add_case_participant('00000000-0000-0000-0000-0000000e4001', (select pid from mint_c),
-           '00000000-0000-0000-0000-0000000e4010', false, null) as cpid;
+           '00000000-0000-0000-0000-0000000e4010', false, null);
+$$, 'K5 POSITIVE TWIN fixture: the seat is still free — the refused seating really was refused');
 reset role;
 grant select on seat_c to authenticated;
 select isnt((select cpid from seat_c), null,

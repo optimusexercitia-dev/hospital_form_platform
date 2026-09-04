@@ -43,7 +43,7 @@
 
 begin;
 
-select plan(38);
+select plan(39);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -216,11 +216,18 @@ select throws_ok(
   'HC0QA', null, 'B3. CROSS-HOSPITAL through the RPC: comm_x linking hosp_c''s capa_plan fails belongs (HC0QA) before can_read_capa is ever reached (Amendment 1 A1·1, verified)'
 );
 
-create temp table link1 on commit drop as
+-- ⚠ A CTAS whose query raises leaves NO relation behind, so B4/B5 below would abort the
+-- whole FILE rather than fail. The shape is created first, then filled under lives_ok:
+-- if the four denials at B1–B3 ever stop firing, their links have already landed and
+-- evidence_links_unique refuses this one.
+create temp table link1 (id uuid) on commit drop;
+grant select on link1 to authenticated;
+select lives_ok($$
+  insert into link1 (id)
   select (public.link_evidence(
     (select comm_x from k), '28100000-0000-0000-0000-000000000001', 'form', '28100000-0000-0000-0000-000000000a01'
-  )).id as id;
-grant select on link1 to authenticated;
+  )).id;
+$$, 'B4a. the legitimate link is accepted — no denied link occupies its uniqueness slot');
 select ok((select id from link1) is not null, 'B4. the legitimate link succeeds');
 select ok(
   exists (select 1 from public.audit_log where action = 'evidence_link.created' and entity_id = (select id from link1)),
