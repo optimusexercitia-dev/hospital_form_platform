@@ -22,8 +22,11 @@
 -- would destroy. It creates exactly one fixture object (§ 4's probe), in `app`, and drops it
 -- before leaving the section; the whole file rolls back regardless.
 --
--- RUN SHAPE: `Files=2, Tests=35` (34 here + 00_setup.sql's one).
--- §1 4 · §2 6 · §3 7 · §4 6 · §5 3 · §6 4 · §7 4 = 34.
+-- RUN SHAPE: `Files=2, Tests=41` (40 here + 00_setup.sql's one).
+-- §1 4 · §2 6 · §3 7 · §4 6 · §5 3 · §6 4 · §7 4 · §8 6 = 40.
+-- ⚠ 34 -> 40: § 8, the SITE-AXIS CLOSURE, added to close
+-- FUP-AE4-MANIFEST-HAS-NO-SITE-AXIS-CLOSURE after BUG-AE49-D6-REKEY-INCOMPLETE shipped through
+-- every green gate in this file. Read § 8's header before trusting anything below about sites.
 -- ⚠ 32 -> 33 at authoring time: § 3.7 (the AUTHORIZER-composition arm) was added after § 3.5
 -- red on the re-keyed catalog and the authority turned out to have MOVED rather than vanished.
 -- ⚠ 33 -> 34: § 4.6, the residual-legacy-authority disclosure imposed as a CONDITION by the
@@ -31,7 +34,7 @@
 -- `re-keyed: 3` reads as "3 permissions fully on layer 3", which is false for all three.
 
 begin;
-select plan(34);
+select plan(40);
 
 \ir vectors/authz_enforcement_manifest.psql
 
@@ -62,11 +65,15 @@ select ok((select count(*) from authz_manifest_snapshot_permissions) > 0
   '1.3 ...and every other fixture relation is populated too. The snapshot lists are the ONLY '
   'thing §2 compares against the catalog; an empty one would make both set differences pass.');
 
-select is((select count(*)::int from authz_manifest_sites), 10,
-  '1.4 CARDINALITY CONTROL for §3: exactly 10 enforcement sites are declared (4 policies for '
-  'commission.forms.edit, 3 RPCs for org.professionals.create, 2 policies + 1 RPC for '
-  'org.professionals.read). §3 asserts each EXISTS; without this count, deleting site rows '
-  'would shrink §3''s domain and every remaining assertion would still be green.');
+select is((select count(*)::int from authz_manifest_sites), 12,
+  '1.4 CARDINALITY CONTROL for §3 AND §8: exactly 12 enforcement sites are declared (6 policies '
+  'for commission.forms.edit, 3 RPCs for org.professionals.create, 2 policies + 1 RPC for '
+  'org.professionals.read). §3 asserts each EXISTS and §8 asserts each ENFORCES; without this '
+  'count, deleting site rows would shrink both domains and every remaining assertion would '
+  'still be green. ⚠ 10 -> 12 at 20261003007340: the two `form_item_options` / '
+  '`form_item_validations` write policies were named by the PO-approved matrix, were NOT '
+  're-keyed, and were absent from this list — BUG-AE49-D6-REKEY-INCOMPLETE. ⛔ Raising this '
+  'number is how a re-key is RECORDED; it is never how a §8 red is silenced.');
 
 -- ============================================================================
 -- §2 — THE SNAPSHOT vs THE LIVE CATALOG. This is D5's "generation fails on set difference in
@@ -246,8 +253,8 @@ select is(
 select is(
   (select count(*)::int from authz_manifest_sites s, unnest(s.composed_with) as c(fn))
   + (select count(*)::int from authz_manifest_permissions m, unnest(m.authorizer_composed_with) as c(fn)),
-  18,
-  '3.6 CARDINALITY CONTROL for 3.5 AND 3.7: 10 (site, authority) pairs plus 8 (authorizer, '
+  20,
+  '3.6 CARDINALITY CONTROL for 3.5 AND 3.7: 12 (site, authority) pairs plus 8 (authorizer, '
   'authority) pairs were checked. Both are "violations = 0" assertions over an UNNEST — '
   'emptying `composedWith` everywhere would satisfy both perfectly while checking nothing. '
   '⚠ The 8 authorizer pairs are 2 for can_edit_commission_forms, 2 for '
@@ -545,7 +552,178 @@ select is(
   'assertion it controls would be the assertion twice.');
 
 -- ============================================================================
--- §8 — WHAT THIS FILE DOES NOT DO. Recorded IN the gate, because a limitation that lives only
+-- §8 — ⭐⭐ SITE-AXIS CLOSURE. THE AXIS THAT HAD NO CHECK IN EITHER DIRECTION.
+--
+-- ⛔ WHY THIS SECTION EXISTS. §2's set differences run on the PERMISSION axis. §3 asks only
+-- whether each DECLARED site EXISTS (3.1/3.2) and still composes what it DECLARES (3.5).
+-- Nothing asked whether a declared site actually enforces the row's permission, nor whether a
+-- catalog object that enforces it is declared. That gap shipped a live defect:
+-- BUG-AE49-D6-REKEY-INCOMPLETE — `commission.forms.edit` was re-keyed at 4 of the 7 sites its
+-- PO-approved matrix names, this manifest declared exactly the 4 that had landed, with
+-- `status: "re-keyed"` and `callGraphBoundary: null` (which is a COMPLETE-LIST claim), and every
+-- gate in this file was green. ADR 0176 D5 says generation "fails on set difference in either
+-- direction"; on the site axis that sentence was false, and the falseness was in the DECISION
+-- RECORD, not merely in the coverage. Entry: FUP-AE4-MANIFEST-HAS-NO-SITE-AXIS-CLOSURE.
+--
+-- ⛔ WHY §3 COULD NOT HAVE CAUGHT IT, WHICH IS THE WHOLE POINT. §3.5 compares a site against the
+-- manifest's OWN `composedWith` for that site. Both sides are the manifest. A site the manifest
+-- never names is in neither side, so §3 ranges over the hand list and cannot see past its edge —
+-- "your own enumeration is a closure claim too". §8 compares the manifest against the CATALOG.
+--
+-- ⛔ WHAT "ENFORCES" MEANS HERE — STATED AS A BOUND, NOT IMPLIED. A policy body never carries the
+-- permission literal: layer 3 puts the code inside an authorizer FUNCTION by construction (0176
+-- D2/D7). So the predicate is transitive to EXACTLY ONE HOP — a site reaches its code when its
+-- own body carries the literal, OR it CALLS an `app`/`public` function that does. One hop is the
+-- architecture and not a convenience: D2 forbids a policy or door from calling layer 1 or 2 for
+-- a permission decision, so a site's authorizer is always its DIRECT callee. ⚠ A future site
+-- that reached its code through an intermediate wrapper would read FALSE here and RED. That is
+-- the correct answer, because that shape is itself a D2 finding — do not deepen the search to
+-- make such a red go away.
+--
+-- ⚠ THE NEEDLE IS `name || '('`, for the reason §3.5 records: a bare-name match reports
+-- `app.is_staff_admin_of` as present inside `app.is_staff_admin_of_for(` and hides a rename.
+-- ⚠ AND THE CODE NEEDLE CARRIES ITS QUOTES, for the reason §4's `carriers_of` records: this
+-- looks for a STRING LITERAL, not a mention, and `position` is used rather than a regex because
+-- permission codes contain `.`.
+-- ============================================================================
+
+-- The hop-0 carrier set, materialised once: 283 policies x 4 carriers instead of 283 x ~1000
+-- function bodies (measured: 9.9 s -> 0.15 s). ⚠ It is built from `authz.permissions`, i.e. the
+-- LIVE catalog, never from the manifest — a carrier table sourced from the manifest would make
+-- both directions below compare the manifest with itself, which is exactly the defect §8 exists
+-- to close. §4's `app._t410_probe` has already been dropped by this point, so it is absent here.
+create temp table t410_carriers on commit drop as
+  select pm.code, n.nspname || '.' || p.proname as fn
+    from authz.permissions pm
+    join pg_proc p on true
+    join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname in ('app', 'public')
+     and position('''' || pm.code || '''' in
+                  regexp_replace(p.prosrc, '--[^' || chr(10) || ']*', '', 'g')) > 0;
+
+-- ⚠ REUSES §3's `policy_body` / `fn_body` deliberately. One definition of "the body" across
+-- §3.5, §6.2 and §8 means a fix to the extraction cannot leave one arm reading a different text
+-- from another. Their bound (block comments are NOT stripped) is stated at their definition.
+create or replace function pg_temp.reaches_code(
+  p_kind text, p_schema text, p_relation text, p_name text, p_code text)
+returns boolean language sql stable as $$
+  with src as (
+    select case p_kind
+             when 'policy' then coalesce(pg_temp.policy_body(p_schema, p_relation, p_name), '')
+             else               coalesce(pg_temp.fn_body(p_schema, p_name), '')
+           end as b
+  )
+  select (select position('''' || p_code || '''' in src.b) > 0 from src)      -- hop 0
+      or exists (select 1 from t410_carriers c, src                            -- hop 1
+                  where c.code = p_code and position(c.fn || '(' in src.b) > 0);
+$$;
+
+select is(
+  (select coalesce(string_agg(s.code || ' -> ' || s.site_schema || '.' ||
+                              coalesce(s.site_relation || ' / ', '') || s.site_name,
+                              '; ' order by s.code, s.site_name), '(none)')
+     from authz_manifest_sites s
+     join authz_manifest_permissions m on m.code = s.code
+    where m.status = 're-keyed'
+      and not pg_temp.reaches_code(s.site_kind, s.site_schema, s.site_relation, s.site_name, s.code)),
+  '(none)',
+  '8.1 ⭐⭐ DECLARED => ENFORCING. Every site a `re-keyed` row names actually reaches that row''s '
+  'permission code in the live catalog. ⛔ THIS IS THE ARM THAT REDS ON THE DEFECT: measured at '
+  'head 20261003007330, with the two matrix-named policies added to the manifest and the fix '
+  'migration NOT applied, this reported `commission.forms.edit -> '
+  'public.form_item_options / form_item_options_staff_admin_write; commission.forms.edit -> '
+  'public.form_item_validations / form_item_validations_staff_admin_write` — the two sites still '
+  'carrying `app.is_staff_admin_of(...) OR app.is_tenancy_admin_of(...)` verbatim. ⛔ IF THIS '
+  'REDS, RE-KEY THE SITE OR RETRACT THE DECLARATION — never delete the row from the manifest to '
+  'restore green, because 8.4 is watching that door from the other side.');
+
+select ok(
+  pg_temp.reaches_code('policy', 'public', 'forms', 'forms_staff_admin_write', 'commission.forms.edit'),
+  '8.2 DISCRIMINATION PAIR, positive half: the SAME expression returns TRUE for a site that '
+  'genuinely is re-keyed. ⛔ 8.1 and 8.4 are both "violations = 0" assertions, which a detector '
+  'stuck on FALSE satisfies perfectly. Without this half, a broken `reaches_code` would report '
+  'the same green as a fully re-keyed catalog.');
+
+select ok(
+  not pg_temp.reaches_code('policy', 'public', 'form_item_options', 'form_item_options_select',
+                           'commission.forms.edit'),
+  '8.3 DISCRIMINATION PAIR, negative half — and it is anchored on something correct BY DESIGN, '
+  'not on a defect. `form_item_options_select` is the PERMISSIVE SELECT sibling on the SAME '
+  'TABLE as one of 8.1''s subjects; it is gated on `app.is_member_of` and must NOT enforce a '
+  'write permission. So the detector separates two policies on one table, which is the '
+  'resolution 8.4 needs. ⛔ Never re-anchor this on a policy that is merely un-re-keyed — that '
+  'would make the control go green the day the defect is fixed.');
+
+select is(
+  (select coalesce(string_agg(m.code || ' <- ' || pol.schemaname || '.' || pol.tablename ||
+                              ' / ' || pol.policyname, '; ' order by m.code, pol.policyname), '(none)')
+     from authz_manifest_permissions m
+     join pg_policies pol on true
+    where m.status = 're-keyed'
+      and pg_temp.reaches_code('policy', pol.schemaname, pol.tablename, pol.policyname, m.code)
+      and not exists (select 1 from authz_manifest_sites s
+                       where s.code = m.code and s.site_kind = 'policy'
+                         and s.site_schema   = pol.schemaname
+                         and s.site_relation = pol.tablename
+                         and s.site_name     = pol.policyname)),
+  '(none)',
+  '8.4 ⭐⭐ ENFORCING => DECLARED, the direction a one-way check misses. Every policy in the '
+  'catalog that reaches a `re-keyed` code is named in that row''s `enforcementSites`. ⛔ This is '
+  'what stops 8.1 being satisfiable by DELETION: shortening the site list makes 8.1''s domain '
+  'smaller and its answer greener, and 8.4 immediately reports the sites that were dropped. '
+  'Proven able to red: with 20261003007340 applied and the two new sites removed from the '
+  'manifest, this reported both of them while 8.1 read "(none)". '
+  '⚠ POLICIES ONLY, AND THE BOUND IS DELIBERATE — the FUNCTION population is not a settled site '
+  'set (measured: four `app`/`public` functions reach `org.professionals.read`, of which one is '
+  'the authorizer, one is a declared RPC site, and two are not declared), and pinning it here '
+  'would be inventing a ruling. 8.5 covers the part of it that IS settled.');
+
+select is(
+  (select coalesce(string_agg(
+            c.code || ' => ' || c.fn || ' [' ||
+            case when c.fn = m.domain_authorizer then 'authorizer'
+                 when exists (select 1 from authz_manifest_sites s
+                               where s.code = c.code and s.site_kind = 'function'
+                                 and s.site_schema || '.' || s.site_name = c.fn) then 'declared site'
+                 else 'UNDECLARED' end || ']',
+            '; ' order by c.code, c.fn), '(none)')
+     from t410_carriers c
+     join authz_manifest_permissions m on m.code = c.code),
+  'commission.forms.edit => app.can_edit_commission_forms [authorizer]; '
+  'org.professionals.create => app.can_create_professional [authorizer]; '
+  'org.professionals.read => app.can_read_professional_profile [authorizer]; '
+  'org.professionals.read => app.current_professional_read_organizations [UNDECLARED]',
+  '8.5 ⭐⭐ EVERY LITERAL CARRIER IS CLASSIFIED, BY NAME — the follow-up''s "every catalog object '
+  'carrying that literal appears in exactly one row" direction. Each carrier is the row''s '
+  'AUTHORIZER, a DECLARED function site, or UNDECLARED. ⛔ THE ONE `UNDECLARED` IS A DISCLOSURE, '
+  'NOT AN APPROVAL. `app.current_professional_read_organizations` acquired the '
+  '`org.professionals.read` literal at 20261003007320 as a deliberate SECOND site (ADR 0182; '
+  '409 §1.1 rules the duplication safe as a subset argument, 413 §2/§5 measure it), yet no '
+  'manifest row names it. Closing that is either a new `enforcementSites` entry or a reviewed '
+  'exclusion, and it is the PO''s call, not this file''s. ⚠ PINNED AS A NAMED SET RATHER THAN '
+  'COUNTED, for §4.6''s reason: a count lets one carrier be swapped for another silently. A NEW '
+  'undeclared carrier reds here, and so does declaring this one — the second red is the gap '
+  'being CLOSED and the string is then updated, never widened to absorb a third.');
+
+select is(
+  (select count(*)::int from authz_manifest_sites s
+     join authz_manifest_permissions m on m.code = s.code where m.status = 're-keyed')::text
+  || ' / ' ||
+  (select count(*)::int from authz_manifest_permissions m join pg_policies pol on true
+    where m.status = 're-keyed'
+      and pg_temp.reaches_code('policy', pol.schemaname, pol.tablename, pol.policyname, m.code))::text
+  || ' / ' || (select count(*)::int from t410_carriers)::text,
+  '12 / 8 / 4',
+  '8.6 CARDINALITY CONTROL for 8.1, 8.4 and 8.5, AS A TRIPLE: 12 declared sites on re-keyed '
+  'rows, 8 catalog policies that reach a re-keyed code, 4 literal carriers. ⛔ Each of the three '
+  'arms above is satisfied by an EMPTY domain — 8.1 by a manifest whose sites never join, 8.4 by '
+  'a `reaches_code` that finds no policy, 8.5 by a carrier table that failed to build. Asserted '
+  'as one string so the three cannot drift apart quietly. ⚠ 12 vs 8 is NOT an inconsistency: the '
+  'declared 12 include 4 FUNCTION sites, which 8.4''s policy-only domain does not count. These '
+  'numbers RISE with each AE5 re-key; moving them is how an increment is recorded.');
+
+-- ============================================================================
+-- §9 — WHAT THIS FILE DOES NOT DO. Recorded IN the gate, because a limitation that lives only
 -- in a report is lost by the next reader of the green.
 --
 --   * It says NOTHING about `axes.resourceLifecycle`. There is no catalog column encoding a
@@ -554,9 +732,17 @@ select is(
 --     Architecture Rules 3/4/5), NOT PO-approved — the manifest's `lifecycleDerivation` block
 --     states the derivation so a reader can check it. ⛔ Do not cite this suite as evidence
 --     for a lifecycle claim.
---   * It does not prove a site ENFORCES anything. `pg_policies` holding a policy named X, and
---     that policy's text containing `app.is_tenancy_admin_of`, are facts about the SQL. The
---     standing lesson is that all four DB gates can be true while the page still 404s.
+--   * It does not prove a site ENFORCES anything BEHAVIOURALLY. §8 raised the structural claim
+--     from "the declared call is present" to "the site reaches its permission code in the live
+--     catalog, in both directions" — but that is still a fact about the SQL. `pg_policies`
+--     holding a policy named X, and that policy reaching a code, do not make a principal's
+--     UPDATE succeed or fail. The behavioural differential is pgTAP 409's job (§2 for
+--     commission.forms.edit, on WRITES, with the permissive-sibling control), and the standing
+--     lesson is that all four DB gates can be true while the page still 404s.
+--   * §8 does not check the site axis for `pending-rekey` rows. It cannot: those 40 rows declare
+--     ZERO sites and a reviewed `callGraphBoundary` instead, and §6.4 is the fence that keeps
+--     that label off any row with enumerated sites. Their sites become checkable at the moment
+--     they are declared, which is the moment the row flips.
 --   * `carriers_of` reads `prosrc` only. A permission code carried in a policy QUAL rather
 --     than a function body would not be seen. That shape does not exist today (measured: zero
 --     carriers anywhere) and layer 3 puts the code inside an authorizer FUNCTION by

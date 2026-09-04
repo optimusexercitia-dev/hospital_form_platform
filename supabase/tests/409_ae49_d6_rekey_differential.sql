@@ -39,12 +39,16 @@
 -- `authz` (401 §18), so layer-2 probes run at the suite's default role and door probes run under
 -- `set local role authenticated`. Deleting a grant likewise needs `reset role` first.
 --
--- RUN SHAPE: `Files=2, Tests=64` (63 here + 00_setup.sql's one). ⛔ Keep this line in step with
+-- RUN SHAPE: `Files=2, Tests=73` (72 here + 00_setup.sql's one). ⛔ Keep this line in step with
 -- plan() — a stale RUN SHAPE is read as the expected shape by the next person diagnosing a
 -- count mismatch.
+-- ⚠ 63 -> 72 at 20261003007340: § 2's mutated half now covers `form_item_options` and
+-- `form_item_validations`, the two sites BUG-AE49-D6-REKEY-INCOMPLETE found un-re-keyed. Before
+-- that migration §2 measured 4 of the 6 policy sites and its own caption called the result "the
+-- production door".
 
 begin;
-select plan(63);
+select plan(72);
 
 -- ============================================================================
 -- §0 — FIXTURE + PRECONDITIONS. Every precondition is ASSERTED, never claimed: a reading is not
@@ -181,23 +185,41 @@ select is((select count(*)::int from pg_policies
 
 -- ============================================================================
 -- §2 — REPRESENTATIVE 1: `commission.forms.edit`.
--- Production door = the four FOR ALL write policies on forms / form_versions / form_sections /
--- form_items. Both halves matter: `USING` gates WHICH ROWS may be touched, `WITH CHECK` gates the
--- NEW row, and a gate present in only one half is a real hole.
+-- Production door = the SIX FOR ALL write policies on forms / form_versions / form_sections /
+-- form_items / form_item_options / form_item_validations. Both halves matter: `USING` gates WHICH
+-- ROWS may be touched, `WITH CHECK` gates the NEW row, and a gate present in only one half is a
+-- real hole.
+--
+-- ⛔⛔ SIX, NOT FOUR — AND THE FOUR WAS THIS SECTION'S OWN BLIND SPOT. 20261003007300 re-pointed
+-- four policies; `form_item_options_staff_admin_write` and `form_item_validations_staff_admin_write`
+-- kept the pre-cutover predicate verbatim, and this section asserted `= 4` over a tablename list
+-- that did not name them. A count over a hand-written domain cannot see outside its own domain:
+-- the assertion was TRUE and the sentence it supported — "the grant-deletion mutation flips the
+-- production door" — was 4/6. Filed as BUG-AE49-D6-REKEY-INCOMPLETE, fixed by 20261003007340,
+-- and the structural gap that let it through is closed on the manifest side by 410 § 8 (site-axis
+-- closure, both directions), which is what will catch the NEXT one rather than this list.
+-- ⚠ The seventh name in matrix row 1, `form_block_library`, is NOT a policy site at all — it has
+-- no write policy and every write goes through a SECURITY DEFINER door. See 20261003007340's
+-- header; correcting the matrix is review finding F-REC-4.
 -- ============================================================================
 
 select is((select count(*)::int from pg_policies
-            where tablename in ('forms','form_versions','form_sections','form_items')
+            where tablename in ('forms','form_versions','form_sections','form_items',
+                                'form_item_options','form_item_validations')
               and policyname like '%_staff_admin_write'
               and coalesce(qual,'')       ~ 'can_edit_commission_forms'
               and coalesce(with_check,'') ~ 'can_edit_commission_forms'
               and coalesce(qual,'')       !~ 'is_staff_admin_of'
-              and coalesce(with_check,'') !~ 'is_staff_admin_of'), 4,
-  '2.1 STRUCTURAL: all FOUR write policies call the layer-3 authorizer in BOTH halves and neither '
+              and coalesce(with_check,'') !~ 'is_staff_admin_of'), 6,
+  '2.1 STRUCTURAL: all SIX write policies call the layer-3 authorizer in BOTH halves and neither '
   'half still calls the layer-1 wrapper. ⚠ This is a bound on the behavioural probes below, which '
-  'exercise `forms` (direct commission_id), `form_versions` (the forms-subquery cid) and '
-  '`form_sections` (the `commission_of_version` cid) — `form_items` shares '
-  '`form_sections`''s expression verbatim and is covered here structurally, not behaviourally.');
+  'exercise `forms` (direct commission_id), `form_versions` (the forms-subquery cid), '
+  '`form_sections`, `form_item_options` and `form_item_validations` (the '
+  '`commission_of_version` cid) — `form_items` shares that expression verbatim and is covered '
+  'behaviourally only as the fixture for 2.6b/2.6d. ⛔ THE TABLENAME LIST IS THE DOMAIN OF THIS '
+  'ASSERTION AND IT IS HAND-WRITTEN: adding a seventh policy without adding its table here keeps '
+  'this green. 410 § 8.4 is the arm that reads the domain from the CATALOG instead; do not treat '
+  'this count as closure.');
 
 select ok((select regexp_replace(p.prosrc, '--[^' || chr(10) || ']*', '', 'g')
              from pg_proc p join pg_namespace n on n.oid = p.pronamespace
@@ -234,6 +256,97 @@ select lives_ok($$ insert into public.form_sections (form_version_id, position, 
   '2.6 BASELINE, WITH CHECK half through `app.commission_of_version(form_version_id)` — the '
   'deepest of the four cid derivations, shared verbatim with form_items.');
 
+-- ⚠ THE TWO ITEMS BELOW ARE FIXTURE **AND** ASSERTION. They must land for 2.6b/2.6d to have a
+-- parent, and they are also the only behavioural exercise of `form_items_staff_admin_write`.
+-- ⛔ THEY ARE CREATED IN THE **DRAFT** VERSION 9091 ON PURPOSE. `guard_published_structure` fires
+-- on form_items / form_item_options / form_item_validations and raises BEFORE RLS is ever
+-- consulted; an item borrowed from a PUBLISHED seeded version would make every probe below fail
+-- for Architecture Rule 5 rather than for authority — "an earlier guard firing leaves the LATER
+-- one untested". The item TYPES are equally deliberate: `app.validation_rule_allowed` permits
+-- `text_length` only on short_text/free_text, and options only attach to a choice item
+-- (`form_item_options_parent_is_choice_trg`).
+select lives_ok($$ insert into public.form_items
+                     (form_version_id, section_id, position, item_type, question_key, label)
+                   values
+                     ((select id from public.form_versions
+                        where form_id = (select fid from f409s) and version_number = 9091),
+                      (select id from public.form_sections
+                        where form_version_id = (select id from public.form_versions
+                                                  where form_id = (select fid from f409s)
+                                                    and version_number = 9091)
+                          and position = 1),
+                      1, 'multiple_choice', 'q409mc', '409 choice'),
+                     ((select id from public.form_versions
+                        where form_id = (select fid from f409s) and version_number = 9091),
+                      (select id from public.form_sections
+                        where form_version_id = (select id from public.form_versions
+                                                  where form_id = (select fid from f409s)
+                                                    and version_number = 9091)
+                          and position = 1),
+                      2, 'short_text', 'q409st', '409 short text') $$,
+  '2.6a BASELINE, WITH CHECK half on `form_items` — the fourth site of 20261003007300, and the '
+  'parent fixture for the two sites 20261003007340 adds.');
+
+select lives_ok($$ insert into public.form_item_options
+                     (form_version_id, item_id, position, code, label)
+                   values ((select id from public.form_versions
+                             where form_id = (select fid from f409s) and version_number = 9091),
+                           (select id from public.form_items
+                             where form_version_id = (select id from public.form_versions
+                                                       where form_id = (select fid from f409s)
+                                                         and version_number = 9091)
+                               and question_key = 'q409mc'),
+                           1, 'sim', 'Sim') $$,
+  '2.6b ⭐ BASELINE, WITH CHECK half on `form_item_options` — SITE 5, re-keyed by 20261003007340. '
+  'Before that migration this policy read `app.is_staff_admin_of(...) OR '
+  'app.is_tenancy_admin_of(...)` verbatim and 2.10a below reported the row INSERTED under the '
+  'mutation.');
+
+with u as (update public.form_item_options set label = label
+            where item_id = (select id from public.form_items
+                              where form_version_id = (select id from public.form_versions
+                                                        where form_id = (select fid from f409s)
+                                                          and version_number = 9091)
+                                and question_key = 'q409mc') returning 1)
+select is((select count(*)::int from u), 1,
+  '2.6c ⭐ BASELINE, USING half on `form_item_options`. ⛔ Asserted separately from 2.6b because '
+  '`USING` and `WITH CHECK` answer different questions, and 20261003007340 rewrote BOTH halves of '
+  'this policy — a fix applied to one half only would pass 2.6b/2.10a and leave a real hole.');
+
+-- ⛔⛔ SITE 6 HAS NO BEHAVIOURAL PROBE, AND THE REASON IS ASSERTED RATHER THAN LEFT AS A GAP.
+-- The first draft of this section DID probe `form_item_validations` with `lives_ok`/`throws_ok`
+-- exactly like the sibling table. It died: `42501: permission denied for table
+-- form_item_validations`, raised by the GRANT layer before RLS was ever consulted. `authenticated`
+-- holds SELECT and nothing else there, so `form_item_validations_staff_admin_write` is a BACKSTOP
+-- that no `authenticated` statement can reach — "a correct door nothing can reach". ⛔ The
+-- mutated twin of that draft PASSED, for the wrong reason: `throws_ok(..., '42501')` cannot tell a
+-- missing INSERT grant from a closed policy, so it would have reported the gate flipping while
+-- measuring a privilege that never moved. That is why the pair below asserts the GRANT POSTURE
+-- instead, on both polarities.
+select is(
+  (select string_agg(privilege_type, ',' order by privilege_type)
+     from information_schema.role_table_grants
+    where table_schema = 'public' and table_name = 'form_item_validations'
+      and grantee = 'authenticated'),
+  'SELECT',
+  '2.6d ⭐⭐ SITE 6 IS A BACKSTOP, NOT A REACHABLE DOOR: `authenticated` holds SELECT ONLY on '
+  '`form_item_validations`. Its writes go through `public.set_item_validations` (SECURITY '
+  'DEFINER), so re-keying its policy at 20261003007340 is CONFORMANCE and could not widen '
+  'anything — there is no grant for a policy to permit. ⛔ IF THIS REDS BECAUSE A DML GRANT WAS '
+  'ADDED, the site becomes live and needs the behavioural pair 2.6b/2.6c/2.10a/2.10b has; do not '
+  'update the expected string without adding them.');
+
+select is(
+  (select string_agg(privilege_type, ',' order by privilege_type)
+     from information_schema.role_table_grants
+    where table_schema = 'public' and table_name = 'form_item_options'
+      and grantee = 'authenticated' and privilege_type in ('INSERT','SELECT','UPDATE','DELETE')),
+  'DELETE,INSERT,SELECT,UPDATE',
+  '2.6e DISCRIMINATION HALF of 2.6d, and it is what makes 2.6d an observation rather than a '
+  'dead query: the SIBLING table re-keyed by the same migration DOES carry full DML for '
+  '`authenticated`. So the two sites 20261003007340 touches have OPPOSITE reachability, the '
+  'probe distinguishes them, and 2.6b/2.10a are known to be exercising a live door.');
+
 reset role;
 
 -- ---------- ⭐ THE MUTATION ----------
@@ -265,6 +378,77 @@ select throws_ok($$ insert into public.form_sections (form_version_id, position,
                               and version_number = 9091), 2, '409 mutated section') $$, '42501', null,
   '2.10 ⭐ ...and through the derived-cid path too, so the flip is a property of the authorizer '
   'and not of one hand-written policy expression. Differential against 2.6.');
+
+select throws_ok($$ insert into public.form_item_options
+                      (form_version_id, item_id, position, code, label)
+                    values ((select id from public.form_versions
+                              where form_id = (select fid from f409s) and version_number = 9091),
+                            (select id from public.form_items
+                              where form_version_id = (select id from public.form_versions
+                                                        where form_id = (select fid from f409s)
+                                                          and version_number = 9091)
+                                and question_key = 'q409mc'),
+                            2, 'nao', 'Não') $$, '42501', null,
+  '2.10a ⭐⭐ THE GATE LINE AT SITE 5, WITH CHECK half. Differential against 2.6b. ⛔ THIS IS THE '
+  'ASSERTION BUG-AE49-D6-REKEY-INCOMPLETE WOULD HAVE FAILED: at head 20261003007330 this policy '
+  'still called `app.is_staff_admin_of`, so deleting the `staff_admin -> commission.forms.edit` '
+  'grant left the INSERT succeeding while §2.8/§2.9 reported the door shut. ⚠ Keyed on `42501` '
+  'specifically — `guard_published_structure` and `form_item_options_parent_is_choice_trg` both '
+  'raise on this table with different SQLSTATEs, and a bare `throws_ok` would read either as the '
+  'authority gate.');
+
+with u as (update public.form_item_options set label = label
+            where item_id = (select id from public.form_items
+                              where form_version_id = (select id from public.form_versions
+                                                        where form_id = (select fid from f409s)
+                                                          and version_number = 9091)
+                                and question_key = 'q409mc') returning 1)
+select is((select count(*)::int from u), 0,
+  '2.10b ⭐⭐ THE GATE LINE AT SITE 5, USING half: the row 2.6c updated is now unreachable. '
+  'Differential against 2.6c — exactly one fact changed between them, and it is a row in '
+  '`authz.role_permissions`.');
+
+select is(
+  (select case when regexp_replace(p.prosrc, '--[^' || chr(10) || ']*', '', 'g')
+                    ~ 'app\.is_staff_admin_of\(' then 'layer1' else 'moved' end
+          || '/' ||
+          case when position('''commission.forms.edit''' in
+                             regexp_replace(p.prosrc, '--[^' || chr(10) || ']*', '', 'g')) > 0
+               then 'carries-the-code' else 'no-code' end
+     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'set_item_validations'),
+  'layer1/no-code',
+  '2.10c ⭐⭐ THE DISCLOSED LIMIT OF REPRESENTATIVE 1, PINNED SO IT CANNOT BE READ AS DONE. '
+  '`public.set_item_validations` is the ONLY `authenticated`-reachable write path to '
+  '`form_item_validations` (2.6d), and it still gates on `app.is_staff_admin_of(...) OR '
+  'app.is_tenancy_admin_of(...)` and carries NO permission-code literal. So deleting the '
+  '`staff_admin -> commission.forms.edit` grant does NOT stop a staff_admin editing validations '
+  '— the POLICY door flips (that is what 20261003007340 achieved and what 2.1 asserts), the '
+  'DEFINER door does not. ⛔ THIS PINS A KNOWN STATE, NOT A DEFECT TO PRESERVE: matrix row 1''s '
+  '"D 8 form fns" are 0-of-8 re-keyed (measured: exactly FOUR permission-code literals exist in '
+  '`app`+`public` at this head, all of them authorizers), and moving them is AE5 work. WHEN AE5 '
+  'RE-KEYS THIS DOOR THIS ASSERTION REDS, and the fix is to change the expected string to '
+  '`moved/carries-the-code` and add the behavioural differential — never to delete the line. '
+  '⚠ THE NEEDLE IS THE CODE AS A STRING LITERAL, WITH ITS QUOTES, AND `position` RATHER THAN A '
+  'REGEX — permission codes contain `.`, which a regex reads as "any character". ⛔ It names the '
+  'ONE code rather than joining `authz.permissions`: this probe runs under `set local role '
+  'authenticated`, which holds NO USAGE on `authz` (see this file''s header). The first draft '
+  'joined that table and died with `permission denied for schema authz` mid-section. '
+  '⚠ Without this pin, §2''s green reads as "the production door for commission.forms.edit '
+  'flips", which is true of the six policies and false of the eight doors.');
+
+select cmp_ok((select count(*)::int from public.form_item_options
+                where item_id = (select id from public.form_items
+                                  where form_version_id = (select id from public.form_versions
+                                                            where form_id = (select fid from f409s)
+                                                              and version_number = 9091)
+                                    and question_key = 'q409mc')), '=', 1,
+  '2.10d ⭐ THE PERMISSIVE-SIBLING CONTROL FOR SITES 5 AND 6, the same trap 2.11 documents for '
+  '`forms`. Under the SAME mutation the staff_admin can still SELECT the option row through '
+  '`form_item_options_select` (gated on `app.is_member_of`), so 2.10a/2.10b measured the WRITE '
+  'gate closing and not the row vanishing. ⛔ Exactly ONE row: 2.6b''s. 2.10a''s insert was '
+  'rejected, so a count of 2 here would mean 2.10a''s throws_ok caught a rollback of something '
+  'that had already been written.');
 
 select cmp_ok((select count(*)::int from public.forms where id = (select fid from f409s)), '>=', 1,
   '2.11 ⭐⭐ THE PERMISSIVE-SIBLING CONTROL, AND IT IS WHAT MAKES §2 EVIDENCE. Under the SAME '
@@ -580,10 +764,16 @@ select test_helpers.reset_role_and_claims();
 -- ============================================================================
 
 select is((select count(*)::int from pg_policies
-            where coalesce(qual,'') || coalesce(with_check,'') ~ '\yis_staff_admin_of\y'), 59,
-  '5.1 ⭐ THE WRAPPER''S SURFACE MOVED BY EXACTLY FOUR. It sat in 63 policies at head '
-  '20261003007260 (the figure ADR 0176 Context records); this increment takes the four form '
-  'write policies and nothing else. ⛔ `\y` is used deliberately: the bare name only. The `_for` '
+            where coalesce(qual,'') || coalesce(with_check,'') ~ '\yis_staff_admin_of\y'), 57,
+  '5.1 ⭐ THE WRAPPER''S SURFACE MOVED BY EXACTLY SIX, IN TWO STEPS. It sat in 63 policies at head '
+  '20261003007260 (the figure ADR 0176 Context records); 20261003007300 took the four form write '
+  'policies (63 -> 59) and 20261003007340 took the remaining two, `form_item_options` and '
+  '`form_item_validations` (59 -> 57). ⛔ 59 WAS NOT A WRONG NUMBER, IT WAS A COMPLETE ONE FOR A '
+  'PARTIAL RE-KEY — which is exactly BUG-AE49-D6-REKEY-INCOMPLETE: this assertion sat GREEN on a '
+  'catalog where two of the six sites the PO-approved matrix names had not moved, because a count '
+  'of what REMAINS cannot see what SHOULD have gone. 410 § 8 is the arm that can. ⚠ Each further '
+  'AE5 re-key moves this number DOWN; a red here is the increment being recorded, never a number '
+  'to restore. ⛔ `\y` is used deliberately: the bare name only. The `_for` '
   'variant cannot be matched by a `\y`-anchored probe because `_` is a word character — that is '
   'a known false-negative trap (authz-handoff §7.2 case 2), and it is why 5.2 counts the prefix '
   'separately rather than reusing this pattern.');

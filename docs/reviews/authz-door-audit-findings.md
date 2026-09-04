@@ -147,7 +147,6 @@ Policies swept: 214 (real qual). Policies skipped (qual=true, vacuous): 9.
 | event_triage_sentinel_flags.event_triage_sentinel_flags_select (SELECT) | policy | open->true | BLIND |  |
 | form_item_options.form_item_options_select (SELECT) | policy | open->true | BLIND |  |
 | form_item_options.form_item_options_select_targeted (SELECT) | policy | open->true | BLIND |  |
-| form_item_options.form_item_options_staff_admin_write (ALL) | policy | open->true | BLIND |  |
 | form_matrix_columns.form_matrix_columns_select (SELECT) | policy | open->true | BLIND |  |
 | form_matrix_rows.form_matrix_rows_select (SELECT) | policy | open->true | BLIND |  |
 | indicator_measurements.indicator_measurements_select (SELECT) | policy | open->true | BLIND |  |
@@ -510,9 +509,10 @@ Policies swept: 214 (real qual). Policies skipped (qual=true, vacuous): 9.
 | event_triage.event_triage_select (SELECT) | policy | open->true | COVERED | 171_cross_org_isolation.sql |
 | evidence_links.evidence_links_select (SELECT) | policy | open->true | COVERED | 278_accreditation_schema.sql |
 | form_block_library.form_block_library_select (SELECT) | policy | open->true | COVERED | 277_ff4_power_authoring.sql |
+| form_item_options.form_item_options_staff_admin_write (ALL) | policy | open->true | COVERED | 298_authz_p0_isolation.sql,409_ae49_d6_rekey_differential.sql,410_ae49_d5_enforcement_manifest.sql [re-measured 2026-09-03 after 20261003007340 ALTERed the policy — ADR 0079 Amdt 8 ruling 3; the pre-ALTER row said BLIND and was deleted from the work-list and from supabase/tests/mutation/authz-blind-allowlist.txt in the same commit] |
 | form_item_validations.form_item_validations_select (SELECT) | policy | open->true | COVERED | 272_ff2_door_parity.sql,274_ff3_validations.sql |
 | form_item_validations.form_item_validations_select_targeted (SELECT) | policy | open->true | COVERED | 272_ff2_door_parity.sql,274_ff3_validations.sql |
-| form_item_validations.form_item_validations_staff_admin_write (ALL) | policy | open->true | COVERED | 272_ff2_door_parity.sql,274_ff3_validations.sql |
+| form_item_validations.form_item_validations_staff_admin_write (ALL) | policy | open->true | COVERED | 272_ff2_door_parity.sql,274_ff3_validations.sql,409_ae49_d6_rekey_differential.sql,410_ae49_d5_enforcement_manifest.sql [re-measured 2026-09-03 after 20261003007340 ALTERed the policy — ADR 0079 Amdt 8 ruling 3; the pre-ALTER COVERED was NOT inherited] |
 | form_items.form_items_select (SELECT) | policy | open->true | COVERED | 171_cross_org_isolation.sql |
 | form_items.form_items_select_targeted (SELECT) | policy | open->true | COVERED | 171_cross_org_isolation.sql,387_initplan_wrap_and_profiles_arm_identity.sql |
 | form_items.form_items_staff_admin_write (ALL) | policy | open->true | COVERED | 171_cross_org_isolation.sql,387_initplan_wrap_and_profiles_arm_identity.sql,409_ae49_d6_rekey_differential.sql,410_ae49_d5_enforcement_manifest.sql (⭐ RE-MEASURED 2026-09-02, AE4.9 D6 re-key, migration 20261003007300 — a SUBSET sweep, 7 gates, all COVERED, BLIND 0, ARM-DOMAIN predicate=3/125 policy=4/226. The prior verdict was earned against the PRE-ALTER predicate and is REPLACED, not inherited: ADR 0079 Amdt 8 ruling 3, and ⛔ ARM=census structurally CANNOT catch this because the gate is not a newcomer — it already carried a verdict, which is exactly what makes a stale one silent.) |

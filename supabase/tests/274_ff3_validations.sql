@@ -945,26 +945,44 @@ select ok(
             and cmd='SELECT' and qual like '%can_access_targeted_version%'),
   'C2. the targeted-version SELECT arm exists (the FF-2 hand-forward, now closed)');
 
+-- ⚠ THE AUTHORITY MOVED, IT DID NOT VANISH — 20261003007340 (BUG-AE49-D6-REKEY-INCOMPLETE).
+-- This policy read `app.is_staff_admin_of(...) OR app.is_tenancy_admin_of(...)` until then; it
+-- now calls the layer-3 authorizer `app.can_edit_commission_forms`, which composes the
+-- `commission.forms.edit` permission check (the staff_admin arm) and the preserved tenancy arm.
+-- ⛔ SO THIS ASSERTION FOLLOWS THE AUTHORITY DOWN ONE HOP RATHER THAN BEING RELAXED: checking
+-- only that the policy is non-empty would make "the staff_admin FOR-ALL write arm exists" a claim
+-- nothing verifies, and "the policy got simpler" is what a silent narrowing looks like.
+-- ⚠ The needle is `name || '('` — a CALL, not a mention — for 410 §3.5's reason: a bare-name
+-- match reports `app.is_staff_admin_of` as present inside `app.is_staff_admin_of_for(`.
 select ok(
   exists (select 1 from pg_policies
           where schemaname='public' and tablename='form_item_validations'
-            and cmd='ALL' and qual like '%is_staff_admin_of%'
-            and with_check like '%is_staff_admin_of%'),
-  'C3. the staff_admin FOR-ALL write arm exists, USING and WITH CHECK both');
+            and cmd='ALL' and qual       like '%app.can_edit_commission_forms(%'
+            and           with_check like '%app.can_edit_commission_forms(%')
+  and exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+               where n.nspname='app' and p.proname='can_edit_commission_forms'
+                 and regexp_replace(p.prosrc,'--[^'||chr(10)||']*','','g') like '%authz.has_permission(%'),
+  'C3. the staff_admin FOR-ALL write arm exists, USING and WITH CHECK both — now via the '
+  'layer-3 authorizer, whose permission arm is asserted here so the hop is not a blind one');
 
 -- The sibling comparison, computed rather than asserted from memory: every
 -- policy SHAPE form_item_options carries, form_item_validations now carries.
+-- ⛔ `can_edit_commission_forms` IS IN THE PATTERN LIST DELIBERATELY. 20261003007340 re-keyed BOTH
+-- tables' write arms in the same statement pair, so leaving the list at the three pre-re-key
+-- needles would have kept this GREEN while quietly dropping the write arm out of the comparison
+-- entirely — the shape this assertion exists to catch would then be invisible on both sides at
+-- once. A sibling check is only as wide as its pattern list.
 select is(
   (select count(*)::int from (
      select 1 from pg_policies
       where schemaname='public' and tablename='form_item_options'
         and (qual like '%can_access_targeted_version%' or qual like '%is_staff_admin_of%'
-             or qual like '%is_member_of%')
+             or qual like '%is_member_of%' or qual like '%can_edit_commission_forms(%')
      except all
      select 1 from pg_policies
       where schemaname='public' and tablename='form_item_validations'
         and (qual like '%can_access_targeted_version%' or qual like '%is_staff_admin_of%'
-             or qual like '%is_member_of%')
+             or qual like '%is_member_of%' or qual like '%can_edit_commission_forms(%')
    ) missing),
   0, 'C4. form_item_validations carries no FEWER policy arms than form_item_options');
 

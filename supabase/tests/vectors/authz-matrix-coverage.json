@@ -1,6 +1,6 @@
 {
   "sourceSha256": "2ddda77978bba11e90050d3a7c9d746541459d642ac03ef9c2cf1d5a69b094dd",
-  "manifestSha256": "eed383185141591ea63a88008af294835addca17b7cd51626d4d83153d7506f7",
+  "manifestSha256": "693dca0b0a20fb48cba890ada50e9474382c12d6c531fb4b7210b9ade5ca2845",
   "expected": 117000,
   "executed": 2002,
   "skipped": 114998,
@@ -31,7 +31,7 @@
       "pending-rekey": 40,
       "re-keyed": 3
     },
-    "enforcementSites": 10,
+    "enforcementSites": 12,
     "authoritativeRoles": [
       "staff_admin"
     ],
