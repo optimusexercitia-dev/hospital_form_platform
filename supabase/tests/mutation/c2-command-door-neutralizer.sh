@@ -61,8 +61,18 @@ psql_c () { MSYS_NO_PATHCONV=1 docker exec "$DB" psql -U postgres -d postgres -t
 psql_f () { # run a local .sql file inside the container (avoids shell-quoting SQL bodies)
   # ⛔ NO MSYS_NO_PATHCONV on `docker cp`: the HOST path must convert, while `docker exec`
   #    must not. Setting it here made docker look for C:\tmp and the run died at derivation.
+  #
+  # ⛔ -v ON_ERROR_STOP=1 IS LOAD-BEARING, added 2026-09-04. Without it psql exits 0 on a SQL
+  #    ERROR, so EVERY caller that reads this function's exit status reads a constant. That is
+  #    the whole reason the restore below can be "verified by its exit code" and mean nothing:
+  #    measured on this file before the fix, `select 1/0;` through psql_f exited 0. C2 was the
+  #    ONLY authz harness missing it — p0-authz-door-audit.sh:187, p0-authz-writepath-audit.sh:281,
+  #    p0-authz-invoker-audit.sh:200 and p0-authz-rowdoor-audit.sh:146 all carry it.
+  #    ⚠ It changes the EXIT CODE only, never the output: mutate() below reads this function's
+  #    stdout+stderr as DATA into $MUT_ERR, and that text is unaffected.
   docker cp "$1" "$DB:/tmp/_c2mut.sql" >/dev/null || return 1
-  MSYS_NO_PATHCONV=1 docker exec "$DB" psql -U postgres -d postgres -tA -P pager=off -f //tmp/_c2mut.sql
+  MSYS_NO_PATHCONV=1 docker exec "$DB" psql -U postgres -d postgres -tA -P pager=off \
+    -v ON_ERROR_STOP=1 -f //tmp/_c2mut.sql
 }
 
 # ADR 0153 — a subset run NEVER writes the committed baseline.
