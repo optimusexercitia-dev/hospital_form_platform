@@ -1209,6 +1209,13 @@ same commit, or not at all.**
 **Status:** open
 **Body:** [FUP-ONE-SUPABASE-PROJECT-SERVES-TEST-AND-PRODUCTION.md](FUP-ONE-SUPABASE-PROJECT-SERVES-TEST-AND-PRODUCTION.md)
 
+### 🟠 FUP-DOOR-SWEEP-MARKER-BLIND-TO-CONTINUATION-LINES — a multi-line `door-sweep-targets:` declaration silently loses every target after the first, and a sibling already relies on a different code path
+
+**Filed:** 2026-09-04 (while clearing Gate AE4 review F-MAJOR-3) · **Owner:** backend · **Severity:** high — the declaration in `20261003007250` is **already non-functional** on the declaration path; its three targets survive only because that migration is a DROP+CREATE caught by the deriver's name-selection block. The two paths agree today and nothing says so.
+**Closes when:** the deriver either consumes continuation lines, or rejects them loudly (an unmatched `--` line following a `door-sweep-targets:` line is a named parse error, not silence) — and `20261003007250`'s three targets derive **from the declaration path**, provable by removing its `create or replace` lines from consideration and re-deriving. ⛔ Reformatting that one file to one-line-per-target does not close it: that leaves the parser narrower than the notation.
+**Status:** open
+**Body:** [FUP-DOOR-SWEEP-MARKER-BLIND-TO-CONTINUATION-LINES.md](FUP-DOOR-SWEEP-MARKER-BLIND-TO-CONTINUATION-LINES.md)
+
 ### 🟠 FUP-DOOR-SWEEP-DERIVER-NAME-FILTER-DROPS-A-REAL-GATE — the deriver returns ZERO cases for a diff that added a gate, so the case list was hand-widened and reads as derived
 
 **Filed:** 2026-09-04 (re-review N3's write-arm work; `BASE=9a4bbd22^ TIP=9a4bbd22` → exit 1, zero cases) · **Owner:** backend · **Severity:** high — CLAUDE.md § 6 step 1 requires the list to be derived by the script "never by hand", and downstream nothing can tell a hand-widened list from a derived one.
