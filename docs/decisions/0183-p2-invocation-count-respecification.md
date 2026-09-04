@@ -3,6 +3,19 @@
 **Status:** accepted
 **Date:** 2026-09-03
 **Amends:** 0182
+**Approved:** ⛔ **NOT RECORDED — this line is a PLACEHOLDER, not an approval.** The authorising
+party and the date are **owed and missing**; they must be supplied by the **PO directly**, and until
+then nothing here may be read, quoted or counted as a recorded approval. ⛔ **An agent-authored
+approval is not an approval**, and neither is one that exists only in a session transcript — ADR
+[0182](./0182-statement-scoped-authorized-scope-ids.md)'s own header records that, and its first
+version carried no authorising party either. Filed as QA re-review **LOW-5**; the same class as
+IA-F9 **MAJOR-4**, one ADR later. ⚠ **What this line needs when the PO supplies it** — the
+authorising party **by authority, not by seat** (*"operator" named a seat and was the ambiguity
+MAJOR-4 was filed against*), the **date**, and **what was approved** — this ADR replaces acceptance
+condition **P2's wording *and* its instrument**, §16.2's `A = 1 + U` bound on a
+`pg_stat_get_function_calls` counter plus **P2a**/**P2b**, and rules run 6 re-decomposable but **not
+re-scorable** (§16.4). ⛔ Delete this placeholder wholesale when the real line is written; do not
+edit around it.
 
 ## Context
 

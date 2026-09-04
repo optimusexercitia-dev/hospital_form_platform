@@ -6,7 +6,26 @@ Gate AE4 item per ADR [0176](../decisions/0176-authz-permission-layer-made-real.
 *Performance evidence [PA-F6]* — nested plans over a scaled, `ANALYZE`d fixture, on the **final** path.
 **Author:** `backend` · **Written:** 2026-09-02 · **Branch:** `authz-ae4-catalog`.
 
-> ⭐⭐ **STATUS after run 6 (2026-09-03): MET.** All of P1–P5 and P7 pass, every control holds, and
+> ⭐⭐ **STATUS after run 7 (2026-09-03): MET.** All of P1–P5 and P7 pass, every control holds, and
+> **K = 4 was not moved.** ⛔ **Read the composition, not the word.** Run 7 is the run that scores
+> **P2** — under the wording **and the instrument** that §16 (ADR
+> [0183](../decisions/0183-p2-invocation-count-respecification.md)) put in P2's place, replacing the
+> run-1..6 form — and it re-scores **P1** on the same fresh reset; **both PASS**
+> (`P1PROBE=0 · P2PROBE=0`, the first ledger line to carry `P2PROBE`). **P3, P4, P5, P7, DC1–DC3 and
+> every control hold their run-6 / §15.2 verdicts and were NOT re-scored in run 7.** ⭐ Run 7's first
+> attempt **VOIDed** on a cold instrument and is recorded as VOID, not replaced: **§17.1**.
+> **Full record: §17**; the re-specification it is judged under: **§16**.
+>
+> ⛔ **§14's and §15.2's `P2 PASS` rows were scored on the instrument §16 RETIRED** — *"every node
+> `loops=1`"*, which §16.1 found true for **every** candidate count and therefore unable to report
+> the other answer. They **stand as measured** (§16.4 does **not** convert them into fails) but they
+> are **not** the live P2 verdict, and each is marked in place where it stands. ⛔ The run-6 ledger
+> lines carry no `P2PROBE` and must not be given one (§16.4).
+>
+> ~~⭐⭐ **STATUS after run 6 (2026-09-03): MET.**~~ **— superseded as the CURRENT status by run 7
+> above. §14's own verdict table is unchanged, and run 6 (as re-verified in §15.2) remains the live
+> record for P3, P4, P5, P7 and every control; only its P2 row is scored on a retired instrument.**
+> All of P1–P5 and P7 pass, every control holds, and
 > **K = 4 was not moved.** The increment is `20261003007320` (ADR
 > [0182](../decisions/0182-statement-scoped-authorized-scope-ids.md)) — the permission answer is
 > computed once per **statement** instead of once per protected row. **Full record: §14**, and the
@@ -1231,7 +1250,7 @@ all non-zero, so **not VOID**; only then the bounds:
 | | Verdict | Evidence |
 | --- | --- | --- |
 | **P1** | **PASS** | `scripts/authz-ae4-p1-index-path.sql` exit **0**, and ⭐ **the bundled vacuity control FIRED** (`p1_noindex` → `Seq Scan` SURVIVES). All four chain tables CLEAR: `commissions` Index Scan · `hospitals` Index Only Scan · `memberships` Index Only Scan · `profiles` Index Scan. Raw census, reported as evidence: `memberships` 0 · `profiles` 0 · `commissions` 0 · **`hospitals` 161** (was 4 120). ⛔ Under P1's *retired* wording that is still a FAIL; ADR 0181 is what makes it a PASS, and both readings are stated. |
-| **P2** | **PASS** | Segmented by named path: **M1-nested 7** `Function Scan on assignment_facts` nodes over **200 protected rows** — once per *statement*, not per row (was ~200). M2-nested 4, SEAM-nested 1, both unconverted and unchanged. **Every node `loops=1`**, all 12. |
+| **P2** | **PASS** under the wording **and instrument** in force at the time; ⛔ **BOTH RETIRED by §16 (ADR [0183](../decisions/0183-p2-invocation-count-respecification.md)) — this is NOT the live P2 verdict. Live: run 7, §17.** | Segmented by named path: **M1-nested 7** `Function Scan on assignment_facts` nodes over **200 protected rows** — once per *statement*, not per row (was ~200). M2-nested 4, SEAM-nested 1, both unconverted and unchanged. **Every node `loops=1`**, all 12. ⛔ **That last sentence IS the retired instrument.** §16.1 found *"every node `loops=1`"* true for **every** candidate count — each nested `has_permission` is its own DEFINER body emitting its own node at `loops=1` — so it could not report the other answer; and the **7** is scored against a condition reading *"once per statement"*. ⛔ The row stands as measured and is **not** retroactively converted into a fail (§16.4): what §16 retires is the wording and the instrument, not the measurement. §16.4 also rules run 6 **re-decomposable but NOT re-scorable** — the artifacts hold no org-filtered nested capture, no second `N`, no candidate differential and no invocation counter, so P2 was `UNRUN` until run 7. |
 | **P3** | **PASS** | **M1-nested 3** `Filter: authz.scope_reaches` nodes per statement, far inside the `M = 20` bound. M2-nested 4, SEAM-nested 1. |
 
 ### 14.1 What the run settles, and what it explicitly does not
@@ -1340,7 +1359,10 @@ live in `../progress/authz-ae4.md`.
 
 Externally per §9.7 — stage 0 **9 735** lines; presence `assignment_facts` **24**, `scope_reaches`
 **16**; **P1 PASS** (probe exit 0, bundled vacuity control FIRED, all four chain tables CLEAR) ·
-**P2 PASS** (M1-nested **7** nodes over 200 protected rows, all 12 `loops=1`) · **P3 PASS**
+**P2 PASS** (M1-nested **7** nodes over 200 protected rows, all 12 `loops=1`) — ⛔ **under the
+wording AND instrument in force at the time, BOTH RETIRED by §16 (ADR
+[0183](../decisions/0183-p2-invocation-count-respecification.md)); stands as measured, is not
+converted into a fail (§16.4), and is NOT the live P2 verdict — live: run 7, §17** · **P3 PASS**
 (M1-nested **3** filter nodes). ⛔ **K = 4 still not moved.**
 
 ### 15.3 The lesson worth keeping

@@ -1245,8 +1245,14 @@ RPC/authz claim the live catalog is the sole truth — never a migration file, n
 Cleared, in one session: `BUG-AE49-D6-REKEY-INCOMPLETE` (`e3f986b1`), the site-axis gate hole that
 hid it, F-BLOCK-3 by PO ruling, F-BLOCK-2 items 1 + 3, F-REC-4, the IA-F9 record findings, F-MAJOR-1
 remediation (a) and **IA-F9's** MAJOR-5 (`1d913daf`), `e2e:prod` **GATE GREEN**. ⛔ **Not the broad
-review's F-MAJOR-5** — that one (both vector generators' `--self-test` invoked by no gate) is STILL
-OPEN, and the two namespaces collide on the number. PO ruled approval **HELD until
+review's F-MAJOR-5** — the two namespaces collide on the number and the findings are different
+subjects: **IA-F9's** MAJOR-5 is the door sweep's unconfirmed **read-arm verdict**; the **broad
+review's** F-MAJOR-5 is both vector generators' `--self-test` **invoked by no gate**. ⛔ **Both are
+now closed, and they were closed separately — do not collapse them back into one.** This clause read
+*"is STILL OPEN"* of the broad review's; **corrected 2026-09-04**: it is **DISCHARGED as of
+`1ac811fe`**, which makes `lint:authz-vectors` run `--self-test && --check` **per generator** (the
+lint chain unchanged at **13** gates), the self-test proven able to red. IA-F9's stays attributed to
+`1d913daf` above; nothing about it moves. PO ruled approval **HELD until
 C2 closes**, so nothing was re-scoped and ADR 0162's clause stands.
 
 ⛔ **Defect 1 — `bb180e2a`'s message under-describes its own diff.** That commit also carried a

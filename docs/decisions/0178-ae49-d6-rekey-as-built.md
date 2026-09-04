@@ -125,6 +125,14 @@ Rejected:
   catalog remains authority-**elect** until AE5-complete (0162 §2).
 - **Permission-code literals in `app` + `public` went 0 → 3**, one per site. That census is now a
   falsifiable statement of the seam's existence, pinned by `409` §1.1–§1.3.
+  ⚠ **CAPTION 2026-09-04 — that is a DELTA, not a live census, and it reads as one.** The sentence
+  stays true of the change this ADR records; the live count is now **4**, the fourth being
+  `app.current_professional_read_organizations`, added by ADR
+  [0182](./0182-statement-scoped-authorized-scope-ids.md) and pinned as an `[UNDECLARED]` carrier by
+  `410` § 8.5 (`FUP-READ-ORGANIZATIONS-LITERAL-IN-NO-MANIFEST-ROW`). ⛔ **No `Amends:` label**: 0182
+  moves no decision of this ADR — `professional_profiles_select` appears nowhere here, and 0182
+  leaves `app.can_read_professional_profile` untouched — so an edge would be manufactured. Same
+  standard as the 0177 pair above. ⛔ Re-measure the census; never quote this number as current.
 - **The manifest countdown is load-bearing, proven live**: `410`'s status tripwire fired on the real
   re-key ("reality moved ahead of the record") and went green only on a deliberate row flip.
 - **Performance evidence is now measurable and still owed** (IA-F9). This migration is what first
