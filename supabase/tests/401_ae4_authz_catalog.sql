@@ -1204,8 +1204,11 @@ select is(
 
 grant execute on function authz.has_permission(uuid,text,uuid,text) to anon;
 select ok(has_function_privilege('anon', 'authz.has_permission(uuid,text,uuid,text)', 'EXECUTE'),
-  '18.2 VACUITY CONTROL: an explicit grant IS observable, so 18.1''s fifteen falses are '
-  'observations rather than a stuck predicate');
+  '18.2 VACUITY CONTROL: an explicit grant IS observable, so 18.1''s 27 falses are '
+  'observations rather than a stuck predicate. ⚠ 27 = 3 roles x 9 functions, re-derived from '
+  '18.1''s own two arrays. This caption read "fifteen" (3 x 5) until 2026-09-04, three '
+  'function additions later — 18.1''s own header already said 27, so the file contradicted '
+  'itself. ⛔ If 18.1 grows again, this number moves with it');
 revoke execute on function authz.has_permission(uuid,text,uuid,text) from anon;
 select ok(not has_function_privilege('anon', 'authz.has_permission(uuid,text,uuid,text)', 'EXECUTE'),
   '18.3 ...and revoking closes it again');

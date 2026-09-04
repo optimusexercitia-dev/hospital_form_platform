@@ -264,10 +264,31 @@ alter policy professional_profiles_select on public.professional_profiles
   );
 
 -- ============================================================================
--- Postflight. Two facts, then a bounded differential on BOTH polarities.
--- ⚠ The differential here is BOUNDED (deterministic sample) so the migration stays fast on a
--- large database. The EXHAUSTIVE differential is pgTAP 413's job; this is a smoke test that
--- refuses to leave a clearly-wrong resolver installed, not the coverage.
+-- Postflight. Two facts, then a bounded AGREEMENT check between the set resolver and
+-- authz.has_permission.
+--
+-- ⚠ CORRECTED 2026-09-04, COMMENT-ONLY (gate AE4 re-review, LOW-2). Not one byte of SQL
+-- changed, so `supabase db reset` re-applies exactly what ran before and no follow-up
+-- migration is owed — the same post-apply annotation the tree already uses for corrections to
+-- shipped migrations (9d8ac6d3 on 20261003002000; 20261003007180 at 1ac811fe).
+--
+-- ⛔ THIS HEADER READ "a bounded differential on BOTH polarities" AND NOTHING BELOW MEASURES
+-- THAT. The block counts cells where `hp is distinct from inset` and demands ZERO. Zero
+-- disagreement is ALSO what an all-deny sample produces: were every cell `hp = false and
+-- inset = false`, this postflight would pass having compared one answer with itself. The
+-- claim it can actually support is AGREEMENT, not both-polarities-present.
+-- ⚠ The `raise notice` below carries the same wording and is SQL, so it stays exactly as it
+-- shipped. Read it as "no cell disagreed" — it does not assert that both answers occurred.
+--
+-- WHERE BOTH POLARITIES ARE ACTUALLY MEASURED, over this same `hp` vs `inset` shape:
+--   pgTAP 413 §2b — `cmp_ok(count(*) filter hp, '>', 0)`: at least one GRANTING cell.
+--   pgTAP 413 §2c — the same for at least one DENYING cell.
+-- Those are the non-vacuity guards this block does not have, and they run on every
+-- `npm run test:db`. (413 §5b does the equivalent for the subset sweep.)
+--
+-- ⚠ The BOUND is deliberate: a deterministic sample, so the migration stays fast on a large
+-- database. The EXHAUSTIVE differential is pgTAP 413's job; this is a smoke test that refuses
+-- to leave a clearly-wrong resolver installed, not the coverage.
 -- ============================================================================
 do $postflight$
 declare

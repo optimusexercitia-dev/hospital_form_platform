@@ -40,6 +40,33 @@ targeted cases and give those cases a committed home so they run on a schedule. 
 should be resolved together with `FUP-DOOR-SWEEP-DOMAIN-MISSES-THE-AUTHZ-RESOLVERS` — they are one
 apparatus gap with two symptoms.
 
+⛔ **THREE HERE, ONE IN `authz-unswept-backlog.txt` — and both are right.** Added 2026-09-04
+(gate AE4 re-review, LOW-8), because the two records disagreed and nothing bridged them, which
+reads as one of them being stale. They count **different sets**:
+
+- **This follow-up's THREE is the primary figure**: what `PRED_DOMAIN` (`p0-authz-door-audit.sh`,
+  ARM 1's domain) excludes **by return type**. All three return `SETOF uuid`, so
+  `t.typname = 'bool'` drops them before any name regex runs.
+- **The backlog's ONE is DERIVED from those three** by the census's own reachability clause.
+  `authz-unswept-backlog.txt`'s contract is census closure (ARM 3), whose set-returning clause is
+  `p.proretset AND has_function_privilege('authenticated', p.oid, 'EXECUTE')`. Only
+  `app.current_professional_read_organizations()` satisfies it, so only it can owe that file an
+  entry.
+
+**Measured on the live catalog 2026-09-04**, not read off the migration:
+
+| function | `prosecdef` | result | `authenticated` EXECUTE | in `PRED_DOMAIN` | in census domain |
+| --- | --- | --- | --- | --- | --- |
+| `app.current_professional_read_organizations()` | t | `SETOF uuid` | **t** | no | **yes** |
+| `authz.authorized_scope_ids(uuid,text,text)` | t | `SETOF uuid` | f | no | no |
+| `authz.candidate_authorized_scope_ids(uuid,text,text)` | t | `SETOF uuid` | f | no | no |
+
+The two `authz.*` resolvers hold EXECUTE for no application role (pgTAP 401 § 18.1 pins that at 0
+across 27 probes), which is why the census never demands a verdict for them. ⛔ That is a
+**reachability** bound, not a clearance — *absence of a verdict is not absence of coverage*, and
+here it runs the other way too: being outside every arm is precisely this follow-up's complaint.
+If either resolver ever gains `authenticated` EXECUTE it enters the backlog's domain that same day.
+
 ⛔ **What must NOT be mistaken for closing it.** The targeted mutation cases run in this increment:
 they are three functions, measured once, by hand, outside any arm. ⛔ Nor a green from
 `ARM=census`/`hat`/`floor`/`wrapper` — every one of those bounds its domain on `p.prosecdef` over a

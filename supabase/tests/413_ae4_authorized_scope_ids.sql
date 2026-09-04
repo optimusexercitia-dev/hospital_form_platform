@@ -204,7 +204,18 @@ select is(
   (select p.pronargs from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'app' and p.proname = 'current_professional_read_organizations'),
   0::smallint,
-  'app.current_professional_read_organizations takes NO arguments — the principal is bound to auth.uid() internally'
+  'app.current_professional_read_organizations has ARITY ZERO, so no caller can name a third '
+  'party. ⛔ THAT IS ALL THIS MEASURES. `pronargs = 0` cannot see WHICH principal the body '
+  'binds — a door bound to a session GUC, to a constant, or to nothing at all has arity zero '
+  'too. That the bound principal is auth.uid() is measured BEHAVIOURALLY: §3a (session `sub` '
+  '= P, and P own organization comes back) is the positive half, §3b/§3c (the SAME `sub`, '
+  'wrong hat and absent hat, and nothing comes back) the negative. ⚠ This caption asserted '
+  'the binding itself until 2026-09-04 (gate AE4 re-review, LOW-1); a caption that overclaims '
+  'reads as coverage its assertion does not carry. ⭐ NARROWED rather than backed by a new '
+  'assertion, deliberately: the two direct forms available are a `prosrc` regex for '
+  '`auth.uid()` — text, which is not truth here — or a second seeded principal in a second '
+  'organization, which is what §3 already is. A new assertion that could not fail would be a '
+  'worse defect than the caption'
 );
 
 -- 6. The subset argument in the migration header rests on this column being NOT NULL.

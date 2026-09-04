@@ -941,4 +941,32 @@ public.assume_role(p_role platform_role)
 # over-broad body and requires the §2 differential to go RED, so the suite carries its own
 # proof that it can fail. ⭐ 252_authz_p0_isolation noticing is the load-bearing one: tenant
 # isolation, not a suite written for this feature.
+#
+# ⛔⛔ WHY THIS FILE LISTS **ONE** OF THE THREE, AND THE FOLLOW-UP LISTS **THREE**. Added
+# 2026-09-04 (gate AE4 re-review, LOW-8) because the two records disagreed and nothing said
+# why — which reads as one of them being stale. NEITHER IS. They count DIFFERENT SETS:
+#
+#   * `FUP-DOOR-SWEEP-DOMAIN-GAP-WIDENED-BY-SET-VALUED-RESOLVERS` counts what `PRED_DOMAIN`
+#     (p0-authz-door-audit.sh, ARM 1's domain) EXCLUDES BY RETURN TYPE. That is THREE, and it
+#     is the primary figure: all three functions 20261003007320 added return `SETOF uuid`, so
+#     `PRED_DOMAIN`'s `t.typname = 'bool'` drops them before any name regex is consulted.
+#   * THIS FILE's contract is CENSUS CLOSURE (ARM 3). Its set-returning clause is
+#     `p.proretset AND has_function_privilege('authenticated', p.oid, 'EXECUTE')` — reachable
+#     row-returning doors only. That is ONE, and it is DERIVED from the three above by
+#     applying that reachability clause.
+#
+# MEASURED ON THE LIVE CATALOG 2026-09-04, not reasoned from the migration text:
+#   app.current_professional_read_organizations()          prosecdef=t SETOF uuid authenticated=t
+#   authz.authorized_scope_ids(uuid,text,text)             prosecdef=t SETOF uuid authenticated=f
+#   authz.candidate_authorized_scope_ids(uuid,text,text)   prosecdef=t SETOF uuid authenticated=f
+# The two `authz.*` resolvers hold EXECUTE for NO application role (401 §18.1 pins that at 0
+# over 27 probes), so the census never demands a verdict for them and an entry here would be
+# a claim this file's contract does not make.
+#
+# ⛔ WHAT THAT DOES NOT MEAN. "Outside the census domain" is not "cleared" — it is the
+# `absence of a verdict is not absence of coverage` shape in the other direction. The two
+# `authz.*` resolvers are outside `PRED_DOMAIN`, outside `floor`, `wrapper`, `census` and
+# `policy`, and their only coverage is the targeted mutation work the follow-up records. If
+# either ever gains `authenticated` EXECUTE it enters THIS file's domain that same day and
+# owes an entry here — the reachability clause is the whole of the difference.
 app.current_professional_read_organizations()

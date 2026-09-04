@@ -182,8 +182,10 @@ select is((select string_agg(site || ' => ' || code, ' | ' order by code, site) 
 select is((select count(*)::int from pg_temp.code_sites() where code = 'org.professionals.manage'), 0,
   '1.2 DISCRIMINATION CONTROL for 1.1: the SAME probe returns ZERO for a code that is NOT '
   'and must NOT be re-keyed (`org.professionals.manage`, the code AE4.7c revoked from '
-  'staff_admin). So 1.1''s three hits are observations, not a `like` pattern that matches '
-  'everything — the probe returns both answers.');
+  'staff_admin). So 1.1''s FOUR hits are observations, not a `like` pattern that matches '
+  'everything — the probe returns both answers. ⚠ This caption read "three hits" until '
+  '2026-09-04, one increment after 20261003007320 took 1.1 from three pairs to four (ADR '
+  '0182). The count is re-derived from 1.1''s own expected string, not remembered.');
 
 select is((select count(*)::int from authz.permissions
             where code not in (select code from pg_temp.code_sites())), 40,
