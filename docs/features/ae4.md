@@ -51,8 +51,11 @@ open:
       review: F-BLOCK-1 fixed, F-BLOCK-3 closed by PO ruling, F-BLOCK-2 items 1 + 3 discharged
       (item 2 = C2, still open), F-MAJOR-1 **remediation (a) APPLIED** (`1d913daf`) — § 6.2 is now
       captioned depth-1 and provenance renamed `measured-depth1-at-sites-and-authorizer`, the zero
-      disclosed as a **search horizon, not an absence**. ⛔ **The review's "depth 2" is WRONG and
-      was propagated here**: re-derived on the catalog, `assignment_facts` sits at depth **4** on
+      disclosed as a **search horizon, not an absence**. ⛔ **"depth 2 on BOTH arms" was MINE, not
+      the review's** — the review is CORRECT on both counts (`:235` "a live depth-2 instance",
+      which is `is_tenancy_admin_of_for` at depth 2; and *layer* 1 for `assignment_facts`). The
+      generalisation to "both arms" arose in my spawn prompt, was echoed back, and I then
+      attributed it upstream. Re-derived: `assignment_facts` sits at depth **4** on
       all three rows and `org.professionals.read` reaches `respondent_exclusion` at depth **5** —
       *layer* 1 was collapsed into *search depth* by paraphrase. It matters because it steers (b)
       toward "raise the search one hop", which catches one path and leaves five unmeasured. IA-F9

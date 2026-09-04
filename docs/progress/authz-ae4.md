@@ -1244,7 +1244,9 @@ RPC/authz claim the live catalog is the sole truth — never a migration file, n
 
 Cleared, in one session: `BUG-AE49-D6-REKEY-INCOMPLETE` (`e3f986b1`), the site-axis gate hole that
 hid it, F-BLOCK-3 by PO ruling, F-BLOCK-2 items 1 + 3, F-REC-4, the IA-F9 record findings, F-MAJOR-1
-remediation (a) and MAJOR-5 (`1d913daf`), `e2e:prod` **GATE GREEN**. PO ruled approval **HELD until
+remediation (a) and **IA-F9's** MAJOR-5 (`1d913daf`), `e2e:prod` **GATE GREEN**. ⛔ **Not the broad
+review's F-MAJOR-5** — that one (both vector generators' `--self-test` invoked by no gate) is STILL
+OPEN, and the two namespaces collide on the number. PO ruled approval **HELD until
 C2 closes**, so nothing was re-scoped and ADR 0162's clause stands.
 
 ⛔ **Defect 1 — `bb180e2a`'s message under-describes its own diff.** That commit also carried a
