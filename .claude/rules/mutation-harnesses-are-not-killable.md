@@ -10,13 +10,13 @@ source: AE1.5 2026-08-27 open UPDATE policy; C2 B2a 2026-09-04 stranded gate
 # ⛔ Never kill a running sweep — it opens live gates, then restores them
 
 ✅ Let a contaminated run FINISH; discard its verdicts. ✅ Launch DETACHED, outside the
-tool's job tree, own `WORK` + sentinel path, **no timeout**. Full C2 sweep ≈ 9.5 h —
-RE-MEASURE it, never quote.
+tool's job tree, own `WORK` + sentinel path, **no timeout**. Full C2 sweep ≈ 9.5 h:
+RE-MEASURE, never quote.
 
 ## A kill is CAUGHT — only where a harness has a SENTINEL
 
 C2 + `p0-authz-{door,writepath}-audit.sh`; ⛔ NOT `p0-authz-{invoker,rowdoor}-audit.sh`
-(`FUP-INVOKER-AND-ROWDOOR-HARNESSES-HAVE-NO-SENTINEL`).
+(`FUP-AUTHZ-INVOKER-AND-ROWDOOR-HARNESSES-HAVE-NO-SENTINEL`).
 
 ⚠ A sentinel survives SIGKILL; 2026-09-04's signal was a job-tree **SIGTERM** — the trap
 runs, its `psql` child dies with the group, the restore fails. Believe a restore only when
@@ -25,7 +25,7 @@ REFUSES, exit 2. An exit status alone was never proof — without `ON_ERROR_STOP
 returns 0 on a SQL ERROR.
 
 ⛔ **Never delete the sentinel**: it restores nothing and is the only record a gate is
-open. `RECOVER=1 bash <harness>` applies it; VERIFY in the catalog — the message is not
+open. `RECOVER=1 bash <harness>` applies it; VERIFY in the catalog — that message is no
 proof. `supabase db reset --local` is the blunt option.
 
 ## Hunting an open gate: ENUMERATE, never count

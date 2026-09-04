@@ -1722,3 +1722,10 @@ regex).
 **Status:** parked
 **Revisit when:** PO to rule
 **Body:** [FUP-BACKLOG-ETH-E1E2-INHERITANCE-GAPE1123-MINORAB.md](FUP-BACKLOG-ETH-E1E2-INHERITANCE-GAPE1123-MINORAB.md)
+
+### 🟠 FUP-AUTHZ-INVOKER-AND-ROWDOOR-HARNESSES-HAVE-NO-SENTINEL — two mutation harnesses open live gates with NO crash sentinel
+
+**Filed:** 2026-09-04 (HARNESS-CRASH-SAFETY — measured while fixing the class in the other three) · **Owner:** backend · **Severity:** high — a killed run leaves an authorization gate open with no record anywhere; both are periodic audits rather than phase-gate arms, which is the only reason this is not critical
+**Closes when:** `p0-authz-invoker-audit.sh` and `p0-authz-rowdoor-audit.sh` carry the same three-part protocol the other three harnesses now have — a fixed-path crash sentinel armed before the gate is opened, a restore VERIFIED against the catalog (psql rc **and** a probe re-read) that KEEPS the sentinel on failure, and `INT`/`TERM`/`HUP` traps with a `RECOVER=1` startup refusal — each proven able to fire by a corrupted-restore plant (refusal observed, sentinel intact)
+**Status:** open — ⚠ nothing was measured as contaminated; the finding is the ABSENCE of the mechanism, and that absence is what would make the next incident silent
+**Body:** [FUP-AUTHZ-INVOKER-AND-ROWDOOR-HARNESSES-HAVE-NO-SENTINEL.md](FUP-AUTHZ-INVOKER-AND-ROWDOOR-HARNESSES-HAVE-NO-SENTINEL.md)
