@@ -582,3 +582,92 @@ verification subset sweep, rows merged into the findings file, never copied over
 - **Not committed, not mine:** `docs/progress/phase-ledger.md` carries an uncommitted set of
   2026-09-04 corrections from the previous session; left for the PO to rule on rather than folded
   into a C2 commit.
+
+#### Phase A — the 18 suite-abort enforcers diagnosed (`docs/reviews/c2-suite-abort-diagnosis.md`)
+
+⭐ **The dichotomy this phase was specified around does not fit, and the answer is better than either
+branch.** The brief offered (a) *the abort is at a statement that directly exercises the guard* →
+convert it to an assertion, or (b) *the abort is collateral* → a real keystone is owed. Measured
+across all 18: **(a) = 0 · (b) = 0 · unclassifiable = 0.** Every one of the 18 falls into a third
+shape the dichotomy has no name for:
+
+> **(c) — the abort is collateral, AND the suite noticed the guard anyway.** Each of the 18 produced
+> a genuine `# Failed test N … caught: no exception … wanted: <code>` **before** its file aborted.
+> The abort is always downstream: a fixture write, or a uniqueness/cardinality violation caused by
+> the door proceeding where it should have been refused.
+
+⛔ **Keystones owed by this class: ZERO.** ADR 0187 D1's keystone count stays at **39**. The
+suite-abort class is a **scoring** problem, not a coverage gap — the opposite of what its register
+entry implies. The commonest abort mechanism is a **second enforcement layer noticing**:
+`guard_submitted_response` / `_children` / `_signoffs`, `guard_capa_child_lock`,
+`guard_interview_child_lock`, `guard_professional_linkage`, or a unique index. **The suite aborts
+because the database is defended in depth.** Six of the 18 already have a file that fails *without*
+aborting (`submit_response`→`276`, `activate_phase`→`114`+`90`, `assume_role`→`408`,
+`link_referral_related_case`→`295`, `set_professional_link_state`→`229`,
+`mint_printed_document`→`313`/`342`/`368`).
+
+**`public.assume_role` — the ADR 0171 / sizing §10 obligation, resolved.**
+`315_act_stage3_hat_condition.sql` aborts at the assertion spanning `:190-194` with *more than one
+row returned by a subquery*. Mechanism, read from `pg_proc`: `assume_role` upserts
+`active_role_selections … on conflict (session_id) do update` — one row, overwritten, exactly what
+t8 reports — but `audit_write`s with `entity_id = session_id`, so the mutation's second,
+should-have-been-denied call leaves **two** audit rows. `408_ae49` meanwhile fails cleanly, twice,
+with the message pinned. **One edit at `315:190-194`** converts ERROR → scored COVERED, and it adds
+*"exactly one `active_role.assumed` row per session"* — **a real Architecture Rule 11 property that
+nothing in the suite asserts today**. Cheapest of the 18; leads Phase B.
+
+**`public.submit_response` — the sharp one, diagnosed.** Δ **190** reproduced exactly. Seven files
+show effect, six abort (`271` −34, `272` −18, `274` −52, `30` −7, `367` −75, `80` −4); **`276_ff5_references`
+fails cleanly with 5 failures.** Uniform mechanism: the required/sign-off/validation guards vanish →
+the response flips to `submitted` → Architecture Rule 3/5 immutability then refuses every later
+fixture write. ⚠ Its `HC0P9` message is a bare `%`, so **no message pin is possible** — a named limit
+of the "pin the message, not just the code" discrimination rule, not a defect in it.
+
+**Catalog read 1 — `public.reopen_interview`: neither specs branch holds; branch (c) does, and it
+exposes a structural blind spot.** `app.assert_interview_writable` raises **`HC039`**, so the
+existing design §3.1 is right and branch (a) is false. Re-measured with the mutation landed, `121`
+returns `Files=1, Tests=60, PASS` — so branch (b) is false too and the **BLIND verdict is correct**.
+The `HC038` that `121:292-294` pins comes from **`app.guard_interview_status`, a TRIGGER on
+`case_interviews`**: `cancelled → in_progress` is not in its allowlist, and `reopen_interview` sets
+`app.in_interview_rpc='on'` so execution reaches it.
+
+⭐ **That trigger is in 0 of the 171 — trigger functions get no call edge, so the worklist cannot
+contain it.** This is a door whose refusal is delivered by an enforcer **this instrument
+structurally cannot score**, which is a different failure from a door nothing tests. Filed as
+`FUP-C2-TIER1-TRIGGER-ENFORCERS-OUT-OF-SWEEP-DOMAIN`. Consequences for Phase B:
+`reopen_interview`'s keystone must use a **`scheduled`/`awaiting_follow_up`** fixture plus a message
+pin; and **`cancel_interview` needs NO ADR 0187 D3-style ruling** — its `HC038` *is* reachable — but
+its keystone must use an **already-`cancelled`** interview, because a `completed` one is satisfied by
+the trigger rather than by the door.
+
+**Catalog read 2 — `app.assert_ethics_typed`: the pins have the wrong subject, BLIND stands.**
+`schedule_ethics_hearing` and `target_case_response` **do not call `assert_ethics_typed` at all**
+(they raise `HC0J0` inline, 1× and 3×); `create_case_decision` calls it *and* raises inline 1×.
+**15 functions raise `HC0J0` inline** — it is a **lane marker, not a delegate signature** — and the
+attributing comment at `258:89` is wrong. This is the `null`-message-`throws_ok` mechanism the specs
+§3.3 named, confirmed in its sharpest form.
+
+**Phase B owes from this class: 25 statement edits across 21 files + 21 `plan(N)` bumps** — 19
+`lives_ok` wraps, 5 cardinality-assertion fixes, 1 special; `305:358` serves two doors in one edit.
+Projected shape `Files=262, Tests≈8789` — ⚠ **projected, not measured**; whatever the post-edit reset
+measures becomes the next baseline, and Phase C's shape guard depends on it.
+
+**Ruling given (lead, 2026-09-04) on `406:243`.** It is the file's own anti-vacuity preflight
+(*"the mutation would be a no-op and the twin would report green"*) firing **as designed**. ⛔ It is
+not to be softened or deleted — that would reintroduce exactly the vacuity it prevents. The
+`ok()` + `skip()` conversion is authorised **on condition** that a skip still counts toward the plan
+(so the run's shape is unchanged) and the door's genuine failing assertion still fires elsewhere in
+the same run; if the conversion would make the file pass while noticing nothing, it must not land.
+
+**Corrections to the lead's brief, found by measurement:**
+
+- `app.assert_respondent_linkage_resolved` aborts in **2 files, not 1** — `229` (−20) + `321` (−27)
+  = 47. Found via the catalog's caller closure, not by grep, and caught by reconciling the plan sums.
+  The lead's candidate map was built by grep and missed the delegated call path.
+- `confirm_triage`: only `141` aborts; `142` and `143` pass unchanged. `submit_response`: **7** files
+  show effect, not the 18 the grep map suggested.
+- ⭕ **The 2026-09-02 deltas reproduce EXACTLY against the 8764 baseline.** Re-deriving them was
+  correct discipline, but the figures were safe: a delta is a property of the **aborting file's own
+  plan**, and is invariant under suite growth elsewhere.
+- `FUP-C2-SUITE-ABORT-ERROR-CLASS`'s `Files=259` and its localization table are stale, and its
+  "16 enforcers" is now **18**.

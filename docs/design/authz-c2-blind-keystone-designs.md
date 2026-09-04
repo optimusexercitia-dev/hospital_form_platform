@@ -275,7 +275,7 @@ set local role authenticated;
 select throws_ok(
   format('select public.cancel_event(%L::uuid)', (select ev_final from evc)),
   'HC043', 'este evento já está em um estado final',
-  '⭐ the custodian cannot cancel an already-terminal event (HC043) — the door''s SECOND anchored raise, pinned so the mutation cannot survive on either');
+  '⭐ KEYSTONE [PROPERTY: state — NOT authorization]: the custodian cannot cancel an already-terminal event (HC043) — the door''s SECOND anchored raise, pinned so the mutation cannot survive on either. ⚠ ADR 0187 D2: this arm''s COVERED is STATE coverage; cancel_event''s AUTHORIZATION coverage is the HC044 custody arm above');
 
 -- ── ALLOW-LEG DIFFERENTIAL (and the thing that clears ARM=floor) ─────────────
 select lives_ok(
@@ -399,7 +399,7 @@ line, so this is the same probe pointed at the sibling door:
 select throws_ok(
   $$ select public.cancel_session((select id from s1)) $$,
   'HC038', 'uma sessão concluída não pode ser cancelada',
-  '⭐⭐ KEYSTONE: cancel_session on a COMPLETED session raises HC038 — mutation-proven BLIND 2026-08-31 (its ONLY anchored raise; the file''s single prior mention was a has_function_privilege ACL assertion that never enters the function)');
+  '⭐⭐ KEYSTONE [PROPERTY: lifecycle — NOT authorization]: cancel_session on a COMPLETED session raises HC038 — mutation-proven BLIND 2026-08-31 (its ONLY anchored raise; the file''s single prior mention was a has_function_privilege ACL assertion that never enters the function)');
 ```
 
 **Allow leg — insert in the §"Session RLS write" block, after `s4` is created (after L325) and

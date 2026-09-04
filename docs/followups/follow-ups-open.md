@@ -1307,6 +1307,13 @@ same commit, or not at all.**
 **Status:** open — ⭕ **the class GREW 16 → 18 on 2026-09-04**, not by new doors but by reclassification: the anchor fix (`ca328539`) made `public.set_professional_link_state` and `public.mint_printed_document` mutate cleanly, and both then aborted the suite instead of failing it. **Landing a mutation is not the same as producing a verdict.** Both new rows are PHI-lane doors. Tally: COVERED 113 · BLIND 40 · ERROR 18
 **Body:** [FUP-C2-SUITE-ABORT-ERROR-CLASS.md](FUP-C2-SUITE-ABORT-ERROR-CLASS.md)
 
+### 🟠 FUP-C2-TIER1-TRIGGER-ENFORCERS-OUT-OF-SWEEP-DOMAIN — a trigger guard has no call edge, so it is in 0 of the 171 and its door reads BLIND for the wrong cause
+
+**Filed:** 2026-09-04 (C2 Phase A, resolving `public.reopen_interview`'s contradiction) · **Owner:** lead + backend · **Severity:** high — a measurement-domain gap in a standing gate's instrument; it cannot produce a false COVERED, it produces a **correct BLIND that is not actionable as one**
+**Closes when:** the sweep's domain statement names trigger enforcers as out of domain, so a BLIND caused by a trigger is distinguishable from a BLIND caused by an absent assertion — ⛔ an allowlist entry does not close it
+**Status:** open — found because `121:292-294` pins `HC038` on `reopen_interview`'s only anchored raise and the door still came back BLIND; the `HC038` observed is raised by `app.guard_interview_status`, a **trigger** on `case_interviews`. It already changed two Phase B specs. ADR 0184 point 4 names three uncovered populations a gate record must state; **this is a fourth**
+**Body:** [FUP-C2-TIER1-TRIGGER-ENFORCERS-OUT-OF-SWEEP-DOMAIN.md](FUP-C2-TIER1-TRIGGER-ENFORCERS-OUT-OF-SWEEP-DOMAIN.md)
+
 ### 🟠 FUP-DOOR-SWEEP-DOMAIN-MISSES-THE-AUTHZ-RESOLVERS — two `prosecdef` boolean authorization resolvers are in NEITHER sweep arm's domain, so neither arm can ever select them
 
 **Filed:** 2026-09-03 (AE4 `authz.scope_reaches` fix increment, 2026-09-02 — ADR [0180](../decisions/0180-scope-reaches-commission-org-ascent-plan-fix.md) · **Owner:** lead + backend · **Severity:** high — a standing gate has a hole in its domain, on the
