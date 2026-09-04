@@ -16,10 +16,10 @@
 -- it. A fixture missing a flag-enable silently SKIPS its own keystones and the suite
 -- still reports green (pgtap-fixture-flag-gaps). Never trust the self-reported total.
 --
--- Assertion count: 116
+-- Assertion count: 117
 
 begin;
-select plan(116);
+select plan(117);
 
 -- =========================================================================
 -- §0 PRECONDITIONS — asserted, not assumed.
@@ -449,8 +449,19 @@ create temp table before_read on commit drop as
 
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
+-- ⚠ `is()` evaluates its value expression BEFORE asserting, so a door that RAISES inside it
+-- aborts the whole FILE rather than failing this one test — the same hazard §4.9's note names,
+-- and the site where it actually bit. If §4's cancel denials ever stop firing the job leaves
+-- its readable state and read_minutes_transcript answers 42501. The table is created EMPTY
+-- first, so a refused read leaves 6.7 reading NULL — which is what it asserts against.
+-- (Measured: under the C2 neutralizer on public.cancel_minutes_job the file ran 57 of 116.)
+create temp table mread (txt text) on commit drop;
+select lives_ok($$
+  insert into mread (txt)
+  select public.read_minutes_transcript((select id from jid));
+$$, '6.7a the job is still in a readable state — read_minutes_transcript is reachable at all');
 select is(
-  (select public.read_minutes_transcript((select id from jid))),
+  (select txt from mread),
   'Fala verbatim do participante.',
   '6.7 ALLOW: the commission staff_admin reads the transcript THROUGH THE DOOR — the only '
   'path, since §2.10 denies the column');

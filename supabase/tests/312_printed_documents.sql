@@ -32,7 +32,7 @@ begin;
 -- 80 -> 85 (ADR 0123): +t77 (the non-vacuity control for the constructed
 -- zero-active state) +t78/+t79/+t80 (the D1 superseded keystone, its exit and
 -- its differential) +t81 (the D3 structural pin on the mint's row lock).
-select plan(91);
+select plan(92);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -937,8 +937,17 @@ reset role;
 create temp table r9 on commit drop as
   select '00000000-0000-0000-0000-00000000d104'::uuid as resp_sup;
 grant select on r9 to authenticated;
-insert into public.responses (id, form_version_id, commission_id, created_by, status, started_at)
-select r9.resp_sup, k.ver_u, k.comm_x, k.st_x, 'in_progress', now() from r9, k;
+-- ⚠ ASSERTED, not bare. This insert is DOWNSTREAM of t76's delete: §9 leaves `resp_prog` a
+-- draft of the same (form_version, creator) pair, so if t76 does not delete it,
+-- `responses_one_draft_per_user_idx` refuses this row and the whole FILE aborts here rather
+-- than failing the tests that noticed. That is not hypothetical — under the C2 neutralizer on
+-- public.mint_printed_document the denied mints of t15/t17 occupy the active-print slot, t73a
+-- cannot build its own print, t75's revoke has nothing to void and t76's delete is refused
+-- HC069; measured, the file ran 83 of 91 and reported `Bad plan`.
+select lives_ok($$
+  insert into public.responses (id, form_version_id, commission_id, created_by, status, started_at)
+  select r9.resp_sup, k.ver_u, k.comm_x, k.st_x, 'in_progress', now() from r9, k;
+$$, 't76b: §9''s draft really was discarded — §10''s own draft can be created for the same author');
 
 create temp table d9 on commit drop as
   select '00000000-0000-0000-0000-00000000d206'::uuid as doc6,   -- P1: becomes superseded

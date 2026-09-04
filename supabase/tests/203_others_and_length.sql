@@ -14,10 +14,10 @@
 --   §5 length limits at submit: min/max character bounds (HC061); a compliant
 --      answer submits.
 --
--- Assertion count: 18
+-- Assertion count: 19
 
 begin;
-select plan(18);
+select plan(19);
 
 update app.feature_flags set enabled = true
   where key in ('signoff_enforcement');
@@ -234,9 +234,16 @@ select throws_ok(
   'length: a free_text answer longer than maxLength is rejected at submit (HC061)');
 
 -- Compliant (7 chars) + deselect Outro (A selected already) → submits OK.
-select public.save_section_answers(
-  (select rid from rsp), (select sec_id from fx),
-  jsonb_build_object((select it_text from fx)::text, to_jsonb('sete123'::text)));
+-- ⚠ ASSERTED, not bare — the SECOND site of the same hazard the block above names, and the
+-- one that still aborted after that block was wrapped: with both length refusals gone the
+-- response is already `submitted` by here, so this save raises 23514 and takes the whole
+-- FILE down instead of failing the tests that noticed. (Measured: under the C2 neutralizer
+-- on app.assert_item_bounds the file ran 17 of 18 and reported `Bad plan`.)
+select lives_ok($$
+  select public.save_section_answers(
+    (select rid from rsp), (select sec_id from fx),
+    jsonb_build_object((select it_text from fx)::text, to_jsonb('sete123'::text)));
+$$, 'fixture: the draft is STILL editable after both refusals — the within-bounds answer is saved');
 select lives_ok(
   format($$ select public.submit_response(%L) $$, (select rid from rsp)),
   'length: a within-bounds free_text answer submits successfully');

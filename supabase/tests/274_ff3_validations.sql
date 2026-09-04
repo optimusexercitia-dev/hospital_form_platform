@@ -15,7 +15,7 @@
 
 begin;
 
-select plan(98);
+select plan(105);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -1351,12 +1351,19 @@ select throws_ok(
   'HC011', null,
   'D6a. …and submit_response REFUSES it — the submit authority''s own group arm');
 
-select public.save_section_answers(
-  'ff300000-0000-0000-0000-0000000000a2', 'ff300000-0000-0000-0000-000000000004',
-  p_instance_answers => '[
-    {"instance_id":"ff300000-0000-0000-0000-0000000000b1",
-     "answers":{"ff300000-0000-0000-0000-000000000023":"detalhe"}}
-  ]'::jsonb);
+-- ⚠ ASSERTED, not bare — the same hazard §E's wrap names, one response lower, and the a2 run
+-- is where it actually bit: if D6a's refusal ever stops firing, a2 is already `submitted` and
+-- every statement below that touches it raises (23514 on the saves, HC010 on the delete),
+-- aborting the whole FILE instead of failing the tests that noticed. Measured under the C2
+-- neutralizer on public.submit_response: the file ran 59 of 98 and reported `Bad plan`.
+select lives_ok($$
+  select public.save_section_answers(
+    'ff300000-0000-0000-0000-0000000000a2', 'ff300000-0000-0000-0000-000000000004',
+    p_instance_answers => '[
+      {"instance_id":"ff300000-0000-0000-0000-0000000000b1",
+       "answers":{"ff300000-0000-0000-0000-000000000023":"detalhe"}}
+    ]'::jsonb);
+$$, 'fixture: a2 is still an editable draft — the per-instance required_if answer is saved');
 
 select ok(app.response_required_complete('ff300000-0000-0000-0000-0000000000a2'),
   'D7. …answering it in THAT instance clears it; instance 2 never needed it');
@@ -1372,13 +1379,15 @@ select is(
     where rule_type = 'unique_within_group'),
   0, 'I1. distinct c_code values across instances: no unique violation');
 
--- Make them collide.
-select public.save_section_answers(
-  'ff300000-0000-0000-0000-0000000000a2', 'ff300000-0000-0000-0000-000000000004',
-  p_instance_answers => '[
-    {"instance_id":"ff300000-0000-0000-0000-0000000000b2",
-     "answers":{"ff300000-0000-0000-0000-000000000021":"AAA"}}
-  ]'::jsonb);
+-- Make them collide. (ASSERTED, not bare — see the note above D7.)
+select lives_ok($$
+  select public.save_section_answers(
+    'ff300000-0000-0000-0000-0000000000a2', 'ff300000-0000-0000-0000-000000000004',
+    p_instance_answers => '[
+      {"instance_id":"ff300000-0000-0000-0000-0000000000b2",
+       "answers":{"ff300000-0000-0000-0000-000000000021":"AAA"}}
+    ]'::jsonb);
+$$, 'fixture: a2 is still editable — the colliding c_code is written into instance 2');
 
 select is(
   (select count(*)::int from public.get_response_validation_errors('ff300000-0000-0000-0000-0000000000a2')
@@ -1391,9 +1400,13 @@ select throws_ok(
 
 -- Empty instance 2 completely. The peers come from the ANSWER MAPS in scope, so
 -- the value instance 2 used to hold stops colliding.
-delete from public.answers
- where response_id = 'ff300000-0000-0000-0000-0000000000a2'
-   and group_instance_id = 'ff300000-0000-0000-0000-0000000000b2';
+-- (ASSERTED, not bare — see the note above D7. `app.guard_submitted_children` refuses a
+-- DELETE from `answers` once the response is submitted, which is the same abort one row on.)
+select lives_ok($$
+  delete from public.answers
+   where response_id = 'ff300000-0000-0000-0000-0000000000a2'
+     and group_instance_id = 'ff300000-0000-0000-0000-0000000000b2';
+$$, 'fixture: a2 is still editable — instance 2''s answers can be emptied');
 
 select is(
   (select count(*)::int from public.get_response_validation_errors('ff300000-0000-0000-0000-0000000000a2')
@@ -1403,12 +1416,15 @@ select is(
 -- …and re-filling it with the SAME value brings the violation back. Without this
 -- half, I4 would also pass if the walker had simply stopped reporting ANYTHING
 -- after the delete — 0 = 0 is exactly the vacuity this pair exists to rule out.
-select public.save_section_answers(
-  'ff300000-0000-0000-0000-0000000000a2', 'ff300000-0000-0000-0000-000000000004',
-  p_instance_answers => '[
-    {"instance_id":"ff300000-0000-0000-0000-0000000000b2",
-     "answers":{"ff300000-0000-0000-0000-000000000021":"AAA"}}
-  ]'::jsonb);
+-- (ASSERTED, not bare — see the note above D7.)
+select lives_ok($$
+  select public.save_section_answers(
+    'ff300000-0000-0000-0000-0000000000a2', 'ff300000-0000-0000-0000-000000000004',
+    p_instance_answers => '[
+      {"instance_id":"ff300000-0000-0000-0000-0000000000b2",
+       "answers":{"ff300000-0000-0000-0000-000000000021":"AAA"}}
+    ]'::jsonb);
+$$, 'fixture: a2 is still editable — instance 2 is re-filled with the same value');
 
 select is(
   (select count(*)::int from public.get_response_validation_errors('ff300000-0000-0000-0000-0000000000a2')
@@ -1799,9 +1815,14 @@ select throws_ok(
 
 -- Complete the grid. The HIDDEN matrix is still required_if-TRUE and still empty,
 -- so N5 passing is the deadlock-negative for the matrix lane.
-select public.save_section_answers(
-  'ff300000-0000-0000-0000-00000000007b', 'ff300000-0000-0000-0000-000000000073',
-  p_matrix_cells => '{"ff300000-0000-0000-0000-000000000075":{"r1":"ok","r2":"nok"}}'::jsonb);
+-- ⚠ ASSERTED, not bare — the THIRD response in this file to carry the hazard the note above
+-- D7 describes: if N4's refusal stops firing, 7b is already `submitted` and every edit below
+-- raises, aborting the FILE. Measured under the C2 neutralizer on public.submit_response.
+select lives_ok($$
+  select public.save_section_answers(
+    'ff300000-0000-0000-0000-00000000007b', 'ff300000-0000-0000-0000-000000000073',
+    p_matrix_cells => '{"ff300000-0000-0000-0000-000000000075":{"r1":"ok","r2":"nok"}}'::jsonb);
+$$, 'fixture: 7b is still an editable draft — the flat grid is completed');
 
 select ok(app.response_required_complete('ff300000-0000-0000-0000-00000000007b'),
   'N5. DEADLOCK-NEGATIVE: the HIDDEN matrix is required_if-TRUE and never blocks');
@@ -1815,26 +1836,33 @@ select is(
   0, 'N6. …and that hidden grid really is empty (N5 is not passing because it got filled)');
 
 -- ---- the PER-INSTANCE arm ----
-insert into public.response_group_instances (id, response_id, group_item_id, position)
-  values ('ff300000-0000-0000-0000-00000000007c', 'ff300000-0000-0000-0000-00000000007b',
-          'ff300000-0000-0000-0000-000000000078', 0);
-
-select public.save_section_answers(
-  'ff300000-0000-0000-0000-00000000007b', 'ff300000-0000-0000-0000-000000000077',
-  p_instance_answers => '[
-    {"instance_id":"ff300000-0000-0000-0000-00000000007c",
-     "selections":{"ff300000-0000-0000-0000-000000000079":["sim"]}}
-  ]'::jsonb);
+-- One wrap for the whole RUN of statements: nothing asserts between them, and wrapping only
+-- the first would move the abort one statement down rather than removing it.
+-- (`app.guard_submitted_children` refuses the instance insert; save_section_answers refuses
+-- the answers — both once 7b is submitted.)
+select lives_ok($$
+  insert into public.response_group_instances (id, response_id, group_item_id, position)
+    values ('ff300000-0000-0000-0000-00000000007c', 'ff300000-0000-0000-0000-00000000007b',
+            'ff300000-0000-0000-0000-000000000078', 0);
+  select public.save_section_answers(
+    'ff300000-0000-0000-0000-00000000007b', 'ff300000-0000-0000-0000-000000000077',
+    p_instance_answers => '[
+      {"instance_id":"ff300000-0000-0000-0000-00000000007c",
+       "selections":{"ff300000-0000-0000-0000-000000000079":["sim"]}}
+    ]'::jsonb);
+$$, 'fixture: 7b is still editable — the group instance is added and its gate answered');
 
 select ok(not app.response_required_complete('ff300000-0000-0000-0000-00000000007b'),
   'N7. GROUP ARM: required_if TRUE on a matrix CHILD blocks, per instance');
 
-select public.save_section_answers(
-  'ff300000-0000-0000-0000-00000000007b', 'ff300000-0000-0000-0000-000000000077',
-  p_instance_answers => '[
-    {"instance_id":"ff300000-0000-0000-0000-00000000007c",
-     "matrix_cells":{"ff300000-0000-0000-0000-00000000007a":{"i1":"ia"}}}
-  ]'::jsonb);
+select lives_ok($$
+  select public.save_section_answers(
+    'ff300000-0000-0000-0000-00000000007b', 'ff300000-0000-0000-0000-000000000077',
+    p_instance_answers => '[
+      {"instance_id":"ff300000-0000-0000-0000-00000000007c",
+       "matrix_cells":{"ff300000-0000-0000-0000-00000000007a":{"i1":"ia"}}}
+    ]'::jsonb);
+$$, 'fixture: 7b is still editable — that instance''s grid is completed');
 
 select ok(app.response_required_complete('ff300000-0000-0000-0000-00000000007b'),
   'N8. …and completing THAT instance''s grid clears it');
