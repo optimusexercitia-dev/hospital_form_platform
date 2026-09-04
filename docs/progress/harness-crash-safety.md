@@ -384,3 +384,102 @@ id it binds) requires a registered code prefix, and `AUTHZ` is one. Witnessed re
    scripted inverse of the commit-4 hunks, committed, then restored — rather than editing the
    script between two proof runs (see deviation 3). Both commits' behaviour was proven against the
    **final** text.
+
+### 2026-09-04 — backend: PO ruling landed; ADR + hub corrections
+
+⛔ **DOCS ONLY.** No script, migration, rule file or `docs/reviews/` file was touched in this turn;
+the harnesses are byte-identical to `6b6aee64`. QA is reviewing in parallel and owns
+`docs/reviews/`.
+
+#### The four lead/PO rulings recorded
+
+| # | question | ruling | where it landed |
+|---|---|---|---|
+| **Q1** | ADR 0189 review | read by the lead; the ADR **stays proposed** until PO approval at the Record step, with two corrections (the PO's detect-only ruling into D7, and the measured `RESET_EVERY` cost) | the ADR, below |
+| **Q2** | `RESET_EVERY` default 20, on by default? | **APPROVED on by default** — bounding drift on the full sweep is the point, and subsets never fire it (the counter cannot fire on a worklist shorter than N) | already the built default; unchanged |
+| **Q3** | arm 4b auto-refreshes on **growth**, reds on **reduction** | **APPROVED** — a strand can only *reduce*, so accepting growth silences nothing; the refresh stays **LOUD** (which enforcer grew, old → new) as ADR 0189 D3 already says | already built; unchanged |
+| **Q4** | the 2026-09-04 forensic `INFLIGHT.sql.body` left in `/tmp` | **approved to leave**; its path and size recorded here so it can be found or deliberately deleted later | measured below |
+
+⛔ **The PO's Q2 ruling on `FUP-AUTHZ-HARNESS-TRANSACTIONAL` is DETECT-ONLY** — a different Q2 from
+the `RESET_EVERY` one above, and the two must not be conflated. Nothing was built for it: the
+`c2n_sentinel` marker was **measured buildable and not built by decision**, and the entry is closed
+on the ruling rather than parked.
+
+#### What this commit did
+
+1. **`FUP-AUTHZ-HARNESS-TRANSACTIONAL` CLOSED and rotated**, by the sibling mechanics of `6b6aee64`:
+   a `### ✅ … — **RESOLVED 2026-09-04**` entry appended to `docs/followups/follow-ups-archive.md`
+   carrying (a) the PO ruling **quoted verbatim** and attributed to the PO, (b) the lead's
+   recommendation to BUILD the marker, recorded as **considered and not taken**, with the one
+   advantage it had (a marker cannot be separated from the damage; a file sentinel can, by a
+   different `TMPDIR`, machine or cleaned scratch dir) and its cost (a persistent scratch schema),
+   and (c) the re-open trigger; then the filed body **verbatim**.
+2. **Rotation witness — byte-extracted, `cmp`'d at the destination, and only then cut** (playbook
+   §5). The body was quoted with `sed -e 's/^/> /' -e 's/^> $/>/'`; the destination lines were
+   de-quoted with the **inverse** transform `sed -e 's/^>$/> /' -e 's/^> //'` and compared:
+
+   ```
+   cmp /tmp/hcs2/roundtrip-body.md docs/followups/FUP-AUTHZ-HARNESS-TRANSACTIONAL.md
+   cmp rc=0        5763 bytes both sides
+   ```
+
+   ⚠ **The first round-trip attempt reported `differ: char 1516, line 20` and that was MY
+   INSTRUMENT, not the move.** The body contains blockquote lines that are exactly `>`; quoting
+   makes them `> >`, and my first de-quote (`s/^> //; s/^>$//`) blanked them. A naive inverse is not
+   an inverse — the `cmp` earned its place by failing first.
+3. **Body file retired** (`git rm docs/followups/FUP-AUTHZ-HARNESS-TRANSACTIONAL.md`) in the same
+   commit as the cut, so no id sits in both registers and no orphan body survives (gate 13's
+   `**Body:**` cross-check reds both ways).
+4. **The `**Status:** open — ⏸ … awaiting Q2` note added in `6b6aee64` is GONE**, cut with the
+   entry and deliberately **not** carried into the archive: it is now false, and an archived copy
+   of a superseded pending-ruling line is exactly the prose rot the amendment discipline exists to
+   prevent.
+5. **ADR 0189** — `**Status:** proposed` kept. **D7 rewritten**: detect-only accepted by PO ruling
+   (quoted), self-healing explicitly **not** a requirement, the marker **buildable and not built by
+   decision, never by inability**, the re-open trigger, and the note that the §2.4 interlock checks
+   `[ ! -s "$INFLIGHT" ]` **only** (a guard querying a table that does not exist is broken, not
+   weaker). **Considered options** gained the marker design as *buildable, rejected by PO ruling*
+   with its advantage and its cost. **Related** marks the follow-up closed; **Consequences** gained
+   the all-four-closed bullet and **replaced the plan's `+40 min (~7 %)` ESTIMATE with the MEASURED
+   ≈ +28 min on ≈ 9.5 h (≈ +5 %)**, naming the three measurements behind it (reset 49–54 s, one full
+   suite 87 s, worklist re-derivation ≈ 60 s) and keeping the estimate only in parentheses.
+   `npm run adr:index` rebuilt the index (187 ADRs, next free 0190; back-pointers already current).
+6. **Hub** — the first acceptance bullet's **vacuous** formulation is kept `~~struck~~` with a dated
+   `— **amended 2026-09-04 (F1, ADR 0189 D3)**` clause naming what was built instead (arm 4a +
+   arm 4b); the `FUP-AUTHZ-HARNESS-TRANSACTIONAL` bullet flipped to `[x]`; the preamble gained a
+   dated pointer that all four entries now live in the archive; `## Current state` REPLACED.
+
+#### Q4 — the forensic artifact, measured now (not restated)
+
+```
+/tmp/c2-neutralizer-INFLIGHT.sql.body   = C:/Users/micha/AppData/Local/Temp/c2-neutralizer-INFLIGHT.sql.body
+    18977 bytes, mtime 2026-09-04 15:00, holds public.mint_printed_document's definition
+/tmp/c2-neutralizer-INFLIGHT.sql        = C:/Users/micha/AppData/Local/Temp/c2-neutralizer-INFLIGHT.sql
+    0 bytes, mtime 2026-09-04 15:00   (the sentinel: empty = no mutation in flight)
+```
+
+⚠ **This is NOT the incident's own artifact any more.** The 09:38 forensic capture cited in ADR
+0189's Context — `cancel_event`'s **1194-byte** body — was **overwritten by a later plant run** at
+15:00, which is precisely
+[[a-cited-line-number-rots-when-its-artifact-is-overwritten]]: a fixed-path scratch file is a
+sentinel, not an archive, and this unit's own plants clobbered it. The bytes quoted in the ADR were
+read at the time and are not re-derivable from this file. Both files are safe to delete (the
+sentinel is empty, so nothing is in flight); left in place, they are harmless.
+
+Also still on disk from this unit, same directory, if a cleanup is wanted:
+`/tmp/c2-neutralizer/` (worklist.tsv 22178 B, worklist.sql, progress.tsv,
+`c2-command-door-findings.SUBSET.md`, mut.sql), `/tmp/c2-rerun/`, `/tmp/c2probe/`, `/tmp/c2sweep.sh`.
+
+#### What this commit did NOT do
+
+- **No code.** No harness, script, migration, seed, rule file or `src/` change — the diff is
+  `docs/` only plus the deleted body file. The diff-scoped door sweep remains not owed for the same
+  measured reason as `6b6aee64`.
+- **No QA review file.** `qa` is running in parallel and owns `docs/reviews/`; nothing there was
+  created or edited.
+- **ADR 0189 is NOT accepted** — it stays `**Status:** proposed` by lead ruling Q1, for the PO at
+  the Record step.
+- **The marker was not built**, and no stub, table, schema or knob for it exists.
+- **No gate beyond the lint chain was re-run.** `npm run test:db` and the four authz arms were green
+  at `6b6aee64` and nothing in this commit can move them; re-running them would measure the same
+  tree.

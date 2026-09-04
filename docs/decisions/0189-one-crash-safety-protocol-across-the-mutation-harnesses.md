@@ -9,7 +9,8 @@ neutralizer's design — its restore, its preflight and its subset rule) · ADR
 *subset* run: narrowing the DOMAIN counts too, not only narrowing the cases)
 **Related:** ADR [0079](./0079-authz-door-blindness-standing-invariant.md) (a verdict is
 meaningless without its domain) · `FUP-C2-TIER1-INFLIGHT-SENTINEL-ERASED-BY-ITS-OWN-RESTORE` ·
-`FUP-AUTHZ-HARNESS-PRECONDITIONS` · `FUP-AUTHZ-HARNESS-TRANSACTIONAL` ·
+`FUP-AUTHZ-HARNESS-PRECONDITIONS` · `FUP-AUTHZ-HARNESS-TRANSACTIONAL` (**closed 2026-09-04 by PO
+ruling**, D7 — archived in `docs/followups/follow-ups-archive.md`) ·
 `FUP-C2-NEUTRALIZER-TAIL-DRIFT-INVALIDATES-LATE-VERDICTS` ·
 `.claude/rules/mutation-harnesses-are-not-killable.md` · record
 `docs/progress/harness-crash-safety.md`
@@ -140,17 +141,58 @@ reset-and-retry before it is recorded. Every reset is interlocked: it **refuses*
 is in flight, re-runs the preflight arms afterwards, and re-derives the worklist, aborting if the
 tree moved under the run.
 
-### D7 — The transactional residual is NOT closed here
+### D7 — Detect-only is the accepted posture, by PO ruling — and self-healing is explicitly NOT a requirement
 
-`FUP-AUTHZ-HARNESS-TRANSACTIONAL` stays **open** pending a PO ruling on whether the detect-only
-posture is accepted or a committed marker row is built. Nothing in this ADR makes a harness
-self-healing, and none of it is offered as such: process death can still leave a gate open. The
-guarantee is that it can no longer do so **unnoticed**.
+`FUP-AUTHZ-HARNESS-TRANSACTIONAL`'s residual was escalated as question Q2 of this unit's plan and
+**ruled by the PO on 2026-09-04: detect-only**. The entry is therefore **closed on the ruling**, not
+left open and not parked. The ruling, verbatim:
+
+> "The filed fix (one rolled-back transaction) is unbuildable and would be worse than the bug — the
+> probe is a separate process, so every case would classify COVERED against the original gate: a
+> sweep 100 % green and 100 % vacuous. The detect-only posture is accepted for the mutation
+> harnesses: process death may still leave a gate open, and the guarantee is that it cannot do so
+> unnoticed — a verified restore, a sentinel that survives its own failed restore, `RECOVER=1`, the
+> degenerate-body preflight before every arm of `p0-authz-invariant.sh`, and
+> `supabase db reset --local` as the blunt certain remedy. Self-healing is explicitly not a
+> requirement. Re-open if a harness is ever run against a database with more than one owner."
+
+Three things this decision fixes, so that a later reader cannot re-derive them wrongly:
+
+1. **Nothing in this ADR makes a harness self-healing, and none of it is offered as such.** Process
+   death can still leave a gate open; the guarantee is that it can no longer do so **unnoticed**.
+   ⭐ That is now a *stated requirement boundary*, not an unfinished edge — the difference matters,
+   because an unfinished edge invites a future session to "finish" it.
+2. ⛔ **The committed marker was measured BUILDABLE, and was NOT built by decision — never by
+   inability.** `mutate()` runs its DDL inside a single `DO $outer$ … $outer$;`, so a row inserted
+   in that block is atomic with the neutralization; a home outside the `drop … cascade`d `c2n`
+   schema was already selected, and the two rejected homes (`comment on function`, `alter database
+   set`) were rejected on measured grounds, not taste. The lead's recommendation to the PO was to
+   **build** it. It was **considered and not taken** — see Considered options.
+3. **Re-open trigger, in the ruling's own words:** *re-open if a harness is ever run against a
+   database with more than one owner.* Single-owner local stacks are the only place these harnesses
+   run today, and `supabase db reset --local` is the blunt certain remedy there.
+
+⚠ The §2.4 in-flight interlock therefore checks `[ ! -s "$INFLIGHT" ]` **only**. The "zero marker
+rows" half of the planned interlock was dropped with the marker: a guard that queries a table which
+does not exist is not a weaker guard, it is a broken one.
 
 ## Considered options
 
 - **Make the neutralization one rolled-back transaction.** ⛔ Unbuildable here and worse than the
   bug — the probe is a separate process (Context).
+- **A committed marker row written inside the mutating transaction** (`c2n_sentinel.inflight(oid,
+  label, orig_def, mutated_at)`, in a schema the run does not drop; inserted inside `mutate()`'s
+  `DO` block, deleted inside the restore's). ⛔ **BUILDABLE — rejected by PO ruling, not by
+  inability** (D7). Its one real advantage, which the file sentinel does not have: **the marker
+  cannot be separated from the damage.** A file sentinel is defeated by a different `TMPDIR`, a
+  different machine, or a cleaned scratch directory, and it dies with the disk it sat on; a row in
+  the same database as the open gate travels with it, and its `mutated_at` **dates** the
+  neutralization — closing the forensic gap that `pg_proc` carries no mtime, which is exactly what
+  cost this unit's incident its lower bound. Its cost, and the reason the ruling declines to pay
+  it: a **persistent scratch schema** in the same database as the production migration lineage,
+  surviving every reset that `c2n` does not, needing its own grants, its own pgTAP-surface
+  exemption, and its own answer to *"what does an empty table mean — clean, or never armed?"* ⭐ The
+  arm-4b `NOT RUN` distinction shows that question is not rhetorical.
 - **Detect the strand by live `nraise` vs the worklist's `nraise`, as the follow-up filed it.**
   ⛔ Vacuous by construction — D3.
 - **Allowlist `public.confirm_triage` out of arm 4a.** ⛔ Rejected: allowlisting a subject is what
@@ -169,10 +211,18 @@ guarantee is that it can no longer do so **unnoticed**.
   171-enforcer sweep, ~171 additional sub-second queries against ~9.5 h of suite runs.
 - A failed restore now **stops** the run and leaves the stack contaminated **on purpose**, with the
   sentinel as the record. That is the deliberate trade: a loud stop over a quiet sweep.
-- `RESET_EVERY=20` adds roughly 40 min (~7 %) to a full sweep. Subsets never reset — the counter
-  cannot fire on a worklist shorter than N.
+- `RESET_EVERY=20` adds **≈ +28 min on a ≈ 9.5 h sweep (≈ +5 %)** — **measured**, not estimated:
+  `supabase db reset --local` took **49–54 s** on two runs, one full pgTAP suite **87 s**, and
+  worklist re-derivation **≈ 60 s**, over the 8 resets a 171-enforcer worklist fires at N=20. (The
+  plan's estimate was +40 min / ~7 %; the measured figure replaces it.) Subsets never reset — the
+  counter cannot fire on a worklist shorter than N.
 - Sentinels written before this protocol carry no probe sidecar and therefore **cannot** be
   verified; `RECOVER=1` says exactly that instead of reporting a success it did not measure.
+- **All four converging follow-ups are now closed** and rotated to
+  `docs/followups/follow-ups-archive.md` — three on a built mechanism proven able to fire, and
+  `FUP-AUTHZ-HARNESS-TRANSACTIONAL` **on the PO ruling in D7**, with that ruling's re-open trigger
+  carried on the archived entry. ⚠ A ruling is a decision, not a measurement: it goes stale the day
+  its premise (one owner per database) does.
 - Two of the four follow-ups' own close conditions are recorded as vacuous and amended **in place**
   with a dated paragraph beside the original sentence. A register's failure mode is prose rot, so
   an amendment must be visible as an amendment rather than a silent rewrite.

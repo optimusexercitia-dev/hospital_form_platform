@@ -255,13 +255,6 @@ assigned `FUP-BACKLOG-<slug>` ids (legend row: [legacy-codes.md](legacy-codes.md
 **Status:** open
 **Body:** [FUP-DM5-STORAGE-ORPHANS.md](FUP-DM5-STORAGE-ORPHANS.md)
 
-### 🔴 FUP-AUTHZ-HARNESS-TRANSACTIONAL — the door-audit harness neutralizes OUTSIDE a transaction, so process death leaves an authz gate OPEN (owner: lead + backend; filed 2026-08-14, DM5 S2, after it happened)
-
-**Filed:** 2026-08-14 (DM5 S2, after it happened) · **Owner:** lead + backend · **Severity:** critical — per emoji at consolidation
-**Closes when:** PO to rule
-**Status:** open — ⏸ the residual (a committed marker written in the same transaction as the neutralization, so the two can never disagree) is **with the PO**: ruling Q2 of the HARNESS-CRASH-SAFETY plan, 2026-09-04, asks whether to BUILD it or to accept the detect-only posture. ⛔ Deliberately NOT built in that unit. The detect-only guards it relies on were all strengthened there (ADR 0189): a restore is now believed only when the catalog agrees, a failed restore keeps the sentinel, `RECOVER=1` verifies, and the degenerate-body preflight gained an arm for the C2 residue shape
-**Body:** [FUP-AUTHZ-HARNESS-TRANSACTIONAL.md](FUP-AUTHZ-HARNESS-TRANSACTIONAL.md)
-
 ### 🔴 FUP-DM4-PRODROW — reconcile the dangling frozen PRODUCTION snapshot row at the push/deploy step, not during DM4 (owner: lead + backend)
 
 **Filed:** 2026-08-14 (at DM4 open, as the recorded half of PO ruling R2) · **Owner:** lead + backend · **Severity:** critical — per emoji at consolidation
