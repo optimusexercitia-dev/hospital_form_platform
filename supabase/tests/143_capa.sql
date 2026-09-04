@@ -19,7 +19,7 @@
 --   * PHI-free capa audit rows (status/verdict only — no *_md body).
 
 begin;
-select plan(39);
+select plan(46);
 
 update app.feature_flags set enabled = true where key = 'patient_safety';
 update app.feature_flags set enabled = true where key = 'audit_trail';
@@ -496,6 +496,82 @@ select ok(
 select ok(
   (select overdue_actions from kpi_other) >= 1,
   'M3 GUARD: the 2nd-org PQS member DOES count the org_other overdue action');
+
+-- =========================================================================
+-- §KC2 — C2-TIER1 BLIND command-door keystones (batch B, 2026-09-04).
+--
+--   · reopen_capa_plan — invoked at :216 on its ALLOW leg only. Its HC049 is
+--     pinned five times across the suite (:205, 'a concluded plan rejects child
+--     writes', which calls add_capa_action; and 353 ×4 on the disposal lock) and
+--     NEVER on this door: same code, different door.
+--   · add_capa_action_evidence — ZERO references anywhere in the suite before
+--     this block. Its HC0D8 is pinned six times, all on open_document_version /
+--     add_rca_evidence.
+--
+-- ⛔ LAST IN THE FILE ON PURPOSE. Under mutation a deny arm SUCCEEDS and its
+-- effect persists; upstream of a bare lifecycle call it would abort the file,
+-- change the run SHAPE and score ERROR instead of COVERED.
+-- =========================================================================
+update app.feature_flags set enabled = true where key = 'documents_wave_d';
+
+-- The plan is terminal here (:255 closed it). Reopening it is BOTH the allow leg
+-- reopen_capa_plan needs and the precondition every arm below depends on: the
+-- capa child-lock (app.guard_capa_child_lock, HC049) refuses evidence writes on a
+-- completed plan regardless of the flag.
+select is((select status from public.capa_plan where id = (select capa_id from c)), 'completed',
+  '§KC2 fixture: the plan is completed going in — the state reopen_capa_plan ADMITS');
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
+set local role authenticated;
+select lives_ok(
+  $$ select public.reopen_capa_plan((select capa_id from c)) $$,
+  '⭐ ALLOW-LEG DIFFERENTIAL: the PQS writer CAN reopen a completed plan — without it the HC049 arm below would pass equally well with the flag off, the plan absent or EXECUTE revoked');
+reset role;
+select is((select status from public.capa_plan where id = (select capa_id from c)), 'in_execution',
+  '⭐ …and the admitted call really REOPENED (lives_ok alone is satisfied by a door that returns without doing anything)');
+
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
+set local role authenticated;
+select throws_ok(
+  $$ select public.reopen_capa_plan((select capa_id from c)) $$,
+  'HC049', 'apenas um plano concluído pode ser reaberto',
+  '⭐⭐ KEYSTONE [PROPERTY: lifecycle — NOT authorization]: reopen_capa_plan refuses a plan that is NOT completed with HC049 — the door''s OWN and only anchored raise. ADR 0187 D2: this COVERED is LIFECYCLE coverage; the door''s AUTHORIZATION is app.assert_capa_writable (42501), a separate worklist row. The MESSAGE is pinned because app.guard_capa_child_lock raises HC049 too, with a different string. C2 BLIND 2026-09-02');
+reset role;
+
+-- ── add_capa_action_evidence (allowlist line 47 retired with this block) ─────
+-- Two documents, both `active`, differing ONLY in which capa_action they are
+-- homed on. Each capa_action mints its own securable_resources row
+-- (app.ensure_securable_resource_capa_action), so `action_other` from §M3 is a
+-- real, differently-homed capa_action — the exact discriminator the guard exists
+-- for, rather than a non-existent document id (which would exercise "not found",
+-- not "homed elsewhere").
+create temp table kc_doc on commit drop as
+  select gen_random_uuid() as ok_doc, gen_random_uuid() as foreign_doc;
+grant select on kc_doc to authenticated;
+insert into public.documents (id, home_resource_id, title, status, created_by)
+values ((select ok_doc from kc_doc), (select action_id from a), 'Evidência KC2', 'active', (select admin from k)),
+       ((select foreign_doc from kc_doc), (select action_other from m3), 'Evidência de outra ação', 'active', (select admin from k));
+
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
+set local role authenticated;
+select lives_ok(
+  $$ select public.add_capa_action_evidence((select action_id from a), 'document', 'Evidência KC2',
+                                             (select ok_doc from kc_doc), null) $$,
+  '⭐ ALLOW-LEG DIFFERENTIAL: a document HOMED ON THIS ACTION is accepted as evidence — pg_stat_user_functions does not count a call that raises, so without a SUCCESSFUL call ARM=floor still reds and allowlist line 47 cannot be retired');
+reset role;
+select is(
+  (select document_id from public.capa_action_evidence
+    where action_id = (select action_id from a) and kind = 'document'),
+  (select ok_doc from kc_doc),
+  '⭐ …and the admitted call really PERSISTED the evidence row against that document');
+
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
+set local role authenticated;
+select throws_ok(
+  $$ select public.add_capa_action_evidence((select action_id from a), 'document', 'Tentativa',
+                                             (select foreign_doc from kc_doc), null) $$,
+  'HC0D8', 'documento indisponível para esta ação',
+  '⭐⭐ KEYSTONE [PROPERTY: validation — NOT authorization]: add_capa_action_evidence refuses an ACTIVE document homed on ANOTHER capa_action with HC0D8 — the door''s OWN and only anchored raise, on a door with zero pgTAP references before this block. ADR 0187 D2 (PO ruling 2026-09-04, class B provisionally): this COVERED is VALIDATION coverage — the guard reads p_document_id / p_action_id / d.status and takes NO caller input, so it must NOT be read as cross-resource ISOLATION coverage. The door''s authorization is app.assert_capa_writable (42501), a separate worklist row. C2 BLIND 2026-09-02');
+reset role;
 
 select * from finish();
 rollback;

@@ -24,7 +24,7 @@
 -- through triage to mint one, then exercise the workspace.
 
 begin;
-select plan(36);
+select plan(41);
 
 update app.feature_flags set enabled = true where key = 'patient_safety';
 update app.feature_flags set enabled = true where key = 'audit_trail';
@@ -379,6 +379,57 @@ select ok(
 select ok(
   exists (select 1 from public.audit_log where action = 'rca.reopened'),
   'reopen emits an rca.reopened audit row');
+
+-- =========================================================================
+-- §KC2 — C2-TIER1 BLIND command-door keystones (batch B, 2026-09-04).
+--
+-- Three doors hosted here came back BLIND from
+-- supabase/tests/mutation/c2-command-door-neutralizer.sh. All three ARE invoked
+-- above — on their ALLOW legs only (:90/:91, :267, :296). Their codes are pinned
+-- repeatedly across the suite (HC047 six times, HC048 three times) but always on
+-- a SIBLING door: HC048 on update_rca / add_rca_evidence, HC047 on add_rca_factor
+-- and complete_rca. Same code, different door — the shape ADR 0187 C5 names.
+--
+-- ⭐ HC047 carries TWO distinct strings across the sibling pair below, so a
+-- code-only arm cannot tell submit_rca_for_review's refusal from reopen_rca's.
+-- Both are message-pinned (specs §3.3).
+--
+-- ⛔ LAST IN THE FILE ON PURPOSE. Under mutation a deny arm SUCCEEDS and its
+-- effect persists; placed upstream of a bare lifecycle call it would abort the
+-- file, change the run SHAPE and score ERROR instead of COVERED.
+-- ⛔ ORDER: the submit arm runs BEFORE the reopen arm. Both target r2; a mutated
+-- reopen_rca would flip r2 in_review -> in_progress and silently satisfy the
+-- submit arm's precondition in the wrong direction.
+-- =========================================================================
+select is((select status from public.rca where id = (select rca_id from r2)), 'in_review',
+  '§KC2 fixture: r2 is in_review — NOT in_progress (so submit refuses) and NOT completed (so reopen refuses)');
+select is((select status from public.rca where id = (select rca_id from r)), 'in_progress',
+  '§KC2 fixture: r is in_progress — writable, so the add_rca_member refusal below is attributable to the caller, not to the RCA''s state');
+
+select test_helpers.claims_for((select admin from k), true, 'pqs_member');
+set local role authenticated;
+select throws_ok(
+  $$ select public.submit_rca_for_review((select rca_id from r2)) $$,
+  'HC047', 'apenas uma análise em andamento pode ser enviada para revisão',
+  '⭐⭐ KEYSTONE [PROPERTY: lifecycle — NOT authorization]: submit_rca_for_review refuses an RCA that is NOT in_progress with HC047 — the door''s OWN and only anchored raise. ADR 0187 D2: this COVERED is LIFECYCLE coverage; the door''s AUTHORIZATION is app.assert_rca_writable (HC048), a separate worklist row. C2 BLIND 2026-09-02');
+select throws_ok(
+  $$ select public.reopen_rca((select rca_id from r2)) $$,
+  'HC047', 'apenas uma análise concluída pode ser reaberta',
+  '⭐⭐ KEYSTONE [PROPERTY: lifecycle — NOT authorization]: reopen_rca refuses an RCA that is NOT completed with HC047 — the door''s OWN and only anchored raise, and a DIFFERENT string from the sibling arm above on the same code. ADR 0187 D2: LIFECYCLE coverage; authorization is app.assert_rca_writable (HC048). C2 BLIND 2026-09-02');
+reset role;
+
+-- ⭐⭐ add_rca_member is the one A2 (authorization) door of the three. st_x2 is the
+-- discriminator: an OBSERVER on this very RCA (added at :91) — inside the team,
+-- reading it legitimately, and asserted non-writing at :102
+-- ('can_write_rca: an OBSERVER is read-only (false)') — so the refusal is attributable
+-- to the write-authority arm alone, not to tenancy or to being a stranger.
+select test_helpers.claims_for((select st_x2 from k), false, 'staff');
+set local role authenticated;
+select throws_ok(
+  $$ select public.add_rca_member((select rca_id from r), 'sme', (select st_y from k), null) $$,
+  'HC048', 'você não pode editar esta análise de causa raiz',
+  '⭐⭐ KEYSTONE: an RCA OBSERVER (neither a PQS operator of the event''s hospital nor a non-observer member) CANNOT add members — HC048, the door''s OWN raise. The suite''s three other HC048 pins are all on sibling doors (:178 update_rca, 341:672/688). ⚠ MEASURED 2026-09-04: this (code, message) pair is NOT unique — THREE bodies carry it (add_rca_member, app.assert_rca_writable, complete_evidence_upload_verification), so the message alone cannot say which one refused. What makes the arm attributable is the CALL: add_rca_member reads app.is_pqs_operator_of / app.can_write_rca DIRECTLY and never delegates to assert_rca_writable, so no other HC048 raiser is in its closure. The sweep is the independent check — mutating add_rca_member alone turns the suite red. C2 BLIND 2026-09-02');
+reset role;
 
 select * from finish();
 rollback;

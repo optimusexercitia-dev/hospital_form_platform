@@ -23,7 +23,7 @@ begin;
 -- Amendment 1, D15).
 -- 131 → 135: DM2·S2 adds the OPEN-level ceiling pins (40/40b/41/41b — S1-O1
 -- discharged on open_document_version).
-select plan(136);
+select plan(144);
 
 -- cases RPCs need cases_multi_phase; case_types toggled per-test for the snapshot gate.
 update app.feature_flags set enabled = true
@@ -774,6 +774,99 @@ reset role;
 select is((select count(*)::int from public.audit_log
            where action = 'interview.confidentiality_changed' and entity_id = (select id from iv)), 1,
   'audit: interview.confidentiality_changed emitted one row');
+
+-- ===========================================================================
+-- §KC2 — C2-TIER1 BLIND command-door keystones (batch B, 2026-09-04).
+--
+-- Four participant-FK doors hosted here came back BLIND from
+-- supabase/tests/mutation/c2-command-door-neutralizer.sh. Each raises exactly one
+-- anchored code — HC039 "sem permissão para editar esta entrevista", from its OWN
+-- body — and none of the four had a single deny arm on it:
+--   · set_interview_subject_participant / set_interview_interviewer_participant —
+--     named ONLY by the t19 has_function_privilege block above (a pg_proc.proacl
+--     read that cannot observe any body change), never entered;
+--   · set_interview_participant / record_session_attendance — entered at :710 and
+--     :727, but on the ALLOW leg, and their only throws_ok arms pin 23514, an
+--     UNANCHORED check_violation the mutation leaves untouched.
+--
+-- ⛔ PLACEMENT: BEFORE BE-7's `insert into public.case_recusals … st_x2` below.
+-- After that insert st_x2 is EXCLUDED from c_default, so app.can_write_interview
+-- would deny for an EXCLUSION reason rather than the authority reason under test —
+-- a refusal that reads like this keystone while measuring a different predicate.
+-- st_x2 here is a plain member holding a read grant and NO interviewer row: he
+-- clears tenancy and reach, and fails ONLY at the write-authority arm.
+--
+-- ⛔ Every deny arm passes the SAME participant value its allow leg already
+-- persisted, so a MUTATED run (where the arm succeeds instead of raising) rewrites
+-- the row to the value it already holds. A deny arm's effect persists under
+-- mutation — an arm that changed state here would abort the file and score ERROR
+-- instead of COVERED.
+-- ===========================================================================
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+create temp table kc_sj on commit drop as
+  select * from public.add_interview_subject((select id from iv), null, 'Entrevistado Externo',
+                                              'Enfermeiro(a)', 'Org Externa', null, 'witness');
+create temp table kc_iv on commit drop as
+  select * from public.add_interview_interviewer((select id from iv), null, 'Entrevistador Externo',
+                                                  'Org Externa', 'entrevistador', null);
+reset role;
+grant select on kc_sj to authenticated;
+grant select on kc_iv to authenticated;
+-- ⛔ Resolve the session id AS THE OWNER, never inside the deny arm. `iv` is
+-- legal_privileged, so st_x2 reads ZERO interview_sessions rows under RLS: an
+-- in-arm subselect returns NULL and the door refuses with P0002 "sessão não
+-- encontrada" — an EARLIER guard firing, which would leave the HC039 branch under
+-- test untested while the arm looked like it passed for the right reason.
+create temp table kc_ss on commit drop as
+  select id from public.interview_sessions
+   where interview_id = (select id from iv) order by sequence_number limit 1;
+grant select on kc_ss to authenticated;
+
+-- ── set_interview_subject_participant (allowlist line 126 retired with this) ──
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select lives_ok(
+  format($$ select public.set_interview_subject_participant(%L, '00000000-0000-0000-0000-0000000e0122') $$,
+          (select id from kc_sj)),
+  '⭐ ALLOW-LEG DIFFERENTIAL: the coordinator CAN tie an interview SUBJECT to a case participant — pg_stat_user_functions does not count a call that raises, so without a SUCCESSFUL call ARM=floor still reds and the allowlist line cannot be retired');
+select lives_ok(
+  format($$ select public.set_interview_interviewer_participant(%L, '00000000-0000-0000-0000-0000000e0122') $$,
+          (select id from kc_iv)),
+  '⭐ ALLOW-LEG DIFFERENTIAL: the coordinator CAN tie an INTERVIEWER to a case participant (allowlist line 125)');
+reset role;
+select is((select participant_id from public.case_interview_subjects where id = (select id from kc_sj)),
+  '00000000-0000-0000-0000-0000000e0122'::uuid,
+  '⭐ …and the admitted subject call really PERSISTED the FK (lives_ok alone is satisfied by a door that returns without doing anything)');
+select is((select participant_id from public.case_interview_interviewers where id = (select id from kc_iv)),
+  '00000000-0000-0000-0000-0000000e0122'::uuid,
+  '⭐ …and the admitted interviewer call really PERSISTED the FK');
+
+-- ⭐⭐ THE FOUR KEYSTONES — st_x2, a plain member with a read grant and no
+-- interviewer row, is refused by each door's OWN HC039.
+select test_helpers.claims_for((select st_x2 from k), false);
+set local role authenticated;
+select throws_ok(
+  format($$ select public.set_interview_subject_participant(%L, '00000000-0000-0000-0000-0000000e0122') $$,
+          (select id from kc_sj)),
+  'HC039', 'sem permissão para editar esta entrevista',
+  '⭐⭐ KEYSTONE: a non-writer CANNOT set an interview subject''s participant FK (HC039, the door''s own raise). Before this arm the door''s only mention in the suite was a t19 has_function_privilege ACL assertion that never enters the function. The MESSAGE is pinned because app.assert_interview_writable raises HC039 with a DIFFERENT string ("você não pode editar esta entrevista") — a code-only arm could not say which enforcer refused. C2 BLIND 2026-09-02');
+select throws_ok(
+  format($$ select public.set_interview_interviewer_participant(%L, '00000000-0000-0000-0000-0000000e0122') $$,
+          (select id from kc_iv)),
+  'HC039', 'sem permissão para editar esta entrevista',
+  '⭐⭐ KEYSTONE: a non-writer CANNOT set an interviewer''s participant FK (HC039, the door''s own raise; t19-only before this arm). C2 BLIND 2026-09-02');
+select throws_ok(
+  format($$ select public.set_interview_participant(%L, '00000000-0000-0000-0000-0000000e0122') $$,
+          (select id from iv)),
+  'HC039', 'sem permissão para editar esta entrevista',
+  '⭐⭐ KEYSTONE: a non-writer CANNOT set the interview''s participant FK (HC039, the door''s own raise). :714''s existing arm pins 23514 — an UNANCHORED check_violation the C2 mutation leaves standing, which is why the allow-plus-23514 pair read as coverage and measured none. C2 BLIND 2026-09-02');
+select throws_ok(
+  format($$ select public.record_session_attendance(%L, '00000000-0000-0000-0000-0000000e0122') $$,
+          (select id from kc_ss)),
+  'HC039', 'sem permissão para editar esta entrevista',
+  '⭐⭐ KEYSTONE: a non-writer CANNOT record session attendance (HC039, the door''s own raise). :732''s existing arm pins 23514, unanchored. C2 BLIND 2026-09-02');
+reset role;
 
 -- ===========================================================================
 -- BE-7 — modified reads: list_my_cases respondent/recusal exclusion (ADR 0072 §2.3).

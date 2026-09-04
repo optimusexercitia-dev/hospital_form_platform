@@ -37,7 +37,7 @@
 --   staff1.ccih (03): staff of CCIH (central-a)
 
 begin;
-select plan(33);
+select plan(34);
 
 -- Fixed-UUID personas + org/hospital constants (from seed.sql).
 create temp table personas on commit drop as select
@@ -192,6 +192,27 @@ grant select on elig_hosp to authenticated;
 select ok(
   (select j::text from elig_hosp) like '%' || (select chefe_ccih from personas)::text || '%',
   'B6: the hospital coordinator CAN list its hospital''s eligible users (per-hospital picker)');
+
+-- ⭐⭐ §KC2 (C2-TIER1 batch B, 2026-09-04) — list_hospital_eligible_users_for_pqs
+-- came back BLIND from c2-command-door-neutralizer.sh: B6 above is an ALLOW leg
+-- and the file's only 42501 arm on this lane (:171) is on the SIBLING door
+-- list_org_eligible_users. Same code, different door.
+-- ⭐ pqs.a is the tightest discriminator: enrolled on THIS hospital's roster (so
+-- neither tenancy nor reach can explain the refusal) and holding a real NSP-family
+-- role — but neither the hospital's nsp_coordinator nor the org's nsp_org_admin,
+-- which is exactly what the guard reads. The hat is passed explicitly.
+-- ⛔ The message is pinned, not just the code: 216 public/app functions in this
+-- catalog raise 42501, and a bare 42501 is also what a missing EXECUTE grant
+-- raises (352:97), so a code-only arm has no subject.
+select test_helpers.claims_for((select pqs_a from personas), false, 'pqs_member');
+set local role authenticated;
+select throws_ok(
+  format($$ select public.list_hospital_eligible_users_for_pqs(%L::uuid) $$,
+         (select hosp_central_a from personas)),
+  '42501',
+  'apenas o coordenador do NSP ou o administrador de NSP da organização pode listar os usuários elegíveis',
+  '⭐⭐ KEYSTONE: an enrolled pqs_member of central-a — on the very roster this picker curates — CANNOT list its eligible users; only the hospital coordinator or the org NSP admin can (42501, the door''s OWN raise). C2 BLIND 2026-09-02');
+reset role;
 
 -- ============================================================================
 -- §C: appointNspCoordinator's DB substrate. Per-hospital (ADR 0052): the

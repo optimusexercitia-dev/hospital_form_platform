@@ -30,7 +30,7 @@
 --   ref_b  (efa…b1): central-b ENC-0003 referral
 
 begin;
-select plan(53);
+select plan(57);
 
 update app.feature_flags set enabled = true where key = 'patient_index';
 -- dispose_referral_phi (§11) calls assert_referrals_enabled() first, so the
@@ -215,6 +215,21 @@ select is(
   (select jsonb_array_length(public.nsp_org_roster((select org_a from personas)))),
   2,
   'AGGREGATE: nsp_org_roster(org-a) returns 2 hospital rows');
+-- §KC2 (C2-TIER1 batch B, 2026-09-04) — nsp_org_capa_rollup had ZERO references
+-- anywhere in the suite and is on authz-neverclled-door-allowlist.txt line 97, so
+-- it needs a SUCCESSFUL call (pg_stat_user_functions does not count a call that
+-- raises) before the allowlist line can be retired.
+select is(
+  (select jsonb_array_length(public.nsp_org_capa_rollup((select org_a from personas)))),
+  2,
+  '⭐ ALLOW-LEG DIFFERENTIAL: nsp_org_capa_rollup(org-a) returns 2 hospital rows for the nsp_org_admin (central-a + secundário-a) — the same shape its two measured siblings return');
+select is(
+  (select bool_or(
+     row_obj ? 'name' or row_obj ? 'mrn' or row_obj ? 'patient' or row_obj ? 'code'
+     or row_obj ? 'title' or row_obj ? 'description' or row_obj ? 'attending')
+   from jsonb_array_elements(public.nsp_org_capa_rollup((select org_a from personas))) as row_obj),
+  false,
+  'PHI-FREE KEYSTONE: nsp_org_capa_rollup exposes NO patient/code/title/narrative key');
 reset role;
 
 -- a foreign nsp_org_admin gate: pqs.a (not nsp_org_admin) is denied the rollup.
@@ -225,6 +240,34 @@ select throws_ok(
   '42501',
   null,
   'GATE: nsp_org_event_rollup as pqs.a (not nsp_org_admin) raises 42501');
+-- ⭐⭐ §KC2 — the two BLIND siblings of that arm. ADR 0187 C6, re-confirmed here:
+-- the deny arm above is the ONLY one in §9 and its SQL is nsp_org_event_rollup, so
+-- nsp_org_roster and nsp_org_capa_rollup had no deny leg at all. ⛔ The arm above
+-- also passes `null` for the message, and a bare 42501 is what a missing EXECUTE
+-- grant raises too (352:97), so a code-only arm cannot say WHICH door it measured.
+-- ⚠ MEASURED 2026-09-04, correcting specs §5.7: the three doors do NOT differ only
+-- in the message tail. The TWO ROLLUPS carry the IDENTICAL string "…pode ver este
+-- relatório" (216 public/app functions raise 42501; exactly 2 carry that string:
+-- nsp_org_capa_rollup and nsp_org_event_rollup); only the roster's "…pode ver a
+-- equipe" is unique. So the roster arm is attributable by its message alone, while
+-- the CAPA-rollup arm is attributable by message PLUS the call — which is why each
+-- arm below names its own door explicitly rather than sharing a probe.
+-- ⭐ pqs.a is the tightest discriminator: authenticated, inside org-a, holding a
+-- real NSP-family role (pqs_member of central-a, exactly one live membership → the
+-- hat is unambiguous), and NOT nsp_org_admin — so the refusal cannot be blamed on
+-- tenancy, on being a stranger, or on a missing active_role claim. The hat is
+-- passed EXPLICITLY (claims_for mints no active_role for a 0- or ≥2-role principal,
+-- and a hatless caller fails every app.has_role check closed — which reads as an
+-- authorization finding and is actually a fixture bug).
+select test_helpers.claims_for((select pqs_a from personas), false, 'pqs_member');
+select throws_ok(
+  format($$ select public.nsp_org_capa_rollup(%L::uuid) $$, (select org_a from personas)),
+  '42501', 'apenas o administrador de NSP da organização pode ver este relatório',
+  '⭐⭐ KEYSTONE: pqs.a (a real NSP-family role, NOT nsp_org_admin) CANNOT read the org CAPA rollup — a cross-tenant PHI-derived aggregate. The door had ZERO pgTAP references before this arm. C2 BLIND 2026-09-02');
+select throws_ok(
+  format($$ select public.nsp_org_roster(%L::uuid) $$, (select org_a from personas)),
+  '42501', 'apenas o administrador de NSP da organização pode ver a equipe',
+  '⭐⭐ KEYSTONE: pqs.a CANNOT read the org NSP roster — the door was invoked above on its ALLOW leg only, which is precisely why it came back BLIND. C2 BLIND 2026-09-02');
 reset role;
 
 -- ============================================================================

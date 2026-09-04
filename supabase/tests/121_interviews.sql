@@ -12,7 +12,7 @@
 -- RPC; cross-commission isolation.
 
 begin;
-select plan(61);
+select plan(79);
 
 -- Enable the interviews flag for the whole test (ships ON in-phase; a hermetic test
 -- must not depend on migration order).
@@ -394,6 +394,178 @@ select is(has_function_privilege('public',
 select is(has_function_privilege('public',
   'app.assert_session_writable(uuid)', 'execute'), false,
   't19: PUBLIC cannot execute app.assert_session_writable');                                   -- 60
+
+-- =========================================================================
+-- §K — C2-TIER1 BLIND command-door keystones (batch B, 2026-09-04).
+--
+-- Seven doors hosted by this file came back BLIND from
+-- supabase/tests/mutation/c2-command-door-neutralizer.sh: their only anchored
+-- raise (42501 | HC0xx) can be rewritten to `null;` with the whole suite still
+-- green. FIVE of them (update_interview, update_session, cancel_session,
+-- update_interview_subject and — via 228 — the participant setters) were named
+-- ONLY by a t19 has_function_privilege assertion, which reads pg_proc.proacl and
+-- is therefore STRUCTURALLY incapable of observing any body change
+-- (docs/design/authz-c2-blind-keystone-specs.md §4 — "mentioned, never entered").
+--
+-- ⭐ EVERY ARM PINS THE MESSAGE, NOT JUST THE CODE. HC038 is raised in this lane
+-- by the four session/interview doors below AND by app.guard_interview_status,
+-- a TRIGGER. That is exactly why 121:297's code-only `throws_ok(reopen_interview
+-- (i2), 'HC038', null, …)` did NOT flip reopen_interview's verdict: neutralize
+-- the door's own raise and the UPDATE it then reaches asks the trigger for
+-- `cancelled -> in_progress`, which is not a legal transition — so the trigger
+-- re-raises HC038 and the code-only pin passes against the WRONG enforcer.
+--
+-- ⛔ PLACEMENT IS LOAD-BEARING, not cosmetic. Under mutation a deny arm does not
+-- refuse: it SUCCEEDS and its effect PERSISTS (pgTAP's throws_ok only rolls the
+-- statement back when it raises). A deny arm placed upstream of a bare lifecycle
+-- call on the same object makes that call raise, aborts the FILE, changes the run
+-- SHAPE, and the harness scores ERROR — not COVERED — throwing the measurement
+-- away even though the keystone is correct. This block is therefore LAST in the
+-- file and builds its own interview / session / subject world.
+-- =========================================================================
+select test_helpers.claims_for((select sa_x from k), false, 'staff_admin');
+set local role authenticated;
+create temp table kb_i on commit drop as
+  select * from public.create_interview((select case_x from cs), 'Entrevista K', null,
+                                         'witness', 'standard');
+reset role;
+grant select on kb_i to authenticated;
+
+select test_helpers.claims_for((select sa_x from k), false, 'staff_admin');
+set local role authenticated;
+create temp table kb_s1 on commit drop as
+  select * from public.schedule_session((select id from kb_i), null, 'presencial',
+                                         now() + interval '3 days', now() + interval '3 days 1 hour',
+                                         'Sala K', null);
+create temp table kb_s2 on commit drop as
+  select * from public.schedule_session((select id from kb_i), null, 'presencial',
+                                         now() + interval '4 days', null, null, null);
+create temp table kb_s3 on commit drop as
+  select * from public.schedule_session((select id from kb_i), null, 'presencial',
+                                         now(), now() + interval '1 hour', null, null);
+select public.start_session((select id from kb_s3));
+select public.complete_session((select id from kb_s3));
+create temp table kb_sj on commit drop as
+  select * from public.add_interview_subject((select id from kb_i), (select st_x2 from k),
+                                              null, 'Enfermeiro(a)', null, null, 'nurse');
+reset role;
+grant select on kb_s1 to authenticated;
+grant select on kb_s2 to authenticated;
+grant select on kb_s3 to authenticated;
+grant select on kb_sj to authenticated;
+
+-- Fixture preconditions the arms below depend on, asserted rather than assumed:
+-- kb_i is awaiting_follow_up (writable, NOT terminal), kb_s3 is completed.
+select is((select status from public.case_interviews where id = (select id from kb_i)),
+  'awaiting_follow_up',
+  '§K fixture: kb_i is awaiting_follow_up — writable and NON-terminal, the state every arm below assumes'); -- K1
+select is((select status from public.interview_sessions where id = (select id from kb_s3)),
+  'completed',
+  '§K fixture: kb_s3 is a COMPLETED session — the state cancel_session/no_show_session refuse');            -- K2
+
+-- ── update_interview (allowlist line 138 retired with this block) ────────────
+select test_helpers.claims_for((select sa_x from k), false, 'staff_admin');
+set local role authenticated;
+select lives_ok(
+  $$ select public.update_interview((select id from kb_i), 'Título K', null, 'expert', null) $$,
+  '⭐ ALLOW-LEG DIFFERENTIAL: a writer CAN edit a non-terminal interview — without a SUCCESSFUL call pg_stat_user_functions records 0 calls for update_interview and ARM=floor still reds, so the allowlist line cannot be retired'); -- K3
+reset role;
+select is((select interview_category from public.case_interviews where id = (select id from kb_i)),
+  'expert',
+  '⭐ …and the admitted call really EDITED. lives_ok alone is satisfied by a door that returns without doing anything — which is how an allow leg goes vacuous');                                        -- K4
+select test_helpers.claims_for((select sa_x from k), false, 'staff_admin');
+set local role authenticated;
+select throws_ok(
+  $$ select public.update_interview((select id from kb_i), null, null, 'categoria_invalida', null) $$,
+  'HC0B1', 'informe uma categoria válida para a entrevista',
+  '⭐⭐ KEYSTONE [PROPERTY: validation — NOT authorization]: update_interview refuses an out-of-vocabulary interview_category with HC0B1 — the door''s OWN raise. ADR 0187 D2: this COVERED is VALIDATION coverage; update_interview''s AUTHORIZATION lives in app.assert_interview_writable (HC039), a separate worklist row. HC0B1 is pinned elsewhere only on create_interview (121:58), a sibling. C2 BLIND 2026-09-02');    -- K5
+reset role;
+
+-- ── update_session (allowlist line 145 retired with this block) ──────────────
+select test_helpers.claims_for((select sa_x from k), false, 'staff_admin');
+set local role authenticated;
+select lives_ok(
+  $$ select public.update_session((select id from kb_s1), null, 'remoto',
+                                   now() + interval '5 days', now() + interval '5 days 1 hour',
+                                   null, 'https://k.test/m') $$,
+  '⭐ ALLOW-LEG DIFFERENTIAL: a writer CAN edit a SCHEDULED session (clears ARM=floor''s 0-call offender line for update_session)');                                                                       -- K6
+reset role;
+select is((select modality from public.interview_sessions where id = (select id from kb_s1)),
+  'remoto',
+  '⭐ …and the admitted call really EDITED the session row');                                             -- K7
+
+-- ── cancel_session (allowlist line 73 retired with this block) ───────────────
+select test_helpers.claims_for((select sa_x from k), false, 'staff_admin');
+set local role authenticated;
+select lives_ok(
+  $$ select public.cancel_session((select id from kb_s2), 'agenda do entrevistado') $$,
+  '⭐ ALLOW-LEG DIFFERENTIAL: a writer CAN cancel a SCHEDULED session (clears ARM=floor''s 0-call offender line for cancel_session)');                                                                     -- K8
+reset role;
+select is((select status from public.interview_sessions where id = (select id from kb_s2)),
+  'cancelled',
+  '⭐ …and the admitted call really CANCELLED');                                                          -- K9
+select is((select cancellation_reason from public.interview_sessions where id = (select id from kb_s2)),
+  'agenda do entrevistado',
+  'the free-text reason persists on the RLS-scoped, erasable row (ADR 0085 / 20260826000000), never in the un-erasable audit payload'); -- K10
+
+-- ⛔ ORDER: the two arms below are the LAST readers of kb_s2 / kb_s3. Under
+-- mutation each one SUCCEEDS and rewrites the session it targets; nothing after
+-- them reads those rows, so a mutated run FAILS (the verdict) instead of
+-- ABORTING (an ERROR).
+select test_helpers.claims_for((select sa_x from k), false, 'staff_admin');
+set local role authenticated;
+select throws_ok(
+  $$ select public.update_session((select id from kb_s2), null, 'presencial', now(), null, null, null) $$,
+  'HC038', 'esta sessão não pode ser editada neste estado',
+  '⭐⭐ KEYSTONE [PROPERTY: lifecycle — NOT authorization]: update_session refuses a CANCELLED session with HC038 — the door''s OWN and only anchored raise. ADR 0187 D2: this COVERED is LIFECYCLE coverage; update_session''s AUTHORIZATION lives in app.assert_interview_writable (HC039), a separate worklist row. The MESSAGE is pinned because app.guard_interview_status raises HC038 too. C2 BLIND 2026-09-02'); -- K11
+select throws_ok(
+  $$ select public.cancel_session((select id from kb_s3)) $$,
+  'HC038', 'uma sessão concluída não pode ser cancelada',
+  '⭐⭐ KEYSTONE [PROPERTY: lifecycle — NOT authorization]: cancel_session on a COMPLETED session raises HC038 — its ONLY anchored raise. Before this arm the file''s single mention of the door was the t19 has_function_privilege assertion at :387, a pg_proc.proacl read that cannot observe any body change. ADR 0187 D2: LIFECYCLE coverage; the door''s authorization is app.assert_interview_writable (HC039). C2 BLIND 2026-09-02');                    -- K12
+select throws_ok(
+  $$ select public.no_show_session((select id from kb_s3)) $$,
+  'HC038', 'uma sessão concluída não pode ser marcada como não comparecimento',
+  '⭐⭐ KEYSTONE [PROPERTY: lifecycle — NOT authorization]: no_show_session on a COMPLETED session raises HC038 — its ONLY anchored raise. :341 already invokes it, but ONLY on the happy path (scheduled -> no_show), so the guard branch was unpinned. ADR 0187 D2: LIFECYCLE coverage. C2 BLIND 2026-09-02');                                                                                                          -- K13
+reset role;
+
+-- ── update_interview_subject (allowlist line 140 retired with this block) ────
+select test_helpers.claims_for((select sa_x from k), false, 'staff_admin');
+set local role authenticated;
+select lives_ok(
+  $$ select public.update_interview_subject((select id from kb_sj), 'Médico(a)', 'Nota K',
+                                             null, null, 'witness') $$,
+  '⭐ ALLOW-LEG DIFFERENTIAL: a writer CAN edit an interview subject (clears ARM=floor''s 0-call offender line for update_interview_subject)');                                                            -- K14
+reset role;
+select is((select relationship_to_case from public.case_interview_subjects where id = (select id from kb_sj)),
+  'witness',
+  '⭐ …and the admitted call really EDITED the subject row');                                             -- K15
+select test_helpers.claims_for((select sa_x from k), false, 'staff_admin');
+set local role authenticated;
+select throws_ok(
+  $$ select public.update_interview_subject((select id from kb_sj), null, null, null, null, 'relacao_invalida') $$,
+  'HC0B2', 'informe uma relação válida do entrevistado com o caso',
+  '⭐⭐ KEYSTONE [PROPERTY: validation — NOT authorization]: update_interview_subject refuses an out-of-vocabulary relationship_to_case with HC0B2 — the door''s OWN and only anchored raise. ADR 0187 D2: VALIDATION coverage; its authorization is app.assert_interview_writable (HC039). HC0B2 is pinned elsewhere only on add_interview_subject (121:216), a sibling. C2 BLIND 2026-09-02'); -- K16
+reset role;
+
+-- ── cancel_interview + reopen_interview: the two arms the code-only HC038 pins
+--    above could not reach. Both target a state app.guard_interview_status
+--    CANNOT pre-empt, so under mutation the DOOR is what stops refusing.
+--    ⛔ i2 is already `cancelled` (:289). A `completed` interview would work too,
+--    but only because the message differs — the trigger would still raise HC038
+--    for the illegal completed -> cancelled transition, which is the wrong
+--    enforcer. An already-cancelled interview makes the mutated UPDATE a
+--    no-status-change write the trigger waves through.
+select test_helpers.claims_for((select sa_x from k), false, 'staff_admin');
+set local role authenticated;
+select throws_ok(
+  $$ select public.cancel_interview((select id from i2)) $$,
+  'HC038', 'esta entrevista não pode ser cancelada neste estado',
+  '⭐⭐ KEYSTONE [PROPERTY: lifecycle — NOT authorization]: cancel_interview on an ALREADY-CANCELLED interview raises HC038 — its ONLY anchored raise, reached because app.assert_interview_writable checks WRITABILITY (HC039) and never status. ADR 0187 D2: LIFECYCLE coverage. C2 BLIND 2026-09-02');                       -- K17
+select throws_ok(
+  $$ select public.reopen_interview((select id from kb_i)) $$,
+  'HC038', 'apenas entrevistas concluídas podem ser reabertas',
+  '⭐⭐ KEYSTONE [PROPERTY: lifecycle — NOT authorization]: reopen_interview on an AWAITING_FOLLOW_UP interview raises HC038 — the door''s OWN message. ⛔ :297''s existing HC038 arm passes null for the message and is satisfied under mutation by app.guard_interview_status refusing `cancelled -> in_progress` with the SAME CODE — a null-message pin cannot say which enforcer refused (specs §3.3). awaiting_follow_up -> in_progress IS a legal transition, so here only the door can refuse. ADR 0187 D2: LIFECYCLE coverage. C2 BLIND 2026-09-02'); -- K18
+reset role;
 
 select * from finish();
 rollback;

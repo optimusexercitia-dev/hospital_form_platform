@@ -11,7 +11,7 @@
 -- =============================================================================
 
 begin;
-select plan(28);
+select plan(32);
 
 update app.feature_flags set enabled = true where key in ('ethics', 'audit_trail', 'meetings', 'case_participants');
 
@@ -165,6 +165,63 @@ select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select lives_ok(format($$ select public.review_ethics_appeal(%L, 'rejected', 'mantida', 'sem fundamento') $$, (select apid from ap)),
   'review_ethics_appeal: coordinator reviews the appeal');
+reset role;
+
+-- =========================================================================
+-- §KC2 — C2-TIER1 BLIND command-door keystones (batch B, 2026-09-04).
+--
+-- ⭐ CATALOG READ, 2026-09-04 (specs §3.1 / §6.4 CONTRADICTION-1 RESOLVED, and
+-- resolved AGAINST the spec's "most likely resolution"): public.create_case_decision
+-- DOES delegate to app.assert_ethics_typed — its body's line 3, before its own
+-- checks. So :92's arm genuinely enters the delegate. What it CANNOT do is measure
+-- it: create_case_decision raises HC0J0 INLINE two lines later ("a decisão exige um
+-- caso admissível") on this very fixture, and :92 passes `null` for the message.
+-- Neutralize the delegate and the inline raise satisfies the arm with the SAME
+-- CODE — which is exactly why app.assert_ethics_typed came back BLIND with a live
+-- pin apparently on it.
+-- ⚠ MEASURED 2026-09-04, and it corrects the obvious reading of specs §3.3: the
+-- MESSAGE ALONE does not give this arm a subject either. 18 public/app functions
+-- raise HC0J0 and FIVE carry this exact string (app.assert_ethics_typed,
+-- cast_case_vote, schedule_ethics_hearing, submit_targeted_case_response,
+-- target_case_response). What makes the arm attributable is the message PLUS the
+-- CALL: create_case_decision's closure is assert_ethics_enabled →
+-- assert_ethics_coordinator → assert_ethics_typed, and none of the other four
+-- string-carriers is in it, so on THIS call the delegate is the only thing that can
+-- raise it. The sweep is the independent check — mutating app.assert_ethics_typed
+-- alone turns the suite red.
+-- ⛔ The two sibling pins named alongside :92 —
+-- 256:118 (schedule_ethics_hearing) and 255:137 (target_case_response) — are on
+-- doors that DO NOT call assert_ethics_typed at all: they raise HC0J0 inline. That
+-- part of the record was wrong about its subject.
+-- =========================================================================
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select throws_ok(
+  $$ select public.create_case_decision('00000000-0000-0000-0000-0000000e2002', 'x', 'y') $$,
+  'HC0J0', 'ação inválida para o status atual do processo ético',
+  '⭐⭐ KEYSTONE [PROPERTY: validation — NOT authorization]: app.assert_ethics_typed refuses a case with NO ethics_case_details row — the guard checks ROW EXISTENCE (its message''s "status" wording is itself a text-is-not-truth instance; the label follows the GUARD, not the string). ADR 0187 D2 (PO ruling 2026-09-04, class B provisionally): this COVERED is VALIDATION coverage; the ethics lane''s AUTHORIZATION is app.assert_ethics_coordinator (HC0J1), a separate worklist row pinned at :56. Same call and code as :92 — the MESSAGE is the whole difference. C2 BLIND 2026-09-02');
+-- A second decision, left in `draft` (create_case_decision's default status), so the
+-- appeal door's LIFECYCLE branch is reachable — `de` is issued then appealed and
+-- never leaves the allowed set inside this file.
+create temp table de2 on commit drop as select public.create_case_decision(
+  '00000000-0000-0000-0000-0000000e2001', 'ethics_ruling', 'Sumário 2', 'Motivo 2') as did;
+reset role;
+grant select on de2 to authenticated;
+select is((select status from public.case_decisions where id = (select did from de2)), 'draft',
+  '§KC2 fixture: the second decision is in draft — outside submit_ethics_appeal''s (issued, appealed) set');
+
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select throws_ok(
+  format($$ select public.submit_ethics_appeal('00000000-0000-0000-0000-0000000e2001', %L, 'Recurso') $$,
+         (select did from de2)),
+  'HC0J0', 'apenas decisões emitidas podem ser objeto de recurso',
+  '⭐⭐ KEYSTONE [PROPERTY: lifecycle — NOT authorization]: submit_ethics_appeal refuses a decision outside (issued, appealed) with HC0J0 — the door''s OWN raise. ADR 0187 D2 (PO ruling 2026-09-04, class B provisionally): LIFECYCLE coverage; the door''s AUTHORIZATION is app.assert_ethics_coordinator (HC0J1), a delegate and a separate worklist row. All seven pre-existing HC0J0 pins in the suite are on OTHER doors and every one passes a null message. C2 BLIND 2026-09-02');
+select throws_ok(
+  format($$ select public.submit_ethics_appeal('00000000-0000-0000-0000-0000000e2001', %L, 'Recurso') $$,
+         gen_random_uuid()),
+  'HC0J0', 'decisão inválida para este caso',
+  '⭐⭐ KEYSTONE [PROPERTY: validation — NOT authorization]: submit_ethics_appeal refuses a decision that does not belong to this case with HC0J0 — the door''s SECOND anchored raise, a cross-case object reference with NO caller input (specs §1.2(2), the door''s other B-class arm). Pinned alongside the lifecycle arm above so the verdict cannot survive on a technicality in either branch. C2 BLIND 2026-09-02');
 reset role;
 
 -- ========================= t19 grants + flag-OFF =========================
