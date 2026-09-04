@@ -6,7 +6,7 @@
 -- lists take members only.
 -- =============================================================================
 begin;
-select plan(7);
+select plan(9);
 
 update app.feature_flags set enabled = true
   where key in ('meetings', 'administrativo', 'case_participants', 'case_access', 'case_patient');
@@ -71,6 +71,39 @@ select throws_ok(
        '00000000-0000-0000-0000-00000000c6d2', 'x') $$,
   'HC0F1', null,
   'EXCLUSION ⭐: the RECUSED coordinator cannot author reserved content on her own case');
+
+-- ── ⭐⭐ C2 KEYSTONE — add_reserved_item's OWN 42501 authority gate ────────────
+-- Mutation-proven BLIND 2026-09-02. The door was already invoked 5× and already
+-- carried two throws_ok arms — but one pins 23514 (the distributed-ata trigger,
+-- outside the mutation anchor) and the other pins HC0F1, which belongs to
+-- app.assert_not_case_excluded, a SEPARATE enforcer with its own worklist row.
+-- Neither can observe this door's own guard vanishing. These two arms can.
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+select test_helpers.claims_for((select st_x from k), false, 'staff');
+set local role authenticated;
+select throws_ok(
+  $$ select public.add_reserved_item('00000000-0000-0000-0000-00000000c6b0',
+       '00000000-0000-0000-0000-00000000c6c1', 'substância') $$,
+  '42501', 'apenas a coordenação pode editar uma sessão reservada',
+  '⭐⭐ KEYSTONE: a plain member CANNOT author a reserved item — the door''s OWN 42501, on a case he is NOT recused from so the refusal is attributable to the coordinator gate alone. Pins the MESSAGE: a bare 42501 is also what a missing EXECUTE grant raises, and the file''s existing HC0F1 arm measures a different enforcer (C2 BLIND 2026-09-02)');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+select test_helpers.claims_for((select st_x2 from k), false, 'staff');
+set local role authenticated;
+select throws_ok(
+  $$ select public.add_reserved_item('00000000-0000-0000-0000-00000000c6b0',
+       '00000000-0000-0000-0000-00000000c6c1', 'substância') $$,
+  '42501', 'apenas a coordenação pode editar uma sessão reservada',
+  '⭐⭐ KEYSTONE OVER-GRANT TWIN: a schedule_meetings administrativo delegate is ALSO refused — authoring reserved content is coordinator-only, not a delegated capability (ADR 0061). The allow-leg differential is the coordinator''s own lives_ok above plus the READER LIST effect assertions below');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+-- restore the coordinator's claims for the case-less reader-list fixture below.
+select test_helpers.claims_for((select sa_x from k), false, 'staff_admin');
+set local role authenticated;
 
 -- case-less reader list takes MEMBERS only (sa_y is not a member of comm_x).
 create temp table ri on commit drop as

@@ -14,7 +14,7 @@
 -- (T1), not here. This file asserts every DB-side guarantee.
 
 begin;
-select plan(35);
+select plan(43);
 
 -- Enable the flag for the whole test (it ships ON in-phase, but a hermetic test
 -- must not depend on migration order).
@@ -349,6 +349,86 @@ reset role;
 select ok(
   not has_table_privilege('anon', 'public.pqs_department', 'SELECT'),
   'anon cannot SELECT pqs_department (excluded from the authenticated-only policy)');
+
+-- =========================================================================
+-- C2 · ⭐⭐ BLIND-DOOR KEYSTONES — the four HC044 custody doors + cancel_event
+-- =========================================================================
+-- All four were mutation-proven BLIND 2026-09-02. This file OWNS both error codes
+-- and asserts them nine times — but every HC044 pin is on acknowledge_event and every
+-- HC043 pin is on acknowledge_event or on raw DML against event_custody. Not one is
+-- on these four doors, so deleting their own custody gates leaves the file green.
+-- cancel_event additionally has ZERO references anywhere in the suite and sits on
+-- authz-neverclled-door-allowlist.txt line 73 — the allowlist entry and the blindness
+-- are the same fact. Its ALLOW leg + effect assertion below are what retire that line.
+--
+-- ⛔ THE P0002 TRAP. All four prologues run assert_patient_safety_enabled (23514) and
+-- can_read_event (P0002) BEFORE the custody gate, and NEITHER code is inside the C2
+-- mutation anchor. The intuitively "most authz-looking" test — a stranger gets
+-- "evento não encontrado" — stays GREEN under mutation and moves nothing.
+--
+-- ⭐ ONE PERSONA SERVES ALL FOUR. st_x is a plain member of the REPORTING commission,
+-- so can_read_event admits him (proven by this file's own acknowledge_event HC044 arm)
+-- and he fails ONLY at custody. The refusal is attributable to HC044 alone — not to
+-- the flag, not to a read denial, not to tenancy.
+--
+-- ⛔ The fixture is hand-rolled rather than reusing e1: e1 is a live participant in
+-- this file's state machine, and under mutation a deny arm SUCCEEDS — a mutated
+-- transfer or cancel of e1 would move it out from under later assertions and ABORT
+-- the file, which the C2 harness scores ERROR rather than COVERED.
+-- guard_event_status is BEFORE DELETE OR UPDATE only, so a plain INSERT is admitted.
+create temp table evc on commit drop as
+  select gen_random_uuid() as ev, gen_random_uuid() as ev_final;
+grant select on evc to authenticated;
+insert into public.patient_safety_event
+  (id, reporting_commission_id, discovered_at, title, status,
+   current_owner_kind, current_owner_commission_id, reported_by)
+values
+  ((select ev from evc),       (select comm_x from k), current_date, 'Evento C2 A', 'acknowledged',
+   'commission', (select comm_x from k), (select sa_x from k)),
+  ((select ev_final from evc), (select comm_x from k), current_date, 'Evento C2 B', 'cancelled',
+   'commission', (select comm_x from k), (select sa_x from k));
+
+-- ALLOW-LEG EFFECT for update_event: its only successful call above is a bare
+-- lives_ok, which is satisfied by a door that returns without doing anything.
+select is((select title from public.patient_safety_event where id = (select id from e1)),
+  'Queda de paciente (rev.)',
+  'C2·ALLOW-LEG EFFECT: the custodian''s update_event really CHANGED the title');
+
+select test_helpers.claims_for((select st_x from k), false, 'staff');
+set local role authenticated;
+select throws_ok(
+  format($$ select public.cancel_event(%L::uuid) $$, (select ev from evc)),
+  'HC044', 'apenas quem detém a custódia do evento pode cancelá-lo',
+  '⭐⭐ KEYSTONE: a reporting-commission member who is NOT the custodian cannot CANCEL the event — cancel_event''s OWN HC044. Zero pgTAP references before this arm (C2 BLIND 2026-09-02)');
+select throws_ok(
+  format($$ select public.transfer_event_custody(%L::uuid, 'commission', %L::uuid, 'tentativa') $$,
+    (select ev from evc), (select comm_y from k)),
+  'HC044', 'apenas quem detém a custódia do evento pode transferi-la',
+  '⭐⭐ KEYSTONE: …nor TRANSFER custody — transfer_event_custody''s OWN HC044. The four HC044 messages differ per door, which is what gives each arm a subject (C2 BLIND 2026-09-02)');
+select throws_ok(
+  format($$ select public.set_event_patient(%L::uuid, 'Invasor', 'MRN-C2-HACK', '1990-01-01'::date, null, 'male', null, null, null) $$,
+    (select ev from evc)),
+  'HC044', 'apenas quem detém a custódia do evento pode registrar dados do paciente',
+  '⭐⭐ KEYSTONE ⚕ PHI WRITE DOOR: …nor WRITE PATIENT IDENTIFIERS (name/mrn/dob/encounter/attending) — set_event_patient''s OWN HC044. Architecture Rule 12: this is one of the three Class-1 PHI modules, and until this arm nothing in the suite could see its custody gate vanish (C2 BLIND 2026-09-02)');
+select throws_ok(
+  format($$ select public.update_event(%L::uuid, 'Título invadido', null, 'moderate', null, null, null) $$,
+    (select ev from evc)),
+  'HC044', 'apenas quem detém a custódia do evento pode editá-lo',
+  '⭐⭐ KEYSTONE: …nor EDIT the event — update_event''s OWN HC044 (C2 BLIND 2026-09-02)');
+reset role;
+
+select test_helpers.claims_for((select sa_x from k), false, 'staff_admin');
+set local role authenticated;
+select throws_ok(
+  format($$ select public.cancel_event(%L::uuid) $$, (select ev_final from evc)),
+  'HC043', 'este evento já está em um estado final',
+  '⭐ KEYSTONE [PROPERTY: state — NOT authorization]: the CUSTODIAN cannot cancel an already-terminal event (HC043) — cancel_event''s SECOND anchored raise, pinned so the mutation cannot survive on either branch. ⚠ ADR 0187 D2: this arm''s COVERED is STATE coverage; cancel_event''s AUTHORIZATION coverage is the HC044 custody arm above, and the two are recorded separately');
+select lives_ok(
+  format($$ select public.cancel_event(%L::uuid) $$, (select ev from evc)),
+  '⭐ ALLOW-LEG DIFFERENTIAL: the commission custodian IS admitted by the same gate, in the same transaction. Without this leg the deny arms would pass equally well with the flag off, the event absent, or EXECUTE revoked — and ARM=floor would still see 0 recorded calls, so allowlist line 73 could not retire');
+reset role;
+select is((select status from public.patient_safety_event where id = (select ev from evc)), 'cancelled',
+  '⭐ …and the admitted call really CANCELLED. lives_ok alone is satisfied by a door that returns without doing anything — which is how an allow leg goes vacuous');
 
 -- =========================================================================
 -- Flag-gate: with patient_safety OFF, the RPCs raise feature-unavailable (23514).

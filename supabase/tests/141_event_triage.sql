@@ -16,7 +16,7 @@
 --   * set_pqs_rca_due_window: is_pqs_member-gated + range-validated (HC046).
 
 begin;
-select plan(45);
+select plan(46);
 
 update app.feature_flags set enabled = true where key = 'patient_safety';
 update app.feature_flags set enabled = true where key = 'audit_trail';
@@ -289,6 +289,25 @@ select is(
   (select count(*)::int from public.audit_log
    where entity_id = (select sentinel_ev from ev) and action = 'triage.reopened'),
   1, 'reopen emits a triage.reopened audit row');
+
+-- ⭐⭐ C2 KEYSTONE — reopen_triage's OWN 42501 (mutation-proven BLIND 2026-09-02).
+-- The door is invoked once, on the allow leg above. Its OTHER anchored raise (HC045)
+-- is pinned twice in this file — both on save_triage and on a raw UPDATE, never here —
+-- so nothing could observe reopen_triage's own NSP gate vanish.
+-- ⛔ The P0002 trap: can_read_event runs FIRST and raises an UNANCHORED P0002, so a
+-- stranger probe would stay green under mutation. sa_x is the discriminator — a
+-- reporting-commission coordinator who READS the event fine and fails only at the NSP
+-- gate, which makes the refusal attributable to the 42501 alone.
+-- ⛔ Placed AFTER the successful reopen above, not before: under mutation this arm
+-- SUCCEEDS, and upstream it would have consumed the 'triaged' state the bare allow
+-- leg needs — aborting the file, which the C2 harness scores ERROR, not COVERED.
+select test_helpers.claims_for((select sa_x from k), false, 'staff_admin');
+set local role authenticated;
+select throws_ok(
+  $$ select public.reopen_triage((select sentinel_ev from ev)) $$,
+  '42501', 'apenas o NSP pode reabrir uma triagem',
+  '⭐⭐ KEYSTONE: a reporting-commission coordinator (who CAN read the event) cannot reopen a triage — reopen_triage''s OWN 42501. Triage is NSP-only: reopening it unfreezes the worksheet that decides whether a sentinel event gets an RCA (C2 BLIND 2026-09-02)');
+reset role;
 
 -- ===========================================================================
 -- Non-PSE path: confirm records the closure reason + routes the event to 'closed'.

@@ -22,7 +22,7 @@
 -- The world is bootstrapped (truncates) — every entity is MADE here, none borrowed.
 -- =============================================================================
 begin;
-select plan(44);
+select plan(49);
 
 update app.feature_flags set enabled = true
   where key in ('case_access', 'cases', 'narratives', 'extras', 'phase_results',
@@ -35,6 +35,7 @@ create temp table k on commit drop as
   select (v->>'sa_x')::uuid   as sa_x,   -- clean coordinator (positive twin)
          (v->>'st_x')::uuid   as st_x,   -- respondent + made staff_admin
          (v->>'st_x2')::uuid  as st_x2,  -- recused    + made staff_admin
+         (v->>'st_y')::uuid   as st_y,   -- plain comm_x MEMBER, never promoted (C2 keystone)
          (v->>'comm_x')::uuid as comm_x,
          (v->>'form_u')::uuid as form_u,
          (v->>'ver_u')::uuid  as ver_u,
@@ -52,6 +53,14 @@ values ((select st_x from k),  (select comm_x from k), 'staff_admin'),
        ((select st_x2 from k), (select comm_x from k), 'staff_admin')
 on conflict (principal_id, commission_id) where commission_id is not null
 do update set role = excluded.role;
+
+-- C2 KEYSTONE fixture: st_y joins comm_x as a PLAIN member and is NEVER promoted.
+-- Both other non-coordinators in this file are deliberately made staff_admin (above),
+-- so before this row the file held NO persona who reaches assign/unassign_narrative's
+-- own 42501 authority gate — which is exactly why both doors came back C2-BLIND.
+insert into public.memberships (principal_id, commission_id, role)
+values ((select st_y from k), (select comm_x from k), 'staff')
+on conflict (principal_id, commission_id) where commission_id is not null do nothing;
 
 -- One open case in comm_x.
 insert into public.cases (id, organization_id, commission_id, case_number, created_by, status, visibility_policy)
@@ -167,6 +176,47 @@ select lives_ok($$select public.update_case_meta('00000000-0000-0000-0000-000000
 select lives_ok($$select public.set_case_offered_outcomes('00000000-0000-0000-0000-0000000c8001', array['00000000-0000-0000-0000-0000000c8501','00000000-0000-0000-0000-0000000c8502']::uuid[])$$, '2a·TWIN set_case_offered_outcomes: clean coordinator still sets');
 select is((select label from public.cases where id='00000000-0000-0000-0000-0000000c8001'), 'legit rename',
   '2a·TWIN update_case_meta LANDED (row changed — semantic, not just no-throw)');
+reset role;
+
+-- ===========================================================================
+-- §2c ⭐⭐ C2 KEYSTONES — assign_narrative / unassign_narrative's OWN 42501
+-- ===========================================================================
+-- Both doors were mutation-proven BLIND 2026-09-02 and both are ADR 0187 D-M1's
+-- canonical illustration: this file already fires FOUR throws_ok arms at them, and
+-- every one pins HC0F1 — which belongs to app.assert_not_case_excluded, a SEPARATE
+-- enforcer with its own worklist row. Deleting each door's own 42501 leaves all four
+-- green. The arms below are the first that can see it go.
+--
+-- ⚠ The 42501 check sits BEFORE assert_not_case_excluded in both bodies, so a caller
+-- who was both non-admin and recused would still stop at 42501. st_y is neither
+-- recused nor a respondent, which keeps the refusal attributable to authority alone.
+-- ⚠ The message is the generic 'sem permissão' (95 functions raise it with 42501),
+-- so it discriminates against a missing EXECUTE grant but NOT against a sibling door.
+-- The PRE arm below is what gives these two their subject.
+
+-- EFFECT assertions on the §2a TWIN allow legs above — a lives_ok alone is satisfied
+-- by a door that returns without doing anything (designs §4.2).
+select is((select assigned_to from public.case_narratives where id='00000000-0000-0000-0000-0000000c8201'),
+  (select sa_x from k),
+  '2c·ALLOW-LEG EFFECT: the §2a TWIN assign_narrative really SET assigned_to');
+select is((select assigned_to from public.case_narratives where id='00000000-0000-0000-0000-0000000c8204'),
+  null::uuid,
+  '2c·ALLOW-LEG EFFECT: the §2a TWIN unassign_narrative really CLEARED assigned_to');
+
+select is(app.is_member_of_for((select comm_x from k), (select st_y from k))
+      and not app.is_staff_admin_of_for((select comm_x from k), (select st_y from k)), true,
+  '2c·PRE ⭐: st_y IS a comm_x member and is NOT staff_admin — measured through the 3-arg *_for predicates, whose hat condition short-circuits when p_user_id <> auth.uid(), so the denials below are attributable to the MISSING ROLE and not to a missing active_role hat');
+
+select test_helpers.claims_for((select st_y from k), false, 'staff');
+set local role authenticated;
+select throws_ok(
+  $$select public.assign_narrative('00000000-0000-0000-0000-0000000c8201', (select sa_x from k))$$,
+  '42501', 'sem permissão',
+  '⭐⭐ KEYSTONE: a plain comm_x MEMBER cannot assign a narrative — assign_narrative''s OWN 42501, the raise this file''s four HC0F1 arms structurally cannot observe (C2 BLIND 2026-09-02)');
+select throws_ok(
+  $$select public.unassign_narrative('00000000-0000-0000-0000-0000000c8204')$$,
+  '42501', 'sem permissão',
+  '⭐⭐ KEYSTONE: a plain comm_x MEMBER cannot unassign a narrative — unassign_narrative''s OWN 42501, same shape, separate worklist row (C2 BLIND 2026-09-02)');
 reset role;
 
 -- ===========================================================================

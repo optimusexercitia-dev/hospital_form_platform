@@ -12,10 +12,10 @@
 --
 -- Fixture-flag lesson: case_corrections is enabled explicitly below.
 --
--- Assertion count: 39
+-- Assertion count: 47
 
 begin;
-select plan(39);
+select plan(47);
 
 update app.feature_flags set enabled = true
   where key in ('case_corrections', 'cases_multi_phase', 'cases_extras',
@@ -556,6 +556,73 @@ select is(
 select is(
   (select count(*)::int from public.responses where id = (select root_id from c13b)),
   0, 'K13: the same member cannot read a predecessor on a case where they hold no request');
+reset role;
+
+-- ===========================================================================
+-- K14 · ⭐⭐ C2 KEYSTONES — all six correction doors' OWN authority raises
+-- ===========================================================================
+-- ADR 0187 C5: this cluster is 6/8 enforcers BLIND (75 % against a 23 % base) and
+-- the mechanism is uniform. The file ALREADY fires throws_ok at every one of the six
+-- — eight HC000 arms (K8) and two HC0F1 arms (K9) — and both codes match the C2
+-- mutation anchor, so the cluster reads as covered twice over. Neither code is in
+-- any door's own body: HC000 belongs to app.assert_case_corrections_enabled and
+-- HC0F1 to app.assert_not_case_excluded, each a SEPARATE worklist row. Delete all
+-- six doors' own authority raises and every existing arm stays green.
+--
+-- The allow-leg differential for all six is already standing: K4/K5/K6 drive
+-- start→resubmit→review→approve/reject to a scored effect, K10 proves the narrative
+-- body swap, K11/K12 the voids. None of the six is on the never-called allowlist.
+create temp table r13 on commit drop as
+  select id as req from public.case_correction_requests where case_phase_id = (select phase_id from c13);
+grant select on r13 to authenticated;
+
+-- PRE ⭐ — the fixture is the trap (§7.1 #3). Both discriminators are asserted through
+-- the 3-arg *_for predicates / a direct column read, so neither denial below can be
+-- blamed on a missing active_role hat instead of on the authority it means to test.
+select is(app.is_member_of_for((select comm_x from k), (select st_x from k))
+      and not app.is_staff_admin_of_for((select comm_x from k), (select st_x from k)), true,
+  'K14·PRE ⭐: st_x IS a comm_x member and is NOT staff_admin — the 42501 arms below are attributable to the ROLE');
+select is((select permitted_corrector from public.case_correction_requests where id = (select req from r13)),
+  (select st_x2 from k),
+  'K14·PRE ⭐: r13''s designated corrector is st_x2 — so sa_x, who FILED it, is not the corrector and reaches HC0M1');
+
+-- ── A1 · the three staff_admin-only doors, called by a plain member ──────────
+select test_helpers.claims_for((select st_x from k), false, 'staff');
+set local role authenticated;
+select throws_ok(
+  format($$ select public.review_correction(%L) $$, (select req from r13)),
+  '42501', 'apenas administradores podem revisar correções',
+  '⭐⭐ KEYSTONE: a plain member cannot review a correction — review_correction''s OWN 42501 (C2 BLIND 2026-09-02)');
+select throws_ok(
+  format($$ select public.approve_correction(%L, null) $$, (select req from r13)),
+  '42501', 'apenas administradores podem aprovar correções',
+  '⭐⭐ KEYSTONE: a plain member cannot approve a correction — approve_correction''s OWN 42501. ⛔ Deliberately NOT its HC061: that raise sits inside an `exception when others … raise;` wrapper, so neutralized the bare re-raise carries the delegate''s HC061 with the SAME sqlstate and a code-pinned arm would stay GREEN under mutation');
+select throws_ok(
+  format($$ select public.reject_correction(%L, 'x') $$, (select req from r13)),
+  '42501', 'apenas administradores podem reprovar correções',
+  '⭐⭐ KEYSTONE: a plain member cannot reject a correction — reject_correction''s OWN 42501 (HC0M6, its other anchored raise, has ZERO pins anywhere in the suite)');
+reset role;
+
+-- ── A2 · the three corrector-only doors, called by the (staff_admin) filer ───
+-- sa_x is the tightest discriminator here: he clears every authority gate the door
+-- has EXCEPT the designated-corrector identity, so the refusal is attributable to it.
+select test_helpers.claims_for((select sa_x from k), false, 'staff_admin');
+set local role authenticated;
+select throws_ok(
+  format($$ select public.start_correction_draft(%L) $$, (select req from r13)),
+  'HC0M1', 'apenas o corretor designado pode iniciar o rascunho',
+  '⭐⭐ KEYSTONE: a staff_admin who is NOT the designated corrector cannot start the draft — start_correction_draft''s OWN HC0M1, a code with ZERO pins suite-wide before this arm (C2 BLIND 2026-09-02)');
+select throws_ok(
+  format($$ select public.resubmit_correction(%L) $$, (select req from r13)),
+  'HC0M1', 'apenas o corretor designado pode reenviar',
+  '⭐⭐ KEYSTONE: …nor resubmit it — resubmit_correction''s OWN HC0M1. The three HC0M1 messages differ per door, which is what gives each arm a subject (a code-only pin could not say which of the three refused)');
+-- ⚠ save_correction_draft_body refuses a PHASE request at an UNANCHORED
+-- check_violation ('esta solicitação não é de narrativa') BEFORE it ever reaches
+-- HC0M1 — so this arm must use the NARRATIVE request rn10, not r13.
+select throws_ok(
+  format($$ select public.save_correction_draft_body(%L, 'invasão') $$, (select req from rn10)),
+  'HC0M1', 'apenas o corretor designado pode editar o rascunho',
+  '⭐⭐ KEYSTONE: …nor edit a narrative draft body — save_correction_draft_body''s OWN HC0M1, reached on the NARRATIVE request rn10 whose corrector is st_x (on a phase request this door dies earlier at an unanchored check_violation the mutation cannot touch)');
 reset role;
 
 select * from finish();

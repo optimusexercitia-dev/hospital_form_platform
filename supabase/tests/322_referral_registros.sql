@@ -25,7 +25,7 @@
 -- masquerade as passing isolation.
 
 begin;
-select plan(63);
+select plan(64);
 
 -- Flags ON for the whole test (hermetic; must not depend on migration order).
 update app.feature_flags set enabled = true where key = 'case_referrals';
@@ -315,6 +315,16 @@ select throws_ok(
     (select id from note_src)),
   '42501', null,
   '4.10 an UNASSIGNED former assignee loses edit authority (the gate is not cached)');
+-- ⭐⭐ C2 KEYSTONE — unassign_referral_internal_note's OWN 42501.
+-- Mutation-proven BLIND 2026-09-02. Its other anchored raise (HC0A9) is pinned TEN
+-- times across the suite and never once on this door; 322:313 above pins 42501 but on
+-- update_referral_internal_note, a SIBLING. Nothing could observe this door's own
+-- authority gate vanish. The note is still `open` here, so the refusal cannot be
+-- attributed to the HC0A9 conclusion freeze (which is asserted separately at 4.12).
+select throws_ok(
+  format($$ select public.unassign_referral_internal_note(%L) $$, (select id from note_src)),
+  '42501', 'apenas a coordenação desta comissão pode remover o responsável',
+  '⭐⭐ KEYSTONE 4.10b: a member of this side who is NOT the coordinator cannot clear a Registro''s assignee — unassign_referral_internal_note''s OWN 42501, pinned by MESSAGE so the sibling door''s identically-coded raise cannot satisfy it. The allow-leg differential is 4.8/4.9 above (C2 BLIND 2026-09-02)');
 reset role;
 
 -- Conclude, then prove the freeze.

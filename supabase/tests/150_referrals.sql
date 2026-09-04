@@ -21,7 +21,7 @@
 -- SECURITY DEFINER RPC, so a DB-side test can observe them).
 
 begin;
-select plan(220);
+select plan(226);
 
 -- Flags ON for the whole test (hermetic; must not depend on migration order).
 update app.feature_flags set enabled = true where key = 'case_referrals';
@@ -1635,6 +1635,50 @@ select is(
     - (select c from nv_base2),
   0,
   'R5·Rule11(b): a 0-note read emits ZERO referral.note_viewed rows (no PHI read → no audit)');
+
+-- =========================================================================
+-- C2 · ⭐⭐ BLIND-DOOR KEYSTONES — conclude / reopen / withdraw_referral
+-- =========================================================================
+-- All three were mutation-proven BLIND 2026-09-02, and for the same reason: each
+-- code in their own bodies is pinned repeatedly elsewhere in this suite, but always
+-- on a SIBLING door. HC0A5's single pin (R3·K5 above) is on resolve_referral; HC070
+-- is pinned 5× and HC071 7×, never on withdraw_referral; HC074 and HC075 have ZERO
+-- pins anywhere in the suite. Every one of the three is invoked successfully in this
+-- file — they are grep-positive, lifecycle-exercised and mutation-blind.
+--
+-- ⛔ PLACEMENT IS LOAD-BEARING, and not for the usual hat reason. Under mutation an
+-- authority arm SUCCEEDS, so a deny leg placed upstream of a bare (unwrapped)
+-- lifecycle call on the SAME referral would move that referral out from under it and
+-- ABORT the file — which the C2 harness scores as ERROR, not COVERED. r10 is the only
+-- referral this file leaves in a terminal-for-its-purposes state, so all three arms
+-- land here, after every lifecycle call, and mutate nothing anything else reads.
+
+-- PRE ⭐ — the two preconditions the arms below depend on, asserted not assumed.
+select is((select status from public.case_referral where id = (select id from r10)), 'in_review',
+  'C2·PRE: r10 is still in_review — conclude_referral''s target-acts delegate admits the call, so the HC075 arm reaches the door''s OWN guard');
+select is((select response_expected from public.case_referral where id = (select id from r10)), true,
+  'C2·PRE: r10 expects a reply — without this the HC075 branch is unreachable and the keystone would be vacuous');
+-- ALLOW-LEG EFFECT for withdraw_referral: its only successful call (r1, line ~474) is
+-- bare. A lives_ok/bare call alone is satisfied by a door that returns doing nothing.
+select is((select status from public.case_referral where id = (select id from r1)), 'withdrawn',
+  'C2·ALLOW-LEG EFFECT: withdraw_referral''s successful call really moved r1 to withdrawn');
+
+select test_helpers.claims_for((select sa_y from k), false, 'staff_admin');
+set local role authenticated;
+select throws_ok(
+  format($$ select public.conclude_referral(%L, %L, null) $$,
+    (select id from r10), (select outcome_procede from voc)),
+  'HC075', 'descreva o resultado da análise para concluir',
+  '⭐⭐ KEYSTONE [PROPERTY: validation — NOT authorization]: conclude_referral with an EMPTY result_md is refused (HC075). ADR 0187 D2 — this COVERED is VALIDATION coverage; the door''s authorization is app.assert_referral_target_acts, a SEPARATE worklist row with its own verdict. Pins the message because the door raises HC075 twice with different strings (C2 BLIND 2026-09-02)');
+select throws_ok(
+  format($$ select public.reopen_referral(%L, 'tentativa') $$, (select id from r10)),
+  '42501', 'apenas a coordenação da comissão de origem pode reabrir o encaminhamento',
+  '⭐⭐ KEYSTONE: the TARGET coordinator cannot reopen — reopen_referral''s OWN 42501. sa_y is the sharpest discriminator: he can read and act on this referral from the target side, so the refusal is attributable to the SOURCE-coordination gate alone (C2 BLIND 2026-09-02)');
+select throws_ok(
+  format($$ select public.withdraw_referral(%L) $$, (select id from r10)),
+  'HC071', 'apenas a coordenação da comissão de origem pode retirar o encaminhamento',
+  '⭐⭐ KEYSTONE: …nor withdraw it — withdraw_referral''s OWN HC071, on a status (in_review) that is INSIDE the door''s withdrawable set, so the refusal cannot be attributed to its HC070 state guard (C2 BLIND 2026-09-02)');
+reset role;
 
 select * from finish();
 rollback;
