@@ -1239,3 +1239,37 @@ RPC/authz claim the live catalog is the sole truth — never a migration file, n
   fast-forward AHEAD of Gate AE4's declaration, NOT pushed — `push-schema-before-code`
   ([rule](../../.claude/rules/push-schema-before-code.md)) fires at the push (`db:push` first;
   Coolify deploys `main`).
+
+### 2026-09-03 — the Gate AE4 blocker batch, and two process defects in how it was recorded
+
+Cleared, in one session: `BUG-AE49-D6-REKEY-INCOMPLETE` (`e3f986b1`), the site-axis gate hole that
+hid it, F-BLOCK-3 by PO ruling, F-BLOCK-2 items 1 + 3, F-REC-4, the IA-F9 record findings, F-MAJOR-1
+remediation (a) and MAJOR-5 (`1d913daf`), `e2e:prod` **GATE GREEN**. PO ruled approval **HELD until
+C2 closes**, so nothing was re-scoped and ADR 0162's clause stands.
+
+⛔ **Defect 1 — `bb180e2a`'s message under-describes its own diff.** That commit also carried a
+restructuring of this program's acceptance document that its message never mentions: § 6.1's P2 row
+retired (with both retirement steps recorded), § 6.1's P3 row marked **NARROWED rather than struck**
+— because its per-protected-row bound is still live for every *unconverted* path — § 6.2's DC2 row
+marked as re-aimed **after** a failing reading, and § 13.2's P7 row amended to record the negative
+control plus the fact that run 6's P7 PASS stands as a *bare positive*. A reader of `bb180e2a` would
+not know any of that happened. ⭐ The class is the one this program keeps meeting: **a record that
+is true and incomplete reads as complete**, and nothing can contradict it.
+
+⛔ **Defect 2 — those edits were committed unreviewed, after the lead had said it would review
+first.** The author was told "do not commit — I will review and commit"; its first batch was
+reviewed and approved, its second batch was swept in by a `git add -A docs/` and reviewed only
+**afterwards**. The content turned out sound (the P3 call in particular was the subtle and correct
+one). That is luck, not method. ⚠ A teammate later reported this as a non-issue on the grounds that
+the commit was the lead's own and deliberate — true, and it does not address the claim: *deliberate*
+and *reviewed* are different properties, and only one of them was present.
+
+⭐ **A figure corrected, worth keeping because the wrong version was already committed once.** The
+Gate AE4 review's "`principal_inactive` … through `assignment_facts` at **layer 1**" became "at
+**depth 2**" in paraphrase, and the lead repeated it into a spawn prompt and into the hub. Re-derived
+on the live catalog (fresh reset, recursive closure over `pg_proc.prosrc`, **comments stripped before
+matching**): `assignment_facts` is at search depth **4** on all three rows, "depth 2" holds for one
+arm of one row, and `org.professionals.read` reaches `respondent_exclusion` at depth **5**. Fixed in
+`cbe565c6`. The comment-stripping was load-bearing — on raw `prosrc`,
+`is_org_commission_staff_admin` reports as a live arm of `can_create_professional` where the catalog
+shows it only inside a **comment**.
