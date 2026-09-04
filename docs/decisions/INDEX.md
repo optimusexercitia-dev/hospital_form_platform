@@ -12,7 +12,7 @@
 >
 > Edges are **advisory** and over-inclusive by design; the ADR text is truth.
 
-**184 ADRs** · next free number: **0187** · 60 carry an inbound supersedes/amends edge
+**185 ADRs** · next free number: **0188** · 61 carry an inbound supersedes/amends edge
 
 ## ⚠ Anomalies
 
@@ -205,6 +205,7 @@
 | 0181 | [Acceptance condition P1 bounds the INDEX PATH, not the `Seq Scan` node](0181-p1-bounds-the-index-path-not-the-scan-node.md) | accepted | 2026-09-02 | – | – |
 | 0182 | [The permission answer is computed once per STATEMENT, not once per protected row](0182-statement-scoped-authorized-scope-ids.md) | accepted | 2026-09-03 | – | ⚠ amended by 0183 |
 | 0183 | [Acceptance condition P2 counts INVOCATIONS against a bound, not `loops` values](0183-p2-invocation-count-respecification.md) | accepted | 2026-09-03 | amends 0182 | – |
-| 0184 | [C2's full sweep runs against the current branch's schema, not against `main`](0184-c2-sweep-runs-against-the-current-branch-schema.md) | accepted | 2026-09-02 | amends 0162 | – |
+| 0184 | [C2's full sweep runs against the current branch's schema, not against `main`](0184-c2-sweep-runs-against-the-current-branch-schema.md) | accepted | 2026-09-02 | amends 0162 | ⚠ amended by 0187 |
 | 0185 | [Documentation restructure: feature hubs, CURRENT.md, and gated registers for bugs, foll…](0185-documentation-restructure-feature-hubs-and-gated-registers.md) | accepted | 2026-09-03 | amends 0124, 0139, 0140, 0179 | ⚠ amended by 0186 |
 | 0186 | [Documentation consolidation: one home per fact, one summary and one log per unit](0186-documentation-consolidation-one-home-per-fact.md) | accepted | 2026-09-03 | amends 0179, 0185 | – |
+| 0187 | [C2 closes on DISCLOSURE, its BLIND set is labelled by PROPERTY, and three of ADR 0184's…](0187-c2-closes-on-disclosure-and-the-blind-set-is-labelled-by-property.md) | accepted | 2026-09-04 | amends 0184 | – |

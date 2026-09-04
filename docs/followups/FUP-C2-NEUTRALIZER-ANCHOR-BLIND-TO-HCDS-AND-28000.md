@@ -2,6 +2,24 @@
 
 Index entry: [follow-ups-open.md](follow-ups-open.md) · filed 2026-09-02 · status open
 
+⛔ **AMENDED 2026-09-04 — the FIRST half's diagnosis is FALSIFIED on the live catalog (ADR
+[0187](../decisions/0187-c2-closes-on-disclosure-and-the-blind-set-is-labelled-by-property.md) C3).**
+The population is **8 functions**, and **every one of them also raises an anchored `42501`** — so
+**none** is excluded by the `:153` gate-fn filter, and the "structurally absent from the 171"
+conclusion below does **not** hold. Four are in the 171 today (`create_dsr_request` COVERED,
+`complete_dsr_task` COVERED, `assume_role` ERROR, `adjudicate_dsr_request` ERROR); four are absent
+(`appoint_hospital_dpo`, `attest_dsr_task`, `close_dsr_request`, `revoke_hospital_dpo`) for a
+**Tier-1 membership** reason — none appears in `c2-tier1-doors.txt` — which widening the anchor
+cannot fix. ⇒ **The remedy changes**: the anchor fix is still owed for the 5 semicolon-spanning
+ERROR rows, but this lane needs a **ruling on whether the DSR/DPO doors are Tier 1** (they touch
+`mrn` and `file_ref`).
+⭐ **Why the "60" was wrong is the reusable lesson: it was counted "over the 519 migration files".**
+CLAUDE.md's binding graphify exception says migration text is STALE by design and the live catalog
+is the sole truth for any authorization question — and here the file count and the catalog disagree
+by a factor that inverted the conclusion. The **second half — semantic over-breadth — stands**, and
+is now partly discharged: ADR 0187 D-M2 classifies the 40 BLIND rows by property (12 `42501`, 13
+permission-worded `HC0*`, 14 state/lifecycle/validation). The 109 COVERED rows are still unclassified.
+
 ⚠ **The ID names only the first half.** It is kept unchanged because an ID is the join key and a rename orphans every name-keyed verdict (register header rule). The **second half — semantic over-breadth — is recorded in the same entry below** and is the half that changes what C2 may CLAIM.
 
 (no evidence any DSR door is unguarded), which is why it is not 🔴. It is not 🟡 because it silently

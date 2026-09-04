@@ -231,3 +231,112 @@ sweep and re-capture `BASE_S`.
 - Run-number detail trimmed from "Done since start": full sweep baseline `Files=259, Tests=8685,
   PASS`, ~53 s/run (design doc assumed ~23 s); anchor-regex fix validated 2294/2294 matched, 0
   regressions; PO ruling covered 519 migrations (AE4's 18 included) vs `main`'s 501.
+
+### 2026-09-04 — three PO rulings and six corrections; C2's closure condition fixed (ADR 0187)
+
+Phase 0 of closing C2: record only — no code, no migrations, no test files. Everything below was
+**re-measured before being written** (the PO's instruction was explicit: do not inherit the numbers).
+Decision: ADR [0187](../decisions/0187-c2-closes-on-disclosure-and-the-blind-set-is-labelled-by-property.md),
+which **amends ADR 0184** (points 4 and 5 and the Consequences remedy clause).
+
+**Number check.** 0187 = highest on any live branch + 1, verified by enumerating `docs/decisions/`
+across every `refs/heads`/`refs/remotes` ref (`main` → 0186, `origin/authz-c2-tier1` → 0180) plus
+`git worktree list` (one worktree). No `0187-*.md` exists on any ref. Not taken from INDEX.md's
+next-free line, which this project has trusted into a collision twice (0180, 0183).
+
+#### The three rulings (PO, given directly 2026-09-04)
+
+1. **Tier 2 is a DISCLOSURE obligation, not a closure blocker.** ADR 0184 point 4's "a gate record
+   **must state** the three uncovered populations" governs. The hub's "must be **resolved**" was a
+   drafting error and is corrected. C2 closes on: the anchor fix, the ERROR class re-swept, and the
+   keystones. Tier 2's **190 doors stay deferred by ADR 0171 and are NOT cleared**, and every gate
+   record must say so.
+2. **The 15 BLIND doors with no authorization raise in their own body close via state-guard
+   keystones carrying an EXPLICIT PROPERTY LABEL.** Their resulting COVERED is recorded as
+   state/lifecycle/validation coverage and ⛔ **never** as authorization coverage — that promotion
+   is exactly what ADR 0184 point 5 forbids. **The label is the condition of the closure, not a
+   nicety.**
+3. **`app.print_source_series` is ruled OUT of the BLIND set** — a **defensive bound on a walk, not
+   an authorization guard**. Its only anchored raise (`HC0H4`) fires at supersession-chain depth
+   > 1000, a shape its own body comment records as unconstructible under
+   `guard_supersession_coherent` + the one-successor unique index. ⛔ Recorded **so nobody later
+   attempts a 1001-row fixture.** Keystone count 40 → **39**.
+
+#### The six corrections, and how each was measured
+
+| # | Correction | Method | Result |
+| --- | --- | --- | --- |
+| C1 | The keystone design covers **3** doors, not 40 | read `docs/design/authz-c2-blind-keystone-designs.md` — title "…the **three** BLIND command-door guards", three door sections (§1 `nsp_org_capa_rollup`, §2 `cancel_event`, §3 `cancel_session`) | **CONFIRMED** — hub's "designs complete" is false; **36 of 39** have no design |
+| C2 | The ERROR population is **22**, not "~10" | verdict counts off the findings table (`106/40/25`) + `FUP-C2-SUITE-ABORT-ERROR-CLASS`'s own split | **CONFIRMED, reconciles exactly** — 16 suite-abort + 5 semicolon-spanning + 1 `save_block_to_library` = 22; 106 + 3 tail-drift = **109**; 109+40+22 = **171** |
+| C3 | The `HCDS*`/`28000` population is **8 functions**, not "60 raises + 6" | `pg_proc.prosrc` regex over `public`+`app`, counting actual `raise … errcode` per family; then `grep` each against `supabase/tests/mutation/c2-tier1-doors.txt` | **CONFIRMED** — 9 mention the codes, 1 (`list_dsr_disposable_meetings`) raises none → **8**; **all 8 also raise an anchored `42501`**, so none is excluded by the `:153` gate-fn filter |
+| C4 | The "`main` is not pushed" blocker is **false** | `git rev-parse main origin/main`; `ls supabase/migrations \| tail` | **CONFIRMED** at `27ec066a`, head `20261003007340`. ⚠ `main` advances past `origin/main` continuously as work lands — ordinary tracking state, not a C2 blocker |
+| C5 | The cluster figures are wrong | verdict tally per name-cluster off the findings table | **CONFIRMED** — correction workflow **6/8**, interview+session **11/21**, referral 4/32, base rate 40/171 = **23 %**. Hub said 4/5 and 6/9 |
+| C6 | The keystone design's §1.2 premise is wrong | `grep -n` for both names in `supabase/tests/189_nsp_per_hospital_isolation.sql` | **CONFIRMED** — the `42501` deny arm (L224/227) is on `nsp_org_event_rollup` **only**; `nsp_org_roster` is called once on the allow leg (L215), which is why it came back BLIND |
+
+**C3's mechanism, stated because it changes the remedy.** The `:153` gate-fn filter is
+`f.body ~* 'errcode\s*(=|=>)\s*''(42501|HC0[A-Z0-9]{2})'''` or a gate-name match. All 8 pass it. The
+join that actually excludes four of them is the *other* one — reachability from a Tier-1 door
+(`clo_full` ⋈ `tier1`). Measured: `create_dsr_request`, `complete_dsr_task`, `assume_role`,
+`adjudicate_dsr_request` are in `c2-tier1-doors.txt` **and in the 171** (COVERED, COVERED, ERROR,
+ERROR); `appoint_hospital_dpo`, `attest_dsr_task`, `close_dsr_request`, `revoke_hospital_dpo` are in
+neither. ⇒ **a Tier-1 membership reason, not an anchor reason**, and widening the anchor cannot
+reach them. That is why ADR 0187 is an **amendment** to 0184 rather than an erratum: 0184's own
+Consequences prescribe "the anchor widened" as the remedy for this bullet, and that prescription is
+now insufficient.
+
+#### Measurements taken in support (not among the six)
+
+- ⭐ **Dominant finding: 36 of the 40 BLIND doors are already invoked by the pgTAP suite**, across
+  **24 distinct test files**. Only four have zero references (`app.assert_ethics_typed`,
+  `public.add_capa_action_evidence`, `public.cancel_event`, `public.nsp_org_capa_rollup`). They are
+  BLIND because the tests enter the function only on a path where the guard is not deciding. ⇒ the
+  work is **adding deny legs to files that exist**, not writing 39 new tests. ⚠ The estimate
+  offered was "34 of 40, 16 files"; the measured figures are **36 and 24**, and the 24 is a *host*
+  count — the sweep did not record which doors already carry a deny arm on the *mutated* raise, so
+  the number of files needing an edit is ≤ 24 and was not derived.
+  Method: `grep -rlE "\b<name>\s*\(" supabase/tests/*.sql` per BLIND enforcer; the one comment-only
+  hit (`382_zero_policy_tables_are_door_only.sql:45`) was excluded by reading it.
+- **`public.assign_narrative` is the clean illustration** — three `throws_ok` arms on `HC0F1` in
+  `237_authz_exclusion_perimeter_u2.sql`, still BLIND, because the mutated raise is its `42501`.
+  An existing deny arm does not imply coverage of the raise the harness removes.
+- **The 39 keystones split by property** (ADR 0187 D-M2), from `pg_proc.prosrc`: **12** raise
+  `42501` in their own body; **13** raise only `HC0*` but with a permission-worded message
+  (`sem permissão…`, `apenas o corretor designado…`, `apenas quem detém a custódia…`); **14** are
+  state / lifecycle / validation only. 12 + 13 + 14 = 39, and 15 − 1 (`print_source_series`, D3) =
+  14 reproduces the PO's "15" exactly.
+- **`app.print_source_series` verified in the findings** at row 157 — BLIND, 1 Tier-1 door
+  depending, **1** anchored raise, i.e. `HC0H4` is its only one. Body read from `pg_proc`, never
+  from a migration file.
+
+#### Not measured, named so it does not read as covered
+
+- Whether the four absent `HCDS*` doors (`appoint_hospital_dpo`, `attest_dsr_task`,
+  `close_dsr_request`, `revoke_hospital_dpo`) *should* be Tier 1. They touch `mrn` and `file_ref`,
+  which is why the question is live, but the Tier-1 predicate was not re-run against them. **This
+  is a ruling owed, not a measurement owed.**
+- The remote migration head `20261003007340` was corroborated only against the **local**
+  `supabase/migrations/` listing; no remote query was made (the DB is read-only for this session and
+  the remote was not contacted).
+- The `HC0*`-by-property classification is done **only for the 40 BLIND rows**. The 109 COVERED rows
+  are still labelled `HC0*`-coded-guard coverage, not authorization coverage (ADR 0184 point 5
+  stands for them).
+
+#### Correction to this record's own history
+
+⛔ The "Next task (as of the handoff)" paragraph above quotes **"correction workflow 4 of 5 BLIND,
+interview 6 of 9, referral 3 of 16"**. Those figures are **wrong** and are superseded by C5's
+measured 6/8, 11/21 and 4/32. The paragraph is left standing as the historical record of what the
+handoff said; the numbers in it must not be re-quoted.
+
+#### Artifacts touched
+
+- **Written:** `docs/decisions/0187-c2-closes-on-disclosure-and-the-blind-set-is-labelled-by-property.md`
+  (`**Amends:** 0184`), `docs/decisions/INDEX.md` (regenerated).
+- **Corrected:** `docs/features/c2-tier1.md` — acceptance criteria (state/resolve, the 8-function
+  and 22-ERROR figures, D2's label), `## Current state` (designs 3-of-39, cluster figures,
+  `main`-not-pushed struck, 40 → 39). Block is 33 lines, under the 60 cap.
+- ⛔ **Untouched by design:** `docs/reviews/c2-command-door-findings.md`. It still reads 106/40/25
+  and is **derived per run** (ADR 0153) — the correction lives here, in ADR 0187 and in the register.
+- ⛔ **Untouched by ownership:** `supabase/tests/`, `supabase/migrations/`, `package.json`,
+  `src/lib/role/` — a backend agent held them concurrently. Catalog access was read-only; no reset,
+  no write.

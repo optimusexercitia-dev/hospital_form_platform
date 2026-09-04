@@ -9,7 +9,7 @@ branch: ~   # landed on main with AE4 2026-09-03; authz-ae4-catalog deleted; not
 plan: ../plans/authz-evolution.md
 progress: ../progress/c2-tier1.md
 reviews: ["../reviews/c2-command-door-findings.md"]
-adrs: ["0171", "0162", "0079", "0184", "0153"]
+adrs: ["0187", "0171", "0162", "0079", "0184", "0153"]
 handoff: ~
 fup: ~
 ---
@@ -30,29 +30,36 @@ Full ruling: `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` / Critical FUP C2
       [findings](../reviews/c2-command-door-findings.md))
 - [ ] `FUP-C2-THREE-BLIND-COMMAND-DOOR-GUARDS` — "the first 8 measurements ... found 3 BLIND:
       `public.nsp_org_capa_rollup`, `public.cancel_event` (both **0** pgTAP mentions) and
-      `public.cancel_session`" — each needs a keystone; still true of the larger 40 BLIND from the
-      full sweep, and none are written yet (docs/followups/follow-ups-open.md)
+      `public.cancel_session`" — each needs a keystone; still true of the larger BLIND set from the
+      full sweep — **39** keystones, 40 BLIND less `app.print_source_series` (ADR 0187 D3), none
+      written yet (docs/followups/follow-ups-open.md)
 - [ ] "`assume_role` remains ERROR-shaped, not COVERED, and must be resolved *within* Tier 1"
       (docs/design/authz-c2-tier1-sizing.md § 10; unchanged per the c2-tier1-neutralizer handoff)
 - [ ] "the C2 subset closed (pilot cutline)" before Gate AE4's PO approval — **still open despite
       the full sweep**: "C2 IS NOT CLOSED" (docs/progress/2026-Q3.md; ADR 0184 points 4–5;
       docs/plans/authz-evolution.md:1066; ADR 0162 §3, amended by ADR 0184 on branch-order only)
-- [ ] The three uncovered populations named in ADR 0184 point 4 must be resolved before the class
-      can be called swept: Tier 2's 190 doors (deferred, ADR 0171); the `HCDS*` family (60 raises)
-      + `28000` (6), structurally absent from the worklist because the mutation anchor and the
-      gate-fn filter share one syntax; ~10 ERROR enforcers with no verdict at all (35 raises span a
-      `;` the anchor cannot match)
+- [ ] The three uncovered populations named in ADR 0184 point 4 must be **STATED** in every gate
+      record citing this sweep — a disclosure obligation, **not** a closure blocker (PO ruling
+      2026-09-04, ADR 0187 D1; the hub's former "must be resolved" was a drafting error). ⛔ Tier 2's
+      **190 doors stay deferred by ADR 0171 and are NOT cleared** — say so verbatim. The other two:
+      the `HCDS*`/`28000` lane — **8 functions**, all raising an anchored `42501`, so **none** is
+      excluded by the `:153` gate-fn filter (ADR 0184's "structurally absent" diagnosis does not
+      hold; 4 already carry verdicts, 4 are absent for a **Tier-1 membership** reason — ADR 0187
+      C3); and **22** ERROR enforcers with no verdict (16 suite-abort + 5 semicolon-spanning + 1
+      `save_block_to_library`; the "~10" was an in-flight extrapolation — ADR 0187 C2)
 - [ ] "A COVERED/BLIND verdict from this run means `HC0*`-coded-guard coverage, NOT authorization
-      coverage" — the `HC0*` space must be classified by property before a verdict here can be read
-      as an authorization claim (ADR 0184 point 5)
+      coverage" (ADR 0184 point 5) — operationalised by ADR 0187 D2: the **14** BLIND doors with no
+      authorization raise in their own body close via state-guard keystones carrying an **EXPLICIT
+      PROPERTY LABEL** (state / lifecycle / validation), ⛔ never recorded as authorization coverage.
+      The label is the condition of the closure
 
 ## Current state
 
-**Updated:** 2026-09-03
+**Updated:** 2026-09-04
 
 ### Objective
 
-Sweep the 237 command doors that touch PHI (Tier 1, gate-aware closure over `ARM=census`'s population), then close the three uncovered populations the sweep itself exposed, before Gate AE4's PO approval (ADR 0162 §3, amended on branch-order by ADR 0184).
+Sweep the 237 command doors that touch PHI (Tier 1, gate-aware closure over `ARM=census`'s population), then close C2 on **three** items — the anchor fix, the ERROR class re-swept, and 39 keystones — before Gate AE4's PO approval (ADR 0162 §3; branch-order amended by ADR 0184, closure condition set by ADR 0187 D1). The three uncovered populations are **stated**, not resolved.
 
 ### Done since start
 
@@ -60,21 +67,22 @@ Sweep the 237 command doors that touch PHI (Tier 1, gate-aware closure over `ARM
 - PO ruling 2026-09-02 lifted the branch-order HOLD — the sweep ran against the branch's own schema, not `main`'s (ADR 0184).
 - C2's commits merged into `authz-ae4-catalog` 2026-09-03; a duplicate-ADR-number collision was resolved by renumbering C2's sweep ADR to 0184 (detail: record).
 - Anchor-regex fix for the semicolon-spanning ERROR class validated — staged, not yet applied to the harness.
+- **2026-09-04, ADR 0187** — three PO rulings (Tier 2 = disclosure not blocker; state-guard keystones carry an explicit property label; `app.print_source_series` ruled OUT of the BLIND set, 40 → **39** keystones) and six corrections re-measured against the live catalog. Detail + method: the record.
 
 ### In progress
 
-- Keystones for the 40 BLIND findings — designs complete (`docs/design/authz-c2-blind-keystone-designs.md`), none written yet.
-- Classifying the `HC0*` error space by property (state guard vs. authorization guard) so a verdict can be read honestly.
+- Keystones for the **39** BLIND findings — ⛔ designs cover **3 of 39** (`docs/design/authz-c2-blind-keystone-designs.md`, titled "the three BLIND command-door guards"); 36 have no design and none is written. Its §1.2 premise is corrected by ADR 0187 C6.
+- Classifying the `HC0*` error space by property. Measured split of the 39 (ADR 0187 D-M2): **12** authorization via `42501`, **13** authorization via a permission-worded `HC0*`, **14** state / lifecycle / validation — the last needing D2's label.
 
 ### Next
 
-- Write keystones, targeting the clusters first (correction workflow 4/5 BLIND, interview 6/9 — not spread evenly).
-- Land the validated anchor-regex fix, then the delta sweep for `HCDS*`/`28000` (a new population).
+- Write keystones, targeting the clusters first — measured rates against a **40/171 = 23 %** base: correction workflow **6/8**, interview + session **11/21**, referral 4/32 (ADR 0187 C5). ⛔ The old "4/5, 6/9, 3/16" figures are retired, do not re-quote.
+- ⭐ **36 of the 40 BLIND doors are already invoked by the suite**, across 24 test files — the work is **adding deny legs to files that exist**, not writing 39 new tests (ADR 0187 D-M1).
+- Land the validated anchor-regex fix (owed for the 5 semicolon-spanning ERROR rows). The `HCDS*`/`28000` delta is re-scoped: 4 of its 8 doors already carry verdicts; the other 4 need a Tier-1 membership ruling, which the anchor fix cannot deliver.
 - Diagnose the 16 suite-abort doors (`FUP-C2-SUITE-ABORT-ERROR-CLASS`); resolve `assume_role`'s ERROR shape to COVERED within Tier 1.
-- Cut a new branch from `main` for the next increment — C2's remaining work currently has none.
 
 ### Blockers
 
-- C2 does **not** close despite the full sweep — the mutation anchor is a syntax, not a property (three uncovered populations, ADR 0184 point 4).
-- C2's remaining work has no branch — `authz-ae4-catalog` landed on `main` and was deleted 2026-09-03; `main` is not pushed.
-- 40 BLIND findings need keystones; allowlisting is prohibited — it would make `ARM=floor` and this harness agree while both measure nothing.
+- C2 does **not** close yet — the anchor fix is unlanded, the ERROR class unswept, and 39 keystones unwritten (ADR 0187 D1). ⚠ Tier 2's 190 doors are **NOT** a blocker: they stay deferred by ADR 0171 and must be **stated** in every gate record, never cleared.
+- 39 BLIND findings need keystones; allowlisting is prohibited — it would make `ARM=floor` and this harness agree while both measure nothing.
+- ~~`main` is not pushed~~ — **struck 2026-09-04** (ADR 0187 C4): `origin/main` and `main` measured identical at `27ec066a`, remote migration head `20261003007340`. C2's remaining work lands on `main`; no branch is owed.
