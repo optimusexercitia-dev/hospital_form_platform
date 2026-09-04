@@ -85,8 +85,8 @@ Substitute `staff_admin` end-to-end against the `authz` catalog and make 3 of 43
 
 ### In progress
 
-- Formal QA **re-review** — the last open step of Gate AE4's own list, and the only one left before C2. ⚠ Both reviews are now **stale against `main`**: most IA-F9 findings were already fixed by `9a4bbd22` and the rest are corrected. The re-review verifies and signs; re-filing them would be wrong.
-- F-MAJOR-1 remediation **(a)** and IA-F9 MAJOR-5's door-sweep re-run — both with `backend` 2026-09-03. Neither writes a migration, so the E2E green above survives them.
+- Clearing the re-review's own findings: **N1/N5/N6/N8 done** (lead), **N2/N3/N4 done** (`967caf0a`). Remaining are the broad review's ten pre-existing open findings — three of them named in its own APPROVED conditions: **F-MAJOR-3**, **F-MAJOR-4b** (provably incapable of failing alone) and **F-MAJOR-5** (both vector generators' `--self-test` invoked by no gate).
+- ⚠ **The door sweep's WRITE arm for `professional_profiles_select` is `exit 3` = UNPROVEN, recorded as such and NOT as a pass.** The zero is attributed by the harness itself — *"a SELECT policy has no write semantics"* — and its domain is the live catalog, unlike the 33-row snapshot that made ADR 0178's write-arm zero an apparatus gap.
 
 ### Next
 

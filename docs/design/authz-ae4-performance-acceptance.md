@@ -1319,6 +1319,14 @@ new shape, restores byte-identical, ACLs unchanged. ⚠ The door's body md5 also
 `RESET=0 · LOAD=0 · PASSA=3 · PASSB=3 · P1PROBE=0` · pgTAP `Files=261, Tests=8738` **PASS** ·
 lint 12/12 **0** · typecheck **0** · `census`/`hat`/`floor`/`wrapper` all **0** ·
 door-sweep read arm **CLEAN/COVERED**.
+⛔ **BOTH ARMS, recorded 2026-09-04** — the line above named only the read arm, and this tree's rule
+is that the sweep is TWO arms (`FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED`). Re-run for
+`professional_profiles_select` on a fresh reset at head `20261003007340` (re-review N3): read arm
+**exit 0, CLEAN, COVERED**; **write arm `exit 3` = UNPROVEN — not a pass.** The write zero is
+attributed by the harness itself (*"a SELECT policy has no write semantics"*, guard arm 0/13, policy
+arm 0/107) and its domain is the **live catalog**, which is what separates it from ADR 0178's
+write-arm zero — that one came off a 33-row snapshot and was an apparatus gap. Figures for both arms
+live in `../progress/authz-ae4.md`.
 
 | | pass A | pass B | threshold | |
 | --- | --- | --- | --- | --- |

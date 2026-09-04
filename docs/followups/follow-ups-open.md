@@ -1209,6 +1209,13 @@ same commit, or not at all.**
 **Status:** open
 **Body:** [FUP-ONE-SUPABASE-PROJECT-SERVES-TEST-AND-PRODUCTION.md](FUP-ONE-SUPABASE-PROJECT-SERVES-TEST-AND-PRODUCTION.md)
 
+### 🟠 FUP-DOOR-SWEEP-DERIVER-NAME-FILTER-DROPS-A-REAL-GATE — the deriver returns ZERO cases for a diff that added a gate, so the case list was hand-widened and reads as derived
+
+**Filed:** 2026-09-04 (re-review N3's write-arm work; `BASE=9a4bbd22^ TIP=9a4bbd22` → exit 1, zero cases) · **Owner:** backend · **Severity:** high — CLAUDE.md § 6 step 1 requires the list to be derived by the script "never by hand", and downstream nothing can tell a hand-widened list from a derived one.
+**Closes when:** the deriver selects gates by a **property** rather than a name filter, so a diff adding a DEFINER door or an RLS policy yields that gate without hand-widening — or, if the filter must stay, it prints what it excluded and why, so a widening is visibly a widening. Either way `9a4bbd22` must stop producing zero cases. ⛔ Widening the filter to admit one name does not close it: that leaves the boundary a syntax and the next door outside the pattern reproduces it.
+**Status:** open
+**Body:** [FUP-DOOR-SWEEP-DERIVER-NAME-FILTER-DROPS-A-REAL-GATE.md](FUP-DOOR-SWEEP-DERIVER-NAME-FILTER-DROPS-A-REAL-GATE.md)
+
 ### 🟠 FUP-VALIDATIONS-WRITE-PATH-IS-LAYER-1 — the re-keyed `form_item_validations` policy is unreachable; its real writer `set_item_validations` is still layer-1
 
 **Filed:** 2026-09-03 (Gate AE4 blocker batch, found while fixing `BUG-AE49-D6-REKEY-INCOMPLETE`) · **Owner:** backend · **Severity:** high — the permission is load-bearing on a door nothing opens, while the door actually used answers to the legacy role check.
