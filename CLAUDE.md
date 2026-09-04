@@ -282,8 +282,14 @@ authorization question the **live catalog is the sole truth**: `pg_proc` (incl. 
 — a DEFINER's gate *replaces* RLS), `pg_policies`, `pg_policy`, `pg_trigger`, and the ACLs.
 Never graphify it, never grep it, never read the migration file and believe it (ADR 0078).
 
+<!-- ⛔ Never hand-copy the block below outside these markers: `next dev` maintains it here, and an unmarked twin (deleted 2026-09-04) made every spawn load it twice. -->
+
+<!-- BEGIN:nextjs-agent-rules -->
+
 # This is NOT the Next.js you know
 
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
 
 This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->
