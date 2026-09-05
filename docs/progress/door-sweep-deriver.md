@@ -668,3 +668,32 @@ counted**: `pg_policies` degenerate non-SELECT → **0 rows**. The container nam
 ⚠ **Out of scope, observed:** `docs/followups/follow-ups-archive.md` carries five more
 `731abda0^..HEAD` citations with the same HEAD-relative rot. They are archived closure text and
 were not rewritten.
+
+#### Iteration-1 gate — fresh `supabase db reset --local`, every code read BARE
+
+`git status --short` was **empty** before the reset, and empty after every step below. The
+reset itself: bare rc **0**, `Finished supabase db reset on branch authz-door-sweep-deriver`.
+
+| step | command | OBSERVED |
+|---|---|---|
+| lint | `npm run lint` | bare rc **0** — eslint at `--max-warnings=0` plus all 13 chained gates, including `lint:adr-index` and `lint:registers` (ratchets unchanged: `closesWhenPoToRule=137/147`, `severityPerEmoji=128/135`, `longHeadings=91/97`) |
+| typecheck | `npm run typecheck` | bare rc **0** |
+| pgTAP | `npm run test:db` | bare rc **0**, `Files=262, Tests=8876, Result: PASS` — byte-for-byte the last known-good shape; ⚠ compared as a SHAPE, not as a summary line, because the parked `FUP-PGTAP-WORKER-DEADLOCK` flake keeps `Files=262` while losing assertions |
+| arm — census | `ARM=census bash …/p0-authz-invariant.sh` | bare rc **0**, `live authz gates (catalog): 581`, `gates carrying a verdict: 625`, `=== INVARIANT HOLDS ===` |
+| arm — hat | `ARM=hat …` | bare rc **0**, `self-test: 7/7 OK`, `=== INVARIANT HOLDS ===` |
+| arm — floor | `ARM=floor …` | bare rc **0**, `authenticated-reachable prosecdef doors with 0 calls: 63`, `OK: every never-called door is on the floor allowlist`, `=== INVARIANT HOLDS ===` |
+| arm — wrapper | `FROMFINDINGS=1 ARM=wrapper …` | bare rc **0**, `BLIND set size: 41`, `OK: every BLIND wrapper is on the allowlist`, `=== INVARIANT HOLDS ===` |
+| self-test | `SELFTEST=1 bash scripts/door-sweep-cases.sh` | bare rc **0**, `SELF-TEST: PASS 34 · FAIL 0 · SKIPPED 0`, catalog REACHABLE (so no scenario skipped vacuously) |
+| the sweep, DERIVED | `BASE=main TIP=HEAD bash scripts/door-sweep-cases.sh` | bare rc **3**, stdout **0 bytes**, `=== RESULT: NOT-APPLICABLE (3) — no migration file in the diff. ===` and `SCOPE: 0 file(s) — 0 committed (main..HEAD), 0 worktree, 0 untracked \| filter: none \| derivation: NOT REACHED (this run ended before the catalog was probed)` |
+
+⭐ This settles QA could-not-verify **#1**: `test:db` and all four arms are re-read AT THE TIP,
+not carried forward from `62829c79` on a delta argument.
+
+**Scope guards, all measured after the gate:**
+
+- `git diff --name-only main... -- supabase/migrations supabase/seed.sql src` → **0 files**.
+- `git diff --stat main... -- docs/reviews/` → **only** `door-sweep-deriver-review.md`; the four
+  committed findings baselines `cmp` **byte-identical** to `main`, one by one.
+- `git diff --name-only main... -- .claude/rules docs/lead-playbook.md CLAUDE.md` → **0 files**.
+- Catalog after the arms (which run the full suite): `pg_policies` degenerate non-SELECT
+  **ENUMERATED** — ⛔ never counted — → **0 rows**. No `authz-*INFLIGHT*` sentinel anywhere.
