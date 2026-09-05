@@ -699,7 +699,7 @@ reset itself: bare rc **0**, `Finished supabase db reset on branch authz-door-sw
 | typecheck | `npm run typecheck` | bare rc **0** |
 | pgTAP | `npm run test:db` | bare rc **0**, `Files=262, Tests=8876, Result: PASS` — byte-for-byte the last known-good shape; ⚠ compared as a SHAPE, not as a summary line, because the parked `FUP-PGTAP-WORKER-DEADLOCK` flake keeps `Files=262` while losing assertions |
 | arm — census | `ARM=census bash …/p0-authz-invariant.sh` | bare rc **0**, `live authz gates (catalog): 581`, `gates carrying a verdict: 625`, `=== INVARIANT HOLDS ===` |
-| arm — hat | `ARM=hat …` | bare rc **0**, `self-test: 7/7 OK`, `=== INVARIANT HOLDS ===`. ⛔ **DOMAIN HALF NOT CAPTURED** (QA F2-REC-6, disclosed 2026-09-05): `self-test: 7/7 OK` is the arm's INSTRUMENT CONTROL, not what it enumerated — §7.17 wants the domain beside the verdict, as the census / floor / wrapper rows do. The finding enumeration for THIS run was not written down and cannot be recovered from the record. ⛔ It is deliberately NOT back-filled from `62829c79`'s `4 finding(s), all reasoned-allowlisted`: that is a claim about THAT run, and copying it would be this unit's own register lesson (a confident number that is not evidence about the thing it describes). Re-establishing it needs a hat re-run at the tip — a work item for the next gate, not a pass |
+| arm — hat | `ARM=hat …` | bare rc **0**, `self-test: 7/7 OK`, `=== INVARIANT HOLDS ===`. ⛔ **DOMAIN HALF NOT CAPTURED** (QA F2-REC-6, disclosed 2026-09-05): `self-test: 7/7 OK` is the arm's INSTRUMENT CONTROL, not what it enumerated — §7.17 wants the domain beside the verdict, as the census / floor / wrapper rows do. The finding enumeration for THIS run was not written down and cannot be recovered from the record. ⛔ It is deliberately NOT back-filled from `62829c79`'s `4 finding(s), all reasoned-allowlisted`: that is a claim about THAT run, and copying it would be this unit's own register lesson (a confident number that is not evidence about the thing it describes). Re-establishing it needs a hat re-run at the tip — a work item for the next gate, not a pass. ✅ **DONE 2026-09-05, and this row is left exactly as it was measured:** the hat re-run happened at the tip `ee037fa3` and its domain half — the enumerated 4 findings, their allowlist reasons, and the population measured from the live catalog — is in § *2026-09-05 — backend: gate re-read at the tip `ee037fa3`* below. ⛔ The figures there are that run's, and are NOT retrofitted onto this row |
 | arm — floor | `ARM=floor …` | bare rc **0**, `authenticated-reachable prosecdef doors with 0 calls: 63`, `OK: every never-called door is on the floor allowlist`, `=== INVARIANT HOLDS ===` |
 | arm — wrapper | `FROMFINDINGS=1 ARM=wrapper …` | bare rc **0**, `BLIND set size: 41`, `OK: every BLIND wrapper is on the allowlist`, `=== INVARIANT HOLDS ===` |
 | self-test | `SELFTEST=1 bash scripts/door-sweep-cases.sh` | bare rc **0**, `SELF-TEST: PASS 34 · FAIL 0 · SKIPPED 0`, catalog REACHABLE (so no scenario skipped vacuously) |
@@ -827,3 +827,142 @@ and this record). Codes read **BARE**:
 inside comment blocks: no policy, no `prosecdef` gate, no SQL, nothing under `supabase/` or `src/`
 changed. The instrument that *does* cover the edited scripts — the 34-scenario self-test — was
 re-run and is in the table above, which is the arm-shaped evidence this diff can actually earn.
+
+---
+
+### 2026-09-05 — backend: gate re-read at the tip `ee037fa3`
+
+The iteration-1 gate rows were measured before the three QA fix-loop commits, and iterations 2–3
+argued from a delta ("docs-only, so no arm is owed") instead of re-measuring. The lead asked for
+the Phase-Gate step-1 arms to be **re-read at the final tip**, so every row below is a measurement
+of `ee037fa3` itself rather than an argument from `7e1f0d62`. It also re-establishes F2-REC-6's
+deliberately-blank `hat` DOMAIN half — **by re-running the arm, not by back-filling a number from
+an older commit.**
+
+⛔ **Standing constraints, all held.** Only this record and the hub were edited, and only after
+every run had finished (a QA delta check was reading the commit concurrently). No migration,
+policy, grant, RPC, seed or `src/` change; nothing under `docs/reviews/`. **Every exit code read
+BARE**, on the line after the command, never through a pipe. Every DB-touching step ran
+**detached** — PowerShell `Start-Process` on `C:\Program Files\Git\bin\bash.exe` with the script
+as **argv[1]** (⛔ never `-c`: `-ArgumentList "-c","bash <script>"` joins unquoted and starts
+nothing, the 2026-09-04 deviation) — so nothing ran under a tool timeout.
+
+⚠ **The container is not a detail, and it was DISCRIMINATED rather than assumed.** Two Supabase
+stacks are up on this machine — `supabase_db_azkbbhskturikxpgmafq` and the unrelated
+`supabase_db_escalume` — and iteration 1 already recorded a "0" that was a claim about the wrong
+database. Every command ran from the repo root, and the catalog reads name the container
+explicitly. Its identity was then *proved* in the same query: `authz` schema present (**1**) and
+**526** `app` functions, where `escalume` has no `authz` schema and 74. Independently, the reset's
+own last line — `Finished supabase db reset on branch authz-door-sweep-deriver.` — says which tree
+it applied, and the door-sweep self-test prints
+`catalog  : REACHABLE (supabase_db_azkbbhskturikxpgmafq)`.
+
+| step | command | bare rc | OBSERVED |
+|---|---|---|---|
+| reset | `supabase db reset --local` | **0** | `Finished supabase db reset on branch authz-door-sweep-deriver.` |
+| pgTAP | `npm run test:db` | **0** | `All tests successful.` · `Files=262, Tests=8876, 100 wallclock secs` · `Result: PASS` — byte-for-byte the known-good SHAPE |
+| arm — census | `ARM=census bash supabase/tests/mutation/p0-authz-invariant.sh` | **0** | `live authz gates (catalog): 581` · `gates carrying a verdict:   625` · `extension-owned, excluded:  0` · `=== INVARIANT HOLDS ===` |
+| arm — hat | `ARM=hat …` | **0** | `self-test: 7/7 OK` · `HAT-BLIND SWEEP HOLDS: 4 finding(s), all reasoned-allowlisted` · `=== INVARIANT HOLDS ===` — **domain half quoted in full below** |
+| arm — floor | `ARM=floor …` | **0** | `authenticated-reachable prosecdef doors with 0 calls: 63` · `OK: every never-called door is on the floor allowlist.` · `OK: every floor-allowlist entry resolves to a live door.` · `=== INVARIANT HOLDS ===` |
+| arm — wrapper | `FROMFINDINGS=1 ARM=wrapper …` | **0** | `mode: FROMFINDINGS (comparing COMMITTED findings md, no sweep)` · `BLIND set size: 41` · `OK: every BLIND wrapper is on the allowlist.` · `=== INVARIANT HOLDS ===` |
+| self-test | `SELFTEST=1 bash scripts/door-sweep-cases.sh` | **0** | `SELF-TEST: PASS 34 · FAIL 0 · SKIPPED 0`, `catalog  : REACHABLE (supabase_db_azkbbhskturikxpgmafq)` — SKIPPED 0 is what makes the 34 non-vacuous |
+
+⛔ **No BLIND and no ERROR in any arm**, and every figure is **identical** to the pre-fix-loop
+baseline — census 581/625, hat 7/7 + 4, floor 63, wrapper 41. All four preflights printed
+`clean — 0 degenerate bodies in app+public (all three forms)`.
+
+⭐ **The pgTAP flake did not hit, and that was MEASURED, not inferred from the rc.**
+`FUP-PGTAP-WORKER-DEADLOCK` keeps `Files=262` while assertions drop, so `Files=` alone cannot
+clear it: a `grep -c -i "deadlock detected"` over the run's stderr returned the VALUE **0**, and
+the assertion total is **8876**, the full known-good count. ⚠ That `grep -c` exited **1** on its
+zero count — the register's own trap — so the VALUE was read, never the code.
+
+#### The `hat` arm's DOMAIN half — quoted, at the tip (closes F2-REC-6)
+
+⛔ This is the half iteration 1 left blank. `self-test: 7/7 OK` is the arm's INSTRUMENT CONTROL,
+not what it enumerated; §7.17 wants the population and the findings beside the verdict. Verbatim
+from this run's stdout:
+
+```
+=== ACT hat-blind sweep (ADR 0106 S4 / ADR 0079 Am. 6 method) ===
+self-test: 7/7 OK (blind flagged · covered not flagged · class-4 param flagged · has_role_any anchor flip seen · x-table policy flagged · covered x-table policy not flagged · authz.holds_role anchor flip seen)
+anchors: app.has_role(4-arg) + app.has_role_any + authz.holds_role carry the active-role condition
+HAT-BLIND SWEEP HOLDS: 4 finding(s), all reasoned-allowlisted:
+  fn: authz.assignment_facts(p_principal uuid)
+  fn: public.assume_role(p_role platform_role)
+  fn: public.session_context()
+  policy: public.memberships.memberships_select (SELECT)
+```
+
+**The population it swept**, from the executed predicate (`act-hat-blind-sweep.sh:195`,
+`where n.nspname in ('app','public','authz') and p.prokind = 'f'`) plus every RLS policy in every
+schema — **measured against the live catalog in the same session, not read off the script**:
+**1091** functions in `app`+`public`+`authz` with `prokind='f'`, and **283** RLS policies. The
+four findings are that population's caller-bound raw `public.memberships` reads carrying no
+adjacent active-role condition.
+
+**Their allowlist reasons** live in `supabase/tests/mutation/act-hat-blind-allowlist.txt`, one
+reasoned block each, and the contract is EQUALITY in both directions (a new finding is exit 1; an
+entry with no live finding is a GHOST, also exit 1) — so the 4 findings and the 4 entries matched
+exactly. Summarised, each with the WRONG THE DAY clause that would retire it:
+
+- `fn: public.session_context()` — the picker/D9 door; must report every role TYPE the caller
+  holds regardless of the active hat, or the picker could never show the other hats there are to
+  switch to. Wrong the day its output is used as an ACCESS DECISION rather than an option list,
+  or it reads any `memberships` rows beyond the caller's own.
+- `fn: public.assume_role(p_role platform_role)` — the hat-ACQUISITION door; consulting the
+  current hat would make switching to any other held role impossible. Wrong the day it returns or
+  acts on grant data beyond validating the requested role, or stops writing its audit row.
+- `policy: public.memberships.memberships_select (SELECT)` — the self arm; the caller's own grant
+  list is precisely what the picker just showed them, and the policy's other four arms delegate to
+  `is_*` predicates that ride `has_role` and therefore the hat. Wrong the day row-visibility
+  becomes a CAPABILITY, or the policy gains ANY further raw `memberships` arm.
+- `fn: authz.assignment_facts(p_principal uuid)` — the ADAPTER; a PROJECTION, not a door, because
+  the hat filter is permission-dependent and many-to-many and is only expressible where the grant
+  join happens, i.e. in the consumer. Wrong the day a FOURTH caller appears that does not apply
+  the §6A filter, anything grants USAGE on `authz` or EXECUTE on it, or
+  `authz.explain_permission` gains a caller.
+
+⚠ **An observation about the arm, not a defect in this run.** Its method header at
+`act-hat-blind-sweep.sh:18` still states the population as *"every function in schemas app+public"*
+while the executed predicate at `:195` reads `('app','public','authz')` — `authz` joined the domain
+at AE4.7b and the header sentence did not follow. The header is prose; the predicate is what ran,
+and the `authz.assignment_facts` finding above is the proof the wider domain was in force. Left
+as-is: this session's scope is the record and the hub. ⭐ Exactly the register's "text is not
+truth" shape, in the very file that defines a domain.
+
+#### Post-run catalog and scope guards
+
+| guard | how | OBSERVED |
+|---|---|---|
+| degenerate non-`SELECT` policies | `pg_policies`, `cmd <> 'SELECT'` and `qual`/`with_check` in (`true`,`(true)`), **ENUMERATED** — ⛔ never counted — against `supabase_db_azkbbhskturikxpgmafq` | **0 rows** (`(0 rows)`), psql bare rc **0** |
+| container identity | same query | `authz` schema **1**, `app` functions **526** — not `escalume` |
+| sentinels | every `*INFLIGHT*.sql` **arming** file (not the `.body`/`.md5`/`.oid` sidecars) under the temp roots | **47** enumerated, **46** at 0 bytes, **1** non-zero — see below |
+| working tree | `git status --short` | **0 lines**, bare rc 0 |
+| reviews untouched | `git diff --stat -- docs/reviews/` | **0 lines**, bare rc 0 |
+| tip unmoved | `git rev-parse HEAD` | `ee037fa329fea98c87472cf08f4f8f947f7e88a2` on `authz-door-sweep-deriver` |
+
+⭐ **The sentinel sweep found one non-zero file, and finding it depended on the search DEPTH.**
+A first pass at `-maxdepth 4` over the temp roots returned "6 sentinels, 0 non-zero" — clean, and
+wrong: the per-session scratchpads sit at depth 5–6, so the shallow sweep never looked where the
+harnesses actually write. Re-run at `-maxdepth 6`: **47** sentinels, **1** non-zero —
+`…/9346f622-…/scratchpad/hcs/c2-INFLIGHT-testB.sql`, **10 bytes**, containing exactly `select 1;`,
+dated 2026-09-04 20:04, and carrying **no `.body`, `.md5` or `.oid` sidecars**. A real armed
+sentinel holds a restoring `CREATE OR REPLACE` plus all three sidecars, so this is a
+HARNESS-CRASH-SAFETY self-test fixture, not a stranded mutation. The catalog agrees independently:
+all four arm preflights read `0 degenerate bodies in app+public (all three forms)` and the
+enumerated degenerate-policy query returned 0 rows. ⛔ Recorded rather than quietly re-scoped,
+because the shallow sweep's "0 non-zero" is exactly the shape of an enumeration bounded by a
+SYNTAX (`-maxdepth`) instead of by the PROPERTY it means to check.
+
+⚠ **A reading artifact worth naming.** The arm logs were first read back through PowerShell
+`Get-Content`, which decoded UTF-8 as the console codepage and turned `—`/`·`/`⊆` into mojibake.
+The bytes on disk were correct all along. Every quotation above was re-read through Git Bash
+before being written here, so the record carries the arm's real characters — had the mojibake been
+transcribed, `npm run lint`'s `check-mojibake` gate would have caught it, but the QUOTES would
+already have been false.
+
+**What this entry does NOT claim.** It re-reads Phase-Gate step 1's DB arms only. `npm run lint`
+and `npm run typecheck` were not re-run — the tree is byte-identical to the tip whose iteration-3
+gate ran them both at rc 0 — and the diff-scoped door sweep is still **not owed** (no migration,
+policy or `prosecdef` change on this branch). The six follow-up closures remain pending QA + PO.

@@ -51,7 +51,7 @@ the fifth in the full-run emit path of the sweep harness that writes the committ
 
 ## Current state
 
-**Updated:** 2026-09-05 (QA fix loop, iteration 3 of ≤5 — the non-blocking F2-RECs)
+**Updated:** 2026-09-05 (gate re-read at the tip `ee037fa3` — the hat DOMAIN half is now measured)
 
 ### Objective
 Make `scripts/door-sweep-cases.sh` — the instrument CLAUDE.md §6 step 1 makes every phase and
@@ -78,10 +78,14 @@ half, and the hub's `adrs:` frontmatter.
 Measured, PINNED, on `731abda0^..4d5c6bd9`: 42 tokens → **18** cases, tier 1 = **39**.
 
 ### In progress
-Nothing. Iteration-3 diff is **comment-only** in `scripts/` plus `docs/`, so no `test:db` and no
-authz arm is owed. Codes read BARE: `SELFTEST=1 bash scripts/door-sweep-cases.sh` **0**
-(`PASS 34 · FAIL 0 · SKIPPED 0`, catalog REACHABLE), `bash -n` **0** on both scripts,
-`npm run lint` **0**, `npm run lint:registers` **0** with ratchets unchanged. ⭐ The two numbers
+Nothing. Phase-Gate step 1 is now **re-read at the tip `ee037fa3`** on a fresh `supabase db reset
+--local`, so the gate rows are measurements of the final commit, not a delta argument from
+`7e1f0d62`. Every code BARE, every DB step detached: reset **0**; `npm run test:db` **0**
+(`Files=262, Tests=8876`, `Result: PASS`, the parked deadlock flake measured absent, not assumed);
+`ARM=census` **0** (581 live gates / 625 verdicts); `ARM=hat` **0** (7/7 self-test **and** its 4
+enumerated findings); `ARM=floor` **0** (63); `FROMFINDINGS=1 ARM=wrapper` **0** (BLIND 41);
+`SELFTEST=1 bash scripts/door-sweep-cases.sh` **0** (`PASS 34 · FAIL 0 · SKIPPED 0`). **No BLIND,
+no ERROR**, every figure identical to the pre-fix-loop baseline. ⭐ The two iteration-3 numbers
 were **re-measured, not adopted**: the `exit [0-9]` census is **9** as QA said, but the verdict-row
 denominator is **400**, not the record's 399 *and* not QA's 401 — 401 counts `| `-leading LINES
 including the table header, 399 comes from a header rule that also swallows a stranded row.
@@ -92,11 +96,16 @@ PO**; one new follow-up stands from iteration 1
 (`FUP-AUTHZ-ROWDOOR-INVOKER-HARNESSES-HAVE-NO-GRADED-EXIT` 🟡, backend, body + entry, not fixed).
 
 ### Blockers
-None. ⚠ Four open items for the lead/PO: (1) three of the six closures rest on the follow-up
-BODY's condition because the REGISTER field read `PO to rule` — that field is the PO's; (2) a
-real full re-baseline will produce a LARGE CARRIED block — QA's structural bound on the door file
-is **2 ≤ CARRIED ≤ 26** of its 37 hand-annotated rows plus every out-of-domain gate; nothing is
-lost and everything is flagged, but it must be re-filed by hand and budgeted into Batch 2;
-(3) the `hat` arm's DOMAIN half is unrecorded for the iteration-1 gate run and was deliberately
-NOT back-filled from an older commit's table — it needs a hat re-run at the next gate (F2-REC-6);
-(4) the 34-scenario self-test is still in no gate — that is F-REC-4, the lead's playbook edit.
+None. ⚠ Three open items for the lead/PO — item (3) below **closed 2026-09-05**: (1) three of the
+six closures rest on the follow-up BODY's condition because the REGISTER field read `PO to rule` —
+that field is the PO's; (2) a real full re-baseline will produce a LARGE CARRIED block — QA's
+structural bound on the door file is **2 ≤ CARRIED ≤ 26** of its 37 hand-annotated rows plus every
+out-of-domain gate; nothing is lost and everything is flagged, but it must be re-filed by hand and
+budgeted into Batch 2; ~~(3) the `hat` arm's DOMAIN half is unrecorded~~ — **CLOSED**: the arm was
+re-run at the tip `ee037fa3` and its domain half is now recorded as measurement, not back-fill —
+`HAT-BLIND SWEEP HOLDS: 4 finding(s), all reasoned-allowlisted`, the four enumerated by name, over
+a population measured live at **1091** functions in `app`+`public`+`authz` and **283** RLS
+policies; (4) the 34-scenario self-test is still in no gate — that is F-REC-4, the lead's playbook
+edit. ⚠ One new non-blocking observation for the lead: `act-hat-blind-sweep.sh:18` still states
+its population as "app+public" while the predicate at `:195` reads `('app','public','authz')` — a
+stale prose line in the file that defines a domain, out of this session's edit scope.
