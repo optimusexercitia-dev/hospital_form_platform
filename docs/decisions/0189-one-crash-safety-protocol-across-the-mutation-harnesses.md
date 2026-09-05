@@ -185,6 +185,32 @@ happened. Its end-to-end proof of 2026-09-04 was taken under `CASES=` — i.e. a
 proven instead by driving the shipped `periodic_reset` text with `SUBSET=0` vs `SUBSET=1` against
 an instrumented reset command.
 
+> ⛔ **RE-RULED 2026-09-04, later the same day (lead ruling on the QA fix loop's iteration-1
+> deviation 1).** The two paragraphs above are left in place because they are what was decided,
+> and the rule they state is now **too broad**. The disclosed consequence is precisely why: a
+> mechanism whose only remaining proof is a **~9.5-hour full sweep** will not be re-proven, and an
+> unexercised reset path is the failure this ADR's own D2/D3 arms exist to prevent. The hazard QA
+> measured was the **default 20 firing unasked** on a `SUITE=` spike — not an operator who typed
+> `RESET_EVERY=`.
+>
+> **THE RULE IN FORCE.** A **non-subset** run resets every `RESET_EVERY` enforcers (default 20). A
+> **subset** run resets **only when `RESET_EVERY` is set EXPLICITLY in the environment** — tested
+> as **set-ness, not value** (`[ -n "${RESET_EVERY+x}" ]`, captured *before* the `:-20` default is
+> applied, because one line later the two are indistinguishable). `RESET_EVERY=0` disables resets
+> **everywhere**. A subset writes only to scratch (D5, ADR 0153), so a reset during one cannot
+> reach the committed baseline; the in-flight interlock stays **first**, ahead of this gate,
+> exactly as the paragraph above requires. The suppression is still announced per occurrence
+> (`(SUBSET run, RESET_EVERY not set explicitly — NOT resetting: …)`), and the summary banner now
+> distinguishes all four polarities rather than two: `resets DISABLED everywhere` ·
+> `SUPPRESSED: the DEFAULT never fires on a SUBSET run; set RESET_EVERY explicitly to enable` ·
+> `set EXPLICITLY, so this SUBSET run resets` · the bare `(RESET_EVERY=N)`.
+>
+> **The retry net is provable again**, which is the point of the ruling: with
+> `SELFTEST=1 BASE_S_OVERRIDE=… RESET_EVERY=1 CASES=<one enforcer>` the run takes the
+> reset-and-retry branch end to end. The single predicate `resets_enabled ()` is derived once and
+> read by all three sites (the gate, the retry net, the banner) — three hand-written copies of one
+> condition is how a banner comes to describe a rule the code no longer implements.
+
 ### D8 — `BASE_S_OVERRIDE` is a SELF-TEST knob, and it is interlocked twice
 
 `BASE_S_OVERRIDE` falsifies the captured baseline shape so the drift path (and hence the
@@ -283,7 +309,11 @@ does not exist is not a weaker guard, it is a broken one.
   (QA F-MAJOR-2):** this bullet used to end *"subsets never reset — the counter cannot fire on a
   worklist shorter than N"*, which is false as a generalisation — a `SUITE=` subset sweeps all 171
   and **did** fire eight resets. Subsets never reset **because `periodic_reset` refuses on
-  `SUBSET=1`** (D6), not because of the counter.
+  `SUBSET=1`** (D6), not because of the counter. ⛔ **Re-ruled later the same day** (see D6's
+  boxed correction): `periodic_reset` refuses on `SUBSET=1` **only while `RESET_EVERY` is
+  unset** — the *default* never fires on a subset, an *explicit* `RESET_EVERY=` does, and `0`
+  disables everywhere. The measured cost figure above is unaffected: it is a property of a
+  non-subset 171-enforcer sweep at N=20, which neither correction touches.
 - Sentinels written before this protocol carry no probe sidecar and therefore **cannot** be
   verified; `RECOVER=1` says exactly that instead of reporting a success it did not measure.
 - **All four converging follow-ups are now closed** and rotated to

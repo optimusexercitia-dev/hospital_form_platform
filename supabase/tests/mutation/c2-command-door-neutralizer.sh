@@ -40,6 +40,15 @@
 #                            #   (default 20; 0 disables). Bounds tail drift — see § bounded
 #                            #   tail drift. ⛔ A SUBSET RUN NEVER RESETS — the guard is SUBSET,
 #                            #   NOT the counter (corrected 2026-09-04; see periodic_reset).
+#                            #   ⛔ RE-RULED 2026-09-04, LATER THE SAME DAY — the line above is
+#                            #   kept because it is what was written, and it is now TOO BROAD.
+#                            #   THE RULE IN FORCE: a NON-SUBSET run resets every RESET_EVERY
+#                            #   (default 20); a SUBSET run resets only if RESET_EVERY is set
+#                            #   EXPLICITLY in the environment (set-ness, not value); `0`
+#                            #   disables everywhere. The hazard QA measured was the DEFAULT
+#                            #   firing unasked on a `SUITE=` spike, and that stays closed;
+#                            #   suppressing an EXPLICIT knob as well made the periodic reset
+#                            #   and the retry net provable only by a ~9.5 h full sweep.
 #   BASELINE_REFRESH=1 bash … # re-record the worklist baseline arm 4b compares against.
 #                            #   ⛔ An explicit operator act: refreshing HIDES a strand.
 #   SELFTEST=1 BASE_S_OVERRIDE="Files=1, Tests=1" bash …
@@ -695,8 +704,26 @@ fi
 #    quick one-file spike, and on a machine that routinely has a second stack up. (A `CASES=`
 #    list of >= N tokens resets too.) The guard is therefore SUBSET, not the counter, and it
 #    lives INSIDE periodic_reset so no call site can forget it.
+# ⛔ RE-RULED 2026-09-04 (iteration 2). "A SUBSET RUN NEVER RESETS" closed QA F-MAJOR-2's real
+#    hazard — the DEFAULT 20 firing UNASKED on a `SUITE=` spike — but it also made the retry net
+#    and the periodic reset UNPROVABLE on any narrowed run, because their mechanism IS the reset.
+#    A mechanism whose only proof is a 9.5-hour full sweep will not be re-proven; that is how a
+#    live mechanism quietly becomes an unexercised one. The rule is now the narrower one that
+#    closes the same hazard: the DEFAULT never fires on a subset, an EXPLICIT RESET_EVERY does.
+#    A subset run writes only to scratch (ADR 0153), so resetting during one cannot touch the
+#    committed baseline; and `RESET_EVERY=0` still disables resets EVERYWHERE.
+# ⛔ SET-NESS, NOT VALUE, and it must be captured BEFORE the default is applied — one line later
+#    the two are indistinguishable, which is exactly the fact this gate turns on.
+RESET_EVERY_EXPLICIT=0; [ -n "${RESET_EVERY+x}" ] && RESET_EVERY_EXPLICIT=1
 RESET_EVERY="${RESET_EVERY:-20}"   # 0 disables
 RESETS=0
+# ⛔ ONE predicate, derived once and used by all three sites (the gate inside periodic_reset, the
+#    retry net, the summary banner). Three hand-written copies of the same condition is how the
+#    banner comes to describe a rule the code no longer implements.
+resets_enabled () {   # rc 0 = a reset is allowed on this run; rc 1 = suppressed
+  [ "$RESET_EVERY" != "0" ] || return 1
+  [ "$SUBSET" != "1" ] || [ "$RESET_EVERY_EXPLICIT" = "1" ]
+}
 periodic_reset () {   # $1 = why (printed)
   local why="$1" pre_total now_total
   # 1. ⛔ INTERLOCK FIRST, AHEAD OF THE SUBSET GATE BELOW. A reset with a mutation in flight
@@ -709,13 +736,20 @@ periodic_reset () {   # $1 = why (printed)
     echo "    RECOVER=1 bash $0 first, then verify it in the catalog." >&2
     exit 2
   fi
-  # 2. ⛔ A SUBSET RUN NEVER RESETS (2026-09-04, QA F-MAJOR-2). `supabase db reset --local` is
-  #    destructive and irreversible; a subset (CASES= / SUITE= / SELFTEST=1 / BASE_S_OVERRIDE) is
-  #    the quick-spike mode, whose operator has not asked for it and was told in three places
-  #    that it would not happen. Announced, never silent — a reset that did NOT happen is a fact
-  #    about the run's preconditions, exactly like the domain.
-  if [ "$SUBSET" = "1" ]; then
-    echo "    (SUBSET run — NOT resetting: $why)"
+  # 2. ⛔ THE GATE (2026-09-04, QA F-MAJOR-2, re-ruled the same day). `supabase db reset --local`
+  #    is destructive and irreversible, and a subset (CASES= / SUITE= / SELFTEST=1 /
+  #    BASE_S_OVERRIDE) is the quick-spike mode whose operator has not asked for one. So on a
+  #    SUBSET run the DEFAULT never fires — but an EXPLICIT `RESET_EVERY=` does, because that
+  #    operator asked, and because otherwise the reset and the retry net can only be shown
+  #    working by a 9.5-hour full sweep. `RESET_EVERY=0` disables resets everywhere, checked here
+  #    too so a direct call cannot bypass it. Announced, never silent — a reset that did NOT
+  #    happen is a fact about the run's preconditions, exactly like the domain.
+  if ! resets_enabled; then
+    if [ "$RESET_EVERY" = "0" ]; then
+      echo "    (RESET_EVERY=0 — NOT resetting: $why)"
+    else
+      echo "    (SUBSET run, RESET_EVERY not set explicitly — NOT resetting: $why)"
+    fi
     return 0
   fi
   echo "--- PERIODIC RESET ($why) ---"
@@ -855,13 +889,15 @@ while IFS=$'\t' read -r foid name sig ndoors nraise nanchored; do
   # lost three verdicts to exactly this and each came back COVERED on a clean DB.
   case "$SW_NOTE" in
     *"SHAPE changed"*|*"did not come back green"*)
-      if [ "$SUBSET" = "1" ]; then
+      if ! resets_enabled && [ "$SUBSET" = "1" ] && [ "$RESET_EVERY" != "0" ]; then
         # ⛔ NOT retried, and the note SAYS SO (2026-09-04, QA F-MAJOR-2). The retry's whole
-        #    mechanism is the reset, and a subset run never resets; retrying without one would
-        #    re-measure the same drift and then suffix "(retried after reset)" — a note asserting
-        #    a reset that did not happen. A false note is worse than a missing retry.
-        SW_NOTE="$SW_NOTE (drift-shaped; NOT retried — a SUBSET run never resets)"
-      elif [ "$RESET_EVERY" != "0" ]; then
+        #    mechanism is the reset; where this run may not reset, retrying would re-measure the
+        #    same drift and then suffix "(retried after reset)" — a note asserting a reset that
+        #    did not happen. A false note is worse than a missing retry. ⭐ Under an EXPLICIT
+        #    RESET_EVERY the subset DOES reset, so this branch is not taken and the retry below
+        #    runs — which is what keeps the net provable without a full sweep.
+        SW_NOTE="$SW_NOTE (drift-shaped; NOT retried — a SUBSET run resets only when RESET_EVERY is set explicitly)"
+      elif resets_enabled; then
         echo "    drift suspected — resetting and retrying $name ONCE"
         periodic_reset "retry — $name recorded a drift-shaped ERROR"
         sweep_one "$foid" "$sig" "$ndoors" "$nraise" "$nanchored"; SW_RC=$?
@@ -882,8 +918,15 @@ echo "=== DONE — swept $DONE of $TOTAL derived enforcer(s) ==="
 echo "    COVERED=$N_COVERED  BLIND=$N_BLIND  ERROR=$N_ERROR   (skipped by CASES: $SKIPPED)"
 # ⛔ Both preconditions of every verdict above, on the same line as the counts — so a
 #    reader cannot take the tally without taking the conditions it was measured under.
-RESETNOTE="(RESET_EVERY=$RESET_EVERY)"
-[ "$SUBSET" = "1" ] && RESETNOTE="(RESET_EVERY=$RESET_EVERY — SUPPRESSED: a SUBSET run never resets)"
+if [ "$RESET_EVERY" = "0" ]; then
+  RESETNOTE="(RESET_EVERY=0 — resets DISABLED everywhere)"
+elif [ "$SUBSET" = "1" ] && [ "$RESET_EVERY_EXPLICIT" != "1" ]; then
+  RESETNOTE="(RESET_EVERY=$RESET_EVERY — SUPPRESSED: the DEFAULT never fires on a SUBSET run; set RESET_EVERY explicitly to enable)"
+elif [ "$SUBSET" = "1" ]; then
+  RESETNOTE="(RESET_EVERY=$RESET_EVERY — set EXPLICITLY, so this SUBSET run resets)"
+else
+  RESETNOTE="(RESET_EVERY=$RESET_EVERY)"
+fi
 echo "    preconditions: baseline GREEN (shape=$BASE_S) · domain=$DOMAIN · resets=$RESETS $RESETNOTE"
 echo "    report: $FINDINGS"
 [ "$DONE" -lt "$TOTAL" ] && echo "    ⚠ PARTIAL RUN — $((TOTAL-DONE)) enforcer(s) were NOT measured. This is not a clean sweep."

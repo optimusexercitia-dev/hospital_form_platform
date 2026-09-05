@@ -8772,6 +8772,20 @@ the approval. The oracle's soundness was never the thing in doubt here; its cite
 >   > `8d7f01db`:** a **SUBSET** run — `CASES=`, `SUITE=`, `SELFTEST=1` or `BASE_S_OVERRIDE` —
 >   > **never resets**; a non-subset run resets every N enforcers. The guard is `SUBSET`, checked
 >   > inside `periodic_reset` behind the in-flight interlock, not the counter.
+>   >
+>   > **Correction 2026-09-04, later the same day (lead ruling, QA fix loop iteration 2)** — the
+>   > correction above is left in place because it is what was written, and its rule is **too
+>   > broad**. Suppressing an *explicit* `RESET_EVERY=` as well as the default left this very
+>   > entry's two mechanisms — the periodic reset and the retry net — provable **only by a ~9.5 h
+>   > full sweep**, so the four "Proven able to fire" runs below could not be reproduced by anyone
+>   > re-checking this closure. **THE RULE IN FORCE:** a **non-subset** run resets every
+>   > `RESET_EVERY` (default 20); a **subset** run resets **only if `RESET_EVERY` is set
+>   > EXPLICITLY** in the environment (set-ness, not value — `[ -n "${RESET_EVERY+x}" ]`, captured
+>   > before the `:-20` default); **`0` disables everywhere**. The hazard QA measured — the
+>   > *default* firing unasked on a `SUITE=` spike — stays closed. A subset writes only to scratch
+>   > (ADR 0153), so a reset during one cannot touch the committed baseline, and the in-flight
+>   > interlock remains **first**, ahead of the gate. ⭐ The retry-net proof below is therefore
+>   > reproducible again, under `SELFTEST=1 BASE_S_OVERRIDE=… RESET_EVERY=1 CASES=…`.
 > - **Reset-and-retry-once.** An ERROR whose note is `SHAPE changed` or `did not come back green`
 >   triggers one reset and one retry before it is recorded, and the note carries
 >   `(retried after reset)`. That is exactly what would have recovered run 1's final three.
