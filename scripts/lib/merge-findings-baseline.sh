@@ -14,6 +14,23 @@
 #
 # ⛔ THE PROPERTY, AND IT IS NOT A PATTERN LIST.
 #   HAND-AUTHORED = any line of the committed baseline THIS RUN'S GENERATOR DID NOT PRODUCE.
+# ⚠ TWO EXCEPTIONS, both MEASURED, both deliberate, and both stated here so the property as
+#   WRITTEN matches the property as BUILT (QA re-review F2-REC-1 / F2-REC-2, 2026-09-05):
+#   1. PRESERVATION is byte-for-byte EXCEPT for whitespace runs INSIDE the region the
+#      generator itself produced. On the SPLICE branch the merged note is rebuilt as the
+#      GENERATOR's bytes for its own region + the baseline's remainder verbatim, so a space a
+#      hand editor added inside the generated file list is normalised back to the generator's
+#      spacing. MEASURED cost on the real door pair: 1 byte on `app.is_signoff_deferral_open`
+#      (727 -> 726 B), with its 580-byte hand SUFFIX byte-exact. ⛔ This is the price of
+#      `wsprefix`, not an oversight — a byte-exact test would have evicted that 580-byte note
+#      from the table over one space (it takes the CARRY branch instead). The exception is
+#      bounded by construction: it can only touch bytes the generator re-emits this run.
+#   2. PLACEMENT is not preserved for a hand line WEARING THE GENERATOR'S SHAPE. A hand row in
+#      the 5-column shape that reuses a real gate key or a real verdict token IS classified as
+#      a verdict row, and it is relocated into the CARRIED block instead of staying in its
+#      section — verbatim, and step 5 enforces that it arrives. Nothing is lost; ordinal keying
+#      is what saves it (a third occurrence of a key cannot collide with the generator's first
+#      two). ⛔ The reader must RE-FILE it, which is exactly what the CARRIED block tells them.
 # The follow-up names three kinds of block. By the property the door baseline carries EIGHT
 # (measured 2026-09-05 on 924 lines): 1 `<!-- … -->` block · 7 `## Note` sections · 8
 # `> ⚠ **HAND-MERGED` blockquotes · 37 table rows with hand prose in column 5 · an annotated
@@ -24,8 +41,19 @@
 # comes from a filter is only as true as the filter.
 # ⚠ The "37" is RE-MEASURED (QA F-REC-6: this file said 37 and the unit's record said 39, same
 #   file, same category, same day). Counting column 5 for any of `⭐ ⚠ ⛔ ** [merged` over the
-#   399 verdict rows of the committed door baseline gives **37** under every split — capped and
+#   400 verdict rows of the committed door baseline gives **37** under every split — capped and
 #   escape-aware, naive, and symbols-only. The record's 39 was the stale one.
+#   ⚠ The DENOMINATOR was wrong, in BOTH directions, and the grain is the whole reason
+#     (QA F2-REC-5, re-measured 2026-09-05). `grep -c '^| '
+#     docs/reviews/authz-door-audit-findings.md` = **401** — that is QA's number, and it is a
+#     count of `| `-leading LINES. Exactly ONE of them is the table HEADER (`:112`,
+#     `| gate / policy | arm | direction | verdict | note |`), so the VERDICT ROWS are **400**:
+#     399 with 6 unescaped separators, 1 with 7, and 0 with an empty column 1. The earlier
+#     **399** is what a header rule of "the line immediately above a delimiter" yields — and
+#     that rule also swallows `:282`, which is a verdict row STRANDED above the COVERED table's
+#     delimiter at `:283`, i.e. one of the very shapes this header lists as hand-authored
+#     material. ⛔ Neither number was a count of verdict rows; the 37 is unaffected, being a
+#     count over column 5 rather than a share of the denominator.
 #   ⛔ And the first pass of this fix loop "reconciled" them by taking 39 WITHOUT measuring,
 #   which is the same defect one layer out: a register's failure mode is prose rot, and a
 #   confident number is not evidence about the file it describes.
@@ -217,6 +245,10 @@ function wsprefix(b, g,   i, j, lb, lg, cb, cg) {
 #   K  every gate KEY this run put in column 1.
 # Any ONE of the three makes a well-shaped baseline line a verdict row; a hand-written table
 # — its own header, its own delimiter, its own rows — matches NONE of them.
+# ⚠ The converse is REAL and MEASURED (QA F2-REC-2): a hand line that borrows the generator's
+#   5-column shape AND a real gate key or a real verdict token DOES match, is classified as a
+#   verdict row, and is therefore relocated into the CARRIED block rather than preserved in
+#   place. It costs PLACEMENT, never BYTES — see exception 2 at the top of this file.
 awk "$AWKLIB"'
   FNR == NR { if (is_delim($0)) delim[FNR] = 1; next }
   {

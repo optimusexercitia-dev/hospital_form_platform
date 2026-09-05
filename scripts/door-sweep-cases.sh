@@ -73,6 +73,14 @@
 #                the sibling's UNPROVEN framing, a run with an empty domain is not a
 #                pass. "No migration in the diff" is a CHECKABLE claim (re-run with the
 #                right <base>); "zero cases from a migration that exists" is not.
+#   ⚠ A `door-sweep-targets:` PARSE ERROR does NOT move any of the four codes, and a caller
+#     that reads only the bare code cannot see one (QA F2-REC-4, 2026-09-05). Fixture
+#     `09-marker-dangling-prefix.sql` derives at bare rc **0** while stderr carries
+#     `⚠ door-sweep-targets: PARSE ERROR(S) — named, and the run continues:`. That is
+#     deliberate — the codes are about the SELECTION, and a malformed declaration in a comment
+#     neither empties the selection nor stops the tool — but "⛔ a malformed declaration is NOT
+#     the same state as an absent one" is only ever said on STDERR. ⛔ An operator recording a
+#     gate result must read stderr for `PARSE ERROR(S)` beside the code, not the code alone.
 #
 # ── WHAT THIS DOES NOT DO ──────────────────────────────────────────────────────────
 # ⛔ It does not sweep anything, and it never writes to the findings file. It derives a

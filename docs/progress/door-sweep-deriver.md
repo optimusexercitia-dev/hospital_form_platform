@@ -561,9 +561,18 @@ probe runs, so that path now says `NOT REACHED (this run ended before the catalo
 
 Made STRUCTURAL rather than fixed at the measured site: `scope_line` and one `finish <rc>` are
 defined above every validation in `scripts/door-sweep-cases.sh`, and all **18** exit paths go
-through `finish`. Assertion: `grep -n 'exit [0-9]' scripts/door-sweep-cases.sh` returns **8**
-hits — 7 prose lines and one `END { if (!found) exit 9 }` inside `lift`'s single-quoted awk
-program, which is awk's exit, not the script's. Reproduced, each printing exactly one line:
+through `finish`. Assertion: `grep -n 'exit [0-9]' scripts/door-sweep-cases.sh` returns **9**
+hits — 8 prose lines and one `END { if (!found) exit 9 }` inside `lift`'s single-quoted awk
+program, which is awk's exit, not the script's.
+[⚠ **Corrected 2026-09-05, iteration 3** (QA F2-REC-3): this said **8** hits / 7 prose.
+Re-measured bare: `grep -c 'exit [0-9]' scripts/door-sweep-cases.sh` = **9**, and QA measured 9
+at `4d5c6bd9` as well, so it was never commit drift. In THIS commit the hits are
+`:20 :122 :406 :864 :953 :1140 :1234 :1262` (8 prose) plus the awk `:239` — ⚠ the line numbers
+moved +8 in this same commit, because F2-REC-4 added eight comment lines to the exit-code
+contract above them; QA read the awk one at `:231`. The PROPERTY — no `exit` outside `finish` —
+was and is unaffected; only the count was wrong, and the script's own header states the
+property without a number.]
+Reproduced, each printing exactly one line:
 
 | path | command | bare rc | the SCOPE line |
 |---|---|---|---|
@@ -610,8 +619,18 @@ The two committed bare-`--` migrations (`…007180`, `…007190`) still parse.
   consistent rather than a discrepancy. The Consequences bullet had paired the post-gate 18
   with the pre-gate 41; it now reads 18 against 39.
 - **F-REC-6.** MEASURED, not chosen: counting column 5 for any of `⭐ ⚠ ⛔ ** [merged` over the
-  399 verdict rows of the committed door baseline gives **37** under a capped escape-aware
-  split, under a naive split, and under symbols-only. The helper's 37 was right; this record's
+  400 verdict rows of the committed door baseline gives **37** under a capped escape-aware
+  split, under a naive split, and under symbols-only. [⚠ **Corrected 2026-09-05, iteration 3**
+  (QA F2-REC-5): the DENOMINATOR read **399** here and in the helper's header; QA measured
+  **401**; both are wrong and the grain is why. `grep -c '^| '
+  docs/reviews/authz-door-audit-findings.md` = **401** — a count of `| `-leading LINES, exactly
+  one of which is the table HEADER at `:112`, so the VERDICT ROWS are **400** (399 with 6
+  unescaped separators, 1 with 7, 0 with an empty column 1). **399** is what a header rule of
+  "the line immediately above a delimiter" yields, and that rule also swallows `:282` — a
+  verdict row stranded above the COVERED table's delimiter at `:283`, i.e. one of the shapes
+  the helper's own header lists as hand-authored material. ⛔ The load-bearing **37** is a count
+  over column 5, not a share of the denominator, and is unchanged under the corrected one.]
+  The helper's 37 was right; this record's
   39 was stale. ⛔ **The first pass of this fix loop got it backwards** — it edited the helper
   to 39 to match the record, without measuring. Corrected, and written down because it is the
   register lesson happening inside the fix for the register lesson.
@@ -680,7 +699,7 @@ reset itself: bare rc **0**, `Finished supabase db reset on branch authz-door-sw
 | typecheck | `npm run typecheck` | bare rc **0** |
 | pgTAP | `npm run test:db` | bare rc **0**, `Files=262, Tests=8876, Result: PASS` — byte-for-byte the last known-good shape; ⚠ compared as a SHAPE, not as a summary line, because the parked `FUP-PGTAP-WORKER-DEADLOCK` flake keeps `Files=262` while losing assertions |
 | arm — census | `ARM=census bash …/p0-authz-invariant.sh` | bare rc **0**, `live authz gates (catalog): 581`, `gates carrying a verdict: 625`, `=== INVARIANT HOLDS ===` |
-| arm — hat | `ARM=hat …` | bare rc **0**, `self-test: 7/7 OK`, `=== INVARIANT HOLDS ===` |
+| arm — hat | `ARM=hat …` | bare rc **0**, `self-test: 7/7 OK`, `=== INVARIANT HOLDS ===`. ⛔ **DOMAIN HALF NOT CAPTURED** (QA F2-REC-6, disclosed 2026-09-05): `self-test: 7/7 OK` is the arm's INSTRUMENT CONTROL, not what it enumerated — §7.17 wants the domain beside the verdict, as the census / floor / wrapper rows do. The finding enumeration for THIS run was not written down and cannot be recovered from the record. ⛔ It is deliberately NOT back-filled from `62829c79`'s `4 finding(s), all reasoned-allowlisted`: that is a claim about THAT run, and copying it would be this unit's own register lesson (a confident number that is not evidence about the thing it describes). Re-establishing it needs a hat re-run at the tip — a work item for the next gate, not a pass |
 | arm — floor | `ARM=floor …` | bare rc **0**, `authenticated-reachable prosecdef doors with 0 calls: 63`, `OK: every never-called door is on the floor allowlist`, `=== INVARIANT HOLDS ===` |
 | arm — wrapper | `FROMFINDINGS=1 ARM=wrapper …` | bare rc **0**, `BLIND set size: 41`, `OK: every BLIND wrapper is on the allowlist`, `=== INVARIANT HOLDS ===` |
 | self-test | `SELFTEST=1 bash scripts/door-sweep-cases.sh` | bare rc **0**, `SELF-TEST: PASS 34 · FAIL 0 · SKIPPED 0`, catalog REACHABLE (so no scenario skipped vacuously) |
@@ -762,3 +781,49 @@ command whose output never appeared is a claim about the plumbing, not the subje
 an explicit scratch path: rc 0. ⛔ Both instrument failures this session pointed the *safe* way
 (one hid a green, one faked a red), but the SIGABRT one would have shipped a false "none found"
 census.
+
+---
+
+### 2026-09-05 — backend: QA fix loop, iteration 3 (F2-RECs)
+
+Scope: QA's **seven** non-blocking recommendations from `docs/reviews/door-sweep-deriver-rereview.md`
+(§ "New recommendations"), placed by the lead into one commit so the QA delta check sees them
+together. `docs/reviews/**` was not touched. **F2-BLOCK-1 was closed in iteration 2 and is not
+re-opened here.**
+
+⛔ **Two of the seven did not survive re-measurement as QA stated them, and the numbers below are
+what the files say, not what the review says.** That is the point of the loop: a review's number
+is evidence about the reviewer's filter, exactly like the record's was.
+
+| # | subject | OLD | NEW | the measurement |
+|---|---|---|---|---|
+| F2-REC-1 | the splice normalises hand whitespace inside the generator's own region | the headline property stood alone — `HAND-AUTHORED = any line of the committed baseline THIS RUN'S GENERATOR DID NOT PRODUCE.` — and admitted no exception; the trade-off was documented only down at `wsprefix` | the property keeps that sentence and gains **exception 1**: "PRESERVATION is byte-for-byte EXCEPT for whitespace runs INSIDE the region the generator itself produced… MEASURED cost on the real door pair: 1 byte on `app.is_signoff_deferral_open` (727 -> 726 B), with its 580-byte hand SUFFIX byte-exact… The exception is bounded by construction: it can only touch bytes the generator re-emits this run." | QA's own witness A, re-read against the code: the SPLICE branch rebuilds the row as `substr(grow, 1, S2[5]) " " g5 suffix " \|"` — the GENERATOR's column-5 bytes plus the baseline remainder from `wsprefix`'s offset. Comment-only; no behaviour changed |
+| F2-REC-2 | a hand row mimicking the generator's shape is relocated, not preserved in place | `Any ONE of the three makes a well-shaped baseline line a verdict row; a hand-written table — its own header, its own delimiter, its own rows — matches NONE of them.` — true, and silent about the converse | that sentence, plus **exception 2** at the top of the file and a `⚠ The converse is REAL and MEASURED` paragraph at `grammar_from_generated`: a hand line borrowing the 5-column shape **and** a real gate key or verdict token **does** match, is classified as a row, and lands in CARRIED — "It costs PLACEMENT, never BYTES" | QA measured it (two mimicking rows, rc 0, both carried verbatim); ordinal keying is what stops a collision. Comment-only |
+| F2-REC-3 | `exit [0-9]` census | record `:564`: `returns **8** hits — 7 prose lines and one …` | `returns **9** hits — 8 prose lines and one …`, with a dated bracketed correction | `grep -c 'exit [0-9]' scripts/door-sweep-cases.sh` = **9**, bare. QA agrees; it was never commit drift (9 at `4d5c6bd9` too) |
+| F2-REC-4 | a named PARSE ERROR does not move the exit code | the four-way EXIT CODES block said nothing about it | eight lines added to that block: fixture `09` derives at bare rc **0** while stderr carries `⚠ door-sweep-targets: PARSE ERROR(S) — named, and the run continues:`; "⛔ An operator recording a gate result must read stderr for `PARSE ERROR(S)` beside the code, not the code alone" | ⚠ **The lead's task list omitted F2-REC-4 and asked for a reason if it was skipped. It was not skipped** — it exists (review `:228-231`), it is one comment block in `scripts/door-sweep-cases.sh`, and the commit's own message says F2-REC-1..7. Comment-only; `bash -n` rc 0 |
+| F2-REC-5 | the verdict-row denominator | `399 verdict rows` (helper header `:27`, record `:613`) | **400**, in both places, each with the grain spelled out | ⛔ **QA's 401 is also wrong, and in the other direction.** `grep -c '^\| ' docs/reviews/authz-door-audit-findings.md` = **401** — a count of `\| `-leading LINES. Exactly **1** is the table HEADER (`:112`, `\| gate / policy \| arm \| direction \| verdict \| note \|`, `grep -cF` = 1), so verdict rows = **400**: 399 with 6 unescaped separators, 1 with 7, **0** with an empty column 1. **399** is what a header rule of "the line immediately above a delimiter" yields — that rule also swallows `:282`, a verdict row STRANDED above the COVERED table's delimiter at `:283`, which is one of the shapes the helper's header itself lists as hand-authored. The load-bearing **37** re-measured under the corrected denominator: still **37** |
+| F2-REC-6 | the `hat` gate row quotes its instrument control, not its domain | the OBSERVED cell was `bare rc 0` + `self-test: 7/7 OK` + `=== INVARIANT HOLDS ===` and nothing else | the same OBSERVED text, plus `⛔ **DOMAIN HALF NOT CAPTURED**` naming what is missing and why it is not filled in | ⛔ **Deliberately not "fixed" by writing a number.** `4 finding(s), all reasoned-allowlisted` is `62829c79`'s measurement of `62829c79`'s run; copying it onto the iteration-1 row would be this unit's own register lesson committed a third time. The lead's gate scope excludes the arms, so the honest state is DISCLOSED, and re-establishing it is a hat re-run at the next gate — carried into the hub's Blockers as an open item, not a pass |
+| F2-REC-7 | the hub's `adrs:` frontmatter omits the unit's own ADR | `adrs: ["0079", "0148", "0153", "0173", "0182"]` | `adrs: ["0079", "0148", "0153", "0173", "0182", "0190"]` | `npm run features:index` re-run |
+
+⭐ **A cited line number rots inside its own commit.** The F2-REC-4 comment block added 8 lines
+ABOVE every `exit [0-9]` hit but the first, so the census line numbers moved in the same commit
+that records them: `:20 :122 :406 :864 :953 :1140 :1234 :1262` + awk `:239` **as of this commit**,
+where QA read the awk one at `:231`. The record's correction says so rather than printing numbers
+that were true for ten minutes. The COUNT — 9 — is stable across both.
+
+**Gate — comment-only in `scripts/`, `docs/` otherwise, so no `test:db` and no authz arm is
+owed** (`git diff --name-only` touches two `.sh` files, both in comment lines only, plus the hub
+and this record). Codes read **BARE**:
+
+| step | command | OBSERVED |
+|---|---|---|
+| syntax | `bash -n scripts/lib/merge-findings-baseline.sh` · `bash -n scripts/door-sweep-cases.sh` | bare rc **0** and **0** |
+| self-test | `SELFTEST=1 bash scripts/door-sweep-cases.sh` | bare rc **0**, `SELF-TEST: PASS 34 · FAIL 0 · SKIPPED 0`, `catalog : REACHABLE (supabase_db_azkbbhskturikxpgmafq)` — so no scenario skipped vacuously |
+| lint | `npm run lint` | bare rc **0** — eslint at `--max-warnings=0` plus all 13 chained gates, each printing its own OK (`lint:css-vars` → `lint:registers`), incl. `check-progress-doc: OK`, `build-adr-index: OK (188 ADRs indexed, next free 0191)`, `check-mojibake: OK (3358 tracked text files clean)` |
+| features index | `npm run features:index` | bare rc **0**, `wrote docs/features/INDEX.md (8 hubs)` — run because the hub's `adrs:` frontmatter changed (F2-REC-7); the generated INDEX.md was already in sync, so `git status` shows it unmodified |
+| registers | `npm run lint:registers` | bare rc **0**; ratchets **unchanged, none raised**: `closesWhenPoToRule=137/147 severityPerEmoji=128/135 severityUnrated=29/29 revisitWhenPoToRule=38/38 longHeadings=91/97 bugsUntriaged=10/10 bugsUnrated=40/40 lessonsProseOnly=52/52` — identical to QA's own reading at `7e1f0d62` |
+
+⛔ **No `npm run test:db` and no authz arm was run, and none is owed.** Both script edits are
+inside comment blocks: no policy, no `prosecdef` gate, no SQL, nothing under `supabase/` or `src/`
+changed. The instrument that *does* cover the edited scripts — the 34-scenario self-test — was
+re-run and is in the table above, which is the arm-shaped evidence this diff can actually earn.
