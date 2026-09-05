@@ -173,9 +173,11 @@ making changes to `CLAUDE.md`.**
 
 1. **Build complete** — lint, typecheck, unit tests, and the pgTAP suite (`npm run test:db`,
    on a **fresh `supabase db reset`**) pass; the **authz arms** (`census`, `hat`, `floor`,
-   `FROMFINDINGS=1 wrapper`) hold, plus the **diff-scoped door sweep, both arms**, if any RLS
-   policy or `prosecdef` gate changed. **BLIND blocks the phase; `ERROR` is not a pass.**
-   Recipe and what each ARM proves: lead-playbook §4, ADR 0079.
+   `FROMFINDINGS=1 wrapper`) hold, plus the **diff-scoped door sweep, both arms**, over the case
+   list `scripts/door-sweep-cases.sh <phase-base>` derives — never judged by eye; its exit 1/3
+   IS the "no gate changed" claim and is RULED in the gate record, with its `SCOPE:` line quoted.
+   **BLIND blocks the phase; `ERROR` is not a pass.** Recipe, `SCOPE:` line and self-test:
+   lead-playbook §4, ADR 0079, ADR 0190.
 2. **Test pass** — `tester` writes/updates Playwright specs for the acceptance criteria and
    files a bug per failure as a row in `docs/bugs/BUGS.md`. The fix loop reruns failing +
    current-phase specs; the **full suite runs once to declare green** via `npm run e2e:prod`

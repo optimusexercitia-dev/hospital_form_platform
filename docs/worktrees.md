@@ -168,6 +168,14 @@ git branch -d fix/header-alignment              # -D if it has unmerged commits 
 (including a generated `node_modules`, `.env.local`, `dev.sh`) — pass
 `--force` once you've confirmed there's nothing worth keeping in there.
 
+⚠ **A local branch ref is a live fact, not a pointer.** A hub's `branch:` passes gate 13 as
+long as the ref *exists* (`scripts/check-docs-registers.mjs`, the "does not exist" check) —
+it passed while `authz-c2-tier1` sat parked at a handoff-carry commit and the work was on
+`origin/authz-c2-tier1` (2026-09-03), and it vanished mid-session when another worktree
+merged the branch away. Before resuming from a hub: `git fetch`, then
+`git rev-parse <branch> origin/<branch>` and compare — a mismatch is the first thing to
+resolve, not the last.
+
 ## 5. Isolating a spawned subagent (lead-only, advanced)
 
 The `Agent` and `Workflow` tools accept `isolation: "worktree"` per call: the

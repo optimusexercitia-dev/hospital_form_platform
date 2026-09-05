@@ -14,9 +14,9 @@ source: rotated from PROGRESS.md's Now section (retired 2026-09-03, ADR 0185) at
 running on this platform at all**, and `ARM=census` printed `INVARIANT HOLDS` **at exit 0
 having enumerated ZERO gates**.
 
-✅ **The current trusted baseline is AE0's**, taken on a fresh reset at head
-`20261003004300`: census **564** gates / **600** verdicts · hat self-test **6/6** · floor
-**72** never-called doors · wrapper BLIND **41** (anchored above).
+✅ **Trust only a baseline a gate record took at a NAMED head** — latest: Gate AE4
+(`docs/progress/authz-ae4.md`, census **581**). AE0's 564/600/6/72/41 was the FIRST
+trusted one (anchored above), not the current one.
 
 ## What to do, every time
 
@@ -34,7 +34,6 @@ having enumerated ZERO gates**.
 - No gate enforces this. An arm cannot report that it measured nothing — that IS the
   failure mode. This rule is the only witness.
 - Green arms bound their own domain. Reachable `prosecdef` non-`bool` command doors
-  sit outside every arm (`FUP-AUTHZ-COMMAND-DOOR-UNSWEPT`, C2) — green is no claim about
-  them.
-  ⭐ `c2-command-door-neutralizer.sh` (ADR 0171) measures them but is **not an ARM**;
-  ⛔ never call the class *"covered-but-unpinned"* — it found **3 BLIND**.
+  sit outside every arm (C2) — green is no claim about them. C2 CLOSED 2026-09-04 at
+  170 COVERED / 1 BLIND disclosed / 0 ERROR (ADR 0187/0188); `c2-command-door-neutralizer.sh`
+  (ADR 0171) measures them but is **not an ARM**.
