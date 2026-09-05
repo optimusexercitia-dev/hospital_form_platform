@@ -1402,7 +1402,19 @@ echo "SWEPT: $swept_ct   COVERED: $cov_ct   BLIND: $blind_ct   ERROR(harness): $
 # computed a positive-sounding residual against a set that, on a fully-ERRORed subset
 # run, is EMPTY, so the summary line read like coverage. Both are fixed here: the
 # residual is now printed as an explicit COVERED count, and the verdict is an exit code.
-if [ "$swept_ct" -eq 0 ]; then
+# ⛔ A MERGE ABORT IS AN ERROR, AND IT MUST REACH THE EXIT CODE (QA F-MAJOR-5, 2026-09-05).
+# The banner emit_report prints is loud, but the banner is not what a gate reads. An aborted
+# merge leaves $FINDINGS byte-for-byte as it was — which on a FULL run is EXACTLY what "no
+# verdict moved" looks like, so `git diff --stat -- <findings>` cannot separate the two. Only
+# this exit code can. It is tested FIRST because it invalidates the artefact the FROMFINDINGS
+# arms read back, whatever the verdict counts above say (they are printed either way).
+if [ "${MERGE_FAILED:-0}" = "1" ]; then
+  echo "=== RESULT: ERROR — the findings MERGE ABORTED. $FINDINGS was NOT written and is"
+  echo "    STALE: it holds a PREVIOUS run's verdicts. ⛔ An empty \`git diff\` on it is NOT"
+  echo "    evidence this run changed nothing — it is what an aborted merge also produces."
+  echo "    Re-merge by hand from $BASELINE_SNAPSHOT and $GENERATED. ERROR is not a pass. ==="
+  exit 2
+elif [ "$swept_ct" -eq 0 ]; then
   # Belt-and-braces: the domain gate above should have exited 3 long before here.
   echo "=== RESULT: UNPROVEN — 0 gates swept despite a non-empty domain. Harness bug. ==="
   exit 3

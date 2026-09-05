@@ -587,3 +587,21 @@ if [ "$SUBSET_RUN" = "1" ]; then
 fi
 awk -F'\t' '{c[$4]++} END{for(k in c) printf "%s: %d   ", k, c[k]; print ""}' "$PROGRESS"
 echo "swept (suite-run): $SUPPORTED   unsupported (static): $UNSUP"
+
+# ⛔ THE EXIT CODE, MINIMAL AND ONE-PURPOSE (QA F-MAJOR-5, 2026-09-05). Until here this file
+# ended on the echo above, so its exit status was whatever the last `echo` returned — always
+# 0. That is a wider gap than this block closes: this harness has NO graded RESULT: verdict
+# at all, so a run with BLINDs still exits 0. That gap is FILED, not fixed here
+# (FUP-AUTHZ-ROWDOOR-INVOKER-HARNESSES-HAVE-NO-GRADED-EXIT, owner backend) — widening the
+# contract of two harnesses is a change with its own blast radius and it is not this unit's.
+# What IS this unit's is the merge it introduced: an aborted merge leaves the findings file
+# byte-for-byte as it was, which on a FULL run is EXACTLY what "no verdict moved" looks like,
+# so `git diff --stat` cannot separate them and only an exit code can.
+if [ "${MERGE_FAILED:-0}" = "1" ]; then
+  echo "=== RESULT: ERROR — the findings MERGE ABORTED. $FINDINGS was NOT written and is"
+  echo "    STALE: it holds a PREVIOUS run's verdicts. ⛔ An empty \`git diff\` on it is NOT"
+  echo "    evidence this run changed nothing — it is what an aborted merge also produces."
+  echo "    Re-merge by hand from $BASELINE_SNAPSHOT and $GENERATED. ERROR is not a pass. ==="
+  exit 2
+fi
+exit 0

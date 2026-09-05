@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------------------
-# SELF-TEST for scripts/door-sweep-cases.sh.  Entry point:
+# SELF-TEST for scripts/door-sweep-cases.sh AND scripts/lib/merge-findings-baseline.sh.
+# Entry point:
 #
 #     SELFTEST=1 bash scripts/door-sweep-cases.sh
 #
@@ -19,10 +20,22 @@
 # ⛔ WHY THE COPIES ARE `cmp`-CHECKED. A stale copy passes silently and the run reads as
 # evidence about code nobody ran (scripts/gate-harness/build-fake-repo.sh's precedent).
 #
-# ⛔ THE VACUITY GUARD. Four scenarios pin the PRE-FIX behaviour as ABSENT — a token that
-# must NOT be derived, a block that must NOT be printed. A suite that only asserts what the
-# fix produces goes green again the moment the fix is reverted AND the assertion is relaxed
-# with it; a suite that pins the old behaviour's absence flips on the revert alone.
+# The MERGE scenarios need neither the fake repo nor the catalog — the helper is pure text.
+# They run the REAL helper over COMMITTED input pairs under fixtures/door-sweep/merge/.
+#
+# ⛔ THE VACUITY GUARD. Four deriver scenarios pin the PRE-FIX behaviour as ABSENT — a token
+# that must NOT be derived, a block that must NOT be printed. A suite that only asserts what
+# the fix produces goes green again the moment the fix is reverted AND the assertion is
+# relaxed with it; a suite that pins the old behaviour's absence flips on the revert alone.
+#
+# ⛔ AND FOR THE MERGE, THE SAME PROPERTY WITHOUT A KNOB. Three scenarios put the output the
+# PRE-FIX helper ACTUALLY PRODUCED (frozen under merge/*.prefix-output.md, built from
+# `git show de955981:scripts/lib/merge-findings-baseline.sh`) in front of the current
+# verifier and require exit 2. Those are three real, measured losses of hand-authored
+# material from the committed baselines; a verifier that passes them is proven blind, not
+# assumed sharp. LESSONS: "a detector that finds nothing must be proven able to find
+# something" — and the pre-fix verifier was blind because its INPUT SET, not its logic,
+# excluded the region the losses happened in.
 #
 # ⚠ SKIPS ARE COUNTED AND LOUD. Most scenarios need the live catalog. With the stack down
 # they SKIP, and the summary prints how many — a "PASS" over zero catalog scenarios must
@@ -167,9 +180,16 @@ assert "expected the ALTERED-BY block" "$(has_err "ALTERED BY 'alter function" &
 done_ok
 
 # ── 5. VACUITY PIN: `owner to postgres` must match NOTHING (449 of them in the baseline).
+#      ⚠ Its assertions were all NEGATIVE until 2026-09-05 (QA F-REC-5): empty stdout, rc 1,
+#      an absent block — every one of which a scenario whose fixture never reached the repo
+#      would also satisfy. The two POSITIVE assertions make it stand on its own: the file
+#      was SCANNED (it is named in the deriver's own file list) and the run reached the
+#      no-doors FINDING rather than dying somewhere earlier.
 scenario "alter function OWNER TO -> nothing" 1 1 -- 05-alter-function-owner-to.sql
 assert "stdout should be empty" "$([ ! -s "$OUT" ] && echo 1 || echo 0)"
 assert "ALTERED-BY block must be ABSENT" "$(has_err "ALTERED BY 'alter function" && echo 0 || echo 1)"
+assert "the fixture must actually have been SCANNED" "$(has_err '05_alter_function_owner_to' && echo 1 || echo 0)"
+assert "expected NO DOORS AT ALL" "$(has_err 'NO DOORS AT ALL' && echo 1 || echo 0)"
 done_ok
 
 # ── 6. The declaration path ALONE — no `create function`, no `pg_get_functiondef`.
@@ -254,6 +274,185 @@ done_ok
 scenario "no catalog -> the property is UNAVAILABLE, loudly" 0 1 DOOR_SWEEP_DB=no_such_container_selftest -- 01-definer-door-in-domain.sql
 assert "expected the provisional banner" "$(has_err 'NO LIVE CATALOG — PROVISIONAL DERIVATION' && echo 1 || echo 0)"
 assert "the FINDING must name the missing catalog" "$(has_err "'no door' has NOT been checked" && echo 1 || echo 0)"
+done_ok
+
+# ═══════════════════════════════════════════════════════════════════════════════════
+# THE MERGE HELPER (QA F-MAJOR-4: "nothing tests the merge helper" — the component that
+# WRITES the committed findings baselines had no committed test at all, and F-BLOCK-1 had
+# already shown it broken in three ways).
+#
+# ⛔ THE DISCRIMINATION HALF IS NOT A KNOB. Three scenarios feed the verifier the output
+# THE PRE-FIX HELPER ACTUALLY PRODUCED — frozen under merge/*.prefix-output.md, built by
+# running `git show de955981:scripts/lib/merge-findings-baseline.sh` on the very same
+# committed inputs — and require exit 2. Those are real historical losses, so a verifier
+# that cannot see them is proven blind rather than assumed sharp. The `MERGE_FAULT`
+# scenarios below are the cheaper second control.
+#
+# ⚠ These scenarios need NO catalog and NO fake repo: the helper is pure text.
+# ═══════════════════════════════════════════════════════════════════════════════════
+MERGE_LIB="$ROOT/scripts/lib/merge-findings-baseline.sh"
+MFIX="$FIX/merge"
+MOUT="$T/merged.md"; MERR="$T/merge.err"
+[ -f "$MERGE_LIB" ] || { echo "FATAL: not found: $MERGE_LIB" >&2; exit 2; }
+[ -d "$MFIX" ]      || { echo "FATAL: merge fixtures not found: $MFIX" >&2; exit 2; }
+
+merge_scenario () {  # $1 name, $2 expected rc, $3 baseline, $4 generated, rest: env=val...
+  SCEN="$1"; local want="$2" b="$MFIX/$3" g="$MFIX/$4"; shift 4
+  local f
+  for f in "$b" "$g"; do
+    [ -f "$f" ] || { FAIL=$((FAIL + 1)); FAILED_NAMES="$FAILED_NAMES $SCEN"
+                     printf 'FAIL  %-44s (missing fixture %s)\n' "$SCEN" "$f"; SCEN=""; return 0; }
+  done
+  rm -f "$MOUT"; : > "$MERR"
+  env "$@" bash "$MERGE_LIB" "$b" "$g" "$MOUT" >/dev/null 2> "$MERR"
+  RC=$?
+  if [ "$RC" != "$want" ]; then
+    FAIL=$((FAIL + 1)); FAILED_NAMES="$FAILED_NAMES $SCEN"
+    printf 'FAIL  %-44s expected rc %s, got rc %s\n' "$SCEN" "$want" "$RC"
+    sed 's/^/        | /' "$MERR" | cut -c1-140 | head -8
+    SCEN=""; return 0
+  fi
+  return 0
+}
+m_out  () { grep -qF -- "$1" "$MOUT" 2>/dev/null; }             # substring, anywhere
+m_line () { grep -qxF -- "$1" "$MOUT" 2>/dev/null; }            # a WHOLE line, byte-exact
+m_err  () { grep -qF -- "$1" "$MERR" 2>/dev/null; }
+fixline () { grep -F -m1 -- "$2" "$MFIX/$1"; }                  # pull a byte-exact fixture line
+
+echo
+echo "--- merge helper ---"
+
+# ── 16. F-BLOCK-1 WITNESS A. A markdown-escaped `\|` inside a note truncated the row.
+#      MEASURED on the pre-fix helper against the real committed rows: 727 B -> 579 B and
+#      1106 B -> 570 B, at bare rc 0, reporting "PRESERVED … 2 hand suffix(es)".
+merge_scenario "A: escaped pipe in a note survives" 0 A-escaped-pipe.baseline.md A-escaped-pipe.generated.md
+assert "the is_signoff row must be byte-identical to the baseline" \
+  "$(m_line "$(fixline A-escaped-pipe.baseline.md '| app.is_signoff_deferral_open')" && echo 1 || echo 0)"
+assert "the can_manage row must be byte-identical to the baseline" \
+  "$(m_line "$(fixline A-escaped-pipe.baseline.md '| app.can_manage_professional')" && echo 1 || echo 0)"
+assert "the sentence AFTER the escaped pipe must survive" \
+  "$(m_out 'RENAMED into the domain rather than backlogged' && echo 1 || echo 0)"
+done_ok
+
+# ── 17. ⭐ DISCRIMINATION for 16 — the pre-fix helper's OWN OUTPUT must FAIL this verifier.
+merge_scenario "A: pre-fix output FAILS the verifier" 2 A-escaped-pipe.baseline.md A-escaped-pipe.generated.md \
+  SELFTEST=1 "MERGE_VERIFY=$MFIX/A-escaped-pipe.prefix-output.md"
+assert "the abort must name the lost suffix" "$(m_err 'SUFFIX:' && echo 1 || echo 0)"
+assert "nothing may be written on an abort" "$([ ! -f "$MOUT" ] && echo 1 || echo 0)"
+done_ok
+
+# ── 18. F-BLOCK-1 WITNESS B. A hand-written 3-column table — header, delimiter and both
+#      rows — was deleted whole, with NO carry and no warning (165 lines -> 161, rc 0).
+merge_scenario "B: hand-written table survives whole" 0 B-hand-table.baseline.md B-hand-table.generated.md
+assert "the hand table HEADER must survive" "$(m_line '| gate | evidence | reading |' && echo 1 || echo 0)"
+assert "the hand table DELIMITER must survive" "$(m_line '| --- | --- | --- |' && echo 1 || echo 0)"
+assert "the WALL (M7) reading must survive" "$(m_out 'WALL (M7): close_case refuses the tenancy admin on AUTHORITY' && echo 1 || echo 0)"
+assert "the surrounding prose control must survive" "$(m_out 'The classifier cannot tell' && echo 1 || echo 0)"
+done_ok
+
+# ── 19. ⭐ DISCRIMINATION for 18.
+merge_scenario "B: pre-fix output FAILS the verifier" 2 B-hand-table.baseline.md B-hand-table.generated.md \
+  SELFTEST=1 "MERGE_VERIFY=$MFIX/B-hand-table.prefix-output.md"
+assert "the abort must name the lost table header" "$(m_err 'PROSE: | gate | evidence | reading |' && echo 1 || echo 0)"
+done_ok
+
+# ── 20. F-BLOCK-1 WITNESS C. The baseline-only carry was gated on a NON-EMPTY note, so a
+#      correctly-shaped hand row with an empty column 5 vanished — not in the table, not in
+#      CARRIED, rc 0. It is now carried WHOLE, note or no note.
+merge_scenario "C: hand row with an EMPTY note is carried" 0 C-empty-note-row.baseline.md C-empty-note-row.generated.md
+assert "the EMPTY-note hand row must be carried verbatim" \
+  "$(m_out '| app.handrow_empty_note(p_x uuid) | predicate | positive | COVERED |  |' && echo 1 || echo 0)"
+assert "the noted hand row must be carried verbatim" \
+  "$(m_out '| app.handrow_with_note(p_x uuid) | predicate | positive | COVERED | a hand note |' && echo 1 || echo 0)"
+assert "a CARRIED block must exist" "$(m_out '<!-- CARRIED:' && echo 1 || echo 0)"
+assert "⛔ a carried row must NOT re-enter a verdict table" \
+  "$(m_line '| app.handrow_empty_note(p_x uuid) | predicate | positive | COVERED |  |' && echo 0 || echo 1)"
+done_ok
+
+# ── 21. ⭐ DISCRIMINATION for 20.
+merge_scenario "C: pre-fix output FAILS the verifier" 2 C-empty-note-row.baseline.md C-empty-note-row.generated.md \
+  SELFTEST=1 "MERGE_VERIFY=$MFIX/C-empty-note-row.prefix-output.md"
+assert "the abort must name the lost row" "$(m_err 'CARRIED ROW: | app.handrow_empty_note' && echo 1 || echo 0)"
+done_ok
+
+# ── 22. ⭐ THE REAL GENERATOR'S OUTPUT (QA could-not-verify #2, settled by a 2-case door run
+#      2026-09-05). Its file list is NOT a byte prefix of the committed note: one row differs
+#      by a hand-added space after a comma (SPLICED, via `wsprefix`) and one by real content
+#      — an annotation inside the list and two files added since (CARRIED WHOLE).
+merge_scenario "D: real generator rows, splice vs carry" 0 D-real-generator.baseline.md D-real-generator.generated.md
+assert "SPLICED: the refreshed file list, generator spacing" \
+  "$(m_out '| 10_immutability.sql,367_deferred_staff_signoff.sql. ⭐ MEASURED by a diff-scoped run' && echo 1 || echo 0)"
+assert "SPLICED: the hand tail survives byte-for-byte" \
+  "$(m_out 'transcribed here because a subset run overwrites this file and is then reverted.' && echo 1 || echo 0)"
+assert "CARRIED: the whole committed can_manage row, verbatim" \
+  "$(m_out "$(fixline D-real-generator.baseline.md '| app.can_manage_professional')" && echo 1 || echo 0)"
+assert "the generator's new file must reach the table" "$(m_out '413_ae4_authorized_scope_ids.sql' && echo 1 || echo 0)"
+done_ok
+
+# ── 23. The four row cases in one pair: unchanged · verdict changed · disappeared · new.
+merge_scenario "E: unchanged/changed/disappeared/new" 0 E-four-row-cases.baseline.md E-four-row-cases.generated.md
+assert "unchanged row passes through" "$(m_line '| app.unchanged_gate(p_x uuid) | predicate | positive | COVERED | 10_a.sql |' && echo 1 || echo 0)"
+assert "newcomer is emitted" "$(m_line '| app.newcomer_gate(p_x uuid) | predicate | positive | BLIND |  |' && echo 1 || echo 0)"
+assert "changed row takes the NEW verdict" "$(m_line '| app.verdict_changed(p_x uuid) | predicate | positive | COVERED | 12_c.sql |' && echo 1 || echo 0)"
+assert "⛔ the note earned against BLIND must NOT ride the COVERED row" \
+  "$(m_line '| app.verdict_changed(p_x uuid) | predicate | positive | COVERED | 12_c.sql. ⭐ a hand note earned against BLIND |' && echo 0 || echo 1)"
+assert "the BLIND-era note is carried with its old verdict" "$(m_out '— BLIND -> COVERED — baseline row carried verbatim' && echo 1 || echo 0)"
+assert "the disappeared gate leaves the table" "$(m_line '| app.disappeared_gate(p_x uuid) | predicate | positive | COVERED | 11_b.sql. ⚠ hand analysis |' && echo 0 || echo 1)"
+assert "the disappeared gate's row is carried" "$(m_out '| app.disappeared_gate(p_x uuid) | predicate | positive | COVERED | 11_b.sql. ⚠ hand analysis |' && echo 1 || echo 0)"
+done_ok
+
+# ── 24. IDEMPOTENCE. merge(b, b) must be b, byte-for-byte, on EVERY fixture baseline — a
+#      merge whose output depends on how many times it ran cannot be called after each case.
+for mb in A-escaped-pipe B-hand-table C-empty-note-row D-real-generator E-four-row-cases; do
+  merge_scenario "idempotent: $mb" 0 "$mb.baseline.md" "$mb.baseline.md"
+  assert "merge(b,b) must be byte-identical to b" "$(cmp -s "$MFIX/$mb.baseline.md" "$MOUT" && echo 1 || echo 0)"
+  done_ok
+done
+
+# ── 25. The knobs are REFUSED outside the self-test (QA F-MAJOR-4: no harness scrubbed
+#      MERGE_FAULT, so an exported one would have injected into a run that WRITES the
+#      committed baseline).
+#      ⚠ SELFTEST=0 must be set EXPLICITLY. This suite runs with SELFTEST=1 in its own
+#      environment, so the child inherits it and the knob is NOT refused — the run still
+#      exits 2, for the unrelated "nothing to inject" reason, and an rc-only assertion
+#      passes on the wrong cause. Measured: this scenario went green that way until the
+#      message assertion below caught it.
+merge_scenario "MERGE_FAULT refused when SELFTEST!=1" 2 E-four-row-cases.baseline.md E-four-row-cases.generated.md \
+  SELFTEST=0 MERGE_FAULT=drop-hand-block
+assert "the refusal must name SELFTEST" "$(m_err 'SELF-TEST knobs and SELFTEST is not 1' && echo 1 || echo 0)"
+assert "nothing may be written" "$([ ! -f "$MOUT" ] && echo 1 || echo 0)"
+done_ok
+
+# ── 26. ⛔ AND IT MUST ABORT WHEN IT CANNOT INJECT. `drop-hand-block` against the real door
+#      baseline used to exit 0 having injected nothing — "a mutation that did not fully
+#      apply reports GREEN". E carries no hand PROSE, so this is that exact situation.
+merge_scenario "MERGE_FAULT aborts when nothing to inject" 2 E-four-row-cases.baseline.md E-four-row-cases.generated.md \
+  SELFTEST=1 MERGE_FAULT=drop-hand-block
+assert "the abort must say it could not inject" "$(m_err 'asked to inject and could not' && echo 1 || echo 0)"
+assert "⛔ it must NOT claim to have injected" "$(m_err 'FAULT INJECTED' && echo 0 || echo 1)"
+done_ok
+
+# ── 27. …and when it CAN inject, the verifier must catch it — all three kinds.
+merge_scenario "MERGE_FAULT drop-hand-block is caught" 2 B-hand-table.baseline.md B-hand-table.generated.md \
+  SELFTEST=1 MERGE_FAULT=drop-hand-block
+assert "the injection must be cmp-verified as landed" "$(m_err 'output changed, cmp-verified' && echo 1 || echo 0)"
+assert "the verifier must name it lost" "$(m_err 'the merge LOST hand-authored material' && echo 1 || echo 0)"
+done_ok
+
+# ⭐ drop-suffix is the one that caught ITSELF: the victim used to travel through `awk -v`,
+#   which DECODES escapes, so against a note holding `^(is_\|can_\|has_\|…)` it searched for
+#   an already-unescaped string, matched nothing, printed "FAULT INJECTED" and the verifier
+#   passed at rc 0. This fixture is that exact note.
+merge_scenario "MERGE_FAULT drop-suffix is caught" 2 A-escaped-pipe.baseline.md A-escaped-pipe.generated.md \
+  SELFTEST=1 MERGE_FAULT=drop-suffix
+assert "the injection must be cmp-verified as landed" "$(m_err 'output changed, cmp-verified' && echo 1 || echo 0)"
+assert "the verifier must name the lost suffix" "$(m_err 'SUFFIX:' && echo 1 || echo 0)"
+done_ok
+
+merge_scenario "MERGE_FAULT drop-carried-row is caught" 2 C-empty-note-row.baseline.md C-empty-note-row.generated.md \
+  SELFTEST=1 MERGE_FAULT=drop-carried-row
+assert "the injection must be cmp-verified as landed" "$(m_err 'output changed, cmp-verified' && echo 1 || echo 0)"
+assert "the verifier must name the lost row" "$(m_err 'CARRIED ROW:' && echo 1 || echo 0)"
 done_ok
 
 echo

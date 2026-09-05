@@ -1674,6 +1674,13 @@ regex).
 **Status:** open — ⚠ measured 2026-09-04: **3** register-style `**Closes when:**` lines survive in the **8963**-line archive; longstanding practice, not attributable to the unit whose review found it
 **Body:** [FUP-DOCS-CONSOLIDATION-CLOSURE-DROPS-THE-CLOSES-WHEN-FIELD.md](FUP-DOCS-CONSOLIDATION-CLOSURE-DROPS-THE-CLOSES-WHEN-FIELD.md)
 
+### 🟡 FUP-AUTHZ-ROWDOOR-INVOKER-HARNESSES-HAVE-NO-GRADED-EXIT — two mutation harnesses print their verdicts and then exit 0 whatever they found
+
+**Filed:** 2026-09-05 (QA review of DOOR-SWEEP-DERIVER, the parenthetical under F-MAJOR-5; confirmed by reading every harness tail at `7df0bd9b`) · **Owner:** backend · **Severity:** medium — the verdicts are PRINTED, so nothing is hidden from a human reading the transcript; what is missing is the machine-readable half, and neither harness is wired into a gate today — which is the same sentence as "no gate would notice if it were". Same two files, same cause, as `FUP-AUTHZ-INVOKER-AND-ROWDOOR-HARNESSES-HAVE-NO-SENTINEL`: the pair predate the door/writepath contracts and never inherited them
+**Closes when:** `p0-authz-rowdoor-audit.sh` and `p0-authz-invoker-audit.sh` each end in a graded `RESULT:` block of the same shape as the other two — a distinct exit code for 0-swept-over-a-non-empty-domain, BLIND-or-ERROR present, requested-but-unmatched, and clean — and each code is proven able to fire by a plant that forces its arm, with the code read **bare**. ⛔ Not closed by adding the block and reading the code off a clean run: a graded exit that has only ever returned 0 is the thing being replaced
+**Status:** open — ⚠ nothing is measured as wrong; the finding is the ABSENCE of the contract. ⛔ Explicitly NOT about `MERGE_FAILED`: DOOR-SWEEP-DERIVER added a minimal `MERGE_FAILED -> exit 2` to both tails because the merge it introduced was its to make safe; that block grades nothing else and the `exit 0` beside it is the status those runs already had
+**Body:** [FUP-AUTHZ-ROWDOOR-INVOKER-HARNESSES-HAVE-NO-GRADED-EXIT.md](FUP-AUTHZ-ROWDOOR-INVOKER-HARNESSES-HAVE-NO-GRADED-EXIT.md)
+
 ### 🟡 FUP-AUTHZ-DOOR-SWEEP-MARKER-DECLARES-POLICIES-TOO — a `door-sweep-targets:` line naming a POLICY is parsed as if it named a function, and the TABLE name is what gets derived
 
 **Filed:** 2026-09-05 (DOOR-SWEEP-DERIVER plan step, found while asking why a TABLE name was in a case list) · **Owner:** backend · **Severity:** medium — not a live hole (the policies are derived by the `create policy` branch and the two table names are named as UNRESOLVED rather than entering `CASES`), but the notation and its parser disagree and the migration author had every reason to believe the declaration was read
