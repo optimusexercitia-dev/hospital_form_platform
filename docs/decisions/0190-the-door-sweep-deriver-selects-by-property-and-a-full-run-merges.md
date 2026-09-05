@@ -468,14 +468,31 @@ half gets the same property without a knob, from D9's three committed pre-fix ou
 Negative control on the merge half: **PASS 21 · FAIL 13, rc 1**, with only the helper swapped to
 `de955981`'s.
 
+Negative control on the **deriver** half — the whole suite run against the pre-unit deriver, same
+fixtures and assertions: **PASS 20 · FAIL 14 · SKIPPED 0**, bare rc 1, of which the deriver half is
+**2 / 16**. The two survivors are the scenarios that never touch the deriver's selection logic at
+all: `no migration in the diff → rc 3` and `bad ARM → rc 2`. ⚠ **Measured by QA in the delta check
+at `ee037fa3`, and attributed rather than re-run here** — copying a number is the register defect
+this unit exists to name, so the source is stated with the figure.
+
 > ⚠ **Corrected 2026-09-05 (QA F2-BLOCK-1).** This paragraph read *"runs 15 scenarios"* and
 > *"15 PASS / 0 FAIL on this branch; **3 PASS / 12 FAIL, rc 1, against the pre-unit deriver with
 > the same fixtures and assertions**"*. Both figures were true of the deriver-only suite as it
 > stood before the fix loop added scenario 16 (fixture `09-marker-dangling-prefix.sql`, QA
-> F-MAJOR-3) and the 18 merge scenarios. ⛔ The pre-unit-**deriver** negative control has NOT been
-> re-run since scenario 16 was added, so its post-fix figure is unmeasured and is deliberately not
-> restated here as a number; what IS re-measured at the tip is the 34/0/0 above and the merge
-> half's 21/13.
+> F-MAJOR-3) and the 18 merge scenarios.
+>
+> ⛔ **That correction's own closing clause is SUPERSEDED — 2026-09-05, Record commit (QA
+> F4-REC-3).** It read: *"The pre-unit-**deriver** negative control has NOT been re-run since
+> scenario 16 was added, so its post-fix figure is unmeasured and is deliberately not restated
+> here as a number; what IS re-measured at the tip is the 34/0/0 above and the merge half's
+> 21/13."* It is kept visible because a caveat that is silently deleted once it is discharged
+> teaches nothing. It was **true when written** (at `ee037fa3`) and **false by `8a6fe699`**: QA
+> ran the control in the delta check, and the figure is now stated in the paragraph above. The
+> record (`docs/progress/door-sweep-deriver.md`, § D11's control) and the unit hub had carried the
+> discharge since iteration 4; **this ADR had not**, which is the shape where an ADR outlives the
+> loop it describes. ⚠ The failure here was *conservative* — declining to state a figure that
+> existed — so it cost at most a duplicated run and could not propagate a defect; that is why it
+> rode the Record commit instead of blocking.
 
 ### D12 — Two in-tree assertions are now FALSE and are named here as superseded.
 

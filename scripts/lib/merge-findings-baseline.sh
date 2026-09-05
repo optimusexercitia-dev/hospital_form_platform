@@ -74,10 +74,31 @@
 #       · the "column 1 contains no `.` and no `(`" filter over all 401 lines -> exactly those
 #         same two lines, so no verdict row is being mistaken for a header;
 #       · 401 `| `-leading lines − 2 headers = 399, and the separator histogram over those 399
-#         sums to 399 independently: 397 rows with 6 unescaped separators, 1 with 7
-#         (`:355`), 1 with 9 (`:293`, whose note carries `^(is_\|can_\|has_\|…)`), 0 with an
-#         empty column 1. ⚠ The histogram is 397/1/1, NOT the 398/1/0 the fix-loop brief
-#         predicted: there are TWO over-piped rows, not one, and both are genuine verdict rows.
+#         sums to 399 under EITHER instrument — which is why no denominator ever moved. State
+#         the instrument WITH the count, because the two are not the same question:
+#           – UNESCAPED separators (rule 2 below, and what `seps()` at `:267-275` computes):
+#             398 rows with 6, 1 with 7 (`:355`), 0 with more; 0 with an empty column 1
+#             -> 398 / 1 / 0.
+#           – RAW `|`, escaped ones counted too: 397 with 6, 1 with 7 (`:355`), 1 with 9
+#             (`:293`, whose note carries `^(is_\|can_\|has_\|…)`) -> 397 / 1 / 1.
+#         [⛔ CORRECTED 2026-09-05, Record commit (QA F4-REC-1). This read "397 rows with 6
+#         UNESCAPED separators, 1 with 7, 1 with 9 … ⚠ The histogram is 397/1/1, NOT the
+#         398/1/0 the fix-loop brief predicted: there are TWO over-piped rows, not one". The
+#         count was raw-`|`; the LABEL said "unescaped". Ten lines below, rule 2 of this very
+#         file defines a separator as an UNESCAPED `|` — so under the artefact's own
+#         definition the brief's 398/1/0 was RIGHT and the override was wrong. Re-measured
+#         2026-09-05 by running `seps()` itself over the 399 rows.
+#         ⚠ And the mislabel ERASED A REAL DISTINCTION by bucketing the two rows together.
+#         They are not the same kind of thing:
+#           · `:293` is CORRECTLY ESCAPED — its three extra pipes are `\|` inside the code
+#             span `^(is_\|can_\|has_\|…)`, so it carries SIX separators and is a well-formed
+#             five-column row. Nothing is wrong with it.
+#           · `:355` is GENUINELY MALFORMED — an UNESCAPED `|` inside `` `ERROR | run-shape!=
+#             baseline` ``, giving SEVEN separators; only rule 2's cap-at-five keeps it from
+#             becoming a sixth column. This is the kind that breaks a naive consumer, and it
+#             is the one the cap exists for.
+#         ⭐ The lesson is the label, not the arithmetic: a count is only as true as the
+#         instrument named beside it, and here the artefact defined the instrument itself.]
 #     ⛔ And `:282` is NOT swallowed by anything: it is a real verdict row, correctly classified,
 #     because the classifier keys a header on EXACT TEXT from the generated file (step 1a's `H`
 #     set), never on "the line above a delimiter", once it is reading the baseline. Verified by
@@ -105,10 +126,31 @@
 #      needs no edit.
 #      [⚠ Corrected 2026-09-05, iteration 4 (QA F3-REC-4): this pointed at `grammar_from_generated`,
 #      which is NOT a name in this file. The derivation is an inline awk block, not a function —
-#      the only shell functions here are `die`, `note`, `split_file`, `inject_fail`, `rowkeys`,
-#      and the only awk functions are `trim`, `seps`, `rowsplit`, `is_delim`, `wsprefix`. A
-#      pointer to a name that does not exist cannot go stale loudly, so it is replaced by the
-#      step number and the artefact path it writes.] Everything else that starts with `| ` is HAND-AUTHORED PROSE.
+#      the shell functions here are `die`, `note`, `split_file`, `inject_fail`, `rowkeys`, and
+#      the SHARED `AWKLIB` awk functions are `trim`, `seps`, `rowsplit`, `is_delim`, `wsprefix`.
+#      A pointer to a name that does not exist cannot go stale loudly, so it is replaced by the
+#      step number and the artefact path it writes.]
+#      [⛔ CORRECTED 2026-09-05, Record commit (QA F4-REC-2). The clause above read "and the ONLY
+#      awk functions are `trim`, `seps`, `rowsplit`, `is_delim`, `wsprefix`" — a FALSE UNIVERSAL.
+#      Every name it CITED exists, so F3-REC-4's actual requirement was met; the QUANTIFIER was
+#      wrong. MEASURED 2026-09-05 with `grep -nE '^\s*function [a-z_]+' scripts/lib/merge-
+#      findings-baseline.sh` -> TEN awk function definitions, in three blocks:
+#        · shared, inside `AWKLIB` (`:265`-`:313`) — used by every awk block that sources it:
+#          `trim` `:266` · `seps` `:267` · `rowsplit` `:276` · `is_delim` `:284` · `wsprefix` `:298`
+#        · local to STEP 4's carry block (the awk at `:395`, which DOES source `AWKLIB`):
+#          `after4` `:397` · `carry_row` `:402`
+#        · local to STEP 5's replace block (the awk at `:460`, which does NOT source `AWKLIB`):
+#          `shape` `:461` · `emit_row` `:462` · `flush` `:470`
+#      ⚠ Those line numbers are as of THIS commit and rot on any edit above them; the NAMES and
+#      the three-block split are the durable part, and the grep re-derives both.
+#      The shell list of five IS exhaustive, and is measured too: `grep -nE '^[a-z_]+ *\(\) *\{'`
+#      returns exactly those five.
+#      ⭐ QA's F4-REC-2 reported NINE, and its own filter is the reason: `grep -nE 'function
+#      [a-z_]+ *\('` cannot match `after4(` — `[a-z_]+` stops before the digit, then ` *\(` fails
+#      on the `4`. A census whose character class excludes a character its subjects USE
+#      under-reports SILENTLY, and here it under-reported the fix for an under-reporting
+#      quantifier. Anchor such a filter on `function` + whitespace, never on the name's alphabet.]
+#      Everything else that starts with `| ` is HAND-AUTHORED PROSE.
 #   2. Columns are split at UNESCAPED `|` only, and CAPPED at five: column 5 is everything
 #      from the 5th separator to the last one, so a `\|` — or a stray `|` — inside a note
 #      survives byte-for-byte.

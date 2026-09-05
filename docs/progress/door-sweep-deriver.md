@@ -646,10 +646,30 @@ The two committed bare-`--` migrations (`…007180`, `…007190`) still parse.
   (a) `grep -n '^| gate / policy' docs/reviews/authz-door-audit-findings.md` → **2** hits,
   `:112` and `:262`; (b) the "column 1 holds no `.` and no `(`" filter over all 401 `| `-leading
   lines returns **exactly those two lines** and no verdict row; (c) 401 − 2 = **399**, and the
-  separator histogram sums to 399 on its own — **397** rows with 6 unescaped separators, **1**
-  with 7 (`:355`), **1** with 9 (`:293`), **0** with an empty column 1. ⚠ That histogram is
-  **397/1/1, not the 398/1/0** the iteration-4 brief predicted: there are TWO over-piped rows,
-  and both are genuine verdict rows whose notes carry literal `|`. ⛔ Iteration 3's claim that
+  separator histogram sums to 399 on its own, under either instrument.
+  [⛔ **CORRECTED 2026-09-05, Record commit (QA F4-REC-1).** (c) originally continued: "**397**
+  rows with 6 unescaped separators, **1** with 7 (`:355`), **1** with 9 (`:293`), **0** with an
+  empty column 1. ⚠ That histogram is **397/1/1, not the 398/1/0** the iteration-4 brief
+  predicted: there are TWO over-piped rows, and both are genuine verdict rows whose notes carry
+  literal `|`." ⛔ **That count was raw-`|`; the label said "unescaped".** Both numbers are
+  reproducible — they answer two different questions, and the sentence asked one and answered the
+  other. Re-measured 2026-09-05 by running the helper's own `seps()` over the 399 rows:
+
+  | instrument | `:293` | `:355` | histogram | empty col 1 |
+  |---|---|---|---|---|
+  | **UNESCAPED separators** — the helper's rule 2, what the sentence SAYS it counts | **6** | **7** | **398 / 1 / 0** | 0 |
+  | raw `\|`, escaped ones counted — what it ACTUALLY counted | **9** | **7** | 397 / 1 / 1 | 0 |
+
+  So under the artefact's own definition of a separator the brief's **398/1/0 was right**, and the
+  override was the false clause. ⚠ **And the mislabel erased a real distinction:** `:293` is
+  **correctly escaped** — its three extra pipes are `\|` inside the code span
+  `` `^(is_\|can_\|has_\|…)` ``, so it carries six separators and is a well-formed five-column
+  row; `:355` is **genuinely malformed** — an unescaped `|` inside `` `ERROR \| run-shape!=baseline` ``,
+  and only rule 2's cap-at-five keeps it from becoming a sixth column. Bucketing them as "two
+  over-piped rows" said the correct row and the broken row were the same kind of thing. ⛔ **No
+  number downstream moves:** the histogram sums to **399 under both instruments**, so the
+  denominator — the only figure anything computes on — is untouched, and F3-BLOCK-1 stands.]
+  ⛔ Iteration 3's claim that
   a header rule "swallows `:282`" is also void — `:282` is a real verdict row and is classified
   as one, because once the merge helper is reading the BASELINE it keys headers on EXACT TEXT
   drawn from the generated file (step 1a's `H` set), not on delimiter adjacency. Confirmed by
@@ -828,7 +848,7 @@ is evidence about the reviewer's filter, exactly like the record's was.
 | F2-REC-2 | a hand row mimicking the generator's shape is relocated, not preserved in place | `Any ONE of the three makes a well-shaped baseline line a verdict row; a hand-written table — its own header, its own delimiter, its own rows — matches NONE of them.` — true, and silent about the converse | that sentence, plus **exception 2** at the top of the file and a `⚠ The converse is REAL and MEASURED` paragraph at `grammar_from_generated`: a hand line borrowing the 5-column shape **and** a real gate key or verdict token **does** match, is classified as a row, and lands in CARRIED — "It costs PLACEMENT, never BYTES" | QA measured it (two mimicking rows, rc 0, both carried verbatim); ordinal keying is what stops a collision. Comment-only |
 | F2-REC-3 | `exit [0-9]` census | record `:564`: `returns **8** hits — 7 prose lines and one …` | `returns **9** hits — 8 prose lines and one …`, with a dated bracketed correction | `grep -c 'exit [0-9]' scripts/door-sweep-cases.sh` = **9**, bare. QA agrees; it was never commit drift (9 at `4d5c6bd9` too) |
 | F2-REC-4 | a named PARSE ERROR does not move the exit code | the four-way EXIT CODES block said nothing about it | eight lines added to that block: fixture `09` derives at bare rc **0** while stderr carries `⚠ door-sweep-targets: PARSE ERROR(S) — named, and the run continues:`; "⛔ An operator recording a gate result must read stderr for `PARSE ERROR(S)` beside the code, not the code alone" | ⚠ **The lead's task list omitted F2-REC-4 and asked for a reason if it was skipped. It was not skipped** — it exists (review `:228-231`), it is one comment block in `scripts/door-sweep-cases.sh`, and the commit's own message says F2-REC-1..7. Comment-only; `bash -n` rc 0 |
-| F2-REC-5 | the verdict-row denominator | `399 verdict rows` (helper header `:27`, record `:613`) | ~~**400**~~ → **399**, i.e. UNCHANGED from the original | ⛔ **This cell was WRONG and is corrected 2026-09-05, iteration 4 (QA F3-BLOCK-1).** It read: "QA's 401 is also wrong, and in the other direction… Exactly **1** is the table HEADER (`:112`) … so verdict rows = **400** … **399** is what a header rule of 'the line immediately above a delimiter' yields — that rule also swallows `:282`". ⛔ There are **TWO** headers, not one: `emit_body` emits two tables (`p0-authz-door-audit.sh:761` and `:767`) and the baseline carries both, `:112` and `:262`. `grep -n '^\| gate / policy'` = **2** hits; the "column 1 has no `.` or `(`" filter returns exactly those two lines; 401 − 2 = **399**, and the separator histogram sums independently to 399 (**397** with 6 separators, **1** with 7, **1** with 9, **0** empty column 1 — ⚠ 397/1/1, not the 398/1/0 the brief predicted). `:282` is a genuine verdict row and is classified as one; the helper keys baseline headers on EXACT TEXT from step 1a's `H` set, never on delimiter adjacency. **No code defect.** The load-bearing **37** is unchanged at the 399 denominator |
+| F2-REC-5 | the verdict-row denominator | `399 verdict rows` (helper header `:27`, record `:613`) | ~~**400**~~ → **399**, i.e. UNCHANGED from the original | ⛔ **This cell was WRONG and is corrected 2026-09-05, iteration 4 (QA F3-BLOCK-1).** It read: "QA's 401 is also wrong, and in the other direction… Exactly **1** is the table HEADER (`:112`) … so verdict rows = **400** … **399** is what a header rule of 'the line immediately above a delimiter' yields — that rule also swallows `:282`". ⛔ There are **TWO** headers, not one: `emit_body` emits two tables (`p0-authz-door-audit.sh:761` and `:767`) and the baseline carries both, `:112` and `:262`. `grep -n '^\| gate / policy'` = **2** hits; the "column 1 has no `.` or `(`" filter returns exactly those two lines; 401 − 2 = **399**, and the separator histogram sums independently to 399 under either instrument — **398 / 1 / 0** counting UNESCAPED separators (the helper's rule 2, and the definition this sentence's own "separator" refers to), **397 / 1 / 1** counting raw `\|` with escapes included; **0** empty column 1 either way. ⛔ **This parenthetical read "(**397** with 6 separators, **1** with 7, **1** with 9, **0** empty column 1 — ⚠ 397/1/1, not the 398/1/0 the brief predicted)" and was corrected 2026-09-05, Record commit (QA F4-REC-1)** — the count was raw-`\|` under an "unescaped" label, and it also bucketed a correctly-escaped row (`:293`) with a genuinely malformed one (`:355`). Detail and the instrument table: § the F3-BLOCK-1 measurement block in this record. No denominator moves. `:282` is a genuine verdict row and is classified as one; the helper keys baseline headers on EXACT TEXT from step 1a's `H` set, never on delimiter adjacency. **No code defect.** The load-bearing **37** is unchanged at the 399 denominator |
 | F2-REC-6 | the `hat` gate row quotes its instrument control, not its domain | the OBSERVED cell was `bare rc 0` + `self-test: 7/7 OK` + `=== INVARIANT HOLDS ===` and nothing else | the same OBSERVED text, plus `⛔ **DOMAIN HALF NOT CAPTURED**` naming what is missing and why it is not filled in | ⛔ **Deliberately not "fixed" by writing a number.** `4 finding(s), all reasoned-allowlisted` is `62829c79`'s measurement of `62829c79`'s run; copying it onto the iteration-1 row would be this unit's own register lesson committed a third time. The lead's gate scope excludes the arms, so the honest state is DISCLOSED, and re-establishing it is a hat re-run at the next gate — carried into the hub's Blockers as an open item, not a pass |
 | F2-REC-7 | the hub's `adrs:` frontmatter omits the unit's own ADR | `adrs: ["0079", "0148", "0153", "0173", "0182"]` | `adrs: ["0079", "0148", "0153", "0173", "0182", "0190"]` | `npm run features:index` re-run |
 
@@ -1014,12 +1034,32 @@ the committed baseline carries both. Three independent measurements, all giving 
 |---|---|---|
 | header count | `grep -n '^\| gate / policy' docs/reviews/authz-door-audit-findings.md` | **2** hits — `:112` and `:262` |
 | header identification | column 1 contains no `.` and no `(`, over all 401 `\| `-leading lines | **exactly** `:112` and `:262`; no verdict row is mistaken for a header, and no header is missed |
-| arithmetic + histogram | 401 `\| `-leading lines − 2 headers | **399**; and the separator histogram sums to 399 on its own — **397** rows with 6 unescaped separators, **1** with 7 (`:355`), **1** with 9 (`:293`), **0** with an empty column 1 |
+| arithmetic + histogram | 401 `\| `-leading lines − 2 headers | **399**; and the separator histogram sums to 399 on its own, under **either** instrument — see the table below |
 
-⚠ **The histogram is 397/1/1, NOT the 398/1/0 the task brief predicted.** There are **two**
+⭐ **The histogram must be quoted WITH its instrument** (corrected 2026-09-05, Record commit, QA
+F4-REC-1 — the superseded clause is kept verbatim two paragraphs down). Re-measured by running the
+helper's own `seps()` over the 399 rows:
+
+| instrument | `:293` | `:355` | histogram | empty column 1 |
+|---|---|---|---|---|
+| **UNESCAPED separators** — the helper's rule 2, `seps()` at `merge-findings-baseline.sh:267-275` | **6** | **7** | **398 / 1 / 0** | **0** |
+| raw `\|`, escaped ones counted too | **9** | **7** | **397 / 1 / 1** | **0** |
+
+⚠ **The two rows are NOT the same finding, and the old wording said they were.** `:293` is
+**correctly escaped**: its three extra pipes are `\|` inside the code span
+`` `^(is_\|can_\|has_\|…)` ``, so it carries six separators and is a well-formed five-column row.
+`:355` is **genuinely malformed**: an unescaped `|` inside `` `ERROR \| run-shape!=baseline` ``,
+giving seven, and only rule 2's cap-at-five keeps it from becoming a sixth column. It is the
+`:355` kind that breaks a naive consumer — which is what the cap exists for.
+
+⛔ [**SUPERSEDED 2026-09-05, Record commit (QA F4-REC-1); kept visible.** This paragraph read:
+*"⚠ **The histogram is 397/1/1, NOT the 398/1/0 the task brief predicted.** There are **two**
 over-piped rows, not one: `:293`'s note carries the escaped `^(is_\|can_\|has_\|…)` and `:355`
 carries a stray. Both are genuine verdict rows. The prediction was right about the total and wrong
-about its parts; the total is what the correction turns on, and it is confirmed twice over.
+about its parts; the total is what the correction turns on, and it is confirmed twice over."* The
+count was raw-`|` while the label said "unescaped", so it overrode a prediction that was **right
+under the artefact's own definition of a separator**. ⛔ Nothing downstream moves: the histogram
+sums to **399 under both instruments**, so the denominator is untouched and F3-BLOCK-1 stands.]
 
 ⛔ **Iteration 3's supporting argument is void too.** It claimed 399 came from a header rule of
 "the line immediately above a delimiter" that "also swallows `:282`". It does not. `:282` is a real
@@ -1157,3 +1197,104 @@ against `ee037fa3`; the corrections themselves have since shifted them.)
 **What this entry does NOT claim.** No migration, policy, grant, RPC, seed or `src/` change, so no
 DB arm and no diff-scoped door sweep is owed; `npm run test:db` and the four authz arms stand on
 the tip re-read at `ee037fa3` above. The six follow-up closures remain pending QA + PO.
+
+### 2026-09-05 — backend: QA sign-off F4-REC-1..3 (docs)
+
+Folds the three residual RECs from the sign-off at `8a6fe699`
+(`docs/reviews/door-sweep-deriver-rereview.md` § "Sign-off at `8a6fe699`") into the Record commit.
+All three are documentation; **nothing here touches code, schema, RLS, `prosecdef`, a grant, an
+RPC, a gate or a security boundary**, and no number anything computes on moves. Every figure below
+was **re-measured in this session with the filter it cites**, not copied from the review.
+
+#### F4-REC-1 — the histogram is now labelled by its instrument, and the two rows are separated
+
+⭐ **QA was right and the override was the false clause.** Both numbers are reproducible; they
+answer two different questions, and the sentence asked one and answered the other. Re-measured by
+running the helper's own `seps()` (`scripts/lib/merge-findings-baseline.sh:267-275`) over the 399
+verdict rows of `docs/reviews/authz-door-audit-findings.md`:
+
+| instrument | `:293` | `:355` | histogram | empty column 1 | sums to |
+|---|---|---|---|---|---|
+| **UNESCAPED separators** — the helper's own rule 2, what the sentence SAID it counted | **6** | **7** | **398 / 1 / 0** | **0** | 399 |
+| raw `\|`, escaped ones counted — what it ACTUALLY counted | **9** | **7** | **397 / 1 / 1** | **0** | 399 |
+
+⚠ **The mislabel erased a real distinction**, and that is the part worth keeping: `:293` is
+**correctly escaped** — its three extra pipes are `\|` inside the code span
+`` `^(is_\|can_\|has_\|…)` ``, so it is a well-formed five-column row with six separators; `:355`
+is **genuinely malformed** — an unescaped `|` inside `` `ERROR \| run-shape!=baseline` ``, and only
+rule 2's cap-at-five keeps it from becoming a sixth column. Bucketing them as "two over-piped rows"
+said the correct row and the broken row were the same kind of thing.
+
+⚠ Sites are named by their **anchor text**, with QA's line citation in brackets — the numbers moved
+when these very edits landed, so an anchor is the durable address and a number is not.
+
+| site | old → new |
+|---|---|
+| helper, the third bullet of the `MEASURED three ways` list [QA: `merge-findings-baseline.sh:76-80`] | "397 rows with 6 **unescaped** separators, 1 with 7, 1 with 9 … ⚠ The histogram is 397/1/1, NOT the 398/1/0 the fix-loop brief predicted" → both counts stated **with their instrument**, plus the `:293`-escaped / `:355`-malformed split, in a dated `[⛔ CORRECTED]` block that quotes the superseded clause |
+| record, measurement (c) inside the `THE ITERATION-3 CORRECTION … IS ITSELF WRONG` block [QA: `:648-650`] | same clause → instrument table + the same split; superseded text quoted verbatim in the dated block |
+| record, the `Three independent measurements, all giving 399` table in the iteration-4 entry [QA: `:1017-1022`] | same clause → instrument table; the whole superseded paragraph kept verbatim under `[SUPERSEDED … kept visible]` |
+| record, **F2-REC-5's cell** in the stale-sentence sweep table | ⭐ **QA did not name this site.** Found by `grep -n 397` over the file and corrected the same way — leaving a fourth live copy of the false clause inside the file being corrected defeats the fix |
+
+⛔ **Not fixed here, and owed to the lead:** `docs/features/door-sweep-deriver.md:90` carries
+"the 397/1/1 separator …". The hub is the lead's file in this commit (the Record step closes it),
+so it is **reported, not edited** — the clause needs the same instrument label.
+
+#### F4-REC-2 — the false universal is gone, and QA's replacement count was one short
+
+The clause read *"the **only** awk functions are `trim`, `seps`, `rowsplit`, `is_delim`,
+`wsprefix`"*. Every name it **cited** exists, so F3-REC-4's actual requirement was met — the
+**quantifier** was wrong. MEASURED with the brief's own filter,
+`grep -nE '^\s*function [a-z_]+' scripts/lib/merge-findings-baseline.sh` → **TEN**, not nine:
+
+| block | functions |
+|---|---|
+| shared, inside `AWKLIB` (`:265`-`:313`) | `trim` `:266` · `seps` `:267` · `rowsplit` `:276` · `is_delim` `:284` · `wsprefix` `:298` |
+| local to STEP 4's carry block (awk at `:395`, **does** source `AWKLIB`) | `after4` `:397` · `carry_row` `:402` |
+| local to STEP 5's replace block (awk at `:460`, does **not** source `AWKLIB`) | `shape` `:461` · `emit_row` `:462` · `flush` `:470` |
+
+The shell list of five is exhaustive and was measured too: `grep -nE '^[a-z_]+ *\(\) *\{'` returns
+exactly `die`, `note`, `split_file`, `inject_fail`, `rowkeys`.
+
+⭐⭐ **The finding: QA's F4-REC-2 said NINE, and its own filter is why.** It measured with
+`grep -nE 'function [a-z_]+ *\('`, which **cannot match `after4(`** — `[a-z_]+` stops before the
+digit and ` *\(` then fails on the `4`. A census whose character class excludes a character its
+subjects actually **use** under-reports **silently**, with no error and no gap in the output. Here
+it under-reported the fix for an under-reporting quantifier, one layer out. This is the
+`ynamey`-cannot-match-`name_for` shape (LESSONS: enumeration boundary is a *syntax*, not a
+*property*). Anchor such a filter on `function` + whitespace, never on the name's alphabet — which
+is exactly what the brief's own prescribed filter did, and it is why re-measuring the brief's
+number rather than copying it caught this.
+
+⚠ **Cited line numbers were re-derived TWICE.** My first pass wrote the pre-edit numbers; my own
++40-line insertion had already moved every one of them, and the note I then added about that rot
+moved them a further +2. The final pass was made **length-neutral** so the numbers it states are
+the numbers that survive, and each was asserted mechanically (`sed -n '<n>p'` must contain
+`function <name>`) — 10 / 10 OK, plus the four block anchors and `seps`' 267-275 body bounds.
+
+#### F4-REC-3 — ADR 0190 D11's control is now stated as measured
+
+D11's correction block still read *"the pre-unit-**deriver** negative control has NOT been re-run
+… so its post-fix figure is unmeasured and is deliberately not restated here as a number"*. True at
+`ee037fa3`, **false** from the QA delta check onward — the record (`§ D11's control`) and the hub
+had carried the discharge since iteration 4; the ADR had not, which is an ADR outliving the loop it
+describes. Replaced with the measurement: **`PASS 20 · FAIL 14 · SKIPPED 0`, bare rc 1**, deriver
+half **2 / 16**, survivors `no migration in the diff → rc 3` and `bad ARM → rc 2`, **attributed to
+QA at `ee037fa3` and explicitly not re-run here**. The superseded clause is quoted verbatim in a
+dated `⛔ SUPERSEDED` note rather than deleted — a caveat silently removed once discharged teaches
+nothing. Body-only; the ADR header is untouched.
+
+#### Gate — every code read BARE
+
+| check | command | OBSERVED |
+|---|---|---|
+| helper syntax | `bash -n scripts/lib/merge-findings-baseline.sh` | rc **0** |
+| `scripts/` is comment-only | `git diff -U0 -- scripts/ \| grep -E '^[+-][^+#-]'` | **no output**, filter rc **1** |
+| self-test | `SELFTEST=1 bash scripts/door-sweep-cases.sh` | see the row recorded at commit time below |
+| lint chain | `npm run lint` | see below |
+| registers | inside the chain | ratchets **not raised** |
+
+**What this entry does NOT claim.** Documentation and shell comments only — no migration, policy,
+grant, `prosecdef` gate, RPC, seed or `src/` change, so **no `test:db` and no authz arm is owed**,
+and none is claimed; those stand on the tip re-read at `ee037fa3`. The hub is deliberately
+untouched (the lead closes it in the Record step), and `docs/lead-playbook.md` and
+`docs/progress/phase-ledger.md` were not opened — the lead is editing both concurrently.
