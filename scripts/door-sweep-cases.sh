@@ -688,7 +688,7 @@ extract_one () {   # $1 = the per-file scratch dir, already holding content + fl
     #     20261003007180, elsewhere in the same range, does build one. ADR 0173 recorded that
     #     fixing it meant assembling the content per file and declined it as benign
     #     over-selection. §2b now does assemble per file for a different reason (attribution),
-    #     and this gate is per-file with it. Re-measured on `731abda0^..HEAD`: 20 cases -> 18,
+    #     and this gate is per-file with it. Re-measured on `731abda0^..4d5c6bd9`: 20 -> 18,
     #     the two dropped being `is_active` and `has_role` — both REPLACEMENT LITERALS and
     #     quoted operands, never rewrite targets, exactly as the 2026-09-01 note predicted.
     #     ⚠ BOUND, STATED: a migration that BOTH builds an array AND uses quoted callables as
@@ -839,9 +839,11 @@ fi
 #   neutralize what its arm's domain selects. A token the arm cannot match is reported by
 #   the harness as "REQUESTED … MATCHED NO GATE" and makes the WHOLE run UNPROVEN — so
 #   over-selection here does not cost "~1 min of sweep", it costs every verdict in the run.
-#   Measured 2026-09-05 on `731abda0^..HEAD`: 42 tokens derived, of which 3 resolve to no
-#   catalog object at all, 1 is an INVOKER (another harness's class) and 18 are `prosecdef`
-#   functions outside `PRED_DOMAIN`. That derivation cannot produce a provable sweep.
+#   Measured 2026-09-05 on `731abda0^..4d5c6bd9` (⚠ PINNED — the first form of this comment
+#   cited a moving `HEAD` and its breakdown no longer reproduced, QA F-REC-1): 42 tokens
+#   derived, of which 18 are in `PRED_DOMAIN`, 21 are `prosecdef` functions OUTSIDE it, 1 is
+#   an INVOKER (`save_section_answers` — another harness's class) and 2 resolve to no catalog
+#   object at all. 18 + 21 + 1 + 2 = 42. That derivation cannot produce a provable sweep.
 #
 # ⛔ THE TEXT HEURISTICS ARE THE FLOOR AND THE CATALOG ONLY CLASSIFIES. Nothing is dropped
 #   silently: every candidate the diff text produced ends up in exactly one printed bucket.

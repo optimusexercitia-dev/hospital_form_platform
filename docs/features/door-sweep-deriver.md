@@ -51,7 +51,7 @@ the fifth in the full-run emit path of the sweep harness that writes the committ
 
 ## Current state
 
-**Updated:** 2026-09-05
+**Updated:** 2026-09-05 (QA fix loop, iteration 1 of ≤5)
 
 ### Objective
 Make `scripts/door-sweep-cases.sh` — the instrument CLAUDE.md §6 step 1 makes every phase and
@@ -61,37 +61,37 @@ re-baseline without destroying the committed findings file's hand-authored mater
 2–3 need that re-baseline).
 
 ### Done since start
-Nine commits on `authz-door-sweep-deriver`: `bd5a8080` lift `PRED_DOMAIN` (never re-type it) ·
-`0a0d3489` tier split — a door is a CATALOG fact, `CASES` is tier 2 only · `6234677d`
-`ALTER FUNCTION … SECURITY DEFINER` · `1ba83bff` the whole `door-sweep-targets:` declaration,
-read unconditionally · `9ba4cc35` the shared full-run MERGE with a self-verification that
-ABORTS · `b08b5734` per-file extraction, per-case provenance and the quotable `SCOPE:` line ·
-`8ca0d9ba` `SELFTEST=1` over committed fixtures · `d8ef85df` ADR 0190 · this one.
-**Six follow-ups closed**, each on its own quoted `Closes when` (three on the BODY's condition —
-their register field said `PO to rule`, disclosed per entry); **two filed**, one of them closed
-here. Every new arm proven able to fire on its reproducer, each with a clean negative control
-and a discrimination half, and the load-bearing ones re-run against the pre-unit deriver
-(`53001454`) to show they are not green-on-first-run — witnesses in the record.
-Measured on `731abda0^..HEAD`: 42 cases → **18**, with **0** tokens matching no gate (was 3).
-⛔ No production function, policy, migration or seed changed; no sweep was run; the four
-committed findings baselines are byte-identical.
+Eleven build commits, then the QA review at `de955981` returned **CHANGES REQUESTED — 1 BLOCK,
+6 MAJOR, 8 REC**. Iteration 1 closes all of them (F-REC-4 is the lead's playbook edit):
+`6474a625` the merge helper · `4d5c6bd9` the deriver · this one (docs). **F-BLOCK-1 was real
+and reproduced first**: the helper classified every `| `-leading line as a verdict row and
+built its protected set with `grep -vE '^\| '`, so all three of QA's measured losses — a note
+truncated at an escaped `\|` (727→579 B, 1106→570 B), a hand table deleted whole (165→161
+lines), a hand row with an empty note vanishing — happened at bare rc 0 reporting everything
+preserved. Now: 0 bytes lost on all three, and the verifier is proven able to see them by
+being fed the PRE-FIX helper's own committed output (rc 2 ×3). The merge now has 18 self-test
+scenarios; the same suite against `de955981`'s helper is **13 FAIL, bare rc 1**.
+Measured, PINNED, on `731abda0^..4d5c6bd9`: 42 tokens → **18** cases, tier 1 = **39**.
+⛔ No production function, policy, migration or seed changed; no full sweep was run; the four
+committed findings baselines are byte-identical to `main`.
 
 ### In progress
-Nothing — the build and the gate are done, all exit codes read BARE on a fresh
-`supabase db reset --local`: `lint` 0 · `typecheck` 0 · `test:db` 0 (`Files=262, Tests=8876,
-Result: PASS`, byte-for-byte the last known-good shape) · the four authz arms 0 (`INVARIANT
-HOLDS` each) · `SELFTEST=1` 0 (PASS 15 / FAIL 0 / SKIPPED 0) · the diff-scoped sweep **rc 3
-NOT-APPLICABLE, derived rather than asserted**. ⚠ Two RED `test:db` runs preceded the green one
-and are both in the record: the parked `FUP-PGTAP-WORKER-DEADLOCK` flake (which lost 115
-assertions while keeping `Files=262`), then my own re-run against the DB that flake had left
-truncated.
+Nothing. Iteration-1 gate on a fresh `supabase db reset --local`, all codes read BARE — results
+in the record's `### 2026-09-05 — backend: QA fix loop, iteration 1`. ⚠ Two of QA's five
+could-not-verify items were settled by MEASUREMENT rather than argument, and one of them
+refuted an assumption the merge rested on: the generator's file list is **not** a prefix of the
+committed note (0 of 2 byte-exact on a real 2-case door run), so the splice rule is now
+whitespace-tolerant and everything else is carried whole.
 
 ### Next
-QA review → PO → Record. ⚠ The six closures are written at the BUILD step and are **pending QA
-+ PO**; if either rejects, the rotation is reversible (entries and bodies are in
-`follow-ups-archive.md` verbatim, `cmp`-checked before the source was cut).
+QA re-review → PO → Record. The six follow-up closures are unchanged and still **pending QA +
+PO**; one new follow-up was filed this iteration
+(`FUP-AUTHZ-ROWDOOR-INVOKER-HARNESSES-HAVE-NO-GRADED-EXIT` 🟡, backend, body + entry, not fixed).
 
 ### Blockers
-None. ⚠ Open question for the lead, in the report: three of the six closures rest on the
-follow-up BODY's condition because the REGISTER field read `PO to rule` — the lead's brief
-directed the closure, but that field is the PO's.
+None. ⚠ Two open items for the lead, both in the report: (1) three of the six closures rest on
+the follow-up BODY's condition because the REGISTER field read `PO to rule` — that field is the
+PO's; (2) on a real full re-baseline most hand-annotated door rows will land in the CARRIED
+block rather than being spliced, because the generator's file lists have grown since those
+notes were written. That is the safe direction — nothing is lost and everything is flagged —
+but it is a large CARRIED block for a human to re-file, and Batches 2–3 should expect it.

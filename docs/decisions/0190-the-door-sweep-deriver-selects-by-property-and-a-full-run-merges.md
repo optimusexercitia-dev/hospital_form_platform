@@ -59,12 +59,23 @@ evaluates **IN**. The deriver's hand copy demanded `returns boolean` and dropped
 migration touching it derived zero cases from a gate the arm would have swept. ⭐ The drift was
 standing inside the file whose own header forbids exactly this.
 
-**P3 — the deriver already OVER-selected into UNPROVEN**, unfiled until this unit. On
-`731abda0^..HEAD`: **42** tokens derived, of which **3** resolve to no catalog object at all,
-**1** is an INVOKER (another harness's class) and **21** are `prosecdef` functions outside
-`PRED_DOMAIN`. `p0-authz-door-audit.sh` reports every unmatched token and the whole run ends
-**UNPROVEN**. The paste-able command the deriver printed therefore made an AE5 increment
-touching the authz resolvers unprovable.
+**P3 — the deriver already OVER-selected into UNPROVEN**, unfiled until this unit. Measured
+on `731abda0^..4d5c6bd9` with the PRE-UNIT deriver (`main` @ `76d87a4f`), catalog reachable:
+bare rc 0, **42** tokens, all 42 emitted as `CASES`. Resolved against the live catalog those
+42 are **18** in `PRED_DOMAIN` · **21** `prosecdef` functions OUTSIDE it · **1** INVOKER
+(`save_section_answers`, another harness's class) · **2** that resolve to no catalog object at
+all (`form_item_options`, `form_item_validations`). 18 + 21 + 1 + 2 = **42**.
+`p0-authz-door-audit.sh` reports every unmatched token and the whole run ends **UNPROVEN**.
+The paste-able command the deriver printed therefore made an AE5 increment touching the authz
+resolvers unprovable.
+
+> ⚠ **Corrected 2026-09-05 (QA F-MAJOR-6 + F-REC-1).** This paragraph first read "**3** resolve
+> to no catalog object at all, **1** is an INVOKER and **21** are `prosecdef` functions outside
+> `PRED_DOMAIN`" — 3 + 1 + 21 = 25, leaving 17 of its own 42 unaccounted. The likely origin is
+> a transposition of a POST-fix figure (41 tier-1 doors − 20 tier-2 cases = 21) into a PRE-fix
+> paragraph: two measurements of two different things wearing one number. It is re-measured
+> above rather than patched, and the tip is PINNED — the original cited `731abda0^..HEAD`, and
+> `HEAD` moved, so neither the old breakdown nor the new one reproduces from the written range.
 
 **P4 — the ADR 0173 declaration was read by a parser narrower than its notation, on a code
 path that never ran for the file the follow-up is about.** The marker grep was anchored per
@@ -114,11 +125,19 @@ Nothing is dropped silently. Every text-derived candidate lands in exactly one *
 bucket: `CASES` · DOORS-NOT-SWEEPABLE · INVOKER (routed by name to
 `p0-authz-invoker-audit.sh`) · UNRESOLVED.
 
-*Measured:* `731abda0^..HEAD` 42 → **20** cases, tier 1 = 41 doors identified, and **0** tokens
-resolving to neither `pg_policies.policyname` nor `pg_proc.proname` (was 3). Three doors the
-name filter had dropped entirely — `current_professional_read_organizations`,
-`authorized_scope_ids`, `candidate_authorized_scope_ids` — are now identified, so P1's class
-closes past the one name that raised it.
+*Measured, pinned to `731abda0^..4d5c6bd9`, catalog reachable, bare rc 0:* 42 tokens → **18**
+cases, tier 1 = **39** doors identified, and **0** tokens IN `CASES` resolving to neither
+`pg_policies.policyname` nor `pg_proc.proname`. Three doors the name filter had dropped
+entirely — `current_professional_read_organizations`, `authorized_scope_ids`,
+`candidate_authorized_scope_ids` — are now identified, so P1's class closes past the one name
+that raised it.
+
+> ⚠ **Re-measured and pinned 2026-09-05 (QA F-REC-1).** This line first read "42 → **20**
+> cases, tier 1 = 41" against `731abda0^..HEAD`. Both figures were true of a MID-UNIT build:
+> the tier split alone gives 20/41, and D7's per-file `array[` gate then drops `is_active` and
+> `has_role`, taking it to 18/39 — the same −2 in both columns, which is what makes the pair
+> consistent rather than a discrepancy. ⛔ A citation ending at a moving `HEAD` does not
+> reproduce, so the range is pinned here and everywhere else in this ADR.
 
 ### D2 — The deriver ASKS for `PRED_DOMAIN`; it never copies it. Residual `$` is an ABORT.
 
@@ -168,8 +187,25 @@ committed migrations at every gate. A continuation bearing a schema prefix with 
 unclosed argument list, is a **named** parse error at `<file>:<line>` and the run continues — a
 parse error in a comment must not decide a sweep.
 
-*Measured:* the wider read added **zero** cases on `731abda0^..HEAD` and exactly one new
-UNRESOLVED token; over all 11 marker-bearing migrations in the tree, **0** parse errors.
+*Measured:* the wider read added **zero** cases and exactly one new UNRESOLVED token (taken
+mid-unit, against an unpinned `HEAD`); over all 11 marker-bearing migrations in the tree,
+**0** parse errors. *Re-measured and pinned 2026-09-05 on `731abda0^..4d5c6bd9`:* the token
+census is **42** both with the pre-unit deriver (`main` @ `76d87a4f`) and with this one, the
+run reports **2** UNRESOLVED tokens, and the parse-error count over the committed tree is
+still **0**.
+
+⛔ **A `--` line is a continuation if it carries a SCHEMA PREFIX, not if its tokens parse**
+(amended 2026-09-05, QA F-MAJOR-3). The first form of this rule tested `harvest(rest) > 0`, so
+a line whose only content was a bare `app.` harvested nothing, was read as a token-free `--`
+and TERMINATED the declaration — silently taking every well-formed continuation after it —
+while the parse error advertised for exactly that input sat inside the successful-harvest
+branch and could never fire on it. A dangling prefix now carries to the next line, so a
+declaration wrapped mid-token parses, and the error is still named. Measured on the reviewer's
+own four-line example (committed as `scripts/fixtures/door-sweep/09-marker-dangling-prefix.sql`):
+pre-fix `7df0bd9b` gave rc 0, `CASES` = `is_admin`, **0** parse errors and no mention of the
+wrapped token anywhere; now rc 0, `CASES` = `can_sign_section is_admin`, one named
+`schema prefix with no function name`, and the wrapped token reaching UNRESOLVED. The
+committed tree is unaffected: same 18 cases, same tier 1 = 39, still 0 parse errors.
 
 ### D6 — `alter function … security definer` is grepped like `alter policy`.
 
@@ -188,7 +224,7 @@ in another) stays global — per file it would manufacture an orphan or a false 
 The run prints **one `SCOPE:` line the gate record quotes VERBATIM**:
 
 ```
-SCOPE: 14 file(s) — 14 committed (731abda0^..HEAD), 0 worktree, 0 untracked | filter: none
+SCOPE: 14 file(s) — 14 committed (731abda0^..4d5c6bd9), 0 worktree, 0 untracked | filter: none | derivation: catalog
        18 case(s), attributed (a case named by two files is counted in both): …
 ```
 
@@ -196,6 +232,20 @@ plus a PROVENANCE block mapping every derived case to the file(s) that named it,
 filters, `SCOPE=<migration-id floor>` and `PATHS=<prefix>`, echoed in the header and in the
 `SCOPE:` line. ⚠ Quote it; do not paraphrase it — "53 cases" is exactly the kind of number a
 paraphrase keeps while dropping the bound that made it meaningful.
+
+⛔ **THE LINE NAMES ITS DERIVATION MODE, AND IT IS PRINTED ON EVERY EXIT PATH** (amended
+2026-09-05, QA F-MAJOR-1 + F-MAJOR-2). Without the `| derivation:` token the same range and
+the same filter printed a BYTE-IDENTICAL line for a catalog-backed derivation of 18 cases and
+a text-heuristic one of 39 — and this ADR tells the operator to quote that line verbatim, so
+the record would have carried both as the same claim. The token has THREE values, because
+"the catalog was unreachable" and "the catalog was never asked" are different claims:
+`catalog` · `PROVISIONAL (no catalog — text heuristics; the tier split did NOT run)` ·
+`NOT REACHED (this run ended before the catalog was probed)`. And the line is now structural
+rather than per-site: one `finish <rc>` function prints it and exits, every one of the
+deriver's 18 exit paths goes through it, and `grep -n 'exit [0-9]'` over the script returns
+only prose plus a single `exit 9` inside an awk program. It had been fixed at the one site
+that was measured (exit 3) and left absent on both exit-1 paths and every exit-2 path —
+including the outcome where the operator is REQUIRED to write a claim into the gate record.
 
 **This also takes the fix ADR 0173 declined.** 0173:387-393 measured that the `array[` gate was
 evaluated over the CONCATENATED content, so one migration building an array enabled the fallback
@@ -333,8 +383,10 @@ carries eight kinds. A warning whose number comes from a filter is only as true 
 ## Consequences
 
 - The diff-scoped sweep's case list is now a claim about the **catalog**, and a hand-widened
-  list is visibly a widening. `CASES` on `731abda0^..HEAD` drops 42 → 18 while the DOORS
-  IDENTIFIED count (41) makes what was removed visible rather than absent.
+  list is visibly a widening. `CASES` on `731abda0^..4d5c6bd9` drops 42 → **18** while the
+  DOORS IDENTIFIED count (**39**) makes what was removed visible rather than absent. ⚠ The
+  first draft of this line paired the POST-array-gate case count (18) with the PRE-array-gate
+  door count (41); both figures move together, so the pair is 42 → 18 against 39.
 - ⚠ Everything the deriver says about doors now **depends on a reachable catalog**. With the
   stack down it degrades to the old text heuristics, says so, and cannot be read as a
   property-based derivation. The gate record must quote the `SCOPE:` line, which names the

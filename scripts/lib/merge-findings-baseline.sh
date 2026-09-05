@@ -16,12 +16,19 @@
 #   HAND-AUTHORED = any line of the committed baseline THIS RUN'S GENERATOR DID NOT PRODUCE.
 # The follow-up names three kinds of block. By the property the door baseline carries EIGHT
 # (measured 2026-09-05 on 924 lines): 1 `<!-- … -->` block · 7 `## Note` sections · 8
-# `> ⚠ **HAND-MERGED` blockquotes · 39 table rows with hand prose in column 5 · an annotated
+# `> ⚠ **HAND-MERGED` blockquotes · 37 table rows with hand prose in column 5 · an annotated
 # skipped-policy bullet continuation · 2 bare `---` rules · 20 rows stranded ABOVE the COVERED
 # table's delimiter · a nested blockquote inside a note. ⭐ A pattern list would have found the
 # three the follow-up remembered. The door harness's own startup warning matched 8 of them
 # and the writepath twin's wider pattern matched 16 ON THE SAME FILE — a warning whose number
 # comes from a filter is only as true as the filter.
+# ⚠ The "37" is RE-MEASURED (QA F-REC-6: this file said 37 and the unit's record said 39, same
+#   file, same category, same day). Counting column 5 for any of `⭐ ⚠ ⛔ ** [merged` over the
+#   399 verdict rows of the committed door baseline gives **37** under every split — capped and
+#   escape-aware, naive, and symbols-only. The record's 39 was the stale one.
+#   ⛔ And the first pass of this fix loop "reconciled" them by taking 39 WITHOUT measuring,
+#   which is the same defect one layer out: a register's failure mode is prose rot, and a
+#   confident number is not evidence about the file it describes.
 #
 # ⛔⛔ THE FIRST VERSION OF THIS FILE VIOLATED ITS OWN PROPERTY, AND THE VERIFIER COULD NOT SEE
 # IT (QA review of DOOR-SWEEP-DERIVER, F-BLOCK-1, 2026-09-05). It classified EVERY `| `-leading

@@ -114,7 +114,8 @@ must be able to fire on, and it is a derivation the old script CANNOT produce.
 
 The follow-up names three; by the property ("any line the generator did not produce") there are
 eight: 1 `<!-- … -->` block · 7 `## Note` sections · **8** `> ⚠ **HAND-MERGED` blockquotes ·
-**39** table rows carrying hand prose in column 5 · an annotated skipped-bullet continuation ·
+**~~39~~ 37** table rows carrying hand prose in column 5 (corrected 2026-09-05, QA F-REC-6 —
+re-measured below) · an annotated skipped-bullet continuation ·
 2 bare `---` rules · 20 rows ABOVE the COVERED delimiter · a nested blockquote inside a note.
 The door script's own warning pattern sees 8 of these; the writepath twin's wider pattern sees
 16 **on the same file** — measured both ways above. A warning whose number comes from a filter
@@ -127,7 +128,7 @@ lift, three EXPLICIT substitutions (never `eval`), residual-`$` ABORT; `:238` he
 
 | arm | command | OBSERVED |
 |---|---|---|
-| normal | `BASE=731abda0^ TIP=HEAD` | **rc 0**, 42 cases (unchanged), header `PRED_DOMAIN lifted whole (8 line(s)), 3 sub-vars expanded, no residual $` |
+| normal | `BASE=731abda0^ TIP=HEAD` | **rc 0**, 42 cases (unchanged), header `PRED_DOMAIN lifted whole (8 line(s)), 3 sub-vars expanded, no residual $` — ⚠ the **8** is an off-by-one on a 9-line block (`wc -l` counts newlines and the value has no trailing one); corrected 2026-09-05, QA F-REC-2, and the line now prints **9** |
 | NEGATIVE CONTROL | `AUDIT_SRC=<copy>` where `cmp` proves the copy byte-identical | **rc 0**, no abort, same header line |
 | PROOF OF FIRE | the same copy with `$PRED_NAME_RE` → `$PRED_FUTURE_AXIS` (a **one-token** `diff`) | **rc 2**, stdout **0 bytes**, `=== RESULT: ABORT (2) — PRED_DOMAIN LIFTED WITH AN UNEXPANDED VARIABLE. ===` then the unresolved domain printed |
 
@@ -437,11 +438,25 @@ changes there are the four `.sh` harnesses.
 sweep (`git diff --name-only main...HEAD -- supabase/migrations` is empty), and that claim is
 now **derived** rather than asserted:
 
+⛔ **The block that stood here was a PARAPHRASE inside a code fence** — its line order was
+inverted against the script's actual `say()` sequence and three explanatory lines were dropped
+with no ellipsis, in the unit whose own `SCOPE:` line says "Quote it; do not paraphrase it"
+(QA F-REC-7). Replaced 2026-09-05 with the REAL stderr tail, captured at `4d5c6bd9`, bare
+rc **3**, stdout **0 bytes**:
+
 ```
-SCOPE: 0 file(s) — 0 committed (main..HEAD), 0 worktree, 0 untracked | filter: none
+  migrations : 0 file(s) touched
+---------------------------------------------------------------------------
+=== RESULT: NOT-APPLICABLE (3) — no migration file in the diff. ===
+    The diff-scoped sweep has no domain, so it does not apply. ⚠ This is NOT the
+    same observation as 'the recipe printed nothing' (that is exit 1) and it is
+    NOT a pass: it is a CHECKABLE claim. If the phase DID add a migration, the
+    <phase-base> is wrong — re-run with the right one before recording anything.
+
+SCOPE: 0 file(s) — 0 committed (main..HEAD), 0 worktree, 0 untracked | filter: none | derivation: NOT REACHED (this run ended before the catalog was probed)
        0 case(s) — nothing was derived, and the line above is what the gate record
        quotes to say so.
-=== RESULT: NOT-APPLICABLE (3) — no migration file in the diff. ===
+---------------------------------------------------------------------------
 ```
 
 ⭐ **That run found a gap in the new output and it is fixed in commit 10.** The exit-3 path
@@ -450,3 +465,206 @@ did not exist for the outcome a no-migration branch produces. "There was nothing
 itself a scope, and it is exactly the claim exit 3 asks the operator to check. `scope_line()` is
 now shared by both paths; exit 3 is unchanged and `SELFTEST=1` scenario 11 still passes
 (re-run after the change: PASS 15 · FAIL 0 · SKIPPED 0, rc 0).
+
+---
+
+### 2026-09-05 — backend: QA fix loop, iteration 1 of ≤5
+
+QA reviewed `de955981` and returned **CHANGES REQUESTED — F-BLOCK-1 + 6 MAJOR + 8 REC**. This
+entry is per finding: fix (file:line) · proof with the OBSERVED bare exit code and output ·
+negative control. Three commits: `6474a625` (merge helper), `4d5c6bd9` (deriver), this one.
+
+⛔ **Every merge run in this session was on COPIES under the scratch dir.** No full sweep ran.
+`git diff --stat main... -- docs/reviews/` shows only the QA review file; the four committed
+findings baselines are byte-identical to `main`.
+
+#### F-BLOCK-1 — the merge helper destroyed hand-authored material and could not see it
+
+**Reproduced FIRST, on `de955981`'s helper** (`git show de955981:… > old-helper.sh`, `cmp`-equal
+to the tip's) before any fix — all three of QA's witnesses, exactly:
+
+| witness | pre-fix helper | after |
+|---|---|---|
+| A — an escaped pipe inside a note | rc **0**, `is_signoff_deferral_open` 727 → **579** B, `can_manage_professional` 1106 → **570** B, "PRESERVED 0 … 2 hand suffix(es)"; the row ends mid-sentence | rc 0, **727** and **1106** B, **0** baseline lines missing |
+| B — a hand-written 3-column table | rc **0**, 165 → **161** lines, "PRESERVED 0 … CARRIED 0", header + delimiter + both rows LOST, surrounding prose PRESENT (control) | rc 0, 165 → **165**, all four present |
+| C — a hand row with an EMPTY note | rc **0**, `app.handrow(uuid)` gone from the table AND from CARRIED | rc 0, carried verbatim |
+
+**Fix — three rules, `scripts/lib/merge-findings-baseline.sh`:**
+
+1. §1a/§1b — a baseline line is a verdict row only if it has the generator's own shape, and the
+   three signals that decide it (table HEADER text · VERDICT tokens · gate KEYS) are DERIVED
+   from the generated file, never hand-listed. The header signal is what makes it survive a run
+   in which some verdict simply did not occur.
+2. §0 `seps`/`rowsplit` — columns split at UNESCAPED `|` only, and CAP at five, so the note
+   survives whole.
+3. §5 — the protected set is the complement of the generated output over the WHOLE baseline,
+   computed by the same classifier that built the file, pipe-leading lines included.
+
+**The discrimination half is not a knob.** The pre-fix helper's OWN output on each witness is
+committed under `scripts/fixtures/door-sweep/merge/*.prefix-output.md` and fed to the current
+verifier through `MERGE_VERIFY`: **rc 2** on all three, naming `SUFFIX: …`, `PROSE: | gate |
+evidence | reading |`, `CARRIED ROW: | app.handrow_empty_note…`. Positive control: the new
+helper's own output on the same pairs → **rc 0**. Idempotence `merge(b,b) == b` byte-identical
+on all five fixture baselines, and `merge(merge(b,g), g) == merge(b,g)`.
+
+#### F-MAJOR-4 — nothing tested the merge helper; `MERGE_FAULT` was ungated
+
+18 merge scenarios added to `scripts/door-sweep-selftest.sh` (plus 1 deriver scenario for
+F-MAJOR-3): **PASS 34 · FAIL 0 · SKIPPED 0**, bare rc 0.
+
+⭐ **Negative control, and this is the one that matters:** the SAME suite — `cmp`-verified
+identical selftest and fixtures — with only the helper swapped to `de955981`'s → **13 FAIL**,
+bare rc **1**. The five idempotence scenarios pass there too, which is correct: the pre-fix
+helper was idempotent, it was just lossy.
+
+`MERGE_FAULT` / `MERGE_VERIFY` are now refused unless `SELFTEST=1` (observed rc 2, the refusal
+naming SELFTEST), abort when asked to inject and unable to (observed rc 2, and the
+"FAULT INJECTED" line is NOT printed), and `cmp`-verify that the injection landed.
+
+⚠ **Two defects found in my own fix, both by an assertion doing its job** — recorded because a
+suite that catches its own vacuity is the standard, not the exception:
+
+- `MERGE_FAULT=drop-suffix` passed the victim through `awk -v`, which DECODES escapes. Against
+  the door note carrying an escaped pipe it searched for an already-unescaped string, matched
+  nothing, printed "FAULT INJECTED" and the verifier then passed at **rc 0** — the exact shape
+  QA had flagged one layer out. The victim now travels through `ENVIRON` and every injector
+  `cmp`s the file it claims to have damaged.
+- The scenario "MERGE_FAULT refused when SELFTEST!=1" went green on the WRONG CAUSE: the suite
+  runs with `SELFTEST=1` in its own environment, the child inherited it, and the run exited 2
+  for the unrelated "nothing to inject" reason. The rc matched; the message assertion did not.
+  `SELFTEST=0` is now set explicitly for that scenario.
+
+#### F-MAJOR-5 — a merge abort did not reach the exit code
+
+`p0-authz-{door,writepath}-audit.sh`: `MERGE_FAILED` is now the FIRST branch of the graded
+block — `=== RESULT: ERROR — the findings MERGE ABORTED`, **exit 2** — ahead of the verdict
+counts, which are printed either way. `p0-authz-{rowdoor,invoker}-audit.sh` get minimal
+propagation only (`MERGE_FAILED -> exit 2`, else `exit 0`): they have no graded verdict block
+at all, which is **filed, not fixed** —
+`FUP-AUTHZ-ROWDOOR-INVOKER-HARNESSES-HAVE-NO-GRADED-EXIT` 🟡, owner backend, body + register
+entry, `lint:registers` bare rc 0 after filing. `scripts/door-sweep-cases.sh`'s hazard text now
+says an empty `git diff` on a FULL run must be read together with the merge banner and the exit
+code, because an aborted merge produces the same empty diff.
+
+#### F-MAJOR-1 — the `SCOPE:` line could not distinguish catalog from provisional
+
+Reproduced QA's two runs — SAME range, SAME filter, both bare rc 0: catalog reachable → **18**
+cases; `DOOR_SWEEP_DB` pointed at nothing → **39** cases. Their `SCOPE:` lines were
+byte-identical. They now end `| derivation: catalog` and `| derivation: PROVISIONAL (no
+catalog — text heuristics; the tier split did NOT run)`.
+
+⚠ **THREE states, not two** — found by running the NOT-APPLICABLE path after the first version
+of this fix, which wore a PROVISIONAL badge it had not earned: `CATALOG_OK` is UNSET until the
+probe runs, so that path now says `NOT REACHED (this run ended before the catalog was probed)`.
+
+#### F-MAJOR-2 — the `SCOPE:` line was missing on both exit-1 paths and every exit-2 path
+
+Made STRUCTURAL rather than fixed at the measured site: `scope_line` and one `finish <rc>` are
+defined above every validation in `scripts/door-sweep-cases.sh`, and all **18** exit paths go
+through `finish`. Assertion: `grep -n 'exit [0-9]' scripts/door-sweep-cases.sh` returns **8**
+hits — 7 prose lines and one `END { if (!found) exit 9 }` inside `lift`'s single-quoted awk
+program, which is awk's exit, not the script's. Reproduced, each printing exactly one line:
+
+| path | command | bare rc | the SCOPE line |
+|---|---|---|---|
+| exit 1 | `BASE=9a4bbd22^ TIP=9a4bbd22` | **1** | `1 file(s) — 1 committed (9a4bbd22^..9a4bbd22) … derivation: catalog` |
+| exit 3 | `BASE=HEAD TIP=HEAD` | **3** | `0 file(s) … derivation: NOT REACHED` |
+| exit 2, scope known | the lift-drift copy (`cmp`-verified to differ) | **2** | `(none — this run ABORTED before the file set was built)` |
+| exit 2, before the file set | `ARM=sideways` | **2** | same |
+
+#### F-MAJOR-3 — a bare schema prefix ended the declaration silently
+
+A `--` line is a continuation if it carries a SCHEMA PREFIX, whether or not its tokens parse;
+only a prefix-free `--` line ends it; and a dangling `app.` at end-of-line CARRIES to the next
+line, so a declaration wrapped mid-token parses. On QA's own four-line example, in a fake repo
+with a `cmp`-verified deriver copy:
+
+| deriver | bare rc | CASES | `PARSE ERROR` | the wrapped token |
+|---|---|---|---|---|
+| pre-fix `7df0bd9b` | 0 | `is_admin` | **0** | `is_commission_admin_of` absent from the entire output |
+| now | 0 | `can_sign_section is_admin` | **1** — `…:2: schema prefix with no function name` | reaches UNRESOLVED (`no pg_proc row in app/public/authz`) |
+
+Committed as `scripts/fixtures/door-sweep/09-marker-dangling-prefix.sql`, which also closes
+F-REC-8's numbering gap. ⚠ The three names are deliberately of three kinds: `is_admin` is what
+the PRE-FIX run already derived, so on its own it discriminates nothing; `is_commission_admin_of`
+has no `pg_proc` row at all, so reaching UNRESOLVED is the only way it can witness that the
+parser read past the break; `can_sign_section` is two lines past the break and in `PRED_DOMAIN`.
+
+**Negative control on the committed tree** — the pre-fix deriver (`7df0bd9b`) and this one over
+`731abda0^..HEAD`, both rooted in the real repo: tier 1 = **39**, tier 2 = **18**,
+**byte-identical case lists**, 0 parse errors. The parse change moves nothing that is committed.
+The two committed bare-`--` migrations (`…007180`, `…007190`) still parse.
+
+#### F-MAJOR-6 / F-REC-1 / F-REC-6 — the numbers
+
+- **F-MAJOR-6.** ADR 0190's P3 read "3 + 1 + 21" against its own total of 42. Re-measured at a
+  PINNED tip rather than patched — the PRE-UNIT deriver (`main` @ `76d87a4f`) over
+  `731abda0^..4d5c6bd9`: bare rc 0, **42** tokens, all 42 emitted as `CASES`; resolved against
+  the live catalog they are **18** in `PRED_DOMAIN` + **21** outside it + **1** INVOKER
+  (`save_section_answers`) + **2** unresolved (`form_item_options`, `form_item_validations`)
+  = **42**.
+- **F-REC-1.** Every `731abda0^..HEAD` citation in ADR 0190 and in `door-sweep-cases.sh` is now
+  pinned to `4d5c6bd9`. The old "42 → 20, tier 1 = 41" was true of a MID-UNIT build: the tier
+  split alone gives 20/41, and D7's per-file `array[` gate then drops `is_active` and
+  `has_role`, taking it to 18/39 — the same −2 in both columns, which is what makes the pair
+  consistent rather than a discrepancy. The Consequences bullet had paired the post-gate 18
+  with the pre-gate 41; it now reads 18 against 39.
+- **F-REC-6.** MEASURED, not chosen: counting column 5 for any of `⭐ ⚠ ⛔ ** [merged` over the
+  399 verdict rows of the committed door baseline gives **37** under a capped escape-aware
+  split, under a naive split, and under symbols-only. The helper's 37 was right; this record's
+  39 was stale. ⛔ **The first pass of this fix loop got it backwards** — it edited the helper
+  to 39 to match the record, without measuring. Corrected, and written down because it is the
+  register lesson happening inside the fix for the register lesson.
+
+#### F-REC-2 / 3 / 5 / 7 / 8
+
+`wc -l` counts newlines and `printf '%s'` writes none, so a 9-line `PRED_DOMAIN` printed as 8 —
+now counted with `awk 'END{print NR}'`. `eval "val=\$$v"` → `val="${!v}"`. Self-test scenario 5's
+assertions were all negative; it now also asserts the fixture was SCANNED and that the run
+reached the no-doors FINDING. The commit-10 witness in this record was a paraphrase inside a
+code fence and is replaced above with the real stderr tail, captured at `4d5c6bd9`, bare rc 3,
+stdout 0 bytes. Fixture numbering is contiguous.
+**F-REC-4 is the lead's** — `docs/lead-playbook.md` is untouched by this branch.
+
+#### QA's could-not-verify list — what was settled, and how
+
+- **#2 — the merge against a REAL generator's output. SETTLED BY MEASUREMENT, and it REFUTED
+  the assumption the merge rested on.** A 2-case door subset run, launched DETACHED with its own
+  `WORK` (`CASES="is_signoff_deferral_open can_manage_professional"`): bare rc **0**,
+  `RESULT: CLEAN — 2 gate(s) measured, all COVERED`, and the harness's own second lock reported
+  `committed baseline VERIFIED unchanged (cksum)` — confirmed independently by `md5sum` taken
+  before and after. Comparing the generated column 5 with the committed note for those gates:
+
+  | gate | byte-exact prefix? | whitespace-insensitive? | first divergence |
+  |---|---|---|---|
+  | `app.is_signoff_deferral_open` | **no** | **yes** | byte 20 — a space a hand editor added after a comma |
+  | `app.can_manage_professional` | **no** | **no** | byte 422 — an annotation spliced INTO the file list, plus two files the generator has added since |
+
+  So the generator's file list is **not** in general a prefix of the committed note: 0 of 2
+  byte-exact. The splice rule is now whitespace-tolerant (`wsprefix`), which recovers the first
+  row byte-for-byte; the second correctly takes the CARRY branch and its whole committed row is
+  preserved verbatim. Both are pinned as fixture `D-real-generator`.
+  ⚠ **Consequence for Batches 2–3, stated now rather than discovered later:** on a real full
+  re-baseline most hand-annotated door rows will be CARRIED rather than spliced. Nothing is lost
+  and everything is flagged, but it is a large block for a human to re-file.
+- **#5 — `20261003004300`'s `alter function` derivation, end to end on the real migration.
+  SETTLED.** Its adding commit is `89793d43` (`git log --diff-filter=A`); derived over
+  `89793d43^..89793d43`: bare rc **1**, the `ALTERED BY 'alter function … security definer'`
+  block fires, tier 1 = **1**, `CASES` empty, and the exclusion printed as
+  `assert_hospital_affiliation_has_org (prosecdef, returns trigger — outside PRED_DOMAIN)`.
+- **#1** is the gate below, re-read at the tip. **#3** (rotation fidelity for the sixth closure)
+  is unchanged and remains a PO eye, self-disclosed in the entry itself. **#4** is addressed by
+  the committed fixtures: an injector that demonstrably aborts on real material is now three
+  self-test scenarios over committed inputs, one of them the real door rows.
+
+⚠ **Catalog hygiene, and an error of mine worth recording.** The post-run degenerate-policy
+check was first run against `supabase_db_escalume` — a SECOND Supabase stack running on this
+machine — because `docker ps | grep supabase_db | head -1` picked it. Its schema is a different
+project's (74 `app` functions, no `authz` schema), so the "0" it returned was a claim about the
+wrong database. Re-run against `supabase_db_azkbbhskturikxpgmafq` and **ENUMERATED, not
+counted**: `pg_policies` degenerate non-SELECT → **0 rows**. The container name is not a detail;
+`head -1` over a `grep` chose the subject.
+
+⚠ **Out of scope, observed:** `docs/followups/follow-ups-archive.md` carries five more
+`731abda0^..HEAD` citations with the same HEAD-relative rot. They are archived closure text and
+were not rewritten.
