@@ -483,3 +483,258 @@ Also still on disk from this unit, same directory, if a cleanup is wanted:
 - **No gate beyond the lint chain was re-run.** `npm run test:db` and the four authz arms were green
   at `6b6aee64` and nothing in this commit can move them; re-running them would measure the same
   tree.
+
+---
+
+### 2026-09-04 — backend: QA fix loop, iteration 1
+
+QA reviewed the unit at `6b6aee64` and returned **APPROVED** with 4 MAJOR + 4 RECOMMENDED findings
+(`docs/reviews/harness-crash-safety-review.md`, not edited by this session). Lead disposition: fix
+F-MAJOR-1/2/3/4 and F-REC-1/2/3 now, file F-REC-4, resolve § 5 item 6. Two commits:
+`8d7f01db` (script only) and the docs commit that carries this entry.
+
+⛔ **Same standing constraints as the build session**, and all held: no production function,
+policy, migration or seed touched; harnesses launched **detached** via PowerShell `Start-Process`
+on `C:\Program Files\Git\bin\bash.exe`, never under a tool timeout; **every exit code read BARE**
+on the line after the command; every plant restored and verified **in the catalog**, never from the
+message. ⭐ Where a proof needed production text it was **extracted verbatim** (`sed -n
+'/^fn () {/,/^}$/p'`, `bash -n` checked) and **sourced** — never retyped, and never a copy.
+
+#### F-MAJOR-1 — arm 4a was blind to one of the 439 strandable functions
+
+**Fix** — `c2-command-door-neutralizer.sh:394` `preflight_residue`: **both** conjuncts now run over
+`regexp_replace(p.prosrc,'--[^\n]*','','g')`, `derive_worklist`'s own idiom at `:255`/`:317`. The
+arm also returns a prefixed tally line rather than a bare list (see F-REC-1).
+
+**The measurement, reproduced exactly** — QA's read-only simulation of `mutate()` over all
+`public`+`app` functions, as one query. The only object it creates is a `pg_temp` table, invisible
+to every arm's `nspname in ('app','public')`; `ANCHOR`, `CLASS` and `SHAPE` are copied byte-for-byte
+from `mutate()` and from the arm:
+
+```
+v_before      = count of CLASS in def                              -- def = pg_get_functiondef(oid)
+v_after       = count of CLASS in regexp_replace(def, ANCHOR, 'null;', 'gi')
+new_src       = regexp_replace(prosrc, ANCHOR, 'null;', 'gi')      -- what prosrc becomes
+fully_strand  = v_before > 0 and v_after = 0                       -- what mutate() would achieve
+visible_raw   = new_src ~ SHAPE          and new_src !~* CLASS          -- arm 4a as shipped
+visible_strip = strip(new_src) ~ SHAPE   and strip(new_src) !~* CLASS   -- arm 4a with the fix
+```
+
+```
+would_be_fully_stranded = 439 | VISIBLE_raw = 438 | INVISIBLE_raw = 1
+                        | VISIBLE_stripped = 439 | INVISIBLE_stripped = 0
+INVISIBLE_raw, ENUMERATED:  26675 | app.assert_patient_required_fields
+INVISIBLE_stripped:         (zero rows)
+```
+
+**Clean-tree control, stripped predicate: `0`, enumerated to zero rows.** Same tree, the shipped raw
+predicate: `0` (QA M7 reproduces). Shape alone: `3` raw and `3` stripped, over **1081**
+`public`+`app` functions. So the fix closes the hole and reds nothing that is clean today.
+
+**Proof of fire — a REAL strand on the function QA named** (`app.assert_patient_required_fields`,
+oid 26675, row 161 of the committed baseline, **COVERED**, 5 Tier-1 PHI doors — inside the swept
+171). Planted with the production `snapshot()` + `mutate()`:
+
+| | |
+|---|---|
+| PRE-PLANT | `md5=25ac4ce11d1c8c59d61065010e0724b0`, anchored-raise count **1**, `shape_raw / shape_stripped = f / f` |
+| POST-PLANT | `md5=bf81e86d8a1fc76db3b429f7e81dd604`, anchored-raise count **0**, `shape_raw / shape_stripped = f / t` |
+
+⭐ That one boolean pair **is** the mechanism, measured rather than argued: the stranded body does
+not match the raw shape conjunct and does match the stripped one.
+
+| arm | against the strand | rc |
+|---|---|---|
+| arm 4a **as shipped at HEAD** | `arm 4a: 0 residue shapes …` — **a clean tree reported over an OPEN gate** | **0** |
+| arm 4a **with the fix** | `*** PREFLIGHT FAILED (arm 4a) — 1 body/bodies carry THIS harness's residue shape:` / `app.assert_patient_required_fields` | **2** |
+
+**End to end, the whole harness, detached** (own `WORK`, own `C2_INFLIGHT`; the plant's restore SQL
+kept at a *separate* path, so the record of the open gate survived the run):
+
+```
+*** PREFLIGHT FAILED (arm 4a) — 1 body/bodies carry THIS harness's residue shape:
+      app.assert_patient_required_fields
+EXIT=2                      # read bare; reached before any suite run
+```
+
+**Negative controls (clean tree, same session):** both versions of the arm printed
+`arm 4a: 0 residue shapes …`, rc **0**, before the plant and again after the restore.
+
+**Restore verified three ways** — `restore VERIFIED in the catalog (psql rc=0,
+md5=25ac4ce11d1c8c59d61065010e0724b0)`, rc **0**; (i) md5 back to the pre-plant capture; (ii)
+anchored-raise count back to **1**; (iii) `pg_policies where (qual='true' or with_check='true') and
+cmd <> 'SELECT'` **ENUMERATED to zero rows**; plus the sentinel cleared and arm 4a clean again.
+
+#### F-MAJOR-2 — `RESET_EVERY` fired 8 destructive resets on a `SUITE=` subset
+
+**Fix** — the guard is `SUBSET`, not the counter, and it lives **inside** `periodic_reset`
+(`:700`, step 2 at `:718`) so no call site can forget it — placed **after** the in-flight interlock
+(step 1) so it cannot displace it. The retry net (`:863`) no longer pretends a reset happened, and
+the summary banner (`:886`) names the suppression.
+
+**Gate polarity, proven on the shipped `periodic_reset` text** (extracted + sourced; `npx` stubbed
+so *the destructive command itself* is the measurement — the stub appends to a marker file, so
+"did it reset" is a fact on disk rather than a reading of the log):
+
+| trial | output | marker |
+|---|---|---|
+| A — **fixed**, `SUBSET=0` | `--- PERIODIC RESET (trial A) ---` … `RESETS=1`, rc 0 | **`supabase db reset --local` FIRED** |
+| B — **fixed**, `SUBSET=1` | `(SUBSET run — NOT resetting: trial B)`, `RESETS=0`, rc 0 | absent |
+| C — **HEAD**, `SUBSET=1` | `--- PERIODIC RESET (trial C) ---` … `RESETS=1`, rc 0 | **FIRED** — the finding, reproduced |
+| D — **fixed**, `SUBSET=1`, sentinel ARMED | `*** refusing to reset with a mutation in flight: …`, **rc 2** | absent |
+
+⭐ A is the discrimination half: the mechanism is gated, not disabled. D proves the subset gate did
+not displace the interlock.
+
+**End to end, detached** — `SUITE="00_setup.sql 212_status_keys_g1.sql"`, `RESET_EVERY=1`,
+`CASES=` three enforcers (`public.withdraw_referral public.withdraw_correction
+app.assert_patient_required_fields`). Pre-fix this fires two destructive resets:
+
+```
+    (SUBSET run — NOT resetting: scheduled — 1 enforcer(s) swept since the last baseline)
+    (SUBSET run — NOT resetting: scheduled — 2 enforcer(s) swept since the last baseline)
+    preconditions: baseline GREEN (shape=Files=2, Tests=7) · domain=SUITE=… ·
+        resets=0 (RESET_EVERY=1 — SUPPRESSED: a SUBSET run never resets)
+    committed baseline VERIFIED unchanged (cksum)
+EXIT=1                # three ERROR — NARROWED DOMAIN, correct under a one-file suite
+```
+
+`cksum` of `docs/reviews/c2-command-door-findings.md` was **`1556047199 33473` before and after**
+each of the three end-to-end runs.
+
+**Three false sentences corrected**, each left in place with a dated correction beside it and never
+silently rewritten: the C2 header's `RESET_EVERY` note, ADR 0189 D6 + its Consequences bullet, and
+the archived `FUP-C2-NEUTRALIZER-TAIL-DRIFT-INVALIDATES-LATE-VERDICTS` closure.
+
+⚠ **Consequence, disclosed rather than left to be discovered: the retry net is no longer provable
+on a subset run.** Its mechanism *is* the reset. Its 2026-09-04 end-to-end proof was taken under
+`CASES=` — a subset — and **cannot be reproduced under these gates without a real full sweep**;
+what replaces it is trial A/B/C above plus the truthful note. If the lead would rather keep that
+provability, the alternative not taken was to suppress only the **default**: fire when `RESET_EVERY`
+is set *explicitly*, since the hazard QA measured is the default 20 firing unasked. The lead's
+instruction said `SUBSET`, so `SUBSET` is what shipped.
+
+#### F-MAJOR-3 — `BASE_S_OVERRIDE` was ungated production surface
+
+**Fix** — honoured **only** under `SELFTEST=1` (`:616-618`), and it joins the SUBSET condition
+(`:119`) so it can never reach the committed baseline even if honoured.
+
+**The SUBSET disjunct, proven on the invocation shape QA named** (no `CASES`, no `SUITE`, no
+`SELFTEST` — a shape no short run can reach, so the shipped decision block itself is the subject,
+extracted + sourced):
+
+| | SUBSET | FINDINGS |
+|---|---|---|
+| **fixed**, override SET | **1** | `$WORK/…SUBSET.md` |
+| **fixed**, override unset (control) | 0 | the **committed** baseline |
+| **HEAD**, override SET | **0** | the **COMMITTED** baseline — the finding, reproduced |
+| **HEAD**, override unset (control) | 0 | the committed baseline |
+
+**End to end, detached — the ignore path and its discrimination half:**
+
+```
+E2E-2  (no SELFTEST)   ⛔ BASE_S_OVERRIDE ignored — SELFTEST=1 only
+                          (the true captured shape stands: Files=2, Tests=7)
+                       banner: baseline GREEN (shape=Files=2, Tests=7)  -> ERROR / NARROWED DOMAIN
+                       EXIT=1
+E2E-3  (SELFTEST=1)    ⛔ BASE_S_OVERRIDE set — baseline shape FORCED to 'Files=1, Tests=1'.
+                       banner: baseline GREEN (shape=Files=1, Tests=1)
+                       row: **ERROR** | run SHAPE changed (Files=1, Tests=1 -> Files=2, Tests=7) …
+                            (drift-shaped; NOT retried — a SUBSET run never resets)
+                       EXIT=1
+```
+
+⭐ E2E-3 is what makes E2E-2 meaningful: the knob still **works** where it is allowed, so "ignored"
+is the gate and not a dead knob. E2E-3 also witnesses the F-MAJOR-2 retry-net note firing
+truthfully, and re-witnesses the whole `SELFTEST` plant-A chain (`a FAILED restore REFUSES — rc=2 |
+*** RESTORE FAILED (psql rc=3, body hash live=c787e3dd… want=1636bd89…)`, sentinel kept, verified
+heal, `--- SELF-TEST PASSED ---`).
+
+#### F-REC-1 — both preflight arms failed OPEN
+
+**Fix** — `psql_c` gains `-v ON_ERROR_STOP=1` (`:88`), **and** each arm asserts it got an *answer*:
+`preflight_degenerate` (`:229`) requires a non-empty integer; `preflight_residue` (`:394`) requires
+a `C2ARM4A|<count>|<names>` tally line, so "zero rows" and "no result" are different values instead
+of the same empty string. Exit codes are captured **bare** — the old arm 4a piped its query through
+`grep -vE`, which would have replaced the code anyway.
+
+**Proof of fire — a REAL query failure through the real code path** (`DB` pointed at a container
+that does not exist; both versions of both arms, extracted + sourced):
+
+| arm | version | broken DB | clean DB (control) |
+|---|---|---|---|
+| `preflight_degenerate` | **fixed** | `*** PREFLIGHT ERROR (arm 1-3, degenerate bodies) — query returned '' (psql rc=1), which is not a count.` **rc 2** | rc **0** |
+| `preflight_degenerate` | HEAD | *(silence)* **rc 0** | rc **0** |
+| `preflight_residue` | **fixed** | `*** PREFLIGHT ERROR (arm 4a) — query returned '' (psql rc=1), not a tally.` **rc 2** | `arm 4a: 0 residue shapes …` rc **0** |
+| `preflight_residue` | HEAD | **`arm 4a: 0 residue shapes …`** — a clean tree reported from a query that never ran — **rc 0** | rc **0** |
+
+**Regression sweep of `psql_c`'s other callers**, enumerated (`:162` `live=`, `:477` `hash_of`,
+`:484`/`:487` `snapshot`, `:664` SELFTEST `DEG`): none reads the exit code except `snapshot`, whose
+`|| return 1` now fires one line *earlier* than the `[ -s … ]` guard that used to catch it — same
+outcome, sooner. `live=` and `hash_of` are compared as strings, and an error still yields `""`,
+which their callers already treat as a mismatch. No behaviour change beyond failing closed sooner;
+E2E-1/2/3 exercised every one of them end to end.
+
+#### F-REC-2 — the `Tests=` figure settled by measurement
+
+`npm run test:db` on a fresh `supabase db reset --local` (reset rc **0**):
+**`Files=262, Tests=8876`, `Result: PASS`, 84 wallclock secs, exit `0`.** So `Tests=8876` is
+correct and the C2 header's `Tests=8764` was the stale half; corrected in place with the
+measurement beside it. The header's timing conclusion derives from **wall** time and is unaffected.
+⚠ `docs/progress/c2-tier1.md:366` and `docs/reviews/c2-suite-abort-diagnosis.md:36-37,129` also
+carry `8764`; they are dated records of **their own** runs and are left alone — but nobody has
+re-derived when 8764 was true, so they are flagged as unverified rather than corrected from here.
+
+#### F-REC-3 — a note that could be false by the time it is read
+
+`sweep_one`'s ROLLBACK-FAILED note (`:788`) now reads *"the gate is left OPEN and the sentinel is
+KEPT **unless the EXIT-trap retry verifies it**"*. The run `exit 2`s, which fires the EXIT trap,
+which calls `restore_inflight` a second time; a transient first failure that succeeds on retry
+legitimately clears the sentinel. The retry is wanted — only the note went stale.
+
+#### F-MAJOR-4 + F-REC-4 — disclosures and the new follow-up
+
+- **F-MAJOR-4(a)** — the archived sentinel FUP's close condition 1 now carries
+  `~~re-verify the function's body hash against $INFLIGHT.body~~` plus a dated
+  `**Amended 2026-09-04 (QA F-MAJOR-4a)**` note quoting ADR 0189 D1's reason. Mirrored on the hub's
+  criterion 1. ⭐ **Both** halves of clause 1 were vacuous as filed — the exit-status half already
+  had its note; this is the other one.
+- **F-MAJOR-4(b)** — both archived closure notes now state that the register's `**Closes when:**`
+  field was the consolidation placeholder `PO to rule` (no ruling sought or given) and quote the
+  **body file's** condition that was actually satisfied.
+- **F-REC-4** — filed as `FUP-DOCS-CONSOLIDATION-CLOSURE-DROPS-THE-CLOSES-WHEN-FIELD` (🟡, owner
+  lead) with a body file. ⚠ **Id deviation:** the lead named it
+  `FUP-REGISTER-CLOSURE-DROPS-THE-CLOSES-WHEN-FIELD`, but gate 13's `CODES` arm requires an id
+  filed on or after the watermark to be prefixed by a **registered code** — a hub id or a
+  `legacy-codes.md` row — and `REGISTER` is neither, so that id would red the gate. Re-coded onto
+  the `DOCS-CONSOLIDATION` hub (ADR 0186 owns register shape) rather than minting a new namespace,
+  which `legacy-codes.md` itself calls "a register defect, not a new namespace".
+  **My own measurement of the finding:** **3** register-style `**Closes when:**` lines survive in
+  the **8963**-line archive (`:8014`, `:8282`, `:8321`).
+- **§ 5 item 6** — `"0184"` removed from the hub's `adrs:` frontmatter (ADR 0189 does not reference
+  it and the record's `Decisions:` line omits it). `npm run adr:index` and `npm run features:index`
+  were both re-run: **already current**, no index diff.
+
+#### What was NOT done
+
+- **`docs/reviews/harness-crash-safety-review.md` was not touched** (read-only for this session),
+  and no `.claude/rules/` file needed a change: I re-read both rule files against the fixes and
+  found **no sentence made false** by them — *"a failed restore KEEPS the sentinel; the next run
+  REFUSES, exit 2"* stays true (when the EXIT-trap retry succeeds the gate is closed, so keeping is
+  moot), and neither rule mentions `RESET_EVERY`, `BASE_S_OVERRIDE` or the preflight arms.
+- **QA § 4 item 4 — arm 4b's `NOT RUN` branch is still unproven**, for the same reason as before:
+  it needs both baseline sources absent and the committed path is hard-coded. Unchanged, and still
+  stated rather than counted as covered.
+- **No full sweep** (unchanged). Every run here was `CASES=`/`SUITE=`-narrowed, plus one
+  preflight-only run that exits before the baseline suite.
+- **The retry net's end-to-end proof was not re-taken** — by construction it now cannot be, on a
+  subset. See the F-MAJOR-2 disclosure.
+
+#### Deviations from the lead's disposition
+
+1. **Commit A is script-only, as its parenthetical required**, so the ADR 0189 and
+   `follow-ups-archive.md` sentence corrections listed under Commit A item 2 landed in **Commit B**
+   with the rest of the docs. The C2 header's own correction is in Commit A, beside the mechanism.
+2. **The F-REC-4 id was re-coded** — see above.
+3. **The F-REC-2 header correction is in Commit B**, because the measurement that settles it is the
+   gate's `test:db` and the lead placed F-REC-2 in Commit B.

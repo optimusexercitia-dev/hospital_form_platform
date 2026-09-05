@@ -52,7 +52,14 @@
 # ⚠ FULL RUN COST: 171 enforcers x 2 suite runs = 342 runs. ⛔ The per-run figure in this header
 #   has been stale twice; RE-MEASURE IT, never quote it. History: "~23 s" (design-doc estimate,
 #   never measured) -> 53 s (measured 2026-09-02, Files=259 Tests=8685) -> ~100 s (measured
-#   2026-09-04: 11 suite runs in 19m05s wall, Files=262 Tests=8764, fresh reset). The suite grows,
+#   2026-09-04: 11 suite runs in 19m05s wall, Files=262 Tests=8876, fresh reset). The suite grows,
+#   ⭐ Tests= CORRECTED 2026-09-04 (QA F-REC-2): this line read Tests=8764 while every proof banner
+#   and the record read Tests=8876, same date, same Files. Settled by running `npm run test:db` on
+#   a fresh `supabase db reset --local`: Files=262, Tests=8876, Result: PASS, 84 wallclock s,
+#   exit 0. 8764 was the stale half. The timing conclusion below derives from WALL time and is
+#   unaffected. ⚠ `docs/progress/c2-tier1.md` and `docs/reviews/c2-suite-abort-diagnosis.md` also
+#   carry 8764. They are dated records of THEIR OWN runs, not restatements of this tree, and are
+#   left alone — but nobody has re-derived when 8764 was true, so treat them as unverified.
 #   so the cost grows with it. At ~100 s a run that is ~9.5 h MINIMUM, not the ~2.2 h this header
 #   used to claim -- a 4x under-estimate that survived because nobody re-timed it.
 #   This is a periodic audit, never a phase step.

@@ -85,6 +85,16 @@ The snapshot writes its sidecars **before** the sentinel becomes non-empty, beca
 sentinel is what *arms* it: dying between the two leaves a sentinel that cannot be verified, which
 refuses — the safe direction.
 
+⛔ **The same rule binds the PREFLIGHT, which failed OPEN on the identical ambiguity two functions
+away** (QA F-REC-1, fixed 2026-09-04). `psql_c` carried no `ON_ERROR_STOP=1`, and a query that
+errored returned **empty output**: `preflight_degenerate` read `d=""`, defaulted it to `0` with
+`${d:-0}`, and **passed**; `preflight_residue` read an empty list and printed `arm 4a: 0 residue
+shapes`. Both reported a clean tree from a question that was never answered. `psql_c` now carries
+`ON_ERROR_STOP=1`, and each arm additionally asserts it received an **answer** — a non-empty
+integer, and for arm 4a a tally line with a fixed prefix, so "zero rows" and "no result" are
+different values rather than the same empty string. Exit codes are captured **bare**, never through
+the filtering pipe. An arm that compared nothing must not read like an arm that agreed.
+
 ### D2 — One design, and it NAMES the harnesses it does not cover
 
 C2 gains `RECOVER=1`, ported from `p0-authz-door-audit.sh`, so all three sentinel-bearing harnesses
@@ -114,6 +124,19 @@ compare against.
   clean tree on its first run. With the errcode conjunct the clean-tree population is **0,
   enumerated to zero rows**, and the arm was then proven to return exactly one row against a real
   strand.
+  **Both conjuncts run over COMMENT-STRIPPED `prosrc`** — `regexp_replace(prosrc,'--[^\n]*','','g')`,
+  `derive_worklist`'s own idiom at two sites. ⛔ They did not at first, and the shape conjunct was
+  then **blind to exactly one strandable function**, because when the anchored raise is preceded by
+  a `--` comment block the token before the rewritten `null;` is comment text, not one of
+  `then|else|begin|loop|;`. **Measured** (QA **F-MAJOR-1**, 2026-09-04) by simulating
+  `mutate()` read-only over all **1081** `public`+`app` functions and asking the arm's own predicate
+  of the result: **439 would be fully stranded — 438 visible, 1 INVISIBLE**, and the one is
+  `app.assert_patient_required_fields` (oid 26675), row 161 of the committed baseline, **COVERED**,
+  guarding 5 Tier-1 PHI doors — i.e. *inside* the swept 171. With the strip: **439 / 439 / 0**, and
+  the clean-tree count is still **0, enumerated to zero rows**, so the fix reds nothing that is
+  clean today. ⭐ The bound was *stated* honestly in the script from the start (*"a `null;`
+  reachable by no other statement boundary is arm 4b's job"*) and never **quantified**; the number
+  was one query away. *An absence's mechanism is measured, not read off the gate.*
 - **4b — persisted expectation.** The derived worklist is compared against a recorded one (a
   scratch sidecar, else the committed findings table, which is version-controlled so a wiped
   `TMPDIR` cannot silently disarm the arm). Only a **reduction** fails — a strand always reduces;
@@ -140,6 +163,48 @@ the baseline shape, and any `SHAPE changed` / `did not come back green` ERROR tr
 reset-and-retry before it is recorded. Every reset is interlocked: it **refuses** while a mutation
 is in flight, re-runs the preflight arms afterwards, and re-derives the worklist, aborting if the
 tree moved under the run.
+
+⛔ **A SUBSET RUN NEVER RESETS, and the guard is `SUBSET` — not the counter.** The first version of
+this decision said *"subsets never reset — the counter cannot fire on a worklist shorter than N"*.
+The parenthetical mechanism is right and **the generalisation was false** (QA F-MAJOR-2): a
+`SUITE=` run narrows the **domain**, not the worklist, so all 171 enforcers are still swept and at
+N=20 the counter fires at enforcer 21, 41, … 161 — **eight destructive `supabase db reset --local`
+in the very mode D5 defines as a subset and the header advertises as the quick one-file spike**. A
+`CASES=` list of ≥ N tokens resets for the same reason. The guard is now the SUBSET flag itself,
+tested **inside** `periodic_reset` so no call site can forget it, and placed **after** the
+in-flight interlock so it cannot displace it — reaching a reset point with an armed sentinel is a
+broken invariant whatever kind of run it is, and must still stop loudly. A skipped reset is
+**announced**, never silent: `(SUBSET run — NOT resetting: …)` per occurrence, and the summary
+banner reads `resets=0 (RESET_EVERY=N — SUPPRESSED: a SUBSET run never resets)`.
+
+⚠ **Consequence, stated rather than discovered later: the retry net is no longer provable on a
+subset run.** Its mechanism *is* the reset, so on a subset it does not run and the note says
+`(drift-shaped; NOT retried — a SUBSET run never resets)` instead of claiming a reset that never
+happened. Its end-to-end proof of 2026-09-04 was taken under `CASES=` — i.e. a subset — and
+**cannot be reproduced under these gates without a real full sweep**. The gate's own polarity is
+proven instead by driving the shipped `periodic_reset` text with `SUBSET=0` vs `SUBSET=1` against
+an instrumented reset command.
+
+### D8 — `BASE_S_OVERRIDE` is a SELF-TEST knob, and it is interlocked twice
+
+`BASE_S_OVERRIDE` falsifies the captured baseline shape so the drift path (and hence the
+reset-and-retry net) is reachable on demand. It is **production surface added for testability**,
+and until 2026-09-04 it was guarded by a printed warning alone — in a file whose entire thesis is
+that a warning is not a guard. Set on an otherwise ordinary invocation it left `SUBSET=0`, so a run
+whose stated precondition was **falsified** still wrote the **committed** baseline
+`docs/reviews/c2-command-door-findings.md` after every enforcer. ⭐ This is ADR 0153's own principle
+turned against the harness: *narrowing* either axis makes a run a subset, and **falsifying** the
+baseline axis is a stronger corruption than narrowing either — yet it was the one axis that did not.
+
+Two interlocks now, in opposite directions:
+
+1. It is **honoured only under `SELFTEST=1`**; otherwise the run prints
+   `⛔ BASE_S_OVERRIDE ignored — SELFTEST=1 only` and the true captured shape stands.
+2. It **joins the SUBSET condition**, so even if honoured it can never reach the committed
+   baseline.
+
+⛔ A production knob that can falsify a verdict's stated precondition belongs in the decision
+record, not only in a header comment — it appeared nowhere in this ADR until QA F-MAJOR-3 said so.
 
 ### D7 — Detect-only is the accepted posture, by PO ruling — and self-healing is explicitly NOT a requirement
 
@@ -214,8 +279,11 @@ does not exist is not a weaker guard, it is a broken one.
 - `RESET_EVERY=20` adds **≈ +28 min on a ≈ 9.5 h sweep (≈ +5 %)** — **measured**, not estimated:
   `supabase db reset --local` took **49–54 s** on two runs, one full pgTAP suite **87 s**, and
   worklist re-derivation **≈ 60 s**, over the 8 resets a 171-enforcer worklist fires at N=20. (The
-  plan's estimate was +40 min / ~7 %; the measured figure replaces it.) Subsets never reset — the
-  counter cannot fire on a worklist shorter than N.
+  plan's estimate was +40 min / ~7 %; the measured figure replaces it.) ⛔ **Corrected 2026-09-04
+  (QA F-MAJOR-2):** this bullet used to end *"subsets never reset — the counter cannot fire on a
+  worklist shorter than N"*, which is false as a generalisation — a `SUITE=` subset sweeps all 171
+  and **did** fire eight resets. Subsets never reset **because `periodic_reset` refuses on
+  `SUBSET=1`** (D6), not because of the counter.
 - Sentinels written before this protocol carry no probe sidecar and therefore **cannot** be
   verified; `RECOVER=1` says exactly that instead of reporting a success it did not measure.
 - **All four converging follow-ups are now closed** and rotated to

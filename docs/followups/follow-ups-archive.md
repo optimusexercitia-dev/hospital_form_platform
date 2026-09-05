@@ -8569,8 +8569,21 @@ the approval. The oracle's soundness was never the thing in doubt here; its cite
 > ## Closes when
 >
 > 1. `restore_inflight` verifies the restore before clearing the sentinel — check `psql_f`'s exit
->    status, and re-verify the function's body hash against `$INFLIGHT.body` — and leaves
+>    status, and ~~re-verify the function's body hash against `$INFLIGHT.body`~~ — and leaves
 >    `$INFLIGHT` **intact** on any failure so the next run replays it.
+>
+>    > **Amended 2026-09-04 (QA F-MAJOR-4a)** — the struck phrase is left in place, struck rather
+>    > than rewritten, because it is what was filed; it names the **vacuous** form and is **not**
+>    > what closes this half. What was built compares `md5(pg_get_functiondef(oid))` read **from
+>    > the catalog** against the md5 `snapshot()` captured **from the catalog** before the
+>    > mutation — catalog to catalog, never hashing the local file. ADR
+>    > [0189](../decisions/0189-one-crash-safety-protocol-across-the-mutation-harnesses.md) D1
+>    > gives the reason in its own words: *"The probe never hashes the local restore file: that
+>    > file is what we are trying to apply, so comparing it against itself proves nothing about
+>    > the database."* ⚠ The author recognised this while writing D1 and left the clause unstruck;
+>    > the disclosure is what was missing, not the mechanism. (The **exit-status** half of this
+>    > same clause carries its own vacuity note in the RESOLVED block above — without
+>    > `ON_ERROR_STOP=1` it could only ever read 0. Both halves of clause 1 were vacuous as filed.)
 > 2. The `DEGEN` preflight gains an arm that detects **this** harness's shape — for the C2 anchor, an
 >    enforcer in the derived worklist whose current anchored-raise count is **below** its recorded
 >    `nraise`. That is a per-run derivable property and needs no hand-list.
@@ -8622,6 +8635,16 @@ the approval. The oracle's soundness was never the thing in doubt here; its cite
 
 > **RESOLVED 2026-09-04** — commit `3cb7a0d3` on `authz-harness-crash-safety`; ADR
 > [0189](../decisions/0189-one-crash-safety-protocol-across-the-mutation-harnesses.md) D4/D5.
+>
+> ⚠ **Which `Closes when` was satisfied (added 2026-09-04, QA F-MAJOR-4b).** The register entry's
+> `**Closes when:**` field read literally `PO to rule` — the bulk-consolidation placeholder, left
+> beside the same batch's `Severity: … — per emoji at consolidation`, and **no PO ruling was
+> sought or given for this entry**. What was satisfied is the **body file's own** condition,
+> quoted verbatim: *"the harness must assert its own preconditions and refuse to emit a verdict
+> when either fails — baseline green ✅ (already checked), and **keystone present in the domain ❌
+> (not checked)**. A `PASS` with the subject absent must be an ERROR, never a verdict."* Recorded
+> because a reader comparing this unit's four closures would otherwise infer all four `Closes
+> when` clauses were substantive; two were placeholders.
 >
 > ⛔ **The harness this entry describes no longer exists, and that is a finding, not a
 > technicality.** No committed harness has the `00_setup + 350` default: `SUITE` appears only in
@@ -8720,6 +8743,15 @@ the approval. The oracle's soundness was never the thing in doubt here; its cite
 > **RESOLVED 2026-09-04** — commit `a8148126` on `authz-harness-crash-safety`; ADR
 > [0189](../decisions/0189-one-crash-safety-protocol-across-the-mutation-harnesses.md) D6.
 >
+> ⚠ **Which `Closes when` was satisfied (added 2026-09-04, QA F-MAJOR-4b).** The register entry's
+> `**Closes when:**` field read literally `PO to rule` — the bulk-consolidation placeholder, left
+> beside the same batch's `Severity: … — per emoji at consolidation`, and **no PO ruling was
+> sought or given for this entry**. What was satisfied is the **body file's own** condition,
+> quoted verbatim: *"reset the DB periodically inside the sweep (every N enforcers) and re-capture
+> `BASE_S` after each reset, so drift is bounded instead of merely detected. A cheaper partial:
+> after any ERROR whose note is `SHAPE changed` or `did not come back green`, reset and retry that
+> enforcer once before recording."* Both were built, not only the cheaper one.
+>
 > Drift is now **bounded**, not merely detected — both mechanisms this entry asked for, because
 > neither alone is enough:
 >
@@ -8729,6 +8761,17 @@ the approval. The oracle's soundness was never the thing in doubt here; its cite
 >   flight, re-runs *every* preflight arm afterwards, re-derives the worklist and aborts if it
 >   moved, and aborts if the post-reset baseline is not green. ⚠ It cannot fire on a worklist
 >   shorter than N, so `CASES=` subsets never reset.
+>
+>   > **Correction 2026-09-04 (QA F-MAJOR-2)** — the sentence above is left in place because it is
+>   > what was written, and it is **false as a generalisation**. The parenthetical mechanism is
+>   > right: the counter cannot fire on a worklist shorter than N. But a `SUITE=` run narrows the
+>   > **domain**, not the worklist — all 171 enforcers are still swept, so at N=20 the counter
+>   > fires at enforcer 21, 41, … 161: **eight destructive `supabase db reset --local`** in the
+>   > mode advertised as the quick one-file spike, on a machine that measurably has a second stack
+>   > up. (A `CASES=` list of ≥ N tokens resets too.) **The true rule, as shipped from commit
+>   > `8d7f01db`:** a **SUBSET** run — `CASES=`, `SUITE=`, `SELFTEST=1` or `BASE_S_OVERRIDE` —
+>   > **never resets**; a non-subset run resets every N enforcers. The guard is `SUBSET`, checked
+>   > inside `periodic_reset` behind the in-flight interlock, not the counter.
 > - **Reset-and-retry-once.** An ERROR whose note is `SHAPE changed` or `did not come back green`
 >   triggers one reset and one retry before it is recorded, and the note carries
 >   `(retried after reset)`. That is exactly what would have recovered run 1's final three.
