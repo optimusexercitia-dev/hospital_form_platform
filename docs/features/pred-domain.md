@@ -100,8 +100,9 @@ these resolvers.
 
 ### In progress
 - **The ONE full door-arm run, launched 19:54 and verified under way** (`predicate=127/127
-  policy=226/226`, baseline `Files=262, Tests=8876, PASS`, reset rc 0). Measured ~2 min/case
-  ⇒ **~11.8 h remaining**, ETA ≈ 07:45 on 2026-09-06.
+  policy=226/226`, baseline `Files=262, Tests=8876, PASS`, reset rc 0). Rate re-measured over
+  **12** cases (not 5): **133.5 s/case** ⇒ **~12.6 h remaining**, ETA ≈ **09:03** on 2026-09-06.
+  At 12/353: 12 COVERED / 0 BLIND / 0 NOTICED / 0 ERROR — the `app.a*`–`app.c*` predicates only.
 
 ### Next
 - Read the run's BARE exit code → verify the merge three ways → diff the real CARRIED block

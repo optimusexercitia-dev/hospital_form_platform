@@ -797,3 +797,27 @@ the committed findings baseline is **byte-unchanged**.
 5. ⛔ **Do NOT commit the re-baselined findings file.** Return the CARRIED enumeration to the lead
    for the PO's Q2 ruling. The backlog's two resolver lines, the stale `## COVERED … + ERROR`
    heading, and the three `RE-FILE` keys all land in that same later commit.
+
+⚠ **RATE CORRECTED, 20:24 — my own measurement went stale inside 15 minutes.** The figure above
+(“5 cases in the first ~10 minutes ⇒ ~2 min/case ⇒ ~11.8 h, ETA ≈ 07:45”) was taken over **5**
+cases and is optimistic. Re-measured over **12** cases against the `baseline OK` timestamp
+(19:57:38 → 20:24:20, a 1602 s window):
+
+```
+  measured rate : 133.5 s/case (over 12 cases, 1602 s window)
+  remaining     : 12.6 h
+  ETA           : 2026-09-06 09:03
+```
+
+⇒ **~13.1 h end-to-end**, ETA **2026-09-06 ≈ 09:03**, not 07:45. The correction is recorded rather
+than the earlier line edited: a rate quoted from 5 samples and a rate quoted from 12 are different
+claims, and which one a later reader is relying on should be visible.
+
+Verdict mix at 12/353: **12 COVERED, 0 BLIND, 0 NOTICED, 0 ERROR.** ⚠ That is not a preview of the
+run — the predicate arm walks `order by p.proname`, so these are the `app.a*`–`app.c*` predicates
+only. `app.event_current_custodian` (the expected `NOTICED`) and all 226 policies are still ahead.
+
+Live merge behaviour confirmed mid-run at case 5, which is the Batch 1 property observed rather
+than assumed: `PRESERVED 427 hand-authored prose line(s) … CARRIED 396 whole row(s)`, with
+**9/9** `HAND-MERGED` blocks and **7/7** `## Note` sections intact in the on-disk file. CARRIED is
+396 because only 5 rows had been emitted; it shrinks toward the predicted 48 as cases accumulate.
