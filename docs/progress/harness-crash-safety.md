@@ -715,6 +715,50 @@ legitimately clears the sentinel. The retry is wanted — only the note went sta
   it and the record's `Decisions:` line omits it). `npm run adr:index` and `npm run features:index`
   were both re-run: **already current**, no index diff.
 
+#### Gate — re-run after the plants were rolled back and a fresh `supabase db reset --local`
+
+⛔ Every DB-touching step ran **detached** (PowerShell `Start-Process`), sequentially, never under a
+tool timeout. **Every exit code read BARE**, on the line after the command; the one place a pipe was
+used (`npm run lint:registers | grep`) read `${PIPESTATUS[0]}`, never `$?`.
+
+| step | rc | what it enumerated |
+|---|---|---|
+| `npm run lint` | **0** | eslint `--max-warnings=0` ⇒ 0 errors AND 0 warnings; `check-progress-doc: OK`; `check-rules-staleness: OK (10 rule file(s))`; `build-adr-index: OK (187 ADRs indexed, next free 0190)`; `check-docs-registers: OK (7 hubs, 5 records, 206 follow-ups, 161 follow-up bodies, 85 lessons, 398 md files scanned)`; ratchets `closesWhenPoToRule=140/147 severityPerEmoji=131/135 longHeadings=93/97 lessonsProseOnly=52/52` — **every one at or below QA's measured figures, none raised** |
+| `supabase db reset --local` (fresh, before everything) | **0** | — |
+| `npm run test:db` | **0** | **`Files=262, Tests=8876`, `Result: PASS`** — this is the measurement that settles F-REC-2 |
+| `ARM=census` | **0** | `INVARIANT HOLDS` — live authz gates **581**, gates carrying a verdict **625**; domain note printed (**427** reachable command doors are C2's, not this arm's) |
+| `ARM=hat` | **0** | `INVARIANT HOLDS` — self-test **7/7 OK**, `HAT-BLIND SWEEP HOLDS: 4 finding(s), all reasoned-allowlisted` |
+| `ARM=floor` | **0** | `INVARIANT HOLDS` — **63** authenticated-reachable `prosecdef` doors with 0 calls, every one on the floor allowlist, and every allowlist entry resolving to a live door |
+| `FROMFINDINGS=1 ARM=wrapper` | **0** | `INVARIANT HOLDS` — BLIND set **41**, all allowlisted |
+| C2 regression, `CASES=` 3 enforcers, **full suite**, detached | **0** | `COVERED=3 BLIND=0 ERROR=0`; `preconditions: baseline GREEN (shape=Files=262, Tests=8876) · domain=full suite · resets=0` |
+
+⛔ **No BLIND and no ERROR in any of the four arms**, and every arm's figure is **identical** to the
+baseline recorded before this fix loop — census 581/625, hat 7/7 + 4, floor 63, wrapper 41.
+
+⛔ **The diff-scoped door sweep is NOT owed**, measured rather than asserted:
+`git diff --name-only main... -- supabase/migrations supabase/seed.sql src` prints **0 lines**.
+
+**The C2 regression reproduces the committed baseline exactly** — all three rows byte-identical to
+`docs/reviews/c2-command-door-findings.md` rows 8, 9 and 161:
+
+```
+| `public.withdraw_referral(p_referral_id uuid)`                                      | 1 | 2 | **COVERED** | …
+| `public.withdraw_correction(p_request_id uuid)`                                     | 1 | 4 | **COVERED** | …
+| `app.assert_patient_required_fields(p_mode text, p_required text[], p_patient jsonb)`| 5 | 1 | **COVERED** | …
+```
+
+⭐ The third row is the F-MAJOR-1 subject: the same enforcer that was planted, detected and restored
+earlier in this session scores **COVERED** against the full suite, unchanged. `cksum` of the
+committed baseline **`1556047199 33473` before and after**, and the harness's own
+`committed baseline VERIFIED unchanged (cksum)` on the EXIT trap.
+
+**Post-gate cleanliness, verified rather than assumed:** all **seven** sentinel paths used this
+session are **0 bytes**; `app.assert_patient_required_fields`
+`md5=25ac4ce11d1c8c59d61065010e0724b0` = its pre-plant capture with `nraise=1`; arm 4a returns 0
+residue shapes; `pg_policies where (qual='true' or with_check='true') and cmd <> 'SELECT'`
+**ENUMERATED to zero rows** (psql exit 0, so the emptiness is an answer and not a failure);
+`git status --porcelain` empty.
+
 #### What was NOT done
 
 - **`docs/reviews/harness-crash-safety-review.md` was not touched** (read-only for this session),
