@@ -21,9 +21,15 @@
 #      GENERATOR's bytes for its own region + the baseline's remainder verbatim, so a space a
 #      hand editor added inside the generated file list is normalised back to the generator's
 #      spacing. MEASURED cost on the real door pair: 1 byte on `app.is_signoff_deferral_open`
-#      (727 -> 726 B), with its 580-byte hand SUFFIX byte-exact. ⛔ This is the price of
-#      `wsprefix`, not an oversight — a byte-exact test would have evicted that 580-byte note
-#      from the table over one space (it takes the CARRY branch instead). The exception is
+#      (727 -> 726 B), with its hand SUFFIX byte-exact at **579 characters / 587 bytes**.
+#      [⚠ Corrected 2026-09-05, iteration 4 (QA F3-REC-2): both sentences here read "580-byte",
+#      which is neither its byte count nor its character count. RE-MEASURED by applying
+#      `wsprefix`'s own rule to column 5 of the row at `docs/reviews/authz-door-audit-findings.md:293`
+#      — column 5 is 630 chars / 638 bytes stripped, the generator's region consumes the leading
+#      `10_immutability.sql, 367_deferred_staff_signoff.sql`, and the remainder is 579 chars /
+#      587 bytes. State BOTH units: the note is multi-byte (⭐ ⛔ ⚠ …), so chars ≠ bytes here.]
+#      ⛔ This is the price of `wsprefix`, not an oversight — a byte-exact test would have
+#      evicted that note from the table over one space (it takes the CARRY branch). The exception is
 #      bounded by construction: it can only touch bytes the generator re-emits this run.
 #   2. PLACEMENT is not preserved for a hand line WEARING THE GENERATOR'S SHAPE. A hand row in
 #      the 5-column shape that reuses a real gate key or a real verdict token IS classified as
@@ -35,25 +41,48 @@
 # (measured 2026-09-05 on 924 lines): 1 `<!-- … -->` block · 7 `## Note` sections · 8
 # `> ⚠ **HAND-MERGED` blockquotes · 37 table rows with hand prose in column 5 · an annotated
 # skipped-policy bullet continuation · 2 bare `---` rules · 20 rows stranded ABOVE the COVERED
-# table's delimiter · a nested blockquote inside a note. ⭐ A pattern list would have found the
+# table's delimiter · a nested blockquote inside a note. ⚠ The "20 rows stranded" is RECONCILED,
+#   not merely restated (QA F3-BLOCK-1, 2026-09-05): QA measured 21 lines between `:260` (the
+#   `## COVERED` heading) and `:283` (that table's delimiter) and asked which number is right.
+#   BOTH are, and they agree only because `:262` IS a header: `:261` is blank, `:262` is the
+#   second table header, and `:263`-`:282` are the 20 stranded rows — so 21 NON-BLANK lines =
+#   1 header + 20 rows, and 22 lines counting the blank. ⭐ This sentence is therefore evidence
+#   FOR the two-header reading, not against it; had `:262` been a verdict row the count would
+#   have been 21 rows and the denominator 400.
+# ⭐ A pattern list would have found the
 # three the follow-up remembered. The door harness's own startup warning matched 8 of them
 # and the writepath twin's wider pattern matched 16 ON THE SAME FILE — a warning whose number
 # comes from a filter is only as true as the filter.
 # ⚠ The "37" is RE-MEASURED (QA F-REC-6: this file said 37 and the unit's record said 39, same
 #   file, same category, same day). Counting column 5 for any of `⭐ ⚠ ⛔ ** [merged` over the
-#   400 verdict rows of the committed door baseline gives **37** under every split — capped and
+#   399 verdict rows of the committed door baseline gives **37** under every split — capped and
 #   escape-aware, naive, and symbols-only. The record's 39 was the stale one.
 #   ⚠ The DENOMINATOR was wrong, in BOTH directions, and the grain is the whole reason
 #     (QA F2-REC-5, re-measured 2026-09-05). `grep -c '^| '
 #     docs/reviews/authz-door-audit-findings.md` = **401** — that is QA's number, and it is a
-#     count of `| `-leading LINES. Exactly ONE of them is the table HEADER (`:112`,
-#     `| gate / policy | arm | direction | verdict | note |`), so the VERDICT ROWS are **400**:
-#     399 with 6 unescaped separators, 1 with 7, and 0 with an empty column 1. The earlier
-#     **399** is what a header rule of "the line immediately above a delimiter" yields — and
-#     that rule also swallows `:282`, which is a verdict row STRANDED above the COVERED table's
-#     delimiter at `:283`, i.e. one of the very shapes this header lists as hand-authored
-#     material. ⛔ Neither number was a count of verdict rows; the 37 is unaffected, being a
-#     count over column 5 rather than a share of the denominator.
+#     count of `| `-leading LINES. TWO of them are table HEADERS, so the VERDICT ROWS are **399**.
+#     [⛔ CORRECTED 2026-09-05, iteration 4 (QA F3-BLOCK-1). The paragraph above originally
+#     continued "Exactly ONE of them is the table HEADER (`:112`) … so the VERDICT ROWS are
+#     **400**: 399 with 6 unescaped separators, 1 with 7, and 0 with an empty column 1", and
+#     called the earlier 399 an artefact of a header rule that "also swallows `:282`". THAT WAS
+#     WRONG, and this correction is itself the correction of a correction — the record's
+#     ORIGINAL 399 was right, for a reason iteration 3 never checked. `emit_body` emits TWO
+#     tables and therefore TWO headers (`p0-authz-door-audit.sh:761` `| gate / policy | arm |
+#     direction | verdict | note |` and `:767` `| … | failing files / note |`), and the committed
+#     baseline carries both — `:112` and `:262`. MEASURED three ways, all agreeing on 399:
+#       · `grep -n '^| gate / policy' …findings.md` -> exactly 2 hits, `:112` and `:262`;
+#       · the "column 1 contains no `.` and no `(`" filter over all 401 lines -> exactly those
+#         same two lines, so no verdict row is being mistaken for a header;
+#       · 401 `| `-leading lines − 2 headers = 399, and the separator histogram over those 399
+#         sums to 399 independently: 397 rows with 6 unescaped separators, 1 with 7
+#         (`:355`), 1 with 9 (`:293`, whose note carries `^(is_\|can_\|has_\|…)`), 0 with an
+#         empty column 1. ⚠ The histogram is 397/1/1, NOT the 398/1/0 the fix-loop brief
+#         predicted: there are TWO over-piped rows, not one, and both are genuine verdict rows.
+#     ⛔ And `:282` is NOT swallowed by anything: it is a real verdict row, correctly classified,
+#     because the classifier keys a header on EXACT TEXT from the generated file (step 1a's `H`
+#     set), never on "the line above a delimiter", once it is reading the baseline. Verified by
+#     running step 1a's derivation over a synthetic two-header emit: BOTH header texts land in
+#     `H`, and neither contributes a `V` or a `K`, so neither can be read back as a row.]
 #   ⛔ And the first pass of this fix loop "reconciled" them by taking 39 WITHOUT measuring,
 #   which is the same defect one layer out: a register's failure mode is prose rot, and a
 #   confident number is not evidence about the file it describes.
@@ -71,8 +100,15 @@
 #   1. A baseline line is a GENERATED VERDICT ROW only if it has the generator's own shape —
 #      ≥5 columns, non-empty column 1, and column 4 a verdict token or column 1 a key THIS
 #      RUN'S GENERATOR ACTUALLY PRODUCED. Both sets are DERIVED from the generated file (see
-#      `grammar_from_generated`), never hand-listed here, so a harness that grows a verdict
-#      needs no edit. Everything else that starts with `| ` is HAND-AUTHORED PROSE.
+#      STEP 1a below, "DERIVE the generator grammar from the generated file itself" — the inline
+#      awk that writes `$T/g_grammar`), never hand-listed here, so a harness that grows a verdict
+#      needs no edit.
+#      [⚠ Corrected 2026-09-05, iteration 4 (QA F3-REC-4): this pointed at `grammar_from_generated`,
+#      which is NOT a name in this file. The derivation is an inline awk block, not a function —
+#      the only shell functions here are `die`, `note`, `split_file`, `inject_fail`, `rowkeys`,
+#      and the only awk functions are `trim`, `seps`, `rowsplit`, `is_delim`, `wsprefix`. A
+#      pointer to a name that does not exist cannot go stale loudly, so it is replaced by the
+#      step number and the artefact path it writes.] Everything else that starts with `| ` is HAND-AUTHORED PROSE.
 #   2. Columns are split at UNESCAPED `|` only, and CAPPED at five: column 5 is everything
 #      from the 5th separator to the last one, so a `\|` — or a stray `|` — inside a note
 #      survives byte-for-byte.
@@ -211,8 +247,10 @@ function is_delim(s) { return (s ~ /^\|[[:space:]]*:?-/) }
 #    produced against the committed baseline, ZERO were byte-exact prefixes.
 #    `app.is_signoff_deferral_open` diverged at byte 20 on nothing but a space a hand editor
 #    added after a comma (`…utability.sql,367_defe` vs `…utability.sql, 367_def`) — the note
-#    it carries is 580 bytes of measurement that a byte test would have evicted from the
-#    table over one space. `app.can_manage_professional` diverged at byte 422 on real
+#    it carries is 579 characters / 587 bytes of measurement that a byte test would have
+#    evicted from the table over one space. [⚠ Corrected 2026-09-05, iteration 4, QA F3-REC-2:
+#    read "580 bytes"; re-measured, it is 579 chars / 587 bytes — see the top of this file.]
+#    `app.can_manage_professional` diverged at byte 422 on real
 #    content (an annotation spliced INTO the file list, and two files the generator has
 #    added since) and correctly does NOT match here: it takes the CARRY branch.
 function wsprefix(b, g,   i, j, lb, lg, cb, cg) {

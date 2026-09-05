@@ -313,8 +313,11 @@ find what its input set leaves out.
 ⚠ **"Starts with" is UP TO WHITESPACE, and that is measured rather than defensive.** Of the two
 rows a real 2-case door run produced against the committed baseline, **zero** were byte-exact
 prefixes: `app.is_signoff_deferral_open` diverged at byte 20 on nothing but a space a hand editor
-had added after a comma — a byte test would have evicted 580 bytes of measurement from the table
-over one space — and `app.can_manage_professional` diverged at byte 422 on real content and
+had added after a comma — a byte test would have evicted **579 characters / 587 bytes** of
+measurement from the table over one space [⚠ corrected 2026-09-05, QA F3-REC-2: this read "580
+bytes", which is neither the suffix's byte count nor its character count; re-measured by applying
+`wsprefix`'s rule to column 5 of `docs/reviews/authz-door-audit-findings.md:293`. The note is
+multi-byte, so both units are stated] — and `app.can_manage_professional` diverged at byte 422 on real content and
 correctly takes the CARRY branch instead. Both are pinned as fixture `D-real-generator`. ⚠ The
 hand SUFFIX is preserved byte-for-byte; inside the generator's own region it is the generator's
 whitespace that lands, which is the one place this helper is not byte-preserving.
@@ -349,8 +352,10 @@ full re-baseline has been executed by this unit or either review.)
 > hand row with an EMPTY column 5 vanish silently at bare exit 0 (QA F-BLOCK-1 witness C). Of the
 > rest — "column 5 identical" understated the test (the WHOLE row must match, or a hand edit in
 > columns 1–4 would be overwritten); "starts with" was read as byte-exact and is now
-> whitespace-tolerant, and a literal reading would have evicted a 580-byte hand note over one
-> space; "the note is CARRIED" understated what is carried (the whole row, verbatim). The three
+> whitespace-tolerant, and a literal reading would have evicted a **579-character / 587-byte**
+> hand note over one space [⚠ this clause read "580-byte"; corrected 2026-09-05, QA F3-REC-2, by
+> re-measuring the suffix rather than restating it];
+> "the note is CARRIED" understated what is carried (the whole row, verbatim). The three
 > rules the fix turns on — the grammar DERIVED from the generated file, the capped escape-aware
 > column split, and the protected set as the complement over the WHOLE baseline — were recorded
 > nowhere. ⭐ This ADR was edited in six hunks during the fix loop and **none of them touched D8
@@ -373,10 +378,25 @@ was. The expectation set is recomputed from the two inputs by the same classifie
 file, and the prose half is the complement over the WHOLE baseline (D8), `| `-leading lines
 included. ⛔ **The caller must carry that 2 into its own exit code**: an aborted merge leaves the
 findings file unchanged, which on a full run is byte-for-byte what "no verdict moved" looks like,
-and `git diff --stat` cannot tell them apart. All four harnesses now do — `MERGE_FAILED=1` is the
-**first** branch of the graded block in each, printing
-`=== RESULT: ERROR — the findings MERGE ABORTED …` and **exiting 2** ahead of the verdict counts,
-which still print. The verdicts the run earned live in the generated report and in `progress.tsv`.
+and `git diff --stat` cannot tell them apart. All four harnesses now do, and all four print
+`=== RESULT: ERROR — the findings MERGE ABORTED …` and **exit 2** — but the two halves reach it
+differently, which matters because only one half has a verdict block to come first in:
+
+- `p0-authz-door-audit.sh` and `p0-authz-writepath-audit.sh` **have** a graded verdict block, and
+  `MERGE_FAILED=1` is its **first** branch, tested ahead of DIRTY / UNPROVEN / clean so the abort
+  wins over any verdict; the verdict counts still print above it.
+- `p0-authz-rowdoor-audit.sh` and `p0-authz-invoker-audit.sh` have **no graded verdict block at
+  all**. They carry the abort by bare propagation — `if MERGE_FAILED=1 → banner + exit 2; fi;
+  exit 0` — so the abort is their only non-zero outcome, not the first of several.
+
+[⚠ **Corrected 2026-09-05 (QA F3-REC-3).** This paragraph read "All four harnesses now do —
+`MERGE_FAILED=1` is the **first** branch of the graded block in each", which is false for two of
+the four: rowdoor and invoker have no graded block, as this unit's own record says when it files
+`FUP-AUTHZ-ROWDOOR-INVOKER-HARNESSES-HAVE-NO-GRADED-EXIT` 🟡 for exactly that gap. Re-read at
+`p0-authz-{rowdoor,invoker}-audit.sh` before rewording. The **propagation** claim was always
+true for all four; only the *shape* attributed to it was wrong.]
+
+The verdicts the run earned live in the generated report and in `progress.tsv`.
 
 **THE PRIMARY CONTROL IS NOT A KNOB — it is three real historical losses.** `MERGE_VERIFY=<file>`
 puts a FOREIGN candidate in front of this same verifier (one `VERIFY_ONLY` copy over the merged

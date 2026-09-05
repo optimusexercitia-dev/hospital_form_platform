@@ -211,10 +211,15 @@ text) over a synthetic `progress.tsv`.
 
 | call site | baseline | OBSERVED |
 |---|---|---|
-| door | 924 lines, 8+7+1 hand blocks | **rc 0**; rows generated **401** → merged **401**; `> ⚠ **HAND-MERGED` 8→8, `## Note` 7→7, `---` 2→2, `<!--` 1→**2** (the CARRIED block, exactly +1); 425 hand prose lines + 34 suffixes preserved; CARRIED 2 |
+| door | 924 lines, 8+7+1 hand blocks | **rc 0**; **row LINES** generated **401** → merged **401**; `> ⚠ **HAND-MERGED` 8→8, `## Note` 7→7, `---` 2→2, `<!--` 1→**2** (the CARRIED block, exactly +1); 425 hand prose lines + 34 suffixes preserved; CARRIED 2 |
 | writepath | 137 lines, 3 hand blocks | **rc 0**; 53→53 rows; 3→3 blocks; 51 prose + 3 suffixes |
 | invoker | 165 lines, 2 hand blocks | **rc 0**; 91→91 rows; 2→2 blocks; 42 prose + 4 suffixes |
 | rowdoor | 87 lines, **0** hand blocks → **one PLANTED** | **rc 0**; 54→54 rows; 1→1 block. A detector with nothing to find proves nothing |
+
+⚠ **"row LINES", not "rows"** (corrected 2026-09-05, iteration 4, QA F3-REC-5): the helper's own
+note line is `grep -c '^| ' "$T/merged" … row line(s)`, so **401** counts `| `-leading LINES and
+includes the **2 table headers**. The verdict-row count is **399**. The 401→401 identity above is
+still exactly what it claimed — no row line gained or lost — only the noun was wrong.
 
 **`verdicts_from_findings` (ARM 3's own extractor) over the door baseline vs the merged
 output**: 392 keys each; only-in-baseline = exactly the 2 rows the synthetic run dropped,
@@ -619,7 +624,7 @@ The two committed bare-`--` migrations (`…007180`, `…007190`) still parse.
   consistent rather than a discrepancy. The Consequences bullet had paired the post-gate 18
   with the pre-gate 41; it now reads 18 against 39.
 - **F-REC-6.** MEASURED, not chosen: counting column 5 for any of `⭐ ⚠ ⛔ ** [merged` over the
-  400 verdict rows of the committed door baseline gives **37** under a capped escape-aware
+  399 verdict rows of the committed door baseline gives **37** under a capped escape-aware
   split, under a naive split, and under symbols-only. [⚠ **Corrected 2026-09-05, iteration 3**
   (QA F2-REC-5): the DENOMINATOR read **399** here and in the helper's header; QA measured
   **401**; both are wrong and the grain is why. `grep -c '^| '
@@ -630,6 +635,28 @@ The two committed bare-`--` migrations (`…007180`, `…007190`) still parse.
   verdict row stranded above the COVERED table's delimiter at `:283`, i.e. one of the shapes
   the helper's own header lists as hand-authored material. ⛔ The load-bearing **37** is a count
   over column 5, not a share of the denominator, and is unchanged under the corrected one.]
+  [⛔ **THE ITERATION-3 CORRECTION IMMEDIATELY ABOVE IS ITSELF WRONG — corrected 2026-09-05,
+  iteration 4** (QA F3-BLOCK-1). It is kept, not deleted, because a correction that silently
+  replaces a correction is the same failure one layer out. The verdict-row count is **399** —
+  the record's ORIGINAL number — and iteration 3 reached 400 by ASSUMING one table header.
+  `emit_body` emits **TWO** tables and therefore two headers
+  (`supabase/tests/mutation/p0-authz-door-audit.sh:761` `| gate / policy | arm | direction |
+  verdict | note |` and `:767` `| … | failing files / note |`), and the committed baseline
+  carries both, at `:112` and `:262`. Three independent measurements, all 399:
+  (a) `grep -n '^| gate / policy' docs/reviews/authz-door-audit-findings.md` → **2** hits,
+  `:112` and `:262`; (b) the "column 1 holds no `.` and no `(`" filter over all 401 `| `-leading
+  lines returns **exactly those two lines** and no verdict row; (c) 401 − 2 = **399**, and the
+  separator histogram sums to 399 on its own — **397** rows with 6 unescaped separators, **1**
+  with 7 (`:355`), **1** with 9 (`:293`), **0** with an empty column 1. ⚠ That histogram is
+  **397/1/1, not the 398/1/0** the iteration-4 brief predicted: there are TWO over-piped rows,
+  and both are genuine verdict rows whose notes carry literal `|`. ⛔ Iteration 3's claim that
+  a header rule "swallows `:282`" is also void — `:282` is a real verdict row and is classified
+  as one, because once the merge helper is reading the BASELINE it keys headers on EXACT TEXT
+  drawn from the generated file (step 1a's `H` set), not on delimiter adjacency. Confirmed by
+  running step 1a's derivation over a synthetic two-header emit: both header texts land in `H`
+  and neither contributes a `V` or `K`, so neither can be read back as a row. **No code defect
+  — the classifier was right and only the prose was wrong.** The load-bearing **37** is a count
+  over column 5, not a share of the denominator, and is unchanged at 399.]
   The helper's 37 was right; this record's
   39 was stale. ⛔ **The first pass of this fix loop got it backwards** — it edited the helper
   to 39 to match the record, without measuring. Corrected, and written down because it is the
@@ -699,7 +726,7 @@ reset itself: bare rc **0**, `Finished supabase db reset on branch authz-door-sw
 | typecheck | `npm run typecheck` | bare rc **0** |
 | pgTAP | `npm run test:db` | bare rc **0**, `Files=262, Tests=8876, Result: PASS` — byte-for-byte the last known-good shape; ⚠ compared as a SHAPE, not as a summary line, because the parked `FUP-PGTAP-WORKER-DEADLOCK` flake keeps `Files=262` while losing assertions |
 | arm — census | `ARM=census bash …/p0-authz-invariant.sh` | bare rc **0**, `live authz gates (catalog): 581`, `gates carrying a verdict: 625`, `=== INVARIANT HOLDS ===` |
-| arm — hat | `ARM=hat …` | bare rc **0**, `self-test: 7/7 OK`, `=== INVARIANT HOLDS ===`. ⛔ **DOMAIN HALF NOT CAPTURED** (QA F2-REC-6, disclosed 2026-09-05): `self-test: 7/7 OK` is the arm's INSTRUMENT CONTROL, not what it enumerated — §7.17 wants the domain beside the verdict, as the census / floor / wrapper rows do. The finding enumeration for THIS run was not written down and cannot be recovered from the record. ⛔ It is deliberately NOT back-filled from `62829c79`'s `4 finding(s), all reasoned-allowlisted`: that is a claim about THAT run, and copying it would be this unit's own register lesson (a confident number that is not evidence about the thing it describes). Re-establishing it needs a hat re-run at the tip — a work item for the next gate, not a pass. ✅ **DONE 2026-09-05, and this row is left exactly as it was measured:** the hat re-run happened at the tip `ee037fa3` and its domain half — the enumerated 4 findings, their allowlist reasons, and the population measured from the live catalog — is in § *2026-09-05 — backend: gate re-read at the tip `ee037fa3`* below. ⛔ The figures there are that run's, and are NOT retrofitted onto this row |
+| arm — hat | `ARM=hat …` | bare rc **0**, `self-test: 7/7 OK`, `=== INVARIANT HOLDS ===`. ⛔ **DOMAIN HALF NOT CAPTURED** (QA F2-REC-6, disclosed 2026-09-05): `self-test: 7/7 OK` is the arm's INSTRUMENT CONTROL, not what it enumerated — §7.17 wants the domain beside the verdict, as the census / floor / wrapper rows do. The finding enumeration for THIS run was not written down and cannot be recovered from the record. ⛔ It is deliberately NOT back-filled from `62829c79`'s `4 finding(s), all reasoned-allowlisted`: that is a claim about THAT run, and copying it would be this unit's own register lesson (a confident number that is not evidence about the thing it describes). Re-establishing it needs a hat re-run at the tip — a work item for the next gate, not a pass. ✅ **DONE 2026-09-05, and this row is left exactly as it was measured:** the hat re-run happened at the tip `ee037fa3` and its domain half — the enumerated 4 findings, their allowlist reasons, and the population measured from the live catalog — is in § *2026-09-05 — backend: gate re-read at the tip `ee037fa3`* below, under its sub-heading **“The `hat` arm's DOMAIN half — quoted, at the tip (closes F2-REC-6)”**, which carries the verbatim stdout block, the **4 named findings** (`authz.assignment_facts`, `public.assume_role`, `public.session_context`, policy `public.memberships.memberships_select`) and the swept population (1091 functions, 283 policies). [⚠ 2026-09-05, iteration 4: pointer VERIFIED to resolve — the sub-heading exists and holds the enumeration, so it is one hop away. The row is still NOT back-filled, on purpose] ⛔ The figures there are that run's, and are NOT retrofitted onto this row |
 | arm — floor | `ARM=floor …` | bare rc **0**, `authenticated-reachable prosecdef doors with 0 calls: 63`, `OK: every never-called door is on the floor allowlist`, `=== INVARIANT HOLDS ===` |
 | arm — wrapper | `FROMFINDINGS=1 ARM=wrapper …` | bare rc **0**, `BLIND set size: 41`, `OK: every BLIND wrapper is on the allowlist`, `=== INVARIANT HOLDS ===` |
 | self-test | `SELFTEST=1 bash scripts/door-sweep-cases.sh` | bare rc **0**, `SELF-TEST: PASS 34 · FAIL 0 · SKIPPED 0`, catalog REACHABLE (so no scenario skipped vacuously) |
@@ -747,7 +774,7 @@ script headers. Every hit classified:
 | ADR 0190 `:294` | D9's `MERGE_FAULT` knob list | ⛔ **corrected** (item 2); old sentence quoted in the dated block |
 | ADR 0190 `:183-186` | D5's body — the token-bearing discriminator | ⛔ **corrected** (item 3) |
 | ADR 0190 `:367-368` | option E — "the loud case is narrowed to a token that fails to parse" | ⛔ **corrected**, quoted then refuted (item 3) |
-| ADR 0190 D11 | "runs **15** scenarios … 15 PASS / 0 FAIL … 3 PASS / 12 FAIL" | ⛔ **corrected** — 34 (16 deriver + 18 merge); ⚠ the pre-unit-**deriver** control was NOT re-run since scenario 16 was added, so no post-fix number is asserted for it |
+| ADR 0190 D11 | "runs **15** scenarios … 15 PASS / 0 FAIL … 3 PASS / 12 FAIL" | ⛔ **corrected** — 34 (16 deriver + 18 merge). ⚠ **The "not re-run" caveat is now DISCHARGED** (2026-09-05, iteration 4): the pre-unit-**deriver** control WAS measured, by QA in the delta check at `ee037fa3` — **`PASS 20 · FAIL 14 · SKIPPED 0`, bare rc 1**, of which the deriver half is **2/16**. The two survivors are the scenarios that do not depend on the deriver's selection logic at all: `no migration in the diff → rc 3` and `bad ARM → rc 2`. Attributed to QA, not re-run here |
 | archive `:9137` (MARKER closure) | "the rule adopted is **consume-or-stop, token-bearing**" + clause 1's token test | ⛔ dated correction **beside** it (item 4) |
 | archive (FULL-RUN closure) | "`MERGE_FAULT=drop-hand-block` … at all four call sites" as the proof of "proven able to fail" | ⛔ dated correction **beside** it (item 5) — this closure had been pointing at a D8 that described the defect |
 | ADR 0190 `:198-201` | "the first form of this rule tested `harvest(rest) > 0`" | ✅ correct — it is the F-MAJOR-3 amendment describing the OLD rule as old |
@@ -797,11 +824,11 @@ is evidence about the reviewer's filter, exactly like the record's was.
 
 | # | subject | OLD | NEW | the measurement |
 |---|---|---|---|---|
-| F2-REC-1 | the splice normalises hand whitespace inside the generator's own region | the headline property stood alone — `HAND-AUTHORED = any line of the committed baseline THIS RUN'S GENERATOR DID NOT PRODUCE.` — and admitted no exception; the trade-off was documented only down at `wsprefix` | the property keeps that sentence and gains **exception 1**: "PRESERVATION is byte-for-byte EXCEPT for whitespace runs INSIDE the region the generator itself produced… MEASURED cost on the real door pair: 1 byte on `app.is_signoff_deferral_open` (727 -> 726 B), with its 580-byte hand SUFFIX byte-exact… The exception is bounded by construction: it can only touch bytes the generator re-emits this run." | QA's own witness A, re-read against the code: the SPLICE branch rebuilds the row as `substr(grow, 1, S2[5]) " " g5 suffix " \|"` — the GENERATOR's column-5 bytes plus the baseline remainder from `wsprefix`'s offset. Comment-only; no behaviour changed |
+| F2-REC-1 | the splice normalises hand whitespace inside the generator's own region | the headline property stood alone — `HAND-AUTHORED = any line of the committed baseline THIS RUN'S GENERATOR DID NOT PRODUCE.` — and admitted no exception; the trade-off was documented only down at `wsprefix` | the property keeps that sentence and gains **exception 1**: "PRESERVATION is byte-for-byte EXCEPT for whitespace runs INSIDE the region the generator itself produced… MEASURED cost on the real door pair: 1 byte on `app.is_signoff_deferral_open` (727 -> 726 B), with its 580-byte hand SUFFIX byte-exact… The exception is bounded by construction: it can only touch bytes the generator re-emits this run." [⚠ corrected 2026-09-05, iteration 4, QA F3-REC-2: the suffix is **579 characters / 587 bytes**, not "580-byte" — it is neither its byte nor its character count. Re-measured by applying `wsprefix`'s rule to column 5 of `docs/reviews/authz-door-audit-findings.md:293`] | QA's own witness A, re-read against the code: the SPLICE branch rebuilds the row as `substr(grow, 1, S2[5]) " " g5 suffix " \|"` — the GENERATOR's column-5 bytes plus the baseline remainder from `wsprefix`'s offset. Comment-only; no behaviour changed |
 | F2-REC-2 | a hand row mimicking the generator's shape is relocated, not preserved in place | `Any ONE of the three makes a well-shaped baseline line a verdict row; a hand-written table — its own header, its own delimiter, its own rows — matches NONE of them.` — true, and silent about the converse | that sentence, plus **exception 2** at the top of the file and a `⚠ The converse is REAL and MEASURED` paragraph at `grammar_from_generated`: a hand line borrowing the 5-column shape **and** a real gate key or verdict token **does** match, is classified as a row, and lands in CARRIED — "It costs PLACEMENT, never BYTES" | QA measured it (two mimicking rows, rc 0, both carried verbatim); ordinal keying is what stops a collision. Comment-only |
 | F2-REC-3 | `exit [0-9]` census | record `:564`: `returns **8** hits — 7 prose lines and one …` | `returns **9** hits — 8 prose lines and one …`, with a dated bracketed correction | `grep -c 'exit [0-9]' scripts/door-sweep-cases.sh` = **9**, bare. QA agrees; it was never commit drift (9 at `4d5c6bd9` too) |
 | F2-REC-4 | a named PARSE ERROR does not move the exit code | the four-way EXIT CODES block said nothing about it | eight lines added to that block: fixture `09` derives at bare rc **0** while stderr carries `⚠ door-sweep-targets: PARSE ERROR(S) — named, and the run continues:`; "⛔ An operator recording a gate result must read stderr for `PARSE ERROR(S)` beside the code, not the code alone" | ⚠ **The lead's task list omitted F2-REC-4 and asked for a reason if it was skipped. It was not skipped** — it exists (review `:228-231`), it is one comment block in `scripts/door-sweep-cases.sh`, and the commit's own message says F2-REC-1..7. Comment-only; `bash -n` rc 0 |
-| F2-REC-5 | the verdict-row denominator | `399 verdict rows` (helper header `:27`, record `:613`) | **400**, in both places, each with the grain spelled out | ⛔ **QA's 401 is also wrong, and in the other direction.** `grep -c '^\| ' docs/reviews/authz-door-audit-findings.md` = **401** — a count of `\| `-leading LINES. Exactly **1** is the table HEADER (`:112`, `\| gate / policy \| arm \| direction \| verdict \| note \|`, `grep -cF` = 1), so verdict rows = **400**: 399 with 6 unescaped separators, 1 with 7, **0** with an empty column 1. **399** is what a header rule of "the line immediately above a delimiter" yields — that rule also swallows `:282`, a verdict row STRANDED above the COVERED table's delimiter at `:283`, which is one of the shapes the helper's header itself lists as hand-authored. The load-bearing **37** re-measured under the corrected denominator: still **37** |
+| F2-REC-5 | the verdict-row denominator | `399 verdict rows` (helper header `:27`, record `:613`) | ~~**400**~~ → **399**, i.e. UNCHANGED from the original | ⛔ **This cell was WRONG and is corrected 2026-09-05, iteration 4 (QA F3-BLOCK-1).** It read: "QA's 401 is also wrong, and in the other direction… Exactly **1** is the table HEADER (`:112`) … so verdict rows = **400** … **399** is what a header rule of 'the line immediately above a delimiter' yields — that rule also swallows `:282`". ⛔ There are **TWO** headers, not one: `emit_body` emits two tables (`p0-authz-door-audit.sh:761` and `:767`) and the baseline carries both, `:112` and `:262`. `grep -n '^\| gate / policy'` = **2** hits; the "column 1 has no `.` or `(`" filter returns exactly those two lines; 401 − 2 = **399**, and the separator histogram sums independently to 399 (**397** with 6 separators, **1** with 7, **1** with 9, **0** empty column 1 — ⚠ 397/1/1, not the 398/1/0 the brief predicted). `:282` is a genuine verdict row and is classified as one; the helper keys baseline headers on EXACT TEXT from step 1a's `H` set, never on delimiter adjacency. **No code defect.** The load-bearing **37** is unchanged at the 399 denominator |
 | F2-REC-6 | the `hat` gate row quotes its instrument control, not its domain | the OBSERVED cell was `bare rc 0` + `self-test: 7/7 OK` + `=== INVARIANT HOLDS ===` and nothing else | the same OBSERVED text, plus `⛔ **DOMAIN HALF NOT CAPTURED**` naming what is missing and why it is not filled in | ⛔ **Deliberately not "fixed" by writing a number.** `4 finding(s), all reasoned-allowlisted` is `62829c79`'s measurement of `62829c79`'s run; copying it onto the iteration-1 row would be this unit's own register lesson committed a third time. The lead's gate scope excludes the arms, so the honest state is DISCLOSED, and re-establishing it is a hat re-run at the next gate — carried into the hub's Blockers as an open item, not a pass |
 | F2-REC-7 | the hub's `adrs:` frontmatter omits the unit's own ADR | `adrs: ["0079", "0148", "0153", "0173", "0182"]` | `adrs: ["0079", "0148", "0153", "0173", "0182", "0190"]` | `npm run features:index` re-run |
 
@@ -966,3 +993,167 @@ already have been false.
 and `npm run typecheck` were not re-run — the tree is byte-identical to the tip whose iteration-3
 gate ran them both at rc 0 — and the diff-scoped door sweep is still **not owed** (no migration,
 policy or `prosecdef` change on this branch). The six follow-up closures remain pending QA + PO.
+
+### 2026-09-05 — backend: QA fix loop, iteration 4 (F3-BLOCK-1 + F3-RECs)
+
+Iteration **4 of ≤5**, on QA's delta check of `ee037fa3`. One blocking item, five recommendations,
+plus D11's outstanding control and the F2-REC-6 follow-through. ⛔ **Docs, plus a comment-only edit
+to `scripts/lib/merge-findings-baseline.sh`** — proved, not asserted: `git diff -U0 -- scripts/ |
+grep -E '^[+-][^+#-]'` returns **no matches** (grep rc 1), so every changed line in that file is a
+`#` comment.
+
+#### F3-BLOCK-1 — the denominator is 399, and iteration 3's "correction" was the error
+
+⛔ **I re-measured before editing, and the measurement contradicts iteration 3, not the record's
+original.** `emit_body` emits **TWO** tables, each with its own header and its own delimiter
+(`supabase/tests/mutation/p0-authz-door-audit.sh:761` `| gate / policy | arm | direction | verdict
+| note |`, and `:767` `| gate / policy | arm | direction | verdict | failing files / note |`), and
+the committed baseline carries both. Three independent measurements, all giving **399**:
+
+| measurement | command | OBSERVED |
+|---|---|---|
+| header count | `grep -n '^\| gate / policy' docs/reviews/authz-door-audit-findings.md` | **2** hits — `:112` and `:262` |
+| header identification | column 1 contains no `.` and no `(`, over all 401 `\| `-leading lines | **exactly** `:112` and `:262`; no verdict row is mistaken for a header, and no header is missed |
+| arithmetic + histogram | 401 `\| `-leading lines − 2 headers | **399**; and the separator histogram sums to 399 on its own — **397** rows with 6 unescaped separators, **1** with 7 (`:355`), **1** with 9 (`:293`), **0** with an empty column 1 |
+
+⚠ **The histogram is 397/1/1, NOT the 398/1/0 the task brief predicted.** There are **two**
+over-piped rows, not one: `:293`'s note carries the escaped `^(is_\|can_\|has_\|…)` and `:355`
+carries a stray. Both are genuine verdict rows. The prediction was right about the total and wrong
+about its parts; the total is what the correction turns on, and it is confirmed twice over.
+
+⛔ **Iteration 3's supporting argument is void too.** It claimed 399 came from a header rule of
+"the line immediately above a delimiter" that "also swallows `:282`". It does not. `:282` is a real
+verdict row and is classified as one, because once the merge helper reads the BASELINE it keys
+headers on **exact text** taken from the generated file (step 1a's `H` set), never on delimiter
+adjacency. The COVERED table is the case that makes the difference visible: `:262` is its header,
+`:263`–`:282` are 20 rows stranded above it, and its delimiter is not until `:283`.
+
+**⭐ The helper header's "20 rows stranded" sentence is EVIDENCE FOR the two-header reading, and
+QA's 21 is the same measurement.** `:261` blank · `:262` header · `:263`–`:282` twenty rows ·
+`:283` delimiter. So 21 NON-BLANK lines between `:260` and `:283` = 1 header + 20 rows (22 counting
+the blank). Both numbers are right, and they reconcile **only** if `:262` is a header — had it been
+a verdict row the sentence would have said 21 rows and the denominator would have been 400.
+
+#### The classifier itself — checked, and NOT defective
+
+The brief asked me to stop and report if the merge classifier would read `:262` as a verdict row.
+It would not. I ran step 1a's derivation verbatim over a synthetic emit carrying both headers:
+
+```
+H	| gate / policy | arm | direction | verdict | note |
+V	BLIND
+K	app.foo(p uuid)
+H	| gate / policy | arm | direction | verdict | failing files / note |
+V	COVERED
+K	bar.baz_select (SELECT)
+```
+
+Both header texts land in `H`; **neither contributes a `V` or a `K`**, because the header branch
+`next`s before the row branch can harvest column 4 or column 1. In `split_file`, `isheader = (line
+in hdr)` is therefore true for both `:112` and `:262`, and a header can never be counted as a row.
+The committed fixtures already carry both headers in both the baseline and the generated halves
+(`scripts/fixtures/door-sweep/merge/*.{baseline,generated}.md`). ⭐ **No code change made or
+needed** — the classifier was correct throughout; only the prose describing it was wrong.
+
+#### Every site corrected, old text kept beside the new
+
+⚠ Line numbers below are cited **as QA reviewed them** (pre-edit) with the post-edit anchor beside
+each, because these very edits move them — a cited line number rots the moment its artifact is
+rewritten, so the durable handle is the surrounding text, not the offset.
+
+| site (as reviewed → now) | old → new |
+|---|---|
+| helper `:44` → `:58` ("`399` verdict rows … gives **37**") | denominator `400` → **399** |
+| helper `:48-56` → `:62-84` (the `⚠ The DENOMINATOR was wrong` paragraph) | ⛔ iteration 3's own correction paragraph **corrected in turn, not deleted**, with the three measurements and the `:282` refutation |
+| helper `:35-36` → `:43-52` ("20 rows stranded ABOVE the COVERED table's delimiter") | **reconciled** with QA's 21 lines — kept, and shown to support the two-header reading |
+| helper `:74` → `:102-111` (the `see STEP 1a below` pointer) | `grammar_from_generated` → step 1a + `$T/g_grammar`, with the real function names listed |
+| hub `:85-87` → `:88-93` | "denominator is **400**, not the record's 399 *and* not QA's 401" → **399**, the original |
+| record's F-REC-6 bullet | iteration-3 bracket kept verbatim; a second dated bracket marks it wrong and gives 399 |
+| record's F2-REC-5 disposition row | "→ **400**" → struck to **399**, i.e. unchanged from the original, old cell text quoted |
+| ADR 0190 `:316`, `:352` → `:317`, `:356` | 580 → **579 chars / 587 bytes** |
+| archive `:9461` (text left standing) → correction at `:9465-9471` | "rows" → "row LINES" |
+
+#### The five recommendations
+
+- **F3-REC-2** — "580-byte hand suffix" is wrong in **both** units. Re-measured by applying
+  `wsprefix`'s own rule to column 5 of `…findings.md:293`: column 5 is 630 chars / 638 bytes
+  stripped, the generator's region consumes `10_immutability.sql, 367_deferred_staff_signoff.sql`,
+  and the remainder — the hand suffix — is **579 characters / 587 bytes**, exactly QA's figures.
+  Both units are now stated everywhere, because the note is multi-byte (⭐ ⛔ ⚠) and chars ≠ bytes.
+  Fixed at helper `:24-25` and `:214`, ADR 0190 `:316` and `:352`, record's F2-REC-1 row.
+- **F3-REC-3** — ADR 0190 D9's "first branch of the graded block in each" is false for two of the
+  four harnesses. Verified in the code: door and writepath have a graded `if/elif` verdict block
+  with `MERGE_FAILED` first; `p0-authz-{rowdoor,invoker}-audit.sh` end with a bare `if MERGE_FAILED
+  → banner + exit 2; fi; exit 0` and have **no graded block at all** — which is what this unit's
+  own `FUP-AUTHZ-ROWDOOR-INVOKER-HARNESSES-HAVE-NO-GRADED-EXIT` 🟡 was filed for. Reworded to the
+  propagation all four actually share, with the two shapes split out and the old clause quoted.
+- **F3-REC-4** — the helper header pointed at `grammar_from_generated`, **which is not a name in
+  the file**. Measured: the only shell functions are `die`, `note`, `split_file`, `inject_fail`,
+  `rowkeys`; the only awk functions are `trim`, `seps`, `rowsplit`, `is_delim`, `wsprefix`. The
+  derivation is an inline awk block, not a function, so the pointer now names **step 1a** and the
+  artefact it writes (`$T/g_grammar`). ⚠ A pointer to a name that does not exist cannot go stale
+  loudly — nothing greps for it and nothing reds.
+- **F3-REC-5** — the helper prints `grep -c '^| ' "$T/merged" … row line(s)` (`:547`), so 401 is a
+  count of **row LINES**, headers included, not of rows. Corrected at record `:214` (with a note
+  that the 401→401 identity is unaffected) and beside the archived closure at
+  `docs/followups/follow-ups-archive.md:9461`, where the archived text is left standing and the
+  correction sits next to it.
+- **F3-REC-6** — hub `reviews:` now lists both review artefacts; `npm run features:index` re-run.
+
+#### D11's control — discharged, and attributed
+
+The D11 row's caveat ("the pre-unit-**deriver** control was NOT re-run") is replaced with QA's
+measurement from the delta check at `ee037fa3`: **`PASS 20 · FAIL 14 · SKIPPED 0`, bare rc 1**,
+deriver half **2/16**. The two survivors are the scenarios that never touch the deriver's selection
+logic — `no migration in the diff → rc 3` and `bad ARM → rc 2`. ⛔ Attributed to QA and **not
+re-run here**: copying a number is what this unit's own register lesson warns against, so the
+source is named in the cell.
+
+#### F2-REC-6 follow-through — pointer verified, row deliberately NOT back-filled
+
+The iteration-1 `hat` row does **not** only say `self-test: 7/7 OK`; it already carried a pointer,
+and I verified the pointer RESOLVES rather than assuming it. Target: `### 2026-09-05 — backend:
+gate re-read at the tip ee037fa3` → `#### The hat arm's DOMAIN half — quoted, at the tip (closes
+F2-REC-6)`, which holds the verbatim stdout block, the **4 named findings**
+(`authz.assignment_facts`, `public.assume_role`, `public.session_context`, policy
+`public.memberships.memberships_select`) and the swept population (1091 functions, 283 policies).
+I sharpened the pointer to name that sub-heading and the four findings, so the enumeration is one
+hop away. ⛔ The row itself is still **not** back-filled — its figures belong to a different run,
+and retrofitting them is the exact defect the row was written to avoid.
+
+#### The number sweep, classified
+
+```
+rg -n '\b400\b|\b399\b|\b401\b|580' docs/decisions/0190-*.md docs/progress/door-sweep-deriver.md \
+   docs/features/door-sweep-deriver.md scripts/lib/merge-findings-baseline.sh \
+   docs/followups/follow-ups-archive.md
+```
+
+(Hits are named at their **pre-edit** offsets, the ones the grep in the command block returns
+against `ee037fa3`; the corrections themselves have since shifted them.)
+
+| hit | class |
+|---|---|
+| helper `:24`, `:25`, `:214`; ADR `:316`, `:352`; record F2-REC-1 row | **corrected** — 580 → 579 chars / 587 bytes |
+| helper `:44`, `:48-56`; hub `:90-91`; record `:622`, `:624-628`, `:804` | **corrected** — denominator 400 → 399 |
+| record `:214`; archive `:9461` | **corrected** — "rows" → "row LINES" |
+| record `:764` | ✅ correct as history — it records that F2-REC-5 was left open in iteration 2, which is true of that commit |
+| record `:226` "401-character suffix" | ➖ out of subject — a `MERGE_FAULT=drop-suffix` self-test measurement, unrelated to the verdict-row denominator |
+| record `:427` (`365`, `383`, `401`, `61`) | ➖ out of subject — migration file numbers |
+| archive `:53` | ➖ out of subject — a Phase-8 frontend due-date closure |
+| archive `:6069`, `:6079` | ➖ out of subject — HTTP **400** status mapping |
+| archive `:6965` | ➖ out of subject — HTTP **401** in a deny test |
+
+#### Gate — every code read BARE
+
+| step | command | bare rc | OBSERVED |
+|---|---|---|---|
+| syntax | `bash -n scripts/lib/merge-findings-baseline.sh` | **0** | comment-only diff proven by `git diff -U0 -- scripts/ \| grep -E '^[+-][^+#-]'` → no matches |
+| self-test | `SELFTEST=1 bash scripts/door-sweep-cases.sh` | **0** | `SELF-TEST: PASS 34 · FAIL 0 · SKIPPED 0` |
+| lint | `npm run lint` | **0** | eslint `--max-warnings=0` + all chained gates |
+| registers | `npm run lint:registers` | **0** | ratchets not raised |
+| ADR index | `npm run lint:adr-index` | **0** | body-only ADR edit, no header change |
+
+**What this entry does NOT claim.** No migration, policy, grant, RPC, seed or `src/` change, so no
+DB arm and no diff-scoped door sweep is owed; `npm run test:db` and the four authz arms stand on
+the tip re-read at `ee037fa3` above. The six follow-up closures remain pending QA + PO.

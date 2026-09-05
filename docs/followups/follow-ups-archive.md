@@ -9462,6 +9462,14 @@ Index entry: [follow-ups-open.md](follow-ups-open.md) · filed 2026-08-27 · sta
 > rows into 401 merged, hand blocks 8/7/2/2 preserved, and `verdicts_from_findings` differing by
 > exactly the two rows the synthetic run dropped and the two it added.
 >
+> ⚠ **Corrected 2026-09-05, iteration 4 (QA F3-REC-5) — the archived text above is left as it
+> stood, and this note stands beside it.** "401 generated rows into 401 merged" should read **401
+> row LINES**: the figure comes from the helper's own note line, `grep -c '^| ' … row line(s)`,
+> so it counts `| `-leading LINES and includes the **two** table headers (`:112` and `:262`). The
+> door baseline's VERDICT-ROW count is **399**. The 401→401 identity the closure rests on is
+> unaffected — no row line was gained or lost — so the closure still holds; only the noun was
+> wrong.
+>
 > ⚠ **A defect this helper had in its first run**, caught by its own row-count check and recorded
 > rather than quietly fixed: rows keyed on column 1 alone collided on `app.can_sign_section(…)`,
 > which the baseline carries TWICE, and **5 rows vanished silently** while the prose check reported
