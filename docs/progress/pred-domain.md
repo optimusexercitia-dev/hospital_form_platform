@@ -678,3 +678,122 @@ second half of the control (the BEFORE version) was run only after asserting `[ 
 ⚠ `npm run test:db` and the four authz arms belong to **step 11**, after the re-baseline — stated
 rather than quietly skipped. In substance the pgTAP suite is green at this tree: every harness run
 above captured `Result: PASS, Files=262, Tests=8876` from `supabase test db` itself.
+
+#### The PREDICTED CARRIED enumeration (from the dry run) — key · verdict · disposition
+
+⛔ This is the DRY RUN's list, not the full run's. It is the **floor**: the dry run fed the
+generator the baseline's own notes, so every surviving row took the `identical` branch and 0 hand
+suffixes were spliced. The real run adds any row whose verdict or note moved. Marked `HAND-NOTE`
+where the baseline row carries hand prose in column 5 — those are measurement history and must
+not be deleted casually even when the subject is gone.
+
+```
+  1 | delete: subject GONE           | COVERED |           | public.adjudicate_dsr_request(uuid, text, text, text, uuid[])
+  2 | delete: subject GONE           | COVERED |           | app.can_read_attachment(p_owner_type text, p_owner_id uuid, p_uid uuid)
+  3 | retire to owning arm           | COVERED |           | meeting_cases.meeting_cases_staff_admin_insert (INSERT)
+  4 | delete: 2nd ordinal            | COVERED |           | app.can_sign_section(p_response_id uuid, p_section_id uuid, p_signer uuid)
+  5 | delete: subject GONE           | COVERED | HAND-NOTE | public.list_my_executable_dsr_tasks(uuid)
+  6 | delete: subject GONE           | COVERED | HAND-NOTE | public.search_patient_xref(text, text, uuid)
+  7 | delete: 2nd ordinal            | COVERED |           | hospitals.hospitals_select (SELECT)
+  8 | retire to owning arm           | COVERED |           | case_interviews.case_interviews_insert (INSERT)
+  9 | delete: subject GONE           | COVERED |           | app.attachment_confidentiality_ok(p_owner_type text, p_owner_id uuid, p_label text, p_uid uuid)
+ 10 | retire to owning arm           | COVERED |           | case_interviews.case_interviews_delete (DELETE)
+ 11 | retire to owning arm           | COVERED |           | meeting_cases.meeting_cases_staff_admin_delete (DELETE)
+ 12 | delete: subject GONE           | BLIND   |           | app.can_read_document_object(p_name text, p_uid uuid)
+ 13 | retire to owning arm           | COVERED |           | case_interviews.case_interviews_update (UPDATE)
+ 14 | retire to owning arm           | COVERED |           | responses.responses_delete_own_draft (DELETE)
+ 15 | delete: subject GONE           | BLIND   |           | attachment_references.attachment_references_select (SELECT)
+ 16 | delete: subject GONE           | COVERED | HAND-NOTE | public.attest_dsr_task(uuid, text, integer, text)
+ 17 | delete: 2nd ordinal            | ERROR   |           | commissions.commissions_select_member_or_admin (SELECT)
+ 18 | delete: subject GONE           | COVERED | HAND-NOTE | public.attest_dsr_task(uuid, text, integer, text)
+ 19 | delete: subject GONE           | COVERED | HAND-NOTE | app.patient_trajectory_bundle(text, text, uuid)
+ 20 | retire to owning arm           | COVERED |           | meeting_cases.meeting_cases_staff_admin_update (UPDATE)
+ 21 | RE-FILE (else ARM=census reds) | COVERED |           | app.storage_upload_reserved(p_bucket text, p_name text, p_uid uuid)
+ 22 | delete: subject GONE           | COVERED |           | public.list_dsr_disposable_meetings(uuid)
+ 23 | delete: subject GONE           | COVERED |           | attachments.attachments_select (SELECT)
+ 24 | retire to owning arm           | COVERED |           | case_referral.case_referral_delete_draft_source (DELETE)
+ 25 | delete: subject GONE           | COVERED |           | referral_note_types.referral_note_types_staff_admin_write (ALL)
+ 26 | retire to owning arm           | COVERED | HAND-NOTE | app.resolve_document_version_bytes(p_document_version_id uuid, p_rendition_kind text, p_uid uuid)
+ 27 | retire to owning arm           | COVERED |           | case_referral.case_referral_update_coord (UPDATE)
+ 28 | retire to owning arm           | COVERED |           | profiles.profiles_update_self (UPDATE)
+ 29 | delete: subject GONE           | COVERED |           | public.complete_dsr_task(uuid, text)
+ 30 | delete: subject GONE           | COVERED | HAND-NOTE | public.complete_dsr_task(uuid, text)
+ 31 | delete: subject GONE           | COVERED | HAND-NOTE | authz.has_direct_permission(p_principal uuid, p_scope_kind text, p_scope_id uuid, p_permission_code text)
+ 32 | delete: subject GONE           | BLIND   |           | app.has_role(p_scope_type text, p_scope_id uuid, p_role text)
+ 33 | delete: subject GONE           | COVERED | HAND-NOTE | public.list_my_dsr_task_commissions(uuid)
+ 34 | retire to owning arm           | COVERED |           | meeting_signatures.meeting_signatures_insert (INSERT)
+ 35 | delete: subject GONE           | COVERED |           | responses.responses_admin_all (ALL)
+ 36 | delete: subject GONE           | BLIND   |           | referral_reply_attachment.referral_reply_attachment_select_readable (SELECT)
+ 37 | delete: subject GONE           | BLIND   |           | attachment_subjects.attachment_subjects_select (SELECT)
+ 38 | delete: subject GONE           | COVERED | HAND-NOTE | public.create_dsr_request(uuid, text, text, text, integer)
+ 39 | delete: subject GONE           | COVERED |           | app.can_read_snapshot_document(p_object_name text, p_uid uuid)
+ 40 | delete: subject GONE           | COVERED |           | referral_note_types.referral_note_types_select (SELECT)
+ 41 | RE-FILE (else ARM=census reds) | COVERED |           | public.document_delete_affordances(p_document_ids uuid[])
+ 42 | retire to owning arm           | COVERED |           | response_section_signoffs.signoffs_insert (INSERT)
+ 43 | delete: 2nd ordinal            | COVERED |           | organizations.organizations_select (SELECT)
+ 44 | retire to owning arm           | COVERED |           | case_referral.case_referral_insert_source_coord (INSERT)
+ 45 | RE-FILE (else ARM=census reds) | COVERED |           | public.commission_cadence_overview()
+ 46 | delete: subject GONE           | COVERED | HAND-NOTE | public.close_dsr_request(uuid, text, text, text)
+ 47 | delete: subject GONE           | COVERED |           | public.close_dsr_request(uuid, text, text, text)
+ 48 | delete: subject GONE           | COVERED |           | app.can_write_attachment(p_owner_type text, p_owner_id uuid, p_uid uuid)
+```
+
+**Disposition key.** `delete: 2nd ordinal` — the run DID emit this key once; the carried row is a
+second baseline row for it (a gate swept in two passes). `delete: subject GONE` — the function or
+policy no longer exists in the catalog. `retire to owning arm` — the subject exists but belongs to
+the writepath arm (INSERT/UPDATE/DELETE policies) or to C2 (`prosecdef` set-returning doors).
+⛔ `RE-FILE (else ARM=census reds)` — the **three** whose only account was this file.
+
+#### Step 9 — the ONE full run is LAUNCHED and VERIFIED UNDER WAY; this session STOPS HERE
+
+Launched **2026-09-05 19:54:05** at HEAD `abe0af51` with a clean tree, DETACHED (PowerShell
+`Start-Process` on `C:\Program Files\Git\bin\bash.exe` with the runner as **argv[1]**, output
+redirected, polled), own `WORK=/tmp/pd-full` and own sentinel `/tmp/pd-full-door-INFLIGHT.sql`.
+⛔ Nothing ran under a tool timeout.
+
+Provenance snapshotted BEFORE the run, by the runner itself:
+
+```
+START 2026-09-05T19:54:05-03:00
+PRE_CKSUM  1895535637 131621
+PRE_MD5    2ef469cabceff65e3f291e2a3054972f *docs/reviews/authz-door-audit-findings.md
+PRE_LINES  924
+GIT_HEAD   abe0af512112e61d92f15c5254d4dc42ec3e7789
+GIT_STATUS_BEFORE:      (empty)
+RESET_BARE_RC=0
+```
+
+Verified under way, not assumed:
+
+```
+    clean — 0 degenerate bodies (all three neutralization forms)
+FULL SWEEP — this run MERGES into the committed baseline; it does not replace it.
+ARM-DOMAIN predicate=127/127 policy=226/226
+baseline OK: Result: PASS, Files=262, Tests=8876
+```
+
+**Measured rate: 5 cases in the first ~10 minutes ⇒ ~2 min/case ⇒ ~11.8 h remaining** (ETA
+≈ 07:45 on 2026-09-06). ⛔ **This session stops at the step-8 commit boundary with step 9 in
+flight**, which the brief names as the fallback when time runs short. Everything through step 8 is
+built, proven and committed (`b6a22f67`, `5651ab19`, `abe0af51`); `git status --short` is empty;
+the committed findings baseline is **byte-unchanged**.
+
+⛔ **What the NEXT session must do, in order** — and what it must NOT do:
+
+1. Read the bare exit code from `/c/Users/micha/AppData/Local/Temp/claude/D--Development-claude-hospital-form-platform/9346f622-9033-4572-a5fb-ffe9905fdcf2/scratchpad/pd/full/rc.txt` (`FULLRUN_BARE_RC`), never through a pipe. 0 CLEAN /
+   1 DIRTY (expected: `event_current_custodian` alone makes it DIRTY via NOTICED) / 2 ABORT /
+   3 UNPROVEN. ⛔ **2 also means the MERGE ABORTED** — in that case $FINDINGS is STALE and an empty
+   `git diff` on it is NOT evidence the run changed nothing.
+2. Read `provenance.txt`'s POST block: `POST_CKSUM`/`POST_MD5`/`POST_LINES` and
+   `GIT_STATUS_AFTER`, which must list **only** `docs/reviews/authz-door-audit-findings.md`.
+3. Verify the merge the other two ways: `SELFTEST=1 MERGE_VERIFY=<the merged file>
+   bash scripts/lib/merge-findings-baseline.sh <baseline snapshot> <generated> /dev/null` → rc 0
+   (the snapshot is `/tmp/pd-full/authz-door-audit-findings.baseline.md`, the generated file
+   `/tmp/pd-full/authz-door-audit-findings.generated.md`); and ENUMERATE all 9 `HAND-MERGED`
+   blocks, the 7 `## Note` sections, and the CARRIED block row by row, with `git diff --stat`.
+4. Diff the REAL CARRIED block against the **predicted 48** above; every extra row is a verdict or
+   note that MOVED, and the `(ALL)` ones among them are `FUP-AUTHZ-FOR-ALL-READ-HALF-BLINDS`'s
+   work-list.
+5. ⛔ **Do NOT commit the re-baselined findings file.** Return the CARRIED enumeration to the lead
+   for the PO's Q2 ruling. The backlog's two resolver lines, the stale `## COVERED … + ERROR`
+   heading, and the three `RE-FILE` keys all land in that same later commit.

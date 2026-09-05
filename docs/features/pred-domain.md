@@ -91,14 +91,26 @@ these resolvers.
   prose cost exactly **1** duplicated heading, **predicted CARRIED 48 rows / 45 keys** partitioned
   A=4 / B=24 / C=17 against the live catalog.
 
+- **Mirror discrimination**: 12/12 verdicts identical before/after — **no SELECT row moved**
+  (the required property) and **no ALL row flipped either**, so the subset proves SAFETY, not
+  firing. The change was proven to FIRE by a catalog positive control instead: `true || true`
+  under the old version vs `true || <original predicate>` under the new one.
+- Gate at the boundary: `npm run lint` **0**, door SELFTEST **6/6 rc 0**, deriver SELFTEST
+  **34/0 rc 0**, `typecheck` **0**; ratchets not raised. Three commits, tree clean.
+
 ### In progress
-- Mirror discrimination (6 ALL + 6 SELECT, both harness versions, same reset), then the ONE
-  detached full run (~11–12 h + ~29 min of merges, re-derived from measurement).
+- **The ONE full door-arm run, launched 19:54 and verified under way** (`predicate=127/127
+  policy=226/226`, baseline `Files=262, Tests=8876, PASS`, reset rc 0). Measured ~2 min/case
+  ⇒ **~11.8 h remaining**, ETA ≈ 07:45 on 2026-09-06.
 
 ### Next
-- Verify the merge three ways → **return the CARRIED enumeration and STOP** for the PO ruling →
-  then step 11 (four arms, `test:db`, lint, diff-scoped deriver) and the closures.
+- Read the run's BARE exit code → verify the merge three ways → diff the real CARRIED block
+  against the **predicted 48** → **return the enumeration and STOP** for the PO's Q2 ruling →
+  then step 11 and the closures.
 
 ### Blockers
-- None. ⚠ The full run is **~12 h** (re-derived: ~2 min/case × 354), detached, never under a tool
-  timeout. ⛔ The re-baselined findings file is NOT committed until the CARRIED ruling.
+- None. ⛔ This session STOPPED at the step-8 commit boundary with step 9 in flight (the brief's
+  named fallback). ⛔ The re-baselined findings file is NOT committed until the CARRIED ruling;
+  the committed baseline is byte-unchanged (`2ef469cabceff65e3f291e2a3054972f`).
+- ⚠ Three keys would leave `ARM=census` UNACCOUNTED if the re-baseline were committed as-is —
+  a re-filing obligation, measured at step 8, not a defect.
