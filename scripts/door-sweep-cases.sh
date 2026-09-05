@@ -95,6 +95,15 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
 cd "$ROOT" || { echo "FATAL: cannot cd to repo root: $ROOT" >&2; exit 2; }
 
+# ⛔ SELF-TEST. `SELFTEST=1 bash scripts/door-sweep-cases.sh` runs this script against
+# COMMITTED fixtures in a throwaway repo and asserts stdout AND the BARE exit code per
+# scenario. It is NOT a `npm run lint` gate — it needs $TMPDIR and, for most scenarios, the
+# local stack — it belongs in Phase Gate step 1 beside the four authz arms. The dispatch is
+# FIRST so the self-test never inherits half of this script's own setup.
+if [ "${SELFTEST:-0}" = "1" ]; then
+  exec bash "$HERE/door-sweep-selftest.sh" "$@"
+fi
+
 # AUDIT_SRC exists so this script's OWN failure paths can be proven able to fire — the
 # same reason the sibling harness keeps DRYRUN. Point it at a doctored copy of the audit
 # script to watch the domain lift ABORT and ruling 3's check announce that it did not run.
