@@ -490,8 +490,9 @@ Also still on disk from this unit, same directory, if a cleanup is wanted:
 
 QA reviewed the unit at `6b6aee64` and returned **APPROVED** with 4 MAJOR + 4 RECOMMENDED findings
 (`docs/reviews/harness-crash-safety-review.md`, not edited by this session). Lead disposition: fix
-F-MAJOR-1/2/3/4 and F-REC-1/2/3 now, file F-REC-4, resolve § 5 item 6. Two commits:
-`8d7f01db` (script only) and the docs commit that carries this entry.
+F-MAJOR-1/2/3/4 and F-REC-1/2/3 now, file F-REC-4, resolve § 5 item 6. Three commits:
+`8d7f01db` (script only), `cbddee2a` (the docs commit that carries this entry) and `93e53f34`
+(the gate results, appended below once the gate had actually run).
 
 ⛔ **Same standing constraints as the build session**, and all held: no production function,
 policy, migration or seed touched; harnesses launched **detached** via PowerShell `Start-Process`

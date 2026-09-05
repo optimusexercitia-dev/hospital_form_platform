@@ -97,7 +97,8 @@ hold — before AE5's eleven per-role increments each run these harnesses again.
   diff-scoped door sweep is not owed.
 
 ### In progress
-- Nothing. Both fix-loop commits are landed and the gate has been re-run on a fresh reset.
+- Nothing. All three fix-loop commits are landed (`8d7f01db` script, `cbddee2a` docs, `93e53f34`
+  gate results) and the gate has been re-run in full on a fresh reset.
 
 ### Next
 - **QA re-check** of fix-loop iteration 1 (this unit creates and edits nothing under
