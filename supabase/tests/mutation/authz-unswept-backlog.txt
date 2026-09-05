@@ -793,6 +793,16 @@ public.list_linkable_org_users(p_organization uuid)
 # `explain_direct_permission` has ZERO callers anywhere — no SQL body, no policy, no `src/`,
 # no `e2e/` reference — so nothing today can act on a wrong answer from it. ⚠ That is a
 # REACHABILITY argument, not a coverage one, and it expires the moment anything calls it.
+# ⛔ RESOLVED BY ADR 0191 (unit PRED-DOMAIN, 2026-09-05) — THE LINE BELOW IS DELETED IN THE
+#    COMMIT THAT CARRIES THE RE-BASELINED docs/reviews/authz-door-audit-findings.md, AND NOT
+#    BEFORE. `PRED_DOMAIN` gained a third admitting disjunct (`n.nspname = 'authz'`, bounded at
+#    `bool`), so this function is now IN the door arm's domain: `PRED_TOTAL` 125 -> 127, and a
+#    `CASES=scope_reaches` subset selects it instead of exiting 3 UNPROVEN.
+#    ⚠ THE SEQUENCING IS LOAD-BEARING AND WAS MEASURED, not assumed. `census_proc_domain`
+#    (p0-authz-invariant.sh:459) already admits EVERY `prosecdef` boolean in app/public/authz,
+#    so this function is in ARM 3's live domain TODAY and is ACCOUNTED **only** by this entry.
+#    Deleting the line before the findings file carries its verdict would make `ARM=census`
+#    red with 2 unaccounted gates. Until that file lands, this entry is still TRUE.
 authz.scope_reaches(p_assignment_kind text, p_assignment_id uuid, p_resolution_kind text, p_requested_id uuid)
 
 # ---------------------------------------------------------------------------
@@ -838,6 +848,18 @@ authz.scope_reaches(p_assignment_kind text, p_assignment_id uuid, p_resolution_k
 #     commission; §6.4/§6.5 prove the restore landed.
 #   pgTAP 403 §6.3 — the 648-cell differential oracle goes RED when the same call is
 #     stripped from `candidate_has_permission` itself, with §6.2b as its own zero baseline.
+# ⛔ RESOLVED BY ADR 0191 (unit PRED-DOMAIN, 2026-09-05) — SAME DELETION RULE AS THE
+#    `scope_reaches` BLOCK ABOVE: the line below goes in the commit that carries the
+#    re-baselined findings file, and not before (`ARM=census` accounts for it only here).
+#    ⭐ The paragraph above is now HISTORY, and correctly so: "Widening PRED_NAME_RE is not a
+#    local fix — the filter bounds the whole predicate arm, and QA routed that bound to C2" was
+#    right about `PRED_NAME_RE`. ADR 0191 did not widen the NAME regex; it added a SCHEMA
+#    disjunct bounded at `bool`, which leaves the neutralization model untouched — which is
+#    precisely why ADR 0173 §4's refusal (a RETURN-TYPE widening changes that model) does not
+#    reach it.
+#    FIRST VERDICT, earned 2026-09-05 on a fresh reset, baseline `Files=262, Tests=8876, PASS`:
+#    **COVERED** — `CASES="scope_reaches candidate_has_permission"`, domain `predicate=2/127`.
+#    ⚠ Recorded AT THAT SUITE SHAPE; a verdict at one shape is not a verdict at another.
 authz.candidate_has_permission(p_principal uuid, p_scope_kind text, p_scope_id uuid, p_permission_code text)
 
 # ⛔ CATEGORY (b) — `prosecdef` SCALAR NON-BOOL: it returns the composite

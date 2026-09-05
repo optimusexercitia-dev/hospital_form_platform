@@ -15,9 +15,16 @@
 # weeks on this repo, and the next run found 15 BLIND gates (ADR 0079 Am. 1).
 #
 # ── Method (ADR 0079 Amendment 6 / authz-handoff §7.17 — binding) ─────────────
-#  * Population: every function in schemas app+public (pg_proc, prokind='f',
-#    comment-stripped, lowercased — a pg_get_functiondef-regenerated body is
-#    uppercase, Amendment 5a) + every RLS policy (pg_policies, all schemas).
+#  * Population: every function in schemas app+public+authz (pg_proc,
+#    prokind='f', comment-stripped, lowercased — a pg_get_functiondef-
+#    regenerated body is uppercase, Amendment 5a) + every RLS policy
+#    (pg_policies, all schemas).
+#    ⚠ This line said "app+public" until 2026-09-05 while `:195` executed
+#    `n.nspname in ('app','public','authz')` — the schema was added at AE4.7b
+#    and the METHOD paragraph was not. A domain sentence that UNDERSTATES the
+#    executed domain is the mirror of the usual defect and reads as care: it
+#    invites a reader to conclude the `authz` schema is unswept here when it is
+#    not. Corrected against the catalog query, not against memory.
 #  * Caller-binding is classified by CALL-SITE BINDING, never signature shape:
 #    - direct: principal_id = auth.uid() / (select auth.uid()) (either order);
 #    - local var: v := auth.uid() (declared or assigned, incl. house-style

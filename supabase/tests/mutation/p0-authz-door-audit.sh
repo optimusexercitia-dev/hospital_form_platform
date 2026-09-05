@@ -310,10 +310,55 @@ classify () {
   # Failing test files (basenames), comma-joined.
   FAILING=$(echo "$out" | grep -E '\.sql .*Failed: [1-9]' \
             | grep -oE '[0-9A-Za-z_]+\.sql' | sort -u | paste -sd, -)
+  # Files whose SHAPE broke. A NOTICED verdict is only actionable with the ABORTING file
+  # named beside it — "the suite noticed" without saying WHERE is a line a reader cannot act
+  # on and therefore does not re-read.
+  #
+  # ⛔ THE FIRST VERSION OF THIS SCRAPE FOUND NOTHING, AND IT WAS THREE HOURS OLD (2026-09-05).
+  # It read the basename off the `Dubious` line, because that is where prove puts it *in some
+  # layouts*. In THIS one it does not: the live plant's log carries the full path on the line
+  # ABOVE (`…/140_patient_safety.sql .....`) and then a bare
+  # `Dubious, test returned 3 (wstat 768, 0x300)`. So the note read `aborting file(s): <none
+  # parsed>` on the very run built to prove the verdict works. A count is only as true as the
+  # instrument named beside it, and the instrument was mine.
+  #
+  # The reliable source is prove's own `Test Summary Report`: a `<path>.sql   (Wstat: …)` line
+  # whose INDENTED block carries `Parse errors:` (a bad plan) or `Non-zero exit status:`. A file
+  # that merely failed assertions has neither, so it correctly does NOT appear here — it is in
+  # `$FAILING`. ⚠ Only the summary is trusted; if there is no summary the field says so rather
+  # than guessing, because the Files=/Tests= numbers in the note already carry the shape.
+  SHAPEFILES=$(echo "$out" | awk '
+      /Test Summary Report/                                      { insum = 1; next }
+      insum && /\.sql[ \t]+\(Wstat:/                             { f = $1; sub(/^.*[\/\\]/, "", f); next }
+      insum && /^[ \t]+(Parse errors:|Non-zero exit status:)/ && f != "" { print f; f = "" }
+    ' | sort -u | paste -sd, -)
   # §7.15: a run whose SHAPE differs from baseline (fewer files/tests, or Dubious) is an
   # ABORT — a harness bug (bad neutralization), NOT a BLIND/COVERED result.
+  #
+  # ── §7.15c  THE FOURTH OUTCOME: `NOTICED` (FUP-DOOR-SWEEP-BROAD-GATE-ABORTS-A-FILE) ──
+  # ⛔ A SHAPE MOVE USED TO DISCARD THE PARSED `Result:`, AND THAT THREW AWAY A REAL SIGNAL.
+  # `app.event_current_custodian` opens -> `140_patient_safety.sql` reds its test 11 and then
+  # ABORTS (`Bad plan. You planned 35 tests but ran 11`), so `Tests=` moves and §7.15 withheld
+  # the verdict as ERROR. The suite PLAINLY noticed — a keystone went red — but ERROR says
+  # "unclassifiable", which reads next to 28 genuine harness bugs as if nothing had been learned.
+  # The follow-up's option (a) (a bespoke neutralization per aborting case) is the wrong
+  # instrument for this class: the abort is `140`'s own value assertion whose subject now raises
+  # (LEARN-083), not a defect in the neutralization, so there is nothing bespoke to write.
+  #
+  # So: shape moved AND `Result: FAIL` -> `NOTICED`. Every OTHER shape move stays `ERROR`.
+  # ⛔ `NOTICED` NEVER COLLAPSES INTO COVERED and is never a pass:
+  #   · it has its OWN count on the report line and its own column in the tables;
+  #   · it is in the DIRTY test, so a NOTICED case exits 1 exactly like a BLIND;
+  #   · it claims strictly LESS than COVERED — the failing assertions may belong to a
+  #     DIFFERENT gate entirely, and with the denominator moved we cannot say they do not.
+  # ⚠ `[ -z "$res" ]` (no `Result:` line at all) is a shape move whose `res` is not FAIL, so it
+  #   stays ERROR — the ordering below makes that explicit rather than incidental.
+  local shape_moved=0
   if [ -z "$res" ] || [ "$RUNFILES" != "$BASE_FILES" ] || [ "$RUNTESTS" != "$BASE_TESTS" ] || [ "$dubious" -gt 0 ]; then
-    VERDICT="ERROR"
+    shape_moved=1
+  fi
+  if [ "$shape_moved" = "1" ]; then
+    if [ "$res" = "FAIL" ]; then VERDICT="NOTICED"; else VERDICT="ERROR"; fi
   elif [ "$res" = "FAIL" ]; then
     VERDICT="COVERED"
   elif [ "$res" = "PASS" ]; then
@@ -322,6 +367,47 @@ classify () {
     VERDICT="ERROR"
   fi
 }
+
+# ─────────────────────────────────────────────────────────────────────────────────────
+# SELFTEST — the classifier's FOUR outcomes on CONSTRUCTED strings, no DB, no suite run.
+#
+# ⛔ THE CONTROL IS THE (shape-moved, PASS) CASE, and it is the reason this arm exists. A
+# fourth outcome that fired on EVERY shape move would be indistinguishable from renaming
+# ERROR, and the report would read as "the suite noticed" for 28 cases where it did not.
+# The discrimination half is therefore asserted explicitly: same input but for `Result:`,
+# opposite verdict.
+# ⚠ Run it BEFORE anything touches the catalog: `bash <this> ` with SELFTEST=1 exits here.
+#   `CASES=` is irrelevant to it and the committed baseline is never opened for write.
+# ─────────────────────────────────────────────────────────────────────────────────────
+if [ "${SELFTEST:-0}" = "1" ]; then
+  echo "=== SELFTEST: classify() — four outcomes on constructed strings (no DB) ==="
+  BASE_FILES=262; BASE_TESTS=8876
+  st_fail=0
+  st_case () {  # $1 = label   $2 = expected verdict   $3 = the constructed suite output
+    classify "$3"
+    if [ "$VERDICT" = "$2" ]; then
+      printf '  ok    %-34s -> %-8s (files=%s tests=%s)\n' "$1" "$VERDICT" "$RUNFILES" "$RUNTESTS"
+    else
+      printf '  NOT OK %-33s -> %-8s (expected %s)\n' "$1" "$VERDICT" "$2"; st_fail=$((st_fail+1))
+    fi
+  }
+  st_shape_ok="ok 1 - something
+Files=262, Tests=8876, Result: "
+  st_shape_moved="Bad plan. You planned 35 tests but ran 11.
+Files=262, Tests=8712, Result: "
+  st_case "same shape + FAIL"   COVERED "${st_shape_ok}FAIL"
+  st_case "same shape + PASS"   BLIND   "${st_shape_ok}PASS"
+  st_case "shape MOVED + FAIL"  NOTICED "${st_shape_moved}FAIL"
+  st_case "shape MOVED + PASS"  ERROR   "${st_shape_moved}PASS"   # ⭐ THE CONTROL
+  # Two more, because the two ways a shape can move are not the same code path:
+  st_case "Dubious only + FAIL" NOTICED "ok 1 - x
+Dubious, test returned 2
+Files=262, Tests=8876, Result: FAIL"
+  st_case "no Result: line"     ERROR   "Files=262, Tests=8876"
+  echo "--- SELFTEST classify: $((6 - st_fail))/6 ok, $st_fail failed ---"
+  [ "$st_fail" -eq 0 ] || exit 1
+  exit 0
+fi
 
 echo "=== P0 AUTHZ DOOR AUDIT — neutralize each gate, ask the WHOLE SUITE if anyone noticed ==="
 echo "Repo: $ROOT"
@@ -408,7 +494,8 @@ fi
 # ────────────────────────────────────────────────────────────────────────────────
 DEGENERATE_PREDICATE="( p.prosrc ~ '^\s*begin\s+return\s+(true|false)\s*;\s*end'
      or p.prosrc ~ '^\s*select\s+(true|false)\s*;?\s*\$'
-     or p.prosrc ~ '^\s*begin\s+return\s*;\s*end' )"
+     or p.prosrc ~ '^\s*begin\s+return\s*;\s*end'
+     or p.prosrc ~ 'P0-SETVALUED-NEUTRALIZED' )"
 
 degenerate_gates () {
   psql_c -c "select n.nspname||'.'||p.proname||'('||pg_get_function_identity_arguments(p.oid)||')'
@@ -490,6 +577,39 @@ echo "    clean — 0 degenerate bodies (all three neutralization forms)"
 # its body cannot pull it in silently. Both stay VISIBLE in the out-of-domain census.
 # ⚠ Any addition to this list is a claim that the function has side effects — never a way
 # to quiet a BLIND verdict.
+#
+# ── THE THIRD AXIS: SCHEMA (ADR 0191; FUP-DOOR-SWEEP-DOMAIN-MISSES-THE-AUTHZ-RESOLVERS) ──
+# ⛔ NAME-OR-BODY WAS STILL NOT ENOUGH, and the population it missed is the one AE5 re-keys
+# onto. `authz.scope_reaches` and `authz.candidate_has_permission` are `prosecdef` BOOLEANS
+# matching NEITHER regex (measured 2026-09-05: `by_name=f by_identity=f` for both) — their
+# bodies reach identity only through `authz.*` helpers this identity regex does not name,
+# which is exactly the indirection §7.17b already admitted it could not see. Meanwhile
+# `authz.has_permission` IS in domain, by `^has_`. So the resolver family was swept ON ONE
+# AXIS ONLY, and the green from that axis read as if it covered the family.
+#
+# The property that closes it is the SCHEMA: no application role holds USAGE on `authz`
+# (pgTAP 401 §18), so a `prosecdef` function there exists to answer an authorization
+# question — there is nothing else it could be. Hence `n.nspname = 'authz'` as a third
+# admitting disjunct, written LITERALLY rather than as a fourth sub-variable, so that
+# `scripts/door-sweep-cases.sh`'s lift (three explicit substitutions, then ABORT on any
+# surviving `$`) keeps working with no edit.
+#
+# ⛔ BOUNDING IT AT `bool` IS LOAD-BEARING AND MEASURED, not defensive. Ten `prosecdef`
+# functions live in `authz`; only 4 are boolean. An UNBOUNDED `n.nspname='authz'` would
+# admit the other 6 — `assignment_facts`, `authorized_scope_ids`,
+# `candidate_authorized_scope_ids`, `entailed_grants`, `explain_permission`,
+# `rebuild_implication_closure` — which the direction classifier below labels `positive`,
+# whose neutralization is `select true`, which does not type-check against `record` /
+# `SETOF uuid` / `permission_explanation` / `int4`. That is 6 GUARANTEED ERROR rows: the
+# widening-by-TYPE trap this script's own header declined, re-entered through the schema
+# door. The `bool` bound keeps the NEUTRALIZATION MODEL unchanged — which is precisely why
+# ADR 0173 §4's refusal does not reach this axis: §4 refused a RETURN-TYPE widening BECAUSE
+# it would change that model, and its four subjects return `int4`/`responses`.
+#
+# ⛔ THE SET-VALUED RESOLVERS ARE NOT FIXED HERE and must not be read as fixed. They are out
+# by RETURN TYPE, and only a boolean is sweepable by this mechanism (ADR 0079 hazard 4).
+# Their home is `supabase/tests/mutation/authz-setvalued-targeted-cases.sh`, named in the
+# §7.17c domain statement so it is quoted at every gate rather than remembered.
 # ─────────────────────────────────────────────────────────────────────────────────────
 PRED_NAME_RE="^(is_|can_|has_|referral_target_analyst|attachment_confidentiality_ok)"
 PRED_IDENTITY_RE="auth\.uid\(\)|memberships|member_can|app\.is_|app\.can_|app\.has_|principal_id"
@@ -498,7 +618,8 @@ PRED_DOMAIN="(
        (t.typname='bool'
           and p.proname not in ($PRED_SIDE_EFFECTING)
           and (
-               (p.proname ~ '$PRED_NAME_RE' and p.proname !~ '^is_valid_')
+               n.nspname = 'authz'
+            or (p.proname ~ '$PRED_NAME_RE' and p.proname !~ '^is_valid_')
             or regexp_replace(p.prosrc, '--[^\n]*', '', 'g') ~ '$PRED_IDENTITY_RE'
           ))
        or p.proname = 'assert_not_case_excluded'
@@ -586,6 +707,85 @@ psql_c -c "\copy (
 ) to '/tmp/wl_skip.tsv' with (format text)" >/dev/null
 docker cp "$DB:/tmp/wl_skip.tsv" "$WORK/skipped_pol_true.tsv" >/dev/null
 
+# ─────────────────────────────────────────────────────────────────────────────────────
+# §7.17c  THE DOMAIN STATEMENT — the POPULATIONS THIS SWEEP DOES NOT COVER, on every run.
+#         (FUP-C2-TIER1-TRIGGER-ENFORCERS-OUT-OF-SWEEP-DOMAIN; ADR 0184 point 4 + 0187 D1.)
+#
+# ⛔ WHY A BLOCK AND NOT AN ALLOWLIST ENTRY. The follow-up is explicit that an allowlist does
+# not close it: `public.reopen_interview`'s BLIND verdict is CORRECT — the door is called and
+# its guard really is unasserted — but the REASON is not the usual one. Its `HC038` is
+# delivered by `app.guard_interview_status`, a TRIGGER on `case_interviews`. The two BLINDs
+# need different remedies (a keystone on the door vs a keystone on a fixture the trigger does
+# not already refuse) and the findings file cannot tell them apart. What is missing is not a
+# verdict; it is the DOMAIN beside it — the ADR 0079 failure this whole program exists to
+# prevent ("a gate record names the arm and its domain, never the script").
+#
+# ⛔ A TRIGGER ENFORCER CANNOT ENTER THIS ARM, STRUCTURALLY. Postgres invokes a trigger
+# function FROM THE TABLE, not from the body of the door that wrote to it, so there is no call
+# edge to follow and no boolean to flip. That is not a gap this arm can close by widening; it
+# is a bound this arm must STATE.
+#
+# ⚠ DERIVED EVERY RUN, NEVER LITERAL. The counts below are read from the live catalog at run
+#   time. A literal would be a claim about a catalog that has moved — the failure mode this
+#   file's own §7.3 ("assert the state, don't claim it") exists to stop.
+# ─────────────────────────────────────────────────────────────────────────────────────
+TRIG_SECDEF=$(psql_c -c "select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+                          where n.nspname in ('app','public') and p.prosecdef
+                            and p.prorettype='pg_catalog.trigger'::regtype;" | tr -d '[:space:]')
+TRIG_WIRED=$(psql_c -c "select count(*) from pg_trigger tg where not tg.tgisinternal;" | tr -d '[:space:]')
+SETVALUED_N=$(psql_c -c "select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+                          where n.nspname in ('app','public','authz') and p.prosecdef
+                            and p.proretset and p.prorettype='pg_catalog.uuid'::regtype;" | tr -d '[:space:]')
+
+domain_statement () {   # markdown that also reads correctly on a terminal
+  echo "DOMAIN-STATEMENT: what a COVERED/BLIND verdict from THIS arm does NOT cover."
+  echo "(§7.17c — derived from the live catalog on every run; quote this block, not the script.)"
+  echo
+  echo "1. **Tier 2 — 190 doors, deferred by ADR 0171, not cleared.** (ADR 0187 D1: every gate"
+  echo "   record citing this sweep must say so in those words.)"
+  echo "2. **The \`HCDS*\` family (60 raises) and \`28000\` (6).** The C2 neutralizer anchors on"
+  echo "   \`errcode = '(42501|HC0[A-Z0-9]{2})'\`, which requires a literal \`0\` in position 3, and"
+  echo "   the gate-fn filter uses the same anchor — so these doors are STRUCTURALLY ABSENT from"
+  echo "   that worklist and appear in its findings neither as a verdict nor as an ERROR."
+  echo "3. **The C2 ERROR class — ~10 enforcers expected, no verdict.** 39 anchored raises carry a"
+  echo "   \`;\` inside the message literal, which the negated-semicolon anchor cannot span, so the"
+  echo "   mutation never lands. It fails CLOSED (never a false COVERED), and a door with no"
+  echo "   verdict is still not a covered door."
+  echo "4. **Trigger enforcers — $TRIG_SECDEF \`prosecdef\` trigger function(s) behind $TRIG_WIRED wired"
+  echo "   trigger(s), DERIVED this run.** Postgres invokes a trigger FROM THE TABLE, so a trigger"
+  echo "   function has no call edge from the door that fires it and no boolean this arm can flip."
+  echo "   ⛔ Therefore a trigger-caused BLIND is INDISTINGUISHABLE here from an absent-assertion"
+  echo "   BLIND: the first is discharged only by a keystone on a fixture the TRIGGER does not"
+  echo "   already refuse; the second by a keystone on the door. Measured witness:"
+  echo "   \`public.reopen_interview\` BLIND while \`121_interviews.sql\` pins its \`HC038\` — the"
+  echo "   \`HC038\` observed comes from \`app.guard_interview_status\`, a trigger on \`case_interviews\`."
+  echo "   ⚠ A defence-in-depth pair (door guard + trigger guard) can therefore LOOK like a gap."
+  echo
+  echo "**This arm's own bounds** (PO-accepted 2026-09-05, stated verbatim):"
+  echo "> \`prosecdef\` boolean in app/public/authz by authz-shaped **name**, identity-touching"
+  echo "> **body**, or \`authz\` **schema** membership, minus the 2 side-effecting writers; the"
+  echo "> $PRED_OUT outside are enumerated per run in §7.17b and in this statement."
+  echo
+  echo "- **$PRED_OUT \`prosecdef\` boolean(s) outside the domain**, listed at the end of this report."
+  echo "  \"Outside this arm\" is NOT \"unswept\" — other arms exist — and $PRED_OUT is the size of the"
+  echo "  UNCLASSIFIED set, never a defect count."
+  echo "- **The 2 side-effecting writers** (\`app.enqueue_notification\`,"
+  echo "  \`public.remind_document_approver\`) are held out BY NAME: swapping their body for"
+  echo "  \`select true\` would disarm a notification enqueue / an approver reminder rather than"
+  echo "  open a gate, and the suite would go green for the wrong reason."
+  echo "- **Value-returning raise-guards** (\`assert_*_writable\`, \`assert_referral_*\`) are excluded"
+  echo "  from the auto-sweep: neutralizing a uuid/record raise-guard risks a NULL-propagation"
+  echo "  abort downstream (§7.15). They owe bespoke, hand-added neutralizations."
+  echo "- **Set-valued resolvers — $SETVALUED_N \`prosecdef\` \`SETOF uuid\` function(s), DERIVED this"
+  echo "  run.** Only a BOOLEAN predicate is sweepable by this mechanism (ADR 0079 hazard 4), so"
+  echo "  they are out of domain by RETURN TYPE, before any name or body test runs. Three of them"
+  echo "  are authorization scope resolvers and have a committed, scheduled home:"
+  echo "  \`supabase/tests/mutation/authz-setvalued-targeted-cases.sh\`."
+  echo "- **RLS policies**: this arm sees \`polcmd in ('r','*')\` only, and since 2026-09-05 it opens"
+  echo "  the \`using\` half ALONE. A verdict here is a claim about the READ half and nothing else;"
+  echo "  the \`with check\` half belongs to \`p0-authz-writepath-audit.sh\`."
+}
+
 want () {  # $1 = match key (proname or polname); returns 0 if in CASES (or CASES empty)
   [ -z "$CASES" ] && return 0
   local k
@@ -644,6 +844,13 @@ echo "      identity-touching BODY', minus the 2 side-effecting writers held out
 echo "      (§7.17a) — a good approximation of the property, still not the property itself."
 echo "      'Outside it' != 'unswept' (other arms exist); $PRED_OUT is the size of the"
 echo "      UNCLASSIFIED set, never a defect count."
+
+# ⛔ PRINTED ON EVERY RUN, beside ARM-DOMAIN and quotable exactly like the deriver's `SCOPE:`
+# line. A verdict without its domain is the ADR 0079 failure; a domain statement that lives
+# only in an ADR is one nobody re-reads at gate time.
+echo
+echo "--- domain statement: what this arm does NOT cover (§7.17c) ---"
+domain_statement | sed 's/^/    /'
 
 # Any CASES token that matched NOTHING is itself an unproven case — name it, and say what
 # the catalog knows about it. This is the `member_can_for` incident verbatim: a token that
@@ -735,6 +942,9 @@ emit_body () {
     echo "\`Result:\`. **COVERED** = suite went \`FAIL\` (a keystone asserts through the gate)."
     echo "**BLIND** = suite stayed \`PASS\` (no keystone exercises it — a work-list item)."
     echo "**ERROR** = run shape != baseline (harness bug: fix the neutralization, not a result)."
+    echo "**NOTICED** = run shape != baseline **AND** the suite went \`FAIL\` (§7.15c): a keystone"
+    echo "reddened, but a file ABORTED so the denominator moved and the failing assertions cannot"
+    echo "be attributed to THIS gate. ⛔ Strictly less than COVERED, never a pass, and it exits DIRTY."
     echo
     echo "Baseline: Files=$BASE_FILES, Tests=$BASE_TESTS, Result: PASS."
     echo "Policies swept: $total_pol (real qual). Policies skipped (qual=true, vacuous): $skipped_pol."
@@ -745,10 +955,19 @@ emit_body () {
     if [ "$POL_SEL"  -eq 0 ]; then echo "⚠ **POLICY ARM: EMPTY DOMAIN — measured nothing.** It did not hold; it did not run."; fi
     echo
     echo "⛔ The predicate arm's domain APPROXIMATES the property \"is an authorization predicate\""
-    echo "(§7.17a: authz-shaped **name** OR identity-touching **body**, minus 2 side-effecting"
+    echo "(§7.17a: authz-shaped **name** OR identity-touching **body** OR \`authz\` **schema** membership, minus 2 side-effecting"
     echo "writers held out by name) — it does not decide it. **$PRED_OUT** \`prosecdef\` **boolean**"
     echo "function(s) are outside it (listed at the end). \"Outside this arm\" is NOT \"unswept\" —"
     echo "other arms exist — and $PRED_OUT is the size of the UNCLASSIFIED set, never a defect count."
+    echo
+    echo "⛔ **The policy arm opens the \`using\` half ONLY** (since 2026-09-05,"
+    echo "\`FUP-DOOR-AUDIT-ALL-POLICY-COVERED-IS-MIRROR-AMBIGUOUS\`). On a \`FOR ALL\` policy a COVERED"
+    echo "verdict here is therefore a claim about the **READ** half and nothing else; the"
+    echo "\`with check\` half is \`p0-authz-writepath-audit.sh\`'s. ⚠ Rows carried over from before that"
+    echo "date may have been earned by a WRITE keystone — the direction column still reads"
+    echo "\`open->true\` for both eras (deferred deliberately: re-keying it would carry every ALL row)."
+    echo
+    domain_statement
     if [ -n "$CASES" ]; then echo; echo "> ⚠ PARTIAL RUN — CASES=\"$CASES\" (subset, not the full sweep)."; fi
     if [ -n "$UNMATCHED" ]; then
       echo
@@ -762,7 +981,7 @@ emit_body () {
     echo "|---|---|---|---|---|"
     awk -F'\t' '$4=="BLIND"{printf "| %s | %s | %s | %s | %s |\n",$2,$1,$3,$4,$5}' "$PROGRESS"
     echo
-    echo "## COVERED (asserted-through) + ERROR (harness bug)"
+    echo "## COVERED (asserted-through) + NOTICED (suite reddened, shape moved) + ERROR (harness bug)"
     echo
     echo "| gate / policy | arm | direction | verdict | failing files / note |"
     echo "|---|---|---|---|---|"
@@ -813,6 +1032,18 @@ emit_report () {
 record () {  # arm gate direction verdict failing
   printf '%s\t%s\t%s\t%s\t%s\n' "$1" "$2" "$3" "$4" "$5" >> "$PROGRESS"
   emit_report
+}
+
+# The note column, by verdict — ONE definition so the two arms cannot drift (the §7.17a
+# lesson, one layer out). ⚠ Never emit a raw `|` here: it is column 5 of a markdown table
+# and the merge splits on UNESCAPED separators.
+verdict_note () {
+  case "$VERDICT" in
+    ERROR)   printf 'run-shape!=baseline (Files=%s Tests=%s)' "$RUNFILES" "$RUNTESTS" ;;
+    NOTICED) printf 'suite FAIL but run-shape!=baseline (Files=%s Tests=%s); aborting file(s): %s; reddened: %s' \
+                    "$RUNFILES" "$RUNTESTS" "${SHAPEFILES:-<none parsed>}" "${FAILING:-<none parsed>}" ;;
+    *)       printf '%s' "$FAILING" ;;
+  esac
 }
 
 # Neutralizer template — LITERAL (quoted heredoc, no shell expansion) so the E-string
@@ -878,8 +1109,7 @@ while IFS=$'\t' read -r oid label proname direction lang; do
   fi
   disarm_inflight   # the round-trip above verified it — only now drop the sentinel
 
-  note="$FAILING"
-  [ "$VERDICT" = "ERROR" ] && note="run-shape!=baseline (Files=$RUNFILES Tests=$RUNTESTS)"
+  note="$(verdict_note)"
   record "predicate" "$label" "$direction" "$VERDICT" "$note"
   printf '  %-8s %s\n' "$VERDICT" "$label"
 done < "$WORK/worklist_pred.tsv"
@@ -888,8 +1118,12 @@ done < "$WORK/worklist_pred.tsv"
 # POLICY ARM
 # ─────────────────────────────────────────────────────────────────────────────────────
 echo
-echo "=== POLICY ARM (domain: $POL_SEL selected of $POL_TOTAL) ==="
+echo "=== POLICY ARM — READ HALF ONLY: opens \`using (true)\`, never \`with check\` (domain: $POL_SEL selected of $POL_TOTAL) ==="
 [ "$POL_SEL" -eq 0 ] && echo "  ⚠ EMPTY DOMAIN — this arm measures NOTHING on this run."
+# ⚠ Collected, not assumed: an ALL policy with a NULL `polwithcheck` re-uses `qual` as its
+# check, so `using (true)` opens the WRITE half too and the read/write split is VACUOUS for
+# it. Zero such policies today; if one ever appears it is DISCLOSED at the end, never silent.
+ALL_NULL_WC=""
 while IFS=$'\t' read -r tbl polname cmd has_wc; do
   [ -z "$tbl" ] && continue
   want "$polname" || continue
@@ -909,8 +1143,33 @@ while IFS=$'\t' read -r tbl polname cmd has_wc; do
   } > "$restore"
   arm_inflight "$restore" "select md5(coalesce(pg_get_expr(polqual,polrelid),'')||'|'||coalesce(pg_get_expr(polwithcheck,polrelid),'')) from pg_policy where polname='$polname' and polrelid='public.\"$tbl\"'::regclass"
 
-  # OPEN the policy: using(true) [+ with check(true)]
-  { echo "alter policy \"$polname\" on public.\"$tbl\" using (true)$([ "$has_wc" = "t" ] && echo ' with check (true)');" ; } > "$WORK/_mut.sql"
+  # ─────────────────────────────────────────────────────────────────────────────────
+  # OPEN the policy: `using (true)` — THE READ HALF ONLY.
+  #
+  # ⛔ IT USED TO OPEN `with check (true)` TOO, and that made every `FOR ALL` verdict
+  # MIRROR-AMBIGUOUS (FUP-DOOR-AUDIT-ALL-POLICY-COVERED-IS-MIRROR-AMBIGUOUS). This arm
+  # bounds itself `polcmd in ('r','*')` and calls itself the READ arm; opening both halves
+  # meant a COVERED on an ALL policy could be earned entirely by a WRITE keystone — the
+  # exact defect the write-path sibling fixed for itself on 2026-09-05 by opening its
+  # `with check` half alone (`p0-authz-writepath-audit.sh:80`, `:720-721`, `:1155-1156`).
+  # The two arms were mirror images of one bug and only one of them had been corrected.
+  #
+  # ⚠ MEASURED PRECONDITION, not assumed: all 62 `FOR ALL` policies in domain carry a
+  # NON-NULL `polwithcheck`. That matters, because Postgres falls back to `qual` for the
+  # check when `polwithcheck IS NULL` — on such a policy `using (true)` alone WOULD open
+  # the write half too and this fix would be vacuous for it. Re-derived every run below.
+  #
+  # The capture/restore/probe above are UNCHANGED and still cover BOTH halves: the restore
+  # must return the policy exactly as it was, whichever half the mutation touched.
+  # ⛔ The direction column stays `open->true` (see emit_body): re-keying it to
+  # `open using->true` would change columns 1-4 of all 62 ALL rows, and the merge splices
+  # only when columns 1-4 are identical — so every one of them would land in CARRIED as
+  # pure formatting noise. The half is stated in PROSE instead (PO ruling Q5, 2026-09-05).
+  # ─────────────────────────────────────────────────────────────────────────────────
+  if [ "$cmd" = "ALL" ] && [ "$has_wc" != "t" ]; then
+    ALL_NULL_WC="$ALL_NULL_WC $tbl.$polname"
+  fi
+  { echo "alter policy \"$polname\" on public.\"$tbl\" using (true);" ; } > "$WORK/_mut.sql"
   mout=$(psql_f "$WORK/_mut.sql")
   if echo "$mout" | grep -qiE 'ERROR'; then
     record "policy" "$tbl.$polname ($cmd)" "open->true" "ERROR" "open failed: $(echo "$mout" | tr '\n' ' ' | head -c 160)"
@@ -929,8 +1188,7 @@ while IFS=$'\t' read -r tbl polname cmd has_wc; do
   fi
   disarm_inflight   # the round-trip above verified it — only now drop the sentinel
 
-  note="$FAILING"
-  [ "$VERDICT" = "ERROR" ] && note="run-shape!=baseline (Files=$RUNFILES Tests=$RUNTESTS)"
+  note="$(verdict_note)"
   record "policy" "$tbl.$polname ($cmd)" "open->true" "$VERDICT" "$note"
   printf '  %-8s %s\n' "$VERDICT" "$tbl.$polname"
 done < "$WORK/worklist_pol.tsv"
@@ -955,8 +1213,11 @@ if [ "$SUBSET_RUN" = "1" ]; then
 fi
 blind_ct=$(awk -F'\t' '$4=="BLIND"' "$PROGRESS" | wc -l | tr -d '[:space:]')
 err_ct=$(awk -F'\t' '$4=="ERROR"' "$PROGRESS" | wc -l | tr -d '[:space:]')
+noticed_ct=$(awk -F'\t' '$4=="NOTICED"' "$PROGRESS" | wc -l | tr -d '[:space:]')
 swept_ct=$(grep -c . "$PROGRESS" | tr -d '[:space:]')
-cov_ct=$((swept_ct - blind_ct - err_ct))
+# ⛔ COVERED is the RESIDUAL, so a new verdict that is not subtracted here would silently
+# INFLATE it — a fourth outcome collapsing into COVERED by arithmetic instead of by logic.
+cov_ct=$((swept_ct - blind_ct - err_ct - noticed_ct))
 
 # §7.17: the count line is USELESS without the domain beside it — "BLIND: 0" over an
 # empty domain and "BLIND: 0" over 101 gates were the same string. Print the domain
@@ -966,7 +1227,13 @@ echo "ARM-DOMAIN predicate=$PRED_SEL/$PRED_TOTAL policy=$POL_SEL/$POL_TOTAL out-
 [ "$PRED_SEL" -eq 0 ] && echo "    ⚠ PREDICATE ARM: EMPTY DOMAIN — this arm measured NOTHING. It did not hold; it did not run."
 [ "$POL_SEL"  -eq 0 ] && echo "    ⚠ POLICY ARM: EMPTY DOMAIN — this arm measured NOTHING. It did not hold; it did not run."
 [ -n "$UNMATCHED" ] && echo "    ⚠ REQUESTED BUT NEVER SWEPT (matched no gate):$UNMATCHED"
-echo "SWEPT: $swept_ct gate(s)   COVERED: $cov_ct   BLIND: $blind_ct   ERROR(harness): $err_ct"
+echo "    POLICY ARM HALF: \`using\` ONLY — a COVERED on a FOR ALL policy is a READ-half claim."
+if [ -n "$ALL_NULL_WC" ]; then
+  echo "    ⛔ VACUOUS READ/WRITE SPLIT for these FOR ALL policies (polwithcheck IS NULL, so"
+  echo "       Postgres re-uses qual as the check and \`using (true)\` opened the write half too):"
+  echo "      $ALL_NULL_WC"
+fi
+echo "SWEPT: $swept_ct gate(s)   COVERED: $cov_ct   BLIND: $blind_ct   NOTICED: $noticed_ct   ERROR(harness): $err_ct"
 
 # ⛔ A MERGE ABORT IS AN ERROR, AND IT MUST REACH THE EXIT CODE (QA F-MAJOR-5, 2026-09-05).
 # The banner emit_report prints is loud, but the banner is not what a gate reads. An aborted
@@ -984,9 +1251,11 @@ elif [ "$swept_ct" -eq 0 ]; then
   # Belt-and-braces: the domain gate above should have exited 3 long before here.
   echo "=== RESULT: UNPROVEN — 0 gates swept despite a non-empty domain. Harness bug. ==="
   exit 3
-elif [ "$blind_ct" -gt 0 ] || [ "$err_ct" -gt 0 ]; then
-  echo "=== RESULT: DIRTY — $blind_ct BLIND, $err_ct ERROR. BLIND blocks the phase (§6 step 1);"
-  echo "    ERROR is not a pass — fix the neutralization and re-run that case. ==="
+elif [ "$blind_ct" -gt 0 ] || [ "$err_ct" -gt 0 ] || [ "$noticed_ct" -gt 0 ]; then
+  echo "=== RESULT: DIRTY — $blind_ct BLIND, $noticed_ct NOTICED, $err_ct ERROR. BLIND blocks the phase (§6 step 1);"
+  echo "    ERROR is not a pass — fix the neutralization and re-run that case. NOTICED is not a"
+  echo "    pass either: a keystone reddened, but a file ABORTED so the failing assertions cannot"
+  echo "    be attributed to this gate. It is strictly LESS than COVERED (§7.15c). ==="
   exit 1
 elif [ -n "$UNMATCHED" ]; then
   echo "=== RESULT: UNPROVEN (PARTIAL) — $swept_ct gate(s) measured and all COVERED, but"

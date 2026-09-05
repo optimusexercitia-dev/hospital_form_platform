@@ -234,7 +234,8 @@ RC=0
 # ════════════════════════════════════════════════════════════════════════════════
 DEGENERATE_PREDICATE="( p.prosrc ~ '^\s*begin\s+return\s+(true|false)\s*;\s*end'
      or p.prosrc ~ '^\s*select\s+(true|false)\s*;?\s*\$'
-     or p.prosrc ~ '^\s*begin\s+return\s*;\s*end' )"
+     or p.prosrc ~ '^\s*begin\s+return\s*;\s*end'
+     or p.prosrc ~ 'P0-SETVALUED-NEUTRALIZED' )"
 
 # ──────────────────────────────────────────────────────────────────────────
 # ⭐ THE `authz` SCHEMA IS IN DOMAIN SINCE AE4.7b — AND ONLY PART OF IT IS.
