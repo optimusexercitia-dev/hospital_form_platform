@@ -50,3 +50,351 @@ builder against the file at HEAD, since the script has grown since each was file
   bullets that no run reproduces.
 
 **Branch:** `authz-door-sweep-deriver` off `main` @ `76d87a4f`.
+
+### 2026-09-05 — backend: build
+
+Plan approved by the lead with rulings Q1–Q5 (build order 1 → 2 → 3 → 4 → 6 → 5 → 7 → 8 → 9).
+Everything below is MEASURED at HEAD `53001454` unless it says `inferred`. Exit codes read
+BARE (`rc=$?` on the line after the command, never through a pipe).
+
+#### Pre-change baselines (the numbers every later delta is against)
+
+| what | command | measured |
+|---|---|---|
+| F1 reproducer | `BASE=9a4bbd22^ TIP=9a4bbd22 bash scripts/door-sweep-cases.sh` | **rc 1**, stdout **0 bytes**, name under `⛔ EXCLUDED BY NAME` |
+| F2 range | `BASE=731abda0^ TIP=HEAD …` | **rc 0**, **42 case(s)**, 14 file(s) touched |
+| hand-block warning, door pattern `^(<!--\|## Note)` on the door baseline | `grep -cE` | **8** |
+| hand-block warning, writepath pattern `^(<!--\|## Note\|> ⚠ \*\*HAND\|> ⚠ \*\*DOMAIN)` on the **same** door baseline | `grep -cE` | **16** |
+| door baseline, `> ⚠ **HAND-MERGED` blockquotes / `## Note` / `<!--` | `grep -c` | **8 / 7 / 1** |
+
+#### F1 — the NAME-FILTER close condition cannot be met literally inside this batch
+
+`9a4bbd22` re-emits `app.current_professional_read_organizations`. Live catalog, measured:
+`typname=uuid`, `prosecdef=t`, `proretset=t` — a DEFINER door returning `setof uuid`. It is
+outside `PRED_DOMAIN` (`t.typname='bool'` …), so putting it in `CASES=` makes the whole sweep
+UNPROVEN — ADR 0079:161-169 hazard 4. Ruling **Q1**: the close condition's last sentence is
+amended in place to "zero DOORS", and the load-bearing proof of the PROPERTY is the
+`assert_not_case_excluded` reproducer, not the message on `9a4bbd22`.
+
+#### F2 — the deriver already over-selects into UNPROVEN (live, unfiled at open)
+
+The 42 tokens of `731abda0^..HEAD`, each resolved against the LIVE catalog (read-only:
+`pg_policies.policyname`, `pg_proc` ⋈ `pg_namespace` ⋈ `pg_type`, and `PRED_DOMAIN` evaluated
+verbatim as the arm writes it):
+
+| class | n | examples |
+|---|---|---|
+| RLS policy (`pg_policies.policyname`) | 7 | `forms_staff_admin_write`, `professional_profiles_select` |
+| `prosecdef` function **IN** `PRED_DOMAIN` | 13 | `can_read_professional_profile`, `has_permission`, `is_active` |
+| `prosecdef` function **OUT** of `PRED_DOMAIN` | 18 | `create_professional_profile` (uuid), `entailed_grants` (setof record), `explain_permission` (`permission_explanation`), `candidate_has_permission` (bool, body outside), `scope_reaches` (bool, body outside) |
+| **INVOKER** (`prosecdef=f`) — another harness's class | 1 | `save_section_answers` (returns `responses`) |
+| **absent from the catalog entirely** | 3 | `explain_direct_permission`, `has_direct_permission` (dropped by a later migration), `form_item_options` |
+
+`p0-authz-door-audit.sh` then reports every unmatched token under "REQUESTED CASES THAT MATCHED
+NO GATE" and the run ends UNPROVEN. So the paste-able command this script prints today makes an
+AE5 increment touching the authz resolvers unprovable. ⭐ `form_item_options` is a *table* name:
+`20261003007340`'s marker declares a POLICY (`public.form_item_options / form_item_options_staff_admin_write`)
+and the parser extracts the table half — a different mechanism, filed separately, NOT fixed here.
+
+⚠ 2 of 22 function names over the last 15 migrations are absent from the catalog because a later
+migration dropped them. That refutes the brief's "absent → exit 2": it would ABORT ordinary
+historical ranges. Absent is an `UNRESOLVED` obligation block, never exit 2 (lead ACCEPTED).
+
+#### The `assert_not_case_excluded` drift — LEARN-024 live, inside the artefact that forbids it
+
+`PRED_DOMAIN` (`supabase/tests/mutation/p0-authz-door-audit.sh:466-475`) carries
+`or p.proname = 'assert_not_case_excluded'` OUTSIDE the `t.typname='bool'` clause. Catalog:
+`typname=void`, `prosecdef=t`, and the domain evaluates **IN**. The deriver's hand-copy
+(`scripts/door-sweep-cases.sh:310-315`) has no such exception and demands `returns[ ]+boolean`,
+so a migration touching that function derives ZERO cases while the arm would sweep it. The
+script's own header (`:127-134`) forbids exactly this. That is the reproducer the property fix
+must be able to fire on, and it is a derivation the old script CANNOT produce.
+
+#### The eight hand-authored categories in `docs/reviews/authz-door-audit-findings.md` (924 lines)
+
+The follow-up names three; by the property ("any line the generator did not produce") there are
+eight: 1 `<!-- … -->` block · 7 `## Note` sections · **8** `> ⚠ **HAND-MERGED` blockquotes ·
+**39** table rows carrying hand prose in column 5 · an annotated skipped-bullet continuation ·
+2 bare `---` rules · 20 rows ABOVE the COVERED delimiter · a nested blockquote inside a note.
+The door script's own warning pattern sees 8 of these; the writepath twin's wider pattern sees
+16 **on the same file** — measured both ways above. A warning whose number comes from a filter
+is only as true as the filter (the writepath comment at `:257-266` says so about itself).
+
+#### Commit 1 — `bd5a8080` `refactor(door-sweep): lift PRED_DOMAIN, never re-type the arm's domain`
+
+`scripts/door-sweep-cases.sh:138-227` — `lift_block()` (multi-line lift), the `PRED_DOMAIN`
+lift, three EXPLICIT substitutions (never `eval`), residual-`$` ABORT; `:238` header line.
+
+| arm | command | OBSERVED |
+|---|---|---|
+| normal | `BASE=731abda0^ TIP=HEAD` | **rc 0**, 42 cases (unchanged), header `PRED_DOMAIN lifted whole (8 line(s)), 3 sub-vars expanded, no residual $` |
+| NEGATIVE CONTROL | `AUDIT_SRC=<copy>` where `cmp` proves the copy byte-identical | **rc 0**, no abort, same header line |
+| PROOF OF FIRE | the same copy with `$PRED_NAME_RE` → `$PRED_FUTURE_AXIS` (a **one-token** `diff`) | **rc 2**, stdout **0 bytes**, `=== RESULT: ABORT (2) — PRED_DOMAIN LIFTED WITH AN UNEXPANDED VARIABLE. ===` then the unresolved domain printed |
+
+DISCRIMINATION: the control and the fire differ by that one token and by nothing else
+(`diff` shown in the session); rc 0 vs rc 2.
+
+#### Commit 2 — `0a0d3489` `fix(door-sweep): select doors by prosecdef, split sweepable from identified`
+
+`:392-478` section 4c (catalog classification, four buckets) · `:565-575` CASES = tier 2 ·
+`:640-720` the printed blocks · `:800-840` exit-1 sub-cases.
+
+| arm | OBSERVED |
+|---|---|
+| ⭐ **LOAD-BEARING** — planted `app.assert_not_case_excluded` in a fake repo | **rc 0**, stdout `assert_not_case_excluded`, tier 1 = 1, tier 2 = 1 |
+| ⭐ **VACUITY CHECK** — the SAME plant under the deriver at `53001454` | **rc 1**, stdout **empty**, the name under `⛔ EXCLUDED BY NAME` |
+| F1 message — `BASE=9a4bbd22^ TIP=9a4bbd22` | **rc 1** (unchanged), stdout **0 bytes**, `DOORS IDENTIFIED: 1. SWEEPABLE BY THIS ARM: 0.` naming `current_professional_read_organizations (prosecdef, returns setof uuid — outside PRED_DOMAIN)` |
+| NEGATIVE CONTROL — plant names a catalog INVOKER (`save_section_answers`) | **rc 1**, tier 1 = **0**, DOORS block **ABSENT**, `NO DOORS AT ALL` |
+| DISCRIMINATION — ONE token changed to `assert_hospital_affiliation_has_org` | **rc 1**, tier 1 = **1**, DOORS block **PRESENT**, `returns trigger — outside PRED_DOMAIN` |
+| UNRESOLVED — plant names `app.no_such_function_anywhere` | **rc 1**, UNRESOLVED block naming both causes |
+| NO-CATALOG FALLBACK — `DOOR_SWEEP_DB=no_such_container_xyz` | **rc 0**, **42** tokens, `diff` against the pre-change derivation **byte-identical** |
+
+⭐ The vacuity check is the load-bearing half: the new arm produced a derivation the old
+script CANNOT produce, so it was not green on its first run.
+
+**F2 measured**: `731abda0^..HEAD` 42 → **20** cases; tier 1 = 41 doors identified; **0**
+tokens resolve to neither `pg_policies.policyname` nor `pg_proc.proname` (pre-change: 3).
+21 doors are identified-but-not-sweepable, including three the NAME FILTER dropped entirely
+(`current_professional_read_organizations`, `authorized_scope_ids`,
+`candidate_authorized_scope_ids`) — so F1's class closes past the one name that raised it.
+
+#### Commit 3 — `6234677d` `fix(door-sweep): read ALTER FUNCTION … SECURITY DEFINER like ALTER POLICY`
+
+`:365-390` section 4d (the grep + name extraction) · `:640-656` the ruling-3-analogue block ·
+`:705-712` the no-catalog obligation.
+
+| arm | OBSERVED |
+|---|---|
+| PROOF OF FIRE — `alter function app.can_read_professional_profile(uuid, uuid) security definer;` | **rc 0**, stdout `can_read_professional_profile` |
+| VACUITY CHECK — the same plant at `53001454` | **rc 1**, stdout empty, the name absent from the whole transcript |
+| NEGATIVE CONTROL — `owner to postgres` instead | **rc 1**, ALTERED-BY block **ABSENT**, `NO DOORS AT ALL` |
+| DISCRIMINATION — the tree's ONLY real instance (`20261003004300`, a trigger door) | identified as a door, **EXCLUDED** from CASES, printed reason `returns trigger — outside PRED_DOMAIN` |
+| BULK CONTROL — `20260620000000_baseline.sql` | naive `alter function` lines **449**, committed regex matches **0** |
+
+#### Commit 4 — `1ba83bff` `fix(door-sweep): parse the whole door-sweep-targets declaration`
+
+`:480-540` the unconditional two-state awk + grammar · `:556-566` the dedup moved OUT of the
+rewrite guard · `:568-575` the named parse-error block.
+
+⛔ **Structural blocker the follow-up does not name, measured**: `20261003007250` contains
+`pg_get_functiondef` **0** times, and the whole marker block sat inside
+`if … grep -qiE 'pg_get_functiondef'`. The declaration path never executed for the migration
+the follow-up is about; its targets survived on the unrelated `create or replace` name path.
+
+| arm | OBSERVED |
+|---|---|
+| DECLARATION PATH ALONE — `…007250` with its 4 `create or replace function` lines removed | **rc 0**, all four declared targets derived (`has_permission` → CASES; the other three → DOORS-NOT-SWEEPABLE), tier 1 = 4 |
+| VACUITY CHECK — the same file at `53001454` | **rc 1**, stdout empty, **none** of the four anywhere in the transcript |
+| CONTROL — marker line deleted, continuations kept | **rc 1**, nothing derived, `candidate_has_permission` count 0 |
+| DISCRIMINATION — that ONE line restored | **rc 0**, all three derived |
+| CONSUME-OR-STOP — `-- we also touched app.is_active()` after a bare `--` | `is_active` **not** derived, count 0 |
+| LOUD NARROW CASE — a continuation ending `, app.` | named parse error `content line 2: schema prefix with no function name`, **rc 0** (the run continues) |
+
+**MARKER-READ DELTA on `731abda0^..HEAD`, as owed: 42 (pre-unit) → 20 (tier split) → 20
+(this commit).** The wider read added **zero** cases and exactly **one** new UNRESOLVED token,
+`form_item_validations` — a TABLE name from `…007340`'s policy-shaped marker. Over all **11**
+marker-bearing migrations in the tree: **0** parse errors.
+
+#### Commit 6 — `9ba4cc35` `feat(harness): merge generated rows into the findings baseline, preserve hand-authored material`
+
+NEW `scripts/lib/merge-findings-baseline.sh` (shared by all four sweeps) · four call sites:
+`p0-authz-door-audit.sh` (`emit_body`/`emit_report` split, snapshot at startup, DONE-line
+stale warning), `p0-authz-writepath-audit.sh`, `p0-authz-rowdoor-audit.sh`,
+`p0-authz-invoker-audit.sh` — same shape in each.
+
+⛔ **No sweep was run.** `git diff --stat -- docs/reviews/` empty: the four committed
+baselines are byte-identical. Everything below ran on COPIES under the scratchpad, driving
+the PRODUCTION `emit_body` **LIFTED** out of each harness (the same anti-drift idiom the
+deriver uses on `PRED_DOMAIN` — a harness must never hold a hand-written copy of production
+text) over a synthetic `progress.tsv`.
+
+| call site | baseline | OBSERVED |
+|---|---|---|
+| door | 924 lines, 8+7+1 hand blocks | **rc 0**; rows generated **401** → merged **401**; `> ⚠ **HAND-MERGED` 8→8, `## Note` 7→7, `---` 2→2, `<!--` 1→**2** (the CARRIED block, exactly +1); 425 hand prose lines + 34 suffixes preserved; CARRIED 2 |
+| writepath | 137 lines, 3 hand blocks | **rc 0**; 53→53 rows; 3→3 blocks; 51 prose + 3 suffixes |
+| invoker | 165 lines, 2 hand blocks | **rc 0**; 91→91 rows; 2→2 blocks; 42 prose + 4 suffixes |
+| rowdoor | 87 lines, **0** hand blocks → **one PLANTED** | **rc 0**; 54→54 rows; 1→1 block. A detector with nothing to find proves nothing |
+
+**`verdicts_from_findings` (ARM 3's own extractor) over the door baseline vs the merged
+output**: 392 keys each; only-in-baseline = exactly the 2 rows the synthetic run dropped,
+only-in-merged = exactly the 2 it added. Nothing else moved.
+
+⭐ **THE VERIFIER IS PROVEN ABLE TO FAIL** — at all four call sites,
+`MERGE_FAULT=drop-hand-block` → **rc 2**, `MERGE-ABORT: the merge LOST hand-authored
+material`, and the output file **NOT written**; on the door file
+`MERGE_FAULT=drop-suffix` → **rc 2**, naming the lost 401-character suffix.
+NEGATIVE CONTROL: the same inputs with no fault → **rc 0**, written, `cmp`-identical to the
+earlier merge. Merging twice is byte-identical (idempotent, which is what makes a per-case
+emit safe). No baseline → copies the generated report, rc 0. Bad args → rc 2.
+
+**CONTROL, an identical emit** (same stats, same rows): 27 changed lines vs the baseline,
+and every one is a declared side effect — 1 regenerated statistic, the two generated
+sections the committed file lacks (`**Domain of this run**`, `## OUTSIDE …`), the missing
+`|---|---|---|---|---|` delimiter restored (repairing the stranded 20-row region), 4 stray
+blank lines, and 3 duplicate rows re-ordered. Nothing lost.
+
+⚠ **DEVIATION FROM THE PLAN, MEASURED.** The plan's discrimination half was "delete one hand
+block from the INPUT copy → verification non-empty and ABORT". Measured: it does **NOT**
+fire (**rc 0**, 8 blockquotes → 7 in and 7 out). The verifier is keyed on its own input, so
+removing material from the input moves the expectation with it. Only a fault in the MERGE
+can fire it — which is exactly what `MERGE_FAULT` was added for, and what the four
+proofs-of-fire above use. ⭐ A discrimination half that cannot distinguish is the shape this
+whole unit is about; recording it rather than quietly substituting.
+
+⚠ **A DEFECT THIS HELPER HAD IN ITS FIRST RUN, caught by its own row-count check.** Rows were
+keyed on column 1 alone; the door baseline carries `app.can_sign_section(…)` TWICE (a gate
+swept in two passes leaves two rows in `progress.tsv`; the invoker baseline's own header says
+it ran in four passes). The second occurrence collided with the first and **5 rows vanished
+silently** — the prose check reported clean. Rows are now keyed on NAME + ORDINAL and the
+verification asserts the merged row multiset equals the generated one.
+
+⚠ **The one heuristic in the file, disclosed.** Inside a diff CHANGED group an old line is
+dropped when some new line in the same group is identical once digits and repeated blanks are
+removed (`Baseline: Files=156, Tests=4796` → `Files=256, Tests=8579`). Without it a
+regenerated statistic is duplicated rather than replaced. It decides PLACEMENT, never
+PRESERVATION: every line it drops is printed as `REPLACED … (the only legitimate drop)` and
+excluded from the survival set explicitly, so a wrong replacement is visible. Its first
+version had no such exclusion and the verification correctly ABORTED on the two statistic
+lines — the instrument fired before it was asked to.
+
+Also in this commit: `p0-authz-door-audit.sh:461` cited **ADR 0079 Amendment 8** for
+`FUP-DOOR-AUDIT-PREDICATE-ARM-BOUNDED-BY-A-NAME`, which is **Amendment 9** (Amendment 8 is
+the ALTER-POLICY / stale-verdict ruling). Verified against the ADR's own headings.
+
+#### Commit 5 — `b08b5734` `feat(door-sweep): per-case provenance and an explicit SCOPE`
+
+`scripts/door-sweep-cases.sh` §1b (`SCOPE=`/`PATHS=` filter + `filter :` header line) · §2b
+(`extract_one()` + the per-file loop + the aggregate union + `$TMP/prov`) · the cross-file
+reconciliation kept global · the `SCOPE:` line and the PROVENANCE block before the
+paste-able commands. **BOTH halves of §2.4 landed** — per-CASE assembly, not only the
+per-FILE fallback ruling Q3 allowed.
+
+| arm | OBSERVED |
+|---|---|
+| two untracked migrations, one policy each, different tables | **rc 0**; `SCOPE: 2 file(s) — 0 committed (HEAD..HEAD), 0 worktree, 2 untracked | filter: none`; PROVENANCE maps each case to its own file |
+| `SCOPE=20990101000020` | **rc 0**; stdout is ONLY `professional_profiles_select`; header `filter : SCOPE=20990101000020 PATHS=· (2 file(s) -> 1)` |
+| `PATHS=supabase/migrations/20990101000010` | **rc 0**; stdout is ONLY `forms_staff_admin_write` |
+| CONTROL — one file | `SCOPE: 1 file(s) — … 0 worktree, 1 untracked | filter: none` |
+| DISCRIMINATION — the SAME two policies in ONE file | `1 file(s)`, **both** attributed to it (the count follows FILES, not cases) |
+| ⭐ VACUITY CHECK — the same tree under `53001454` | **0** `SCOPE:` lines, **0** PROVENANCE blocks, and `SCOPE=` silently IGNORED — the undifferentiated union |
+
+**ADR 0173's array-gate over-selection, CLOSED as a side effect.** 0173:387-393 measured it
+and declined the fix as benign; per-file assembly (needed here for attribution) brings it.
+Targeted proof — a fake repo holding `…007180` (builds an array) + `…007190` (does not):
+
+- pre-unit deriver → 6 tokens: `can_manage_professional compute_due_charter_notifications
+  compute_due_document_review_notifications compute_due_notifications is_active
+  save_section_answers`
+- this commit → **1** in CASES (`can_manage_professional`, which is `…007190`'s own declared
+  marker target), with all four of `…007180`'s array targets still derived into their
+  classification blocks (`compute_due_*` as unsweepable doors, `save_section_answers` as an
+  INVOKER).
+
+⚠ `is_active` is a **replacement literal** (`'and app.is_active(p_uid)'`) in `…007190`, not a
+rewrite target — read the migration, not the token. `has_role`,
+`explain_direct_permission` and `has_direct_permission` are quoted `replace()` OPERANDS in
+`…007200/007210/007250`. None is a door the range touched.
+
+**Case-count ledger for `731abda0^..HEAD`** (catalog reachable): 42 (pre-unit) → 20 (tier
+split, commit 2) → 20 (marker, commit 4) → **18** (per-file array gate, this commit).
+No-catalog floor: 42 → 39 (the same four operands out, `form_item_validations` in).
+
+REGRESSION BATTERY re-run after the restructure, all bare: F1 message **rc 1** with the
+`DOORS IDENTIFIED: 1 / SWEEPABLE: 0` line · `assert_not_case_excluded` **rc 0** deriving ·
+`alter function … security definer` **rc 0** deriving · `…007250` declaration-path-alone
+**rc 0** with all four targets · `PRED_DOMAIN` drift **rc 2** · no-catalog **rc 0**.
+
+#### Commit 7 — `8ca0d9ba` `test(door-sweep): SELFTEST=1 over committed fixtures`
+
+NEW `scripts/door-sweep-selftest.sh` + 12 fixtures under `scripts/fixtures/door-sweep/` ·
+`scripts/door-sweep-cases.sh:98-107` the `SELFTEST=1` dispatch. ⛔ NOT in `npm run lint`
+(ruling Q4) — Phase Gate step 1, beside the four authz arms.
+
+| run | OBSERVED (bare) |
+|---|---|
+| this branch | **PASS 15 · FAIL 0 · SKIPPED 0**, rc 0 |
+| ⭐ the PRE-UNIT deriver (`53001454`), same fixtures, same assertions | **PASS 3 · FAIL 12**, rc **1** — including the ADR 0173 pin failing with exactly `is_active must NOT be in CASES`. The 3 that pass there are genuinely unchanged behaviours (`owner to` → nothing, no migration → rc 3, bad ARM → rc 2) |
+| SKIP path (`DOOR_SWEEP_DB` pointed at nothing) | **PASS 5 · SKIPPED 10**, rc 0, the ten named and `⛔ A PASS over 5 scenario(s) with 10 skipped is NOT a pass over all of them` |
+
+⚠ **It failed twice for real while being written, and both are recorded rather than tidied
+away.** (1) **rc 127 on every scenario** — the copied deriver in the fake repo re-dispatched on
+the inherited `SELFTEST=1` into a self-test file the fake repo does not contain; fixed by
+forcing `SELFTEST=0` for the child. (2) Two wrong expectations, one of which was a real finding:
+with no catalog, `assert_not_case_excluded` is **not** derived (the property fix is
+catalog-based and the text heuristics demand `returns boolean`), so the scenario now pins that
+honest bound explicitly instead of asserting a rc 0 the design does not promise.
+
+⚠ **The first version of the ADR 0173 pin was VACUOUS.** Its fixture wrote the literal as
+`'and app.is_active(p_uid)'`, where the quote does not immediately precede `app.`, so the array
+fallback's regex never matched it and the pin passed on the OLD deriver too. Caught by running
+the suite against `53001454` — the discrimination half doing its job on the suite itself. The
+fixture now reproduces `20261003007190`'s real shape (`position('app.is_active(' in v_src)`).
+
+#### Commit 8 — `d8ef85df` `docs(adr): 0190`
+
+`docs/decisions/0190-the-door-sweep-deriver-selects-by-property-and-a-full-run-merges.md`,
+`**Amends:** 0173, 0079` · `**Related:** 0153`. D1–D12. `npm run adr:index` regenerated the
+back-pointers in 0079 and 0173; `npm run lint:adr-index` **bare rc 0**.
+
+**Number 0190 verified two ways** — enumerated across every `refs/heads` and `refs/remotes`
+(`authz-door-sweep-deriver` 0189, `main` 0189, `origin/main` 0186, `origin/HEAD` 0186,
+`origin/authz-c2-tier1` 0180) *and* against the index's next-free line. Both said 0190.
+
+#### Follow-up filings and closures
+
+**FILED (2 new).**
+- `FUP-AUTHZ-DOOR-SWEEP-DERIVER-OVERSELECTS-INTO-UNPROVEN` 🟠 — filed, then CLOSED in this unit
+  on the tier split, per the lead's ruling. The fix needs a name; a defect closed without an
+  entry is a defect nobody can audit the closure of.
+- `FUP-AUTHZ-DOOR-SWEEP-MARKER-DECLARES-POLICIES-TOO` 🟡 — **filed only**, owner backend, not
+  fixed here. `20261003007340`'s marker declares POLICIES in a `schema.table / policyname` form
+  ADR 0173 §2 does not define, so the parser derives the TABLE name.
+
+**CLOSED (6), each on its own `Closes when`, quoted and satisfied clause by clause in the
+archived entry.** ⚠ **DISCLOSED**: three of them (`…BLIND-TO-ALTER-FUNCTION`,
+`…SPANS-THE-WHOLE-WORKING-TREE`, `…FULL-RUN-DESTROYS-HAND-MERGED-ANNOTATIONS`) carried
+`**Closes when:** PO to rule` in the REGISTER, so the condition satisfied is each one's BODY
+text (`**Fix shape:**` / `**Discharged when**` / `**Fix: the register's option (b)**`) — Batch
+0's QA F-MAJOR-4 standard. ⚠ **These closures are written at the BUILD step; the unit's QA
+review and PO approval are still owed.**
+
+⚠ **Q1 amendment, applied BEFORE the closure and kept VISIBLE.** The NAME-FILTER item's last
+close-condition sentence is struck (`~~Either way `9a4bbd22` must stop producing zero cases.~~`)
+in both the register entry and the body, with a dated
+`**Amended 2026-09-05 (Q1, ADR 0079 hazard 4):**` paragraph naming the catalog facts, the
+UNPROVEN hazard, and the hand-off: because the deriver LIFTS `PRED_DOMAIN`, Batch 2's widening
+admits the door with no deriver change.
+
+**Rotation mechanics** (lead-playbook §5): each entry and body was byte-EXTRACTED, assembled
+into `follow-ups-archive.md` under a `### ✅ … — **RESOLVED 2026-09-05**` heading, `cmp`-checked
+at the destination (12/12 comparisons byte-identical), and only then cut from
+`follow-ups-open.md` and the body file deleted. ⚠ **ONE line per entry is deliberately NOT
+verbatim** — the pointer-to-body line, because `lint:registers` (ADR 0185 D5) reds on that
+literal token surviving into the archive; the banner discloses it. ⭐ The entry BLOCK is
+archived alongside the body, which is what
+`FUP-DOCS-CONSOLIDATION-CLOSURE-DROPS-THE-CLOSES-WHEN-FIELD` asks for — that item stays open
+(one instance is not the rotation being changed, and it is the lead's).
+
+`npm run lint:registers` **bare rc 0** after the rotation; ratchets moved in the allowed
+direction only (`closesWhenPoToRule` 140→137, `severityPerEmoji` 131→128, `longHeadings`
+95→91); follow-ups 208→202, bodies 163→157.
+
+#### Dead ends and things that did NOT work
+
+- **A merge that keyed rows on column 1 alone.** Silently dropped 5 rows on the real door
+  baseline (duplicate keys). Found by adding a row-count check to the self-verification — the
+  prose check reported clean throughout. Rows are keyed NAME + ORDINAL.
+- **A verification that treated every non-generated baseline line as hand-authored.** It
+  ABORTED on the two regenerated statistic lines — correctly, by its own rule. Fixed by making
+  the narrow REPLACED set explicit and printed, not by widening the rule.
+- **The plan's `helper_x` control for the tier split** cannot work under catalog classification:
+  a made-up name is UNRESOLVED whether or not its text says `security definer`, so it does not
+  discriminate. Replaced with a control/discrimination pair built on real catalog facts
+  (`save_section_answers`, prosecdef=f, vs `assert_hospital_affiliation_has_org`, prosecdef=t).
+- **The plan's "delete a hand block from the INPUT copy" discrimination** does not fire (rc 0,
+  measured). Replaced by `MERGE_FAULT` injection, which does.
+- **A whole-history derivation** (`BASE=<root commit> TIP=HEAD`) did not finish in ~50 minutes
+  and was killed. The per-candidate catalog lookup is a subprocess triple; a 14-file range takes
+  ~10 s. The parse-safety question it was asked was answered instead by deriving over all **11**
+  marker-bearing migrations (0 parse errors), which is complete for that question — a file with
+  no marker cannot produce a marker parse error.

@@ -933,13 +933,6 @@ a hypothesis, not a finding.
 **Status:** open
 **Body:** [FUP-E2E-CLEANUP-LEAVES-STORAGE-BYTES.md](FUP-E2E-CLEANUP-LEAVES-STORAGE-BYTES.md)
 
-### 🟡 FUP-DOOR-SWEEP-FULL-RUN-DESTROYS-HAND-MERGED-ANNOTATIONS — the subset half is fixed, the full half is not, and the file is not purely generated (owner: backend; filed 2026-08-26, found while closing the subset half)
-
-**Filed:** 2026-08-26 (found while closing the subset half) · **Owner:** backend · **Severity:** medium — per emoji at consolidation
-**Closes when:** PO to rule
-**Status:** open
-**Body:** [FUP-DOOR-SWEEP-FULL-RUN-DESTROYS-HAND-MERGED-ANNOTATIONS.md](FUP-DOOR-SWEEP-FULL-RUN-DESTROYS-HAND-MERGED-ANNOTATIONS.md)
-
 ### 🟠 FUP-P-CLASS-SQLSTATE-ANSWERS-500-ON-DENIAL — an ordinary authorization denial answers 5xx, across 73 reachable doors (owner: backend; filed 2026-08-26, measured during the AFF4 pre-step)
 
 **Filed:** 2026-08-26 (measured during the AFF4 pre-step) · **Owner:** backend · **Severity:** high — per emoji at consolidation
@@ -967,13 +960,6 @@ a hypothesis, not a finding.
 **Closes when:** PO to rule
 **Status:** open
 **Body:** [FUP-HOSPITAL-DIRECTORY-EXPIRED-SEAT-STALE-ROSTER.md](FUP-HOSPITAL-DIRECTORY-EXPIRED-SEAT-STALE-ROSTER.md)
-
-### 🟠 FUP-DOOR-SWEEP-DERIVER-BLIND-TO-ALTER-FUNCTION — a `prosecdef` flip on an existing boolean gate derives ZERO cases and reads as clean (owner: backend/lead; filed 2026-08-26, found by `backend` while fixing BUG-D5-REHIRE-HOSPADMIN-001)
-
-**Filed:** 2026-08-26 (found by `backend` while fixing BUG-D5-REHIRE-HOSPADMIN-001) · **Owner:** lead + backend · **Severity:** high — per emoji at consolidation
-**Closes when:** PO to rule
-**Status:** open
-**Body:** [FUP-DOOR-SWEEP-DERIVER-BLIND-TO-ALTER-FUNCTION.md](FUP-DOOR-SWEEP-DERIVER-BLIND-TO-ALTER-FUNCTION.md)
 
 ### 🟡 FUP-READ-ACCESS-RIDES-ON-A-WRITE-POLICY — `commissions` and `commission_meeting_types` grant tenancy-admin READS from a policy named `…_write` (owner: backend/PO; filed 2026-08-27 by `backend` at the AE1.5 triage, PO-ruled the same day)
 
@@ -1052,13 +1038,6 @@ a hypothesis, not a finding.
 **Closes when:** PO to rule
 **Status:** open
 **Body:** [FUP-MUTATION-AUDIT-BLIND-TO-THE-DOOR-WRAPPERS.md](FUP-MUTATION-AUDIT-BLIND-TO-THE-DOOR-WRAPPERS.md)
-
-### 🟠 FUP-DOOR-SWEEP-DERIVER-SPANS-THE-WHOLE-WORKING-TREE — a diff-scoped sweep for one increment silently selects another increment's cases (owner: backend/lead)
-
-**Filed:** 2026-08-27 (at the AE1 Record step (obligation 10, AE1.3 gate record)) · **Owner:** lead + backend · **Severity:** high — per emoji at consolidation
-**Closes when:** PO to rule
-**Status:** open
-**Body:** [FUP-DOOR-SWEEP-DERIVER-SPANS-THE-WHOLE-WORKING-TREE.md](FUP-DOOR-SWEEP-DERIVER-SPANS-THE-WHOLE-WORKING-TREE.md)
 
 ### 🟠 FUP-RLS-BOUND-READ-REPOINTED-TO-A-NARROWER-AUDIENCE — a shipped, unexercised instance in `listOrgUsers`, and the census class that cannot see it (owner: backend)
 
@@ -1179,20 +1158,6 @@ same commit, or not at all.**
 **Closes when:** PO to rule
 **Status:** open
 **Body:** [FUP-ONE-SUPABASE-PROJECT-SERVES-TEST-AND-PRODUCTION.md](FUP-ONE-SUPABASE-PROJECT-SERVES-TEST-AND-PRODUCTION.md)
-
-### 🟠 FUP-DOOR-SWEEP-MARKER-BLIND-TO-CONTINUATION-LINES — a multi-line `door-sweep-targets:` declaration silently loses every target after the first
-
-**Filed:** 2026-09-04 (while clearing Gate AE4 review F-MAJOR-3) · **Owner:** backend · **Severity:** high — the declaration in `20261003007250` is **already non-functional** on the declaration path; its three targets survive only because that migration is a DROP+CREATE caught by the deriver's name-selection block. The two paths agree today and nothing says so.
-**Closes when:** the deriver either consumes continuation lines, or rejects them loudly (an unmatched `--` line following a `door-sweep-targets:` line is a named parse error, not silence) — and `20261003007250`'s three targets derive **from the declaration path**, provable by removing its `create or replace` lines from consideration and re-deriving. ⛔ Reformatting that one file to one-line-per-target does not close it: that leaves the parser narrower than the notation.
-**Status:** open
-**Body:** [FUP-DOOR-SWEEP-MARKER-BLIND-TO-CONTINUATION-LINES.md](FUP-DOOR-SWEEP-MARKER-BLIND-TO-CONTINUATION-LINES.md)
-
-### 🟠 FUP-DOOR-SWEEP-DERIVER-NAME-FILTER-DROPS-A-REAL-GATE — the deriver returns ZERO cases for a diff that added a gate, so the case list was hand-widened and reads as derived
-
-**Filed:** 2026-09-04 (re-review N3's write-arm work; `BASE=9a4bbd22^ TIP=9a4bbd22` → exit 1, zero cases) · **Owner:** backend · **Severity:** high — CLAUDE.md § 6 step 1 requires the list to be derived by the script "never by hand", and downstream nothing can tell a hand-widened list from a derived one.
-**Closes when:** the deriver selects gates by a **property** rather than a name filter, so a diff adding a DEFINER door or an RLS policy yields that gate without hand-widening — or, if the filter must stay, it prints what it excluded and why, so a widening is visibly a widening. Either way `9a4bbd22` must stop producing zero cases. ⛔ Widening the filter to admit one name does not close it: that leaves the boundary a syntax and the next door outside the pattern reproduces it.
-**Status:** open
-**Body:** [FUP-DOOR-SWEEP-DERIVER-NAME-FILTER-DROPS-A-REAL-GATE.md](FUP-DOOR-SWEEP-DERIVER-NAME-FILTER-DROPS-A-REAL-GATE.md)
 
 ### 🟠 FUP-VALIDATIONS-WRITE-PATH-IS-LAYER-1 — the re-keyed `form_item_validations` policy is unreachable; its real writer `set_item_validations` is still layer-1
 
@@ -1708,3 +1673,10 @@ regex).
 **Closes when:** EITHER the rotation moves the **entry block** as well as the body — verbatim, under the archived heading, exactly as the body is moved today — OR a lint gate over the registers asserts that an archived entry carries a `**Closes when:**` field (register shape is `lint:registers`' domain; the QA disposition named `lint:progress`, so confirm which gate owns it first). Whichever is chosen must be **proven able to fire**: archive one entry without the field and watch the gate red. ⚠ Retrofitting the already-archived closures is explicitly NOT required — what must stop is the next closure dropping it
 **Status:** open — ⚠ measured 2026-09-04: **3** register-style `**Closes when:**` lines survive in the **8963**-line archive; longstanding practice, not attributable to the unit whose review found it
 **Body:** [FUP-DOCS-CONSOLIDATION-CLOSURE-DROPS-THE-CLOSES-WHEN-FIELD.md](FUP-DOCS-CONSOLIDATION-CLOSURE-DROPS-THE-CLOSES-WHEN-FIELD.md)
+
+### 🟡 FUP-AUTHZ-DOOR-SWEEP-MARKER-DECLARES-POLICIES-TOO — a `door-sweep-targets:` line naming a POLICY is parsed as if it named a function, and the TABLE name is what gets derived
+
+**Filed:** 2026-09-05 (DOOR-SWEEP-DERIVER plan step, found while asking why a TABLE name was in a case list) · **Owner:** backend · **Severity:** medium — not a live hole (the policies are derived by the `create policy` branch and the two table names are named as UNRESOLVED rather than entering `CASES`), but the notation and its parser disagree and the migration author had every reason to believe the declaration was read
+**Closes when:** ADR 0173 § 2's grammar either gains a policy form (`schema.table / policyname`, parsed as a policy and routed to the policy branch) or explicitly rejects one with a named parse error the deriver prints — and `20261003007340`'s declaration stops producing two UNRESOLVED table names. ⛔ Not closed by rewriting that one migration: migrations are forward-only, and the next author who declares a policy reproduces it exactly.
+**Status:** open
+**Body:** [FUP-AUTHZ-DOOR-SWEEP-MARKER-DECLARES-POLICIES-TOO.md](FUP-AUTHZ-DOOR-SWEEP-MARKER-DECLARES-POLICIES-TOO.md)

@@ -8975,3 +8975,591 @@ the approval. The oracle's soundness was never the thing in doubt here; its cite
 > is process death mid-run, which subagent turn boundaries make routine. Related:
 > [[mutation-harness-must-prove-its-rollback-first]] — the same class, previously recorded, where a sweep
 > left a gate open and `| tail` masked exit 2 as 0.
+
+---
+
+## Batch 1 closures — unit DOOR-SWEEP-DERIVER (2026-09-05)
+
+_Six follow-ups closed by the pre-AE5 remediation Batch 1. Design: ADR
+[0190](../decisions/0190-the-door-sweep-deriver-selects-by-property-and-a-full-run-merges.md).
+Record: [door-sweep-deriver.md](../progress/door-sweep-deriver.md). ⚠ Three of them carried
+`**Closes when:** PO to rule` in the register, so the condition satisfied is each one's BODY
+text — disclosed per entry (Batch 0's QA F-MAJOR-4 standard). ⚠ These closures are written at
+the BUILD step; the unit's QA review and PO approval at the Record step are still owed.
+⚠ **One line per entry is NOT verbatim, deliberately:** the entry's pointer-to-body line is
+reworded, because `lint:registers` (ADR 0185 D5) reds on that literal token surviving into the
+archive — the body it pointed at is inline instead. Everything else is byte-identical, `cmp`-checked
+at the destination before the source was cut._
+
+### ✅ FUP-DOOR-SWEEP-DERIVER-NAME-FILTER-DROPS-A-REAL-GATE — the deriver returns ZERO cases for a diff that added a gate, so the case list was hand-widened and reads as derived — **RESOLVED 2026-09-05**
+
+> **RESOLVED 2026-09-05 — unit DOOR-SWEEP-DERIVER (Batch 1), commits `bd5a8080` + `0a0d3489`.**
+> Design: ADR [0190](../decisions/0190-the-door-sweep-deriver-selects-by-property-and-a-full-run-merges.md)
+> D1 + D2. Record: [door-sweep-deriver.md](../progress/door-sweep-deriver.md).
+> ⚠ Closed on the **AMENDED** condition — the amendment (Q1, ADR 0079 hazard 4) is in the entry
+> and body below, struck sentence kept visible. Clause by clause:
+>
+> 1. *"the deriver selects gates by a **property** rather than a name filter"* — ✅ the property is
+>    now a CATALOG fact: a door is an object the diff touches that `pg_policies` or
+>    `pg_proc.prosecdef = true` resolves; sweepable is that plus `PRED_DOMAIN`, **lifted** from the
+>    arm and evaluated by the catalog rather than re-typed. The name regex no longer decides
+>    anything.
+> 2. *"so a diff adding a DEFINER door or an RLS policy yields that gate without hand-widening"* —
+>    ✅ **the load-bearing witness, and it is a derivation the old script cannot produce**: a planted
+>    `app.assert_not_case_excluded` (catalog `void`, `prosecdef = t`, IN domain by `PRED_DOMAIN`'s
+>    own named exception — the drift the hand copy had) derives into `CASES` at **rc 0**, stdout
+>    `assert_not_case_excluded`. The SAME plant under the pre-unit deriver (`53001454`) → **rc 1**,
+>    stdout empty, the name under "EXCLUDED BY NAME". Not green on its first run.
+> 3. *"or, if the filter must stay, it prints what it excluded and why"* — ✅ also satisfied: every
+>    candidate lands in exactly one PRINTED bucket (CASES / DOORS-IDENTIFIED-NOT-SWEEPABLE with its
+>    catalog return type / INVOKER, routed by name to the invoker harness / UNRESOLVED, with both
+>    of its causes).
+> 4. ~~*"Either way `9a4bbd22` must stop producing zero cases."*~~ → **amended to "zero DOORS"**.
+>    ✅ `BASE=9a4bbd22^ TIP=9a4bbd22` → **rc 1** (unchanged), stdout 0 bytes, and
+>    `DOORS IDENTIFIED: 1. SWEEPABLE BY THIS ARM: 0` naming
+>    `current_professional_read_organizations (prosecdef, returns setof uuid — outside PRED_DOMAIN)`.
+>    Obligation (b) is now provably FALSE for that diff and the run says so.
+> 5. *"⛔ Widening the filter to admit one name does not close it"* — ✅ no name was added to any
+>    filter. Beyond the one name that raised the item, the same range now identifies two more doors
+>    the filter had dropped entirely: `authorized_scope_ids` and `candidate_authorized_scope_ids`.
+>
+> ⭐ **Hand-off, mechanical:** Batch 2's return-type widening of `PRED_DOMAIN` will move this door
+> from *identified* to *sweepable* with **no deriver change**, because the domain is lifted.
+>
+> Regression pinned by `SELFTEST=1 bash scripts/door-sweep-cases.sh` scenarios 1-3 (15 PASS on this
+> branch; **12 FAIL against the pre-unit deriver with the same fixtures and assertions**).
+
+**The register entry as it stood, verbatim.** Kept here rather than left to `git`, which is what
+`FUP-DOCS-CONSOLIDATION-CLOSURE-DROPS-THE-CLOSES-WHEN-FIELD` asks for — a closure must be
+auditable against the condition it was closed on. Only the `### ` heading line is omitted (its
+text is this entry's heading, above).
+
+**Filed:** 2026-09-04 (re-review N3's write-arm work; `BASE=9a4bbd22^ TIP=9a4bbd22` → exit 1, zero cases) · **Owner:** backend · **Severity:** high — CLAUDE.md § 6 step 1 requires the list to be derived by the script "never by hand", and downstream nothing can tell a hand-widened list from a derived one.
+**Closes when:** the deriver selects gates by a **property** rather than a name filter, so a diff adding a DEFINER door or an RLS policy yields that gate without hand-widening — or, if the filter must stay, it prints what it excluded and why, so a widening is visibly a widening. ~~Either way `9a4bbd22` must stop producing zero cases.~~ ⚠ **Amended 2026-09-05 (Q1, ADR 0079 hazard 4):** that struck sentence is replaced by *"either way `9a4bbd22` must stop reporting zero **DOORS**"* — its gate is `app.current_professional_read_organizations`, catalog `setof uuid` + `prosecdef=t`, OUTSIDE the arm's `PRED_DOMAIN`, and ADR 0079:161-169 rules that putting such a name in `CASES=` makes the whole sweep UNPROVEN. Exit stays 1; the run now prints `DOORS IDENTIFIED: 1. SWEEPABLE BY THIS ARM: 0` with the catalog reason, so obligation (b) is provably false. ⭐ Hand-off: because the deriver now LIFTS `PRED_DOMAIN` (ADR 0190 D2), Batch 2's return-type widening will admit this door with **no deriver change**. Full reasoning in the body. ⛔ Widening the filter to admit one name does not close it: that leaves the boundary a syntax and the next door outside the pattern reproduces it.
+**Status:** open
+**Body** — the pre-closure pointer line pointed at `FUP-DOOR-SWEEP-DERIVER-NAME-FILTER-DROPS-A-REAL-GATE.md`; that file was removed by this closure and its content is inline below. (The literal pointer token cannot survive in the archive: `lint:registers` reds on it, ADR 0185 D5.)
+**The body as it stood, verbatim.** Its own file `docs/followups/FUP-DOOR-SWEEP-DERIVER-NAME-FILTER-DROPS-A-REAL-GATE.md` is removed by this
+closure, so nothing here is summarised. Only its `# ` title line is omitted (same text as the
+heading above); its `Index entry: … · status open` line is the pre-closure text and is left as
+the record of what it said.
+
+Index entry: [follow-ups-open.md](follow-ups-open.md) · filed 2026-09-04 · status open
+
+`scripts/door-sweep-cases.sh` is the required way to derive a diff-scoped sweep's case list —
+CLAUDE.md § 6 step 1 says to derive it with the script "never by hand". Measured 2026-09-04:
+
+```
+BASE=9a4bbd22^ TIP=9a4bbd22 scripts/door-sweep-cases.sh   →  exit 1 (FINDING), ZERO cases derived
+```
+
+That diff **added a gate** — `app.current_professional_read_organizations`, the narrow door ADR
+[0182](../decisions/0182-statement-scoped-authorized-scope-ids.md) introduces — and the deriver
+excludes it by a **name filter** in the recipe. So the sweep that actually ran used a
+**hand-widened** list.
+
+⛔ **The exit code is doing its job; the risk is how the result READS.** CLAUDE.md § 6 step 1 already
+says the deriver's exit 1 — migrations touched, zero gates derived — "is a finding to rule on, never
+a pass", and the widening is legitimate under the door-sweep recipe's Amendment 8 ruling 2 (a). The
+defect is that a hand-widened list is indistinguishable, downstream, from a derived one: the sweep
+output, the findings file and the gate record all look identical either way. A future reader
+verifying "the cases were derived by the script" would be told yes by the record and no by the
+script.
+
+⭐ **The class:** an enumeration boundary that is a **syntax** (a name filter) rather than a
+**property**. The same phase closed exactly this shape twice — the manifest's site axis, and
+`ARM=census`'s extension exclusion, which was deliberately keyed on `pg_depend.deptype='e'` rather
+than a name pattern *for this reason*. The deriver is the same defect still standing.
+
+**How it was measured.** Run directly during re-review N3's write-arm work, on a fresh
+`supabase db reset --local` at head `20261003007340`. Exit code read bare, not through a pipe.
+
+**Closes when:** the deriver selects gates by a **property** rather than a name filter — so a diff
+that adds a DEFINER door or an RLS policy yields that gate without hand-widening — **or**, if the
+name filter is deliberate and must stay, the deriver prints the objects it excluded and why, so a
+hand-widened list is visibly a widening rather than silently equivalent to a derived one. ~~In either
+case a diff like `9a4bbd22` must stop producing zero cases.~~
+
+**Amended 2026-09-05 (Q1, ADR [0079](../decisions/0079-authz-door-blindness-standing-invariant.md)
+hazard 4):** the struck sentence above is replaced by *"in either case a diff like `9a4bbd22` must
+stop reporting **zero DOORS**"*. It cannot be met as written, and the ruling that forbids it is older
+than this item. `9a4bbd22`'s gate is `app.current_professional_read_organizations`; the live catalog
+says `prorettype = uuid`, `proretset = t`, `prosecdef = t` — a DEFINER door returning **`setof
+uuid`**, outside the read arm's `PRED_DOMAIN` (`t.typname = 'bool'`). ADR 0079:161-169 hazard 4 rules
+that putting such a name in `CASES=` makes the **whole sweep UNPROVEN** — *"AFF4's derivation is exit
+1 with a six-name review list, which is the correct and intended outcome, not a tooling failure"*.
+So "zero **cases**" is not a defect for this door; "zero **doors**" was. The deriver now prints
+`DOORS IDENTIFIED: 1. SWEEPABLE BY THIS ARM: 0`, naming the object, its `prosecdef` flag and its
+return type from the catalog, so obligation (b) — *"state that the migration contains no policy and
+no `prosecdef` gate"* — is **provably false** and cannot be written. Exit stays 1.
+
+⭐ **The hand-off, stated so nobody has to re-derive it.** Widening `PRED_DOMAIN` along the
+return-type axis is Batch 2's work
+([[FUP-DOOR-SWEEP-DOMAIN-GAP-WIDENED-BY-SET-VALUED-RESOLVERS]] /
+[[FUP-DOOR-SWEEP-DOMAIN-MISSES-THE-AUTHZ-RESOLVERS]]). Because the deriver now **LIFTS**
+`PRED_DOMAIN` out of the arm instead of re-typing it (ADR
+[0190](../decisions/0190-the-door-sweep-deriver-selects-by-property-and-a-full-run-merges.md) D2),
+that widening will move this door from *identified* to *sweepable* **automatically, with no deriver
+change** — and `9a4bbd22` will then derive a case. ⛔ Do not hand-widen the deriver to anticipate it.
+
+⚠ **What closes this item is the PROPERTY, not the message on `9a4bbd22`.** The load-bearing
+witness is a derivation the old script could not produce at all: a planted
+`app.assert_not_case_excluded` (catalog `void`, `prosecdef = t`, IN domain by `PRED_DOMAIN`'s own
+named exception) derives into `CASES` at exit 0, where the pre-unit deriver returns exit 1 with the
+name under "EXCLUDED BY NAME".
+
+⛔ **What must NOT be mistaken for closing it.** Widening the name filter to admit
+`current_professional_read_organizations`. That fixes one name and leaves the boundary a syntax —
+the next door named outside the pattern reproduces it exactly. ⛔ Nor does a green sweep close it:
+the sweep was green here, on the hand-widened list, which is the whole point.
+
+Related: [[FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED]] (the same recipe, the other half),
+[[FUP-DOOR-SWEEP-DERIVER-BLIND-TO-ALTER-FUNCTION]] and
+[[FUP-DOOR-SWEEP-DERIVER-SPANS-THE-WHOLE-WORKING-TREE]] — three standing findings about the same
+deriver, none of which is this one.
+
+### ✅ FUP-DOOR-SWEEP-MARKER-BLIND-TO-CONTINUATION-LINES — a multi-line `door-sweep-targets:` declaration silently loses every target after the first — **RESOLVED 2026-09-05**
+
+> **RESOLVED 2026-09-05 — unit DOOR-SWEEP-DERIVER (Batch 1), commit `1ba83bff`.** Design: ADR
+> [0190](../decisions/0190-the-door-sweep-deriver-selects-by-property-and-a-full-run-merges.md) D5,
+> amending ADR [0173](../decisions/0173-door-sweep-deriver-blind-to-runtime-rewrite-migrations.md)
+> § 2. Record: [door-sweep-deriver.md](../progress/door-sweep-deriver.md). Clause by clause:
+>
+> 1. *"the deriver either consumes continuation lines, or rejects them loudly"* — ✅ **both**. A
+>    two-state parser implements `declaration := marker-line continuation-line*`; a `--` line
+>    carrying at least one `(app|public|authz).name` token is a continuation and every token on it
+>    is consumed; a `--` line with none ends the declaration. A continuation bearing a schema
+>    prefix with no name, or an unclosed argument list, is a **named** parse error at
+>    `<file>:<line>` and the run continues.
+> 2. *"(an unmatched `--` line following a `door-sweep-targets:` line is a named parse error, not
+>    silence)"* — ⚠ **DISCLOSED DEVIATION, measured.** Strict rejection of every unmatched `--`
+>    line would red two committed migrations at every gate: `20261003007180:9` and
+>    `20261003007190:6` are bare `--` lines terminating their declarations. The rule adopted is
+>    **consume-or-stop, token-bearing** — a token-free `--` line ends the declaration silently —
+>    and the loud case is narrowed to a token that fails to parse. Ruled in ADR 0190 D5, with the
+>    measurement, rather than taken silently.
+> 3. *"and `20261003007250`'s three targets derive **from the declaration path**, provable by
+>    removing its `create or replace` lines from consideration and re-deriving"* — ✅ measured in a
+>    throwaway repo holding `cmp`-verified copies of the real scripts, with that file's four
+>    `create or replace function` lines removed: **rc 0**, and all four declared targets derived
+>    (`has_permission` into CASES; `candidate_has_permission`, `explain_permission`,
+>    `entailed_grants` into DOORS-IDENTIFIED-NOT-SWEEPABLE). The SAME file under the pre-unit
+>    deriver produced **rc 1**, stdout empty, and **none of the four appearing anywhere**.
+> 4. ⛔ **A STRUCTURAL BLOCKER THIS ITEM DOES NOT NAME, and it is the bigger half.** The whole
+>    marker block sat inside a `pg_get_functiondef` guard, and `20261003007250` contains
+>    `pg_get_functiondef` **zero** times — so the declaration path never executed for the very
+>    migration this item is about. Consuming continuation lines alone would have changed nothing
+>    there. The read is now unconditional; the rewrite-present-but-empty FINDING stays gated.
+> 5. *"⛔ Reformatting that one file to one-line-per-target does not close it"* — ✅ no migration
+>    was touched. `20261003007180`'s four one-line declarations stay as they are; the paragraph
+>    explaining WHY they are four is now false and is named as superseded in ADR 0190 D12.
+>
+> **Measured delta on `731abda0^..HEAD`:** the wider, unconditional read added **zero** cases and
+> exactly one new UNRESOLVED token (`form_item_validations`, a TABLE name from a policy-shaped
+> marker — filed as `FUP-AUTHZ-DOOR-SWEEP-MARKER-DECLARES-POLICIES-TOO`). Over all **11**
+> marker-bearing migrations in the tree: **0** parse errors. Pinned by `SELFTEST=1` scenarios 6-8.
+
+**The register entry as it stood, verbatim.** Kept here rather than left to `git`, which is what
+`FUP-DOCS-CONSOLIDATION-CLOSURE-DROPS-THE-CLOSES-WHEN-FIELD` asks for — a closure must be
+auditable against the condition it was closed on. Only the `### ` heading line is omitted (its
+text is this entry's heading, above).
+
+**Filed:** 2026-09-04 (while clearing Gate AE4 review F-MAJOR-3) · **Owner:** backend · **Severity:** high — the declaration in `20261003007250` is **already non-functional** on the declaration path; its three targets survive only because that migration is a DROP+CREATE caught by the deriver's name-selection block. The two paths agree today and nothing says so.
+**Closes when:** the deriver either consumes continuation lines, or rejects them loudly (an unmatched `--` line following a `door-sweep-targets:` line is a named parse error, not silence) — and `20261003007250`'s three targets derive **from the declaration path**, provable by removing its `create or replace` lines from consideration and re-deriving. ⛔ Reformatting that one file to one-line-per-target does not close it: that leaves the parser narrower than the notation.
+**Status:** open
+**Body** — the pre-closure pointer line pointed at `FUP-DOOR-SWEEP-MARKER-BLIND-TO-CONTINUATION-LINES.md`; that file was removed by this closure and its content is inline below. (The literal pointer token cannot survive in the archive: `lint:registers` reds on it, ADR 0185 D5.)
+**The body as it stood, verbatim.** Its own file `docs/followups/FUP-DOOR-SWEEP-MARKER-BLIND-TO-CONTINUATION-LINES.md` is removed by this
+closure, so nothing here is summarised. Only its `# ` title line is omitted (same text as the
+heading above); its `Index entry: … · status open` line is the pre-closure text and is left as
+the record of what it said.
+
+Index entry: [follow-ups-open.md](follow-ups-open.md) · filed 2026-09-04 · status open
+
+`scripts/door-sweep-cases.sh` reads the ADR 0173 § 2 declaration with a grep anchored per line:
+
+```
+^[[:space:]]*--[[:space:]]*door-sweep-targets:
+```
+
+A continuation line — `--    app.foo()` under a first `-- door-sweep-targets: app.bar()` — **does not
+match, and is silently unread**. No warning, no exit code: the declaration looks complete in the file
+and the deriver simply returns fewer targets than the author wrote.
+
+**How it was found.** While clearing Gate AE4 review finding F-MAJOR-3 (adding the missing marker to
+`20261003007180`), by writing **four separate marker lines** rather than one with continuations, and
+then checking why the sibling declaration in `20261003007250` — which *does* use the continuation
+form — has not visibly failed.
+
+⚠ **It has not failed for a reason that is not the marker.** `20261003007250` is a DROP+CREATE
+migration, so its `create or replace function` lines are picked up by the deriver's separate
+**name-selection** block. Its three continuation targets survive on that path, not on the declaration
+path. ⭐ So the declaration is already non-functional there and nothing shows it: the two code paths
+happen to agree today, and the day a declaration-only migration uses the continuation form, its
+targets vanish from the sweep with every gate green.
+
+**Not a live defect.** Both migrations derive correctly today, verified both ways: the marker grep
+alone recovers all four names from `…007180`, and `bash scripts/door-sweep-cases.sh` over the working
+tree derives the same four cases, exit 0.
+
+⭐ **The class:** a declaration whose *parser* is narrower than its *notation*. The file is valid to a
+human reader and to any reviewer, and the machine reads a subset — the same shape as
+[[FUP-DOOR-SWEEP-DERIVER-NAME-FILTER-DROPS-A-REAL-GATE]], one layer lower.
+
+**Closes when:** the deriver either consumes continuation lines (so the notation the file uses is the
+notation the parser reads), **or** rejects them loudly — an unmatched `--` line immediately following
+a `door-sweep-targets:` line is a parse error the deriver names, not silence. Either way
+`20261003007250`'s declaration must derive its three targets **from the declaration path**, provable
+by removing its `create or replace` lines from consideration and re-deriving.
+
+⛔ **What must NOT be mistaken for closing it.** Rewriting `…007250` into one-line-per-target form.
+That repairs the one instance and leaves the parser narrower than the notation, so the next author
+who formats a long declaration readably reproduces it exactly. ⛔ Nor does a green
+`scripts/door-sweep-cases.sh`: it is green today precisely because a *different* code path is
+covering for the declaration.
+
+### ✅ FUP-DOOR-SWEEP-DERIVER-BLIND-TO-ALTER-FUNCTION — a `prosecdef` flip on an existing boolean gate derives ZERO cases and reads as clean (owner: backend/lead; filed 2026-08-26, found by `backend` while fixing BUG-D5-REHIRE-HOSPADMIN-001) — **RESOLVED 2026-09-05**
+
+> **RESOLVED 2026-09-05 — unit DOOR-SWEEP-DERIVER (Batch 1), commit `6234677d`.** Design: ADR
+> [0190](../decisions/0190-the-door-sweep-deriver-selects-by-property-and-a-full-run-merges.md) D6.
+> Record: [door-sweep-deriver.md](../progress/door-sweep-deriver.md).
+>
+> ⚠ **DISCLOSED: the register field read "PO to rule", so the condition satisfied is the BODY's
+> `**Fix shape:**` paragraph** (Batch 0's QA F-MAJOR-4 standard — say which text was used).
+> Quoted: *"the deriver must grep `alter function … security definer` the way it now greps
+> `alter policy`, and resolve the altered function's return type from the **live catalog** rather
+> than from the migration text it cannot parse."* Clause by clause:
+>
+> 1. *"grep `alter function … security definer` the way it now greps `alter policy`"* — ✅ mirrored
+>    on the same flattened text, with the `security definer` clause MANDATORY in the match. Bulk
+>    control: `20260620000000_baseline.sql` carries **449** `ALTER FUNCTION … OWNER TO` lines and
+>    yields **0** under the committed regex; the tree's only real instance (`20261003004300`)
+>    yields 1.
+> 2. *"resolve the altered function's return type from the **live catalog**"* — ✅ the name goes
+>    through the same catalog resolution as every other candidate, and with NO catalog an
+>    ALTER-derived name is an OBLIGATION rather than a case (nothing can say what an altered
+>    function returns without it).
+> 3. *"a `prosecdef` flip on an existing boolean gate derives that gate"* (the hub's acceptance
+>    line) — ✅ `alter function app.can_read_professional_profile(uuid, uuid) security definer;`
+>    gives **rc 0**, stdout `can_read_professional_profile`. The SAME plant under the pre-unit
+>    deriver (`53001454`) gives **rc 1**, stdout empty, the name absent from the whole transcript.
+>
+> Negative control: `owner to postgres` instead — **rc 1**, ALTERED-BY block ABSENT, "NO DOORS AT
+> ALL". Discrimination: the tree's real instance (`alter function
+> app.assert_hospital_affiliation_has_org() security definer`, catalog `trigger`) is identified as
+> a door and EXCLUDED from CASES with the printed reason *"returns trigger — outside PRED_DOMAIN"*
+> — which is also this item's own "not a live hole today" note, now printed by the tool instead of
+> remembered. Pinned by `SELFTEST=1` scenarios 4-5.
+
+**The register entry as it stood, verbatim.** Kept here rather than left to `git`, which is what
+`FUP-DOCS-CONSOLIDATION-CLOSURE-DROPS-THE-CLOSES-WHEN-FIELD` asks for — a closure must be
+auditable against the condition it was closed on. Only the `### ` heading line is omitted (its
+text is this entry's heading, above).
+
+**Filed:** 2026-08-26 (found by `backend` while fixing BUG-D5-REHIRE-HOSPADMIN-001) · **Owner:** lead + backend · **Severity:** high — per emoji at consolidation
+**Closes when:** PO to rule
+**Status:** open
+**Body** — the pre-closure pointer line pointed at `FUP-DOOR-SWEEP-DERIVER-BLIND-TO-ALTER-FUNCTION.md`; that file was removed by this closure and its content is inline below. (The literal pointer token cannot survive in the archive: `lint:registers` reds on it, ADR 0185 D5.)
+**The body as it stood, verbatim.** Its own file `docs/followups/FUP-DOOR-SWEEP-DERIVER-BLIND-TO-ALTER-FUNCTION.md` is removed by this
+closure, so nothing here is summarised. Only its `# ` title line is omitted (same text as the
+heading above); its `Index entry: … · status open` line is the pre-closure text and is left as
+the record of what it said.
+
+Index entry: [follow-ups-open.md](follow-ups-open.md) · filed 2026-08-26 · status open
+
+`scripts/door-sweep-cases.sh`'s function branch (~lines 290-292) selects a gate only when its
+**`create function` body** matches all three of: literal `security definer`, `returns boolean`, and
+the predicate-identity regex. An **`alter function … security definer`** produces no such body, so
+the deriver cannot see it **at all**.
+
+⛔ **Consequence, and it is the reason this is filed rather than noted:** flipping `prosecdef` on an
+**existing boolean gate** via `ALTER` would derive **zero cases**, and a zero-case derivation is
+reported as *exit 1 / FINDING* that a tired reader rules "no gates touched — clean". The gate would
+be newly DEFINER, newly bypassing RLS, and in **no** sweep's case list.
+
+⭐ **This is the exact analogue of ADR [0079](../decisions/0079-authz-door-blindness-standing-invariant.md)
+Amendment 8 ruling 1** — *`alter policy` is not `create policy`* — which exists because the recipe
+grepped only `create policy` and was blind to alterations. **The same defect survived one level over,
+in the function branch, after the policy branch was fixed.** ⚠ That is the durable finding: a
+correction applied to one branch of a deriver is not evidence the sibling branch was swept.
+
+**Not a live hole today.** The migration that surfaced it flips a **`trigger`**-returning function,
+which is outside the door audit's predicate-arm domain by construction (bounded by `t.typname='bool'`,
+plus the one named exception `assert_not_case_excluded`), and `ARM=census` independently reports it
+outside its domain for the same reason. The blindness is **measurement-domain**, not an unguarded door.
+
+**Fix shape:** the deriver must grep `alter function … security definer` the way it now greps
+`alter policy`, and resolve the altered function's return type from the **live catalog** rather than
+from the migration text it cannot parse.
+
+### ✅ FUP-DOOR-SWEEP-DERIVER-SPANS-THE-WHOLE-WORKING-TREE — a diff-scoped sweep for one increment silently selects another increment's cases (owner: backend/lead) — **RESOLVED 2026-09-05**
+
+> **RESOLVED 2026-09-05 — unit DOOR-SWEEP-DERIVER (Batch 1), commit `b08b5734`.** Design: ADR
+> [0190](../decisions/0190-the-door-sweep-deriver-selects-by-property-and-a-full-run-merges.md) D7.
+> Record: [door-sweep-deriver.md](../progress/door-sweep-deriver.md).
+>
+> ⚠ **DISCLOSED: the register field read "PO to rule", so the condition satisfied is the BODY's
+> `**Discharged when**` sentence.** Quoted: *"the deriver either takes an explicit scope (a
+> migration-id floor or path prefix, so a run states which increment it swept) or prints per-file
+> provenance — committed-range vs working-tree vs untracked — so a 53-case derivation can never
+> again be recorded as one increment's coverage."* The clause is an **either/or**; **both** halves
+> landed. Clause by clause:
+>
+> 1. *"takes an explicit scope (a migration-id floor or path prefix)"* — ✅ `SCOPE=<migration-id
+>    floor>` and `PATHS=<prefix>`, both echoed in the header AND in the quotable `SCOPE:` line,
+>    with the before/after file count. Measured: two untracked increments in one tree,
+>    `SCOPE=<id of the second>` gives **rc 0** and stdout that is ONLY the second's case.
+> 2. *"or prints per-file provenance — committed-range vs working-tree vs untracked"* — ✅ the
+>    `SCOPE:` line names all three counts (`14 file(s) — 14 committed (731abda0^..HEAD), 0
+>    worktree, 0 untracked | filter: none`), and a PROVENANCE block maps **every derived case** to
+>    the file(s) that named it — per CASE, not only per file.
+> 3. *"so a 53-case derivation can never again be recorded as one increment's coverage"* — ✅ the
+>    `SCOPE:` line is one line the gate record quotes verbatim, and it carries the bound with the
+>    number. Control: one file gives `1 file(s) … 0 worktree, 1 untracked`. Discrimination: the
+>    SAME two policies in ONE file gives `1 file(s)`, both attributed to it — the count follows
+>    FILES, not cases.
+> 4. *"⛔ Removing the working-tree and untracked sources is NOT the fix"* — ✅ all three sources
+>    are unchanged; only the attribution is new.
+>
+> VACUITY CHECK: the same two-increment tree under the pre-unit deriver (`53001454`) produces **0**
+> `SCOPE:` lines, **0** PROVENANCE blocks, and `SCOPE=` silently IGNORED — the undifferentiated
+> union.
+>
+> ⭐ **Side effect, and it closes a measurement ADR 0173 declined.** Extraction is now per file, so
+> 0173:387-393's array-gate over-selection (the `array[` gate evaluated over CONCATENATED content,
+> letting one migration enable the fallback for the whole range) is gone. Measured on
+> `731abda0^..HEAD`: 20 into **18** cases, the two dropped being `is_active` and `has_role` — a
+> replacement literal and quoted `replace()` operands, exactly as 0173 predicted in writing.
+> Pinned by `SELFTEST=1` scenarios 9-10.
+
+**The register entry as it stood, verbatim.** Kept here rather than left to `git`, which is what
+`FUP-DOCS-CONSOLIDATION-CLOSURE-DROPS-THE-CLOSES-WHEN-FIELD` asks for — a closure must be
+auditable against the condition it was closed on. Only the `### ` heading line is omitted (its
+text is this entry's heading, above).
+
+**Filed:** 2026-08-27 (at the AE1 Record step (obligation 10, AE1.3 gate record)) · **Owner:** lead + backend · **Severity:** high — per emoji at consolidation
+**Closes when:** PO to rule
+**Status:** open
+**Body** — the pre-closure pointer line pointed at `FUP-DOOR-SWEEP-DERIVER-SPANS-THE-WHOLE-WORKING-TREE.md`; that file was removed by this closure and its content is inline below. (The literal pointer token cannot survive in the archive: `lint:registers` reds on it, ADR 0185 D5.)
+**The body as it stood, verbatim.** Its own file `docs/followups/FUP-DOOR-SWEEP-DERIVER-SPANS-THE-WHOLE-WORKING-TREE.md` is removed by this
+closure, so nothing here is summarised. Only its `# ` title line is omitted (same text as the
+heading above); its `Index entry: … · status open` line is the pre-closure text and is left as
+the record of what it said.
+
+Index entry: [follow-ups-open.md](follow-ups-open.md) · filed 2026-08-27 · status open
+
+> Filed 2026-08-27 at the AE1 Record step (obligation 10, AE1.3 gate record).
+>
+> ⛔ **Not covered by `FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED`.** That item shares the number **53** but
+> its four parts are different findings (the deriver names one arm for a two-arm list · arm 2 exits 0
+> over an empty set · 9 policies fall in neither arm's domain · a killed run leaves a policy wide open).
+> Distinct too from `FUP-DOOR-SWEEP-DERIVER-BLIND-TO-ALTER-FUNCTION`, which is about what the deriver
+> **matches**; this is about what it **selects over**.
+>
+> `scripts/door-sweep-cases.sh` builds its file set from three sources: the committed range
+> `git diff --name-only "$BASE".."$TIP"`, the **working tree** `git diff --name-only HEAD`, and
+> **untracked** `git ls-files --others --exclude-standard`. ⚠ The last two are deliberate and
+> **correct** — the migration under review is normally uncommitted or untracked or both, so a
+> committed-range-only recipe sees nothing during the phase it exists to gate; the script's own header
+> carries that ⛔ note.
+>
+> ⚠ **The defect is unattributability, not incorrectness.** In a tree holding two in-flight increments
+> the deriver cannot distinguish *"this increment"* from *"this working tree"*, and reports the union
+> as the diff. Measured at AE1.3: **53 cases derived where AE1.3 owned 1** — a figure that reads as
+> broad coverage of AE1.3 and is nothing of the sort. The Phase Gate records the sweep **against the
+> phase**, an attribution the deriver cannot support.
+>
+> ⛔ **Removing the working-tree and untracked sources is NOT the fix** — that reintroduces exactly the
+> blindness the header's note was written to prevent. **Discharged when** the deriver either takes an
+> explicit scope (a migration-id floor or path prefix, so a run states *which* increment it swept) or
+> prints per-file provenance — committed-range vs working-tree vs untracked — so a 53-case derivation
+> can never again be recorded as one increment's coverage.
+
+### ✅ FUP-DOOR-SWEEP-FULL-RUN-DESTROYS-HAND-MERGED-ANNOTATIONS — the subset half is fixed, the full half is not, and the file is not purely generated (owner: backend; filed 2026-08-26, found while closing the subset half) — **RESOLVED 2026-09-05**
+
+> **RESOLVED 2026-09-05 — unit DOOR-SWEEP-DERIVER (Batch 1), commit `9ba4cc35`.** Design: ADR
+> [0190](../decisions/0190-the-door-sweep-deriver-selects-by-property-and-a-full-run-merges.md)
+> D8 + D9, the residual of ADR
+> [0153](../decisions/0153-subset-sweeps-write-to-scratch-not-the-committed-baseline.md).
+> Record: [door-sweep-deriver.md](../progress/door-sweep-deriver.md).
+>
+> ⚠ **DISCLOSED: the register field read "PO to rule", so the condition satisfied is the BODY's
+> `**Fix: the register's option (b)**` paragraph** — *"merge verdicts into the committed file
+> rather than replacing it, so generated rows update while hand-authored blocks survive. ⛔ Do not
+> close this by extending the subset guard to full runs."* Clause by clause:
+>
+> 1. *"merge verdicts into the committed file rather than replacing it"* — ✅
+>    `scripts/lib/merge-findings-baseline.sh`, shared by ALL FOUR sweeps (ADR 0153 D3 already ruled
+>    the property bound). Each harness's `emit_report` is split into a pure `emit_body` generator
+>    and a placement step; a full run merges against a snapshot taken ONCE at startup, so every
+>    per-case emit is idempotent and a mid-run kill still leaves a coherent partial report that
+>    carries the hand material.
+> 2. *"so generated rows update while hand-authored blocks survive"* — ✅ and the property is the
+>    **complement**, never a pattern list: hand-authored = any line the generator did not produce.
+>    ⚠ The item names three kinds of block; by the property the door baseline carries **eight**
+>    (measured on 924 lines): 1 `<!-- … -->`, 7 `## Note`, **8** `> ⚠ **HAND-MERGED` blockquotes,
+>    **37** rows with hand prose in column 5, an annotated skipped-bullet continuation, 2 bare
+>    `---` rules, **20** rows stranded above a table delimiter, a nested blockquote.
+> 3. *"⛔ Do not close this by extending the subset guard to full runs"* — ✅ a full run rewrites
+>    the generated rows; only the hand-authored material is preserved. Subset runs still copy to
+>    scratch, untouched.
+> 4. *"All four sweeps now print a startup warning counting the hand-merged blocks — a hint, not a
+>    gate"* (the item's closing complaint) — ✅ the hint is gone. The door harness's pattern counted
+>    **8** on that file while the write-path twin's wider pattern counted **16 on the same file**;
+>    the count now lives in the merge, where the complement is computable, and the warning no
+>    longer asks the operator to do anything by hand.
+>
+> ⭐ **THE SELF-VERIFICATION IS PROVEN ABLE TO FAIL**, which is the difference between a merge and a
+> promise: every hand-authored line and every hand suffix must appear in the output and the
+> generated row multiset must equal the merged one, or the merge ABORTS (2), the output is NOT
+> written and the baseline is left as it was. `MERGE_FAULT=drop-hand-block` gives **rc 2** and no
+> output, at all four call sites; `MERGE_FAULT=drop-suffix` gives **rc 2**. Negative control: the
+> same inputs without the fault give rc 0 and a `cmp`-identical result.
+>
+> ⛔ **NO SWEEP WAS RUN.** The merge is proven on COPIES, driving the PRODUCTION `emit_body`
+> **lifted** out of each harness over a synthetic `progress.tsv`; the four committed baselines are
+> byte-identical (`git diff --stat -- docs/reviews/` empty). On the door baseline: 401 generated
+> rows into 401 merged, hand blocks 8/7/2/2 preserved, and `verdicts_from_findings` differing by
+> exactly the two rows the synthetic run dropped and the two it added.
+>
+> ⚠ **A defect this helper had in its first run**, caught by its own row-count check and recorded
+> rather than quietly fixed: rows keyed on column 1 alone collided on `app.can_sign_section(…)`,
+> which the baseline carries TWICE, and **5 rows vanished silently** while the prose check reported
+> clean. Rows are now keyed on NAME + ORDINAL.
+
+**The register entry as it stood, verbatim.** Kept here rather than left to `git`, which is what
+`FUP-DOCS-CONSOLIDATION-CLOSURE-DROPS-THE-CLOSES-WHEN-FIELD` asks for — a closure must be
+auditable against the condition it was closed on. Only the `### ` heading line is omitted (its
+text is this entry's heading, above).
+
+**Filed:** 2026-08-26 (found while closing the subset half) · **Owner:** backend · **Severity:** medium — per emoji at consolidation
+**Closes when:** PO to rule
+**Status:** open
+**Body** — the pre-closure pointer line pointed at `FUP-DOOR-SWEEP-FULL-RUN-DESTROYS-HAND-MERGED-ANNOTATIONS.md`; that file was removed by this closure and its content is inline below. (The literal pointer token cannot survive in the archive: `lint:registers` reds on it, ADR 0185 D5.)
+**The body as it stood, verbatim.** Its own file `docs/followups/FUP-DOOR-SWEEP-FULL-RUN-DESTROYS-HAND-MERGED-ANNOTATIONS.md` is removed by this
+closure, so nothing here is summarised. Only its `# ` title line is omitted (same text as the
+heading above); its `Index entry: … · status open` line is the pre-closure text and is left as
+the record of what it said.
+
+Index entry: [follow-ups-open.md](follow-ups-open.md) · filed 2026-08-26 · status open
+
+_**Detail rotated VERBATIM from the Follow-ups section of PROGRESS.md (retired 2026-09-03, ADR 0185) on 2026-08-26**, restoring that index line to its declared one-line form during a size rotation. Nothing was summarised away — the text below is the removed substring exactly as it stood:_
+
+> and that file is **not purely generated**: it carries hand-merged subset verdicts, a trailing `## Note — a RENAME moves a gate's verdict` section, and inline annotations on the skipped-policy bullets. A full run destroys all of them, silently. ⚠ **Same class as the closed item, different RUN MODE** — the guard that fixed the subset path deliberately does not cover it, so "the truncation is fixed" is true of one half only. Fix is the register's option **(b)**: merge verdicts rather than replace. All four sweeps now print a startup warning counting the hand-merged blocks — a hint, not a gate
+
+Residual of [[FUP-DOOR-SWEEP-DESTROYS-ITS-OWN-BASELINE]] (closed 2026-08-26, ADR
+[0153](../decisions/0153-subset-sweeps-write-to-scratch-not-the-committed-baseline.md)). That fix
+covers the **subset** run mode only, by design: with `CASES=` set the report goes to scratch. A **full**
+sweep still emits `docs/reviews/authz-door-audit-findings.md` through the same truncating redirect.
+
+⚠ **That would be harmless if the file were generated — and it is not.** The committed baseline carries
+material no run reproduces:
+
+- a hand-merged `<!-- … -->` block of subset verdicts (around line 569);
+- a trailing `## Note — a RENAME moves a gate's verdict` section;
+- inline annotations on the skipped-policy bullets.
+
+A full sweep destroys all three, silently, and the loss looks exactly like a clean regeneration. The
+periodic full sweep is ~5 h and rare, which is *why* this is 🟡 and also why nobody would notice for
+weeks — the annotations are read at the next audit, not at the run that erased them.
+
+**Fix: the register's option (b)** — merge verdicts into the committed file rather than replacing it,
+so generated rows update while hand-authored blocks survive. ⛔ Do **not** close this by extending the
+subset guard to full runs: a full run *should* rewrite the generated rows; the property to preserve is
+the hand-authored material, not the file.
+
+⚠ **What exists today is a hint, not a gate.** All four sweeps print a startup warning counting the
+hand-merged blocks and telling the operator to re-merge from `git show HEAD:<path>`. A warning the
+operator must read at the right moment is the same shape as the *"restore the findings file"*
+instruction whose failure produced the parent item.
+
+---
+
+### ✅ FUP-AUTHZ-DOOR-SWEEP-DERIVER-OVERSELECTS-INTO-UNPROVEN — the derived case list contains tokens no sweep arm can match, so the paste-able command produces an UNPROVEN run — **RESOLVED 2026-09-05**
+
+> **RESOLVED 2026-09-05 — filed and closed in the same unit (DOOR-SWEEP-DERIVER, Batch 1), commit
+> `0a0d3489`.** It is filed rather than fixed-in-silence because the fix has to have a name: the
+> tier split closes it as a side effect of `FUP-DOOR-SWEEP-DERIVER-NAME-FILTER-DROPS-A-REAL-GATE`,
+> and a defect closed without an entry is a defect nobody can audit the closure of. Design: ADR
+> [0190](../decisions/0190-the-door-sweep-deriver-selects-by-property-and-a-full-run-merges.md)
+> D1 + D3. Record: [door-sweep-deriver.md](../progress/door-sweep-deriver.md). Clause by clause:
+>
+> 1. *"every token the deriver puts in `CASES=` resolves, in the live catalog, to either an RLS
+>    policy or a function an arm's domain contains"* — ✅ `CASES` is tier 2 only: `pg_policies`
+>    policies plus `prosecdef` functions satisfying `PRED_DOMAIN` as the arm itself writes it.
+> 2. *"proven by resolving the whole derived list for a real range against `pg_policies.policyname`
+>    union `pg_proc.proname` and observing zero unmatched"* — ✅ **measured**, read-only, on
+>    `731abda0^..HEAD`: 42 into **20** cases and **0** tokens resolving to neither (pre-change:
+>    **3** — `explain_direct_permission`, `has_direct_permission`, `form_item_options`). After the
+>    per-file array gate landed the same range derives **18**, still with 0 unmatched.
+> 3. *"Objects the diff touched that no arm can sweep must still be **printed**, with the reason"*
+>    — ✅ 21 doors are printed as DOORS-IDENTIFIED-NOT-SWEEPABLE with their catalog return type, 1
+>    as an INVOKER routed by name to `p0-authz-invoker-audit.sh`, and the unresolvable names under
+>    UNRESOLVED with both of their causes and the command that fixes the common one.
+> 4. *"⛔ Not closed by deleting the tokens silently"* — ✅ every text-derived candidate lands in
+>    exactly one PRINTED bucket; nothing is dropped without a line naming it.
+>
+> ⚠ **What this does NOT close.** `form_item_options` and `form_item_validations` are TABLE names,
+> produced because `20261003007340`'s marker declares POLICIES in a form ADR 0173 § 2's grammar
+> does not define. That is a different mechanism and stays open as
+> `FUP-AUTHZ-DOOR-SWEEP-MARKER-DECLARES-POLICIES-TOO`. Here they are UNRESOLVED and named, not
+> silently in `CASES`.
+
+**The register entry as it stood, verbatim.** Kept here rather than left to `git`, which is what
+`FUP-DOCS-CONSOLIDATION-CLOSURE-DROPS-THE-CLOSES-WHEN-FIELD` asks for — a closure must be
+auditable against the condition it was closed on. Only the `### ` heading line is omitted (its
+text is this entry's heading, above).
+
+**Filed:** 2026-09-05 (DOOR-SWEEP-DERIVER plan step, by resolving every derived token against the live catalog read-only) · **Owner:** backend · **Severity:** high — a token the arm cannot match does not cost "~1 min of extra sweep", it makes the WHOLE run UNPROVEN and every verdict in it unusable; measured 42 derived, 20 matchable
+**Closes when:** every token the deriver puts in `CASES=` resolves, in the live catalog, to either an RLS policy or a function an arm's domain contains — proven by resolving the whole derived list for a real range against `pg_policies.policyname` ∪ `pg_proc.proname` and observing zero unmatched. Objects the diff touched that no arm can sweep must still be **printed**, with the reason. ⛔ Not closed by deleting the tokens silently: an object the deriver stops naming is an object nobody rules on.
+**Status:** open
+**Body** — the pre-closure pointer line pointed at `FUP-AUTHZ-DOOR-SWEEP-DERIVER-OVERSELECTS-INTO-UNPROVEN.md`; that file was removed by this closure and its content is inline below. (The literal pointer token cannot survive in the archive: `lint:registers` reds on it, ADR 0185 D5.)
+**The body as it stood, verbatim.** Its own file `docs/followups/FUP-AUTHZ-DOOR-SWEEP-DERIVER-OVERSELECTS-INTO-UNPROVEN.md` is removed by this
+closure, so nothing here is summarised. Only its `# ` title line is omitted (same text as the
+heading above); its `Index entry: … · status open` line is the pre-closure text and is left as
+the record of what it said.
+
+Index entry: [follow-ups-open.md](follow-ups-open.md) · filed 2026-09-05 · status open
+
+`scripts/door-sweep-cases.sh` prints two paste-able sweep commands with the case list it
+derived. Measured 2026-09-05 on a fresh local catalog at head `20261003007340`, range
+`731abda0^..HEAD`, exit code read bare:
+
+```
+BASE=731abda0^ TIP=HEAD bash scripts/door-sweep-cases.sh   →  exit 0, 42 cases
+```
+
+Of those **42** tokens, resolved against the live catalog (`pg_policies.policyname`, and
+`pg_proc` ⋈ `pg_namespace` ⋈ `pg_type` with `PRED_DOMAIN` evaluated verbatim as the arm
+writes it):
+
+| class | n |
+|---|---|
+| RLS policy | 7 |
+| `prosecdef` function IN `PRED_DOMAIN` | 13 |
+| `prosecdef` function OUT of `PRED_DOMAIN` | 21 |
+| INVOKER (`prosecdef = f`) — another harness's class | 1 |
+| absent from the catalog entirely | 3 |
+
+Only **20** of the 42 are matchable by either door arm. `p0-authz-door-audit.sh` reports the
+rest under *"REQUESTED CASES THAT MATCHED NO GATE"* and the run ends **UNPROVEN**.
+
+⛔ **Why this is worse than it sounds.** Over-selection in this script is documented as costing
+"~1 min of sweep per extra gate". That is true of a token the arm CAN match. A token it cannot
+match does not cost a minute — it makes the whole run UNPROVEN, and *every* verdict in that run
+unusable. The asymmetry the script's header states is the wrong way round for this class.
+
+⭐ **The class:** a selection whose boundary is wider than the instrument that consumes it.
+The deriver selected by migration TEXT while the sweep selects by CATALOG, and nothing
+reconciled the two. Same shape as `FUP-DOOR-SWEEP-DERIVER-NAME-FILTER-DROPS-A-REAL-GATE` in the
+opposite direction: that one under-selects, this one over-selects, and both are the text/catalog
+gap.
+
+**How it was measured.** During the DOOR-SWEEP-DERIVER plan step, by resolving each derived
+token against the live catalog read-only. Nothing was swept.
+
+**Closes when:** every token the deriver puts in `CASES=` resolves, in the live catalog, to
+either an RLS policy or a function an arm's domain contains — proven by resolving the whole
+derived list for a real range against `pg_policies.policyname` ∪ `pg_proc.proname` and
+observing zero unmatched. Objects the diff touched that no arm can sweep must still be
+**printed**, with the reason, so removing them from `CASES` is not the same as hiding them.
+⛔ Not closed by deleting the tokens silently: an object the deriver stops naming is an object
+nobody rules on.
