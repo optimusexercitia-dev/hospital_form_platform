@@ -499,6 +499,32 @@ if [ "$REWRITE_PRESENT" = 1 ] && [ ! -s "$TMP/fn_rewrite" ]; then
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────────────
+# 4d. `ALTER FUNCTION … SECURITY DEFINER` — the function branch's ALTER POLICY.
+#
+# ⛔ THE BLINDNESS THIS CLOSES, and it is a repeat. ADR 0079 Amendment 8 ruling 1 fixed
+# `alter policy` because "an RLS widening is not a create". The FUNCTION branch was left
+# selecting on a `create [or replace] function` CHUNK BODY — and an `ALTER` has no body, so
+# flipping `prosecdef` on an existing boolean gate derived ZERO cases and read as clean
+# (FUP-DOOR-SWEEP-DERIVER-BLIND-TO-ALTER-FUNCTION). ⭐ A correction applied to one branch of
+# a deriver is not evidence the sibling branch was swept.
+#
+# ⛔ THE `security definer` CLAUSE IS MANDATORY IN THE MATCH, MEASURED:
+# `20260620000000_baseline.sql` carries 449 `ALTER FUNCTION … OWNER TO "postgres";` lines.
+# A naive `alter function` grep would put all 449 into the candidate set. With the clause
+# required, that file yields 0 and the tree's ONLY real instance
+# (`20261003004300`, `alter function app.assert_hospital_affiliation_has_org() security
+# definer`) yields 1.
+#
+# ⚠ THE TEXT CANNOT SAY WHAT THE ALTERED FUNCTION RETURNS — there is no body to read. That
+# is exactly why the name goes through 4c's catalog resolution like every other candidate,
+# and why, with NO catalog, an ALTER-derived name is an OBLIGATION rather than a case: a
+# token whose domain membership nobody checked must not enter CASES.
+# ─────────────────────────────────────────────────────────────────────────────────────
+grep -ohiE "alter function ((app|public|authz)\.)?\"?[a-z0-9_]+\"?[[:space:]]*\([^)]*\)[^;]{0,200}security[[:space:]]+definer" "$TMP/flat" \
+  | awk '{gsub(/"/,""); t=tolower($3); sub(/\(.*$/,"",t); sub(/^(app|public|authz)\./,"",t); if (t != "") print t}' \
+  | sort -u > "$TMP/fn_alter"
+
+# ─────────────────────────────────────────────────────────────────────────────────────
 # 4c. TIER 1 / TIER 2 — WHAT A DOOR *IS* COMES FROM THE CATALOG, NOT FROM A NAME.
 #
 # ⛔ THE PROPERTY, IN ONE SENTENCE.
@@ -533,7 +559,7 @@ DB="${DOOR_SWEEP_DB:-supabase_db_azkbbhskturikxpgmafq}"
 CATALOG_OK=0
 CATALOG_WHY=""
 
-cat "$TMP/fn_sel_name" "$TMP/fn_sel_prop" "$TMP/fn_excl" "$TMP/fn_rewrite" \
+cat "$TMP/fn_sel_name" "$TMP/fn_sel_prop" "$TMP/fn_excl" "$TMP/fn_rewrite" "$TMP/fn_alter" \
   | awk 'NF' | sort -u > "$TMP/cand_fn"
 cat <(cut -f1 "$TMP/pol_create") <(cut -f1 "$TMP/pol_alter") | awk 'NF' | sort -u > "$TMP/cand_pol"
 
@@ -754,6 +780,23 @@ if [ -s "$TMP/fn_held" ]; then
   say "    opening a gate; the suite would go green for the wrong reason."
 fi
 
+if [ -s "$TMP/fn_alter" ]; then
+  say "  ⚠ ALTERED BY 'alter function … security definer' — ruling 3's logic, one branch over:"
+  while IFS= read -r n; do
+    [ -n "$n" ] || continue
+    if [ "$CATALOG_OK" = 1 ]; then
+      if   grep -qxF "$n" "$TMP/fn_sweepable"; then say "    - $n   -> a door IN the arm's domain; it is in CASES above"
+      elif grep -qxF "$n" "$TMP/fn_unresolved"; then say "    - $n   -> UNRESOLVED (see below)"
+      else say "    - $n   -> classified below (door not sweepable here, or an invoker)"; fi
+    else
+      say "    - $n"
+    fi
+  done < "$TMP/fn_alter"
+  say "    An ALTER keeps the NAME and changes what the gate IS, so a verdict already"
+  say "    standing for it was earned against the PRE-ALTER function and MUST NOT be"
+  say "    inherited. ARM=census does not backstop it: the gate is not a newcomer."
+fi
+
 if [ "$CATALOG_OK" = 1 ]; then
   if [ -s "$TMP/fn_unsweepable" ]; then
     say "  ⛔ DOORS IDENTIFIED, NOT SWEEPABLE BY THIS ARM — each owes a TARGETED case:"
@@ -795,6 +838,14 @@ else
   say "    heuristics: the name filter below is the boundary again, and the tier split that"
   say "    keeps unsweepable tokens out of CASES did not run. ⛔ Start the local stack and"
   say "    re-derive before recording this list as derived-by-property."
+  if [ -s "$TMP/fn_alter" ]; then
+    say "  ⛔ ALTERED BY 'alter function … security definer' — AN OBLIGATION, NOT A CASE:"
+    while IFS= read -r n; do [ -n "$n" ] && say "    - $n"; done < "$TMP/fn_alter"
+    say "    An ALTER carries no body, so the diff text cannot say what these return and"
+    say "    nothing here can decide whether the arm's domain contains them. ⛔ They are"
+    say "    deliberately NOT in CASES: a token whose domain membership nobody checked"
+    say "    makes the whole sweep UNPROVEN. Start the local stack and re-derive."
+  fi
   if [ -s "$TMP/fn_excl" ]; then
     say "  ⛔ EXCLUDED BY NAME — A REVIEW LIST, NOT A DROP. Rule on each one:"
     while IFS= read -r n; do say "    - $n"; done < "$TMP/fn_excl"
