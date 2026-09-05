@@ -38,13 +38,16 @@
 #                            #   verdict from the killed run is void.
 #   RESET_EVERY=N bash …     # reset the DB + re-capture the baseline every N enforcers
 #                            #   (default 20; 0 disables). Bounds tail drift — see § bounded
-#                            #   tail drift. Cannot fire on a worklist shorter than N.
+#                            #   tail drift. ⛔ A SUBSET RUN NEVER RESETS — the guard is SUBSET,
+#                            #   NOT the counter (corrected 2026-09-04; see periodic_reset).
 #   BASELINE_REFRESH=1 bash … # re-record the worklist baseline arm 4b compares against.
 #                            #   ⛔ An explicit operator act: refreshing HIDES a strand.
-#   BASE_S_OVERRIDE="Files=1, Tests=1" bash …
-#                            #   ⛔ SELF-TEST KNOB ONLY. Forces every mutated run to look like
-#                            #   a SHAPE change so the reset-and-retry net can be proven able
-#                            #   to fire. Never set it for a real sweep.
+#   SELFTEST=1 BASE_S_OVERRIDE="Files=1, Tests=1" bash …
+#                            #   ⛔ SELF-TEST KNOB, HONOURED ONLY UNDER SELFTEST=1 (2026-09-04).
+#                            #   Forces every mutated run to look like a SHAPE change so the
+#                            #   reset-and-retry net can be proven able to fire. Set WITHOUT
+#                            #   SELFTEST=1 it is IGNORED and says so; and it forces SUBSET=1,
+#                            #   so it can never reach the committed baseline.
 #
 # ⚠ FULL RUN COST: 171 enforcers x 2 suite runs = 342 runs. ⛔ The per-run figure in this header
 #   has been stale twice; RE-MEASURE IT, never quote it. History: "~23 s" (design-doc estimate,
@@ -69,7 +72,13 @@ SUITE="${SUITE:-}"
 mkdir -p "$WORK" 2>/dev/null || { echo "FATAL: cannot mkdir $WORK" >&2; exit 2; }
 : > "$WORK/.writable" 2>/dev/null || { echo "FATAL: $WORK not writable" >&2; exit 2; }
 
-psql_c () { MSYS_NO_PATHCONV=1 docker exec "$DB" psql -U postgres -d postgres -tA -P pager=off "$@"; }
+# ⛔ -v ON_ERROR_STOP=1 HERE TOO, added 2026-09-04 (QA F-REC-1). Without it psql exits 0 on a SQL
+#    ERROR, and every caller that reads this function's exit status reads a constant — the same
+#    dead instrument the restore had. It is NOT sufficient on its own: the two preflight arms
+#    below also assert they got an ANSWER, because a failed query yields EMPTY OUTPUT and an
+#    empty count defaulted to 0 read as "clean". An arm that could not ask its question must
+#    never report a clean tree.
+psql_c () { MSYS_NO_PATHCONV=1 docker exec "$DB" psql -U postgres -d postgres -tA -P pager=off -v ON_ERROR_STOP=1 "$@"; }
 psql_f () { # run a local .sql file inside the container (avoids shell-quoting SQL bodies)
   # ⛔ NO MSYS_NO_PATHCONV on `docker cp`: the HOST path must convert, while `docker exec`
   #    must not. Setting it here made docker look for C:\tmp and the run died at derivation.
@@ -92,10 +101,15 @@ psql_f () { # run a local .sql file inside the container (avoids shell-quoting S
 #    violation: a `SUITE=` run narrowed the DOMAIN but not the REPORT TARGET, so it swept
 #    the full 171 against a one-file suite — every BLIND meaningless — and then TRUNCATED
 #    the committed baseline with the result. Narrowing either axis makes a run a subset.
+# ⛔ `BASE_S_OVERRIDE` JOINS IT TOO (2026-09-04, QA F-MAJOR-3). It does not NARROW an axis, it
+#    FALSIFIES one — the captured baseline shape — which is a stronger corruption than either
+#    narrowing, yet it was the one knob that left SUBSET=0 and so pointed FINDINGS at the
+#    COMMITTED baseline. Belt and braces with the SELFTEST=1 gate below: the knob is ignored
+#    outside a self-test AND, if ever honoured, cannot reach the committed file.
 DOMAIN="full suite"
 [ -n "$SUITE" ] && DOMAIN="SUITE=$SUITE"
 FINDINGS_COMMITTED="$ROOT/docs/reviews/c2-command-door-findings.md"
-if [ -n "$CASES" ] || [ -n "$SUITE" ] || [ "$SELFTEST" = "1" ]; then
+if [ -n "$CASES" ] || [ -n "$SUITE" ] || [ "$SELFTEST" = "1" ] || [ -n "${BASE_S_OVERRIDE:-}" ]; then
   SUBSET=1; FINDINGS="$WORK/c2-command-door-findings.SUBSET.md"
 else
   SUBSET=0; FINDINGS="$FINDINGS_COMMITTED"
@@ -206,14 +220,25 @@ fi
 #    re-run EVERY preflight arm after each reset, and a second inline COPY of these queries
 #    would be a hand-written duplicate of production text that drifts silently.
 preflight_degenerate () {
-  local d
+  local d rc
   d="$(psql_c -c "
     select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace
     where n.nspname in ('app','public')
       and ( p.prosrc ~ '^\s*begin\s+return\s+(true|false)\s*;\s*end'
          or p.prosrc ~ '^\s*select\s+(true|false)\s*;?\s*\$'
          or p.prosrc ~ '^\s*begin\s+return\s*;\s*end' );")"
-  if [ "${d:-0}" != "0" ]; then
+  rc=$?   # ⛔ read BARE, never through a pipe: a pipe replaces the exit code with the filter's.
+  # ⛔ THIS ARM USED TO FAIL OPEN (fixed 2026-09-04, QA F-REC-1). A query that errored produced
+  #    d="" and the test was `[ "${d:-0}" != "0" ]`, so the empty result DEFAULTED TO ZERO and
+  #    the arm returned 0 = pass. The restore fails CLOSED on exactly this ambiguity; two
+  #    functions away the preflight failed OPEN on it. "Cannot measure" is not "measured clean".
+  case "$d" in ''|*[!0-9]*)
+      echo "*** PREFLIGHT ERROR (arm 1-3, degenerate bodies) — query returned '$d' (psql rc=$rc)," >&2
+      echo "    which is not a count. The preflight could not ask its question, so it cannot" >&2
+      echo "    report a clean tree. Fix the connection to $DB and re-run." >&2
+      return 2 ;;
+  esac
+  if [ "$d" != "0" ]; then
     echo "*** PREFLIGHT FAILED: $d function(s) have a degenerate body — a previous" >&2
     echo "    mutation did not roll back. Fix that before trusting any verdict." >&2
     return 2
@@ -325,16 +350,21 @@ TOTAL=$(wc -l < "$WORK/worklist.tsv" | tr -d ' ')
 #       when v_after <> 0), so a function it stranded has lost EVERY anchor-class errcode
 #       — that conjunct is the discriminator, and it is a PROPERTY, never a name list.
 #       ⛔ MEASURED ON A FRESH RESET 2026-09-04, never assumed:
-#         the shape alone .................................... 3 functions
+#         the shape alone .................................... 3 functions (3 stripped too)
 #         `then null; end if` alone .......................... 1 (public.confirm_triage,
 #           a deliberate no-op branch — so shipping "count must be 0" on the narrow shape
 #           would have red-flagged a clean tree on its first run)
 #         the shape AND no anchor-class errcode .............. 0, ENUMERATED to zero rows
+#           (0 with the 2026-09-04 comment strip as well — the fix reds nothing clean)
 #       Proven able to fire the same day against a REAL strand: while this harness held
 #       public.withdraw_correction mutated, the arm returned exactly that function; before
-#       and after, zero rows.
-#       ⚠ BOUND, stated: it sees a residue in a then/else/begin/loop/`;` position. A
-#       `null;` reachable by no other statement boundary is arm 4b's job.
+#       and after, zero rows. Re-proven after the comment-strip fix against a planted strand
+#       of app.assert_patient_required_fields — the ONE function the unstripped predicate
+#       could not see (QA F-MAJOR-1; see the block above preflight_residue).
+#       ⚠ BOUND, stated: it sees a residue in a then/else/begin/loop/`;` position OF THE
+#       COMMENT-STRIPPED body. A `null;` reachable by no other statement boundary is arm
+#       4b's job — and a `null;` whose only preceding token is a `--` comment WAS arm 4b's
+#       job until 2026-09-04, measured at exactly 1 of 439 strandable functions.
 #
 #   4b  PERSISTED EXPECTATION. Compare the derived worklist against a recorded one, so a
 #       MEMBERSHIP loss (the mode 4a cannot express) is visible. Sources, in order: the
@@ -342,25 +372,54 @@ TOTAL=$(wc -l < "$WORK/worklist.tsv" | tr -d ' ')
 #       TMPDIR cannot silently disarm this arm). ⛔ With neither, the arm prints NOT RUN —
 #       never "clean": an arm that compared nothing must not read like an arm that agreed.
 # ─────────────────────────────────────────────────────────────────────────────────────
+#   ⛔ BOTH CONJUNCTS RUN OVER COMMENT-STRIPPED prosrc (2026-09-04, QA F-MAJOR-1). They did not,
+#     and the first one was blind to a real strand of a real enforcer. When the anchored raise is
+#     preceded by a `--` comment block, the rewritten text reads `-- … this door wrote.\n  null;`
+#     and the token before `null;` is COMMENT TEXT, not one of then|else|begin|loop|`;` — so the
+#     shape conjunct did not match. MEASURED by simulating mutate() read-only over all 1081
+#     public+app functions and asking this arm's own predicate of the result:
+#         would_be_fully_stranded 439 | VISIBLE 438 | INVISIBLE 1
+#             -> app.assert_patient_required_fields (oid 26675) — row 161 of the committed
+#                baseline, COVERED, guarding 5 Tier-1 PHI doors: INSIDE the swept 171.
+#     With the strip, 439 | 439 | 0 — and the clean-tree count stays 0, ENUMERATED to zero rows,
+#     so it reds nothing that is clean today. The strip is `derive_worklist`'s own idiom
+#     (regexp_replace(prosrc,'--[^\n]*','','g'), used there at two sites); the arm now shares it.
 preflight_residue () {
-  local residue
-  residue="$(psql_c -c "
-  select n.nspname||'.'||p.proname
-    from pg_proc p join pg_namespace n on n.oid=p.pronamespace
-   where n.nspname in ('app','public')
-     and p.prosrc ~ '(then|else|begin|loop|;)\s*null\s*;'
-     and p.prosrc !~* 'errcode\s*(=|=>)\s*''(42501|HC0[A-Z0-9]{2})'''
-   order by 1;" | grep -vE '^\s*$')"
-  if [ -n "$residue" ]; then
-    echo "*** PREFLIGHT FAILED (arm 4a) — a body carries THIS harness's residue shape:" >&2
-    echo "$residue" | sed 's/^/      /' >&2
+  local raw rc n names
+  # ⛔ ONE query, returning a TALLY LINE with a fixed prefix — not a bare list. A list is empty
+  #    both when the tree is clean and when the query never ran, and this arm used to read the
+  #    second as the first (QA F-REC-1: the restore fails CLOSED on that ambiguity; the preflight
+  #    failed OPEN on it). The prefix is the arm's proof that it got an ANSWER.
+  raw="$(psql_c -c "
+  select 'C2ARM4A|'||count(*)||'|'||coalesce(string_agg(f,' ' order by f),'')
+    from (
+      select n.nspname||'.'||p.proname as f
+        from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+       where n.nspname in ('app','public')
+         and regexp_replace(p.prosrc,'--[^\n]*','','g') ~ '(then|else|begin|loop|;)\s*null\s*;'
+         and regexp_replace(p.prosrc,'--[^\n]*','','g') !~* 'errcode\s*(=|=>)\s*''(42501|HC0[A-Z0-9]{2})'''
+    ) t;")"
+  rc=$?   # ⛔ BARE. No pipe between the query and this line.
+  case "$raw" in
+    C2ARM4A\|*) : ;;
+    *)
+      echo "*** PREFLIGHT ERROR (arm 4a) — query returned '$raw' (psql rc=$rc), not a tally." >&2
+      echo "    The arm could not ask its question of $DB. ⛔ THAT IS NOT A CLEAN TREE: an arm" >&2
+      echo "    that compared nothing must not read like an arm that agreed." >&2
+      return 2 ;;
+  esac
+  n="${raw#C2ARM4A|}"; names="${n#*|}"; n="${n%%|*}"
+  if [ "$n" != "0" ]; then
+    echo "*** PREFLIGHT FAILED (arm 4a) — $n body/bodies carry THIS harness's residue shape:" >&2
+    # shellcheck disable=SC2086
+    printf '      %s\n' $names >&2
     echo "    A raise statement was rewritten to a no-op and every errcode of the anchor" >&2
     echo "    class is gone from the body. A previous run died mid-mutation: the gate is OPEN." >&2
     echo "      RECOVER=1 bash $0        # if a sentinel survives, apply + VERIFY it" >&2
     echo "      supabase db reset --local  # the blunt, certain option" >&2
     return 2
   fi
-  echo "    arm 4a: 0 residue shapes (no body has a bare 'null;' with every anchor-class errcode gone)"
+  echo "    arm 4a: 0 residue shapes (no body has a bare 'null;', comments stripped, with every anchor-class errcode gone)"
   return 0
 }
 preflight_residue || exit 2
@@ -542,9 +601,19 @@ BASE_OUT="$(run_suite)"; BASE_V="$(verdict_of "$BASE_OUT")"; BASE_S="$(shape_of 
 echo "    baseline: $BASE_V (shape=$BASE_S lines)"
 # ⛔ SELF-TEST KNOB (see USAGE). It falsifies the captured shape so the drift path is reachable
 #    on demand; a periodic reset re-captures the TRUE shape, which is what makes the retry work.
+# ⛔ GATED ON SELFTEST=1 SINCE 2026-09-04 (QA F-MAJOR-3). It was guarded by a printed warning
+#    only, in a file whose whole thesis is that a warning is not a guard: set on an otherwise
+#    ordinary invocation it FALSIFIED the stated precondition of every verdict in a run that
+#    still wrote the COMMITTED baseline. Two interlocks now, in opposite directions — it is
+#    IGNORED outside a self-test, and (line ~98) it forces SUBSET=1 if it is ever honoured.
 if [ -n "${BASE_S_OVERRIDE:-}" ]; then
-  echo "    ⛔ BASE_S_OVERRIDE set — baseline shape FORCED to '$BASE_S_OVERRIDE'. SELF-TEST ONLY."
-  BASE_S="$BASE_S_OVERRIDE"
+  if [ "$SELFTEST" != "1" ]; then
+    echo "    ⛔ BASE_S_OVERRIDE ignored — SELFTEST=1 only"
+    echo "       (the true captured shape stands: $BASE_S)"
+  else
+    echo "    ⛔ BASE_S_OVERRIDE set — baseline shape FORCED to '$BASE_S_OVERRIDE'. SELF-TEST ONLY."
+    BASE_S="$BASE_S_OVERRIDE"
+  fi
 fi
 if [ "$BASE_V" != "PASS" ]; then
   echo "*** ABORT: the suite is RED before any mutation. Every verdict below would be" >&2
@@ -611,28 +680,47 @@ fi
 #                       drift any verdict can carry to N enforcers instead of to the whole run;
 #      · the retry net — on a `SHAPE changed` / `did not come back green` ERROR, reset and retry
 #                       that enforcer ONCE, which would have recovered all three of run 1's.
-# ⚠ RESET_EVERY cannot fire on a worklist shorter than N, so `CASES=` subsets never reset.
+# ⛔ CORRECTED 2026-09-04 (QA F-MAJOR-2). This block used to read "RESET_EVERY cannot fire on a
+#    worklist shorter than N, so `CASES=` subsets never reset" — the parenthetical mechanism is
+#    right and the GENERALISATION IS FALSE. A `SUITE=` run narrows the DOMAIN, not the worklist:
+#    all $TOTAL enforcers are still swept, so at N=20 over 171 the counter fires EIGHT times and
+#    runs eight destructive `supabase db reset --local` — in the very mode advertised as the
+#    quick one-file spike, and on a machine that routinely has a second stack up. (A `CASES=`
+#    list of >= N tokens resets too.) The guard is therefore SUBSET, not the counter, and it
+#    lives INSIDE periodic_reset so no call site can forget it.
 RESET_EVERY="${RESET_EVERY:-20}"   # 0 disables
 RESETS=0
 periodic_reset () {   # $1 = why (printed)
   local why="$1" pre_total now_total
-  echo "--- PERIODIC RESET ($why) ---"
-  # 1. ⛔ INTERLOCK FIRST. A reset with a mutation in flight destroys the evidence AND the
-  #    restore in one command — the same composition the sentinel fix exists to prevent.
+  # 1. ⛔ INTERLOCK FIRST, AHEAD OF THE SUBSET GATE BELOW. A reset with a mutation in flight
+  #    destroys the evidence AND the restore in one command — the same composition the sentinel
+  #    fix exists to prevent. It stays first so the subset gate cannot DISPLACE it: reaching this
+  #    point with an armed sentinel is a broken invariant whatever kind of run this is, and it
+  #    must stop loudly rather than be quietly skipped along with the reset.
   if [ -s "$INFLIGHT" ]; then
     echo "*** refusing to reset with a mutation in flight: $INFLIGHT" >&2
     echo "    RECOVER=1 bash $0 first, then verify it in the catalog." >&2
     exit 2
   fi
-  # 2. ⛔ `cd "$ROOT"` IS LOAD-BEARING: `supabase db reset` applies the migrations of the
+  # 2. ⛔ A SUBSET RUN NEVER RESETS (2026-09-04, QA F-MAJOR-2). `supabase db reset --local` is
+  #    destructive and irreversible; a subset (CASES= / SUITE= / SELFTEST=1 / BASE_S_OVERRIDE) is
+  #    the quick-spike mode, whose operator has not asked for it and was told in three places
+  #    that it would not happen. Announced, never silent — a reset that did NOT happen is a fact
+  #    about the run's preconditions, exactly like the domain.
+  if [ "$SUBSET" = "1" ]; then
+    echo "    (SUBSET run — NOT resetting: $why)"
+    return 0
+  fi
+  echo "--- PERIODIC RESET ($why) ---"
+  # 3. ⛔ `cd "$ROOT"` IS LOAD-BEARING: `supabase db reset` applies the migrations of the
   #    DIRECTORY YOU STAND IN, and this machine routinely has a second, unrelated stack up.
   ( cd "$ROOT" && npx supabase db reset --local ) >/dev/null 2>&1 \
     || { echo "*** db reset FAILED — aborting rather than measuring on an unknown DB" >&2; exit 2; }
   RESETS=$((RESETS+1))
-  # 3. every preflight arm again — a reset is a new tree, and its cleanliness is not assumed
+  # 4. every preflight arm again — a reset is a new tree, and its cleanliness is not assumed
   preflight_degenerate || exit 2
   preflight_residue    || exit 2
-  # 4. re-derive and compare: if the worklist moved, the TREE changed under the run and every
+  # 5. re-derive and compare: if the worklist moved, the TREE changed under the run and every
   #    verdict recorded so far is against a different population.
   pre_total="$TOTAL"
   derive_worklist "$WORK/worklist.reset.tsv" || exit 2
@@ -643,7 +731,7 @@ periodic_reset () {   # $1 = why (printed)
     echo "    The tree moved under this run; every verdict so far is against another population." >&2
     exit 2
   fi
-  # 5. re-capture the baseline — the whole point: later verdicts compare against a FRESH shape
+  # 6. re-capture the baseline — the whole point: later verdicts compare against a FRESH shape
   BASE_OUT="$(run_suite)"; BASE_V="$(verdict_of "$BASE_OUT")"; BASE_S="$(shape_of "$BASE_OUT")"
   echo "    post-reset baseline: $BASE_V (shape=$BASE_S)  |  worklist re-derived: $now_total (unchanged)"
   if [ "$BASE_V" != "PASS" ]; then
@@ -685,7 +773,12 @@ sweep_one () {   # $1 oid  $2 sig  $3 ndoors  $4 nraise  $5 nanchored
   # ⛔ The restore is VERIFIED (psql rc AND live md5) before the sentinel is cleared; if it
   #    refuses, the sentinel is KEPT and this run stops rather than sweeping over an open gate.
   if ! restore_inflight; then
-    SW_VERDICT="ERROR"; SW_NOTE="⛔ ROLLBACK FAILED — the gate is left OPEN and the sentinel is KEPT ($INFLIGHT); RECOVER=1 or 'supabase db reset --local'"
+    # ⚠ "KEPT UNLESS THE EXIT-TRAP RETRY VERIFIES" is the honest wording (2026-09-04, QA F-REC-3).
+    #   This row is written, then the run exit 2s, which fires the EXIT trap — which calls
+    #   restore_inflight a SECOND time. A transient first failure that succeeds on retry
+    #   legitimately clears the sentinel, and the committed row would then assert a state that no
+    #   longer holds. The retry is wanted; only the note went stale.
+    SW_VERDICT="ERROR"; SW_NOTE="⛔ ROLLBACK FAILED — the gate is left OPEN and the sentinel is KEPT unless the EXIT-trap retry verifies it ($INFLIGHT); RECOVER=1 or 'supabase db reset --local'"
     return 9
   fi
   h2="$(hash_of "$foid")"
@@ -755,7 +848,13 @@ while IFS=$'\t' read -r foid name sig ndoors nraise nanchored; do
   # lost three verdicts to exactly this and each came back COVERED on a clean DB.
   case "$SW_NOTE" in
     *"SHAPE changed"*|*"did not come back green"*)
-      if [ "$RESET_EVERY" != "0" ]; then
+      if [ "$SUBSET" = "1" ]; then
+        # ⛔ NOT retried, and the note SAYS SO (2026-09-04, QA F-MAJOR-2). The retry's whole
+        #    mechanism is the reset, and a subset run never resets; retrying without one would
+        #    re-measure the same drift and then suffix "(retried after reset)" — a note asserting
+        #    a reset that did not happen. A false note is worse than a missing retry.
+        SW_NOTE="$SW_NOTE (drift-shaped; NOT retried — a SUBSET run never resets)"
+      elif [ "$RESET_EVERY" != "0" ]; then
         echo "    drift suspected — resetting and retrying $name ONCE"
         periodic_reset "retry — $name recorded a drift-shaped ERROR"
         sweep_one "$foid" "$sig" "$ndoors" "$nraise" "$nanchored"; SW_RC=$?
@@ -776,7 +875,9 @@ echo "=== DONE — swept $DONE of $TOTAL derived enforcer(s) ==="
 echo "    COVERED=$N_COVERED  BLIND=$N_BLIND  ERROR=$N_ERROR   (skipped by CASES: $SKIPPED)"
 # ⛔ Both preconditions of every verdict above, on the same line as the counts — so a
 #    reader cannot take the tally without taking the conditions it was measured under.
-echo "    preconditions: baseline GREEN (shape=$BASE_S) · domain=$DOMAIN · resets=$RESETS (RESET_EVERY=$RESET_EVERY)"
+RESETNOTE="(RESET_EVERY=$RESET_EVERY)"
+[ "$SUBSET" = "1" ] && RESETNOTE="(RESET_EVERY=$RESET_EVERY — SUPPRESSED: a SUBSET run never resets)"
+echo "    preconditions: baseline GREEN (shape=$BASE_S) · domain=$DOMAIN · resets=$RESETS $RESETNOTE"
 echo "    report: $FINDINGS"
 [ "$DONE" -lt "$TOTAL" ] && echo "    ⚠ PARTIAL RUN — $((TOTAL-DONE)) enforcer(s) were NOT measured. This is not a clean sweep."
 echo
