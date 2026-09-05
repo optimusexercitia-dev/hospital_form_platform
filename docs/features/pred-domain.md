@@ -69,16 +69,36 @@ findings baseline through Batch 1's merge, before AE5's eleven increments re-key
 these resolvers.
 
 ### Done since start
-- Branch cut off `main` @ `bbda5392`; hub + record opened.
+- Plan APPROVED with five rulings. §1 re-measured on a fresh reset: **every figure reproduced**.
+- **Schema axis** — `PRED_DOMAIN` gains a literal `n.nspname='authz'`, bounded at `bool`. Proven by
+  SELECTION: `PRED_TOTAL` 125→**127**, `PRED_OUT` 37→**35**, delta = exactly the two named
+  resolvers, **reverse delta 0**, policy worklist byte-identical. Deriver lift survives (**34/0**).
+- **`authz.candidate_has_permission` earns its FIRST verdict — COVERED**; `scope_reaches` COVERED
+  from an arm rather than a hand run (`predicate=2/127`, rc 0 CLEAN).
+- **`NOTICED`** (4th outcome) built + SELFTEST arm 6/6, with the instrument proven able to fail and
+  the pre-change classifier run over the identical strings; fired live on
+  `app.event_current_custodian` (ERROR → NOTICED on the **same** 26 360-line runlog).
+- **`using`-half-only mirror** built (all 62 ALL policies verified to carry a non-null
+  `polwithcheck`, so the split is not vacuous). Direction column deferred per Q5.
+- **`DOMAIN-STATEMENT`** printed every run + emitted into the findings; four populations, trigger
+  enforcers **derived** (174/268).
+- **Targeted home** `authz-setvalued-targeted-cases.sh` — all three resolvers **COVERED**, first
+  recorded verdicts; §4a residue arm 0-on-clean and proven to FIRE on each live mutation; §4b
+  cardinality control green. Three failed neutralizers were recorded, restored and catalog-verified.
+- Residual §7 items FILED (3 new follow-ups); `act-hat-blind-sweep.sh:18` corrected; ADR **0191**
+  drafted (`proposed`).
+- ⭐ **Offline dry run of the full-run merge**: rc 0, ~5 s, 9/9 hand blocks + 7/7 notes preserved,
+  prose cost exactly **1** duplicated heading, **predicted CARRIED 48 rows / 45 keys** partitioned
+  A=4 / B=24 / C=17 against the live catalog.
 
 ### In progress
-- `backend` briefed; full plan required before any harness change (the arm's domain decides what
-  the standing gate can see; the full run rewrites a committed baseline through the merge).
+- Mirror discrimination (6 ALL + 6 SELECT, both harness versions, same reset), then the ONE
+  detached full run (~11–12 h + ~29 min of merges, re-derived from measurement).
 
 ### Next
-- Plan review → build (selection proofs first, then the detached full run) → gate → QA → PO →
-  Record.
+- Verify the merge three ways → **return the CARRIED enumeration and STOP** for the PO ruling →
+  then step 11 (four arms, `test:db`, lint, diff-scoped deriver) and the closures.
 
 ### Blockers
-- None. ⚠ The full run is ~5–9 h, detached, never under a tool timeout; the `CARRIED` re-file is
-  human work budgeted here, not a surprise.
+- None. ⚠ The full run is **~12 h** (re-derived: ~2 min/case × 354), detached, never under a tool
+  timeout. ⛔ The re-baselined findings file is NOT committed until the CARRIED ruling.
