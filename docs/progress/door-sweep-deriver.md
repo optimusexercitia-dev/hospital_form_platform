@@ -398,3 +398,55 @@ direction only (`closesWhenPoToRule` 140→137, `severityPerEmoji` 131→128, `l
   ~10 s. The parse-safety question it was asked was answered instead by deriving over all **11**
   marker-bearing migrations (0 parse errors), which is complete for that question — a file with
   no marker cannot produce a marker parse error.
+
+#### Gate — 2026-09-05, every exit code read BARE
+
+Run on `authz-door-sweep-deriver` @ `62829c79` with `git status --short` **empty**, after a
+fresh `supabase db reset --local` (**rc 0**).
+
+| step | command | bare rc | what it says |
+|---|---|---|---|
+| lint | `npm run lint` | **0** | eslint 0 errors / 0 warnings; all 13 gates including `lint:registers`, `lint:progress`, `lint:adr-index` |
+| typecheck | `npm run typecheck` | **0** | — |
+| pgTAP | `npm run test:db` | **0** | `Files=262, Tests=8876, Result: PASS` |
+| authz arm | `ARM=census …p0-authz-invariant.sh` | **0** | `=== INVARIANT HOLDS ===` |
+| authz arm | `ARM=hat …` | **0** | `HAT-BLIND SWEEP HOLDS: 4 finding(s), all reasoned-allowlisted` · `INVARIANT HOLDS` |
+| authz arm | `ARM=floor …` | **0** | `INVARIANT HOLDS` |
+| authz arm | `FROMFINDINGS=1 ARM=wrapper …` | **0** | `BLIND set size: 41` · `every BLIND wrapper is on the allowlist` · `INVARIANT HOLDS` |
+| selftest | `SELFTEST=1 bash scripts/door-sweep-cases.sh` | **0** | `PASS 15 · FAIL 0 · SKIPPED 0` |
+| diff-scoped sweep | `BASE=main TIP=HEAD bash scripts/door-sweep-cases.sh` | **3** | NOT-APPLICABLE — **derived, not asserted** |
+
+**Suite shape did NOT move.** `Files=262, Tests=8876` is byte-for-byte the last known-good run
+(Batch 0's gate, 2026-09-04). No `.sql` was added under `supabase/tests/`; the branch's only
+changes there are the four `.sh` harnesses.
+
+⚠ **TWO RED test:db RUNS BEFORE THE GREEN ONE, and neither is hidden.**
+1. The first run: `Files=262, Tests=8761, Result: FAIL` — **four files aborted with
+   `ERROR: deadlock detected` inside `test_helpers.bootstrap()`'s
+   `truncate table public.organizations cascade`** (`365`, `383`, `401`, `61`). That is the
+   known, parked `FUP-PGTAP-WORKER-DEADLOCK`, non-deterministic and unrelated to this branch —
+   which touches no `.sql`, no migration and no seed. Its own mitigation is the reason the shape
+   comparison above is in this table: the flake **LOST 115 assertions** (8761 vs 8876) while
+   keeping `Files=262`, so a trailing summary line alone would not have shown it.
+2. The second run: `Tests=2615, Result: FAIL` — **my error, recorded as such.** I started it
+   against the DB the first (aborted) run had left truncated by `257_ethics_e2_retention.sql`.
+   ⭐ "Shared local stack, single owner" applies to my own two runs, not only to two sessions.
+   The fix was a fresh reset, then ONE foreground run with the exit code read bare.
+
+**THE DERIVATION THIS UNIT OWES — the instrument's first use on its own diff.** Not owed as a
+sweep (`git diff --name-only main...HEAD -- supabase/migrations` is empty), and that claim is
+now **derived** rather than asserted:
+
+```
+SCOPE: 0 file(s) — 0 committed (main..HEAD), 0 worktree, 0 untracked | filter: none
+       0 case(s) — nothing was derived, and the line above is what the gate record
+       quotes to say so.
+=== RESULT: NOT-APPLICABLE (3) — no migration file in the diff. ===
+```
+
+⭐ **That run found a gap in the new output and it is fixed in commit 10.** The exit-3 path
+printed **no `SCOPE:` line at all**, so the one line the gate record is told to quote verbatim
+did not exist for the outcome a no-migration branch produces. "There was nothing to scope" is
+itself a scope, and it is exactly the claim exit 3 asks the operator to check. `scope_line()` is
+now shared by both paths; exit 3 is unchanged and `SELFTEST=1` scenario 11 still passes
+(re-run after the change: PASS 15 · FAIL 0 · SKIPPED 0, rc 0).

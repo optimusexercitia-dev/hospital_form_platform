@@ -323,6 +323,20 @@ while IFS= read -r f; do
   say "               - $f  [$src]"
 done < "$TMP/files"
 
+# ── the SCOPE: line, defined here because EVERY exit path owes it ────────────────────
+# ⛔ Measured 2026-09-05, on this instrument's first use against its OWN diff: the
+# NOT-APPLICABLE path printed no `SCOPE:` line at all, so the one line the gate record is
+# told to quote verbatim did not exist for the very outcome a no-migration branch produces.
+# "There was nothing to scope" is itself a scope, and it is the claim exit 3 asks the
+# operator to check.
+scope_line () {
+  local nc nw nu
+  nc=$(awk -F'\t' '$2=="committed"' "$TMP/paths" | cut -f1 | sort -u | comm -12 - "$TMP/files" | wc -l | tr -d ' ')
+  nw=$(awk -F'\t' '$2=="worktree"'  "$TMP/paths" | cut -f1 | sort -u | comm -12 - "$TMP/files" | wc -l | tr -d ' ')
+  nu=$(awk -F'\t' '$2=="untracked"' "$TMP/paths" | cut -f1 | sort -u | comm -12 - "$TMP/files" | wc -l | tr -d ' ')
+  say "SCOPE: $(wc -l < "$TMP/files" | tr -d ' ') file(s) — $nc committed (${BASE}..${TIP}), $nw worktree, $nu untracked | filter: $FILTER_DESC"
+}
+
 if [ ! -s "$TMP/files" ]; then
   rule
   say "=== RESULT: NOT-APPLICABLE (3) — no migration file in the diff. ==="
@@ -330,6 +344,10 @@ if [ ! -s "$TMP/files" ]; then
   say "    same observation as 'the recipe printed nothing' (that is exit 1) and it is"
   say "    NOT a pass: it is a CHECKABLE claim. If the phase DID add a migration, the"
   say "    <phase-base> is wrong — re-run with the right one before recording anything."
+  say
+  scope_line
+  say "       0 case(s) — nothing was derived, and the line above is what the gate record"
+  say "       quotes to say so."
   rule
   exit 3
 fi
@@ -1162,10 +1180,7 @@ say
 # summarises, and "53 cases" is exactly the kind of number a paraphrase keeps while
 # dropping the bound that made it meaningful.
 # ─────────────────────────────────────────────────────────────────────────────────────
-n_comm=$(awk -F'\t' '$2=="committed"' "$TMP/paths" | cut -f1 | sort -u | comm -12 - "$TMP/files" | wc -l | tr -d ' ')
-n_work=$(awk -F'\t' '$2=="worktree"'  "$TMP/paths" | cut -f1 | sort -u | comm -12 - "$TMP/files" | wc -l | tr -d ' ')
-n_untk=$(awk -F'\t' '$2=="untracked"' "$TMP/paths" | cut -f1 | sort -u | comm -12 - "$TMP/files" | wc -l | tr -d ' ')
-say "SCOPE: $(wc -l < "$TMP/files" | tr -d ' ') file(s) — $n_comm committed (${BASE}..${TIP}), $n_work worktree, $n_untk untracked | filter: $FILTER_DESC"
+scope_line
 if [ -s "$TMP/prov" ]; then
   say "       $NCASES case(s), attributed (a case named by two files is counted in both):"
   say "       $(awk -F'\t' 'NR==FNR{c[$1]=1;next} ($1 in c){n[$2]++} END{s="";for(f in n){b=f;sub(/^.*\//,"",b);s=s (s?", ":"") n[f] " from " b} print s}' "$TMP/cases" "$TMP/prov")"

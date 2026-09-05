@@ -45,7 +45,7 @@ the fifth in the full-run emit path of the sweep harness that writes the committ
       `…007250` declaration-only; a planted `ALTER FUNCTION … SECURITY DEFINER` on a boolean gate
       in a scratch migration never committed; a two-increment working tree; a full-run emit over a
       copy of the baseline), each paired with a clean negative control.
-- [ ] Gate: `npm run lint` green; `npm run test:db` on a fresh reset green; the four authz arms
+- [x] Gate: `npm run lint` green; `npm run test:db` on a fresh reset green; the four authz arms
       hold; the diff-scoped door sweep **not owed** (no policy or `prosecdef` gate changes — if that
       turns out false, it is owed, both arms — derived, for the first time, by the fixed deriver).
 
@@ -77,13 +77,18 @@ Measured on `731abda0^..HEAD`: 42 cases → **18**, with **0** tokens matching n
 committed findings baselines are byte-identical.
 
 ### In progress
-The Phase Gate: `npm run lint`, `npm run typecheck`, a fresh `supabase db reset --local` +
-`npm run test:db`, the four authz arms, `SELFTEST=1`, and the diff-scoped sweep DERIVED (not
-owed — no policy or `prosecdef` gate changed) as the instrument's first use on its own diff.
+Nothing — the build and the gate are done, all exit codes read BARE on a fresh
+`supabase db reset --local`: `lint` 0 · `typecheck` 0 · `test:db` 0 (`Files=262, Tests=8876,
+Result: PASS`, byte-for-byte the last known-good shape) · the four authz arms 0 (`INVARIANT
+HOLDS` each) · `SELFTEST=1` 0 (PASS 15 / FAIL 0 / SKIPPED 0) · the diff-scoped sweep **rc 3
+NOT-APPLICABLE, derived rather than asserted**. ⚠ Two RED `test:db` runs preceded the green one
+and are both in the record: the parked `FUP-PGTAP-WORKER-DEADLOCK` flake (which lost 115
+assertions while keeping `Files=262`), then my own re-run against the DB that flake had left
+truncated.
 
 ### Next
-Gate → QA review → PO → Record. ⚠ The six closures are written at the BUILD step and are
-**pending QA + PO**; if either rejects, the rotation is reversible (entries and bodies are in
+QA review → PO → Record. ⚠ The six closures are written at the BUILD step and are **pending QA
++ PO**; if either rejects, the rotation is reversible (entries and bodies are in
 `follow-ups-archive.md` verbatim, `cmp`-checked before the source was cut).
 
 ### Blockers
