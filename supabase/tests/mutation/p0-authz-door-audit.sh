@@ -129,6 +129,25 @@ rm -f "$WORK/.writable"
 mkdir -p "$RUNLOGS"
 
 # ─────────────────────────────────────────────────────────────────────────────────────
+# A FULL RUN MERGES, IT DOES NOT REPLACE (FUP-DOOR-SWEEP-FULL-RUN-DESTROYS-HAND-MERGED-
+# ANNOTATIONS). ADR 0153 sent a SUBSET run's report to scratch — the subset half only, by
+# design. The FULL half still emitted this committed file through a truncating redirect,
+# and the file is NOT purely generated. `emit_report` now writes the GENERATED report to
+# $WORK and the shared merge helper folds it into a snapshot of the committed baseline.
+#
+# ⛔ THE SNAPSHOT IS TAKEN ONCE, HERE, AND THAT IS LOAD-BEARING. `emit_report` runs after
+# EVERY case; merging the fresh generation into an already-merged file would compound the
+# CARRIED block and make the result depend on how many cases had run. Merging always
+# against the ORIGINAL baseline makes each emit idempotent — and it means a mid-run kill
+# leaves a coherent PARTIAL report that still carries the hand-authored material.
+# ─────────────────────────────────────────────────────────────────────────────────────
+MERGE_LIB="$ROOT/scripts/lib/merge-findings-baseline.sh"
+GENERATED="$WORK/authz-door-audit-findings.generated.md"
+BASELINE_SNAPSHOT="$WORK/authz-door-audit-findings.baseline.md"
+MERGE_FAILED=0
+if [ -f "$FINDINGS_COMMITTED" ]; then cp "$FINDINGS_COMMITTED" "$BASELINE_SNAPSHOT"; else : > "$BASELINE_SNAPSHOT"; fi
+
+# ─────────────────────────────────────────────────────────────────────────────────────
 # THE SECOND LOCK — deliberately a DIFFERENT KIND from the first.
 # Repointing $FINDINGS above states the INTENT ("a subset run writes to scratch"). This
 # measures the OUTCOME: the committed file's bytes are checksummed NOW and re-checked on
@@ -170,13 +189,22 @@ if [ "$SUBSET_RUN" = "1" ]; then
   echo "    — never copy the subset file over it."
   echo "--------------------------------------------------------------------------------"
 else
-  BASELINE_ANNOTATIONS=$(grep -cE '^(<!--|## Note)' "$FINDINGS_COMMITTED" 2>/dev/null | tr -d '[:space:]')
-  if [ "${BASELINE_ANNOTATIONS:-0}" != "0" ]; then
-    echo "⚠ FULL SWEEP — the committed baseline carries ${BASELINE_ANNOTATIONS} HAND-ADDED block(s)"
-    echo "  (\`<!-- … -->\` merge notes / \`## Note …\` sections) this generator does NOT emit."
-    echo "  The truncating redirect REPLACES the whole file, so this run drops them. Re-merge"
-    echo "  from \`git show HEAD:docs/reviews/authz-door-audit-findings.md\` before committing."
-  fi
+  # ⛔ THIS WARNING USED TO COUNT WITH A FILTER, AND THE NUMBER WAS WRONG. `^(<!--|## Note)`
+  # matched 8 blocks in this baseline while the write-path twin's wider pattern matched 16
+  # ON THE SAME FILE (measured 2026-09-05) — and by the property ("any line this generator
+  # did not produce") the file carries eight KINDS, including 8 `> ⚠ **HAND-MERGED`
+  # blockquotes, 37 rows with hand prose in column 5, and 20 rows stranded above a table
+  # delimiter, none of which either pattern sees. A warning whose number comes from a filter
+  # is only as true as the filter, so the COUNT has moved to the merge, where the complement
+  # is actually computable, and this line no longer asks the operator to do anything.
+  echo "--------------------------------------------------------------------------------"
+  echo "FULL SWEEP — this run MERGES into the committed baseline; it does not replace it."
+  echo "    baseline  : $FINDINGS_COMMITTED  (snapshotted to \$WORK before the first case)"
+  echo "    generated : $GENERATED"
+  echo "    Every line of the baseline this generator does not produce is re-inserted, and"
+  echo "    the merge ABORTS rather than write an output that lost one. The count of"
+  echo "    preserved hand-authored lines is printed by the merge itself, per emit."
+  echo "--------------------------------------------------------------------------------"
 fi
 
 psql_c () { MSYS_NO_PATHCONV=1 docker exec "$DB" psql -U postgres -d postgres -tA -P pager=off "$@"; }
@@ -430,7 +458,10 @@ echo "    clean — 0 degenerate bodies (all three neutralization forms)"
 # `not ($PRED_DOMAIN)` on the same string, so the two CANNOT drift.
 #
 # ── WHY THIS IS A PROPERTY NOW AND NOT ONLY A NAME (FUP-DOOR-AUDIT-PREDICATE-ARM-
-#    BOUNDED-BY-A-NAME; ADR 0079 Amendment 8) ────────────────────────────────────────
+#    BOUNDED-BY-A-NAME; ADR 0079 Amendment 9) ────────────────────────────────────────
+# ⚠ This said "Amendment 8" until 2026-09-05. Amendment 8 is the ALTER-POLICY / stale-verdict
+#   ruling; Amendment 9 is the one that owns this follow-up and this widening. A citation is
+#   an assertion that goes stale silently — this one pointed a reader at the wrong decision.
 # The domain was `^(is_|can_|has_|…)` alone — a NAME regex standing in for the property
 # "is an authorization predicate", which no regex decides. ADR 0136 hit it live: its new
 # gate, written as `app.signoff_deferred_open`, was shaped exactly like a predicate and
@@ -687,7 +718,11 @@ echo
 
 # Regenerate the two deliverables from progress.tsv. Called after EVERY case so a
 # mid-run kill still leaves a coherent partial report (brief requirement).
-emit_report () {
+# ⛔ SPLIT IN TWO ON PURPOSE. `emit_body` is the PURE generator — the closed grammar the
+# merge helper takes the complement of, and the thing a proof harness can LIFT out of this
+# file and run rather than re-typing (the same anti-drift idiom the case deriver uses on
+# PRED_DOMAIN). `emit_report` is generation + placement. Do not fold them back together.
+emit_body () {
   local total_pol skipped_pol
   total_pol=$(wc -l < "$WORK/worklist_pol.tsv" | tr -d '[:space:]')
   skipped_pol=$(wc -l < "$WORK/skipped_pol_true.tsv" | tr -d '[:space:]')
@@ -748,7 +783,27 @@ emit_report () {
     if [ -s "$WORK/outofdomain_pred_bool.tsv" ]; then
       while IFS= read -r ln; do echo "- \`$ln\`"; done < "$WORK/outofdomain_pred_bool.tsv"
     else echo "_(none — the name filter and the property now coincide)_"; fi
-  } > "$FINDINGS"
+  }
+}
+
+emit_report () {
+  emit_body > "$GENERATED"
+  if [ "$SUBSET_RUN" = "1" ]; then
+    # $FINDINGS is already scratch (ADR 0153). Nothing to merge, and merging the committed
+    # baseline into a SUBSET report would put verdicts the subset did not measure beside
+    # the ones it did.
+    cp "$GENERATED" "$FINDINGS"
+  elif bash "$MERGE_LIB" "$BASELINE_SNAPSHOT" "$GENERATED" "$FINDINGS"; then
+    MERGE_FAILED=0
+  else
+    # ⛔ The merge REFUSED to write, so the baseline on disk is whatever it was. That is the
+    # safe outcome and it must not be silent, and it must not stop the sweep: the verdicts
+    # this run has already earned live in $GENERATED and in $PROGRESS.
+    MERGE_FAILED=1
+    echo "⛔⛔ MERGE ABORTED — $FINDINGS was NOT written. Generated report: $GENERATED" >&2
+    echo "    Re-merge by hand from $BASELINE_SNAPSHOT; do NOT copy the generated file over" >&2
+    echo "    the baseline. The sweep continues; the report on disk is STALE from here on." >&2
+  fi
 
   # machine-readable BLIND list
   { echo -e "arm\tgate\tdirection\tfailing_or_note";
@@ -881,6 +936,13 @@ while IFS=$'\t' read -r tbl polname cmd has_wc; do
 done < "$WORK/worklist_pol.tsv"
 
 echo
+if [ "${MERGE_FAILED:-0}" = "1" ]; then
+  echo "⛔⛔ THE REPORT ON DISK IS STALE — the last merge into $FINDINGS ABORTED."
+  echo "    This run's generated report: $GENERATED"
+  echo "    Baseline snapshot          : $BASELINE_SNAPSHOT"
+  echo "    ⛔ Do NOT read $FINDINGS as this run's result and do NOT copy the generated"
+  echo "       file over it: re-merge the two files above."
+fi
 echo "=== DONE. Report: $FINDINGS   BLINDs: $BLINDS_TSV ==="
 if [ "$SUBSET_RUN" = "1" ]; then
   # ⚠ Print the SIZE, not just the path: an "untouched baseline" is indistinguishable

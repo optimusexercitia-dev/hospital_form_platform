@@ -220,6 +220,24 @@ fi
 rm -f "$WORK/.writable"
 mkdir -p "$RUNLOGS"
 
+# ─────────────────────────────────────────────────────────────────────────────────────
+# A FULL RUN MERGES, IT DOES NOT REPLACE (FUP-DOOR-SWEEP-FULL-RUN-DESTROYS-HAND-MERGED-
+# ANNOTATIONS). ADR 0153 sent a SUBSET run's report to scratch — the subset half only, by
+# design. The FULL half still emitted the committed file through a truncating redirect, and
+# these baselines are NOT purely generated. `emit_report` now writes the GENERATED report to
+# $WORK and the shared helper folds it into a snapshot of the committed baseline.
+# ⛔ THE SNAPSHOT IS TAKEN ONCE, HERE. `emit_report` runs after EVERY case; merging into an
+# already-merged file would compound the CARRIED block and make the result depend on how many
+# cases had run. Merging always against the ORIGINAL baseline makes each emit idempotent —
+# and it means a mid-run kill leaves a coherent PARTIAL report that still carries the
+# hand-authored material.
+# ─────────────────────────────────────────────────────────────────────────────────────
+MERGE_LIB="$ROOT/scripts/lib/merge-findings-baseline.sh"
+GENERATED="$WORK/authz-writepath-audit-findings.generated.md"
+BASELINE_SNAPSHOT="$WORK/authz-writepath-audit-findings.baseline.md"
+MERGE_FAILED=0
+if [ -f "$FINDINGS_COMMITTED" ]; then cp "$FINDINGS_COMMITTED" "$BASELINE_SNAPSHOT"; else : > "$BASELINE_SNAPSHOT"; fi
+
 # THE SECOND LOCK — a different KIND from the first: repointing $FINDINGS states the
 # INTENT, this measures the OUTCOME (bytes checksummed now, re-checked on every exit).
 baseline_sum () {
@@ -260,17 +278,21 @@ else
   # carries TWO hand-added blocks and the pattern matched ONE. The miss is the block that
   # matters most: `> ⚠ **HAND-MERGED, 2026-08-06 …`, a BLOCKQUOTE (neither `<!--` nor
   # `## Note`), which carries the `set_commission_oversight` verdict that has nowhere else
-  # to live. An operator told "1 hand-added block" and re-merging one block would have
-  # dropped it. ⚠ The fix is the pattern, not the count: a warning whose number is derived
-  # from a filter is only as true as the filter. Proven able to fire: 3 against the current
-  # file, 2 against `git show HEAD:` (which the old pattern read as 1).
-  BASELINE_ANNOTATIONS=$(grep -cE '^(<!--|## Note|> ⚠ \*\*HAND|> ⚠ \*\*DOMAIN)' "$FINDINGS_COMMITTED" 2>/dev/null | tr -d '[:space:]')
-  if [ "${BASELINE_ANNOTATIONS:-0}" != "0" ]; then
-    echo "⚠ FULL SWEEP — the committed baseline carries ${BASELINE_ANNOTATIONS} HAND-ADDED block(s)"
-    echo "  (\`<!-- … -->\` merge notes / \`## Note …\` sections) this generator does NOT emit."
-    echo "  The truncating redirect REPLACES the whole file, so this run drops them. Re-merge"
-    echo "  from \`git show HEAD:docs/reviews/authz-writepath-audit-findings.md\` before committing."
-  fi
+  # ⛔ THIS WARNING USED TO COUNT WITH A FILTER, AND THE NUMBER WAS WRONG. On the door
+  # baseline `^(<!--|## Note)` matched 8 and this file's own wider pattern matched 16 (both
+  # measured 2026-09-05) — and by the property ("any line this generator did not produce")
+  # that file carries eight KINDS, most of which neither pattern sees. A warning whose number
+  # comes from a filter is only as true as the filter, so the COUNT has moved to the merge,
+  # where the complement is actually computable, and this line no longer asks the operator to
+  # do anything by hand.
+  echo "--------------------------------------------------------------------------------"
+  echo "FULL SWEEP — this run MERGES into the committed baseline; it does not replace it."
+  echo "    baseline  : $FINDINGS_COMMITTED  (snapshotted to \$WORK before the first case)"
+  echo "    generated : $GENERATED"
+  echo "    Every line of the baseline this generator does not produce is re-inserted, and"
+  echo "    the merge ABORTS rather than write an output that lost one. The count of"
+  echo "    preserved hand-authored lines is printed by the merge itself, per emit."
+  echo "--------------------------------------------------------------------------------"
 fi
 
 psql_c () { MSYS_NO_PATHCONV=1 docker exec "$DB" psql -U postgres -d postgres -tA -P pager=off "$@"; }
@@ -1108,7 +1130,10 @@ echo
 
 # Regenerate the two deliverables from writepath_progress.tsv after EVERY case so a
 # mid-run kill still leaves a coherent partial report.
-emit_report () {
+# ⛔ SPLIT IN TWO ON PURPOSE. `emit_body` is the PURE generator — the closed grammar the
+# merge helper takes the complement of, and the thing a proof harness can LIFT out of this
+# file and run rather than re-typing. `emit_report` is generation + placement.
+emit_body () {
   {
     echo "# AUTHZ Write-Path Door-Blindness Audit — Findings"
     echo
@@ -1149,7 +1174,25 @@ emit_report () {
     echo "| gate / policy | arm | direction | verdict | failing files / note |"
     echo "|---|---|---|---|---|"
     awk -F'\t' '$4!="BLIND"{printf "| %s | %s | %s | %s | %s |\n",$2,$1,$3,$4,$5}' "$PROGRESS"
-  } > "$FINDINGS"
+  }
+}
+
+emit_report () {
+  emit_body > "$GENERATED"
+  if [ "$SUBSET_RUN" = "1" ]; then
+    # $FINDINGS is already scratch (ADR 0153). Merging the committed baseline into a SUBSET
+    # report would put verdicts the subset did not measure beside the ones it did.
+    cp "$GENERATED" "$FINDINGS"
+  elif bash "$MERGE_LIB" "$BASELINE_SNAPSHOT" "$GENERATED" "$FINDINGS"; then
+    MERGE_FAILED=0
+  else
+    # ⛔ The merge REFUSED to write, so the baseline on disk is whatever it was. That is the
+    # safe outcome; it must not be silent, and it must not stop the sweep.
+    MERGE_FAILED=1
+    echo "⛔⛔ MERGE ABORTED — $FINDINGS was NOT written. Generated report: $GENERATED" >&2
+    echo "    Re-merge by hand from $BASELINE_SNAPSHOT; do NOT copy the generated file over" >&2
+    echo "    the baseline. The sweep continues; the report on disk is STALE from here on." >&2
+  fi
 
   { echo -e "arm\tgate\tdirection\tfailing_or_note";
     awk -F'\t' '$4=="BLIND"{printf "%s\t%s\t%s\t%s\n",$1,$2,$3,$5}' "$PROGRESS"; } > "$BLINDS_TSV"
@@ -1323,6 +1366,13 @@ while IFS='|' read -r nsp tbl polname cmd haveq havew qtrue wtrue; do
 done < "$POLWL"
 
 echo
+if [ "${MERGE_FAILED:-0}" = "1" ]; then
+  echo "⛔⛔ THE REPORT ON DISK IS STALE — the last merge into $FINDINGS ABORTED."
+  echo "    This run's generated report: $GENERATED"
+  echo "    Baseline snapshot          : $BASELINE_SNAPSHOT"
+  echo "    ⛔ Do NOT read $FINDINGS as this run's result and do NOT copy the generated"
+  echo "       file over it: re-merge the two files above."
+fi
 echo "=== DONE. Report: $FINDINGS   BLINDs: $BLINDS_TSV ==="
 if [ "$SUBSET_RUN" = "1" ]; then
   # ⚠ Print the SIZE, not just the path: an "untouched baseline" is indistinguishable
