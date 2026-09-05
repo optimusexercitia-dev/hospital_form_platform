@@ -498,6 +498,110 @@ if [ "$REWRITE_PRESENT" = 1 ] && [ ! -s "$TMP/fn_rewrite" ]; then
   exit 1
 fi
 
+# ─────────────────────────────────────────────────────────────────────────────────────
+# 4c. TIER 1 / TIER 2 — WHAT A DOOR *IS* COMES FROM THE CATALOG, NOT FROM A NAME.
+#
+# ⛔ THE PROPERTY, IN ONE SENTENCE.
+#   A DOOR is an object this diff creates, replaces, alters or declares that the LIVE
+#   CATALOG resolves to either (a) an RLS policy, or (b) a function in app/public/authz
+#   with `prosecdef = true`.
+#   SWEEPABLE is a strictly NARROWER second question: the door additionally satisfies
+#   `PRED_DOMAIN`, lifted verbatim from the arm and EVALUATED BY THE CATALOG.
+#   `CASES` is tier 2 ONLY. Tier 1 minus tier 2 is printed as "doors identified, not
+#   sweepable by this arm", with the catalog's reason, and owes a TARGETED case.
+#
+# ⛔ WHY `CASES` MUST NOT BE TIER 1. ADR 0079:161-169 hazard 4: the door sweep can only
+#   neutralize what its arm's domain selects. A token the arm cannot match is reported by
+#   the harness as "REQUESTED … MATCHED NO GATE" and makes the WHOLE run UNPROVEN — so
+#   over-selection here does not cost "~1 min of sweep", it costs every verdict in the run.
+#   Measured 2026-09-05 on `731abda0^..HEAD`: 42 tokens derived, of which 3 resolve to no
+#   catalog object at all, 1 is an INVOKER (another harness's class) and 18 are `prosecdef`
+#   functions outside `PRED_DOMAIN`. That derivation cannot produce a provable sweep.
+#
+# ⛔ THE TEXT HEURISTICS ARE THE FLOOR AND THE CATALOG ONLY CLASSIFIES. Nothing is dropped
+#   silently: every candidate the diff text produced ends up in exactly one printed bucket.
+#   With NO catalog reachable the classification is skipped entirely and the pre-2026-09-05
+#   union is derived under a loud provisional banner — a deriver that goes blind when the
+#   stack is down is not an improvement.
+#
+# ⚠ ABSENT FROM THE CATALOG IS NOT AN ABORT. Measured over the last 15 migrations: 2 of 22
+#   function names (`explain_direct_permission`, `has_direct_permission`) resolve to nothing
+#   because a LATER migration dropped them, so "absent -> exit 2" would abort ordinary
+#   historical ranges. Absent is an UNRESOLVED obligation, named with BOTH of its causes.
+# ─────────────────────────────────────────────────────────────────────────────────────
+DB="${DOOR_SWEEP_DB:-supabase_db_azkbbhskturikxpgmafq}"
+CATALOG_OK=0
+CATALOG_WHY=""
+
+cat "$TMP/fn_sel_name" "$TMP/fn_sel_prop" "$TMP/fn_excl" "$TMP/fn_rewrite" \
+  | awk 'NF' | sort -u > "$TMP/cand_fn"
+cat <(cut -f1 "$TMP/pol_create") <(cut -f1 "$TMP/pol_alter") | awk 'NF' | sort -u > "$TMP/cand_pol"
+
+if ! command -v docker >/dev/null 2>&1; then
+  CATALOG_WHY="no docker on PATH"
+elif ! docker exec "$DB" psql -U postgres -d postgres -tAc 'select 1' >/dev/null 2>&1; then
+  CATALOG_WHY="container '$DB' not answering (start the local stack)"
+else
+  # ⚠ The domain is interpolated as SQL, never as shell. It was proven free of unexpanded
+  #   variables at lift time; if it had not been, this script aborted before reaching here.
+  cat > "$TMP/q_fn.sql" <<SQL
+select p.proname
+       || chr(9) || (case when p.prosecdef then 't' else 'f' end)
+       || chr(9) || t.typname
+       || chr(9) || (case when p.proretset then 't' else 'f' end)
+       || chr(9) || (case when $PRED_DOMAIN_SQL then 'IN' else 'OUT' end)
+from pg_proc p
+join pg_namespace n on n.oid = p.pronamespace
+join pg_type      t on t.oid = p.prorettype
+where n.nspname in ('app','public','authz');
+SQL
+  if docker exec -i "$DB" psql -U postgres -d postgres -tA -P pager=off -q \
+       < "$TMP/q_fn.sql" > "$TMP/cat_fn" 2>"$TMP/cat_fn.err" && [ -s "$TMP/cat_fn" ]; then
+    docker exec "$DB" psql -U postgres -d postgres -tA -P pager=off \
+      -c 'select policyname from pg_policies' 2>/dev/null | awk 'NF' | sort -u > "$TMP/cat_pol"
+    if [ -s "$TMP/cat_pol" ]; then CATALOG_OK=1; else CATALOG_WHY="pg_policies came back empty"; fi
+  else
+    CATALOG_WHY="the PRED_DOMAIN query failed: $(head -3 "$TMP/cat_fn.err" 2>/dev/null | tr '\n' ' ')"
+  fi
+fi
+
+: > "$TMP/fn_sweepable"; : > "$TMP/fn_unsweepable"; : > "$TMP/fn_invoker"; : > "$TMP/fn_unresolved"
+: > "$TMP/pol_resolved";  : > "$TMP/pol_unresolved"
+if [ "$CATALOG_OK" = 1 ]; then
+  while IFS= read -r fname; do
+    [ -n "$fname" ] || continue
+    # Overloads: prefer a `prosecdef` row, then an IN-domain one. Ties err toward selecting.
+    row="$(awk -F'\t' -v n="$fname" '$1==n' "$TMP/cat_fn" \
+           | sort -t"$(printf '\t')" -k2,2r -k5,5 | head -1)"
+    if [ -z "$row" ]; then
+      printf '%s\n' "$fname" >> "$TMP/fn_unresolved"; continue
+    fi
+    secdef="$(printf '%s' "$row" | cut -f2)"
+    rettype="$(printf '%s' "$row" | cut -f3)"
+    isset="$(printf '%s' "$row" | cut -f4)"
+    dom="$(printf '%s' "$row" | cut -f5)"
+    [ "$isset" = "t" ] && rettype="setof $rettype"
+    if [ "$secdef" != "t" ]; then
+      printf '%s\tINVOKER (prosecdef=f), returns %s\n' "$fname" "$rettype" >> "$TMP/fn_invoker"
+    elif [ "$dom" = "IN" ]; then
+      printf '%s\n' "$fname" >> "$TMP/fn_sweepable"
+    else
+      printf '%s\tprosecdef, returns %s — outside PRED_DOMAIN\n' "$fname" "$rettype" >> "$TMP/fn_unsweepable"
+    fi
+  done < "$TMP/cand_fn"
+  while IFS= read -r pname; do
+    [ -n "$pname" ] || continue
+    if grep -qxF "$pname" "$TMP/cat_pol"; then printf '%s\n' "$pname" >> "$TMP/pol_resolved"
+    else printf '%s\n' "$pname" >> "$TMP/pol_unresolved"; fi
+  done < "$TMP/cand_pol"
+  for x in fn_sweepable fn_unsweepable fn_invoker fn_unresolved pol_resolved pol_unresolved; do
+    sort -u "$TMP/$x" -o "$TMP/$x"
+  done
+fi
+# TIER 1 = every DOOR the catalog confirmed, sweepable or not. Its emptiness is what makes
+# "this migration contains no policy and no prosecdef gate" a CHECKABLE claim.
+cat "$TMP/pol_resolved" <(cut -f1 "$TMP/fn_sweepable") <(cut -f1 "$TMP/fn_unsweepable") \
+  | awk 'NF' | sort -u > "$TMP/tier1"
 
 # ─────────────────────────────────────────────────────────────────────────────────────
 # 5. THE CASE LIST — AND RULING 4 (2026-08-29): THE ARM SPLIT.
@@ -538,9 +642,16 @@ fi
 # paste-able command. `ARM=read` / `ARM=write` narrows stdout for scripted use — the
 # FUP's "separate invocations or a documented key, not two lists concatenated into one".
 # ─────────────────────────────────────────────────────────────────────────────────────
-cat <(cut -f1 "$TMP/pol_create") <(cut -f1 "$TMP/pol_alter") "$TMP/fn_sel_name" "$TMP/fn_sel_prop" \
-  "$TMP/fn_rewrite" \
-  | awk 'NF' | sort -u > "$TMP/cases"
+if [ "$CATALOG_OK" = 1 ]; then
+  # TIER 2 ONLY. Everything the catalog put in another bucket is printed below, never here.
+  cp "$TMP/fn_sweepable" "$TMP/cases_fn"
+  cat "$TMP/pol_resolved" "$TMP/cases_fn" | awk 'NF' | sort -u > "$TMP/cases"
+else
+  # No catalog: the pre-2026-09-05 text-heuristic union, unchanged, under a loud banner.
+  cat "$TMP/fn_sel_name" "$TMP/fn_sel_prop" "$TMP/fn_rewrite" | awk 'NF' | sort -u > "$TMP/cases_fn"
+  cat <(cut -f1 "$TMP/pol_create") <(cut -f1 "$TMP/pol_alter") "$TMP/cases_fn" \
+    | awk 'NF' | sort -u > "$TMP/cases"
+fi
 CASES_LIST="$(tr '\n' ' ' < "$TMP/cases" | sed 's/ *$//')"
 
 # Per-statement command extraction. $TMP/flat is already comment-stripped and newline-
@@ -572,10 +683,8 @@ awk 'BEGIN{RS=";"}
 # ⚠ For a HISTORICAL range the catalog describes HEAD, not that range. A policy dropped and
 # recreated under a different command since then would resolve wrongly; this is announced
 # rather than assumed, and the fallback is over-selection, never under-selection.
-DB="${DOOR_SWEEP_DB:-supabase_db_azkbbhskturikxpgmafq}"
 CATALOG_CMD=0
-if [ -s "$TMP/pol_alter" ] && command -v docker >/dev/null 2>&1 \
-   && docker exec "$DB" psql -U postgres -d postgres -tAc 'select 1' >/dev/null 2>&1; then
+if [ -s "$TMP/pol_alter" ] && [ "$CATALOG_OK" = 1 ]; then
   if docker exec "$DB" psql -U postgres -d postgres -tA -P pager=off \
        -c "select policyname||E'\t'||cmd from pg_policies;" 2>/dev/null \
        | awk 'NF' | sort -u > "$TMP/pol_cmd_live" && [ -s "$TMP/pol_cmd_live" ]; then
@@ -586,8 +695,8 @@ fi
 : > "$TMP/cases_read"; : > "$TMP/cases_write"; : > "$TMP/cases_bothnote"
 while IFS= read -r nm; do
   [ -n "$nm" ] || continue
-  # a function selected by this script is a boolean predicate -> read arm only
-  if grep -qxF "$nm" "$TMP/fn_sel_name" || grep -qxF "$nm" "$TMP/fn_sel_prop"; then
+  # a function in CASES is in the predicate arm's own domain -> read arm only
+  if grep -qxF "$nm" "$TMP/cases_fn"; then
     printf '%s\n' "$nm" >> "$TMP/cases_read"; continue
   fi
   c="$(awk -F'\t' -v n="$nm" '$1==n {print $2; exit}' "$TMP/pol_cmd")"
@@ -623,10 +732,20 @@ show () {  # $1 = file (name<TAB>table or bare name), $2 = heading
 }
 
 rule
+if [ "$CATALOG_OK" = 1 ]; then
+  say "  DOORS — SELECTED BY PROPERTY, RESOLVED AGAINST THE LIVE CATALOG."
+  say "    tier 1  DOORS IDENTIFIED : $(wc -l < "$TMP/tier1" | tr -d ' ')   (RLS policy, or app/public/authz function with prosecdef=t)"
+  say "    tier 2  SWEEPABLE HERE   : $(wc -l < "$TMP/cases" | tr -d ' ')   (tier 1 ∧ PRED_DOMAIN, lifted from $AUDIT) -> this is CASES"
+  say
+fi
 show "$TMP/pol_create" "  POLICIES CREATED  -> in CASES:"
 show "$TMP/pol_alter"  "  POLICIES ALTERED  -> in CASES  (⚠ ruling 3 applies, see below):"
-show "$TMP/fn_sel_name" "  FUNCTIONS SELECTED by NAME -> in CASES:"
-show "$TMP/fn_sel_prop" "  FUNCTIONS SELECTED by PROPERTY (definer + boolean + identity; ADR 0079 Amdt 9) -> in CASES:"
+if [ "$CATALOG_OK" = 1 ]; then
+  show "$TMP/fn_sweepable" "  DEFINER DOORS IN THE ARM'S DOMAIN (prosecdef ∧ PRED_DOMAIN) -> in CASES:"
+else
+  show "$TMP/fn_sel_name" "  FUNCTIONS SELECTED by NAME -> in CASES:"
+  show "$TMP/fn_sel_prop" "  FUNCTIONS SELECTED by PROPERTY (definer + boolean + identity; ADR 0079 Amdt 9) -> in CASES:"
+fi
 
 if [ -s "$TMP/fn_held" ]; then
   say "  ⚠ HELD OUT BY NAME as side-effecting (from $AUDIT's own exclusion list):"
@@ -635,14 +754,56 @@ if [ -s "$TMP/fn_held" ]; then
   say "    opening a gate; the suite would go green for the wrong reason."
 fi
 
-if [ -s "$TMP/fn_excl" ]; then
-  say "  ⛔ EXCLUDED BY NAME — A REVIEW LIST, NOT A DROP. Rule on each one:"
-  while IFS= read -r n; do say "    - $n"; done < "$TMP/fn_excl"
-  say "    The recipe's name filter ($PRED_NAME_RE, minus ^is_valid_) is ACKNOWLEDGED"
-  say "    BLIND, and for an ALTERED gate ARM=census does not backstop it. A function"
-  say "    here is not 'not a gate' — it is 'the filter cannot tell'. If any of these is"
-  say "    an authorization gate, it owes a TARGETED mutation case (the door sweep can"
-  say "    only neutralize a boolean predicate), and the ruling belongs in the gate record."
+if [ "$CATALOG_OK" = 1 ]; then
+  if [ -s "$TMP/fn_unsweepable" ]; then
+    say "  ⛔ DOORS IDENTIFIED, NOT SWEEPABLE BY THIS ARM — each owes a TARGETED case:"
+    while IFS="$(printf '\t')" read -r n why; do [ -n "$n" ] && say "    - $n   ($why)"; done < "$TMP/fn_unsweepable"
+    say "    These ARE doors: the catalog says prosecdef=t. They are outside the arm's"
+    say "    domain, lifted from $AUDIT."
+    say "    ⛔ DO NOT ADD THEM TO CASES= BY HAND. ADR 0079:161-169 hazard 4 — the sweep can"
+    say "       only neutralize what its domain selects, so a requested token it cannot match"
+    say "       makes the WHOLE run UNPROVEN and every verdict in it unusable. The correct"
+    say "       discharge is a TARGETED mutation case, named in the gate record."
+    say "    ⭐ When the arm's PRED_DOMAIN is widened, this script needs NO change: the domain"
+    say "       is lifted, so the widening admits these automatically on the next run."
+  fi
+  if [ -s "$TMP/fn_invoker" ]; then
+    say "  · INVOKER functions (prosecdef=f) — a DIFFERENT harness's class, not a no-op:"
+    while IFS="$(printf '\t')" read -r n why; do [ -n "$n" ] && say "    - $n   ($why)"; done < "$TMP/fn_invoker"
+    say "    Neither door arm begins without \`and p.prosecdef\`. These are swept by"
+    say "    supabase/tests/mutation/p0-authz-invoker-audit.sh — say so in the gate record."
+  fi
+  if [ -s "$TMP/fn_unresolved" ] || [ -s "$TMP/pol_unresolved" ]; then
+    say "  ⚠ UNRESOLVED — named by the diff, ABSENT from the live catalog. NOT in CASES:"
+    while IFS= read -r n; do [ -n "$n" ] && say "    - $n   (no pg_proc row in app/public/authz)"; done < "$TMP/fn_unresolved"
+    while IFS= read -r n; do [ -n "$n" ] && say "    - $n   (no pg_policies row)"; done < "$TMP/pol_unresolved"
+    say "    TWO causes, and they need different actions:"
+    say "      (a) THE MIGRATION IS NOT APPLIED YET — the usual one mid-phase. Run"
+    say "          \`supabase db reset --local\` and re-derive; the sweep reads the same"
+    say "          catalog, so an unapplied gate cannot be swept either way."
+    say "      (b) THE OBJECT NEVER EXISTED, or a LATER migration dropped it (normal on a"
+    say "          historical range; also what a marker naming a TABLE rather than a"
+    say "          function looks like). Then it is an OBLIGATION for the gate record, not"
+    say "          a case: name it and say why no sweep applies."
+    say "    ⛔ Deliberately NOT exit 2: measured, 2 of the last 22 function names resolve to"
+    say "       nothing because a later migration dropped them, so aborting here would abort"
+    say "       ordinary historical ranges."
+  fi
+else
+  say "  ⚠ NO LIVE CATALOG — PROVISIONAL DERIVATION ($CATALOG_WHY)."
+  say "    Doors could not be resolved, so this run falls back to the pre-2026-09-05 TEXT"
+  say "    heuristics: the name filter below is the boundary again, and the tier split that"
+  say "    keeps unsweepable tokens out of CASES did not run. ⛔ Start the local stack and"
+  say "    re-derive before recording this list as derived-by-property."
+  if [ -s "$TMP/fn_excl" ]; then
+    say "  ⛔ EXCLUDED BY NAME — A REVIEW LIST, NOT A DROP. Rule on each one:"
+    while IFS= read -r n; do say "    - $n"; done < "$TMP/fn_excl"
+    say "    The recipe's name filter ($PRED_NAME_RE, minus ^is_valid_) is ACKNOWLEDGED"
+    say "    BLIND, and for an ALTERED gate ARM=census does not backstop it. A function"
+    say "    here is not 'not a gate' — it is 'the filter cannot tell'. If any of these is"
+    say "    an authorization gate, it owes a TARGETED mutation case (the door sweep can"
+    say "    only neutralize a boolean predicate), and the ruling belongs in the gate record."
+  fi
 fi
 
 if [ -s "$TMP/pol_orphan" ]; then
@@ -697,15 +858,47 @@ fi
 # ─────────────────────────────────────────────────────────────────────────────────────
 rule
 if [ -z "$CASES_LIST" ]; then
-  say "=== RESULT: FINDING (1) — the diff TOUCHED $MIGDIR and ZERO cases were derived. ==="
-  say "    ⛔ ADR 0079 Amendment 8 ruling 2: this is NOT a pass. 'The recipe printed"
-  say "       nothing' and 'the phase changed no gate' are different claims, and only"
-  say "       the second one may be recorded — after someone checks it."
-  say "    You owe ONE of these, before the gate record is written:"
-  say "      (a) widen the selection — name the gate(s) in CASES= by hand and sweep them"
-  say "          (start from the EXCLUDED-BY-NAME review list above, if any); or"
-  say "      (b) STATE IN THE GATE RECORD that these migrations contain no RLS policy"
-  say "          and no prosecdef gate — as a claim someone can check, not as a silence."
+  NDOORS="$(wc -l < "$TMP/tier1" | tr -d ' ')"
+  if [ "$CATALOG_OK" = 1 ] && [ "$NDOORS" != "0" ]; then
+    # ── SUB-CASE (ii): the loud one. Doors exist; this arm cannot sweep any of them. ──
+    say "=== RESULT: FINDING (1) — DOORS IDENTIFIED: $NDOORS.  SWEEPABLE BY THIS ARM: 0. ==="
+    say "    ⛔ This is NOT 'the migration changed no gate'. The live catalog resolved"
+    say "       $NDOORS door(s) in this diff — they are listed above with the reason each one"
+    say "       is outside the arm's domain, and obligation (b) below is therefore"
+    say "       PROVABLY FALSE for this diff. Do not write it."
+    say "    You owe, before the gate record is written:"
+    say "      · a TARGETED mutation case for each door above (the door sweep can only"
+    say "        neutralize what PRED_DOMAIN selects), named in the record; or"
+    say "      · the ruling that a listed object is not an authorization decision — as a"
+    say "        claim someone can check against the same catalog."
+    say "    ⛔ Do NOT put them in CASES= to make this exit 0. ADR 0079:161-169 hazard 4:"
+    say "       a requested token the arm cannot match turns the WHOLE sweep UNPROVEN."
+  elif [ "$CATALOG_OK" = 1 ]; then
+    # ── SUB-CASE (i): checkable, and now catalog-resolved rather than filter-silent. ──
+    say "=== RESULT: FINDING (1) — NO DOORS AT ALL: the catalog resolved 0 in this diff. ==="
+    say "    ⛔ ADR 0079 Amendment 8 ruling 2: still NOT a pass, because it is still a claim."
+    say "       What CHANGED is that the claim is now checkable rather than a filter's"
+    say "       silence: every name the diff produced was resolved against pg_policies and"
+    say "       pg_proc.prosecdef, and none is a door. Any UNRESOLVED block above is the"
+    say "       part of that claim you must still discharge."
+    say "    You owe ONE of these, before the gate record is written:"
+    say "      (a) widen the selection — name the gate(s) in CASES= by hand and sweep them; or"
+    say "      (b) STATE IN THE GATE RECORD that these migrations contain no RLS policy"
+    say "          and no prosecdef gate — which this run supports, catalog-resolved."
+  else
+    # ── SUB-CASE (iii): no catalog, so the pre-2026-09-05 wording is the honest one. ──
+    say "=== RESULT: FINDING (1) — the diff TOUCHED $MIGDIR and ZERO cases were derived. ==="
+    say "    ⛔ ADR 0079 Amendment 8 ruling 2: this is NOT a pass. 'The recipe printed"
+    say "       nothing' and 'the phase changed no gate' are different claims, and only"
+    say "       the second one may be recorded — after someone checks it."
+    say "    ⚠ NO LIVE CATALOG this run ($CATALOG_WHY), so 'no door' has NOT been checked —"
+    say "      only the name filter has spoken. Start the local stack and re-derive."
+    say "    You owe ONE of these, before the gate record is written:"
+    say "      (a) widen the selection — name the gate(s) in CASES= by hand and sweep them"
+    say "          (start from the EXCLUDED-BY-NAME review list above, if any); or"
+    say "      (b) STATE IN THE GATE RECORD that these migrations contain no RLS policy"
+    say "          and no prosecdef gate — as a claim someone can check, not as a silence."
+  fi
   say "    ⚠ There is no ACK env var to make this exit 0. An escape hatch for the"
   say "      unmeasurable also silences the measured."
   rule
