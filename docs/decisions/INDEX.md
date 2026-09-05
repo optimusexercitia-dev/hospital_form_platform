@@ -18,7 +18,7 @@
 
 - **Missing numbers:** 0034, 0077 — a gap is not automatically a defect (0077 was withdrawn by the PO and its subject re-filed as 0078; 0034 was never used), but a gap nobody can explain usually means a lost file.
 - **No parseable `Status:`:** none
-- **Still proposed / draft / deferred (9):** 0022, 0031, 0033, 0058, 0094, 0108, 0115, 0160, 0189 — an ADR's status is the author's claim on the day it was written, and nothing updates it when the code ships. The last review of this list is stamped in `proposed-review.json`; gate 9 reds when that review is more than 30 days old or this set has drifted from it.
+- **Still proposed / draft / deferred (8):** 0022, 0031, 0033, 0058, 0094, 0108, 0115, 0160 — an ADR's status is the author's claim on the day it was written, and nothing updates it when the code ships. The last review of this list is stamped in `proposed-review.json`; gate 9 reds when that review is more than 30 days old or this set has drifted from it.
 
 ## Index
 
@@ -210,4 +210,4 @@
 | 0186 | [Documentation consolidation: one home per fact, one summary and one log per unit](0186-documentation-consolidation-one-home-per-fact.md) | accepted | 2026-09-03 | amends 0179, 0185 | – |
 | 0187 | [C2 closes on DISCLOSURE, its BLIND set is labelled by PROPERTY, and three of ADR 0184's…](0187-c2-closes-on-disclosure-and-the-blind-set-is-labelled-by-property.md) | accepted | 2026-09-04 | amends 0184 | – |
 | 0188 | [A closure tally may be COMPOSITED across suite shapes, and must be stated as one](0188-a-closure-tally-may-be-composited-across-suite-shapes.md) | accepted | 2026-09-04 | – | – |
-| 0189 | [One crash-safety protocol across the mutation harnesses: a verified restore, a bounded…](0189-one-crash-safety-protocol-across-the-mutation-harnesses.md) | ⚠ proposed | 2026-09-04 | amends 0153, 0171 | – |
+| 0189 | [One crash-safety protocol across the mutation harnesses: a verified restore, a bounded…](0189-one-crash-safety-protocol-across-the-mutation-harnesses.md) | accepted | 2026-09-04 | amends 0153, 0171 | – |

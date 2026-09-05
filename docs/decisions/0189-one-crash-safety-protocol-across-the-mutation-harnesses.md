@@ -1,6 +1,6 @@
 # ADR 0189 — One crash-safety protocol across the mutation harnesses: a verified restore, a bounded sweep, and both preconditions of a verdict
 
-**Status:** proposed
+**Status:** accepted (PO approved the unit 2026-09-04 at `fc33a497`; ADR accepted at the Record step)
 **Date:** 2026-09-04 (unit HARNESS-CRASH-SAFETY, Batch 0 of the pre-AE5 follow-up batches)
 **Area:** authorization / mutation harnesses / crash safety
 **Amends:** ADR [0171](./0171-c2-tier1-regrain-and-the-command-door-neutralizer.md) (the C2
