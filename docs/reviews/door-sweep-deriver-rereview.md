@@ -1,0 +1,310 @@
+# ❌ VERDICT: CHANGES REQUESTED
+
+**Unit:** DOOR-SWEEP-DERIVER (pre-AE5 remediation, Batch 1) — **re-review, iteration 1**
+**Reviewed tree:** `authz-door-sweep-deriver` @ `7e1f0d62` (clean; `7df0bd9b..7e1f0d62` = my first
+review + four fix-loop commits)
+**First review:** [`door-sweep-deriver-review.md`](./door-sweep-deriver-review.md) @ `de955981`
+— CHANGES REQUESTED, 1 BLOCK / 6 MAJOR / 8 REC / 5 could-not-verify. That file keeps its header
+as history; this one supersedes its verdict.
+**Reviewer:** `qa` · 2026-09-05 · read-only on all code; this file is the only artifact written.
+Every merge run was on **copies under the scratch dir**; every exit code below was read **bare**.
+
+Claims are labelled **MEASURED** (I ran it in this review) or **INFERRED** (read, not executed).
+
+---
+
+## Summary
+
+**F-BLOCK-1 is genuinely fixed, and the fix is proven able to fail by something better than a
+knob.** I reproduced all three of my own witnesses against the new helper: 0 bytes of
+hand-authored prose lost, 0 lines lost, and the material that used to vanish now either survives
+in place or is carried verbatim. More importantly, the three outputs the **pre-fix helper
+actually wrote** are committed as fixtures, and I confirmed by `cmp` against
+`git show de955981:scripts/lib/merge-findings-baseline.sh` that they are genuine historical
+artefacts — then watched the current verifier reject all three at **rc 2** while accepting its
+own output at **rc 0**. That is a real discrimination control on real losses, not a simulation.
+
+All six MAJORs and all eight RECs are fixed, and I re-measured each one rather than reading the
+record. The four could-not-verify items that were answerable were answered **by measurement**,
+and one of them (#2) **refuted the assumption the splice rule rested on** — the builder found
+this and changed the rule rather than defending it.
+
+**What blocks is what the fix loop did not re-read.** Commits `6474a625` and `4d5c6bd9` rewrote
+the merge helper from scratch and changed the marker parser's discriminator. Commit `3139b49a`
+then edited ADR 0190 in **six hunks** — and **D8 and D9, the two sections that describe the
+component that was rewritten, are not among them** (MEASURED: `git diff de955981..7e1f0d62 --`
+on the ADR touches `@@ -59`, `-114`, `-168`, `-188`, `-197`, `-333`). ADR 0190 as committed
+therefore describes a merge helper that no longer exists — including, verbatim, the clause whose
+implementation *was* the blocking defect — and D5's body plus the archived closure still state
+the superseded parser rule. This is the unit's own thesis failing inside the unit: *"text is not
+truth"*, *"a paraphrase can invert the sentence it summarizes"*, *"only the amending document
+knows about the amendment"*.
+
+It is **documentation-only**: no code change, no gate re-run, no new measurement — every fact
+needed is already in the record. I am keeping it in the review loop rather than handing it to the
+Record step because this loop has already produced one unreviewed doc edit that went the wrong
+way (the record's own disclosure: the first pass of F-REC-6 "reconciled" 37 vs 39 by taking 39
+**without measuring**).
+
+---
+
+## Disposition — every first-review finding
+
+| # | finding | disposition | the measurement |
+|---|---|---|---|
+| **F-BLOCK-1** | merge helper silently destroys hand-authored material | ✅ **FIXED** | **MEASURED, all three witnesses rebuilt from the committed baselines, not from fixtures.** **A** (door baseline vs. a generated file with the two hand rows' notes reduced): bare rc **0**, `can_manage_professional` **1106 → 1106 B, byte-identical**; `is_signoff_deferral_open` 727 → **726 B**, the 1 byte being a hand-added space *inside the generator's own file list*, with the 580-byte hand suffix byte-exact (see F2-REC-1). 924 → **924** lines. **A′** (verdict flipped so the row takes CARRY): rc 0, the whole 1105-byte baseline row present verbatim in the CARRIED block, closing sentence intact. **B** (invoker baseline, generated file with `:158-161` removed): rc 0, 165 → **165** lines, output `cmp`-**identical to the baseline**, all four hand-table lines present, reported as `PRESERVED 4 hand-authored prose line(s)`. **C** (empty-note hand row): rc 0, carried verbatim, and so is its sibling. Classification re-derived from code: `grammar_from_generated` (`:220-233`) emits H/V/K **from `$GENERATED`**; `grep -nE 'COVERED\|BLIND\|ERROR\|app\.'` over the helper's non-comment lines returns **0** — nothing hand-listed. Step 5's protected set is `grep -v "^\001ROW\001" "$T/b_norm"` (`:414`), i.e. the complement over the **whole** baseline — proven by witness B, whose lost items print as `PROSE: \| gate \| evidence \| reading \|`. |
+| | *— can a hand row mimicking the generator's shape be misclassified?* | ⚠ **YES, and it costs placement, never bytes** | **MEASURED.** I appended to the `D-real-generator` baseline a hand section holding two rows in the generator's exact 5-column shape, using a real key (`app.is_signoff_deferral_open`) and a real verdict token. Both were classified as rows and **relocated into the CARRIED block** — present verbatim, rc 0, nothing lost. The ordinal keying is what saves it: a third occurrence of a key cannot collide with the generator's first two. Acceptable; noted as F2-REC-2. |
+| | *— discrimination* | ✅ **PROVEN, on real historical losses** | **MEASURED.** `git show de955981:…merge-findings-baseline.sh` run over the three committed pairs produces output **`cmp`-byte-identical** to the committed `*.prefix-output.md` fixtures — they are genuine artefacts, not hand-written. Fed to the current verifier via `MERGE_VERIFY`: **rc 2 ×3**, naming `SUFFIX: ⭐ **THIS ROW WAS \`ERROR \| run-shape!=baseline\`…`, `PROSE: \| gate \| evidence \| reading \|`, `CARRIED ROW: \| app.handrow_empty_note…`. Positive control — the new helper's own output on all **five** pairs → **rc 0**. |
+| | *— is `MERGE_VERIFY` the same verifier path?* | ✅ **THE SAME, not a parallel one** | **MEASURED by reading.** `VERIFY_ONLY` copies the candidate over `$T/merged` at `:465`, **after** the expectation sets (`hand_prose`, `suffixes`, `carried_rows`) are computed from the two inputs at `:414-428` and **before** the single `: > "$T/lost"` block at `:469-507`. There is exactly one verification block in the file; steps 1–4 still run and are discarded. The row-key check (`:476-479`) runs on the candidate too. |
+| **F-MAJOR-1** | `SCOPE:` cannot distinguish catalog from provisional | ✅ **FIXED, and better than asked** | **MEASURED**, same range `731abda0^..4d5c6bd9`, same filter, both bare rc 0: catalog → **18** cases, `… \| derivation: catalog`; `DOOR_SWEEP_DB=nonexistent…` → **39** cases, `… \| derivation: PROVISIONAL (no catalog — text heuristics; the tier split did NOT run)`. **Three** states, not two — the builder found on his own that a two-state version put a PROVISIONAL badge on a run that never probed; the NOT-APPLICABLE path prints `derivation: NOT REACHED (this run ended before the catalog was probed)`, which I reproduced. |
+| **F-MAJOR-2** | `SCOPE:` missing on exit 1 and exit 2 | ✅ **FIXED STRUCTURALLY** | **MEASURED.** `finish <rc>` is the only way out (`:150-153`), **18** call sites. Reproduced, one `SCOPE:` line each: `BASE=9a4bbd22^ TIP=9a4bbd22` → rc **1**, `SCOPE: 1 file(s) — 1 committed (9a4bbd22^..9a4bbd22) … derivation: catalog`; `ARM=bogus` → rc **2**, `SCOPE: (none — this run ABORTED before the file set was built) \| filter: n/a \| derivation: NONE`; `BASE=7df0bd9b^ TIP=7df0bd9b` → rc **3**, `0 file(s) … derivation: NOT REACHED`. `grep -n 'exit [0-9]'` → **9** hits: 8 prose + the awk `END { if (!found) exit 9 }` at `:231`. Property holds; the record's count is off by one (F2-REC-3). |
+| **F-MAJOR-3** | bare schema prefix ends the declaration silently; the parse error is dead code | ✅ **FIXED** | **MEASURED on my own four-line example**, in a throwaway `git init` repo with a `cmp`-verified deriver copy: bare rc **0**, `CASES = can_sign_section is_admin`, stderr carries `… PARSE ERROR(S) — named, and the run continues:` / `…f09.sql:2: schema prefix with no function name` and `UNRESOLVED … - is_commission_admin_of (no pg_proc row in app/public/authz)`. **The UNRESOLVED landing is the RIGHT outcome and I verified the premise rather than accepting it:** `select … from pg_proc where proname ~ 'commission_admin'` on `supabase_db_azkbbhskturikxpgmafq` returns **0 rows**, so that token cannot reach `CASES` by any correct path — UNRESOLVED is the only branch that can witness the parser read past the break. **LOUD:** file:line, a named reason, and the token itself, in two separate stderr blocks. ⚠ The exit code is unchanged at 0 (F2-REC-4). |
+| | *— regression on the committed tree* | ✅ **NONE** | **MEASURED.** All 11 marker-bearing migrations in one commit of a throwaway repo, run by the tip deriver and by `de955981`'s (both `cmp`-verified copies): both bare rc **0**, both **17** cases, case lists **byte-identical** by `diff`, **0** parse errors on both. The two bare-`--` migrations (`…007180`, `…007190`) still parse. |
+| **F-MAJOR-4** | nothing tests the merge helper; `MERGE_FAULT` ungated | ✅ **FIXED, and the negative control is the strongest thing in the unit** | **MEASURED.** `SELFTEST=1 bash scripts/door-sweep-cases.sh` → bare rc **0**, `SELF-TEST: PASS 34 · FAIL 0 · SKIPPED 0`, catalog **REACHABLE** (`supabase_db_azkbbhskturikxpgmafq`) — 16 deriver + 18 merge scenarios, all fixtures committed (`git ls-files` shows 13 `.sql` + README + 13 `merge/*.md`). **Negative control reproduced independently:** a mirror ROOT under the scratch dir holding `cmp`-verified copies of the tip deriver, the tip selftest and the tip fixtures, with **only** the helper replaced by a `cmp`-verified `git show de955981:` copy → bare rc **1**, **PASS 21 · FAIL 13**, exactly the record's claim. The 5 idempotence scenarios pass on both, which is correct: the pre-fix helper was idempotent, just lossy. **Gating:** `MERGE_VERIFY` and `MERGE_FAULT` without `SELFTEST=1` → bare rc **2**, `MERGE_FAULT/MERGE_VERIFY are SELF-TEST knobs and SELFTEST is not 1. Refusing to run…`. **Nothing-to-inject:** aborts (`inject_fail`, `:435`/`:448`). **Injection proven landed:** `cmp -s "$T/merged.pre" "$T/merged" && inject_fail "…the victim was never found in it"` (`:457`), and the victim now travels through `ENVIRON` — the record discloses that the first attempt used `awk -v`, which decodes `\|`, matched nothing, and printed `FAULT INJECTED` anyway. The suite caught it; the pre-fix run of that scenario reproduces the catch for me (`FAIL … the injection must be cmp-verified as landed`). |
+| **F-MAJOR-5** | a merge abort does not reach the exit code | ✅ **FIXED** | **MEASURED by tracing every exit.** `door` and `writepath`: `MERGE_FAILED` is the **first** branch of the graded block (`door:977-982`, `writepath:1411-1416`) → `=== RESULT: ERROR — the findings MERGE ABORTED…`, **exit 2**, ahead of the verdict counts, which still print. `rowdoor:468-475` and `invoker:600-607` get minimal propagation → exit 2, else exit 0. **No path where an aborted merge ends 0:** every `exit` between the merge call and the graded block is an `exit 2` contamination abort (`door:865/877/917/928`, `writepath:1228/1240/1333/1345/1351`, `rowdoor:428`, `invoker:560`); `invoker:489`'s `exit 0` is the **DRY RUN**, which never reaches `emit_report` (`record()` guards it with `[ "$DRYRUN" = "1" ] \|\| emit_report`); every `exit 3`/`exit 1` sits **before** the merge call. The EXIT traps end on `verify_baseline_untouched \|\| exit 2`, which preserves the status when it returns 0. Hazard text updated (`door-sweep-cases.sh:1253-1256` region). |
+| **F-MAJOR-6** | ADR 0190 `:63-64` — 3+1+21 ≠ 42 | ✅ **FIXED, re-measured not patched** | **MEASURED independently.** The ADR now reads 18 + 21 + 1 + 2 = **42**, with a visible dated correction block naming the transposition. My own run on `731abda0^..4d5c6bd9`: **18** CASES on stdout, `grep -c 'outside PRED_DOMAIN'` = **21**, INVOKER = **1** (`save_section_answers`), UNRESOLVED = **2** (`form_item_options`, `form_item_validations`). Sum **42**. |
+| **F-REC-1** | citations against a moving `HEAD` | ✅ **FIXED where scoped** | **MEASURED.** ADR 0190 and `door-sweep-cases.sh` (`:691`, `:842`) now pin `731abda0^..4d5c6bd9`; the ADR line 227 quotes the SCOPE line **byte-identical** to my own run. The record's earlier dated session-log entries keep `..HEAD` — correct (append-only history) and disclosed at `:669`, which also flags five more in the archive as out of scope. |
+| **F-REC-2** | `8 line(s)` for a 9-line block | ✅ **FIXED** | **MEASURED:** my rc-3 run prints `PRED_DOMAIN lifted whole (9 line(s)), 3 sub-vars expanded, no residual $`. |
+| **F-REC-3** | `eval` on the lift-validation loop | ✅ **FIXED** | `:244` is `val="${!v}"`; the only remaining `eval` tokens are a comment and a warning string. |
+| **F-REC-4** | the self-test is run by nobody | ⏳ **CORRECTLY DEFERRED** | `git diff --name-only main...7e1f0d62 -- .claude/rules docs/lead-playbook.md CLAUDE.md` → **empty** (MEASURED). This is the lead's edit at the Record step. Until it lands, 34 scenarios exist that no gate invokes. |
+| **F-REC-5** | one all-negative scenario | ✅ **FIXED** | Scenario 5 now also asserts the fixture was SCANNED (`05_alter_function_owner_to` in stderr) and that the run reached `NO DOORS AT ALL`. |
+| **F-REC-6** | 37 vs 39, same file same day | ✅ **FIXED BY MEASUREMENT** | **I re-measured the file myself, three ways.** Counting column 5 of the committed door baseline for any of `⭐ ⚠ ⛔ ** [merged`: **37** under a capped escape-aware split, **37** naive, **37** symbols-only. The helper's 37 was right; the record's 39 was stale — and the record discloses that the first pass of this fix took 39 *without measuring*. ⚠ The accompanying "399 verdict rows" does not reproduce (F2-REC-5). |
+| **F-REC-7** | a paraphrase inside a code fence | ✅ **FIXED** | **MEASURED:** the record's replacement block (`:447-460`) is structurally byte-identical to my own rc-3 run's stderr tail — `migrations : 0 file(s) touched` → rule → `=== RESULT: NOT-APPLICABLE (3) …` → the four explanatory lines → blank → `SCOPE:` → the two `0 case(s)` lines → rule. Same order as `say()`. |
+| **F-REC-8** | no fixture `09` | ✅ **FIXED** | `09-marker-dangling-prefix.sql` is committed and holds my own four-line example verbatim; numbering is contiguous `01`–`13`; the README explains the slot was closed rather than left to read as a deletion. |
+
+---
+
+## My five could-not-verify items — answered
+
+1. **`test:db` and the four arms at the tip.** ✅ **SETTLED by the builder, and it is the right
+   kind of settling — re-run, not argued.** The iteration-1 gate table (record `:677-687`) is on a
+   fresh `supabase db reset --local` (bare rc 0) with `git status --short` empty, every code bare:
+   lint **0**, typecheck **0**, `test:db` **0** with `Files=262, Tests=8876, PASS` (byte-for-byte
+   the `62829c79` shape, compared as a **shape** because the parked `FUP-PGTAP-WORKER-DEADLOCK`
+   keeps `Files` while losing assertions), census **0** with the domain enumerated
+   (`live authz gates (catalog): 581`, `gates carrying a verdict: 625`), hat **0** (`7/7 OK`),
+   floor **0** (`63` never-called doors, all allowlisted), wrapper **0** (`BLIND set size: 41`).
+   **Evidence quality: good and improved** — the earlier table gave verdict strings only; this one
+   gives the enumerated domain beside each verdict, which is §7.17's own rule. **INFERRED** (I am
+   not permitted to run them). ⚠ One asymmetry: the hat row quotes `self-test: 7/7 OK`, which is
+   the arm's *instrument control*, not what it enumerated — the earlier table's
+   `4 finding(s), all reasoned-allowlisted` was the domain half and was dropped (F2-REC-6).
+   **The wrong-stack disclosure:** the record admits a post-run catalog check first hit
+   `supabase_db_escalume` because `docker ps | grep supabase_db | head -1` chose it, and states the
+   re-run against `supabase_db_azkbbhskturikxpgmafq`. **I re-ran it myself, MEASURED:** degenerate
+   non-SELECT policies (`qual='true' or with_check='true'`) → **0 rows, enumerated not counted**;
+   `%INFLIGHT%` functions → **0**. And the disclosure checks out: both stacks are running, and
+   `supabase_db_escalume` has **1** of `{app, authz}` where this project has **2** — its "0" was
+   indeed a claim about another database.
+2. **The merge against a REAL generator's output.** ✅ **SETTLED, and it REFUTED my premise.** My
+   witness A assumed the generator emits the file list as a byte prefix of the committed note. It
+   does not: **0 of 2**. I verified the committed `D-real-generator` fixture against the committed
+   baseline myself — `cmp` puts the first divergence at **char 21** for
+   `is_signoff_deferral_open` (the record's 0-based "byte 20": a hand-added space after a comma)
+   and **char 423** for `can_manage_professional` (real content spliced into the list). **The
+   fixture is evidence of a real run, not a construction:** its generated row names
+   `413_ae4_authorized_scope_ids.sql`, which appears **0** times in the committed baseline and
+   **does** exist in `supabase/tests/` — it could not have been derived from the baseline. The
+   splice is now whitespace-tolerant (`wsprefix`, `:190-204`), which recovers the first row's
+   580-byte note; the second correctly carries whole. **Consequence — I measured the bound rather
+   than accepting "most":** of the **37** hand-annotated column-5 rows in the door baseline,
+   **2** carry unconditionally (a `.sql` token sits inside/after the annotation, so the list is
+   interrupted), **24** splice **iff** the generator's list for that gate is still a
+   whitespace-prefix — any file the suite has added since forces a carry — and **11** have no file
+   list at all, so the generated note is empty, the whole note becomes the suffix and it splices.
+   So the door baseline's realistic CARRIED block is bounded by **2 ≤ n ≤ 26** hand-annotated
+   rows, plus every gate absent from the run's domain. The builder's "most will be CARRIED" is
+   **INFERRED** but the mechanism is named and sound (the suite grew from `Files=156`/`218` in
+   those notes to `262`). **Yes, the PO should be told before Batches 2–3** — see the disposition.
+3. **Rotation fidelity for the sixth closure.** ⏳ **UNCHANGED, and correctly left as a PO eye.**
+   The sixth follow-up was filed and closed in the same commit, so 2 of the 12 claimed `cmp`
+   comparisons still have no prior committed state. Self-disclosed in the entry. Not a blocker.
+4. **`MERGE_FAULT`'s abort proof on realistic inputs.** ✅ **SETTLED, and superseded by something
+   stronger.** All three knobs are now self-test scenarios over committed inputs — including
+   `drop-suffix` against the **real door rows** — and each aborts at bare rc **2**. The knob is no
+   longer the proof: the three committed pre-fix outputs are, and they are historical losses.
+5. **`20261003004300`'s `alter function` derivation, end to end.** ✅ **SETTLED — I ran it.**
+   `BASE=89793d43^ TIP=89793d43` → bare rc **1**, stdout **0 bytes**,
+   `⚠ ALTERED BY 'alter function … security definer' — ruling 3's logic, one branch over:` with
+   `assert_hospital_affiliation_has_org`, `tier 1 DOORS IDENTIFIED : 1`, and the exclusion printed
+   as `assert_hospital_affiliation_has_org (prosecdef, returns trigger — outside PRED_DOMAIN)`.
+
+---
+
+## F2-BLOCK-1 — ADR 0190 D8/D9 (and D5's body, option E, and the archived closure) describe mechanisms this fix loop replaced
+
+**This is the only blocking item, it is documentation-only, and it needs no re-measurement.**
+
+The fix loop rewrote `scripts/lib/merge-findings-baseline.sh` and changed the marker parser's
+discriminator, then edited ADR 0190 in six hunks — **none of them D8 or D9**. MEASURED:
+`git diff de955981..7e1f0d62 -- docs/decisions/0190-*.md` touches `@@ -59`, `-114`, `-168`,
+`-188`, `-197`, `-333` only.
+
+### (a) D8's decision table describes the pre-fix helper — including the defect
+
+`docs/decisions/0190-…-a-full-run-merges.md:272-278`, checked clause by clause against
+`scripts/lib/merge-findings-baseline.sh`:
+
+- *"column 5 identical | nothing hand-authored — emitted"* — the code tests the **whole row**
+  (`if (brow[key] == grow)`, `:301`). With column 5 identical but a hand edit in columns 1–4 it
+  does **not** emit; it carries.
+- *"verdict UNCHANGED and the baseline note **starts with** the generated note → spliced back
+  byte-for-byte"* — the code additionally requires **columns 1–4 identical** (`same14`, `:309-311`)
+  and "starts with" is now **up to whitespace** (`wsprefix`). That is not a detail: my
+  could-not-verify #2 measured **0 of 2** rows as byte-exact prefixes, so the ADR's predicate,
+  read literally, would evict a 580-byte hand note from the table over one space.
+- *"verdict CHANGED … the note is **CARRIED** with `old -> new`"* — the code carries the
+  **whole baseline row** verbatim (`carry_row(…, brow[key])`), and this branch also fires for a
+  hand-edited column 1–4, which the ADR does not mention.
+- ⛔ *"key only in the baseline | the row is removed and **the note carried**"* — **this is the
+  defect.** Gating the carry on the note is exactly what made witness C vanish. The code now
+  carries the whole row and says so in a `⛔ NOT gated on a non-empty note` comment (`:326-328`).
+  A closure (`FUP-DOOR-SWEEP-FULL-RUN-DESTROYS-HAND-MERGED-ANNOTATIONS`) that points at D8 as its
+  design is pointing at the bug.
+- D8 records **none** of the three rules the fix turns on: unescaped-and-capped column splitting;
+  the grammar **derived from the generated file**; and the protected set as the complement over
+  the **whole** baseline. The section is titled *"The property is the COMPLEMENT, not a pattern
+  list"* — and at the time it was written the complement was **not** computed over `| `-leading
+  lines. That is now true, and unrecorded.
+
+### (b) D9's "proven able to fail" omits what actually proves it
+
+`:287-298` lists `MERGE_FAULT=drop-hand-block / drop-suffix (self-test only)` — there are now
+**three** knobs (`drop-carried-row`), "self-test only" is now **enforced** rather than
+aspirational (that was F-MAJOR-4), and `MERGE_VERIFY` plus the three committed pre-fix outputs —
+the primary discrimination control, and the best thing in this iteration — appear **nowhere** in
+the ADR. D9 also omits carried rows from the survival set it enumerates.
+
+### (c) D5's body still states the superseded parser rule, and option E states a false one
+
+`:182-186`: *"A `--` line carrying ≥1 `(app|public|authz).name` token is a continuation … a `--`
+line with **no** such token ends the declaration silently."* The amendment appended immediately
+below (`:193+`) says the opposite and is correct — *"a continuation if it carries a SCHEMA
+PREFIX, not if its tokens parse"* — but the body sentence it contradicts was left standing rather
+than re-measured the way P3 was, so D5 states both rules. And `:367-368`, in Considered options
+E: *"the loud case is narrowed to a token that fails to parse"* — **false**: the loud case now
+includes a bare schema prefix, which is not a token at all. `scripts/door-sweep-cases.sh:581`
+gets it right (`CONSUME-OR-STOP, PREFIX-BEARING`); the ADR has one of each.
+
+### (d) The archived closure describes the superseded rule as the adopted one
+
+`docs/followups/follow-ups-archive.md:9128-9130` and `:9137` — *"a `--` line carrying at least one
+`(app|public|authz).name` token is a continuation … a `--` line with none ends the declaration"*
+and *"the rule adopted is **consume-or-stop, token-bearing**"*. Both are now wrong; the
+discriminator is the prefix. This closure is dated **today**, on an unmerged branch — it is not
+yet history, and correcting it now is cheap.
+
+**Why this blocks rather than waits for the Record step.** The mitigations are real — fixture 09
+and self-test scenarios C and D would red on anyone who re-implemented from the stale text — and
+I weighed them. What tips it is that the fix loop was *specifically re-reading this document*
+when it missed the two sections describing the thing it had just rewritten; that the missed
+clause is the one whose implementation was the blocking bug; and that this loop has already
+produced one unreviewed documentation edit that went backwards. **Required:** correct D8's table
+and add the three rules, correct D9's knob list and name `MERGE_VERIFY` + the committed pre-fix
+outputs, re-measure D5's body sentence and option E, and amend the archive clause with a dated
+line (do not rewrite it silently). No code, no gate.
+
+---
+
+## New recommendations (non-blocking)
+
+- **F2-REC-1 — the splice normalises hand whitespace inside the generator's own region.**
+  MEASURED: witness A's `is_signoff_deferral_open` row comes back **726 B** against 727 — the lost
+  byte is a hand-added space in `10_immutability.sql, 367_…` that the generator writes without
+  one. The 580-byte hand suffix is byte-exact. This is the deliberate, measured trade-off
+  documented at `:180-189`, and it is the right one; it is also the one thing in the unit that is
+  *not* byte-for-byte preservation, and the header's own headline property
+  (`HAND-AUTHORED = any line … the generator did not produce`) does not admit it. One sentence in
+  the header would close the gap between the property as stated and the property as built.
+- **F2-REC-2 — a hand row that mimics the generator's shape is relocated, not preserved in place.**
+  MEASURED (above). Nothing is lost and the verifier enforces that, but a hand-written analysis
+  line using a real gate key and a real verdict token leaves its section and lands in CARRIED. The
+  CARRIED comment tells the reader to re-file, so the outcome is recoverable; worth one line in
+  the header so it is a documented consequence rather than a surprise.
+- **F2-REC-3 — the record's structural-assertion count is off by one.** `docs/progress/…:564`
+  says `grep -n 'exit [0-9]'` returns **8** hits (7 prose + one awk). MEASURED: **9** — 8 prose
+  + `:231`. Also 9 at `4d5c6bd9`, so it is not commit drift. The *property* holds and the script's
+  own header states it without a number; only the record carries the wrong count.
+- **F2-REC-4 — a named parse error does not change the exit code.** MEASURED: fixture 09 derives
+  at bare rc **0** with one named `PARSE ERROR`. Correct for a comment-level defect, and the
+  self-test pins it deliberately — but a caller that reads only the bare code cannot see that a
+  declaration was malformed. Worth one line in the exit-code contract saying so explicitly.
+- **F2-REC-5 — "399 verdict rows" does not reproduce.** `merge-findings-baseline.sh:27` and record
+  `:613`. MEASURED on the committed door baseline: **401** well-shaped `| ` rows (400 with 6
+  unescaped separators, 1 with 7), **0** with an empty column 1. The load-bearing **37**
+  reproduces three ways; the row total does not. It is the same sentence that was just corrected.
+- **F2-REC-6 — the hat arm's gate row quotes its self-test, not its domain.** Record `:683` gives
+  `self-test: 7/7 OK`; the `62829c79` table gave `4 finding(s), all reasoned-allowlisted`. §7.17's
+  rule is the domain beside the verdict — census, floor and wrapper rows do that, hat does not.
+- **F2-REC-7 — the hub's `adrs:` frontmatter omits 0190.** `docs/features/door-sweep-deriver.md:12`
+  lists `["0079","0148","0153","0173","0182"]` — not the unit's own ADR. No gate catches it
+  (`lint:registers` bare rc 0). One-token fix at the Record step.
+
+---
+
+## Could not verify — each is a work item, not a pass
+
+1. **`npm run test:db` and the four authz arms at `7e1f0d62`.** Not permitted, not run. I accept
+   the iteration-1 table as evidence — it is a real re-run at the tip on a fresh reset with bare
+   codes and enumerated domains, which is what I asked for — but it is the builder's measurement,
+   not mine. What I did re-run at the tip myself: `npm run lint` → bare rc **0** (eslint 0/0, all
+   13 gates), `npm run lint:registers` → bare rc **0** with ratchets unchanged
+   (`closesWhenPoToRule=137/147`, `severityPerEmoji=128/135`, `longHeadings=91/97` — **lowered or
+   equal, never raised**), and the two read-only catalog checks above.
+2. **The merge against a FULL generator's output.** Still open, and now precisely bounded rather
+   than open-ended. The `D-real-generator` fixture settles the **2-row** case with real bytes; the
+   401-row case is unmeasured, and my 2/24/11 split of the 37 hand rows is a *structural* bound,
+   not a run. The first full re-baseline is where the CARRIED block's true size is learned.
+3. **Rotation fidelity for the sixth closure** — unchanged from my first review; 2 of 12 `cmp`
+   comparisons have no prior committed state. A PO eye.
+4. **Whether the `MERGE_FAILED → exit 2` blocks in `rowdoor`/`invoker` have ever fired.** They are
+   correct by reading and by the door/writepath twins, but no scenario exercises a harness tail —
+   the self-test covers the helper, not its four callers. The new follow-up's close condition
+   explicitly refuses "read the code off a clean run", which is the right standard; that standard
+   is not yet met for the two minimal blocks this unit added.
+5. **That no *other* accepted ADR was made false by this unit.** I checked 0190 in full and the
+   one archived closure the contract named. ADRs 0079 / 0153 / 0173 are amended-by-0190 and I read
+   the amendment labels (present, with numbers), but I did not re-read those three end to end
+   against the new code.
+
+---
+
+## Disposition for the PO
+
+**Not ready for the Record step — but one documentation-only iteration away from it, and the code
+half is done.**
+
+- **What must change:** F2-BLOCK-1 only — ADR 0190 D8, D9, D5's body sentence, Considered option
+  E, and the archived MARKER closure's clauses 1–2. No code, no migration, no gate re-run, no new
+  measurement: every fact is already in the record. I would expect F2-REC-1/2/3/5/7 in the same
+  pass (each is one line). **Iteration 2 of ≤5.**
+- **Are Batch 2–3's full re-baselines safe for the committed baselines' hand-authored material?**
+  ✅ **Yes — this is the sharpest reversal from my first review.** All three destruction modes are
+  fixed and the fix is proven able to fail on the real historical losses; an abort now writes
+  nothing, says so, and **exits 2** in all four harnesses. Two things the PO should hold in mind
+  anyway: the merge writes the committed file, so **commit before the run** and read the exit code
+  bare; and an empty `git diff` on a full run is no longer self-explanatory — the deriver's hazard
+  text now says to read it together with the merge banner and the exit code.
+- **What the PO should EXPECT from the first full re-baseline: a large CARRIED block, and it is
+  the safe direction.** MEASURED on the door baseline: of its **37** hand-annotated rows, **2**
+  carry unconditionally, **24** carry unless the generator's file list for that gate is unchanged
+  (and the suite has grown from `Files=156`/`218` to `262` since those notes were written), and
+  **11** splice. Add every gate absent from the run's domain, which also carries whole. Nothing is
+  lost and everything is flagged with `old -> new`, but **someone must re-file that block by
+  hand**, and that work should be budgeted into Batch 2 rather than discovered during it.
+- **What the unit explicitly does not prove.** No full sweep was run — not in the unit, not in
+  either review. `PRED_DOMAIN` was **not** widened (correctly, that is Batch 2), so `9a4bbd22`'s
+  door `app.current_professional_read_organizations` (`prosecdef=t`, `setof uuid`) still owes a
+  **targeted case**, and **21** further outside-domain doors are printed as owing one on the
+  pinned range. The 25 historical catalog-query rewrite migrations remain structurally unreachable
+  by any text deriver — the script's own stated ceiling. The 34-scenario self-test is **not yet in
+  Phase Gate step 1**: that is the lead's playbook edit at the Record step, and until it lands the
+  suite runs only when someone remembers.
+- **Credit.** The fix loop did the two things that are hard to do under review pressure: it
+  **reproduced my witnesses on the pre-fix code before touching anything**, and when a measurement
+  refuted the assumption its own splice rule rested on, it changed the rule and wrote the
+  refutation down. It also caught two defects in its own fix — an `awk -v` that decoded away the
+  fault it was injecting, and a scenario going green on the wrong cause — and recorded both. The
+  negative control (13 FAIL on the pre-fix helper, reproduced here) is the strongest evidence any
+  unit in this program has shipped. What is left is that the document explaining all of it was not
+  re-read beside the code it explains.
