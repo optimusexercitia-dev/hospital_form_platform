@@ -180,12 +180,21 @@ target            := (app|public|authz).name [ '(' … ')' ]
 
 The read is **unconditional** — the declaration is a notation about DOORS, not about rewrites,
 and gating it on `pg_get_functiondef` is the same class of defect as parsing only its first
-line. A `--` line carrying ≥1 `(app|public|authz).name` token is a continuation and every token
-on it is consumed; a `--` line with **no** such token ends the declaration silently, because
-`20261003007180:9` and `20261003007190:6` are bare `--` lines and strict rejection would red two
-committed migrations at every gate. A continuation bearing a schema prefix with no name, or an
-unclosed argument list, is a **named** parse error at `<file>:<line>` and the run continues — a
-parse error in a comment must not decide a sweep.
+line. A `--` line carrying a **SCHEMA PREFIX** (`app.` / `public.` / `authz.`) is a continuation
+— whether or not its tokens parse — and every token on it is consumed; a `--` line with **no
+schema-prefix token at all** ends the declaration silently, because `20261003007180:9` and
+`20261003007190:6` are bare `--` lines and strict rejection would red two committed migrations at
+every gate. A continuation bearing a schema prefix with no name, or an unclosed argument list, is
+a **named** parse error at `<file>:<line>` that **does NOT end the declaration** — the run
+continues and the continuation lines after it are still read. A parse error in a comment must not
+decide a sweep, and it must not silently truncate one either.
+
+> ⚠ **Corrected 2026-09-05 (QA F2-BLOCK-1; the rule itself was amended by F-MAJOR-3, see below).**
+> The paragraph above first read: *"A `--` line carrying ≥1 `(app|public|authz).name` token is a
+> continuation and every token on it is consumed; a `--` line with **no** such token ends the
+> declaration silently"* — i.e. the discriminator was a successfully-parsed TOKEN. That is the
+> rule the fix replaced, and leaving it standing under the amendment below made this section state
+> both rules at once. The body is now re-stated to the shipped one, and the two agree.
 
 *Measured:* the wider read added **zero** cases and exactly one new UNRESOLVED token (taken
 mid-unit, against an unpinned `HEAD`); over all 11 marker-bearing migrations in the tree,
@@ -267,15 +276,86 @@ carrying the hand material. A subset run still copies to scratch.
 
 Rows are keyed on column 1 exactly as `p0-authz-invariant.sh` keys them, **plus an ordinal** —
 the door baseline carries `app.can_sign_section(…)` twice and keying on the name alone silently
-lost 5 rows in this helper's first run. Then:
+lost 5 rows in this helper's first run.
+
+⛔ **WHAT COUNTS AS A GENERATED ROW IS DERIVED FROM THE GENERATED FILE, NEVER LISTED HERE.** A
+baseline line is a generated verdict row only if it has the generator's own shape — ≥ 5 columns
+and a non-empty column 1 — **and** matches one of three sets read off the generated file itself:
+the exact text of every table **HEADER** it emits (a well-shaped line under one of those headers,
+in an unbroken run of table lines, is in generator table space — the signal that survives a run
+in which some verdict simply did not occur), every **VERDICT** token it put in column 4, and
+every gate **KEY** it put in column 1. Any one of the three is enough; a hand-written table — its
+own header, its own delimiter, its own rows — matches none of them and is prose. Because the
+three sets come from the file rather than from a list in the helper, a harness that grows a
+verdict, or a fourth table, needs no edit here.
+
+⛔ **Columns are split at UNESCAPED `|` and CAPPED at five.** Column 5 is everything between the
+5th separator and the LAST one, so a markdown-escaped `\|` inside a note — the door baseline
+carries `^(is_\|can_\|has_\|…)` — or a stray unescaped `|` survives byte-for-byte instead of
+truncating the row or shifting every column after it.
+
+Then, per key:
 
 | case | what happens |
 |---|---|
-| key only in the generated file | newcomer — emitted |
-| column 5 identical | nothing hand-authored — emitted |
-| verdict UNCHANGED and the baseline note starts with the generated note | the remainder is a hand suffix, **spliced back byte-for-byte** |
-| verdict CHANGED, or the generated part of the note moved | the row is re-emitted WITHOUT the old suffix and the note is **CARRIED** with `old -> new` |
-| key only in the baseline | the gate is absent from this run's domain — the row is removed and the note carried |
+| key (name + ordinal) only in the generated file | newcomer — emitted |
+| the baseline row and the generated row are the **same text** | nothing hand-authored — emitted |
+| verdict UNCHANGED, columns 1–4 IDENTICAL, and the baseline's column 5 starts with the generated column 5 **up to whitespace** | the remainder is a hand **suffix**, spliced back byte-for-byte |
+| anything else — verdict CHANGED, a hand-edited column 1–4, or the generated part of the note moved | the generated row is emitted **and the WHOLE baseline row is CARRIED verbatim**, labelled `old -> new` |
+| key only in the baseline | the gate is absent from this run's domain — the row leaves the tables and **the WHOLE baseline row is CARRIED verbatim**, labelled `old -> (absent from this run)`. ⛔ **Never gated on a non-empty note**: a hand row whose column 5 is empty is still a line the generator did not produce |
+
+⛔ **And the self-verification's protected set (D9) is the COMPLEMENT OF THE GENERATED OUTPUT
+OVER THE WHOLE BASELINE — `| `-leading lines included.** That is what this section's title
+means, and it was not true when the title was written: the first helper built that set with
+`grep -vE '^\| '`, which excluded exactly the region its losses happened in. A detector cannot
+find what its input set leaves out.
+
+⚠ **"Starts with" is UP TO WHITESPACE, and that is measured rather than defensive.** Of the two
+rows a real 2-case door run produced against the committed baseline, **zero** were byte-exact
+prefixes: `app.is_signoff_deferral_open` diverged at byte 20 on nothing but a space a hand editor
+had added after a comma — a byte test would have evicted 580 bytes of measurement from the table
+over one space — and `app.can_manage_professional` diverged at byte 422 on real content and
+correctly takes the CARRY branch instead. Both are pinned as fixture `D-real-generator`. ⚠ The
+hand SUFFIX is preserved byte-for-byte; inside the generator's own region it is the generator's
+whitespace that lands, which is the one place this helper is not byte-preserving.
+
+⚠ **What a real full re-baseline of the door file should be EXPECTED to produce: a LARGE CARRIED
+block, and that is the safe direction.** Measured structurally by the reviewer over the committed
+baseline's **37** hand-annotated column-5 rows: **2** carry unconditionally (a `.sql` token sits
+inside or after the annotation, so the generated list is interrupted), **24** splice **iff** the
+generator's file list for that gate is still a whitespace-prefix — and the suite has grown from
+the `Files=156` / `218` those notes were written against to **262**, so any file added since
+forces a carry — and **11** carry no file list at all, so the generated note is empty, the whole
+note becomes the suffix and it splices. The bound is therefore **2 ≤ CARRIED ≤ 26** hand-annotated
+rows, plus every gate absent from the run's domain, which carries whole. Nothing is lost and every
+carry is flagged, but ⛔ **someone must re-file that block by hand** — budget it into Batch 2
+rather than discovering it during one. (A STRUCTURAL bound over the committed file, not a run: no
+full re-baseline has been executed by this unit or either review.)
+
+> ⚠ **Corrected 2026-09-05 (QA F2-BLOCK-1).** The decision table above REPLACES the one this
+> section first carried, reproduced verbatim here because a superseded rule must stay visible
+> rather than be quietly overwritten:
+>
+> | case | what happens |
+> |---|---|
+> | key only in the generated file | newcomer — emitted |
+> | column 5 identical | nothing hand-authored — emitted |
+> | verdict UNCHANGED and the baseline note starts with the generated note | the remainder is a hand suffix, **spliced back byte-for-byte** |
+> | verdict CHANGED, or the generated part of the note moved | the row is re-emitted WITHOUT the old suffix and the note is **CARRIED** with `old -> new` |
+> | key only in the baseline | the gate is absent from this run's domain — the row is removed and the note carried |
+>
+> Every line of it was wrong about the shipped helper, and the last one ⛔ **is the blocking
+> defect's own description**: gating the carry on the note is exactly what made a correctly-shaped
+> hand row with an EMPTY column 5 vanish silently at bare exit 0 (QA F-BLOCK-1 witness C). Of the
+> rest — "column 5 identical" understated the test (the WHOLE row must match, or a hand edit in
+> columns 1–4 would be overwritten); "starts with" was read as byte-exact and is now
+> whitespace-tolerant, and a literal reading would have evicted a 580-byte hand note over one
+> space; "the note is CARRIED" understated what is carried (the whole row, verbatim). The three
+> rules the fix turns on — the grammar DERIVED from the generated file, the capped escape-aware
+> column split, and the protected set as the complement over the WHOLE baseline — were recorded
+> nowhere. ⭐ This ADR was edited in six hunks during the fix loop and **none of them touched D8
+> or D9**, the two sections describing the component that had just been rewritten: *only the
+> amending document knows about the amendment* — and here it did not.
 
 ⛔ A RENAME is indistinguishable from disappear + newcomer and is deliberately **not** detected;
 the baseline's own `## Note — a RENAME moves a gate's verdict` carries that semantics, and a
@@ -286,16 +366,58 @@ generated rows; the property to preserve is the hand-authored material, not the 
 
 ### D9 — The merge SELF-VERIFIES, and the verification is proven able to fail.
 
-Every hand-authored line and every hand suffix must be present in the output, and the generated
-row multiset must equal the merged one — or the merge **ABORTS (2)**, the output is not written,
-and the committed baseline is left exactly as it was. The harness says so loudly and continues;
-the verdicts it has earned live in the generated report and in `progress.tsv`.
+Every hand-authored **prose** line, every spliced hand **suffix** and every **CARRIED whole row**
+must be present in the output, and the generated row multiset must equal the merged one — or the
+merge **ABORTS (2)**, the output is not written, and the committed baseline is left exactly as it
+was. The expectation set is recomputed from the two inputs by the same classifier that built the
+file, and the prose half is the complement over the WHOLE baseline (D8), `| `-leading lines
+included. ⛔ **The caller must carry that 2 into its own exit code**: an aborted merge leaves the
+findings file unchanged, which on a full run is byte-for-byte what "no verdict moved" looks like,
+and `git diff --stat` cannot tell them apart. All four harnesses now do — `MERGE_FAILED=1` is the
+**first** branch of the graded block in each, printing
+`=== RESULT: ERROR — the findings MERGE ABORTED …` and **exiting 2** ahead of the verdict counts,
+which still print. The verdicts the run earned live in the generated report and in `progress.tsv`.
 
-`MERGE_FAULT=drop-hand-block` / `drop-suffix` (self-test only) delete one item from the output
-just before verification; both ABORT, at all four call sites. ⚠ **Deleting a hand block from the
-INPUT copy does NOT fire the verification** (measured: rc 0) — the verifier is keyed on its own
-input, so removing material from the input moves the expectation with it. Only a fault in the
-merge can fire it, and that is what the fault injection is for.
+**THE PRIMARY CONTROL IS NOT A KNOB — it is three real historical losses.** `MERGE_VERIFY=<file>`
+puts a FOREIGN candidate in front of this same verifier (one `VERIFY_ONLY` copy over the merged
+file, after the expectation sets are computed from the two inputs and before the single
+verification block — there is no parallel code path) and writes nothing. The self-test feeds it
+the output the **pre-fix helper actually produced** on each of the three measured witnesses,
+committed under `scripts/fixtures/door-sweep/merge/*.prefix-output.md` and reproducible by
+`git show de955981:scripts/lib/merge-findings-baseline.sh`: **rc 2 on all three**, naming the lost
+`SUFFIX:` / `PROSE:` / `CARRIED ROW:` items. Positive control: the current helper's own output on
+all five pairs → **rc 0**. A verifier that passed those would be proven blind, not assumed sharp.
+
+`MERGE_FAULT=drop-hand-block` / `drop-suffix` / `drop-carried-row` remains as a second, cheaper
+control. It is **refused outright unless `SELFTEST=1`** (a real sweep must never inherit fault
+injection from the environment), it **ABORTS when asked to inject and unable to** — an injector
+that reports success having injected nothing is "a mutation that did not fully apply reports
+GREEN" — and it `cmp`s the file it claims to have damaged, because the first `drop-suffix` passed
+its victim through `awk -v`, which DECODED the note's escaped `\|`, matched nothing, changed
+nothing, printed `FAULT INJECTED` and let the verifier pass at rc 0. The victim now travels
+through `ENVIRON`. ⚠ **Deleting a hand block from the INPUT copy does NOT fire the verification**
+(measured: rc 0) — the verifier is keyed on its own input, so removing material from the input
+moves the expectation with it. Only a fault in the merge, or a foreign candidate, can fire it.
+
+*Measured 2026-09-05:* `SELFTEST=1 bash scripts/door-sweep-cases.sh` → bare rc **0**,
+`SELF-TEST: PASS 34 · FAIL 0 · SKIPPED 0` — 16 deriver scenarios and **18 merge scenarios** over
+committed input pairs. ⭐ **Negative control:** the same suite, `cmp`-verified identical fixtures
+and assertions, with **only** the helper swapped to `de955981`'s → **PASS 21 · FAIL 13**, bare rc
+**1**. The five idempotence scenarios pass on both, which is correct: the pre-fix helper was
+idempotent, it was just lossy.
+
+> ⚠ **Corrected 2026-09-05 (QA F2-BLOCK-1).** As first written, this section's second paragraph
+> read in full: *"`MERGE_FAULT=drop-hand-block` / `drop-suffix` (self-test only) delete one item
+> from the output just before verification; both ABORT, at all four call sites."* Three things in
+> one sentence are no longer true. There are **three** knobs, not two. *"(self-test only)"* was
+> aspirational — nothing scrubbed `MERGE_FAULT` before `bash "$MERGE_LIB"`, so a harness run could
+> have inherited one and written a deliberately damaged baseline (QA F-MAJOR-4); it is now
+> **enforced**. And *"at all four call sites"* described driving the knob through each harness,
+> which the gating now refuses — what holds at all four call sites is the propagation of the
+> abort into the exit code, stated above. The section's own title claim, *proven able to fail*,
+> rested entirely on that knob; the control that actually proves it — `MERGE_VERIFY` and the three
+> committed pre-fix outputs — appeared **nowhere** in this ADR until now, and neither did carried
+> rows in the survival set.
 
 **One heuristic exists and it is disclosed.** Inside a diff CHANGED group an old line is dropped
 when some new line in the same group is identical once digits and repeated blanks are removed
@@ -314,12 +436,26 @@ Exit 2 gains exactly one new trigger, D2's lift drift. ⛔ There is still no `AC
 
 ### D11 — `SELFTEST=1` is a Phase-Gate-step-1 instrument, not a lint gate.
 
-`SELFTEST=1 bash scripts/door-sweep-cases.sh` runs 15 scenarios over committed fixtures in a
-throwaway repo holding `cmp`-verified copies of the real scripts. It is **not** in
-`npm run lint` — it needs `$TMPDIR` and, for most scenarios, the local stack, and lint must stay
-runnable with the stack down. Catalog scenarios SKIP loudly and the summary prints the COUNT.
-Four scenarios pin the pre-fix behaviour as ABSENT. *Measured:* 15 PASS / 0 FAIL on this branch;
-**3 PASS / 12 FAIL, rc 1, against the pre-unit deriver with the same fixtures and assertions**.
+`SELFTEST=1 bash scripts/door-sweep-cases.sh` runs **34** scenarios over committed fixtures: **16
+deriver** scenarios in a throwaway repo holding `cmp`-verified copies of the real scripts, and
+**18 merge** scenarios that need neither the fake repo nor the catalog (the helper is pure text)
+and run the REAL helper over committed input pairs under `scripts/fixtures/door-sweep/merge/`. It
+is **not** in `npm run lint` — it needs `$TMPDIR` and, for most deriver scenarios, the local
+stack, and lint must stay runnable with the stack down. Catalog scenarios SKIP loudly and the
+summary prints the COUNT. Four deriver scenarios pin the pre-fix behaviour as ABSENT; the merge
+half gets the same property without a knob, from D9's three committed pre-fix outputs.
+*Measured 2026-09-05, bare rc 0:* `SELF-TEST: PASS 34 · FAIL 0 · SKIPPED 0`, catalog REACHABLE.
+Negative control on the merge half: **PASS 21 · FAIL 13, rc 1**, with only the helper swapped to
+`de955981`'s.
+
+> ⚠ **Corrected 2026-09-05 (QA F2-BLOCK-1).** This paragraph read *"runs 15 scenarios"* and
+> *"15 PASS / 0 FAIL on this branch; **3 PASS / 12 FAIL, rc 1, against the pre-unit deriver with
+> the same fixtures and assertions**"*. Both figures were true of the deriver-only suite as it
+> stood before the fix loop added scenario 16 (fixture `09-marker-dangling-prefix.sql`, QA
+> F-MAJOR-3) and the 18 merge scenarios. ⛔ The pre-unit-**deriver** negative control has NOT been
+> re-run since scenario 16 was added, so its post-fix figure is unmeasured and is deliberately not
+> restated here as a number; what IS re-measured at the tip is the 34/0/0 above and the merge
+> half's 21/13.
 
 ### D12 — Two in-tree assertions are now FALSE and are named here as superseded.
 
@@ -365,8 +501,17 @@ historical ranges.
 
 **E. Reject an unmatched `--` line after a marker as a parse error.** ⛔ Rejected on a
 measurement: two committed migrations end their declaration with a bare `--` and would red at
-every gate. Consume-or-stop is the rule; the loud case is narrowed to a token that fails to
-parse.
+every gate. Consume-or-stop is the rule, and the discriminator is the **SCHEMA PREFIX, not a
+successful parse** (D5): the loud case is a `--` line that DOES bear a schema prefix but whose
+token does not fully resolve — a bare `app.`, or an unclosed argument list — and it is named
+without ending the declaration.
+
+> ⚠ **Corrected 2026-09-05 (QA F2-BLOCK-1).** This option's last clause read *"the loud case is
+> narrowed to a token that fails to parse"*, which is **false** of the shipped parser: the purest
+> instance of the loud case is a bare `app.`, which is not a token at all. Under the original
+> reading the error could only fire on a line that also carried a valid token — it was dead code
+> for exactly the input it names (QA F-MAJOR-3). `scripts/door-sweep-cases.sh` states it
+> correctly (`CONSUME-OR-STOP, PREFIX-BEARING`); this ADR carried one of each until now.
 
 **F. Detect renames in the merge.** ⛔ Rejected: indistinguishable from disappear + newcomer, and
 a wrong guess moves a verdict onto a predicate nobody measured.

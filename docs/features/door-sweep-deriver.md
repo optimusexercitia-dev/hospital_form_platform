@@ -51,7 +51,7 @@ the fifth in the full-run emit path of the sweep harness that writes the committ
 
 ## Current state
 
-**Updated:** 2026-09-05 (QA fix loop, iteration 1 of ≤5)
+**Updated:** 2026-09-05 (QA fix loop, iteration 2 of ≤5 — docs only)
 
 ### Objective
 Make `scripts/door-sweep-cases.sh` — the instrument CLAUDE.md §6 step 1 makes every phase and
@@ -61,37 +61,37 @@ re-baseline without destroying the committed findings file's hand-authored mater
 2–3 need that re-baseline).
 
 ### Done since start
-Eleven build commits, then the QA review at `de955981` returned **CHANGES REQUESTED — 1 BLOCK,
-6 MAJOR, 8 REC**. Iteration 1 closes all of them (F-REC-4 is the lead's playbook edit):
-`6474a625` the merge helper · `4d5c6bd9` the deriver · this one (docs). **F-BLOCK-1 was real
-and reproduced first**: the helper classified every `| `-leading line as a verdict row and
-built its protected set with `grep -vE '^\| '`, so all three of QA's measured losses — a note
-truncated at an escaped `\|` (727→579 B, 1106→570 B), a hand table deleted whole (165→161
-lines), a hand row with an empty note vanishing — happened at bare rc 0 reporting everything
-preserved. Now: 0 bytes lost on all three, and the verifier is proven able to see them by
-being fed the PRE-FIX helper's own committed output (rc 2 ×3). The merge now has 18 self-test
-scenarios; the same suite against `de955981`'s helper is **13 FAIL, bare rc 1**.
+Eleven build commits; QA at `de955981` returned **1 BLOCK / 6 MAJOR / 8 REC**, iteration 1
+closed all of them, and QA's re-review at `7e1f0d62` disposed **every** one ✅ FIXED (F-REC-4 is
+the lead's playbook edit) — F-BLOCK-1 fixed and proven able to fail on the three real historical
+losses (`MERGE_VERIFY` over the committed pre-fix outputs, rc 2 ×3). It left **one** blocking
+item, F2-BLOCK-1, **documentation-only**: the fix loop rewrote the merge helper and the marker
+parser, then edited ADR 0190 in six hunks that missed **D8 and D9** — the two sections describing
+what had just been rewritten — so the ADR still carried the pre-fix merge rules, including
+verbatim the clause whose implementation *was* the blocking defect. Iteration 2 corrects D8, D9,
+D5's body, option E and D11, plus dated corrections beside two archived closures, each with the
+superseded text kept visible. ⛔ **No code, no migration, no script, no gate re-run** — the diff
+is entirely `docs/`.
 Measured, PINNED, on `731abda0^..4d5c6bd9`: 42 tokens → **18** cases, tier 1 = **39**.
-⛔ No production function, policy, migration or seed changed; no full sweep was run; the four
-committed findings baselines are byte-identical to `main`.
 
 ### In progress
-Nothing. Iteration-1 gate on a fresh `supabase db reset --local`, all codes read BARE — results
-in the record's `### 2026-09-05 — backend: QA fix loop, iteration 1`. ⚠ Two of QA's five
-could-not-verify items were settled by MEASUREMENT rather than argument, and one of them
-refuted an assumption the merge rested on: the generator's file list is **not** a prefix of the
-committed note (0 of 2 byte-exact on a real 2-case door run), so the splice rule is now
-whitespace-tolerant and everything else is carried whole.
+Nothing. Iteration-2 gate, codes read BARE: `npm run lint` **0** (eslint 0/0 + all 13 gates),
+`lint:adr-index` **0** (body-only edits, so `adr:index` was not owed), `lint:registers` **0**
+with ratchets unchanged. No `test:db` or authz arm is owed for a docs-only diff. ⚠ The grep
+census was re-run after the first attempt proved a DEAD INSTRUMENT: `grep -rniF` aborts here
+(SIGABRT, rc 134) and printed zero hits that would have read as "none found".
 
 ### Next
-QA re-review → PO → Record. The six follow-up closures are unchanged and still **pending QA +
-PO**; one new follow-up was filed this iteration
+QA delta check → PO → Record. The six follow-up closures are unchanged and still **pending QA +
+PO**; one new follow-up stands from iteration 1
 (`FUP-AUTHZ-ROWDOOR-INVOKER-HARNESSES-HAVE-NO-GRADED-EXIT` 🟡, backend, body + entry, not fixed).
 
 ### Blockers
-None. ⚠ Two open items for the lead, both in the report: (1) three of the six closures rest on
-the follow-up BODY's condition because the REGISTER field read `PO to rule` — that field is the
-PO's; (2) on a real full re-baseline most hand-annotated door rows will land in the CARRIED
-block rather than being spliced, because the generator's file lists have grown since those
-notes were written. That is the safe direction — nothing is lost and everything is flagged —
-but it is a large CARRIED block for a human to re-file, and Batches 2–3 should expect it.
+None. ⚠ Four open items for the lead/PO: (1) three of the six closures rest on the follow-up
+BODY's condition because the REGISTER field read `PO to rule` — that field is the PO's; (2) a
+real full re-baseline will produce a LARGE CARRIED block — QA's structural bound on the door file
+is **2 ≤ CARRIED ≤ 26** of its 37 hand-annotated rows plus every out-of-domain gate; nothing is
+lost and everything is flagged, but it must be re-filed by hand and budgeted into Batch 2;
+(3) QA's non-blocking F2-REC-1/2/3/5/6/7 are **not** in this commit (two are script-header
+sentences, three are wrong numbers, one is the hub's `adrs:` frontmatter) — they need placing;
+(4) the 34-scenario self-test is still in no gate — that is F-REC-4, the lead's playbook edit.

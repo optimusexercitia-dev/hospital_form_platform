@@ -9137,6 +9137,24 @@ deriver, none of which is this one.
 >    **consume-or-stop, token-bearing** — a token-free `--` line ends the declaration silently —
 >    and the loud case is narrowed to a token that fails to parse. Ruled in ADR 0190 D5, with the
 >    measurement, rather than taken silently.
+>
+> ⚠ **CORRECTED 2026-09-05 (QA F-MAJOR-3, restated at F2-BLOCK-1) — the two clauses above describe
+> the rule as FIRST SHIPPED, and it was replaced inside this same unit.** Left beside them rather
+> than rewritten, because a closure must stay auditable against what it actually said. The shipped
+> discriminator is the **SCHEMA PREFIX, not a token that parses**: a `--` line carrying `app.` /
+> `public.` / `authz.` is a continuation whether or not its tokens resolve, and only a `--` line
+> with no schema-prefix token at all ends the declaration. ⛔ Under the token-bearing rule a line
+> whose only content was a bare `app.` harvested nothing, was read as a token-free `--`, and
+> **TERMINATED the declaration — silently taking every well-formed continuation after it** — while
+> the `schema prefix with no function name` error advertised for exactly that input sat inside the
+> successful-harvest branch and could never fire on it. So "the loud case is narrowed to a token
+> that fails to parse" was false twice over: the purest instance of the loud case is not a token,
+> and the error was dead code for it. A named parse error now does **not** end the declaration.
+> Design: ADR [0190](../decisions/0190-the-door-sweep-deriver-selects-by-property-and-a-full-run-merges.md)
+> D5 (body + the F-MAJOR-3 amendment) and Considered option E, both corrected the same day; fixture
+> `scripts/fixtures/door-sweep/09-marker-dangling-prefix.sql` pins it. ⚠ Clause 2's DISCLOSED
+> DEVIATION itself still stands — strict rejection would still red the two committed migrations,
+> and consume-or-stop is still the rule. What changed is what "consume" is keyed on.
 > 3. *"and `20261003007250`'s three targets derive **from the declaration path**, provable by
 >    removing its `create or replace` lines from consideration and re-deriving"* — ✅ measured in a
 >    throwaway repo holding `cmp`-verified copies of the real scripts, with that file's four
@@ -9413,6 +9431,30 @@ Index entry: [follow-ups-open.md](follow-ups-open.md) · filed 2026-08-27 · sta
 > written and the baseline is left as it was. `MERGE_FAULT=drop-hand-block` gives **rc 2** and no
 > output, at all four call sites; `MERGE_FAULT=drop-suffix` gives **rc 2**. Negative control: the
 > same inputs without the fault give rc 0 and a `cmp`-identical result.
+>
+> ⛔ **CORRECTED 2026-09-05 (QA F-BLOCK-1, closed in the same unit's fix loop) — the paragraph
+> above was TRUE OF THE KNOB AND FALSE OF THE FILE, and clause 2's property claim did not hold
+> when it was written.** Left beside it rather than rewritten. The helper this closure described
+> classified EVERY `| `-leading line as a five-column verdict row and built its protected set with
+> `grep -vE '^\| '`, so the region its losses happened in was excluded from what the verifier
+> checked — a detector cannot find what its input set leaves out. Three measured losses, all at
+> bare exit 0 reporting everything preserved: a note truncated at a markdown-escaped `\|`
+> (727 → 579 B, 1106 → 570 B), a hand-written 3-column table deleted whole with no carry, and a
+> correctly-shaped hand row with an EMPTY note vanishing (the carry was gated on the note). Fixed
+> in `6474a625`: rows are classified by a grammar DERIVED from the generated file, columns split
+> at unescaped `|` and capped at five, the protected set is the complement over the WHOLE
+> baseline, and a whole baseline row is CARRIED verbatim — never gated on a non-empty note.
+> ⭐ **And the proof is no longer the knob.** The output the PRE-FIX helper actually produced on
+> each witness is committed under `scripts/fixtures/door-sweep/merge/*.prefix-output.md` and fed
+> to the current verifier through `MERGE_VERIFY`: **rc 2 ×3** on real historical losses, with the
+> current helper's own output on all five pairs at rc 0. `MERGE_FAULT` is now a second, cheaper
+> control — three knobs, refused unless `SELFTEST=1`, aborting when asked to inject and unable to,
+> and `cmp`-verifying that the injection landed. ⚠ "at all four call sites" described driving the
+> knob through each harness, which the `SELFTEST` gate now refuses; what holds at all four is the
+> propagation — `MERGE_FAILED` → `RESULT: ERROR`, **exit 2**. Design: ADR
+> [0190](../decisions/0190-the-door-sweep-deriver-selects-by-property-and-a-full-run-merges.md)
+> D8 + D9, both corrected the same day (QA F2-BLOCK-1) — ⛔ this closure had been pointing at a D8
+> whose table described the defect.
 >
 > ⛔ **NO SWEEP WAS RUN.** The merge is proven on COPIES, driving the PRODUCTION `emit_body`
 > **lifted** out of each harness over a synthetic `progress.tsv`; the four committed baselines are

@@ -697,3 +697,68 @@ not carried forward from `62829c79` on a delta argument.
 - `git diff --name-only main... -- .claude/rules docs/lead-playbook.md CLAUDE.md` → **0 files**.
 - Catalog after the arms (which run the full suite): `pg_policies` degenerate non-SELECT
   **ENUMERATED** — ⛔ never counted — → **0 rows**. No `authz-*INFLIGHT*` sentinel anywhere.
+
+### 2026-09-05 — backend: QA fix loop, iteration 2 of ≤5 (DOCS ONLY)
+
+QA re-reviewed at `7e1f0d62` (`docs/reviews/door-sweep-deriver-rereview.md`): **CHANGES REQUESTED
+on one item, F2-BLOCK-1**, documentation-only. Every finding of the first review is disposed
+✅ FIXED or ⏳ correctly deferred, and four of the five could-not-verify items were answered by
+QA's own measurement. ⛔ **No code, no migration, no gate re-run was needed and none was made** —
+`git diff --stat` for this commit touches only `docs/`.
+
+**What was stale, and why it is the unit's own thesis failing inside the unit.** Commits
+`6474a625` (the merge helper, rewritten) and `4d5c6bd9` (the marker parser's discriminator)
+changed the mechanisms; commit `3139b49a` then edited ADR 0190 in six hunks — `@@ -59`, `-114`,
+`-168`, `-188`, `-197`, `-333` — and **none of them was D8 or D9**, the two sections describing
+the component that had just been rewritten. The ADR therefore still described the PRE-fix helper,
+including verbatim the clause whose implementation *was* the blocking defect. *Only the amending
+document knows about the amendment* — and here it did not, while the fix loop was specifically
+re-reading that document.
+
+**The grep census — run, not recalled.** ⚠ **The first census returned zero hits and that was a
+DEAD INSTRUMENT, not an all-clear**: `grep -rniF` under this msys build aborts with SIGABRT
+(observed rc **134**, `Aborted`), and with `2>/dev/null` in the loop it printed nothing and looked
+like "none found". Re-run with ripgrep. Patterns: `byte-prefix|byte prefix|prefix of|token-bearing|
+token bearing|note carried|harvest|starts with|consume-or-stop`, over `docs/**/*.md` and the three
+script headers. Every hit classified:
+
+| where | hit | disposition |
+|---|---|---|
+| ADR 0190 `:276`, `:278` | D8's table — "column 5 identical", "starts with", "the note carried" | ⛔ **corrected** (item 1); the old table kept verbatim in a dated block |
+| ADR 0190 `:294` | D9's `MERGE_FAULT` knob list | ⛔ **corrected** (item 2); old sentence quoted in the dated block |
+| ADR 0190 `:183-186` | D5's body — the token-bearing discriminator | ⛔ **corrected** (item 3) |
+| ADR 0190 `:367-368` | option E — "the loud case is narrowed to a token that fails to parse" | ⛔ **corrected**, quoted then refuted (item 3) |
+| ADR 0190 D11 | "runs **15** scenarios … 15 PASS / 0 FAIL … 3 PASS / 12 FAIL" | ⛔ **corrected** — 34 (16 deriver + 18 merge); ⚠ the pre-unit-**deriver** control was NOT re-run since scenario 16 was added, so no post-fix number is asserted for it |
+| archive `:9137` (MARKER closure) | "the rule adopted is **consume-or-stop, token-bearing**" + clause 1's token test | ⛔ dated correction **beside** it (item 4) |
+| archive (FULL-RUN closure) | "`MERGE_FAULT=drop-hand-block` … at all four call sites" as the proof of "proven able to fail" | ⛔ dated correction **beside** it (item 5) — this closure had been pointing at a D8 that described the defect |
+| ADR 0190 `:198-201` | "the first form of this rule tested `harvest(rest) > 0`" | ✅ correct — it is the F-MAJOR-3 amendment describing the OLD rule as old |
+| hub `:82` | "the generator's file list is **not** a prefix of the committed note" | ✅ correct (0 of 2 byte-exact) |
+| record `:191`, `:643` | consume-or-stop witness; the prefix refutation | ✅ correct — `-- we also touched app.is_active()` sits after a bare `--`, which ends the declaration under BOTH rules, so the witness still holds |
+| `door-sweep-cases.sh:592`, `:606` | "token-free" | ✅ correct — they describe the old rule as old, under `⛔ THE TEST IS THE PREFIX, NOT A SUCCESSFUL PARSE` |
+| `merge-findings-baseline.sh`, `door-sweep-selftest.sh` headers | — | ✅ **no stale sentence found**; both were rewritten in iteration 1. ⛔ **No script file was touched by this commit**, so no `SELFTEST` re-run was owed |
+| `docs/reviews/**`, other ADRs/programs | `prefix`, `harvest`, `starts with` | ✅ out of subject (different components) or review artefacts, which are history and not mine to edit |
+
+**⛔ Not done, deliberately, and named so it is not read as covered.** QA's non-blocking
+F2-REC-1 / 2 / 3 / 5 / 6 / 7 are **not** in this commit — the lead scoped iteration 2 to
+F2-BLOCK-1 plus the stale-mechanism sweep. Two of them (F2-REC-1, F2-REC-2) are sentences in
+`scripts/lib/merge-findings-baseline.sh`'s header and would make this a script-touching commit;
+F2-REC-3 (`exit [0-9]` = 9 hits, not 8, at `:564`) and F2-REC-5 ("399 verdict rows" → 401) are
+wrong NUMBERS rather than stale mechanisms, and F2-REC-7 (the hub's `adrs:` frontmatter omits
+0190) is a one-token Record-step fix. They stay open for the lead to place.
+
+**Gate — docs-only diff, so no `test:db` and no authz arm is owed** (nothing under `supabase/`,
+`src/` or `scripts/` changed; `git diff --name-only` is entirely `docs/`). Codes read **bare**:
+
+| step | command | OBSERVED |
+|---|---|---|
+| lint | `npm run lint` | bare rc **0** — eslint at `--max-warnings=0` plus all 13 chained gates, each named in the transcript (`lint:css-vars` → `lint:registers`), `check-progress-doc: OK`, `build-adr-index: OK (188 ADRs indexed, next free 0191)` |
+| ADR index | `npm run lint:adr-index` | bare rc **0**, run on its own. Body-only ADR edits — no `**Status:**` / `**Area:**` / `**Supersedes:**` header field changed — so `npm run adr:index` was correctly **not** owed |
+| registers | `npm run lint:registers` | bare rc **0**; ratchets **unchanged, none raised**: `closesWhenPoToRule=137/147`, `severityPerEmoji=128/135`, `longHeadings=91/97`, `severityUnrated=29/29`, `revisitWhenPoToRule=38/38`, `bugsUntriaged=10/10`, `bugsUnrated=40/40`, `lessonsProseOnly=52/52` — identical to QA's own reading at `7e1f0d62` |
+
+⚠ **A second dead instrument, caught the same way.** `npm run lint:registers > "$TMPDIR/reg.out"`
+first returned rc **1** — and that 1 was the REDIRECT failing (`$TMPDIR` is unset in this shell,
+so the path resolved to `/reg.out`, `Permission denied`), not the gate. A non-zero code from a
+command whose output never appeared is a claim about the plumbing, not the subject. Re-run against
+an explicit scratch path: rc 0. ⛔ Both instrument failures this session pointed the *safe* way
+(one hid a green, one faked a red), but the SIGABRT one would have shipped a false "none found"
+census.
