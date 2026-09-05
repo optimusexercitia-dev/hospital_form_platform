@@ -420,17 +420,81 @@ mv "$TMP/fn_excl.f" "$TMP/fn_excl"
 # (supabase/tests/mutation/c2-command-door-neutralizer.sh) and its own cutline.
 # ─────────────────────────────────────────────────────────────────────────────────────
 : > "$TMP/fn_rewrite"
+: > "$TMP/marker_err"
+
+# ── (a) THE CONVENTION — an explicit, unambiguous target list the deriver can read. ──
+#     A rewrite migration declares:  -- door-sweep-targets: app.foo(), public.bar(uuid)
+#     Read from the RAW content (it is a comment, so it must survive comment-stripping).
+#
+# ⛔ THE READ IS UNCONDITIONAL, AND THAT IS THE FIX, NOT A TIDY-UP. Until 2026-09-05 this
+# whole block sat inside `if … grep -qiE 'pg_get_functiondef'`. Measured:
+# `20261003007250` contains `pg_get_functiondef` ZERO times, so the declaration path never
+# executed for the migration whose declaration the follow-up is about — its three targets
+# survived on the unrelated `create or replace` name path, and the two paths agreeing is
+# what hid it. The declaration is a notation about DOORS, not about rewrites; gating it on
+# a rewrite marker is the same class of defect as parsing only its first line.
+#
+# ⛔ THE PARSER MUST READ THE NOTATION THE FILES USE. The old read was `grep` anchored per
+# line, so a CONTINUATION line was silently unread (FUP-DOOR-SWEEP-MARKER-BLIND-TO-
+# CONTINUATION-LINES). Measured in-tree: three migrations use the continuation form
+# (`…007250` 3 lines, `…007300` 2, `…007340` 1). The grammar, ADR 0173 §2 as amended:
+#
+#     declaration       := marker-line continuation-line*
+#     marker-line       := ^\s*--\s*door-sweep-targets:\s* target-list
+#     continuation-line := ^\s*--\s+ target-list      (only directly after a declaration line)
+#     target-list       := target ( \s*,\s* target )* \s*,?
+#     target            := (app|public|authz).name [ '(' … ')' ]
+#
+# ⚠ CONSUME-OR-STOP, TOKEN-BEARING — and it is measured, not a preference. A following
+# `--` line carrying at least one `(app|public|authz).name` token is a continuation and
+# every token on it is consumed; a `--` line with NO such token ENDS the declaration,
+# silently. Strict rejection would red two committed migrations at every gate:
+# `20261003007180:9` is a bare `--` and `20261003007190:6` likewise. The cost of the
+# tolerant rule is that prose naming a schema-qualified callable immediately under a
+# declaration is consumed — which is over-selection, and 4c's catalog classification is
+# what makes over-selection cheap again.
+# ⚠ Loud NARROW case: a continuation bearing a schema prefix with no name, or an unclosed
+# argument list, is a NAMED parse error. The run continues — a parse error in a comment
+# must not decide a sweep — but it is printed, never silent.
+awk '
+  function harvest(s,   n) {
+    while (match(s, /(app|public|authz)\.[a-z0-9_]+/)) {
+      tok = substr(s, RSTART, RLENGTH)
+      sub(/^(app|public|authz)\./, "", tok)
+      print tok > TARGETS
+      s = substr(s, RSTART + RLENGTH)
+      n++
+    }
+    return n
+  }
+  function complain(where, why) { print where "\t" why > ERRS }
+  {
+    low = tolower($0)
+    if (low ~ /^[ \t]*--[ \t]*door-sweep-targets:/) {
+      sub(/^[ \t]*--[ \t]*door-sweep-targets:[ \t]*/, "", low)
+      inmark = 1; line = NR
+      if (harvest(low) == 0) complain("content line " NR, "door-sweep-targets: with no (app|public|authz).name target")
+      next
+    }
+    if (inmark) {
+      if (low ~ /^[ \t]*--/) {
+        rest = low; sub(/^[ \t]*--[ \t]*/, "", rest)
+        probe = rest
+        if (harvest(rest) > 0) {
+          if (probe ~ /(app|public|authz)\.([^a-z0-9_]|$)/) complain("content line " NR, "schema prefix with no function name")
+          if (probe ~ /\([^)]*$/)                           complain("content line " NR, "unclosed argument list")
+          next
+        }
+        inmark = 0; next          # token-free `--` line: the declaration ends here
+      }
+      inmark = 0
+    }
+  }
+' TARGETS="$TMP/fn_rewrite" ERRS="$TMP/marker_err" "$TMP/content" 2>/dev/null || true
+
 REWRITE_PRESENT=0
 if sed 's/--.*$//' "$TMP/content" | grep -qiE 'pg_get_functiondef'; then
   REWRITE_PRESENT=1
-
-  # (a) THE CONVENTION — an explicit, unambiguous target list the deriver can read.
-  #     A rewrite migration declares:  -- door-sweep-targets: app.foo(), public.bar(uuid)
-  #     Read from the RAW content (it is a comment, so it must survive comment-stripping).
-  grep -ohiE '^[[:space:]]*--[[:space:]]*door-sweep-targets:.*' "$TMP/content" 2>/dev/null \
-    | sed -E 's/.*[Dd]oor-[Ss]weep-[Tt]argets:[[:space:]]*//' \
-    | grep -ohE '(app|public|authz)\.[a-z0-9_]+' \
-    | sed -E 's/^(app|public|authz)\.//' >> "$TMP/fn_rewrite" || true
 
   # (b) FALLBACK, and it is deliberately NARROW — only when the file builds an ARRAY LITERAL.
   #     ⛔ WHY THE ARRAY GATE, MEASURED RATHER THAN ASSUMED. A first draft extracted every
@@ -465,10 +529,22 @@ if sed 's/--.*$//' "$TMP/content" | grep -qiE 'pg_get_functiondef'; then
       | sed -E "s/^'//; s/\($//; s/^(app|public|authz)\.//" >> "$TMP/fn_rewrite" || true
   fi
 
-  sort -u "$TMP/fn_rewrite" -o "$TMP/fn_rewrite"
-  # A rewrite target already selected by name/property is not listed twice.
-  comm -23 "$TMP/fn_rewrite" <(cat "$TMP/fn_sel_name" "$TMP/fn_sel_prop" | sort -u) > "$TMP/fn_rewrite.f"
-  mv "$TMP/fn_rewrite.f" "$TMP/fn_rewrite"
+fi
+# ⚠ OUTSIDE the rewrite guard, because the declaration read now runs outside it too.
+# Leaving the de-duplication inside would leave a marker-only migration's targets
+# unsorted and duplicated against the name/property selections.
+sort -u "$TMP/fn_rewrite" -o "$TMP/fn_rewrite"
+# A declared target already selected by name/property is not listed twice.
+comm -23 "$TMP/fn_rewrite" <(cat "$TMP/fn_sel_name" "$TMP/fn_sel_prop" | sort -u) > "$TMP/fn_rewrite.f"
+mv "$TMP/fn_rewrite.f" "$TMP/fn_rewrite"
+
+if [ -s "$TMP/marker_err" ]; then
+  say "  ⚠ door-sweep-targets: PARSE ERROR(S) — named, and the run continues:"
+  while IFS="$(printf '\t')" read -r wh why; do [ -n "$wh" ] && say "    - $wh: $why"; done < "$TMP/marker_err"
+  say "    ⛔ A malformed declaration is NOT the same state as an absent one. Every other"
+  say "       target on the line was still consumed; fix the declaration at its source."
+  say "    ⚠ 'content line N' counts the CONCATENATED diff content, not one file — the"
+  say "      files are listed in order at the top of this run."
 fi
 
 # ⭐ THE CONVENTION HAS TEETH. A rewrite migration whose targets cannot be resolved is a
