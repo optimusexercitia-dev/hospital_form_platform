@@ -144,6 +144,30 @@ lift () {  # $1 = shell variable name to lift VERBATIM out of the audit script
   printf '%s' "$line"
 }
 
+# ─── lift_block: the SAME lift, for a value whose closing quote is on a LATER line ───
+# ⛔ WHY A SECOND LIFTER, MEASURED. `PRED_DOMAIN` is a NINE-LINE double-quoted string
+# (p0-authz-door-audit.sh). `lift` above is `grep -m1`, so on that variable it returns the
+# first line's remainder — the single character `(` — and every downstream test built on it
+# silently matches nothing. A lift that returns a plausible-looking value for the wrong
+# amount of text is worse than one that fails: it is the drift this whole file exists to
+# prevent, one layer out.
+lift_block () {  # $1 = shell variable name to lift VERBATIM, across lines, out of $AUDIT
+  awk -v v="$1" '
+    BEGIN { pre = v "=\"" ; n = length(pre) }
+    !inb && substr($0,1,n) == pre {
+      line = substr($0, n+1)
+      found = 1
+      if (line ~ /"[[:space:]]*$/) { sub(/"[[:space:]]*$/, "", line); print line; exit }
+      inb = 1; print line; next
+    }
+    inb {
+      if ($0 ~ /"[[:space:]]*$/) { line = $0; sub(/"[[:space:]]*$/, "", line); print line; exit }
+      print
+    }
+    END { if (!found) exit 9 }
+  ' "$AUDIT"
+}
+
 PRED_NAME_RE="$(lift PRED_NAME_RE)"       || { say "FATAL: cannot lift PRED_NAME_RE from $AUDIT"; exit 2; }
 PRED_IDENTITY_RE="$(lift PRED_IDENTITY_RE)" || { say "FATAL: cannot lift PRED_IDENTITY_RE from $AUDIT"; exit 2; }
 PRED_SIDE_EFFECTING="$(lift PRED_SIDE_EFFECTING)" || { say "FATAL: cannot lift PRED_SIDE_EFFECTING from $AUDIT"; exit 2; }
@@ -152,6 +176,53 @@ for v in PRED_NAME_RE PRED_IDENTITY_RE PRED_SIDE_EFFECTING; do
   [ -n "$val" ] || { say "FATAL: $v lifted EMPTY from $AUDIT — the domain moved. Fix the lift, do not guess."; exit 2; }
 done
 HELD_OUT="$(printf '%s' "$PRED_SIDE_EFFECTING" | tr -d "'" | tr ',' ' ')"
+
+# ─────────────────────────────────────────────────────────────────────────────────────
+# ⛔ THE ARM'S DOMAIN ITSELF — ASKED, NEVER RE-TYPED. (ADR 0079 Amdt 9 decision 3.)
+#
+# Until 2026-09-05 this script carried a HAND COPY of the arm's domain, spelled as three
+# greps over the migration text: `security definer` AND `returns boolean` AND the identity
+# regex. The copy had already DRIFTED, and the drift is measurable in the catalog:
+# `PRED_DOMAIN` carries `or p.proname = 'assert_not_case_excluded'` OUTSIDE its
+# `t.typname='bool'` clause, so that function (catalog: `void`, `prosecdef=t`) IS in the
+# arm's domain — while the hand copy demanded `returns boolean` and excluded it. A
+# migration touching it derived ZERO cases from a gate the arm would have swept.
+# ⭐ That is the exact failure the header above forbids, standing inside the file that
+# forbids it. The fix is not a better copy: it is to stop copying.
+#
+# The value is lifted as ONE string and its three sub-variables are expanded by EXPLICIT
+# substitution — never `eval`, which would execute whatever the audit script's domain
+# happens to contain. If ANYTHING is still unexpanded afterwards (a `$` survives), the
+# domain has grown a variable this script does not know about, and every classification
+# built on it would be a claim about a predicate Postgres cannot parse. That ABORTS (2).
+# ⛔ It does not fall back to a remembered value and it does not "best-effort" the SQL.
+# ─────────────────────────────────────────────────────────────────────────────────────
+PRED_DOMAIN_SQL="$(lift_block PRED_DOMAIN)" \
+  || { say "FATAL: cannot lift PRED_DOMAIN from $AUDIT — the arm's domain moved or was renamed."; exit 2; }
+[ -n "$PRED_DOMAIN_SQL" ] \
+  || { say "FATAL: PRED_DOMAIN lifted EMPTY from $AUDIT. Fix the lift, do not guess."; exit 2; }
+PRED_DOMAIN_SQL="${PRED_DOMAIN_SQL//\$PRED_SIDE_EFFECTING/$PRED_SIDE_EFFECTING}"
+PRED_DOMAIN_SQL="${PRED_DOMAIN_SQL//\$PRED_NAME_RE/$PRED_NAME_RE}"
+PRED_DOMAIN_SQL="${PRED_DOMAIN_SQL//\$PRED_IDENTITY_RE/$PRED_IDENTITY_RE}"
+case "$PRED_DOMAIN_SQL" in
+  *'$'*)
+    rule
+    say "=== RESULT: ABORT (2) — PRED_DOMAIN LIFTED WITH AN UNEXPANDED VARIABLE. ==="
+    say "    Lifted from : $AUDIT"
+    say "    This script expands exactly three sub-variables by explicit substitution:"
+    say "      \$PRED_SIDE_EFFECTING  \$PRED_NAME_RE  \$PRED_IDENTITY_RE"
+    say "    The lifted domain still contains a '\$' after all three, so the arm's domain"
+    say "    now references something this script does not know how to resolve:"
+    say
+    printf '%s\n' "$PRED_DOMAIN_SQL" | sed 's/^/        /' >&2
+    say
+    say "    ⛔ NOTHING was derived and nothing may be concluded. Do NOT fall back to the"
+    say "       old hand-copied filter — that is the drift this lift exists to end. Teach"
+    say "       this script the new sub-variable (one more explicit substitution above),"
+    say "       then re-run. ⚠ Never \`eval\` it: the domain is SQL, not shell."
+    rule
+    exit 2 ;;
+esac
 
 # The committed findings file — ruling 3's lookup table — is resolved out of $AUDIT too,
 # for the same anti-drift reason, and by TWO names because the variable was being renamed
@@ -201,6 +272,7 @@ rule
 say "DOOR-SWEEP CASE DERIVATION — ADR 0079 Amendment 1 (recipe) + Amendment 8 (rulings 1-3)"
 say "  range      : ${BASE}..${TIP}$([ "$BASE" = HEAD ] && [ "$TIP" = HEAD ] && printf '%s' '  (no committed range — working tree + untracked only)')"
 say "  domain     : lifted from $AUDIT (never re-typed here)"
+say "               PRED_DOMAIN lifted whole ($(printf '%s' "$PRED_DOMAIN_SQL" | wc -l | tr -d ' ') line(s)), 3 sub-vars expanded, no residual \$"
 say "  migrations : $(wc -l < "$TMP/files" | tr -d ' ') file(s) touched"
 while IFS= read -r f; do
   src="$(awk -F'\t' -v p="$f" '$1==p {printf "%s%s", (n++ ? "+" : ""), $2} END {print ""}' "$TMP/paths")"
