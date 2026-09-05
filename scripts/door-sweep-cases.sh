@@ -93,7 +93,66 @@ set -u
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
-cd "$ROOT" || { echo "FATAL: cannot cd to repo root: $ROOT" >&2; exit 2; }
+
+say  () { printf '%s\n' "$*" >&2; }
+rule () { say "---------------------------------------------------------------------------"; }
+
+# ─────────────────────────────────────────────────────────────────────────────────────
+# ⛔ THE `SCOPE:` LINE AND THE ONE DOOR EVERY EXIT GOES THROUGH.
+#
+# These are defined HERE, above every validation, because the property is STRUCTURAL: the
+# gate record is told to quote this line verbatim, so a run that can exit without printing
+# it has an outcome the record cannot describe. It was fixed once, at the site that was
+# measured — the NOT-APPLICABLE path — and left wrong for the class: neither exit-1 path
+# and no exit-2 path called it (QA F-MAJOR-2, MEASURED: `BASE=9a4bbd22^ TIP=9a4bbd22` →
+# rc 1, a full DOORS-IDENTIFIED block, and no `SCOPE:` line anywhere). Exit 1 is the
+# outcome where the operator is REQUIRED to write a claim into the gate record, so it is
+# the one that most needs its scope attached. ⭐ "A partial fix reads as a complete one."
+#
+# ⛔ There are no bare `exit` statements below this block, and that grep IS the assertion:
+# `grep -n 'exit [0-9]' scripts/door-sweep-cases.sh` must return ONLY prose lines and ONE
+# code line — `END { if (!found) exit 9 }` inside `lift`'s single-quoted awk program, which
+# is awk's own exit setting that command's status, not this script's. Every other way out
+# is `finish <rc>`. Measured 2026-09-05: 8 hits, 7 prose + that one.
+# ⚠ `scope_line` is idempotent: the exit-0 path prints it early so the PROVENANCE block can
+#   hang off it, and `finish` then adds nothing. Exactly one SCOPE line per run, always.
+# ─────────────────────────────────────────────────────────────────────────────────────
+SCOPE_PRINTED=0
+SCOPE_READY=0        # 1 once $TMP/paths and $TMP/files exist; before that there is no scope
+scope_line () {
+  [ "$SCOPE_PRINTED" = 0 ] || return 0
+  SCOPE_PRINTED=1
+  if [ "$SCOPE_READY" != 1 ]; then
+    say "SCOPE: (none — this run ABORTED before the file set was built) | filter: n/a | derivation: NONE"
+    return 0
+  fi
+  local nc nw nu deriv
+  nc=$(awk -F'\t' '$2=="committed"' "$TMP/paths" | cut -f1 | sort -u | comm -12 - "$TMP/files" | wc -l | tr -d ' ')
+  nw=$(awk -F'\t' '$2=="worktree"'  "$TMP/paths" | cut -f1 | sort -u | comm -12 - "$TMP/files" | wc -l | tr -d ' ')
+  nu=$(awk -F'\t' '$2=="untracked"' "$TMP/paths" | cut -f1 | sort -u | comm -12 - "$TMP/files" | wc -l | tr -d ' ')
+  # ⛔ THE DERIVATION MODE IS PART OF THE SCOPE (QA F-MAJOR-1, MEASURED 2026-09-05: the same
+  #    range, the same filter, produced 18 cases with the catalog reachable and 39 without —
+  #    and printed the BYTE-IDENTICAL SCOPE line for both). A record that follows this
+  #    script's own instruction to quote the line verbatim would have written a
+  #    text-heuristic selection and a property-derived one in the same words. The banner
+  #    that does say PROVISIONAL is fifty lines away and is not what the record quotes.
+  # ⚠ THREE states, not two. "The catalog was unreachable" and "the catalog was never asked"
+  #   are different claims, and collapsing them puts a PROVISIONAL badge on a run that
+  #   attempted no derivation at all — measured on the NOT-APPLICABLE (3) path, which exits
+  #   long before the probe. `CATALOG_OK` is UNSET until the probe runs; that is the state.
+  case "${CATALOG_OK:-}" in
+    1) deriv="catalog" ;;
+    0) deriv="PROVISIONAL (no catalog — text heuristics; the tier split did NOT run)" ;;
+    *) deriv="NOT REACHED (this run ended before the catalog was probed)" ;;
+  esac
+  say "SCOPE: $(wc -l < "$TMP/files" | tr -d ' ') file(s) — $nc committed (${BASE}..${TIP}), $nw worktree, $nu untracked | filter: $FILTER_DESC | derivation: $deriv"
+}
+finish () {  # $1 = the exit code. THE ONLY WAY OUT OF THIS SCRIPT.
+  scope_line
+  exit "$1"
+}
+
+cd "$ROOT" || { say "FATAL: cannot cd to repo root: $ROOT"; finish 2; }
 
 # ⛔ SELF-TEST. `SELFTEST=1 bash scripts/door-sweep-cases.sh` runs this script against
 # COMMITTED fixtures in a throwaway repo and asserts stdout AND the BARE exit code per
@@ -113,21 +172,17 @@ AUDIT="${AUDIT_SRC:-supabase/tests/mutation/p0-authz-door-audit.sh}"
 # naming only the read one is what made this script half-aimed for as long as it existed.
 WRITE_AUDIT="${WRITE_AUDIT_SRC:-supabase/tests/mutation/p0-authz-writepath-audit.sh}"
 ARM="${ARM:-}"        # '', read, or write — narrows STDOUT only (see ruling 4)
-# ⚠ `say` is defined below this line, so this validation uses echo directly rather than
-# looking like it works and silently invoking a not-yet-defined function.
 case "$ARM" in ''|read|write) ;; *)
-  echo "FATAL: ARM must be unset, 'read' or 'write' (got: $ARM)" >&2; exit 2;; esac
+  say "FATAL: ARM must be unset, 'read' or 'write' (got: $ARM)"; finish 2;; esac
 MIGDIR="supabase/migrations"
 FINDINGS=""   # resolved out of $AUDIT below, never hardcoded here
+FILTER_DESC="none"   # set for real under §1b; declared here so `finish` can run before it
 
 BASE="${1:-${BASE:-HEAD}}"
 TIP="${TIP:-HEAD}"
 
-say  () { printf '%s\n' "$*" >&2; }
-rule () { say "---------------------------------------------------------------------------"; }
-
 TMP="${TMPDIR:-/tmp}/door-sweep-cases.$$"
-mkdir -p "$TMP" || { say "FATAL: cannot create scratch dir: $TMP"; exit 2; }
+mkdir -p "$TMP" || { say "FATAL: cannot create scratch dir: $TMP"; finish 2; }
 trap 'rm -rf "$TMP"' EXIT
 
 # ─────────────────────────────────────────────────────────────────────────────────────
@@ -141,8 +196,8 @@ trap 'rm -rf "$TMP"' EXIT
 # would surface as "token matched no gate" long after the phase shipped. If the lift
 # fails, we ABORT — we do not fall back to a remembered value.
 # ─────────────────────────────────────────────────────────────────────────────────────
-git rev-parse --git-dir >/dev/null 2>&1 || { say "FATAL: not a git repository: $ROOT"; exit 2; }
-[ -f "$AUDIT" ] || { say "FATAL: audit script not found: $AUDIT"; exit 2; }
+git rev-parse --git-dir >/dev/null 2>&1 || { say "FATAL: not a git repository: $ROOT"; finish 2; }
+[ -f "$AUDIT" ] || { say "FATAL: audit script not found: $AUDIT"; finish 2; }
 
 lift () {  # $1 = shell variable name to lift VERBATIM out of the audit script
   local line
@@ -177,12 +232,17 @@ lift_block () {  # $1 = shell variable name to lift VERBATIM, across lines, out 
   ' "$AUDIT"
 }
 
-PRED_NAME_RE="$(lift PRED_NAME_RE)"       || { say "FATAL: cannot lift PRED_NAME_RE from $AUDIT"; exit 2; }
-PRED_IDENTITY_RE="$(lift PRED_IDENTITY_RE)" || { say "FATAL: cannot lift PRED_IDENTITY_RE from $AUDIT"; exit 2; }
-PRED_SIDE_EFFECTING="$(lift PRED_SIDE_EFFECTING)" || { say "FATAL: cannot lift PRED_SIDE_EFFECTING from $AUDIT"; exit 2; }
+PRED_NAME_RE="$(lift PRED_NAME_RE)"       || { say "FATAL: cannot lift PRED_NAME_RE from $AUDIT"; finish 2; }
+PRED_IDENTITY_RE="$(lift PRED_IDENTITY_RE)" || { say "FATAL: cannot lift PRED_IDENTITY_RE from $AUDIT"; finish 2; }
+PRED_SIDE_EFFECTING="$(lift PRED_SIDE_EFFECTING)" || { say "FATAL: cannot lift PRED_SIDE_EFFECTING from $AUDIT"; finish 2; }
 for v in PRED_NAME_RE PRED_IDENTITY_RE PRED_SIDE_EFFECTING; do
-  eval "val=\$$v"
-  [ -n "$val" ] || { say "FATAL: $v lifted EMPTY from $AUDIT — the domain moved. Fix the lift, do not guess."; exit 2; }
+  # ⚠ Indirect expansion, not `eval` (QA F-REC-3). The old `eval "val=\$$v"` was safe — an
+  #   assignment's RHS is not re-parsed — and it was not the PRED_DOMAIN path this file's
+  #   header forbids. But `${!v}` says the same thing with no `eval` anywhere in a script
+  #   whose thesis is "never eval the domain", and a reader should not have to re-derive
+  #   which `eval` was the dangerous one.
+  val="${!v}"
+  [ -n "$val" ] || { say "FATAL: $v lifted EMPTY from $AUDIT — the domain moved. Fix the lift, do not guess."; finish 2; }
 done
 HELD_OUT="$(printf '%s' "$PRED_SIDE_EFFECTING" | tr -d "'" | tr ',' ' ')"
 
@@ -207,9 +267,9 @@ HELD_OUT="$(printf '%s' "$PRED_SIDE_EFFECTING" | tr -d "'" | tr ',' ' ')"
 # ⛔ It does not fall back to a remembered value and it does not "best-effort" the SQL.
 # ─────────────────────────────────────────────────────────────────────────────────────
 PRED_DOMAIN_SQL="$(lift_block PRED_DOMAIN)" \
-  || { say "FATAL: cannot lift PRED_DOMAIN from $AUDIT — the arm's domain moved or was renamed."; exit 2; }
+  || { say "FATAL: cannot lift PRED_DOMAIN from $AUDIT — the arm's domain moved or was renamed."; finish 2; }
 [ -n "$PRED_DOMAIN_SQL" ] \
-  || { say "FATAL: PRED_DOMAIN lifted EMPTY from $AUDIT. Fix the lift, do not guess."; exit 2; }
+  || { say "FATAL: PRED_DOMAIN lifted EMPTY from $AUDIT. Fix the lift, do not guess."; finish 2; }
 PRED_DOMAIN_SQL="${PRED_DOMAIN_SQL//\$PRED_SIDE_EFFECTING/$PRED_SIDE_EFFECTING}"
 PRED_DOMAIN_SQL="${PRED_DOMAIN_SQL//\$PRED_NAME_RE/$PRED_NAME_RE}"
 PRED_DOMAIN_SQL="${PRED_DOMAIN_SQL//\$PRED_IDENTITY_RE/$PRED_IDENTITY_RE}"
@@ -230,7 +290,7 @@ case "$PRED_DOMAIN_SQL" in
     say "       this script the new sub-variable (one more explicit substitution above),"
     say "       then re-run. ⚠ Never \`eval\` it: the domain is SQL, not shell."
     rule
-    exit 2 ;;
+    finish 2 ;;
 esac
 
 # The committed findings file — ruling 3's lookup table — is resolved out of $AUDIT too,
@@ -248,10 +308,10 @@ fi
 
 if [ "$BASE" != "HEAD" ]; then
   git rev-parse --verify --quiet "$BASE^{commit}" >/dev/null \
-    || { say "FATAL: <phase-base> is not a commit: $BASE"; exit 2; }
+    || { say "FATAL: <phase-base> is not a commit: $BASE"; finish 2; }
 fi
 git rev-parse --verify --quiet "$TIP^{commit}" >/dev/null \
-  || { say "FATAL: TIP is not a commit: $TIP"; exit 2; }
+  || { say "FATAL: TIP is not a commit: $TIP"; finish 2; }
 
 # ─────────────────────────────────────────────────────────────────────────────────────
 # 1. THE CHANGED-MIGRATION SET — three sources, because a phase MID-FLIGHT has neither
@@ -276,6 +336,11 @@ if [ "$TIP" = "HEAD" ]; then
 fi
 sort -u "$TMP/paths" -o "$TMP/paths"
 cut -f1 "$TMP/paths" | sort -u > "$TMP/files"
+# ⛔ THE SCOPE IS NOW KNOWN — set here, on the line that makes it true, so that every exit
+# from this point on prints a real `SCOPE:` line. Before it, `scope_line` says
+# "(none — this run ABORTED before the file set was built)", which is true and is itself
+# the scope such a run has.
+SCOPE_READY=1
 
 # ─────────────────────────────────────────────────────────────────────────────────────
 # 1b. AN EXPLICIT SCOPE — the OTHER half of FUP-DOOR-SWEEP-DERIVER-SPANS-THE-WHOLE-
@@ -315,27 +380,16 @@ rule
 say "DOOR-SWEEP CASE DERIVATION — ADR 0079 Amendment 1 (recipe) + Amendment 8 (rulings 1-3)"
 say "  range      : ${BASE}..${TIP}$([ "$BASE" = HEAD ] && [ "$TIP" = HEAD ] && printf '%s' '  (no committed range — working tree + untracked only)')"
 say "  domain     : lifted from $AUDIT (never re-typed here)"
-say "               PRED_DOMAIN lifted whole ($(printf '%s' "$PRED_DOMAIN_SQL" | wc -l | tr -d ' ') line(s)), 3 sub-vars expanded, no residual \$"
+# ⚠ `wc -l` COUNTS NEWLINES, and `printf '%s'` writes no trailing one — so a 9-line value
+#   was reported as 8 (QA F-REC-2). It is a number an operator may quote, so it is counted
+#   as LINES: newlines + 1 for a non-empty value.
+say "               PRED_DOMAIN lifted whole ($(printf '%s' "$PRED_DOMAIN_SQL" | awk 'END{print NR}') line(s)), 3 sub-vars expanded, no residual \$"
 say "  filter     : $FILTER_DESC"
 say "  migrations : $(wc -l < "$TMP/files" | tr -d ' ') file(s) touched"
 while IFS= read -r f; do
   src="$(awk -F'\t' -v p="$f" '$1==p {printf "%s%s", (n++ ? "+" : ""), $2} END {print ""}' "$TMP/paths")"
   say "               - $f  [$src]"
 done < "$TMP/files"
-
-# ── the SCOPE: line, defined here because EVERY exit path owes it ────────────────────
-# ⛔ Measured 2026-09-05, on this instrument's first use against its OWN diff: the
-# NOT-APPLICABLE path printed no `SCOPE:` line at all, so the one line the gate record is
-# told to quote verbatim did not exist for the very outcome a no-migration branch produces.
-# "There was nothing to scope" is itself a scope, and it is the claim exit 3 asks the
-# operator to check.
-scope_line () {
-  local nc nw nu
-  nc=$(awk -F'\t' '$2=="committed"' "$TMP/paths" | cut -f1 | sort -u | comm -12 - "$TMP/files" | wc -l | tr -d ' ')
-  nw=$(awk -F'\t' '$2=="worktree"'  "$TMP/paths" | cut -f1 | sort -u | comm -12 - "$TMP/files" | wc -l | tr -d ' ')
-  nu=$(awk -F'\t' '$2=="untracked"' "$TMP/paths" | cut -f1 | sort -u | comm -12 - "$TMP/files" | wc -l | tr -d ' ')
-  say "SCOPE: $(wc -l < "$TMP/files" | tr -d ' ') file(s) — $nc committed (${BASE}..${TIP}), $nw worktree, $nu untracked | filter: $FILTER_DESC"
-}
 
 if [ ! -s "$TMP/files" ]; then
   rule
@@ -349,7 +403,7 @@ if [ ! -s "$TMP/files" ]; then
   say "       0 case(s) — nothing was derived, and the line above is what the gate record"
   say "       quotes to say so."
   rule
-  exit 3
+  finish 3
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────────────
@@ -524,17 +578,39 @@ extract_one () {   # $1 = the per-file scratch dir, already holding content + fl
   #     target-list       := target ( \s*,\s* target )* \s*,?
   #     target            := (app|public|authz).name [ '(' … ')' ]
   #
-  # ⚠ CONSUME-OR-STOP, TOKEN-BEARING — and it is measured, not a preference. A following
-  # `--` line carrying at least one `(app|public|authz).name` token is a continuation and
-  # every token on it is consumed; a `--` line with NO such token ENDS the declaration,
+  # ⚠ CONSUME-OR-STOP, PREFIX-BEARING — and it is measured, not a preference. A following
+  # `--` line carrying a SCHEMA PREFIX (`app.` / `public.` / `authz.`) is a continuation and
+  # every token on it is consumed; a `--` line with NO schema prefix ENDS the declaration,
   # silently. Strict rejection would red two committed migrations at every gate:
   # `20261003007180:9` is a bare `--` and `20261003007190:6` likewise. The cost of the
   # tolerant rule is that prose naming a schema-qualified callable immediately under a
   # declaration is consumed — which is over-selection, and 4c's catalog classification is
   # what makes over-selection cheap again.
-  # ⚠ Loud NARROW case: a continuation bearing a schema prefix with no name, or an unclosed
-  # argument list, is a NAMED parse error. The run continues — a parse error in a comment
-  # must not decide a sweep — but it is printed, never silent.
+  #
+  # ⛔ THE TEST IS THE PREFIX, NOT A SUCCESSFUL PARSE — and that distinction is the whole of
+  # QA F-MAJOR-3. The old condition was `harvest(rest) > 0`: a line whose only content was a
+  # bare `app.` harvested NOTHING, so it was read as a token-free `--` line and TERMINATED
+  # the declaration, taking every well-formed continuation after it. Worse, the
+  # `complain(… "schema prefix with no function name")` advertised for exactly that input
+  # sat INSIDE the successful-harvest branch, so for the purest instance of the error it
+  # names it was dead code. MEASURED on a cmp-verified copy, on the four-line declaration
+  #     -- door-sweep-targets: app.is_admin(),
+  #     --                     app.
+  #     --                     is_commission_admin_of(uuid),
+  #     --                     app.can_sign_section(uuid)
+  # the run exited 0 with CASES = `is_admin` alone, tier 1 = 1, and PARSE ERROR count 0 — a
+  # silent under-selection that reads as a clean, complete derivation. `:89-90` of this file
+  # calls under-selection "a gate nobody looked at"; the closed follow-up
+  # FUP-DOOR-SWEEP-MARKER-BLIND-TO-CONTINUATION-LINES required "consume … or reject them
+  # LOUDLY — a named parse error, not silence", and its disclosed deviation covers only the
+  # token-free bare `--`, which `app.` is not.
+  # ⚠ A DANGLING PREFIX CARRIES TO THE NEXT LINE. `app.` at end-of-line is a declaration
+  # wrapped mid-token, so the prefix is prepended to the next `--` line before harvesting —
+  # which is what lets `is_commission_admin_of(uuid),` on its own line derive. The parse
+  # error is still named; the carry is a recovery, not a pardon.
+  # ⚠ Loud NARROW cases, all of which CONTINUE the declaration: a schema prefix with no
+  # name, and an unclosed argument list. The run continues — a parse error in a comment must
+  # not decide a sweep — but it is printed, never silent.
   awk '
     function harvest(s,   n) {
       while (match(s, /(app|public|authz)\.[a-z0-9_]+/)) {
@@ -547,26 +623,42 @@ extract_one () {   # $1 = the per-file scratch dir, already holding content + fl
       return n
     }
     function complain(where, why) { print where "\t" why > ERRS }
+    # Named parse errors, and the DANGLING-PREFIX carry. Returns the prefix to prepend to
+    # the next line ("" when the line ended cleanly).
+    function diagnose(probe, where,   p) {
+      if (probe ~ /(app|public|authz)\.([^a-z0-9_]|$)/) complain(where, "schema prefix with no function name")
+      if (probe ~ /\([^)]*$/)                           complain(where, "unclosed argument list")
+      if (match(probe, /(app|public|authz)\.[ \t]*$/)) {
+        p = substr(probe, RSTART, RLENGTH); gsub(/[ \t]/, "", p); return p
+      }
+      return ""
+    }
     {
       low = tolower($0)
       if (low ~ /^[ \t]*--[ \t]*door-sweep-targets:/) {
         sub(/^[ \t]*--[ \t]*door-sweep-targets:[ \t]*/, "", low)
-        inmark = 1; line = NR
-        if (harvest(low) == 0) complain(NR, "door-sweep-targets: with no (app|public|authz).name target")
+        inmark = 1; line = NR; carry = ""
+        probe = low
+        if (harvest(low) == 0 && probe !~ /(app|public|authz)\./)
+          complain(NR, "door-sweep-targets: with no (app|public|authz).name target")
+        carry = diagnose(probe, NR)
         next
       }
       if (inmark) {
         if (low ~ /^[ \t]*--/) {
           rest = low; sub(/^[ \t]*--[ \t]*/, "", rest)
+          if (carry != "") { rest = carry rest; carry = "" }
           probe = rest
-          if (harvest(rest) > 0) {
-            if (probe ~ /(app|public|authz)\.([^a-z0-9_]|$)/) complain(NR, "schema prefix with no function name")
-            if (probe ~ /\([^)]*$/)                           complain(NR, "unclosed argument list")
+          # ⛔ A SCHEMA PREFIX makes this line part of the declaration, whether or not any
+          #    token on it parses. Only a prefix-free `--` line ends the declaration.
+          if (probe ~ /(app|public|authz)\./) {
+            harvest(rest)
+            carry = diagnose(probe, NR)
             next
           }
-          inmark = 0; next          # token-free `--` line: the declaration ends here
+          inmark = 0; carry = ""; next   # prefix-free `--` line: the declaration ends here
         }
-        inmark = 0
+        inmark = 0; carry = ""
       }
     }
   ' TARGETS="$D/fn_rewrite" ERRS="$D/marker_err" "$D/content" 2>/dev/null || true
@@ -728,7 +820,7 @@ if [ "$REWRITE_PRESENT" = 1 ] && [ ! -s "$TMP/fn_rewrite" ]; then
   say "      record silence. ⛔ There is no ACK env var; an escape hatch for the unmeasurable"
   say "      also silences the measured."
   rule
-  exit 1
+  finish 1
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────────────
@@ -1160,7 +1252,7 @@ if [ -z "$CASES_LIST" ]; then
   say "    ⚠ There is no ACK env var to make this exit 0. An escape hatch for the"
   say "      unmeasurable also silences the measured."
   rule
-  exit 1
+  finish 1
 fi
 
 NCASES="$(wc -l < "$TMP/cases" | tr -d ' ')"
@@ -1274,4 +1366,4 @@ case "$ARM" in
   write) printf '%s\n' "$CASES_WRITE" ;;
   *)     printf '%s\n' "$CASES_LIST" ;;   # default: the UNION, unchanged for old callers
 esac
-exit 0
+finish 0

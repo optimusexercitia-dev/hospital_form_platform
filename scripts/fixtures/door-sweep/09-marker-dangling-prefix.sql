@@ -1,0 +1,28 @@
+-- door-sweep-targets: app.is_admin(),
+--                     app.
+--                     is_commission_admin_of(uuid),
+--                     app.can_sign_section(uuid)
+--
+-- ⛔ QA F-MAJOR-3, reproduced VERBATIM — these four lines are the reviewer's own example.
+-- The declaration is wrapped MID-TOKEN: line 2 is a bare schema prefix and line 3 carries
+-- the name it belongs to. Before 2026-09-05 the parser tested `harvest(rest) > 0`, so line 2
+-- harvested nothing, was read as a token-free `--` line and ENDED the declaration, taking
+-- lines 3 and 4 with it. MEASURED on the pre-fix deriver (`7df0bd9b`) against this exact
+-- file: rc 0, CASES = `is_admin` alone, `PARSE ERROR` occurrences 0, and
+-- `is_commission_admin_of` never mentioned anywhere in the output. A silent under-selection
+-- that reads as a clean, complete derivation.
+--
+-- ⚠ THE THREE NAMES ARE DIFFERENT KINDS ON PURPOSE, and that is what makes the assertions
+-- discriminate rather than agree:
+--   · `app.is_admin`         — prosecdef bool, IN PRED_DOMAIN. The pre-fix run got this one
+--                              too, so on its own it proves nothing.
+--   · `is_commission_admin_of` — no `pg_proc` row at all. It can only ever reach the
+--                              UNRESOLVED block, which is precisely why it is the witness
+--                              that the PARSER read a token past the broken prefix.
+--   · `app.can_sign_section` — prosecdef bool, IN PRED_DOMAIN, two lines past the break.
+--                              It reaches CASES only if the declaration survived the whole
+--                              way, and the pre-fix run did not derive it.
+--
+-- ⚠ NO `pg_get_functiondef` and NO `create function`: the declaration path is the only path
+-- that can reach these three, so nothing else can supply them and make this pass.
+select 1;

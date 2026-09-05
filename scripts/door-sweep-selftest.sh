@@ -213,6 +213,21 @@ assert "expected the named cause" "$(has_err 'schema prefix with no function nam
 assert "has_permission still derived" "$(has_out has_permission && echo 1 || echo 0)"
 done_ok
 
+# ── 8b. ⭐ QA F-MAJOR-3. A declaration WRAPPED MID-TOKEN: `app.` alone on one line, the
+#      name it belongs to on the next. The bare prefix used to be read as a token-free `--`
+#      line and TERMINATE the declaration, silently taking both well-formed continuations
+#      after it, while the parse error advertised for exactly that input sat inside the
+#      successful-harvest branch and could never fire on it. Three assertions and every one
+#      of them flips on a revert: two tokens that could not be derived at all, and the named
+#      error that could not be printed.
+scenario "dangling schema prefix -> named, not silent" 1 0 -- 09-marker-dangling-prefix.sql
+assert "is_admin derived (⚠ the pre-fix run got this one too)" "$(has_out is_admin && echo 1 || echo 0)"
+assert "the token PAST the break was READ (UNRESOLVED, not silence)" "$(has_err 'is_commission_admin_of' && echo 1 || echo 0)"
+assert "can_sign_section derived — two lines past the break" "$(has_out can_sign_section && echo 1 || echo 0)"
+assert "the parse error must be NAMED, not silent" "$(has_err 'schema prefix with no function name' && echo 1 || echo 0)"
+assert "expected the PARSE ERROR block" "$(has_err 'PARSE ERROR' && echo 1 || echo 0)"
+done_ok
+
 # ── 9. ⭐ THE ADR 0173 ARRAY-GATE PIN. One file builds an array; the other does not and
 #      names `app.is_active(` only as a replacement literal. `is_active` must NOT be
 #      derived. Revert the per-file gate and this fails without touching the assertion.

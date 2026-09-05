@@ -10,11 +10,11 @@ read-only catalog queries the deriver itself makes.
 deriver classifies by the catalog, so a made-up name would only ever exercise the
 UNRESOLVED branch. The fixtures pin what each catalog fact makes the deriver do.
 
-⚠ **There is no fixture `09`, and nothing was deleted.** The numbers are an ordering aid,
-not a sequence: `10-array-rewrite.sql` and `11-marker-and-replacement-literal.sql` are a
-PAIR consumed by one scenario and were numbered together, and `09` was simply never
-written. `git log --diff-filter=D -- scripts/fixtures/door-sweep/` is empty, and all 13
-files here were added, never replaced. (QA F-REC-8: the gap "reads as a deleted fixture".)
+⚠ The numbering is contiguous, `01`–`13`. It was `01`–`08`, `10`–`13` until 2026-09-05:
+`09` had simply never been written — `git log --diff-filter=D -- scripts/fixtures/door-sweep/`
+is empty and no fixture here has ever been deleted — but a gap "reads as a deleted fixture"
+(QA F-REC-8), so the slot was closed rather than explained.
+`09-marker-dangling-prefix.sql` fills it with QA F-MAJOR-3's own four-line example.
 
 ## `merge/` — inputs for `scripts/lib/merge-findings-baseline.sh`
 
