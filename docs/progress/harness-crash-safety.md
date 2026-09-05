@@ -784,6 +784,45 @@ residue shapes; `pg_policies where (qual='true' or with_check='true') and cmd <>
 3. **The F-REC-2 header correction is in Commit B**, because the measurement that settles it is the
    gate's `test:db` and the lead placed F-REC-2 in Commit B.
 
+**Line citations re-anchored 2026-09-04 (QA N4):** the prose above is **unchanged** (this entry is
+append-only); this table is the map. `c2-command-door-neutralizer.sh` was **905** lines at Commit A
+(`8d7f01db`), **912** at Commit B (`cbddee2a`) — so this entry's numbers were taken against **two
+different files** — **955** when QA read it, and **974** at the commit this table is written in.
+Every number below was **re-derived by grepping the anchor text in the final file**, never copied
+from QA's list. ⭐ The middle column is the fix for next time: cite `anchor` **+** `:line`, so a
+number that rots is still diagnosable.
+
+| cited | the anchor it names (`c2-command-door-neutralizer.sh`) | at THIS commit |
+|---|---|---|
+| `:88` | `psql_c ()` — the `-v ON_ERROR_STOP=1` fix | **`:103`** |
+| `:119` | the SUBSET condition, `if [ -n "$CASES" ] \|\| [ -n "$SUITE" ] \|\| …` | **`:134`** |
+| `:229` | `preflight_degenerate ()` | **`:244`**; its *not a count* assert `case "$d" in ''\|*[!0-9]*)` **`:257-261`** |
+| `:255` / `:317` | `derive_worklist`'s comment-strip idiom `regexp_replace(p.prosrc,'--[^\n]*','','g')` | **`:280`** (the `body` column) and **`:343`** (the `\copy`). ⚠ This pair resolved at **neither** 905 (258/321) nor 912 (265/328) — it was written against an intra-session working state, a third rot shape QA's list does not cover |
+| `:394` | `preflight_residue ()` (arm 4a) | **`:409`**; F-MAJOR-1's two comment-stripped conjuncts **`:421-422`**; the `C2ARM4A` tally query **`:416`**; the *not a tally* assert **`:428`** |
+| `:162` | `restore_inflight ()`'s `live=` `psql_c` caller (`restore_inflight ()` itself `:175`) | **`:184`** |
+| `:477` | `hash_of ()` | **`:499`** |
+| `:484` / `:487` | `snapshot ()`'s two `psql_c` sidecar writes (`snapshot ()` itself `:500`) | **`:506`** / **`:509`** |
+| `:664` | the SELFTEST `DEG` `psql_c` | **`:686`** |
+| `:616-618` | the `BASE_S_OVERRIDE` SELFTEST gate | **`:631-639`** (whole `if/else/fi`) |
+| `:700` | `periodic_reset ()` | **`:733`**; the predicate it now reads, `resets_enabled ()`, **`:729-732`** |
+| `:718` | step 2's *NOT resetting* echo | the gate **`:753`**, its two per-polarity echoes **`:755`** / **`:757`**; the in-flight interlock still ahead of it at **`:740`** |
+| `:788` | `sweep_one ()`'s ROLLBACK-FAILED note | **`:828`** |
+| `:863` | the retry net's NOT-retried note | the net **`:894-929`**, its gate **`:898`**, the notes **`:915`** *(`RESET_EVERY=0` — added by QA N3, this commit)* and **`:917`** |
+| `:886` | the summary banner's `RESETNOTE` chain | **`:940-948`**, printed at **`:949`** |
+
+⚠ **The iteration-2 entry's citations, exact at `f8a11a61`, are shifted by this commit too** (+6
+from the N1 header correction, +13 more from the N3 note): `:717`→**`:723`** · `:718`→**`:724`** ·
+`:723-726`→**`:729-732`** · `:740`→**`:746`** *(the `[ -s "$INFLIGHT" ]` interlock inside
+`periodic_reset` — there are three such lines, at `:209`, `:682`, `:746`)* · `:747-753`→**`:753-759`**
+· `:892-900`→**`:898-917`** · `:921-929`→**`:940-948`** · `:705-713`→**`:711-719`**.
+`:44-52` (header USAGE) is **unchanged** — the N1 correction sits below it at `:69-77`.
+
+**Non-script citations in this entry, re-checked rather than assumed — all four still resolve:**
+`docs/progress/c2-tier1.md:366` (the `Tests=8764` line) ✓ · `docs/reviews/c2-suite-abort-diagnosis.md:36-37,129` ✓ ·
+`follow-ups-archive.md:8014`/`:8282`/`:8321` (the 3 register-style `**Closes when:**` lines) ✓ —
+appends land **after** them, so they did not move; ⚠ but the same sentence's *"the **8963**-line
+archive"* is a count, and it is now **8977**.
+
 ---
 
 ### 2026-09-04 — backend: QA fix loop, iteration 2
@@ -916,6 +955,23 @@ rule. Correcting them would falsify a record of a measurement. ⛔ Enumerated ra
 D6 (all now under the boxed correction), one in the hub's `Done since start` (**replaced** in this
 commit), and those two. **None in `docs/reviews/`.**
 
+⭐ **Correction 2026-09-04 (QA N2) — the census above is right in its TOTAL and wrong in three of
+its four terms, and it does not count itself.** Re-run at `fc33a497` (before this commit), the same
+command, rc **0**: `grep -rn "SUBSET run never resets" --include=*.md .` → **7** hits, not six —
+**2** in ADR 0189 D6 (`:178`, `:182`) · **4** in this record (`:598`, `:644`, and `:911`/`:915`,
+the census sentence's own two self-referential lines) · **1** in
+`docs/reviews/harness-crash-safety-rereview.md:381`, which quotes that sentence. **0** in the hub.
+So *"three in ADR 0189"* was **two**, *"one in the hub"* was **zero**, *"those two"* was **four**,
+and ⛔ *"None in `docs/reviews/`"* — true when written, and QA cross-checked that it never summed at
+`d828385c` either (2 + 1 + 2 = 5 there) — has since gone **false**, the counter-example being QA's
+own report. What survives untouched is the only claim the census was written to support: the two
+strings at `:598` and `:644` are **quoted run output** of iteration 1 and are kept on purpose. The
+census had no other purpose, so it is **corrected here rather than expanded**. ⛔ A census whose
+parts do not sum is a finding whatever its total — this one carried the label *"enumerated rather
+than assumed"*. ⚠ **And this correction counts itself:** it adds exactly **one** occurrence of the
+string (the quoted command on the line above), so the same grep at THIS commit's HEAD returns
+**8** — measured, not projected: 2 ADR · **5** this record · 1 the re-review.
+
 #### Gate — every exit code read BARE, on the line after the command, never through a pipe
 
 | step | rc | what it enumerated |
@@ -1001,3 +1057,128 @@ into a diff** — `qa` owns that directory.
    run.* The empty log is what caught it; a summary line would not have.
 2. **The doc corrections are in Commit A**, beside the mechanism, as this iteration's disposition
    listed them (iteration 1 put them in Commit B because Commit A was script-only there).
+
+---
+
+### 2026-09-04 — backend: QA re-review N1–N6
+
+The PO **approved** the unit at `fc33a497`. This is the Record-step commit that clears the six
+**RECOMMENDED** observations in `docs/reviews/harness-crash-safety-rereview.md` § 4 — one commit,
+three files: `supabase/tests/mutation/c2-command-door-neutralizer.sh` (955 → **974** lines), this
+record, and ADR 0189. ⛔ Same standing constraints as every earlier session, and all held: **no
+migration, policy, grant, RPC, seed or `src/` change**; nothing under `docs/reviews/`,
+`.claude/rules/`, `docs/progress/phase-ledger.md` or the hub was edited (the lead closes the hub
+next); **every exit code read BARE**, on the line after the command, never through a pipe.
+
+| # | what changed | where |
+|---|---|---|
+| **N1** | the note's false *reason* corrected, its conclusion kept | C2 header `:69-77` |
+| **N2** | the six-hit census corrected beside the original, dated | this record, under the iteration-2 census |
+| **N3** | the NOT-retried disclosure widened to **all** suppressed polarities | C2 `:894-929` |
+| **N4** | a re-anchor table appended to the iteration-1 entry (its prose untouched) | this record |
+| **N5** | the D7 / D8 **sections** swapped, the **numbers** kept | ADR 0189 |
+| **N6** | D5's subset definition amended to name all four disjuncts | ADR 0189 |
+
+**N1 — the universal negative, and what one grep says.** The header asserted *"nobody has
+re-derived when 8764 was true, so treat them as unverified"*. **ADR 0188 `:26-32` has**: its shape
+table dates `8764` as *"the anchor fix's 6-enforcer subset"*, and `docs/progress/c2-tier1.md:1074`
+repeats the lineage. The conclusion (leave both files alone) stands and now carries its true,
+stronger reason — a **dated shape in a ruled composite**, whose correction would destroy the
+lineage ADR 0188 depends on. *Before asserting a universal negative, grep for it.*
+
+**N2 — the census's true counts.** Re-run at `fc33a497`, rc **0**:
+`grep -rn "…" --include=*.md .` → **7** hits, not the six claimed — **2** ADR 0189 D6 · **4** this
+record · **1** the re-review; **0** in the hub. So *"three in ADR 0189"* was two, *"one in the
+hub"* was zero, *"those two"* was four, and *"None in `docs/reviews/`"* went false when QA's own
+report was committed. QA's cross-check at `d828385c` (2 + 1 + 2 = 5) shows the breakdown was never
+true at any commit. The substantive claim it supported — the two strings at `:598`/`:644` are
+quoted run output and are kept on purpose — is **correct and unchanged**, so the census is
+corrected rather than expanded. At **this** commit's HEAD the same grep returns **8**: the
+correction adds exactly one occurrence and says so, because a census that cannot count itself is
+the defect N2 names.
+
+**N3 — the disclosure gap, reproduced and closed on the production text.** The retry net gated its
+NOT-retried note on `! resets_enabled && [ "$SUBSET" = "1" ] && [ "$RESET_EVERY" != "0" ]`, so under
+`RESET_EVERY=0` — **either** `SUBSET` value — a drift-shaped ERROR row was written with **no
+row-level note that no retry was attempted**. Pre-existing at `8d7f01db` and `6b6aee64`, as QA says.
+The gate is now the same `resets_enabled` predicate the reset and the banner read, with the reason
+named **per polarity**, mirroring `periodic_reset`'s two suppression messages.
+
+⛔ Proven by **extracting** `resets_enabled ()` and the whole retry-net block from the file (by
+`sed` range over the function header and over `# THE RETRY NET` → `esac` — never retyped) and
+`eval`-ing them with `periodic_reset` **stubbed to append to a marker file**, so "did it retry" is
+a fact on disk rather than a reading of the log. Both drivers rc **0**, read bare; `bash -n` on the
+shipped file rc **0**.
+
+| trial | `SUBSET` / `RESET_EVERY` | BEFORE (`fc33a497`, 23-line block) | AFTER (this commit, 36-line block) |
+|---|---|---|---|
+| **a** | 0 / `0` | note **ABSENT**, marker absent — ⛔ the N3 gap, reproduced | `(drift-shaped; NOT retried — RESET_EVERY=0, resets are DISABLED everywhere)` |
+| **b** | 1 / `0` explicit | note **ABSENT**, marker absent — the same gap, other polarity | the same note |
+| **c** | 1 / `20` defaulted | `(drift-shaped; NOT retried — a SUBSET run resets only when RESET_EVERY is set explicitly)` | **unchanged** |
+| **d** | 1 / `1` explicit | **RETRIED** — marker `FIRED`, note `(retried after reset)` | **unchanged** — the positive half |
+| **e** | 0 / `20` defaulted | **RETRIED** — marker `FIRED` | **unchanged** |
+
+⭐ a/b are the finding and its closure; **c/d/e are the discrimination half** — the net still
+retries exactly where it retried before. The retry arm is **provably untouched**: the new `if` is
+exactly `! resets_enabled`, so the new `else` is the old `elif resets_enabled`, and trials d/e fire
+the stub as before. Only the note text moved.
+
+**N4 — line citations re-anchored.** The table sits at the end of the iteration-1 entry; that
+entry's prose is **not** rewritten (append-only). Every number was re-derived by grepping the
+anchor text in the **final** file — the script changes again in this very commit (N1 +6 lines, N3
++13). Two findings beyond QA's list: the entry's numbers were taken against **two different script
+states** (905 lines at Commit A, 912 at Commit B), and the `:255`/`:317` pair resolves at
+**neither** — it was written against an intra-session working tree, a rot shape a single-shift
+mapping cannot express. The iteration-2 entry's citations, exact when QA read them, are shifted by
+this commit and are re-anchored in the same block; its four non-script citations were re-checked
+and **all still resolve** (only the archive's *8963*-line count moved, to **8977**). ⭐ Citations
+are now stated as `anchor` + `:line`, so the next drift is diagnosable rather than merely wrong.
+
+**N5 — sections swapped, numbers kept.** Renumbering was rejected on measurement: `D7` is cited by
+number from the hub `:53`, `follow-ups-archive.md:8871`, this record `:437` and **both** committed
+review reports, and `D8` from the re-review `:187`. Renumbering to fix a *reading order* would have
+falsified citations in documents this session may not edit. The two blocks were moved
+mechanically, and the move was verified **content-preserving** — 328 lines before and after, and a
+sorted-line `diff` of the two versions **empty**, rc 0. Headings now read D1 → D8 in order; a dated
+ordering note at the end of D8 records which option was taken and why.
+
+⚠ **N5 and N6 move ADR 0189's own line numbers, and the re-review cites some of them** — an
+unavoidable cost of the two fixes, recorded rather than left to be discovered. Headings at this
+commit: **D1 `:70` · D2 `:98` · D3 `:106` · D4 `:146` · D5 `:154` · D6 `:172` · D7 `:227` ·
+D8 `:262`**, `## Considered options` `:290`, `## Consequences` `:319`, 348 lines. So the
+re-review's `D6 :190-213` is now `:203-226`, its `D5 :154-157` is `:156-157` (the heading is
+unchanged; the amendment follows at `:159-170`), its `D7 :241-249` is `:233-241` (the verbatim
+ruling quote itself is `:233-240`), and its
+`### D8 is at :214, ### D7 at :235` is the observation being closed. `D1 :81-82` is unmoved.
+
+**N6 — D5 now names all four disjuncts.** QA named a third (`BASE_S_OVERRIDE`, supplied by D8); the
+shipped condition has **four** — `CASES=`, `SUITE=`, `SELFTEST=1`, `BASE_S_OVERRIDE` — in three
+kinds: cases narrowed, domain narrowed, and a baseline **synthetic or falsified**. D5 now states
+all four, cross-references D8, and keeps the original sentence above the amendment.
+
+#### Gate — read BARE
+
+| step | rc | what it enumerated |
+|---|---|---|
+| `bash -n c2-command-door-neutralizer.sh` | **0** | the shipped file parses after both edits |
+| N3 proof driver, BEFORE (`fc33a497`) | **0** | 5 trials; 2 with the note **ABSENT** — the gap |
+| N3 proof driver, AFTER (final 974-line tree) | **0** | 5 trials; 3 notes **PRESENT**, 2 retries **FIRED** |
+| `npm run lint` | **0** | eslint `--max-warnings=0` ⇒ 0 errors AND 0 warnings; `check-progress-doc: OK`; `check-rules-staleness: OK (10 rule file(s))`; `build-adr-index: OK (187 ADRs indexed, next free 0190)`; `check-mojibake: OK`; `check-docs-registers: OK`; `build-features-index: OK (7 hubs; index in sync)` |
+
+#### What was NOT done, and why
+
+- ⛔ **No `npm run test:db`, no authz arm, no door sweep.** The diff is one harness script and two
+  documents: no migration, policy, grant, RPC, `prosecdef` gate or `src/` file changed, so none is
+  owed. `git diff --name-only main... -- supabase/migrations supabase/seed.sql src` is **empty**.
+- ⛔ **The C2 `CASES=`-3 regression was NOT run, and it would have been vacuous.** N3's change lives
+  inside `case "$SW_NOTE" in *"SHAPE changed"*|*"did not come back green"*)`. The three regression
+  enforcers score **COVERED**, whose note is *"a keystone asserts through this guard"* — it matches
+  neither arm, so that run **cannot reach the changed lines**. What reaches them is the extracted
+  five-polarity driver above, which exercises the changed arm **and** the unchanged retry arm on
+  the production text. ⚠ Two further reasons to prefer it here: a second Supabase stack
+  (`supabase_db_escalume`) was up, and this repo's stack had been reset 36 minutes earlier by
+  another owner — a ~13-minute mutating sweep on a shared stack risks a spurious red in both
+  directions. **If the lead wants the regression anyway it is a clean detached `CASES=` run; the
+  claim it would add is "the sweep loop still runs", not "the N3 branch is right".**
+- **`npm run adr:index` not re-run**: no ADR *header* field changed (body-only edits), and
+  `build-adr-index --check` passed inside `npm run lint`.

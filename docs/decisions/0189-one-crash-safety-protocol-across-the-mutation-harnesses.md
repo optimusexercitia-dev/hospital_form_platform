@@ -156,6 +156,19 @@ the keystone was in the domain and did notice. Only the negative needs the full 
 ADR 0153's decision is unchanged; its **scope** is. A run is a subset when **either** axis is
 narrowed — the cases swept **or** the domain swept — and a subset writes to scratch.
 
+⭐ **Amended 2026-09-04 (QA N6): narrowing is not the only way in.** The sentence above is true as
+written ("when", not "only when"), but a reader deriving the condition from D5 alone would get it
+wrong, because the shipped predicate has **four** disjuncts, in **three** kinds:
+
+1. **the cases swept are narrowed** — `CASES=`;
+2. **the domain swept is narrowed** — `SUITE=` (the amendment this decision makes);
+3. **a baseline that is synthetic or falsified** — `SELFTEST=1`, and `BASE_S_OVERRIDE` (**D8**),
+   which narrows *neither* axis but **falsifies** one, a stronger corruption than either narrowing
+   and the one that used to leave `SUBSET=0`.
+
+The rule the three kinds share is the one that matters: **a run whose stated preconditions are not
+the full sweep's never writes the committed baseline.**
+
 ### D6 — Drift is bounded, not merely detected
 
 `RESET_EVERY` (default 20; `0` disables) resets the database inside a long sweep and re-captures
@@ -211,27 +224,6 @@ an instrumented reset command.
 > read by all three sites (the gate, the retry net, the banner) — three hand-written copies of one
 > condition is how a banner comes to describe a rule the code no longer implements.
 
-### D8 — `BASE_S_OVERRIDE` is a SELF-TEST knob, and it is interlocked twice
-
-`BASE_S_OVERRIDE` falsifies the captured baseline shape so the drift path (and hence the
-reset-and-retry net) is reachable on demand. It is **production surface added for testability**,
-and until 2026-09-04 it was guarded by a printed warning alone — in a file whose entire thesis is
-that a warning is not a guard. Set on an otherwise ordinary invocation it left `SUBSET=0`, so a run
-whose stated precondition was **falsified** still wrote the **committed** baseline
-`docs/reviews/c2-command-door-findings.md` after every enforcer. ⭐ This is ADR 0153's own principle
-turned against the harness: *narrowing* either axis makes a run a subset, and **falsifying** the
-baseline axis is a stronger corruption than narrowing either — yet it was the one axis that did not.
-
-Two interlocks now, in opposite directions:
-
-1. It is **honoured only under `SELFTEST=1`**; otherwise the run prints
-   `⛔ BASE_S_OVERRIDE ignored — SELFTEST=1 only` and the true captured shape stands.
-2. It **joins the SUBSET condition**, so even if honoured it can never reach the committed
-   baseline.
-
-⛔ A production knob that can falsify a verdict's stated precondition belongs in the decision
-record, not only in a header comment — it appeared nowhere in this ADR until QA F-MAJOR-3 said so.
-
 ### D7 — Detect-only is the accepted posture, by PO ruling — and self-healing is explicitly NOT a requirement
 
 `FUP-AUTHZ-HARNESS-TRANSACTIONAL`'s residual was escalated as question Q2 of this unit's plan and
@@ -266,6 +258,34 @@ Three things this decision fixes, so that a later reader cannot re-derive them w
 ⚠ The §2.4 in-flight interlock therefore checks `[ ! -s "$INFLIGHT" ]` **only**. The "zero marker
 rows" half of the planned interlock was dropped with the marker: a guard that queries a table which
 does not exist is not a weaker guard, it is a broken one.
+
+### D8 — `BASE_S_OVERRIDE` is a SELF-TEST knob, and it is interlocked twice
+
+`BASE_S_OVERRIDE` falsifies the captured baseline shape so the drift path (and hence the
+reset-and-retry net) is reachable on demand. It is **production surface added for testability**,
+and until 2026-09-04 it was guarded by a printed warning alone — in a file whose entire thesis is
+that a warning is not a guard. Set on an otherwise ordinary invocation it left `SUBSET=0`, so a run
+whose stated precondition was **falsified** still wrote the **committed** baseline
+`docs/reviews/c2-command-door-findings.md` after every enforcer. ⭐ This is ADR 0153's own principle
+turned against the harness: *narrowing* either axis makes a run a subset, and **falsifying** the
+baseline axis is a stronger corruption than narrowing either — yet it was the one axis that did not.
+
+Two interlocks now, in opposite directions:
+
+1. It is **honoured only under `SELFTEST=1`**; otherwise the run prints
+   `⛔ BASE_S_OVERRIDE ignored — SELFTEST=1 only` and the true captured shape stands.
+2. It **joins the SUBSET condition**, so even if honoured it can never reach the committed
+   baseline.
+
+⛔ A production knob that can falsify a verdict's stated precondition belongs in the decision
+record, not only in a header comment — it appeared nowhere in this ADR until QA F-MAJOR-3 said so.
+
+⚠ **Ordering note, 2026-09-04 (QA N5).** D7 and D8 were authored in reverse order, so a reader
+scanning D1→D8 met them out of sequence. **The SECTIONS were swapped; the NUMBERS were not** — D7
+is still the PO ruling and D8 still this knob — because both numbers are cited from the hub, the
+follow-up archive, this unit's progress record and two committed review reports, and renumbering
+would have falsified those citations to fix a reading order. The move is content-preserving: the
+two blocks are byte-identical to their pre-swap text.
 
 ## Considered options
 

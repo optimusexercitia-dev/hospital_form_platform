@@ -68,7 +68,13 @@
 #   exit 0. 8764 was the stale half. The timing conclusion below derives from WALL time and is
 #   unaffected. ⚠ `docs/progress/c2-tier1.md` and `docs/reviews/c2-suite-abort-diagnosis.md` also
 #   carry 8764. They are dated records of THEIR OWN runs, not restatements of this tree, and are
-#   left alone — but nobody has re-derived when 8764 was true, so treat them as unverified.
+#   left alone. ⭐ THE REASON IS CORRECTED 2026-09-04 (QA N1): this note first said "nobody has
+#   re-derived when 8764 was true, so treat them as unverified" — a universal negative that ONE
+#   grep contradicts. ADR 0188 `:26-32` dates it, tabulating the six suite shapes this closure was
+#   composited across: `8764` = "the anchor fix's 6-enforcer subset" (repeated at
+#   `docs/progress/c2-tier1.md:1074`). They carry a DATED SHAPE IN A RULED LINEAGE, not an
+#   unverified figure — so leaving them alone is right for a STRONGER reason than the one given,
+#   and correcting them would destroy the lineage ADR 0188 depends on.
 #   so the cost grows with it. At ~100 s a run that is ~9.5 h MINIMUM, not the ~2.2 h this header
 #   used to claim -- a 4x under-estimate that survived because nobody re-timed it.
 #   This is a periodic audit, never a phase step.
@@ -889,15 +895,28 @@ while IFS=$'\t' read -r foid name sig ndoors nraise nanchored; do
   # lost three verdicts to exactly this and each came back COVERED on a clean DB.
   case "$SW_NOTE" in
     *"SHAPE changed"*|*"did not come back green"*)
-      if ! resets_enabled && [ "$SUBSET" = "1" ] && [ "$RESET_EVERY" != "0" ]; then
+      if ! resets_enabled; then
         # ⛔ NOT retried, and the note SAYS SO (2026-09-04, QA F-MAJOR-2). The retry's whole
         #    mechanism is the reset; where this run may not reset, retrying would re-measure the
         #    same drift and then suffix "(retried after reset)" — a note asserting a reset that
         #    did not happen. A false note is worse than a missing retry. ⭐ Under an EXPLICIT
         #    RESET_EVERY the subset DOES reset, so this branch is not taken and the retry below
         #    runs — which is what keeps the net provable without a full sweep.
-        SW_NOTE="$SW_NOTE (drift-shaped; NOT retried — a SUBSET run resets only when RESET_EVERY is set explicitly)"
-      elif resets_enabled; then
+        # ⛔ WIDENED 2026-09-04 (QA N3). The condition read
+        #    `! resets_enabled && [ "$SUBSET" = "1" ] && [ "$RESET_EVERY" != "0" ]`, so under
+        #    RESET_EVERY=0 — EITHER SUBSET value — a drift-shaped ERROR row was recorded with NO
+        #    row-level note that no retry was attempted: the disclosure existed for ONE of the two
+        #    suppression modes. The precondition was on the summary banner, but a row is read
+        #    without its banner. It is now the SAME predicate the gate and the banner read, with
+        #    the reason named per polarity exactly as periodic_reset names it.
+        #    ⚠ The retry arm is UNCHANGED: `else` below == the previous `elif resets_enabled`,
+        #    because this `if` is now exactly its negation. Only the note text moved.
+        if [ "$RESET_EVERY" = "0" ]; then
+          SW_NOTE="$SW_NOTE (drift-shaped; NOT retried — RESET_EVERY=0, resets are DISABLED everywhere)"
+        else
+          SW_NOTE="$SW_NOTE (drift-shaped; NOT retried — a SUBSET run resets only when RESET_EVERY is set explicitly)"
+        fi
+      else
         echo "    drift suspected — resetting and retrying $name ONCE"
         periodic_reset "retry — $name recorded a drift-shaped ERROR"
         sweep_one "$foid" "$sig" "$ndoors" "$nraise" "$nanchored"; SW_RC=$?
