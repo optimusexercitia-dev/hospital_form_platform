@@ -783,3 +783,221 @@ residue shapes; `pg_policies where (qual='true' or with_check='true') and cmd <>
 2. **The F-REC-4 id was re-coded** — see above.
 3. **The F-REC-2 header correction is in Commit B**, because the measurement that settles it is the
    gate's `test:db` and the lead placed F-REC-2 in Commit B.
+
+---
+
+### 2026-09-04 — backend: QA fix loop, iteration 2
+
+**One change, on a lead ruling — not a new finding.** Iteration 1's `SUBSET` gate closed QA
+F-MAJOR-2's real hazard (the **default 20** firing unasked on a `SUITE=` spike) but was **too
+broad**: it also suppressed an *explicit* `RESET_EVERY=`, which left the periodic reset and the
+retry net provable **only by a ~9.5 h full sweep**. I disclosed that as iteration 1's deviation 1
+and offered the narrower alternative; the lead took it. ⭐ The reasoning is the unit's own thesis
+applied to itself — a mechanism nobody can re-run is on its way to being an unexercised one, which
+is exactly what arms 4a/4b and plant A exist to prevent.
+
+**THE RULE IN FORCE:** a **non-subset** run resets every `RESET_EVERY` (default 20); a **subset**
+run resets **only if `RESET_EVERY` is set EXPLICITLY** in the environment — **set-ness, not
+value**; `0` disables **everywhere**. A subset writes only to scratch (ADR 0153), so a reset during
+one cannot touch the committed baseline, and the in-flight interlock stays **first**, ahead of the
+gate.
+
+⛔ Same standing constraints as iterations 0–1, and all held: **no production function, policy,
+migration or seed touched**; every harness run **detached** via PowerShell `Start-Process` on
+`C:\Program Files\Git\bin\bash.exe`, never under a tool timeout; **every exit code read BARE** on
+the line after the command; production text **extracted verbatim** (`sed -n '/^fn () {/,/^}$/p'`,
+`bash -n` checked) and **sourced**, never retyped.
+
+#### The fix — one file, four sites, one predicate
+
+| site | `c2-command-door-neutralizer.sh` | what changed |
+|---|---|---|
+| set-ness capture | **`:717`** | `RESET_EVERY_EXPLICIT=0; [ -n "${RESET_EVERY+x}" ] && RESET_EVERY_EXPLICIT=1`, immediately **before** `:718`'s `${RESET_EVERY:-20}` |
+| the predicate | **`:723-726`** | `resets_enabled ()` — `RESET_EVERY != 0` **and** (`SUBSET != 1` **or** explicit) |
+| the gate | **`:747-753`** | `periodic_reset` step 2, still **after** the in-flight interlock at `:740` |
+| the retry net | **`:892-900`** | suppression note only where the run genuinely may not reset |
+| the banner | **`:921-929`** | four polarities instead of two |
+| header USAGE | **`:44-52`** | the iteration-1 note **kept**, a dated re-rule appended beneath it |
+
+⛔ **The capture must precede the default.** One line later `RESET_EVERY=20` typed by an operator
+and `RESET_EVERY` defaulted to 20 are **the same string** — the exact fact this gate turns on would
+already have been destroyed. ⛔ **One predicate, read by all three sites.** Three hand-written
+copies of one condition is how a banner comes to describe a rule the code no longer implements —
+the failure this unit already corrected once in ADR 0189's own prose.
+
+#### Proofs A–E — gate polarity on the SHIPPED text
+
+`resets_enabled`, `periodic_reset`, the scheduled call site and the whole summary-banner block were
+**extracted from the production file and sourced** (`bash -n` clean, 4 / 57 / 5 / 9 lines). `npx` is
+**stubbed so the destructive command itself is the measurement**: the stub appends to a marker file,
+so *"did it reset"* is a fact on disk rather than a reading of the log. ⚠ `RESETS=0` in the trial
+lines below is an artefact of my driver, not a finding — `periodic_reset` runs inside a command
+substitution there, so its `RESETS=$((RESETS+1))` cannot escape the subshell. **The marker is the
+measurement.** (The one trial that drives the real call site in-process, C2 below, does show the
+counter moving.)
+
+| trial | invocation | observed | rc | reset command |
+|---|---|---|---|---|
+| **A** | `SUBSET=1`, `RESET_EVERY` **unset** | `(SUBSET run, RESET_EVERY not set explicitly — NOT resetting: trial A)` — `EXPLICIT=0`, defaulted to 20 | **0** | **absent** |
+| **B** | `SUBSET=1`, `RESET_EVERY=1` explicit | `--- PERIODIC RESET (trial B) ---` … `post-reset baseline: PASS` | **0** | **FIRED** — `npx supabase db reset --local` |
+| **B-HEAD** | the same invocation against the text at `d828385c` | `(SUBSET run — NOT resetting: trial Bhead)` | **0** | **absent** — the behaviour being changed, reproduced |
+| **C** | `SUBSET=0`, unset → defaulted 20 | `--- PERIODIC RESET (trial C) ---` … `post-reset baseline: PASS` | **0** | **FIRED** |
+| **C — the counter** | the **scheduled call site**, extracted verbatim, driven `DONE=1..41` at the default 20 | `RESETS=2`, fired at `scheduled — 20` and `scheduled — 40`; marker **2** lines | — | **FIRED ×2** |
+| **D** | `SUBSET=1`, `RESET_EVERY=1`, **sentinel ARMED** | `*** refusing to reset with a mutation in flight: …/sent.D.sql` + `RECOVER=1 … first` | **2** | **absent**; sentinel **9 B, unchanged** |
+| **E** | `RESET_EVERY=0`, `SUBSET=0` | `(RESET_EVERY=0 — NOT resetting: trial E)`; and the call site over `DONE=1..41` → `RESETS=0` | **0** | **absent** (both) |
+| **E-subset** | `RESET_EVERY=0`, `SUBSET=1` | `(RESET_EVERY=0 — NOT resetting: trial Esub)` | **0** | **absent** |
+
+⭐ **B-HEAD is the discrimination half** — same environment, same driver, only the shipped text
+differs, and the marker file differs with it. ⭐ **D is the load-bearing one:** the new gate did
+**not** displace the interlock; an armed sentinel still stops the run at **rc 2** even where the
+reset is now permitted. ⭐ **A and C together** are the hazard QA measured and the mechanism it must
+not disable: the *same* defaulted `RESET_EVERY=20`, suppressed on a subset and firing on a full run.
+
+**The banner block, all four polarities** (extracted, sourced):
+
+```
+SUBSET=1 RESET_EVERY=unset -> (RESET_EVERY=20 — SUPPRESSED: the DEFAULT never fires on a SUBSET
+                               run; set RESET_EVERY explicitly to enable)
+SUBSET=1 RESET_EVERY=1     -> (RESET_EVERY=1 — set EXPLICITLY, so this SUBSET run resets)
+SUBSET=0 RESET_EVERY=unset -> (RESET_EVERY=20)
+SUBSET=0 RESET_EVERY=0     -> (RESET_EVERY=0 — resets DISABLED everywhere)
+```
+
+#### End to end — the retry net, proven on a SUBSET again (the point of the ruling)
+
+`SELFTEST=1 BASE_S_OVERRIDE="Files=1, Tests=1" RESET_EVERY=1 CASES=public.withdraw_referral`,
+**full suite**, detached, own `WORK` and `C2_INFLIGHT`, 10m08s:
+
+```
+    baseline: PASS (shape=Files=262, Tests=8876 lines)
+    ⛔ BASE_S_OVERRIDE set — baseline shape FORCED to 'Files=1, Tests=1'. SELF-TEST ONLY.
+--- SELF-TEST PASSED — the harness can mutate, can undo, and REFUSES a bad undo ---
+[  1/171] public.withdraw_referral (1 door(s), 2 raise(s))
+    drift suspected — resetting and retrying public.withdraw_referral ONCE
+--- PERIODIC RESET (retry — public.withdraw_referral recorded a drift-shaped ERROR) ---
+    arm 4a: 0 residue shapes …
+    post-reset baseline: PASS (shape=Files=262, Tests=8876)  |  worklist re-derived: 171 (unchanged)
+    COVERED=1  BLIND=0  ERROR=0   (skipped by CASES: 170)
+    preconditions: baseline GREEN (shape=Files=262, Tests=8876) · domain=full suite ·
+        resets=1 (RESET_EVERY=1 — set EXPLICITLY, so this SUBSET run resets)
+    committed baseline VERIFIED unchanged (cksum)
+EXIT=0    SENTINEL_BYTES=0
+```
+
+row: `| public.withdraw_referral(p_referral_id uuid) | 1 | 2 | **COVERED** | a keystone asserts
+through this guard (red under mutation, green restored) **(retried after reset)** |`
+
+⭐ **The falsified shape is REPLACED by the true one at the reset** (`Files=1, Tests=1` →
+`Files=262, Tests=8876`), which is *why* the retry scores a verdict instead of re-measuring the
+same drift — the mechanism, not just the message. ⛔ Under iteration 1's rule this run printed
+`(drift-shaped; NOT retried …)` and could not be reproduced without a ~9.5 h sweep. It also
+re-witnessed the whole plant-A chain (`a FAILED restore REFUSES — rc=2 | *** RESTORE FAILED (psql
+rc=3, body hash live=c787e3dd… want=1636bd89…)`, sentinel kept, verified heal) and both preflight
+arms on a fresh tree.
+
+#### Sentences corrected — appended beside, never rewritten
+
+Every one of the three iteration-1 corrections is **left in place** with a further dated correction
+under it; the rule quoted in each is the one above.
+
+| where | shape of the correction |
+|---|---|
+| `c2-command-door-neutralizer.sh:44-52` (header USAGE) | `⛔ RE-RULED 2026-09-04, LATER THE SAME DAY — the line above is kept because it is what was written, and it is now TOO BROAD.` |
+| `:705-713` (§ bounded tail drift) | the same, with the reason: an unprovable mechanism becomes an unexercised one |
+| ADR 0189 **D6** | a boxed `⛔ RE-RULED …` paragraph after *both* iteration-1 paragraphs, naming the disclosed consequence as the reason, the set-ness test, and the four banner polarities |
+| ADR 0189 **Consequences** | the `RESET_EVERY=20` bullet gains `⛔ Re-ruled later the same day`; ⭐ the **measured ≈ +28 min / ≈ +5 %** figure is explicitly **unaffected** — it is a property of a non-subset 171-enforcer sweep at N=20, which neither correction touches |
+| `follow-ups-archive.md` — the TAIL-DRIFT closure | `Correction 2026-09-04, later the same day` under iteration 1's, stating that the too-broad rule had made **this entry's own two mechanisms** unreproducible, so its four "Proven able to fire" runs are checkable again |
+
+⚠ **Two `a SUBSET run never resets` strings survive on purpose**, at
+`docs/progress/harness-crash-safety.md:598` and `:644`: they are **quoted output of the runs of
+2026-09-04 iteration 1**, dated witnesses of what the harness printed then, not restatements of the
+rule. Correcting them would falsify a record of a measurement. ⛔ Enumerated rather than assumed —
+`grep -rn "SUBSET run never resets" --include=*.md .` returns exactly six hits: three in ADR 0189
+D6 (all now under the boxed correction), one in the hub's `Done since start` (**replaced** in this
+commit), and those two. **None in `docs/reviews/`.**
+
+#### Gate — every exit code read BARE, on the line after the command, never through a pipe
+
+| step | rc | what it enumerated |
+|---|---|---|
+| `npm run lint` | **0** | eslint `--max-warnings=0` ⇒ 0 errors AND 0 warnings; `check-progress-doc: OK`; `check-rules-staleness: OK (10 rule file(s))`; `build-adr-index: OK (187 ADRs indexed, next free 0190)`; `check-mojibake: OK (3326 files)`; `check-docs-registers: OK`; ratchets `closesWhenPoToRule=140/147 severityPerEmoji=131/135 longHeadings=93/97 lessonsProseOnly=52/52` — **identical to iteration 1, none raised** |
+| `supabase db reset --local` (fresh, before the suite) | **0** | — |
+| `npm run test:db` | **0** | **`Files=262, Tests=8876`, `Result: PASS`**, 90 wallclock s — ⭐ **the shape did not move**, and no `.sql` was added under `supabase/tests/` |
+| `ARM=census` | **0** | `INVARIANT HOLDS` — live authz gates **581**, gates carrying a verdict **625**, extension-owned **0** |
+| `ARM=hat` | **0** | `INVARIANT HOLDS` — self-test **7/7 OK**, `HAT-BLIND SWEEP HOLDS: 4 finding(s), all reasoned-allowlisted` |
+| `ARM=floor` | **0** | `INVARIANT HOLDS` — **63** authenticated-reachable `prosecdef` doors with 0 calls, every one allowlisted, every allowlist entry resolving to a live door |
+| `FROMFINDINGS=1 ARM=wrapper` | **0** | `INVARIANT HOLDS` — BLIND set **41**, all allowlisted |
+| C2 regression, `CASES=` 3 enforcers, **full suite**, fresh reset, detached | **0** | `COVERED=3 BLIND=0 ERROR=0`; `baseline GREEN (shape=Files=262, Tests=8876) · domain=full suite · resets=0 (RESET_EVERY=20 — SUPPRESSED: the DEFAULT never fires on a SUBSET run; set RESET_EVERY explicitly to enable)`; 12m47s |
+
+⛔ **No BLIND and no ERROR in any of the four arms**, and every figure is **identical** to the
+baseline recorded before this unit began — census 581/625, hat 7/7 + 4, floor 63, wrapper 41. Each
+arm's own degenerate-body preflight passed first (`clean — 0 degenerate bodies in app+public (all
+three forms)`).
+
+⛔ **The diff-scoped door sweep is NOT owed**, measured rather than asserted:
+`git diff --name-only main... -- supabase/migrations supabase/seed.sql src` printed **0 lines**
+(rc 0).
+
+⭐ **The regression's own banner is a fourth end-to-end witness of the rule**, unplanned: it is a
+`CASES=` subset with `RESET_EVERY` **unset**, so the default was suppressed and it says so —
+trial A, inside the real harness, on the real DB.
+
+**All three rows are byte-identical to the committed baseline** (`docs/reviews/c2-command-door-findings.md`
+rows 8, 9 and 161), compared by extracting both sides in the same run:
+
+```
+| `public.withdraw_referral(p_referral_id uuid)`                                       | 1 | 2 | **COVERED** | …
+| `public.withdraw_correction(p_request_id uuid)`                                      | 1 | 4 | **COVERED** | …
+| `app.assert_patient_required_fields(p_mode text, p_required text[], p_patient jsonb)` | 5 | 1 | **COVERED** | …
+```
+
+**Post-gate cleanliness, verified rather than assumed:** `cksum` of the committed baseline
+**`1556047199 33473` before and after** the regression (and the harness's own
+`committed baseline VERIFIED unchanged (cksum)` on its EXIT trap); all three sentinel paths used
+this session **0 bytes**; arm 4a `0 residue shapes` and arm 4b `worklist matches its recorded
+expectation (171 enforcers)` at the start of both harness runs;
+`pg_policies where (qual='true' or with_check='true') and cmd <> 'SELECT'` **ENUMERATED to zero
+rows** at **psql rc 0** — so the emptiness is an answer, not a failed query; `git status --porcelain`
+shows only the three files of this change.
+
+#### `.claude/rules/` — re-read clause by clause, and nothing went false
+
+The two rule files scoped to `supabase/tests/mutation/*.sh` were re-read **sentence by sentence**
+against the change:
+
+- **`mutation-harnesses-are-not-killable.md`** — every clause survives. Neither `RESET_EVERY` nor
+  subsets appear anywhere in it. ⭐ The clause worth checking is *"Never delete the sentinel"*
+  beside a change that lets a subset run reset: it stays true because the in-flight **interlock is
+  still first** (proof D, rc 2), so a permitted reset can never be the thing that destroys an armed
+  sentinel. *"A failed restore KEEPS the sentinel; the next run REFUSES, exit 2"*, the
+  SIGKILL-vs-SIGTERM correction, the `ON_ERROR_STOP=1` clause, the `cmd <> 'SELECT'` discriminator
+  and *"Freeze the TREE"* are all untouched by this change.
+- **`authz-gate-results-need-a-current-baseline.md`** — no clause mentions resets, subsets or this
+  harness's knobs; its C2 sentence (*"measures them but is not an ARM … it found 3 BLIND"*) is
+  unaffected. Its trusted-baseline figures are AE0's and are not re-stated by this work.
+
+⛔ **No rule file was edited**, and **nothing under `docs/reviews/` was created, edited or read
+into a diff** — `qa` owns that directory.
+
+#### What was NOT done
+
+- **No full sweep** (unchanged from iterations 0–1). Every run was `CASES=`-narrowed.
+- **Arm 4b's `NOT RUN` branch is still unproven** — it needs both the scratch sidecar and the
+  committed findings table absent, and the committed path is hard-coded. Unchanged, and still
+  **stated rather than counted as covered**.
+- **ADR 0189 stays `**Status:** proposed`** — for the PO at the Record step (lead ruling Q1).
+- **`npm run adr:index` was not re-run**: no ADR *header* field changed, and
+  `build-adr-index --check` passed inside `npm run lint` (187 ADRs, next free 0190).
+
+#### Deviations
+
+1. **The detached-launch invocation from iteration 1 does not work as written.**
+   `Start-Process bash.exe -ArgumentList "-c","bash <script>"` joins the array **unquoted**, so
+   `bash` receives `-c bash <script>`: the command string is the bare word `bash` and the script
+   path becomes `$0`. Two launches died in under a second with **zero bytes on both streams** — a
+   silent no-op that looks exactly like a fast success. Fixed by passing the script as **argv[1]**
+   (`-ArgumentList "<posix-path>/chain1.sh"`), and every run in this entry used that form.
+   ⭐ *An instrument that produces no output has not necessarily measured nothing — it may not have
+   run.* The empty log is what caught it; a summary line would not have.
+2. **The doc corrections are in Commit A**, beside the mechanism, as this iteration's disposition
+   listed them (iteration 1 put them in Commit B because Commit A was script-only there).

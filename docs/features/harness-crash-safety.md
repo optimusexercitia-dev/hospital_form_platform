@@ -86,30 +86,37 @@ hold — before AE5's eleven per-role increments each run these harnesses again.
   tail drift bounded by `RESET_EVERY` + reset-and-retry-once, **measured** at ≈ +28 min on a
   ≈ 9.5 h sweep (≈ +5 %).
 - **QA review APPROVED** (4 MAJOR + 4 RECOMMENDED, none blocking). **Fix-loop iteration 1 landed**
-  — commits `8d7f01db` (script) + the docs commit: arm 4a strips comments and is no longer blind to
-  `app.assert_patient_required_fields` (measured 439/438/1 → **439/439/0**, clean tree still 0);
-  a **SUBSET run never resets** (the guard is `SUBSET`, not the counter — a `SUITE=` spike fired 8
-  destructive resets); `BASE_S_OVERRIDE` honoured only under `SELFTEST=1` and forced into SUBSET;
-  both preflight arms now fail **closed** on a query that cannot answer; `Tests=` settled at
-  **8876** by measurement. Every fix re-proven with a bare exit code and a negative control.
+  — arm 4a strips comments and is no longer blind to `app.assert_patient_required_fields`
+  (measured 439/438/1 → **439/439/0**, clean tree still 0); `RESET_EVERY` gated so a `SUITE=` spike
+  can no longer fire 8 destructive resets; `BASE_S_OVERRIDE` honoured only under `SELFTEST=1`;
+  both preflight arms fail **closed** on a query that cannot answer; `Tests=` settled at **8876**.
+- **Fix-loop iteration 2 landed** (`0a819207` script + doc corrections, plus this docs commit) — a
+  **lead ruling**, not a new finding. Iteration 1's gate was too broad: it suppressed an *explicit*
+  `RESET_EVERY=` as well as the default, leaving the periodic reset and the retry net provable only
+  by a ~9.5 h full sweep. **The rule in force:** a non-subset run resets every `RESET_EVERY`
+  (default 20); a **subset** run resets only if `RESET_EVERY` is set **EXPLICITLY** (set-ness, not
+  value, captured before the `:-20` default); `0` disables everywhere. One predicate,
+  `resets_enabled ()`, read by the gate, the retry net and the banner. Proven A–E on the shipped
+  text with the reset command itself instrumented, plus the end-to-end retry net **COVERED …
+  (retried after reset), rc 0** — the provability the ruling was for.
 - ⛔ **No production function, policy, migration or seed changed** — measured:
   `git diff --name-only main... -- supabase/migrations supabase/seed.sql src` is **empty**, so the
   diff-scoped door sweep is not owed.
 
 ### In progress
-- Nothing. All three fix-loop commits are landed (`8d7f01db` script, `cbddee2a` docs, `93e53f34`
-  gate results) and the gate has been re-run in full on a fresh reset.
+- Nothing. Iteration 2's two commits are landed and the gate has been re-run in full on a fresh
+  reset: lint 0/0, `Files=262, Tests=8876` PASS, four arms hold (census 581/625 · hat 7/7 + 4 ·
+  floor 63 · wrapper 41), and the C2 regression reproduces the committed baseline rows exactly.
 
 ### Next
-- **QA re-check** of fix-loop iteration 1 (this unit creates and edits nothing under
+- **QA re-check** of fix-loop iteration 2 (this unit creates and edits nothing under
   `docs/reviews/`) → **PO approval** → the **Record step**. ADR 0189 stays `**Status:** proposed`
   until the PO approves it there.
 
 ### Blockers
 - **None.**
-- ⚠ Two **stated limitations**, not blockers. (1) Arm 4b's `NOT RUN` path is unproven — it needs
+- ⚠ One **stated limitation**, not a blocker: **arm 4b's `NOT RUN` path is unproven** — it needs
   both baseline sources absent, which a working tree cannot produce without a change outside this
-  unit's scope. (2) The **retry net is no longer provable on a subset run**: its mechanism is the
-  reset, so the F-MAJOR-2 gate makes its 2026-09-04 end-to-end proof unreproducible without a real
-  full sweep. Its gate polarity is proven instead against the shipped `periodic_reset` text with an
-  instrumented reset command, and the report note no longer claims a reset that did not happen.
+  unit's scope. Two echo lines, unexercised, stated rather than counted as covered.
+  (Iteration 1's *second* limitation — the retry net unprovable on a subset — is **removed**: it
+  was end-to-end proven again on 2026-09-04 under an explicit `RESET_EVERY=1`.)
