@@ -268,11 +268,46 @@ fi
 sort -u "$TMP/paths" -o "$TMP/paths"
 cut -f1 "$TMP/paths" | sort -u > "$TMP/files"
 
+# ─────────────────────────────────────────────────────────────────────────────────────
+# 1b. AN EXPLICIT SCOPE — the OTHER half of FUP-DOOR-SWEEP-DERIVER-SPANS-THE-WHOLE-
+#     WORKING-TREE. Provenance says which file a case came from; this says which files
+#     the run was ABOUT. Two increments in one tree is the case that raised the finding.
+#
+#   SCOPE=<migration-id floor>   keep files whose leading digits are >= this (an id, or
+#                                any prefix of one: SCOPE=20261003007300)
+#   PATHS=<prefix>               keep files whose path starts with this
+#
+# ⛔ A filter that silently narrows a GATE's domain is worse than no filter, so both are
+#    echoed in the header AND in the SCOPE: line the gate record quotes, and the count
+#    before and after is printed. Filtering to zero files is NOT-APPLICABLE (3), the same
+#    checkable claim an empty diff makes — never a quiet pass.
+# ─────────────────────────────────────────────────────────────────────────────────────
+SCOPE_FLOOR="${SCOPE:-}"
+PATH_PREFIX="${PATHS:-}"
+FILTER_DESC="none"
+if [ -n "$SCOPE_FLOOR" ] || [ -n "$PATH_PREFIX" ]; then
+  NPRE="$(wc -l < "$TMP/files" | tr -d ' ')"
+  awk -v floor="$SCOPE_FLOOR" -v pfx="$PATH_PREFIX" '
+    {
+      keep = 1
+      if (pfx   != "" && index($0, pfx) != 1) keep = 0
+      if (floor != "") {
+        b = $0; sub(/^.*\//, "", b)
+        if (match(b, /^[0-9]+/) == 0) keep = 0
+        else if (substr(b, RSTART, RLENGTH) < floor) keep = 0
+      }
+      if (keep) print
+    }' "$TMP/files" > "$TMP/files.f"
+  mv "$TMP/files.f" "$TMP/files"
+  FILTER_DESC="SCOPE=${SCOPE_FLOOR:-·} PATHS=${PATH_PREFIX:-·} ($NPRE file(s) -> $(wc -l < "$TMP/files" | tr -d ' '))"
+fi
+
 rule
 say "DOOR-SWEEP CASE DERIVATION — ADR 0079 Amendment 1 (recipe) + Amendment 8 (rulings 1-3)"
 say "  range      : ${BASE}..${TIP}$([ "$BASE" = HEAD ] && [ "$TIP" = HEAD ] && printf '%s' '  (no committed range — working tree + untracked only)')"
 say "  domain     : lifted from $AUDIT (never re-typed here)"
 say "               PRED_DOMAIN lifted whole ($(printf '%s' "$PRED_DOMAIN_SQL" | wc -l | tr -d ' ') line(s)), 3 sub-vars expanded, no residual \$"
+say "  filter     : $FILTER_DESC"
 say "  migrations : $(wc -l < "$TMP/files" | tr -d ' ') file(s) touched"
 while IFS= read -r f; do
   src="$(awk -F'\t' -v p="$f" '$1==p {printf "%s%s", (n++ ? "+" : ""), $2} END {print ""}' "$TMP/paths")"
@@ -295,241 +330,335 @@ fi
 #    otherwise read the blob at TIP. A file the range renamed later is unreadable at
 #    HEAD by its old name, which is why the blob is read at TIP and not at HEAD.
 # ─────────────────────────────────────────────────────────────────────────────────────
-: > "$TMP/content"
+# ⚠ The content is read ONE FILE AT A TIME by the loop under §2b — the read itself lives
+# there because that is where the per-file scratch dir is created. What stays here is the
+# rule the read follows, and the two aggregates the loop fills:
+#   `$TMP/flat`  — every file's comment-stripped, newline-folded text, ' ; '-joined so the
+#                  statement splitter in §5 still sees one statement per record;
+#   `$TMP/flat_order` — the files, in the order their text was appended.
+# `--` comments are stripped and newlines folded, so a statement split across lines
+# ("alter policy x\n  on public.y") is still one match. Mirrors the audit script's own
+# comment strip; carries the same caveat about a `--` inside a string literal.
 UNREADABLE=""
+: > "$TMP/flat"; : > "$TMP/flat_order"
+
+# ─────────────────────────────────────────────────────────────────────────────────────
+# 2b. EXTRACTION IS PER FILE — and that is what makes a case ATTRIBUTABLE.
+#
+# ⛔ FUP-DOOR-SWEEP-DERIVER-SPANS-THE-WHOLE-WORKING-TREE. The three sources above are all
+# correct and all necessary; the defect is that their union was reported as ONE diff. In a
+# tree holding two in-flight increments the deriver could not distinguish "this increment"
+# from "this working tree" — measured at AE1.3: 53 cases derived where AE1.3 owned 1, a
+# figure that reads as broad coverage of AE1.3 and is nothing of the sort. ⛔ Dropping the
+# working-tree and untracked sources is NOT the fix; it re-creates the blindness the header
+# note exists to prevent. Attribution is.
+#
+# So every extraction below runs on ONE file at a time, into its own directory, and the
+# aggregate lists are the UNION of those. Downstream selection is unchanged. Three things
+# fall out of it that no amount of reporting could have given:
+#   · a case can be attributed to the file(s) it came from (the PROVENANCE block);
+#   · ADR 0173's measured array-gate over-selection is fixed — the `array[` gate is now
+#     evaluated PER FILE, so one migration that builds an array no longer enables the
+#     fallback for every other migration in the same range (0173:387-393 declined this for
+#     a benign reason; the attribution requirement makes it necessary anyway);
+#   · a `door-sweep-targets:` parse error can name a REAL file and line instead of an
+#     offset into concatenated content.
+# ⚠ Cross-file reconciliation (a policy dropped in one file and recreated in another; a
+#   name selected in one file and excluded in another) stays GLOBAL, below the loop —
+#   per-file it would manufacture an orphan or a false exclusion.
+# ─────────────────────────────────────────────────────────────────────────────────────
+extract_one () {   # $1 = the per-file scratch dir, already holding content + flat
+  D="$1"
+  # ─────────────────────────────────────────────────────────────────────────────────────
+  # 3. POLICIES — RULING 1: both forms, one case list.
+  # ─────────────────────────────────────────────────────────────────────────────────────
+  POLRE='"?[a-z0-9_]+"? on ("?[a-z0-9_]+"?\.)?"?[a-z0-9_]+"?'
+  grep -ohiE "create policy $POLRE" "$D/flat" \
+    | awk '{gsub(/"/,""); n=tolower($3); t=tolower($5); sub(/^[a-z0-9_]+\./,"",t); print n "\t" t}' \
+    | sort -u > "$D/pol_create"
+  grep -ohiE "alter policy $POLRE"  "$D/flat" \
+    | awk '{gsub(/"/,""); n=tolower($3); t=tolower($5); sub(/^[a-z0-9_]+\./,"",t); print n "\t" t}' \
+    | sort -u > "$D/pol_alter"
+  grep -ohiE "drop policy (if exists )?$POLRE" "$D/flat" \
+    | awk '{gsub(/"/,""); for(i=1;i<=NF;i++) if(tolower($i)=="on"){print tolower($(i-1)) "\t" tolower($(i+1)); break}}' \
+    | sed 's/\t[a-z0-9_]*\./\t/' | sort -u > "$D/pol_drop"
+  # a drop+recreate is a create; only a policy dropped and NOT recreated is an orphan
+  comm -23 "$D/pol_drop" <(cat "$D/pol_create" "$D/pol_alter" | sort -u) > "$D/pol_orphan"
+
+  # ─────────────────────────────────────────────────────────────────────────────────────
+  # 4. FUNCTIONS — SELECTED vs EXCLUDED, and the excluded set is PRINTED, never dropped.
+  #
+  # ⛔ THE NAME FILTER IS ACKNOWLEDGED BLIND AND HAS NO BACKSTOP FOR THIS CLASS.
+  # Amendment 8's closing note: the filter excluded BOTH functions AFF2 touched
+  # (`list_org_people`, `guard_profile_privileged_columns`), and `ARM=census` cannot
+  # backstop an ALTERED gate because an altered gate is not a newcomer. AFF4's five new
+  # gates (`affiliate_person_to_org`, `end_org_affiliation`, `void_affiliation`,
+  # `void_org_affiliation`, `update_org_affiliation`) match none of it either. So a
+  # non-matching function is a REVIEW ITEM, printed for a ruling — never a silent drop.
+  # Printing what was dropped is what makes ruling 2's "state in the gate record that the
+  # migration contains no gate" a checkable claim instead of an assertion.
+  #
+  # A function is auto-SELECTED only when the diff text asserts all three catalog facts
+  # the arm's domain requires — `security definer`, `returns boolean`, and an identity
+  # primitive in the body — or when its NAME matches the arm's regex. Anything else is
+  # named, not guessed at: a token the arm cannot select turns the whole sweep UNPROVEN.
+  # ⚠ A chunk runs to the next declaration, so a body reaching identity only through a
+  # helper is invisible here — the same admission Amendment 9 attaches to the arm itself.
+  # ─────────────────────────────────────────────────────────────────────────────────────
+  sed 's/--.*$//' "$D/content" | awk '
+    function emit() { if (name != "") print name "\t" buf }
+    {
+      l = tolower($0)
+      if (l ~ /create[ \t]+(or[ \t]+replace[ \t]+)?function[ \t]+(app|public|authz)\./) {
+        emit()
+        match(l, /function[ \t]+(app|public|authz)\.[a-z0-9_]+/)
+        tok = substr(l, RSTART, RLENGTH)
+        sub(/^function[ \t]+/, "", tok)
+        sub(/^(app|public|authz)\./, "", tok)
+        name = tok; buf = ""
+      }
+      if (name != "") buf = buf " " l
+    }
+    END { emit() }
+  ' > "$D/fnchunks"
+
+  : > "$D/fn_sel_name"; : > "$D/fn_sel_prop"; : > "$D/fn_excl"; : > "$D/fn_held"
+  while IFS="$(printf '\t')" read -r fname fbody; do
+    [ -n "$fname" ] || continue
+    held=0
+    for h in $HELD_OUT; do [ "$h" = "$fname" ] && held=1; done
+    if [ "$held" = 1 ]; then
+      printf '%s\n' "$fname" >> "$D/fn_held"
+    elif printf '%s' "$fname" | grep -qE "$PRED_NAME_RE" && ! printf '%s' "$fname" | grep -qE '^is_valid_'; then
+      printf '%s\n' "$fname" >> "$D/fn_sel_name"
+    elif printf '%s' "$fbody" | grep -qE 'security[ ]+definer' \
+      && printf '%s' "$fbody" | grep -qE 'returns[ ]+boolean' \
+      && printf '%s' "$fbody" | grep -qE "$PRED_IDENTITY_RE"; then
+      printf '%s\n' "$fname" >> "$D/fn_sel_prop"
+    else
+      printf '%s\n' "$fname" >> "$D/fn_excl"
+    fi
+  done < "$D/fnchunks"
+  for x in fn_sel_name fn_sel_prop fn_excl fn_held; do sort -u "$D/$x" -o "$D/$x"; done
+  # a name-selected function must not also appear as excluded (same name, two declarations)
+  comm -23 "$D/fn_excl" <(cat "$D/fn_sel_name" "$D/fn_sel_prop" | sort -u) > "$D/fn_excl.f"
+  mv "$D/fn_excl.f" "$D/fn_excl"
+
+  # ─────────────────────────────────────────────────────────────────────────────────────
+  # 4b. RUNTIME-REWRITE MIGRATIONS — ADR 0173.
+  #
+  # ⛔ THE BLINDNESS THIS CLOSES. Everything above selects on the diff TEXT: section 4 chunks
+  # on `create [or replace] function (app|public|authz).`. A migration that edits a body it did not
+  # author uses this repo's HOUSE PATTERN instead —
+  # `pg_get_functiondef()` + `replace()` + `execute` — and therefore contains no
+  # create-function line at all. Measured 2026-09-01: `20261003007180` rewrote FOUR bodies,
+  # two of them `prosecdef` with `authenticated` EXECUTE, and this script derived ZERO cases.
+  # ⭐ The deriver was blind to exactly the pattern CLAUDE.md documents as making migration
+  # text stale-by-design — and any future gate keyed on migration text inherits that.
+  #
+  # ⚠ HISTORICAL CEILING, MEASURED, SO THE AMENDMENT IS NOT OVERSOLD: of the 33 migrations
+  # that use the pattern, only 8 name their targets in the text at all. The other 25 select
+  # targets by CATALOG QUERY at apply time (`where ... pg_get_functiondef(p.oid) ~ '...'`),
+  # whose predicate typically matches what the migration then REMOVED — so re-running it today
+  # returns zero and the door list is unrecoverable without a historical snapshot. ⛔ No
+  # text-based deriver can ever reach those 25. The ceiling is HISTORICAL, not structural: the
+  # convention below makes forward coverage complete.
+  #
+  # ⛔ AND `PRED_DOMAIN` IS A SEPARATE, UNCLOSED BOUND — do not read this block as fixing it.
+  # The read arm requires `t.typname='bool'`; D2's four return int4/int4/int4/responses, so
+  # even once SELECTED here they yield zero cases and the sweep is correctly UNPROVEN.
+  # SELECTION is this block's success criterion, never a passing sweep. That bound is owned by
+  # FUP-AUTHZ-COMMAND-DOOR-UNSWEPT (C2), which has its own instrument
+  # (supabase/tests/mutation/c2-command-door-neutralizer.sh) and its own cutline.
+  # ─────────────────────────────────────────────────────────────────────────────────────
+  : > "$D/fn_rewrite"
+  : > "$D/marker_err"
+
+  # ── (a) THE CONVENTION — an explicit, unambiguous target list the deriver can read. ──
+  #     A rewrite migration declares:  -- door-sweep-targets: app.foo(), public.bar(uuid)
+  #     Read from the RAW content (it is a comment, so it must survive comment-stripping).
+  #
+  # ⛔ THE READ IS UNCONDITIONAL, AND THAT IS THE FIX, NOT A TIDY-UP. Until 2026-09-05 this
+  # whole block sat inside `if … grep -qiE 'pg_get_functiondef'`. Measured:
+  # `20261003007250` contains `pg_get_functiondef` ZERO times, so the declaration path never
+  # executed for the migration whose declaration the follow-up is about — its three targets
+  # survived on the unrelated `create or replace` name path, and the two paths agreeing is
+  # what hid it. The declaration is a notation about DOORS, not about rewrites; gating it on
+  # a rewrite marker is the same class of defect as parsing only its first line.
+  #
+  # ⛔ THE PARSER MUST READ THE NOTATION THE FILES USE. The old read was `grep` anchored per
+  # line, so a CONTINUATION line was silently unread (FUP-DOOR-SWEEP-MARKER-BLIND-TO-
+  # CONTINUATION-LINES). Measured in-tree: three migrations use the continuation form
+  # (`…007250` 3 lines, `…007300` 2, `…007340` 1). The grammar, ADR 0173 §2 as amended:
+  #
+  #     declaration       := marker-line continuation-line*
+  #     marker-line       := ^\s*--\s*door-sweep-targets:\s* target-list
+  #     continuation-line := ^\s*--\s+ target-list      (only directly after a declaration line)
+  #     target-list       := target ( \s*,\s* target )* \s*,?
+  #     target            := (app|public|authz).name [ '(' … ')' ]
+  #
+  # ⚠ CONSUME-OR-STOP, TOKEN-BEARING — and it is measured, not a preference. A following
+  # `--` line carrying at least one `(app|public|authz).name` token is a continuation and
+  # every token on it is consumed; a `--` line with NO such token ENDS the declaration,
+  # silently. Strict rejection would red two committed migrations at every gate:
+  # `20261003007180:9` is a bare `--` and `20261003007190:6` likewise. The cost of the
+  # tolerant rule is that prose naming a schema-qualified callable immediately under a
+  # declaration is consumed — which is over-selection, and 4c's catalog classification is
+  # what makes over-selection cheap again.
+  # ⚠ Loud NARROW case: a continuation bearing a schema prefix with no name, or an unclosed
+  # argument list, is a NAMED parse error. The run continues — a parse error in a comment
+  # must not decide a sweep — but it is printed, never silent.
+  awk '
+    function harvest(s,   n) {
+      while (match(s, /(app|public|authz)\.[a-z0-9_]+/)) {
+        tok = substr(s, RSTART, RLENGTH)
+        sub(/^(app|public|authz)\./, "", tok)
+        print tok > TARGETS
+        s = substr(s, RSTART + RLENGTH)
+        n++
+      }
+      return n
+    }
+    function complain(where, why) { print where "\t" why > ERRS }
+    {
+      low = tolower($0)
+      if (low ~ /^[ \t]*--[ \t]*door-sweep-targets:/) {
+        sub(/^[ \t]*--[ \t]*door-sweep-targets:[ \t]*/, "", low)
+        inmark = 1; line = NR
+        if (harvest(low) == 0) complain(NR, "door-sweep-targets: with no (app|public|authz).name target")
+        next
+      }
+      if (inmark) {
+        if (low ~ /^[ \t]*--/) {
+          rest = low; sub(/^[ \t]*--[ \t]*/, "", rest)
+          probe = rest
+          if (harvest(rest) > 0) {
+            if (probe ~ /(app|public|authz)\.([^a-z0-9_]|$)/) complain(NR, "schema prefix with no function name")
+            if (probe ~ /\([^)]*$/)                           complain(NR, "unclosed argument list")
+            next
+          }
+          inmark = 0; next          # token-free `--` line: the declaration ends here
+        }
+        inmark = 0
+      }
+    }
+  ' TARGETS="$D/fn_rewrite" ERRS="$D/marker_err" "$D/content" 2>/dev/null || true
+
+  REWRITE_PRESENT=0
+  if sed 's/--.*$//' "$D/content" | grep -qiE 'pg_get_functiondef'; then
+    REWRITE_PRESENT=1
+
+    # (b) FALLBACK, and it is deliberately NARROW — only when the file builds an ARRAY LITERAL.
+    #     ⛔ WHY THE ARRAY GATE, MEASURED RATHER THAN ASSUMED. A first draft extracted every
+    #     quoted schema-qualified callable and OVER-SELECTED: on
+    #     20260903000700_authz_dashboard_gate_uniformity.sql it returned `is_admin` and
+    #     `is_commission_admin_of`, which are the `replace()` OPERANDS — the callee being
+    #     swapped — not the rewrite targets. Naming the WRONG door is worse than naming none,
+    #     and a widened regex that over-selects turns every phase gate into noise.
+    #     ⚠ Excluding `~` lines was NOT enough: a replacement literal sits on a line with no
+    #     `~`. The sound discriminator is that a TARGET LIST is built as an array, while a
+    #     replace() operand is not. Measured on the three shapes:
+    #       20261003007180 (targets in array)     array[=1 callables=4 -> selects 4   ✅
+    #       20260903000700 (replace() operands)   array[=0 callables=2 -> selects 0   ✅
+    #       20260816000500 (catalog-query)        array[=1 callables=0 -> FINDING (1) ✅
+    #     ✅ SECOND BOUND — MEASURED 2026-09-01, CLOSED 2026-09-05. The array gate used to be
+    #     evaluated over the CONCATENATED diff content, so ONE migration in the range that built
+    #     an array enabled this fallback for EVERY other migration in it. Measured then:
+    #     20261003007190 (the BUG-PROF-INACTIVE-001 fix) carries no array literal and declares
+    #     its target with the (a) marker, yet `is_active` was also selected — because
+    #     20261003007180, elsewhere in the same range, does build one. ADR 0173 recorded that
+    #     fixing it meant assembling the content per file and declined it as benign
+    #     over-selection. §2b now does assemble per file for a different reason (attribution),
+    #     and this gate is per-file with it. Re-measured on `731abda0^..HEAD`: 20 cases -> 18,
+    #     the two dropped being `is_active` and `has_role` — both REPLACEMENT LITERALS and
+    #     quoted operands, never rewrite targets, exactly as the 2026-09-01 note predicted.
+    #     ⚠ BOUND, STATED: a migration that BOTH builds an array AND uses quoted callables as
+    #     replace() operands would still over-select. The (a) marker exists precisely so that
+    #     case has an exact answer available, and it takes precedence.
+    if sed 's/--.*$//' "$D/content" | grep -qiE 'array[[:space:]]*\['; then
+      sed 's/--.*$//' "$D/content" \
+        | grep -vE '~' \
+        | grep -ohE "'(app|public|authz)\.[a-z0-9_]+\(" \
+        | sed -E "s/^'//; s/\($//; s/^(app|public|authz)\.//" >> "$D/fn_rewrite" || true
+    fi
+
+  fi
+
+  # ─────────────────────────────────────────────────────────────────────────────────────
+  # 4d. `ALTER FUNCTION … SECURITY DEFINER` — the function branch's ALTER POLICY.
+  #
+  # ⛔ THE BLINDNESS THIS CLOSES, and it is a repeat. ADR 0079 Amendment 8 ruling 1 fixed
+  # `alter policy` because "an RLS widening is not a create". The FUNCTION branch was left
+  # selecting on a `create [or replace] function` CHUNK BODY — and an `ALTER` has no body, so
+  # flipping `prosecdef` on an existing boolean gate derived ZERO cases and read as clean
+  # (FUP-DOOR-SWEEP-DERIVER-BLIND-TO-ALTER-FUNCTION). ⭐ A correction applied to one branch of
+  # a deriver is not evidence the sibling branch was swept.
+  #
+  # ⛔ THE `security definer` CLAUSE IS MANDATORY IN THE MATCH, MEASURED:
+  # `20260620000000_baseline.sql` carries 449 `ALTER FUNCTION … OWNER TO "postgres";` lines.
+  # A naive `alter function` grep would put all 449 into the candidate set. With the clause
+  # required, that file yields 0 and the tree's ONLY real instance
+  # (`20261003004300`, `alter function app.assert_hospital_affiliation_has_org() security
+  # definer`) yields 1.
+  #
+  # ⚠ THE TEXT CANNOT SAY WHAT THE ALTERED FUNCTION RETURNS — there is no body to read. That
+  # is exactly why the name goes through 4c's catalog resolution like every other candidate,
+  # and why, with NO catalog, an ALTER-derived name is an OBLIGATION rather than a case: a
+  # token whose domain membership nobody checked must not enter CASES.
+  # ─────────────────────────────────────────────────────────────────────────────────────
+  grep -ohiE "alter function ((app|public|authz)\.)?\"?[a-z0-9_]+\"?[[:space:]]*\([^)]*\)[^;]{0,200}security[[:space:]]+definer" "$D/flat" \
+    | awk '{gsub(/"/,""); t=tolower($3); sub(/\(.*$/,"",t); sub(/^(app|public|authz)\./,"",t); if (t != "") print t}' \
+    | sort -u > "$D/fn_alter"
+}
+
+# ── the loop, the aggregate union, and the case -> file(s) map ───────────────────────
+AGG_LISTS="pol_create pol_alter pol_drop fnchunks fn_sel_name fn_sel_prop fn_excl fn_held fn_rewrite fn_alter"
+for x in $AGG_LISTS marker_err prov; do : > "$TMP/$x"; done
+REWRITE_PRESENT=0
+ANY_REWRITE=0
+i=0
 while IFS= read -r f; do
+  i=$((i + 1))
+  D="$TMP/per/$i"; mkdir -p "$D"
   if [ "$TIP" = "HEAD" ] && [ -f "$f" ]; then
-    cat "$f" >> "$TMP/content"
+    cat "$f" > "$D/content"
   elif git cat-file -e "$TIP:$f" 2>/dev/null; then
-    git show "$TIP:$f" >> "$TMP/content"
+    git show "$TIP:$f" > "$D/content"
   else
     UNREADABLE="$UNREADABLE $f"
     continue
   fi
-  printf '\n;\n' >> "$TMP/content"
+  sed 's/--.*$//' "$D/content" | tr '\n' ' ' | sed 's/[[:space:]][[:space:]]*/ /g' > "$D/flat"
+  REWRITE_PRESENT=0
+  extract_one "$D"
+  [ "$REWRITE_PRESENT" = 1 ] && ANY_REWRITE=1
+  # the aggregate union — downstream code sees exactly the lists it always saw
+  for x in $AGG_LISTS; do
+    [ -s "$D/$x" ] && cat "$D/$x" >> "$TMP/$x"
+  done
+  # ⭐ a parse error can now name the FILE and its OWN line number
+  [ -s "$D/marker_err" ] \
+    && awk -F'\t' -v f="$f" '{print f ":" $1 "\t" $2}' "$D/marker_err" >> "$TMP/marker_err"
+  # PROVENANCE: every name this file produced, whatever bucket it landed in
+  cat <(cut -f1 "$D/pol_create") <(cut -f1 "$D/pol_alter") \
+      "$D/fn_sel_name" "$D/fn_sel_prop" "$D/fn_excl" "$D/fn_rewrite" "$D/fn_alter" \
+    | awk 'NF' | sort -u | awk -v f="$f" '{print $0 "\t" f}' >> "$TMP/prov"
+  printf '%s\n' "$f" >> "$TMP/flat_order"
+  { cat "$D/flat"; printf ' ; '; } >> "$TMP/flat"
 done < "$TMP/files"
+REWRITE_PRESENT="$ANY_REWRITE"
 if [ -n "$UNREADABLE" ]; then
   say "  ⚠ UNREADABLE (skipped — their gates are NOT in the list below):$UNREADABLE"
 fi
-
-# `--` comments stripped, then newlines folded, so a statement split across lines
-# ("alter policy x\n  on public.y") is still one match. Mirrors the audit script's own
-# comment strip; carries the same caveat about a `--` inside a string literal.
-sed 's/--.*$//' "$TMP/content" | tr '\n' ' ' | sed 's/[[:space:]][[:space:]]*/ /g' > "$TMP/flat"
-
-# ─────────────────────────────────────────────────────────────────────────────────────
-# 3. POLICIES — RULING 1: both forms, one case list.
-# ─────────────────────────────────────────────────────────────────────────────────────
-POLRE='"?[a-z0-9_]+"? on ("?[a-z0-9_]+"?\.)?"?[a-z0-9_]+"?'
-grep -ohiE "create policy $POLRE" "$TMP/flat" \
-  | awk '{gsub(/"/,""); n=tolower($3); t=tolower($5); sub(/^[a-z0-9_]+\./,"",t); print n "\t" t}' \
-  | sort -u > "$TMP/pol_create"
-grep -ohiE "alter policy $POLRE"  "$TMP/flat" \
-  | awk '{gsub(/"/,""); n=tolower($3); t=tolower($5); sub(/^[a-z0-9_]+\./,"",t); print n "\t" t}' \
-  | sort -u > "$TMP/pol_alter"
-grep -ohiE "drop policy (if exists )?$POLRE" "$TMP/flat" \
-  | awk '{gsub(/"/,""); for(i=1;i<=NF;i++) if(tolower($i)=="on"){print tolower($(i-1)) "\t" tolower($(i+1)); break}}' \
-  | sed 's/\t[a-z0-9_]*\./\t/' | sort -u > "$TMP/pol_drop"
-# a drop+recreate is a create; only a policy dropped and NOT recreated is an orphan
+for x in pol_create pol_alter pol_drop fn_sel_name fn_sel_prop fn_excl fn_held fn_alter; do
+  sort -u "$TMP/$x" -o "$TMP/$x"
+done
+# ── cross-file reconciliation. ⚠ These CANNOT be per file. ──────────────────────────
+# A policy dropped in one migration and recreated in another is not an orphan; a function
+# selected by one file and excluded by another is selected.
 comm -23 "$TMP/pol_drop" <(cat "$TMP/pol_create" "$TMP/pol_alter" | sort -u) > "$TMP/pol_orphan"
-
-# ─────────────────────────────────────────────────────────────────────────────────────
-# 4. FUNCTIONS — SELECTED vs EXCLUDED, and the excluded set is PRINTED, never dropped.
-#
-# ⛔ THE NAME FILTER IS ACKNOWLEDGED BLIND AND HAS NO BACKSTOP FOR THIS CLASS.
-# Amendment 8's closing note: the filter excluded BOTH functions AFF2 touched
-# (`list_org_people`, `guard_profile_privileged_columns`), and `ARM=census` cannot
-# backstop an ALTERED gate because an altered gate is not a newcomer. AFF4's five new
-# gates (`affiliate_person_to_org`, `end_org_affiliation`, `void_affiliation`,
-# `void_org_affiliation`, `update_org_affiliation`) match none of it either. So a
-# non-matching function is a REVIEW ITEM, printed for a ruling — never a silent drop.
-# Printing what was dropped is what makes ruling 2's "state in the gate record that the
-# migration contains no gate" a checkable claim instead of an assertion.
-#
-# A function is auto-SELECTED only when the diff text asserts all three catalog facts
-# the arm's domain requires — `security definer`, `returns boolean`, and an identity
-# primitive in the body — or when its NAME matches the arm's regex. Anything else is
-# named, not guessed at: a token the arm cannot select turns the whole sweep UNPROVEN.
-# ⚠ A chunk runs to the next declaration, so a body reaching identity only through a
-# helper is invisible here — the same admission Amendment 9 attaches to the arm itself.
-# ─────────────────────────────────────────────────────────────────────────────────────
-sed 's/--.*$//' "$TMP/content" | awk '
-  function emit() { if (name != "") print name "\t" buf }
-  {
-    l = tolower($0)
-    if (l ~ /create[ \t]+(or[ \t]+replace[ \t]+)?function[ \t]+(app|public|authz)\./) {
-      emit()
-      match(l, /function[ \t]+(app|public|authz)\.[a-z0-9_]+/)
-      tok = substr(l, RSTART, RLENGTH)
-      sub(/^function[ \t]+/, "", tok)
-      sub(/^(app|public|authz)\./, "", tok)
-      name = tok; buf = ""
-    }
-    if (name != "") buf = buf " " l
-  }
-  END { emit() }
-' > "$TMP/fnchunks"
-
-: > "$TMP/fn_sel_name"; : > "$TMP/fn_sel_prop"; : > "$TMP/fn_excl"; : > "$TMP/fn_held"
-while IFS="$(printf '\t')" read -r fname fbody; do
-  [ -n "$fname" ] || continue
-  held=0
-  for h in $HELD_OUT; do [ "$h" = "$fname" ] && held=1; done
-  if [ "$held" = 1 ]; then
-    printf '%s\n' "$fname" >> "$TMP/fn_held"
-  elif printf '%s' "$fname" | grep -qE "$PRED_NAME_RE" && ! printf '%s' "$fname" | grep -qE '^is_valid_'; then
-    printf '%s\n' "$fname" >> "$TMP/fn_sel_name"
-  elif printf '%s' "$fbody" | grep -qE 'security[ ]+definer' \
-    && printf '%s' "$fbody" | grep -qE 'returns[ ]+boolean' \
-    && printf '%s' "$fbody" | grep -qE "$PRED_IDENTITY_RE"; then
-    printf '%s\n' "$fname" >> "$TMP/fn_sel_prop"
-  else
-    printf '%s\n' "$fname" >> "$TMP/fn_excl"
-  fi
-done < "$TMP/fnchunks"
-for x in fn_sel_name fn_sel_prop fn_excl fn_held; do sort -u "$TMP/$x" -o "$TMP/$x"; done
-# a name-selected function must not also appear as excluded (same name, two declarations)
 comm -23 "$TMP/fn_excl" <(cat "$TMP/fn_sel_name" "$TMP/fn_sel_prop" | sort -u) > "$TMP/fn_excl.f"
 mv "$TMP/fn_excl.f" "$TMP/fn_excl"
-
-# ─────────────────────────────────────────────────────────────────────────────────────
-# 4b. RUNTIME-REWRITE MIGRATIONS — ADR 0173.
-#
-# ⛔ THE BLINDNESS THIS CLOSES. Everything above selects on the diff TEXT: section 4 chunks
-# on `create [or replace] function (app|public|authz).`. A migration that edits a body it did not
-# author uses this repo's HOUSE PATTERN instead —
-# `pg_get_functiondef()` + `replace()` + `execute` — and therefore contains no
-# create-function line at all. Measured 2026-09-01: `20261003007180` rewrote FOUR bodies,
-# two of them `prosecdef` with `authenticated` EXECUTE, and this script derived ZERO cases.
-# ⭐ The deriver was blind to exactly the pattern CLAUDE.md documents as making migration
-# text stale-by-design — and any future gate keyed on migration text inherits that.
-#
-# ⚠ HISTORICAL CEILING, MEASURED, SO THE AMENDMENT IS NOT OVERSOLD: of the 33 migrations
-# that use the pattern, only 8 name their targets in the text at all. The other 25 select
-# targets by CATALOG QUERY at apply time (`where ... pg_get_functiondef(p.oid) ~ '...'`),
-# whose predicate typically matches what the migration then REMOVED — so re-running it today
-# returns zero and the door list is unrecoverable without a historical snapshot. ⛔ No
-# text-based deriver can ever reach those 25. The ceiling is HISTORICAL, not structural: the
-# convention below makes forward coverage complete.
-#
-# ⛔ AND `PRED_DOMAIN` IS A SEPARATE, UNCLOSED BOUND — do not read this block as fixing it.
-# The read arm requires `t.typname='bool'`; D2's four return int4/int4/int4/responses, so
-# even once SELECTED here they yield zero cases and the sweep is correctly UNPROVEN.
-# SELECTION is this block's success criterion, never a passing sweep. That bound is owned by
-# FUP-AUTHZ-COMMAND-DOOR-UNSWEPT (C2), which has its own instrument
-# (supabase/tests/mutation/c2-command-door-neutralizer.sh) and its own cutline.
-# ─────────────────────────────────────────────────────────────────────────────────────
-: > "$TMP/fn_rewrite"
-: > "$TMP/marker_err"
-
-# ── (a) THE CONVENTION — an explicit, unambiguous target list the deriver can read. ──
-#     A rewrite migration declares:  -- door-sweep-targets: app.foo(), public.bar(uuid)
-#     Read from the RAW content (it is a comment, so it must survive comment-stripping).
-#
-# ⛔ THE READ IS UNCONDITIONAL, AND THAT IS THE FIX, NOT A TIDY-UP. Until 2026-09-05 this
-# whole block sat inside `if … grep -qiE 'pg_get_functiondef'`. Measured:
-# `20261003007250` contains `pg_get_functiondef` ZERO times, so the declaration path never
-# executed for the migration whose declaration the follow-up is about — its three targets
-# survived on the unrelated `create or replace` name path, and the two paths agreeing is
-# what hid it. The declaration is a notation about DOORS, not about rewrites; gating it on
-# a rewrite marker is the same class of defect as parsing only its first line.
-#
-# ⛔ THE PARSER MUST READ THE NOTATION THE FILES USE. The old read was `grep` anchored per
-# line, so a CONTINUATION line was silently unread (FUP-DOOR-SWEEP-MARKER-BLIND-TO-
-# CONTINUATION-LINES). Measured in-tree: three migrations use the continuation form
-# (`…007250` 3 lines, `…007300` 2, `…007340` 1). The grammar, ADR 0173 §2 as amended:
-#
-#     declaration       := marker-line continuation-line*
-#     marker-line       := ^\s*--\s*door-sweep-targets:\s* target-list
-#     continuation-line := ^\s*--\s+ target-list      (only directly after a declaration line)
-#     target-list       := target ( \s*,\s* target )* \s*,?
-#     target            := (app|public|authz).name [ '(' … ')' ]
-#
-# ⚠ CONSUME-OR-STOP, TOKEN-BEARING — and it is measured, not a preference. A following
-# `--` line carrying at least one `(app|public|authz).name` token is a continuation and
-# every token on it is consumed; a `--` line with NO such token ENDS the declaration,
-# silently. Strict rejection would red two committed migrations at every gate:
-# `20261003007180:9` is a bare `--` and `20261003007190:6` likewise. The cost of the
-# tolerant rule is that prose naming a schema-qualified callable immediately under a
-# declaration is consumed — which is over-selection, and 4c's catalog classification is
-# what makes over-selection cheap again.
-# ⚠ Loud NARROW case: a continuation bearing a schema prefix with no name, or an unclosed
-# argument list, is a NAMED parse error. The run continues — a parse error in a comment
-# must not decide a sweep — but it is printed, never silent.
-awk '
-  function harvest(s,   n) {
-    while (match(s, /(app|public|authz)\.[a-z0-9_]+/)) {
-      tok = substr(s, RSTART, RLENGTH)
-      sub(/^(app|public|authz)\./, "", tok)
-      print tok > TARGETS
-      s = substr(s, RSTART + RLENGTH)
-      n++
-    }
-    return n
-  }
-  function complain(where, why) { print where "\t" why > ERRS }
-  {
-    low = tolower($0)
-    if (low ~ /^[ \t]*--[ \t]*door-sweep-targets:/) {
-      sub(/^[ \t]*--[ \t]*door-sweep-targets:[ \t]*/, "", low)
-      inmark = 1; line = NR
-      if (harvest(low) == 0) complain("content line " NR, "door-sweep-targets: with no (app|public|authz).name target")
-      next
-    }
-    if (inmark) {
-      if (low ~ /^[ \t]*--/) {
-        rest = low; sub(/^[ \t]*--[ \t]*/, "", rest)
-        probe = rest
-        if (harvest(rest) > 0) {
-          if (probe ~ /(app|public|authz)\.([^a-z0-9_]|$)/) complain("content line " NR, "schema prefix with no function name")
-          if (probe ~ /\([^)]*$/)                           complain("content line " NR, "unclosed argument list")
-          next
-        }
-        inmark = 0; next          # token-free `--` line: the declaration ends here
-      }
-      inmark = 0
-    }
-  }
-' TARGETS="$TMP/fn_rewrite" ERRS="$TMP/marker_err" "$TMP/content" 2>/dev/null || true
-
-REWRITE_PRESENT=0
-if sed 's/--.*$//' "$TMP/content" | grep -qiE 'pg_get_functiondef'; then
-  REWRITE_PRESENT=1
-
-  # (b) FALLBACK, and it is deliberately NARROW — only when the file builds an ARRAY LITERAL.
-  #     ⛔ WHY THE ARRAY GATE, MEASURED RATHER THAN ASSUMED. A first draft extracted every
-  #     quoted schema-qualified callable and OVER-SELECTED: on
-  #     20260903000700_authz_dashboard_gate_uniformity.sql it returned `is_admin` and
-  #     `is_commission_admin_of`, which are the `replace()` OPERANDS — the callee being
-  #     swapped — not the rewrite targets. Naming the WRONG door is worse than naming none,
-  #     and a widened regex that over-selects turns every phase gate into noise.
-  #     ⚠ Excluding `~` lines was NOT enough: a replacement literal sits on a line with no
-  #     `~`. The sound discriminator is that a TARGET LIST is built as an array, while a
-  #     replace() operand is not. Measured on the three shapes:
-  #       20261003007180 (targets in array)     array[=1 callables=4 -> selects 4   ✅
-  #       20260903000700 (replace() operands)   array[=0 callables=2 -> selects 0   ✅
-  #       20260816000500 (catalog-query)        array[=1 callables=0 -> FINDING (1) ✅
-  #     ⛔ SECOND BOUND, MEASURED 2026-09-01 ON ITS FIRST REAL USE: the array gate is evaluated
-  #     over the CONCATENATED diff content, not per file. So ONE migration in the range that
-  #     builds an array enables this fallback for EVERY other migration in the same range.
-  #     Measured: 20261003007190 (the BUG-PROF-INACTIVE-001 fix) carries no array literal and
-  #     declares its target with the (a) marker, yet `is_active` was also selected — because
-  #     20261003007180, elsewhere in the same main..HEAD range, does build one. The consequence
-  #     is OVER-SELECTION (extra sweeping), never a wrong verdict, and the (a) marker still
-  #     names the real target. ⚠ Fixing it means evaluating the gate per file, which is a
-  #     structural change to how $TMP/content is assembled — not taken here; recorded so the
-  #     next reader meets the measurement instead of assuming per-file semantics.
-  #     ⚠ BOUND, STATED: a migration that BOTH builds an array AND uses quoted callables as
-  #     replace() operands would still over-select. The (a) marker exists precisely so that
-  #     case has an exact answer available, and it takes precedence.
-  if sed 's/--.*$//' "$TMP/content" | grep -qiE 'array[[:space:]]*\['; then
-    sed 's/--.*$//' "$TMP/content" \
-      | grep -vE '~' \
-      | grep -ohE "'(app|public|authz)\.[a-z0-9_]+\(" \
-      | sed -E "s/^'//; s/\($//; s/^(app|public|authz)\.//" >> "$TMP/fn_rewrite" || true
-  fi
-
-fi
 # ⚠ OUTSIDE the rewrite guard, because the declaration read now runs outside it too.
 # Leaving the de-duplication inside would leave a marker-only migration's targets
 # unsorted and duplicated against the name/property selections.
@@ -543,8 +672,9 @@ if [ -s "$TMP/marker_err" ]; then
   while IFS="$(printf '\t')" read -r wh why; do [ -n "$wh" ] && say "    - $wh: $why"; done < "$TMP/marker_err"
   say "    ⛔ A malformed declaration is NOT the same state as an absent one. Every other"
   say "       target on the line was still consumed; fix the declaration at its source."
-  say "    ⚠ 'content line N' counts the CONCATENATED diff content, not one file — the"
-  say "      files are listed in order at the top of this run."
+  say "    ⚠ The location is <file>:<line> in that file's OWN numbering — extraction is"
+  say "      per file (§2b), so a parse error no longer points at an offset into"
+  say "      concatenated content."
 fi
 
 # ⭐ THE CONVENTION HAS TEETH. A rewrite migration whose targets cannot be resolved is a
@@ -573,32 +703,6 @@ if [ "$REWRITE_PRESENT" = 1 ] && [ ! -s "$TMP/fn_rewrite" ]; then
   rule
   exit 1
 fi
-
-# ─────────────────────────────────────────────────────────────────────────────────────
-# 4d. `ALTER FUNCTION … SECURITY DEFINER` — the function branch's ALTER POLICY.
-#
-# ⛔ THE BLINDNESS THIS CLOSES, and it is a repeat. ADR 0079 Amendment 8 ruling 1 fixed
-# `alter policy` because "an RLS widening is not a create". The FUNCTION branch was left
-# selecting on a `create [or replace] function` CHUNK BODY — and an `ALTER` has no body, so
-# flipping `prosecdef` on an existing boolean gate derived ZERO cases and read as clean
-# (FUP-DOOR-SWEEP-DERIVER-BLIND-TO-ALTER-FUNCTION). ⭐ A correction applied to one branch of
-# a deriver is not evidence the sibling branch was swept.
-#
-# ⛔ THE `security definer` CLAUSE IS MANDATORY IN THE MATCH, MEASURED:
-# `20260620000000_baseline.sql` carries 449 `ALTER FUNCTION … OWNER TO "postgres";` lines.
-# A naive `alter function` grep would put all 449 into the candidate set. With the clause
-# required, that file yields 0 and the tree's ONLY real instance
-# (`20261003004300`, `alter function app.assert_hospital_affiliation_has_org() security
-# definer`) yields 1.
-#
-# ⚠ THE TEXT CANNOT SAY WHAT THE ALTERED FUNCTION RETURNS — there is no body to read. That
-# is exactly why the name goes through 4c's catalog resolution like every other candidate,
-# and why, with NO catalog, an ALTER-derived name is an OBLIGATION rather than a case: a
-# token whose domain membership nobody checked must not enter CASES.
-# ─────────────────────────────────────────────────────────────────────────────────────
-grep -ohiE "alter function ((app|public|authz)\.)?\"?[a-z0-9_]+\"?[[:space:]]*\([^)]*\)[^;]{0,200}security[[:space:]]+definer" "$TMP/flat" \
-  | awk '{gsub(/"/,""); t=tolower($3); sub(/\(.*$/,"",t); sub(/^(app|public|authz)\./,"",t); if (t != "") print t}' \
-  | sort -u > "$TMP/fn_alter"
 
 # ─────────────────────────────────────────────────────────────────────────────────────
 # 4c. TIER 1 / TIER 2 — WHAT A DOOR *IS* COMES FROM THE CATALOG, NOT FROM A NAME.
@@ -1035,6 +1139,35 @@ fi
 NCASES="$(wc -l < "$TMP/cases" | tr -d ' ')"
 say "=== RESULT: DERIVED (0) — $NCASES case(s). This is a SELECTION, not a verdict. ==="
 [ "$STALE" -gt 0 ] && say "    ⚠ $STALE of them carry a STALE verdict in ${FINDINGS:-the findings file} (see ruling 3 above)."
+say
+
+# ─────────────────────────────────────────────────────────────────────────────────────
+# THE `SCOPE:` LINE — ONE LINE, AND THE GATE RECORD QUOTES IT VERBATIM.
+#
+# ⛔ FUP-DOOR-SWEEP-DERIVER-SPANS-THE-WHOLE-WORKING-TREE: "53 cases derived where AE1.3
+# owned 1". The number is not the defect — recording it AGAINST A PHASE is, and nothing in
+# the old output let a reader tell a union from an increment. This line makes that
+# impossible to omit: it names how many files came from the committed range, from the
+# working tree and from untracked, what filter was in force, and which file each case
+# came from. ⚠ Quote it; do not paraphrase it. A paraphrase can invert the sentence it
+# summarises, and "53 cases" is exactly the kind of number a paraphrase keeps while
+# dropping the bound that made it meaningful.
+# ─────────────────────────────────────────────────────────────────────────────────────
+n_comm=$(awk -F'\t' '$2=="committed"' "$TMP/paths" | cut -f1 | sort -u | comm -12 - "$TMP/files" | wc -l | tr -d ' ')
+n_work=$(awk -F'\t' '$2=="worktree"'  "$TMP/paths" | cut -f1 | sort -u | comm -12 - "$TMP/files" | wc -l | tr -d ' ')
+n_untk=$(awk -F'\t' '$2=="untracked"' "$TMP/paths" | cut -f1 | sort -u | comm -12 - "$TMP/files" | wc -l | tr -d ' ')
+say "SCOPE: $(wc -l < "$TMP/files" | tr -d ' ') file(s) — $n_comm committed (${BASE}..${TIP}), $n_work worktree, $n_untk untracked | filter: $FILTER_DESC"
+if [ -s "$TMP/prov" ]; then
+  say "       $NCASES case(s), attributed (a case named by two files is counted in both):"
+  say "       $(awk -F'\t' 'NR==FNR{c[$1]=1;next} ($1 in c){n[$2]++} END{s="";for(f in n){b=f;sub(/^.*\//,"",b);s=s (s?", ":"") n[f] " from " b} print s}' "$TMP/cases" "$TMP/prov")"
+  say
+  say "  PROVENANCE — every DERIVED case and the file(s) it came from. ⛔ A case list is not"
+  say "  an increment's coverage unless this map says it is:"
+  while IFS= read -r nm; do
+    [ -n "$nm" ] || continue
+    say "    - $nm   <- $(awk -F'\t' -v n="$nm" '$1==n {b=$2; sub(/^.*\//,"",b); printf "%s%s", (k++ ? " + " : ""), b} END{print ""}' "$TMP/prov")"
+  done < "$TMP/cases"
+fi
 say
 say "    ⛔ RULING 4 — THIS LIST SPANS TWO HARNESSES. Run BOTH; neither is the sweep."
 say "       read arm : $(wc -l < "$TMP/cases_read" | tr -d ' ') case(s)   write arm: $(wc -l < "$TMP/cases_write" | tr -d ' ') case(s)"
