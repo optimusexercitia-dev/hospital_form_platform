@@ -1,7 +1,7 @@
 # ADR 0190 — The door-sweep deriver selects doors by PROPERTY, scopes what it swept, and a full run MERGES the findings baseline
 
-**Status:** accepted (written at the build step of unit DOOR-SWEEP-DERIVER, Batch 1 of the
-pre-AE5 follow-up batches; PO approval pending at the Record step)
+**Status:** accepted — PO approved the unit 2026-09-05 at `d160aabf`, Record step the same day (written at the build step of unit DOOR-SWEEP-DERIVER, Batch 1 of the
+pre-AE5 follow-up batches; PO approval recorded above)
 **Date:** 2026-09-05 (unit DOOR-SWEEP-DERIVER, branch `authz-door-sweep-deriver`)
 **Area:** authorization / door sweep / the diff-scoped case deriver / findings baselines
 **Amends:** ADR [0173](./0173-door-sweep-deriver-blind-to-runtime-rewrite-migrations.md) (the

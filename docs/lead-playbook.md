@@ -103,6 +103,26 @@ file afterwards** — that instruction is retired (ADR 0153): a subset run now w
 scratch under `$WORK` and never opens the committed baseline for write. Verify by
 **measurement**, which stays right whether or not the guard is ever reverted:
 `git diff --stat -- docs/reviews/authz-door-audit-findings.md` — empty means untouched.
+⚠ On a **FULL** run (no `CASES=`/`SUITE=`), since ADR 0190 the harness legitimately rewrites
+the committed baseline through a MERGE that preserves hand-authored lines — so an empty diff
+there must be read **together with the harness exit code**: `RESULT: ERROR` / exit 2 means the
+merge aborted and wrote nothing, which also leaves the diff empty (QA F-MAJOR-5, DOOR-SWEEP-DERIVER).
+
+**Since DOOR-SWEEP-DERIVER (ADR 0190, 2026-09-05), two more step-1 obligations:**
+- **Quote the deriver's `SCOPE:` line verbatim into the gate record** — file counts by
+  provenance (committed-range · worktree · untracked), the filter, and the
+  `derivation:` mode (`catalog` vs `PROVISIONAL (no catalog)`). It is printed on **every** exit
+  (0/1/2/3); a record that says "N cases derived" without it cannot attribute the sweep to an
+  increment, and a `PROVISIONAL` derivation is text heuristics, not a property (LEARN: a
+  hand-widened list is otherwise indistinguishable from a derived one). Exit 1 now names its
+  sub-case — *no doors at all* / *doors identified, none sweepable by this arm* / *rewrite
+  targets unreadable*; the second one lists the doors that owe a **targeted** case and must not
+  be put in `CASES=` (ADR 0079 hazard 4).
+- **Run `SELFTEST=1 bash scripts/door-sweep-cases.sh` beside the four authz arms** and record
+  `PASS · FAIL · SKIPPED` with the bare exit code — the deriver's 16 scenarios and the merge
+  helper's 18 over committed fixtures. It is deliberately **not** in `npm run lint` (it needs a
+  fake repo and, for catalog scenarios, the stack); a `SKIPPED > 0` result over catalog scenarios
+  is a stack-down run, not a pass.
 
 ## 5. PROGRESS.md rotation & archive discipline
 
