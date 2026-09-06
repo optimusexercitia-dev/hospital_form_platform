@@ -1255,3 +1255,49 @@ row is read without its banner (QA N3's finding on the C2 sibling, adopted here 
 
 ⚠ `npm run test:db` and the four authz arms remain **step 11**, after run 2 — stated rather than
 quietly skipped.
+
+#### RUN 2 — launched, verified under way, and this session STOPS HERE
+
+Launched **2026-09-06 09:03:59** from a CLEAN tree at HEAD `496170af`, DETACHED (PowerShell
+`Start-Process` on `C:\Program Files\Git\bin\bash.exe` with the runner as **argv[1]**, output
+redirected and polled), own `WORK=/tmp/pd-full2` and own sentinel `/tmp/pd-full2-door-INFLIGHT.sql`.
+⛔ Nothing ran under a tool timeout. Provenance snapshotted by the runner itself:
+
+```
+START 2026-09-06T09:03:59-03:00
+PRE_CKSUM  1895535637 131621
+PRE_MD5    2ef469cabceff65e3f291e2a3054972f *docs/reviews/authz-door-audit-findings.md
+PRE_LINES  924
+GIT_HEAD   496170af66044744c89d6dd6ecfa3c644d73a231
+GIT_STATUS_BEFORE:      (empty)
+HARNESS_MD5 f7208f614ed4d4a8b4d5584d156f496e *supabase/tests/mutation/p0-authz-door-audit.sh
+RESET_EVERY_IN_ENV: unset
+RESET_BARE_RC=0
+```
+
+⭐ **`RESET_EVERY_IN_ENV: unset` is recorded deliberately.** The gate turns on SET-NESS, so a runner
+that exported `RESET_EVERY=20` would be indistinguishable in the banner from an operator-forced run
+— and this run's whole point is that the DEFAULT protects a full sweep with nobody asking. The
+harness's own md5 is snapshotted beside it so the run can be attributed to this exact text.
+
+Verified under way, not assumed:
+
+```
+FULL SWEEP — this run MERGES into the committed baseline; it does not replace it.
+    clean — 0 degenerate bodies (all three neutralization forms)
+ARM-DOMAIN predicate=127/127 policy=226/226
+baseline OK: Result: PASS, Files=262, Tests=8876
+```
+
+**Window, derived rather than quoted.** 353 cases × ~120 s ≈ 11.8 h, + 353 merges × 4.9 s ≈ 29 min,
++ **17** scheduled resets (`(DONE-1) % 20 == 0` over 353, `DONE > 1`) × ~175 s ≈ 50 min ⇒ **≈ 13.9 h**
+before retries. Each retry costs a further reset + baseline + re-run ≈ 300 s; if the ~24 genuinely
+shape-moved cases all retry that is **+2 h**. ⇒ **≈ 14–16 h, ETA between 23:00 today and 01:00 on
+2026-09-07.** ⚠ This is arithmetic on measured unit costs, not an observed rate — re-measure it
+against `baseline OK`'s timestamp once a dozen cases have landed, as the previous session had to.
+
+⛔ **What the next session must NOT do**: read run 1's CARRIED enumeration as the input to the Q2
+ruling (it is superseded), or take any figure from run 1's tail. Read `FULLRUN_BARE_RC` from
+`…/scratchpad/pd/full2/rc.txt` **bare**, and expect the new `preconditions: … resets=N
+(RESET_EVERY=20)` line to be quoted in the gate record beside the counts — `resets=0` on a
+353-case run is the exact state that voided run 1.
