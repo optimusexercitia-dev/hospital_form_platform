@@ -37,6 +37,14 @@
 # Run from repo root:  bash supabase/tests/mutation/p0-authz-door-audit.sh
 # Subset:              CASES="can_read_case is_case_respondent" bash .../p0-authz-door-audit.sh
 #   (CASES matches predicate proname OR policy name; space-separated.)
+# Bounded tail drift:  RESET_EVERY=N bash .../p0-authz-door-audit.sh
+#   Reset the DB + RE-CAPTURE the baseline every N cases, and reset-and-retry-once on a
+#   shape-moved verdict (ADR 0191 D8, porting ADR 0189 D6). Default 20; `0` disables.
+#   ⛔ THE GUARD IS SUBSET-NESS, NOT THE COUNTER: a NON-SUBSET run resets every N; a SUBSET
+#   run (`CASES=`) resets ONLY when RESET_EVERY is set EXPLICITLY — set-ness, not value, so
+#   a quick spike never triggers a destructive reset nobody asked for, while both mechanisms
+#   stay provable without a 13-hour sweep. Quote the `resets=` figure on the preconditions
+#   line, never the script name.
 #   ⭐ A subset run writes its report + BLIND tsv to SCRATCH under $WORK and NEVER opens
 #   the committed findings md for write (FUP-DOOR-SWEEP-DESTROYS-ITS-OWN-BASELINE; see
 #   the config block below). There is nothing to `git checkout --` afterwards, and older
@@ -99,7 +107,25 @@ FINDINGS_COMMITTED="$ROOT/docs/reviews/authz-door-audit-findings.md"
 # either. "Never overwrite the artefact a later arm reads back as a baseline" is the
 # property; whether the artefact is committed or scratch is not part of it.
 # ─────────────────────────────────────────────────────────────────────────────────────
-if [ -n "$CASES" ]; then
+# ─────────────────────────────────────────────────────────────────────────────────────
+# ⛔ `BASE_SHAPE_OVERRIDE` — A SELF-PROOF KNOB, AND IT JOINS THE SUBSET SET (ADR 0191 D8).
+# It forces the captured baseline SHAPE to a value the suite will never produce, so every
+# case reads as shape-moved and the retry net can be shown to RESET, RE-CAPTURE THE TRUE
+# SHAPE, and RECOVER a real verdict — without a 13-hour sweep. Batch 0 learned (QA F-MAJOR-3)
+# that such a knob does not narrow an axis and so is easy to leave outside the subset test,
+# which is exactly how it once pointed a fault-injected run at the COMMITTED baseline. It is
+# therefore counted as a subset here, and it is REFUSED unless `SELFPROOF=1` is set with it:
+# two knobs, deliberately, so no real sweep can inherit a forged baseline from one stray var.
+# ⚠ It is NOT gated on `SELFTEST=1` — that arm exits before any sweep runs, so gating on it
+#   would make this knob unusable and the mechanism unprovable, which is the failure mode the
+#   2026-09-04 re-ruling exists to prevent.
+# ─────────────────────────────────────────────────────────────────────────────────────
+if [ -n "${BASE_SHAPE_OVERRIDE:-}" ] && [ "${SELFPROOF:-0}" != "1" ]; then
+  echo "FATAL: BASE_SHAPE_OVERRIDE is a SELF-PROOF knob and SELFPROOF is not 1. Refusing to" >&2
+  echo "       run: a real sweep must never inherit a forged baseline shape." >&2
+  exit 2
+fi
+if [ -n "$CASES" ] || [ -n "${BASE_SHAPE_OVERRIDE:-}" ]; then
   SUBSET_RUN=1
   FINDINGS="$WORK/authz-door-audit-findings.SUBSET.md"
   BLINDS_TSV="$WORK/blinds.SUBSET.tsv"
@@ -108,6 +134,50 @@ else
   FINDINGS="$FINDINGS_COMMITTED"
   BLINDS_TSV="$WORK/blinds.tsv"
 fi
+
+# ─────────────────────────────────────────────────────────────────────────────────────
+# BOUNDED TAIL DRIFT — PORTED FROM c2-command-door-neutralizer.sh, 2026-09-06 (ADR 0191 D8)
+#
+# ⛔ THE FIX WAS CORRECT AT ONE OF ITS TWO SITES. `FUP-C2-NEUTRALIZER-TAIL-DRIFT-INVALIDATES-
+# LATE-VERDICTS` was closed on 2026-09-04 against the C2 neutralizer ALONE. The bug is a
+# property of the SHAPE — one database, one baseline captured at the top, one pgTAP suite run
+# per case, hundreds of cases — and THIS harness has exactly that shape and kept the bug.
+#
+# Measured on this arm's first full run (2026-09-06, 353 cases, 12 h 17 m, bare exit 1): the
+# suite held the captured baseline shape `Files=262, Tests=8876` for 274 cases, then read
+# `Files=262, Tests=8470` with the IDENTICAL nine aborting referral files on all 79 remaining
+# cases (78 NOTICED + 1 ERROR) — a perfect tail. Re-measured on fresh resets, tail cases run
+# alone came back COVERED at the true shape, and cases 274/275/276 re-run in worklist order
+# came back 3/3 COVERED with the shape never moving. ⭐ So there is NO originating case: the
+# damage is CUMULATIVE in the number of preceding suite runs, which is exactly what a periodic
+# reset bounds and what no per-case fix could reach. The DOOR was never the variable.
+#
+# ⛔ §7.15 is a DETECTOR, not a PREVENTER: BASE_FILES/BASE_TESTS are captured once, so drift is
+# converted into NOTICED/ERROR and the tail is simply NOT MEASURED. A longer worklist loses a
+# longer tail. Two mechanisms, because neither covers the other:
+#   · RESET_EVERY  — reset the DB every N cases and RE-CAPTURE the baseline, bounding the drift
+#                    any verdict can carry to N cases instead of to the whole run;
+#   · the retry net — a shape-moved outcome resets and re-runs that ONE case: a GENUINE NOTICED
+#                    reproduces after a fresh reset, drift does not.
+#
+# ⛔ SET-NESS, NOT VALUE, and it must be captured BEFORE the default is applied — one line later
+# `RESET_EVERY=20` typed by an operator and `RESET_EVERY` defaulted to 20 are the SAME STRING,
+# which is the exact fact this gate turns on. THE RULE IN FORCE (ADR 0189 D6 as re-ruled
+# 2026-09-04, adopted here unchanged): a NON-SUBSET run resets every RESET_EVERY (default 20);
+# a SUBSET run resets ONLY if RESET_EVERY is set EXPLICITLY; `0` disables everywhere. A subset
+# writes only to scratch (ADR 0153), so a reset during one cannot touch the committed baseline —
+# and allowing an explicit one is what keeps both mechanisms provable without a 13-hour sweep.
+# ─────────────────────────────────────────────────────────────────────────────────────
+RESET_EVERY_EXPLICIT=0; [ -n "${RESET_EVERY+x}" ] && RESET_EVERY_EXPLICIT=1
+RESET_EVERY="${RESET_EVERY:-20}"   # 0 disables
+RESETS=0
+# ⛔ ONE predicate, derived once and read by all three sites (the gate inside periodic_reset, the
+# retry net, the summary banner). Three hand-written copies of the same condition is how a banner
+# comes to describe a rule the code no longer implements.
+resets_enabled () {   # rc 0 = a reset is allowed on this run; rc 1 = suppressed
+  [ "$RESET_EVERY" != "0" ] || return 1
+  [ "$SUBSET_RUN" != "1" ] || [ "$RESET_EVERY_EXPLICIT" = "1" ]
+}
 
 
 # ⛔ WORKSPACE PRECONDITION — a hard failure, never a warning.
@@ -353,11 +423,15 @@ classify () {
   #     DIFFERENT gate entirely, and with the denominator moved we cannot say they do not.
   # ⚠ `[ -z "$res" ]` (no `Result:` line at all) is a shape move whose `res` is not FAIL, so it
   #   stays ERROR — the ordering below makes that explicit rather than incidental.
-  local shape_moved=0
+  # ⛔ GLOBAL, not `local`, since 2026-09-06 (ADR 0191 D8). The retry net must fire on exactly
+  # the cases this classifier calls shape-moved — NOTICED *and* ERROR — and the only way to
+  # guarantee that is for both to read ONE predicate. The alternative (the C2 sibling's) is to
+  # match the note TEXT, which is a second hand-kept copy of the same condition.
+  SHAPE_MOVED=0
   if [ -z "$res" ] || [ "$RUNFILES" != "$BASE_FILES" ] || [ "$RUNTESTS" != "$BASE_TESTS" ] || [ "$dubious" -gt 0 ]; then
-    shape_moved=1
+    SHAPE_MOVED=1
   fi
-  if [ "$shape_moved" = "1" ]; then
+  if [ "$SHAPE_MOVED" = "1" ]; then
     if [ "$res" = "FAIL" ]; then VERDICT="NOTICED"; else VERDICT="ERROR"; fi
   elif [ "$res" = "FAIL" ]; then
     VERDICT="COVERED"
@@ -405,7 +479,34 @@ Dubious, test returned 2
 Files=262, Tests=8876, Result: FAIL"
   st_case "no Result: line"     ERROR   "Files=262, Tests=8876"
   echo "--- SELFTEST classify: $((6 - st_fail))/6 ok, $st_fail failed ---"
-  [ "$st_fail" -eq 0 ] || exit 1
+
+  # ── ARM 2: resets_enabled() POLARITY (ADR 0191 D8) — no DB, nothing destructive. ──────
+  # ⛔ THE CONTROL IS TRIAL A vs TRIAL B: same value 20/1, same SUBSET, opposite SET-NESS.
+  # Without it a green row proves only "the subset gate exists", not that the gate turns on
+  # set-ness — which is the one distinction ADR 0189 D6's re-ruling is about, and the one a
+  # `RESET_EVERY="${RESET_EVERY:-20}"` written ONE LINE EARLIER would silently destroy.
+  echo "=== SELFTEST: resets_enabled() — the reset gate's polarity (no DB) ==="
+  rt_fail=0
+  rt_case () {  # $1 label  $2 SUBSET_RUN  $3 RESET_EVERY  $4 EXPLICIT  $5 expected (yes|no)
+    local got
+    SUBSET_RUN="$2"; RESET_EVERY="$3"; RESET_EVERY_EXPLICIT="$4"
+    if resets_enabled; then got=yes; else got=no; fi
+    if [ "$got" = "$5" ]; then
+      printf '  ok    %-46s -> resets=%s\n' "$1" "$got"
+    else
+      printf '  NOT OK %-45s -> resets=%s (expected %s)\n' "$1" "$got" "$5"; rt_fail=$((rt_fail+1))
+    fi
+  }
+  rt_case "A  SUBSET, RESET_EVERY unset (defaulted 20)"  1 20 0 no
+  rt_case "B  SUBSET, RESET_EVERY=1 EXPLICIT"            1 1  1 yes
+  rt_case "B' SUBSET, RESET_EVERY=20 EXPLICIT"           1 20 1 yes   # ⭐ vs A: set-ness, not value
+  rt_case "C  full run, RESET_EVERY unset (defaulted 20)" 0 20 0 yes
+  rt_case "E  full run, RESET_EVERY=0"                   0 0  0 no
+  rt_case "E' SUBSET,   RESET_EVERY=0 EXPLICIT"          1 0  1 no    # 0 disables EVERYWHERE
+  echo "--- SELFTEST resets_enabled: $((6 - rt_fail))/6 ok, $rt_fail failed ---"
+
+  echo "--- SELFTEST TOTAL: $((12 - st_fail - rt_fail))/12 ok, $((st_fail + rt_fail)) failed ---"
+  [ "$((st_fail + rt_fail))" -eq 0 ] || exit 1
   exit 0
 fi
 
@@ -625,6 +726,19 @@ PRED_DOMAIN="(
        or p.proname = 'assert_not_case_excluded'
     )"
 
+# ─────────────────────────────────────────────────────────────────────────────────────
+# ⛔ A FUNCTION SINCE 2026-09-06 (ADR 0191 D8) — the periodic reset must RE-DERIVE these
+# worklists to prove the tree did not move under the run, and a second hand-kept copy of
+# three catalog queries is the drift this file spends §7.17a forbidding.
+#
+# ⛔ THE SUFFIX TAG IS LOAD-BEARING. Both sweep loops read their worklist through
+# `done < "$WORK/worklist_*.tsv"`, so re-deriving into those names MID-LOOP would corrupt
+# the iteration the reset exists to protect. The primary call passes "" and therefore
+# writes exactly the three paths every later reader already uses, byte-for-byte; the reset
+# passes ".reset" and only ever compares.
+# ─────────────────────────────────────────────────────────────────────────────────────
+derive_worklists () {   # $1 = "" for the primary artefacts, or a suffix tag like ".reset"
+  local t="${1:-}"
 psql_c -c "\copy (
   select p.oid,
          n.nspname||'.'||p.proname||'('||pg_get_function_identity_arguments(p.oid)||')' as label,
@@ -644,7 +758,7 @@ psql_c -c "\copy (
     and $PRED_DOMAIN
   order by p.proname
 ) to '/tmp/wl_pred.tsv' with (format text)" >/dev/null
-docker cp "$DB:/tmp/wl_pred.tsv" "$WORK/worklist_pred.tsv" >/dev/null
+docker cp "$DB:/tmp/wl_pred.tsv" "$WORK/worklist_pred.tsv$t" >/dev/null
 
 # ─────────────────────────────────────────────────────────────────────────────────────
 # §7.17b  THE DOMAIN IS STILL NOT THE WHOLE PROPERTY — SO MEASURE WHAT IS OUTSIDE IT.
@@ -677,7 +791,7 @@ psql_c -c "\copy (
     and not $PRED_DOMAIN
   order by 1
 ) to '/tmp/wl_pred_out.tsv' with (format text)" >/dev/null
-docker cp "$DB:/tmp/wl_pred_out.tsv" "$WORK/outofdomain_pred_bool.tsv" >/dev/null
+docker cp "$DB:/tmp/wl_pred_out.tsv" "$WORK/outofdomain_pred_bool.tsv$t" >/dev/null
 
 psql_c -c "\copy (
   select c.relname as tbl, pol.polname,
@@ -691,7 +805,11 @@ psql_c -c "\copy (
     and coalesce(pg_get_expr(pol.polqual, pol.polrelid),'') not in ('true','')
   order by c.relname, pol.polname
 ) to '/tmp/wl_pol.tsv' with (format text)" >/dev/null
-docker cp "$DB:/tmp/wl_pol.tsv" "$WORK/worklist_pol.tsv" >/dev/null
+docker cp "$DB:/tmp/wl_pol.tsv" "$WORK/worklist_pol.tsv$t" >/dev/null
+}
+
+# THE PRIMARY DERIVATION — "" so the three paths are exactly what every later reader uses.
+derive_worklists ""
 
 # The intentionally-public catalogs we SKIP (qual = true): neutralizing true->true is a
 # vacuous no-op. Listed in the report per the brief.
@@ -918,7 +1036,96 @@ if [ "$BASE_RES" != "PASS" ]; then
   echo "    red). Fix the tree to green before auditing. Aborting."; exit 1
 fi
 echo "baseline OK: Result: PASS, Files=$BASE_FILES, Tests=$BASE_TESTS"
+# ⛔ SELF-PROOF ONLY (refused above unless SELFPROOF=1, and it forces SUBSET_RUN=1). The TRUE
+# captured shape is printed FIRST, above, and the forgery is announced — a forced baseline that
+# did not say so is a run whose every verdict is a claim about a shape that never existed.
+if [ -n "${BASE_SHAPE_OVERRIDE:-}" ]; then
+  echo "    ⛔ BASE_SHAPE_OVERRIDE set — baseline shape FORCED to '$BASE_SHAPE_OVERRIDE'."
+  echo "       SELF-PROOF ONLY. The true captured shape is the line above."
+  BASE_FILES=$(echo "$BASE_SHAPE_OVERRIDE" | grep -oE 'Files=[0-9]+' | grep -oE '[0-9]+')
+  BASE_TESTS=$(echo "$BASE_SHAPE_OVERRIDE" | grep -oE 'Tests=[0-9]+' | grep -oE '[0-9]+')
+fi
 echo
+
+# ─────────────────────────────────────────────────────────────────────────────────────
+# THE PERIODIC RESET (ADR 0191 D8) — the mechanism that BOUNDS tail drift instead of
+# detecting it. Ported from `c2-command-door-neutralizer.sh`'s `periodic_reset`; the step
+# ORDER is its, and each step is a thing this arm refuses to assume after a reset.
+# ─────────────────────────────────────────────────────────────────────────────────────
+periodic_reset () {   # $1 = why (printed)
+  local why="$1" pd now_pred now_pol
+  # 1. ⛔ INTERLOCK FIRST, AHEAD OF THE SUBSET GATE BELOW. A reset with a mutation in flight
+  #    destroys the evidence AND its restore in one command — the composition the sentinel
+  #    exists to prevent. It stays first so the subset gate cannot DISPLACE it: reaching here
+  #    with an armed sentinel is a broken invariant whatever kind of run this is, and it must
+  #    stop LOUDLY rather than be skipped quietly along with the reset.
+  if [ -s "$SENTINEL" ]; then
+    echo "*** refusing to reset with a mutation in flight: $SENTINEL" >&2
+    echo "    RECOVER=1 bash $0 first, then VERIFY it in the catalog." >&2
+    exit 2
+  fi
+  # 2. THE GATE. Announced either way — a reset that did NOT happen is a fact about the run's
+  #    preconditions, exactly like the domain. Checked here too so a direct call cannot bypass it.
+  if ! resets_enabled; then
+    if [ "$RESET_EVERY" = "0" ]; then
+      echo "    (RESET_EVERY=0 — NOT resetting: $why)"
+    else
+      echo "    (SUBSET run, RESET_EVERY not set explicitly — NOT resetting: $why)"
+    fi
+    return 0
+  fi
+  echo "--- PERIODIC RESET ($why) ---"
+  # 3. ⛔ `cd "$ROOT"` IS LOAD-BEARING: `supabase db reset` applies the migrations of the
+  #    DIRECTORY YOU STAND IN, and this machine measurably has a second, unrelated stack up
+  #    (`escalume`, 2026-09-05). ⛔ `</dev/null` because BOTH call sites are inside a
+  #    `while read` loop whose stdin is the worklist file.
+  if ! ( cd "$ROOT" && supabase db reset --local ) >/dev/null 2>&1 </dev/null; then
+    echo "*** db reset FAILED — aborting rather than measuring on an unknown DB." >&2
+    exit 2
+  fi
+  RESETS=$((RESETS+1))
+  # 4. §7.16 again — a reset is a new tree and its cleanliness is NOT assumed.
+  pd=$(degenerate_gates)
+  if [ -n "$pd" ]; then
+    echo "*** ABORT: a gate is DEGENERATE after a mid-sweep reset:" >&2
+    echo "$pd" | sed 's/^/      /' >&2
+    exit 2
+  fi
+  echo "    post-reset §7.16 preflight: clean — 0 degenerate bodies"
+  # 5. re-derive and compare. If the worklist moved, the TREE changed under the run and every
+  #    verdict recorded so far is against a DIFFERENT POPULATION. ⛔ To ".reset", never over
+  #    the file the sweep loop is reading.
+  derive_worklists ".reset"
+  now_pred=$(grep -c . "$WORK/worklist_pred.tsv.reset" | tr -d '[:space:]')
+  now_pol=$(grep -c . "$WORK/worklist_pol.tsv.reset"  | tr -d '[:space:]')
+  # ⛔ COMPARED WITHOUT THE OID COLUMN, deliberately. `supabase db reset --local` drops and
+  #    recreates the database, so every pg_proc.oid is REASSIGNED — an OID that moved is not a
+  #    population that moved, and comparing it would abort on every reset. The OIDs the sweep
+  #    holds are made safe the other way: `sweep_pred_one` re-resolves each one from the
+  #    function's IDENTITY at case time (see there).
+  if [ "$now_pred" != "$PRED_TOTAL" ] || [ "$now_pol" != "$POL_TOTAL" ] \
+     || ! cut -f2- "$WORK/worklist_pred.tsv.reset" | diff -q - <(cut -f2- "$WORK/worklist_pred.tsv") >/dev/null \
+     || ! diff -q "$WORK/worklist_pol.tsv.reset" "$WORK/worklist_pol.tsv" >/dev/null; then
+    echo "*** ABORT: the derived worklist CHANGED across the reset" >&2
+    echo "    (predicate $PRED_TOTAL -> $now_pred, policy $POL_TOTAL -> $now_pol)." >&2
+    echo "    The tree moved under this run; every verdict so far is against another" >&2
+    echo "    population, so nothing measured here may be merged." >&2
+    exit 2
+  fi
+  # 6. re-capture the baseline — THE WHOLE POINT: later verdicts compare against a FRESH shape,
+  #    so the drift any verdict can carry is bounded by RESET_EVERY, not by the run's length.
+  BASE_OUT=$(run_suite)
+  BASE_RES=$(echo "$BASE_OUT" | grep -oE 'Result: (PASS|FAIL)' | tail -1 | awk '{print $2}')
+  BASE_FT=$(echo "$BASE_OUT" | grep -oE 'Files=[0-9]+, Tests=[0-9]+' | tail -1)
+  BASE_FILES=$(echo "$BASE_FT" | grep -oE 'Files=[0-9]+' | grep -oE '[0-9]+')
+  BASE_TESTS=$(echo "$BASE_FT" | grep -oE 'Tests=[0-9]+' | grep -oE '[0-9]+')
+  echo "    post-reset baseline: ${BASE_RES:-<none>} (shape=Files=$BASE_FILES, Tests=$BASE_TESTS)  |  worklist re-derived: predicate=$now_pred policy=$now_pol (unchanged)"
+  if [ "$BASE_RES" != "PASS" ]; then
+    echo "*** ABORT: the suite is RED after a mid-sweep reset. Every later verdict would be" >&2
+    echo "    measured against a broken tree." >&2
+    exit 2
+  fi
+}
 
 # progress.tsv columns: arm  gate  direction  verdict  failing_files
 : > "$PROGRESS"
@@ -1065,11 +1272,34 @@ TMPL
 # ─────────────────────────────────────────────────────────────────────────────────────
 # PREDICATE ARM
 # ─────────────────────────────────────────────────────────────────────────────────────
-echo "=== PREDICATE ARM (domain: $PRED_SEL selected of $PRED_TOTAL) ==="
-[ "$PRED_SEL" -eq 0 ] && echo "  ⚠ EMPTY DOMAIN — this arm measures NOTHING on this run."
-while IFS=$'\t' read -r oid label proname direction lang; do
-  [ -z "$oid" ] && continue
-  want "$proname" || continue
+# ─────────────────────────────────────────────────────────────────────────────────────
+# ⛔ ONE CASE'S WORK IS A FUNCTION, NOT INLINE CODE (ADR 0191 D8) — the retry net must run a
+# case TWICE without a second COPY of the case body. It reports through SW_VERDICT / SW_NOTE /
+# SW_DRIFT (a verdict is DATA here) and the CALLER records, so a retried case is recorded ONCE.
+# ─────────────────────────────────────────────────────────────────────────────────────
+SW_VERDICT=""; SW_NOTE=""; SW_DRIFT=0
+sweep_pred_one () {   # $1 label  $2 direction  $3 lang   (⛔ the OID is resolved HERE, not passed)
+  local label="$1" direction="$2" lang="$3"
+  local local_nb s orig mout out now oid
+  SW_VERDICT=""; SW_NOTE=""; SW_DRIFT=0
+
+  # ⛔ THE OID IS RE-RESOLVED FROM THE FUNCTION'S IDENTITY, EVERY CASE (ADR 0191 D8).
+  # The worklist's OID column is captured ONCE, before the first case — and `supabase db
+  # reset --local` drops and recreates the database, REASSIGNING every pg_proc.oid. With a
+  # periodic reset in the loop, a captured OID is a stale pointer that may now name a
+  # DIFFERENT function, and the mutation would land on it silently. Identity survives the
+  # reset; the OID does not. ⚠ `$$…$$` (escaped so the SHELL does not read `$$` as its PID)
+  # so no label needs quoting. A case whose identity resolves to nothing scores ERROR — it
+  # never guesses and never mutates.
+  oid=$(psql_c -c "select p.oid from pg_proc p
+                     join pg_namespace n on n.oid = p.pronamespace
+                    where n.nspname||'.'||p.proname||'('||pg_get_function_identity_arguments(p.oid)||')'
+                          = \$\$$label\$\$" | head -1)
+  if [ -z "$oid" ]; then
+    SW_VERDICT="ERROR"
+    SW_NOTE="gate ABSENT from the catalog at case time — its identity resolves to no pg_proc row; nothing was mutated"
+    return 0
+  fi
 
   # newbody by direction + language (type-preserving)
   local_nb=""
@@ -1077,7 +1307,7 @@ while IFS=$'\t' read -r oid label proname direction lang; do
     positive)    [ "$lang" = "sql" ] && local_nb='select true'  || local_nb='begin return true; end' ;;
     deny)        [ "$lang" = "sql" ] && local_nb='select false' || local_nb='begin return false; end' ;;
     assert_noop) local_nb='begin return; end' ;;   # void plpgsql raise-guard -> no-op
-    *)           echo "  SKIP $label (unknown direction $direction)"; continue ;;
+    *)           SW_VERDICT="SKIP"; SW_NOTE="unknown direction $direction"; return 0 ;;
   esac
 
   s=$(slug "$label")
@@ -1091,10 +1321,11 @@ while IFS=$'\t' read -r oid label proname direction lang; do
   sed -e "s/__OID__/$oid/g" -e "s|__NEWBODY__|$local_nb|g" "$WORK/_neut_template.sql" > "$WORK/_mut.sql"
   mout=$(psql_f "$WORK/_mut.sql")
   if echo "$mout" | grep -qiE 'ERROR|P0-HARNESS'; then
-    record "predicate" "$label" "$direction" "ERROR" "neutralize failed: $(echo "$mout" | tr '\n' ' ' | head -c 160)"
+    SW_VERDICT="ERROR"
+    SW_NOTE="neutralize failed: $(echo "$mout" | tr '\n' ' ' | head -c 160)"
     # attempt restore anyway
     restore_inflight || { echo "*** the restore of $label REFUSED — stopping (§7.5)."; exit 2; }
-    echo "  ERROR  $label (neutralize failed)"; continue
+    return 0
   fi
 
   out=$(run_suite); echo "$out" > "$RUNLOGS/pred_$s.log"
@@ -1109,9 +1340,60 @@ while IFS=$'\t' read -r oid label proname direction lang; do
   fi
   disarm_inflight   # the round-trip above verified it — only now drop the sentinel
 
-  note="$(verdict_note)"
-  record "predicate" "$label" "$direction" "$VERDICT" "$note"
-  printf '  %-8s %s\n' "$VERDICT" "$label"
+  SW_VERDICT="$VERDICT"
+  SW_NOTE="$(verdict_note)"
+  # ⛔ The retry net reads the CLASSIFIER's own predicate, never the note text (ADR 0191 D8).
+  SW_DRIFT="$SHAPE_MOVED"
+  return 0
+}
+
+# ⛔ ONE counter across BOTH arms. The policy arm is the SECOND 226 cases of a 353-case run and
+# is exactly where the 2026-09-06 drift landed; a per-arm counter would leave that tail
+# unprotected for the length of the predicate arm.
+DONE=0
+# The scheduled reset + the retry net, shared by both arms so the two cannot drift apart.
+maybe_periodic_reset () {   # called BEFORE a case's work, so its baseline is at most N cases old
+  if [ "$RESET_EVERY" != "0" ] && [ "$DONE" -gt 1 ] && [ $(( (DONE - 1) % RESET_EVERY )) -eq 0 ]; then
+    periodic_reset "scheduled — $((DONE - 1)) case(s) swept since the last baseline"
+  fi
+}
+drift_not_retried_note () {   # the SAME predicate the gate and the banner read
+  if [ "$RESET_EVERY" = "0" ]; then
+    echo " (drift-shaped; NOT retried — RESET_EVERY=0, resets are DISABLED everywhere)"
+  else
+    echo " (drift-shaped; NOT retried — a SUBSET run resets only when RESET_EVERY is set explicitly)"
+  fi
+}
+
+echo "=== PREDICATE ARM (domain: $PRED_SEL selected of $PRED_TOTAL) ==="
+[ "$PRED_SEL" -eq 0 ] && echo "  ⚠ EMPTY DOMAIN — this arm measures NOTHING on this run."
+while IFS=$'\t' read -r oid label proname direction lang; do
+  [ -z "$oid" ] && continue
+  want "$proname" || continue
+  DONE=$((DONE+1))
+  maybe_periodic_reset
+
+  sweep_pred_one "$label" "$direction" "$lang"
+  if [ "$SW_VERDICT" = "SKIP" ]; then echo "  SKIP $label ($SW_NOTE)"; continue; fi
+
+  # THE RETRY NET. A GENUINE NOTICED reproduces after a fresh reset; DRIFT does not. Run 1
+  # lost 79 verdicts to exactly this and the ones re-measured came back COVERED.
+  if [ "$SW_DRIFT" = "1" ]; then
+    if ! resets_enabled; then
+      # ⛔ NOT retried, and the ROW says so. The retry's whole mechanism IS the reset; where
+      #    this run may not reset, retrying would re-measure the same drift and then suffix
+      #    "(retried after reset)" — a note asserting a reset that did not happen. A row is
+      #    read without its banner, so the disclosure belongs on the row.
+      SW_NOTE="$SW_NOTE$(drift_not_retried_note)"
+    else
+      echo "    drift suspected — resetting and retrying $label ONCE"
+      periodic_reset "retry — $label recorded a drift-shaped $SW_VERDICT"
+      sweep_pred_one "$label" "$direction" "$lang"
+      SW_NOTE="$SW_NOTE (retried after reset)"
+    fi
+  fi
+  record "predicate" "$label" "$direction" "$SW_VERDICT" "$SW_NOTE"
+  printf '  %-8s %s\n' "$SW_VERDICT" "$label"
 done < "$WORK/worklist_pred.tsv"
 
 # ─────────────────────────────────────────────────────────────────────────────────────
@@ -1124,9 +1406,13 @@ echo "=== POLICY ARM — READ HALF ONLY: opens \`using (true)\`, never \`with ch
 # check, so `using (true)` opens the WRITE half too and the read/write split is VACUOUS for
 # it. Zero such policies today; if one ever appears it is DISCLOSED at the end, never silent.
 ALL_NULL_WC=""
-while IFS=$'\t' read -r tbl polname cmd has_wc; do
-  [ -z "$tbl" ] && continue
-  want "$polname" || continue
+# ⛔ The policy arm's case body is a FUNCTION for the same reason the predicate arm's is: the
+# retry net runs it twice and the CALLER records. ⚠ No OID re-resolution is owed here — a
+# policy is keyed by table + name, and both survive a `supabase db reset --local`.
+sweep_pol_one () {   # $1 tbl  $2 polname  $3 cmd  $4 has_wc
+  local tbl="$1" polname="$2" cmd="$3" has_wc="$4"
+  local s qfile wfile restore mout out nowq
+  SW_VERDICT=""; SW_NOTE=""; SW_DRIFT=0
 
   s=$(slug "${tbl}_${polname}")
   qfile="$WORK/orig_pol_$s.qual"; wfile="$WORK/orig_pol_$s.wc"
@@ -1166,15 +1452,16 @@ while IFS=$'\t' read -r tbl polname cmd has_wc; do
   # only when columns 1-4 are identical — so every one of them would land in CARRIED as
   # pure formatting noise. The half is stated in PROSE instead (PO ruling Q5, 2026-09-05).
   # ─────────────────────────────────────────────────────────────────────────────────
-  if [ "$cmd" = "ALL" ] && [ "$has_wc" != "t" ]; then
-    ALL_NULL_WC="$ALL_NULL_WC $tbl.$polname"
-  fi
+  # ⚠ The disclosure list is appended by the CALLER, once per case — appending it here would
+  # double the entry on a retried case. Zero such policies exist today, and "dormant" is how
+  # a bug ships.
   { echo "alter policy \"$polname\" on public.\"$tbl\" using (true);" ; } > "$WORK/_mut.sql"
   mout=$(psql_f "$WORK/_mut.sql")
   if echo "$mout" | grep -qiE 'ERROR'; then
-    record "policy" "$tbl.$polname ($cmd)" "open->true" "ERROR" "open failed: $(echo "$mout" | tr '\n' ' ' | head -c 160)"
+    SW_VERDICT="ERROR"
+    SW_NOTE="open failed: $(echo "$mout" | tr '\n' ' ' | head -c 160)"
     restore_inflight || { echo "*** the restore of $tbl.$polname REFUSED — stopping (§7.5)."; exit 2; }
-    echo "  ERROR  $tbl.$polname"; continue
+    return 0
   fi
 
   out=$(run_suite); echo "$out" > "$RUNLOGS/pol_$s.log"
@@ -1188,9 +1475,35 @@ while IFS=$'\t' read -r tbl polname cmd has_wc; do
   fi
   disarm_inflight   # the round-trip above verified it — only now drop the sentinel
 
-  note="$(verdict_note)"
-  record "policy" "$tbl.$polname ($cmd)" "open->true" "$VERDICT" "$note"
-  printf '  %-8s %s\n' "$VERDICT" "$tbl.$polname"
+  SW_VERDICT="$VERDICT"
+  SW_NOTE="$(verdict_note)"
+  SW_DRIFT="$SHAPE_MOVED"
+  return 0
+}
+
+while IFS=$'\t' read -r tbl polname cmd has_wc; do
+  [ -z "$tbl" ] && continue
+  want "$polname" || continue
+  DONE=$((DONE+1))
+  maybe_periodic_reset
+  if [ "$cmd" = "ALL" ] && [ "$has_wc" != "t" ]; then
+    ALL_NULL_WC="$ALL_NULL_WC $tbl.$polname"
+  fi
+
+  sweep_pol_one "$tbl" "$polname" "$cmd" "$has_wc"
+
+  if [ "$SW_DRIFT" = "1" ]; then
+    if ! resets_enabled; then
+      SW_NOTE="$SW_NOTE$(drift_not_retried_note)"
+    else
+      echo "    drift suspected — resetting and retrying $tbl.$polname ONCE"
+      periodic_reset "retry — $tbl.$polname recorded a drift-shaped $SW_VERDICT"
+      sweep_pol_one "$tbl" "$polname" "$cmd" "$has_wc"
+      SW_NOTE="$SW_NOTE (retried after reset)"
+    fi
+  fi
+  record "policy" "$tbl.$polname ($cmd)" "open->true" "$SW_VERDICT" "$SW_NOTE"
+  printf '  %-8s %s\n' "$SW_VERDICT" "$tbl.$polname"
 done < "$WORK/worklist_pol.tsv"
 
 echo
@@ -1234,6 +1547,19 @@ if [ -n "$ALL_NULL_WC" ]; then
   echo "      $ALL_NULL_WC"
 fi
 echo "SWEPT: $swept_ct gate(s)   COVERED: $cov_ct   BLIND: $blind_ct   NOTICED: $noticed_ct   ERROR(harness): $err_ct"
+# ⛔ A PRECONDITION OF EVERY VERDICT ABOVE, ON THE SAME BLOCK AS THE COUNTS (ADR 0191 D8) — so a
+# reader cannot take the tally without taking the conditions it was measured under. `resets=0` on
+# a 353-case run is the exact state that made 79 of run 1's verdicts void.
+if [ "$RESET_EVERY" = "0" ]; then
+  RESETNOTE="(RESET_EVERY=0 — resets DISABLED everywhere)"
+elif [ "$SUBSET_RUN" = "1" ] && [ "$RESET_EVERY_EXPLICIT" != "1" ]; then
+  RESETNOTE="(RESET_EVERY=$RESET_EVERY — SUPPRESSED: the DEFAULT never fires on a SUBSET run; set RESET_EVERY explicitly to enable)"
+elif [ "$SUBSET_RUN" = "1" ]; then
+  RESETNOTE="(RESET_EVERY=$RESET_EVERY — set EXPLICITLY, so this SUBSET run resets)"
+else
+  RESETNOTE="(RESET_EVERY=$RESET_EVERY)"
+fi
+echo "    preconditions: baseline GREEN at the LAST capture (shape=Files=$BASE_FILES, Tests=$BASE_TESTS) · resets=$RESETS $RESETNOTE"
 
 # ⛔ A MERGE ABORT IS AN ERROR, AND IT MUST REACH THE EXIT CODE (QA F-MAJOR-5, 2026-09-05).
 # The banner emit_report prints is loud, but the banner is not what a gate reads. An aborted
