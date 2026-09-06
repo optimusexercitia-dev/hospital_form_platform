@@ -248,6 +248,83 @@ verdict, note, which arm's file the row belongs to, and a recommended dispositio
 retire-to-another-arm / delete deliberately) — and the re-baselined file is committed only after
 that ruling.
 
+### D8 — The door arm bounds its own TAIL DRIFT: ADR 0189 D6's design is ported here, and the first full run is VOID from case 275
+
+⛔ **The first full run measured the harness, not only the doors.** 353 cases, 12 h 17 m, bare
+exit 1, `SWEPT 353 · COVERED 228 · BLIND 18 · NOTICED 102 · ERROR 5`. The suite held the captured
+baseline shape `Files=262, Tests=8876` for **274** cases; from case **275**
+(`interview_sessions.interview_sessions_write`) to case 353 it read `Files=262, Tests=8470` with
+the **identical** nine aborting referral files on every one of the 79 remaining cases — 78
+`NOTICED` and 1 `ERROR`, a perfect tail. A per-case abort varies per case and recovers; this did
+neither.
+
+**Proven, not inferred**, by two subset runs each on its own fresh `supabase db reset --local`,
+both bare rc **0**:
+
+- Two tail cases run **alone** (`interview_summaries.interview_summaries_select`,
+  `responses.responses_select`) came back **COVERED** at `Files=262, Tests=8876`. The door was
+  never the variable; RUN POSITION was.
+- The drift-onset neighbourhood re-run in **worklist order** — cases 274, 275, 276
+  (`interview_sessions_select`, `interview_sessions_write`, `interview_summaries_select`) — came
+  back **3/3 COVERED with the shape never moving at all**.
+
+⛔ **So there is NO originating case, and looking for one was the wrong question.** Case 274 was
+itself already drifted (run 1 scored it `NOTICED` at `Tests=8723`; in isolation it is `COVERED`),
+and three consecutive cases from that region do not reproduce the abort on a clean DB. The damage
+is **cumulative** — a function of how many `supabase test db` runs have preceded, not of any gate.
+That is precisely the failure `RESET_EVERY` bounds and that no per-case fix could reach.
+
+⚠ **A consequence for reading run 1**: "not in the uniform tail" is NOT evidence that a `NOTICED`
+was earned. Drift reached at least as far back as case 274, so of the 23 `NOTICED` rows outside the
+tail exactly **one** is established genuine (`app.event_current_custodian`, reproduced on a fresh
+reset in isolation, 2026-09-05) and the other 22 are **unclassified**.
+
+And the damage is **data the suite left behind, not a gate left open** — §7.5 byte-compares every
+restore and `exit 2`s on a mismatch, the run exited **1**, and the post-run catalog enumerated
+**0** degenerate function bodies and **0** degenerate non-`SELECT` policies.
+
+⛔ **This is the same defect `FUP-C2-NEUTRALIZER-TAIL-DRIFT-INVALIDATES-LATE-VERDICTS` closed on
+2026-09-04 — closed at ONE of its two sites.** ADR 0189 D6 built `RESET_EVERY`, the in-flight
+interlock, reset-and-retry-once, worklist re-derivation and baseline re-capture into
+`c2-command-door-neutralizer.sh` alone. The bug is a property of the *shape* — one database, one
+baseline captured at the top, one suite run per case, hundreds of cases — and
+`p0-authz-door-audit.sh` has exactly that shape. Nothing recorded it as still exposed, because *a
+fix correct at most of its sites reads as a complete one.*
+
+**Decision.** The design is ported verbatim in mechanism, adapted in two places:
+
+1. **Keyed on the classifier's own predicate, not on note text.** C2's retry net matches
+   `SHAPE changed` / `did not come back green` in the note string. This arm's drift-shaped
+   outcomes are `NOTICED` **and** `ERROR` (D5), so `classify()`'s `shape_moved` is promoted to a
+   global `SHAPE_MOVED` and the retry net reads it. One predicate, three readers — a note-matching
+   copy is how a banner comes to describe a rule the code no longer implements.
+2. **The OID is re-resolved from the function's IDENTITY at case time.** ⛔ A
+   `supabase db reset --local` drops and recreates the database, so **every `pg_proc.oid` is
+   reassigned**, while the predicate worklist's OID column was captured before the first case. A
+   periodic reset that kept using the captured OID would mutate whatever now holds it. C2 does
+   exactly that (`c2-command-door-neutralizer.sh:797`, `:889`, `:922`) and has not misfired — a
+   deterministic replay of the same migrations tends to reproduce the same OIDs, which is what
+   makes it dangerous: masked by an incidental property, not closed by a guard. Here the OID is
+   looked up from `nspname.proname(identity_args)` per case and a case whose identity resolves to
+   nothing scores `ERROR` rather than mutating. **C2 is not changed by this unit** — reported for
+   its own entry.
+
+Everything else is as ADR 0189 D6 ruled it and is not re-litigated: `RESET_EVERY` default **20**;
+**set-ness, not value**, captured before the `:-20` default; a **non-subset** run resets every N, a
+**subset** run only when `RESET_EVERY` is set explicitly, `0` disables everywhere; the in-flight
+interlock is **first**, ahead of the subset gate, and exits 2 with the sentinel intact;
+`cd "$ROOT"` before the reset; the §7.16 preflight, the worklist re-derivation (to a `.reset`
+suffix — ⛔ never the file the sweep loop is reading) and the baseline re-capture all re-run, each
+aborting 2 rather than measuring on an unknown DB; the retry suffixes `(retried after reset)`, and
+where the run may not reset the row says so rather than asserting a reset that did not happen.
+
+**Consequence for the run.** The 79 tail verdicts are **VOID, not verdicts**; run 1's merged output
+was **not committed** (working tree reverted to md5 `2ef469ca…`) and is kept out of tree as a
+measurement of the drift. One more full run is owed, and it is the one the re-baseline is earned
+from. ⚠ **A count of flipped rows taken from run 1 is an UNDER-count**: 16 `(ALL)` policies that
+were `COVERED` in the baseline sit unmeasured in the void tail, so D4's read-half work-list is
+bounded below by 5 and above by 21 until run 2 measures them.
+
 ## Considered options (and why they lost)
 
 - **Widen `PRED_DOMAIN` by RETURN TYPE.** Rejected — it changes the neutralization model and

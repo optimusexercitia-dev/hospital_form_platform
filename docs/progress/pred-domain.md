@@ -1021,3 +1021,237 @@ hand prose** and are the real work:
 ⛔ **Nothing above has been re-filed except the five into the Q1 follow-up, and the re-baselined
 file is NOT committed.** It exists only at the scratch path the record names, reproducible at any
 time from `$WORK` by re-running the merge. The lead takes this to the PO for the Q2 ruling.
+
+### 2026-09-06 — backend: run 1 voided by tail drift; the door arm gets Batch 0's reset design; run 2 launched
+
+⚠ **First, the record's own loose end from the previous entry**: *"An external revert returned the
+findings file to the pre-run baseline at 08:17; cause undetermined"* — **that was this session**,
+step 3 of its brief (`git checkout -- docs/reviews/authz-door-audit-findings.md`, bare rc 0), so
+that run 2 merges against the COMMITTED baseline rather than run 1's output. Not another session,
+and nothing was lost: run 1's merged file is kept byte-for-byte at
+`…/scratchpad/pd/full/run1-merged.md` (`555b058d405890c47b0b65754ca5379a`, 2215 lines) together
+with its `progress.tsv`, `blinds.tsv`, the generated file and the baseline snapshot.
+
+#### Post-run verification — the run 1 artefacts, every rc read BARE
+
+| check | result |
+| --- | --- |
+| degenerate function bodies (all four forms) on `supabase_db_azkbbhskturikxpgmafq` | **0 rows**, psql rc 0 |
+| degenerate **non-`SELECT`** policies (`qual='true' or with_check='true'`) | **0 rows**, psql rc 0 (and 10 `SELECT`-with-`true`, by design — the figure §1 measured) |
+| the door sentinel `/tmp/pd-full-door-INFLIGHT.sql` | **absent** (not merely empty) |
+| `SELFTEST=1 MERGE_VERIFY=<on-disk> … merge-findings-baseline.sh <baseline> <generated> /dev/null` | **bare rc 0** — *"holds all 426 hand-authored prose line(s), 10 suffix(es) and 318 carried row(s)"* |
+| `HAND-MERGED` blocks / `## Note` sections in the 2215-line result | **9 / 7** |
+| `git diff --stat` on the findings file | 1666 insertions, 375 deletions |
+
+⭐ **The restore path is what makes the diagnosis below possible.** §7.5 byte-compares every
+restore and `exit 2`s on a mismatch; the run exited **1**. So all 353 restores round-tripped and
+the catalog was clean at the end — the residue cannot be an open gate.
+
+#### The CARRIED 318, partitioned by CAUSE (the dry run predicted 48)
+
+```
+ 125  COVERED -> COVERED          58  COVERED -> NOTICED       42  COVERED -> (absent)
+  27  BLIND   -> NOTICED          23  BLIND   -> COVERED       17  ERROR   -> NOTICED
+  11  ERROR   -> COVERED           5  COVERED -> BLIND          5  BLIND   -> (absent)
+   4  COVERED -> ERROR             1  ERROR   -> (absent)
+```
+
+| cause | n | what it is |
+| --- | --- | --- |
+| **absent from the domain** | **48** | ⭐ EXACTLY the dry run's prediction — 41 baseline keys outside the live domain + 7 second-ordinal rows |
+| **verdict changed by DRIFT** | **79** | the whole void tail (rows 275–353). Measured, not inferred: all 79 tail keys appear in CARRIED, `comm -23` = **0** |
+| **verdict changed, cause UNSETTLED** | **66** | = **24** further `NOTICED` + **34** gates that GAINED coverage (`BLIND→COVERED` 23, `ERROR→COVERED` 11) + **5** `(ALL)` flips + **3** new `ERROR` (the 4th, `process_template_versions_select`, is IN the tail at row 309 with `Files=0 Tests=0`). ⚠ Of the 24 `NOTICED`, exactly **one** is established genuine (`app.event_current_custodian`, reproduced on a fresh reset 2026-09-05) and one is now proven DRIFT (row 274, see below) — the other 22 are unclassified |
+| **note changed, verdict did not** | **125** | `COVERED -> COVERED`: the generator's reddening-file list has moved since the baseline was taken |
+
+⛔ **Why 318 and not 48, in one sentence**: the dry run fed the generator **the baseline's own
+notes**, so every surviving row took the `identical` branch and nothing could move. It bounded the
+`(absent)` group exactly and was structurally blind to the other 270. The previous entry said so
+("the 48 are the floor, not the estimate") and that is the number that held.
+
+#### THE DIAGNOSIS — TAIL DRIFT, and it is PROVEN, not assumed
+
+The lead's reading of the 102 `NOTICED` is confirmed and the count is **78**, not 76. From
+`progress.tsv`:
+
+```
+rows with Tests=8470 : 78          first at row 275, last at row 353, CONTIGUOUS to the end
+rows 275..353        : 79  =  78 NOTICED + 1 ERROR      (rows 1..274 hold the other 24 NOTICED)
+```
+
+Every one of the 78 carries the byte-identical note — same shape, same nine aborting files:
+
+```
+row 274  Tests=8723  aborting: 322_referral_registros, 340_dm4_referral_documents,
+                               363_send_referral_requires_mrn, 365_referral_mrn_persistence_floor
+row 275  Tests=8470  aborting: 150_referrals, 246_authz_f1_referral_split, 250_authz_p0_isolation,
+                               290_authz_never_called_door_floor, 295_technical_director_referrals,
+                               + all four of row 274's        <- and IDENTICAL on rows 276..353
+```
+
+⭐ A per-case abort **varies** per case and the suite **recovers** (rows 43–264 show 16 different
+`Tests=` values with COVERED rows between them). This one never recovers. That is not a property of
+any door.
+
+**Two subset runs, each on its OWN fresh `supabase db reset --local`, both bare rc 0:**
+
+| run | cases | result |
+| --- | --- | --- |
+| **A** — two tail cases, run ALONE | `interview_summaries_select responses_select` | `baseline OK: Files=262, Tests=8876` → **COVERED, COVERED** · `SWEPT: 2 COVERED: 2 BLIND: 0 NOTICED: 0 ERROR: 0` · `RESULT: CLEAN` |
+| **B** — the drift-onset neighbourhood, in WORKLIST ORDER (rows 274, 275, 276) | `interview_sessions_select interview_sessions_write interview_summaries_select` | `baseline OK: Files=262, Tests=8876` → **3/3 COVERED**, and **the shape never moved at all** |
+
+⛔ **So the brief's question — "name the case whose mutated run first left the referral fixtures
+broken" — has the answer THERE IS NONE, and asking it was the wrong shape of question.** Run B
+settles it three ways: case 274 was itself **already** drifted (run 1 scored it `NOTICED` at
+`Tests=8723`; alone it is `COVERED`); case 275, which run 1 makes look like the culprit, is
+`COVERED` on a clean DB; and three consecutive cases from that region do **not** reproduce the
+abort. The damage is **cumulative in the number of preceding suite runs**, not caused by a gate —
+which is exactly the failure a periodic reset bounds and that no per-case fix could reach.
+
+**Restore verified, so the residue is DATA.** The harness restores per case and `exit 2`s if the
+byte-compare fails; run 1 exited **1**, and the post-run catalog enumerates 0 degenerate bodies and
+0 degenerate non-`SELECT` policies (above). A clean-tree run still aborted ⇒ the damage is data the
+pgTAP suite leaves behind across hundreds of `supabase test db` invocations, not a gate left open.
+
+⚠ **A consequence that bites a CLAIM ALREADY COMMITTED.** `78f73241` filed
+`FUP-AUTHZ-FOR-ALL-READ-HALF-BLINDS` as *"exactly FIVE rows flipped … zero SELECT rows flipped"*.
+Measured against the void tail: **16 `(ALL)` policies that were COVERED in the committed baseline
+are stranded, unmeasured, inside it** (`interview_sessions_write`, `organizations_admin_write`,
+`phase_results_…`, five `process_template*`, six `rca_*_write`, two `response_group_instances_…`),
+plus 56 SELECT rows. So "exactly 5" is a **FLOOR** — the bound is **5 ≤ n ≤ 21** — and "zero SELECT
+rows flipped" is a statement about 274 of 353 cases. The five themselves are at ordinals 152–160,
+deep in the clean prefix, and are not in doubt. Corrected **beside** the original text in the
+follow-up body and its register line, never by rewriting them. *Absence of a verdict is not absence
+of coverage.*
+
+#### THE RETROFIT — Batch 0's design ported into `p0-authz-door-audit.sh` (ADR 0191 D8)
+
+`RESET_EVERY` (default 20, set-ness captured before the `:-20`), `resets_enabled` as ONE predicate
+read by all three sites, `periodic_reset` with the in-flight interlock FIRST, `cd "$ROOT"`, the
+§7.16 preflight, the worklist re-derivation and the baseline re-capture, plus reset-and-retry-once.
+Two adaptations, both forced by differences from C2 and both measured:
+
+1. **Keyed on the classifier, not on note text.** C2's retry matches `SHAPE changed` in the note
+   string. This arm has FOUR outcomes (D5) and its drift-shaped ones are `NOTICED` **and** `ERROR`,
+   so `classify()`'s `local shape_moved` is promoted to a global `SHAPE_MOVED` that both the
+   verdict and the retry read. A note-matching copy would be a second hand-kept spelling of the
+   same condition — §7.17a's own lesson, one layer out.
+2. ⛔ **The OID is re-resolved from the function's IDENTITY at case time.** `supabase db reset
+   --local` drops and recreates the database, so **every `pg_proc.oid` is reassigned**, while the
+   predicate worklist's OID column is captured before the first case. A periodic reset that kept
+   using it would mutate whatever now holds that OID. The reset's worklist comparison therefore
+   drops field 1 deliberately (an OID that moved is not a population that moved) and
+   `sweep_pred_one` looks the gate up by `nspname.proname(identity_args)` per case, scoring `ERROR`
+   — never mutating — if the identity resolves to nothing.
+   ⚠ **C2 has this hazard and is NOT changed by this unit**: `c2-command-door-neutralizer.sh:797`,
+   `:889`, `:922` keep using the captured `$foid` across its own resets. It has never misfired
+   because a deterministic replay of the same migrations tends to reproduce the same OIDs — which
+   is what makes it dangerous: masked by an incidental property, not closed by a guard. **Reported
+   to the lead to file; not fixed here** (different harness, different owner).
+
+Structural changes the port required, each minimal by design: the three derivation `\copy` blocks
+became `derive_worklists ()` taking a **suffix tag** (the primary call passes `""` and therefore
+writes the three existing paths byte-for-byte; the reset passes `".reset"` — ⛔ never the file the
+`while read` loop is consuming); each arm's case body became `sweep_pred_one` / `sweep_pol_one`
+reporting through `SW_VERDICT`/`SW_NOTE`/`SW_DRIFT` with the **caller** recording, so a retried case
+is recorded ONCE; and one shared `DONE` counter spans BOTH arms, because the policy arm is the
+second 226 cases of a 353-case run and is exactly where the drift landed.
+
+**Proofs — SELFTEST arm, controls first.** `SELFTEST=1 bash …p0-authz-door-audit.sh` → **12/12,
+bare rc 0** (classify 6/6 unchanged + `resets_enabled` 6/6 new). ⛔ **Green on a first run is a
+finding**, so it was not believed until two controls ran on scratch copies, each `cmp`-verified to
+have landed:
+
+```
+(i) ONE expectation flipped        -> NOT OK C  full run, RESET_EVERY unset (defaulted 20) -> resets=yes (expected no)
+                                      --- SELFTEST resets_enabled: 5/6 ok, 1 failed ---   BARE_RC=1
+(ii) the PRE-RULING predicate      -> NOT OK B  SUBSET, RESET_EVERY=1 EXPLICIT   -> resets=no (expected yes)
+     ("a SUBSET run NEVER resets")    NOT OK B' SUBSET, RESET_EVERY=20 EXPLICIT  -> resets=no (expected yes)
+                                      --- SELFTEST resets_enabled: 4/6 ok, 2 failed ---   BARE_RC=1
+```
+
+⭐ **(ii) is the selection delta on the gate itself**: EXACTLY the two set-ness trials moved, and
+trial **A** — same value 20, same SUBSET, opposite set-ness — did **not**. That is what separates
+"the subset gate exists" from "the gate turns on set-ness", which is the whole content of ADR 0189
+D6's re-ruling and the one distinction a `RESET_EVERY="${RESET_EVERY:-20}"` written ONE LINE EARLIER
+would silently destroy.
+
+**Proofs — `periodic_reset` polarity and its abort arms**, on the functions **extracted verbatim**
+(`sed -n '/^periodic_reset () {/,/^}$/p'`, `bash -n` rc 0) and SOURCED with `supabase` stubbed as a
+shell function, so nothing touched the database and every trial records whether the destructive
+command would have been called:
+
+| trial | rc | reset called | observed |
+| --- | --- | --- | --- |
+| A SUBSET, `RESET_EVERY` unset (20) | 0 | **0** | `(SUBSET run, RESET_EVERY not set explicitly — NOT resetting: …)` |
+| B SUBSET, `RESET_EVERY=1` EXPLICIT | 0 | 1 | `--- PERIODIC RESET … ---` + preflight + `post-reset baseline: PASS` |
+| C full run, `RESET_EVERY=20` default | 0 | 1 | the same |
+| **D SUBSET, `RESET_EVERY=1`, SENTINEL ARMED** | **2** | **0** | `*** refusing to reset with a mutation in flight: …` — sentinel **29 → 29 B, byte-unchanged** |
+| E full run, `RESET_EVERY=0` | 0 | **0** | `(RESET_EVERY=0 — NOT resetting: …)` |
+| E′ SUBSET, `RESET_EVERY=0` EXPLICIT | 0 | **0** | the same — `0` disables EVERYWHERE |
+| F the reset command FAILS | **2** | 1 | `*** db reset FAILED — aborting rather than measuring on an unknown DB.` |
+| G a gate is DEGENERATE after the reset | **2** | 1 | `*** ABORT: a gate is DEGENERATE after a mid-sweep reset: app.some_gate(p_x uuid)` |
+| H the WORKLIST moved across the reset | **2** | 1 | `*** ABORT: the derived worklist CHANGED across the reset (predicate 1 -> 2, policy 1 -> 1).` |
+| I the post-reset baseline is RED | **2** | 1 | `*** ABORT: the suite is RED after a mid-sweep reset.` |
+
+⛔ **G's first run was a FALSE PASS AND I NEARLY KEPT IT.** It reported `rc=2`, which is the
+expected code — but the output was `eval: syntax error near unexpected token '('`: my proof
+harness had passed `STUB_DEGEN=app.some_gate()` unquoted, so the trial aborted in the SHELL and
+never reached the code under test. *A right answer from the wrong cause is not evidence.* Fixed
+(the stub value quoted) and re-run; only then did it name the degenerate gate.
+
+**Proof — END TO END on the REAL harness and the REAL stack**, fresh reset, detached, own `WORK`
+and sentinel, bare exit codes. ⛔ The retry's *recovery* half cannot be shown without forcing a
+baseline the suite will never produce, so the door arm gains C2's `BASE_S_OVERRIDE` equivalent:
+`BASE_SHAPE_OVERRIDE`, **refused unless `SELFPROOF=1`** is set with it (two knobs, so no real sweep
+inherits a forged baseline from one stray variable), and joining the SUBSET set so it can never
+open the committed file for write — QA F-MAJOR-3's lesson taken directly. Its refusal arm is
+proven: `BASE_SHAPE_OVERRIDE=… bash …` without `SELFPROOF` → `FATAL: … Refusing to run`, **bare
+rc 2**.
+
+```
+R  (RESET_EVERY=1 EXPLICIT, CASES=interview_summaries_select)          R_BARE_RC=0
+   baseline OK: Result: PASS, Files=262, Tests=8876
+       ⛔ BASE_SHAPE_OVERRIDE set — baseline shape FORCED to 'Files=1, Tests=1'.
+       drift suspected — resetting and retrying interview_summaries.interview_summaries_select ONCE
+   --- PERIODIC RESET (retry — … recorded a drift-shaped NOTICED) ---
+       post-reset §7.16 preflight: clean — 0 degenerate bodies
+       post-reset baseline: PASS (shape=Files=262, Tests=8876)  |  worklist re-derived: predicate=127 policy=226 (unchanged)
+     COVERED  interview_summaries.interview_summaries_select
+   SWEPT: 1   COVERED: 1   BLIND: 0   NOTICED: 0   ERROR(harness): 0
+       preconditions: baseline GREEN at the LAST capture (shape=Files=262, Tests=8876) · resets=1 (RESET_EVERY=1 — set EXPLICITLY, so this SUBSET run resets)
+   row: | … | policy | open->true | COVERED | 387_initplan_wrap_and_profiles_arm_identity.sql (retried after reset) |
+```
+
+⭐ **A verdict RECOVERED that run 1 would have lost** — and the `worklist re-derived: predicate=127
+policy=226 (unchanged)` line is simultaneously the proof that `derive_worklists ".reset"` works
+against the live catalog and that its comparison passes.
+
+**Two negative controls, each naming its OWN reason** (same case, same forced baseline, both bare
+rc **1** — DIRTY is correct for a NOTICED):
+
+```
+N1 RESET_EVERY=0        resets=0 (RESET_EVERY=0 — resets DISABLED everywhere)
+   row suffix: (drift-shaped; NOT retried — RESET_EVERY=0, resets are DISABLED everywhere)
+N2 SUBSET, unset        resets=0 (RESET_EVERY=20 — SUPPRESSED: the DEFAULT never fires on a SUBSET
+                                  run; set RESET_EVERY explicitly to enable)
+   row suffix: (drift-shaped; NOT retried — a SUBSET run resets only when RESET_EVERY is set explicitly)
+```
+
+Neither carries `(retried after reset)`; both disclose on the ROW, not only the banner, because a
+row is read without its banner (QA N3's finding on the C2 sibling, adopted here from the start).
+⛔ Across all three runs the committed baseline is **byte-identical**: `PRE_MD5` = `POST_MD5` =
+`2ef469cabceff65e3f291e2a3054972f`.
+
+#### Gate for the retrofit commit — bare exit codes, nothing piped
+
+| gate | bare rc | observed |
+| --- | --- | --- |
+| `bash -n supabase/tests/mutation/p0-authz-door-audit.sh` | **0** | — |
+| `SELFTEST=1 bash …p0-authz-door-audit.sh` | **0** | `classify: 6/6` · `resets_enabled: 6/6` · `TOTAL: 12/12 ok, 0 failed` |
+| `SELFTEST=1 bash scripts/door-sweep-cases.sh` | **0** | `SELF-TEST: PASS 34 · FAIL 0 · SKIPPED 0` — ⭐ the `PRED_DOMAIN` lift is untouched by the port, as ADR 0190 requires |
+| `npm run lint` (full chain) | **0** | eslint `--max-warnings=0` clean; `check-docs-registers: OK (… 207 follow-ups, 162 follow-up bodies …)`; `build-features-index: OK (9 hubs; index in sync)` |
+| ratchets | — | `closesWhenPoToRule=137/147 severityPerEmoji=128/135 severityUnrated=29/29 revisitWhenPoToRule=38/38 longHeadings=91/97 bugsUntriaged=10/10 bugsUnrated=40/40 lessonsProseOnly=52/52` — **identical to the previous session's; not raised** (`scripts/check-docs-registers.mjs` is untouched by this unit) |
+| post-run catalog | — | 0 degenerate bodies · 0 degenerate non-`SELECT` policies · no sentinel anywhere |
+
+⚠ `npm run test:db` and the four authz arms remain **step 11**, after run 2 — stated rather than
+quietly skipped.

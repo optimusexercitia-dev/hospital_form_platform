@@ -59,7 +59,7 @@ deriver now **lifts**, so a widening here needs no deriver change) and its read 
 
 ## Current state
 
-**Updated:** 2026-09-05
+**Updated:** 2026-09-06
 
 ### Objective
 Close the door-audit arm's measurement-domain gaps — the `authz.*` boolean resolvers excluded by
@@ -85,26 +85,35 @@ these resolvers.
   (`npm run lint`, door SELFTEST 6/6, deriver 34/0, typecheck); five commits.
 
 ### In progress
-- **STOPPED for the PO's Q2 ruling on CARRIED.** The full run LANDED: 12 h 17 m, 353 cases,
-  **228 COVERED / 18 BLIND / 102 NOTICED / 5 ERROR**, bare rc 1 (DIRTY). Merge verified three ways
-  (rc; `MERGE_VERIFY` rc 0 holding 426 prose lines + 10 suffixes + 318 carried rows; 9/9 hand
-  blocks, 7/7 notes, `git diff --stat` 1666/375). Stack left clean, enumerated.
-- ⭐ **PO Q1 answered: exactly 5 flips**, all `(ALL)`, all CAPA `_write`, all covered by
-  `252_authz_p0_isolation.sql` — and **zero SELECT rows flipped**, the discrimination the subset
-  could not give. Filed with per-policy keystone specs.
-- ⭐ **Headline: 102 NOTICED** (vs 1 predicted) — 107/353 gates carry no usable verdict. Measured
-  cause: ~9 files abort together, three of them the authz meta-tests themselves. The old classifier
-  would have called all 107 `ERROR` against a baseline recording 29, taken at half this suite.
-- ⛔ **An external revert** returned the findings file to the pre-run baseline at 08:17; cause
-  undetermined. It cost nothing — re-merging from `$WORK` reproduces the run **byte-for-byte**.
+- ⛔ **RUN 1 IS VOID FROM CASE 275 AND WILL NOT BE COMMITTED — TAIL DRIFT, PROVEN.** From case 275
+  to 353 the suite read `Files=262, Tests=8470` with the **identical** nine aborting files on all
+  **79** cases (78 NOTICED + 1 ERROR). Two subset runs, each on its own fresh reset, both bare rc 0:
+  tail cases run alone come back **COVERED** at `Files=262, Tests=8876`, and cases 274/275/276
+  re-run in worklist order come back **3/3 COVERED with the shape never moving**. ⭐ So there is
+  **no originating case** — the damage is cumulative in the number of preceding suite runs. Restore
+  verified per case (`exit 2` never fired; catalog clean) ⇒ residue is DATA, not an open gate.
+- ⛔ **The C2 tail-drift closure (2026-09-04) covered ONE of its two sites.** ADR 0189 D6's design
+  is now **ported** (ADR 0191 D8): `RESET_EVERY` (default 20, set-ness before the default),
+  interlock-first, `cd "$ROOT"`, post-reset preflight + worklist re-derivation + baseline
+  re-capture, reset-and-retry-once keyed on the classifier's own `SHAPE_MOVED`, and the OID
+  re-resolved from IDENTITY per case (a reset reassigns every OID — ⚠ **C2 still has that hazard**;
+  reported, not fixed here).
+- ⚠ **PO Q1's "exactly 5 flips" is a FLOOR, corrected beside the original**: 16 `(ALL)` rows that
+  were COVERED in the baseline sit unmeasured in the void tail, so the bound is **5 ≤ n ≤ 21** and
+  "zero SELECT rows flipped" holds over 274 of 353 cases. The five (ordinals 152–160) stand.
+- **CARRIED 318 explained**: 48 absent (= the dry run's exact prediction) · 79 drift · 125
+  note-only · 66 other. The merge itself is VINDICATED — `MERGE_VERIFY` bare rc 0, 9/9 hand blocks,
+  7/7 notes. ⚠ The 08:17 "external revert" was **this unit** (step 3), not another session.
 
 ### Next
-- PO rules on CARRIED (318 rows, **only 32 are human decisions**; 3 MUST be re-filed or step 11's
-  `ARM=census` reds) → then commit the re-baseline + backlog lines + stale heading together →
-  then step 11 (four arms at `WORK=/tmp/pd-full`, `test:db`, diff-scoped deriver) and the closures.
-- ⚠ The **102 NOTICED** need their own ruling; they are not this unit's five follow-ups.
+- **RUN 2 is launched** — fresh reset, `RESET_EVERY` at its default 20, `WORK=/tmp/pd-full2`,
+  detached, ETA ~15–16 h. It is the run the re-baseline is earned from and it settles both the
+  CARRIED list and the `(ALL)` flip count. ⛔ Run 1's CARRIED enumeration is superseded.
+- Then: PO rules on run 2's CARRIED → commit the re-baseline + the two backlog lines + the stale
+  heading together → step 11 (four arms at `WORK=/tmp/pd-full2`, `test:db`, diff-scoped deriver).
+  ⚠ The NOTICED class still needs its own ruling; run 2 says how many survive a bounded run.
 
 ### Blockers
-- ⛔ The re-baselined findings file is **NOT committed** and must not be until the Q2 ruling. It is
-  reproducible from `$WORK` at any time (`555b058d405890c47b0b65754ca5379a`, 2215 lines).
-- ⚠ Another session appears to share this stack: something reverted the findings file mid-analysis.
+- ⛔ Nothing may be concluded from run 1's verdicts beyond the drift measurement itself. Its merged
+  output is kept OUT of tree (`…/scratchpad/pd/full/run1-merged.md`, `555b058d…`, 2215 lines).
+- ⚠ The lead is working this tree concurrently; commits from both sides landed today.

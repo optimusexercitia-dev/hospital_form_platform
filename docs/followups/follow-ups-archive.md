@@ -8811,6 +8811,41 @@ the approval. The oracle's soundness was never the thing in doubt here; its cite
 > - **Negative control**: `RESET_EVERY=0`, same enforcer, full suite → `COVERED=1 BLIND=0 ERROR=0 … resets=0 (RESET_EVERY=0)`, **exit 0**, 329 s, no
 >   `(retried after reset)` suffix, and the verdict identical to the committed baseline row.
 >
+> ⛔ **AMENDMENT 2026-09-06 (unit PRED-DOMAIN, ADR 0191 D8) — THIS CLOSURE COVERED ONE OF THE
+> TWO SITES THAT HAVE THE BUG.** Everything above stands and is left unedited; what it does not
+> say is that the mechanism it describes is a property of the *shape* — one database, one
+> baseline captured at the top, one pgTAP suite run per case, hundreds of cases — and that
+> `supabase/tests/mutation/p0-authz-door-audit.sh` has exactly that shape and did **not** get
+> the fix. The entry, the ADR and the closure all name `c2-command-door-neutralizer.sh` only,
+> so nothing anywhere recorded the door arm as still exposed: *a fix correct at most of its
+> sites reads as a complete one.*
+>
+> **Measured on the door arm's first full run** (2026-09-06, 353 cases, 12 h 17 m, bare exit 1):
+> the suite held the captured baseline shape `Files=262, Tests=8876` for 274 cases and then read
+> `Files=262, Tests=8470` — the SAME shape and the SAME nine aborting referral files — on **all
+> 79 remaining cases** (78 `NOTICED` + 1 `ERROR`), a perfect tail. Re-measured on a fresh reset,
+> in isolation, two of those tail cases came back **COVERED** at `Files=262, Tests=8876`
+> (`interview_summaries.interview_summaries_select`, `responses.responses_select`; bare rc 0).
+> The door was never the variable; RUN POSITION was — the identical sentence this entry was
+> filed on. ⛔ Those 79 verdicts are **VOID, not verdicts**, and run 1's output was not committed.
+>
+> The design above (`RESET_EVERY` with set-ness capture, the in-flight interlock ahead of the
+> subset gate, `cd "$ROOT"`, the post-reset preflight + worklist re-derivation + baseline
+> re-capture, and reset-and-retry-once) is **ported to the door arm** in unit PRED-DOMAIN; the
+> door arm's drift-shaped outcomes are `NOTICED` **and** `ERROR`, so its retry net is keyed on
+> the classifier's own `SHAPE_MOVED` predicate rather than on note text.
+>
+> ⚠ **One hazard the port had to close that this closure does not mention**, recorded here
+> because it is a property of the C2 harness too: a `supabase db reset --local` drops and
+> recreates the database, so **every `pg_proc.oid` is reassigned**, while the worklist's OID
+> column was captured before the first case. C2's `sweep_one` keeps using that stale `$foid`
+> after a reset (`c2-command-door-neutralizer.sh:797`, `:809-831`, `:889`, `:922`). It has not
+> misfired — a deterministic replay of the same migrations tends to reproduce the same OIDs —
+> which is precisely what makes it dangerous: it is masked by an incidental property, not closed
+> by a guard. The door arm's port re-resolves the OID from the function's IDENTITY at case time
+> and scores `ERROR` rather than mutating if it cannot. **C2 is not changed by that unit** —
+> reported to the lead for its own entry.
+>
 > ---
 >
 > **The entry as filed, verbatim** (its body file is retired with it):
@@ -9455,6 +9490,36 @@ Index entry: [follow-ups-open.md](follow-ups-open.md) · filed 2026-08-27 · sta
 > [0190](../decisions/0190-the-door-sweep-deriver-selects-by-property-and-a-full-run-merges.md)
 > D8 + D9, both corrected the same day (QA F2-BLOCK-1) — ⛔ this closure had been pointing at a D8
 > whose table described the defect.
+>
+> ⭐ **ADDENDUM 2026-09-06 (unit PRED-DOMAIN) — THE FIRST REAL FULL RUN THROUGH THIS MERGE, AND
+> WHAT IT DID AND DID NOT SETTLE.** The door arm's full sweep (353 cases, 12 h 17 m) merged after
+> every case against a snapshot taken once at startup, and **the merge behaved exactly as this
+> closure claims**, verified three ways on the on-disk output afterwards: `SELFTEST=1
+> MERGE_VERIFY=<on-disk> bash scripts/lib/merge-findings-baseline.sh <baseline-snapshot>
+> <generated> /dev/null` → **bare rc 0**, reporting *"holds all 426 hand-authored prose line(s),
+> 10 suffix(es) and 318 carried row(s)"*; all **9/9** `HAND-MERGED` blockquotes and **7/7**
+> `## Note` sections present in the 2215-line result; `git diff --stat` non-empty
+> (+1666 / −375). So clauses 1–3 have their full-scale witness.
+>
+> ⛔ **What it did NOT settle: the re-baselined file was NOT committed, and this closure's
+> "closing evidence" is deferred to the next run.** The run's last 79 cases are void to
+> **tail drift** — a defect of the harness, not of the merge (see the amendment on
+> `FUP-C2-NEUTRALIZER-TAIL-DRIFT-INVALIDATES-LATE-VERDICTS` above). A merge that faithfully
+> preserves hand-authored material while folding in 79 void verdicts is a correct merge of a
+> wrong input, and committing it would have written those verdicts into the file every
+> `FROMFINDINGS` arm reads back. The working-tree copy was reverted (`git checkout --`, back to
+> md5 `2ef469ca…`, 924 lines) and the run's output kept out of tree at
+> `scratchpad/pd/full/run1-merged.md`. ⚠ **CARRIED came to 318, not the 48 the offline dry run
+> predicted** — 318 rows over 312 unique keys: 48 `(absent from this run)` exactly as predicted,
+> plus **270** rows whose verdict or note MOVED, which the dry run structurally could not
+> forecast because it fed the generator the baseline's own notes. Of those 270, **79 are the
+> drift tail** (measured: all 79 tail keys appear in CARRIED, `comm -23` = 0) and 125 are
+> `COVERED -> COVERED` rows carried only because the reddening-file list moved since the
+> baseline was taken. ⚠ The remaining 66 include 23 further `NOTICED` rows scattered through the
+> run: exactly **one** of those is established genuine (`app.event_current_custodian`, reproduced
+> on a fresh reset in isolation on 2026-09-05); the other 22 are **UNCLASSIFIED** — the tail proof
+> showed drift reaching at least as far back as case 274, so "not in the tail" is not evidence
+> that a NOTICED was earned.
 >
 > ⛔ **NO SWEEP WAS RUN.** The merge is proven on COPIES, driving the PRODUCTION `emit_body`
 > **lifted** out of each harness over a synthetic `progress.tsv`; the four committed baselines are

@@ -30,6 +30,26 @@ keystoned as its own increment.
 
 ## The work-list — MEASURED, 2026-09-06, from the one full run (353 cases, 12 h 17 m)
 
+> ⛔ **CORRECTION, 2026-09-06 later the same day (unit PRED-DOMAIN, ADR 0191 D8).** Left beside the
+> paragraphs below rather than rewriting them, because what they say is what was measured — and the
+> RUN they were measured from is **partly void**. Its last 79 cases all read `Files=262, Tests=8470`
+> with the identical nine aborting files (tail drift, proven: those cases re-run on a fresh reset
+> come back COVERED at the true shape). ⛔ **"Exactly FIVE" is a FLOOR, not a count**, and
+> **"zero SELECT rows flipped" is a statement about 274 of 353 cases**:
+>
+> - **16 `(ALL)` policies that were COVERED in the committed baseline sit UNMEASURED in the void
+>   tail** — `interview_sessions_write`, `organizations_admin_write`, `phase_results_…`, five
+>   `process_template*_…`, six `rca_*_write`, two `response_group_instances_…`. Every one of them
+>   is a candidate flip this run could not see, so the true bound today is **5 ≤ n ≤ 21**.
+> - **56 further SELECT rows are in the same void tail**, so the "zero SELECT rows flipped"
+>   discrimination holds over the run's clean prefix only.
+>
+> The five rows below are **not** in doubt: they are at ordinals 152–160, deep in the clean prefix,
+> and their keystone specs stand. What is deferred is the CLAIM OF COMPLETENESS — settled by run 2,
+> which sweeps with `RESET_EVERY` bounding the drift. ⚠ *Absence of a verdict is not absence of
+> coverage*: an unmeasured `(ALL)` row is neither COVERED nor a flip, and must not be counted as
+> either.
+
 **Exactly FIVE rows flipped**, against a bound of 51, and the result is tighter than the bound in
 two ways worth stating:
 
