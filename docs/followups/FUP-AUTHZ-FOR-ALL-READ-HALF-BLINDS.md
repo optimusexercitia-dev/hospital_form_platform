@@ -28,16 +28,34 @@ keystoned as its own increment.
   rows `UPDATE`/`DELETE` can see, so an assertion that only counts rows for the permitted principal
   passes with the qual opened to `true`, which is precisely the state this sweep constructs.
 
-## The work-list
+## The work-list — MEASURED, 2026-09-06, from the one full run (353 cases, 12 h 17 m)
 
-⚠ **To be completed from the full run's merge.** The bound is **0 ≤ n ≤ 51**. The rows are
-determined by the one full door-arm run of unit PRED-DOMAIN; a subset run measures only the
-policies it names. Until that list is filed here, this entry's claim is the **mechanism and the
-bound**, not a row count — and it must not be read as "no policy flipped".
+**Exactly FIVE rows flipped**, against a bound of 51, and the result is tighter than the bound in
+two ways worth stating:
+
+- ⭐ **All five COVERED → BLIND transitions in the entire run are `(ALL)` policies.** Zero SELECT
+  rows flipped. That is the discrimination the 12-case subset could not produce — the fix is
+  strictly weaker, so only `FOR ALL` rows *can* move, and only `FOR ALL` rows *did*.
+- ⭐ **All five are the CAPA module's write policies, and all five were covered by the SAME file**,
+  `252_authz_p0_isolation.sql`. This is one coherent gap, not five scattered ones: that file
+  exercises the CAPA write path and nothing anywhere exercises the CAPA read path.
+
+⚠ A sixth `(ALL)` row was BLIND in the baseline already (7 BLIND `(ALL)` rows this run vs 5 flips),
+and **18 further `(ALL)` rows went COVERED → NOTICED** — those are *unclassifiable*, not flipped,
+and they are not work items here; they belong to `FUP-DOOR-SWEEP-BROAD-GATE-ABORTS-A-FILE`'s class.
 
 | policy | previous verdict + write-half fixture | what a read-half keystone must assert |
 | --- | --- | --- |
-| _(pending the full run)_ | | |
+| `capa_action_evidence.capa_action_evidence_write (ALL)` | COVERED via `252_authz_p0_isolation.sql` | `using` = `app.can_write_capa((select ca.capa_id from capa_action ca where ca.id = capa_action_evidence.action_id), auth.uid())`. A SELECT on `capa_action_evidence` must return the rows of a CAPA the caller may write **and zero rows** for a CAPA it may not — the denial half is the load-bearing one |
+| `capa_action_task.capa_action_task_write (ALL)` | COVERED via `252_authz_p0_isolation.sql` | same shape, joined through `capa_action.action_id` |
+| `capa_effectiveness.capa_effectiveness_write (ALL)` | COVERED via `252_authz_p0_isolation.sql` | `using` = `app.can_write_capa(capa_id, auth.uid())` — the direct form; assert a foreign CAPA's effectiveness rows are **invisible**, not merely un-writable |
+| `capa_measure.capa_measure_write (ALL)` | COVERED via `252_authz_p0_isolation.sql` | `using` = `app.can_write_capa(capa_id, auth.uid())`, as above |
+| `capa_measure_result.capa_measure_result_write (ALL)` | COVERED via `252_authz_p0_isolation.sql` | same shape, joined through `capa_measure.measure_id` |
+
+⛔ **The trap these five share.** `app.can_write_capa` gates BOTH halves of each policy, so an
+assertion that merely *reads back rows the caller may write* passes identically with the `using`
+clause opened to `true` — which is the exact state the sweep constructs. Each keystone therefore
+needs the **denial** half: a principal for whom `can_write_capa` is false must see **zero rows**.
 
 ## Closes when
 

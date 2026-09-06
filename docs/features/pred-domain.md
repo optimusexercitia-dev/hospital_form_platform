@@ -69,49 +69,42 @@ findings baseline through Batch 1's merge, before AE5's eleven increments re-key
 these resolvers.
 
 ### Done since start
-- Plan APPROVED with five rulings. §1 re-measured on a fresh reset: **every figure reproduced**.
-- **Schema axis** — `PRED_DOMAIN` gains a literal `n.nspname='authz'`, bounded at `bool`. Proven by
-  SELECTION: `PRED_TOTAL` 125→**127**, `PRED_OUT` 37→**35**, delta = exactly the two named
-  resolvers, **reverse delta 0**, policy worklist byte-identical. Deriver lift survives (**34/0**).
-- **`authz.candidate_has_permission` earns its FIRST verdict — COVERED**; `scope_reaches` COVERED
-  from an arm rather than a hand run (`predicate=2/127`, rc 0 CLEAN).
-- **`NOTICED`** (4th outcome) built + SELFTEST arm 6/6, with the instrument proven able to fail and
-  the pre-change classifier run over the identical strings; fired live on
-  `app.event_current_custodian` (ERROR → NOTICED on the **same** 26 360-line runlog).
-- **`using`-half-only mirror** built (all 62 ALL policies verified to carry a non-null
-  `polwithcheck`, so the split is not vacuous). Direction column deferred per Q5.
-- **`DOMAIN-STATEMENT`** printed every run + emitted into the findings; four populations, trigger
-  enforcers **derived** (174/268).
-- **Targeted home** `authz-setvalued-targeted-cases.sh` — all three resolvers **COVERED**, first
-  recorded verdicts; §4a residue arm 0-on-clean and proven to FIRE on each live mutation; §4b
-  cardinality control green. Three failed neutralizers were recorded, restored and catalog-verified.
-- Residual §7 items FILED (3 new follow-ups); `act-hat-blind-sweep.sh:18` corrected; ADR **0191**
-  drafted (`proposed`).
-- ⭐ **Offline dry run of the full-run merge**: rc 0, ~5 s, 9/9 hand blocks + 7/7 notes preserved,
-  prose cost exactly **1** duplicated heading, **predicted CARRIED 48 rows / 45 keys** partitioned
-  A=4 / B=24 / C=17 against the live catalog.
-
-- **Mirror discrimination**: 12/12 verdicts identical before/after — **no SELECT row moved**
-  (the required property) and **no ALL row flipped either**, so the subset proves SAFETY, not
-  firing. The change was proven to FIRE by a catalog positive control instead: `true || true`
-  under the old version vs `true || <original predicate>` under the new one.
-- Gate at the boundary: `npm run lint` **0**, door SELFTEST **6/6 rc 0**, deriver SELFTEST
-  **34/0 rc 0**, `typecheck` **0**; ratchets not raised. Three commits, tree clean.
+- Plan APPROVED with five rulings; §1 re-measured on a fresh reset — **every figure reproduced**.
+- **Schema axis**: `PRED_DOMAIN` gains a literal `n.nspname='authz'` bounded at `bool`. Proven by
+  SELECTION: 125→**127**, `PRED_OUT` 37→**35**, delta = exactly the two resolvers, **reverse delta
+  0**, policy worklist byte-identical; deriver lift survives (**34/0**).
+- **`authz.candidate_has_permission` has a FIRST verdict — COVERED**; `scope_reaches` COVERED from
+  an arm rather than a hand run.
+- **`NOTICED`** built; SELFTEST 6/6 with the instrument proven able to fail and the pre-change
+  classifier run over the identical strings; fired live on the same runlog (ERROR → NOTICED).
+- **`using`-only mirror** (all 62 ALL policies carry a non-null `polwithcheck`, so not vacuous);
+  **`DOMAIN-STATEMENT`** with trigger enforcers derived (174/268).
+- **Targeted home** — all 3 set-valued resolvers **COVERED**, first recorded verdicts; §4a residue
+  arm 0-on-clean and proven to FIRE on each live mutation; §4b cardinality control green.
+- ADR **0191** (proposed), 4 follow-ups, `act-hat-blind-sweep.sh:18`; gate all bare rc 0
+  (`npm run lint`, door SELFTEST 6/6, deriver 34/0, typecheck); five commits.
 
 ### In progress
-- **The ONE full door-arm run, launched 19:54 and verified under way** (`predicate=127/127
-  policy=226/226`, baseline `Files=262, Tests=8876, PASS`, reset rc 0). Rate re-measured over
-  **12** cases (not 5): **133.5 s/case** ⇒ **~12.6 h remaining**, ETA ≈ **09:03** on 2026-09-06.
-  At 12/353: 12 COVERED / 0 BLIND / 0 NOTICED / 0 ERROR — the `app.a*`–`app.c*` predicates only.
+- **STOPPED for the PO's Q2 ruling on CARRIED.** The full run LANDED: 12 h 17 m, 353 cases,
+  **228 COVERED / 18 BLIND / 102 NOTICED / 5 ERROR**, bare rc 1 (DIRTY). Merge verified three ways
+  (rc; `MERGE_VERIFY` rc 0 holding 426 prose lines + 10 suffixes + 318 carried rows; 9/9 hand
+  blocks, 7/7 notes, `git diff --stat` 1666/375). Stack left clean, enumerated.
+- ⭐ **PO Q1 answered: exactly 5 flips**, all `(ALL)`, all CAPA `_write`, all covered by
+  `252_authz_p0_isolation.sql` — and **zero SELECT rows flipped**, the discrimination the subset
+  could not give. Filed with per-policy keystone specs.
+- ⭐ **Headline: 102 NOTICED** (vs 1 predicted) — 107/353 gates carry no usable verdict. Measured
+  cause: ~9 files abort together, three of them the authz meta-tests themselves. The old classifier
+  would have called all 107 `ERROR` against a baseline recording 29, taken at half this suite.
+- ⛔ **An external revert** returned the findings file to the pre-run baseline at 08:17; cause
+  undetermined. It cost nothing — re-merging from `$WORK` reproduces the run **byte-for-byte**.
 
 ### Next
-- Read the run's BARE exit code → verify the merge three ways → diff the real CARRIED block
-  against the **predicted 48** → **return the enumeration and STOP** for the PO's Q2 ruling →
-  then step 11 and the closures.
+- PO rules on CARRIED (318 rows, **only 32 are human decisions**; 3 MUST be re-filed or step 11's
+  `ARM=census` reds) → then commit the re-baseline + backlog lines + stale heading together →
+  then step 11 (four arms at `WORK=/tmp/pd-full`, `test:db`, diff-scoped deriver) and the closures.
+- ⚠ The **102 NOTICED** need their own ruling; they are not this unit's five follow-ups.
 
 ### Blockers
-- None. ⛔ This session STOPPED at the step-8 commit boundary with step 9 in flight (the brief's
-  named fallback). ⛔ The re-baselined findings file is NOT committed until the CARRIED ruling;
-  the committed baseline is byte-unchanged (`2ef469cabceff65e3f291e2a3054972f`).
-- ⚠ Three keys would leave `ARM=census` UNACCOUNTED if the re-baseline were committed as-is —
-  a re-filing obligation, measured at step 8, not a defect.
+- ⛔ The re-baselined findings file is **NOT committed** and must not be until the Q2 ruling. It is
+  reproducible from `$WORK` at any time (`555b058d405890c47b0b65754ca5379a`, 2215 lines).
+- ⚠ Another session appears to share this stack: something reverted the findings file mid-analysis.

@@ -821,3 +821,203 @@ Live merge behaviour confirmed mid-run at case 5, which is the Batch 1 property 
 than assumed: `PRESERVED 427 hand-authored prose line(s) … CARRIED 396 whole row(s)`, with
 **9/9** `HAND-MERGED` blocks and **7/7** `## Note` sections intact in the on-disk file. CARRIED is
 396 because only 5 rows had been emitted; it shrinks toward the predicted 48 as cases accumulate.
+
+### 2026-09-06 — backend: the full run landed, step 10
+
+#### The run
+
+Completed **08:11:32**, 12 h 17 m for 353 cases (measured, vs the 13.1 h projected at 12 cases —
+the projection was 6% long). **`FULLRUN_BARE_RC=1`** (DIRTY), read bare from the runner's `rc.txt`.
+
+```
+ARM-DOMAIN predicate=127/127 policy=226/226 out-of-domain-bool=35
+    POLICY ARM HALF: `using` ONLY — a COVERED on a FOR ALL policy is a READ-half claim.
+SWEPT: 353 gate(s)   COVERED: 228   BLIND: 18   NOTICED: 102   ERROR(harness): 5
+=== RESULT: DIRTY — 18 BLIND, 102 NOTICED, 5 ERROR. …
+```
+
+⛔ The stack was left clean, ENUMERATED not assumed: degenerate NON-SELECT policies **zero rows**
+(not "count 0"), degenerate function bodies across **all four** forms **0**, §4a set-valued residue
+**0**, sentinel and both sidecars **absent**.
+
+#### The merge, verified three ways
+
+1. **Bare rc = 1**, i.e. DIRTY — ⛔ *not* 2, which is what an aborted merge returns; and
+   `grep -c 'MERGE ABORTED'` over the 12-hour log = **0**.
+2. `SELFTEST=1 MERGE_VERIFY=<the merged file> bash scripts/lib/merge-findings-baseline.sh
+   <baseline snapshot> <generated> /dev/null` → **rc 0**:
+   `holds all 426 hand-authored prose line(s), 10 suffix(es) and 318 carried row(s).`
+3. **Enumerated**: 9/9 `HAND-MERGED` (8 blockquotes + the 1 that lived inside a row note, now
+   correctly relocated into CARRIED), 7/7 `## Note` sections, 353 verdict rows, 318 CARRIED
+   entries, `git diff --stat` = `1666 insertions(+), 375 deletions(-)`. The baseline snapshot was
+   confirmed byte-identical to the pre-run committed file (`1895535637 131621` / `2ef469ca…`).
+
+#### ⛔ AN EXTERNAL REVERT, AND WHY IT COST NOTHING
+
+At **08:17:37** — after the run ended and after my first analysis passes had already read the
+merged file — `docs/reviews/authz-door-audit-findings.md` reverted to the **exact pre-run
+baseline**: `cksum 1895535637 131621`, `md5 2ef469cabceff65e3f291e2a3054972f`, 924 lines, 399
+verdict rows, and `git status` clean for that path. Commands I had run minutes earlier against its
+`CARRIED` block succeeded; the same commands then returned nothing.
+
+⚠ **I cannot determine what did it and I am not guessing.** `git checkout -- <file>` leaves no
+reflog entry, and the reflog shows only my five commits. What I can say is that this is the hazard
+the apparatus itself warns about in writing: `scripts/door-sweep-cases.sh` prints
+`git checkout -- <findings>` as the remedy for a **subset** run's damage, and applied after a
+**full** run that advice destroys the run's product. Another session on this shared stack following
+that instruction would produce exactly this.
+
+⭐ **It cost nothing, and that is a property of the design rather than luck.** Every artefact
+survived in `$WORK`: the baseline snapshot, `authz-door-audit-findings.generated.md`,
+`progress.tsv` (353 rows) and 353 runlogs. Re-running the merge offline into SCRATCH reproduces the
+run's output **byte-for-byte**:
+
+```
+MERGE_BARE_RC=0
+  reproduced cksum: 2335526635 304176     run POST cksum: 2335526635 304176
+  reproduced md5  : 555b058d405890c47b0b65754ca5379a   run POST md5: 555b058d405890c47b0b65754ca5379a
+  reproduced lines: 2215                  run POST lines: 2215
+```
+
+⇒ the 12-hour run does **not** need re-running, and the merge is confirmed deterministic. All
+analysis below is against the reproduced file; the committed path was not written.
+
+#### ⭐ THE HEADLINE FINDING: 102 NOTICED
+
+The plan predicted **one** NOTICED (`event_current_custodian`). The run produced **102**, plus 5
+ERROR: **107 of 353 gates (30%) now carry no usable verdict**. Under the pre-change classifier all
+107 would have read `ERROR`, against a committed baseline that records **29**.
+
+⛔ The extra ~78 are not new breakage; they are a **stale baseline** meeting a much larger suite.
+The baseline's own header still reads `Baseline: Files=156, Tests=4796` — it was taken at roughly
+half this suite. The mechanism, MEASURED from the runlogs rather than inferred, is a cluster of ~9
+files that abort together in ~80 of the 102: `150_referrals.sql` (82), `365`/`363`/`340`/`322`
+(79 each), `295`/`290`/`250`/`246` (78 each). And the instructive part is *which* files those are —
+`250_authz_p0_isolation.sql`, `290_authz_never_called_door_floor.sql` and
+`246_authz_f1_referral_split.sql` are **the authz meta-tests themselves**. Sample summary, under
+`organizations_select`:
+
+```
+150_referrals.sql   (Wstat: 768 (exited 3) Tests: 52 Failed: 1)
+  Failed test: 2 — "draft mints an ENC-#### code"
+  Parse errors: Bad plan.  You planned 226 tests but ran 52.
+250_authz_p0_isolation.sql  Parse errors: Bad plan.  You planned 14 tests but ran 0.
+290_authz_never_called_door_floor.sql  planned 40 ran 34
+```
+
+⚠ The NOTICED gates are **not** referral-shaped — only 12 of 102 mention referral/mrn; they span
+`rca_*`, `process_template*`, `interview_*`, `organizations`. So a generic catalog-shape assertion
+fires for *any* open policy and aborts its file. **That is precisely why `NOTICED` must not read as
+COVERED**: the suite did redden, and the reddening belongs to a different gate. ⭐ It also settles
+the follow-up's option (a) empirically — 102 bespoke neutralizations is not a remedy.
+
+#### PO Q1 — the `(ALL)` read-half work-list: EXACTLY FIVE
+
+| policy | previous verdict + write-half fixture |
+| --- | --- |
+| `capa_action_evidence.capa_action_evidence_write (ALL)` | COVERED via `252_authz_p0_isolation.sql` |
+| `capa_action_task.capa_action_task_write (ALL)` | COVERED via `252_authz_p0_isolation.sql` |
+| `capa_effectiveness.capa_effectiveness_write (ALL)` | COVERED via `252_authz_p0_isolation.sql` |
+| `capa_measure.capa_measure_write (ALL)` | COVERED via `252_authz_p0_isolation.sql` |
+| `capa_measure_result.capa_measure_result_write (ALL)` | COVERED via `252_authz_p0_isolation.sql` |
+
+⭐ **Every COVERED → BLIND transition in the whole run is an `(ALL)` policy — zero SELECT rows
+flipped.** That is the discrimination the 12-case subset could not deliver, and it is exactly what a
+strictly-weaker mutation predicts. ⭐ And all five are one module covered by one file, so this is a
+single CAPA read-path gap, not five scattered ones. Filed into
+`FUP-AUTHZ-FOR-ALL-READ-HALF-BLINDS` with each policy's `using` qual and the denial-half trap
+(`app.can_write_capa` gates both halves, so a read-back assertion passes with `using` opened).
+⚠ 18 further `(ALL)` rows went COVERED → NOTICED — unclassifiable, not flipped, not work items here.
+
+#### The census consequence — the dry run's prediction was EXACT
+
+41 keys lost, 2 gained; 16 in the census's live domain; 13 accounted elsewhere; **3 would leave
+`ARM=census` unaccounted** — `app.storage_upload_reserved`, `public.commission_cadence_overview`,
+`public.document_delete_affordances`. Identical to what step 8 predicted offline.
+
+#### The CARRIED enumeration — 318 rows, of which only 32 are human decisions
+
+⛔ **Do not read 318 as 318 decisions.** A row CARRIES whenever its verdict OR its columns
+moved, and for most of these only the generated failing-file list drifted. Splitting on the one
+thing that matters — does the carried row hold HAND PROSE in column 5 (`**`, `[merged`, ⭐ ⚠ ⛔ →):
+
+```
+TOTAL CARRIED ROWS: 318
+WITH HAND PROSE in column 5 (a REAL human decision): 32
+MECHANICAL (note empty or a generated failing-file list): 286
+
+transition                          total   hand   mech
+COVERED -> COVERED                    125     12    113
+COVERED -> NOTICED                     58      4     54
+COVERED -> (absent from this run)      42     12     30
+BLIND -> NOTICED                       27      0     27
+BLIND -> COVERED                       23      0     23
+ERROR -> NOTICED                       17      3     14
+ERROR -> COVERED                       11      0     11
+COVERED -> BLIND                        5      0      5
+BLIND -> (absent from this run)         5      0      5
+COVERED -> ERROR                        4      1      3
+ERROR -> (absent from this run)         1      0      1
+
+=== THE 32 HAND-PROSE ROWS — what a human must actually rule on ===
+  1 | COVERED -> (absent from this run) | app.patient_trajectory_bundle(text, text, uuid)
+  2 | COVERED -> (absent from this run) | app.resolve_document_version_bytes(p_document_version_id uuid, p_rendition_kind text, p_uid uuid)
+```
+
+**286 are MECHANICAL** — the carried note is empty or is a generated failing-file list, so the
+new row supersedes it and the carried copy can be dropped without losing measurement. **32 hold
+hand prose** and are the real work:
+
+```
+=== THE 32 HAND-PROSE ROWS — what a human must actually rule on ===
+  1 | COVERED -> (absent from this run) | app.patient_trajectory_bundle(text, text, uuid)
+  2 | COVERED -> (absent from this run) | app.resolve_document_version_bytes(p_document_version_id uuid, p_rendition_kind text, p_uid uuid)
+  3 | COVERED -> (absent from this run) | app.storage_upload_reserved(p_bucket text, p_name text, p_uid uuid)
+  4 | COVERED -> (absent from this run) | authz.has_direct_permission(p_principal uuid, p_scope_kind text, p_scope_id uuid, p_permission_code text)
+  5 | COVERED -> (absent from this run) | public.attest_dsr_task(uuid, text, integer, text)
+  6 | COVERED -> (absent from this run) | public.attest_dsr_task(uuid, text, integer, text)
+  7 | COVERED -> (absent from this run) | public.close_dsr_request(uuid, text, text, text)
+  8 | COVERED -> (absent from this run) | public.complete_dsr_task(uuid, text)
+  9 | COVERED -> (absent from this run) | public.create_dsr_request(uuid, text, text, text, integer)
+ 10 | COVERED -> (absent from this run) | public.list_my_dsr_task_commissions(uuid)
+ 11 | COVERED -> (absent from this run) | public.list_my_executable_dsr_tasks(uuid)
+ 12 | COVERED -> (absent from this run) | public.search_patient_xref(text, text, uuid)
+ 13 | COVERED -> COVERED             | app._audit_access_authorized(p_action text, p_entity_id uuid, p_commission uuid)
+ 14 | COVERED -> COVERED             | app.can_edit_commission_forms(p_commission_id uuid, p_uid uuid)
+ 15 | COVERED -> COVERED             | app.can_manage_case_vocabulary(p_org uuid, p_uid uuid)
+ 16 | COVERED -> COVERED             | app.can_manage_professional(p_org uuid, p_uid uuid)
+ 17 | COVERED -> COVERED             | app.can_read_document(p_document_id uuid, p_uid uuid)
+ 18 | COVERED -> COVERED             | app.can_read_full_case_content(p_case_id uuid, p_uid uuid)
+ 19 | COVERED -> COVERED             | app.can_sign_section(p_response_id uuid, p_section_id uuid, p_signer uuid)
+ 20 | COVERED -> COVERED             | app.can_write_document(p_document_id uuid, p_uid uuid)
+ 21 | COVERED -> COVERED             | app.member_can_for(p_commission_id uuid, p_capability text, p_user_id uuid)
+ 22 | COVERED -> COVERED             | authz.has_permission(p_principal uuid, p_scope_kind text, p_scope_id uuid, p_permission_code text)
+ 23 | COVERED -> COVERED             | commissions.commissions_select_member_or_admin (SELECT)
+ 24 | COVERED -> COVERED             | form_versions.form_versions_staff_admin_write (ALL)
+ 25 | COVERED -> ERROR               | public.capa_viewer_can_manage(p_capa_id uuid)
+ 26 | COVERED -> NOTICED             | app.can_view_printed_document(p_source_kind text, p_source_id uuid, p_uid uuid)
+ 27 | COVERED -> NOTICED             | app.is_oversight_only_reader(p_case_id uuid, p_uid uuid)
+ 28 | COVERED -> NOTICED             | forms.forms_staff_admin_write (ALL)
+ 29 | COVERED -> NOTICED             | professional_profiles.professional_profiles_select (SELECT)
+ 30 | ERROR -> NOTICED               | app.event_current_custodian(p_event_id uuid, p_user_id uuid)
+ 31 | ERROR -> NOTICED               | app.is_staff_admin_of(p_commission_id uuid)
+ 32 | ERROR -> NOTICED               | authz.holds_role(p_principal uuid, p_role_code text, p_scope_kind text, p_scope_id uuid)
+```
+
+**Recommended dispositions, by group.**
+
+| group | n | which arm's file it belongs to | recommendation |
+| --- | --- | --- | --- |
+| `COVERED -> BLIND` (all 5 `(ALL)`) | 5 | this arm | **re-file the note into `FUP-AUTHZ-FOR-ALL-READ-HALF-BLINDS`** (done), then drop the carried row — the BLIND row is now authoritative |
+| `-> (absent from this run)`, subject GONE | 24 | none — the door no longer exists | delete, EXCEPT the **9** carrying hand prose: move those to an archive line, not a verdict table |
+| `-> (absent from this run)`, still exists | 17 | **writepath** (13 INSERT/UPDATE/DELETE policies) · **C2** (3 set-returning doors) · this arm's own §7.17b census (1) | retire to the named arm |
+| `-> (absent from this run)`, 2nd ordinal | 4 | this arm | delete — the run emits one authoritative row per key |
+| ⛔ of the above, the **3** that leave `ARM=census` unaccounted | 3 | — | **MUST be re-filed before step 11**, or the census red is bookkeeping, not a finding |
+| `COVERED -> COVERED` | 125 (12 hand) | this arm | accept the new row; hand-splice only the 12 |
+| `-> NOTICED` (`COVERED` 58 · `BLIND` 27 · `ERROR` 17) | 102 (7 hand) | this arm | ⛔ **HOLD** — a note earned against a COVERED/BLIND verdict is not a claim about an unclassifiable one. These wait on the ruling for the NOTICED class as a whole |
+| `-> COVERED` (`BLIND` 23 · `ERROR` 11) | 34 (0 hand) | this arm | ⭐ gates that GAINED coverage; drop the stale carried row |
+| `COVERED -> ERROR` | 4 (1 hand) | this arm | investigate the neutralization for these 4; `public.capa_viewer_can_manage` carries hand prose |
+
+⛔ **Nothing above has been re-filed except the five into the Q1 follow-up, and the re-baselined
+file is NOT committed.** It exists only at the scratch path the record names, reproducible at any
+time from `$WORK` by re-running the merge. The lead takes this to the PO for the Q2 ruling.
