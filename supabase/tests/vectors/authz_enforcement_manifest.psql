@@ -1,7 +1,7 @@
 -- GENERATED FILE — DO NOT EDIT BY HAND.
 -- Source:    supabase/tests/vectors/authz-enforcement-manifest.json
 -- Generator: scripts/gen-authz-matrix-cells.mjs
--- sourceSha256: 7831929128e70d952aa7a9fa121e6f16fe5a99ea3763aec327a3abd5cea694fc
+-- sourceSha256: 493370f994a51bfdb17c408d4a80c43da8b7382e0355471dfa907647369678c4
 --
 -- ADR 0176 D5 — THE ENFORCEMENT MANIFEST, as a pgTAP fixture.
 --
@@ -35,7 +35,7 @@ create temp table authz_manifest_permissions on commit drop as
     ('commission.documents.publish', 'pending-rekey', null::text, null::text, null::text, null::boolean, null::boolean, array[]::text[], array[]::text[], 'app.is_staff_admin_of_for', 'identical', 'commission_content', 'irreversible', 'none', 'commission', array['draft'], 'architecture-rule', 'none', array[]::text[], 'not-attributable-until-rekey', true, 0, 'app.holds_role_via_is_staff_admin_of', 'lead', 'AE5-complete', null::text, null::text),
     ('commission.dsr.execute', 'pending-rekey', null::text, null::text, null::text, null::boolean, null::boolean, array[]::text[], array[]::text[], 'app.is_staff_admin_of_for', 'identical', 'audit', 'write', 'none', 'commission', array['not_applicable'], 'axis-vocabulary-inapplicable', 'none', array[]::text[], 'not-attributable-until-rekey', true, 0, 'app.holds_role_via_is_staff_admin_of', 'lead', 'AE5-complete', null::text, null::text),
     ('commission.forms.assets.upload', 'pending-rekey', null::text, null::text, null::text, null::boolean, null::boolean, array[]::text[], array[]::text[], 'app.is_staff_admin_of_for', 'identical', 'commission_content', 'write', 'none', 'commission', array['draft'], 'architecture-rule', 'none', array[]::text[], 'not-attributable-until-rekey', true, 0, 'app.holds_role_via_is_staff_admin_of', 'lead', 'AE5-complete', null::text, null::text),
-    ('commission.forms.edit', 're-keyed', 'app.can_edit_commission_forms', 'app.can_edit_commission_forms', 'domain', null::boolean, true, array['authz.has_permission', 'app.is_tenancy_admin_of_for'], array['app.is_tenancy_admin_of_for'], 'app.is_staff_admin_of_for', 'identical', 'commission_content', 'write', 'none', 'commission', array['draft'], 'architecture-rule', 'none', array[]::text[], 'measured-depth1-at-sites-and-authorizer', false, 6, null::text, null::text, null::text, null::text, null::text),
+    ('commission.forms.edit', 're-keyed', 'app.can_edit_commission_forms', 'app.can_edit_commission_forms', 'domain', null::boolean, true, array['authz.has_permission', 'app.is_tenancy_admin_of_for'], array['app.is_tenancy_admin_of_for'], 'app.is_staff_admin_of_for', 'identical', 'commission_content', 'write', 'none', 'commission', array['draft'], 'architecture-rule', 'none', array['principal_inactive'], 'measured-transitive-over-gated-classes', false, 6, null::text, null::text, null::text, null::text, null::text),
     ('commission.forms.publish', 'pending-rekey', null::text, null::text, null::text, null::boolean, null::boolean, array[]::text[], array[]::text[], 'app.is_staff_admin_of_for', 'identical', 'commission_content', 'irreversible', 'none', 'commission', array['draft'], 'architecture-rule', 'none', array[]::text[], 'not-attributable-until-rekey', true, 0, 'app.holds_role_via_is_staff_admin_of', 'lead', 'AE5-complete', null::text, null::text),
     ('commission.indicators.manage', 'pending-rekey', null::text, null::text, null::text, null::boolean, null::boolean, array[]::text[], array[]::text[], 'app.is_staff_admin_of_for', 'identical', 'commission_content', 'write', 'none', 'commission', array['not_applicable'], 'axis-vocabulary-inapplicable', 'none', array[]::text[], 'not-attributable-until-rekey', true, 0, 'app.holds_role_via_is_staff_admin_of', 'lead', 'AE5-complete', null::text, null::text),
     ('commission.meetings.cases.decision.read', 'pending-rekey', null::text, null::text, null::text, null::boolean, null::boolean, array[]::text[], array[]::text[], 'app.is_staff_admin_of_for', 'identical', 'commission_content', 'read', 'none', 'commission', array['not_applicable'], 'axis-vocabulary-inapplicable', 'none', array[]::text[], 'not-attributable-until-rekey', true, 0, 'app.holds_role_via_is_staff_admin_of', 'lead', 'AE5-complete', null::text, null::text),
@@ -59,9 +59,9 @@ create temp table authz_manifest_permissions on commit drop as
     ('commission.titles.manage', 'pending-rekey', null::text, null::text, null::text, null::boolean, null::boolean, array[]::text[], array[]::text[], 'app.is_staff_admin_of_for', 'identical', 'vocabulary', 'write', 'none', 'commission', array['not_applicable'], 'axis-vocabulary-inapplicable', 'none', array[]::text[], 'not-attributable-until-rekey', true, 0, 'app.holds_role_via_is_staff_admin_of', 'lead', 'AE5-complete', null::text, null::text),
     ('org.case_vocabulary.manage', 'pending-rekey', null::text, null::text, null::text, null::boolean, null::boolean, array[]::text[], array[]::text[], 'app.can_manage_case_vocabulary', 'identical', 'vocabulary', 'write', 'none', 'organization', array['not_applicable'], 'axis-vocabulary-inapplicable', 'none', array[]::text[], 'not-attributable-until-rekey', true, 0, 'app.can_manage_case_vocabulary', 'lead', 'AE5-complete', null::text, null::text),
     ('org.participants.external.manage', 'pending-rekey', null::text, null::text, null::text, null::boolean, null::boolean, array[]::text[], array[]::text[], 'app.can_manage_external_participant', 'identical', 'identity', 'write', 'none', 'organization', array['not_applicable'], 'axis-vocabulary-inapplicable', 'none', array[]::text[], 'not-attributable-until-rekey', true, 0, 'app.can_manage_external_participant', 'lead', 'AE5-complete', null::text, null::text),
-    ('org.professionals.create', 're-keyed', 'app.can_create_professional', 'app.can_create_professional', 'domain', null::boolean, false, array['authz.has_permission', 'app.can_manage_professional'], array['app.can_manage_professional'], 'app.can_create_professional', 'identical', 'identity', 'write', 'class2_professional_identity', 'organization', array['not_applicable'], 'axis-vocabulary-inapplicable', 'class2_professional_identity', array[]::text[], 'measured-depth1-at-sites-and-authorizer', false, 3, null::text, null::text, null::text, null::text, null::text),
+    ('org.professionals.create', 're-keyed', 'app.can_create_professional', 'app.can_create_professional', 'domain', null::boolean, false, array['authz.has_permission', 'app.can_manage_professional'], array['app.can_manage_professional'], 'app.can_create_professional', 'identical', 'identity', 'write', 'class2_professional_identity', 'organization', array['not_applicable'], 'axis-vocabulary-inapplicable', 'class2_professional_identity', array['principal_inactive'], 'measured-transitive-over-gated-classes', false, 3, null::text, null::text, null::text, null::text, null::text),
     ('org.professionals.manage', 'pending-rekey', null::text, null::text, null::text, null::boolean, null::boolean, array[]::text[], array[]::text[], 'app.can_manage_professional', 'identical', 'identity', 'authority', 'class2_professional_identity', 'organization', array['not_applicable'], 'axis-vocabulary-inapplicable', 'class2_professional_identity', array[]::text[], 'not-attributable-until-rekey', true, 0, 'app.can_manage_professional', 'lead', 'AE5-complete', null::text, null::text),
-    ('org.professionals.read', 're-keyed', 'app.can_read_professional_profile', 'app.can_read_professional_profile', 'domain', null::boolean, true, array['authz.has_permission', 'app.is_admin', 'app.can_manage_professional', 'app.can_read_case_committee'], array['app.is_admin', 'app.can_manage_professional', 'app.can_read_case_committee'], 'app.can_read_professional_profile', 'identical', 'identity', 'read', 'class2_professional_identity', 'organization', array['not_applicable'], 'axis-vocabulary-inapplicable', 'class2_professional_identity', array[]::text[], 'measured-depth1-at-sites-and-authorizer', false, 3, null::text, null::text, null::text, null::text, null::text)
+    ('org.professionals.read', 're-keyed', 'app.can_read_professional_profile', 'app.can_read_professional_profile', 'domain', null::boolean, true, array['authz.has_permission', 'app.is_admin', 'app.can_manage_professional', 'app.can_read_case_committee'], array['app.is_admin', 'app.can_manage_professional', 'app.can_read_case_committee'], 'app.can_read_professional_profile', 'identical', 'identity', 'read', 'class2_professional_identity', 'organization', array['not_applicable'], 'axis-vocabulary-inapplicable', 'class2_professional_identity', array['principal_inactive', 'respondent_exclusion'], 'measured-transitive-over-gated-classes', false, 4, null::text, null::text, null::text, null::text, null::text)
   ) as t(code, status, domain_authorizer, authorizer, authorizer_source,
          authorizer_provisional, authorizer_exec_authenticated, authorizer_composed_with,
          residual_legacy_authority,
@@ -84,7 +84,8 @@ create temp table authz_manifest_sites on commit drop as
     ('org.professionals.create', 'function', 'public', null::text, 'set_professional_link_state', array['app.can_create_professional']),
     ('org.professionals.read', 'policy', 'public', 'professional_profiles', 'professional_profiles_select', array['app.can_read_professional_profile']),
     ('org.professionals.read', 'policy', 'public', 'professional_participants', 'professional_participants_select', array['app.can_read_professional_profile']),
-    ('org.professionals.read', 'function', 'public', null::text, 'get_case_professional', array['app.can_read_professional_profile'])
+    ('org.professionals.read', 'function', 'public', null::text, 'get_case_professional', array['app.can_read_professional_profile']),
+    ('org.professionals.read', 'function', 'app', null::text, 'current_professional_read_organizations', array['authz.authorized_scope_ids'])
   ) as t(code, site_kind, site_schema, site_relation, site_name, composed_with);
 
 -- The snapshot lists asserted against the live catalog by 410. ⛔ These are NOT derived from
@@ -167,3 +168,26 @@ create temp table authz_manifest_hard_deny_vocab on commit drop as
     ('sensitivity_ceiling', null::text),
     ('tenant_mismatch', null::text)
   ) as t(class_name, gate);
+
+-- ADR 0193 D5 — every SECURITY DEFINER writer behind a declared site's relation, declared with
+-- the gate it actually carries. `gate` is NULLABLE and null means MEASURED: a door with no
+-- authority check at all.
+create temp table authz_manifest_definer_surface on commit drop as
+  select * from (values
+    ('commission.forms.edit', 'app', '_insert_block_child_rows', array['form_item_options', 'form_item_validations', 'form_matrix_columns', 'form_matrix_rows'], null::text, false, true),
+    ('commission.forms.edit', 'app', 'copy_version_children', array['form_item_options', 'form_item_validations', 'form_items', 'form_matrix_columns', 'form_matrix_rows', 'form_sections'], 'app.is_staff_admin_of', false, true),
+    ('commission.forms.edit', 'public', 'delete_block_library_entry', array['form_block_library'], 'app.is_staff_admin_of', false, true),
+    ('commission.forms.edit', 'public', 'insert_block_from_library', array['form_items'], 'app.is_staff_admin_of', false, true),
+    ('commission.forms.edit', 'public', 'save_block_to_library', array['form_block_library'], 'app.is_staff_admin_of', false, true),
+    ('commission.forms.edit', 'public', 'set_item_validations', array['form_item_validations'], 'app.can_edit_commission_forms', false, true),
+    ('commission.forms.edit', 'public', 'update_block_library_entry', array['form_block_library'], 'app.is_staff_admin_of', false, true),
+    ('commission.forms.edit', 'public', 'upsert_matrix_axes', array['form_matrix_columns', 'form_matrix_rows'], 'app.is_staff_admin_of', false, true)
+  ) as t(code, fn_schema, fn_name, writes, gate, carries_code, exec_authenticated);
+
+-- ADR 0193 D7 — consumers of a domain authorizer that are deliberately NOT enforcement sites.
+-- ⛔ Adding one of these to `enforcementSites` would make § 8's site-axis closure measure a
+-- fiction; leaving it undeclared leaves the consumer axis open. It is a third state, declared.
+create temp table authz_manifest_non_enforcement_consumers on commit drop as
+  select * from (values
+    ('org.professionals.read', 'app', '_audit_access_authorized', 'function', 'Architecture Rule 11 AUDIT REGISTRY, not a door. `app._audit_access_authorized(p_action, p_entity_id, p_commission)` is an 18-arm `case p_action` registry whose `professional_profile.read` arm returns `app.can_read_professional_profile(p_entity_id, v_uid)`. It CONSUMES the authorizer to decide whether a read that already happened was authorized, so denying it changes what the audit trail RECORDS, never what a caller may read. ⛔ Declaring it an enforcementSite would make the site-axis closure (410 § 8) measure a fiction: § 8.4 would look for a policy or door reaching the code and find a logging predicate instead.')
+  ) as t(code, fn_schema, fn_name, consumer_kind, reason);
