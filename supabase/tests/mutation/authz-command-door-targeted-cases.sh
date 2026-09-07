@@ -48,10 +48,15 @@
 # COVERED.
 #
 # ── VERDICTS ────────────────────────────────────────────────────────────────
-#   COVERED — the mutated run FAILS and the restored run PASSES (a keystone noticed)
+#   COVERED — the mutated run FAILS and the restored run PASSES (a keystone noticed),
+#             AND the failure set under mutation is EXACTLY the pinned assertion
+#             (test 32, § 2.10e, by its description text — QA N-REC-1 below)
 #   BLIND   — the mutated run PASSES (nothing notices the guard vanish) -> exit 1
-#   ERROR   — the mutation did not land, or the restore did not return the original
-#             -> exit 1. ⛔ ERROR IS NOT A PASS.
+#   ERROR   — the mutation did not land, the restore did not return the original, OR
+#             the mutated run reds on something other than exactly the pinned
+#             assertion (an unrelated flake, a fixture collision, a future assertion
+#             in the same 75-assertion file — QA N-REC-1: an absent `Result: PASS`
+#             alone is NOT sufficient for COVERED) -> exit 1. ⛔ ERROR IS NOT A PASS.
 #
 # ⛔ ROLLBACK IS PROVEN BEFORE IT IS TRUSTED (the standing lesson, ADR 0189): each
 # case asserts the mutation MOVED the subject's fingerprint and that the restore
@@ -77,11 +82,17 @@ fail() { echo "!! $*" >&2; exit 1; }
 # A restore sentinel on the HOST, so a killed run is recoverable rather than silent.
 SENTINEL="${TMPDIR:-/tmp}/authz-command-door-INFLIGHT.sql"
 
+# ⛔ QA N-REC-1: the log the mutated `run_suite` call writes to. Stable across the two
+#   calls in CASE 1 (`$$` is this shell's own PID, not a subshell's), so it must be
+#   READ right after the MUTATED call and before the RESTORE call's run_suite
+#   overwrites it — which is exactly the order CASE 1 already runs in.
+MUTLOG="${TMPDIR:-/tmp}/authz-cmddoor-mut.$$"
+
 # Runs a pgTAP file, returns 0 if it PASSED, 1 if it FAILED.
 run_suite() {
   local f="$1"
-  npx supabase test db "$f" > "${TMPDIR:-/tmp}/authz-cmddoor-mut.$$" 2>&1
-  grep -q "^Result: PASS" "${TMPDIR:-/tmp}/authz-cmddoor-mut.$$"
+  npx supabase test db "$f" > "$MUTLOG" 2>&1
+  grep -q "^Result: PASS" "$MUTLOG"
 }
 
 want () { [ -z "$CASES" ] && return 0; local k; for k in $CASES; do [ "$k" = "$1" ] && return 0; done; return 1; }
@@ -143,7 +154,34 @@ GONE="$(psqlt -c "select (pg_get_functiondef('${SIG}'::regprocedure) !~ 'can_edi
 [ "$GONE" = "true" ] || fail "CASE 1: the authorizer is STILL called in the mutated body — the guard did not go"
 
 if run_suite "$SUITE"; then VERDICT="BLIND"; else VERDICT="COVERED"; fi
-echo "    409 under mutation: $([ "$VERDICT" = COVERED ] && echo 'RED (good)' || echo 'GREEN (BLIND)')"
+
+# ⛔ QA N-REC-1: "409 went red" is not the same claim as "the door's own assertion
+#   noticed". Any red in this 75-assertion file — an unrelated flake, a fixture
+#   collision, a future assertion — would read as COVERED under the bare rc check
+#   above. Pin the mutated run's failure set to EXACTLY the behavioural assertion
+#   this case exists to move: test 32, § 2.10e, keyed on its DESCRIPTION TEXT, not
+#   only the number, so a renumbering fails LOUDLY as ERROR rather than silently
+#   reading as COVERED. `npx supabase test db` runs `pg_prove` NON-verbose, so the
+#   per-assertion line is `# Failed test N: "<description>"` (prove's summary
+#   format), never a raw TAP `not ok` line — measured directly, 2026-09-07.
+PIN='2\.10e .* THE GATE LINE AT THE DEFINER DOOR'
+if [ "$VERDICT" = "COVERED" ]; then
+  NOTOK="$(grep -c '^# Failed test ' "$MUTLOG" || true)"
+  if [ "$NOTOK" != "1" ]; then
+    VERDICT="ERROR"
+    echo "    !! CASE 1: mutated run failed $NOTOK assertion(s), not exactly the ONE pinned" >&2
+    echo "       (test 32, § 2.10e) — a red suite is not \"the pinned assertion noticed\"." >&2
+    echo "       See $MUTLOG" >&2
+  elif ! grep -qE "^# Failed test 32: \".*${PIN}" "$MUTLOG"; then
+    VERDICT="ERROR"
+    echo "    !! CASE 1: the one red assertion is NOT the pinned one (test 32, \"§ 2.10e" >&2
+    echo "       … THE GATE LINE AT THE DEFINER DOOR\") — either 409 renumbered or reworded" >&2
+    echo "       it (update PIN above) or a different assertion reds. See $MUTLOG" >&2
+  else
+    echo "    pin verified: $(grep '^# Failed test 32: ' "$MUTLOG" | cut -c1-100)…"
+  fi
+fi
+echo "    409 under mutation: $([ "$VERDICT" = COVERED ] && echo 'RED (good, pinned)' || echo "$VERDICT")"
 
 # Restore, and prove the restore.
 # ⛔ `-f -` WITH A HOST REDIRECT, NEVER `-f <path>`: psql runs INSIDE the container,
