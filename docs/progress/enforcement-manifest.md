@@ -433,7 +433,7 @@ iteration adds or removes an assertion (`410` § 8.8's change is caption text on
 
 ### 2026-09-07 — tip gate (lead, second machine) — run by someone other than the builder
 
-Tip `e5796940` (16 commits over `main` @ `23ec1fa5`). Catalog head `20261003007350` on every run below;
+Tip `e5796940` (16 commits over `main` @ `23ec1fa5` [2026-09-07, QA N-2: measured 17 by `git rev-list --count main..e5796940`; left as written, append-only]). Catalog head `20261003007350` on every run below;
 the fix loop changed no migration, so the arms run on the build tip (`7b9b1eb7`) read the same catalog
 as the fix-loop tip. Exit codes read bare from an `rc` file, never through a pipe.
 
@@ -507,7 +507,7 @@ they stand:
               is the pre-D6 value and unreachable by this revert alone
 :251          § 6.1's form_versions_staff_admin_write row — labelled pre-D6, unreachable, pointing
               at the measured landing value and § 6.7 step 4
-:782          § 6.7 step 4's own four-value table row — UNMODIFIED, already correct since F-BLOCK-1
+:785          § 6.7 step 4's own four-value table row — UNMODIFIED, already correct since F-BLOCK-1
 ```
 No occurrence left claiming C1 *returns to* `a115005b…`.
 
@@ -646,3 +646,11 @@ N-REC-1, N-REC-2 and not asking for a re-run of the arms or the sweep.
 
 **Verdict:** all six findings addressed with observed proof; ready for QA re-review round 3, or
 Record at the lead's discretion.
+
+**QA round 3 (lead, same day): APPROVED** at `dcecd939` — [rereview-2](../reviews/enforcement-manifest-rereview-2.md).
+The three non-blocking items cleared before the PO presentation: R3-1 (`:782` → `:785` in the
+iteration-2 entry's `rg` block; the runbook header's "two cells" → "a cell and a prose line"),
+R3-REC-1 (a dated bracket beside the gate entry's "16"), R3-REC-2 (the merge comment now says a
+rebase diff is recognised by a human, not a gate, and that the idempotence loop is a hardcoded
+five-name list, not the fixture directory). `SELFTEST=1 bash scripts/door-sweep-cases.sh` re-run
+after the comment edit — comment-only, but measured, not assumed.
