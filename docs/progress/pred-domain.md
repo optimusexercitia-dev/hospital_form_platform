@@ -1475,6 +1475,31 @@ and the four rows WITHOUT it are named so the weaker cases are visible rather th
 `app.event_current_custodian`, `app.is_dpo_of`, `app.is_dpo_of_for`,
 `app.is_entitled_document_approver`.
 
+> ⚠ **CORRECTION — 2026-09-07, QA `F-MAJOR-5`. The paragraph above is left unedited; "for all
+> 23/23 the `reddened:` set is a STRICT SUPERSET of the aborting set" is `21/23`.** RE-MEASURED by
+> re-parsing every NOTICED row's column 5 by pipe INDEX (never a regex over the row) and splitting
+> `aborting file(s): … ; reddened: …`. The two exceptions, named the way the four weak rows above
+> are named:
+>
+> ```
+> app.is_oversight_only_reader(p_case_id uuid, p_uid uuid)
+>     5 of its 7 aborting files are ABSENT from `reddened:` — 227_action_item_satellites,
+>     265_reopen_void_narrative, 267_ethics_e3a_autoderive, 272_ff2_door_parity,
+>     347_correction_conclusion_gate
+> cases.cases_staff_admin_write (ALL)
+>     its ONLY aborting file, 205_administrativo.sql, is ABSENT from `reddened:`
+> ```
+>
+> ⭐ **The claim the ruling actually needs SURVIVES and was re-measured too**: `reddened:` is
+> non-empty for **23/23**, so every NOTICED row's suite DID redden. "Strict superset" is the
+> stronger statement and it is not true. ⚠ The second case is the interesting one — the aborting
+> file itself did not redden, which means the abort there is not the LEARN-083 shape the paragraph
+> above generalises, and `cases.cases_staff_admin_write (ALL)` should be read as a weaker cell than
+> its NOTICED sibling rows. It is inside `FUP-C2-TIER1-VALUE-ASSERTIONS-ABORT-ON-AN-INLINE-RAISE`'s
+> 23-row work-list, so it is carried; it is NOT in the four-row
+> `FUP-AUTHZ-NOTICED-ROWS-WITHOUT-AN-AUTHZ-SHAPED-REDDENING` split, because it does have an
+> authz-shaped reddening elsewhere.
+
 ⛔ **I am not ruling.** Measured: the abort is per-gate and domain-local; the meta-tests are not
 implicated; a NOTICED row's suite DID redden. Unresolved: whether the reddening is attributable to
 the opened gate. The lead owes the PO the ruling.
@@ -2369,6 +2394,60 @@ Filed as `FUP-AUTHZ-BLIND-SET-READ-FROM-THE-SECTION-NOT-THE-VERDICT` (🟡, back
 here: it is a different harness, and re-predicating a selector at step 11 without a plan is exactly
 how one gate's repair inverts another's failure mode.
 
+> ⛔⛔ **CORRECTION — 2026-09-07, QA `F-BLOCK-1`. The paragraph above is left unedited; its second
+> sentence is FALSE, and false in the reassuring direction.** "0 of the 24 offenders is false" is
+> **12 of the 24**. The two sets it compares are different populations: the 38 phantoms are the
+> `BLIND -> COVERED` rows still sitting in the `## BLIND` section, of which **26 are allowlisted and
+> 12 are not**; `comm -12` suppresses only column 1, so it prints "common" ∪ "only in file 2" — a
+> long list that reads as *all accounted for*. The test the claim needed is `offenders ∩ phantoms`.
+>
+> **RE-MEASURED 2026-09-07**, read-only, by re-implementing `blind_from_findings`
+> (`p0-authz-invariant.sh`) and `allow_body` and running them over `git show main:` and the working
+> tree — the arm itself was NOT run. The 16 → 24 / +11 / −3 half of the disclosure reproduces
+> exactly; only the composition was wrong:
+>
+> ```
+> main     : BLIND union 72   allowlist 59   offenders 16
+> 6f94a634 : BLIND union 78   allowlist 59   offenders 24
+> of the 24 offenders: 12 carry BLIND in column 4 — GENUINE
+>                      12 carry COVERED in column 4 — FALSE, and named anyway
+> every one of the 12 false: BLIND at main -> COVERED at HEAD, absent from authz-blind-allowlist.txt,
+> and sitting inside the `## BLIND` section (74 rows) at HEAD.
+> ```
+>
+> The 12 **genuine** offenders: the 11 mirror flips (5 `capa_*_write` + 6 `rca_*_write`, all `(ALL)`)
+> plus `referral_requested_actions.referral_requested_actions_write_admin (ALL)`.
+> The 12 **false** offenders, enumerated so the next reader does not have to re-derive them:
+>
+> ```
+> accreditation_standards.accreditation_standards_select (SELECT)
+> answer_selected_options.answer_selected_options_select_targeted (SELECT)
+> answer_selected_options.answer_selected_options_write_targeted (ALL)
+> case_assignment_roles.case_assignment_roles_select (SELECT)
+> case_narrative_revisions.case_narrative_revisions_select (SELECT)
+> ethics_sanction_types.ethics_sanction_types_select (SELECT)
+> form_item_options.form_item_options_select_targeted (SELECT)
+> referral_assignments.referral_assignments_select_metadata (SELECT)
+> referral_case_links.referral_case_links_select_metadata (SELECT)
+> referral_internal_notes.referral_internal_notes_select (SELECT)
+> referral_read_receipts.referral_read_receipts_select_metadata (SELECT)
+> referral_resolutions.referral_resolutions_select_metadata (SELECT)
+> ```
+>
+> ⛔ **STATED PLAINLY, because the corrected sentence changes what the arm's red MEANS.**
+> `FROMFINDINGS=1 ARM=policy` at this tree reports **12 stale offenders that are not BLIND**. The
+> stale-finding generator is not latent, it is **already generating**, and this re-baseline is what
+> started it. `ARM=policy` is NOT one of the four arms §6 step 1 requires (`census`, `hat`, `floor`,
+> `FROMFINDINGS=1 wrapper`), and its red predates this unit (16 offenders at `main`) — but until
+> `FUP-AUTHZ-BLIND-SET-READ-FROM-THE-SECTION-NOT-THE-VERDICT` is fixed, **its red is not readable**:
+> a reader cannot tell a genuine un-keystoned gate from a section-stale row without redoing the
+> column-4 join by hand.
+> ⛔ **The fix is the sentence, not the allowlist.** Allowlisting the twelve would be the
+> relabelling the PO's Q1 ruling prohibits and the follow-up's own ⛔ bar forbids.
+> ⚠ And the shape is this unit's own subject turned on itself: a prose claim ABOUT a measurement,
+> written beside a correct measurement, that no gate can contradict — `LEARN-049` inside the
+> disclosure that describes `LEARN-049`. Registered as `LEARN-088`.
+
 #### The targeted-case home — it has NO self-check, stated rather than skipped silently
 
 `supabase/tests/mutation/authz-setvalued-targeted-cases.sh` has **no `SELFTEST` mode**: `grep -n
@@ -2455,3 +2534,163 @@ NOTICED class, which every gate record citing this sweep must now carry:
 2. The lead lands the two §4 lines above (`docs/lead-playbook.md` is outside the engineer's scope).
 3. Nothing else is in flight: `git status --short` is empty and no production file changed on this
    branch (`git diff --name-only main...HEAD -- supabase/migrations supabase/seed.sql src` empty).
+
+---
+
+### 2026-09-07 — backend: QA fix loop, iteration 1
+
+**Input**: `docs/reviews/pred-domain-review.md` at `6f94a634` — **CHANGES REQUESTED**, 3 blocking +
+9 major, nine of eleven questions clean, nothing touching RLS, a migration or `src/`. Branch tip on
+entry `efbaa25f`. ⛔ **Every corrected claim was RE-MEASURED, never re-worded from the report** —
+that discipline is the point of the loop, because the whole finding class is *a prose claim about a
+measurement that no gate can contradict*.
+
+#### What was measured, and what the measurement said
+
+| finding | the claim | what I measured |
+| --- | --- | --- |
+| F-BLOCK-1 | "0 of the 24 `ARM=policy` offenders is false" | **12 of 24 are false.** Re-implemented `blind_from_findings` + `allow_body` read-only over `git show main:` and the tree — the arm was NOT run. `main`: BLIND 72 / allow 59 / **16** offenders. HEAD: 78 / 59 / **24**. Of the 24: 12 carry `BLIND` in column 4 (genuine), 12 carry `COVERED` (false), all 12 BLIND at `main` → COVERED at HEAD, all 12 absent from the allowlist, all 12 inside the 74-row `## BLIND` section |
+| F-BLOCK-2 | the three set-valued verdicts are filed | **They were nowhere a census can read.** Filed as rows; `verdicts_from_findings` 356 → **359**, 359 unique. Column 1 measured from the catalog with `pg_get_function_identity_arguments` |
+| F-BLOCK-3 | `public.reopen_interview` BLIND, trigger-delivered | **COVERED since 2026-09-04.** The MECHANISM is real and still live; the TENSE was wrong. `app.guard_interview_status`: `prosecdef=t`, returns `trigger`, wired on `case_interviews` (catalog, 2026-09-07) |
+| F-MAJOR-5 | "23/23 strict superset" | **21/23.** Re-parsed every NOTICED row's column 5 by pipe INDEX. Two exceptions named. The claim the ruling needs — `reddened:` non-empty — is 23/23 |
+| F-MAJOR-7 | "derived … never literal" | **4 of 5 populations are literals**, and no committed query in this tree derives the `HCDS*` / `28000` / C2-ERROR figures (grepped). The defect is the LABEL |
+| F-MAJOR-2 | one corrupted note | **Unique**: 1 hit for `.sql` followed by a letter across every column-5 cell of the door file; **0** across the four sibling findings files |
+
+#### F-BLOCK-2 — the two-step order, and why DELETE was right
+
+The row was filed and `app.current_professional_read_organizations()`'s backlog line deleted **in
+the same commit**, which is the rule the two boolean blocks above it in `authz-unswept-backlog.txt`
+state. ⭐ **Proven from `run_arm_census`'s own accounting rather than preferred**: `accounted` is a
+`sort -u` union of the verdict sets AND `allow_body "$UNSWEPT"`, so an entry present in both files
+collapses to one line — keeping it could **not** double-count. What keeping it WOULD create is the
+stale entry `FUP-AUTHZ-UNSWEPT-BACKLOG-STALE-ENTRY-HAS-NO-ARM` was filed about. Deleting is safe
+only because the filed key is byte-identical to `census_proc_domain`'s emission, and that identity
+— not the deletion — is the load-bearing fact.
+
+⛔ **A second defect found while filing, and it is why the step was skippable.** The harness's
+printed rows are un-filable on two axes: column 1 is the shorthand
+`authz.authorized_scope_ids(uuid,text,text)` (the census keys on the identity-argument form), and
+the header is generator-shaped with a bare `COVERED` in column 4 — a row in that shape is classified
+a verdict row by the merge, relocated into the CARRIED block on the next full run, and, carried rows
+being INDENTED, stops matching the census's leading-pipe test. Both were hand-corrected here; filed
+as `FUP-AUTHZ-SETVALUED-HOME-DOES-NOT-EMIT-ROWS` rather than fixed, because validating a writer
+needs three full-suite passes on a fresh reset, which this loop did not have.
+
+#### F-BLOCK-3 — the witness is now HISTORICAL, DATED and true, and the absence is stated
+
+`121_interviews.sql:297` pinned only the CODE (`throws_ok(…, 'HC038', null, …)`), so under mutation
+the trigger's `HC038` satisfied it against the wrong enforcer — a real BLIND with a real mechanism,
+on 2026-09-02. `121_interviews.sql:565` discharged it by pinning the door's OWN message on an
+`awaiting_follow_up` fixture the trigger cannot pre-empt, which is **exactly the remedy the bullet
+names**. ⛔ And the emitter now says what was otherwise inferred: **no BLIND door on this stack is
+attributable to a trigger today** (C2 is 170/1/0 and the one BLIND, `app.print_source_series`, has
+no trigger in its path), so population 4 is **ASSERTED**, bounded by its two derived counts,
+witnessed only historically. That satisfies QA's Q8 condition 2 in the honest direction.
+
+#### The new SELFTEST arm, and its two mutation proofs
+
+Door harness `SELFTEST` 20 → **23/23**. ARM 4 asserts the Tier-2 sentence byte-exact, with the
+expectation **EXTRACTED FROM ADR 0187**, never re-typed — a hand-copied expectation drifts with the
+copy and passes for ever. Three rows: an instrument-alive check, the byte-exact match, and a
+one-token-perturbation control. ⛔ **Green on first run is only meaningful because it was proven
+able to fail, twice, each plant verified LANDED before the run:**
+
+```
+plant A — emitter reverted to the pre-fix paraphrase   -> bare rc 1, domain-statement 2/3
+          (row "this script emits it byte-exact" NOT OK)
+plant B — D1_ADR pointed at a non-existent ADR         -> bare rc 1, domain-statement 1/3
+          (alive row NOT OK *and* the control NOT OK — which is the row's whole purpose:
+           an empty expectation makes a fixed-string grep match everything, so row 2 goes
+           GREEN VACUOUSLY. The alive row is what stops that reading as a pass.)
+```
+
+#### F-MAJOR-2 — the seam detector, and the dead end that is worth more than the detector
+
+The note was repaired from **byte sources, not retyping**: the file list byte-for-byte from run 2's
+generated row (`…/pd/full2/run2-merged.md`) and the hand suffix byte-for-byte from the carried
+baseline row in the same file, verified programmatically (`prefix match: True`, `suffix present
+byte-for-byte: True`). Per QA's F-MAJOR-3 ruling the re-attach STAYS, dated, with the historical
+clause era-marked so it reads as history rather than as a contradiction of column 4.
+
+⛔ **The first cut of the new verifier assertion was BLIND to the row it was written for, and that
+is the finding.** Following `merge-findings-baseline.sh`'s own "none of them hand-listed here"
+doctrine, it DERIVED the verdict-token alphabet from the generated file's grammar and the
+candidate's own column 4, then looked for `.sql` followed by one of those tokens. It found nothing.
+The token that did the damage is `ERROR` — and `ERROR` is exactly the token this file's column 4 no
+longer contains (the merged report is BLIND / COVERED / NOTICED and zero ERROR rows). ⭐ **Deriving
+the alphabet from the artefact under test makes the detector blind to precisely the symbol that
+artefact is missing.** The shipped predicate is therefore SEAM-shaped and needs no alphabet: a
+`.sql` immediately followed by a LETTER. MEASURED over every column-5 cell of all five committed
+findings reports: **1 hit (the defect), 0 elsewhere**.
+
+⚠ **And it reported in the wrong block first.** Appending to the lost-material list and widening
+that header to "LOST or MALFORMED" broke `scripts/door-sweep-selftest.sh` (PASS 33 · FAIL 1 — "the
+verifier must name it lost", a byte-exact assertion on that header) and, worse, would have made a
+FALSE sentence: nothing was lost, both halves are present and one separator is missing. The
+malformed class now has its own abort block, placed AFTER the lost block so a candidate with both
+defects reports both. Proof in both directions, bare:
+
+```
+MERGE_VERIFY=<pre-repair file>  -> rc 2, "MERGE-ABORT: the merge produced MALFORMED
+                                   hand-authored material. 1 item(s)" naming
+                                   commissions.commissions_select_member_or_admin (SELECT)
+MERGE_VERIFY=<post-repair file> -> rc 0, silent
+scripts/door-sweep-selftest.sh  -> bare rc 0, PASS 34 · FAIL 0 · SKIPPED 0
+```
+
+⭐ Worth recording for its own sake: that self-test **caught the regression the same session it was
+introduced**, and it exits 1 on FAIL — so the byte-exact header assertion is doing work, not
+decoration.
+
+#### What this loop did NOT do
+
+- ⛔ **The four §6 arms were not re-run.** QA's could-not-verify #1 asks that a second party run
+  them; the builder re-running them is the shape the finding is about. The lead runs `census`,
+  `hat`, `floor` and `FROMFINDINGS=1 wrapper` on a fresh reset at the final tip.
+- **No fresh `db reset` and no `test:db`**: no `.sql` file changed, and no neutralization, mutation
+  or restore logic changed. The only harness code touched is the door arm's `DOMAIN-STATEMENT` text
+  plus its new SELFTEST arm, and `merge-findings-baseline.sh`'s new verifier assertion — all
+  exercised offline, without a DB.
+- **F-MAJOR-7 derives nothing new.** Deriving the `HCDS*` / `28000` / C2-ERROR figures would mean
+  re-implementing C2's anchor logic here and validating it against a run this loop cannot make; an
+  invented derivation would be a new claim with no owner, which is the defect, not the fix. They
+  are labelled `[literal — ADR 0184 pt 4, as of 2026-09-04]` instead.
+- **F-REC-1..3, 5..14 are not addressed** (F-REC-4's arithmetic clause was added while the file was
+  open; F-REC-9 is the lead's, at the Record step).
+
+#### Registers touched
+
+- `docs/learning/LESSONS.md` +3 rows, every one with a repo-path enforcer, `lessonsProseOnly`
+  **52/52 unchanged**: `LEARN-086` (never hand-derive a restore path; believe a restore only on a
+  catalog re-read), `LEARN-087` (a fix correct at MOST of its sites reads as a complete one),
+  `LEARN-088` (a prose claim ABOUT a measurement is a second artefact, and only the measurement has
+  an owner). QA named the first two and recommended the third.
+- `FUP-AUTHZ-BLIND-SET-READ-FROM-THE-SECTION-NOT-THE-VERDICT` **re-rated medium → high**, heading
+  emoji raised with it (gate 13 asserts the two agree), correction dated beside the original.
+- `FUP-AUTHZ-SETVALUED-HOME-DOES-NOT-EMIT-ROWS` filed (🟡, backend).
+- ADR 0191 gains four dated corrections — the `reopen_interview` witness, the "never literal" label,
+  D1's required wording, and D8's three run-1 figures plus the read-half bound run 2 settled at
+  **11**. `**Status:** proposed` unchanged; no new ADR number taken.
+
+#### Gate after the loop — bare, nothing piped
+
+| gate | bare rc | observed |
+| --- | --- | --- |
+| `npm run lint` | **0** | eslint 0/0; `check-docs-registers: OK`; ratchets IDENTICAL to step 11 (`lessonsProseOnly=52/52`, `severityPerEmoji=128/135`, `closesWhenPoToRule=137/147`, …); `build-features-index: OK` |
+| `npm run lint:adr-index` | **0** | `189 ADRs indexed, next free 0192` |
+| deriver `SELFTEST=1 bash scripts/door-sweep-cases.sh` | **0** | `SELF-TEST: PASS 34 · FAIL 0 · SKIPPED 0` |
+| door `SELFTEST=1 bash …/p0-authz-door-audit.sh` | **0** | `TOTAL: 23/23` (classify 6/6 · resets_enabled 6/6 · emit_result 8/8 · domain-statement 3/3) |
+| merge helper `bash scripts/door-sweep-selftest.sh` | **0** | `PASS 34 · FAIL 0 · SKIPPED 0` |
+| `bash -n` on the three touched shell files | **0** | door arm, write arm, merge helper |
+| `verdicts_from_findings` on the door file | — | **359 keys, 359 unique** (was 356) |
+| `git diff --name-only main... -- supabase/migrations supabase/seed.sql src` | — | **EMPTY** |
+| the same, scoped to **this loop's three commits** (`714bfc3d~1..HEAD`) over `.claude`, `docs/lead-playbook.md`, `CLAUDE.md`, `docs/reviews/pred-domain-review.md` | — | **EMPTY**. ⚠ Against `main` it is NOT empty and must not be quoted as such: `docs/lead-playbook.md` carries the lead's `376d5717` and `docs/reviews/pred-domain-review.md` is QA's `efbaa25f`. Neither is mine; the branch-wide check answers a different question than the scope check |
+
+#### What the next session does
+
+1. **The lead re-runs the four arms** on a fresh reset and quotes the bare codes (QA
+   could-not-verify #1) — explicitly not the builder.
+2. QA re-review against `docs/reviews/pred-domain-review.md`; every corrected item is a measurement
+   QA has already taken, so the re-check is a diff against the report.
+3. PO approval, then the §5 Record step — including closing
+   `FUP-AUTHZ-SETVALUED-TARGETED-HOME-HAS-NO-SCHEDULE`, satisfied at `376d5717` (F-REC-9).

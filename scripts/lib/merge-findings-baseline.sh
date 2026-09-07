@@ -604,6 +604,61 @@ if [ -s "$T/carried_rows" ]; then
   done
 fi
 
+# ⛔ A HAND SUFFIX JOINED ONTO A GENERATED FILE LIST WITH NO SEPARATOR (QA F-MAJOR-2, 2026-09-07).
+#   The 2026-09-07 re-baseline produced exactly one: the file list ended `…,40_rls` + `.sql` and
+#   the hand suffix `ERROR at whole-policy neutralization…` was appended straight onto it,
+#   manufacturing a filename token that does not exist. (⚠ The two halves are deliberately NOT
+#   written joined ANYWHERE in this tree — including in this comment — because the assertion
+#   below scans every `| `-row of the candidate and a documented example would be a permanent
+#   self-hit. That is the "detector that finds its own documentation" shape.)
+#   It landed in the ONE row whose column 5 is hand prose end to end (prefix
+#   length 0), so the splice had no boundary to compute and the operator supplied one by hand.
+#   ⛔ THE SUFFIX CHECK ABOVE IS STRUCTURALLY BLIND TO IT. Its assertion is "each suffix present
+#   byte-for-byte" — a substring test — and a malformed JOIN preserves every byte of both halves.
+#   Nothing in this file looked at the SEAM. This does.
+#
+# ⛔ THE FIRST CUT OF THIS ASSERTION WAS BLIND TO THE VERY ROW IT WAS WRITTEN FOR, and the dead
+#   end is recorded because it is the more useful half. It DERIVED the token set — the generated
+#   file's column-4 grammar (`V` rows) UNIONed with the candidate's own column 4 — following step
+#   1a's "none of them hand-listed here" doctrine, and then looked for `.sql` followed by one of
+#   those tokens. It found NOTHING on the corrupted file. The token that did the damage is
+#   `ERROR`, and `ERROR` is exactly the token this file's column 4 no longer contains (the merged
+#   report carries BLIND / COVERED / NOTICED and zero ERROR rows). ⭐ Deriving the alphabet from
+#   the artefact under test makes the detector blind to precisely the symbol that artefact is
+#   missing — "a detector that finds nothing must be proven able to find something", one level
+#   down. So the predicate is SEAM-SHAPED, not token-shaped, and needs no alphabet at all:
+#
+#       a `.sql` immediately followed by a LETTER — i.e. a filename with no separator after it.
+#
+#   That is a strict superset of "followed by a verdict token" and carries no list to go stale.
+#   MEASURED 2026-09-07 over every column-5 cell of all five committed findings reports: ONE hit,
+#   the defect itself, and ZERO anywhere else — so it discriminates, and the corrupted/repaired
+#   pair below is its proof in both directions.
+#
+# ⛔ IT REPORTS IN ITS OWN BLOCK, NOT INTO `$T/lost`. The lost-material header is asserted
+#   BYTE-FOR-BYTE by `scripts/door-sweep-selftest.sh` ("the verifier must name it lost"), and
+#   more to the point "the merge LOST hand-authored material" would be a FALSE sentence about a
+#   malformed join: nothing was lost, both halves are present and one separator is missing.
+#   Widening that header to cover both is how a correct message becomes an approximate one.
+awk "$AWKLIB"'
+  /^\| / { nc = rowsplit($0, C, S)
+           if (nc >= 5 && C[5] ~ /\.sql[A-Za-z]/)
+             printf "MALFORMED JOIN (a .sql filename with no separator after it — a hand suffix spliced onto a generated file list): %s\n", trim(C[1]) }
+' "$T/merged" > "$T/malformed"
+MALFORMED=0
+if [ -s "$T/malformed" ]; then
+  {
+    printf 'MERGE-ABORT: the merge produced MALFORMED hand-authored material. %s item(s):\n' "$(grep -c . "$T/malformed" | tr -d ' ')"
+    cut -c1-200 "$T/malformed" | sed 's/^/  /'
+    printf '  A generated file list runs straight into the hand suffix appended after it, so the\n'
+    printf '  last filename in the list does not exist. Re-attach with a separator; the note is\n'
+    printf '  intact, only the seam is wrong.\n'
+    printf '  baseline  : %s  (UNTOUCHED — nothing was written)\n' "$BASELINE"
+    [ -n "$VERIFY_ONLY" ] && printf '  candidate : %s  (VERIFY-ONLY)\n' "$VERIFY_ONLY"
+  } >&2
+  MALFORMED=1
+fi
+
 if [ -s "$T/lost" ]; then
   {
     printf 'MERGE-ABORT: the merge LOST hand-authored material. %s item(s):\n' "$(grep -c . "$T/lost" | tr -d ' ')"
@@ -617,6 +672,8 @@ if [ -s "$T/lost" ]; then
   } >&2
   exit 2
 fi
+# ⚠ AFTER the lost block, so a candidate with BOTH defects reports BOTH before it exits.
+[ "$MALFORMED" = "0" ] || exit 2
 
 if [ -n "$VERIFY_ONLY" ]; then
   note "VERIFY-ONLY: $VERIFY_ONLY holds all $NHAND hand-authored prose line(s), $NSUFF suffix(es) and $NCROW carried row(s). Nothing written."

@@ -65,6 +65,22 @@ cannot select. That is what made this a batch rather than a backlog item.
    `HC038` — because the `HC038` observed belongs to `app.guard_interview_status`, a trigger. A
    trigger-caused BLIND and an absent-assertion BLIND need **different** remedies and the findings
    file cannot tell them apart.
+   > ⚠ **CORRECTION — 2026-09-07 (QA `F-BLOCK-3`). The paragraph above is left unedited and its
+   > MECHANISM is confirmed; its TENSE was wrong when this ADR was written.**
+   > `public.reopen_interview` has been **COVERED since 2026-09-04** (`f33d9ba7`;
+   > `docs/reviews/c2-command-door-findings.md`) — one day before this ADR's date — so it was not
+   > "BLIND" at the time of writing and the `DOMAIN-STATEMENT` must not present it as a live
+   > witness. What is true, re-measured 2026-09-07 against the C2 findings and the live catalog:
+   > `app.guard_interview_status` IS a `prosecdef` trigger wired on `case_interviews`;
+   > `121_interviews.sql:297` pinned only the CODE (`throws_ok(…, 'HC038', null, …)`), so under
+   > mutation the trigger's `HC038` satisfied it against the WRONG enforcer; and
+   > `121_interviews.sql:565` discharged it by pinning the door's OWN message on an
+   > `awaiting_follow_up` fixture the trigger cannot pre-empt — which is exactly the remedy this
+   > point predicts. ⛔ **No BLIND door on this stack is attributable to a trigger today** (C2 is
+   > 170 COVERED / 1 BLIND / 0 ERROR and the one BLIND, `app.print_source_series`, has no trigger
+   > in its path), so the population is now **stated as ASSERTED, witnessed only historically**,
+   > and the emitter says so. `FUP-C2-TIER1-TRIGGER-ENFORCERS-OUT-OF-SWEEP-DOMAIN`'s closure
+   > stands on the bound being STATED and per-run derived — QA's Q8 ruling — not on this witness.
 
 ## Decisions
 
@@ -267,7 +283,24 @@ left as written so the amendment is visible rather than smoothed away.
 Quotable exactly like the deriver's `SCOPE:` line, printed on stdout and emitted into the findings
 header. It states, **derived from the live catalog each run, never literal**:
 
+> ⚠ **CORRECTION — 2026-09-07 (QA `F-MAJOR-7`); the sentence above is left as written and is
+> FALSE as a claim about the whole block.** MEASURED: only population 4's two counts
+> (`TRIG_SECDEF` / `TRIG_WIRED`), `PRED_OUT` and `SETVALUED_N` are catalog-derived. **190, 60, 6,
+> ~10 and 39 are hard-coded `echo` literals**, and rightly so — they are DECISION figures from ADR
+> 0171 / ADR 0184 pt 4, and nothing in this tree derives them (measured: no committed query
+> anywhere computes the `HCDS*` / `28000` / C2-ERROR counts). The defect was the LABEL, not the
+> literals. ⛔ Fixed in the emitter the same day: provenance is now stated **per figure** —
+> `DERIVED THIS RUN` or `[literal — <source>, as of <date>]` — and the block header no longer
+> makes a blanket claim. ⚠ Note the shape: a number a banner states about a population nothing
+> re-derives is a claim with no owner, which is the exact warning `p0-authz-invariant.sh`'s ARM 3
+> banner carries about itself.
+
 1. **Tier 2 — 190 doors, deferred by ADR 0171, not cleared** (ADR 0187 D1's required wording).
+   ⚠ **CORRECTED 2026-09-07 (QA `F-MAJOR-1`)**: that rendering is a REORDERING, not D1's wording.
+   The required sentence, verbatim, is **"Tier 2's 190 doors stay deferred by ADR 0171 and are NOT
+   cleared"**; the emitter now prints it byte-exact and the door harness `SELFTEST` asserts it
+   against ADR 0187 itself (extracted, never re-typed), with an instrument-alive row and a
+   one-token-perturbation control.
 2. The `HCDS*` family (60 raises) and `28000` (6) — structurally absent from the C2 worklist.
 3. The C2 ERROR class — ~10 enforcers expected, no verdict.
 4. ⭐ **Trigger enforcers** — `prosecdef` trigger functions behind wired triggers (**174 / 268**
@@ -360,6 +393,22 @@ the **identical** nine aborting referral files on every one of the 79 remaining 
 `NOTICED` and 1 `ERROR`, a perfect tail. A per-case abort varies per case and recovers; this did
 neither.
 
+> ⚠ **CORRECTION — 2026-09-07 (QA `F-MAJOR-8`). The paragraph above is left unedited; three of
+> its figures are contradicted by `docs/progress/pred-domain.md`, which is the authority for run
+> 1, and this ADR contradicts one of them itself twenty lines below.** Re-read against the record:
+>
+> | this ADR says | the record measures |
+> | --- | --- |
+> | "held the captured baseline shape `Files=262, Tests=8876` for **274** cases" | **104 of 353** run-1 rows carried an OFF-baseline shape, and row **274 itself** was at `Tests=8723`. The uniform TAIL begins at 275; "held the shape for 274 cases" is a different and false claim, and this ADR's own "Drift reached at least as far back as case 274" says so |
+> | "the **identical** nine aborting referral files on every one of the **79**" | **78** rows carried `Tests=8470`; the 79th (`process_template_versions_select`) was run 1's ERROR at `Files=0 Tests=0`, so the nine-file signature is identical on 78, not 79 |
+> | "of the **23** `NOTICED` rows outside the tail … the other **22** are unclassified" | **24** outside the tail: 1 genuine + **1 proven drift (row 274)** + 22 unclassified. ⚠ **23** is run **2**'s NOTICED count, which appears three lines earlier in this same ADR — the two runs' figures were transposed |
+>
+> ⛔ **None of this moves a verdict** — run 1 is VOID and every live figure comes from run 2 — but
+> this ADR is the durable artefact a later session reads, and the record it contradicts is the one
+> it cites. The corrected reading of run 1 is: drift is **cumulative and reaches back past 274**,
+> the uniform nine-file tail covers **78** rows plus one ERROR, and **1 of the 24** pre-tail
+> NOTICED rows is established genuine.
+
 **Proven, not inferred**, by two subset runs each on its own fresh `supabase db reset --local`,
 both bare rc **0**:
 
@@ -426,6 +475,14 @@ measurement of the drift. One more full run is owed, and it is the one the re-ba
 from. ⚠ **A count of flipped rows taken from run 1 is an UNDER-count**: 16 `(ALL)` policies that
 were `COVERED` in the baseline sit unmeasured in the void tail, so D4's read-half work-list is
 bounded below by 5 and above by 21 until run 2 measures them.
+
+> ⭐ **SETTLED — 2026-09-06 by run 2, recorded here 2026-09-07 (QA `F-MAJOR-8`); the bound above
+> is left as written because it was correct when written.** Run 2 measured them: the read-half
+> work-list is **11**, not "5 to 21" — exactly 11 `(ALL)` `COVERED → BLIND` flips (5 `capa_*_write`
+> + 6 `rca_*_write`) and **zero** non-`(ALL)` flips. Enumerated with each policy's `using` qual in
+> `docs/followups/FUP-AUTHZ-FOR-ALL-READ-HALF-BLINDS.md` and in `docs/progress/pred-domain.md`.
+> ⚠ This ADR carried two 2026-09-07 amendments and left this bound open; an amendment recorded
+> only in the new document is the shape D3's own reasoning is about, here inside ONE document.
 
 ## Considered options (and why they lost)
 
