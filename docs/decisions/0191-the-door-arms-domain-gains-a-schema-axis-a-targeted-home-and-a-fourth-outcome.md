@@ -1,7 +1,6 @@
 # ADR 0191 — The door arm's domain gains a SCHEMA axis, the set-valued resolvers get a committed home, the read arm stops being mirror-ambiguous, and a fourth outcome stops discarding a real signal
 
-**Status:** proposed (unit PRED-DOMAIN, Batch 2 of the pre-AE5 remediation batches; awaiting PO
-approval of the unit)
+**Status:** accepted — PO approved the unit 2026-09-07 at `2a779bd8`, Record step the same day (unit PRED-DOMAIN, Batch 2 of the pre-AE5 remediation batches; PO approval recorded above)
 **Date:** 2026-09-05 (branch `authz-pred-domain`)
 **Area:** authorization / the door-blindness sweep / measurement domains / findings baselines
 **Amends:** ADR [0173](./0173-door-sweep-deriver-blind-to-runtime-rewrite-migrations.md) (§4

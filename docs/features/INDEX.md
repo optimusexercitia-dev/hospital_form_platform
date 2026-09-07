@@ -12,11 +12,10 @@
 > A hub's `## Current state` is its summary; its progress record's `## Session log`
 > (`docs/progress/<code>.md`) is its detail (ADR 0186 D3).
 
-**9 hubs** · in progress 1 · gated 0 · planned 2 · parked 0 · complete 6
+**9 hubs** · in progress 0 · gated 0 · planned 2 · parked 0 · complete 7
 
 | ID | Title | Status | Kind | Program | Branch | Hub |
 |---|---|---|---|---|---|---|
-| PRED-DOMAIN | Door-audit domain — the authz resolvers enter PRED_DOMAIN (or a scheduled targeted-case home), the read arm stops mirror-ambiguous, and the findings baseline is re-earned through the merge (pre-AE5 Batch 2) | 🟢 in progress | feature | AUTHZ | `authz-pred-domain` | [pred-domain.md](pred-domain.md) |
 | C1B-DISPOSAL | PHI-disposal Cloud rehearsal (C1b) | 🔜 planned | feature | DM5 | — | [c1b-disposal.md](c1b-disposal.md) |
 | DLB | Deliberation & Voting Model — typed committee decisions with vote arithmetic the database owns | 🔜 planned | feature | DLB | — | [dlb.md](dlb.md) |
 | AE4 | Authz catalog cutover — staff_admin substituted, 3 of 43 permissions load-bearing | ✅ complete | feature | AUTHZ | — | [ae4.md](ae4.md) |
@@ -25,3 +24,4 @@
 | DOCS-RESTRUCTURE | Documentation restructure — feature hubs, CURRENT.md, gated registers (ADR 0185) | ✅ complete | feature | DOCS | `docs-restructure` | [docs-restructure.md](docs-restructure.md) |
 | DOOR-SWEEP-DERIVER | Door-sweep case deriver — select gates by PROPERTY, read the whole declaration, scope the increment, and let a full run keep the hand-authored baseline (pre-AE5 Batch 1) | ✅ complete | feature | AUTHZ | — | [door-sweep-deriver.md](door-sweep-deriver.md) |
 | HARNESS-CRASH-SAFETY | Mutation-harness crash safety — a killed sweep may never leave a door open without a trace (pre-AE5 Batch 0) | ✅ complete | feature | AUTHZ | — | [harness-crash-safety.md](harness-crash-safety.md) |
+| PRED-DOMAIN | Door-audit domain — the authz resolvers enter PRED_DOMAIN (or a scheduled targeted-case home), the read arm stops mirror-ambiguous, and the findings baseline is re-earned through the merge (pre-AE5 Batch 2) | ✅ complete | feature | AUTHZ | — | [pred-domain.md](pred-domain.md) |
