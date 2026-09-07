@@ -1235,47 +1235,12 @@ same commit, or not at all.**
 **Status:** open
 **Body:** [FUP-ONE-SUPABASE-PROJECT-SERVES-TEST-AND-PRODUCTION.md](FUP-ONE-SUPABASE-PROJECT-SERVES-TEST-AND-PRODUCTION.md)
 
-### 🟠 FUP-VALIDATIONS-WRITE-PATH-IS-LAYER-1 — the re-keyed `form_item_validations` policy is unreachable; its real writer `set_item_validations` is still layer-1
-
-**Filed:** 2026-09-03 (Gate AE4 blocker batch, found while fixing `BUG-AE49-D6-REKEY-INCOMPLETE`) · **Owner:** backend · **Severity:** high — the permission is load-bearing on a door nothing opens, while the door actually used answers to the legacy role check.
-**Closes when:** Either `public.set_item_validations` is re-keyed onto the permission, or the split is recorded deliberately — policy as backstop, DEFINER as the enforcement site — with the manifest row saying so. ⛔ Pointing at the re-keyed policy does not close it; that is the half that does not matter.
-**Status:** open
-**Body:** [FUP-VALIDATIONS-WRITE-PATH-IS-LAYER-1.md](FUP-VALIDATIONS-WRITE-PATH-IS-LAYER-1.md)
-
-### 🟡 FUP-READ-ORGANIZATIONS-LITERAL-IN-NO-MANIFEST-ROW — `app.current_professional_read_organizations` carries a permission literal that no manifest row declares
-
-**Filed:** 2026-09-03 (surfaced by pgTAP `410` § 8.5, the new site-axis arm, on its first real run) · **Owner:** PO · **Severity:** medium — currently pinned by name as a visible disclosure, so nothing is silently blind; the debt is the hand-maintained pin.
-**Closes when:** the function is EITHER added to the `org.professionals.read` row's `enforcementSites` and measured like any other declared site, OR covered by a reviewed exclusion recorded in the manifest stating why one permission has a second site here and what bounds it — and in either case the by-name pin in `410` § 8.5 is deleted in the same change. ⛔ Deleting the pin without one of the two re-opens the blindness the arm was built to remove.
-**Status:** open
-**Body:** [FUP-READ-ORGANIZATIONS-LITERAL-IN-NO-MANIFEST-ROW.md](FUP-READ-ORGANIZATIONS-LITERAL-IN-NO-MANIFEST-ROW.md)
-
-### 🟠 FUP-AE4-ROLLBACK-RUNBOOK-SIX-SCOPED-TO-FOUR — § 6.2 asserts `EXPECT 4 rows`; the re-key makes it six, so an unamended revert leaves two tables re-keyed
-
-**Filed:** 2026-09-03 (Gate AE4 blocker batch, from review F-BLOCK-2 + `BUG-AE49-D6-REKEY-INCOMPLETE`) · **Owner:** backend · **Severity:** high — it is the 03:00 revert procedure, and it fails **silently green**, which is worse than missing.
-**Closes when:** § 6.2 is re-measured at the post-fix head and rewritten for six policies — pre/post state, `alter policy` count, `tablename` list and row-count assertion all at six, both halves of each `FOR ALL` — and the interim banner is deleted rather than left beside the corrected text.
-**Status:** open — **PO-deferred to post-merge, ruled 2026-09-03**; interim banner applied to § 6.2 the same day so the section is safe to run in the meantime.
-**Body:** [FUP-AE4-ROLLBACK-RUNBOOK-SIX-SCOPED-TO-FOUR.md](FUP-AE4-ROLLBACK-RUNBOOK-SIX-SCOPED-TO-FOUR.md)
-
-### 🟠 FUP-AE4-HARDDENY-CLASSES-CANNOT-FAIL — `hardDenyClasses` is empty on all 43 rows and the lint arm that checks it iterates zero times
-
-**Filed:** 2026-09-02 (Gate AE4 QA review, finding F-MAJOR-1) · **Owner:** backend · **Severity:** high — a check that structurally cannot return the failing verdict is not a check; it is a green that reads like one.
-**Closes when:** Either populate `hardDenyClasses` from the catalog so the arm has something to iterate, or replace the loop with an assertion that can fail on the empty case — **plus** a discrimination control for §6.2 anchored on a class known to be present, **plus** §6.2's search made transitive over the composed-call closure, comment-stripped. ⛔ **Not "one hop"** — the measured depths are 2, 3 and 4, so a one-hop raise is a partial fix that reads as complete. ⛔ All of it in ONE change: a transitive §6.2 without the M7 fix only moves the vacuity up a level.
-**Status:** open — remediation **(a) landed 2026-09-03**: the label is now `measured-depth1-at-sites-and-authorizer` and §6.2's caption states the depth and the enforcement it cannot see. That is a **disclosure of the bound, not a closure**; (b) above is still owed.
-**Body:** [FUP-AE4-HARDDENY-CLASSES-CANNOT-FAIL.md](FUP-AE4-HARDDENY-CLASSES-CANNOT-FAIL.md)
-
 ### 🟠 FUP-PERF-ANALYZE-ENDS-AE0-COMPARABILITY — the AE4 performance acceptance and the AE0.2 baselines cannot coexist on one instance
 
 **Filed:** 2026-09-02 (IA-F9 staging, commit `82613268`) · **Owner:** lead + backend · **Severity:** high — it destroys a baseline silently, and the destruction is invisible until someone tries to compare.
 **Closes when:** Sequence the DB window so no AE0 comparison is owed after the perf run, and say so in the window's plan; or re-base AE0.2 onto an analysed instance, which is its own decision.
 **Status:** open
 **Body:** [FUP-PERF-ANALYZE-ENDS-AE0-COMPARABILITY.md](FUP-PERF-ANALYZE-ENDS-AE0-COMPARABILITY.md)
-
-### 🟡 FUP-AUDIT-REGISTRY-CONSUMER-OF-READ-AUTHORIZER-UNRECORDED — `app._audit_access_authorized` routes a permission to a re-keyed authorizer and appears in no manifest row
-
-**Filed:** 2026-09-02 (rollback runbook §6, commit `3634a3ad`) · **Owner:** backend · **Severity:** medium — correct as it stands; what is missing is the record that it exists.
-**Closes when:** A named note wherever the authorizer's consumers are enumerated — the manifest row's qualifier, or `../backend-state.md`'s authz section — saying the audit registry is a consumer and is deliberately not an enforcement site.
-**Status:** open
-**Body:** [FUP-AUDIT-REGISTRY-CONSUMER-OF-READ-AUTHORIZER-UNRECORDED.md](FUP-AUDIT-REGISTRY-CONSUMER-OF-READ-AUTHORIZER-UNRECORDED.md)
 
 ### 🟠 FUP-C2-TIER1-VALUE-ASSERTIONS-ABORT-ON-AN-INLINE-RAISE — a value assertion evaluates its subject before it is entered, so a raising door aborts the file
 

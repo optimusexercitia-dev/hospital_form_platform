@@ -10932,3 +10932,499 @@ must be keystoned. ⛔ **Never allowlist one** — floor and this arm would then
 nothing, and agreement reads as coverage.
 
 ---
+### ✅ 🟠 FUP-AE4-HARDDENY-CLASSES-CANNOT-FAIL — `hardDenyClasses` is empty on all 43 rows and the lint arm that checks it iterates zero times — **RESOLVED 2026-09-07**
+
+> **RESOLVED 2026-09-07 — unit ENFORCEMENT-MANIFEST (pre-AE5 Batch 4), migration `20261003007350`,
+> design ADR [0193](../decisions/0193-the-enforcement-manifest-declares-what-it-measured.md) D1-D4.**
+> Record: [enforcement-manifest.md](../progress/enforcement-manifest.md).
+>
+> ⚠ **DISCLOSED: the register's `**Closes when:**` and the body's `**What would close it (b)**` are
+> NOT word-identical, and the difference matters.** The register says *"§6.2's search made transitive
+> over the composed-call closure, comment-stripped"*; the body says *"transitive over the
+> composed-call closure — **depth-bounded** and comment-stripped, not one hop"*. What shipped is
+> **stronger than either**: a fixed point with **no depth bound at all**. The reason is in the body's
+> own ⛔ — *"a one-hop raise is a partial fix that reads as complete"* — one level up: a depth CAP
+> stated without saying which root it counts from is the LEARN-077 shape this very section already
+> suffered (the measured depths are 2/3/4/5 authorizer-rooted and +1 policy-rooted). The reached
+> function set is a subset of `pg_proc` over three schemas and `union` dedupes, so the fixed point IS
+> the bound, and it terminates immediately (measured closure sizes **10 / 21 / 59**). Audited clause
+> by clause against **both** texts:
+>
+> 1. *"Either populate `hardDenyClasses` from the catalog … or replace the loop with an assertion
+>    that can fail on the empty case"* — ✅ **BOTH**, because the body requires both ("in the same
+>    change"). The three re-keyed rows carry `principal_inactive` (all three) and
+>    `respondent_exclusion` (`org.professionals.read`); M7 gained three arms, of which **arm 2 fails
+>    on the empty case**: a `measured-*` row with an empty list and no `hardDenyClassesEmptyReason`
+>    is refused. Observed firing on a fake-tree clone: bare exit **1**, *"claims a MEASURED hard-deny
+>    provenance … with an EMPTY hardDenyClasses and no hardDenyClassesEmptyReason"*.
+> 2. *"a discrimination control for §6.2 anchored on a class known to be present"* / the body's
+>    *"plants a body containing a vocabulary gate and requires §6.2 to **name** it"* — ✅ § 6.2b.
+>    ⚠ **The plant is a text literal passed as an argument, not a catalog body**: the closure
+>    function is seeded from ROOT BODY TEXT, so a synthetic root goes through the identical code
+>    path with nothing to create and nothing to restore. It returns
+>    `recusal_exclusion,respondent_exclusion` — the first is a class **no real row returns**, and the
+>    second is reached at 2 hops (`is_case_excluded -> is_recused_from_case -> is_case_respondent`),
+>    so the same assertion also proves the walk is transitive rather than depth-1. Its negative half
+>    (`bare=(none)`) is inside the same assertion. § 6.2c adds the natural control: two REAL rows,
+>    same instant, opposite answers.
+> 3. *"§6.2's search made transitive over the composed-call closure, comment-stripped"* — ✅ ADR 0193
+>    D2. ⛔ **Not one hop**, and not a cap either.
+> 4. *"⛔ All of it in ONE change"* — ✅ one commit, `eea8f48a`.
+>
+> **Proven able to fail, in both directions** (the mirror plant exists because a set comparison
+> written one-directionally is the cheapest vacuity there is). Against a container-side copy of the
+> generated fixture, never the real tree; both restores believed on the md5, and
+> `gen-authz-matrix-cells --check` exit **0** at sha `493370f994a5` after:
+> * drop `respondent_exclusion` from the committed claim → § 6.2 **not ok**, naming both sides;
+> * ADD `recusal_exclusion` to a row → § 6.2 **not ok**, naming both sides.
+>
+> ⛔ **What this closure does NOT claim.** The derived set is complete over the **call-reachable**
+> sub-vocabulary and over nothing more: 4 of the 7 classes carry `gate: null` and are unfindable by
+> any call search at any depth. The bound is carried in the provenance value's own name
+> (`measured-transitive-over-gated-classes`), in § 6.2's caption and in the manifest's vocabulary
+> comment, and the missing instrument is filed as
+> `FUP-AUTHZ-HARDDENY-GATELESS-CLASSES-HAVE-NO-DETECTOR` (PO ruling Q5). ⚠ And the values are now a
+> **claim that ages**: any migration changing a call chain reds § 6.2, by design (ADR 0193 D8).
+
+**The register entry as it stood, verbatim.** Kept here rather than left to `git`, which is
+what `FUP-DOCS-CONSOLIDATION-CLOSURE-DROPS-THE-CLOSES-WHEN-FIELD` asks for — a closure must be
+readable beside the condition it discharges.
+
+### 🟠 FUP-AE4-HARDDENY-CLASSES-CANNOT-FAIL — `hardDenyClasses` is empty on all 43 rows and the lint arm that checks it iterates zero times
+
+**Filed:** 2026-09-02 (Gate AE4 QA review, finding F-MAJOR-1) · **Owner:** backend · **Severity:** high — a check that structurally cannot return the failing verdict is not a check; it is a green that reads like one.
+**Closes when:** Either populate `hardDenyClasses` from the catalog so the arm has something to iterate, or replace the loop with an assertion that can fail on the empty case — **plus** a discrimination control for §6.2 anchored on a class known to be present, **plus** §6.2's search made transitive over the composed-call closure, comment-stripped. ⛔ **Not "one hop"** — the measured depths are 2, 3 and 4, so a one-hop raise is a partial fix that reads as complete. ⛔ All of it in ONE change: a transitive §6.2 without the M7 fix only moves the vacuity up a level.
+**Status:** open — remediation **(a) landed 2026-09-03**: the label is now `measured-depth1-at-sites-and-authorizer` and §6.2's caption states the depth and the enforcement it cannot see. That is a **disclosure of the bound, not a closure**; (b) above is still owed. → ⭐ **RESOLVED 2026-09-07** (see the closure above)
+
+**The body as it stood, verbatim** (ADR 0185 D5 — a resolved entry's body lives inline here and
+its `docs/followups/FUP-AE4-HARDDENY-CLASSES-CANNOT-FAIL.md` file is deleted).
+
+# FUP-AE4-HARDDENY-CLASSES-CANNOT-FAIL — `hardDenyClasses` is empty on all 43 rows and the lint arm that checks it iterates zero times
+
+Index entry: [follow-ups-open.md](follow-ups-open.md) · filed 2026-09-02 · status open
+
+`hardDenyClasses` is `[]` on **43 of 43** manifest rows. Lint arm M7 iterates the list, so on an empty list
+it runs zero iterations and **cannot fail**. In pgTAP `410` §6.2 the same emptiness excludes 40 rows by way
+of their having zero sites, §6.2 carries **no discrimination control**, and it is **already blind to live
+instances**: the vocabulary class `principal_inactive` is enforced below §6.2's search depth on every one of
+the three rows that carry the measured label.
+
+**How it was measured.** Manifest read directly; M7's loop body and §6.2's search depth read from source;
+the gate positions re-derived from the live catalog by transitive closure over `pg_proc.prosrc`.
+
+## 2026-09-03 — remediation (a) LANDED. The bound is now disclosed, not closed.
+
+Review F-MAJOR-1 offered (a) narrow the caption and label to what is measured, or (b) make the measurement
+transitive. **The PO took (a).** What changed:
+
+- The vocabulary value `measured-at-declared-sites` was **renamed to
+  `measured-depth1-at-sites-and-authorizer`** — the depth is now in the name, so the label cannot be read as
+  a closure. Validators updated in the same change: `catalogSnapshot.hardDenyProvenanceValues` (the M6 arm
+  reads the vocabulary as data, so it needed no code edit), the `410` §6.2/§6.3 predicates, and the
+  regenerated fixture `authz_enforcement_manifest.psql` + `authz-matrix-coverage.json`.
+- `410` §6.2's caption now reads *"no hard-deny gate is invoked **directly** at the declared sites or in the
+  authorizer body — depth 1, stated as depth 1"*, and states the enforcement it cannot see. §6.3's caption
+  now says out loud that it is a cardinality control and **not** the discrimination control.
+
+⛔ **The class IS enforced. §6.2 cannot see it. That is a known bound, not an absence.** Re-derived on the
+live catalog 2026-09-03 with comments stripped, depth 1 = the bodies §6.2 searches (enumerated sites +
+domain authorizer):
+
+| row | permission arm | preserved / legacy arm |
+| --- | --- | --- |
+| `commission.forms.edit` | depth 4 — `has_permission` → `entailed_grants` → `assignment_facts` | **depth 2** — `app.is_tenancy_admin_of_for` |
+| `org.professionals.create` | depth 4 — same chain | depth 3 — `can_manage_professional` → `is_org_admin_of` |
+| `org.professionals.read` | depth 4 — same chain | depth 3 — `can_manage_professional` → `is_org_admin_of` |
+
+`org.professionals.read` additionally reaches `respondent_exclusion` (`app.is_case_respondent`) at **depth 5**
+via `can_read_case_committee` — an instance the review did not name.
+
+⚠ **Correction to this file's own earlier text and to review F-MAJOR-1's paraphrase.** Both said the class
+sits *"one hop below"* the search depth, and the AE4 hub recorded *"depth 2 on BOTH arms"*. That is true for
+**one arm of one row**. The permission arm is at depth 4 on all three rows. ⛔ **Consequence for (b): raising
+the search by one hop is a partial fix that reads as a complete one** — it would catch
+`is_tenancy_admin_of_for` and leave five paths unmeasured. The comment-stripping matters too: a raw `prosrc`
+match reports `app.is_org_commission_staff_admin` as a live arm of `can_create_professional`, where the
+catalog shows it only in a **comment**.
+
+**What would close it (b — still the right end state, unchanged by (a)).** Make §6.2's measurement transitive
+over the composed-call closure — depth-bounded and comment-stripped, not one hop — **and** add a positive
+control that plants a body containing a vocabulary gate and requires §6.2 to **name** it. ⛔ **Both halves
+must land with the M7 fix in the same change**: replace M7's loop with an assertion that can fail on the
+empty case, or populate `hardDenyClasses` from the catalog so it has something to iterate. A transitive §6.2
+shipped alone only moves the vacuity one level up — the manifest would then carry non-empty lists that no arm
+can prove wrong.
+
+⛔ **What must NOT be mistaken for closing it.** Populating the field without proving the arm can red
+reproduces the defect one level up. **(a) is a disclosure, not a closure** — this follow-up stays OPEN.
+⛔ And note the two figures are not in conflict: the field is empty on
+all 43 rows, while 40 rows are additionally labelled `not-attributable-until-rekey` — the label is not a value.
+
+### ✅ 🟠 FUP-VALIDATIONS-WRITE-PATH-IS-LAYER-1 — the re-keyed `form_item_validations` policy is unreachable; its real writer `set_item_validations` is still layer-1 — **RESOLVED 2026-09-07**
+
+> **RESOLVED 2026-09-07 — unit ENFORCEMENT-MANIFEST (pre-AE5 Batch 4), migration `20261003007350`,
+> design ADR [0193](../decisions/0193-the-enforcement-manifest-declares-what-it-measured.md) D5.**
+> Record: [enforcement-manifest.md](../progress/enforcement-manifest.md).
+>
+> ⚠ **DISCLOSED: the register field and the body agree here**, and the body adds one clause the
+> register does not carry — the ⚠ *"Suspected class, not yet swept"* paragraph, which the hub turned
+> into an acceptance criterion. All of it is audited:
+>
+> 1. *"Either `public.set_item_validations` is re-keyed onto the permission … or the split is
+>    recorded deliberately"* — ✅ **BOTH, and the two answers are for different members.**
+>    `set_item_validations` is **re-keyed** (`20261003007350`, body regenerated from live
+>    `pg_get_functiondef`, exactly one line changed — the gate). It is the only door in the tree
+>    where the permission was otherwise entirely inert for its table, so recording that split would
+>    have recorded a permission that does nothing. The other **7 of the 8** form DEFINER writers sit
+>    behind a policy `authenticated` CAN reach; their split is **recorded as data** in the manifest
+>    row's `definerSurface`, with the gate each actually carries, and they stay AE5's.
+> 2. *"with the manifest row saying so"* — ✅ and ⛔ **not in prose**: `definerSurface` is a required
+>    field with lint arm **M13** and pgTAP `410` **§ 8.7**, which closes it in BOTH directions
+>    (forward: every DEFINER writer of a declared WRITE-capable policy site's relation is declared;
+>    reverse: every declared entry exists as a `prosecdef` function, writes what it claims, carries
+>    the gate it claims — `gate: null` included, checked as a claim — and has the ACL it declares).
+> 3. *"⛔ Closing it by pointing at the re-keyed policy is precisely the error"* — ✅ not done. The
+>    proof is **behavioural**, not structural: `409` § 2.6f (grant present → the call succeeds) and
+>    § 2.10e (grant deleted → `42501`), one fact different between them and it is a row in
+>    `authz.role_permissions`. ⛔ **Both were written BEFORE the migration and § 2.10e was observed
+>    RED** — *"caught: no exception / wanted: 42501"*, bare exit **1** — which is the defect this
+>    follow-up names, measured.
+> 4. The hub's *"whole `_staff_admin_write` class enumerated from the live catalog … each member
+>    dispositioned"* — ✅ and the sweep **returns a finding, not a population**. ⚠ **TWO POPULATIONS,
+>    BOTH REPORTED** (LEARN-079), because the body's sentence is a NAME predicate while the defect is
+>    a SHAPE one: **30** policies match `%staff_admin_write%` by name (30 tables, every one `FOR ALL`
+>    PERMISSIVE to `authenticated`); **49** over **37** tables match by shape, the extra 19 being
+>    split-command siblings on the case/meeting family. Of the 30: **6 re-keyed**, 22 legacy,
+>    2 legacy-plus-hard-deny. Reachability: **exactly ONE** is wholly unreachable
+>    (`form_item_validations` — the known instance), **one is partial** (`cases`, no `DELETE` grant
+>    for `authenticated`, so the `DELETE` arm of a `FOR ALL` policy is unreachable), 28 reachable.
+>    ⭐ `form_block_library`, the suspected second instance, is **CONFIRMED SELECT-only and NOT a
+>    member**: it carries no write policy at all, so there is no re-keyed policy for a DEFINER to be
+>    a backstop *for*. A different shape, already recorded in the manifest row.
+>    ⚠ Three tables carry COLUMN-list SELECT grants (`case_referral` 39/45, `meeting_agenda_items`
+>    6/10, `meeting_cases` 5/7); read table-level only they would have looked like "no SELECT", so
+>    the sweep was cross-checked against `information_schema.column_privileges`.
+>
+> ⛔ **What this closure does NOT claim.** The seven un-re-keyed doors are recorded, not fixed —
+> re-keying them is AE5's, and each owes its own behavioural differential. And the equivalence that
+> makes THIS re-key safe is a measured one, not a general one: `authz.role_permissions` grants
+> `commission.forms.edit` to exactly one role, `staff_admin`, which is the only `authoritative` role
+> in `authz.roles`. If that ever stops being true the equivalence stops with it.
+
+**The register entry as it stood, verbatim.** Kept here rather than left to `git`, which is
+what `FUP-DOCS-CONSOLIDATION-CLOSURE-DROPS-THE-CLOSES-WHEN-FIELD` asks for — a closure must be
+readable beside the condition it discharges.
+
+### 🟠 FUP-VALIDATIONS-WRITE-PATH-IS-LAYER-1 — the re-keyed `form_item_validations` policy is unreachable; its real writer `set_item_validations` is still layer-1
+
+**Filed:** 2026-09-03 (Gate AE4 blocker batch, found while fixing `BUG-AE49-D6-REKEY-INCOMPLETE`) · **Owner:** backend · **Severity:** high — the permission is load-bearing on a door nothing opens, while the door actually used answers to the legacy role check.
+**Closes when:** Either `public.set_item_validations` is re-keyed onto the permission, or the split is recorded deliberately — policy as backstop, DEFINER as the enforcement site — with the manifest row saying so. ⛔ Pointing at the re-keyed policy does not close it; that is the half that does not matter.
+**Status:** open → ⭐ **RESOLVED 2026-09-07** (see the closure above)
+
+**The body as it stood, verbatim** (ADR 0185 D5 — a resolved entry's body lives inline here and
+its `docs/followups/FUP-VALIDATIONS-WRITE-PATH-IS-LAYER-1.md` file is deleted).
+
+# FUP-VALIDATIONS-WRITE-PATH-IS-LAYER-1 — the re-keyed `form_item_validations` policy is an unreachable backstop, and its real writer is not re-keyed
+
+Index entry: [follow-ups-open.md](follow-ups-open.md) · filed 2026-09-03 · status open
+
+`form_item_validations_staff_admin_write` was re-keyed onto `app.can_edit_commission_forms` by migration
+`20261003007340`, closing `BUG-AE49-D6-REKEY-INCOMPLETE`. That re-key is **conformance, and it cannot
+widen anything — because the policy gates nothing a client can reach.** `authenticated` holds **SELECT
+only** on the table (table *and* column grants, catalog-measured), so no PostgREST write ever reaches the
+policy. The real write path is the DEFINER `public.set_item_validations`, which still gates on
+`is_staff_admin_of` — **layer 1, not re-keyed**.
+
+So for this table the permission `commission.forms.edit` is load-bearing on a door **nothing opens**, while
+the door that is actually used answers to the legacy role check.
+
+**How it was found — and the instrument nearly lied.** The probe was written behaviourally first: a
+`lives_ok` baseline plus a `throws_ok('42501')` mutated twin. The baseline **died `42501 permission denied
+for table`** — and the mutated twin **PASSED**. Had only the twin been read, it would have reported the
+gate flipping while measuring a grant that never moved. ⭐ This is the tree's standing class: *a green
+assertion can mean the fixture cannot reach the failing state*, and the negative control passed for the
+wrong reason.
+
+**What would close it.** Either re-key `public.set_item_validations` onto the permission — which is the
+real door and the only change that makes the permission load-bearing for this table — or record the split
+deliberately: the policy is a backstop, the DEFINER is the enforcement site, and the manifest row says so.
+⛔ Closing it by pointing at the re-keyed policy is precisely the error: the policy is the half that does
+not matter.
+
+⛔ **What must NOT be mistaken for closing it.** A green pgTAP `409`/`410`: both now assert the *policy* is
+re-keyed, which is true and is not the question. Nor does the six-site closure in
+`FUP-AE4-MANIFEST-HAS-NO-SITE-AXIS-CLOSURE` cover it — that arm asks whether declared sites are re-keyed,
+not whether a re-keyed site is **reachable**.
+
+⚠ **Suspected class, not yet swept.** `form_block_library` was found the same way (SELECT-only grants, all
+writes through DEFINER doors). Two instances in one permission row suggests the reachability question is
+worth asking of every `_staff_admin_write` policy in the tree, not just these two.
+
+### ✅ 🟡 FUP-READ-ORGANIZATIONS-LITERAL-IN-NO-MANIFEST-ROW — `app.current_professional_read_organizations` carries a permission literal that no manifest row declares — **RESOLVED 2026-09-07**
+
+> **RESOLVED 2026-09-07 — unit ENFORCEMENT-MANIFEST (pre-AE5 Batch 4), PO ruling Q1 = (A) taken by
+> `AskUserQuestion` on 2026-09-07; design ADR
+> [0193](../decisions/0193-the-enforcement-manifest-declares-what-it-measured.md) D6.** Record:
+> [enforcement-manifest.md](../progress/enforcement-manifest.md).
+>
+> ⚠ **DISCLOSED: the register field and the body agree, and both make this a PO call.** It went to
+> the PO **before** the build, because it changes the manifest, its sha, and two sha-pinned
+> downstream artefacts. Clause by clause:
+>
+> 1. *"Either add `app.current_professional_read_organizations` to the `org.professionals.read` row's
+>    `enforcementSites` … **or** record a reviewed exclusion"* — ✅ **(A), declared.** Measured before
+>    the ruling: SECURITY DEFINER, `SETOF uuid`, `authenticated` EXECUTE **t** / `anon` **f**, and
+>    **exactly one caller** — an independent FIRST arm of `professional_profiles_select` that
+>    short-circuits `app.can_read_professional_profile` entirely. Deny it and the answer changes,
+>    which is the operative test. The rejected option was a `reviewedExclusions` block: it relocates
+>    the exception into gated data rather than removing it, and no bound could be stated for it that
+>    was not "it's fine" — ADR 0182's reason is an *implementation* reason, not a reason the path is
+>    not enforcement.
+> 2. *"and in either case the by-name pin in `410` § 8.5 is deleted in the same change"* — ⚠ **AUDITED
+>    AGAINST THE INTENT, AND THE LITERAL WORD IS NOT WHAT HAPPENED, DELIBERATELY.** What is deleted
+>    is the **exception**, not the assertion: § 8.5's fourth element flips `[UNDECLARED]` →
+>    `[declared site]` and the `is()` stays, because the element is computed from the manifest and
+>    the catalog, not hard-coded. ⛔ Deleting the assertion would have removed the arm that notices a
+>    FIFTH carrier. `plan(40)` does not fall by one on this account — a reader looking for a `-1`
+>    will not find one, and that is stated in `410`'s own header so the next reader is not misled.
+> 3. *"⛔ Deleting the pin without doing either re-opens the blindness the arm was built to remove"* —
+>    ✅ not done, per 2.
+>
+> **Proven able to fail, both directions** (a constant that only agrees with itself is not a pin):
+> * manifest edited, § 8.5/§ 8.6 expected NOT updated → **both red**, § 8.5 on the element text and
+>   § 8.6 on `13 / 8 / 4` vs `12 / 8 / 4`;
+> * § 8.6 changed to `13 / 8 / 4` with the manifest NOT edited → **still red** (`have: 12 / 8 / 4`),
+>   which is what proves it is not a free-floating constant. Both plants ran against a
+>   container-side copy; the real tree's md5s were identical before and after and
+>   `gen-authz-matrix-cells --check` exits **0** at sha `493370f994a5`.
+>
+> ⛔ **What this closure does NOT claim.** Site count 12 → **13**; the policy count (8) and the
+> carrier count (4) did NOT move — it is a function, not a policy, and it was already one of the
+> four carriers. The related `FUP-PROFESSIONAL-PARTICIPANTS-SELECT-STILL-PER-ROW` is untouched.
+
+**The register entry as it stood, verbatim.** Kept here rather than left to `git`, which is
+what `FUP-DOCS-CONSOLIDATION-CLOSURE-DROPS-THE-CLOSES-WHEN-FIELD` asks for — a closure must be
+readable beside the condition it discharges.
+
+### 🟡 FUP-READ-ORGANIZATIONS-LITERAL-IN-NO-MANIFEST-ROW — `app.current_professional_read_organizations` carries a permission literal that no manifest row declares
+
+**Filed:** 2026-09-03 (surfaced by pgTAP `410` § 8.5, the new site-axis arm, on its first real run) · **Owner:** PO · **Severity:** medium — currently pinned by name as a visible disclosure, so nothing is silently blind; the debt is the hand-maintained pin.
+**Closes when:** the function is EITHER added to the `org.professionals.read` row's `enforcementSites` and measured like any other declared site, OR covered by a reviewed exclusion recorded in the manifest stating why one permission has a second site here and what bounds it — and in either case the by-name pin in `410` § 8.5 is deleted in the same change. ⛔ Deleting the pin without one of the two re-opens the blindness the arm was built to remove.
+**Status:** open → ⭐ **RESOLVED 2026-09-07** (see the closure above)
+
+**The body as it stood, verbatim** (ADR 0185 D5 — a resolved entry's body lives inline here and
+its `docs/followups/FUP-READ-ORGANIZATIONS-LITERAL-IN-NO-MANIFEST-ROW.md` file is deleted).
+
+# FUP-READ-ORGANIZATIONS-LITERAL-IN-NO-MANIFEST-ROW — a function carries a permission literal that no manifest row declares
+
+Index entry: [follow-ups-open.md](follow-ups-open.md) · filed 2026-09-03 · status open
+
+`app.current_professional_read_organizations` carries the permission literal `org.professionals.read` and
+appears in **no** `enforcementSites` entry of `supabase/tests/vectors/authz-enforcement-manifest.json`.
+It is ADR [0182](../decisions/0182-statement-scoped-authorized-scope-ids.md)'s deliberate **second site**
+for that permission — deliberate, but undeclared.
+
+**How it was found.** By the site-axis closure arm added to pgTAP `410` § 8 on 2026-09-03 (the fix for
+`FUP-AE4-MANIFEST-HAS-NO-SITE-AXIS-CLOSURE`). § 8.5 surfaces it as `[UNDECLARED]`. ⭐ **This is the new
+arm finding something on its first real run that no previous arm could see** — the reverse direction
+(catalog object carrying a literal ⇒ must appear in exactly one manifest row) is exactly the half that did
+not exist before, and it paid for itself immediately.
+
+It is currently **pinned by name as a disclosure** rather than either declared or excluded, so the arm
+stays green while the question is open. ⚠ That pin is a deliberate, visible debt — not a silent one — but
+it is still a hand-maintained exception, and a second one would start a list.
+
+**What would close it — a PO call, because both answers are defensible.** Either add
+`app.current_professional_read_organizations` to the `org.professionals.read` row's `enforcementSites`
+(making it a declared site, measured like any other), **or** record a reviewed exclusion saying why a
+second site for one permission is correct here and what bounds it. ⛔ Deleting the pin without doing
+either re-opens the blindness the arm was built to remove.
+
+⛔ **What must NOT be mistaken for closing it.** A green `410` — it is green *now*, by virtue of the pin.
+The pin is the thing being tracked.
+
+### ✅ 🟡 FUP-AUDIT-REGISTRY-CONSUMER-OF-READ-AUTHORIZER-UNRECORDED — `app._audit_access_authorized` routes a permission to a re-keyed authorizer and appears in no manifest row — **RESOLVED 2026-09-07**
+
+> **RESOLVED 2026-09-07 — unit ENFORCEMENT-MANIFEST (pre-AE5 Batch 4), PO ruling Q3 = (A); design
+> ADR [0193](../decisions/0193-the-enforcement-manifest-declares-what-it-measured.md) D7.** Record:
+> [enforcement-manifest.md](../progress/enforcement-manifest.md).
+>
+> ⚠ **DISCLOSED: the register field and the body are word-identical, and the clause has a
+> precondition that turned out to be FALSE.** *"A named note wherever the authorizer's consumers are
+> enumerated"* presumes they are enumerated somewhere. Measured: **they are enumerated nowhere.**
+> `docs/backend-state.md`'s authz section gives only a category (*"RLS policies, command doors,
+> server actions"*); there is no per-authorizer consumer list in the tree. So the note had to
+> **create** its home, and ADR 0186's one-home rule decides which: the fact is a property of the
+> authorizer, and the manifest row is the authorizer's home. Clause by clause:
+>
+> 1. *"A named note … saying the audit registry is a consumer and is deliberately not an enforcement
+>    site"* — ✅ and ⛔ **not as a note**: a required per-row `nonEnforcementConsumers` field, whose
+>    first entry is `app._audit_access_authorized`, carrying the reason in full (Rule 11 registry;
+>    its `professional_profile.read` arm decides what the trail RECORDS, never what a caller may
+>    read). `docs/backend-state.md` gains ONE pointer line to it, not a copy.
+> 2. *"the manifest row's qualifier, **or** `../backend-state.md`'s authz section"* — the clause
+>    offers a choice; the manifest was taken, and the pointer added so the other candidate location
+>    leads there rather than diverging.
+> 3. *"⛔ What must NOT be mistaken for closing it: adding it to `enforcementSites`"* — ✅ not done,
+>    and now **structurally impossible to do quietly**: M13 refuses a name that appears on both
+>    lists, and `410` § 8.8 asserts the partition over the authorizer's catalog consumers in both
+>    directions — every consumer is exactly one of a declared site, a `definerSurface` door, or a
+>    declared non-enforcement consumer, **and** every declared non-enforcement consumer really does
+>    call the authorizer.
+>
+> **Proven able to fail, both directions.** Against a container-side copy of the generated fixture:
+> remove the declared consumer → § 8.8 **not ok**, *"org.professionals.read <- UNCLASSIFIED consumer
+> FN app._audit_access_authorized"*; point the declared consumer at a function that does not call the
+> authorizer (`app.is_active`) → § 8.8 **not ok**, naming it. Restores believed on the md5.
+>
+> ⚠ **MEASURED, and it is the number that makes the arm worth having:** 14 catalog consumers over the
+> three re-keyed authorizers — 12 declared sites, `public.set_item_validations` on the
+> `definerSurface` axis, and this one. The next unrecorded consumer reds instead of being
+> re-discovered by a reviewer.
+
+**The register entry as it stood, verbatim.** Kept here rather than left to `git`, which is
+what `FUP-DOCS-CONSOLIDATION-CLOSURE-DROPS-THE-CLOSES-WHEN-FIELD` asks for — a closure must be
+readable beside the condition it discharges.
+
+### 🟡 FUP-AUDIT-REGISTRY-CONSUMER-OF-READ-AUTHORIZER-UNRECORDED — `app._audit_access_authorized` routes a permission to a re-keyed authorizer and appears in no manifest row
+
+**Filed:** 2026-09-02 (rollback runbook §6, commit `3634a3ad`) · **Owner:** backend · **Severity:** medium — correct as it stands; what is missing is the record that it exists.
+**Closes when:** A named note wherever the authorizer's consumers are enumerated — the manifest row's qualifier, or `../backend-state.md`'s authz section — saying the audit registry is a consumer and is deliberately not an enforcement site.
+**Status:** open → ⭐ **RESOLVED 2026-09-07** (see the closure above)
+
+**The body as it stood, verbatim** (ADR 0185 D5 — a resolved entry's body lives inline here and
+its `docs/followups/FUP-AUDIT-REGISTRY-CONSUMER-OF-READ-AUTHORIZER-UNRECORDED.md` file is deleted).
+
+# FUP-AUDIT-REGISTRY-CONSUMER-OF-READ-AUTHORIZER-UNRECORDED — `app._audit_access_authorized` routes a permission to a re-keyed authorizer and appears in no manifest row
+
+Index entry: [follow-ups-open.md](follow-ups-open.md) · filed 2026-09-02 · status open
+
+`app._audit_access_authorized` routes `professional_profile.read` to `app.can_read_professional_profile`,
+making it a **fourth consumer** of that authorizer. It is absent from every manifest `enforcementSites`
+list — correctly, because it is the Rule-11 audit registry and not an enforcement site. But nothing
+anywhere records that **changing that authorizer moves the audit gate too**.
+
+**How it was measured.** `prosrc` caller scan over the live catalog while writing the rollback runbook's
+§6 worked example.
+
+**What would close it.** A named note wherever the authorizer's consumers are enumerated — the manifest
+row's qualifier, or `../backend-state.md`'s authz section — saying the audit registry is a consumer and
+is deliberately not an enforcement site.
+
+⛔ **What must NOT be mistaken for closing it.** Adding it to `enforcementSites`. That would make the
+manifest claim an enforcement site that does not enforce, and `FUP-AE4-MANIFEST-HAS-NO-SITE-AXIS-CLOSURE`'s
+eventual closure check would then be measuring a fiction.
+
+### ✅ 🟠 FUP-AE4-ROLLBACK-RUNBOOK-SIX-SCOPED-TO-FOUR — § 6.2 asserts `EXPECT 4 rows`; the re-key makes it six, so an unamended revert leaves two tables re-keyed — **RESOLVED 2026-09-07**
+
+> **RESOLVED 2026-09-07 — unit ENFORCEMENT-MANIFEST (pre-AE5 Batch 5, riding along with Batch 4);
+> design ADR [0193](../decisions/0193-the-enforcement-manifest-declares-what-it-measured.md) D8.**
+> Record: [enforcement-manifest.md](../progress/enforcement-manifest.md).
+>
+> ⚠ **DISCLOSED: the register field and the body's `**Closes when:**` are word-identical.** Written
+> **last, at this unit's tip**, because Batch 4's re-key moves what § 6.2 must say — measuring it any
+> earlier would have produced a correct document about a catalog that no longer existed. Clause by
+> clause:
+>
+> 1. *"§ 6.2 is re-measured at the post-fix head and rewritten for six policies"* — ✅ re-measured at
+>    head `20261003007350`: 6 policies gate on `app.can_edit_commission_forms` in both halves.
+> 2. *"pre/post state, `alter policy` count, `tablename` list and row-count assertion all at six"* —
+>    ✅ six `alter policy`, twelve halves; § 6.7's list gains both tables and `EXPECT 4 rows` →
+>    `EXPECT 6 rows`.
+> 3. *"both halves of each `FOR ALL`"* — ✅.
+> 4. *"and the interim banner is deleted rather than left beside the corrected text"* — ✅ deleted.
+> 5. *"⛔ What must NOT be done: edit `EXPECT 4` to `EXPECT 6` without re-measuring the pre-state"* —
+>    ✅ every figure re-derived on the tip catalog, and **four** of them had moved:
+>    * `:507` `EXPECT 4 rows` → **6** (and its `tablename` list gained the two tables that made the
+>      original census blind to them);
+>    * `:512` *"Measured post-cutover: 59. The four policies each add one occurrence"* → **57**, and
+>      the **six** policies each add one. ⭐ The `EXPECT 63` itself is unchanged and correct — it is
+>      the pre-cutover value at head `20261003007260` — which is precisely why the stale middle term
+>      survived two migrations without reddening anything;
+>    * the permission-code carrier census: *"exactly 3 rows"* → **4 rows now**, and *"EXPECT after a
+>      full three-site revert: exactly 1 row"* → **2 rows**. ⛔ **A FOURTH stale figure this
+>      follow-up's body does not name**, and it is stale for a different reason than the others: a
+>      *different* migration (`20261003007320`, ADR 0182) added a carrier the revert never touches;
+>    * § 6.8's `409 plan(63)` → **`plan(75)`** and `387` C1's constant
+>      `3901715193753db33f980f939c6467de` → `f2a0693be216cfe08eb6cf0283565e7c`.
+>
+> ⛔⛔ **A FINDING THIS FOLLOW-UP DID NOT CARRY, AND IT IS THE MORE IMPORTANT HALF.** § 6.1's
+> provenance table row 2 justified two sites' pre-cutover text with a **live twin**:
+> *"`form_item_options_staff_admin_write` and `form_item_validations_staff_admin_write` carry the
+> identical `app.commission_of_version(form_version_id)` shape in both halves — sibling tables the
+> re-key did not touch."* `20261003007340` re-keyed both. **Measured 2026-09-07: zero live policies
+> carry that shape**, so the ✅ is false and all FOUR `commission_of_version` sites are record-only.
+> ⭐ This is § 6.1's own ⭐ class turned on § 6.1: *a change that alters a count invalidates every
+> control that READS that count.* The second live-twin cross-check in the same section
+> (`can_manage_case_vocabulary`) was re-measured on the same day and **still holds** — the two expire
+> independently, which is now said in those words, together with the extractor
+> (md5 over comment-stripped **`prosrc`**, ⛔ never `pg_get_functiondef`, which fakes an expiry).
+>
+> ⭐ **AND § 6.2 GAINED A SEVENTH REVERT ARTIFACT THAT IS NOT A POLICY.** `20261003007350` re-keyed
+> `public.set_item_validations`; reverting six policies and leaving that door is a revert that reads
+> complete while `commission.forms.edit` is still load-bearing. § 6.6's ordering rule now names it,
+> in both failure directions, and § 6.7 step 1 gains the `pg_proc` query a `pg_policies` census is
+> structurally blind to.
+>
+> ⛔ **What this closure does NOT claim.** The revert has still never been EXECUTED — every
+> post-revert number in § 6 remains a **derived expectation**, labelled as one, and the first
+> operator to run it still owes the record the measured values. And **three of the six** policies
+> (`forms`, `form_item_options`, `form_item_validations`) have their arm order pinned by nothing:
+> `387`'s hot subset holds only `form_items`, `form_sections`, `form_versions`. The runbook said this
+> of ONE site; it now says it of three.
+
+**The register entry as it stood, verbatim.** Kept here rather than left to `git`, which is
+what `FUP-DOCS-CONSOLIDATION-CLOSURE-DROPS-THE-CLOSES-WHEN-FIELD` asks for — a closure must be
+readable beside the condition it discharges.
+
+### 🟠 FUP-AE4-ROLLBACK-RUNBOOK-SIX-SCOPED-TO-FOUR — § 6.2 asserts `EXPECT 4 rows`; the re-key makes it six, so an unamended revert leaves two tables re-keyed
+
+**Filed:** 2026-09-03 (Gate AE4 blocker batch, from review F-BLOCK-2 + `BUG-AE49-D6-REKEY-INCOMPLETE`) · **Owner:** backend · **Severity:** high — it is the 03:00 revert procedure, and it fails **silently green**, which is worse than missing.
+**Closes when:** § 6.2 is re-measured at the post-fix head and rewritten for six policies — pre/post state, `alter policy` count, `tablename` list and row-count assertion all at six, both halves of each `FOR ALL` — and the interim banner is deleted rather than left beside the corrected text.
+**Status:** open — **PO-deferred to post-merge, ruled 2026-09-03**; interim banner applied to § 6.2 the same day so the section is safe to run in the meantime. → ⭐ **RESOLVED 2026-09-07** (see the closure above)
+
+**The body as it stood, verbatim** (ADR 0185 D5 — a resolved entry's body lives inline here and
+its `docs/followups/FUP-AE4-ROLLBACK-RUNBOOK-SIX-SCOPED-TO-FOUR.md` file is deleted).
+
+# FUP-AE4-ROLLBACK-RUNBOOK-SIX-SCOPED-TO-FOUR — the rollback runbook's §6.2 counts four policies, and the re-key fix makes it six
+
+Index entry: [follow-ups-open.md](follow-ups-open.md) · filed 2026-09-03 · status open (PO-deferred)
+
+`docs/deployment/authz-rollback-runbook.md` § 6.2 is the 03:00 revert procedure for
+`commission.forms.edit`. Every figure in it was measured at migration head `20261003007300`, when the
+permission was re-keyed at **four** policies. `BUG-AE49-D6-REKEY-INCOMPLETE` re-points two more
+(`form_item_options_staff_admin_write`, `form_item_validations_staff_admin_write`), so the section
+is scoped to four while reality is six.
+
+**Why this is a hazard and not just a stale document.** § 6.2's verification query hard-codes
+`tablename in ('forms','form_versions','form_sections','form_items')` and asserts `EXPECT 4 rows`.
+Run unamended after the fix, it reverts four tables, reports a **clean four-row census**, and leaves
+the two new tables enforcing the new authority alone. The section's own comment names exactly this
+failure — *"three-of-four reads as a completed rollback and leaves the fourth table enforcing the new
+authority alone"* — so the defect is that shape reproduced at a larger N, by a change made after the
+comment was written.
+
+⭐ **The class:** a change that alters a count invalidates every control that READS that count, and
+those controls have to be enumerated, not recalled. The re-key's own reviewers caught the manifest
+axis; the runbook's hard-coded table list is the same axis in a different file.
+
+**Interim mitigation, already applied 2026-09-03.** § 6.2 carries a banner: do not run as written;
+add both tables to the `tablename` list, expect six rows, revert both halves of each `FOR ALL`. That
+makes the section safe to use without writing the deferred rewrite.
+
+**Closes when:** § 6.2 is re-measured at the post-fix head and rewritten for six policies — pre/post
+state, the `alter policy` count, the `tablename` list and the row-count assertion all at six, both
+halves of each `FOR ALL` — and the interim banner is deleted rather than left beside the corrected
+text.
+
+⛔ **What must NOT be mistaken for closing it.** Editing the `EXPECT 4` to `EXPECT 6` without
+re-measuring the pre-state. The pre-cutover text of the two added policies is **not** re-derivable
+from a live sibling once their migration applies (§ 6.1's distinction), so it has to be recorded from
+the pre-fix catalog or from `BUG-AE49-D6-REKEY-INCOMPLETE`'s record — the measured legacy text is
+`app.is_staff_admin_of(app.commission_of_version(form_version_id)) OR
+app.is_tenancy_admin_of(app.commission_of_version(form_version_id))`, identical in both halves.
+
+**PO ruling 2026-09-03.** The Gate AE4 review filed the §6 worked example as owed *before* the gate;
+the PO ruled the deferral stands and it is written **post-merge**. The ruling was taken on the
+premise that §6 was merely unwritten; it was then measured as written-but-scoped-to-four, which is
+why the interim banner was added rather than leaving the deferral to cover a live hazard.
