@@ -424,9 +424,41 @@ default that Batch 2 already proved at 20.
 
 ### ⛔ THE RESUME NOTE — this run OUTLIVES the agent that launched it
 
-**Launched** 2026-09-07 ~20:10 -0300, detached via PowerShell `Start-Process` on
-`C:\Program Files\Git\usr\bin\bash.exe` with the script as **argv[1]** (the `-c` form silently
-starts nothing here; `nohup setsid` does not exist).
+**Launched** 2026-09-07 20:11 -0300 (attempt **2**), detached via PowerShell `Start-Process` on
+`C:\Program Files\Git\usr\bin\bash.exe` with **`MSYSTEM=MINGW64`** set and the arguments
+`-l` + the script as **argv[1]** (the `-c` form silently starts nothing here; `nohup setsid` does
+not exist).
+
+#### ⚠ LAUNCH ATTEMPT 1 ABORTED — a FOURTH instrument fault, and the most operationally dangerous
+
+Attempt 1 (20:09) ran the same `bash.exe` **without `MSYSTEM=MINGW64`**. That is a *different
+environment*: the D: drive resolves at `/mnt/d` instead of `/d`, `date` returns empty, and `docker`
+is not on PATH. The domain lift therefore returned `rows=0` and the harness **aborted at bare exit
+2**, printing `*** ABORT — could not lift ARM 2's domain from the live catalog` and, in terms, its
+reason for having no fallback:
+
+> ⛔ There is deliberately NO fallback to the embedded snapshot here. That snapshot is 33 of the 107
+> policies that can permit a write, and running against it would print a confident number about a
+> third of the domain.
+
+⭐ **That refusal is the whole ADR-0079 design working.** A harness with a fallback would have swept
+33 of 107 in the wrong environment and reported a number. Nothing was opened, no sentinel was armed,
+and the committed baseline stayed byte-identical at `1903941766 13882`.
+
+⭐ **The lesson, which is not about this harness:** a detached launch runs in a shell you did not
+inspect. `which bash` and `cygpath` both named `C:\Program Files\Git\usr\bin\bash.exe` — the *same
+binary* — and it still produced a different environment, because the environment is `MSYSTEM`, not
+the path. **A wrong instrument reads exactly like a live defect** (fourth time in this unit), and a
+detached one reads like it for hours.
+
+**Fixed, and the fix is proven able to refuse.** The launcher now runs an environment preflight
+before it will start the harness at all: `uname -s` must be `MINGW64*`, `/d` must resolve, `/mnt/d`
+must **not**, `date(1)` must produce output, `pwd` after `cd` must equal the repo root, `docker` must
+see `supabase_db_azkbbhskturikxpgmafq`, the non-SELECT policy count must be > 0, **and the `authz`
+schema must be present** (the stack discriminator — the other stack, `supabase_db_escalume`, has
+`authz_schema=0`). Proven by re-running the launcher in exactly attempt 1's wrong shell:
+`*** LAUNCH REFUSED: wrong shell — uname -s = …, expected MINGW64*`, bare **rc 98**, and the harness
+**never started**. The good-shell control then passed the preflight and started the run.
 
 | what | where |
 |---|---|
