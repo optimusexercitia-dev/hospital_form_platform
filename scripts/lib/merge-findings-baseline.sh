@@ -450,7 +450,8 @@ for f in carried.tsv suffixes merged_rows.tsv carried_rows; do [ -f "$T/$f" ] ||
 #   scripts/door-sweep-cases.sh` was PASS 17 · FAIL 17, and ADR 0190's findings-baseline
 #   merge was simply unavailable on that machine (an aborted merge leaves the baseline
 #   unchanged, which is byte-for-byte what "no verdict moved" looks like). The SAME tagged
-#   stream is now built from diff's PORTABLE normal output: only the hunk HEADERS are read
+#   stream is now built from diff's PORTABLE normal output — GIVEN THE SAME diff ALIGNMENT
+#   (dated qualifier below) — only the hunk HEADERS are read
 #   (`^[0-9]`, unambiguous — every content line normal diff emits starts with `<`, `>`, `-`
 #   or `\`), and the LINES themselves come from the two files, never from diff's quoting.
 #   The grammar the step-3 consumer reads is unchanged, line for line:
@@ -458,9 +459,30 @@ for f in carried.tsv suffixes merged_rows.tsv carried_rows; do [ -f "$T/$f" ] ||
 #     \002DEL then O<line> lines only in the GENERATED file  (file 1 = $T/g_norm)
 #     \002INS then N<line> lines only in the BASELINE  file  (file 2 = $T/b_norm)
 #     \002CHG then O… N…   a changed group, OLD (generated-side) before NEW (baseline-side)
+# ⚠ DATED QUALIFIER, 2026-09-07 (QA N-REC-2). The reconstruction is faithful to WHATEVER edit
+#   script `diff` hands it (measured 73/75 byte-identical against GNU diffutils 3.8's own
+#   group-format output on the same 75 pairs; the 2 exceptions are strictly more correct —
+#   see docs/reviews/enforcement-manifest-rereview.md § 1.3). But the ALIGNMENT — which edit
+#   script `diff` chooses when more than one minimal one exists — is now the HOST's, not
+#   GNU's fixed choice: Apple `diff` and GNU `diff` do not always group hunks the same way.
+#   Measured: 10/60 divergent on a duplicate-heavy adversarial corpus, 0/40 on realistic
+#   findings-baseline content, 0/4 on the real committed baselines. ⛔ `merge(b,b) == b` — the
+#   idempotence loop below — CANNOT discriminate the two implementations: on an identical
+#   pair `diff` emits no hunks at all on either host, so it exercises only the pass-through
+#   path, never the alignment-sensitive CHG-group "same shape once digits are removed" drop
+#   rule further down. Consequence: this program runs Batch 3 and Batch 4 of the pre-AE5
+#   remediation ON DIFFERENT MACHINES, and both merge this SAME committed findings baseline —
+#   it is the merge's INPUT and OUTPUT. A divergent alignment on that merge would surface as
+#   a diff AT REBASE, not as a false PASS here, which is where it is caught; it is disclosed
+#   rather than fixed because the measured risk on real content is 0/4 and 0/40.
 #   ⛔ Do NOT "simplify" this back to a group-format diff. The equivalence is asserted by the
-#     17 committed merge scenarios (including merge(b,b) == b byte-for-byte on all five
-#     baselines), which is the only reason the rewrite is believable rather than plausible.
+#     18 committed merge scenarios in `scripts/door-sweep-selftest.sh` — 13 static
+#     `merge_scenario` calls plus one `idempotent: <name>` per baseline fixture file under
+#     `scripts/fixtures/door-sweep/merge/*.baseline.md` (currently 5, so 13 + 5 = 18);
+#     re-derive either count with `SELFTEST=1 bash scripts/door-sweep-cases.sh` (its tally
+#     line splits deriver vs merge scenarios) or `ls scripts/fixtures/door-sweep/merge/*.baseline.md
+#     | wc -l` for the fixture-driven half. Including merge(b,b) == b byte-for-byte on all
+#     five baselines, which is the only reason the rewrite is believable rather than plausible.
 diff "$T/g_norm" "$T/b_norm" > "$T/hunks" 2>/dev/null
 # diff exits 1 when the files differ, which is the normal case here; only >1 is an error.
 drc=$?
