@@ -430,3 +430,46 @@ through the merge — with no `PARTIAL RUN` line to show it. ⛔ Deliberately **
 **0** `not ok`, exit 0 — the same shape as the build session's tip run, as expected: nothing in this
 iteration adds or removes an assertion (`410` § 8.8's change is caption text only). The full-tip gate
 (the four authz arms, the diff-scoped sweep both arms, the set-valued home) remains the **lead's**.
+
+### 2026-09-07 — tip gate (lead, second machine) — run by someone other than the builder
+
+Tip `e5796940` (16 commits over `main` @ `23ec1fa5`). Catalog head `20261003007350` on every run below;
+the fix loop changed no migration, so the arms run on the build tip (`7b9b1eb7`) read the same catalog
+as the fix-loop tip. Exit codes read bare from an `rc` file, never through a pipe.
+
+| step | bare rc | observed |
+|---|---|---|
+| `npm run lint` (build tip, fix tip) | 0 · 0 | 13 gates, 0 errors / 0 warnings |
+| `npm run typecheck` (both tips) | 0 · 0 | — |
+| `npm run gen:types` (build tip) | 0 | empty diff |
+| `npm run test:db` on a fresh reset (build tip, fix tip) | 0 · 0 | `Files=262, Tests=8882, Result: PASS` both times (8876 on `main`; `409` 73→75, `410` 40→44, no assertion deleted) |
+| `ARM=census` | 0 | `live authz gates (catalog): 581` · `gates carrying a verdict: 604` · `extension-owned, excluded: 0` · `=== INVARIANT HOLDS ===`. Domain quoted: *prosecdef bool \| prosecdef set-returning+reachable \| public INVOKER plpgsql \| all RLS policies, LESS extension-owned; NOT in domain: prosecdef scalar non-bool command doors (427 reachable, DERIVED this run)* |
+| `ARM=hat` | 0 | `HAT-BLIND SWEEP HOLDS: 4 finding(s), all reasoned-allowlisted`; self-test 7/7; anchors `app.has_role(4-arg) + app.has_role_any + authz.holds_role` |
+| `ARM=floor` | 0 | every never-called door on the floor allowlist; every allowlist entry resolves to a live door |
+| `FROMFINDINGS=1 ARM=wrapper` | 0 | `BLIND set size: 41`, all allowlisted |
+| `SELFTEST=1 …p0-authz-door-audit.sh` | 0 | `classify 6/6 · resets_enabled 6/6 · TOTAL: 23/23 ok` |
+| `SELFTEST=1 bash scripts/door-sweep-cases.sh` | **1 → 0** | build tip: `PASS 17 · FAIL 17` (QA F-MAJOR-1, Apple diff); fix tip: `SELF-TEST: PASS 34 · FAIL 0 · SKIPPED 0` |
+| set-valued targeted home (solo, fresh reset) | 0 | `ARM-DOMAIN setvalued=3/3 (in scope) out-of-scope=2 (named, with dispositions)` · 3/3 COVERED · `suite after restore: PASS (Files=262, Tests=8882)` · `RESULT: CLEAN` |
+| diff-scoped deriver over `main` (both tips) | 1 · 1 | **`SCOPE: 1 file(s) — 1 committed (main..HEAD), 0 worktree, 0 untracked \| filter: none \| derivation: catalog`** · `RESULT: FINDING (1) — DOORS IDENTIFIED: 1. SWEEPABLE BY THIS ARM: 0.` (same under `ARM=read` and `ARM=write`). Exit 1 is a FINDING, ruled below |
+| targeted command-door case (fix tip) | 0 | `public.set_item_validations`: `fingerprint before 3c244fa6… → mutated bdcccfe0… → restored 3c244fa6… (matches before)` · `CASE 1 VERDICT: COVERED` · `RESULT: 1 of 1 case(s) COVERED`. Domain: *DOMAIN: command doors outside BOTH p0-authz-door-audit.sh's PRED_DOMAIN (return type is not boolean) and c2-command-door-neutralizer.sh's worklist (the door is not Tier-1: its closure reaches no PHI-marked relation). * |
+| `git diff --name-only main... -- supabase/migrations supabase/seed.sql src` | — | exactly `20261003007350_batch4_rekey_set_item_validations.sql` |
+
+**Ruling on the deriver's exit 1.** The one door in the diff is a `prosecdef` scalar non-bool command
+door, outside `PRED_DOMAIN` on both arms — the deriver says so by property and lists it. ADR 0079's
+obligation (b) is discharged by the **targeted mutation case** above (a different instrument from
+`409` §2.6f/§2.10e, which is a grant differential); the C2 neutralizer was tried first and correctly
+refused it (`swept ZERO enforcers`, rc 2 — not Tier 1, no PHI relation). **No gate in the read or
+write arm's domain changed** — that is the `SCOPE:` line's claim and the FINDING names the only
+exception. Tier 2's 190 doors stay deferred by ADR 0171 and are NOT cleared.
+
+**Two lead errors, recorded.** (1) My gate chain substituted the deriver's stdout into `CASES=` without
+reading its exit first; the deriver had exited 1 with an empty case list, and `CASES=""` made
+`p0-authz-door-audit.sh` start a **FULL** run (it swept `app.can_create_professional`, not in the
+diff) whose merge then aborted on Apple diff; killed after ~10 min; `git diff --stat` on both committed
+findings files empty; DB restored by a fresh reset. Filed as `FUP-AUTHZ-EMPTY-CASES-RUNS-A-FULL-SWEEP`
+(owner lead). (2) The set-valued home's **first** run ABORTed (`suite after restore: FAIL, Tests=8869`)
+while QA's catalog session and the deriver self-test's catalog scenarios shared the DB; the solo re-run
+on a fresh reset was CLEAN at 8882. A mutation harness must own the stack — the ABORT was disturbance,
+not an incomplete restore, and it is not allowlisted anywhere.
+
+**Verdict at the tip:** gate complete on the fix-loop tip; QA re-review requested.
