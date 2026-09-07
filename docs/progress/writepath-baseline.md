@@ -267,6 +267,25 @@ restoring) · `FUP-WRITEPATH-BASELINE-ESCALATED-ROLE-ARM-UNEXERCISED`.
   `git checkout -- docs/reviews/authz-writepath-audit-findings.md`, and its home is the harness
   header plus ADR 0192.
 
+#### R20 — the 13 rows Batch 2 retired from the door arm, PRE-checked by name
+
+⚠ **First finding: the door record NAMES none of them.** `pred-domain.md:1616` records
+`RETIRE to p0-authz-writepath-audit.sh | 13 | 0` as a COUNT, and a retirement recorded as a count
+cannot be checked name-by-name — which is precisely what R20 asks for. The names were recovered
+from the deletion itself (`git show b59d4bbf -- docs/reviews/authz-door-audit-findings.md`, 279
+deleted verdict rows, of which **13** name a non-SELECT policy — matching the recorded count; the
+census control finds 107 `(SELECT)` rows with the same filter, so the filter can match).
+
+All **13 are PRESENT in the write arm's live domain today, each at the command the door row
+recorded** (`ABSENT_TOTAL=0` against the 107-row live lift):
+
+`case_interviews_{insert,update,delete}` · `case_referral_{insert_source_coord,update_coord,delete_draft_source}` ·
+`meeting_cases_staff_admin_{insert,update,delete}` · `meeting_signatures_insert` ·
+`profiles_update_self` · `signoffs_insert` · `responses_delete_own_draft`.
+
+⇒ The retirement's destination WILL receive all thirteen. The domain axis is clear; the verdict
+axis is what the run settles, and R20's final check is that each appears in the run's output.
+
 #### The MID-RUN CHECKPOINT SCHEDULE (R8), written down BEFORE any launch
 
 ⛔ The drift observable is computed from `$WORK/writepath_progress.tsv`, **never** from the summary:
