@@ -96,6 +96,31 @@ then the closures. **Read Batch 2's record first** — it is the template, inclu
 multiplies by 11". Any re-key here is a **migration** → the diff-scoped sweep is owed, **both arms**,
 derived by the Batch 1 deriver with its `SCOPE:` line quoted (Batches 1–2 are its prerequisites).
 
+**Runs on a SEPARATE MACHINE, in parallel with Batch 3 (ruled 2026-09-07).** Batch 3's ~13 h
+`RESET_EVERY` sweep owns the dev machine's local stack for a day; Batch 4 needs the stack for hours,
+so it runs on its own clone + Docker stack. Code files are disjoint (Batch 3: the writepath harness +
+its findings file; Batch 4: migrations, the manifest, pgTAP `410`, `backend-state.md`, the runbook if
+Batch 5 rides along). What is NOT independent — care before merging Batch 4 from the other machine:
+
+1. **Merge order is fixed: Batch 3 first, then Batch 4.** Batch 3 rewrites the committed write-path
+   findings file; Batch 4 re-keys write policies (and possibly the whole `_staff_admin_write` class).
+   Merged the other way round, Batch 3's baseline measures policies that no longer exist.
+2. **Batch 4 rebases onto merged Batch 3 and RE-RUNS its diff-scoped sweep, both arms**, with the
+   `SCOPE:` line re-quoted — its write-arm verdicts must land in the re-baselined findings file, and
+   the rebase changes the case list the deriver sees. Re-run `npm run lint` MID-merge (a clean
+   auto-merge can undo a bulk repair).
+3. **The write arm's empty-set trap is still open while Batch 4 runs** — Batch 3 is what makes "exit 0
+   over zero cases" a FINDING. Until it lands, check BY HAND that the deriver's write-arm case list is
+   non-empty before reading the arm's exit code as a pass.
+4. **ADR numbers reserved up front** (parallel branches collide in sequential numbering, twice on
+   record): **0192 → Batch 3, 0193 → Batch 4.** Renumber inside the rebase stop if either moved.
+5. **Tracker files conflict, resolvably**: both branches edit `follow-ups-open.md`,
+   `docs/features/INDEX.md`, `docs/decisions/INDEX.md`. Regenerate the indexes after the rebase
+   (`npm run adr:index`, `npm run features:index`), never hand-merge them.
+6. **The second machine** needs its own clone, Docker, Supabase CLI, `.env.local`, and a fresh
+   `supabase db reset` before any catalog work. The detach recipe in §5 is Windows-specific; Batch 4
+   is the interactive batch (a PO ruling mid-way), so it needs no detach.
+
 ### Batch 5 — Rollback runbook (`docs/deployment/authz-rollback-runbook.md`) — owner backend, docs-only
 
 `FUP-AE4-ROLLBACK-RUNBOOK-SIX-SCOPED-TO-FOUR` 🟠 — §6.2 hard-codes four tables and `EXPECT 4 rows`; the
