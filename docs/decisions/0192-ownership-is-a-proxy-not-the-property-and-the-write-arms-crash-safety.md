@@ -1,0 +1,206 @@
+# ADR 0192 — Ownership is a PROXY, not the property: the write arm keeps one connection role and gains a detector, a set-ness-correct `CASES`, a `RESET_EVERY` port that is not a copy of the door's, and the recovery step Part 4 owes
+
+**Status:** accepted — built and proven 2026-09-07 on branch `authz-writepath-baseline`; PO ruling
+R23 (drop the escalation, keep the predicate as a detector) recorded in full below
+**Date:** 2026-09-07 (branch `authz-writepath-baseline`, unit WRITEPATH-BASELINE, Batch 3 of the
+pre-AE5 remediation batches)
+**Area:** authorization / mutation harnesses / crash safety / measurement domains
+**Amends:** ADR [0189](./0189-one-crash-safety-protocol-across-the-mutation-harnesses.md) (the
+in-flight sentinel and `RESET_EVERY` are ported into the write arm; §D6's set-ness distinction for
+`RESET_EVERY` is applied to `CASES`, where it was missing and load-bearing) · ADR
+[0153](./0153-subset-sweeps-write-to-scratch-not-the-committed-baseline.md) (the subset/committed
+placement rule is unchanged in intent, but its INPUT was wrong: an explicitly-empty `CASES` was
+indistinguishable from an unset one)
+**Related:** ADR [0079](./0079-authz-door-blindness-standing-invariant.md) (a green arm bounds its
+own domain; the DOMAIN-STATEMENT this arm now prints) · ADR
+[0171](./0171-c2-command-doors-are-a-separate-deferred-sweep.md) (Tier 2's 190 doors remain
+deferred and are **not** cleared by anything here) · ADR
+[0190](./0190-the-door-sweep-deriver-selects-by-property-and-a-full-run-merges.md) (the merge
+whose protected set is reconciled here) ·
+[FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED](../followups/follow-ups-open.md) Part 4, whose `Closes when`
+this ADR's §4 discharges
+
+---
+
+## Context
+
+`p0-authz-writepath-audit.sh` is the write arm of the authz door sweep: it opens each write gate
+(13 raise-guards, and every `pg_policy` row with `polcmd <> 'r'` — 107 policies since the domain
+was lifted live on 2026-09-02) and asks the whole pgTAP suite whether anyone noticed. Its committed
+baseline held verdicts for **39 of 107** policies and **12 of 13** guards, so a `FROMFINDINGS=1`
+arm — which compares against committed rows and cannot see an absent one — passed vacuously over
+the rest. Batch 3 exists to run the arm in full for the first time.
+
+Four things had to be true before that run could be launched, and none of them was.
+
+## Problem
+
+1. **`CASES=""` was indistinguishable from `CASES` unset.** Every branch keyed on `[ -n "$CASES" ]`
+   while the caller CLAUDE.md §6 prescribes is `CASES="$(bash scripts/door-sweep-cases.sh …)"` —
+   whose *exit code* is the "no gate changed" claim. A deriver that emitted nothing therefore
+   produced a **full ~120-case run** that opened the **committed baseline** for write, with the
+   `exit 3 UNPROVEN` door unreachable from the very caller that produces the state. A correct door
+   nothing can reach, composed with reading a gate instead of gating on it.
+2. **The write arm had zero `RESET_EVERY`.** The door arm has 33 occurrences and Batch 2's run 1
+   was voided by a 78-row drift tail with no originating case. A 120-case sweep with no mid-run
+   reset is that failure waiting to happen at four times the length.
+3. **Three `storage.objects` INSERT policies were predicted to be unopenable**, and a superuser
+   escalation was designed, approved and built to reach them.
+4. **A killed run leaves the committed baseline half-rewritten**, and Part 4 of
+   `FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED` had never been given the concrete recovery step it asks
+   for.
+
+## Decision
+
+### 1. `CASES` is read for SET-NESS, not for value — three states, never two
+
+`CASES_EXPLICIT` is captured **before** the `${CASES:-}` default. `want()` and the `$FINDINGS`
+placement both key on set-ness, and the placement rule is extracted into `set_placement()` so the
+self-test **exercises** it rather than restating it. A `SELECTION-SOURCE` line names which of the
+three states a run is in.
+
+| state | selects | writes |
+|---|---|---|
+| `CASES` unset | everything (a full run) | the committed baseline (merged) |
+| `CASES` set, non-empty | the named cases | scratch only (ADR 0153) |
+| `CASES` set, **EMPTY** | **nothing** → `SEL_TOTAL=0` → **exit 3 UNPROVEN** | scratch only |
+
+Set-and-empty is treated as a *subset* run for placement on purpose: an explicitly-empty selection
+must never be able to open the committed baseline for write, even if a later change let it past the
+domain gate.
+
+⛔ **`p0-authz-door-audit.sh` carries the identical defect and is FILED, NOT FIXED here**
+(`FUP-WRITEPATH-BASELINE-CASES-EMPTY-STRING-DEGRADES-TO-A-FULL-RUN`, which names both arms and says
+which was fixed). Fixing one of two reads as fixing the class — the Batch 0 mis-scope — and Batch 2
+owns that harness as a merged unit.
+
+### 2. `RESET_EVERY` is PORTED, and the door's design is explicitly NOT portable as-is
+
+`resets_enabled()` is one predicate read by all three sites; `periodic_reset()` puts the in-flight
+interlock **first**, ahead of the subset gate, so the gate cannot displace it; `cd "$ROOT"` and
+`</dev/null` are both load-bearing (the first because `db reset` applies the migrations of the
+directory you stand in and this machine has a second stack up; the second because both call sites
+sit inside a `while read` loop whose stdin is the worklist). A `preconditions: resets=N` line is
+printed as part of the result, because `resets=0` on a full run is the exact state that voided the
+door arm's run 1.
+
+Three adaptations, recorded because **porting by analogy is what makes a ported control vacuous**:
+
+- the door's drift key is `NOTICED`; here it is `ERROR`;
+- the door re-derives **two** catalog worklists post-reset. This arm has one catalog worklist plus a
+  **static** `GUARD_KEYS` list, so the Arm-1 half needs its own post-reset check — every
+  `GUARD_KEYS` entry still resolves to an OID — which the door's design does not cover at all;
+- there is no `degenerate_gates()` analogue. The discriminator here is a degenerate **NON-SELECT
+  policy**, **enumerated, never counted**: a bare count reads ~11 on a clean stack because ten
+  vocabulary SELECT policies are `true` by design.
+
+Six abort paths each print a **distinct** reason (interlock · reset failed · degenerate after reset
+· worklist moved · `GUARD_KEYS` no longer resolves · suite RED after reset), because Batch 2's trial
+G was a false pass from a quoting error — a right answer from the wrong cause — and a table where
+several aborts share one message is one abort wearing several names.
+
+### 3. ⭐ Ownership is a PROXY, not the property — the escalation is REMOVED and its predicate kept as a DETECTOR
+
+**This is the transferable subject of this ADR, and it generalises to every privilege claim in this
+program.**
+
+An owner-aware connection role was designed, PO-approved on five binding conditions, and built. Its
+premise was three measured facts:
+
+    storage.objects owner = supabase_storage_admin
+    pg_has_role('postgres', relowner, 'USAGE') = false
+    postgres: rolsuper = f, is_superuser = off, NOT a member of supabase_storage_admin
+
+Every one of those is **true**, and the conclusion drawn from them — *therefore `postgres` cannot
+`ALTER POLICY` here* — is **false**. The harness at HEAD, unmodified and with no escalation, swept
+all three `storage.objects` policies end to end as plain `postgres`: opened, suite ran, **COVERED
+×3**, restores byte-exact, bare **rc 0**.
+
+The mechanism, named rather than left as "it works somehow": **`supautils`**. This stack sets
+`supautils.policy_grants = {"postgres":[… "storage.objects", "storage.buckets", "auth.users" …]}`
+and the extension's utility hook grants POLICY DDL on Supabase-managed tables to the privileged
+role **entirely outside `pg_class.relowner`**.
+
+> **A permission question is answered by ATTEMPTING the permission, or by reading EVERY grant path
+> — never by reading `relowner` alone.** `pg_has_role(role, relowner, 'USAGE')` is a proxy for a
+> permission this server grants by another route, and a proxy is not the property. Same family as
+> *a predicate quoted at the wrong grain* and *text is not truth: resolve the VALUE, not the noun*.
+
+Consequently:
+
+- **No escalation, no superuser, no second connection.** `psql_c`/`psql_f` connect as `postgres`
+  for all 107 policies and all 13 guards. The `psql_*_as` role-parameterised variants are deleted
+  rather than left with one caller value.
+- **No `$SENTINEL.role` sidecar and no role-aware `RECOVER=1`.** With one connection role the field
+  could only ever hold one value, and *a field that can only ever hold one value is a guard that can
+  only ever read one value* — it would look like a check and check nothing. The restore uses the
+  same `psql_f` as the open: same role **by construction**, not by agreement.
+- **The corrected predicate STAYS, demoted from a router to a DETECTOR.** Both halves — ownership
+  **OR** `supautils.policy_grants` — are read live from the server per case, never a schema name and
+  never a list of policy names. When it says a policy is unopenable it emits a **loud finding naming
+  which half failed and for which role**, records that policy **UNVERDICTED** (an `ERROR` row, so
+  the run exits DIRTY at 1), and **never silently works around the condition**.
+- Each verdict row carries its grant route — `[role=postgres via ownership (owner=postgres)]` or
+  `[role=postgres via supautils.policy_grants (owner=supabase_storage_admin)]` — because a row is
+  read without its banner, and *how this gate was openable at all* is the fact whose misreading
+  produced the withdrawn escalation.
+
+**The detector fires on 0 of 107 on this stack, so it is proven able to fire by a PLANT** — a
+scratch copy whose `diff` against the harness is exactly two injections and nothing else, with both
+predicate halves forced false for one table. Never the real tree, never the real catalog, never the
+real GUC. Observed: the planted policy reports `POLICY-DDL BLOCKED … UNVERDICTED` naming both
+failing halves and the role at bare **rc 1**, while a sibling policy on another table **in the same
+run** sweeps COVERED (the discrimination half); the clean-tree negative control over the same two
+cases fires **0** times at bare **rc 0**. Its dormancy is tracked by
+`FUP-WRITEPATH-BASELINE-ESCALATED-ROLE-ARM-UNEXERCISED`, re-purposed onto the detector.
+
+⚠ **The wrong ruling is left standing in the Batch 3 rulings file with a dated pointer to its
+correction, not rewritten.** The reasoning that produced it is the part worth keeping, and a
+correction that is not written down is a correction that did not happen.
+
+### 4. The recovery step Part 4 owes — concrete, in the operator's line of sight
+
+It lives in the harness header (six numbered steps, read before acting), not in
+`.claude/rules/mutation-harnesses-are-not-killable.md`: that file is **2032 of its 2048-byte cap**,
+and *compressing a record to fit a cap selects against its qualifiers* — the bound gets cut, not the
+fact. The rule already carries the generic recovery step, already names this harness, already
+forbids deleting the sentinel, already demands catalog verification with the `cmd <> 'SELECT'`
+discriminator, and already carries the working-tree/suite-shape clause. The only write-arm-specific
+addition owed is the one the register's `Closes when` implies but never states:
+
+    git checkout -- docs/reviews/authz-writepath-audit-findings.md
+
+because `emit_report()` runs after **every case** and on a full run its target **is** the committed
+file. And the clause the register insists on is repeated where it will be read: **the contamination
+surface is the WORKING TREE, not only the database** — this sweep's baseline is the suite's SHAPE
+(`Files=`/`Tests=`), so adding one file under `supabase/tests/` invalidates a run exactly as
+effectively as touching the DB, and looks nothing like DB activity.
+
+## Considered options
+
+**For the storage policies.** (a) Escalate to a superuser where `relowner` demands it — built, then
+withdrawn: it widened what a mutation harness can do to the local stack, on a premise measurement
+refuted. (b) Allowlist the three as un-openable — refused outright: that is *allowlisting a BLIND
+under another name*. (c) Hardcode `nspname = 'storage'` — refused: a name is not the property, and
+this arm has already paid once for an embedded snapshot bounded by a syntax. (d) **Chosen:** connect
+as one role, evaluate the real grant question per case, and make an unopenable policy a loud
+unverdicted finding.
+
+**For `CASES`.** Fixing the deriver's callers instead was rejected: the defect is in the harness's
+reading of its own input, and a caller-side fix leaves the next caller exposed.
+
+**For the recovery step's home.** Compressing the standing rule file to fit was rejected on the
+cap-vs-qualifiers ground above.
+
+## Consequences
+
+- The write arm can be run in full without a superuser, and the three never-verdicted
+  `storage.objects` policies earn ordinary verdicts through the ordinary path.
+- The detector is **dormant in production by design**. That is a conformance finding, not a
+  reassurance, and it is printed as a count in every run's DOMAIN-STATEMENT so that "no finding" and
+  "no instrument" cannot print identically. Re-run the plant whenever the predicate changes.
+- The door arm now differs from the write arm on `CASES` set-ness. That divergence is deliberate and
+  filed; it must not be closed by copying this fix across without re-proving it there.
+- ⛔ Tier 2's 190 doors remain **deferred by ADR 0171 and are NOT cleared** by anything here.
+- ⛔ `FROMFINDINGS=1 ARM=policy` is RED pre-existing, is **not** one of CLAUDE.md §6's four arms, and
+  its twelve are not allowlisted by this or any other work in this unit.

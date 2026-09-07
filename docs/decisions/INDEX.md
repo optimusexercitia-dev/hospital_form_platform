@@ -12,7 +12,7 @@
 >
 > Edges are **advisory** and over-inclusive by design; the ADR text is truth.
 
-**189 ADRs** · next free number: **0192** · 64 carry an inbound supersedes/amends edge
+**190 ADRs** · next free number: **0193** · 65 carry an inbound supersedes/amends edge
 
 ## ⚠ Anomalies
 
@@ -174,7 +174,7 @@
 | 0150 | [The audit organization is derived from the hospital, and leg 5 means the platform chain](0150-audit-org-derived-from-hospital.md) | accepted | 2026-08-25 | amends 0149 | – |
 | 0151 | [AFF4: organization affiliation, per-hospital staff data, and the voided tense](0151-aff4-organization-affiliation-staff-data-voided-tense.md) | accepted | 2026-08-25 | amends 0097, 0148 | ⚠ amended by 0152, 0154, 0155, 0159, 0163, 0164, 0165, 0166 |
 | 0152 | [PostgREST maps the `P0*` SQLSTATE class to HTTP 500; the document-corridor 500 is a 73-…](0152-postgrest-p-class-sqlstate-maps-to-500.md) | accepted | 2026-08-26 | amends 0151 | – |
-| 0153 | [A subset door-sweep writes to scratch; the committed baseline is never opened for write](0153-subset-sweeps-write-to-scratch-not-the-committed-baseline.md) | accepted | 2026-08-26 | amends 0079 | ⚠ amended by 0189 |
+| 0153 | [A subset door-sweep writes to scratch; the committed baseline is never opened for write](0153-subset-sweeps-write-to-scratch-not-the-committed-baseline.md) | accepted | 2026-08-26 | amends 0079 | ⚠ amended by 0189, 0192 |
 | 0154 | [the roster predicate is the query filter, not `list_org_people`](0154-roster-predicate-is-the-query-filter-not-list-org-people.md) | accepted | 2026-08-26 | amends 0151 | ⚠ amended by 0158 |
 | 0155 | [Post-AFF4 tenancy and person-model evolution: a staged sequence, not a redesign](0155-post-aff4-tenancy-and-person-model-evolution-sequence.md) | accepted | 2026-08-26 | amends 0151 | ⚠ amended by 0160, 0162, 0175, 0176 |
 | 0156 | [the door-SQLSTATE gate's domain is a structural property, not a list of names](0156-door-sqlstate-gate-domain-is-structural.md) | accepted | 2026-08-26 | amends 0098 | – |
@@ -210,6 +210,7 @@
 | 0186 | [Documentation consolidation: one home per fact, one summary and one log per unit](0186-documentation-consolidation-one-home-per-fact.md) | accepted | 2026-09-03 | amends 0179, 0185 | – |
 | 0187 | [C2 closes on DISCLOSURE, its BLIND set is labelled by PROPERTY, and three of ADR 0184's…](0187-c2-closes-on-disclosure-and-the-blind-set-is-labelled-by-property.md) | accepted | 2026-09-04 | amends 0184 | – |
 | 0188 | [A closure tally may be COMPOSITED across suite shapes, and must be stated as one](0188-a-closure-tally-may-be-composited-across-suite-shapes.md) | accepted | 2026-09-04 | – | – |
-| 0189 | [One crash-safety protocol across the mutation harnesses: a verified restore, a bounded…](0189-one-crash-safety-protocol-across-the-mutation-harnesses.md) | accepted | 2026-09-04 | amends 0153, 0171 | – |
+| 0189 | [One crash-safety protocol across the mutation harnesses: a verified restore, a bounded…](0189-one-crash-safety-protocol-across-the-mutation-harnesses.md) | accepted | 2026-09-04 | amends 0153, 0171 | ⚠ amended by 0192 |
 | 0190 | [The door-sweep deriver selects doors by PROPERTY, scopes what it swept, and a full run…](0190-the-door-sweep-deriver-selects-by-property-and-a-full-run-merges.md) | accepted | 2026-09-05 | amends 0079, 0173 | – |
 | 0191 | [The door arm's domain gains a SCHEMA axis, the set-valued resolvers get a committed hom…](0191-the-door-arms-domain-gains-a-schema-axis-a-targeted-home-and-a-fourth-outcome.md) | accepted | 2026-09-05 | amends 0079, 0173 | – |
+| 0192 | [Ownership is a PROXY, not the property: the write arm keeps one connection role and gai…](0192-ownership-is-a-proxy-not-the-property-and-the-write-arms-crash-safety.md) | accepted | 2026-09-07 | amends 0153, 0189 | – |

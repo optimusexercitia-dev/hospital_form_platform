@@ -302,3 +302,216 @@ a drift tail is *cases whose verdict has no originating cause*, and a summary ca
 | continuously, from `progress.tsv` | rows whose `Files=`/`Tests=` shape is off-baseline · distinct off-baseline `Tests=` values · **longest consecutive run of the same off-baseline value** | **≥3 consecutive identical off-baseline shapes.** A per-case abort VARIES and the suite RECOVERS; drift never recovers. With `RESET_EVERY=20` this should be impossible — if it happens the reset did not fire and the run is VOID, not patchable |
 | at every `--- PERIODIC RESET ---` | the four lines after it: preflight clean · policy worklist re-derived UNCHANGED · all 13 `GUARD_KEYS` still resolve · post-reset baseline PASS at the true shape | any `*** ABORT` ends the run |
 | at the end | `preconditions: resets=N` | **`resets=0` on a 120-case full run is the exact state that voided the door arm's run 1.** Quote this line in the gate record beside the counts |
+
+---
+
+### 2026-09-07 — `backend`, RULING R23 applied: the escalation REMOVED, the predicate kept as a DETECTOR and proven able to fire; checklist re-earned; **the full run LAUNCHED**
+
+**The headline.** The lead's R11 premise was refuted by measurement last turn; PO ruling R23 drops
+the escalation and keeps the corrected predicate as a **detector**. Everything the removal touches
+was **re-earned, not carried** — including two proofs that had passed on the escalated harness.
+
+#### What was removed, and why the removal is not just deletion
+
+| removed | why |
+|---|---|
+| `PSQL_ROLE_ELEVATED` (`supabase_admin`, a superuser) and the whole escalation branch | its premise was false; `postgres` can already do the DDL |
+| `psql_c_as` / `psql_f_as` (role-parameterised) | with one role they would carry one caller value forever — a parameter nobody varies |
+| `$SENTINEL.role` and the role-aware `RECOVER=1` restore | ⭐ **a field that can only ever hold one value is a guard that can only ever read one value.** It looks like a check and checks nothing — the MAJOR class QA found twice in Batch 0. R11.3 withdrawn with R11 |
+| `resolve_open_role()` (a **router**) | replaced by `policy_ddl_detector()` (a **detector**) |
+
+**Kept and re-aimed:** the ownership-**OR**-`supautils.policy_grants` disjunction, both halves read
+live per case, each reported **separately** so a failure can name its half. On rc 1 the harness
+emits `*** POLICY-DDL BLOCKED — <policy> is UNVERDICTED. NOT swept, NOT a pass, NOT skipped.` to
+**both** stdout and stderr (a finding that reaches only stderr is invisible to a caller that
+captured stdout), records the policy as an `ERROR` row ⇒ the run exits **DIRTY (1)**, and never
+routes, substitutes, skips or allowlists. Each verdict row now carries its grant route.
+
+#### ⭐ The detector fires on 0 of 107, so it was PROVEN able to fire (R23.5)
+
+The plant is a scratch copy whose `diff` against the harness is **exactly two injections and
+nothing else** (shown, not asserted): `ROOT` pinned, and both predicate halves forced false for one
+table. ⛔ Never the real tree, never the real catalog, never the real GUC.
+
+| half | observed |
+|---|---|
+| **PLANT (positive)** | `*** POLICY-DDL BLOCKED — public.responses.responses_insert_own is UNVERDICTED` … `ownership=NO (owner=postgres, pg_has_role USAGE false), supautils.policy_grants=NO (public.responses absent from the GUC for 'postgres')` — both halves named — `RESULT: DIRTY`, bare **rc 1** |
+| **DISCRIMINATION** (same run, sibling on another table) | `COVERED response_section_signoffs.signoffs_insert`; detector fired on **1 of 2** — it discriminates, it does not blanket-fire |
+| **NEGATIVE CONTROL** (real harness, clean tree, same 2 cases) | `POLICY-DDL DETECTOR: 0 of 107 … ⛔ ZERO — the detector is DORMANT`, **0** firings, both COVERED, `RESULT: CLEAN`, bare **rc 0** |
+
+The DOMAIN-STATEMENT's non-zero branch is exercised by the plant too (`4 of 107 policies are
+unopenable by BOTH routes` — the four policies on the planted table), so neither branch of that
+banner is first executed during the real run.
+
+#### Both grant routes proven live ON A ROW — the disjunction is not half-decorative
+
+Re-earned on the escalation-free harness after a fresh reset:
+
+- `3 [role=postgres via supautils.policy_grants (owner=supabase_storage_admin)]` — the three
+  `storage.objects` INSERT policies, **all COVERED**, bare **rc 0**;
+- `2 [role=postgres via ownership (owner=postgres)]` — the public policies in the negative control.
+
+⇒ `FUP-STORAGE-OBJECTS-INSERT-POLICIES-NEWLY-IN-DOMAIN`'s blocker was **predicted, measured and
+DISPROVEN**, and the mechanism is named: **`supautils.policy_grants`**. Dated note added to the
+register; the item closes when the full run merges the verdicts into the committed baseline.
+
+#### ⚠ A THIRD self-inflicted instrument fault — kept as a witness, per R25
+
+The RESET trial table came back **9 of 17 failed** against the new harness. It read exactly like a
+live defect in the port. It was not: I invoked `reset-trials.sh` as `cd $SP/proofs && bash
+reset-trials.sh`, so `$(dirname "$0")` was `.` and `$W`/`$CALLS` were **relative** — and the subject
+under test does `cd "$ROOT"` inside `periodic_reset`'s subshell, so the stub's recorder appended into
+a path that no longer existed. Every "failure" showed the reset firing correctly in its own output.
+Re-run with an absolute path: **0 failed, bare rc 0**.
+
+⭐ **A relative path in a test harness becomes a live fault the moment the subject under test
+changes directory** — and it fails toward "the control did not fire", the direction that reads as a
+defect in the subject. Same family as last turn's `ROOT`-in-the-scratchpad fault: *a wrong
+instrument reads exactly like a live defect, and like a different one*.
+
+#### Proofs — every exit code read BARE, never through a pipe, never consumed by a `;` chain
+
+| # | proof | observed |
+|---|---|---|
+| D1 | plant: detector fires, names both halves | `SWEPT: 2 COVERED: 1 ERROR: 1`, DIRTY, bare **rc 1** |
+| D2 | clean-tree negative control | `SWEPT: 2 COVERED: 2 ERROR: 0`, detector `0 of 2`, CLEAN, bare **rc 0** |
+| D3 | storage ×3, escalation-free | `SWEPT: 3 COVERED: 3`, CLEAN, bare **rc 0**, all rows `via supautils.policy_grants` |
+| R1 | RESET trial table vs the CURRENT harness (absolute paths) | **0 failed**, bare **rc 0** — extractor took `resets_enabled` 4 / `retry_suppressed_note` 7 / `periodic_reset` 84 / `maybe_periodic_reset` 5 lines and `bash -n` rc 0 |
+| R2 | control: interlock REMOVED from the **current** harness (`diff` = only that) | trial D `NOT OK … reset=yes rc=0`, bare **rc 1**, and **only 1** of 17 failed — the table discriminates |
+| R3 | control: ONE flipped expectation (S3) | `NOT OK S3`, bare **rc 1**, 1 of 17 |
+| V1 | `RECOVER=1` on a **storage** policy, no `.role` sidecar | `restoring as role postgres (this harness has exactly one connection role)` · `*** RESTORE APPLIED and VERIFIED against the catalog` · md5 back to `fcaa80aa…` · sentinel moved to `.recovered` · `degenerate_NON_SELECT = 0` · bare **rc 2** (the by-design RECOVER exit) |
+| V2 | discrimination: same restore, **corrupted `.want`** | `*** RESTORE FAILED` · **sentinel KEPT** · catalog still correct · bare **rc 2** ⇒ the "VERIFIED" in V1 is load-bearing, not decoration |
+| P1 | `CASES=""` EXPLICIT | `SELECTION-SOURCE: CASES set and EMPTY -> selects NOTHING`, `guard=0/13 policy=0/107`, `RESULT: UNPROVEN`, bare **rc 3** |
+| P5 | all-ERROR selection (plant, 1 case) | `SWEPT: 1 COVERED: 0 ERROR: 1`, `RESULT: DIRTY`, bare **rc 1** |
+| S1 | `SELFTEST=1` (3 tables) | **16/16 ok, 0 failed**, bare **rc 0**; committed baseline cksum verified unchanged |
+
+#### THE RE-EARNED PRE-LAUNCH CHECKLIST (R12(a) — every item observed BARE)
+
+| item | observed |
+|---|---|
+| `RESET_EVERY` ported and proven (plant, negative control, discrimination) | ✅ R1/R2/R3 above |
+| ~~owner-aware role, both directions + storage recovery~~ → **superseded by R23**: detector proven able to fire + both grant routes exercised on rows + recovery re-earned on a storage policy | ✅ D1/D2/D3 + V1/V2 |
+| `CASES=""` no longer degrades to a full run | ✅ P1, bare rc 3 |
+| empty-`CASES` at exit 3 · all-ERROR at exit 1 | ✅ P1 rc 3 · P5 rc 1 |
+| `$BASELINE_SNAPSHOT` taken **once**, by selection | ✅ one write site, `:365`, **top level**; `emit_report` (`:1722`) only READS it |
+| merge protected set reconciled | ✅ **settled at 11 by R24, delta 0** — the merge library is untouched by this turn; my 9 was wrong by two because `:60`/`:61` carry **undecorated hand prose**. ⭐ *a pattern that counts hand-authorship by decoration cannot see undecorated hand prose* |
+| `git diff --name-only main... -- supabase/migrations supabase/seed.sql src` | ✅ **EMPTY** (full diff vs `main`: the harness + 3 docs only) |
+| `npm run lint` 0/0 bare · `npm run test:db` on a **fresh reset** | ✅ lint bare **rc 0** · typecheck bare **rc 0** · `db reset` bare rc 0 then `test:db` bare **rc 0**, shape **UNMOVED** at `Files=262, Tests=8876, Result: PASS` |
+| derived duration + mid-run checkpoint schedule written down | ✅ below |
+
+#### Duration — re-derived from a TWO-POINT measurement, not an assumed intercept (R7)
+
+Measured today on this stack, after a fresh reset: **1-case run = 183 s**, **3-case run = 365 s**.
+
+    slope     = (365 - 183) / (3 - 1)          = 91 s per case
+    intercept = 183 - 91                       = 92 s  (startup + domain lift + preflight + baseline
+                                                        suite; the suite alone measured 85 s, so ~7 s
+                                                        of startup — self-consistent)
+    cases     = 120 x 91 s                     = 10 920 s = 3.03 h
+    resets    = 5 x (62 + 85 + ~10) s          =    785 s = 13 min   (RESET_EVERY=20 fires at
+                                                                      DONE = 21/41/61/81/101)
+    retries   = 8 x (157 + 91) s               =  1 984 s = 33 min   (door run's observed 6.5 %)
+    TOTAL     = 10 920 + 92 + 785 + 1 984      = 13 781 s ≈ 3.8 h
+
+**Window ≈ 3.2–4.6 h** (3.2 h with no retries; 4.6 h at double the observed retry rate).
+
+**`RESET_EVERY=20` defended in one sentence:** 5 resets cost 13 min — **5.7 %** of the run — and cap
+a drift tail at 20 cases (17 % of the run) instead of the 78 that voided the door arm's run 1;
+`RESET_EVERY=10` would cap it at 10 for +2.7 % duration, which is not worth re-tuning a ported
+default that Batch 2 already proved at 20.
+
+---
+
+### ⛔ THE RESUME NOTE — this run OUTLIVES the agent that launched it
+
+**Launched** 2026-09-07 ~20:10 -0300, detached via PowerShell `Start-Process` on
+`C:\Program Files\Git\usr\bin\bash.exe` with the script as **argv[1]** (the `-c` form silently
+starts nothing here; `nohup setsid` does not exist).
+
+| what | where |
+|---|---|
+| launcher | `C:\Users\micha\AppData\Local\Temp\authz-b3-launch.sh` (= `/tmp/authz-b3-launch.sh`) |
+| command | `WORK=/tmp/authz-b3-full bash supabase/tests/mutation/p0-authz-writepath-audit.sh`, **`CASES` UNSET** (unset = FULL run = merges the committed baseline; `CASES=""` would exit 3) |
+| WORK dir | `/tmp/authz-b3-full` = `C:\Users\micha\AppData\Local\Temp\authz-b3-full` |
+| log | `/tmp/authz-b3-run.log` |
+| bare rc | `/tmp/authz-b3-rc.txt` — **written before anything can consume it**; absent = still running |
+| sentinel | `/tmp/authz-writepath-INFLIGHT.sql` — the **DEFAULT** path, deliberately: the default is what the NEXT run checks, so a crash is found by whoever runs next |
+| progress TSV | `/tmp/authz-b3-full/writepath_progress.tsv` — **the drift observable, never the summary** |
+| baseline snapshot | `/tmp/authz-b3-full/authz-writepath-audit-findings.baseline.md` |
+| expected finish | ≈ **00:00 -0300**; window **23:25 – 00:45** |
+
+⛔ **`docs/reviews/authz-writepath-audit-findings.md` is a MOVING TARGET while the run is live** —
+`emit_report()` rewrites it after every case. No agent may read it as truth mid-run; cite the
+baseline snapshot above instead.
+⛔ **FREEZE THE WORKING TREE.** The baseline is the suite's SHAPE, so adding one file under
+`supabase/tests/` invalidates the run as effectively as touching the DB. ⛔ Never edit the harness
+while a run executes it.
+
+**RECOVERY, if it dies anyway** (full six steps in the harness header):
+
+1. `ls -l /tmp/authz-writepath-INFLIGHT.sql` — non-empty means a gate is OPEN right now. ⛔ **Never
+   delete the sentinel.**
+2. `RECOVER=1 WORK=/tmp/authz-b3-full bash supabase/tests/mutation/p0-authz-writepath-audit.sh`
+   (there is no role to choose — one connection role, ADR 0192).
+3. ⛔ VERIFY IN THE CATALOG, never from the message — `pg_policies` where `qual`/`with_check` is
+   `'true'` **and `cmd <> 'SELECT'`** must return **ZERO ROWS**. ENUMERATE; a bare count reads ~11.
+4. If the restore refuses: `supabase db reset --local` **from the repo root** (the `cd` is
+   load-bearing — a second stack, `supabase_db_escalume`, is up on this machine).
+5. ⛔ **The committed baseline may be half-rewritten:**
+   `git checkout -- docs/reviews/authz-writepath-audit-findings.md`
+6. ⛔ The killed run's verdicts are **discarded** — `writepath_progress.tsv` is never merged.
+
+**MID-RUN CHECKPOINT SCHEDULE** — as written before the previous launch, plus one row for the
+detector. The drift observable is computed from the **progress TSV**, never the summary: a drift
+tail is *cases whose verdict has no originating cause*, and a summary cannot show that.
+
+| when | sampled | the observable that says VOID IT NOW |
+|---|---|---|
+| at the banner, before case 1 | `SELECTION-SOURCE`, `ARM-DOMAIN guard=13/13 policy=107/107`, `DOMAIN-SOURCE … live catalog … 107`, `POLICY-DDL DETECTOR: 0 of 107`, degenerate preflight, `baseline OK: … Files=262, Tests=8876`, `FULL SWEEP — this run MERGES …` | any of them wrong ⇒ kill NOW: before case 1 there is nothing to contaminate |
+| **new** — continuously | any `*** POLICY-DDL BLOCKED` line | the detector firing in a real run is a **finding**, not a void: record the policy as unverdicted and let the run finish |
+| case ~5 | the merged file still holds 2/2 `## Note`, the `HAND-MERGED` blockquote and the `---`; the merge's `PRESERVED … CARRIED …` line is non-zero | `PRESERVED 0`, or a hand block gone ⇒ the merge is losing material |
+| case ~12 | elapsed since `baseline OK` ÷ cases done, against **91 s/case** | record the corrected rate BESIDE the estimate, never over it |
+| continuously, from `progress.tsv` | rows off the baseline shape · distinct off-baseline `Tests=` values · **longest consecutive run of the same off-baseline value** | **≥3 consecutive identical off-baseline shapes.** A per-case abort VARIES and the suite RECOVERS; drift never recovers. With `RESET_EVERY=20` this should be impossible — if it happens the reset did not fire and the run is VOID, not patchable |
+| at every `--- PERIODIC RESET ---` | preflight clean · policy worklist re-derived UNCHANGED · all 13 `GUARD_KEYS` still resolve · post-reset baseline PASS at the true shape | any `*** ABORT` ends the run |
+| at the end | `preconditions: resets=N` | **`resets=0` on a 120-case full run is the exact state that voided the door arm's run 1.** Quote this line in the gate record |
+
+#### Recorded per R24/R25, settled without further work
+
+- **R14 settled at 11, delta 0.** ⭐ *A pattern that counts hand-authorship by decoration cannot see
+  undecorated hand prose* — `:60`/`:61` carry plain-English hand commentary with no ⭐/⚠/⛔/`**`/
+  `[merged` token, so the token-keyed count returned 9. The reader inventory of 11 stands.
+- **Line 13's stale tail** (`Arm 2 write policies: from the embedded snapshot.`) → **DELETE** in the
+  CARRIED disposition: the domain is lifted live, so the sentence is now factually false. This
+  **amends R10.4**, which was half right — the merge *replaces* `Arm 1 guards: 7` (a regenerated
+  statistic) but *preserves* line 13 (prose it cannot match).
+- **R20 method:** ⚠ **a count is not an identity.** `pred-domain.md:1616` filed the retirement as
+  `RETIRE to p0-authz-writepath-audit.sh | 13 | 0` — a COUNT — so it could not be checked
+  name-by-name, which is exactly what R20 asks for. The names were recovered from the deletion
+  commit instead. **The door record should have named its 13 rows**; that is a records defect worth
+  a line of its own.
+- **Both self-inflicted instrument faults from the previous turn are kept in the record as
+  witnesses** (the scratch copy's `ROOT` pointing `supabase test db` at the scratchpad; the vacuity
+  control that injected nothing yet reported green, caught only by its `cmp` guard). Today's
+  relative-path fault joins them. They are more instructive than the passes.
+- **The recovery step's home** (harness header, not the 2032/2048-byte rule file) is accepted
+  unchanged: compressing a record to fit a cap selects against its qualifiers.
+
+#### Follow-ups this turn
+
+`FUP-WRITEPATH-BASELINE-ESCALATED-ROLE-ARM-UNEXERCISED` — **re-purposed, not withdrawn** (R23): its
+original subject (the escalated arm) no longer exists, the **dormancy moves to the detector**, and
+the entry says so in terms, because a follow-up silently retargeted is a follow-up nobody can audit.
+`FUP-STORAGE-OBJECTS-INSERT-POLICIES-NEWLY-IN-DOMAIN` — dated note: blocker predicted, measured,
+**disproven**, `supautils.policy_grants` named.
+`FUP-WRITEPATH-BASELINE-REFUSED-RESTORE-ASSERTS-A-STATE-IT-DID-NOT-MEASURE` — **new**, found by V2:
+a restore whose verification fails prints *"The gate is STILL OPEN"*, a catalog claim that path never
+established (V2's catalog was correct). Safe direction, but it states a fact it did not read.
+
+**ADR 0192** written and indexed (`next free 0193`; back-pointers updated in 0153 and 0189). Its
+fourth subject is the transferable one: **ownership is a proxy, not the property; a permission
+question is answered by attempting the permission or by reading every grant path, never by reading
+`relowner` alone.**
+
+⛔ Standing, unchanged: Tier 2's 190 doors stay **deferred by ADR 0171 and are NOT cleared**.
+⛔ `FROMFINDINGS=1 ARM=policy` is RED pre-existing, is **not** one of CLAUDE.md §6's four arms, and
+its twelve are not allowlisted.

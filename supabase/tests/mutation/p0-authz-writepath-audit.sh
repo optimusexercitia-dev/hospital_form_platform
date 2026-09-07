@@ -169,12 +169,11 @@
 #
 #  1. `ls -l "$AUTHZ_SWEEP_SENTINEL"` (default /tmp/authz-writepath-INFLIGHT.sql). Non-empty
 #     means an RLS policy or a raise-guard is OPEN RIGHT NOW to `authenticated`. Beside it,
-#     `.probe` / `.want` identify the original catalog state and `.role` names the role that
-#     opened it — the restore MUST use that role or it fails with 42501 on precisely the cases
-#     the escalation exists for.
+#     `.probe` / `.want` identify the original catalog state, so the restore can be VERIFIED
+#     from the catalog instead of believed from psql's exit code.
 #  2. `RECOVER=1 WORK=<the run's WORK> AUTHZ_SWEEP_SENTINEL=<the run's sentinel> bash "$0"`.
-#     It reads `.role` itself; a sentinel with no `.role` sidecar predates this protocol and
-#     says so rather than guessing.
+#     ⚠ There is no role to choose and no `.role` sidecar: this harness connects as exactly one
+#     role, so the restore uses the role that opened the gate BY CONSTRUCTION (ADR 0192).
 #  3. ⛔ VERIFY IN THE CATALOG, NEVER FROM THE MESSAGE:
 #       select schemaname||'.'||tablename||'.'||policyname||' ('||cmd||')' from pg_policies
 #        where (coalesce(qual,'')='true' or coalesce(with_check,'')='true') and cmd <> 'SELECT';
@@ -424,104 +423,103 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────────────
-# ⛔ THE OWNER-AWARE CONNECTION ROLE (ADR 0192; PO-approved 2026-09-07 with five binding
-# conditions). BLAST RADIUS, STATED PLAINLY: this harness can now open a gate as a
-# SUPERUSER. That is a real widening of what a mutation harness can do to the local stack
-# and it is disclosed here, in the DOMAIN-STATEMENT the run prints, and in ADR 0192.
+# ⛔ ONE CONNECTION ROLE, AND A DETECTOR THAT SAYS SO WHEN THAT IS NOT ENOUGH (ADR 0192).
 #
-# WHY. `ALTER POLICY` requires ownership of the table (`has_privs_of_role(current_user,
-# relowner)`). Measured on the live catalog 2026-09-07: `storage.objects` is owned by
-# `supabase_storage_admin`; `postgres` here is `rolsuper=f` and is NOT a member of it, so
-# `pg_has_role('postgres', relowner, 'USAGE')` = **f**. The three `storage.objects` INSERT
-# policies — in this arm's domain since 2026-09-02, and in NO other arm's domain at all —
-# would every one of them land as `ERROR (open failed: must be owner of table objects)`.
-# An ERROR is a statement about the HARNESS, never a verdict about the policy, so those
-# three would have stayed unverdicted while the run exited DIRTY for a reason that has
-# nothing to do with authorization. Recording them as un-openable is allowlisting a BLIND
-# under another name.
+# ⚠ THE HISTORY IS THE LESSON, so it is kept rather than tidied away. A superuser escalation
+# was designed, approved and BUILT here on 2026-09-07, on this inference:
 #
-# THE RULE IS AN OWNERSHIP PREDICATE, EVALUATED PER CASE FROM THE CATALOG — never a
-# hardcoded list of three policy names and never `nspname = 'storage'`. A name is not the
-# property; the next non-`postgres`-owned table would silently regress, which is the
-# embedded-snapshot defect (a syntax, not the property) this arm already paid for once.
+#   `ALTER POLICY` requires ownership; measured on the live catalog, `storage.objects` is owned
+#   by `supabase_storage_admin`, `pg_has_role('postgres', relowner, 'USAGE')` = **f**, `postgres`
+#   is `rolsuper=f` and is not a member of that role. ⇒ the three `storage.objects` INSERT
+#   policies (in this arm's domain since 2026-09-02, and in NO other arm's domain at all) must
+#   land as `ERROR — must be owner of table objects`, and stay unverdicted.
 #
-# SCOPE. Escalation happens ONLY where `relowner` requires it. The 104 `public` policies
-# keep the `postgres` connection, and both directions are asserted by SELFTEST/selection.
-# ALL READS (pg_get_expr, the md5 probes, the domain lift) stay on `postgres`.
+# EVERY MEASURED FACT ABOVE IS TRUE AND THE CONCLUSION IS FALSE. The harness at HEAD, with no
+# escalation, swept all three end to end as plain `postgres`: opened, suite ran, COVERED ×3,
+# restores byte-exact, bare rc 0. THE MECHANISM, named rather than left as "it works somehow":
+# **supautils**. This stack sets `supautils.policy_grants = {"postgres":[… "storage.objects" …]}`
+# and the extension's utility hook grants POLICY DDL on Supabase-managed tables to the
+# privileged role ENTIRELY OUTSIDE `pg_class.relowner`.
+#
+# ⭐ THE TRANSFERABLE RULE: **ownership is a proxy, not the property.** A permission question is
+# answered by ATTEMPTING the permission, or by reading EVERY grant path — never by reading
+# `relowner` alone. (Same shape as: a predicate quoted at the wrong grain; text is not truth —
+# resolve the VALUE, not the noun.)
+#
+# SO: no escalation, no superuser, no second connection. `psql_c`/`psql_f` connect as $PSQL_ROLE
+# for all 107 policies and all 13 guards, exactly as they did before. The corrected predicate is
+# kept — it is better than the ownership test — but DEMOTED FROM A ROUTER TO A DETECTOR:
+#
+#   * it never chooses a role and never works around anything;
+#   * when it says a policy is unopenable it emits a LOUD FINDING naming WHICH HALF failed and
+#     for WHICH ROLE, and that policy is recorded UNVERDICTED (an ERROR row, which makes the run
+#     DIRTY at exit 1). Silence, or a quiet workaround, is exactly what this must never do.
+#
+# ⚠ IT FIRES ON 0 OF 107 ON THIS STACK. A detector that finds nothing is a dead instrument
+# reading as an all-clear until it is PROVEN able to find something, so it is proven by a PLANT
+# in a scratch copy (never the real tree), paired with a clean-tree negative control and a
+# discrimination half. See ADR 0192 and FUP-WRITEPATH-BASELINE-POLICY-DDL-DETECTOR-DORMANT.
 # ─────────────────────────────────────────────────────────────────────────────────────
-PSQL_ROLE="${AUTHZ_SWEEP_ROLE:-postgres}"              # the ordinary connection
-PSQL_ROLE_ELEVATED="${AUTHZ_SWEEP_ROLE_ELEVATED:-supabase_admin}"   # owner-capable fallback
+PSQL_ROLE="${AUTHZ_SWEEP_ROLE:-postgres}"              # the ONLY connection role
 
-psql_c_as () { local r="$1"; shift; MSYS_NO_PATHCONV=1 docker exec "$DB" psql -U "$r" -d postgres -tA -P pager=off "$@"; }
-psql_c () { psql_c_as "$PSQL_ROLE" "$@"; }
+psql_c () { MSYS_NO_PATHCONV=1 docker exec "$DB" psql -U "$PSQL_ROLE" -d postgres -tA -P pager=off "$@"; }
 # Run an SQL file inside the container (avoids all shell-quoting of quals/bodies).
-psql_f_as () {
-  local r="$1" host="$2"
-  docker cp "$host" "$DB:/tmp/_wp_p0mut.sql" >/dev/null
-  MSYS_NO_PATHCONV=1 docker exec "$DB" psql -U "$r" -d postgres -q -v ON_ERROR_STOP=1 -f //tmp/_wp_p0mut.sql 2>&1
-}
-psql_f () { psql_f_as "$PSQL_ROLE" "$1"; }
-
-# ⛔ THE PREDICATE IS `CAN THIS ROLE ALTER THIS POLICY`, WHICH IS **NOT** `pg_has_role(role,
-# relowner, 'USAGE')`. That correction is MEASURED, 2026-09-07, and it refuted the premise the
-# escalation was designed on — recorded here rather than quietly fixed, because the wrong
-# predicate would have connected as a SUPERUSER for three cases that never needed one.
-#
-#   Measured: `storage.objects` is owned by `supabase_storage_admin`;
-#   `pg_has_role('postgres', relowner, 'USAGE')` = **false**; `postgres` is `rolsuper=f` and is
-#   not a member of that role. ⇒ every catalog proxy says `ALTER POLICY` must fail.
-#   Observed: it SUCCEEDS. `p0-authz-writepath-audit.sh` at HEAD swept
-#   `storage.form_assets_insert_staff_admin` end to end as plain `postgres` — opened, suite ran
-#   COVERED, restore round-tripped byte-exact, sentinel cleared, degenerate_NON_SELECT = 0.
-#
-#   THE MECHANISM, named rather than left as "it works somehow": **supautils**. This stack sets
-#   `supautils.policy_grants = {"postgres":[… "storage.objects" …]}` — the extension's utility
-#   hook grants POLICY DDL on an allowlist of Supabase-managed tables to the privileged role,
-#   entirely outside `pg_class.relowner`. So ownership is a PROXY for a permission this server
-#   grants by another route, and a proxy is not the property (LEARN: a predicate quoted at the
-#   wrong grain; text is not truth — resolve the VALUE, not the noun).
-#
-# The predicate below is therefore the DISJUNCTION, both halves read live from the server:
-#   (a) the role has privs of `pg_class.relowner`  — ordinary Postgres ownership; OR
-#   (b) `nsp.tbl` is in `supautils.policy_grants` for that role — this stack's actual grant.
-# ⛔ Still an evaluated predicate, never a hardcoded list of policy names or a schema name:
-# both halves come from the catalog/GUC at run time, so a change on either route is followed.
-#
-# ⚠ CONSEQUENCE, STATED PLAINLY: on this stack the escalation branch is UNEXERCISED — 0 of 107
-# in-domain policies need it. An authority with zero callers is a conformance finding, not a
-# reassurance, so the DOMAIN-STATEMENT prints the number instead of implying it was used.
-POLICY_DDL_OK_SQL () {   # $1 = role literal ; emits a boolean SQL expression over c/n
-  printf '%s' "(pg_has_role('$1', c.relowner, 'USAGE')
-                 or coalesce((current_setting('supautils.policy_grants', true)::jsonb -> '$1')
-                             @> to_jsonb(n.nspname||'.'||c.relname), false))"
+psql_f () {
+  docker cp "$1" "$DB:/tmp/_wp_p0mut.sql" >/dev/null
+  MSYS_NO_PATHCONV=1 docker exec "$DB" psql -U "$PSQL_ROLE" -d postgres -q -v ON_ERROR_STOP=1 -f //tmp/_wp_p0mut.sql 2>&1
 }
 
-# Which role must OPEN (and therefore RESTORE) a given relation's policy.
-# Sets OPEN_ROLE / REL_OWNER / ROLE_WHY. rc 1 = no configured role on this stack can do it.
-resolve_open_role () {   # $1 = schema   $2 = table
-  local r can can2 via
-  OPEN_ROLE=""; REL_OWNER=""; ROLE_WHY=""
+# The two grant routes to POLICY DDL, each read LIVE from the server, each reported SEPARATELY
+# so a failure can name its half. ⛔ Never a schema name, never a list of policy names: both
+# halves come from the catalog/GUC at run time, so a change on either route is followed.
+#   (a) OWNERSHIP     — the role has privs of `pg_class.relowner`;
+#   (b) SUPAUTILS     — `nsp.tbl` is in `supautils.policy_grants` for that role.
+POLICY_DDL_OWNER_SQL="(pg_has_role('§ROLE§', c.relowner, 'USAGE'))"
+POLICY_DDL_SUPAUTILS_SQL="(coalesce((current_setting('supautils.policy_grants', true)::jsonb -> '§ROLE§')
+                                     @> to_jsonb(n.nspname||'.'||c.relname), false))"
+ddl_sql_for () {  # $1 = one of the two templates above, $2 = role literal
+  printf '%s' "${1//§ROLE§/$2}"
+}
+
+# ⛔ A DETECTOR, NOT A ROUTER. rc 0 = $PSQL_ROLE can ALTER POLICY here (the ordinary case, 107
+# of 107 on this stack). rc 1 = it CANNOT, and DDL_BLOCK_WHY names which half said no, for which
+# role, with the owner — the caller then emits the loud finding and leaves the policy UNVERDICTED.
+# It does not escalate, substitute a role, skip, or otherwise make the condition go away.
+DDL_OWNER=""; DDL_OWNER_OK=""; DDL_SUPAUTILS_OK=""; DDL_WHY=""; DDL_BLOCK_WHY=""
+policy_ddl_detector () {   # $1 = schema   $2 = table
+  local r
+  DDL_OWNER=""; DDL_OWNER_OK=""; DDL_SUPAUTILS_OK=""; DDL_WHY=""; DDL_BLOCK_WHY=""
   r=$(psql_c -c "select pg_get_userbyid(c.relowner)||'|'||
-                        (case when $(POLICY_DDL_OK_SQL "$PSQL_ROLE")          then 1 else 0 end)||'|'||
-                        (case when $(POLICY_DDL_OK_SQL "$PSQL_ROLE_ELEVATED") then 1 else 0 end)||'|'||
-                        (case when pg_has_role('$PSQL_ROLE', c.relowner, 'USAGE') then 'owner' else 'supautils.policy_grants' end)
+                        (case when $(ddl_sql_for "$POLICY_DDL_OWNER_SQL"     "$PSQL_ROLE") then 1 else 0 end)||'|'||
+                        (case when $(ddl_sql_for "$POLICY_DDL_SUPAUTILS_SQL" "$PSQL_ROLE") then 1 else 0 end)
                    from pg_class c join pg_namespace n on n.oid = c.relnamespace
                   where n.nspname = '$1' and c.relname = '$2';" 2>/dev/null | head -1)
-  REL_OWNER="$(printf '%s' "$r" | cut -d'|' -f1)"
-  can="$(printf '%s' "$r" | cut -d'|' -f2)"
-  can2="$(printf '%s' "$r" | cut -d'|' -f3)"
-  via="$(printf '%s' "$r" | cut -d'|' -f4)"
-  if [ -z "$REL_OWNER" ]; then ROLE_WHY="relowner lookup FAILED for $1.$2"; return 1; fi
-  if [ "$can" = "1" ]; then
-    OPEN_ROLE="$PSQL_ROLE"; ROLE_WHY="role=$PSQL_ROLE via $via (owner=$REL_OWNER)"; return 0
+  DDL_OWNER="$(printf '%s' "$r" | cut -d'|' -f1)"
+  DDL_OWNER_OK="$(printf '%s' "$r" | cut -d'|' -f2)"
+  DDL_SUPAUTILS_OK="$(printf '%s' "$r" | cut -d'|' -f3)"
+  if [ -z "$DDL_OWNER" ]; then
+    DDL_BLOCK_WHY="relowner lookup FAILED for $1.$2 as role=$PSQL_ROLE (the relation did not resolve)"
+    return 1
   fi
-  if [ "$can2" = "1" ]; then
-    OPEN_ROLE="$PSQL_ROLE_ELEVATED"
-    ROLE_WHY="role=$PSQL_ROLE_ELEVATED ESCALATED ($PSQL_ROLE can neither own nor policy-grant $1.$2; owner=$REL_OWNER)"
-    return 0
+  if [ "$DDL_OWNER_OK" = "1" ]; then
+    DDL_WHY="role=$PSQL_ROLE via ownership (owner=$DDL_OWNER)"; return 0
   fi
-  ROLE_WHY="NO configured role can ALTER POLICY on $1.$2 (owner=$REL_OWNER): $PSQL_ROLE=no, $PSQL_ROLE_ELEVATED=no"
+  if [ "$DDL_SUPAUTILS_OK" = "1" ]; then
+    DDL_WHY="role=$PSQL_ROLE via supautils.policy_grants (owner=$DDL_OWNER)"; return 0
+  fi
+  DDL_BLOCK_WHY="role=$PSQL_ROLE can ALTER POLICY on $1.$2 by NEITHER route — ownership=NO (owner=$DDL_OWNER, pg_has_role USAGE false), supautils.policy_grants=NO ($1.$2 absent from the GUC for '$PSQL_ROLE')"
   return 1
+}
+# The loud finding. ⛔ stderr AND stdout: a run's log is read as one stream, and a finding that
+# only reaches stderr is invisible to a caller that captured stdout.
+ddl_block_finding () {   # $1 = schema  $2 = table  $3 = policy name
+  echo "*** POLICY-DDL BLOCKED — $1.$2.$3 is UNVERDICTED. NOT swept, NOT a pass, NOT skipped."
+  echo "    $DDL_BLOCK_WHY"
+  echo "    ⛔ This case was NOT worked around. The harness has no second role and does not want"
+  echo "       one: the previous design escalated to a superuser on a premise that measurement"
+  echo "       refuted (ADR 0192). Fix the grant, or record this policy as out of reach and say"
+  echo "       which arm covers it instead. An unverdicted policy is a hole, not a result."
+  echo "*** POLICY-DDL BLOCKED — $1.$2.$3 UNVERDICTED: $DDL_BLOCK_WHY" >&2
 }
 slug () { echo "$1" | tr -c 'A-Za-z0-9_' '_' ; }
 
@@ -1065,36 +1063,30 @@ fi
 # returns exactly the value captured before the gate was opened. arm_inflight records that
 # probe beside the sentinel ($SENTINEL.probe / .want) so RECOVER=1 in a later process can
 # verify too, instead of believing psql's exit code alone.
-# ⛔ THE SENTINEL RECORDS THE ROLE THAT OPENED THE GATE (R11.3, ADR 0192). Without it, a
-# `storage.objects` policy opened by the ESCALATED role and restored as `postgres` CANNOT BE
-# RESTORED — the recovery path would fail on exactly the cases the escalation exists for, and
-# it would fail while printing a restore message. The role travels with the sentinel
-# ($SENTINEL.role) so RECOVER=1 in a LATER PROCESS, which knows nothing about this run,
-# restores with the same role rather than the default.
-# ⚠ A sentinel with NO .role sidecar predates this protocol: the recovery says so out loud and
-# falls back to $PSQL_ROLE rather than guessing silently.
+# ⛔ THERE IS NO `.role` SIDECAR, AND THAT IS DELIBERATE (ADR 0192, superseding the escalated
+# design). The harness has ONE connection role, so a role recorded beside the sentinel could
+# only ever hold one value — and a field that can only ever hold one value is a guard that can
+# only ever read one value. It would look like a check and check nothing. The restore uses the
+# same `psql_f` as the open, which is the same role by construction, not by agreement.
 INFLIGHT=""
 INFLIGHT_PROBE=""
 INFLIGHT_WANT=""
-INFLIGHT_ROLE=""
 arm_inflight () {   # $1 = restore .sql   $2 = probe SQL identifying the ORIGINAL catalog state
-                    # $3 = the role that OPENS (and must RESTORE) this gate
-  INFLIGHT="$1"; INFLIGHT_PROBE="$2"; INFLIGHT_ROLE="${3:-$PSQL_ROLE}"
+  INFLIGHT="$1"; INFLIGHT_PROBE="$2"
   INFLIGHT_WANT="$(psql_c -c "$2" 2>/dev/null)"
   cp -f "$1" "$SENTINEL"                            # Part 4: survives SIGKILL, which no trap does
   printf '%s' "$2"             > "$SENTINEL.probe"
   printf '%s' "$INFLIGHT_WANT" > "$SENTINEL.want"
-  printf '%s' "$INFLIGHT_ROLE" > "$SENTINEL.role"
 }
 disarm_inflight () {  # only ever after a restore has been VERIFIED
-  INFLIGHT=""; INFLIGHT_PROBE=""; INFLIGHT_WANT=""; INFLIGHT_ROLE=""
-  rm -f "$SENTINEL" "$SENTINEL.probe" "$SENTINEL.want" "$SENTINEL.role" 2>/dev/null || true
+  INFLIGHT=""; INFLIGHT_PROBE=""; INFLIGHT_WANT=""
+  rm -f "$SENTINEL" "$SENTINEL.probe" "$SENTINEL.want" 2>/dev/null || true
 }
 restore_inflight () {
   [ -n "${INFLIGHT:-}" ] && [ -f "$INFLIGHT" ] || return 0
-  echo "  (trap: restoring the in-flight gate from $INFLIGHT as role ${INFLIGHT_ROLE:-$PSQL_ROLE})"
+  echo "  (trap: restoring the in-flight gate from $INFLIGHT as role $PSQL_ROLE)"
   local rc live
-  psql_f_as "${INFLIGHT_ROLE:-$PSQL_ROLE}" "$INFLIGHT" >/dev/null 2>&1; rc=$?
+  psql_f "$INFLIGHT" >/dev/null 2>&1; rc=$?
   live=""
   [ -n "${INFLIGHT_PROBE:-}" ] && live="$(psql_c -c "$INFLIGHT_PROBE" 2>/dev/null)"
   if [ "$rc" = "0" ] && [ -n "${INFLIGHT_WANT:-}" ] && [ "$live" = "$INFLIGHT_WANT" ]; then
@@ -1305,25 +1297,17 @@ if [ -s "$SENTINEL" ]; then
     # ⛔ 2026-09-04: the recovery is VERIFIED, not believed. arm_inflight leaves the probe
     #    that identifies the ORIGINAL state beside the sentinel, so this later process can
     #    re-read the catalog instead of trusting psql's exit code.
-    # ⛔ RESTORE WITH THE ROLE THAT OPENED IT (R11.3). A storage-owned policy opened by the
-    #    escalated role and re-applied as $PSQL_ROLE fails with 42501 "must be owner of table
-    #    objects" — on exactly the cases the escalation was added for.
-    if [ -s "$SENTINEL.role" ]; then
-      rec_role="$(cat "$SENTINEL.role")"
-      echo "    sentinel records the opening role: $rec_role — restoring as that role."
-    else
-      rec_role="$PSQL_ROLE"
-      echo "    ⚠ this sentinel has NO .role sidecar (it predates the role-aware protocol)." >&2
-      echo "      Falling back to $rec_role. If the gate is on a table $rec_role does not own," >&2
-      echo "      this restore CANNOT succeed — use 'supabase db reset' instead of retrying." >&2
-    fi
-    psql_f_as "$rec_role" "$SENTINEL" >/dev/null 2>&1; rec_rc=$?
+    # ⛔ ONE ROLE, SO NOTHING TO CHOOSE. The gate was opened as $PSQL_ROLE and is restored as
+    #    $PSQL_ROLE — by construction, not by a recorded field. (The escalated design that
+    #    needed a `.role` sidecar was withdrawn: ADR 0192.)
+    echo "    restoring as role $PSQL_ROLE (this harness has exactly one connection role)."
+    psql_f "$SENTINEL" >/dev/null 2>&1; rec_rc=$?
     rec_live=""; rec_want=""
     [ -s "$SENTINEL.probe" ] && rec_live="$(psql_c -c "$(cat "$SENTINEL.probe")" 2>/dev/null)"
     [ -s "$SENTINEL.want"  ] && rec_want="$(cat "$SENTINEL.want")"
     if [ "$rec_rc" = "0" ] && [ -n "$rec_want" ] && [ "$rec_live" = "$rec_want" ]; then
       mv -f "$SENTINEL" "$SENTINEL.recovered" 2>/dev/null || rm -f "$SENTINEL"
-      rm -f "$SENTINEL.probe" "$SENTINEL.want" "$SENTINEL.role" 2>/dev/null || true
+      rm -f "$SENTINEL.probe" "$SENTINEL.want" 2>/dev/null || true
       echo "*** RESTORE APPLIED and VERIFIED against the catalog (psql rc=0, probe=$rec_live)."
       echo "    ⚠ VERIFY IT ANYWAY, do not take this message as proof — re-read the gate from"
       echo "    the catalog (pg_policies / pg_get_functiondef). If in any doubt run"
@@ -1426,30 +1410,34 @@ echo "    gates SELECT and is opened by p0-authz-door-audit.sh, whose domain is 
 echo "    in ('r','*')). Until 2026-09-02 this domain was a 33-row EMBEDDED SNAPSHOT"
 echo "    bounded on cmd in (INSERT,UPDATE,DELETE) — a syntax, not the property — and the"
 echo "    other 74 write-capable policies were reported as 'matched no gate'."
-# ⛔ BLAST RADIUS, DISCLOSED IN THE RUN'S OWN OUTPUT (R11.5). Say it plainly rather than
-# leaving it to be discovered in the code: this harness can open a gate as a SUPERUSER.
-ROLE_STATS="$(psql_c -c "select count(*) filter (where not pg_has_role('$PSQL_ROLE', c.relowner,'USAGE'))||'|'||
-                                count(*) filter (where not $(POLICY_DDL_OK_SQL "$PSQL_ROLE"))
+# ⛔ THE DETECTOR'S STANDING, DISCLOSED IN THE RUN'S OWN OUTPUT. It is stated as a count, and
+# the count is expected to be ZERO — an instrument that fires on nothing must SAY so, because
+# "no finding" and "no instrument" print identically otherwise.
+ROLE_STATS="$(psql_c -c "select count(*) filter (where not $(ddl_sql_for "$POLICY_DDL_OWNER_SQL" "$PSQL_ROLE"))||'|'||
+                                count(*) filter (where not ($(ddl_sql_for "$POLICY_DDL_OWNER_SQL" "$PSQL_ROLE")
+                                                         or $(ddl_sql_for "$POLICY_DDL_SUPAUTILS_SQL" "$PSQL_ROLE")))
                            from pg_policy pol
                            join pg_class c     on c.oid = pol.polrelid
                            join pg_namespace n on n.oid = c.relnamespace
                           where pol.polcmd <> 'r';" 2>/dev/null | head -1)"
 NOT_OWNED="$(printf '%s' "$ROLE_STATS" | cut -d'|' -f1)"
-NEEDS_ELEV="$(printf '%s' "$ROLE_STATS" | cut -d'|' -f2)"
-echo "DOMAIN-STATEMENT connection roles: ordinary=$PSQL_ROLE; owner-capable fallback=$PSQL_ROLE_ELEVATED (a SUPERUSER on this stack)."
+DDL_BLOCKED="$(printf '%s' "$ROLE_STATS" | cut -d'|' -f2)"
+echo "DOMAIN-STATEMENT connection role: $PSQL_ROLE, and ONLY $PSQL_ROLE. No escalation, no superuser"
+echo "    connection, no second role — for all $POL_TOTAL policies and all $GUARD_TOTAL guards (ADR 0192)."
 echo "    ${NOT_OWNED:-?} of $POL_TOTAL in-domain policies sit on tables $PSQL_ROLE does NOT own —"
 echo "    but ownership is a PROXY, not the property: supautils' \`policy_grants\` grants POLICY DDL"
-echo "    on Supabase-managed tables to the privileged role outside pg_class.relowner."
-echo "    ⇒ ${NEEDS_ELEV:-?} of $POL_TOTAL actually REQUIRE the escalated role."
-if [ "${NEEDS_ELEV:-1}" = "0" ]; then
-  echo "    ⛔ ZERO. The escalation branch is present and UNEXERCISED on this stack — stated as a"
-  echo "    conformance finding, not as reassurance: NO gate in this run is opened as a superuser."
+echo "    on Supabase-managed tables to $PSQL_ROLE outside pg_class.relowner. Measured, not assumed:"
+echo "    a superuser escalation was built here on the ownership reading and the reading was WRONG."
+echo "    ⇒ POLICY-DDL DETECTOR: ${DDL_BLOCKED:-?} of $POL_TOTAL policies are unopenable by BOTH routes."
+if [ "${DDL_BLOCKED:-1}" = "0" ]; then
+  echo "    ⛔ ZERO — the detector is DORMANT on this stack. Stated as a conformance finding, never as"
+  echo "    reassurance: it is proven able to fire only by a PLANT in a scratch copy, never here."
 else
-  echo "    ⛔ ${NEEDS_ELEV} gate(s) in this run ARE opened and restored AS A SUPERUSER. Blast radius,"
-  echo "    said plainly. Each such row carries [role=$PSQL_ROLE_ELEVATED ESCALATED …]."
+  echo "    ⛔ ${DDL_BLOCKED} policy(ies) CANNOT be opened by either route. Each is UNVERDICTED, prints a"
+  echo "    POLICY-DDL BLOCKED finding naming its failing half, and makes this run DIRTY. Not a pass."
 fi
-echo "    The choice is a PREDICATE evaluated per case (ownership OR supautils.policy_grants) —"
-echo "    never a schema name and never a list of policy names. All READS stay on $PSQL_ROLE."
+echo "    The detector is a PREDICATE evaluated per case (ownership OR supautils.policy_grants), both"
+echo "    halves read live — never a schema name, never a list of policy names. It NEVER routes."
 [ "$POL_NOSNAP" -gt 0 ] && \
   echo "    ⚠ $POL_NOSNAP selected policy(ies) are NOT in the drift snapshot: they are swept, but" && \
   echo "      no §7.2 drift tripwire protects their verdict. Each is marked snapshot:ABSENT."
@@ -1863,11 +1851,13 @@ sweep_pol_one () {   # $1..$8 = nsp tbl polname cmd haveq havew qtrue wtrue
     return 0
   fi
 
-  # ⛔ WHICH ROLE CAN OPEN THIS ONE — resolved from pg_class.relowner PER CASE (R11.1). Not a
-  # schema name, not a list of policy names: an ownership predicate, so the next non-$PSQL_ROLE
-  # -owned table is handled by the rule rather than by a future edit.
-  if ! resolve_open_role "$nsp" "$tbl"; then
-    SW_VERDICT="ERROR"; SW_NOTE="cannot determine an owner-capable role: $ROLE_WHY"
+  # ⛔ CAN $PSQL_ROLE OPEN THIS ONE AT ALL — asked PER CASE, both grant routes read live. This
+  # is a DETECTOR: on rc 1 it does NOT escalate, substitute a role, or skip. It says so loudly
+  # and the policy is left UNVERDICTED (an ERROR row ⇒ the run exits DIRTY). ⛔ Never an
+  # allowlist, never a silent workaround — that is what makes an unopenable gate LOOK swept.
+  if ! policy_ddl_detector "$nsp" "$tbl"; then
+    ddl_block_finding "$nsp" "$tbl" "$polname"
+    SW_VERDICT="ERROR"; SW_NOTE="UNVERDICTED — POLICY-DDL BLOCKED: $DDL_BLOCK_WHY"
     return 0
   fi
 
@@ -1910,10 +1900,7 @@ sweep_pol_one () {   # $1..$8 = nsp tbl polname cmd haveq havew qtrue wtrue
     [ "$OPENW" = 1 ] && printf ' with check (%s)' "$(cat "$wfile")"
     printf ';\n'
   } > "$restore"
-  # ⛔ The sentinel carries OPEN_ROLE, so a later process's RECOVER=1 restores with the role
-  # that opened it. A storage policy opened as $PSQL_ROLE_ELEVATED and re-applied as
-  # $PSQL_ROLE cannot be restored at all — 42501, on exactly the cases the escalation exists for.
-  arm_inflight "$restore" "select md5(coalesce(pg_get_expr(polqual,polrelid),'')||'|'||coalesce(pg_get_expr(polwithcheck,polrelid),'')) from pg_policy where polname='$polname' and polrelid='$regc'::regclass" "$OPEN_ROLE"
+  arm_inflight "$restore" "select md5(coalesce(pg_get_expr(polqual,polrelid),'')||'|'||coalesce(pg_get_expr(polwithcheck,polrelid),'')) from pg_policy where polname='$polname' and polrelid='$regc'::regclass"
 
   # OPEN the policy — only the clause(s) the open rule names for this command.
   {
@@ -1922,9 +1909,9 @@ sweep_pol_one () {   # $1..$8 = nsp tbl polname cmd haveq havew qtrue wtrue
     [ "$OPENW" = 1 ] && printf ' with check (true)'
     printf ';\n'
   } > "$WORK/_wp_mut.sql"
-  mout=$(psql_f_as "$OPEN_ROLE" "$WORK/_wp_mut.sql")
+  mout=$(psql_f "$WORK/_wp_mut.sql")
   if echo "$mout" | grep -qiE 'ERROR'; then
-    SW_VERDICT="ERROR"; SW_NOTE="open failed as $OPEN_ROLE: $(echo "$mout" | tr '\n' ' ' | head -c 160)"
+    SW_VERDICT="ERROR"; SW_NOTE="open failed as $PSQL_ROLE: $(echo "$mout" | tr '\n' ' ' | head -c 160)"
     restore_inflight || { echo "*** the restore of $tbl.$polname REFUSED — stopping (§7.5)."; exit 2; }
     return 0
   fi
@@ -1932,8 +1919,8 @@ sweep_pol_one () {   # $1..$8 = nsp tbl polname cmd haveq havew qtrue wtrue
   out=$(run_suite); echo "$out" > "$RUNLOGS/pol_$s.log"
   classify "$out"
 
-  # RESTORE exact original + VERIFY round-trip — AS THE SAME ROLE THAT OPENED IT.
-  psql_f_as "$OPEN_ROLE" "$restore" >/dev/null 2>&1
+  # RESTORE exact original + VERIFY round-trip — same `psql_f`, therefore same role, as the open.
+  psql_f "$restore" >/dev/null 2>&1
   if [ "$OPENQ" = 1 ]; then
     nowq=$(psql_c -c "select pg_get_expr(polqual,polrelid) from pg_policy where polname='$polname' and polrelid='$regc'::regclass")
     if [ "$nowq" != "$(cat "$qfile")" ]; then
@@ -1956,10 +1943,11 @@ sweep_pol_one () {   # $1..$8 = nsp tbl polname cmd haveq havew qtrue wtrue
   [ "$OPENQ" = 0 ] && [ "$OPENW" = 1 ] && SW_DIR="open with-check->true"
   SW_VERDICT="$VERDICT"
   SW_DRIFT="$SHAPE_MOVED"
-  # ⚠ The ROLE is carried on the ROW, not only in the banner: a row is read without its banner,
-  # and "which role opened this gate" is part of what the verdict means.
-  SW_NOTE="$FAILING$snapnote [$ROLE_WHY]"
-  [ "$VERDICT" = "ERROR" ] && SW_NOTE="run-shape!=baseline (Files=$RUNFILES Tests=$RUNTESTS)$snapnote [$ROLE_WHY]"
+  # ⚠ The ROLE and its GRANT ROUTE are carried on the ROW, not only in the banner: a row is read
+  # without its banner, and "how was this gate openable at all" is part of what the verdict means
+  # — it is the fact whose misreading produced the withdrawn escalation (ADR 0192).
+  SW_NOTE="$FAILING$snapnote [$DDL_WHY]"
+  [ "$VERDICT" = "ERROR" ] && SW_NOTE="run-shape!=baseline (Files=$RUNFILES Tests=$RUNTESTS)$snapnote [$DDL_WHY]"
   return 0
 }
 
@@ -2025,7 +2013,9 @@ elif [ "$RESET_EVERY" = "0" ]; then
 else
   echo "preconditions: resets=$RESETS (RESET_EVERY=$RESET_EVERY defaulted, SUBSET run — SUPPRESSED: the DEFAULT never fires on a SUBSET run)"
 fi
-echo "connection roles: ordinary=$PSQL_ROLE, owner-capable fallback=$PSQL_ROLE_ELEVATED (used only where the role can NEITHER own the table NOR policy-grant it via supautils — see the per-row [role=…] note)"
+# ⚠ awk, not `grep -c`: grep exits 1 on a ZERO count, and the expected count here IS zero.
+ddl_blocked_ct=$(awk -F'\t' '$5 ~ /POLICY-DDL BLOCKED/' "$PROGRESS" | wc -l | tr -d '[:space:]')
+echo "connection role: $PSQL_ROLE only (no escalation — ADR 0192). POLICY-DDL detector fired on ${ddl_blocked_ct:-0} of $swept_ct swept case(s); each firing is an UNVERDICTED policy, not a verdict. See the per-row [role=… via …] note for the grant route each COVERED row was earned through."
 
 # ⛔ THE EXIT CODE. Until 2026-08-29 this file ENDED on the echo above, so every run
 # exited 0 — including one with 13 ERRORs that measured nothing. `(COVERED = the rest)`

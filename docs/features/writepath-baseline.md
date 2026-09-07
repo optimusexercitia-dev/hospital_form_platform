@@ -87,31 +87,36 @@ for the three `storage.objects` INSERT policies, and make the arm's empty-set an
 behaviour findings rather than silence — before AE5 re-keys write policies eleven times against it.
 
 ### Done since start
-- Harness built (uncommitted at time of writing): `CASES` set-ness fix, `RESET_EVERY` port with a
-  retry net, an owner-aware connection role, a `SELFTEST` arm (the file had none), the DRYRUN
-  banner's count derived. Every change proven with a planted reproducer at its **bare** exit code,
-  a clean negative control and a discrimination half; each self-test table shown able to go RED
-  before its green was believed.
-- The three `storage.objects` INSERT policies **swept and verdicted COVERED** as plain `postgres`.
-- Merge protected set emitted and reconciled against the reader-visible inventory: **delta 0**.
+- Harness built: `CASES` set-ness fix, `RESET_EVERY` port (with a retry net and an Arm-1-specific
+  post-reset OID check the door's design does not cover), a `SELFTEST` arm (the file had none), the
+  DRYRUN banner's count derived from `GUARD_KEYS`. Every change proven with a planted reproducer at
+  its **bare** exit code, a clean negative control and a discrimination half; each self-test table
+  shown able to go RED before its green was believed.
+- ⭐ **The superuser escalation was built, then REMOVED** (PO ruling R23). Its premise — ownership —
+  was a **proxy**, not the property: `supautils.policy_grants` grants POLICY DDL outside
+  `pg_class.relowner`. One connection role (`postgres`) for all 120 cases; the corrected predicate
+  is kept as a **DETECTOR** that names its failing half and leaves a policy UNVERDICTED, never
+  routing around it. Dormant on 0 of 107, so **proven able to fire by a plant** in a scratch copy,
+  with a clean-tree negative control and a discrimination half in the same run.
+- The three `storage.objects` INSERT policies **swept and verdicted COVERED** as plain `postgres`,
+  each row carrying `via supautils.policy_grants` — re-earned on the escalation-free harness.
+- `RECOVER=1` re-earned on a **storage** policy with no role sidecar, plus a discrimination half
+  (corrupted `.want` ⇒ refused, sentinel KEPT) proving the catalog verification is load-bearing.
+- Merge protected set reconciled: **delta 0, settled at 11** (R24).
 - `npm run lint` 0/0, `npm run typecheck`, and `npm run test:db` on a fresh reset all green
   (Files=262, Tests=8876 — shape unmoved). No production change: the `main...` diff over
   `supabase/migrations`, `seed.sql`, `src` is EMPTY.
+- **ADR 0192** written and indexed.
 
 ### In progress
-- **STOPPED at the pre-launch checklist, before the full run** (ruling R12: a failed item means do
-  not launch). One item cannot pass as written — see Blockers.
+- **The full run is LAUNCHED** (detached, 2026-09-07 ~20:10 -0300). Derived window **≈ 3.2–4.6 h**
+  from a two-point measurement (91 s/case, 92 s intercept); expected finish ≈ 00:00 -0300. The
+  resume note — command, WORK, log, bare-rc file, sentinel, checkpoint schedule, recovery step — is
+  in the record. ⛔ The committed findings file is a MOVING TARGET while it runs; freeze the tree.
 
 ### Next
-- Lead/PO rules on the owner-aware role → launch the full run (**derived window ≈ 3.6–5.0 h**, from
-  measured per-case 99 s × 120 + 5 resets × 165 s + retries) → CARRIED enumeration → re-file →
-  closures → ADR 0192 → gate → QA → PO → Record.
+- CARRIED enumeration + dispositions → R19 ERROR triage → R20's 13 checked by name in the output →
+  re-file → closures → gate → QA → PO → Record.
 
 ### Blockers
-- ⛔ **R11's premise is refuted by measurement.** The owner-aware escalation was approved to rescue
-  three `storage.objects` policies predicted to fail as `postgres`. They do not fail: `supautils`
-  grants POLICY DDL outside `pg_class.relowner`, so ownership was a proxy, not the property. Under
-  the corrected predicate **0 of 107** policies need the escalated role, so R11.2's "prove the
-  escalated direction on a storage policy" is unsatisfiable without building a case to fit the test.
-  Needs a ruling: keep the (dormant) branch, or remove it.
 - ⚠ Batch 4 runs on a separate machine in parallel; merge order is Batch 3 FIRST.
