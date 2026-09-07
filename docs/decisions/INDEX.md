@@ -12,13 +12,13 @@
 >
 > Edges are **advisory** and over-inclusive by design; the ADR text is truth.
 
-**189 ADRs** · next free number: **0192** · 64 carry an inbound supersedes/amends edge
+**190 ADRs** · next free number: **0194** · 66 carry an inbound supersedes/amends edge
 
 ## ⚠ Anomalies
 
-- **Missing numbers:** 0034, 0077 — a gap is not automatically a defect (0077 was withdrawn by the PO and its subject re-filed as 0078; 0034 was never used), but a gap nobody can explain usually means a lost file.
+- **Missing numbers:** 0034, 0077, 0192 — a gap is not automatically a defect (0077 was withdrawn by the PO and its subject re-filed as 0078; 0034 was never used), but a gap nobody can explain usually means a lost file.
 - **No parseable `Status:`:** none
-- **Still proposed / draft / deferred (8):** 0022, 0031, 0033, 0058, 0094, 0108, 0115, 0160 — an ADR's status is the author's claim on the day it was written, and nothing updates it when the code ships. The last review of this list is stamped in `proposed-review.json`; gate 9 reds when that review is more than 30 days old or this set has drifted from it.
+- **Still proposed / draft / deferred (9):** 0022, 0031, 0033, 0058, 0094, 0108, 0115, 0160, 0193 — an ADR's status is the author's claim on the day it was written, and nothing updates it when the code ships. The last review of this list is stamped in `proposed-review.json`; gate 9 reds when that review is more than 30 days old or this set has drifted from it.
 
 ## Index
 
@@ -197,9 +197,9 @@
 | 0173 | [the door-sweep deriver is blind to runtime-rewrite migrations; a target-declaration con…](0173-door-sweep-deriver-blind-to-runtime-rewrite-migrations.md) | accepted | 2026-09-01 | amends 0079 | ⚠ amended by 0190, 0191 |
 | 0174 | [`authz.holds_role`: one chokepoint for the hat, and `authz.roles.state` made load-beari…](0174-authz-holds-role-chokepoint-and-authoritative-state-gate.md) | accepted | 2026-09-01 | amends 0079, 0106 | ⚠ amended by 0176 |
 | 0175 | [The AE4 PO batch: what the differential oracle asserts, and what it deliberately does n…](0175-ae4-po-batch-oracle-inputs-and-arm3-deferral.md) | accepted | 2026-09-01 | amends 0155 | ⚠ amended by 0178 |
-| 0176 | [The permission layer made real: three interfaces, a manifest countdown, and the re-key…](0176-authz-permission-layer-made-real.md) | accepted | 2026-09-02 | amends 0155, 0174 | – |
+| 0176 | [The permission layer made real: three interfaces, a manifest countdown, and the re-key…](0176-authz-permission-layer-made-real.md) | accepted | 2026-09-02 | amends 0155, 0174 | ⚠ amended by 0193 |
 | 0177 | [AE4.9 D4/D7 as built: the candidate's state set, the denial precedence, and the state g…](0177-ae49-resolver-contract-implementation-choices.md) | accepted | 2026-09-02 | – | – |
-| 0178 | [AE4.9 D6 as built: the narrow authorizer, where the preserved legacy arm lives, and the…](0178-ae49-d6-rekey-as-built.md) | accepted | 2026-09-02 | amends 0175 | – |
+| 0178 | [AE4.9 D6 as built: the narrow authorizer, where the preserved legacy arm lives, and the…](0178-ae49-d6-rekey-as-built.md) | accepted | 2026-09-02 | amends 0175 | ⚠ amended by 0193 |
 | 0179 | [One open follow-up register: the PROGRESS.md index is folded into the bodies](0179-follow-up-register-consolidation.md) | accepted | 2026-09-02 | amends 0124, 0140 | ⚠ amended by 0185, 0186 |
 | 0180 | [`authz.scope_reaches`: the commission→organization ascent reads `commissions.organizati…](0180-scope-reaches-commission-org-ascent-plan-fix.md) | accepted | 2026-09-02 | – | – |
 | 0181 | [Acceptance condition P1 bounds the INDEX PATH, not the `Seq Scan` node](0181-p1-bounds-the-index-path-not-the-scan-node.md) | accepted | 2026-09-02 | – | – |
@@ -213,3 +213,4 @@
 | 0189 | [One crash-safety protocol across the mutation harnesses: a verified restore, a bounded…](0189-one-crash-safety-protocol-across-the-mutation-harnesses.md) | accepted | 2026-09-04 | amends 0153, 0171 | – |
 | 0190 | [The door-sweep deriver selects doors by PROPERTY, scopes what it swept, and a full run…](0190-the-door-sweep-deriver-selects-by-property-and-a-full-run-merges.md) | accepted | 2026-09-05 | amends 0079, 0173 | – |
 | 0191 | [The door arm's domain gains a SCHEMA axis, the set-valued resolvers get a committed hom…](0191-the-door-arms-domain-gains-a-schema-axis-a-targeted-home-and-a-fourth-outcome.md) | accepted | 2026-09-05 | amends 0079, 0173 | – |
+| 0193 | [The enforcement manifest declares what it measured, and the measurement is a fixed poin…](0193-the-enforcement-manifest-declares-what-it-measured.md) | ⚠ proposed | 2026-09-07 | amends 0176, 0178 | – |

@@ -855,6 +855,14 @@ authorizers.
 ⛔ A policy or door calling layer 1 or 2 **directly for a permission decision** is a finding; the
 enforcement manifest is how it is found.
 
+⛔ **Who ELSE calls a layer-3 authorizer is declared in the manifest, not here** (ADR 0193 D5/D7,
+ADR 0186 one-home). A consumer of an authorizer is exactly one of three declared things —
+an `enforcementSites` entry, a `definerSurface` entry (a SECURITY DEFINER writer behind a declared
+site's relation, with the gate it actually carries), or a `nonEnforcementConsumers` entry (the
+Rule 11 audit registry `app._audit_access_authorized`, which decides what the trail RECORDS and
+never what a caller may read). pgTAP `410` § 8.7 / § 8.8 close both axes against the live catalog
+in both directions. Home: `supabase/tests/vectors/authz-enforcement-manifest.json`.
+
 ### Measured on a fresh reset, with the query so it is re-run rather than quoted
 
 ⛔ `DB=supabase_db_azkbbhskturikxpgmafq`; **no `psql` on PATH** — `docker exec "$DB" psql -U postgres -d postgres -At -c "…"`.
