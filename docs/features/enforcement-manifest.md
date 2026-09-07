@@ -65,46 +65,57 @@ legacy gate, and the rollback runbook AE5 will run eleven times.
 
 ### Objective
 Make the enforcement manifest a falsifiable oracle before AE5 copies the per-role template eleven
-times: a `hardDenyClasses` arm that can fail, a transitive §6.2, the policy-re-keyed-but-DEFINER-
-still-legacy defect resolved across the whole `_staff_admin_write` class, the two undeclared
-consumers recorded, and the rollback runbook re-measured at the tip (Batch 5).
+times: a `hardDenyClasses` arm that can fail, a transitive §6.2, the policy-re-keyed-but-DEFINER-still-
+legacy defect resolved across the `_staff_admin_write` class, the two undeclared consumers recorded,
+and the rollback runbook re-measured at the tip (Batch 5).
 
 ### Done since start
-- **All five follow-ups closed**, each audited against its own quoted condition and rotated to the
-  archive with its body (ADR 0185 D5); `FUP-AUTHZ-HARDDENY-GATELESS-CLASSES-HAVE-NO-DETECTOR` filed
-  (PO ruling Q5). ADR **0193** written, `proposed`, amends 0176 + 0178.
-- **`hardDenyClasses` is a committed claim** on the three re-keyed rows (`principal_inactive` ×3,
-  `respondent_exclusion` on `org.professionals.read`), and `410` §6.2 is a per-row **set equality**
-  against a fixed point over the composed-call closure — no depth bound, seeded from the sites AND
-  the authorizer. §6.2b plants a class on a synthetic root (it also proves transitivity: 2 hops);
-  §6.2c makes two real rows differ. M7 gained three arms that fail on the empty case.
+- **All five follow-ups closed**, each on its own quoted condition and rotated to the archive with
+  its body (ADR 0185 D5); `FUP-AUTHZ-HARDDENY-GATELESS-CLASSES-HAVE-NO-DETECTOR` filed (PO ruling
+  Q5). ADR **0193** written, `proposed`, amends 0176 + 0178.
+- **`hardDenyClasses` is a committed claim** on the three re-keyed rows, and `410` §6.2 is a per-row
+  **set equality** against a fixed point over the composed-call closure — no depth bound, seeded from
+  the sites AND the authorizer. §6.2b plants a class on a synthetic root (transitive: 2 hops); §6.2c
+  makes two real rows differ. M7 gained three arms that fail on the empty case.
 - **One migration, `20261003007350`**: `public.set_item_validations` re-keyed onto
   `app.can_edit_commission_forms`, body regenerated from live `pg_get_functiondef`, one line changed.
-  It is the ONLY `_staff_admin_write` member in the tree whose policy is wholly unreachable, so the
-  permission was inert for that table. The other 7 of 8 form DEFINER writers are **declared, not
-  re-keyed** (`definerSurface`, +M13, +`410` §8.7 both directions) and stay AE5's.
-- **PO rulings applied**: Q1 — `app.current_professional_read_organizations` DECLARED a site (§8.5's
-  element flips to `[declared site]`, §8.6 → `13 / 8 / 4`; ⛔ **no pin was deleted**, `plan()` does
-  not fall by one on that account). Q3 — `nonEnforcementConsumers` + `410` §8.8's consumer partition.
-  Q6 — matrix row 1's cell edited, before/after quoted in the record.
-- **Runbook §6 re-measured at the tip** (Batch 5, all eight items). Four stale figures, not three;
-  §6.1's `commission_of_version` live twin measured **dead**; a seventh revert artifact that is not
-  a policy.
-- **Ten fire-proofs observed** (D1–D10 + the two §8.8 halves), every plant in a container-side copy
-  or a fake tree, every restore believed on the md5 and on `--check` exit 0 at sha `493370f994a5`.
-  Red-first honoured: `409` §2.10c and §2.10e were observed RED on the un-migrated catalog.
+  The other 7 of 8 form DEFINER writers are **declared, not re-keyed** (`definerSurface`, +M13,
+  +`410` §8.7 both directions) and stay AE5's.
+- **PO rulings applied**: Q1 — `app.current_professional_read_organizations` DECLARED a site (§8.6 →
+  `13 / 8 / 4`; ⛔ **no pin was deleted**); Q3 — `nonEnforcementConsumers` + §8.8's consumer partition;
+  Q6 — matrix row 1's cell edited, before/after quoted in the record. **Ten fire-proofs observed**
+  (D1–D10 + the two §8.8 halves), every plant in a container-side copy or a fake tree; red-first
+  honoured — `409` §2.10c/§2.10e observed RED on the un-migrated catalog.
+- **QA returned CHANGES REQUESTED (2026-09-07); iteration 1 closed all eight** (5 commits over
+  `7b9b1eb7`; detail + observed proofs in the record):
+  - **Runbook §6 re-measured at the tip** (Batch 5, all eight items). **Five** stale figures, not four
+    — §6.7 step 4 was the fifth, and re-measuring it found a **sixth** nobody had counted: its `EXPECT
+    after the revert` constant `a115005b…` is **no longer reachable by this revert** (`20261003007320`
+    moved `professional_profiles_select` inside the same 99-policy aggregate). Post-revert value
+    **`c227d64eb11909e94400b7ba6bcaab0b`**, by inversion in a rolled-back transaction; step 4 now
+    carries all four landing values.
+  - **The deriver's `FINDING (1)` is discharged by a real targeted mutation case**, not by `409`:
+    `supabase/tests/mutation/authz-command-door-targeted-cases.sh`, **COVERED**, bare rc 0 on its
+    first run (gate neutralized → `409` RED → md5-verified restore → `409` GREEN). C2's neutralizer
+    was tried first and **measured** unable to take the door (`c2n.tier1 = 0`; rc 2, "swept 0 of
+    171"). `409` §2.6f/§2.10e is named beside it as a **different** instrument.
+  - **The findings-baseline merge is portable**: the GNU-only `diff --*-group-format` block is gone
+    and `SELFTEST=1 bash scripts/door-sweep-cases.sh` is **PASS 34 · FAIL 0 · SKIPPED 0**, rc 0, on this
+    Mac (was 17/17) — equivalence proven on the 18 merge scenarios and on all four **real** committed
+    findings baselines, byte-identical; none changed.
+  - Three text corrections (a migration id read as a date; §8.8's 12-of-13 + LEARN-079; the call-edge
+    query beside its figure, **re-measured — 2564 / 867 exactly**), the two ⚠ recommendations, and
+    `FUP-AUTHZ-EMPTY-CASES-RUNS-A-FULL-SWEEP` 🟠 **filed, not fixed** (owner lead).
 
 ### In progress
-- Nothing. The build is complete and committed on `authz-enforcement-manifest` (7 commits).
+- Nothing. Iteration 1 is complete and committed on `authz-enforcement-manifest` (12 commits).
 
 ### Next
-- Lead runs the tip gate (§E): the four authz arms with domains quoted, `SELFTEST=1` deriver + door
-  harness, the set-valued targeted home, and **the diff-scoped sweep both arms** with its `SCOPE:`
-  line quoted — owed because this batch ships a migration. ⚠ The write arm's empty-set trap is open
-  until Batch 3 lands: print the case list and check by hand that it is non-empty.
-- Then QA → PO → wait for Batch 3 to merge → rebase, re-run both arms, `npm run lint` mid-merge →
-  Record (ADR 0193 → `accepted`, removed from `proposed-review.json`).
+- **QA re-review** of the eight findings, then the lead's tip gate (§E): the four authz arms with
+  domains quoted, `SELFTEST=1` deriver + door harness, the set-valued targeted home, and **the
+  diff-scoped sweep both arms** — whose `SCOPE:` **and** `RESULT: FINDING (1)` lines are quoted in the
+  gate record, with the targeted case above named as the discharge (ADR 0190). Then PO → wait for
+  Batch 3 → rebase, re-run both arms, `npm run lint` mid-merge → Record (ADR 0193 → `accepted`).
 
 ### Blockers
-- None. ⚠ Merge order fixed: **Batch 3 first** — merged the other way, its write-path baseline
-  measures a `set_item_validations` body that no longer exists.
+- None. ⚠ Merge order fixed: **Batch 3 first** — the other way round, its write-path baseline measures a `set_item_validations` body that no longer exists.

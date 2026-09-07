@@ -267,3 +267,166 @@ exit code is read as a pass. Tier 2's 190 doors stay **deferred by ADR 0171 and 
 runbook's post-revert numbers remain **derived expectations** — the revert has still never been
 executed. And the seven un-re-keyed form DEFINER doors are **recorded, not fixed**; each owes its own
 behavioural differential in AE5.
+
+### 2026-09-07 — QA fix loop, iteration 1 (backend)
+
+QA returned **CHANGES REQUESTED** (`docs/reviews/enforcement-manifest-review.md`): F-BLOCK-1,
+F-BLOCK-2, F-MAJOR-1, F-MINOR-1/2/3, F-REC-1/2. Iteration 1 addresses all eight, on the lead's
+rulings. Five commits, `7f7e36af` · `f7835433` · `9467ffb0` · `26eb82d6` · `5a5c163b`, on
+`authz-enforcement-manifest` over `7b9b1eb7`. All DB work ran **after** the lead's set-valued
+re-run marker, on its fresh reset at head `20261003007350`.
+
+#### F-BLOCK-1 — § 6.7 step 4, re-measured at the tip, and it was worse than the finding
+
+**What changed.** § 6.7 step 4 rewritten; § 6.9's `387` cell gains a dated attribution correction;
+the closure entry's clause 5 gains a dated note (**five** stale figures, not four).
+
+**Observed.** At head `20261003007350`, `pg_temp.ae15_hot_subset()` re-typed from `387:98-135`:
+
+```
+c1_live = f2a0693be216cfe08eb6cf0283565e7c     c2_count = 99
+hot-subset membership of the six re-keyed policies:
+  form_items t · form_sections t · form_versions t | form_item_options f · form_item_validations f · forms f
+professional_profiles_select: in the hot subset, and post_7320_shape = t
+```
+
+⛔ **The finding under the finding.** Step 4's `EXPECT after the revert:
+a115005b6106573c70d98a6aceb8a4fe` is **not reachable by this revert** — `a115005b…` is the pre-D6
+value of the whole 99-policy aggregate, and `20261003007320` (ADR 0182) has since moved a *different*
+member of it. Derived by inversion in a **rolled-back transaction** (§ 6.2's six `alter policy`
+statements applied verbatim):
+
+```
+### AFTER THE SIX-POLICY REVERT (derived by inversion, in a rolled-back transaction)
+ c1_after_revert = c227d64eb11909e94400b7ba6bcaab0b | equals_pre_d6 = f | equals_post_7300 = f | c2 = 99
+### AFTER ROLLBACK — verified restore
+ c1_restored = f2a0693be216cfe08eb6cf0283565e7c | restored_ok = t
+```
+
+Step 4 now states **four** landing values with their readings (`c227d64e…` = the revert landed ·
+`f2a0693…` = nothing applied · `a115005b…` = you also reverted `20261003007320` · `3901715…` = you
+reverted `7320` and left D6 in place), the query, the `count(*) = 99` cardinality control, the
+three-of-six reach bound, and the expiry warning. ⚠ **§ 6.9's attribution was also wrong** and is
+corrected as a dated note: the value moved at `20261003007320`, **not** `20261003007340` —
+`387`'s own re-capture note names `7320`, and `7340`'s two policies were measured today to be
+*outside* the hot subset, so that migration could not have moved C1 at all.
+
+#### F-BLOCK-2 — the deriver's FINDING (1) discharged with a real targeted mutation case
+
+**The instrument search, measured, not assumed.** The C2 tier-1 command-door neutralizer was tried
+first, in its own subset mode. `CASES="public.set_item_validations" bash
+supabase/tests/mutation/c2-command-door-neutralizer.sh`, bare rc **2**:
+
+```
+=== DONE — swept 0 of 171 derived enforcer(s) ===
+    COVERED=0  BLIND=0  ERROR=0   (skipped by CASES: 171)
+*** ABORT: swept ZERO enforcers. This is NOT a pass.
+    CASES matched no derived enforcer.
+```
+
+and the reason is a **property**, re-derivable from the schema the harness leaves behind:
+`c2n.roots = 1 · c2n.gatefn = 1 · c2n.tier1 = 0 · reached from any Tier-1 root = 0` — C2's Tier 1
+requires the closure to reach a **PHI-marked relation**, and `form_item_validations` holds none.
+⚠ No sentinel refusal occurred; `RECOVER=1` was **not** needed. The two stale `$TMPDIR` sentinels
+from the lead's killed sweep were inspected and left in place: their subjects are healthy on this
+reset (`public.can_dispose_referral_phi` md5 `b68f37a84ea535cacb0c0c3069696c0b` = the sentinel's own
+`.want`; `app.assert_accreditation_enabled` still raises).
+
+**So the case was written**, in the smallest committed home consistent with ADR 0191's
+targeted-home precedent: `supabase/tests/mutation/authz-command-door-targeted-cases.sh`. Bare rc
+**0**, first run:
+
+```
+--- CASE 1: public.set_item_validations(uuid,jsonb) — the authority gate neutralized ---
+    fingerprint before: 3c244fa6a08a510aa4708b87516e1be2
+    fingerprint mutated: bdcccfe0aa7ddab5ac3c2e8ce98fb094
+    409 under mutation: RED (good)
+    fingerprint restored: 3c244fa6a08a510aa4708b87516e1be2  (matches before)
+    409 after restore: GREEN
+    CASE 1 VERDICT: COVERED
+=== RESULT: 1 of 1 case(s) COVERED. ===
+    DOMAIN: command doors outside BOTH p0-authz-door-audit.sh's PRED_DOMAIN (return
+            type is not boolean) and c2-command-door-neutralizer.sh's worklist (the
+            door is not Tier-1: its closure reaches no PHI-marked relation).
+```
+
+⛔ **`409` § 2.6f / § 2.10e is named beside it as a DIFFERENT instrument, never as this discharge.**
+It is a two-polarity **behavioural GRANT differential** (delete the `staff_admin →
+commission.forms.edit` row, the door raises `42501`; grant present, the same call succeeds), observed
+red-first on the un-migrated catalog. This case is a **BODY mutation** of the gate line. Neither
+implies the other, and the gate record must quote the deriver's `SCOPE:` **and** `RESULT: FINDING (1)`
+lines rather than its exit code (ADR 0190).
+
+#### F-MAJOR-1 — the merge helper is portable, and the equivalence is measured
+
+`scripts/lib/merge-findings-baseline.sh:447` used GNU diffutils' `--unchanged-line-format` /
+`--*-group-format` family; Apple's diff (FreeBSD) rejects them with rc 2, so **every** merge aborted
+on this Mac (`gdiff` is not installed and there is no GNU diff on `PATH`). The lead preferred the
+portable rewrite over detect-and-abort, and it is provable: the same tagged stream
+(`U` / `\002DEL`+`O` / `\002INS`+`N` / `\002CHG`+`O`+`N`) is now built from `diff`'s **normal**
+output, parsing only the hunk **headers** and reading the lines from the two files rather than from
+diff's quoting.
+
+**Observed**, on this Mac, `SELFTEST=1 bash scripts/door-sweep-cases.sh`, bare rc **0**:
+
+```
+SELF-TEST: PASS 34 · FAIL 0 · SKIPPED 0
+```
+
+(was `PASS 17 · FAIL 17`, every failure `MERGE-ABORT: diff failed with rc=2 while aligning …`). The
+18 merge scenarios include the three **pre-fix discrimination** outputs at rc 2 and `merge(b,b) == b`
+byte-for-byte on all five fixture baselines. Beyond the fixtures, `merge(b,b)` was run against all
+four **real committed** findings baselines — `authz-door-audit-findings.md` (1065 lines),
+`authz-invoker-audit-findings.md`, `authz-rowdoor-audit-findings.md`,
+`authz-writepath-audit-findings.md` — each rc 0 and **byte-identical**; `git status` confirms no file
+under `docs/reviews/authz-*-findings.md` changed.
+
+#### F-MINOR-1 / F-MINOR-2 / F-MINOR-3
+
+- **F-MINOR-1** — runbook `:235` read migration id `20261003007340`'s leading digits as a calendar
+  date, dating an expiry four weeks into the future. Now *"EXPIRED AT HEAD `20261003007340`, MEASURED
+  DEAD ON 2026-09-07"*, with the misreading kept as a dated note.
+- **F-MINOR-2** — `410` § 8.8's caption now reads **12 OF THE 13** declared sites and states the
+  two-populations rule (LEARN-079) the same file already states for 8-vs-22: the thirteenth,
+  `app.current_professional_read_organizations`, composes `authz.authorized_scope_ids` and never calls
+  the authorizer, so it is a site without being a consumer — 12 + 1 + 1 = 14.
+- **F-MINOR-3** — **re-measured and it reproduces exactly**: `2564 edges / 867 callers`. The figure was
+  not wrong, the *definition* was missing — an edge is a **DISTINCT `(caller, callee)` pair** under
+  `hard_deny_closure`'s own `edges` CTE. Measured today: raw match rows **2930**, distinct pairs
+  **2564**, distinct callers **867**, self-edges excluded **2562 / 865**. The query is now pasted
+  beside the figure, so the row meets `backend-state.md`'s own standard.
+
+#### F-REC-1 / F-REC-2
+
+- **F-REC-1** — the record's row 8 and ADR 0193 D8 now carry the predicate the claim was measured
+  under: zero policies carry the **pre-cutover** shape
+  `…like '%is_staff_admin_of(app.commission_of_version%'`; the **bare** shape
+  `app.commission_of_version(form_version_id)` is still carried by 4 live policies.
+- **F-REC-2 — LESSON CANDIDATE for the lead to file** (recorded here, not in `LESSONS.md`):
+  **a catalog read taken while a mutation sweep is running returns a MUTANT.** QA measured
+  `app._audit_access_authorized` as `begin return true; end` at 07:5x and was one step from filing
+  `410` § 8.8's reverse arm as vacuous; it was a live door-sweep mutation mid-flight, restored minutes
+  later. This is the reviewer-side twin of ADR 0189's "verified restore" protocol, and the cheap rule
+  is: **on a machine running a mutation harness, no catalog figure is a fact until it is stable across
+  two reads taken after the sweep is done.** ⚠ Same family as this session's own discipline (all DB
+  work waited on the lead's marker file), which is why it belongs in the register rather than in a
+  review nobody re-reads.
+
+#### Filed, not fixed
+
+`FUP-AUTHZ-EMPTY-CASES-RUNS-A-FULL-SWEEP` 🟠 (owner **lead**), measured by the lead the same day:
+`CASES=""` — *set but empty*, which is exactly what `$(bash scripts/door-sweep-cases.sh main)` yields
+when the deriver exits 1 FINDING — makes `p0-authz-door-audit.sh` run a **FULL sweep** instead of zero
+cases. Confirmed in both harnesses' own lines: `want()` returns 0 for every gate when `CASES` is empty
+(`p0-authz-door-audit.sh:1097`, `p0-authz-writepath-audit.sh:315`), and `if [ -n "$CASES" ]`
+(`:128` / `:201`) is false, so the run is **not** a `SUBSET_RUN` and writes the committed baseline
+through the merge — with no `PARTIAL RUN` line to show it. ⛔ Deliberately **not** fixed in this unit:
+`FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED` **Part 2** is Batch 3's and edits the same two files.
+
+#### Gate re-run at the end of iteration 1
+
+`npm run lint` **0/0 across 13 gates**, exit 0 · `npm run typecheck` exit 0 · `npx supabase db reset
+--local` exit 0 at head `20261003007350` · `npm run test:db` **Files=262, Tests=8882, Result: PASS**,
+**0** `not ok`, exit 0 — the same shape as the build session's tip run, as expected: nothing in this
+iteration adds or removes an assertion (`410` § 8.8's change is caption text only). The full-tip gate
+(the four authz arms, the diff-scoped sweep both arms, the set-valued home) remains the **lead's**.
