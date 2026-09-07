@@ -69,3 +69,24 @@ helper's silenced stderr turns that into an empty branch list, and every `in_pro
 "branch does not exist" — a dead census that reads as a finding (plan §5's `grep -rniF` shape,
 inverted). Quoted the format; gate 13 and the full `npm run lint` chain green after. Windows Git
 Bash never saw it. Filed nowhere else: fixed in one line on this branch, noted here.
+
+**Plan received and ruled (lead, same day).** `backend`'s plan (871 lines, scratch) measured the
+class the follow-up conflated: 30 `_staff_admin_write` policies by name (49 by shape), all `FOR ALL`
+to `authenticated`, **6 re-keyed** onto `app.can_edit_commission_forms`; **8** DEFINER writers behind
+them, **0 of 8** on the permission (the manifest's own "D 8 form fns"; the matrix's 22 is read+write,
+a different population); the split touches **4 of the 6** re-keyed tables but only
+`form_item_validations`' policy is wholly unreachable — so **one** re-key (`set_item_validations`) and
+seven recorded splits. Depths re-measured 2/3/3, 5, and 4 (authorizer-rooted; +1 policy-rooted);
+4 of 7 hard-deny classes have `gate: null` and are unfindable by any call search. Three findings the
+bodies do not carry: §6.1's `commission_of_version` live-twin has **already expired** (0 live rows);
+`409` §2.10c's prescribed fix (`moved/carries-the-code`) is wrong for the correct implementation
+(`moved/no-code`); runbook `:512` `EXPECT 63 / measured 59` is a third stale figure. Predicted
+`test:db` shape 8876 → 8881; **no `410` pin is deleted** — §8.5's element flips to `[declared site]`.
+
+**PO rulings (AskUserQuestion, 2026-09-07):** Q1 **(A)** — `current_professional_read_organizations`
+declared a site; Q2+Q3 **(A)** — structured `definerSurface` + `nonEnforcementConsumers` with lint
+arm M13 and `410` closure arms, one design; Q6 — the matrix row-1 edit **delegated** to the unit,
+before/after quoted here for review. **Lead rulings:** Q4 (A) one provenance value per real state;
+Q5 (A) + a filed follow-up for the gate-less classes; B.1 (iii); B.2 one migration from live
+`pg_get_functiondef`, red-first §2.10d; B.5 all eight items at the tip; ADR 0193 per §F. Rulings
+file: scratch `batch4-rulings.md`. The lead runs the tip gate, not the builder.
