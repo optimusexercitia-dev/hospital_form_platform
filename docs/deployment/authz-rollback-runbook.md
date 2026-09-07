@@ -188,7 +188,7 @@ their rollback.
 
 | # | Permission code | What AE4.9 D6 did | Revert artifact |
 | --- | --- | --- | --- |
-| 1 | `commission.forms.edit` | **New** authorizer `app.can_edit_commission_forms(uuid,uuid)`; the four `*_staff_admin_write` policies `ALTER`ed onto it in **both halves** | § 6.2 — four `alter policy` |
+| 1 | `commission.forms.edit` | **New** authorizer `app.can_edit_commission_forms(uuid,uuid)`; the **six** `*_staff_admin_write` policies `ALTER`ed onto it in **both halves** (four at `20261003007300`, `form_item_options` + `form_item_validations` at `20261003007340`), **plus** the SECURITY DEFINER door `public.set_item_validations` re-keyed at `20261003007350` | § 6.2 — **six** `alter policy` **and one `create or replace`** |
 | 2 | `org.professionals.create` | `app.can_create_professional(uuid,uuid)` re-keyed **in place** (signature unchanged) | § 6.3 — one `create or replace` |
 | 3 | `org.professionals.read` | `app.can_read_professional_profile(uuid,uuid)` re-keyed **in place** (signature unchanged) | § 6.4 — one `create or replace` |
 | 4 | `org.case_vocabulary.manage` | ⛔ **NOT re-keyed.** Added as a fourth **differential representative** in pgTAP `403`, to restore the AE4.5 reduction that re-keying #2 broke (ADR 0178 § 4) | § 6.5 — **no SQL at all**, test-side only |
@@ -232,7 +232,7 @@ add is not.
 | Site | Pre-cutover text comes from | Live cross-check |
 | --- | --- | --- |
 | `forms_staff_admin_write` | record | ✅ `case_tags_staff_admin_write`, `case_outcomes_staff_admin_write` and 8 more carry the identical `(app.is_staff_admin_of(commission_id) OR app.is_tenancy_admin_of(commission_id))` in **both halves** |
-| `form_sections_staff_admin_write`, `form_items_staff_admin_write` | record | ✅ `form_item_options_staff_admin_write` and `form_item_validations_staff_admin_write` carry the identical `app.commission_of_version(form_version_id)` shape in **both halves** — sibling tables the re-key did not touch |
+| `form_sections_staff_admin_write`, `form_items_staff_admin_write`, `form_item_options_staff_admin_write`, `form_item_validations_staff_admin_write` | **record only** | ⛔⛔ **THE LIVE TWIN IS DEAD — THIS ROW'S ✅ EXPIRED ON 2026-10-03 AND WAS MEASURED DEAD ON 2026-09-07.** It used to read: *"✅ `form_item_options_staff_admin_write` and `form_item_validations_staff_admin_write` carry the identical `app.commission_of_version(form_version_id)` shape in **both halves** — sibling tables the re-key did not touch."* `20261003007340` re-keyed both of them, so they became sites of this revert instead of controls for it. Measured at the tip: `select count(*) from pg_policies where coalesce(qual,'')||coalesce(with_check,'') like '%is_staff_admin_of(app.commission_of_version%'` → **0 rows**. ⭐ This is § 6.1's own ⭐ class turned on § 6.1: *a change that alters a count invalidates every control that READS that count.* All **four** `commission_of_version`-shaped sites are now record-only, and the record is `docs/bugs/BUG-AE49-D6-REKEY-INCOMPLETE.md` — `app.is_staff_admin_of(app.commission_of_version(form_version_id)) OR app.is_tenancy_admin_of(app.commission_of_version(form_version_id))`, identical in both halves, **staff arm first** |
 | `form_versions_staff_admin_write` | record | ⛔ **NO live twin.** Measured: it is the only policy in the database whose expression derives the commission via `(select f.commission_id from forms f where f.id = …)`. ✅ But it is the one site with a **128-bit** check: pgTAP `387` C1 records the pre-D6 md5 `a115005b6106573c70d98a6aceb8a4fe`, **re-derived by inverting the change**, not by reading a value off the catalog. Get this policy's text right — arm order included, § 6.2 — and C1 returns to that constant exactly |
 | `app.can_create_professional` | record | ✅ **the pre-cutover body is live under two other names.** `app.can_manage_case_vocabulary` and `app.can_manage_external_participant` still share the body the re-key split off — comment-stripped md5 `3a86b0232dce959487a401f88ab7128c` on both, versus `f17a0c42c80895a47964e68adf55a69b` on the re-keyed `can_create_professional`. `select pg_get_functiondef('app.can_manage_case_vocabulary(uuid,uuid)'::regprocedure)` **prints the exact text § 6.3 restores** |
 | `app.can_read_professional_profile` | record **only** for its arm 2 | ⚠ Partial: the null guard, the `is_admin` arm and the case-committee traversal are **unchanged and live**, so only the two lines § 6.4 collapses back into one are on trust |
@@ -242,48 +242,86 @@ are still `pending-rekey`. The moment AE5 re-keys either of them the twin is gon
 pre-cutover text falls back to record-only. Re-measure the md5 pair at pre-flight; do not inherit
 this paragraph's claim.
 
-### 6.2 Site 1 — `commission.forms.edit`, four policies
+⭐ **RE-MEASURED 2026-09-07 at head `20261003007350` — IT STILL HOLDS**, and the extractor is written
+out here so the next re-measure is comparable rather than merely repeated:
 
-> ⛔ **THIS SECTION IS SCOPED TO FOUR POLICIES AND THE SITE COUNT IS NOW SIX. DO NOT RUN IT AS
-> WRITTEN.** `BUG-AE49-D6-REKEY-INCOMPLETE` (Gate AE4 review F-BLOCK-1) found this permission
-> re-keyed at 4 of the 7 sites its approved matrix names; the fix re-points
-> `form_item_options_staff_admin_write` and `form_item_validations_staff_admin_write` onto
-> `app.can_edit_commission_forms` as well. Everything below — the pre/post state, the
-> `alter policy` count, and **the verification's `tablename in (…)` list and its `EXPECT 4 rows`** —
-> was measured at head `20261003007300` and counts four.
->
-> ⚠ **The failure mode is the one this section's own comment names, at a larger N:** run
-> unamended after the fix, it reverts four tables, reports a clean four-row census, and leaves
-> `form_item_options` and `form_item_validations` **enforcing the new authority alone**. The census
-> cannot see them because they are not in its `tablename` list.
->
-> **Until this is extended: add both tables to the `tablename` list, expect SIX rows, and revert
-> both halves of each `FOR ALL`.** The full rewrite — worked example included — is **PO-deferred to
-> post-merge, ruled 2026-09-03**, tracked as `FUP-AE4-ROLLBACK-RUNBOOK-SIX-SCOPED-TO-FOUR`.
+```sql
+-- ⛔ md5 over the COMMENT-STRIPPED `prosrc`, NOT over `pg_get_functiondef`. Hashing the functiondef
+-- produces three DIFFERENT values with the two twins no longer matching — which reads exactly like
+-- the expiry having fired. A md5 comparison is only a fact once the extraction is the same on both
+-- sides; this cost a full pass while re-measuring, and it is recorded so it costs no one else one.
+select p.proname,
+       md5(regexp_replace(p.prosrc, '--[^' || chr(10) || ']*', '', 'g'))
+  from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+ where n.nspname = 'app'
+   and p.proname in ('can_manage_case_vocabulary','can_manage_external_participant','can_create_professional');
+-- MEASURED 2026-09-07:
+--   can_manage_case_vocabulary       3a86b0232dce959487a401f88ab7128c   ✅ unchanged
+--   can_manage_external_participant  3a86b0232dce959487a401f88ab7128c   ✅ the twin still matches
+--   can_create_professional          f17a0c42c80895a47964e68adf55a69b   ✅ unchanged
+```
 
-**Pre-state (recorded).** Each of the four policies is `FOR ALL` PERMISSIVE to `authenticated`,
-with `USING` and `WITH CHECK` **identical to each other**, and gated on the two arms
-`app.is_staff_admin_of(<cid>)` and `app.is_tenancy_admin_of(<cid>)` — ⚠ **not in the same order at
-every site**; see the arm-order warning below before writing any of it out.
+and its precondition still holds too: manifest rows `org.case_vocabulary.manage` and
+`org.participants.external.manage` are both still `status: "pending-rekey"`.
+⛔ **Do not generalise from this row to the one above it.** Two live-twin cross-checks were recorded
+in this section; one is still valid and one has expired. They expire independently, for different
+reasons, and the only way to know which is to re-measure both.
 
-**Post-state (measured).** Each policy is a **single** call to `app.can_edit_commission_forms(<cid>,
-(select auth.uid()))`, in both halves. The tenancy arm genuinely left the policy bodies and now
-lives **inside** the authorizer as `app.is_tenancy_admin_of_for(p_commission_id, p_uid)`.
+### 6.2 Site 1 — `commission.forms.edit`, SIX policies and ONE SECURITY DEFINER door
+
+⭐ **RE-MEASURED AND REWRITTEN 2026-09-07 at head `20261003007350`** (unit ENFORCEMENT-MANIFEST,
+pre-AE5 Batch 5, ADR [0193](../decisions/0193-the-enforcement-manifest-declares-what-it-measured.md)
+D8), closing `FUP-AE4-ROLLBACK-RUNBOOK-SIX-SCOPED-TO-FOUR`. The 2026-09-03 interim banner that sat
+here is **deleted**, not left beside the corrected text: an operator at 03:00 reading a banner and a
+body that disagree has to decide which one is current, which is the cost the banner was meant to
+avoid. What the banner said is now simply true of the text below — six tables, six `alter policy`,
+both halves each, `EXPECT 6`.
+
+⚠ **THE COUNT MOVED TWICE, AND IT WILL MOVE AGAIN.** Four sites at `20261003007300`; six at
+`20261003007340` (`BUG-AE49-D6-REKEY-INCOMPLETE` — the two the approved matrix named and the
+migration missed); six policies **plus one DEFINER door** at `20261003007350`. Each AE5 increment
+moves it again. ⛔ Re-measure before you run this section; do not count the `alter policy` statements
+below and assume the catalog agrees with them.
+
+**Pre-state (record only — see § 6.1's provenance table, whose live twin for four of these six is
+now DEAD).** Each of the six policies is `FOR ALL` PERMISSIVE to `authenticated`, with `USING` and
+`WITH CHECK` **identical to each other**, and gated on the two arms `app.is_staff_admin_of(<cid>)`
+and `app.is_tenancy_admin_of(<cid>)` — ⚠ **not in the same order at every site**; see the arm-order
+warning below before writing any of it out. `public.set_item_validations` gated on the same two arms
+inside its body, `staff arm first`, as its `-- AUTHORITY FIRST` comment shows.
+
+**Post-state (measured 2026-09-07).** Each of the six policies is a **single** call to
+`app.can_edit_commission_forms(<cid>, (select auth.uid()))`, in both halves — measured:
+
+```sql
+select count(*) from pg_policies
+ where schemaname = 'public'
+   and tablename in ('forms','form_versions','form_sections','form_items',
+                     'form_item_options','form_item_validations')
+   and policyname like '%\_staff\_admin\_write'
+   and coalesce(qual,'')       ~ 'can_edit_commission_forms'
+   and coalesce(with_check,'') ~ 'can_edit_commission_forms';
+-- MEASURED 2026-09-07: 6
+```
+
+and `public.set_item_validations`'s body calls the same authorizer instead of the two wrappers. The
+tenancy arm genuinely left the policy bodies **and that door** and now lives **inside** the
+authorizer as `app.is_tenancy_admin_of_for(p_commission_id, p_uid)`.
 
 ⛔ **This is the shape § 2b's first bullet warns about, inverted.** The usual re-keyed policy reads
 `<authorizer>(…) OR <other authority>(…)` and you restore only the first disjunct. **Here there is
 no `OR` left at the policy at all** — restoring "the disjunct" means restoring **both** names,
-because the second one was moved, not left behind. Reverting the policy to
+because the second one was moved, not left behind. Reverting a policy to
 `app.is_staff_admin_of(<cid>)` alone is a clean-reading rollback that **logs every `org_admin` and
 `hospital_admin` out of form editing**.
 
-⛔⛔ **THE ARM ORDER IS NOT FREE, AND IT IS NOT THE SAME AT ALL FOUR SITES.**
-`form_versions_staff_admin_write` listed the **tenancy arm FIRST**; `form_sections` and `form_items`
-listed it **second**. The two orders are semantically identical — Postgres guarantees no `OR`
-evaluation order anyway — but they are **textually** different, and pgTAP `387` C1 hashes policy
-*text*: it pins an md5 over the unwrapped `qual`/`with_check` of 99 hot-table policies, and
-*"getting that order wrong moves the md5 exactly like a real regression"* (its own words). Write the
-order below verbatim.
+⛔⛔ **THE ARM ORDER IS NOT FREE, AND IT IS NOT THE SAME AT ALL SIX SITES.**
+`form_versions_staff_admin_write` listed the **tenancy arm FIRST**; `form_sections`, `form_items`,
+`form_item_options` and `form_item_validations` listed it **second**. The two orders are semantically
+identical — Postgres guarantees no `OR` evaluation order anyway — but they are **textually**
+different, and pgTAP `387` C1 hashes policy *text*: it pins an md5 over the unwrapped
+`qual`/`with_check` of the hot-table policies, and *"getting that order wrong moves the md5 exactly
+like a real regression"* (its own words). Write the order below verbatim.
 
 The revert (paste into the minted migration; note the differing arm order on `form_versions`):
 
@@ -310,16 +348,57 @@ alter policy form_items_staff_admin_write on public.form_items
             or app.is_tenancy_admin_of(app.commission_of_version(form_version_id)))
   with check  (app.is_staff_admin_of(app.commission_of_version(form_version_id))
             or app.is_tenancy_admin_of(app.commission_of_version(form_version_id)));
+
+-- ⭐ THE TWO SITES 20261003007340 ADDED. Same shape as form_sections / form_items, staff arm first.
+alter policy form_item_options_staff_admin_write on public.form_item_options
+  using       (app.is_staff_admin_of(app.commission_of_version(form_version_id))
+            or app.is_tenancy_admin_of(app.commission_of_version(form_version_id)))
+  with check  (app.is_staff_admin_of(app.commission_of_version(form_version_id))
+            or app.is_tenancy_admin_of(app.commission_of_version(form_version_id)));
+
+alter policy form_item_validations_staff_admin_write on public.form_item_validations
+  using       (app.is_staff_admin_of(app.commission_of_version(form_version_id))
+            or app.is_tenancy_admin_of(app.commission_of_version(form_version_id)))
+  with check  (app.is_staff_admin_of(app.commission_of_version(form_version_id))
+            or app.is_tenancy_admin_of(app.commission_of_version(form_version_id)));
 ```
 
-⚠ `public.forms` is **not** in `387`'s hot subset — that is precisely why C2 stays at 99 policies
-and only three entries move — so **its arm order is pinned by nothing**. Staff-admin first is what
-its live `*_staff_admin_write` siblings on a bare `commission_id` use (`case_tags`, `case_outcomes`,
-`process_templates`, `phase_results`, …) and is the reasonable choice, but it is the one line of the
-four that no assertion will contradict if it is wrong. Do not read a green `387` as covering it.
+⭐⭐ **AND THE SEVENTH REVERT ARTIFACT, WHICH IS NOT A POLICY.** `20261003007350` re-keyed the
+SECURITY DEFINER door `public.set_item_validations(uuid, jsonb)` — the ONLY `authenticated`-reachable
+write path to `form_item_validations`, whose policy is an unreachable backstop (measured at the tip:
+`authenticated` holds **`SELECT`** on that table and nothing else). Reverting the six policies and
+leaving this door re-keyed leaves `commission.forms.edit` load-bearing on that door alone.
+
+⛔ **DO NOT RETYPE THE BODY, AND DO NOT COPY IT OUT OF `20261003007350`.** It is ~120 lines of
+feature-flag, shape, coverage and config validation, and migration text in this tree is stale by
+design (§ 1). Regenerate from the live catalog and change **one line**:
+
+```sql
+-- 1. print the CURRENT body
+select pg_get_functiondef('public.set_item_validations(uuid,jsonb)'::regprocedure);
+-- 2. in that text, replace exactly this line:
+--      if not app.can_edit_commission_forms(v_commission, (select auth.uid())) then
+--    with the pre-cutover gate (record: 20261003007350's header, and this file):
+--      if not (app.is_staff_admin_of(v_commission) or app.is_tenancy_admin_of(v_commission)) then
+-- 3. paste the result into the minted migration, unchanged in every other byte.
+```
+
+⛔ Keep `SECURITY DEFINER` and `search_path = app, public, pg_catalog` exactly as printed — ⚠ **not**
+`''`; changing the search_path here is a second change wearing a restore's costume. The signature is
+unchanged, so this is a `create or replace` with no `DROP` and no dependent object to restore.
+
+⚠⚠ **THREE OF THE SIX POLICIES HAVE THEIR ARM ORDER PINNED BY NOTHING.** `387`'s hot subset
+(`387_initplan_wrap_and_profiles_arm_identity.sql:112`) names `form_items`, `form_sections` and
+`form_versions` — and **not** `forms`, `form_item_options` or `form_item_validations`. `387` says so
+about `forms` itself (*"`forms` is the fourth site and is NOT in the hot subset, which is why C2
+stays 99"*); the other two were never in it either. Staff-admin first is what the live
+`*_staff_admin_write` siblings use (`case_tags`, `case_outcomes`, `process_templates`,
+`phase_results`, …) and is the reasonable choice, but those are **three** lines of the six that no
+assertion will contradict if they are wrong. ⛔ Do not read a green `387` as covering six sites.
 
 `app.can_edit_commission_forms` is **left in place, inert** (§ 2b): after this it has zero callers,
-dropping it buys nothing, and leaving it makes a re-forward four `alter policy` lines.
+dropping it buys nothing, and leaving it makes a re-forward six `alter policy` lines plus one
+`create or replace`.
 
 ⛔ **Dropping it is worse than pointless — it turns a readable red into a blind spot.** pgTAP `409`
 § 6.2–6.4 call `has_function_privilege(…, 'app.can_edit_commission_forms(uuid,uuid)', 'EXECUTE')`
@@ -480,6 +559,19 @@ The three sites are independent **except in one direction**, and it is not the o
   code-borrowing ADR 0178 § 3 called "actively wrong", except now with a live catalog permission
   behind it. Revert both, or revert site 2 first, or revert neither.
 - **Site 1 is independent of both.** It shares no object with them.
+- ⛔⛔ **BUT SITE 1 IS NO LONGER ONE OBJECT-CLASS, AND ITS OWN TWO HALVES ARE ORDER-SENSITIVE TO EACH
+  OTHER.** Since `20261003007350` site 1 is **six policies + the DEFINER door
+  `public.set_item_validations`** (§ 6.2). Revert either half alone and you get a state worse than
+  both end states, in opposite ways:
+  - **policies reverted, door left re-keyed** — `form_item_validations`' policy is an unreachable
+    backstop (`authenticated` holds `SELECT` only), so the ONLY live authority for that table is the
+    door, and it is still keyed on `commission.forms.edit`. The revert reads complete and the
+    permission is still load-bearing.
+  - **door reverted, policies left re-keyed** — the door is back on `is_staff_admin_of` while five
+    reachable tables still gate on the authorizer: an `org_admin` keeps editing forms and loses
+    validations, for no reason an operator reading either half would predict.
+  Revert both, in one migration. Ordering **within** that migration does not matter (§ below); the
+  end state does.
 
 Ordering *within* one transaction does not matter — a `sql`/`plpgsql` body resolves its callees at
 call time, not at `create` time. What matters is the **end state** of the applied migration.
@@ -490,7 +582,7 @@ call time, not at `create` time. What matters is the **end state** of the applie
 moved-row count (§ 4), so every check below is on the **catalog** or on **behaviour**. Read every
 exit code directly (§ 5 step 4).
 
-**1 — Both halves of all four policies, and the census that catches an incomplete sweep.**
+**1 — Both halves of all SIX policies, the DEFINER door, and the census that catches an incomplete sweep.**
 
 ```sql
 select policyname,
@@ -502,14 +594,33 @@ select policyname,
        coalesce(with_check,'') !~ 'can_edit_commission_forms'  as check_clean
   from pg_policies
  where schemaname = 'public'
-   and tablename in ('forms','form_versions','form_sections','form_items')
+   and tablename in ('forms','form_versions','form_sections','form_items',
+                     'form_item_options','form_item_validations')
    and policyname like '%\_staff\_admin\_write';
--- EXPECT 4 rows, every column true. Four rows is itself an assertion: three-of-four reads as
--- a completed rollback and leaves the fourth table enforcing the new authority alone.
+-- EXPECT 6 rows, every column true. ⚠ RE-MEASURED 2026-09-07: this list and its expectation read
+-- FOUR until then, and the two missing tables were exactly the two `20261003007340` re-keyed —
+-- the census could not see them because they were not in its own `tablename` list. Six rows is
+-- itself an assertion: five-of-six reads as a completed rollback and leaves the sixth table
+-- enforcing the new authority alone.
+
+-- ⭐ AND THE SEVENTH ARTIFACT, WHICH THIS POLICY CENSUS CANNOT SEE AT ALL.
+select case when regexp_replace(p.prosrc, '--[^' || chr(10) || ']*', '', 'g')
+                 ~ 'app\.can_edit_commission_forms\(' then 'STILL RE-KEYED — revert incomplete'
+            else 'reverted' end
+  from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+ where n.nspname = 'public' and p.proname = 'set_item_validations';
+-- EXPECT 'reverted'. ⛔ A policy census over `pg_policies` is structurally blind to a DEFINER door;
+-- this is the query that is not.
 
 select count(*) from pg_policies
  where coalesce(qual,'') || coalesce(with_check,'') ~ '\yis_staff_admin_of\y';
--- EXPECT 63. Measured post-cutover: 59. The four policies each add one occurrence.
+-- EXPECT 63. ⚠ RE-MEASURED 2026-09-07: this line read "Measured post-cutover: 59. The four
+-- policies each add one occurrence." Both halves of that sentence had moved. Measured at head
+-- 20261003007350 the post-cutover value is **57**, and it is the SIX policies that each add one
+-- occurrence: 57 + 6 = 63. ⭐ The 63 itself is unchanged and correct — it is the pre-cutover value
+-- at head 20261003007260 — which is exactly why the stale middle term survived two migrations
+-- without reddening anything. ⛔ The `set_item_validations` revert does NOT move this count: it is
+-- a function body, and this census reads `pg_policies`.
 ```
 
 ⛔ **`\y…\y`, never `like '%is_staff_admin_of%'`.** The word-boundary form is load-bearing in
@@ -530,14 +641,26 @@ with b as (
 select b.nspname || '.' || b.proname as fn, pm.code
   from b join authz.permissions pm on b.src like '%' || pm.code || '%'
  order by 1, 2;
--- Measured post-cutover: exactly 3 rows, one per site.
--- EXPECT after a full three-site revert: exactly 1 row —
---   app.can_edit_commission_forms | commission.forms.edit
+-- ⚠ RE-MEASURED 2026-09-07 at head 20261003007350: **4 rows**, not 3 —
+--   app.can_create_professional              | org.professionals.create
+--   app.can_edit_commission_forms            | commission.forms.edit
+--   app.can_read_professional_profile        | org.professionals.read
+--   app.current_professional_read_organizations | org.professionals.read
+-- EXPECT after a full three-site revert: **2 rows**, not 1 —
+--   app.can_edit_commission_forms            | commission.forms.edit
+--   app.current_professional_read_organizations | org.professionals.read
 ```
 
-⛔ **One, not zero, and that is correct.** § 6.2 leaves the now-unused authorizer in place and it
-still carries its string literal. An operator who expects `0` here will "fix" it by dropping
-`app.can_edit_commission_forms` — the exact move § 2b says not to make.
+⛔ **TWO, not one and not zero, and both halves of that are correct.** § 6.2 leaves the now-unused
+authorizer in place and it still carries its string literal — an operator who expects `0` will "fix"
+it by dropping `app.can_edit_commission_forms`, the exact move § 2b says not to make. And
+`app.current_professional_read_organizations` acquired the `org.professionals.read` literal at
+`20261003007320` (ADR [0182](../decisions/0182-statement-scoped-authorized-scope-ids.md)) as a
+deliberate SECOND site; it is **not part of the D6 re-key** and this revert does not touch it, so it
+survives on both sides of the count. ⚠ **This is the FOURTH stale figure in this section**, and
+unlike the other three it was stale because a *different* migration added a carrier — the count moved
+under a revert procedure that never mentioned that migration. `410` § 8.5 pins the same four carriers
+by name, which is where a fifth would red.
 
 **3 — The behavioural differential, on a WRITE, at a coordinate where no other arm is open.**
 
@@ -668,19 +791,29 @@ you nothing at all.
 
 | Suite | Assertions that red | Direction |
 | --- | --- | --- |
-| **`409`** (the re-key differential, `plan(63)`) | § 1.1 the seam as a named set · § 1.3 the `40` countdown · § 2.1 four policies call the authorizer in both halves · § 2.8 / § 2.9 / § 2.10 **the gate lines** · § 3.1 · § 3.2 · § 3.5 · § 4.2 · § 4.7 · § 5.1 | **12 reds** on a full three-site revert |
+| **`409`** (the re-key differential, **`plan(75)`** — ⚠ this cell said `plan(63)`; re-measured 2026-09-07, it went 63 → 72 → 73 → **75**, so ⛔ do not trust the red COUNT below either, re-derive it) | § 1.1 the seam as a named set · § 1.3 the `40` countdown · § 2.1 **six** policies call the authorizer in both halves · § 2.8 / § 2.9 / § 2.10 **the gate lines** · **§ 2.10c / § 2.10e — the DEFINER door, added 2026-09-07** · § 3.1 · § 3.2 · § 3.5 · § 4.2 · § 4.7 · **§ 5.2 (the 178 census returns to 179)** · § 5.1 | ≥ **14 reds** on a full three-site revert including the door — a **derived** expectation, like everything post-revert in § 6 |
 | **`410`** (the manifest) | the scissor above | unavoidable |
 | **`401`** | **§ 19.2b only**, `2 → 1` | see § 6.5 |
 | **`404`** (`BUG-PROF-INACTIVE-001`) | **§ 1.6 HOP1** — a chain probe that greps `can_create_professional`'s body for the literal `org.professionals.create` | red on a **site-2** revert |
-| **`387`** (InitPlan / arm identity) | **C1** — a single md5 constant over 99 hot-table policies, `3901715193753db33f980f939c6467de` → `a115005b6106573c70d98a6aceb8a4fe` | red on a **site-1** revert |
+| **`387`** (InitPlan / arm identity) | **C1** — a single md5 constant over 99 hot-table policies, now `f2a0693be216cfe08eb6cf0283565e7c` (⚠ this cell said `3901715193753db33f980f939c6467de`; `20261003007340` moved it again), reverting toward `a115005b6106573c70d98a6aceb8a4fe` | red on a **site-1** revert, and see the ⛔ below |
 
 ⛔ **`404` and `387` are the two whose file names give no hint of the subject**, and `387` C1 in
 particular is a **single 32-hex constant whose "fix" looks like a one-token edit**. Its own comment
 forbids that: *"Re-capturing by pasting a freshly measured value proves nothing at all; invert the
 change or leave the pin red."* Here you are *performing* the inversion, so C1 returning to
 `a115005b…` is not a chore — **it is the best single verification in this whole section**, a 128-bit
-statement that your four `alter policy` statements moved exactly what they claimed and nothing else.
+statement that your `alter policy` statements moved exactly what they claimed and nothing else.
 Add it to § 6.7 as step 5.
+
+⛔⛔ **BUT ITS REACH IS THREE OF THE SIX, AND THAT IS THE ONE THING THIS CELL MUST NOT BE READ AS
+COVERING.** Re-measured 2026-09-07: `387`'s hot subset
+(`387_initplan_wrap_and_profiles_arm_identity.sql:112`) names `form_items`, `form_sections` and
+`form_versions`. `forms`, `form_item_options` and `form_item_validations` are **not** in it — `387`
+says so about `forms` in its own words (*"`forms` is the fourth site and is NOT in the hot subset,
+which is why C2 stays 99"*), and the other two were never in it. So a 128-bit statement about half
+the revert is exactly that, and the other three policies' text — arm order included — is verified by
+nothing. ⚠ **And C1 cannot see the `set_item_validations` revert at all**: it hashes POLICY text, and
+the seventh artifact is a function body. Its check is § 6.7 step 1's second query.
 
 ⛔ **`409`'s gate-line assertions (§ 2.8, § 2.9, § 2.10, § 3.5, § 4.7) are asserting the very thing
 the rollback undoes** — each deletes a grant and requires the door to flip. After a revert the door
