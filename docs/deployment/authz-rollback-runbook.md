@@ -165,7 +165,7 @@ only non-vacuous moved-row count, so a `0/0` parity can pass while nothing moved
 
 ⚠ **Corrected 2026-09-07 (QA re-review, N-1).** Four places below named
 `a115005b6106573c70d98a6aceb8a4fe` as what pgTAP `387` C1 returns to once this revert lands: § 6.1's
-pre-flight provenance table, this section's own derived-expectations paragraph, and two cells in
+pre-flight provenance table, this section's own derived-expectations paragraph, and two places (a cell and a prose line) in
 § 6.9's expected-red inventory. **All four were wrong.** `a115005b…` is `387`'s recorded **pre-D6**
 value; `20261003007320` has since moved a *different* member of the same 99-policy aggregate
 (`professional_profiles_select`), so `a115005b…` is **not reachable by this revert alone** — landing

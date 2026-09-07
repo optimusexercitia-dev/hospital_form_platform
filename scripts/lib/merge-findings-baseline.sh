@@ -473,15 +473,17 @@ for f in carried.tsv suffixes merged_rows.tsv carried_rows; do [ -f "$T/$f" ] ||
 #   rule further down. Consequence: this program runs Batch 3 and Batch 4 of the pre-AE5
 #   remediation ON DIFFERENT MACHINES, and both merge this SAME committed findings baseline —
 #   it is the merge's INPUT and OUTPUT. A divergent alignment on that merge would surface as
-#   a diff AT REBASE, not as a false PASS here, which is where it is caught; it is disclosed
+#   a diff AT REBASE, not as a false PASS here — a diff a human must still recognise as an
+#   alignment artifact rather than a content change (not a gate); it is disclosed
 #   rather than fixed because the measured risk on real content is 0/4 and 0/40.
 #   ⛔ Do NOT "simplify" this back to a group-format diff. The equivalence is asserted by the
 #     18 committed merge scenarios in `scripts/door-sweep-selftest.sh` — 13 static
 #     `merge_scenario` calls plus one `idempotent: <name>` per baseline fixture file under
-#     `scripts/fixtures/door-sweep/merge/*.baseline.md` (currently 5, so 13 + 5 = 18);
-#     re-derive either count with `SELFTEST=1 bash scripts/door-sweep-cases.sh` (its tally
-#     line splits deriver vs merge scenarios) or `ls scripts/fixtures/door-sweep/merge/*.baseline.md
-#     | wc -l` for the fixture-driven half. Including merge(b,b) == b byte-for-byte on all
+#     `scripts/fixtures/door-sweep/merge/*.baseline.md` (5 today, so 13 + 5 = 18). ⚠ The
+#     idempotence loop iterates a HARDCODED list of five names in `door-sweep-selftest.sh` (§24),
+#     not the directory — a sixth fixture file is NOT picked up until that list is extended;
+#     re-derive the count with `SELFTEST=1 bash scripts/door-sweep-cases.sh` (its tally line
+#     splits deriver vs merge scenarios). Including merge(b,b) == b byte-for-byte on all
 #     five baselines, which is the only reason the rewrite is believable rather than plausible.
 diff "$T/g_norm" "$T/b_norm" > "$T/hunks" 2>/dev/null
 # diff exits 1 when the files differ, which is the normal case here; only >1 is an error.

@@ -8,7 +8,7 @@ phase: "Pre-AE5 remediation — Batch 4 of the follow-up batches ruled 2026-09-0
 branch: authz-enforcement-manifest
 plan: ../plans/pre-ae5-remediation.md
 progress: ../progress/enforcement-manifest.md
-reviews: ["../reviews/enforcement-manifest-rereview.md", "../reviews/enforcement-manifest-review.md"]
+reviews: ["../reviews/enforcement-manifest-rereview-2.md", "../reviews/enforcement-manifest-rereview.md", "../reviews/enforcement-manifest-review.md"]
 adrs: ["0079", "0162", "0176", "0190", "0191"]
 handoff: ~
 fup: ~
