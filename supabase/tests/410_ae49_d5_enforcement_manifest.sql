@@ -1079,8 +1079,12 @@ select is(
   'what the audit trail RECORDS, never what a caller may read — Architecture Rule 11), and with '
   'no other home it was simply invisible. Adding it to `enforcementSites` to make it visible '
   'would have made § 8.1/§ 8.4 measure a logging predicate as a door. ⚠ MEASURED TODAY, 14 '
-  'consumers over the three authorizers: 12 declared sites, `public.set_item_validations` on the '
-  'definerSurface axis, and `app._audit_access_authorized` here. ⛔ THE NEXT unrecorded consumer '
+  'consumers over the three authorizers: 12 OF THE 13 declared sites, `public.set_item_validations` '
+  'on the definerSurface axis, and `app._audit_access_authorized` here. ⚠ TWO POPULATIONS, NOT A '
+  'CONTRADICTION WITH § 8.6''s 13 (LEARN-079, and this file states the same rule for 8-vs-22 '
+  'above): the thirteenth declared site, `app.current_professional_read_organizations`, composes '
+  '`authz.authorized_scope_ids` and never calls the authorizer, so it is a SITE without being a '
+  'CONSUMER — 12 + 1 + 1 = 14. Neither number is a correction of the other. ⛔ THE NEXT unrecorded consumer '
   'REDS instead of being re-discovered by a reviewer, which is the whole difference between this '
   'arm and the paragraph it replaces.');
 
