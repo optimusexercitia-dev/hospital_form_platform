@@ -726,22 +726,57 @@ arm** was dropped from the policy — the § 6.2 mistake — and a 0 *before* th
 fixture is wrong, not the code.
 
 **4 — The 128-bit check on site 1, which costs one query.** pgTAP `387` C1 hashes the unwrapped
-`qual`/`with_check` text of the 99 hot-table policies. Its pre-D6 value is recorded **in the test
-itself**, and it was derived by inverting the change rather than by reading a value off the catalog
-— so it is a real oracle, not a snapshot:
+`qual`/`with_check` text of the 99 hot-table policies.
+
+⭐ **RE-MEASURED AND REWRITTEN 2026-09-07 at head `20261003007350`** (QA F-BLOCK-1). This step was
+the **fifth** stale figure in § 6 and the one Batch 5 missed while re-measuring the other four: it
+still counted **four** reverted policies and still named `3901715193753db33f980f939c6467de` as the
+post-cutover value — the constant the same change corrects sixty lines further down, at § 6.9's
+expected-red table. ⛔ And re-measuring it invalidated something neither the closure nor the review
+had counted: **its `EXPECT after the revert` constant is no longer reachable by this revert either**
+— see the reading table below. Every value here was re-derived today, the post-revert one **by
+inverting the change in a rolled-back transaction**, which is the method `387` itself prescribes.
+
+**Which of the six the aggregate can even see: three.** `387`'s hot subset
+(`387_initplan_wrap_and_profiles_arm_identity.sql:112`) names `form_items`, `form_sections` and
+`form_versions`. Measured 2026-09-07 against `pg_temp.ae15_hot_subset()`:
+
+| policy | in `387`'s hot subset? |
+| --- | --- |
+| `form_versions_staff_admin_write`, `form_sections_staff_admin_write`, `form_items_staff_admin_write` | ✅ **yes** — C1 sees these three |
+| `forms_staff_admin_write`, `form_item_options_staff_admin_write`, `form_item_validations_staff_admin_write` | ⛔ **no** — C1 is **silent** about these three |
+
+⛔ So C1 covers **three of your six** `alter policy` statements. The other three are the ones § 6.2's
+arm-order warning says are pinned by nothing. **Do not read a green C1 as covering the revert.**
 
 ```sql
--- run 387's C1 aggregate; three of the four reverted policies are in the hot subset
---   ( form_versions_staff_admin_write, form_sections_staff_admin_write,
---     form_items_staff_admin_write — `forms` is not )
--- EXPECT after the revert:  a115005b6106573c70d98a6aceb8a4fe
--- Measured post-cutover:    3901715193753db33f980f939c6467de
+-- 387's C1 aggregate. Define pg_temp.ae15_hot_subset() and pg_temp.ae15_unwrap() exactly as
+-- 387_initplan_wrap_and_profiles_arm_identity.sql:98-135 defines them, then:
+select md5(string_agg(h, '' order by h)) from (
+  select md5(tablename || '|' || policyname || '|' ||
+             pg_temp.ae15_unwrap(qual) || '|' || pg_temp.ae15_unwrap(with_check)) as h
+    from pg_temp.ae15_hot_subset()) s;
+-- and the cardinality control beside it, or a DELETED policy hashes the same as a restored one:
+select count(*) from pg_temp.ae15_hot_subset();   -- MEASURED 2026-09-07: 99
 ```
 
-⭐ **This is the strongest single verification in this section.** A 128-bit return says your four
-`alter policy` statements restored exactly the pre-D6 text — arm order included — and that the other
-96 policies are bit-identical. If it lands on neither constant, you have a typo or a wrong arm order;
-if it lands on `3901715…`, the `alter policy` statements did not apply at all.
+**The four values this query can land on, and what each one means.** ⛔ Read the whole table; three
+of the four are failure modes and only one of them looks like one.
+
+| lands on | reading |
+| --- | --- |
+| **`c227d64eb11909e94400b7ba6bcaab0b`** | ✅ **THE REVERT LANDED.** The three hot-subset policies carry exactly their pre-D6 text, arm order included, and the other 96 are bit-identical. ⭐ **DERIVED BY INVERSION 2026-09-07**, not read off a catalog: § 6.2's six `alter policy` statements were applied verbatim in a rolled-back transaction at head `20261003007350` and the aggregate returned this value; the transaction was rolled back and C1 verified back to `f2a0693…` |
+| **`f2a0693be216cfe08eb6cf0283565e7c`** | ⛔ **NOTHING APPLIED.** This is today's post-cutover value — what the catalog returns before you revert anything. Landing here means the `alter policy` statements did not run, or ran in a transaction that rolled back |
+| **`a115005b6106573c70d98a6aceb8a4fe`** | ⛔ **NOT REACHABLE BY THIS REVERT, and it used to be what this step told you to expect.** It is the **pre-D6** value of the whole 99-policy aggregate, and `20261003007320` (AE4/IA-F9, ADR 0182) has since moved a *different* member of that aggregate — `professional_profiles_select`, whose `USING` became a `CASE` over `app.current_professional_read_organizations()` (measured today: it is in the hot subset and still carries that post-`7320` shape). Landing here means you reverted **`20261003007320` as well**, which is **not** part of this rollback |
+| **`3901715193753db33f980f939c6467de`** | ⛔ **THE OPPOSITE OF WHAT YOU MEANT.** This is the value between `20261003007300` and `20261003007320`: D6 **applied** and `professional_profiles_select` **pre-`7320`**. Reaching it means you reverted `7320` and left D6 in place |
+| anything else | ⛔ a typo, or a wrong arm order (§ 6.2 — `form_versions` lists the **tenancy arm first**) |
+
+⚠ **`c227d64e…` HAS AN EXPIRY, and it is the same expiry § 6.1 warns about.** It is an aggregate over
+99 policies, only three of which this revert touches; **any** later change to **any** hot-table policy
+moves it, exactly as `20261003007320` moved the constant this step used to carry. ⛔ Re-derive it by
+inversion at pre-flight — do not paste the value above into a fresh migration and call it verified.
+*(`387`'s own words: "Re-capturing by pasting a freshly measured value proves nothing at all; invert
+the change or leave the pin red.")*
 
 **5 — Then the suites.** `npx supabase db reset --local` (a fresh reset — an E2E-mutated DB yields
 spurious reds that are not defects), then `npm run test:db`, then § 5's remaining steps. Read § 6.8
@@ -795,7 +830,7 @@ you nothing at all.
 | **`410`** (the manifest) | the scissor above | unavoidable |
 | **`401`** | **§ 19.2b only**, `2 → 1` | see § 6.5 |
 | **`404`** (`BUG-PROF-INACTIVE-001`) | **§ 1.6 HOP1** — a chain probe that greps `can_create_professional`'s body for the literal `org.professionals.create` | red on a **site-2** revert |
-| **`387`** (InitPlan / arm identity) | **C1** — a single md5 constant over 99 hot-table policies, now `f2a0693be216cfe08eb6cf0283565e7c` (⚠ this cell said `3901715193753db33f980f939c6467de`; `20261003007340` moved it again), reverting toward `a115005b6106573c70d98a6aceb8a4fe` | red on a **site-1** revert, and see the ⛔ below |
+| **`387`** (InitPlan / arm identity) | **C1** — a single md5 constant over 99 hot-table policies, now `f2a0693be216cfe08eb6cf0283565e7c` (⚠ this cell said `3901715193753db33f980f939c6467de`; the value moved again. ⚠ **Attribution corrected 2026-09-07 (QA F-BLOCK-1 re-measure):** it was `20261003007320`, not `20261003007340`. `387`'s own re-capture note names `20261003007320` and the one policy that moved (`professional_profiles_select`); and `20261003007340`'s two policies, `form_item_options_staff_admin_write` and `form_item_validations_staff_admin_write`, were measured today to be **outside** `387`'s hot subset — so that migration could not have moved C1 at all), reverting toward `a115005b6106573c70d98a6aceb8a4fe` | red on a **site-1** revert, and see the ⛔ below |
 
 ⛔ **`404` and `387` are the two whose file names give no hint of the subject**, and `387` C1 in
 particular is a **single 32-hex constant whose "fix" looks like a one-token edit**. Its own comment
