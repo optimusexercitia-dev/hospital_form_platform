@@ -10726,6 +10726,20 @@ eventual closure check would then be measuring a fiction.
 >    * § 6.8's `409 plan(63)` → **`plan(75)`** and `387` C1's constant
 >      `3901715193753db33f980f939c6467de` → `f2a0693be216cfe08eb6cf0283565e7c`.
 >
+> ⚠ **CORRECTION, 2026-09-07 (QA F-BLOCK-1), dated beside the claim above rather than rewritten into
+> it.** Clause 5 is **NOT** discharged as written: it was **FIVE** stale figures, not four. § 6.7
+> **step 4** — inside the same § 6 — was not re-derived and still counted *"three of the four
+> reverted policies"* and still named `3901715193753db33f980f939c6467de` as the post-cutover value,
+> sixty lines above the § 6.9 cell this same change corrects to `f2a0693be216cfe08eb6cf0283565e7c`.
+> ⛔ And re-measuring step 4 found a **sixth** defect that neither this closure nor the review had
+> counted: its `EXPECT after the revert` constant, `a115005b6106573c70d98a6aceb8a4fe`, is **no longer
+> reachable by this revert at all** — `20261003007320` moved `professional_profiles_select` inside the
+> same 99-policy aggregate. Derived by inversion 2026-09-07 at head `20261003007350` (§ 6.2's six
+> `alter policy` statements applied in a rolled-back transaction): the post-revert value is
+> **`c227d64eb11909e94400b7ba6bcaab0b`**. Step 4 is rewritten with all four landing values and their
+> readings. ⭐ The lesson is this follow-up's own, one step along: *a figure inside a section you are
+> re-measuring is not re-measured by being nearby.*
+>
 > ⛔⛔ **A FINDING THIS FOLLOW-UP DID NOT CARRY, AND IT IS THE MORE IMPORTANT HALF.** § 6.1's
 > provenance table row 2 justified two sites' pre-cutover text with a **live twin**:
 > *"`form_item_options_staff_admin_write` and `form_item_validations_staff_admin_write` carry the
