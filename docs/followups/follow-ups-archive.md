@@ -9704,7 +9704,10 @@ nobody rules on.
 
 ### ✅ FUP-DOOR-SWEEP-DOMAIN-MISSES-THE-AUTHZ-RESOLVERS — two `prosecdef` boolean authorization resolvers are in NEITHER sweep arm's domain, so neither arm can ever select them (owner: lead + backend; filed 2026-09-03) — **RESOLVED 2026-09-07**
 
-> **RESOLVED 2026-09-07 — unit PRED-DOMAIN (Batch 2), commit `b59d4bbf`.** Closed JOINTLY with
+> **RESOLVED 2026-09-07 — unit PRED-DOMAIN (Batch 2), commit `b59d4bbf`.** ⚠ **Corrected
+> 2026-09-07 (QA `F-REC-2`), the sentence above left as filed: the CLOSING commit is `6f94a634`.**
+> `b59d4bbf` is the run-2 re-baseline this closure RESTS on, not the commit that wrote it.
+> Closed JOINTLY with
 > `FUP-DOOR-SWEEP-DOMAIN-GAP-WIDENED-BY-SET-VALUED-RESOLVERS`, as both bodies ask. Design: ADR
 > [0191](../decisions/0191-the-door-arms-domain-gains-a-schema-axis-a-targeted-home-and-a-fourth-outcome.md)
 > D1 + D2 + D3. Record: [pred-domain.md](../progress/pred-domain.md).
@@ -9802,7 +9805,10 @@ cannot select a gate has not cleared it.
 
 ### ✅ FUP-DOOR-SWEEP-DOMAIN-GAP-WIDENED-BY-SET-VALUED-RESOLVERS — three more authorization functions are outside `PRED_DOMAIN`, this time by RETURN TYPE (owner: lead + backend; filed 2026-09-03) — **RESOLVED 2026-09-07**
 
-> **RESOLVED 2026-09-07 — unit PRED-DOMAIN (Batch 2), commit `b59d4bbf`.** Closed JOINTLY with
+> **RESOLVED 2026-09-07 — unit PRED-DOMAIN (Batch 2), commit `b59d4bbf`.** ⚠ **Corrected
+> 2026-09-07 (QA `F-REC-2`), the sentence above left as filed: the CLOSING commit is `6f94a634`.**
+> `b59d4bbf` is the run-2 re-baseline this closure RESTS on, not the commit that wrote it.
+> Closed JOINTLY with
 > `FUP-DOOR-SWEEP-DOMAIN-MISSES-THE-AUTHZ-RESOLVERS`. Design: ADR
 > [0191](../decisions/0191-the-door-arms-domain-gains-a-schema-axis-a-targeted-home-and-a-fourth-outcome.md)
 > D3. Record: [pred-domain.md](../progress/pred-domain.md).
@@ -9941,7 +9947,10 @@ cleared it.*
 
 ### ✅ FUP-DOOR-AUDIT-ALL-POLICY-COVERED-IS-MIRROR-AMBIGUOUS — a read-arm COVERED on a `FOR ALL` policy can be earned by a write keystone (owner: backend; filed 2026-09-02) — **RESOLVED 2026-09-07**
 
-> **RESOLVED 2026-09-07 — unit PRED-DOMAIN (Batch 2), commit `b59d4bbf`.** Design: ADR
+> **RESOLVED 2026-09-07 — unit PRED-DOMAIN (Batch 2), commit `b59d4bbf`.** ⚠ **Corrected
+> 2026-09-07 (QA `F-REC-2`), the sentence above left as filed: the CLOSING commit is `6f94a634`.**
+> `b59d4bbf` is the run-2 re-baseline this closure RESTS on, not the commit that wrote it.
+> Design: ADR
 > [0191](../decisions/0191-the-door-arms-domain-gains-a-schema-axis-a-targeted-home-and-a-fourth-outcome.md)
 > D4. Record: [pred-domain.md](../progress/pred-domain.md).
 > The register's `**Closes when:**` and the body's `**What would close it.**` are word-identical
@@ -10004,7 +10013,10 @@ unambiguous and left the read side exactly as it was.
 
 ### ✅ FUP-DOOR-SWEEP-BROAD-GATE-ABORTS-A-FILE — a broad gate's neutralization aborts a pgTAP file, so the shape guard withholds a verdict the suite plainly had (owner: backend; filed 2026-08-24) — **RESOLVED 2026-09-07**
 
-> **RESOLVED 2026-09-07 — unit PRED-DOMAIN (Batch 2), commit `b59d4bbf`.** Design: ADR
+> **RESOLVED 2026-09-07 — unit PRED-DOMAIN (Batch 2), commit `b59d4bbf`.** ⚠ **Corrected
+> 2026-09-07 (QA `F-REC-2`), the sentence above left as filed: the CLOSING commit is `6f94a634`.**
+> `b59d4bbf` is the run-2 re-baseline this closure RESTS on, not the commit that wrote it.
+> Design: ADR
 > [0191](../decisions/0191-the-door-arms-domain-gains-a-schema-axis-a-targeted-home-and-a-fourth-outcome.md)
 > D5 and its Amendment 1. Record: [pred-domain.md](../progress/pred-domain.md).
 > ⛔ **DISCLOSED, and this one needs saying plainly: the BODY STATES NO CLOSING CONDITION.** It offers
@@ -10097,7 +10109,10 @@ file abort. Expect more of these, not fewer, as the arm's domain grows.
 
 ### ✅ FUP-C2-TIER1-TRIGGER-ENFORCERS-OUT-OF-SWEEP-DOMAIN — a trigger guard has no call edge, so it is in 0 of the 171 and its door reads BLIND for the wrong cause (owner: lead + backend; filed 2026-09-04) — **RESOLVED 2026-09-07**
 
-> **RESOLVED 2026-09-07 — unit PRED-DOMAIN (Batch 2), commit `b59d4bbf`.** Design: ADR
+> **RESOLVED 2026-09-07 — unit PRED-DOMAIN (Batch 2), commit `b59d4bbf`.** ⚠ **Corrected
+> 2026-09-07 (QA `F-REC-2`), the sentence above left as filed: the CLOSING commit is `6f94a634`.**
+> `b59d4bbf` is the run-2 re-baseline this closure RESTS on, not the commit that wrote it.
+> Design: ADR
 > [0191](../decisions/0191-the-door-arms-domain-gains-a-schema-axis-a-targeted-home-and-a-fourth-outcome.md)
 > D6. Record: [pred-domain.md](../progress/pred-domain.md).
 > ⚠ **DISCLOSED: the condition audited is the BODY's `## Closes when` section, which is STRICTLY
@@ -10229,3 +10244,68 @@ entry does **not** close it: the door is not never-called, and its verdict is no
   ADR was written, and it should be stated alongside them.
 - `docs/reviews/c2-suite-abort-diagnosis.md` — the measurement.
 - `docs/design/authz-c2-blind-keystone-specs.md` §6.4 — the contradiction that led here.
+
+---
+
+### ✅ FUP-AUTHZ-SETVALUED-TARGETED-HOME-HAS-NO-SCHEDULE — the set-valued resolvers have a committed home and nothing that makes it run (owner: lead; filed 2026-09-07) — **RESOLVED 2026-09-07**
+
+> **RESOLVED 2026-09-07 — unit PRED-DOMAIN, the §5 Record step. Closing commit: the lead's
+> `376d5717`** (`docs/lead-playbook.md` §4), audited at the QA re-review as `F-REC-9`
+> (`docs/reviews/pred-domain-rereview.md`). ⛔ Not `b59d4bbf` and not `6f94a634`: this entry
+> was filed *because* the re-baseline commit did not discharge the clause, and the sentence it
+> asks for lives in a file no teammate but the lead may write.
+>
+> **The condition audited is the register's `**Closes when:**`, quoted verbatim** — this entry
+> has **no body file** (QA `F-REC-3` named it as one of four filed without one), so there is no
+> `**What would close it.**` paragraph that could differ from the field, and nothing is folded in
+> or deleted below. The field:
+>
+> > *"the one-line scheduling sentence for `supabase/tests/mutation/authz-setvalued-targeted-cases.sh`
+> > lands in `docs/lead-playbook.md` §4 — drafted VERBATIM in `docs/progress/pred-domain.md` under
+> > "For the lead — the ONE-LINE lead-playbook §4 sentence the targeted home needs", so this closes
+> > by pasting, not by re-deciding. ⛔ Not closed by the harness being committed: that is the half
+> > that already exists. ⛔ Not closed by running it once by hand"*
+>
+> Clause by clause:
+>
+> 1. *"the one-line scheduling sentence … lands in `docs/lead-playbook.md` §4"* — ✅ it did, at
+>    `376d5717`, under the heading **"Since PRED-DOMAIN (ADR 0191, 2026-09-07), two more:"**. The
+>    landed bullet names the harness, the invocation, the detached mode, the ~10 min, the four bare
+>    exit codes (0 CLEAN / 1 DIRTY / 2 ABORT / 3 UNPROVEN), **both** triggers (every phase gate that
+>    runs the door sweep, plus any migration creating or replacing a `prosecdef` `SETOF uuid`
+>    function in `app`/`public`/`authz`), and it closes with *"Quote its `ARM-DOMAIN setvalued=`
+>    line, never the script name"* — the ADR 0079 rule the whole programme rests on.
+> 2. *"drafted VERBATIM … so this closes by pasting, not by re-deciding"* — ✅ **satisfied, and the
+>    paste is NOT byte-verbatim.** ⚠ MEASURED by QA (re-review `N4`): after normalising whitespace
+>    and the blockquote prefix, the drafted sentence and the landed one differ in **exactly one
+>    place** — the playbook adds `; ADR 0079 hazard 4` after `(ADR 0191 D3`. That is a **correct
+>    strengthening**, not a drift: hazard 4 is *why* the `SETOF uuid` family is out of the door
+>    arm's domain, so the landed line carries the reason the drafted one only implied. The clause's
+>    intent ("do not re-decide") is met; the word "verbatim" in `376d5717`'s own commit message is
+>    the thing that is false, and it lives in a commit message no gate reads. Recorded here rather
+>    than smoothed over, because a claim about a measurement written beside a correct one is this
+>    unit's own LEARN-088.
+> 3. *"⛔ Not closed by the harness being committed: that is the half that already exists"* — ✅
+>    respected. The harness was committed before this entry was filed; nothing about it changed to
+>    close this. What closed it is a line in the playbook.
+> 4. *"⛔ Not closed by running it once by hand"* — ✅ respected. No run is cited as the discharge.
+>    The three set-valued verdicts earned on 2026-09-05 are filed elsewhere
+>    (`docs/reviews/authz-door-audit-findings.md`, § The three set-valued scope resolvers) and are
+>    **not** offered here: this entry was always about the SECOND run, not the first.
+>
+> ⚠ **What this closure does NOT discharge, carried forward, not silently dropped:** the harness
+> still has **no `SELFTEST` arm** of its own, and it still emits its verdict rows in a shape no
+> census can read — `FUP-AUTHZ-SETVALUED-HOME-DOES-NOT-EMIT-ROWS` (🟡, backend) carries both, and
+> the QA re-review's could-not-verify item 4 asks its successor to add a no-DB `SELFTEST` arm. A
+> scheduled harness that cannot prove itself is a smaller gap than an unscheduled one, and it is
+> still a gap.
+
+**The register entry as it stood, verbatim.** Kept here rather than left to `git`, which is what
+`FUP-DOCS-CONSOLIDATION-CLOSURE-DROPS-THE-CLOSES-WHEN-FIELD` asks for — a closure must be
+auditable against the condition it was closed on. Only the `### ` heading line is omitted (its
+text is this entry's heading, above).
+
+
+**Filed:** 2026-09-07 (unit PRED-DOMAIN, closing `FUP-DOOR-SWEEP-DOMAIN-GAP-WIDENED-BY-SET-VALUED-RESOLVERS` — the one sub-clause that commit `b59d4bbf` does not discharge) · **Owner:** lead · **Severity:** high — a harness nothing schedules is the thing it was built to replace: cases that run when someone remembers
+**Closes when:** the one-line scheduling sentence for `supabase/tests/mutation/authz-setvalued-targeted-cases.sh` lands in `docs/lead-playbook.md` §4 — drafted VERBATIM in `docs/progress/pred-domain.md` under "For the lead — the ONE-LINE lead-playbook §4 sentence the targeted home needs", so this closes by pasting, not by re-deciding. ⛔ Not closed by the harness being committed: that is the half that already exists. ⛔ Not closed by running it once by hand
+**Status:** open — ADR 0191 D3 says so of itself: *"a committed home that nothing schedules becomes the thing it was built to replace"*. The engineer cannot land it (`docs/lead-playbook.md` is outside the write scope of every teammate but the lead), which is why it is a register entry rather than a line in a closure note nobody can audit. The three resolvers DID earn their first recorded verdicts on 2026-09-05; the risk is the SECOND run, not the first

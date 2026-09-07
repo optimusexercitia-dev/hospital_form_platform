@@ -365,6 +365,14 @@ DOMAIN-STATEMENT: what a COVERED/BLIND verdict from THIS arm does NOT cover.
 
 ## COVERED (asserted-through) + ERROR (harness bug)
 
+> ⚠ **This is the SECOND `## COVERED …` heading in this file, and it is the BASELINE's** (QA
+> `F-REC-7`, noted 2026-09-07 beside the heading rather than by editing it — the heading is
+> hand-prose the merge asserts survives byte-for-byte). The LIVE heading is the one above,
+> `+ NOTICED (suite reddened, shape moved) + ERROR (harness bug)`; this one is preserved from a
+> pre-`NOTICED` run. The table below carries **0** `ERROR` rows — the token survives in the
+> heading only. Nothing selects on a `## COVERED` section (the census reads column 4, not the
+> section); a reader meeting two "COVERED tables" is the whole cost.
+
 | gate / policy | arm | direction | verdict | failing files / note |
 | case_correction_requests.case_correction_requests_select (SELECT) | policy | open->true | COVERED | 298_authz_p0_isolation.sql,387_initplan_wrap_and_profiles_arm_identity.sql |
 | case_reopenings.case_reopenings_select (SELECT) | policy | open->true | COVERED | 298_authz_p0_isolation.sql,387_initplan_wrap_and_profiles_arm_identity.sql |
@@ -1027,6 +1035,15 @@ reads as a fix and closes nothing. The three keys below were read from the live 
 `merge-findings-baseline.sh`'s classifier (see the re-filed-three note above): a generator header
 or a bare verdict token would be relocated into the CARRIED block on the next full run and — since
 carried rows are INDENTED — stop matching the census's leading-pipe test.
+
+⚠ **Corrected 2026-09-07 (QA re-review `N1`), beside the unedited note above: this protects the
+ROWS, not the HEADER line.** MEASURED by QA on copies with the shipped merge helper and a
+generator-only `GENERATED`: merge rc **0**, all **six** hand-filed rows survive in place and
+un-indented, `verdicts_from_findings` reads all six — but **the header line of each hand table is
+relocated into the `CARRIED` block and indented**, leaving the `|---|---|---|---|---|` delimiter
+below with no header above it. No verdict is at risk; a reader is. ⚠ QA's `GENERATED` was
+synthesized, so this awaits a real full run. Filed, not fixed:
+`FUP-AUTHZ-MERGE-HEADERS-RELOCATE-AND-MALFORMED-ARM-HAS-NO-SELFTEST`.
 
 ⛔ **Only ONE of the three is in `ARM=census`'s domain today.** `census_proc_domain`'s
 set-returning clause is `p.proretset AND has_function_privilege('authenticated', p.oid,

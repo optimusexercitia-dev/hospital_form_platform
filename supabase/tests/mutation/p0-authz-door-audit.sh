@@ -994,6 +994,14 @@ docker cp "$DB:/tmp/wl_skip.tsv" "$WORK/skipped_pol_true.tsv" >/dev/null
 # ⚠ DERIVED EVERY RUN, NEVER LITERAL. The counts below are read from the live catalog at run
 #   time. A literal would be a claim about a catalog that has moved — the failure mode this
 #   file's own §7.3 ("assert the state, don't claim it") exists to stop.
+#
+# ⚠ QA F-REC-5, 2026-09-07 — TRIG_SECDEF is bounded on ('app','public') while THIS ARM's
+#   domain is ('app','public','authz') and SETVALUED_N below already reads all three. It is
+#   LATENT DRIFT, not an error: MEASURED 2026-09-07, identical either way (174), because no
+#   `prosecdef` trigger function exists in `authz` today. Left as a note rather than widened
+#   here, because this count is EMITTED into the committed DOMAIN-STATEMENT header — moving
+#   it is a run, not an edit, and a header that moved without a run is the very claim-about-
+#   a-measurement this file's LEARN-088 exists to stop.
 # ─────────────────────────────────────────────────────────────────────────────────────
 TRIG_SECDEF=$(psql_c -c "select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace
                           where n.nspname in ('app','public') and p.prosecdef

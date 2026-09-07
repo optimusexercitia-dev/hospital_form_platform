@@ -566,6 +566,17 @@ when someone remembers — so ADR 0191 D3 is incomplete until this line lands.
 > select that family at all (ADR 0191 D3), and the harness's own §4b cardinality control reds if a
 > sixth such function appears. Quote its `ARM-DOMAIN setvalued=` line, never the script name.
 
+✅ **LANDED at `376d5717`, and NOT byte-verbatim — noted 2026-09-07 (QA re-review `N4`), beside the
+draft rather than by editing it.** After normalising whitespace and the blockquote prefix, the
+sentence above and the one now in `docs/lead-playbook.md` §4 differ in **exactly one place**: the
+playbook adds `; ADR 0079 hazard 4` after `(ADR 0191 D3`. That is a **correct strengthening** —
+hazard 4 is *why* the `SETOF uuid` family is out of the door arm's domain, so the landed line
+carries the reason this draft only implied. ⚠ What is false is the word **"verbatim"** in
+`376d5717`'s own commit message, which no gate reads; the close condition said "closes by pasting,
+not by re-deciding", and pasting-plus-a-reason satisfies it. Recorded because a claim about a
+measurement written beside a correct one is this unit's own LEARN-088, and because the closure of
+`FUP-AUTHZ-SETVALUED-TARGETED-HOME-HAS-NO-SCHEDULE` rests on this sentence.
+
 #### Notes carried into step 11 (after the CARRIED ruling)
 
 1. ⛔ **`WORK` must be overridden to the FULL RUN's `WORK` when re-deriving `ARM=policy`** — that
@@ -2680,7 +2691,7 @@ decoration.
 | `npm run lint:adr-index` | **0** | `189 ADRs indexed, next free 0192` |
 | deriver `SELFTEST=1 bash scripts/door-sweep-cases.sh` | **0** | `SELF-TEST: PASS 34 · FAIL 0 · SKIPPED 0` |
 | door `SELFTEST=1 bash …/p0-authz-door-audit.sh` | **0** | `TOTAL: 23/23` (classify 6/6 · resets_enabled 6/6 · emit_result 8/8 · domain-statement 3/3) |
-| merge helper `bash scripts/door-sweep-selftest.sh` | **0** | `PASS 34 · FAIL 0 · SKIPPED 0` |
+| merge helper `bash scripts/door-sweep-selftest.sh` | **0** | `PASS 34 · FAIL 0 · SKIPPED 0` — ⚠ **the SAME RUN as the deriver row above, corrected 2026-09-07 (QA re-review `N5`); the two rows are not two witnesses.** `scripts/door-sweep-cases.sh` dispatches `exec bash "$HERE/door-sweep-selftest.sh" "$@"` under `SELFTEST=1` before any of its own setup, so one script covers both areas (deriver scenarios + merge-helper scenarios) and prints one `PASS 34`. Three named green witnesses here are **two**. The hub's `### In progress` list carries the same two-row phrasing; the lead's `## Current state` cut resolves it there |
 | `bash -n` on the three touched shell files | **0** | door arm, write arm, merge helper |
 | `verdicts_from_findings` on the door file | — | **359 keys, 359 unique** (was 356) |
 | `git diff --name-only main... -- supabase/migrations supabase/seed.sql src` | — | **EMPTY** |
@@ -2702,7 +2713,11 @@ script as argv[1]), at HEAD `4ace3bfb`, 04:36–04:45; every code read bare from
 
 - `supabase db reset --local` rc **0** · `npm run test:db` rc **0** — `Files=262, Tests=8876, Result: PASS`
 - `ARM=census` rc **0** —  live authz gates (catalog): 581  gates carrying a verdict: 604 `INVARIANT HOLDS`
-- `ARM=hat` rc **0** — self-test: 7/7 OK (blind flagged · covered not flagged · class-4 param flagged · has_role_any anchor flip seen · x-table policy flagged · covered x-table policy not flagged · authz.holds_role an
+- `ARM=hat` rc **0** — ⚠ **this line was TRUNCATED MID-WORD (`… authz.holds_role an`) and is replaced 2026-09-07 (QA re-review `N6`) with the full quoted lines from `…/scratchpad/pd/lead-gate/arm-hat.log`, re-read at the source. A quoting defect, not a measurement defect — the arm's rc and findings were always right:**
+  - `self-test: 7/7 OK (blind flagged · covered not flagged · class-4 param flagged · has_role_any anchor flip seen · x-table policy flagged · covered x-table policy not flagged · authz.holds_role anchor flip seen)`
+  - `anchors: app.has_role(4-arg) + app.has_role_any + authz.holds_role carry the active-role condition`
+  - `HAT-BLIND SWEEP HOLDS: 4 finding(s), all reasoned-allowlisted:` — `fn: authz.assignment_facts(p_principal uuid)` · `fn: public.assume_role(p_role platform_role)` · `fn: public.session_context()` · `policy: public.memberships.memberships_select (SELECT)`
+  - preflight, same log: `clean — 0 degenerate bodies in app+public (all three forms)`; closing line `=== INVARIANT HOLDS ===`
 - `ARM=floor` rc **0** —  OK: every never-called door is on the floor allowlist.  OK: every floor-allowlist entry resolves to a live door. 
 - `FROMFINDINGS=1 ARM=wrapper` rc **0** —  BLIND set size: 41  OK: every BLIND wrapper is on the allowlist. 
 - deriver `SELFTEST=1` rc **0** — SELF-TEST: PASS 34 · FAIL 0 · SKIPPED 0
@@ -2712,3 +2727,138 @@ Logs kept under `…/scratchpad/pd/lead-gate/`. This is the gate evidence the PO
 builder's step-11 figures at `6f94a634` (census 581/602) are superseded by these at `4ace3bfb`
 (the three set-valued rows added by the fix loop move "carrying a verdict" 602 → 604 after the
 re-files' bookkeeping — re-derived, not summed).
+
+### 2026-09-07 — backend: QA re-review residuals folded (docs)
+
+One docs/comment-only commit folding the residuals of `docs/reviews/pred-domain-rereview.md`
+(APPROVED) at PO approval. ⛔ **Nothing executable changed**: the two shell edits are comments,
+`bash -n` **0** on both, and `git diff --name-only main... -- supabase/migrations supabase/seed.sql src`
+stays **EMPTY**. Neither review file was touched.
+
+#### The eleven open RECs — old → new, one clause each
+
+| # | old | new |
+| --- | --- | --- |
+| **F-REC-1** | `act-hat-blind-sweep.sh` — *"until 2026-09-05 while `:195` executed"* | *"while the population query — the `where n.nspname in (…) and p.prokind = 'f'` line in `_hb_fn` below, cited by ANCHOR and no longer by number"*. ⭐ **Measured while fixing it: the number rots faster than the fix.** `:195` had already become `:202`; my first edit added a line and made it `:203`; the second made it `:204`. Citing the anchor is the only stable form, and the comment now says so with both dead numbers named |
+| **F-REC-2** | five archive closures, *"commit `b59d4bbf`"* | the sentence is left as filed and each gains, beside it: *"⚠ **Corrected 2026-09-07 (QA `F-REC-2`) … the CLOSING commit is `6f94a634`.** `b59d4bbf` is the run-2 re-baseline this closure RESTS on, not the commit that wrote it."* MEASURED: `git log --oneline main..HEAD -- docs/followups/follow-ups-archive.md` names `6f94a634` (*"close the five door-arm domain follow-ups"*), and `git show --stat 6f94a634` carries the +541 lines of archive. ⛔ The other **2** of the 7 `b59d4bbf` mentions are CORRECT (the re-baseline itself) and are untouched — 7 mentions, 5 corrections |
+| **F-REC-3** | four entries with no body file and no body-pointer line | ⭐ **Three fixed, one moot.** The moot one is `FUP-AUTHZ-SETVALUED-TARGETED-HOME-HAS-NO-SCHEDULE`, closed in this same commit. The other three gain: *"⚠ **No separate body file, BY DESIGN … ** this entry's substance is inline in the field above — the template's first branch (≤ 10 lines inline)."* ⛔ **A body-pointer line was deliberately NOT added**, and the reason is measured, not stylistic: `checkArchiveNoBodyLink` reds on that token anywhere in the archive, so adding one now plants a red in the closure that will one day rotate the entry verbatim |
+| **F-REC-5** | `p0-authz-door-audit.sh` — `TRIG_SECDEF` bounded on `('app','public')`, silently | a comment beside it: latent drift, not an error; **174 either way**; ⛔ *"Left as a note rather than widened here, because this count is EMITTED into the committed `DOMAIN-STATEMENT` header — moving it is a run, not an edit."* Widening the query would have moved a committed header with no run behind it, which is LEARN-088 in one keystroke |
+| **F-REC-6** | `FUP-DOOR-DEGENERATE-PREDICATE-TWO-HAND-COPIES` named only `DEGENERATE_PREDICATE` | register `**Status:**` and body both widened: `resets_enabled()` / `periodic_reset()` are a **second** hand-kept pair, `c2-command-door-neutralizer.sh` ↔ `p0-authz-door-audit.sh`, byte-identical but for `SUBSET` → `SUBSET_RUN`. ⛔ *"the definition" in the condition reads as EACH duplicated definition* — a single-place fix for the preflight alone no longer closes it. The heading is NOT edited (permanent by the register's own rule) |
+| **F-REC-7** | two `## COVERED …` headings, the second unexplained | a blockquote note under the second, saying it is the BASELINE's, that the live one is above, that the table below carries **0** `ERROR` rows, and that nothing selects on a `## COVERED` section. ⭐ Written as a **blockquote**, matching the merge-proven shape the sibling heading already carries, rather than as a bare paragraph the merge has never seen between a header and its table |
+| **F-REC-8** | the register line byte-identical to `main` while the body carried the work-list | `**Status:**` gains *"WIDENED … the body gained run 2's door-arm work-list — **15 distinct aborting-file signatures over 23 `NOTICED` rows**"*, and names where the **four** weakest actually live (`FUP-AUTHZ-NOTICED-ROWS-WITHOUT-AN-AUTHZ-SHAPED-REDDENING`), so a reader working from the register alone is not sent to the wrong body |
+| **F-REC-10** | ADR D2, *"…in §7.17b and in the `DOMAIN-STATEMENT`"* under a "stated verbatim" label | quote left unedited; a dated correction beside it names the emitter's actual close, *"…and in **this statement**"*, and states the authority: **the emitted block, not this quote** |
+| **F-REC-12** | ADR D5, *"Proven on four constructed strings"* | sentence left unedited; correction beside it: **six** ship, the two omitted being the `Dubious` and missing-`Result:` paths — *"the ones that make the classifier's OTHER code paths evidence rather than the happy path twice"* — and the count is re-readable every run as `classify 6/6` |
+| **F-REC-13** | ADR D5 Am. 1, *"23 aborting-file signatures"* + *"a keystone entry for the four rows"* | correction beside it on **both** counts: **15 distinct signatures over 23 rows** (a work-list sized by files to repair, not gates that lost a verdict), and the four are in their own entry, not that body — *"A reader sent to one body for both would find only 19 of the 23 accounted there."* |
+| **F-REC-14** | ADR consequence, *"the set-valued home **needs** a scheduling line"*, still open | consequence left standing, with ✅ **DISCHARGED** beside it: landed at `376d5717`, follow-up closed at this Record step, ⚠ *"the landed sentence is the drafted one **plus** `; ADR 0079 hazard 4` — a strengthening, not a byte-verbatim paste"* |
+
+⚠ **F-REC-4, -9, -11 are not in the table**: -4 was already fixed in the loop, -11 was withdrawn on
+measurement at the first review, and -9 is the closure below.
+
+#### N1–N7
+
+- **N1** — both sentences corrected, dated, beside unedited originals: `authz-door-audit-findings.md`
+  (the note above the three set-valued rows) and ADR 0191 **D7** (⚠ QA cited `:373-375`; at the tree
+  it reviewed, the sentence was at `:376-377` — one more line cite that had already rotted, which is
+  why both corrections are anchored on the sentence text, not on a number).
+  New text, both: the merge keeps the **ROWS** (six, in place, un-indented, all six read by
+  `verdicts_from_findings`) and **relocates the HEADER** into `CARRIED`, indented, leaving a bare
+  `|---|---|---|---|---|`. ⚠ Both corrections carry QA's own caveat that its `GENERATED` was a
+  synthesis, so this stays on the could-not-verify list until a real full run.
+- **N2** — not fixed here; filed with N1 as **one** entry,
+  `FUP-AUTHZ-MERGE-HEADERS-RELOCATE-AND-MALFORMED-ARM-HAS-NO-SELFTEST` (🟡, backend, code `AUTHZ`
+  registered), with a body. Its `**Closes when:**` names a self-test scenario **per blind spot** —
+  the non-letter seam (including the repaired row's own `. ⚠`, the model a future re-attach would
+  copy), the comma-joined suffix, the non-`.sql` token seam, the indented `CARRIED` row — **plus**
+  the header-preservation case for N1, each owed **red before green**. ⭐ One measured addition of
+  my own: the standing case `B: hand-written table survives whole` uses a fixture whose hand header
+  is the three-column `| gate | evidence | reading |`, not the five-column generator-shaped header
+  the real file carries — so the case that looks like it covers N1 has never exercised its shape.
+  ⛔ Stated as *the shapes differ*, not as *that is the cause*; the new case is what would settle it.
+- **N3** — hub frontmatter `adrs:` gains `"0191"` (frontmatter ONLY; the hub body, `status`, `branch`
+  and `reviews` are the lead's). `npm run features:index` rc **0**. ⚠ **Measured, and it narrows
+  N3's stated consequence:** `docs/features/INDEX.md` is **byte-unchanged** by the rebuild — the
+  index has no ADR column for any hub, so the missing `0191` was never costing an index link. What
+  it was costing is the hub's own metadata, which is where a reader looks for a unit's decisions.
+- **N4** — recorded in this record beside the drafted §4 sentence, and again inside the closure:
+  `376d5717` is the draft **plus** `; ADR 0079 hazard 4`. A correct strengthening; only the word
+  "verbatim" (in a commit message no gate reads) is false.
+- **N5** — the gate table's `merge helper` row now says it is the **SAME RUN** as the deriver row
+  (`scripts/door-sweep-cases.sh` `exec`s `door-sweep-selftest.sh` under `SELFTEST=1` before any of
+  its own setup), so *three named green witnesses here are **two***. ⚠ The hub's `### In progress`
+  carries the same two-row phrasing; that is the lead's `## Current state` cut, and it is flagged
+  here rather than edited.
+- **N6** — the `ARM=hat` line was truncated mid-word (`… authz.holds_role an`); replaced with the
+  full lines re-read from `…/scratchpad/pd/lead-gate/arm-hat.log`, including the preflight
+  (`clean — 0 degenerate bodies`) and `=== INVARIANT HOLDS ===`. The door self-test line was already
+  repaired at `1b9d9fd4`.
+- **N7** — `LEARN-087`'s Enforcement repointed. It named `p0-authz-door-audit.sh` — the **remediated
+  site**. It now names the INSTRUMENT inside it (the offline `SELFTEST` arm `resets_enabled`, 6/6 of
+  `TOTAL: 23/23`) **and** `c2-command-door-neutralizer.sh` as the sibling site that carries no
+  self-test at all. ⛔ Naming the uninstrumented sibling is the lesson applied to itself: enforcement
+  today covers **one of the two sites**, and the row says which. `lessonsProseOnly` stays **52/52**.
+
+#### F-REC-9 — the closure, and its rotation witness
+
+`FUP-AUTHZ-SETVALUED-TARGETED-HOME-HAS-NO-SCHEDULE` is **RESOLVED 2026-09-07** on the lead's
+`376d5717`. The `**Closes when:**` is quoted verbatim in the archive and audited clause by clause;
+all four clauses hold, with clause 2 carrying N4's strengthening explicitly rather than reading as a
+clean paste. ⛔ The closure states what it does **not** discharge: the harness still has no `SELFTEST`
+arm and still emits an unfilable row shape (`FUP-AUTHZ-SETVALUED-HOME-DOES-NOT-EMIT-ROWS`).
+
+Rotation per lead-playbook §5 — **byte-extract, compare, then cut**, adapting the same session's
+`close.py`:
+
+```
+--- extracted entry (5 lines, 1370 chars) ---
+cmp: extracted body block (1235 chars) found VERBATIM in the composed archive block: OK
+archive: 1 existing citation(s) of the code, 0 headings — a pointer, not an entry
+WRITTEN. archive holds the entry verbatim; open register no longer names it.
+```
+
+⚠ The id was ALREADY present in the archive once — as a **citation** inside the twin's closure body,
+not as an entry. A naive "id not in archive" guard aborted on it; the assertion was re-aimed at
+`### ` HEADINGS, which is the property the duplicate-id gate itself keys on. ⛔ **No body file was
+deleted, because there was none** — this entry was one of F-REC-3's four, so the archive block says
+so instead of leaving a silent gap where a folded-in body normally sits. Open register **208 → 207**
+entries (one closed, one filed); body files **159 → 159** (one added, none removed).
+
+#### Gate — bare, nothing piped
+
+| gate | bare rc | observed |
+| --- | --- | --- |
+| `npm run lint` | **0** | eslint `--max-warnings=0` clean; `check-docs-registers: OK` (207 follow-ups, 159 bodies, 88 lessons); **ratchets IDENTICAL to QA's re-review figures** — `closesWhenPoToRule=137/147 severityPerEmoji=128/135 severityUnrated=29/29 revisitWhenPoToRule=38/38 longHeadings=90/97 bugsUntriaged=10/10 bugsUnrated=40/40 lessonsProseOnly=52/52`. **None raised** |
+| `npm run lint:adr-index` | **0** | `189 ADRs indexed, next free 0192` — body-only edits, no new ADR number taken, `**Status:** proposed` untouched |
+| `npm run features:index` | **0** | `wrote docs/features/INDEX.md (9 hubs)`; the file is byte-unchanged (see N3) |
+| deriver `SELFTEST=1 bash scripts/door-sweep-cases.sh` | **0** | `SELF-TEST: PASS 34 · FAIL 0 · SKIPPED 0`. ⚠ Run because two script files changed — **comment-only, and a comment-only edit still counts**; `SKIPPED 0` means the catalog scenarios ran, not that they were waived |
+| door `SELFTEST=1 bash …/p0-authz-door-audit.sh` | **0** | `SELFTEST TOTAL: 23/23 ok, 0 failed`; `committed baseline VERIFIED unchanged (cksum)` — the findings file I edited is byte-stable across the run |
+| `bash -n` on both edited shell files | **0** | `act-hat-blind-sweep.sh`, `p0-authz-door-audit.sh` |
+| `git diff --name-only main... -- supabase/migrations supabase/seed.sql src` | — | **EMPTY** |
+
+⚠ **`longHeadings` moved 90 → 91 on the first run and was brought back.** The new follow-up's heading
+was 161 chars against a 160 cap. It is now 152 and the ratchet reads **90**, identical to QA's. A
+ratchet under its cap still passing is exactly the reading that lets one drift.
+
+⚠ **Two knowingly-rotted sets of citations, disclosed rather than left to be discovered.** The
+F-REC-5 comment adds **+8 / −0** lines to `p0-authz-door-audit.sh` immediately after `:996`, so every
+cite of that file **from `:997` down** now reads 8 low: MEASURED, `:1015` (the D1 sentence's emit) is
+now **`:1023`** and `:1061` (the §7.17b echo) is now **`:1069`**. `authz-door-audit-findings.md` gains
+**+17 / −0** across the F-REC-7 and N1 notes, moving its set-valued section below `:1007`.
+⛔ **Measured before deciding, not after:** the ONLY living documents that cite `p0-authz-door-audit.sh`
+by line do so at `:176`, `:187`, `:198-206`, `:263-298`, `:350`, `:461-475`, `:497-505`, `:565`,
+`:761/:767` and `:790-806` — **every one of them BEFORE the insertion point, so every one is still
+correct**. The
+cites that rot (`:1015`, `:1061`) live only in `docs/reviews/pred-domain-review.md` and
+`-rereview.md`, frozen QA artefacts at `c73131fe` that must not be edited. That is the ordinary
+as-of-tree cost of a review citation; naming it here is cheaper than a future reader re-deriving it,
+and it is the third time in one commit that a line number turned out to be the wrong handle.
+
+#### Not done, deliberately
+
+- **N2 is filed, not fixed** — the self-test cases it asks for are its own increment, and each is
+  owed red-before-green, which is a build step and not a docs fold.
+- **F-REC-5's actual widening** (`TRIG_SECDEF` → `('app','public','authz')`) is a one-token SQL edit
+  that would move a committed `DOMAIN-STATEMENT` figure with no run behind it. Noted, not made.
+- **The hub body, `status`, `branch`, `reviews`** — the lead's, at the Record step. Only `adrs:` was
+  touched. `docs/progress/phase-ledger.md` was left alone: it is being written concurrently and is
+  not staged by this commit.
+- **`docs/reviews/pred-domain-review.md` and `-rereview.md`** — untouched, as required.

@@ -31,6 +31,17 @@ the second exists.
 measured divergence — which is why it is filed rather than fixed inside a unit whose subject was
 the domain, not the preflight.
 
+⭐ **WIDENED 2026-09-07 (QA `F-REC-6`) — a SECOND hand-kept pair in the same class, and the title
+above understates the subject.** `resets_enabled()` and `periodic_reset()` are now duplicated
+between `supabase/tests/mutation/c2-command-door-neutralizer.sh` (the original) and
+`supabase/tests/mutation/p0-authz-door-audit.sh` (ported at the 2026-09-06 tail-drift fix,
+ADR 0191 D8), byte-identical but for `SUBSET` → `SUBSET_RUN`. The failure mode is the same and
+worse: a reset design that drifts silently governs when a multi-hour sweep re-reads its baseline.
+⛔ **`What would close it` below is read as EACH duplicated definition, not only
+`DEGENERATE_PREDICATE`** — a single-place fix for the preflight alone leaves this pair exactly as
+it is, which is LEARN-087's shape (*a fix correct at MOST of its sites reads as a complete one*).
+The heading is not edited: register headings are permanent and citations key on them.
+
 **What would close it.** The definition lives in ONE place and both harnesses read it from there —
 either a tiny sourced fragment under `scripts/lib/`, or the same LIFT mechanism
 `scripts/door-sweep-cases.sh` already uses on `PRED_DOMAIN` (`lift_block`, three explicit

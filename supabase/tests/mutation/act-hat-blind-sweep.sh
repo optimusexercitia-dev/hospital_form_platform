@@ -19,8 +19,11 @@
 #    prokind='f', comment-stripped, lowercased — a pg_get_functiondef-
 #    regenerated body is uppercase, Amendment 5a) + every RLS policy
 #    (pg_policies, all schemas).
-#    ⚠ This line said "app+public" until 2026-09-05 while `:195` executed
-#    `n.nspname in ('app','public','authz')` — the schema was added at AE4.7b
+#    ⚠ This line said "app+public" until 2026-09-05 while the population query — the
+#    `where n.nspname in (…) and p.prokind = 'f'` line in `_hb_fn` below, cited by
+#    ANCHOR and no longer by number (QA F-REC-1, 2026-09-07: the `:195` this correction
+#    was written with had already rotted to `:202`, and editing this very comment
+#    rotted it again) — executed `('app','public','authz')`; the schema was added at AE4.7b
 #    and the METHOD paragraph was not. A domain sentence that UNDERSTATES the
 #    executed domain is the mirror of the usual defect and reads as care: it
 #    invites a reader to conclude the `authz` schema is unswept here when it is

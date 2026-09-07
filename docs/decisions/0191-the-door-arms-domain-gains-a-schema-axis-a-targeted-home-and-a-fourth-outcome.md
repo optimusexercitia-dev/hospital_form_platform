@@ -135,6 +135,13 @@ for no measured effect.
 > `authz` **schema** membership, minus the 2 side-effecting writers; the 35 outside are enumerated
 > per run in §7.17b and in the `DOMAIN-STATEMENT`.
 
+⚠ **Corrected 2026-09-07 (QA `F-REC-10`), beside the unedited quote above: this rendering is
+NOT byte-verbatim.** The emitter closes the same sentence with *"…enumerated per run in §7.17b and
+in **this statement**"* (`domain_statement ()` in `supabase/tests/mutation/p0-authz-door-audit.sh`,
+the `$PRED_OUT outside are enumerated` line), because inside the block "the `DOMAIN-STATEMENT`" is
+a self-reference. Semantically identical, byte-different — and quoting it under a "stated verbatim"
+label is this unit's own LEARN-088 shape. The AUTHORITY is the emitted block, not this quote.
+
 PO-accepted 2026-09-05 as the arm's stated domain. It is still an **approximation** of "is an
 authorization predicate" — a gate reaching identity only indirectly through a helper the regex
 does not name, in `app` or `public`, remains outside — and the census is what keeps that admission
@@ -231,6 +238,13 @@ Proven on four constructed strings with **the control named**: (shape-moved, PAS
 distinguishes this from renaming ERROR. The instrument was itself proven able to fail, and the
 pre-change classifier was run over the identical strings.
 
+⚠ **Corrected 2026-09-07 (QA `F-REC-12`), beside the sentence above, which is left unedited:
+SIX constructed strings ship, not four.** The two the sentence omits are the `Dubious` path and
+the missing-`Result:` path — and those two are the ones that make the classifier's OTHER code
+paths evidence rather than the happy path twice. The count is not a claim to take on trust: the
+offline arm reports it every run as `classify 6/6` (the door harness's `SELFTEST` total line,
+`TOTAL: 23/23 ok, 0 failed`, quoted in the lead's gate entry). Understated, never false.
+
 #### D5 Amendment 1 — 2026-09-07, PO ruling: `NOTICED` is DISCLOSED, NON-BLOCKING, WORK-LISTED
 
 ⛔ **This amendment supersedes exactly one sentence of D5**, and it is quoted here rather than
@@ -267,6 +281,15 @@ printed nothing would be a silent pass — worse than the DIRTY it replaces), an
 `FUP-C2-TIER1-VALUE-ASSERTIONS-ABORT-ON-AN-INLINE-RAISE`, whose body now carries run 2's 23
 aborting-file signatures, plus a keystone entry for the four rows with no authz-shaped file
 reddening outside the aborting file.
+
+⚠ **Corrected 2026-09-07 (QA `F-REC-13`), beside the unedited sentence above, on both of its
+counts.** (1) The body carries **15 DISTINCT aborting-file signatures over 23 rows**, not 23
+signatures — a work-list sized by the number of files to repair, not by the number of gates that
+lost a verdict, and the two numbers are the two ends of a many-to-one join. (2) The "keystone
+entry for the four rows" is **not** in that body: the four live in their own register entry,
+`FUP-AUTHZ-NOTICED-ROWS-WITHOUT-AN-AUTHZ-SHAPED-REDDENING`, filed separately because
+`FUP-AUTHZ-FOR-ALL-READ-HALF-BLINDS` fences NOTICED rows out of its own work-list. A reader sent
+to one body for both would find only 19 of the 23 accounted there.
 
 SELFTEST gains an 8-case arm over `emit_result()`. ⛔ Its control is the **pair** `(0 BLIND,
 0 ERROR, 1 NOTICED) → rc 0` against `(1 BLIND, 0 ERROR, 1 NOTICED) → rc 1`: same NOTICED count,
@@ -376,6 +399,19 @@ absent from the next run is relocated into the `CARRIED` block, where the leadin
 generator never emits and `COVERED (targeted mutation)` in column 4, so the merge keeps them as
 prose, in place — while the header still contains the literal `gate / policy` that the census's own
 `grep -vE 'gate . policy'` uses to drop a header.
+
+⚠ **Corrected 2026-09-07 (QA re-review `N1`), beside the unedited sentence above: "keeps them as
+prose, in place" is true of the ROWS and FALSE of the HEADER.** MEASURED by QA on copies, with the
+shipped `scripts/lib/merge-findings-baseline.sh` and a generator-only `GENERATED`: the merge exits
+**0**, all **six** hand-filed rows survive in place and un-indented, and `verdicts_from_findings`
+reads all six — so the load-bearing property holds and **no verdict is at risk**. But **both hand
+table HEADER lines are relocated into the `CARRIED` block and indented**, leaving each section with
+a bare `|---|---|---|---|---|` delimiter and no header. The merge helper's documented exception 2
+covers hand *rows*, not hand *headers*. Cosmetic for the census, wrong for a reader — and it is a
+claim about a measurement, which is this unit's own subject. ⚠ QA's `GENERATED` was a synthesis
+(the committed file truncated at its first `## Note`), so this stays on the could-not-verify list
+until a real full run confirms it. Filed, not fixed:
+`FUP-AUTHZ-MERGE-HEADERS-RELOCATE-AND-MALFORMED-ARM-HAS-NO-SELFTEST`.
 
 ⛔ **The `CARRIED` block, comment included, was removed** — not left empty. The merge appends the
 whole block only when it carries something, and it aborts when a baseline prose line does not
@@ -514,6 +550,11 @@ bounded below by 5 and above by 21 until run 2 measures them.
   hold".
 - The set-valued home needs a **scheduling line** in the lead playbook, or it becomes the thing it
   was built to replace: cases that run when someone remembers.
+  ✅ **DISCHARGED 2026-09-07 (QA `F-REC-14`), recorded beside the consequence rather than deleting
+  it:** the lead landed the §4 line at `376d5717`, and `FUP-AUTHZ-SETVALUED-TARGETED-HOME-HAS-NO-SCHEDULE`
+  is closed on it at the Record step. ⚠ The landed sentence is the drafted one **plus**
+  `; ADR 0079 hazard 4` — a strengthening, not a byte-verbatim paste; see that follow-up's archive
+  entry.
 - ⚠ **Residual, filed not fixed**: `DEGENERATE_PREDICATE` remains **two hand-kept copies**; no arm
   reds on a stale `authz-unswept-backlog.txt` entry that has since earned a verdict; the deriver's
   exit code conflates "derived some" with "derived all owed".
