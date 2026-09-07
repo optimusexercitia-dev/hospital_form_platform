@@ -1,383 +1,247 @@
-# Pre-AE5 remediation — the nine batches (plan and continuation record)
+# Pre-AE5 remediation — the nine follow-up batches
 
-**Status:** live plan · **Owner:** lead + PO · **Opened:** 2026-09-04 (batches ruled) · **This
-revision:** 2026-09-07, written at the end of the session that completed Batches 0–2, for the
-session that continues with Batch 3. **Program:** AUTHZ (ADR
-[0155](../decisions/0155-post-aff4-tenancy-and-person-model-evolution-sequence.md), phase AE5 is
-post-pilot by G1 / ADR [0162](../decisions/0162-authz-evolution-plan-audit-corrections.md)).
+**Status:** live plan · **Owner:** lead (orchestration), backend (build), qa (review), PO (rulings)
+**Program:** AUTHZ — ADR [0155](../decisions/0155-post-aff4-tenancy-and-person-model-evolution-sequence.md) ·
+**Ruled:** 2026-09-04 (lead session `9346f622`) · **Last updated:** 2026-09-07 at `main` @ `d7964398`
 
-> ⛔ **Status words here are as-of-writing.** The live state of any batch is its hub
-> (`docs/features/<slug>.md`, via [docs/features/INDEX.md](../features/INDEX.md)); the live state
-> of any follow-up is its entry in
-> [docs/followups/follow-ups-open.md](../followups/follow-ups-open.md). Re-measure before acting on
-> a sentence in this file. Migration text and gate figures are stale by design — the catalog and a
-> fresh run are the truth (CLAUDE.md § graphify; ADR 0078).
+> Continuation of this plan happens in a **different session**. Everything a resuming lead needs is
+> here or one link away: what was concluded (§2), what remains and why it comes before AE5 (§3),
+> the protocol each batch follows (§4), and the standing facts that bite (§5). Live unit state is
+> never here — it is the hub, via [docs/features/INDEX.md](../features/INDEX.md).
 
----
+## 1. Why these batches exist, and why "before AE5"
 
-## 1. Why these batches exist, and why before AE5
+**AE5 is post-pilot by ruling.** ADR 0155 G1 / ADR [0162](../decisions/0162-authz-evolution-plan-audit-corrections.md):
+*"AE0–AE4 gate the pilot. AE5 is post-pilot."* AE5 substitutes the eleven remaining roles into the
+authz catalog one at a time, each through **the AE4 per-role template** (matrix → seed →
+differential → wrapper cutover → re-key the enforcement sites → sweep → runbook → Record).
 
-AE5 (*"the remaining roles move to the catalog, one at a time, each through the AE4 template"*,
-[authz-evolution.md § AE5](authz-evolution.md)) is **post-pilot** — *"AE0–AE4 gate the pilot. AE5
-is post-pilot"* (0162 G1). So "before AE5" means two things, and the batches were derived from
-both, on 2026-09-04, because **no entry in the open register was worded as an AE5 blocker**:
+So "before AE5" means two things, and the batches were derived from both:
 
-1. **What the record literally says must precede AE5.** The only sentences that say "before AE5"
-   are the Gate AE4 review's *"Add the converse arm (a declared class must be findable) before
-   AE5, when non-empty rows first appear"* (`hardDenyClasses`, Batch 4), the implementation
-   audit's *"Decide and encode the model before AE5"* (the entitlement / hard-deny seam, Batch 9),
-   and the mid-phase review's *"MEASURE before AE5"* (performance — measured; the entry stays
-   open only as `PO to rule`).
-2. **Every defect in the AE4 per-role template that AE5 copies eleven times.** The per-role
-   checklist (§ AE5: matrix → seed → differential → wrapper cutover → re-key → sweep → runbook →
-   Record) runs the **same instruments** on every increment: the diff-scoped door sweep and its
-   case deriver, the mutation harnesses, the enforcement manifest, the rollback runbook, the
-   registers' Record-step gates. A defect in any of them is paid **eleven times**, and — the
-   program's standing lesson — an instrument that is wrong reads exactly like one that is right.
+1. **What the documents literally say must precede it.** Gate AE4 QA review: *"Add the converse arm
+   (a declared class must be findable) before AE5, when non-empty rows first appear."* Implementation
+   audit F5: *"Decide and encode the model before AE5."* Gate AE4 re-review N4: *"a re-key at the policy
+   leaves the DEFINER surface on its legacy gate, and this template is what AE5 will copy."*
+2. **Every defect in the instruments and the template that AE5 would run or copy eleven times.** The
+   open follow-up register carries **no entry worded as an AE5 blocker**; the batches were derived
+   (2026-09-04) from the plan, the ADRs, the reviews and each entry's own mechanism. A gate whose
+   instrument is blind is worse than no gate — it manufactures an all-clear.
 
-The dependency order below is not arbitrary: Batches 1–3 each need a **multi-hour full sweep**,
-and on 2026-09-04 a sweep killed by a tool timeout had left a live authorization gate open with no
-trace — so Batch 0 (crash safety) had to land first; Batch 2's re-baseline needed Batch 1's
-merge (a full run used to destroy the baseline's hand-authored material); Batch 3's re-baseline
-needed Batch 2 to prove the merge on a real run. Batches 4–8 depend on the instruments 0–3 fix;
-Batch 9 is not a fix but the opening of AE5's own plan.
+**Dependency order** (why the numbering is what it is): Batches 1–3 each need a multi-hour **full
+sweep** on the mutation harnesses, so the harnesses had to be crash-safe first (Batch 0); Batches 2–3
+re-baseline committed findings files, so the case deriver and the full-run **merge** had to work
+first (Batch 1); Batch 4's re-key needs a working diff-scoped sweep (Batches 1–2); Batch 7's revokes
+must not create sweep blindness (Batch 2's domain). Batch 6 is the inter-phase window's own work.
+Batch 9 is not a fix — it is the AE5 plan's opening ADR.
 
-**The standing protocol for every batch** (lead-playbook; proven across 0–2): open a hub + record
-**before** cutting the branch (gate 13 needs both) · `backend` writes a **FULL plan** before touching
-a harness or a committed baseline (they open live gates / rewrite audit records) · every new
-detector, arm, selection or classifier outcome is **proven able to fire** on a planted reproducer
-with a clean-tree negative control and a discrimination half, on the *production* text, never a
-copy · restores are verified **in the catalog three ways** (md5 vs snapshot; degenerate non-`SELECT`
-policies **enumerated** to zero rows against the correct container — an unrelated `escalume` stack is
-up on this machine; the harness's own preflight arms) · anything > 5 min runs **detached** (never
-under a tool timeout; `Start-Process bash.exe` with the script as **argv[1]** — `-ArgumentList
-"-c",…` joins unquoted and starts nothing) with its own `WORK` and sentinel path · exit codes read
-**bare** · closures on each follow-up's own quoted `Closes when`, clause by clause, disclosing where
-the body's condition was used because the register field read `PO to rule` · QA review → fix loop
-(≤ 5, each iteration fixing something new; report to the PO at 5) → re-review → **PO approval by
-question** → Record step (ledger row with the id **unbolded** — the `LEDGER-ID-BOLD` workaround; hub
-→ `complete` with its Current state cut verbatim into the record, `cmp`-verified; ADR accepted;
-indexes; lint read bare) → fast-forward merge into `main`, never pushed by the lead.
+## 2. Concluded — Batches 0, 1, 2 (all on `main`, all PO-approved, all QA-approved)
 
----
+Each row's authority is its hub (summary) and record (log); this table is a pointer, never a
+restatement. **Re-measure anything you rely on.**
 
-## 2. Concluded — Batches 0, 1, 2
+| # | Unit (hub · record) | Merged | Closed | What it made true |
+|---|---|---|---|---|
+| 0 | `HARNESS-CRASH-SAFETY` — [hub](../features/harness-crash-safety.md) · [record](../progress/harness-crash-safety.md) · ADR [0189](../decisions/0189-one-crash-safety-protocol-across-the-mutation-harnesses.md) | `76d87a4f` 2026-09-04 | `FUP-C2-TIER1-INFLIGHT-SENTINEL-ERASED-BY-ITS-OWN-RESTORE` · `FUP-AUTHZ-HARNESS-PRECONDITIONS` · `FUP-C2-NEUTRALIZER-TAIL-DRIFT-INVALIDATES-LATE-VERDICTS` · `FUP-AUTHZ-HARNESS-TRANSACTIONAL` (PO: **detect-only**, marker not built by decision) | A restore is believed only when the **catalog** agrees (psql rc **and** md5); a failed restore **keeps** the sentinel; `RECOVER=1` in all three sentinel-bearing harnesses; both verdict preconditions asserted and printed; `SUITE=` is a subset; the C2 neutralizer bounds tail drift (`RESET_EVERY`, interlock, retry-once). ⚠ **Mis-scoped as closed**: the tail-drift fix reached the C2 harness only — Batch 2 paid for that (its archive amendment says so). |
+| 1 | `DOOR-SWEEP-DERIVER` — [hub](../features/door-sweep-deriver.md) · [record](../progress/door-sweep-deriver.md) · ADR [0190](../decisions/0190-the-door-sweep-deriver-selects-by-property-and-a-full-run-merges.md) (amends 0173, 0079) | `bbda5392` 2026-09-05 | `FUP-DOOR-SWEEP-DERIVER-NAME-FILTER-DROPS-A-REAL-GATE` (on a **visibly amended** condition — ADR 0079 hazard 4) · `…MARKER-BLIND-TO-CONTINUATION-LINES` · `…DERIVER-BLIND-TO-ALTER-FUNCTION` · `…DERIVER-SPANS-THE-WHOLE-WORKING-TREE` · `…FULL-RUN-DESTROYS-HAND-MERGED-ANNOTATIONS` · `FUP-AUTHZ-DOOR-SWEEP-DERIVER-OVERSELECTS-INTO-UNPROVEN` | The deriver **lifts** `PRED_DOMAIN` from the harness (ABORT on drift) instead of copying it; a door is a **catalog** fact and `CASES=` is the sweepable tier only; `ALTER FUNCTION … SECURITY DEFINER` read like `ALTER POLICY`; the whole `door-sweep-targets:` declaration parsed; per-case provenance and a quotable `SCOPE:` line on every exit; the four sweeps' full-run emit **merges** into the committed baseline, preserving every line the generator did not produce (verifier proven on the old helper's real losses); `SELFTEST=1` over committed fixtures (34 scenarios). QA took four rounds — round 1 found a genuine blocker (the merge destroyed hand-authored material at exit 0). |
+| 2 | `PRED-DOMAIN` — [hub](../features/pred-domain.md) · [record](../progress/pred-domain.md) · ADR [0191](../decisions/0191-the-door-arms-domain-gains-a-schema-axis-a-targeted-home-and-a-fourth-outcome.md) (amends 0173, 0079) | `d7964398` 2026-09-07 | `FUP-DOOR-SWEEP-DOMAIN-MISSES-THE-AUTHZ-RESOLVERS` + `…GAP-WIDENED-BY-SET-VALUED-RESOLVERS` (jointly) · `FUP-DOOR-AUDIT-ALL-POLICY-COVERED-IS-MIRROR-AMBIGUOUS` · `FUP-DOOR-SWEEP-BROAD-GATE-ABORTS-A-FILE` · `FUP-C2-TIER1-TRIGGER-ENFORCERS-OUT-OF-SWEEP-DOMAIN` · `FUP-AUTHZ-SETVALUED-TARGETED-HOME-HAS-NO-SCHEDULE` | `PRED_DOMAIN` gains the `authz` **schema axis** (bounded to boolean); selection delta exactly `candidate_has_permission` + `scope_reaches`; the `SETOF uuid` resolvers get a committed **targeted-case home** (scheduled in lead-playbook §4); `NOTICED` = a fourth outcome, PO-ruled **evidence not a verdict** (disclosed, non-blocking); the read arm opens `using` only (11 `(ALL)` flips work-listed); a per-run `DOMAIN-STATEMENT` with ADR 0187 D1's sentence byte-exact; the door harness gained Batch 0's tail-drift design after run 1's 78-row drift tail was proven with **no originating case**; the door baseline **re-earned** through a bounded run (353 cases, 40 resets: 294 COVERED · 36 BLIND · 23 NOTICED · 0 ERROR), 275 CARRIED rows dispositioned per PO ruling, 31 hand notes preserved. |
 
-### Batch 0 — Mutation-harness crash safety · hub `HARNESS-CRASH-SAFETY` · merged `main` @ `76d87a4f` (2026-09-04) · ADR [0189](../decisions/0189-one-crash-safety-protocol-across-the-mutation-harnesses.md)
+**PO rulings taken so far** (each recorded in the ADR / record it belongs to): Batch 0 Q2 —
+transactional residual **detect-only**; Batch 1 — approval ratified three closures whose register field
+read `PO to rule`; Batch 2 Q1 — `(ALL)` flips → work-list + follow-up; Q3 — the widened domain's bound
+**accepted**; CARRIED dispositions **accepted as recommended**; NOTICED **disclosed, non-blocking,
+work-listed**.
 
-**Why first.** Batches 1–3 need full sweeps on harnesses that, on 2026-09-04, had stranded
-`public.cancel_event` with both anchored raises at `null;` for ~4 min, sentinel erased, preflight
-blind — *"the exposure is not the finding; the silence is."*
+**Follow-ups FILED by the concluded batches (open, owners assigned)** — none blocks the next batch,
+each is named so nobody re-discovers it: `FUP-AUTHZ-INVOKER-AND-ROWDOOR-HARNESSES-HAVE-NO-SENTINEL` 🟠 ·
+`FUP-AUTHZ-ROWDOOR-INVOKER-HARNESSES-HAVE-NO-GRADED-EXIT` 🟡 · `FUP-AUTHZ-DOOR-SWEEP-MARKER-DECLARES-POLICIES-TOO` 🟡 ·
+`FUP-DOCS-CONSOLIDATION-CLOSURE-DROPS-THE-CLOSES-WHEN-FIELD` 🟡 · `FUP-AUTHZ-FOR-ALL-READ-HALF-BLINDS` 🟠 (the 11) ·
+`FUP-AUTHZ-BLIND-SET-READ-FROM-THE-SECTION-NOT-THE-VERDICT` 🟠 (⛔ **`FROMFINDINGS=1 ARM=policy` is RED
+pre-existing and unreadable until this lands — 12 stale rows, never allowlist them**) ·
+`FUP-AUTHZ-C2-NEUTRALIZER-CAPTURED-OIDS-SURVIVE-ITS-OWN-RESET` 🟠 · `FUP-AUTHZ-SETVALUED-HOME-DOES-NOT-EMIT-ROWS` 🟡 ·
+`FUP-AUTHZ-MERGE-HEADERS-RELOCATE-AND-MALFORMED-ARM-HAS-NO-SELFTEST` 🟡 · `FUP-AUTHZ-NOTICED-ROWS-WITHOUT-AN-AUTHZ-SHAPED-REDDENING` 🟠.
 
-**Closed:** `FUP-C2-TIER1-INFLIGHT-SENTINEL-ERASED-BY-ITS-OWN-RESTORE` 🔴 ·
-`FUP-AUTHZ-HARNESS-PRECONDITIONS` 🔴 · `FUP-C2-NEUTRALIZER-TAIL-DRIFT-INVALIDATES-LATE-VERDICTS` 🟠 ·
-`FUP-AUTHZ-HARNESS-TRANSACTIONAL` 🔴 (**PO ruled detect-only**: the atomic DB-marker was buildable
-and NOT built by decision; re-open if a harness ever runs on a DB with more than one owner).
+## 3. Remaining — Batches 3 to 9, in dependency order
 
-**Built:** a restore is believed only when the **catalog** agrees (psql rc **and** a live md5 /
-policy probe = the pre-mutation snapshot); a failed restore **keeps** the sentinel; `RECOVER=1` in
-all three sentinel-bearing harnesses (C2, `p0-authz-door-audit.sh`, `p0-authz-writepath-audit.sh`);
-`ON_ERROR_STOP=1` on C2's write channel (its absence witnessed: `select 1/0` exited 0); `DEGEN`
-arm 4a (residue shape over comment-stripped bodies, 439/439 strandable functions visible, 0 on a
-clean tree) + 4b (persisted worklist expectation); both verdict preconditions asserted and
-**printed**; `SUITE=` is a subset; `PASS` under a narrowed domain is `ERROR — NARROWED DOMAIN`;
-tail drift **bounded** in the C2 neutralizer — `RESET_EVERY` (default 20 on non-subset runs; a
-subset resets only when set explicitly; `0` disables), in-flight interlock, reset-and-retry-once.
-Two `.claude/rules/` files corrected/retired in the commit that made them true.
+Severities and ids were re-verified against `docs/followups/follow-ups-open.md` at `d7964398`.
+Every batch closes its follow-ups **on their own quoted `Closes when` clause**, never on a summary.
 
-**Two of the four follow-ups' own close conditions were measured vacuous and amended visibly** (the
-`nraise` comparison compared a number to itself; the `$INFLIGHT.body` hash compared the restore file
-against itself). QA: two rounds (4 MAJOR / 4 REC → all fixed). Gate at the tip: pgTAP
-262f / 8 876 PASS; four arms HOLD; no production surface touched.
+### Batch 3 — Write-arm baseline (`supabase/tests/mutation/p0-authz-writepath-audit.sh`) — owner backend
 
-**Left stated, not proven:** no self-healing (by ruling); `p0-authz-invoker-audit.sh` and
-`p0-authz-rowdoor-audit.sh` have **no sentinel** (`FUP-AUTHZ-INVOKER-AND-ROWDOOR-HARNESSES-HAVE-NO-SENTINEL` 🟠);
-arm 4b's `NOT RUN` branch unproven; ⛔ **the tail-drift design reached the C2 harness only — Batch 2
-found the door harness had the same defect** (a fix correct at one of two sibling sites reads as
-closing the class; now `LEARN-086`).
-
-### Batch 1 — Door-sweep case deriver · hub `DOOR-SWEEP-DERIVER` · merged `main` @ `bbda5392` (2026-09-05) · ADR [0190](../decisions/0190-the-door-sweep-deriver-selects-by-property-and-a-full-run-merges.md) (amends 0173, 0079)
-
-**Why.** `scripts/door-sweep-cases.sh` is §6 step 1 for every phase and every AE5 increment, and
-it derived **zero cases for a diff that added a gate** (`9a4bbd22`), read only the first line of a
-multi-line `door-sweep-targets:` declaration, could not see `ALTER FUNCTION … SECURITY DEFINER`,
-selected over the whole working tree so two increments reported a union, and a **full** run of the
-sweep silently destroyed the committed findings file's hand-authored material.
-
-**Closed:** `FUP-DOOR-SWEEP-DERIVER-NAME-FILTER-DROPS-A-REAL-GATE` 🟠 (on a **visibly amended**
-condition — ADR 0079 hazard 4 forbids a `setof uuid` door in `CASES`, so "zero cases" became
-"zero *doors*"; the load-bearing proof was `app.assert_not_case_excluded`, a derivation the old
-script could not produce) · `FUP-DOOR-SWEEP-MARKER-BLIND-TO-CONTINUATION-LINES` 🟠 ·
-`FUP-DOOR-SWEEP-DERIVER-BLIND-TO-ALTER-FUNCTION` 🟠 · `FUP-DOOR-SWEEP-DERIVER-SPANS-THE-WHOLE-WORKING-TREE` 🟠 ·
-`FUP-DOOR-SWEEP-FULL-RUN-DESTROYS-HAND-MERGED-ANNOTATIONS` 🟡 · plus the unfiled over-selection
-defect (42 → 18 cases on the AE4 range, 0 tokens matching no gate) filed and closed.
-
-**Built:** the deriver **lifts `PRED_DOMAIN`** from the harness (multi-line, explicit substitution,
-ABORT on a residual `$`) instead of owning a copy that had already drifted; a door is a **catalog**
-fact (`prosecdef`), `CASES` is the sweepable tier only, the rest printed with reasons; `ALTER
-FUNCTION … SECURITY DEFINER` read like `ALTER POLICY` (449 `OWNER TO` lines in the baseline → 0
-false matches); the whole declaration parsed, unconditionally, with a continuation grammar
-(schema-prefix-bearing lines continue; a malformed token is a named error); per-case provenance +
-`SCOPE=`/`PATHS=` + the quotable **`SCOPE:` line** on every exit, carrying `derivation: catalog |
-PROVISIONAL`; a shared **merge** (`scripts/lib/merge-findings-baseline.sh`) at all four sweeps'
-full-run emit — hand-authored = the complement of what the generator produces, protected over the
-**whole** baseline, verifier proven to reject the old helper's real losses; `SELFTEST=1` over
-committed fixtures (34 scenarios; 20/14 against the pre-unit deriver). Lead-playbook §4 gained
-the `SCOPE:`-quote obligation and the self-test beside the four arms; CLAUDE.md §6 step 1 was
-later aligned (the sweep runs over the deriver's case list, never judged by eye — review-queue
-fix `244974a1`).
-
-**QA: four rounds.** r1 found a genuine blocker — the merge destroyed hand-authored baseline
-material at exit 0 because its verifier excluded `| `-leading lines from what it protected; r2–r4
-were prose-about-numbers (an ADR describing the pre-fix mechanism; 399 vs 400 vs 401 verdict
-rows — the file carries **two** table headers). Gate at the tip green; no production surface.
-
-**Left stated:** no full sweep had run (the merge was proven on copies — Batch 2 exercised it for
-real); `9a4bbd22`'s `setof uuid` door owed a targeted case (Batch 2 delivered it); a real
-re-baseline lands most hand-annotated rows in `CARRIED` for a human to re-file (Batch 2 measured
-275). Filed: `FUP-AUTHZ-DOOR-SWEEP-MARKER-DECLARES-POLICIES-TOO` 🟡.
-
-### Batch 2 — The door-audit arm's domain · hub `PRED-DOMAIN` · merged `main` @ `d7964398` (2026-09-07) · ADR [0191](../decisions/0191-the-door-arms-domain-gains-a-schema-axis-a-targeted-home-and-a-fourth-outcome.md) (amends 0173, 0079)
-
-**Why.** AE5's eleven increments re-key enforcement sites onto the `authz.*` resolvers — the exact
-population the door-audit arm structurally could not select (`scope_reaches`,
-`candidate_has_permission` matched neither the name nor the identity regex; the three `SETOF
-uuid` scope resolvers were excluded by return type before any regex ran).
-
-**Closed:** `FUP-DOOR-SWEEP-DOMAIN-MISSES-THE-AUTHZ-RESOLVERS` 🟠 + `FUP-DOOR-SWEEP-DOMAIN-GAP-WIDENED-BY-SET-VALUED-RESOLVERS` 🟠
-(jointly) · `FUP-DOOR-AUDIT-ALL-POLICY-COVERED-IS-MIRROR-AMBIGUOUS` 🟡 ·
-`FUP-DOOR-SWEEP-BROAD-GATE-ABORTS-A-FILE` 🟡 · `FUP-C2-TIER1-TRIGGER-ENFORCERS-OUT-OF-SWEEP-DOMAIN` 🟠
-(on QA's two stated conditions; its *"distinguishable"* clause delivered as a distinguishable
-**remedy** and disclosed) · `FUP-AUTHZ-SETVALUED-TARGETED-HOME-HAS-NO-SCHEDULE` (the lead's
-playbook line).
-
-**Built:** `PRED_DOMAIN` gains the `authz` **schema axis, bounded to boolean** (unbounded, it
-admitted 6 non-boolean functions = 6 guaranteed ERRORs); selection delta exactly the two
-resolvers, reverse delta empty — the deriver's lift needed **no** change (that is what lifting
-was for); the `SETOF uuid` resolvers get a **committed targeted-case home**
-(`supabase/tests/mutation/authz-setvalued-targeted-cases.sh`, universal-set neutralization, its
-own degeneracy arms, scheduled in lead-playbook §4) and their **first recorded** verdicts (3/3
-COVERED) as census-readable rows; **`NOTICED`**, a fourth outcome — *the suite noticed but a
-domain file aborted before finishing its plan* — **ruled by the PO as EVIDENCE, not a verdict**
-(disclosed, non-blocking, never relabelled COVERED, remedied by capture-then-assert); the read arm
-opens `using` only (the write arm owns `with check`; **11** `(ALL)` rows flipped COVERED → BLIND,
-all CAPA/RCA `_write` policies with one shared trap — the same predicate gates both halves, so the
-read keystone must assert the *denial* — work-listed in `FUP-AUTHZ-FOR-ALL-READ-HALF-BLINDS` 🟠);
-a per-run **`DOMAIN-STATEMENT`** (ADR 0187 D1's Tier-2 sentence byte-exact, self-test extracted
-from the ADR; four populations with per-figure provenance; trigger enforcers — 174 `prosecdef`
-trigger functions behind 268 wired triggers, derived — stated out of domain).
-
-**The findings baseline re-earned — twice.** Run 1 (12 h 17 m): 228 / 18 / **102 NOTICED** / 5 —
-**76–78 of the NOTICED were one signature** (`Tests=8470`, the same aborting referral files on
-every policy from ordinal 275 on): **tail drift**, proven with **no originating case** (two tail
-cases COVERED alone on a fresh reset; three consecutive cases clean in worklist order) — cumulative
-data the suite leaves behind, exactly what a periodic reset bounds. The door harness got Batch 0's
-reset design (proven as Batch 0 proved it); run 2 (~15 h, 40 resets = 17 scheduled + 23 retries,
-every NOTICED reproducing after its reset): **294 COVERED · 36 BLIND · 23 NOTICED · 0 ERROR**.
-Merge verified three ways (426/426 prose lines, 9/9 blocks, 7/7 notes); **275 CARRIED** rows
-dispositioned by script per PO ruling (31 hand notes → 15 re-attached, 15 archived verbatim, 1
-re-filed; zero lost; 3 census-mandatory re-files).
-
-**QA: one loop** — 3 BLOCK / 9 MAJOR, **all prose claims about measurements written beside correct
-measurements** (a "0 of 24" that was 12 of 24; verdicts filed in no census-readable file; a
-witness that had gone COVERED the day before the ADR); every fix re-measured; re-review APPROVED.
-Gate at the tip **run by the lead**: pgTAP 262f / 8 876 PASS; census 581 live / 604 with a
-verdict (QA re-derived from the catalog byte-identical); hat, floor, wrapper HOLD; both
-self-tests green. No production surface touched.
-
-**Left stated, not proven — all filed:** the 23 NOTICED (work-list under
-`FUP-C2-TIER1-VALUE-ASSERTIONS-ABORT-ON-AN-INLINE-RAISE`; the 4 without an authz-shaped
-reddening in `FUP-AUTHZ-NOTICED-ROWS-WITHOUT-AN-AUTHZ-SHAPED-REDDENING` 🟠) · the 11 `(ALL)`
-BLINDs · ⛔ **`FROMFINDINGS=1 ARM=policy` (not one of §6's four) is RED pre-existing and
-UNREADABLE until `FUP-AUTHZ-BLIND-SET-READ-FROM-THE-SECTION-NOT-THE-VERDICT` 🟠 lands — 12 stale
-rows carry COVERED in column 4; never allowlist them** · the targeted home emits no
-census-readable rows (`FUP-AUTHZ-SETVALUED-HOME-DOES-NOT-EMIT-ROWS` 🟡) · the merge relocates hand
-table headers and its MALFORMED arm has no self-test
-(`FUP-AUTHZ-MERGE-HEADERS-RELOCATE-AND-MALFORMED-ARM-HAS-NO-SELFTEST` 🟡) · the C2 neutralizer's
-captured `pg_proc` OIDs survive its own reset
-(`FUP-AUTHZ-C2-NEUTRALIZER-CAPTURED-OIDS-SURVIVE-ITS-OWN-RESET` 🟠) · **Tier 2's 190 doors stay
-deferred by ADR 0171 and are NOT cleared.** Two process incidents disclosed in the record: a
-hand-derived restore filename left a local policy at `qual = true` ~1 min (caught by the same
-command's md5 check); two agents shared the tree for ~12 min (nothing lost — run 1's output
-reproducible byte-for-byte).
-
-### Also landed between batches
-- **CLAUDE.md review queue processed** (`244974a1` on `main`): 21 entries, 4 PO-approved fixes —
-  CLAUDE.md §6 step 1 (above), the review skill's ADR 0186 D5 exception, the gate-results rule
-  re-pointed a second time, a branch-is-a-live-fact bullet in `docs/worktrees.md` §4. Hook finding
-  recorded in the (gitignored) queue header: the `staleness` signal fires on the user's own prompts
-  and on sessions that *fix* stale artifacts.
-- `docs/lead-playbook.md` §4 now carries: quote the `SCOPE:` line; `SELFTEST=1` beside the four
-  arms; the full-run merge nuance on "empty diff"; the set-valued home's schedule; the NOTICED
-  class definition.
-
----
-
-## 3. Yet to start — Batches 3 → 9, in the ruled order
-
-Every id below was confirmed **open** in the register on 2026-09-07. Severity emoji as of that day.
-
-### Batch 3 — Write-arm baseline · `supabase/tests/mutation/p0-authz-writepath-audit.sh` + `docs/reviews/authz-writepath-audit-findings.md` · owner backend
-
-| Follow-up | Mechanism |
-|---|---|
-| `FUP-WRITEPATH-FINDINGS-FILE-COVERS-33-OF-107` 🟠 | The committed findings file holds verdicts for 33 of 107 write policies; `FROMFINDINGS=1` arms compare against committed rows, so *"a door absent from the findings passes vacuously"* — 74 policies have never been verdicted. |
-| `FUP-STORAGE-OBJECTS-INSERT-POLICIES-NEWLY-IN-DOMAIN` 🟠 | Three `storage.objects` INSERT policies sat outside every arm (`ARM=census` bounds itself to `public`); first measurement owed; ⛔ never allowlist one. |
-| `FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED` 🟠 | Part 1 (the deriver named one arm for a two-arm list) is ruling 4 in the deriver header; Parts 2–4 remain: the write arm exits 0 over an empty set; 9 policies fall in neither arm's domain; a killed run's contamination rule. |
-
-**Why before AE5.** AE5's re-keys are *write-policy* re-keys (`pending-rekey` → done on the
-enforcement manifest), and the write arm is the only instrument that measures them — today it
-cannot see 74 of 107, and the per-role checklist's *"arms re-pointed (G8)"* step inherits the
-apparatus gap.
-
-**Shape of the work.** One full write-path sweep over the widened domain, rows **merged** into the
-committed file (the 33 carry hand-merged annotations — Batch 1's merge preserves them; Batch 2
-proved it on the door file) — this is the **second** real full run through the merge and the
-first on the write arm. Expect: ~13 h detached with `RESET_EVERY` on (port Batch 0's design if the
-write arm lacks it — check, do not assume: Batch 2 found the door arm lacked it); a `CARRIED`
-block to disposition by PO ruling (the write file carries 2 `## Note`, 1 blockquote region, ~9
-annotated rows); the `storage.objects` policies' first verdicts; the "exit 0 over an empty set"
-fixed as a FINDING like the deriver's exit 1. Closes-when for `HALF-AIMED` is its own text
-(*"either a documented recovery step … or a restore that does not depend on a signal-catchable
-trap"*) — Batch 0's sentinel + `RECOVER=1` already satisfies the second route for the door and
-writepath harnesses; the closure must say which route and cite the Batch 0 proof.
-
-### Batch 4 — Enforcement manifest + the template's re-key defect · `supabase/tests/vectors/authz-enforcement-manifest.json`, pgTAP `410`, lint arms M6/M7 · owner backend (+ PO for one)
-
-| Follow-up | Mechanism |
-|---|---|
-| `FUP-AE4-HARDDENY-CLASSES-CANNOT-FAIL` 🟠 | `hardDenyClasses` is `[]` on 43/43 rows; lint arm M7 iterates the list → zero iterations → **cannot fail**; §6.2 has no discrimination control and is blind below depth 1. PO took option (a) — a disclosure — on 2026-09-03; (b) is still owed. Gate AE4 review: *"Add the converse arm … before AE5, when non-empty rows first appear."* |
-| `FUP-VALIDATIONS-WRITE-PATH-IS-LAYER-1` 🟠 | The re-keyed `form_item_validations_staff_admin_write` policy is **unreachable** (`authenticated` holds SELECT only); the real writer `public.set_item_validations` still gates on `is_staff_admin_of` — layer 1. Re-review N4: *"a re-key at the policy leaves the DEFINER surface on its legacy gate, and this template is what AE5 will copy."* Owes a class sweep of every `_staff_admin_write` policy for reachability. |
-| `FUP-READ-ORGANIZATIONS-LITERAL-IN-NO-MANIFEST-ROW` 🟡 (**PO**) | `app.current_professional_read_organizations` carries the permission literal `org.professionals.read` and appears in no `enforcementSites` row — deliberate but undeclared; held green by a by-name pin in `410` §8.5 that must be deleted in the same change. Either answer is defensible; PO call. |
-| `FUP-AUDIT-REGISTRY-CONSUMER-OF-READ-AUTHORIZER-UNRECORDED` 🟡 | `app._audit_access_authorized` routes a permission to a re-keyed authorizer and appears in no manifest row; ⛔ must NOT be added to `enforcementSites` (that arm would then measure a fiction) — a named note on the manifest row's qualifier or `backend-state.md`. |
-
-**Why before AE5.** The manifest is the per-role template's oracle; F-BLOCK-1's site-axis
-recurrence *"AE5 multiplies by 11"*; `HARDDENY` must land as *"ONE change"* (populate/convert the
-loop + a discrimination control + §6.2 transitive over the composed-call closure, comment-stripped).
-`VALIDATIONS` is a migration → needs the diff-scoped sweep both arms, derived by the Batch 1
-deriver (its `SCOPE:` line quoted).
-
-### Batch 5 — Rollback runbook · `docs/deployment/authz-rollback-runbook.md` (+ `authz-rollback-template.sql`) · owner backend, docs-only
-
-`FUP-AE4-ROLLBACK-RUNBOOK-SIX-SCOPED-TO-FOUR` 🟠 — §6.2 hard-codes four tables and asserts
-`EXPECT 4 rows`; the re-key made it six, so an unamended revert *"fails silently green"*. Runbook
-is titled for *"every AE5 per-role increment"* (ADR 0162 §1 binds its shape). PO-deferred to
-post-merge on 2026-09-03 — the window is open. Also re-measure §6.1's
-`can_manage_case_vocabulary` cross-check expiry (it holds *because* rows 31–32 are still
-`pending-rekey`). Can ship with Batch 4 (Batch 4's audit-registry note touches the same §6).
-
-### Batch 6 — Register / gate hygiene · lead · `scripts/check-docs-registers.mjs`, `scripts/build-adr-index.mjs`, `docs/progress/phase-ledger.md`
-
-| Follow-up | Mechanism |
-|---|---|
-| `FUP-DOCS-CONSOLIDATION-LEDGER-ID-BOLD-DEFEATS-THE-COMPLETE-GATE` 🟡 | `hubHasLedgerRow` cannot match a bold id; every pre-AE4 row is bold; the AE4, HARNESS-CRASH-SAFETY, DOOR-SWEEP-DERIVER and PRED-DOMAIN rows are **unbolded as a workaround** — four rows now load-bearing on their formatting. Fix the matcher (tolerate `**`) **and** the verdict regex (case-insensitive, emoji-tolerant — `# ✅ VERDICT: APPROVED` does not match today; the complete-hub check passes only because the ledger row exists), both proven able to fire; then re-bold the four rows. |
-| `FUP-ADR-CROSS-LINKS-HAVE-NO-GATE` 🟠 | 13 broken ADR-to-ADR links; gate 9 never resolves a link **target**; bold inside a label value can swallow the next label. *"Must not be added mid-phase"* — the inter-batch window is the only time. AE5 adds ≥ 11 ADRs. |
-| `FUP-AE2-MISSING-FROM-THE-PHASE-LEDGER` 🟠 | A shipped, QA-approved, PO-approved phase absent from the append-only ledger; (a) write its row marked reconstructed; (b) derive whether AE2 is the only one — diff the phases named in the ledger against those with a `docs/progress/<phase>.md` record and a QA verdict, never by eye. |
-| `FUP-DOCS-CONSOLIDATION-CLOSURE-DROPS-THE-CLOSES-WHEN-FIELD` 🟡 | Closures move the body verbatim but delete the register entry block, so `Closes when` survives only in git history (3 lines in an ~9 000-line archive). Batches 1–2's closures already archive the entry block beside the body — make the rotation script do it by rule, or `lint:progress` assert the archived entry carries the field. |
-
-**Why before AE5.** AE5's eleven Record steps hit the ledger gate eleven times; a broken-link gate
-cannot be added mid-phase; the closure procedure should be right before eleven increments close
-follow-ups.
-
-### Batch 7 — Privilege surface · lead + PO · `docs/backend-state.md` § Privilege budget, `docs/design/authz-ae1-revoke-partition.md`
-
-| Follow-up | Mechanism |
-|---|---|
-| `FUP-PRIVILEGE-BUDGET-CEILING-BREACHED-BY-SEVEN` 🟠 | `CEILING: 752`, live 759; one of the seven attributed (ADR 0182), **six not**; ⛔ editing the ceiling is reserved to the PO by the merge rule. Attribute the six (diff the `authenticated`-executable DEFINER set between heads `…005300` and `…007330`), then the PO moves the ceiling by ruling or the unjustified grants are revoked. Durable form: a `lint:*` gate. |
-| `FUP-AE1-REVOKE-SET-EXECUTION` 🟠 | AE1 classified 233 revokes and executed **none**; 137 reach `authenticated` only via `PUBLIC` (`proacl IS NULL`), so a plain revoke is a silent no-op. The plan calls these *"pre-live liabilities to retire while the same team is already inside authorization."* |
-| `FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED` 🟢 | Informational anchor: 237 of 467 `app` functions hold `anon` EXECUTE, bounded by a *config line* (the exposed-schema setting), not the ACLs. Not a hole; must not be reported as one. |
-
-**Why before AE5, and after Batch 2.** AE5 substitutes on top of this surface; *"a revoke may not
-create sweep blindness"* (RV0's ruling) — so revokes follow the domain widening (Batch 2, done) and
-the write-arm baseline (Batch 3), never precede them.
-
-### Batch 8 — `app.can_manage_professional` self/third-party arm · backend, PO-gated
-
-`FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-ARM` 🟠 — `can_manage_professional(p_org, p_uid)`'s first
-arm is `coalesce(app.is_admin(), false)`, and `app.is_admin()` reads `auth.uid()` — it answers
-about the **caller**, never `p_uid`; one of 13 callers (`can_read_professional_profile`) passes a
-third party. Its blocker `BUG-PROF-INACTIVE-001` is **fixed** (2026-09-01, `20261003007190`), so
-it is unblocked and awaits the PO; deliberately not folded into that fix so the security fix stayed
-attributable. It sits on the re-keyed representative chain (`can_create_professional →
-can_manage_professional`) that AE5's `org_admin` increment substitutes through. A production
-predicate change → migration → diff-scoped sweep both arms + the targeted home (the predicate's
-reachability analysis first).
-
-### Batch 9 — Not fixes: the AE5 plan's opening ADR · lead + PO
-
-What AE5's planning must **open with**, per the record (each item is a decision, not a follow-up):
-
-- **ADR 0176 D8's bundle, decided together, one compatibility migration:** F6 exact-assignment
-  active context vs the role-wide hat (audit scope must match); F8 `administrativo` out of
-  `authz.roles`; `platform_role` retirement (⚠ the implementation audit recommended retiring it
-  *now*; the binding decision defers it into the bundle — do not report them as agreeing);
-  F7 one manifest entry per role in `role-catalog.ts`. *"None may be picked off inside a role
-  increment."*
-- **Audit F5:** *"Positive entitlements, hard denies, lifecycle, and sensitivity are not separated
-  into a safe final-authorization seam — decide and encode the model before AE5"*; the
-  classification columns (`risk_class`, `sensitivity_ceiling`, `resource_kind`) have **no reader** —
-  a consumer appears or the column is removed with a named reason.
-- **Arm-3's divergent cells** handed over by ADR 0175 D3 — AE5 rules them, it does not discover
-  them.
-- `FUP-AE4-CANDIDATE-SCOPE-FANOUT-IS-UNBOUNDED` 🟡 — a stated ceiling on `D` (scopes per principal)
-  with something that reds, or a ruling that the tenancy model makes a large `D` unreachable.
-- `FUP-NO-GATE-CATCHES-A-COLLAPSED-SEARCH-PATH` 🟡 — its sweep half is done (pgTAP `414`); the
-  `search_path = ''` convention is *"a platform-wide decision owing an ADR."*
-- The per-role checklist's qualifier (re-review N4): a re-key at the policy leaves the DEFINER
-  surface on its legacy gate — the template must re-key the **writer**, not only the policy.
-- `holds_role` product callers count down to **zero by AE5-complete** (a bound on completion, not
-  an entry condition); *"the catalog is the authority"* may not appear in a gate record before
-  AE5-complete (0162 §2; 0172).
-
----
-
-## 4. Deliberately NOT before AE5
-
-- **Probable register rot — close by writing, not working:** `FUP-SCOPE-REACHES-HOSPITALS-SEQ-SCAN` 🟠
-  (its close condition — a migration re-planning the ascent, then the acceptance re-run — was met by
-  ADR 0180's `20261003007310` + runs 6/7 with P1 PASS and P5 at 0.00×; verify against the run
-  artifacts, then close) · `FUP-AE4-PERFORMANCE-EVIDENCE-ON-THE-FINAL-PATH` 🟠 (measurement
-  discharged per the Gate AE4 re-review; open only as `PO to rule`).
-- **Bounded residuals — a ruling, not work:** `FUP-PROFESSIONAL-PARTICIPANTS-SELECT-STILL-PER-ROW` 🟡
-  (≤ 20-row page), `FUP-PERF-ANALYZE-ENDS-AE0-COMPARABILITY` 🟠 (a sequencing note for the next perf
-  window), `FUP-ZERO-ARG-APP-PREDICATES-NOT-HOISTED` 🟡, `FUP-READ-ACCESS-RIDES-ON-A-WRITE-POLICY` 🟡.
-- **Own increments, unrelated to the template:** `FUP-SEED-PENDING-PERSONA-CANNOT-REACH-ITS-LAYER`
-  (⛔ *"DO NOT FIX `seed.sql` in passing"*), `FUP-C2-TIER1-FLOOR-ARM-HAS-ZERO-SLACK`.
-- **Precede AE5 by definition (pilot gate), but are not AE5 work:**
-  `FUP-ONE-SUPABASE-PROJECT-SERVES-TEST-AND-PRODUCTION` 🟠 (*"BEFORE THE PILOT LOADS REAL DATA"*;
-  Critical-list candidate) · `FUP-AUTHZ-AE3-CUTOVER-OPERATOR-OBLIGATIONS-OWED` 🔴 (the only 🔴 in the
-  register that says *"must not reach the pilot"*; no tree artifact) · Critical C1 / C3 / C4 ·
-  `FUP-P-CLASS-SQLSTATE-ANSWERS-500-ON-DENIAL` 🟠 (73 doors answer 500 on denial).
-
----
-
-## 5. Open work Batches 0–2 created (for the batches that follow, or their own increments)
-
-| Follow-up | Where it belongs | Note |
+| Follow-up | Sev | The gap |
 |---|---|---|
-| `FUP-AUTHZ-BLIND-SET-READ-FROM-THE-SECTION-NOT-THE-VERDICT` 🟠 | before anyone reads `ARM=policy` again (Batch 3 is the natural home — the write arm has the same shape) | 12 stale COVERED rows in the door file's `## BLIND` section; ⛔ never allowlist |
-| `FUP-C2-TIER1-VALUE-ASSERTIONS-ABORT-ON-AN-INLINE-RAISE` 🟠 | its own increment; carries the 23 NOTICED rows' work-list | a lint pass over the derived population is the cheaper close |
-| `FUP-AUTHZ-FOR-ALL-READ-HALF-BLINDS` 🟠 | its own increment (11 keystones on the denial half) | one shared trap, CAPA + RCA |
-| `FUP-AUTHZ-NOTICED-ROWS-WITHOUT-AN-AUTHZ-SHAPED-REDDENING` 🟠 | with the above | the 4 weakest NOTICED |
-| `FUP-AUTHZ-INVOKER-AND-ROWDOOR-HARNESSES-HAVE-NO-SENTINEL` 🟠 · `FUP-AUTHZ-ROWDOOR-INVOKER-HARNESSES-HAVE-NO-GRADED-EXIT` 🟡 | a small harness increment | inherit Batch 0's protocol and a graded RESULT |
-| `FUP-AUTHZ-C2-NEUTRALIZER-CAPTURED-OIDS-SURVIVE-ITS-OWN-RESET` 🟠 | before the next C2 full run | re-resolve by identity, as the door arm does |
-| `FUP-AUTHZ-SETVALUED-HOME-DOES-NOT-EMIT-ROWS` 🟡 · `FUP-AUTHZ-MERGE-HEADERS-RELOCATE-AND-MALFORMED-ARM-HAS-NO-SELFTEST` 🟡 | Batch 3 may fold them (it exercises the merge) | red-before-green scenarios per blind spot |
-| `FUP-AUTHZ-DOOR-SWEEP-MARKER-DECLARES-POLICIES-TOO` 🟡 | deriver, own small change | the marker grammar for `table / policy` |
+| `FUP-WRITEPATH-FINDINGS-FILE-COVERS-33-OF-107` | 🟠 | The committed write-path findings file holds verdicts for **33 of 107** write policies; a `FROMFINDINGS=1` arm compares against the committed rows and *cannot see the 74 absent ones* — a door absent from the findings passes vacuously. |
+| `FUP-STORAGE-OBJECTS-INSERT-POLICIES-NEWLY-IN-DOMAIN` | 🟠 | Three `storage.objects` INSERT policies sat outside every arm's domain (census bounded to `public`); they owe a first verdict each. ⛔ Never allowlist one. |
+| `FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED` (Parts 2–4) | 🟠 | Part 1 landed as ruling 4 in the deriver's header. Remaining: the write arm exits 0 over an empty set; nine policies fall in neither arm's domain; the write arm's crash behaviour (now inherited from Batch 0 — re-verify, don't assume). |
 
----
+**Why before AE5:** every AE5 re-key is a **write-policy** re-key, and the write arm today passes
+vacuously over 74 of 107 policies. **The work:** ONE full write-path sweep over the widened domain
+(~13 h, detached, `RESET_EVERY` on — confirm the writepath harness carries Batch 0's design, or port it
+first exactly as Batch 2 did for the door arm), rows **merged** into the committed file (never
+replacing the 33 annotated rows — the merge from Batch 1 does this; its hand-authored material is 2
+`## Note` sections, 1 blockquote region, ~9 annotated rows and a `---`, all of which will land in
+CARRIED for a PO ruling like Batch 2's); the three storage policies verdicted; the write arm's empty-set
+exit made a FINDING. Expect the Batch 2 shape: a run, a CARRIED enumeration, a PO ruling, a re-file,
+then the closures. **Read Batch 2's record first** — it is the template, including what went wrong.
 
-## 6. Resuming — what the next session does first
+### Batch 4 — Enforcement manifest + the template's re-key defect — owner backend, one PO item
 
-1. `git fetch`; `git rev-parse main origin/main` — `main` @ `d7964398` was **97 commits ahead of
-   `origin/main`, unpushed**, on 2026-09-07; push state is measured, never quoted.
-2. Confirm the local Supabase stack is the right one (`supabase_db_azkbbhskturikxpgmafq`, the one
-   with an `authz` schema — `escalume` is unrelated) and that `/tmp` sentinels are 0 bytes
-   (stale non-zero ones from other harnesses' self-tests were noted 2026-09-07; the clean catalog
-   is the proof they are leftovers).
-3. Say `initiate Batch 3` — the lead opens hub `WRITEPATH-BASELINE` (or similar registered id) +
-   record, cuts `authz-writepath-baseline`, and `backend` plans FULL first. Budget the full
-   writepath run overnight and a `CARRIED` ruling for the PO; port the reset design to the write
-   arm if it lacks it (measure).
-4. Keep the loop-safety ledger visible to the PO: Batch 0 took 2 QA rounds, Batch 1 four, Batch 2
-   two — every QA blocker after the first was a **prose claim about a measurement**; check for
-   that shape before sending a unit to review.
+| Follow-up | Sev | The gap |
+|---|---|---|
+| `FUP-AE4-HARDDENY-CLASSES-CANNOT-FAIL` | 🟠 | `hardDenyClasses` is `[]` on 43/43 manifest rows; lint arm M7 iterates an empty list and **cannot fail**; §6.2 has no discrimination control and searches only depth 1. PO took remediation (a) — a *disclosure*; (b) is still owed and must land as **one change** (populate or convert the loop + a discrimination control + a transitive search). **The one literal "before AE5" sentence** in the corpus (Gate AE4 review: "when non-empty rows first appear"). |
+| `FUP-VALIDATIONS-WRITE-PATH-IS-LAYER-1` | 🟠 | The re-keyed `form_item_validations` policy is **unreachable** (`authenticated` holds SELECT only); the real writer `public.set_item_validations` still gates on `is_staff_admin_of` — layer 1. Either re-key the DEFINER onto the permission or record the split deliberately in the manifest row. ⚠ Unswept class: *every `_staff_admin_write` policy in the tree* — enumerate it. This is the template defect the re-review named ("a re-key at the policy leaves the DEFINER surface on its legacy gate, and this template is what AE5 will copy"). |
+| `FUP-READ-ORGANIZATIONS-LITERAL-IN-NO-MANIFEST-ROW` | 🟡 | `app.current_professional_read_organizations` carries the literal `org.professionals.read` and appears in no `enforcementSites` row — deliberate, undeclared, held green by a by-name pin in pgTAP `410 §8.5`. **PO call**: add it to the row or record a reviewed exclusion; delete the pin in the same change. |
+| `FUP-AUDIT-REGISTRY-CONSUMER-OF-READ-AUTHORIZER-UNRECORDED` | 🟡 | `app._audit_access_authorized` is a fourth consumer of `can_read_professional_profile`; nothing records that changing the authorizer moves the audit gate. A note in the manifest row's qualifier or `backend-state.md`. ⛔ NOT added to `enforcementSites` (that would make the site-axis closure check measure a fiction). |
+
+**Why before AE5:** the manifest is the per-role template's oracle; F-BLOCK-1's recurrence "AE5
+multiplies by 11". Any re-key here is a **migration** → the diff-scoped sweep is owed, **both arms**,
+derived by the Batch 1 deriver with its `SCOPE:` line quoted (Batches 1–2 are its prerequisites).
+
+### Batch 5 — Rollback runbook (`docs/deployment/authz-rollback-runbook.md`) — owner backend, docs-only
+
+`FUP-AE4-ROLLBACK-RUNBOOK-SIX-SCOPED-TO-FOUR` 🟠 — §6.2 hard-codes four tables and `EXPECT 4 rows`; the
+re-key made it six, so an unamended revert "fails silently green" and leaves two tables re-keyed. The
+runbook is titled for *every AE5 per-role increment* (ADR 0162 §1 binds its shape). PO-deferred to
+post-merge — the window is now. Also re-measure §6.1's `can_manage_case_vocabulary` expiry note. Can
+ship inside Batch 4's commit range.
+
+### Batch 6 — Register / gate hygiene — owner lead (scripts under `scripts/check-*.mjs`, `build-adr-index.mjs`)
+
+| Follow-up | Sev | The gap |
+|---|---|---|
+| `FUP-DOCS-CONSOLIDATION-LEDGER-ID-BOLD-DEFEATS-THE-COMPLETE-GATE` | 🟡 | `hubHasLedgerRow` cannot match a bold id; the review-verdict regex is case-sensitive and emoji-intolerant. **Every Record step since AE4 has used the unbolded-id workaround** (four rows now: AE4, HARNESS-CRASH-SAFETY, DOOR-SWEEP-DERIVER, PRED-DOMAIN). Fix both regexes, proven able to fire, then re-bold the rows. |
+| `FUP-ADR-CROSS-LINKS-HAVE-NO-GATE` | 🟠 | 13 broken ADR-to-ADR links; gate 9 never resolves a link *target*. ⛔ *"must not be added mid-phase, or it blocks Gate AE4 on unrelated debt"* — the inter-batch window is the only time. AE5 adds ≥ 11 ADRs. |
+| `FUP-AE2-MISSING-FROM-THE-PHASE-LEDGER` | 🟠 | A shipped, approved phase has no ledger row. Write it (marked reconstructed) and **derive** whether it is the only one — never by eye. |
+| `FUP-DOCS-CONSOLIDATION-CLOSURE-DROPS-THE-CLOSES-WHEN-FIELD` | 🟡 | Closures move the body verbatim but delete the register entry block — the `Closes when` field survives only in git. Batches 1–2 archived the entry block beside the body as the interim practice; make the rotation do it, or `lint:progress` assert it. |
+
+**Why before AE5:** cheap, and the window is structural — a gate added mid-phase blocks that phase.
+
+### Batch 7 — Privilege surface — owner lead + **PO** (rulings), backend (execution)
+
+| Follow-up | Sev | The gap |
+|---|---|---|
+| `FUP-PRIVILEGE-BUDGET-CEILING-BREACHED-BY-SEVEN` | 🟠 | The `authenticated`-executable DEFINER budget is **759 against a ceiling of 752**; six of the seven are unattributed. Attribute by diffing heads `…005300` → `…007330`; then the PO either moves the ceiling by ruling or the unjustified grants are revoked. ⛔ Editing the ceiling is reserved to the PO. The durable form is a `lint:*` gate. |
+| `FUP-AE1-REVOKE-SET-EXECUTION` | 🟠 | AE1 classified **233** revokes and executed **none**; 137 reach `authenticated` only via `PUBLIC` (`proacl IS NULL`), so a naive `revoke … from authenticated` is a silent no-op. PO to rule on execution; ⚠ a revoke **may not create sweep blindness** — Batch 2's widened domain is the prerequisite. |
+| `FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED` | 🟢 | Informational anchor: 237 of 467 `app` functions carry `anon` EXECUTE, bounded by a *config line*, not the ACLs. Not a hole; the ambient floor the permission layer sits on. |
+
+**Why before AE5:** AE5 substitutes on top of this surface; the plan calls these *"pre-live
+liabilities to retire while the same team is already inside authorization."*
+
+### Batch 8 — `app.can_manage_professional`'s self-check arm — owner backend, **PO-gated**
+
+`FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-ARM` 🟠 — the function is parameterised on a third party but
+its first arm is `coalesce(app.is_admin(), false)`, which reads `auth.uid()` — it answers about the
+**caller**, never `p_uid`. Its blocker `BUG-PROF-INACTIVE-001` is **fixed** (2026-09-01), so it is
+unblocked and awaits the PO. It sits on the re-keyed representative chain
+(`can_create_professional → can_manage_professional`) that AE5's `org_admin` increment substitutes
+through. Needs its own reachability analysis; a migration → diff-scoped sweep, both arms.
+
+### Batch 9 — Not a fix: the AE5 plan's opening ADR — owner lead + PO
+
+The decisions the corpus explicitly bundles for AE5's first step, none of which may be *"picked off
+inside a role increment"* (ADR [0176](../decisions/0176-authz-permission-layer-made-real.md) D8):
+
+- The **D8 bundle**, one compatibility migration: F6 exact-assignment active context vs the role-wide
+  hat (audit scope must match whichever wins) · F8 `administrativo` out of `authz.roles` ·
+  `platform_role` retirement (⚠ the implementation audit recommended retiring it *now*; the binding
+  decision defers it *into* AE5 — do not report these as agreeing) · F7 one manifest entry per role.
+- Audit F5: *"Decide and encode the model before AE5"* — the entitlement / hard-deny / lifecycle /
+  sensitivity seam; the classification columns (`risk_class`, `sensitivity_ceiling`, `resource_kind`)
+  have **no reader** (ADR 0172 defers them) — a consumer appears or the column is removed with a reason.
+- ADR 0175 D3's inheritance: the **arm-3 divergent cells** arrive already enumerated for AE5's matrix.
+- `FUP-AE4-CANDIDATE-SCOPE-FANOUT-IS-UNBOUNDED` 🟡 — a stated ceiling on `D` (scopes per principal) or a
+  ruling that the tenancy model makes a large `D` unreachable, with the census that shows it.
+- `FUP-NO-GATE-CATCHES-A-COLLAPSED-SEARCH-PATH` 🟡 — the pgTAP sweep half is done (`414`); the
+  `search_path = ''` convention is *"a platform-wide decision owing an ADR"*.
+- The per-role checklist's own corrections from Batches 0–2: quote the `SCOPE:` line; run
+  `SELFTEST=1` and the set-valued targeted home beside the four arms; `NOTICED` is evidence not a
+  verdict; `RESET_EVERY` on every full run; the CARRIED ruling as a step.
+
+### Not recommended before AE5 (ruled 2026-09-04; re-check the register, entries move)
+
+- **Probable register rot — close by writing, not working:** `FUP-SCOPE-REACHES-HOSPITALS-SEQ-SCAN` 🟠 —
+  its close condition ("a migration re-planning the ascent … then the acceptance re-run against it")
+  was met by ADR 0180's `20261003007310` + runs 6/7 (P1 PASS, P5 at 0.00×). Verify against the run
+  artifacts, then close. `FUP-AE4-PERFORMANCE-EVIDENCE-ON-THE-FINAL-PATH` 🟠 — measurement discharged;
+  open only as `PO to rule`.
+- **Bounded residuals, ruling not work:** `FUP-PROFESSIONAL-PARTICIPANTS-SELECT-STILL-PER-ROW` 🟡,
+  `FUP-PERF-ANALYZE-ENDS-AE0-COMPARABILITY` 🟠 (a sequencing note for the next perf window),
+  `FUP-ZERO-ARG-APP-PREDICATES-NOT-HOISTED`, `FUP-READ-ACCESS-RIDES-ON-A-WRITE-POLICY`.
+- **Own increments, unrelated to the template:** `FUP-SEED-PENDING-PERSONA-CANNOT-REACH-ITS-LAYER`
+  (⛔ never fix `seed.sql` in passing); `FUP-C2-TIER1-VALUE-ASSERTIONS-ABORT-ON-AN-INLINE-RAISE` 🟠
+  (296-site triage; now also carries Batch 2's 23 NOTICED rows as a dated work-list — the lint-pass
+  form is the cheaper close); `FUP-C2-TIER1-FLOOR-ARM-HAS-ZERO-SLACK`.
+- **Precede AE5 by definition (pilot gate) but are not AE5 work:** `FUP-ONE-SUPABASE-PROJECT-SERVES-TEST-AND-PRODUCTION` 🟠
+  (⛔ before the pilot loads real data) · `FUP-AUTHZ-AE3-CUTOVER-OPERATOR-OBLIGATIONS-OWED` 🔴 (the only
+  🔴 that says "must not reach the pilot"; no tree artifact) · Critical C1/C3/C4 ·
+  `FUP-P-CLASS-SQLSTATE-ANSWERS-500-ON-DENIAL` 🟠.
+
+## 4. The protocol every batch follows (measured over three batches)
+
+1. **Open the unit before the branch**: hub `docs/features/<slug>.md` (frontmatter + `## Acceptance
+   criteria` = the follow-ups' own quoted `Closes when` + a proven-to-fire criterion + the gate) and
+   record `docs/progress/<slug>.md`; `npm run features:index`; gates 7 + 13; commit; cut
+   `authz-<slug>` off `main`.
+2. **Plan first, full plan** — the subjects are harnesses that open live gates or files that decide
+   what the gate sweeps. `backend` returns a plan; the lead approves with rulings written into ONE
+   scratch file the build turn reads; PO questions go to the PO **before** the build where they change
+   scope (Batch 2's Q1/Q3), **after** where they need a measurement (CARRIED, NOTICED).
+3. **Build with proofs**: every detector/arm/widening proven able to fire on a planted reproducer
+   with the OBSERVED exit code + output, paired with a clean-tree negative control and a
+   discrimination half; every widening proven by **selection** (before/after sets from the live
+   catalog); every restore verified in the catalog three ways; plants live in a fake repo or the
+   harness's own neutralizations, never the real tree; exit codes read **bare**; runs > 5 min
+   **detached** (`Start-Process` on `bash.exe` with the script as argv[1] — the `-c` form silently
+   starts nothing), never under a tool timeout; **one agent on the tree** — an agent that reports
+   "finished" while holding a background waiter is not finished (Batch 2, 08:11–08:23).
+4. **Gate at the tip**: `npm run lint` 0/0 · `typecheck` · `test:db` on a fresh reset (shape must not
+   move) · the four arms with **domains quoted** · `SELFTEST=1` (deriver + door harness) · the
+   set-valued targeted home · the diff-scoped deriver over `main...HEAD` with its `SCOPE:` line ·
+   `git diff --name-only main... -- supabase/migrations supabase/seed.sql src` (empty unless the batch
+   is a migration, in which case the sweep is owed both arms). From Batch 2 on, **someone other than
+   the builder** runs the arms at the tip (QA asked; the lead did).
+5. **QA review → fix loop (≤ 5 iterations, each fixing something new) → re-review**. QA has been
+   right every time it blocked; its blocking findings have all been one shape — *a prose claim about a
+   measurement, written beside a correct measurement, that no gate can contradict*. Corrections are
+   **dated notes beside the original**, never rewrites.
+6. **PO approval** (`AskUserQuestion`: built / tests / QA / open risks), then the **Record step**
+   (lead): residual F-RECs folded by `backend`, the playbook lines the lead owns, ledger row (id
+   **unbolded** until Batch 6 fixes the gate), hub → `complete` with its `## Current state` cut
+   verbatim into the record (`cmp` before the cut), ADR → `accepted` and removed from
+   `proposed-review.json`, indexes, lint bare, `phase(<ID>): complete`, `git merge --ff-only`, branch
+   deleted. **Do not push**; measure the push distance and say it.
+
+## 5. Standing facts that bite (verified during Batches 0–2)
+
+- **Tail drift is real and has no originating case.** A long sweep degrades its own DB cumulatively;
+  the door harness and the C2 neutralizer bound it with `RESET_EVERY` — **the writepath, rowdoor and
+  invoker harnesses do not yet** (check before any full run; port first, prove as Batch 2 did).
+- **A full run through the merge yields a CARRIED block** that a human dispositions (Batch 2: 275 rows,
+  31 hand notes). Budget it; bring the enumeration to the PO before committing the file; the three
+  census-mandatory re-files (`app.storage_upload_reserved`, `public.commission_cadence_overview`,
+  `public.document_delete_affordances`) recur on every door re-baseline until their rows are permanent.
+- **`FROMFINDINGS=1 ARM=policy` is RED** (pre-existing; 24 offenders, 12 section-stale COVERED rows) and
+  unreadable until `FUP-AUTHZ-BLIND-SET-READ-FROM-THE-SECTION-NOT-THE-VERDICT` lands. It is not one of
+  §6's four arms. ⛔ Never allowlist the twelve.
+- **Two Supabase stacks are up on the dev machine** (`supabase_db_azkbbhskturikxpgmafq` is ours;
+  `escalume` is not). `supabase db reset --local` applies the directory you stand in; a catalog check
+  that picks the first `supabase_db_*` container reads the wrong one (it happened). Discriminate by the
+  `authz` schema.
+- **`nohup setsid` does not exist in this Git Bash.** Detach with PowerShell `Start-Process` on
+  `bash.exe`, script as argv[1], own `WORK` and sentinel, poll a log; read `rc.txt` bare.
+- **`grep -rniF` aborts under this msys (rc 134)** and, with stderr silenced, reports zero hits — a
+  dead census that reads as "none found". Use ripgrep, and prove the census can find a known sentence.
+- **Tier 2's 190 doors stay deferred by ADR 0171 and are NOT cleared** — every gate record citing the
+  door sweep says so in those words (ADR 0187 D1).
+- **The CLAUDE.md review queue** was processed 2026-09-05 (four fixes applied on `main`); the Record
+  step's step 7 re-checks it before each unit opens.
+- `main` is far ahead of `origin/main` (97 commits at `d7964398`) and **unpushed**; push state is
+  measured, never quoted.
+
+## 6. Where the next session starts
+
+1. `git status` clean on `main`; `git log --oneline -1` shows `d7964398` or later; `docs/features/INDEX.md`
+   shows no `in_progress` hub. If either is false, stop and read the hub that is in progress.
+2. Read Batch 2's [record](../progress/pred-domain.md) § "run 1 voided by tail drift" and § "the CARRIED
+   enumeration" — Batch 3 repeats both shapes on the write arm.
+3. Say **"initiate Batch 3"** to the lead. The lead opens the hub + record, cuts `authz-writepath-baseline`,
+   and spawns `backend` for the plan — never the build first.
