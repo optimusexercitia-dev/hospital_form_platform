@@ -1176,7 +1176,7 @@ function buildCtx() {
     bugIds: new Set((bugsTable?.rows || []).map((r) => r.cells.ID)),
     shaExists: (sha) => git(`cat-file -e ${sha}^{commit} && echo ok`) === 'ok' || git(`rev-parse --verify --quiet ${sha}^{commit}`) !== '',
     lintScripts: new Set(Object.keys(pkg.scripts || {}).filter((k) => k.startsWith('lint:'))),
-    branches: git('branch --list --format=%(refname:short)').split('\n').filter(Boolean),
+    branches: git("branch --list --format='%(refname:short)'").split('\n').filter(Boolean),
     currentBranch: git('branch --show-current'),
     newestCodeCommitDate: git('log -1 --format=%cs -- src supabase e2e') || null,
     ledgerText: read(PATHS.phaseLedger) || '',

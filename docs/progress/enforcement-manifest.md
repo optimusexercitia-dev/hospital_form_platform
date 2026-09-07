@@ -62,3 +62,10 @@ indexes, never hand-merge.
 **Next.** `backend` returns a full plan (the subjects decide what the site-axis arm measures and a
 re-key is a migration); the lead rules into one scratch file; the read-organizations question goes
 to the PO before the build.
+
+**Gate 13 on macOS (found at open, fixed on the branch).** `check-docs-registers.mjs:1179` passed
+`--format=%(refname:short)` unquoted to `/bin/sh`; on macOS the shell rejects the parentheses, the
+helper's silenced stderr turns that into an empty branch list, and every `in_progress` hub reds as
+"branch does not exist" — a dead census that reads as a finding (plan §5's `grep -rniF` shape,
+inverted). Quoted the format; gate 13 and the full `npm run lint` chain green after. Windows Git
+Bash never saw it. Filed nowhere else: fixed in one line on this branch, noted here.
