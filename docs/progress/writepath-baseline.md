@@ -255,5 +255,31 @@ restoring) · `FUP-WRITEPATH-BASELINE-ESCALATED-ROLE-ARM-UNEXERCISED`.
   fourth, the connection role, is exactly what the open ruling decides, and an ADR recording a
   decision nobody has taken would have to be rewritten. It is blocked on the ruling, not deferred
   behind the run.
-- The recovery step's prose is drafted and goes into the harness header,
-  `.claude/rules/mutation-harnesses-are-not-killable.md` and ADR 0192 **before** any launch.
+- The recovery step's prose goes into the harness header and ADR 0192 **before** any launch.
+  ⚠ **It cannot go into `.claude/rules/mutation-harnesses-are-not-killable.md`** as the plan §9
+  assumed: that file is **2032 of its 2048-byte cap**, 16 bytes of headroom, and compressing a
+  record to fit a cap selects against its QUALIFIERS — the bound gets cut, not the fact. Measured
+  instead: the rule **already** carries the generic recovery step and already names this harness
+  (*"A kill is CAUGHT — only where a harness has a SENTINEL: C2 + `p0-authz-{door,writepath}-audit.sh`"*),
+  already forbids deleting the sentinel, already demands catalog verification with the
+  `cmd <> 'SELECT'` discriminator, and already carries the working-tree/suite-shape clause
+  (*"DB silence is the wrong ask … Freeze the TREE"*). The only write-arm-specific addition owed is
+  `git checkout -- docs/reviews/authz-writepath-audit-findings.md`, and its home is the harness
+  header plus ADR 0192.
+
+#### The MID-RUN CHECKPOINT SCHEDULE (R8), written down BEFORE any launch
+
+⛔ The drift observable is computed from `$WORK/writepath_progress.tsv`, **never** from the summary:
+a drift tail is *cases whose verdict has no originating cause*, and a summary cannot show that.
+⛔ And `docs/reviews/authz-writepath-audit-findings.md` is a MOVING TARGET while the run is live
+(`emit_report` rewrites it after every case) — no agent may read it as truth mid-run. Cite
+`$WORK/authz-writepath-audit-findings.baseline.md` instead.
+
+| when | what is sampled | the observable that says VOID IT NOW |
+|---|---|---|
+| at the banner, before case 1 | `SELECTION-SOURCE`, `ARM-DOMAIN guard=13/13 policy=107/107`, `DOMAIN-SOURCE … live catalog … 107`, the DOMAIN-STATEMENT role lines, the degenerate preflight, `baseline OK: … Files=262, Tests=8876`, `FULL SWEEP — this run MERGES …` | any of them wrong ⇒ kill NOW: before case 1 there is nothing to contaminate |
+| case ~5 | the on-disk merged file still holds 2/2 `## Note`, the `HAND-MERGED` blockquote and the `---`; the merge's `PRESERVED … CARRIED …` line is non-zero | `PRESERVED 0`, or a hand block gone ⇒ the merge is losing material |
+| case ~12 | elapsed since the `baseline OK` timestamp ÷ cases done | record the corrected rate BESIDE the estimate, never over it |
+| continuously, from `progress.tsv` | rows whose `Files=`/`Tests=` shape is off-baseline · distinct off-baseline `Tests=` values · **longest consecutive run of the same off-baseline value** | **≥3 consecutive identical off-baseline shapes.** A per-case abort VARIES and the suite RECOVERS; drift never recovers. With `RESET_EVERY=20` this should be impossible — if it happens the reset did not fire and the run is VOID, not patchable |
+| at every `--- PERIODIC RESET ---` | the four lines after it: preflight clean · policy worklist re-derived UNCHANGED · all 13 `GUARD_KEYS` still resolve · post-reset baseline PASS at the true shape | any `*** ABORT` ends the run |
+| at the end | `preconditions: resets=N` | **`resets=0` on a 120-case full run is the exact state that voided the door arm's run 1.** Quote this line in the gate record beside the counts |

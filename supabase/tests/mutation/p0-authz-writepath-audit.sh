@@ -158,6 +158,44 @@
 # sweeping a third of the domain. The DIFF-SCOPED run (`CASES=`) is unaffected — it costs
 # one suite run per SELECTED gate, exactly as before.
 # The LEAD runs the full loop in the background (a background process dies at turn-end).
+#
+# ── ⛔ IF A RUN OF THIS ARM IS KILLED — the recovery step (ADR 0192; the deliverable
+#    FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED Part 4 owes). READ ALL FIVE STEPS BEFORE ACTING. ─────
+#
+#  ⛔ FIRST, THE STANDING RULE: do not kill a running sweep. A contaminated run is allowed to
+#  FINISH and its verdicts are discarded. These steps are for a run that died anyway.
+#  ⛔ DO NOT DELETE THE SENTINEL. It restores nothing and it is the ONLY record that a gate is
+#  open on this shared stack.
+#
+#  1. `ls -l "$AUTHZ_SWEEP_SENTINEL"` (default /tmp/authz-writepath-INFLIGHT.sql). Non-empty
+#     means an RLS policy or a raise-guard is OPEN RIGHT NOW to `authenticated`. Beside it,
+#     `.probe` / `.want` identify the original catalog state and `.role` names the role that
+#     opened it — the restore MUST use that role or it fails with 42501 on precisely the cases
+#     the escalation exists for.
+#  2. `RECOVER=1 WORK=<the run's WORK> AUTHZ_SWEEP_SENTINEL=<the run's sentinel> bash "$0"`.
+#     It reads `.role` itself; a sentinel with no `.role` sidecar predates this protocol and
+#     says so rather than guessing.
+#  3. ⛔ VERIFY IN THE CATALOG, NEVER FROM THE MESSAGE:
+#       select schemaname||'.'||tablename||'.'||policyname||' ('||cmd||')' from pg_policies
+#        where (coalesce(qual,'')='true' or coalesce(with_check,'')='true') and cmd <> 'SELECT';
+#     must return ZERO ROWS. ⛔ ENUMERATE — a bare COUNT without the `cmd <> 'SELECT'`
+#     discriminator returns ~11 on a clean stack because ten vocabulary SELECT policies are
+#     `true` BY DESIGN, and reading that as a baseline is how the AE1.5 fully-open UPDATE
+#     policy was nearly missed.
+#  4. If the restore refuses, or the sentinel is absent and a degenerate NON-SELECT policy
+#     exists anyway: `supabase db reset --local` **from the repo root**. ⛔ The `cd` is
+#     load-bearing — `db reset` applies the migrations of the DIRECTORY YOU STAND IN, and this
+#     machine has a second, unrelated stack up.
+#  5. ⛔ THE COMMITTED BASELINE MAY BE HALF-REWRITTEN. `emit_report` runs after EVERY case, and
+#     on a FULL run its target IS the committed file. Restore it with:
+#       git checkout -- docs/reviews/authz-writepath-audit-findings.md
+#     (A SUBSET run never opens it; there is nothing to restore after one.)
+#  6. ⛔ THE KILLED RUN'S VERDICTS ARE DISCARDED — its `writepath_progress.tsv` is never merged.
+#
+#  ⚠ AND THE CONTAMINATION SURFACE IS THE WORKING TREE, NOT ONLY THE DATABASE. This sweep's
+#  baseline is the suite's SHAPE (`Files=`/`Tests=`), so ADDING ONE FILE UNDER `supabase/tests/`
+#  invalidates a run exactly as effectively as touching the DB — and it looks nothing like DB
+#  activity. Freeze the tree for the duration. ⛔ Never edit this script while a run executes it.
 set -u
 
 # ⚠ Overridable for two reasons, neither of them a way to skip anything: this machine runs
