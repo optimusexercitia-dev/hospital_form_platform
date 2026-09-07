@@ -272,8 +272,8 @@ behavioural differential in AE5.
 
 QA returned **CHANGES REQUESTED** (`docs/reviews/enforcement-manifest-review.md`): F-BLOCK-1,
 F-BLOCK-2, F-MAJOR-1, F-MINOR-1/2/3, F-REC-1/2. Iteration 1 addresses all eight, on the lead's
-rulings. Five commits, `7f7e36af` · `f7835433` · `9467ffb0` · `26eb82d6` · `5a5c163b`, on
-`authz-enforcement-manifest` over `7b9b1eb7`. All DB work ran **after** the lead's set-valued
+rulings. Six commits, `7f7e36af` · `f7835433` · `9467ffb0` · `26eb82d6` · `5a5c163b` · `bd289466`
+(this entry), on `authz-enforcement-manifest` over `7b9b1eb7` — **16 over `main`**. All DB work ran **after** the lead's set-valued
 re-run marker, on its fresh reset at head `20261003007350`.
 
 #### F-BLOCK-1 — § 6.7 step 4, re-measured at the tip, and it was worse than the finding

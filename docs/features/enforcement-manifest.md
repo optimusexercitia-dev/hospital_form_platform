@@ -108,7 +108,7 @@ and the rollback runbook re-measured at the tip (Batch 5).
     `FUP-AUTHZ-EMPTY-CASES-RUNS-A-FULL-SWEEP` 🟠 **filed, not fixed** (owner lead).
 
 ### In progress
-- Nothing. Iteration 1 is complete and committed on `authz-enforcement-manifest` (12 commits).
+- Nothing. Iteration 1 is complete and committed on `authz-enforcement-manifest` (16 over `main`).
 
 ### Next
 - **QA re-review** of the eight findings, then the lead's tip gate (§E): the four authz arms with
