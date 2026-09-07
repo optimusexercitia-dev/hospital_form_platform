@@ -443,6 +443,73 @@ classify () {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────────────
+# emit_result — THE RESULT LINE AND THE EXIT CODE, as a function so an arm can construct a
+# tally and read the code back. It was inline at the foot of this script until 2026-09-07;
+# inline, the only way to test it was to run a 15-hour sweep, which is why the NOTICED class
+# arrived with its classifier tested and its EXIT SEMANTICS untested.
+#
+# ⛔ THE PO RULING OF 2026-09-07, ENCODED WHERE THE RESULT LINE IS COMPUTED — not only in the
+# prose that describes it. NOTICED is **disclosed, non-blocking, work-listed**: coverage
+# EVIDENCE, its own class, never a verdict and never a pass, quoted in every gate record —
+# and it does NOT block the phase. BLIND does, and ERROR is still not a pass.
+# Therefore, and this is the whole behavioural change: a run with **0 BLIND, 0 ERROR and
+# >0 NOTICED exits 0, WITH THE DISCLOSURE PRINTED**. Before this ruling it exited 1 and read
+# as DIRTY, which made a disclosure indistinguishable from a blocking finding.
+# ⚠ The classes are printed SEPARATELY on the DIRTY line for the same reason: `36 BLIND,
+# 23 NOTICED, 0 ERROR` invited a reader to sum them into "59 problems". They are three
+# different claims and only one of them blocks.
+#   $1 swept  $2 blind  $3 noticed  $4 error     (globals: MERGE_FAILED, UNMATCHED, FINDINGS,
+#                                                 BASELINE_SNAPSHOT, GENERATED)
+# ─────────────────────────────────────────────────────────────────────────────────────
+emit_result () {
+  local swept="$1" blind="$2" noticed="$3" err="$4"
+  # ⛔ A MERGE ABORT IS AN ERROR, AND IT MUST REACH THE EXIT CODE (QA F-MAJOR-5, 2026-09-05).
+  # The banner emit_report prints is loud, but the banner is not what a gate reads. An aborted
+  # merge leaves $FINDINGS byte-for-byte as it was — which on a FULL run is EXACTLY what "no
+  # verdict moved" looks like, so `git diff --stat -- <findings>` cannot separate the two. Only
+  # this exit code can. It is tested FIRST because it invalidates the artefact the FROMFINDINGS
+  # arms read back, whatever the verdict counts above say (they are printed either way).
+  if [ "${MERGE_FAILED:-0}" = "1" ]; then
+    echo "=== RESULT: ERROR — the findings MERGE ABORTED. $FINDINGS was NOT written and is"
+    echo "    STALE: it holds a PREVIOUS run's verdicts. ⛔ An empty \`git diff\` on it is NOT"
+    echo "    evidence this run changed nothing — it is what an aborted merge also produces."
+    echo "    Re-merge by hand from $BASELINE_SNAPSHOT and $GENERATED. ERROR is not a pass. ==="
+    return 2
+  elif [ "$swept" -eq 0 ]; then
+    # Belt-and-braces: the domain gate above should have exited 3 long before here.
+    echo "=== RESULT: UNPROVEN — 0 gates swept despite a non-empty domain. Harness bug. ==="
+    return 3
+  elif [ "$blind" -gt 0 ] || [ "$err" -gt 0 ]; then
+    echo "=== RESULT: DIRTY — $blind BLIND (blocks) · $noticed NOTICED (disclosed, non-blocking —"
+    echo "    evidence, not a verdict) · $err ERROR (not a pass). BLIND blocks the phase (§6 step 1)."
+    echo "    ERROR is not a pass — fix the neutralization and re-run that case. NOTICED is not a"
+    echo "    pass either: a keystone reddened, but a file ABORTED so the failing assertions cannot"
+    echo "    be attributed to this gate. It is strictly LESS than COVERED (§7.15c), it is QUOTED in"
+    echo "    the gate record beside the BLIND count, and its remedy is capture-then-assert"
+    echo "    (FUP-C2-TIER1-VALUE-ASSERTIONS-ABORT-ON-AN-INLINE-RAISE). ==="
+    return 1
+  elif [ -n "$UNMATCHED" ]; then
+    echo "=== RESULT: UNPROVEN (PARTIAL) — $swept gate(s) measured, 0 BLIND · 0 ERROR, but"
+    echo "    these were requested and matched NO gate:$UNMATCHED"
+    echo "    A clean verdict over a subset of what was asked for is the finding this gate"
+    echo "    exists to prevent. NOT a pass. ==="
+    return 3
+  elif [ "$noticed" -gt 0 ]; then
+    echo "=== RESULT: CLEAN WITH DISCLOSURE — $swept gate(s) measured; 0 BLIND · 0 ERROR ·"
+    echo "    $noticed NOTICED (disclosed, non-blocking — evidence, not a verdict). ⛔ The NOTICED"
+    echo "    rows are NOT covered gates: a keystone reddened but a file ABORTED, so the failing"
+    echo "    assertions cannot be attributed to those gates. They are named in $FINDINGS, they"
+    echo "    MUST be quoted in the gate record, and their remedy is capture-then-assert"
+    echo "    (FUP-C2-TIER1-VALUE-ASSERTIONS-ABORT-ON-AN-INLINE-RAISE). PO ruling 2026-09-07:"
+    echo "    NOTICED discloses, it does not block. ==="
+    return 0
+  else
+    echo "=== RESULT: CLEAN — $swept gate(s) measured, all COVERED. ==="
+    return 0
+  fi
+}
+
+# ─────────────────────────────────────────────────────────────────────────────────────
 # SELFTEST — the classifier's FOUR outcomes on CONSTRUCTED strings, no DB, no suite run.
 #
 # ⛔ THE CONTROL IS THE (shape-moved, PASS) CASE, and it is the reason this arm exists. A
@@ -505,8 +572,44 @@ Files=262, Tests=8876, Result: FAIL"
   rt_case "E' SUBSET,   RESET_EVERY=0 EXPLICIT"          1 0  1 no    # 0 disables EVERYWHERE
   echo "--- SELFTEST resets_enabled: $((6 - rt_fail))/6 ok, $rt_fail failed ---"
 
-  echo "--- SELFTEST TOTAL: $((12 - st_fail - rt_fail))/12 ok, $((st_fail + rt_fail)) failed ---"
-  [ "$((st_fail + rt_fail))" -eq 0 ] || exit 1
+  # ── ARM 3: emit_result() — the RESULT line and the EXIT CODE (PO ruling 2026-09-07). ──
+  # ⛔ THE CONTROL IS THE PAIR (0 BLIND, 0 ERROR, 1 NOTICED) -> rc 0  vs  (1 BLIND, 0 ERROR,
+  # 1 NOTICED) -> rc 1. Same NOTICED count, opposite code: without both halves a green row
+  # would prove only "the function returns a number", not that NOTICED stopped blocking while
+  # BLIND kept blocking — which is the entire ruling. The DISCLOSURE half is asserted too: an
+  # rc 0 that printed no NOTICED line would be a SILENT pass, and silently passing a disclosed
+  # class is worse than the DIRTY it replaces.
+  echo "=== SELFTEST: emit_result() — result line + exit code on constructed tallies (no DB) ==="
+  MERGE_FAILED=0; UNMATCHED=""
+  FINDINGS="<selftest>"; BASELINE_SNAPSHOT="<selftest>"; GENERATED="<selftest>"
+  er_fail=0
+  er_case () {  # $1 label  $2..$5 swept blind noticed error  $6 expected rc  $7 required substring
+    local out rc
+    out="$(emit_result "$2" "$3" "$4" "$5")"; rc=$?
+    if [ "$rc" = "$6" ] && printf '%s' "$out" | grep -qF -- "$7"; then
+      printf '  ok    %-48s -> rc=%s\n' "$1" "$rc"
+    else
+      printf '  NOT OK %-47s -> rc=%s (expected %s) / missing %s\n' "$1" "$rc" "$6" "$7"
+      printf '%s\n' "$out" | sed 's/^/           /'
+      er_fail=$((er_fail+1))
+    fi
+  }
+  er_case "0 BLIND, 0 ERROR, 1 NOTICED"          353 0 1 0 0 "CLEAN WITH DISCLOSURE"
+  er_case "  ...and it PRINTS the count"         353 0 1 0 0 "1 NOTICED (disclosed, non-blocking"
+  er_case "1 BLIND, 0 ERROR, 1 NOTICED"          353 1 1 0 1 "1 BLIND (blocks)"          # ⭐ CONTROL
+  er_case "0 BLIND, 1 ERROR, 1 NOTICED"          353 0 1 1 1 "1 ERROR (not a pass)"
+  er_case "0 BLIND, 0 ERROR, 0 NOTICED"          353 0 0 0 0 "RESULT: CLEAN "
+  er_case "36 BLIND, 23 NOTICED, 0 ERROR (run 2)" 353 36 23 0 1 "36 BLIND (blocks) · 23 NOTICED"
+  UNMATCHED=" bogus_gate"
+  er_case "UNMATCHED outranks a bare NOTICED"    353 0 1 0 3 "UNPROVEN (PARTIAL)"
+  UNMATCHED=""
+  MERGE_FAILED=1
+  er_case "a MERGE ABORT still outranks all"     353 0 1 0 2 "MERGE ABORTED"
+  MERGE_FAILED=0
+  echo "--- SELFTEST emit_result: $((8 - er_fail))/8 ok, $er_fail failed ---"
+
+  echo "--- SELFTEST TOTAL: $((20 - st_fail - rt_fail - er_fail))/20 ok, $((st_fail + rt_fail + er_fail)) failed ---"
+  [ "$((st_fail + rt_fail + er_fail))" -eq 0 ] || exit 1
   exit 0
 fi
 
@@ -878,6 +981,14 @@ domain_statement () {   # markdown that also reads correctly on a terminal
   echo "   \`public.reopen_interview\` BLIND while \`121_interviews.sql\` pins its \`HC038\` — the"
   echo "   \`HC038\` observed comes from \`app.guard_interview_status\`, a trigger on \`case_interviews\`."
   echo "   ⚠ A defence-in-depth pair (door guard + trigger guard) can therefore LOOK like a gap."
+  echo "5. **The NOTICED class — DISCLOSED, NON-BLOCKING, and NOT a verdict** (PO ruling"
+  echo "   2026-09-07). A gate whose neutralization reddened the suite while a file ABORTED"
+  echo "   carries NOTICED, never COVERED: the denominator moved, so the failing assertions"
+  echo "   cannot be attributed to THIS gate. NOTICED is coverage EVIDENCE — it is its own class,"
+  echo "   it must be quoted beside the BLIND count in every gate record citing this sweep, and it"
+  echo "   does NOT block the phase. ⛔ BLIND does, and ERROR is not a pass. A NOTICED row is an"
+  echo "   UNRESOLVED gate, never a covered one; its remedy is capture-then-assert, work-listed"
+  echo "   under \`FUP-C2-TIER1-VALUE-ASSERTIONS-ABORT-ON-AN-INLINE-RAISE\`."
   echo
   echo "**This arm's own bounds** (PO-accepted 2026-09-05, stated verbatim):"
   echo "> \`prosecdef\` boolean in app/public/authz by authz-shaped **name**, identity-touching"
@@ -1151,7 +1262,12 @@ emit_body () {
     echo "**ERROR** = run shape != baseline (harness bug: fix the neutralization, not a result)."
     echo "**NOTICED** = run shape != baseline **AND** the suite went \`FAIL\` (§7.15c): a keystone"
     echo "reddened, but a file ABORTED so the denominator moved and the failing assertions cannot"
-    echo "be attributed to THIS gate. ⛔ Strictly less than COVERED, never a pass, and it exits DIRTY."
+    echo "be attributed to THIS gate. ⛔ It is coverage EVIDENCE, **NOT A VERDICT** — strictly less"
+    echo "than COVERED and never a pass. **DISCLOSED, NON-BLOCKING** (PO ruling 2026-09-07): its own"
+    echo "class, quoted in every gate record that cites this sweep, and a run whose only impurity is"
+    echo "NOTICED exits **0 with the disclosure printed**. ⛔ BLIND still blocks the phase; ERROR is"
+    echo "still not a pass. The remedy is capture-then-assert, work-listed under"
+    echo "\`FUP-C2-TIER1-VALUE-ASSERTIONS-ABORT-ON-AN-INLINE-RAISE\`."
     echo
     echo "Baseline: Files=$BASE_FILES, Tests=$BASE_TESTS, Result: PASS."
     echo "Policies swept: $total_pol (real qual). Policies skipped (qual=true, vacuous): $skipped_pol."
@@ -1561,35 +1677,5 @@ else
 fi
 echo "    preconditions: baseline GREEN at the LAST capture (shape=Files=$BASE_FILES, Tests=$BASE_TESTS) · resets=$RESETS $RESETNOTE"
 
-# ⛔ A MERGE ABORT IS AN ERROR, AND IT MUST REACH THE EXIT CODE (QA F-MAJOR-5, 2026-09-05).
-# The banner emit_report prints is loud, but the banner is not what a gate reads. An aborted
-# merge leaves $FINDINGS byte-for-byte as it was — which on a FULL run is EXACTLY what "no
-# verdict moved" looks like, so `git diff --stat -- <findings>` cannot separate the two. Only
-# this exit code can. It is tested FIRST because it invalidates the artefact the FROMFINDINGS
-# arms read back, whatever the verdict counts above say (they are printed either way).
-if [ "${MERGE_FAILED:-0}" = "1" ]; then
-  echo "=== RESULT: ERROR — the findings MERGE ABORTED. $FINDINGS was NOT written and is"
-  echo "    STALE: it holds a PREVIOUS run's verdicts. ⛔ An empty \`git diff\` on it is NOT"
-  echo "    evidence this run changed nothing — it is what an aborted merge also produces."
-  echo "    Re-merge by hand from $BASELINE_SNAPSHOT and $GENERATED. ERROR is not a pass. ==="
-  exit 2
-elif [ "$swept_ct" -eq 0 ]; then
-  # Belt-and-braces: the domain gate above should have exited 3 long before here.
-  echo "=== RESULT: UNPROVEN — 0 gates swept despite a non-empty domain. Harness bug. ==="
-  exit 3
-elif [ "$blind_ct" -gt 0 ] || [ "$err_ct" -gt 0 ] || [ "$noticed_ct" -gt 0 ]; then
-  echo "=== RESULT: DIRTY — $blind_ct BLIND, $noticed_ct NOTICED, $err_ct ERROR. BLIND blocks the phase (§6 step 1);"
-  echo "    ERROR is not a pass — fix the neutralization and re-run that case. NOTICED is not a"
-  echo "    pass either: a keystone reddened, but a file ABORTED so the failing assertions cannot"
-  echo "    be attributed to this gate. It is strictly LESS than COVERED (§7.15c). ==="
-  exit 1
-elif [ -n "$UNMATCHED" ]; then
-  echo "=== RESULT: UNPROVEN (PARTIAL) — $swept_ct gate(s) measured and all COVERED, but"
-  echo "    these were requested and matched NO gate:$UNMATCHED"
-  echo "    A clean verdict over a subset of what was asked for is the finding this gate"
-  echo "    exists to prevent. NOT a pass. ==="
-  exit 3
-else
-  echo "=== RESULT: CLEAN — $swept_ct gate(s) measured, all COVERED. ==="
-  exit 0
-fi
+emit_result "$swept_ct" "$blind_ct" "$noticed_ct" "$err_ct"
+exit $?

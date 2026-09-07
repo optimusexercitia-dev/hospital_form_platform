@@ -793,17 +793,23 @@ public.list_linkable_org_users(p_organization uuid)
 # `explain_direct_permission` has ZERO callers anywhere — no SQL body, no policy, no `src/`,
 # no `e2e/` reference — so nothing today can act on a wrong answer from it. ⚠ That is a
 # REACHABILITY argument, not a coverage one, and it expires the moment anything calls it.
-# ⛔ RESOLVED BY ADR 0191 (unit PRED-DOMAIN, 2026-09-05) — THE LINE BELOW IS DELETED IN THE
-#    COMMIT THAT CARRIES THE RE-BASELINED docs/reviews/authz-door-audit-findings.md, AND NOT
-#    BEFORE. `PRED_DOMAIN` gained a third admitting disjunct (`n.nspname = 'authz'`, bounded at
-#    `bool`), so this function is now IN the door arm's domain: `PRED_TOTAL` 125 -> 127, and a
+# ⛔ RESOLVED BY ADR 0191 (unit PRED-DOMAIN) — **THE ENTRY IS GONE, DELETED 2026-09-07** in the
+#    commit that carried the re-baselined `docs/reviews/authz-door-audit-findings.md`, and not
+#    before. `PRED_DOMAIN` gained a third admitting disjunct (`n.nspname = 'authz'`, bounded at
+#    `bool`), so this function entered the door arm's domain: `PRED_TOTAL` 125 -> 127, and a
 #    `CASES=scope_reaches` subset selects it instead of exiting 3 UNPROVEN.
-#    ⚠ THE SEQUENCING IS LOAD-BEARING AND WAS MEASURED, not assumed. `census_proc_domain`
-#    (p0-authz-invariant.sh:459) already admits EVERY `prosecdef` boolean in app/public/authz,
-#    so this function is in ARM 3's live domain TODAY and is ACCOUNTED **only** by this entry.
-#    Deleting the line before the findings file carries its verdict would make `ARM=census`
-#    red with 2 unaccounted gates. Until that file lands, this entry is still TRUE.
-authz.scope_reaches(p_assignment_kind text, p_assignment_id uuid, p_resolution_kind text, p_requested_id uuid)
+#    ⚠ THE SEQUENCING WAS LOAD-BEARING AND WAS MEASURED, not assumed. `census_proc_domain`
+#    (`p0-authz-invariant.sh`, the `census_proc_domain` CTE) already admits EVERY `prosecdef`
+#    boolean in app/public/authz, so this function was in ARM 3's live domain while it sat here
+#    and was ACCOUNTED **only** by this entry. Deleting the line before the findings file
+#    carried its verdict would have made `ARM=census` red with 2 unaccounted gates.
+#    ⭐ VERDICT NOW IN THE FINDINGS FILE, earned in the run-2 FULL sweep (2026-09-06, 353 cases,
+#    baseline `Files=262, Tests=8876, PASS`, `ARM-DOMAIN predicate=127/127 policy=226/226`):
+#    **COVERED** — `171_cross_org_isolation.sql, 172_phaseb_rls_rewrite.sql,
+#    255_ethics_e2_targeted.sql, 272_ff2_door_parity.sql,
+#    318_act_hat_blind_caller_gate_siblings.sql, 401_ae4_authz_catalog.sql, …`. That corroborates
+#    the 2026-09-05 subset verdict at the SAME suite shape with a 353-case run, and it is the
+#    row `ARM=census` now reads instead of this entry.
 
 # ---------------------------------------------------------------------------
 # AE4.9 — the resolver PAIR became a QUARTET (ADR 0176 D4), 2026-09-02.
@@ -848,9 +854,9 @@ authz.scope_reaches(p_assignment_kind text, p_assignment_id uuid, p_resolution_k
 #     commission; §6.4/§6.5 prove the restore landed.
 #   pgTAP 403 §6.3 — the 648-cell differential oracle goes RED when the same call is
 #     stripped from `candidate_has_permission` itself, with §6.2b as its own zero baseline.
-# ⛔ RESOLVED BY ADR 0191 (unit PRED-DOMAIN, 2026-09-05) — SAME DELETION RULE AS THE
-#    `scope_reaches` BLOCK ABOVE: the line below goes in the commit that carries the
-#    re-baselined findings file, and not before (`ARM=census` accounts for it only here).
+# ⛔ RESOLVED BY ADR 0191 (unit PRED-DOMAIN) — SAME DELETION RULE AS THE `scope_reaches` BLOCK
+#    ABOVE, and **THE ENTRY IS GONE, DELETED 2026-09-07** in the commit that carried the
+#    re-baselined findings file, not before (`ARM=census` accounted for it only here).
 #    ⭐ The paragraph above is now HISTORY, and correctly so: "Widening PRED_NAME_RE is not a
 #    local fix — the filter bounds the whole predicate arm, and QA routed that bound to C2" was
 #    right about `PRED_NAME_RE`. ADR 0191 did not widen the NAME regex; it added a SCHEMA
@@ -860,7 +866,12 @@ authz.scope_reaches(p_assignment_kind text, p_assignment_id uuid, p_resolution_k
 #    FIRST VERDICT, earned 2026-09-05 on a fresh reset, baseline `Files=262, Tests=8876, PASS`:
 #    **COVERED** — `CASES="scope_reaches candidate_has_permission"`, domain `predicate=2/127`.
 #    ⚠ Recorded AT THAT SUITE SHAPE; a verdict at one shape is not a verdict at another.
-authz.candidate_has_permission(p_principal uuid, p_scope_kind text, p_scope_id uuid, p_permission_code text)
+#    ⭐ CORROBORATED 2026-09-06 by the run-2 FULL sweep at the SAME shape (`Files=262,
+#    Tests=8876`, 353 cases, `ARM-DOMAIN predicate=127/127 policy=226/226`): **COVERED** —
+#    `403_ae45_differential_oracle.sql, 407_ae49_resolver_contract.sql,
+#    413_ae4_authorized_scope_ids.sql`. ⛔ This subject was `ERROR` in run 1; the run-1 ERROR was
+#    a drift artefact, not a finding, and the retry net converted the whole class. The findings
+#    row is what `ARM=census` reads now.
 
 # ⛔ CATEGORY (b) — `prosecdef` SCALAR NON-BOOL: it returns the composite
 # `authz.permission_explanation`, so the predicate arm's mechanism (flip a boolean open)

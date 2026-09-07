@@ -1986,3 +1986,286 @@ domain and report a bookkeeping artefact.
 4. Then step 11: re-derive the four arms · `npm run test:db` · `SELFTEST=1` deriver · the
    diff-scoped deriver with `SCOPE:` quoted.
 5. Then the closures (ADR 0191 amendments, the hub, the lead-playbook §4 sentence the lead lands).
+
+### 2026-09-07 — backend: the CARRIED dispositions applied, the re-baseline committed, step 11
+
+The PO's two rulings arrived (Q2 **CARRIED as recommended**; **NOTICED = disclosed, non-blocking,
+work-listed**). This entry records what was applied, how it was verified, and what it cost.
+
+#### The dispositions were applied BY SCRIPT, off the table — never row by row
+
+`…/scratchpad/dispo/apply.py` (with `parse.py` as its join proof and `verify.py` as its
+after-the-fact check). It reads the 275-row table in this record and the CARRIED block in
+`docs/reviews/authz-door-audit-findings.md`, joins them **1:1 on (key, baseline, run-2, hand-flag)**
+and refuses to run on any ambiguity. ⛔ The hand flag is RECOMPUTED from column 5 (`**`, `[merged`,
+⭐ ⚠ ⛔ →) rather than read from the table, and it agrees with the table at **31/31** — so the join
+key is not a restatement of the thing it is keying on.
+
+```
+CARRIED entries: 275   hand: 31          disposition rows parsed: 275   hand: 31
+JOIN CLEAN — every CARRIED entry maps to exactly one disposition; entries without one: 0
+actions: ARCHIVE=15  DELETE=242  RE-ATTACH=15  REFILE=3
+  DELETE outright ....... 242   (131 note-only drift · 49 gate GAINED a verdict · 17 subject GONE ·
+                                 17 mechanical HOLD · 13 retire-to-writepath · 11 re-filed-to-FUP ·
+                                 4 second-ordinal)
+  RE-ATTACH to run-2 row  15    (13 PO-carried + 2 HOLD-resolved)
+  ARCHIVE to the record .. 15    (10 PO-carried + 4 HOLD-resolved + 1 RETIRE-to-C2)
+  RE-FILE as a row ....... 3     (the census-mandatory three)
+hand notes: 31 in -> 15 re-attached + 15 archived + 1 re-filed = 31 preserved   (ZERO lost)
+```
+
+⭐ **The hand SUFFIX is computed, not eyeballed.** A re-attach must append the hand half of the
+baseline's column 5 to the RUN-2 row, and the boundary between "generated payload" and "hand prose"
+is not marked in the file. The script derives it from the three shapes the baseline-era generator
+could produce — a comma-separated `*.sql` list, `run-shape!=baseline (Files=N Tests=M)`, or empty —
+and asserts `prefix + suffix == column 5` byte-for-byte. Two rows do not fit a generated shape and
+carry an **explicit, recorded** boundary instead of a guess: `app.member_can_for`, whose baseline
+column 5 is a HAND-ABBREVIATED list (`40 files incl. …`), and
+`commissions.commissions_select_member_or_admin`, whose column 5 is hand prose end to end (prefix
+length 0). Every one of the 15 boundaries is printed by `DRY=1` and was read before the write.
+
+#### The 6 HOLD hand-prose rows, resolved under the NOTICED ruling — 2 re-attached, 4 archived
+
+The PO delegated these: *"re-attach if COVERED→NOTICED keeps the note true; else archive to the
+record"*. **Rule R, applied uniformly and stated so it can be checked**: RE-ATTACH iff no clause of
+the hand note names THIS row's harness verdict class in a way column 4 now contradicts; ARCHIVE
+otherwise. A dated tally from a NAMED subset run ("SWEPT 2 COVERED 2", 2026-08-25) is history, not
+such a clause.
+
+| # | key | move | ruling | the clause that decided it |
+| --- | --- | --- | --- | --- |
+| 212 | `app.can_view_printed_document(…)` | COVERED → NOTICED | **RE-ATTACH** | none — dated PDF·P1/P2/P3 provenance plus a method warning |
+| 217 | `forms.forms_staff_admin_write (ALL)` | COVERED → NOTICED | **RE-ATTACH** | none — a dated 2026-09-02 subset tally plus the ARM=census warning |
+| 215 | `app.is_oversight_only_reader(…)` | COVERED → NOTICED | ARCHIVE | opens *"ERROR under the harness's force-to-TRUE neutralization"* — that IS the mutation this run performed |
+| 220 | `app.event_current_custodian(…)` | ERROR → NOTICED | ARCHIVE | *"ERROR is not a pass … the harness withholds a verdict"* — it no longer withholds; it discloses |
+| 229 | `app.is_staff_admin_of(…)` | ERROR → NOTICED | ARCHIVE | *"still the documented load-bearing-predicate ERROR class below"* |
+| 233 | `authz.holds_role(…)` | ERROR → NOTICED | ARCHIVE | *"ERROR here is INHERITED BY CONSTRUCTION"* |
+
+The other **17** HOLD rows carry no hand prose, so the ruling leaves nothing to preserve: they are
+deleted and their run-2 NOTICED rows stand on their own.
+
+⚠ **DISCLOSED, because it is the one place the ruling and the file rub.** Of the 13 PO-carried
+RE-ATTACH rows, one — `commissions.commissions_select_member_or_admin` — carries a note that opens
+*"ERROR at whole-policy neutralization (run-shape)"* while its run-2 verdict is **COVERED**. It was
+re-attached as ruled, and it is NOT the same failure as #215: the note names the **whole-policy**
+mutation (`using` **and** `with check`), which this arm has not performed since the 2026-09-05
+mirror fix. It is history about a mutation that no longer exists, where #215's names the mutation
+still in force. ⛔ If the lead reads that differently, the remedy is a one-line archive, not a
+rewrite of the note.
+
+#### The re-filed three — a ROW SHAPE chosen so the loop cannot recur
+
+`app.storage_upload_reserved(p_bucket text, p_name text, p_uid uuid)`,
+`public.commission_cadence_overview()` and `public.document_delete_affordances(p_document_ids uuid[])`
+are re-filed as rows under a new section at the foot of the findings file, each carrying its baseline
+note byte-for-byte.
+
+⛔ **The shape is load-bearing and was chosen against the merge's own classifier, not by taste.**
+`merge-findings-baseline.sh` calls a well-shaped `| `-row a VERDICT ROW if it sits under a header the
+generator emits, **or** carries a generator verdict token in column 4, **or** carries a key the
+generator emitted — and a verdict row absent from the next run is relocated into the CARRIED block,
+where the leading-pipe test `ARM=census` uses no longer matches it. Re-filing these three with
+`| gate / policy | arm | direction | verdict | note |` and a bare `COVERED` would therefore have
+re-created exactly the hole it is closing, one full run later. The section uses a header the
+generator never emits (`… | verdict (earned elsewhere) | evidence …`) and column 4 reads
+`COVERED (targeted mutation)`, so the merge classifies all three as PROSE and preserves them in
+place. The header still contains the literal `gate / policy`, which is what the census's own
+`grep -vE 'gate . policy'` uses to drop a header — asserted in the script, not assumed.
+
+#### The CARRIED block is GONE, comment included — and that is deliberate
+
+All 275 entries were dispositioned, so nothing remains to carry. ⛔ The **comment** was removed too:
+`merge-findings-baseline.sh` appends the whole block — comment and entries — only when
+`carried.tsv` is non-empty, and it also aborts if a baseline prose line does not survive into the
+output. An empty comment block left behind would therefore either be DUPLICATED by the next run that
+carries something, or LOSE its lines and abort the next run that carries nothing. Removing it is the
+only state that is stable in both directions.
+
+#### The findings file, asserted — `SELFTEST=1 MERGE_VERIFY` does not apply to a hand-dispositioned file
+
+`MERGE_VERIFY` answers "did THIS merge lose anything", and no merge ran here. The equivalent
+assertions were made directly on the artefact (`verify.py`, every one green):
+
+| assertion | measured |
+| --- | --- |
+| `HAND-MERGED` blockquotes | **9 / 9** |
+| `## Note` sections | **7 / 7** |
+| generated verdict rows | **353** |
+| + the census re-files | **3** — `verdicts_from_findings` delta vs the pre-disposition file is EXACTLY those three keys and nothing else |
+| `verdicts_from_findings` over the new file | **356 keys, 356 unique, 0 `gate / policy` literals** |
+| the 15 re-attached hand suffixes | each present **byte-for-byte**, each on its own run-2 row, grepped by key (`-F`, fixed string) |
+| the 15 archived baseline rows | each present **byte-for-byte** in this record's archive block AND absent from the findings file |
+| the 3 re-filed notes | each present **byte-for-byte** in its new row |
+| the 242 deleted rows | all gone; **0** survived by accident (their whole row text searched, not their key) |
+| CARRIED residue | **none** — 0 `baseline row carried verbatim` entries, 0 `<!-- CARRIED:` comments |
+| line endings | LF preserved; file 2043 → 976 lines (the CARRIED block out; the census section, the NOTICED
+definition and DOMAIN-STATEMENT population 5 in) |
+
+⛔ **The one thing these assertions do NOT prove**, stated rather than left to be inferred: that the
+353 verdicts are *right*. They prove the disposition moved exactly what the ruling said and lost
+nothing. The verdicts are run 2's, unchanged by this session.
+
+#### Bookkeeping — APPLIED, in the same commit, as the file's own instruction required
+
+`supabase/tests/mutation/authz-unswept-backlog.txt`: both resolver entries deleted and both marker
+blocks rewritten into the past tense, with run 2's verdict recorded beside the 2026-09-05 subset
+verdict. ⚠ Line citations re-anchored at the current text before editing (the record's `:806` /
+`:863` were anchored at an older HEAD): the entries were at `:806` and `:863`, their markers at
+`:796` and `:851`. Live (non-comment) entries **103 → 101**.
+
+#### The NOTICED ruling, encoded WHERE THE RESULT LINE IS COMPUTED
+
+⛔ The ruling is a change to an **exit code**, so putting it only in prose would leave the thing a
+gate reads unchanged. `p0-authz-door-audit.sh`'s final `if/elif` chain was **extracted into
+`emit_result()`** — inline, the only way to exercise it was a 15-hour sweep, which is why the NOTICED
+class shipped with its classifier tested and its exit semantics untested.
+
+- **RESULT line separates the classes**: `DIRTY — N BLIND (blocks) · M NOTICED (disclosed,
+  non-blocking — evidence, not a verdict) · K ERROR (not a pass)`. The old line read
+  `N BLIND, M NOTICED, K ERROR`, which invited a reader to sum three different claims.
+- **Exit semantics**: unchanged for BLIND and ERROR (1), merge abort (2), `swept=0` / UNMATCHED (3).
+  **Changed**: 0 BLIND ∧ 0 ERROR ∧ >0 NOTICED now exits **0**, printing
+  `RESULT: CLEAN WITH DISCLOSURE — … 0 BLIND · 0 ERROR · N NOTICED (disclosed, non-blocking …)`.
+- **Precedence asserted, not assumed**: a merge abort still outranks everything; UNMATCHED still
+  outranks a bare NOTICED (and its line no longer claims "all COVERED", which would be false beside
+  a NOTICED count).
+- The definition is carried in `emit_body`'s header AND as a fifth `DOMAIN-STATEMENT` population, so
+  the statement a gate record must quote now carries the class. Both texts were re-emitted into the
+  committed findings file and **diffed byte-for-byte against the emitter** (`DIFF_RC=0` for the
+  DOMAIN-STATEMENT block and for the 8-line header block) — otherwise the next merge would preserve
+  the old prose *and* add the new.
+
+**SELFTEST arm 3 — `emit_result()`, 8 cases, with its control.** ⛔ The control is the PAIR
+`(0 BLIND, 0 ERROR, 1 NOTICED) → rc 0` vs `(1 BLIND, 0 ERROR, 1 NOTICED) → rc 1`: same NOTICED count,
+opposite code. Without both halves a green row would prove only that the function returns a number.
+The DISCLOSURE half is asserted too — an rc 0 that printed no NOTICED line would be a SILENT pass,
+which is worse than the DIRTY it replaces.
+
+```
+--- SELFTEST classify: 6/6 ok, 0 failed ---
+--- SELFTEST resets_enabled: 6/6 ok, 0 failed ---
+--- SELFTEST emit_result: 8/8 ok, 0 failed ---
+--- SELFTEST TOTAL: 20/20 ok, 0 failed ---            bare rc 0
+```
+
+⭐ **And the arm was proven able to FAIL, not just to pass.** A mutant of the harness restoring the
+pre-ruling behaviour (`|| [ "$noticed" -gt 0 ]` back in the DIRTY test) reds **exactly the two rows
+that encode the ruling and no others**, bare rc **1**:
+
+```
+  NOT OK 0 BLIND, 0 ERROR, 1 NOTICED    -> rc=1 (expected 0) / missing CLEAN WITH DISCLOSURE
+  NOT OK   ...and it PRINTS the count   -> rc=1 (expected 0) / missing 1 NOTICED (disclosed, non-blocking
+  ok    1 BLIND, 0 ERROR, 1 NOTICED     -> rc=1
+```
+
+#### Hand notes archived at the Batch 2 re-baseline (2026-09-07)
+
+Every hand note the PO ruling removed from `docs/reviews/authz-door-audit-findings.md`,
+preserved verbatim so nothing is lost by the deletion. **15 rows.** Each entry carries the
+key, the baseline verdict, the run-2 verdict, the WHOLE baseline row byte-for-byte, and the
+reason it was archived rather than re-attached.
+
+- `app.patient_trajectory_bundle(text, text, uuid)` — baseline **COVERED** → run 2 **(absent from this run)** — disposition: ARCHIVE the prose, then delete
+  — reason: PO-carried disposition: subject GONE from the live domain, hand prose preserved here
+
+  ```
+  | app.patient_trajectory_bundle(text, text, uuid) | internal helper, service_role-ONLY | targeted neutralization | COVERED | 350 t6 (hospital scope removed) + t10 (case-grain fix reverted). ⚠ NOT `authenticated`-reachable — 152 §M1 is the ACL guard, and it caught this slice widening it by reflex |
+  ```
+
+- `authz.has_direct_permission(p_principal uuid, p_scope_kind text, p_scope_id uuid, p_permission_code text)` — baseline **COVERED** → run 2 **(absent from this run)** — disposition: ARCHIVE the prose, then delete
+  — reason: PO-carried disposition: subject GONE from the live domain, hand prose preserved here
+
+  ```
+  | authz.has_direct_permission(p_principal uuid, p_scope_kind text, p_scope_id uuid, p_permission_code text) | predicate | positive | COVERED | 401_ae4_authz_catalog.sql,403_ae45_differential_oracle.sql (SWEPT 2026-09-01, the FIRST run of any arm over the `authz` schema — AE4.7b widened every domain bound to `('app','public','authz')` after QA finding F7 measured the schema outside all five arms. ⛔ Not a re-sweep: this gate had NO verdict in any direction since 20261003007170 created it) |
+  ```
+
+- `public.attest_dsr_task(uuid, text, integer, text)` — baseline **COVERED** → run 2 **(absent from this run)** — disposition: ARCHIVE the prose, then delete
+  — reason: PO-carried disposition: subject GONE from the live domain, hand prose preserved here
+
+  ```
+  | public.attest_dsr_task(uuid, text, integer, text) | command door (void) — **re-verdicted (retirement)** | targeted neutralization | COVERED | 350 t69. ⚠ **GREEN on first probe** — the `blocked` arm was added deliberately (guarding one of a sibling pair is the omission class) and had NO keystone, because the brief named only `complete_dsr_task` and nobody was owed a test for a fix the engineer invented. t69 exists because the battery found it |
+  ```
+
+- `public.attest_dsr_task(uuid, text, integer, text)` — baseline **COVERED** → run 2 **(absent from this run)** — disposition: ARCHIVE the prose, then delete
+  — reason: PO-carried disposition: subject GONE from the live domain, hand prose preserved here
+
+  ```
+  | public.attest_dsr_task(uuid, text, integer, text) | command door (void) | targeted neutralization | COVERED | 350 t44/t45 (gate), t40/t41/t42 (the three required fields), t43 (kind guard), t49 (⭐ the minted PROCEDURE survives, compared byte-for-byte against a snapshot — a `length > 0` check would have passed the overwrite), t48/t50 (the count reaches the outcome record) |
+  ```
+
+- `public.close_dsr_request(uuid, text, text, text)` — baseline **COVERED** → run 2 **(absent from this run)** — disposition: ARCHIVE the prose, then delete
+  — reason: PO-carried disposition: subject GONE from the live domain, hand prose preserved here
+
+  ```
+  | public.close_dsr_request(uuid, text, text, text) | command door (void) — **re-verdicted (retirement)** | targeted neutralization | COVERED | 350 t65/t66/t68 (the retirement removed). ⛔ **The over-grant twin for the retirement GUARD is not constructible** — the granting path raises HCDS4 unless pending is already zero, so the `update … where status='pending'` matches nothing whether guarded or not. Inverting the guard to `if true` left the suite GREEN; the vacuous twin was REMOVED and the mechanism recorded in 350's tail. What protects the granting path is t36 (HCDS4), which IS falsifiable |
+  ```
+
+- `public.complete_dsr_task(uuid, text)` — baseline **COVERED** → run 2 **(absent from this run)** — disposition: ARCHIVE the prose, then delete
+  — reason: PO-carried disposition: subject GONE from the live domain, hand prose preserved here
+
+  ```
+  | public.complete_dsr_task(uuid, text) | command door (void) — **re-verdicted for Slice 3** | targeted neutralization | COVERED | 350 t39 (attest_review is REFUSED and routed to attest_dsr_task). ⭐ **Gate + EFFECT check RE-PROBED 2026-08-20 against the twice-rewritten body** (QA r1): effect check disabled → **RED** at 349 t19/t21; gate → RED at 349 t17/t18. Supersedes the inherited Slice 2 verdicts. ⚠ Both re-probes first ran against `350` alone and returned PASS — the wrong domain, since their keystones live in **349**; a verdict is meaningless unless the suite run CONTAINS the keystone being falsified |
+  ```
+
+- `public.create_dsr_request(uuid, text, text, text, integer)` — baseline **COVERED** → run 2 **(absent from this run)** — disposition: ARCHIVE the prose, then delete
+  — reason: PO-carried disposition: subject GONE from the live domain, hand prose preserved here
+
+  ```
+  | public.create_dsr_request(uuid, text, text, text, integer) | command door (uuid) — **re-verdicted for Slice 3** | targeted neutralization | COVERED | 350 t13 (the per-commission attested arm), t14 (⭐ **the over-mint twin** — Hospital B holds no prose and must mint NOTHING; a detector that fires for everything is as wrong as one that fires for nothing), t15/t16 (intake still never mints `dispose_meeting`). ⭐ **Gate RE-PROBED 2026-08-20 against the Slice 3 body** (QA r1): opened → **RED** at 349 t6/t7/t8 + t32p. Supersedes the inherited Slice 2 verdict — a rewritten door inherits nothing, symmetric with this project's rule for a rewritten pin |
+  ```
+
+- `public.list_my_dsr_task_commissions(uuid)` — baseline **COVERED** → run 2 **(absent from this run)** — disposition: ARCHIVE the prose, then delete
+  — reason: PO-carried disposition: subject GONE from the live domain, hand prose preserved here
+
+  ```
+  | public.list_my_dsr_task_commissions(uuid) | command door (jsonb) | targeted neutralization | COVERED | 350 t57–t60 (BUG-DSR-S3-002 hand-merge 2026-08-20). 3 probes: gate removed → t59; hospital-wide join instead of the task's commission → t60; returns nothing → t57/t58/t60. ⚠ **t58 (the policy-drift differential) does NOT red on the hospital-wide join** — at that point the two sets coincide, and only t60's deletion separates them. The two pins are complementary; a suite carrying only the differential would have scored that mutation COVERED |
+  ```
+
+- `public.list_my_executable_dsr_tasks(uuid)` — baseline **COVERED** → run 2 **(absent from this run)** — disposition: ARCHIVE the prose, then delete
+  — reason: PO-carried disposition: subject GONE from the live domain, hand prose preserved here
+
+  ```
+  | public.list_my_executable_dsr_tasks(uuid) | command door (jsonb) — **re-verdicted for the refusal-retirement fix** | targeted neutralization | COVERED | 350 t66 (status filter removed → retired tasks still offered) + t67 (filter flipped to `done`). ⚠ It had **no status filter at all** since Slice 2, so it offered `done` tasks as executable too — a pre-existing coarseness the `blocked` sweep exposed rather than caused; 349 t32q had to be repointed at a genuinely pending task |
+  ```
+
+- `public.search_patient_xref(text, text, uuid)` — baseline **COVERED** → run 2 **(absent from this run)** — disposition: ARCHIVE the prose, then delete
+  — reason: PO-carried disposition: subject GONE from the live domain, hand prose preserved here
+
+  ```
+  | public.search_patient_xref(text, text, uuid) | command door (outside every arm's domain — jsonb) | targeted neutralization | COVERED | 350 t4/t5/t7/t8/t9 (DSR Slice 3 hand-merge 2026-08-20). ⭐ **The one named widening** (ADR 0130 D3). Four independent probes: DPO arm removed → t4; PQS arm removed (the over-narrow twin) → t8; whole gate opened → t5/t7; audit suppressed → t9 |
+  ```
+
+- `app.event_current_custodian(p_event_id uuid, p_user_id uuid)` — baseline **ERROR** → run 2 **NOTICED** — disposition: HOLD — awaits the PO ruling on the NOTICED class
+  — reason: note asserts “ERROR is not a pass … the harness withholds a verdict”; the harness now emits NOTICED for exactly this case, so the clause is contradicted by column 4
+
+  ```
+  | app.event_current_custodian(p_event_id uuid, p_user_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=218 Tests=7199). ⭐ **ARM WIDENED (ADR 0079 Amendment 9 / `FUP-DOOR-AUDIT-PREDICATE-ARM-BOUNDED-BY-A-NAME`).** This gate entered the predicate arm on 2026-08-24, when the arm stopped bounding its domain by NAME alone and began admitting a `prosecdef` boolean whose BODY references an identity primitive. It had never been swept in any direction before; it was in `authz-unswept-backlog.txt`. Measured by a subset run on a FRESH `supabase db reset`, baseline `Files=218, Tests=7223, PASS`, `ARM-DOMAIN predicate=8/110`; transcribed here because a subset run overwrites this file and is then reverted. ⛔ **ERROR is not a pass.** `140_patient_safety.sql` fails its test 11 and then ABORTS ("planned 35, ran 11"), so the run shape moved and the harness withholds a verdict — correctly, per §7.15. The suite DID notice; converting that into a COVERED needs a bespoke neutralization. Registered as `FUP-DOOR-SWEEP-BROAD-GATE-ABORTS-A-FILE`. |
+  ```
+
+- `app.is_oversight_only_reader(p_case_id uuid, p_uid uuid)` — baseline **COVERED** → run 2 **NOTICED** — disposition: HOLD — awaits the PO ruling on the NOTICED class
+  — reason: note opens “ERROR under the harness's force-to-TRUE neutralization” — that IS the mutation this run performed, and its outcome is now NOTICED, so the clause would contradict column 4
+
+  ```
+  | app.is_oversight_only_reader(p_case_id uuid, p_uid uuid) | predicate | positive | COVERED | ERROR under the harness's force-to-TRUE neutralization — this predicate is DENY-shaped (true ⇒ deny everyone), so opening it breaks the run shape rather than widening reach. "ERROR is not a pass": covered ARM-SCOPED by q1 `open_write_doors` (neutralizes its USE in all three D7 doors) → 308 §6.1/§6.2 RED-PROVEN |
+  ```
+
+- `app.is_staff_admin_of(p_commission_id uuid)` — baseline **ERROR** → run 2 **NOTICED** — disposition: HOLD — awaits the PO ruling on the NOTICED class
+  — reason: note asserts “still the documented load-bearing-predicate ERROR class below”; the row is no longer in the ERROR class
+
+  ```
+  | app.is_staff_admin_of(p_commission_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=253 Tests=8174) — RE-SWEPT 2026-09-01 (AE4.7b diff-scoped, baseline Files=253 Tests=8467). ⚠ The body changed twice underneath this row (AE4.6 re-pointed it at the catalog, AE4.7b collapsed it onto `authz.holds_role`) and the VERDICT did not: still the documented load-bearing-predicate ERROR class below, re-measured rather than carried across |
+  ```
+
+- `authz.holds_role(p_principal uuid, p_role_code text, p_scope_kind text, p_scope_id uuid)` — baseline **ERROR** → run 2 **NOTICED** — disposition: HOLD — awaits the PO ruling on the NOTICED class
+  — reason: note asserts “ERROR here is INHERITED BY CONSTRUCTION”; the row is no longer in the ERROR class
+
+  ```
+  | authz.holds_role(p_principal uuid, p_role_code text, p_scope_kind text, p_scope_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=253 Tests=8170) — the AE4.7b chokepoint, swept on the migration that created it. ⛔ ERROR here is INHERITED BY CONSTRUCTION, not coincidence: this function IS `is_staff_admin_of(_for)` now, so neutralizing it opens both wrappers at once and destabilises the suite shape exactly as they do. See the load-bearing-predicate note below for what the run actually produced |
+  ```
+
+- `app.resolve_document_version_bytes(p_document_version_id uuid, p_rendition_kind text, p_uid uuid)` — baseline **COVERED** → run 2 **(absent from this run)** — disposition: RETIRE to C2
+  — reason: PO-carried disposition: RETIRE to C2 — deleted here, prose preserved; its own note measures that NO census entry is owed
+
+  ```
+  | app.resolve_document_version_bytes(p_document_version_id uuid, p_rendition_kind text, p_uid uuid) | row-door | positive | COVERED | 342_dm5_s3_printed_renditions.sql (NEW at DM5·S3, migration 20260927000330, ADR 0120 D12 — the shared byte resolver both `open_document_version` and `open_printed_document` delegate to. ⚠ **NO CENSUS ENTRY IS OWED, and that is a measured claim, not an omission.** ARM 3's row-door clause is `p.proretset AND has_function_privilege('authenticated', p.oid, 'EXECUTE')`; this function is `proretset` but its EXECUTE is granted to **postgres only** and revoked from PUBLIC, so it is outside the domain by construction. That is the census's own stated justification correctly not applying — *"a row-returning door is a gate you can walk through"* — because nothing but the owner can walk through this one. `ARM=census` re-run after it landed: live **546**, unchanged. Its coverage is therefore ENTIRELY bespoke, exactly as ADR 0120's Consequences predicted for every DM5 door: 342 S3h1 pins the ACL in all three directions (PUBLIC/anon/authenticated), S3g1/S3g2 pin that it is rendition-parameterized while the core door still passes only `'source'`, and S3c5/S3i1 exercise both outcomes of the D12 conjunction end to end) |
+  ```
