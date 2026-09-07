@@ -12,10 +12,11 @@
 > A hub's `## Current state` is its summary; its progress record's `## Session log`
 > (`docs/progress/<code>.md`) is its detail (ADR 0186 D3).
 
-**9 hubs** · in progress 0 · gated 0 · planned 2 · parked 0 · complete 7
+**10 hubs** · in progress 1 · gated 0 · planned 2 · parked 0 · complete 7
 
 | ID | Title | Status | Kind | Program | Branch | Hub |
 |---|---|---|---|---|---|---|
+| ENFORCEMENT-MANIFEST | Enforcement manifest — hardDenyClasses made falsifiable, the template's re-key defect (policy re-keyed, DEFINER writer left on layer 1) resolved across the `_staff_admin_write` class, the two undeclared consumers recorded, and the rollback runbook re-measured (pre-AE5 Batch 4, Batch 5 riding along) | 🟢 in progress | feature | AUTHZ | `authz-enforcement-manifest` | [enforcement-manifest.md](enforcement-manifest.md) |
 | C1B-DISPOSAL | PHI-disposal Cloud rehearsal (C1b) | 🔜 planned | feature | DM5 | — | [c1b-disposal.md](c1b-disposal.md) |
 | DLB | Deliberation & Voting Model — typed committee decisions with vote arithmetic the database owns | 🔜 planned | feature | DLB | — | [dlb.md](dlb.md) |
 | AE4 | Authz catalog cutover — staff_admin substituted, 3 of 43 permissions load-bearing | ✅ complete | feature | AUTHZ | — | [ae4.md](ae4.md) |
