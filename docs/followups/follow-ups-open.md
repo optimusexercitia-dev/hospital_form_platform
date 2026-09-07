@@ -996,6 +996,13 @@ a hypothesis, not a finding.
 **Status:** open
 **Body:** [FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED.md](FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED.md)
 
+### 🟠 FUP-AUTHZ-EMPTY-CASES-RUNS-A-FULL-SWEEP — `CASES=""` (set but EMPTY) selects EVERY gate and takes the full-run branch that rewrites the committed baseline — which is exactly what `$(bash scripts/door-sweep-cases.sh <base>)` yields when the deriver exits 1 FINDING (owner: lead; filed 2026-09-07 by `backend`, measured by the `lead` on the ENFORCEMENT-MANIFEST tip gate)
+
+**Filed:** 2026-09-07 (unit ENFORCEMENT-MANIFEST, QA fix loop iteration 1 — measured by the `lead` the same day, whose gate chain started a multi-hour full sweep and had to be killed mid-merge) · **Owner:** lead · **Severity:** high — it turns "the deriver found a door you must discharge" into "sweep the whole domain and rewrite the committed baseline", with no `PARTIAL RUN` line to show it happened
+**Closes when:** an empty-but-set `CASES` is a **FINDING exit** — never a full run — in **both** `supabase/tests/mutation/p0-authz-door-audit.sh` (`:1097` `[ -z "$CASES" ] && return 0`, `:128` `if [ -n "$CASES" ]`) and `supabase/tests/mutation/p0-authz-writepath-audit.sh` (`:315`, `:201`/`:1064`), **proven able to fire** by a `scripts/door-sweep-selftest.sh` scenario that passes `CASES=""`, **and** the lead-playbook § 4 recipe reads the deriver's EXIT CODE before substituting its stdout. ⛔ Not closed by a note telling operators to check by hand — the shape of the bug is that the check is invisible at the call site
+**Status:** open — family of `FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED` **Part 2** (a run that measured nothing must not read as a run that measured everything). ⛔ Deliberately NOT fixed in ENFORCEMENT-MANIFEST: Part 2 is Batch 3's and edits these same two harnesses
+**Body:** [FUP-AUTHZ-EMPTY-CASES-RUNS-A-FULL-SWEEP.md](FUP-AUTHZ-EMPTY-CASES-RUNS-A-FULL-SWEEP.md)
+
 ### 🟡 FUP-AE1-UNREACHABLE-PUBLIC-DOORS — 11 `public` DEFINER doors `authenticated` can call that nothing in `src/` calls, + 3 no instrument references, + 15 comment-only (owner: backend/PO)
 
 **Filed:** 2026-08-27 (at the AE1 Record step (obligation 2), from RV4 of [authz-definer-classification-ae1.md](../design/authz-definer-classification-ae1.md)…) · **Owner:** backend + PO · **Severity:** medium — per emoji at consolidation
