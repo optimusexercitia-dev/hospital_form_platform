@@ -18,7 +18,7 @@
 
 - **Missing numbers:** 0034, 0077 — a gap is not automatically a defect (0077 was withdrawn by the PO and its subject re-filed as 0078; 0034 was never used), but a gap nobody can explain usually means a lost file.
 - **No parseable `Status:`:** none
-- **Still proposed / draft / deferred (9):** 0022, 0031, 0033, 0058, 0094, 0108, 0115, 0160, 0193 — an ADR's status is the author's claim on the day it was written, and nothing updates it when the code ships. The last review of this list is stamped in `proposed-review.json`; gate 9 reds when that review is more than 30 days old or this set has drifted from it.
+- **Still proposed / draft / deferred (8):** 0022, 0031, 0033, 0058, 0094, 0108, 0115, 0160 — an ADR's status is the author's claim on the day it was written, and nothing updates it when the code ships. The last review of this list is stamped in `proposed-review.json`; gate 9 reds when that review is more than 30 days old or this set has drifted from it.
 
 ## Index
 
@@ -214,4 +214,4 @@
 | 0190 | [The door-sweep deriver selects doors by PROPERTY, scopes what it swept, and a full run…](0190-the-door-sweep-deriver-selects-by-property-and-a-full-run-merges.md) | accepted | 2026-09-05 | amends 0079, 0173 | – |
 | 0191 | [The door arm's domain gains a SCHEMA axis, the set-valued resolvers get a committed hom…](0191-the-door-arms-domain-gains-a-schema-axis-a-targeted-home-and-a-fourth-outcome.md) | accepted | 2026-09-05 | amends 0079, 0173 | – |
 | 0192 | [Ownership is a PROXY, not the property: the write arm keeps one connection role and gai…](0192-ownership-is-a-proxy-not-the-property-and-the-write-arms-crash-safety.md) | accepted | 2026-09-07 | amends 0153, 0189 | – |
-| 0193 | [The enforcement manifest declares what it measured, and the measurement is a fixed poin…](0193-the-enforcement-manifest-declares-what-it-measured.md) | ⚠ proposed | 2026-09-07 | amends 0176, 0178 | – |
+| 0193 | [The enforcement manifest declares what it measured, and the measurement is a fixed poin…](0193-the-enforcement-manifest-declares-what-it-measured.md) | accepted | 2026-09-07 | amends 0176, 0178 | – |

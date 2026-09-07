@@ -136,6 +136,12 @@ then the closures. **Read Batch 2's record first** — it is the template, inclu
 
 ### Batch 4 — Enforcement manifest + the template's re-key defect — owner backend, one PO item
 
+> **Status 2026-09-07: BUILT, QA-APPROVED (round 3), PO-APPROVED at `dab3cc87`, GATED on branch
+> `authz-enforcement-manifest` (second machine, macOS) — NOT merged, by the ruled order below.**
+> Hub [enforcement-manifest.md](../features/enforcement-manifest.md) · record
+> [enforcement-manifest.md](../progress/enforcement-manifest.md) · ADR 0193 `accepted`. Batch 5 rode
+> along and is closed in the same branch. The merge session's checklist is the hub's `### Next`.
+
 | Follow-up | Sev | The gap |
 |---|---|---|
 | `FUP-AE4-HARDDENY-CLASSES-CANNOT-FAIL` | 🟠 | `hardDenyClasses` is `[]` on 43/43 manifest rows; lint arm M7 iterates an empty list and **cannot fail**; §6.2 has no discrimination control and searches only depth 1. PO took remediation (a) — a *disclosure*; (b) is still owed and must land as **one change** (populate or convert the loop + a discrimination control + a transitive search). **The one literal "before AE5" sentence** in the corpus (Gate AE4 review: "when non-empty rows first appear"). |
@@ -468,11 +474,13 @@ step before that is Batch 3's.
    nulled at the Record step and is ⛔ **not** a claim that it merged; a **deleted branch is not one
    either** — only the ancestry check is. §2 row 3 carries the same measurement, and even that is
    measured, never quoted.
-   - ⚠ **What this machine CANNOT see: the second machine's clone.** Measured on the remote
-     2026-09-08, `git ls-remote --heads origin` returns exactly `main` and `authz-c2-tier1` — so
-     **no Batch 4 branch has been published**. ⛔ That is a fact about `origin`, never about the
-     second machine, which may hold Batch 4 commits this side has **no way to observe** — an
-     inference about what you cannot measure. Ask the operator; do not read it as "not started".
+   - ⚠ **What this machine CANNOT see: the second machine's clone — and it bit within the hour.**
+     Measured on the remote 2026-09-08, `git ls-remote --heads origin` returned exactly `main` and
+     `authz-c2-tier1`, i.e. **no Batch 4 branch published**. ⭐ **CORRECTED the same day**: the next
+     fetch carried `origin/authz-enforcement-manifest` @ `bb85f0c4` — the second machine pushed it
+     minutes after `main` went up. ⛔ The absence was a fact about `origin` and never about that
+     clone, which is why it was written that way and why it cost nothing when it flipped. Ask the
+     operator; never read an empty `ls-remote` as "not started".
 2. **Merge order is fixed and is not a preference: Batch 3, then Batch 4** (§3 Batch 4 item 1). Batch 3
    rewrites the committed write-path findings file; Batch 4 re-keys write policies. Merged the other
    way round, Batch 3's baseline measures policies that no longer exist. Batch 4 then **rebases onto
@@ -486,4 +494,7 @@ step before that is Batch 3's.
    "anywhere" includes the second machine, which step 1's sub-bullet says this side cannot see, so
    **ask the operator before concluding it**; otherwise say *"resume Batch 4"* and name the sha you
    measured. Either way the lead opens or re-opens the hub + record and spawns `backend` for the
-   plan — ⛔ never the build first. Once Batch 4 merges, the next to initiate is **Batch 5**.
+   plan — ⛔ never the build first. ⭐ For a unit that is already **gated**, the trigger word is
+   **"merge Batch 4"** and the checklist is that unit's hub `### Next` (folded in from the branch,
+   which wrote it against the superseded §6 above). Once Batch 4 merges, the next to initiate is
+   **Batch 6** — Batch 5 rode along inside Batch 4's branch and closes with it.
