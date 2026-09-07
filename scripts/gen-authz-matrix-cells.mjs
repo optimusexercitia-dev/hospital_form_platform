@@ -565,11 +565,117 @@ function manifestReport(spec, manifest, rawText) {
       if (boundary === null) F(`${at} claims "not-attributable-until-rekey" without a reviewed call-graph boundary`)
     }
 
-    // M7 — hard-deny classes come from the declared vocabulary.
+    // M7 — hard-deny classes come from the declared vocabulary, AND THE ARM CAN FAIL ON THE
+    // EMPTY CASE. ⛔⛔ Until 2026-09-07 this was arm 1 alone, iterating a list that was `[]` on
+    // 43 of 43 rows — 0 iterations of the loop body, a check that could not fail
+    // (FUP-AE4-HARDDENY-CLASSES-CANNOT-FAIL). Arms 2-4 are what make it an assertion; arm 1 is
+    // kept because a WRONG name is still the cheapest way to make the list meaningless.
     if (!Array.isArray(row.hardDenyClasses)) F(`${at}.hardDenyClasses must be an array`)
-    else for (const d of row.hardDenyClasses) {
-      if (!vocab.includes(d)) F(`${at} names hard-deny class "${d}", which is not in hardDenyVocabulary`)
-      else usedDenyClasses.add(d)
+    else {
+      // arm 1 — declared names come from the vocabulary.
+      for (const d of row.hardDenyClasses) {
+        if (!vocab.includes(d)) F(`${at} names hard-deny class "${d}", which is not in hardDenyVocabulary`)
+        else usedDenyClasses.add(d)
+      }
+      // ⭐ arm 2 — THE ONE THAT FAILS ON THE EMPTY CASE. A row that CLAIMS a measurement owes
+      // either a class or a named reason there is none. It keys on the `measured-` prefix, not
+      // on emptiness: the 40 `not-attributable-until-rekey` rows have no authorizer and no
+      // sites, hence NO ROOTS to search, and demanding a class from them would be demanding a
+      // fabrication — the very thing this arm exists to prevent one level up.
+      if (String(row.hardDenyProvenance).startsWith('measured-')) {
+        const reason = row.hardDenyClassesEmptyReason
+        if (row.hardDenyClasses.length === 0 && !isStr(reason)) {
+          F(`${at} claims a MEASURED hard-deny provenance ("${row.hardDenyProvenance}") with an EMPTY hardDenyClasses and no hardDenyClassesEmptyReason — a measurement that found nothing must say so in words a reader can check, or the empty list is indistinguishable from a list nobody wrote`)
+        }
+        if (row.hardDenyClasses.length > 0 && has(row, 'hardDenyClassesEmptyReason')) {
+          F(`${at} declares hard-deny classes AND a hardDenyClassesEmptyReason — the reason explains an EMPTY list; leaving it beside a populated one is a stale claim no gate below can contradict`)
+        }
+      } else if (row.hardDenyClasses.length > 0) {
+        F(`${at} declares hard-deny classes while claiming provenance "${row.hardDenyProvenance}" — only a `
+          + `measured-* provenance may carry an attribution`)
+      }
+      // arm 3 — a call search cannot have measured a gate-less class. Four of the seven classes
+      // are enforced by triggers, the UUID id-space, or a deferred column; declaring one of
+      // those is an attribution no instrument in this repo made.
+      for (const d of row.hardDenyClasses) {
+        if (vocab.includes(d) && manifest.hardDenyVocabulary[d].gate === null) {
+          F(`${at} names hard-deny class "${d}", whose vocabulary entry has gate: null — no call search can reach a class with no gate, so this attribution was not measured by the instrument its provenance names`)
+        }
+      }
+      // arm 4 — deduped and sorted. The fixture this becomes is sha-pinned and 410 § 6.2
+      // compares STRINGS; an unordered array would red the pgTAP arm for a reason that is not
+      // the one it tests.
+      const sorted = [...new Set(row.hardDenyClasses)].sort()
+      if (JSON.stringify(sorted) !== JSON.stringify(row.hardDenyClasses)) {
+        F(`${at}.hardDenyClasses must be deduped and sorted (${JSON.stringify(sorted)}) — the emitted fixture is sha-pinned and 410 § 6.2 compares it as an ordered string`)
+      }
+    }
+
+    // M13 — THE DEFINER SURFACE AND THE NON-ENFORCEMENT CONSUMERS ARE DATA, NOT PROSE.
+    // ⛔⛔ Why this arm exists (ADR 0193 D5/D7, PO ruling 2026-09-07). Two facts about this
+    // program's doors had no home but a `_comment`: (1) a re-keyed POLICY with a DEFINER writer
+    // still on the legacy gate is a re-key that did not finish — the split is real and must be
+    // gateable, or AE5 copies it eleven times; (2) a consumer of a domain authorizer that is
+    // NOT an enforcement site (the Rule 11 audit registry) is invisible to the site-axis
+    // closure, and the only alternative to declaring it was declaring it a site, which would
+    // make that closure measure a fiction. Both are now lists with shapes, and 410 § 8.7 / § 8.8
+    // close them against the live catalog in both directions.
+    if (!Array.isArray(row.definerSurface)) F(`${at}.definerSurface must be an array (use [] to declare none)`)
+    else {
+      for (const [i, e] of row.definerSurface.entries()) {
+        const dat = `${at}.definerSurface[${i}]`
+        for (const k of ['schema', 'name']) {
+          if (!isStr(e[k])) F(`${dat}.${k} must be a non-empty string`)
+        }
+        if (!Array.isArray(e.writes) || e.writes.length === 0 || !e.writes.every(isStr)) {
+          F(`${dat}.writes must be a non-empty list of relation names — a DEFINER writer that writes nothing is not a member of this surface`)
+        }
+        // ⭐ PRESENT-AND-NULLABLE, never absent: `gate: null` says MEASURED, no gate at all
+        // (`app._insert_block_child_rows`), and a missing key would say nobody looked.
+        if (!has(e, 'gate')) F(`${dat} is missing "gate" — use null to declare a door with no authority check, which is a finding, not an omission`)
+        else if (e.gate !== null && !isStr(e.gate)) F(`${dat}.gate must be a gate name or null`)
+        for (const k of ['carriesCode', 'executableByAuthenticated']) {
+          if (typeof e[k] !== 'boolean') F(`${dat}.${k} must be a boolean`)
+        }
+      }
+      const dsKeys = row.definerSurface.map((e) => `${e.schema}.${e.name}`)
+      const dsSorted = [...dsKeys].sort()
+      if (new Set(dsKeys).size !== dsKeys.length) F(`${at}.definerSurface names the same function twice`)
+      if (JSON.stringify(dsKeys) !== JSON.stringify(dsSorted)) {
+        F(`${at}.definerSurface must be sorted by schema.name — the emitted fixture is sha-pinned`)
+      }
+    }
+    if (!Array.isArray(row.nonEnforcementConsumers)) F(`${at}.nonEnforcementConsumers must be an array (use [] to declare none)`)
+    else {
+      const siteKeys = new Set((Array.isArray(sites) ? sites : []).map((s) => `${s.schema}.${s.name}`))
+      for (const [i, e] of row.nonEnforcementConsumers.entries()) {
+        const cat = `${at}.nonEnforcementConsumers[${i}]`
+        for (const k of ['schema', 'name', 'reason']) {
+          if (!isStr(e[k])) F(`${cat}.${k} must be a non-empty string — an undated, unreasoned exclusion is a default in disguise`)
+        }
+        if (!fc.siteKinds.includes(e.kind)) F(`${cat}.kind "${e.kind}" is not one of ${fc.siteKinds.join(' | ')}`)
+        // ⛔ THE PARTITION IS DISJOINT BY CONSTRUCTION. The whole point of the field is that
+        // this consumer is NOT a site; a name on both lists would satisfy 410 § 8.8's closure
+        // while destroying the distinction the closure is over.
+        if (siteKeys.has(`${e.schema}.${e.name}`)) {
+          F(`${cat} names "${e.schema}.${e.name}", which is ALSO a declared enforcementSite — the two lists partition the authorizer's consumers and may not overlap`)
+        }
+      }
+      const cKeys = row.nonEnforcementConsumers.map((e) => `${e.schema}.${e.name}`)
+      if (new Set(cKeys).size !== cKeys.length) F(`${at}.nonEnforcementConsumers names the same function twice`)
+      if (JSON.stringify(cKeys) !== JSON.stringify([...cKeys].sort())) {
+        F(`${at}.nonEnforcementConsumers must be sorted by schema.name — the emitted fixture is sha-pinned`)
+      }
+    }
+    // ⛔ A pending row has no authorizer and no sites, so it has NOTHING to attribute either
+    // list to — the same reasoning M4 applies to residualLegacyAuthority.
+    if (row.status !== 're-keyed') {
+      if (Array.isArray(row.definerSurface) && row.definerSurface.length > 0) {
+        F(`${at} is pending-rekey and declares a definerSurface — a DEFINER writer is a property of a re-keyed row's declared sites, and attributing one to a row with no sites overstates what has been measured`)
+      }
+      if (Array.isArray(row.nonEnforcementConsumers) && row.nonEnforcementConsumers.length > 0) {
+        F(`${at} is pending-rekey and declares a nonEnforcementConsumer — there is no domain authorizer for it to be a consumer OF`)
+      }
     }
 
     // M8 — lifecycle as DATA per permission (D5: "never a global omission").
@@ -686,6 +792,31 @@ function emitManifest(manifest, manifestSha) {
     }
   }
 
+  // ADR 0193 D5 / D7 — the DEFINER writers behind a declared site, and the consumers of a
+  // domain authorizer that are deliberately NOT sites. Emitted as their own relations so 410
+  // can close each against the live catalog in both directions instead of reading a `_comment`.
+  const definerRows = []
+  const consumerRows = []
+  for (const code of codes) {
+    for (const e of rows[code].definerSurface) {
+      definerRows.push(
+        `    (${q(code)}, ${q(e.schema)}, ${q(e.name)}, ${arr(e.writes)}, ${qn(e.gate, 'text')}, ` +
+          `${e.carriesCode ? 'true' : 'false'}, ${e.executableByAuthenticated ? 'true' : 'false'})`,
+      )
+    }
+    for (const e of rows[code].nonEnforcementConsumers) {
+      consumerRows.push(`    (${q(code)}, ${q(e.schema)}, ${q(e.name)}, ${q(e.kind)}, ${q(e.reason)})`)
+    }
+  }
+  const definerBody =
+    definerRows.length > 0
+      ? `select * from (values\n${definerRows.join(',\n')}\n  ) as t(code, fn_schema, fn_name, writes, gate, carries_code, exec_authenticated)`
+      : `select null::text as code, null::text as fn_schema, null::text as fn_name, null::text[] as writes, null::text as gate, null::boolean as carries_code, null::boolean as exec_authenticated where false`
+  const consumerBody =
+    consumerRows.length > 0
+      ? `select * from (values\n${consumerRows.join(',\n')}\n  ) as t(code, fn_schema, fn_name, consumer_kind, reason)`
+      : `select null::text as code, null::text as fn_schema, null::text as fn_name, null::text as consumer_kind, null::text as reason where false`
+
   const roleRows = manifest.catalogSnapshot.roles.map(
     (r) => `    (${q(r.code)}, ${q(r.state)}, ${r.sessionSelectable ? 'true' : 'false'})`,
   )
@@ -760,6 +891,18 @@ create temp table authz_manifest_hard_deny_vocab on commit drop as
   select * from (values
 ${vocabRows.join(',\n')}
   ) as t(class_name, gate);
+
+-- ADR 0193 D5 — every SECURITY DEFINER writer behind a declared site's relation, declared with
+-- the gate it actually carries. \`gate\` is NULLABLE and null means MEASURED: a door with no
+-- authority check at all.
+create temp table authz_manifest_definer_surface on commit drop as
+  ${definerBody};
+
+-- ADR 0193 D7 — consumers of a domain authorizer that are deliberately NOT enforcement sites.
+-- ⛔ Adding one of these to \`enforcementSites\` would make § 8's site-axis closure measure a
+-- fiction; leaving it undeclared leaves the consumer axis open. It is a third state, declared.
+create temp table authz_manifest_non_enforcement_consumers on commit drop as
+  ${consumerBody};
 `
 }
 
@@ -1012,6 +1155,89 @@ if (process.argv.includes('--self-test')) {
       name: 'a pending-rekey row claiming a residual arm is caught (no authorizer to hold it)',
       manifest: patchRow(BND, { residualLegacyAuthority: [{ gate: 'app.x', population: 'y', retiredBy: 'z' }] }),
     },
+    // ---- M7, rewritten 2026-09-07. ⛔⛔ THE ARM THAT COULD NOT FAIL, AND THE THREE THAT CAN.
+    // Before this date M7 was one loop over a list that was `[]` on 43 of 43 rows: zero
+    // iterations, zero possible failures, and the self-test had no arm for it at all — which is
+    // why the defect survived a green gate for five days (FUP-AE4-HARDDENY-CLASSES-CANNOT-FAIL).
+    {
+      // ⭐ THE ONE THAT FAILS ON THE EMPTY CASE. Its discrimination half is in `notCaught` below.
+      name: 'a measured row declaring NO hard-deny class and no reason is caught (M7 arm 2)',
+      manifest: patchRow(REP, { hardDenyClasses: [] }),
+    },
+    {
+      name: 'a hard-deny class whose vocabulary gate is null is caught (M7 arm 3 — a call search cannot have measured it)',
+      manifest: patchRow(REP, { hardDenyClasses: ['record_immutable_published'] }),
+    },
+    {
+      name: 'a hard-deny class outside the vocabulary is caught (M7 arm 1, retained)',
+      manifest: patchRow(REP, { hardDenyClasses: ['not_a_class'] }),
+    },
+    {
+      name: 'an UNSORTED hardDenyClasses is caught (M7 arm 4 — the fixture is sha-pinned and 410 § 6.2 compares strings)',
+      manifest: patchRow('org.professionals.read', { hardDenyClasses: ['respondent_exclusion', 'principal_inactive'] }),
+    },
+    {
+      name: 'a pending-rekey row attributing a hard-deny class is caught (no roots to have searched)',
+      manifest: patchRow(BND, { hardDenyClasses: ['principal_inactive'] }),
+    },
+    // ---- M13, new 2026-09-07 (ADR 0193 D5 / D7).
+    {
+      // `gate: null` is a MEASURED finding (a DEFINER door with no authority check at all), so
+      // the key is present-and-nullable. A missing key would say nobody looked, and would read
+      // in the emitted fixture exactly like the finding.
+      name: 'a definerSurface entry with no "gate" key is caught (M13 — null is a finding, absent is an omission)',
+      manifest: mutate((m) => { delete m.permissions[REP].definerSurface[0].gate }),
+    },
+    {
+      name: 'a definerSurface entry that writes nothing is caught (M13)',
+      manifest: mutate((m) => { m.permissions[REP].definerSurface[0].writes = [] }),
+    },
+    {
+      name: 'an UNSORTED definerSurface is caught (M13 — the emitted fixture is sha-pinned)',
+      manifest: mutate((m) => { m.permissions[REP].definerSurface.reverse() }),
+    },
+    {
+      name: 'a pending-rekey row declaring a definerSurface is caught (no declared site for a writer to sit behind)',
+      manifest: patchRow(BND, { definerSurface: [{ schema: 'app', name: 'x', writes: ['y'], gate: null, carriesCode: false, executableByAuthenticated: true }] }),
+    },
+    {
+      // ⛔ THE PARTITION. The whole value of `nonEnforcementConsumers` is that its members are
+      // NOT sites; a name on both lists satisfies § 8.8's closure while destroying what it is a
+      // closure over.
+      name: 'a nonEnforcementConsumer that is ALSO a declared enforcementSite is caught (M13 — the two lists partition)',
+      manifest: mutate((m) => {
+        m.permissions['org.professionals.read'].nonEnforcementConsumers.push({
+          schema: 'public', name: 'get_case_professional', kind: 'function', reason: 'x',
+        })
+      }),
+    },
+    {
+      name: 'a nonEnforcementConsumer with no reason is caught (M13 — an unreasoned exclusion is a default in disguise)',
+      manifest: mutate((m) => { delete m.permissions['org.professionals.read'].nonEnforcementConsumers[0].reason }),
+    },
+    {
+      name: 'a pending-rekey row declaring a nonEnforcementConsumer is caught (no authorizer to be a consumer OF)',
+      manifest: patchRow(BND, { nonEnforcementConsumers: [{ schema: 'app', name: 'x', kind: 'function', reason: 'y' }] }),
+    },
+  ]
+
+  // ⛔⛔ THE DISCRIMINATION HALVES, AND THEY ARE A SEPARATE LIST BECAUSE THEY ASSERT THE
+  // OPPOSITE. Every entry above proves an arm can FIRE; an arm that fires on everything is not
+  // a detector, it is a broken gate. These prove each new arm keys on the predicate it names
+  // rather than on the mutation's mere presence — the half the "caught nothing on the real
+  // spec" control cannot supply, because these manifests are NOT the real one.
+  const notCaught = [
+    {
+      // ⭐ D1's discrimination half: same empty list, plus the declared reason. If this is
+      // caught, arm 2 keys on EMPTINESS and the escape hatch does not exist.
+      name: 'a measured row with an empty hardDenyClasses AND a hardDenyClassesEmptyReason is NOT caught',
+      manifest: patchRow(REP, { hardDenyClasses: [], hardDenyClassesEmptyReason: 'measured 2026-09-07: the closure reaches no gated class' }),
+    },
+    {
+      // D2's discrimination half: a class WITH a gate, on the same row, is accepted.
+      name: 'a hard-deny class with a NON-null vocabulary gate is NOT caught',
+      manifest: patchRow(REP, { hardDenyClasses: ['principal_inactive'] }),
+    },
   ]
   let bad = 0
   for (const { name, spec, manifest, manifestRaw } of checks) {
@@ -1041,6 +1267,26 @@ if (process.argv.includes('--self-test')) {
       bad++
     } else {
       console.log(`gen-authz-matrix-cells --self-test: caught — ${name} (${cov.failures[0]})`)
+    }
+  }
+  // The per-arm discrimination halves. ⛔ A mutated manifest that is NOT caught is the only
+  // way to show an arm reads its own predicate; the real-spec control below cannot show it,
+  // because the real spec differs from these in more than the one field under test.
+  for (const { name, manifest } of notCaught) {
+    const real2 = enumerate(base)
+    let cov2
+    try {
+      cov2 = coverage(base, manifest, real2.cells, real2.skipped, undefined)
+    } catch (e) {
+      console.error(`gen-authz-matrix-cells --self-test: THREW on a discrimination half — ${name} (${e.message})`)
+      bad++
+      continue
+    }
+    if (cov2.failures.length > 0) {
+      console.error(`gen-authz-matrix-cells --self-test: WRONGLY CAUGHT — ${name} (${cov2.failures[0]})`)
+      bad++
+    } else {
+      console.log(`gen-authz-matrix-cells --self-test: not caught, as required — ${name}`)
     }
   }
   // The negative control: the REAL spec must NOT trip the gate, or every check above

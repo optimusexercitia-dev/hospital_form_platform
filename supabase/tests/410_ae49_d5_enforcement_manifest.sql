@@ -22,8 +22,8 @@
 -- would destroy. It creates exactly one fixture object (§ 4's probe), in `app`, and drops it
 -- before leaving the section; the whole file rolls back regardless.
 --
--- RUN SHAPE: `Files=2, Tests=41` (40 here + 00_setup.sql's one).
--- §1 4 · §2 6 · §3 7 · §4 6 · §5 3 · §6 4 · §7 4 · §8 6 = 40.
+-- RUN SHAPE: `Files=2, Tests=45` (44 here + 00_setup.sql's one).
+-- §1 4 · §2 6 · §3 7 · §4 6 · §5 3 · §6 6 · §7 4 · §8 8 = 44.
 -- ⚠ 34 -> 40: § 8, the SITE-AXIS CLOSURE, added to close
 -- FUP-AE4-MANIFEST-HAS-NO-SITE-AXIS-CLOSURE after BUG-AE49-D6-REKEY-INCOMPLETE shipped through
 -- every green gate in this file. Read § 8's header before trusting anything below about sites.
@@ -32,9 +32,15 @@
 -- ⚠ 33 -> 34: § 4.6, the residual-legacy-authority disclosure imposed as a CONDITION by the
 -- lead on the ruling that a re-keyed policy calls only its authorizer. Without it § 4.5's
 -- `re-keyed: 3` reads as "3 permissions fully on layer 3", which is false for all three.
+-- ⚠ 40 -> 44 at 20261003007350 (pre-AE5 Batch 4, ADR 0193): § 6.2 became a SET EQUALITY over the
+-- transitive call closure and gained its two controls (§ 6.2b planted, § 6.2c natural), and § 8
+-- gained the DEFINER-writer closure (§ 8.7) and the authorizer-consumer partition (§ 8.8).
+-- ⛔ NO ASSERTION WAS DELETED. § 8.5's by-name pin did NOT go away — the site it named became
+-- DECLARED, so its element text flips `[UNDECLARED]` -> `[declared site]`. A reader looking for
+-- a -1 on the account of "delete the pin" (the follow-up's phrasing) will not find one.
 
 begin;
-select plan(40);
+select plan(44);
 
 \ir vectors/authz_enforcement_manifest.psql
 
@@ -65,15 +71,18 @@ select ok((select count(*) from authz_manifest_snapshot_permissions) > 0
   '1.3 ...and every other fixture relation is populated too. The snapshot lists are the ONLY '
   'thing §2 compares against the catalog; an empty one would make both set differences pass.');
 
-select is((select count(*)::int from authz_manifest_sites), 12,
-  '1.4 CARDINALITY CONTROL for §3 AND §8: exactly 12 enforcement sites are declared (6 policies '
-  'for commission.forms.edit, 3 RPCs for org.professionals.create, 2 policies + 1 RPC for '
+select is((select count(*)::int from authz_manifest_sites), 13,
+  '1.4 CARDINALITY CONTROL for §3 AND §8: exactly 13 enforcement sites are declared (6 policies '
+  'for commission.forms.edit, 3 RPCs for org.professionals.create, 2 policies + 2 functions for '
   'org.professionals.read). §3 asserts each EXISTS and §8 asserts each ENFORCES; without this '
   'count, deleting site rows would shrink both domains and every remaining assertion would '
   'still be green. ⚠ 10 -> 12 at 20261003007340: the two `form_item_options` / '
   '`form_item_validations` write policies were named by the PO-approved matrix, were NOT '
-  're-keyed, and were absent from this list — BUG-AE49-D6-REKEY-INCOMPLETE. ⛔ Raising this '
-  'number is how a re-key is RECORDED; it is never how a §8 red is silenced.');
+  're-keyed, and were absent from this list — BUG-AE49-D6-REKEY-INCOMPLETE. ⚠ 12 -> 13 on '
+  '2026-09-07 (PO ruling Q1 = A, ADR 0193 D6): `app.current_professional_read_organizations` '
+  'became a declared site — 8.5''s fourth carrier, which had been held green by a by-name '
+  '`[UNDECLARED]` pin. ⛔ Raising this number is how a re-key is RECORDED; it is never how a §8 '
+  'red is silenced.');
 
 -- ============================================================================
 -- §2 — THE SNAPSHOT vs THE LIVE CATALOG. This is D5's "generation fails on set difference in
@@ -253,12 +262,14 @@ select is(
 select is(
   (select count(*)::int from authz_manifest_sites s, unnest(s.composed_with) as c(fn))
   + (select count(*)::int from authz_manifest_permissions m, unnest(m.authorizer_composed_with) as c(fn)),
-  20,
-  '3.6 CARDINALITY CONTROL for 3.5 AND 3.7: 12 (site, authority) pairs plus 8 (authorizer, '
+  21,
+  '3.6 CARDINALITY CONTROL for 3.5 AND 3.7: 13 (site, authority) pairs plus 8 (authorizer, '
   'authority) pairs were checked. Both are "violations = 0" assertions over an UNNEST — '
   'emptying `composedWith` everywhere would satisfy both perfectly while checking nothing. '
   '⚠ The 8 authorizer pairs are 2 for can_edit_commission_forms, 2 for '
-  'can_create_professional, 4 for can_read_professional_profile.');
+  'can_create_professional, 4 for can_read_professional_profile. ⚠ 20 -> 21 on 2026-09-07: the '
+  'new site `app.current_professional_read_organizations` composes '
+  '`authz.authorized_scope_ids`, and 3.5 now checks that composition like any other.');
 
 select is(
   (select coalesce(string_agg(m.code || ': authorizer lost ' || c.fn, '; ' order by m.code, c.fn), '(none)')
@@ -451,8 +462,36 @@ select is(
   'so it is gated rather than trusted to be tidied.');
 
 -- ============================================================================
--- §6 — THE HARD-DENY VOCABULARY IS ALIVE, AND AN EMPTY DEPTH-1 LIST IS FALSIFIABLE.
+-- §6 — THE HARD-DENY VOCABULARY IS ALIVE, AND THE DECLARED LIST IS A SET EQUALITY AGAINST THE
+-- LIVE TRANSITIVE CLOSURE.
 --
+-- ⚠⚠ REWRITTEN 2026-09-07 (pre-AE5 Batch 4, ADR 0193 D1-D4), closing
+-- FUP-AE4-HARDDENY-CLASSES-CANNOT-FAIL as ONE change, which is what that follow-up demanded:
+--   * the three re-keyed rows now DECLARE what the closure finds (`principal_inactive` on all
+--     three, plus `respondent_exclusion` on org.professionals.read) — a committed, dated claim;
+--   * § 6.2 became a per-row SET EQUALITY between that claim and a fixed point over the
+--     composed-call closure, comment-stripped, seeded from the site bodies AND the authorizer,
+--     with NO depth bound;
+--   * § 6.2b plants a class on a synthetic root and requires the instrument to NAME it — the
+--     positive control the old § 6.3 said in its own words it was not;
+--   * § 6.2c makes two REAL rows answer differently with the same instrument;
+--   * the lint arm M7 gained three assertions that can fail on the empty case, so a transitive
+--     § 6.2 does not just move the vacuity one level up (the follow-up's ⛔).
+-- ⛔ THE BOUND THAT SURVIVES, AND IT IS IN THE PROVENANCE VALUE'S OWN NAME
+-- (`measured-transitive-over-gated-classes`): only 3 of these 7 classes have a `gate` for a
+-- call search to find. `record_immutable_published`, `record_immutable_submitted` (triggers),
+-- `tenant_mismatch` (the UUID id-space) and `sensitivity_ceiling` (ADR 0172 defers the runtime
+-- consumer) are structurally unfindable at ANY depth. Filed:
+-- FUP-AUTHZ-HARDDENY-GATELESS-CLASSES-HAVE-NO-DETECTOR (PO ruling Q5).
+--
+-- ⛔⛔ ORIGINAL HEADER, KEPT VERBATIM BELOW AS THE RECORD OF THE DEPTH-1 STATE (LEARN-088 — a
+-- correction is a dated note beside the original, never a rewrite). Its ⛔ about a one-hop raise
+-- being a partial fix that reads as a complete one is exactly why the replacement is a fixed
+-- point rather than a bigger number, and its ATTRIBUTION CORRECTION is a standing lesson about
+-- this very file. Everything it says about the depth-1 arm is true OF THE ARM IT DESCRIBES,
+-- which no longer exists.
+--
+-- ---------------------------------------------------------------------------
 -- ⛔⛔ READ THE DEPTH BEFORE READING THE ZERO. § 6.2 searches exactly two body classes: the
 -- ENUMERATED SITE BODIES and the DOMAIN AUTHORIZER BODY. Call that depth 1. It does NOT walk
 -- the composed-call closure below them, and it never has. The label was renamed
@@ -504,54 +543,147 @@ select is(
   'app.is_case_respondent, app.is_active). A rename would otherwise leave the vocabulary '
   'pointing at nothing while every row still validated against it.');
 
+-- ⛔⛔ THE INSTRUMENT, DEFINED ONCE AND USED BY 6.2, 6.2b AND 6.2c ALIKE. A fixed point over
+-- the composed-call closure, seeded from ROOT BODY TEXT (not from a function name), so the
+-- planted control in 6.2b can hand it a synthetic root and get an answer from the SAME code
+-- path the real rows get. ⛔ IT DEDUPES ON THE REACHED-FUNCTION SET, NEVER ON PATHS: measured
+-- while authoring, a path-enumerating recursion bounded at depth 10 produced 1232 paths for
+-- org.professionals.read and was still growing, and the unbounded form had to be killed. The
+-- reached set is a subset of pg_proc over three schemas and `union` dedupes, so the fixed point
+-- terminates — that is the bound, and it is why no depth cap appears anywhere below (a depth
+-- cap stated without saying which root it counts from is the LEARN-077 shape this section
+-- already suffered once: the measured depths are 2/3/4/5 authorizer-rooted and +1 policy-rooted).
+-- ⚠ `collate "C"` is load-bearing, not decoration: without it Postgres refuses the recursive
+-- term with a collation conflict.
+-- ⚠ BOUNDS, NAMED: edges are `(app|authz|public).name(` calls in comment-stripped `prosrc`, so
+-- an UNQUALIFIED call resolved through `search_path` is not an edge; and `--` comments are
+-- stripped while `/* */` block comments are not (the bound `fn_body` states at its definition).
+create or replace function pg_temp.hard_deny_closure(p_roots text[])
+returns text[] language sql stable as $$
+  with recursive
+  edges as (
+    select (n.nspname || '.' || p.proname) collate "C" as caller,
+           (m.g)[1] collate "C"                        as callee
+      from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+      cross join lateral regexp_matches(
+        regexp_replace(p.prosrc, '--[^' || chr(10) || ']*', '', 'g'),
+        '((?:app|authz|public)\.[a-z0-9_]+)[[:space:]]*\(', 'g') as m(g)
+     where n.nspname in ('app', 'authz', 'public')
+  ),
+  reach as (
+    select distinct (m.g)[1] collate "C" as fn
+      from unnest(p_roots) as r(body)
+      cross join lateral regexp_matches(
+        coalesce(r.body, ''), '((?:app|authz|public)\.[a-z0-9_]+)[[:space:]]*\(', 'g') as m(g)
+    union
+    select e.callee from edges e join reach x on e.caller = x.fn
+  )
+  select coalesce(array_agg(distinct fn::text order by fn::text), '{}'::text[]) from reach;
+$$;
+
+-- The roots of a row: every declared site body PLUS the domain authorizer body. ⭐ THE
+-- AUTHORIZER IS A ROOT IN ITS OWN RIGHT because the re-key MOVED authority off the policies and
+-- into it; a site-only seed would make a hard deny added there invisible.
+create or replace function pg_temp.hard_deny_roots(p_code text)
+returns text[] language sql stable as $$
+  select coalesce((select array_agg(case s.site_kind
+                                      when 'policy' then coalesce(pg_temp.policy_body(s.site_schema, s.site_relation, s.site_name), '')
+                                      else               coalesce(pg_temp.fn_body(s.site_schema, s.site_name), '')
+                                    end)
+                     from authz_manifest_sites s where s.code = p_code), '{}'::text[])
+      || array[coalesce(pg_temp.fn_body(split_part(coalesce(m.domain_authorizer, '.'), '.', 1),
+                                        split_part(coalesce(m.domain_authorizer, '.'), '.', 2)), '')]
+    from authz_manifest_permissions m where m.code = p_code;
+$$;
+
+-- The gated sub-vocabulary reached from a set of roots, as a sorted comma list.
+create or replace function pg_temp.hard_deny_derived(p_roots text[])
+returns text language sql stable as $$
+  select coalesce(string_agg(v.class_name, ',' order by v.class_name), '(none)')
+    from authz_manifest_hard_deny_vocab v
+   where v.gate is not null
+     and v.gate = any(pg_temp.hard_deny_closure(p_roots));
+$$;
+
 select is(
-  (select coalesce(string_agg(m.code || ' at ' || s.site_name || ' composes ' || v.gate,
-                              '; ' order by m.code, s.site_name), '(none)')
+  (select string_agg(m.code || ': ' || pg_temp.hard_deny_derived(pg_temp.hard_deny_roots(m.code)),
+                     ' | ' order by m.code)
      from authz_manifest_permissions m
-     join authz_manifest_sites s on s.code = m.code
-     cross join authz_manifest_hard_deny_vocab v
-    where m.hard_deny_provenance = 'measured-depth1-at-sites-and-authorizer'
-      and cardinality(m.hard_deny_classes) = 0
-      and v.gate is not null
-      and (position(v.gate || '(' in
-             case s.site_kind
-               when 'policy' then pg_temp.policy_body(s.site_schema, s.site_relation, s.site_name)
-               else               coalesce(pg_temp.fn_body(s.site_schema, s.site_name), '')
-             end) > 0
-           -- ⭐ THE AUTHORIZER BODY IS SEARCHED TOO. The re-key MOVED authority off the
-           -- policies and into the authorizer; a hard deny added there would be invisible to
-           -- a site-only search, and this row would keep claiming a measured zero.
-           or position(v.gate || '(' in
-                coalesce(pg_temp.fn_body(split_part(coalesce(m.domain_authorizer, '.'), '.', 1),
-                                         split_part(coalesce(m.domain_authorizer, '.'), '.', 2)), '')) > 0)),
-  '(none)',
-  '6.2 ⭐⭐ NO HARD-DENY GATE IS INVOKED **DIRECTLY** AT THE DECLARED SITES OR IN THE '
-  'AUTHORIZER BODY — DEPTH 1, STATED AS DEPTH 1. Three rows declare '
-  '`measured-depth1-at-sites-and-authorizer` with ZERO classes, and an empty list looks '
-  'exactly like a lazy one; this asserts the depth-1 measurement and NOTHING about the '
-  'composed-call closure beneath it. ⛔ THE ZERO IS A SEARCH HORIZON, NOT AN ABSENCE: '
-  '`principal_inactive` (app.is_active) is enforced on all three of these rows at depth 2-4, '
-  'and org.professionals.read reaches `respondent_exclusion` at depth 5 — measured on the '
-  'live catalog 2026-09-03; the per-row paths are in this section header. This arm cannot see '
-  'any of them and is not meant to. The bound is DISCLOSED here, not repaired. ⛔ The end '
-  'state is the TRANSITIVE measurement plus a positive control that plants a vocabulary gate '
-  'and requires 6.2 to NAME it, landing together with the M7 fix in '
-  'FUP-AE4-HARDDENY-CLASSES-CANNOT-FAIL — neither half buys anything alone. ⛔ Still live as '
-  'a gate at its own depth: if a re-key composes app.is_case_excluded DIRECTLY into a form '
-  'policy or its authorizer, this reds and the row must record the class — the finding it '
-  'preserves is that the recusal / respondent hard denies live at the CASE-family sites, '
-  'all of which are still pending-rekey.');
+    where m.hard_deny_provenance like 'measured-%'),
+  (select string_agg(m.code || ': ' ||
+                     case when cardinality(m.hard_deny_classes) = 0 then '(none)'
+                          else array_to_string(m.hard_deny_classes, ',') end,
+                     ' | ' order by m.code)
+     from authz_manifest_permissions m
+    where m.hard_deny_provenance like 'measured-%'),
+  '6.2 ⭐⭐ THE COMMITTED CLAIM EQUALS THE LIVE TRANSITIVE MEASUREMENT, PER ROW, BOTH SIDES '
+  'NAMED. `have` is derived from the LIVE catalog at run time; `want` is the manifest''s '
+  'hand-written `hardDenyClasses`, committed and dated 2026-09-07. ⛔⛔ THE ASYMMETRY OF THE TWO '
+  'SIDES IS THE WHOLE ASSERTION (LEARN-084): the generator that emits `want` never opens a '
+  'database connection, so this is a committed claim against a live derivation and not a number '
+  'compared to itself. Give the generator a catalog read and this arm silently becomes a '
+  'self-comparison with nothing to notice — that is why it is ADR 0193 D1, a decision, not a '
+  'code comment. EXPECTED TODAY, IN FULL: `commission.forms.edit: principal_inactive | '
+  'org.professionals.create: principal_inactive | org.professionals.read: principal_inactive,'
+  'respondent_exclusion`. ⛔ A RED HERE NAMES WHAT MOVED and is an increment being RECORDED: '
+  'any migration that changes a call chain moves the derived side, and the fix is to '
+  're-measure and re-commit, never to widen the string. ⛔ THE ZERO THAT REMAINS IS STILL A '
+  'ZERO: `recusal_exclusion` is reached by no row at any depth, and 6.2b is what makes that a '
+  'measurement rather than a dead search. ⛔ AND THE CLOSURE IS OVER THE GATED SUB-VOCABULARY '
+  'ONLY — 4 of the 7 classes carry `gate: null` (two triggers, the UUID id-space, ADR 0172''s '
+  'deferred column) and no call search can ever reach them; the provenance value says so in its '
+  'own name, and a non-call detector is filed as '
+  'FUP-AUTHZ-HARDDENY-GATELESS-CLASSES-HAVE-NO-DETECTOR.');
+
+select is(
+  'planted=' || pg_temp.hard_deny_derived(array['select app.is_case_excluded(v_case, v_uid)'])
+  || ' | bare=' || pg_temp.hard_deny_derived(array['select 1 where true']),
+  'planted=recusal_exclusion,respondent_exclusion | bare=(none)',
+  '6.2b ⭐⭐ THE DISCRIMINATION CONTROL, PLANTED — the run that proves the instrument can return '
+  'a class AT ALL. The same `hard_deny_closure` 6.2 uses is handed a SYNTHETIC ROOT naming '
+  '`app.is_case_excluded`, and it must report `recusal_exclusion` — a class the real measurement '
+  'returns for NO row, so the instrument returning it here can only be the predicate firing. '
+  '⭐ AND IT PROVES THE WALK IS TRANSITIVE, NOT DEPTH-1: `respondent_exclusion` is NOT in the '
+  'planted root, it is reached through `app.is_case_excluded -> app.is_recused_from_case -> '
+  'app.is_case_respondent`. A depth-1 search would return `recusal_exclusion` alone and this '
+  'arm would red. ⛔ THE PLANT IS A TEXT LITERAL PASSED AS AN ARGUMENT, never a catalog object: '
+  'no `create function` in a real schema, no mutation, nothing to restore, and the negative '
+  'half (`bare=`) is in the SAME assertion so a broken instrument that answers everything '
+  'cannot pass either. ⛔ NOT the same thing as 6.3, which is a cardinality control and says so.');
+
+select is(
+  'read has respondent_exclusion=' ||
+  ('respondent_exclusion' = any(string_to_array(
+      pg_temp.hard_deny_derived(pg_temp.hard_deny_roots('org.professionals.read')), ',')))::text
+  || ' / create has respondent_exclusion=' ||
+  ('respondent_exclusion' = any(string_to_array(
+      pg_temp.hard_deny_derived(pg_temp.hard_deny_roots('org.professionals.create')), ',')))::text,
+  'read has respondent_exclusion=true / create has respondent_exclusion=false',
+  '6.2c ⭐ THE DISCRIMINATION CONTROL, NATURAL — same instrument, same instant, two REAL rows, '
+  'two different answers. `org.professionals.read` reaches `app.is_case_respondent` through '
+  'can_read_case_committee -> is_oversight_only_reader -> has_case_capability -> _case_caps; '
+  '`org.professionals.create` does not reach it at all. ⛔ 6.2b proves the instrument can say '
+  'YES on a plant; this proves it can say NO on a real row that differs only in its call graph. '
+  'A detector that returned every class for every row would pass 6.2b and fail here.');
 
 select ok(
   (select count(*) from authz_manifest_permissions m join authz_manifest_sites s on s.code = m.code
-    where m.hard_deny_provenance = 'measured-depth1-at-sites-and-authorizer') > 0
-  and (select count(*) from authz_manifest_hard_deny_vocab where gate is not null) > 0,
-  '6.3 CARDINALITY CONTROL for 6.2: both sides of its cross join are non-empty. 6.2 is a '
-  'cross product; either side going empty makes it assert nothing while still reporting '
-  '"(none)". ⚠ THIS IS A CARDINALITY CONTROL AND NOT A DISCRIMINATION ONE — it proves the '
-  'cross join has rows, never that 6.2''s position() predicate can evaluate true. The '
-  'positive control that would close that gap is (b) in '
-  'FUP-AE4-HARDDENY-CLASSES-CANNOT-FAIL; do not read this arm as supplying it.');
+    where m.hard_deny_provenance like 'measured-%') > 0
+  and (select count(*) from authz_manifest_hard_deny_vocab where gate is not null) > 0
+  and (select count(*) from authz_manifest_permissions
+        where hard_deny_provenance like 'measured-%') = 3,
+  '6.3 CARDINALITY CONTROL for 6.2: both of its domains are non-empty and the measured-row '
+  'population is exactly 3. 6.2 aggregates over rows joined to sites and to the gated '
+  'vocabulary; either going empty would make BOTH of its sides collapse to null and the '
+  'equality would hold over nothing. ⚠ THIS IS A CARDINALITY CONTROL AND NOT A DISCRIMINATION '
+  'ONE — it proves the domains have rows, never that the closure can return a class. ⭐ THAT '
+  'GAP IS NOW CLOSED, and not by this arm: 6.2b plants a class the real rows never return and '
+  'requires the same instrument to name it, and 6.2c makes two real rows answer differently. '
+  '⚠ DATED NOTE, 2026-09-07: this caption used to end "the positive control that would close '
+  'that gap is (b) in FUP-AE4-HARDDENY-CLASSES-CANNOT-FAIL; do not read this arm as supplying '
+  'it." That follow-up is closed by this change and the control is 6.2b — the sentence is kept '
+  'because the DISTINCTION it draws is the point (LEARN-088), not because the gap is still open.');
 
 select is(
   (select coalesce(string_agg(m.code, ', ' order by m.code), '(none)')
@@ -743,18 +875,24 @@ select is(
   'commission.forms.edit => app.can_edit_commission_forms [authorizer]; '
   'org.professionals.create => app.can_create_professional [authorizer]; '
   'org.professionals.read => app.can_read_professional_profile [authorizer]; '
-  'org.professionals.read => app.current_professional_read_organizations [UNDECLARED]',
+  'org.professionals.read => app.current_professional_read_organizations [declared site]',
   '8.5 ⭐⭐ EVERY LITERAL CARRIER IS CLASSIFIED, BY NAME — the follow-up''s "every catalog object '
   'carrying that literal appears in exactly one row" direction. Each carrier is the row''s '
-  'AUTHORIZER, a DECLARED function site, or UNDECLARED. ⛔ THE ONE `UNDECLARED` IS A DISCLOSURE, '
-  'NOT AN APPROVAL. `app.current_professional_read_organizations` acquired the '
-  '`org.professionals.read` literal at 20261003007320 as a deliberate SECOND site (ADR 0182; '
-  '409 §1.1 rules the duplication safe as a subset argument, 413 §2/§5 measure it), yet no '
-  'manifest row names it. Closing that is either a new `enforcementSites` entry or a reviewed '
-  'exclusion, and it is the PO''s call, not this file''s. ⚠ PINNED AS A NAMED SET RATHER THAN '
-  'COUNTED, for §4.6''s reason: a count lets one carrier be swapped for another silently. A NEW '
-  'undeclared carrier reds here, and so does declaring this one — the second red is the gap '
-  'being CLOSED and the string is then updated, never widened to absorb a third.');
+  'AUTHORIZER, a DECLARED function site, or UNDECLARED. ⭐⭐ THE FOURTH ELEMENT FLIPPED '
+  '`[UNDECLARED]` -> `[declared site]` ON 2026-09-07 (PO ruling Q1 = A, ADR 0193 D6). '
+  '`app.current_professional_read_organizations` acquired the `org.professionals.read` literal '
+  'at 20261003007320 as a deliberate SECOND site (ADR 0182; 409 §1.1 rules the duplication safe '
+  'as a subset argument, 413 §2/§5 measure it) and is now DECLARED in that row''s '
+  '`enforcementSites`. Measured: SECURITY DEFINER, `SETOF uuid`, `authenticated` EXECUTE true / '
+  '`anon` false, and exactly ONE caller — an INDEPENDENT FIRST ARM of '
+  '`professional_profiles_select` that short-circuits `can_read_professional_profile` entirely. '
+  'Deny it and the answer changes, which is the operative test for a site. ⛔ THE PIN WAS NOT '
+  'DELETED — the follow-up asked for the by-name pin to go, and what went is the EXCEPTION: the '
+  'site became declared, so the element''s TEXT changed and the assertion stayed. A reader '
+  'looking for a -1 in plan() on this account will not find one. ⚠ PINNED AS A NAMED SET RATHER '
+  'THAN COUNTED, for §4.6''s reason: a count lets one carrier be swapped for another silently. A '
+  'NEW undeclared carrier reds here, and the string is then updated after a ruling, never '
+  'widened to absorb it.');
 
 select is(
   (select count(*)::int from authz_manifest_sites s
@@ -764,14 +902,187 @@ select is(
     where m.status = 're-keyed'
       and pg_temp.reaches_code('policy', pol.schemaname, pol.tablename, pol.policyname, m.code))::text
   || ' / ' || (select count(*)::int from t410_carriers)::text,
-  '12 / 8 / 4',
-  '8.6 CARDINALITY CONTROL for 8.1, 8.4 and 8.5, AS A TRIPLE: 12 declared sites on re-keyed '
-  'rows, 8 catalog policies that reach a re-keyed code, 4 literal carriers. ⛔ Each of the three '
+  '13 / 8 / 4',
+  '8.6 CARDINALITY CONTROL for 8.1, 8.4 and 8.5, AS A TRIPLE: 13 declared sites on re-keyed '
+  'rows, 8 catalog policies that reach a re-keyed code, 4 literal carriers. ⚠ 12 -> 13 on '
+  '2026-09-07: `app.current_professional_read_organizations` became a declared site (8.5). The '
+  'second and third figures did NOT move — it is a function, not a policy, and it was already '
+  'one of the four carriers. ⛔ Each of the three '
   'arms above is satisfied by an EMPTY domain — 8.1 by a manifest whose sites never join, 8.4 by '
   'a `reaches_code` that finds no policy, 8.5 by a carrier table that failed to build. Asserted '
   'as one string so the three cannot drift apart quietly. ⚠ 12 vs 8 is NOT an inconsistency: the '
   'declared 12 include 4 FUNCTION sites, which 8.4''s policy-only domain does not count. These '
   'numbers RISE with each AE5 re-key; moving them is how an increment is recorded.');
+
+-- ⛔⛔ § 8.7 / § 8.8 — THE TWO AXES A SITE-ONLY CLOSURE CANNOT SEE (ADR 0193 D5 / D7, PO ruling
+-- 2026-09-07). § 8.1/§ 8.4 close the POLICY axis in both directions. Two other kinds of catalog
+-- object touch a re-keyed permission and neither was gated by anything before this date:
+--   * a SECURITY DEFINER writer of a declared site's relation. Where the policy is reachable it
+--     is a second door beside the re-keyed one; where the policy is UNREACHABLE (measured:
+--     `form_item_validations`, `authenticated` holds SELECT only) it is the ONLY door, and the
+--     permission was inert for the whole table until 20261003007350 re-keyed it. Recording that
+--     split in a `_comment` is precisely the shape QA has blocked on every time — a claim about
+--     a measurement that no gate can contradict — so it is DATA and this is its arm.
+--   * a CONSUMER of the domain authorizer that is deliberately NOT an enforcement site. The
+--     Rule 11 audit registry `app._audit_access_authorized` calls
+--     `app.can_read_professional_profile` to decide what to RECORD, never what to permit.
+--     ⛔ Declaring it a site would make § 8.1/§ 8.4 measure a fiction; leaving it undeclared
+--     leaves the consumer axis open. It is a third state and it is declared as one.
+create or replace function pg_temp.writes_relation(p_body text, p_schema text, p_relation text)
+returns boolean language sql immutable as $$
+  select p_body ~ ('(insert into|update|delete from)[[:space:]]+(' || p_schema || '\.)?'
+                   || p_relation || '\M');
+$$;
+
+select is(
+  (select coalesce(string_agg(v, '; ' order by v), '(none)') from (
+     -- FORWARD: a DEFINER writer of a declared site's relation that the row does not declare.
+     select distinct m.code || ' <- UNDECLARED DEFINER writer ' || n.nspname || '.' || p.proname
+              || ' writes ' || s.site_relation as v
+       from authz_manifest_permissions m
+       join authz_manifest_sites s on s.code = m.code and s.site_kind = 'policy'
+       -- ⛔ WRITE-CAPABLE POLICY SITES ONLY, AND THE BOUND IS DERIVED FROM THE CATALOG, NOT
+       -- HAND-LISTED. A DEFINER *writer* can only be a second door beside a policy that gates
+       -- WRITES; beside a SELECT policy it is not a backstop for anything. Without this the
+       -- arm reported every DEFINER writer of `professional_profiles` as an undeclared writer
+       -- behind `professional_profiles_select` — measured, and it is a category error, not a
+       -- finding.
+       join pg_policies wp on wp.schemaname = s.site_schema and wp.tablename = s.site_relation
+                          and wp.policyname = s.site_name
+                          and wp.cmd in ('ALL', 'INSERT', 'UPDATE', 'DELETE')
+       join pg_proc p on p.prosecdef
+       join pg_namespace n on n.oid = p.pronamespace and n.nspname in ('app', 'public')
+      where m.status = 're-keyed'
+        and pg_temp.writes_relation(coalesce(pg_temp.fn_body(n.nspname, p.proname), ''),
+                                    s.site_schema, s.site_relation)
+        and not exists (select 1 from authz_manifest_definer_surface d
+                         where d.code = m.code and d.fn_schema = n.nspname and d.fn_name = p.proname)
+     union all
+     -- REVERSE 1: a declared entry that is not a SECURITY DEFINER function in the catalog.
+     select d.code || ' -> ' || d.fn_schema || '.' || d.fn_name
+              || ' is NOT a SECURITY DEFINER function in the catalog'
+       from authz_manifest_definer_surface d
+      where not exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                         where n.nspname = d.fn_schema and p.proname = d.fn_name and p.prosecdef)
+     union all
+     -- REVERSE 2: a declared `writes` relation the body does not actually write.
+     select d.code || ' -> ' || d.fn_schema || '.' || d.fn_name || ' does not write ' || w
+       from authz_manifest_definer_surface d, unnest(d.writes) w
+      where pg_temp.fn_body(d.fn_schema, d.fn_name) is not null
+        and not pg_temp.writes_relation(pg_temp.fn_body(d.fn_schema, d.fn_name), 'public', w)
+     union all
+     -- REVERSE 3: the declared gate disagrees with the body. `gate: null` is a CLAIM that the
+     -- door has no authority check at all, and it is checked as one.
+     select d.code || ' -> ' || d.fn_schema || '.' || d.fn_name || ' declares gate '
+              || coalesce(d.gate, 'null') || ' which the body contradicts'
+       from authz_manifest_definer_surface d
+      where pg_temp.fn_body(d.fn_schema, d.fn_name) is not null
+        and ((d.gate is not null
+              and position(d.gate || '(' in pg_temp.fn_body(d.fn_schema, d.fn_name)) = 0)
+          or (d.gate is null
+              and pg_temp.fn_body(d.fn_schema, d.fn_name)
+                  ~ '(app\.is_staff_admin_of|app\.is_tenancy_admin_of|app\.can_edit_commission_forms)\('))
+     union all
+     -- REVERSE 4: carriesCode disagrees. The needle carries its quotes and uses `position`,
+     -- for §4's reason: permission codes contain `.`, which a regex reads as "any character".
+     select d.code || ' -> ' || d.fn_schema || '.' || d.fn_name || ' carriesCode='
+              || d.carries_code::text || ' disagrees with the body'
+       from authz_manifest_definer_surface d
+      where pg_temp.fn_body(d.fn_schema, d.fn_name) is not null
+        and d.carries_code
+            <> (position('''' || d.code || '''' in pg_temp.fn_body(d.fn_schema, d.fn_name)) > 0)
+     union all
+     -- REVERSE 5: the declared grant posture disagrees with the ACL. "A correct door nothing
+     -- can reach" is only visible if the posture is declared AND checked.
+     select d.code || ' -> ' || d.fn_schema || '.' || d.fn_name || ' executableByAuthenticated='
+              || d.exec_authenticated::text || ' disagrees with the ACL'
+       from authz_manifest_definer_surface d
+      where exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                     where n.nspname = d.fn_schema and p.proname = d.fn_name)
+        and d.exec_authenticated <> (
+              select bool_or(has_function_privilege('authenticated', p.oid, 'EXECUTE'))
+                from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+               where n.nspname = d.fn_schema and p.proname = d.fn_name)
+   ) t),
+  '(none)',
+  '8.7 ⭐⭐ THE DEFINER-WRITER CLOSURE, BOTH DIRECTIONS. Forward: every SECURITY DEFINER function '
+  'that writes a relation named by a re-keyed row''s declared WRITE-CAPABLE POLICY site (cmd ALL '
+  '/ INSERT / UPDATE / DELETE, read from `pg_policies`, never hand-listed) appears in that row''s '
+  '`definerSurface`. Reverse: every declared entry exists in the catalog as a DEFINER function, '
+  'writes what it says it writes, carries the gate it says it carries (⛔ including `gate: null`, '
+  'which is a MEASURED finding — a door with no authority check at all — and is checked as a '
+  'claim, not treated as an omission), and has the grant posture it declares. ⛔ ONE DIRECTION '
+  'WOULD NOT BE A CLOSURE: forward alone is satisfied by declaring extra functions, reverse alone '
+  'by declaring none. ⚠ POPULATION, STATED BEFORE THE NUMBER (LEARN-009): 8 DEFINER writers over '
+  'the nine-table form family, of which the forward arm REQUIRES the 4 that write one of the six '
+  'declared site relations; the other 4 (form_block_library x3, the matrix axes x1) are declared '
+  'anyway because they are the same AE5 work list. ⛔ `docs/design/authz-ae43-staff-admin-'
+  'permission-matrix.md`''s 22 is the wider READ-AND-WRITE population and is also correct — '
+  'neither figure is a correction of the other (LEARN-079). ⭐ 1 OF THE 8 IS RE-KEYED as of '
+  '20261003007350 (`public.set_item_validations`, gate `app.can_edit_commission_forms`); the '
+  'other 7 are AE5''s and this arm is what stops AE5 copying the split eleven times. ⚠ A re-keyed '
+  'DEFINER door lives on THIS axis, not in `enforcementSites`: the site axis of this row is the '
+  'POLICY axis (§ 8.4''s closure is policy-only and says so), and one door has one home '
+  '(ADR 0186). Its behavioural proof is 409 § 2.6f/§ 2.10e, not this file.');
+
+select is(
+  (select coalesce(string_agg(v, '; ' order by v), '(none)') from (
+     -- FORWARD 1: a FUNCTION that calls a re-keyed row's authorizer and is in none of the three
+     -- declared classes (site / definer surface / non-enforcement consumer).
+     select m.code || ' <- UNCLASSIFIED consumer FN ' || n.nspname || '.' || p.proname as v
+       from authz_manifest_permissions m
+       join pg_proc p on true
+       join pg_namespace n on n.oid = p.pronamespace
+      where m.status = 're-keyed' and m.domain_authorizer is not null
+        and n.nspname in ('app', 'authz', 'public')
+        and n.nspname || '.' || p.proname <> m.domain_authorizer
+        and position(m.domain_authorizer || '(' in
+                     regexp_replace(p.prosrc, '--[^' || chr(10) || ']*', '', 'g')) > 0
+        and not exists (select 1 from authz_manifest_sites s
+                         where s.code = m.code and s.site_kind = 'function'
+                           and s.site_schema = n.nspname and s.site_name = p.proname)
+        and not exists (select 1 from authz_manifest_definer_surface d
+                         where d.code = m.code and d.fn_schema = n.nspname and d.fn_name = p.proname)
+        and not exists (select 1 from authz_manifest_non_enforcement_consumers c
+                         where c.code = m.code and c.fn_schema = n.nspname and c.fn_name = p.proname)
+     union all
+     -- FORWARD 2: a POLICY that calls the authorizer and is not a declared site.
+     select m.code || ' <- UNCLASSIFIED consumer POL ' || pol.schemaname || '.' || pol.tablename
+              || ' / ' || pol.policyname
+       from authz_manifest_permissions m
+       join pg_policies pol on true
+      where m.status = 're-keyed' and m.domain_authorizer is not null
+        and position(m.domain_authorizer || '(' in
+                     coalesce(pol.qual, '') || ' ' || coalesce(pol.with_check, '')) > 0
+        and not exists (select 1 from authz_manifest_sites s
+                         where s.code = m.code and s.site_kind = 'policy'
+                           and s.site_schema = pol.schemaname and s.site_relation = pol.tablename
+                           and s.site_name = pol.policyname)
+     union all
+     -- REVERSE: a declared non-enforcement consumer that does not actually consume the
+     -- authorizer. Without this the field is a place to park any name at all.
+     select c.code || ' -> declared nonEnforcementConsumer ' || c.fn_schema || '.' || c.fn_name
+              || ' does not call the authorizer'
+       from authz_manifest_non_enforcement_consumers c
+       join authz_manifest_permissions m on m.code = c.code
+      where m.domain_authorizer is null
+         or position(m.domain_authorizer || '(' in
+                     coalesce(pg_temp.fn_body(c.fn_schema, c.fn_name), '')) = 0
+   ) t),
+  '(none)',
+  '8.8 ⭐⭐ THE AUTHORIZER-CONSUMER PARTITION, CLOSED IN BOTH DIRECTIONS. Every catalog object '
+  'that calls a re-keyed row''s domain authorizer is EXACTLY ONE OF: a declared enforcement site, '
+  'a declared `definerSurface` door, or a declared `nonEnforcementConsumer` — and every declared '
+  'non-enforcement consumer really does call it. ⛔ THE THIRD CLASS IS THE POINT. Before '
+  '2026-09-07 `app._audit_access_authorized` was the FOURTH consumer of '
+  '`app.can_read_professional_profile` and appeared nowhere in the tree: not a site (it decides '
+  'what the audit trail RECORDS, never what a caller may read — Architecture Rule 11), and with '
+  'no other home it was simply invisible. Adding it to `enforcementSites` to make it visible '
+  'would have made § 8.1/§ 8.4 measure a logging predicate as a door. ⚠ MEASURED TODAY, 14 '
+  'consumers over the three authorizers: 12 declared sites, `public.set_item_validations` on the '
+  'definerSurface axis, and `app._audit_access_authorized` here. ⛔ THE NEXT unrecorded consumer '
+  'REDS instead of being re-discovered by a reviewer, which is the whole difference between this '
+  'arm and the paragraph it replaces.');
 
 -- ============================================================================
 -- §9 — WHAT THIS FILE DOES NOT DO. Recorded IN the gate, because a limitation that lives only
