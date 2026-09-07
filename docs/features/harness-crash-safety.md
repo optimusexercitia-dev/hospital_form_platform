@@ -6,7 +6,7 @@ kind: feature
 program: AUTHZ
 phase: "Pre-AE5 remediation — Batch 0 of the follow-up batches ruled 2026-09-04"
 branch: ~   # landed on main 2026-09-04; PO approved at fc33a497 on the QA re-review, ff-merged
-plan: ~
+plan: ../plans/pre-ae5-remediation.md
 progress: ../progress/harness-crash-safety.md
 reviews: ["../reviews/harness-crash-safety-rereview.md", "../reviews/harness-crash-safety-review.md"]
 adrs: ["0079", "0153", "0171", "0189"]

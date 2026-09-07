@@ -6,7 +6,7 @@ kind: feature
 program: AUTHZ
 phase: "Pre-AE5 remediation — Batch 2 of the follow-up batches ruled 2026-09-04"
 branch: ~   # landed on main 2026-09-07; PO approved at 2a779bd8 on the QA re-review, ff-merged
-plan: ~
+plan: ../plans/pre-ae5-remediation.md
 progress: ../progress/pred-domain.md
 reviews: ["../reviews/pred-domain-rereview.md", "../reviews/pred-domain-review.md"]
 adrs: ["0079", "0153", "0173", "0182", "0184", "0187", "0190", "0191"]

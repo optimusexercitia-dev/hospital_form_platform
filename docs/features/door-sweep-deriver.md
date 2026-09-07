@@ -6,7 +6,7 @@ kind: feature
 program: AUTHZ
 phase: "Pre-AE5 remediation — Batch 1 of the follow-up batches ruled 2026-09-04"
 branch: ~   # landed on main 2026-09-05; PO approved at d160aabf on the QA sign-off, ff-merged
-plan: ~
+plan: ../plans/pre-ae5-remediation.md
 progress: ../progress/door-sweep-deriver.md
 reviews: ["../reviews/door-sweep-deriver-rereview.md", "../reviews/door-sweep-deriver-review.md"]
 adrs: ["0079", "0148", "0153", "0173", "0182", "0190"]
