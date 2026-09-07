@@ -9822,6 +9822,16 @@ cannot select a gate has not cleared it.
 >    suite → read `Result:`), a verified restore, its own crash sentinel, and its own degeneracy arms
 >    (§4a residue detector, §4b cardinality control). All three resolvers earned their FIRST recorded
 >    verdicts there — ADR 0182 records no suite shape and no verdict token for any of them.
+>    ⚠ **CORRECTION, 2026-09-07 (QA `F-BLOCK-2`; everything above stands and is left unedited).**
+>    That sentence was true of the HARNESS and false of every census-readable artefact: on
+>    2026-09-05 the three verdicts were **printed, never filed**, so no committed file carried
+>    them and nothing recorded that they were still owed. They were filed as ROWS in
+>    `docs/reviews/authz-door-audit-findings.md` (§ The three set-valued scope resolvers) on
+>    2026-09-07, keyed as `census_proc_domain` emits them, and
+>    `app.current_professional_read_organizations()`'s `authz-unswept-backlog.txt` entry was
+>    deleted in the same commit — the two-step order the boolean blocks in that file state.
+>    The gap that made this possible (the harness prints an un-filable shape) is
+>    `FUP-AUTHZ-SETVALUED-HOME-DOES-NOT-EMIT-ROWS`.
 > 3. *"the follow-up's own proposed selecting property"* — ⛔ **measured and rejected in writing.** "a
 >    scope-id set consumed by a policy" selects exactly **1 of the 3** on the live catalog (only
 >    `app.current_professional_read_organizations`, via `professional_profiles_select`); the two

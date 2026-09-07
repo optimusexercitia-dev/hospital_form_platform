@@ -937,7 +937,9 @@ public.assume_role(p_role platform_role)
 # policy predicate: whatever it returns is read without the row-level authorizer being
 # consulted at all.
 #
-# WHY NO ARM CAN PRODUCE A VERDICT — MEASURED, NOT ASSUMED (2026-09-03):
+# WHY NO ARM COULD PRODUCE A VERDICT — MEASURED, NOT ASSUMED (2026-09-03), AND SUPERSEDED
+# 2026-09-05 BY A TARGETED ARM. The paragraph is kept in the past tense rather than deleted,
+# because the two facts a reader needs are what was measured and what changed it:
 #   * `scripts/door-sweep-cases.sh` put it on the ⛔ EXCLUDED-BY-NAME review list.
 #   * ARM 1 with the census's own exact key, CASES="current_professional_read_organizations",
 #     reported `ARM-DOMAIN predicate=0/125 policy=0/226` and
@@ -947,6 +949,35 @@ public.assume_role(p_role platform_role)
 # there is no boolean to flip. ⚠ This is a THIRD exclusion axis — by RETURN TYPE — distinct
 # from the name/identity-regex axis in FUP-DOOR-SWEEP-DOMAIN-MISSES-THE-AUTHZ-RESOLVERS.
 # Filed as FUP-DOOR-SWEEP-DOMAIN-GAP-WIDENED-BY-SET-VALUED-RESOLVERS.
+#
+# ⛔ AN ARM NOW EXISTS AND HAS PRODUCED A VERDICT — 2026-09-05, unit PRED-DOMAIN (ADR 0191 D3).
+#    `supabase/tests/mutation/authz-setvalued-targeted-cases.sh` neutralizes this body to the
+#    UNIVERSAL organization set (every `public.organizations.id`, regardless of the calling
+#    professional), on a fresh reset at baseline `Files=262, Tests=8876, PASS`,
+#    `ARM-DOMAIN setvalued=3/3`, bare rc 0. **VERDICT: COVERED** — noticed by
+#    252_authz_p0_isolation.sql, 311_oversight_readonly_perimeter.sql,
+#    321_eth_e4_participant_seating.sql, 409_ae49_d6_rekey_differential.sql,
+#    410_ae49_d5_enforcement_manifest.sql, 413_ae4_authorized_scope_ids.sql. Restore proven
+#    three ways (md5 of `pg_get_functiondef`, §4a residue enumerated to 0 rows, full suite green).
+#    ⚠ Earned AT THAT SUITE SHAPE; a verdict at one shape is not a verdict at another.
+#
+# ⛔ THE ENTRY IS GONE, DELETED 2026-09-07 — SAME DELETION RULE AS THE TWO BOOLEAN BLOCKS ABOVE,
+#    and not one commit earlier. `census_proc_domain` admits this function through its
+#    set-returning clause (`p.proretset AND has_function_privilege('authenticated', p.oid,
+#    'EXECUTE')`; measured 2026-09-07: `prosecdef=t`, `proretset=t`, `authenticated=t`), so while
+#    it sat here it was ACCOUNTED **only** by this line. It is now accounted by a ROW in
+#    `docs/reviews/authz-door-audit-findings.md` (§ The three set-valued scope resolvers), whose
+#    column 1 is the census's own key — `app.current_professional_read_organizations()`, read from
+#    the catalog with `pg_get_function_identity_arguments`, not transcribed from the harness's
+#    shorthand label.
+#    ⚠ WHY DELETE RATHER THAN KEEP BOTH — measured from the arm's own accounting, not preferred.
+#    `run_arm_census` builds `accounted` as a `sort -u` union of the verdict sets AND
+#    `allow_body "$UNSWEPT"`, so an entry present in both files collapses to one line: keeping it
+#    could NOT double-count. What keeping it would do is create the exact stale entry
+#    `FUP-AUTHZ-UNSWEPT-BACKLOG-STALE-ENTRY-HAS-NO-ARM` was filed about — a line asserting
+#    "never swept" about a gate with a filed verdict, which no arm today can contradict. Deleting
+#    is safe because the row's key is byte-identical to what `census_proc_domain` emits; that
+#    identity, not the deletion, is the load-bearing fact.
 #
 # WHAT DOES COVER IT, proven by TARGETED MUTATION rather than claimed (2026-09-03):
 #   Body swapped to `select o.id from public.organizations o` — every organization, no
@@ -1002,4 +1033,10 @@ public.assume_role(p_role platform_role)
 # `policy`, and their only coverage is the targeted mutation work the follow-up records. If
 # either ever gains `authenticated` EXECUTE it enters THIS file's domain that same day and
 # owes an entry here — the reachability clause is the whole of the difference.
-app.current_professional_read_organizations()
+#   ⭐ AMENDED 2026-09-07: they will not owe an entry, because their verdicts are already filed
+#   as ROWS in `docs/reviews/authz-door-audit-findings.md` (§ The three set-valued scope
+#   resolvers), keyed exactly as `census_proc_domain` would emit them
+#   (`authz.authorized_scope_ids(p_principal uuid, p_resolution_kind text, p_permission_code
+#   text)` and its `candidate_` twin, read from the catalog on 2026-09-07). The day either gains
+#   `authenticated` EXECUTE it enters the domain ACCOUNTED, instead of arriving as an unaccounted
+#   newcomer. That is the only reason to file a verdict ahead of the demand for it.

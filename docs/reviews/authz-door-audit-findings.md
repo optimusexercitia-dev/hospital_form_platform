@@ -974,3 +974,50 @@ notes re-attached to their run-2 rows, **15** hand notes archived verbatim into
 `docs/progress/pred-domain.md` (§ Hand notes archived at the Batch 2 re-baseline), and the **3**
 above re-filed. Nothing was dropped: 31 hand-prose rows in, 31 preserved. The block is not a
 fixture — `merge-findings-baseline.sh` re-creates it only when a run actually carries something.
+⚠ F-REC-4 (QA, 2026-09-07): the **3** re-filed and the "31 hand-prose rows in, 31 preserved"
+figure count DIFFERENT sets and read as `15+15+3 = 33 ≠ 31`. Only **one** of the three re-files
+was itself a hand-prose row; the hand-prose arithmetic is `15 + 15 + 1 = 31`
+(`docs/progress/pred-domain.md`, § the disposition tally).
+
+## The three set-valued scope resolvers — verdicts earned 2026-09-05, FILED 2026-09-07
+
+⛔ **These rows exist because a verdict that no census can read is not a filed verdict.** All
+three were measured COVERED by `supabase/tests/mutation/authz-setvalued-targeted-cases.sh` on
+2026-09-05 (fresh reset, baseline `Files=262, Tests=8876, PASS`,
+`ARM-DOMAIN setvalued=3/3`, bare rc 0) and the harness **printed** them with the instruction
+"file these BY HAND". The approved plan §3 required them as ROWS **here** — not a fifth file,
+because `verdicts_from_findings()` (`supabase/tests/mutation/p0-authz-invariant.sh`) reads only
+the four named findings files. That step was dropped at the Batch 2 re-baseline and is executed
+now (QA `F-BLOCK-2`, `docs/reviews/pred-domain-review.md`).
+
+⚠ **Column 1 is the CENSUS's key, not the harness's label — measured, not transcribed.** The
+harness prints the shorthand `authz.authorized_scope_ids(uuid,text,text)`; `census_proc_domain()`
+emits `n.nspname||'.'||p.proname||'('||pg_get_function_identity_arguments(p.oid)||')'`. Filing the
+printed label verbatim would have produced three keys `ARM=census` cannot match — a re-file that
+reads as a fix and closes nothing. The three keys below were read from the live catalog on
+2026-09-07 with that exact expression. (The harness's printed shape is a defect in its own right:
+`FUP-AUTHZ-SETVALUED-HOME-DOES-NOT-EMIT-ROWS`.)
+
+⚠ The table uses the header and column-4 token this file already proved against
+`merge-findings-baseline.sh`'s classifier (see the re-filed-three note above): a generator header
+or a bare verdict token would be relocated into the CARRIED block on the next full run and — since
+carried rows are INDENTED — stop matching the census's leading-pipe test.
+
+⛔ **Only ONE of the three is in `ARM=census`'s domain today.** `census_proc_domain`'s
+set-returning clause is `p.proretset AND has_function_privilege('authenticated', p.oid,
+'EXECUTE')`; measured 2026-09-07, `authenticated` EXECUTE is `t` for
+`app.current_professional_read_organizations()` and `f` for both `authz.*` resolvers. The two
+`authz.*` rows are therefore filed **ahead of** the census demanding them — the day either gains
+`authenticated` EXECUTE it enters the domain with its verdict already readable, instead of
+appearing as an unaccounted newcomer.
+
+| gate / policy | arm | direction | verdict (earned elsewhere) | evidence (baseline note, verbatim) |
+|---|---|---|---|---|
+| app.current_professional_read_organizations() | out of domain (§7.17b — `SETOF uuid`, not `bool`) | targeted mutation | COVERED (targeted mutation) | `authz-setvalued-targeted-cases.sh` 2026-09-05, body swapped for the UNIVERSAL org set, restore proven three ways (md5, §4a residue 0 rows, suite green): 252_authz_p0_isolation.sql, 311_oversight_readonly_perimeter.sql, 321_eth_e4_participant_seating.sql, 409_ae49_d6_rekey_differential.sql, 410_ae49_d5_enforcement_manifest.sql, 413_ae4_authorized_scope_ids.sql. ⭐ 252 (tenant isolation) is the load-bearing noticer — not a suite written for this feature. ⚠ Earned at `Files=262, Tests=8876`; a verdict at one shape is not a verdict at another |
+| authz.authorized_scope_ids(p_principal uuid, p_resolution_kind text, p_permission_code text) | out of domain (§7.17b — `SETOF uuid`, not `bool`) | targeted mutation | COVERED (targeted mutation) | `authz-setvalued-targeted-cases.sh` 2026-09-05, body swapped for the UNIVERSAL scope set (every organization, hospital and commission id), restore proven three ways: 252_authz_p0_isolation.sql, 311_oversight_readonly_perimeter.sql, 321_eth_e4_participant_seating.sql, 409_ae49_d6_rekey_differential.sql, 413_ae4_authorized_scope_ids.sql. ⚠ Holds `authenticated` EXECUTE = f (401 §18.1 pins the family at 0 over 27 probes), so it is outside `ARM=census`'s domain and this row is filed ahead of demand |
+| authz.candidate_authorized_scope_ids(p_principal uuid, p_resolution_kind text, p_permission_code text) | out of domain (§7.17b — `SETOF uuid`, not `bool`) | targeted mutation | COVERED (targeted mutation) | `authz-setvalued-targeted-cases.sh` 2026-09-05, same universal-scope neutralization, restore proven three ways: 413_ae4_authorized_scope_ids.sql. ⚠ ONE noticing file — the narrowest of the three, and the pre-cutover ORACLE's own differential is what carries it. `authenticated` EXECUTE = f; filed ahead of demand |
+
+⛔ **What these rows do NOT say.** They are not this arm's verdicts and never can be: the door
+arm's `PRED_DOMAIN` bounds itself at `t.typname = 'bool'` before any name or body test runs, so a
+`SETOF uuid` resolver is out of domain by RETURN TYPE (ADR 0079 hazard 4, ADR 0173 §4). "Filed
+here" means *readable by the census*, not *swept by this arm*.
