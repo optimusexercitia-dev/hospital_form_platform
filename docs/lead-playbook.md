@@ -124,6 +124,24 @@ merge aborted and wrote nothing, which also leaves the diff empty (QA F-MAJOR-5,
   fake repo and, for catalog scenarios, the stack); a `SKIPPED > 0` result over catalog scenarios
   is a stack-down run, not a pass.
 
+**Since PRED-DOMAIN (ADR 0191, 2026-09-07), two more:**
+- **Set-valued authz resolvers** — `bash supabase/tests/mutation/authz-setvalued-targeted-cases.sh`
+  (detached, ~10 min, exit code read BARE: 0 CLEAN / 1 DIRTY / 2 ABORT / 3 UNPROVEN) is owed at
+  **every phase gate that runs the door sweep**, and additionally whenever a migration creates or
+  replaces a `prosecdef` `SETOF uuid` function in `app`/`public`/`authz` — the door arm cannot
+  select that family at all (ADR 0191 D3; ADR 0079 hazard 4), and the harness's own §4b
+  cardinality control reds if a sixth such function appears. Quote its `ARM-DOMAIN setvalued=`
+  line, never the script name.
+- **`NOTICED` is a fourth door-sweep outcome and it is EVIDENCE, not a verdict** (PO ruling
+  2026-09-07, ADR 0191): the mutated suite FAILED — something noticed — but a domain file aborted
+  before finishing its plan (a value assertion whose subject raises, LEARN-083), so the harness
+  cannot say *which* assertion noticed. The RESULT line names the three classes apart — `BLIND
+  (blocks)` · `NOTICED (disclosed, non-blocking)` · `ERROR (not a pass)`; a run with 0 BLIND, 0
+  ERROR and >0 NOTICED exits 0 **with the disclosure printed**. A gate record quotes the NOTICED
+  count and the `DOMAIN-STATEMENT` block beside the arm figures; ⛔ NOTICED is never written as
+  COVERED, and its remedy is capture-then-assert in the aborting file
+  (`FUP-C2-TIER1-VALUE-ASSERTIONS-ABORT-ON-AN-INLINE-RAISE`'s work-list), never a relabel.
+
 ## 5. PROGRESS.md rotation & archive discipline
 
 **PROGRESS.md is live state only, and the contract is machine-enforced** —
