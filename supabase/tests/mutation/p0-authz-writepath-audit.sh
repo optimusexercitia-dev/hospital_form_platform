@@ -178,9 +178,83 @@ POLSNAP="$WORK/writepath_snapshot_pol.tsv"  # the embedded 33 — DRIFT TRIPWIRE
 # $WORK is fresh per run by recipe, so a $WORK-relative sentinel is invisible to the next
 # run and its check would pass vacuously. This one is found by whoever runs next.
 SENTINEL="${AUTHZ_SWEEP_SENTINEL:-${TMPDIR:-/tmp}/authz-writepath-INFLIGHT.sql}"
+# ─────────────────────────────────────────────────────────────────────────────────────
+# ⛔ CASES: SET-NESS, NOT VALUE — captured BEFORE the default (ADR 0192; the same distinction
+# ADR 0189 D6 made for RESET_EVERY, and for the same reason). Until 2026-09-07 this line read
+# `CASES="${CASES:-}"` and EVERY branch keyed on `[ -n "$CASES" ]`, so `CASES=""` was
+# INDISTINGUISHABLE FROM `CASES` UNSET. That is not a cosmetic gap:
+#
+#   CASES="$(bash scripts/door-sweep-cases.sh …)"   # deriver emitted nothing / exited 1 or 3
+#
+# — the caller CLAUDE.md §6 step 1 actually prescribes, and whose exit code IS the "no gate
+# changed" claim — yields the empty string, which then selected EVERYTHING: a full ~120-case
+# sweep, opening the COMMITTED baseline for write (SUBSET_RUN came from `[ -n "$CASES" ]`),
+# with the `exit 3 UNPROVEN` door below UNREACHABLE from that caller. A correct door nothing
+# can reach, composed with reading a gate instead of gating on it.
+#
+# THE RULE: three states, never two.
+#   CASES unset              -> FULL run   (selects everything; may write the committed baseline)
+#   CASES set, non-empty     -> SUBSET run (scratch only)
+#   CASES set, EMPTY         -> SUBSET run, selects NOTHING -> SEL_TOTAL=0 -> exit 3 UNPROVEN
+# ⚠ `CASES=` set-and-empty is treated as a SUBSET run for placement purposes on purpose: an
+# explicitly-empty selection must never be able to open the committed baseline for write, even
+# if a later change let it past the domain gate.
+# ⛔ p0-authz-door-audit.sh carries the IDENTICAL defect at its own `[ -n "$CASES" ]`. It is
+# FILED, NOT FIXED here (FUP-CASES-EMPTY-STRING-DEGRADES-TO-A-FULL-RUN): that harness was
+# closed by Batch 2 and QA-approved, and fixing one of two would read as fixing the class.
+# ─────────────────────────────────────────────────────────────────────────────────────
+CASES_EXPLICIT=0; [ -n "${CASES+x}" ] && CASES_EXPLICIT=1
 CASES="${CASES:-}"                          # optional subset filter
+if [ "$CASES_EXPLICIT" = "1" ] && [ -z "$CASES" ]; then
+  SELECTION_SOURCE="CASES set and EMPTY -> selects NOTHING (UNPROVEN, exit 3). ⛔ NOT a full run."
+elif [ "$CASES_EXPLICIT" = "1" ]; then
+  SELECTION_SOURCE="CASES set to \"$CASES\" -> SUBSET run (scratch report only)."
+else
+  SELECTION_SOURCE="CASES UNSET -> FULL run over the whole domain."
+fi
 DRYRUN="${DRYRUN:-0}"
 FINDINGS_COMMITTED="$ROOT/docs/reviews/authz-writepath-audit-findings.md"
+
+# ─────────────────────────────────────────────────────────────────────────────────────
+# BOUNDED TAIL DRIFT — RESET_EVERY, ported from p0-authz-door-audit.sh (ADR 0191 D8),
+# which took it from c2-command-door-neutralizer.sh. ⛔ PORTED, NOT INHERITED: Batch 0's
+# closure was mis-scoped to the C2 harness alone and Batch 2's run 1 was VOIDED by a 78-row
+# drift tail with no originating case. This arm had ZERO occurrences of RESET_EVERY until
+# 2026-09-07, so a 120-case sweep here carried unbounded drift.
+#
+# §7.15 is a DETECTOR, not a PREVENTER: BASE_FILES/BASE_TESTS are captured once, so drift is
+# converted into ERROR and the tail is simply NOT MEASURED. Two mechanisms, neither covering
+# the other:
+#   · RESET_EVERY  — reset the DB every N cases and RE-CAPTURE the baseline, bounding the
+#                    drift any verdict can carry to N cases instead of to the whole run;
+#   · the retry net — a shape-moved ERROR resets and re-runs that ONE case: a GENUINE
+#                    neutralization failure reproduces after a fresh reset, drift does not.
+#
+# ⛔ SET-NESS, NOT VALUE, captured BEFORE the default: one line later, `RESET_EVERY=20` typed
+# by an operator and `RESET_EVERY` defaulted to 20 are the SAME STRING, which is the exact
+# fact this gate turns on. THE RULE (ADR 0189 D6 as re-ruled 2026-09-04, adopted unchanged):
+# a NON-SUBSET run resets every RESET_EVERY (default 20); a SUBSET run resets ONLY if
+# RESET_EVERY is set EXPLICITLY; `0` disables everywhere.
+#
+# ⚠ WHY 20, stated honestly: there is NO tuning rationale on record anywhere in this program.
+# 20 is Batch 0's value, adopted unchanged by C2 and by the door arm; the only recorded
+# reasoning is about SET-NESS, not magnitude. Keeping it unchanged is the conservative choice
+# and it keeps this run's figures comparable with the door sweep's. Consequences HERE:
+# 5 scheduled resets over 120 cases (DONE ∈ {21,41,61,81,101}), ~15 min, and any verdict's
+# accumulated drift bounded to ≤20 preceding suite runs. The reset is cheap insurance whose
+# value is a BOUND, not an observed symptom — and its ABSENCE is what voided the door run 1.
+# ─────────────────────────────────────────────────────────────────────────────────────
+RESET_EVERY_EXPLICIT=0; [ -n "${RESET_EVERY+x}" ] && RESET_EVERY_EXPLICIT=1
+RESET_EVERY="${RESET_EVERY:-20}"   # 0 disables
+RESETS=0
+DONE=0
+# ⛔ ONE predicate, derived once and read by all three sites (the gate inside periodic_reset,
+# the retry net, the summary banner). Three hand-written copies of the same condition is how a
+# banner comes to describe a rule the code no longer implements.
+resets_enabled () {   # rc 0 = a reset is allowed on this run; rc 1 = suppressed
+  [ "$RESET_EVERY" != "0" ] || return 1
+  [ "$SUBSET_RUN" != "1" ] || [ "$RESET_EVERY_EXPLICIT" = "1" ]
+}
 
 # ─────────────────────────────────────────────────────────────────────────────────────
 # ⛔ A SUBSET RUN MUST NOT WRITE THE COMMITTED BASELINE
@@ -198,15 +272,23 @@ FINDINGS_COMMITTED="$ROOT/docs/reviews/authz-writepath-audit-findings.md"
 # `$WORK/blinds_writepath.tsv` as a FULL-sweep result. The property is "never overwrite
 # the artefact a later arm reads back as a baseline"; committed vs scratch is not part of it.
 # ─────────────────────────────────────────────────────────────────────────────────────
-if [ -n "$CASES" ]; then
-  SUBSET_RUN=1
-  FINDINGS="$WORK/authz-writepath-audit-findings.SUBSET.md"
-  BLINDS_TSV="$WORK/blinds_writepath.SUBSET.tsv"
-else
-  SUBSET_RUN=0
-  FINDINGS="$FINDINGS_COMMITTED"
-  BLINDS_TSV="$WORK/blinds_writepath.tsv"
-fi
+# ⛔ KEYED ON SET-NESS (`CASES_EXPLICIT`), NOT on `[ -n "$CASES" ]`. With the old value test an
+# explicitly-EMPTY CASES took the else-branch and pointed $FINDINGS at the COMMITTED baseline.
+# ⛔ A FUNCTION, so SELFTEST can EXERCISE the placement rule rather than restate it. A second
+# hand-written copy of this condition inside the self-test would prove only that I can type the
+# same `if` twice.
+set_placement () {   # reads CASES_EXPLICIT -> sets SUBSET_RUN, FINDINGS, BLINDS_TSV
+  if [ "$CASES_EXPLICIT" = "1" ]; then
+    SUBSET_RUN=1
+    FINDINGS="$WORK/authz-writepath-audit-findings.SUBSET.md"
+    BLINDS_TSV="$WORK/blinds_writepath.SUBSET.tsv"
+  else
+    SUBSET_RUN=0
+    FINDINGS="$FINDINGS_COMMITTED"
+    BLINDS_TSV="$WORK/blinds_writepath.tsv"
+  fi
+}
+set_placement
 
 
 # ⛔ WORKSPACE PRECONDITION — a hard failure, never a warning.
@@ -267,6 +349,7 @@ verify_baseline_untouched () {   # subset runs only; a mismatch ESCALATES to ABO
 }
 trap 'verify_baseline_untouched || exit 2' EXIT
 
+echo "SELECTION-SOURCE: $SELECTION_SOURCE"
 if [ "$SUBSET_RUN" = "1" ]; then
   echo "--------------------------------------------------------------------------------"
   echo "⚠ SUBSET RUN — CASES=\"$CASES\". This run writes to SCRATCH, never to the baseline."
@@ -302,17 +385,115 @@ else
   echo "--------------------------------------------------------------------------------"
 fi
 
-psql_c () { MSYS_NO_PATHCONV=1 docker exec "$DB" psql -U postgres -d postgres -tA -P pager=off "$@"; }
+# ─────────────────────────────────────────────────────────────────────────────────────
+# ⛔ THE OWNER-AWARE CONNECTION ROLE (ADR 0192; PO-approved 2026-09-07 with five binding
+# conditions). BLAST RADIUS, STATED PLAINLY: this harness can now open a gate as a
+# SUPERUSER. That is a real widening of what a mutation harness can do to the local stack
+# and it is disclosed here, in the DOMAIN-STATEMENT the run prints, and in ADR 0192.
+#
+# WHY. `ALTER POLICY` requires ownership of the table (`has_privs_of_role(current_user,
+# relowner)`). Measured on the live catalog 2026-09-07: `storage.objects` is owned by
+# `supabase_storage_admin`; `postgres` here is `rolsuper=f` and is NOT a member of it, so
+# `pg_has_role('postgres', relowner, 'USAGE')` = **f**. The three `storage.objects` INSERT
+# policies — in this arm's domain since 2026-09-02, and in NO other arm's domain at all —
+# would every one of them land as `ERROR (open failed: must be owner of table objects)`.
+# An ERROR is a statement about the HARNESS, never a verdict about the policy, so those
+# three would have stayed unverdicted while the run exited DIRTY for a reason that has
+# nothing to do with authorization. Recording them as un-openable is allowlisting a BLIND
+# under another name.
+#
+# THE RULE IS AN OWNERSHIP PREDICATE, EVALUATED PER CASE FROM THE CATALOG — never a
+# hardcoded list of three policy names and never `nspname = 'storage'`. A name is not the
+# property; the next non-`postgres`-owned table would silently regress, which is the
+# embedded-snapshot defect (a syntax, not the property) this arm already paid for once.
+#
+# SCOPE. Escalation happens ONLY where `relowner` requires it. The 104 `public` policies
+# keep the `postgres` connection, and both directions are asserted by SELFTEST/selection.
+# ALL READS (pg_get_expr, the md5 probes, the domain lift) stay on `postgres`.
+# ─────────────────────────────────────────────────────────────────────────────────────
+PSQL_ROLE="${AUTHZ_SWEEP_ROLE:-postgres}"              # the ordinary connection
+PSQL_ROLE_ELEVATED="${AUTHZ_SWEEP_ROLE_ELEVATED:-supabase_admin}"   # owner-capable fallback
+
+psql_c_as () { local r="$1"; shift; MSYS_NO_PATHCONV=1 docker exec "$DB" psql -U "$r" -d postgres -tA -P pager=off "$@"; }
+psql_c () { psql_c_as "$PSQL_ROLE" "$@"; }
 # Run an SQL file inside the container (avoids all shell-quoting of quals/bodies).
-psql_f () {
-  local host="$1"
+psql_f_as () {
+  local r="$1" host="$2"
   docker cp "$host" "$DB:/tmp/_wp_p0mut.sql" >/dev/null
-  MSYS_NO_PATHCONV=1 docker exec "$DB" psql -U postgres -d postgres -q -v ON_ERROR_STOP=1 -f //tmp/_wp_p0mut.sql 2>&1
+  MSYS_NO_PATHCONV=1 docker exec "$DB" psql -U "$r" -d postgres -q -v ON_ERROR_STOP=1 -f //tmp/_wp_p0mut.sql 2>&1
+}
+psql_f () { psql_f_as "$PSQL_ROLE" "$1"; }
+
+# ⛔ THE PREDICATE IS `CAN THIS ROLE ALTER THIS POLICY`, WHICH IS **NOT** `pg_has_role(role,
+# relowner, 'USAGE')`. That correction is MEASURED, 2026-09-07, and it refuted the premise the
+# escalation was designed on — recorded here rather than quietly fixed, because the wrong
+# predicate would have connected as a SUPERUSER for three cases that never needed one.
+#
+#   Measured: `storage.objects` is owned by `supabase_storage_admin`;
+#   `pg_has_role('postgres', relowner, 'USAGE')` = **false**; `postgres` is `rolsuper=f` and is
+#   not a member of that role. ⇒ every catalog proxy says `ALTER POLICY` must fail.
+#   Observed: it SUCCEEDS. `p0-authz-writepath-audit.sh` at HEAD swept
+#   `storage.form_assets_insert_staff_admin` end to end as plain `postgres` — opened, suite ran
+#   COVERED, restore round-tripped byte-exact, sentinel cleared, degenerate_NON_SELECT = 0.
+#
+#   THE MECHANISM, named rather than left as "it works somehow": **supautils**. This stack sets
+#   `supautils.policy_grants = {"postgres":[… "storage.objects" …]}` — the extension's utility
+#   hook grants POLICY DDL on an allowlist of Supabase-managed tables to the privileged role,
+#   entirely outside `pg_class.relowner`. So ownership is a PROXY for a permission this server
+#   grants by another route, and a proxy is not the property (LEARN: a predicate quoted at the
+#   wrong grain; text is not truth — resolve the VALUE, not the noun).
+#
+# The predicate below is therefore the DISJUNCTION, both halves read live from the server:
+#   (a) the role has privs of `pg_class.relowner`  — ordinary Postgres ownership; OR
+#   (b) `nsp.tbl` is in `supautils.policy_grants` for that role — this stack's actual grant.
+# ⛔ Still an evaluated predicate, never a hardcoded list of policy names or a schema name:
+# both halves come from the catalog/GUC at run time, so a change on either route is followed.
+#
+# ⚠ CONSEQUENCE, STATED PLAINLY: on this stack the escalation branch is UNEXERCISED — 0 of 107
+# in-domain policies need it. An authority with zero callers is a conformance finding, not a
+# reassurance, so the DOMAIN-STATEMENT prints the number instead of implying it was used.
+POLICY_DDL_OK_SQL () {   # $1 = role literal ; emits a boolean SQL expression over c/n
+  printf '%s' "(pg_has_role('$1', c.relowner, 'USAGE')
+                 or coalesce((current_setting('supautils.policy_grants', true)::jsonb -> '$1')
+                             @> to_jsonb(n.nspname||'.'||c.relname), false))"
+}
+
+# Which role must OPEN (and therefore RESTORE) a given relation's policy.
+# Sets OPEN_ROLE / REL_OWNER / ROLE_WHY. rc 1 = no configured role on this stack can do it.
+resolve_open_role () {   # $1 = schema   $2 = table
+  local r can can2 via
+  OPEN_ROLE=""; REL_OWNER=""; ROLE_WHY=""
+  r=$(psql_c -c "select pg_get_userbyid(c.relowner)||'|'||
+                        (case when $(POLICY_DDL_OK_SQL "$PSQL_ROLE")          then 1 else 0 end)||'|'||
+                        (case when $(POLICY_DDL_OK_SQL "$PSQL_ROLE_ELEVATED") then 1 else 0 end)||'|'||
+                        (case when pg_has_role('$PSQL_ROLE', c.relowner, 'USAGE') then 'owner' else 'supautils.policy_grants' end)
+                   from pg_class c join pg_namespace n on n.oid = c.relnamespace
+                  where n.nspname = '$1' and c.relname = '$2';" 2>/dev/null | head -1)
+  REL_OWNER="$(printf '%s' "$r" | cut -d'|' -f1)"
+  can="$(printf '%s' "$r" | cut -d'|' -f2)"
+  can2="$(printf '%s' "$r" | cut -d'|' -f3)"
+  via="$(printf '%s' "$r" | cut -d'|' -f4)"
+  if [ -z "$REL_OWNER" ]; then ROLE_WHY="relowner lookup FAILED for $1.$2"; return 1; fi
+  if [ "$can" = "1" ]; then
+    OPEN_ROLE="$PSQL_ROLE"; ROLE_WHY="role=$PSQL_ROLE via $via (owner=$REL_OWNER)"; return 0
+  fi
+  if [ "$can2" = "1" ]; then
+    OPEN_ROLE="$PSQL_ROLE_ELEVATED"
+    ROLE_WHY="role=$PSQL_ROLE_ELEVATED ESCALATED ($PSQL_ROLE can neither own nor policy-grant $1.$2; owner=$REL_OWNER)"
+    return 0
+  fi
+  ROLE_WHY="NO configured role can ALTER POLICY on $1.$2 (owner=$REL_OWNER): $PSQL_ROLE=no, $PSQL_ROLE_ELEVATED=no"
+  return 1
 }
 slug () { echo "$1" | tr -c 'A-Za-z0-9_' '_' ; }
 
-want () {  # $1 = match key (guard proname or policy name); 0 if in CASES (or CASES empty)
-  [ -z "$CASES" ] && return 0
+# ⛔ THREE STATES, NOT TWO. The old body was `[ -z "$CASES" ] && return 0`, which selects
+# EVERYTHING for an explicitly-empty CASES — the defect above. An UNSET CASES still selects
+# everything (that is a full run); a SET-and-EMPTY CASES selects NOTHING, which is what makes
+# the SEL_TOTAL==0 / exit 3 UNPROVEN door reachable from the caller that produces it.
+want () {  # $1 = match key (guard proname or policy name); rc 0 = selected
+  [ "$CASES_EXPLICIT" = "1" ] || return 0      # CASES unset -> full run, everything selected
+  [ -n "$CASES" ] || return 1                  # CASES set and EMPTY -> nothing selected
   local k
   for k in $CASES; do [ "$k" = "$1" ] && return 0; done
   return 1
@@ -760,7 +941,14 @@ if [ "$DRYRUN" = "1" ]; then
   echo "=== DRYRUN — neutralizations only, NO GATE OPENED, NO SUITE RUN ==="
   echo "DOMAIN-SOURCE policy arm: $POLWL_SOURCE"
   echo
-  echo "############## ARM 1: 7 authz raise-guards (full neutralized CREATE OR REPLACE) ##############"
+  # ⛔ DERIVED FROM GUARD_KEYS, NEVER RE-TYPED (ADR 0192). This banner read a hardcoded `7`
+  # while GUARD_KEYS held 13 and the loop directly beneath iterated all 13 — an EXECUTED code
+  # path, and precisely what a human reads to decide a run is aimed correctly. This file's own
+  # header warns about this exact recurrence ("a count in a comment is an assertion, and this
+  # one was false for four additions"); it recurred, in the banner instead of the comment.
+  # ⛔ A fresh literal would be the same defect with a newer number, so there is no literal.
+  dr_gtot=$(printf '%s\n' $GUARD_KEYS | grep -c .)
+  echo "############## ARM 1: $dr_gtot authz raise-guards (full neutralized CREATE OR REPLACE) ##############"
   for k in $GUARD_KEYS; do
     want "$k" || continue
     echo
@@ -770,7 +958,6 @@ if [ "$DRYRUN" = "1" ]; then
   echo
   echo "############## ARM 2: write policies (ALTER POLICY opening the write clause) ##############"
   dr_gsel=0; for k in $GUARD_KEYS; do want "$k" && dr_gsel=$((dr_gsel + 1)); done
-  dr_gtot=$(printf '%s\n' $GUARD_KEYS | grep -c .)
   dr_ptot=0; dr_psel=0
   while IFS='|' read -r nsp tbl polname cmd haveq havew qtrue wtrue; do
     [ -n "${polname:-}" ] || continue
@@ -840,25 +1027,36 @@ fi
 # returns exactly the value captured before the gate was opened. arm_inflight records that
 # probe beside the sentinel ($SENTINEL.probe / .want) so RECOVER=1 in a later process can
 # verify too, instead of believing psql's exit code alone.
+# ⛔ THE SENTINEL RECORDS THE ROLE THAT OPENED THE GATE (R11.3, ADR 0192). Without it, a
+# `storage.objects` policy opened by the ESCALATED role and restored as `postgres` CANNOT BE
+# RESTORED — the recovery path would fail on exactly the cases the escalation exists for, and
+# it would fail while printing a restore message. The role travels with the sentinel
+# ($SENTINEL.role) so RECOVER=1 in a LATER PROCESS, which knows nothing about this run,
+# restores with the same role rather than the default.
+# ⚠ A sentinel with NO .role sidecar predates this protocol: the recovery says so out loud and
+# falls back to $PSQL_ROLE rather than guessing silently.
 INFLIGHT=""
 INFLIGHT_PROBE=""
 INFLIGHT_WANT=""
+INFLIGHT_ROLE=""
 arm_inflight () {   # $1 = restore .sql   $2 = probe SQL identifying the ORIGINAL catalog state
-  INFLIGHT="$1"; INFLIGHT_PROBE="$2"
+                    # $3 = the role that OPENS (and must RESTORE) this gate
+  INFLIGHT="$1"; INFLIGHT_PROBE="$2"; INFLIGHT_ROLE="${3:-$PSQL_ROLE}"
   INFLIGHT_WANT="$(psql_c -c "$2" 2>/dev/null)"
   cp -f "$1" "$SENTINEL"                            # Part 4: survives SIGKILL, which no trap does
   printf '%s' "$2"             > "$SENTINEL.probe"
   printf '%s' "$INFLIGHT_WANT" > "$SENTINEL.want"
+  printf '%s' "$INFLIGHT_ROLE" > "$SENTINEL.role"
 }
 disarm_inflight () {  # only ever after a restore has been VERIFIED
-  INFLIGHT=""; INFLIGHT_PROBE=""; INFLIGHT_WANT=""
-  rm -f "$SENTINEL" "$SENTINEL.probe" "$SENTINEL.want" 2>/dev/null || true
+  INFLIGHT=""; INFLIGHT_PROBE=""; INFLIGHT_WANT=""; INFLIGHT_ROLE=""
+  rm -f "$SENTINEL" "$SENTINEL.probe" "$SENTINEL.want" "$SENTINEL.role" 2>/dev/null || true
 }
 restore_inflight () {
   [ -n "${INFLIGHT:-}" ] && [ -f "$INFLIGHT" ] || return 0
-  echo "  (trap: restoring the in-flight gate from $INFLIGHT)"
+  echo "  (trap: restoring the in-flight gate from $INFLIGHT as role ${INFLIGHT_ROLE:-$PSQL_ROLE})"
   local rc live
-  psql_f "$INFLIGHT" >/dev/null 2>&1; rc=$?
+  psql_f_as "${INFLIGHT_ROLE:-$PSQL_ROLE}" "$INFLIGHT" >/dev/null 2>&1; rc=$?
   live=""
   [ -n "${INFLIGHT_PROBE:-}" ] && live="$(psql_c -c "$INFLIGHT_PROBE" 2>/dev/null)"
   if [ "$rc" = "0" ] && [ -n "${INFLIGHT_WANT:-}" ] && [ "$live" = "$INFLIGHT_WANT" ]; then
@@ -900,11 +1098,38 @@ restore_inflight () {
 trap 'restore_inflight || exit 2; verify_baseline_untouched || exit 2' EXIT
 trap 'echo; echo "*** SIGNAL — restoring the in-flight gate before exiting (§7.5 Part 4)."; restore_inflight; exit 2' INT TERM HUP
 
-run_suite () { ( cd "$ROOT" && supabase test db ) 2>&1; }   # echoes raw suite output; ~23s
+# ⚠ MEASURED 2026-09-07 on this stack: a full `supabase test db` is ~93 s wall (Files=262,
+# Tests=8876), and a full CASE — suite + ~6 docker-exec round trips + the merge — is ~120 s.
+# The "~23s" this comment carried for months was four times off and is the source of the
+# "~50 min for 120 cases" budget quoted downstream. ⛔ RE-MEASURE, never quote.
+run_suite () { ( cd "$ROOT" && supabase test db ) 2>&1; }
 
-# classify OUTPUT -> sets globals VERDICT, FAILING, RUNFILES, RUNTESTS
+# ⛔ ENUMERATE, NEVER COUNT. A bare count of `qual='true' or with_check='true'` returns ~11 on
+# a clean stack — ten vocabulary SELECT policies are `true` BY DESIGN — and reading that count
+# as a baseline is how the AE1.5 fully-open UPDATE policy was nearly missed. The discriminator
+# is `cmd <> 'SELECT'`, and it must be ZERO.
+degenerate_write_policies () {
+  psql_c -c "select schemaname||'.'||tablename||'.'||policyname||' ('||cmd||')'
+               from pg_policies
+              where (coalesce(qual,'') = 'true' or coalesce(with_check,'') = 'true')
+                and cmd <> 'SELECT'
+              order by 1;" 2>/dev/null | grep -vE '^$'
+}
+
+# classify OUTPUT -> sets globals VERDICT, FAILING, RUNFILES, RUNTESTS, SHAPE_MOVED
+# ⛔ SHAPE_MOVED IS GLOBAL AND IS SET BY THE CLASSIFIER ITSELF (ADR 0192, mirroring ADR 0191
+# D8). The retry net must fire on exactly the condition the classifier used, read from the
+# classifier — never on a second hand-kept spelling of it, and never by matching the NOTE
+# TEXT. Two copies of one condition is how a retry net comes to fire on a different set from
+# the one the verdict was computed against.
+# ⚠ THE DRIFT KEY ON THIS ARM IS `ERROR`, NOT the door arm's `NOTICED`: `classify` here has
+# THREE outcomes, and a moved Files=/Tests= shape or a `Dubious` line yields ERROR. So a drift
+# tail shows up here as a run of ERRORs — and ERROR already forces exit 1, which makes this
+# arm LOUDER about drift than the door arm was, not quieter.
+SHAPE_MOVED=0
 classify () {
   local out="$1" res ft dubious
+  SHAPE_MOVED=0
   res=$(echo "$out" | grep -oE 'Result: (PASS|FAIL)' | tail -1 | awk '{print $2}')
   ft=$(echo "$out" | grep -oE 'Files=[0-9]+, Tests=[0-9]+' | tail -1)
   RUNFILES=$(echo "$ft" | grep -oE 'Files=[0-9]+' | grep -oE '[0-9]+')
@@ -914,7 +1139,10 @@ classify () {
             | grep -oE '[0-9A-Za-z_]+\.sql' | sort -u | paste -sd, -)
   # §7.15: a run whose SHAPE differs from baseline (fewer files/tests, or Dubious) is an
   # ABORT — a harness bug (bad neutralization), NOT a BLIND/COVERED result.
-  if [ -z "$res" ] || [ "$RUNFILES" != "$BASE_FILES" ] || [ "$RUNTESTS" != "$BASE_TESTS" ] || [ "$dubious" -gt 0 ]; then
+  if [ "$RUNFILES" != "$BASE_FILES" ] || [ "$RUNTESTS" != "$BASE_TESTS" ] || [ "$dubious" -gt 0 ]; then
+    SHAPE_MOVED=1
+  fi
+  if [ -z "$res" ] || [ "$SHAPE_MOVED" = "1" ]; then
     VERDICT="ERROR"
   elif [ "$res" = "FAIL" ]; then
     VERDICT="COVERED"
@@ -924,6 +1152,103 @@ classify () {
     VERDICT="ERROR"
   fi
 }
+
+# ─────────────────────────────────────────────────────────────────────────────────────
+# SELFTEST — three arms on CONSTRUCTED inputs. No DB, no suite run, no gate opened, and the
+# committed baseline is never opened for write. `SELFTEST=1 bash <this>` exits here.
+#
+# ⛔ GREEN ON ITS FIRST RUN IS A FINDING, NOT A PASS. Each table below was first run (i) with
+# one expectation deliberately flipped and (ii) with the PRE-change predicate substituted, on
+# a cmp-verified scratch copy, and both had to go NOT OK at bare rc 1 before the green was
+# believed. A self-test that has never been shown to fail has not been shown to test anything.
+# ─────────────────────────────────────────────────────────────────────────────────────
+if [ "${SELFTEST:-0}" = "1" ]; then
+  st_total=0; st_failed=0
+
+  # ── ARM 1: classify() — THREE outcomes, plus the SHAPE_MOVED flag the retry net reads. ──
+  # ⛔ THE CONTROL IS THE PAIR (same shape + PASS) -> BLIND vs (shape MOVED + PASS) -> ERROR.
+  # Without both halves a green row would prove only "the classifier returns a token", not that
+  # a moved shape is what turns a PASS into ERROR — which is the whole §7.15 doctrine. And the
+  # SHAPE_MOVED column is asserted separately from the VERDICT: the retry net fires on
+  # SHAPE_MOVED, so a classifier that got the verdict right and the flag wrong would retry the
+  # wrong cases while every verdict row still read correctly.
+  echo "=== SELFTEST: classify() — verdict AND the SHAPE_MOVED flag (no DB) ==="
+  BASE_FILES=262; BASE_TESTS=8876
+  st_case () {  # $1 label  $2 expected verdict  $3 expected SHAPE_MOVED  $4 constructed output
+    st_total=$((st_total+1))
+    classify "$4"
+    if [ "$VERDICT" = "$2" ] && [ "$SHAPE_MOVED" = "$3" ]; then
+      printf '  ok    %-32s -> %-8s shape_moved=%s\n' "$1" "$VERDICT" "$SHAPE_MOVED"
+    else
+      printf '  NOT OK %-31s -> %-8s shape_moved=%s (expected %s / %s)\n' \
+        "$1" "$VERDICT" "$SHAPE_MOVED" "$2" "$3"; st_failed=$((st_failed+1))
+    fi
+  }
+  st_ok="ok 1 - something
+Files=262, Tests=8876, Result: "
+  st_moved="Bad plan. You planned 35 tests but ran 11.
+Files=262, Tests=8712, Result: "
+  st_case "same shape + FAIL"    COVERED 0 "${st_ok}FAIL"
+  st_case "same shape + PASS"    BLIND   0 "${st_ok}PASS"     # ⭐ THE CONTROL, half 1
+  st_case "shape MOVED + PASS"   ERROR   1 "${st_moved}PASS"  # ⭐ THE CONTROL, half 2
+  st_case "shape MOVED + FAIL"   ERROR   1 "${st_moved}FAIL"
+  st_case "Dubious only + FAIL"  ERROR   1 "ok 1 - x
+Dubious, test returned 2
+Files=262, Tests=8876, Result: FAIL"
+  st_case "no Result: line"      ERROR   0 "Files=262, Tests=8876"
+
+  # ── ARM 2: resets_enabled() POLARITY (ADR 0192; the door arm's ADR 0191 D8 table). ──────
+  # ⛔ THE CONTROL IS TRIAL A vs TRIAL B': same VALUE 20, same SUBSET, opposite SET-NESS,
+  # opposite outcome. Without it a green table proves only "a subset gate exists", not that the
+  # gate turns on set-ness — the one distinction a `RESET_EVERY="${RESET_EVERY:-20}"` written
+  # ONE LINE EARLIER silently destroys.
+  echo "=== SELFTEST: resets_enabled() — the reset gate's polarity (no DB) ==="
+  rt_case () {  # $1 label  $2 SUBSET_RUN  $3 RESET_EVERY  $4 EXPLICIT  $5 expected (yes|no)
+    local got; st_total=$((st_total+1))
+    SUBSET_RUN="$2"; RESET_EVERY="$3"; RESET_EVERY_EXPLICIT="$4"
+    if resets_enabled; then got=yes; else got=no; fi
+    if [ "$got" = "$5" ]; then
+      printf '  ok    %-46s -> resets=%s\n' "$1" "$got"
+    else
+      printf '  NOT OK %-45s -> resets=%s (expected %s)\n' "$1" "$got" "$5"; st_failed=$((st_failed+1))
+    fi
+  }
+  rt_case "A  SUBSET, RESET_EVERY unset (defaulted 20)"   1 20 0 no
+  rt_case "B  SUBSET, RESET_EVERY=1 EXPLICIT"             1 1  1 yes
+  rt_case "B' SUBSET, RESET_EVERY=20 EXPLICIT"            1 20 1 yes  # ⭐ vs A: set-ness, not value
+  rt_case "C  full run, RESET_EVERY unset (defaulted 20)" 0 20 0 yes
+  rt_case "E  full run, RESET_EVERY=0"                    0 0  0 no
+  rt_case "E' SUBSET,   RESET_EVERY=0 EXPLICIT"           1 0  1 no   # 0 disables EVERYWHERE
+
+  # ── ARM 3: the CASES SELECTION — three states, and where each one WRITES (ADR 0192). ────
+  # ⛔ THE CONTROL IS TRIAL A vs TRIAL C: the same VALUE (the empty string is what `$CASES`
+  # holds in both) reached two ways — unset, and set-and-empty — with OPPOSITE selection and
+  # OPPOSITE placement. That single distinction is the entire defect: a caller that captured
+  # the case deriver's stdout without consuming its exit code got C and was given A.
+  # ⚠ Placement is exercised through set_placement(), not restated here.
+  echo "=== SELFTEST: CASES set-ness — selection AND placement (no DB) ==="
+  sel_case () {  # $1 label  $2 CASES_EXPLICIT  $3 CASES  $4 expect want(responses_insert_own) yes|no
+                 # $5 expect placement subset|committed
+    local gotw gotp; st_total=$((st_total+1))
+    CASES_EXPLICIT="$2"; CASES="$3"; set_placement
+    if want "responses_insert_own"; then gotw=yes; else gotw=no; fi
+    if [ "$FINDINGS" = "$FINDINGS_COMMITTED" ]; then gotp=committed; else gotp=subset; fi
+    if [ "$gotw" = "$4" ] && [ "$gotp" = "$5" ]; then
+      printf '  ok    %-44s -> selects=%-3s writes=%s\n' "$1" "$gotw" "$gotp"
+    else
+      printf '  NOT OK %-43s -> selects=%-3s writes=%s (expected %s / %s)\n' \
+        "$1" "$gotw" "$gotp" "$4" "$5"; st_failed=$((st_failed+1))
+    fi
+  }
+  sel_case "A  CASES UNSET (full run)"                    0 ""                      yes committed
+  sel_case "B  CASES=\"responses_insert_own\" (subset)"     1 "responses_insert_own"  yes subset
+  sel_case "B2 CASES=\"other_gate\" (subset, not this key)" 1 "other_gate"            no  subset
+  sel_case "C  CASES=\"\" EXPLICIT  ⭐ vs A"                 1 ""                      no  subset
+
+  echo "--- SELFTEST: $((st_total - st_failed))/$st_total ok, $st_failed failed ---"
+  [ "$st_failed" -eq 0 ] || exit 1
+  exit 0
+fi
 
 echo "=== P0 AUTHZ WRITE-PATH AUDIT — open each write gate, ask the WHOLE SUITE if anyone noticed ==="
 echo "Repo: $ROOT"
@@ -942,13 +1267,25 @@ if [ -s "$SENTINEL" ]; then
     # ⛔ 2026-09-04: the recovery is VERIFIED, not believed. arm_inflight leaves the probe
     #    that identifies the ORIGINAL state beside the sentinel, so this later process can
     #    re-read the catalog instead of trusting psql's exit code.
-    psql_f "$SENTINEL" >/dev/null 2>&1; rec_rc=$?
+    # ⛔ RESTORE WITH THE ROLE THAT OPENED IT (R11.3). A storage-owned policy opened by the
+    #    escalated role and re-applied as $PSQL_ROLE fails with 42501 "must be owner of table
+    #    objects" — on exactly the cases the escalation was added for.
+    if [ -s "$SENTINEL.role" ]; then
+      rec_role="$(cat "$SENTINEL.role")"
+      echo "    sentinel records the opening role: $rec_role — restoring as that role."
+    else
+      rec_role="$PSQL_ROLE"
+      echo "    ⚠ this sentinel has NO .role sidecar (it predates the role-aware protocol)." >&2
+      echo "      Falling back to $rec_role. If the gate is on a table $rec_role does not own," >&2
+      echo "      this restore CANNOT succeed — use 'supabase db reset' instead of retrying." >&2
+    fi
+    psql_f_as "$rec_role" "$SENTINEL" >/dev/null 2>&1; rec_rc=$?
     rec_live=""; rec_want=""
     [ -s "$SENTINEL.probe" ] && rec_live="$(psql_c -c "$(cat "$SENTINEL.probe")" 2>/dev/null)"
     [ -s "$SENTINEL.want"  ] && rec_want="$(cat "$SENTINEL.want")"
     if [ "$rec_rc" = "0" ] && [ -n "$rec_want" ] && [ "$rec_live" = "$rec_want" ]; then
       mv -f "$SENTINEL" "$SENTINEL.recovered" 2>/dev/null || rm -f "$SENTINEL"
-      rm -f "$SENTINEL.probe" "$SENTINEL.want" 2>/dev/null || true
+      rm -f "$SENTINEL.probe" "$SENTINEL.want" "$SENTINEL.role" 2>/dev/null || true
       echo "*** RESTORE APPLIED and VERIFIED against the catalog (psql rc=0, probe=$rec_live)."
       echo "    ⚠ VERIFY IT ANYWAY, do not take this message as proof — re-read the gate from"
       echo "    the catalog (pg_policies / pg_get_functiondef). If in any doubt run"
@@ -1051,6 +1388,30 @@ echo "    gates SELECT and is opened by p0-authz-door-audit.sh, whose domain is 
 echo "    in ('r','*')). Until 2026-09-02 this domain was a 33-row EMBEDDED SNAPSHOT"
 echo "    bounded on cmd in (INSERT,UPDATE,DELETE) — a syntax, not the property — and the"
 echo "    other 74 write-capable policies were reported as 'matched no gate'."
+# ⛔ BLAST RADIUS, DISCLOSED IN THE RUN'S OWN OUTPUT (R11.5). Say it plainly rather than
+# leaving it to be discovered in the code: this harness can open a gate as a SUPERUSER.
+ROLE_STATS="$(psql_c -c "select count(*) filter (where not pg_has_role('$PSQL_ROLE', c.relowner,'USAGE'))||'|'||
+                                count(*) filter (where not $(POLICY_DDL_OK_SQL "$PSQL_ROLE"))
+                           from pg_policy pol
+                           join pg_class c     on c.oid = pol.polrelid
+                           join pg_namespace n on n.oid = c.relnamespace
+                          where pol.polcmd <> 'r';" 2>/dev/null | head -1)"
+NOT_OWNED="$(printf '%s' "$ROLE_STATS" | cut -d'|' -f1)"
+NEEDS_ELEV="$(printf '%s' "$ROLE_STATS" | cut -d'|' -f2)"
+echo "DOMAIN-STATEMENT connection roles: ordinary=$PSQL_ROLE; owner-capable fallback=$PSQL_ROLE_ELEVATED (a SUPERUSER on this stack)."
+echo "    ${NOT_OWNED:-?} of $POL_TOTAL in-domain policies sit on tables $PSQL_ROLE does NOT own —"
+echo "    but ownership is a PROXY, not the property: supautils' \`policy_grants\` grants POLICY DDL"
+echo "    on Supabase-managed tables to the privileged role outside pg_class.relowner."
+echo "    ⇒ ${NEEDS_ELEV:-?} of $POL_TOTAL actually REQUIRE the escalated role."
+if [ "${NEEDS_ELEV:-1}" = "0" ]; then
+  echo "    ⛔ ZERO. The escalation branch is present and UNEXERCISED on this stack — stated as a"
+  echo "    conformance finding, not as reassurance: NO gate in this run is opened as a superuser."
+else
+  echo "    ⛔ ${NEEDS_ELEV} gate(s) in this run ARE opened and restored AS A SUPERUSER. Blast radius,"
+  echo "    said plainly. Each such row carries [role=$PSQL_ROLE_ELEVATED ESCALATED …]."
+fi
+echo "    The choice is a PREDICATE evaluated per case (ownership OR supautils.policy_grants) —"
+echo "    never a schema name and never a list of policy names. All READS stay on $PSQL_ROLE."
 [ "$POL_NOSNAP" -gt 0 ] && \
   echo "    ⚠ $POL_NOSNAP selected policy(ies) are NOT in the drift snapshot: they are swept, but" && \
   echo "      no §7.2 drift tripwire protects their verdict. Each is marked snapshot:ABSENT."
@@ -1114,6 +1475,23 @@ if [ "$SEL_TOTAL" -eq 0 ]; then
 fi
 echo
 
+# ⛔ THE DEGENERATE-POLICY PREFLIGHT runs BEFORE the expensive baseline capture and after the
+# domain gate: it is one read-only query, and a stack that is already carrying an open write
+# gate would produce a RED baseline whose message ("fix the tree to green") points at the
+# wrong thing entirely. ⛔ ENUMERATE — see degenerate_write_policies.
+echo "--- preflight: no WRITE gate is already sitting open on this stack ---"
+PRE_DEGEN="$(degenerate_write_policies)"
+if [ -n "$PRE_DEGEN" ]; then
+  echo "*** PREFLIGHT FAILED: a non-SELECT policy is ALREADY degenerate on this stack:" >&2
+  echo "$PRE_DEGEN" | sed 's/^/      /' >&2
+  echo "    A sweep started here would classify against an already-open write gate." >&2
+  echo "    Check \$SENTINEL, then RECOVER=1, then 'supabase db reset --local' from the repo root." >&2
+  exit 2
+fi
+echo "    clean — 0 degenerate NON-SELECT policies (the ten 'true' vocabulary SELECT policies"
+echo "    are true BY DESIGN; a bare COUNT would read ~11 here and look like a baseline)"
+echo
+
 echo "--- preflight: capturing GREEN baseline (§7.3 assert the state) ---"
 BASE_OUT=$(run_suite)
 BASE_RES=$(echo "$BASE_OUT" | grep -oE 'Result: (PASS|FAIL)' | tail -1 | awk '{print $2}')
@@ -1127,6 +1505,131 @@ if [ "$BASE_RES" != "PASS" ]; then
 fi
 echo "baseline OK: Result: PASS, Files=$BASE_FILES, Tests=$BASE_TESTS"
 echo
+
+# ─────────────────────────────────────────────────────────────────────────────────────
+# THE PERIODIC RESET (ADR 0192; design ported from p0-authz-door-audit.sh / ADR 0191 D8,
+# which took it from c2-command-door-neutralizer.sh). The step ORDER is theirs and each step
+# is a thing this arm refuses to ASSUME after a reset.
+#
+# ⛔ THE DOOR'S DESIGN IS NOT PORTABLE AS-IS, and the three differences are why this was
+# written rather than copied:
+#   1. The door re-derives TWO catalog worklists (`derive_worklists`). This arm has ONE
+#      catalog worklist (`build_pol_worklist`) and a STATIC `GUARD_KEYS` list, so the Arm-1
+#      half gets its own post-reset check: every GUARD_KEYS entry must still resolve to an
+#      OID through its regprocedure identity. Nothing in the door's design covers that.
+#   2. There is no `degenerate_gates()` here. The write arm's discriminator is the POLICY
+#      one from `.claude/rules/mutation-harnesses-are-not-killable.md`: a degenerate
+#      NON-SELECT policy. ⛔ ENUMERATE — a bare count of `qual='true' or with_check='true'`
+#      returns ~11 on a clean stack because ten vocabulary SELECT policies are `true` BY
+#      DESIGN, and reading that count as a baseline is how the AE1.5 open UPDATE policy was
+#      nearly missed.
+#   3. The policy worklist carries NO OID column (identities only, by design), so the door's
+#      OID-reassignment adaptation does not apply to Arm 2; and Arm 1 already re-resolves each
+#      guard by `'sig'::regprocedure::oid` at case time, so it is reset-safe already. Both
+#      facts are ASSERTED below, not assumed.
+# ─────────────────────────────────────────────────────────────────────────────────────
+periodic_reset () {   # $1 = why (printed)
+  local why="$1" pd now_pol g bad_oid
+  # 1. ⛔ INTERLOCK FIRST, AHEAD OF THE SUBSET GATE. A reset with a mutation in flight destroys
+  #    the evidence AND its restore in one command — the composition the sentinel exists to
+  #    prevent. It stays first so the gate below cannot DISPLACE it: reaching here with an
+  #    armed sentinel is a broken invariant whatever kind of run this is.
+  if [ -s "$SENTINEL" ]; then
+    echo "*** refusing to reset with a mutation in flight: $SENTINEL" >&2
+    echo "    RECOVER=1 bash $0 first, then VERIFY it in the catalog." >&2
+    exit 2
+  fi
+  # 2. THE GATE. Announced either way — a reset that did NOT happen is a fact about the run's
+  #    preconditions, exactly like the domain. Checked here too so a direct call cannot bypass it.
+  if ! resets_enabled; then
+    if [ "$RESET_EVERY" = "0" ]; then
+      echo "    (RESET_EVERY=0 — resets DISABLED everywhere; NOT resetting: $why)"
+    else
+      echo "    (SUBSET run, RESET_EVERY not set explicitly — the DEFAULT never fires on a"
+      echo "     SUBSET run; NOT resetting: $why)"
+    fi
+    return 0
+  fi
+  echo "--- PERIODIC RESET ($why) ---"
+  # 3. ⛔ `cd "$ROOT"` IS LOAD-BEARING: `supabase db reset` applies the migrations of the
+  #    DIRECTORY YOU STAND IN, and this machine measurably has a second, unrelated stack up
+  #    (`supabase_db_escalume`). ⛔ `</dev/null` because BOTH call sites are inside a
+  #    `while read` loop whose stdin is the worklist file.
+  if ! ( cd "$ROOT" && supabase db reset --local ) >/dev/null 2>&1 </dev/null; then
+    echo "*** db reset FAILED — aborting rather than measuring on an unknown DB." >&2
+    exit 2
+  fi
+  RESETS=$((RESETS+1))
+  # 4. a reset is a new tree and its cleanliness is NOT assumed.
+  pd="$(degenerate_write_policies)"
+  if [ -n "$pd" ]; then
+    echo "*** ABORT: a non-SELECT policy is DEGENERATE after a mid-sweep reset:" >&2
+    echo "$pd" | sed 's/^/      /' >&2
+    exit 2
+  fi
+  echo "    post-reset preflight: clean — 0 degenerate NON-SELECT policies"
+  # 5a. ARM 2 — re-derive and compare. If the worklist moved, the TREE changed under the run
+  #     and every verdict recorded so far is against a DIFFERENT POPULATION. ⛔ To a `.reset`
+  #     file, NEVER over the file the sweep's `while read` loop is consuming.
+  local keep="$POLWL"
+  POLWL="$keep.reset"
+  build_pol_worklist || { echo "*** ABORT: could not re-lift ARM 2's domain after a reset." >&2; exit 2; }
+  POLWL="$keep"
+  now_pol=$(grep -c . "$keep.reset" | tr -d '[:space:]')
+  if [ "$now_pol" != "$POL_TOTAL" ] || ! diff -q "$keep.reset" "$keep" >/dev/null; then
+    echo "*** ABORT: the derived policy worklist CHANGED across the reset" >&2
+    echo "    (policy $POL_TOTAL -> $now_pol). The tree moved under this run; every verdict" >&2
+    echo "    so far is against another population, so nothing measured here may be merged." >&2
+    exit 2
+  fi
+  # 5b. ARM 1 — THE HALF THE DOOR'S DESIGN DOES NOT COVER. GUARD_KEYS is a STATIC list, so
+  #     there is no worklist to re-derive; what must still hold is that every entry still
+  #     RESOLVES. `supabase db reset` recreates the database and reassigns every pg_proc.oid,
+  #     which is harmless because the sweep re-resolves at case time — but a guard whose
+  #     IDENTITY vanished would turn into a run of `OID lookup failed` ERRORs that read like
+  #     a harness bug rather than like the tree having moved.
+  bad_oid=""
+  for g in $GUARD_KEYS; do
+    psql_c -c "select '$(guard_sig "$g")'::regprocedure::oid" 2>/dev/null | grep -qE '^[0-9]+$' \
+      || bad_oid="$bad_oid $g"
+  done
+  if [ -n "$bad_oid" ]; then
+    echo "*** ABORT: GUARD_KEYS entries no longer resolve after a mid-sweep reset:$bad_oid" >&2
+    exit 2
+  fi
+  echo "    post-reset ARM 1 check: all $GUARD_TOTAL GUARD_KEYS entries still resolve to an OID"
+  # 6. re-capture the baseline — THE WHOLE POINT: later verdicts compare against a FRESH shape,
+  #    so the drift any verdict can carry is bounded by RESET_EVERY, not by the run's length.
+  BASE_OUT=$(run_suite)
+  BASE_RES=$(echo "$BASE_OUT" | grep -oE 'Result: (PASS|FAIL)' | tail -1 | awk '{print $2}')
+  BASE_FT=$(echo "$BASE_OUT" | grep -oE 'Files=[0-9]+, Tests=[0-9]+' | tail -1)
+  BASE_FILES=$(echo "$BASE_FT" | grep -oE 'Files=[0-9]+' | grep -oE '[0-9]+')
+  BASE_TESTS=$(echo "$BASE_FT" | grep -oE 'Tests=[0-9]+' | grep -oE '[0-9]+')
+  echo "    post-reset baseline: ${BASE_RES:-<none>} (shape=Files=$BASE_FILES, Tests=$BASE_TESTS)  |  policy worklist re-derived: $now_pol (unchanged)"
+  if [ "$BASE_RES" != "PASS" ]; then
+    echo "*** ABORT: the suite is RED after a mid-sweep reset. Every later verdict would be" >&2
+    echo "    measured against a broken tree." >&2
+    exit 2
+  fi
+}
+
+# Called BEFORE a case's work, so that case's baseline is at most RESET_EVERY cases old.
+maybe_periodic_reset () {
+  if [ "$RESET_EVERY" != "0" ] && [ "$DONE" -gt 1 ] && [ $(( (DONE - 1) % RESET_EVERY )) -eq 0 ]; then
+    periodic_reset "scheduled — $((DONE - 1)) case(s) swept since the last baseline"
+  fi
+}
+# ⛔ The retry net reads the CLASSIFIER's own SHAPE_MOVED, never the note text. A GENUINE
+# neutralization failure reproduces after a fresh reset; drift does not. When this run may not
+# reset, the case is NOT retried and the ROW SAYS SO — retrying without the reset would
+# re-measure the same drift and then suffix a sentence claiming it had been ruled out.
+retry_suppressed_note () {
+  if [ "$RESET_EVERY" = "0" ]; then
+    printf '%s' " (drift-shaped; NOT retried — RESET_EVERY=0, resets are DISABLED everywhere)"
+  else
+    printf '%s' " (drift-shaped; NOT retried — a SUBSET run resets only when RESET_EVERY is set explicitly)"
+  fi
+}
 
 # (write_pol_snapshot + build_pol_worklist run ABOVE the preflight with the §7.17 domain
 #  gate — an UNPROVEN run must cost seconds, not a full suite run. Do not re-add a call
@@ -1213,27 +1716,36 @@ record () {  # arm gate direction verdict failing
 # ─────────────────────────────────────────────────────────────────────────────────────
 # ARM 1 — authz RAISE-GUARDS (bespoke neutralization)
 # ─────────────────────────────────────────────────────────────────────────────────────
-echo "=== ARM 1: authz raise-guards ==="
-for k in $GUARD_KEYS; do
-  want "$k" || continue
+# ⛔ ONE CASE'S WORK IS A FUNCTION, NOT INLINE CODE (ADR 0192, mirroring ADR 0191 D8). The
+# retry net has to run a case TWICE, and a second COPY of the case body is how the retry comes
+# to measure something subtly different from what the first pass measured. The function reports
+# through SW_VERDICT / SW_NOTE / SW_DRIFT and the CALLER records — so a retried case is
+# recorded exactly once.
+SW_VERDICT=""; SW_NOTE=""; SW_DRIFT=0
+sweep_guard_one () {   # $1 = guard key ; sets SW_VERDICT / SW_NOTE / SW_DRIFT
+  local k="$1" sig oid orig mout out now
+  SW_VERDICT=""; SW_NOTE=""; SW_DRIFT=0
   sig="$(guard_sig "$k")"
+  # ⚠ Re-resolved from the regprocedure IDENTITY at CASE time, which is what makes ARM 1
+  # safe across a periodic reset (every pg_proc.oid is reassigned by `supabase db reset`).
   oid=$(psql_c -c "select '$sig'::regprocedure::oid" 2>&1)
   if ! echo "$oid" | grep -qE '^[0-9]+$'; then
-    record "guard" "$sig" "authz-open" "ERROR" "OID lookup failed: $(echo "$oid" | tr '\n' ' ' | head -c 120)"
-    echo "  ERROR  $sig (oid lookup)"; continue
+    SW_VERDICT="ERROR"; SW_NOTE="OID lookup failed: $(echo "$oid" | tr '\n' ' ' | head -c 120)"
+    return 0
   fi
 
   orig="$WORK/orig_wp_guard_$k.sql"
   psql_c -c "select pg_get_functiondef($oid)" > "$orig"   # exact bytes for restore + verify
-  # arm the trap BEFORE opening, with the probe that will VERIFY its restore
-  arm_inflight "$orig" "select md5(pg_get_functiondef($oid))"
+  # arm the trap BEFORE opening, with the probe that will VERIFY its restore and the ROLE
+  # that must apply it (R11.3 — guards live in app/public and are owned by $PSQL_ROLE).
+  arm_inflight "$orig" "select md5(pg_get_functiondef($oid))" "$PSQL_ROLE"
 
   emit_neut_guard "$k" > "$WORK/_wp_mut.sql"
   mout=$(psql_f "$WORK/_wp_mut.sql")
   if echo "$mout" | grep -qiE 'ERROR'; then
-    record "guard" "$sig" "authz-open" "ERROR" "neutralize failed: $(echo "$mout" | tr '\n' ' ' | head -c 160)"
+    SW_VERDICT="ERROR"; SW_NOTE="neutralize failed: $(echo "$mout" | tr '\n' ' ' | head -c 160)"
     restore_inflight || { echo "*** the restore of $sig REFUSED — stopping (§7.5)."; exit 2; }
-    echo "  ERROR  $sig (neutralize failed)"; continue
+    return 0
   fi
 
   out=$(run_suite); echo "$out" > "$RUNLOGS/guard_$k.log"
@@ -1248,10 +1760,35 @@ for k in $GUARD_KEYS; do
   fi
   disarm_inflight   # the round-trip above verified it — only now drop the sentinel
 
-  note="$FAILING"
-  [ "$VERDICT" = "ERROR" ] && note="run-shape!=baseline (Files=$RUNFILES Tests=$RUNTESTS)"
-  record "guard" "$sig" "authz-open" "$VERDICT" "$note"
-  printf '  %-8s %s\n' "$VERDICT" "$sig"
+  SW_VERDICT="$VERDICT"
+  SW_NOTE="$FAILING"
+  # ⛔ The drift flag comes from the CLASSIFIER's own SHAPE_MOVED, never from this note text.
+  SW_DRIFT="$SHAPE_MOVED"
+  [ "$VERDICT" = "ERROR" ] && SW_NOTE="run-shape!=baseline (Files=$RUNFILES Tests=$RUNTESTS)"
+  return 0
+}
+
+echo "=== ARM 1: authz raise-guards ==="
+for k in $GUARD_KEYS; do
+  want "$k" || continue
+  sig="$(guard_sig "$k")"
+  DONE=$((DONE + 1))
+  maybe_periodic_reset
+  sweep_guard_one "$k"
+  # THE RETRY NET — a shape-moved ERROR is reset-and-retried ONCE. A genuine neutralization
+  # failure reproduces after a fresh reset; drift does not.
+  if [ "$SW_VERDICT" = "ERROR" ] && [ "$SW_DRIFT" = "1" ]; then
+    if ! resets_enabled; then
+      SW_NOTE="$SW_NOTE$(retry_suppressed_note)"
+    else
+      echo "    drift suspected — resetting and retrying $sig ONCE"
+      periodic_reset "retry — $sig recorded a drift-shaped ERROR"
+      sweep_guard_one "$k"
+      SW_NOTE="$SW_NOTE (retried once after a reset)"
+    fi
+  fi
+  record "guard" "$sig" "authz-open" "$SW_VERDICT" "$SW_NOTE"
+  printf '  %-8s %s\n' "$SW_VERDICT" "$sig"
 done
 
 # ─────────────────────────────────────────────────────────────────────────────────────
@@ -1259,9 +1796,11 @@ done
 # ─────────────────────────────────────────────────────────────────────────────────────
 echo
 echo "=== ARM 2: write policies ==="
-while IFS='|' read -r nsp tbl polname cmd haveq havew qtrue wtrue; do
-  [ -n "${polname:-}" ] || continue
-  want "$polname" || continue
+SW_DIR="open->true"
+sweep_pol_one () {   # $1..$8 = nsp tbl polname cmd haveq havew qtrue wtrue
+  local nsp="$1" tbl="$2" polname="$3" cmd="$4" haveq="$5" havew="$6" qtrue="$7" wtrue="$8"
+  local vac s qfile wfile restore regc snaprow snapnote snapq snapw mout out nowq noww
+  SW_VERDICT=""; SW_NOTE=""; SW_DRIFT=0; SW_DIR="open->true"
 
   # WHICH CLAUSES THIS ARM OPENS — the property, per command (see the ARM 2 header).
   open_rule "$cmd" "$haveq" "$havew"
@@ -1272,9 +1811,9 @@ while IFS='|' read -r nsp tbl polname cmd haveq havew qtrue wtrue; do
   # NOT "nothing to do" — it is reported ERROR so it blocks, never SKIPPED so it reads fine.
   # (Measured 2026-09-02: zero such policies exist; this guard is here for the first one.)
   if [ "$OPENQ" = 0 ] && [ "$OPENW" = 0 ]; then
-    record "policy" "$tbl.$polname ($cmd)" "open->true" "ERROR" \
-      "NOT OPENABLE BY THIS ARM: $cmd with haveq=$haveq havew=$havew — ALTER POLICY cannot reset WITH CHECK to NULL, so no restorable write-half opening exists"
-    echo "  ERROR  $tbl.$polname (not openable by this arm)"; continue
+    SW_VERDICT="ERROR"
+    SW_NOTE="NOT OPENABLE BY THIS ARM: $cmd with haveq=$haveq havew=$havew — ALTER POLICY cannot reset WITH CHECK to NULL, so no restorable write-half opening exists"
+    return 0
   fi
 
   # vacuous skip: every clause THIS ARM WOULD OPEN is already `true`
@@ -1282,8 +1821,16 @@ while IFS='|' read -r nsp tbl polname cmd haveq havew qtrue wtrue; do
   { [ "$OPENQ" = 1 ] && [ "$qtrue" != 1 ]; } && vac=0
   { [ "$OPENW" = 1 ] && [ "$wtrue" != 1 ]; } && vac=0
   if [ "$vac" = 1 ]; then
-    record "policy" "$tbl.$polname ($cmd)" "open->true" "SKIPPED" "vacuous: the clause this arm opens is already true"
-    echo "  SKIPPED $tbl.$polname (vacuous)"; continue
+    SW_VERDICT="SKIPPED"; SW_NOTE="vacuous: the clause this arm opens is already true"
+    return 0
+  fi
+
+  # ⛔ WHICH ROLE CAN OPEN THIS ONE — resolved from pg_class.relowner PER CASE (R11.1). Not a
+  # schema name, not a list of policy names: an ownership predicate, so the next non-$PSQL_ROLE
+  # -owned table is handled by the rule rather than by a future edit.
+  if ! resolve_open_role "$nsp" "$tbl"; then
+    SW_VERDICT="ERROR"; SW_NOTE="cannot determine an owner-capable role: $ROLE_WHY"
+    return 0
   fi
 
   s=$(slug "${nsp}_${tbl}_${polname}")
@@ -1306,12 +1853,12 @@ while IFS='|' read -r nsp tbl polname cmd haveq havew qtrue wtrue; do
     snapq="$(printf '%s' "$snaprow" | cut -d'|' -f4)"
     snapw="$(printf '%s' "$snaprow" | cut -d'|' -f5)"
     if [ "$OPENQ" = 1 ] && [ "$(cat "$qfile")" != "$snapq" ]; then
-      record "policy" "$tbl.$polname ($cmd)" "open->true" "ERROR" "snapshot drift (qual): live='$(cat "$qfile")'"
-      echo "  ERROR  $tbl.$polname (qual drift)"; continue
+      SW_VERDICT="ERROR"; SW_NOTE="snapshot drift (qual): live='$(cat "$qfile")'"
+      return 0
     fi
     if [ "$OPENW" = 1 ] && [ "$(cat "$wfile")" != "$snapw" ]; then
-      record "policy" "$tbl.$polname ($cmd)" "open->true" "ERROR" "snapshot drift (with_check): live='$(cat "$wfile")'"
-      echo "  ERROR  $tbl.$polname (wc drift)"; continue
+      SW_VERDICT="ERROR"; SW_NOTE="snapshot drift (with_check): live='$(cat "$wfile")'"
+      return 0
     fi
   else
     snapnote=" [snapshot:ABSENT — no §7.2 drift tripwire on this verdict]"
@@ -1325,7 +1872,10 @@ while IFS='|' read -r nsp tbl polname cmd haveq havew qtrue wtrue; do
     [ "$OPENW" = 1 ] && printf ' with check (%s)' "$(cat "$wfile")"
     printf ';\n'
   } > "$restore"
-  arm_inflight "$restore" "select md5(coalesce(pg_get_expr(polqual,polrelid),'')||'|'||coalesce(pg_get_expr(polwithcheck,polrelid),'')) from pg_policy where polname='$polname' and polrelid='$regc'::regclass"
+  # ⛔ The sentinel carries OPEN_ROLE, so a later process's RECOVER=1 restores with the role
+  # that opened it. A storage policy opened as $PSQL_ROLE_ELEVATED and re-applied as
+  # $PSQL_ROLE cannot be restored at all — 42501, on exactly the cases the escalation exists for.
+  arm_inflight "$restore" "select md5(coalesce(pg_get_expr(polqual,polrelid),'')||'|'||coalesce(pg_get_expr(polwithcheck,polrelid),'')) from pg_policy where polname='$polname' and polrelid='$regc'::regclass" "$OPEN_ROLE"
 
   # OPEN the policy — only the clause(s) the open rule names for this command.
   {
@@ -1334,18 +1884,18 @@ while IFS='|' read -r nsp tbl polname cmd haveq havew qtrue wtrue; do
     [ "$OPENW" = 1 ] && printf ' with check (true)'
     printf ';\n'
   } > "$WORK/_wp_mut.sql"
-  mout=$(psql_f "$WORK/_wp_mut.sql")
+  mout=$(psql_f_as "$OPEN_ROLE" "$WORK/_wp_mut.sql")
   if echo "$mout" | grep -qiE 'ERROR'; then
-    record "policy" "$tbl.$polname ($cmd)" "open->true" "ERROR" "open failed: $(echo "$mout" | tr '\n' ' ' | head -c 160)"
+    SW_VERDICT="ERROR"; SW_NOTE="open failed as $OPEN_ROLE: $(echo "$mout" | tr '\n' ' ' | head -c 160)"
     restore_inflight || { echo "*** the restore of $tbl.$polname REFUSED — stopping (§7.5)."; exit 2; }
-    echo "  ERROR  $tbl.$polname (open failed)"; continue
+    return 0
   fi
 
   out=$(run_suite); echo "$out" > "$RUNLOGS/pol_$s.log"
   classify "$out"
 
-  # RESTORE exact original + VERIFY round-trip
-  psql_f "$restore" >/dev/null 2>&1
+  # RESTORE exact original + VERIFY round-trip — AS THE SAME ROLE THAT OPENED IT.
+  psql_f_as "$OPEN_ROLE" "$restore" >/dev/null 2>&1
   if [ "$OPENQ" = 1 ]; then
     nowq=$(psql_c -c "select pg_get_expr(polqual,polrelid) from pg_policy where polname='$polname' and polrelid='$regc'::regclass")
     if [ "$nowq" != "$(cat "$qfile")" ]; then
@@ -1362,14 +1912,37 @@ while IFS='|' read -r nsp tbl polname cmd haveq havew qtrue wtrue; do
 
   # ⚠ The direction records WHICH clause was opened, so an ALL policy's COVERED cannot be
   # read as a claim about its `using` half (which this arm deliberately does not open).
-  dir="open->true"
-  [ "$OPENQ" = 1 ] && [ "$OPENW" = 1 ] && dir="open using+check->true"
-  [ "$OPENQ" = 1 ] && [ "$OPENW" = 0 ] && dir="open using->true"
-  [ "$OPENQ" = 0 ] && [ "$OPENW" = 1 ] && dir="open with-check->true"
-  note="$FAILING$snapnote"
-  [ "$VERDICT" = "ERROR" ] && note="run-shape!=baseline (Files=$RUNFILES Tests=$RUNTESTS)$snapnote"
-  record "policy" "$tbl.$polname ($cmd)" "$dir" "$VERDICT" "$note"
-  printf '  %-8s %s\n' "$VERDICT" "$tbl.$polname"
+  SW_DIR="open->true"
+  [ "$OPENQ" = 1 ] && [ "$OPENW" = 1 ] && SW_DIR="open using+check->true"
+  [ "$OPENQ" = 1 ] && [ "$OPENW" = 0 ] && SW_DIR="open using->true"
+  [ "$OPENQ" = 0 ] && [ "$OPENW" = 1 ] && SW_DIR="open with-check->true"
+  SW_VERDICT="$VERDICT"
+  SW_DRIFT="$SHAPE_MOVED"
+  # ⚠ The ROLE is carried on the ROW, not only in the banner: a row is read without its banner,
+  # and "which role opened this gate" is part of what the verdict means.
+  SW_NOTE="$FAILING$snapnote [$ROLE_WHY]"
+  [ "$VERDICT" = "ERROR" ] && SW_NOTE="run-shape!=baseline (Files=$RUNFILES Tests=$RUNTESTS)$snapnote [$ROLE_WHY]"
+  return 0
+}
+
+while IFS='|' read -r nsp tbl polname cmd haveq havew qtrue wtrue; do
+  [ -n "${polname:-}" ] || continue
+  want "$polname" || continue
+  DONE=$((DONE + 1))
+  maybe_periodic_reset
+  sweep_pol_one "$nsp" "$tbl" "$polname" "$cmd" "$haveq" "$havew" "$qtrue" "$wtrue"
+  if [ "$SW_VERDICT" = "ERROR" ] && [ "$SW_DRIFT" = "1" ]; then
+    if ! resets_enabled; then
+      SW_NOTE="$SW_NOTE$(retry_suppressed_note)"
+    else
+      echo "    drift suspected — resetting and retrying $tbl.$polname ONCE"
+      periodic_reset "retry — $tbl.$polname recorded a drift-shaped ERROR"
+      sweep_pol_one "$nsp" "$tbl" "$polname" "$cmd" "$haveq" "$havew" "$qtrue" "$wtrue"
+      SW_NOTE="$SW_NOTE (retried once after a reset)"
+    fi
+  fi
+  record "policy" "$tbl.$polname ($cmd)" "$SW_DIR" "$SW_VERDICT" "$SW_NOTE"
+  printf '  %-8s %s\n' "$SW_VERDICT" "$tbl.$polname"
 done < "$POLWL"
 
 echo
@@ -1403,6 +1976,18 @@ echo "ARM-DOMAIN guard=$GUARD_SEL/$GUARD_TOTAL policy=$POL_SEL/$POL_TOTAL"
 [ "$POL_SEL"  -eq 0 ] && echo "    ⚠ POLICY ARM: EMPTY DOMAIN — this arm measured NOTHING. It did not hold; it did not run."
 [ -n "$UNMATCHED" ] && echo "    ⚠ REQUESTED BUT NEVER SWEPT (matched no gate):$UNMATCHED"
 echo "SWEPT: $swept_ct   COVERED: $cov_ct   BLIND: $blind_ct   ERROR(harness): $err_ct   SKIPPED(vacuous): $skip_ct"
+# ⛔ THE PRECONDITIONS LINE IS PART OF THE RESULT, NOT DECORATION. `resets=0` on a full
+# 120-case sweep is the exact state that VOIDED the door arm's run 1 (a 78-row drift tail with
+# no originating case, found only afterwards). Quote this line in the gate record beside the
+# counts — a verdict count without it does not say what the verdicts were measured against.
+if resets_enabled; then
+  echo "preconditions: resets=$RESETS (RESET_EVERY=$RESET_EVERY, explicit=$RESET_EVERY_EXPLICIT, subset=$SUBSET_RUN — ENABLED)"
+elif [ "$RESET_EVERY" = "0" ]; then
+  echo "preconditions: resets=$RESETS (RESET_EVERY=0 — resets DISABLED everywhere)"
+else
+  echo "preconditions: resets=$RESETS (RESET_EVERY=$RESET_EVERY defaulted, SUBSET run — SUPPRESSED: the DEFAULT never fires on a SUBSET run)"
+fi
+echo "connection roles: ordinary=$PSQL_ROLE, owner-capable fallback=$PSQL_ROLE_ELEVATED (used only where the role can NEITHER own the table NOR policy-grant it via supautils — see the per-row [role=…] note)"
 
 # ⛔ THE EXIT CODE. Until 2026-08-29 this file ENDED on the echo above, so every run
 # exited 0 — including one with 13 ERRORs that measured nothing. `(COVERED = the rest)`

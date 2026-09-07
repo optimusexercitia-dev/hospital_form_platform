@@ -54,3 +54,206 @@ builder on a fresh reset — the catalog has moved since each was filed):
 - Batch 4 runs in parallel on a separate machine; merge order is Batch 3 first; ADR 0192 is ours.
 
 **Branch:** `authz-writepath-baseline` off `main` @ `23ec1fa5`.
+
+---
+
+### 2026-09-07 — `backend`, BUILD turn. Harness built and proven; **STOPPED at the pre-launch checklist; the run was NOT launched**
+
+⛔ **The headline: ruling R11's premise is refuted by measurement, so pre-launch item 2 cannot pass,
+and R12 forbids launching on a failed item.** Every other checklist item is green.
+
+**Stack discrimination (stated every time it matters).** Two local stacks are up. Ours is
+`supabase_db_azkbbhskturikxpgmafq`, discriminated by the `authz` schema: `authz_schema=1,
+policies=283` against `supabase_db_escalume`'s `authz_schema=0, policies=43`. Every measurement
+below was taken against the first.
+
+#### Corrections to the facts filed at open (dated notes; the originals stand)
+
+| filed above | measured 2026-09-07 |
+|---|---|
+| "37 verdict rows (33 annotated + 4 AE4.9 D6)" | **51** verdict rows — 39 policy (34 COVERED + 3 BLIND + 2 ERROR) + 12 guard; 6 are `snapshot:ABSENT`. Agrees with the file's own `## Note` at `:24`. |
+| coverage "33 of 107" / "37" | **39 of 107** policies and — a gap nobody had stated — **12 of 13** guards: `public.set_primary_subject(uuid)` is in `GUARD_KEYS` and has NEVER been verdicted. **Total coverage is 51 of 120 cases.** |
+| "~9 annotated rows" | **11**. The 9 came from a decorative-token pattern (⭐ ⚠ ⛔ `**` `[merged`); rows `:60` and `:61` carry hand prose in plain English and the pattern cannot see them. ⭐ This reproduces the merge library's own doctrine on its own file: a warning whose number comes from a filter is only as true as the filter. |
+| "the write arm exits 0 over an empty case set" | Two states share that name and behave **oppositely** — see the R1/R13 note below. |
+| "~13 h with `RESET_EVERY`" | **≈ 3.6–5.0 h**, derived below rather than quoted. |
+| "the three `storage.objects` policies cannot be opened as `postgres`" | **False.** All three sweep and verdict COVERED as plain `postgres`. |
+
+#### What was built — `supabase/tests/mutation/p0-authz-writepath-audit.sh`, the only file changed
+
+1. **`CASES` set-ness.** `CASES_EXPLICIT` captured *before* the `${CASES:-}` default; `want()` and
+   the `$FINDINGS` placement both keyed on set-ness; placement extracted into `set_placement()` so
+   the self-test EXERCISES the rule instead of restating it; a `SELECTION-SOURCE` line names which
+   of the three states a run is in.
+2. **`RESET_EVERY` port** — the file had **0** occurrences. `resets_enabled()` as one predicate read
+   by all three sites; `periodic_reset()` with the in-flight interlock FIRST; `cd "$ROOT"` and
+   `</dev/null` both load-bearing; a post-reset degenerate preflight; worklist re-derivation to
+   `.reset`; baseline re-capture; a retry-once net; a `preconditions: resets=N` summary line.
+   ⛔ **The door's design is not portable as-is**, and the three adaptations are recorded in the
+   file: the drift key here is `ERROR`, not the door's `NOTICED`; there is no `derive_worklists()`
+   (one catalog worklist plus a STATIC `GUARD_KEYS`, so the Arm-1 half needs its own post-reset
+   OID-resolution check, which the door's design does not cover at all); and there is no
+   `degenerate_gates()` — the discriminator here is a degenerate **NON-SELECT policy**, enumerated,
+   never counted, because a bare count reads ~11 on a clean stack.
+3. **Owner-aware connection role** — see the refutation below.
+4. **A `SELFTEST` arm.** The file had none (the door has 16 hits). Three tables: `classify()`'s
+   verdict *and* the `SHAPE_MOVED` flag the retry net reads; `resets_enabled()` polarity; the
+   `CASES` selection and placement.
+5. **The DRYRUN banner's count derived** from `GUARD_KEYS`. It printed a hardcoded `7` while the
+   list held 13 and the loop beneath it iterated all 13. Observed after: `ARM 1: 13 authz raise-guards`.
+6. `run_suite`'s "~23s" comment corrected to the measured ~93 s — it is the source of the
+   downstream "~50 min for 120 cases" budget, wrong by four times.
+
+#### ⛔ THE REFUTATION — R11's ownership predicate is not the property
+
+R11 approved a superuser escalation because three `storage.objects` INSERT policies were predicted
+to land `ERROR — must be owner of table objects`. The catalog **agrees with the premise**:
+
+    storage.objects | owner=supabase_storage_admin | pg_has_role('postgres',relowner,'USAGE')=false
+    rolsuper(postgres)=false | rolsuper(supabase_admin)=true | is_superuser=off
+    postgres member_of: pg_read_all_data, pg_monitor, pg_signal_backend, pg_create_subscription,
+                        authenticated, anon, service_role, supabase_privileged_role, authenticator,
+                        supabase_functions_admin      -- supabase_storage_admin is NOT among them
+
+**And the `ALTER POLICY` succeeds anyway.** The harness **at HEAD**, unmodified, swept all three
+end to end as plain `postgres`:
+
+    ARM-DOMAIN guard=0/13 policy=3/107 · baseline OK: Result: PASS, Files=262, Tests=8876
+      COVERED  objects.documents_phi_obj_insert_reserved
+      COVERED  objects.documents_std_obj_insert_reserved
+      COVERED  objects.form_assets_insert_staff_admin
+    SWEPT: 3   COVERED: 3   BLIND: 0   ERROR(harness): 0   SKIPPED(vacuous): 0
+    === RESULT: CLEAN — 3 gate(s) measured, all COVERED. ===          bare rc 0
+
+All three predicates restored byte-exact; `degenerate_NON_SELECT = 0`; no sentinel; committed
+baseline cksum unchanged at `1903941766 13882`.
+
+**The mechanism, named rather than left as "it works somehow": `supautils`.** This stack sets
+`supautils.policy_grants = {"postgres":[… "storage.objects", "storage.buckets", "auth.users" …]}`,
+and the extension's utility hook grants POLICY DDL on Supabase-managed tables to the privileged
+role entirely outside `pg_class.relowner`. `pg_has_role(role, relowner, 'USAGE')` is therefore a
+**proxy** for a permission this server grants by another route — a predicate quoted at the wrong
+grain, and the same shape as *text is not truth: resolve the VALUE, not the noun*.
+
+⚠ Two of my own predictions died with it: that the three would land ERROR (they land COVERED), and
+that `BLIND ×3` was plausible because pgTAP `325` is a by-name pin. It is — but `143_capa`,
+`312_printed_documents`, `328_dm1_document_substrate` and `330_dm3_controlled_documents` all assert
+*through* these policies.
+
+**What was built instead.** The predicate is now the disjunction, both halves read live from the
+server per case: *(a)* the role has privs of `pg_class.relowner`, **OR** *(b)* `nsp.tbl` appears in
+`supautils.policy_grants` for that role. Still an evaluated predicate — never a schema name, never
+a list of policy names. Under it, **0 of 107** in-domain policies require the escalated role, and
+the run's DOMAIN-STATEMENT prints that zero instead of implying the branch was used:
+
+    DOMAIN-STATEMENT connection roles: ordinary=postgres; owner-capable fallback=supabase_admin (a SUPERUSER on this stack).
+        3 of 107 in-domain policies sit on tables postgres does NOT own —
+        ⇒ 0 of 107 actually REQUIRE the escalated role.
+        ⛔ ZERO. The escalation branch is present and UNEXERCISED on this stack …
+
+and the verdict ROW carries the role and its route, not just the banner:
+`… [role=postgres via supautils.policy_grants (owner=supabase_storage_admin)]`.
+
+⇒ **R11.2's second half — "a storage policy observed opening as the escalated role" — is
+unsatisfiable.** No case requires it, and manufacturing one would be building a test to fit what I
+built. R11.3's "prove recovery on a storage policy" is satisfiable only at `postgres`, which is the
+role the predicate actually chooses. Filed as `FUP-WRITEPATH-BASELINE-ESCALATED-ROLE-ARM-UNEXERCISED`.
+The sentinel/`RECOVER=1` role plumbing R11.3 asked for is **built regardless**: `$SENTINEL.role`
+travels with the sentinel and `RECOVER=1` restores with it, saying so out loud when a sentinel
+predates the protocol.
+
+#### Proofs — every exit code read BARE: never through a pipe, never consumed by a `;` chain
+
+| # | proof | observed |
+|---|---|---|
+| P1 | fixed harness, `CASES=""` EXPLICIT | `guard=0/13 policy=0/107`, `RESULT: UNPROVEN`, bare **rc 3**; baseline cksum unchanged |
+| NC | **pre-change predicates**, same `CASES=""` (DRYRUN, decision only) | `FULL SWEEP — this run MERGES into the committed baseline`, `guard=13/13 policy=107/107`, bare **rc 0** — the R13 defect, reproduced |
+| DH | fixed harness, `CASES` **unset** (opposite polarity) | still a full run, `guard=13/13 policy=107/107`, bare rc 0 |
+| P3 | HEAD harness, the three storage policies | 3/3 COVERED, bare **rc 0** |
+| P4 | **current** harness, one storage policy, end to end | COVERED, bare **rc 0**, role and route on the row, `preconditions: resets=0 (… SUPPRESSED: the DEFAULT never fires on a SUBSET run)` |
+| P5 | **planted**: the open statement names a policy that does not exist | `SWEPT: 2 COVERED: 0 ERROR: 2`, `RESULT: DIRTY`, bare **rc 1** — R1's all-ERROR half, proven live |
+
+**Self-tests came back 16/16 and 17/17 — and green on a first run is a FINDING, so each table was
+shown able to FAIL before its green was believed.**
+
+- SELFTEST against the **pre-change** `want()`/placement predicates → trial C `NOT OK … selects=yes
+  writes=committed`, bare **rc 1**.
+- One flipped expectation per table → `NOT OK`, bare **rc 1** each.
+- The RESET trials pointed at the **pre-port** harness → the extractor REFUSES (`extraction of
+  resets_enabled found 0 line(s)`), bare **rc 2**: it cannot fabricate what is not there.
+- The RESET trials against a copy with the **in-flight interlock removed** → trial D `NOT OK …
+  reset=yes rc=0`, bare **rc 1**. Trial D measures the interlock, not a coincidence.
+- ⚠ **One control injected NOTHING and still reported green** (`cmp` rc 0, "0 failed") — the
+  *a mutation that did not fully apply reports GREEN* shape, caught only because every injector is
+  `cmp`-verified before its result is read. Re-injected properly; it then reddened.
+- ⛔ Batch 2's trial G was a false pass from a quoting error, so all **six** abort trials now print
+  the reason they aborted, and the six reasons are **distinct**: interlock · reset failed ·
+  degenerate after reset · worklist moved · **GUARD_KEYS no longer resolves** · suite RED after reset.
+
+⚠ **Instrument fault, recorded rather than quietly fixed.** The first attempt at P2 ran a scratch
+copy whose `ROOT` is derived from `${BASH_SOURCE[0]}`, so `supabase test db` ran in the scratchpad
+and the run died at `baseline is NOT green (Result: <none>)`. A wrong instrument read exactly like
+a live defect — and like a *different* one. Every scratch copy now pins `ROOT`, and each copy's
+`diff` against its source is shown to be exactly the intended injection and nothing else.
+
+#### R5(a) — `$BASELINE_SNAPSHOT` is taken ONCE, proven by selection AND by outcome
+
+- **Selection**: the only two write sites are lines 326 and 328, both at top level (between
+  `set_placement`'s end at 290 and `baseline_sum`'s start at 332). The per-case path
+  (`emit_report` 1690–1709, `record` 1711–1714) only READS it.
+- **Outcome**: after a three-case run the snapshot's mtime is `18:33:43` and the generated report's
+  is `18:40:09` — 6 m 26 s apart. Taken before case 1, never re-taken.
+
+#### R14 — 9 vs 11 settled by test. **Delta 0.**
+
+Ran the merge classifier — a scratch copy whose ONLY diff is three `cp` lines, shown by `diff` —
+over the committed baseline and a REAL generated file, emitting its actual protected set:
+`PRESERVED 51 hand-authored prose line(s), 0 hand suffix(es); CARRIED 51 whole row(s)`.
+All **11** reader-visible hand-annotated rows are in `carried_rows` **and** survive into the merged
+output, verbatim; all four prose blocks (2 `## Note`, the `HAND-MERGED` blockquote, the bare `---`)
+are in the protected prose set. ⇒ the reader inventory of **11 is right**; the pattern-derived **9
+was wrong by two** (`:60` `set_commission_oversight`, `:61` `create_external_participant`, whose
+notes carry no decorative token); nothing a human authored is unprotected.
+
+⭐ A bonus that AMENDS R10.4: the merge **replaces** two stale statistics rather than stranding
+them — `Arm 1 guards: 7` and `Baseline: Files=156, Tests=4796` are both classified as regenerated
+statistics and re-emitted correctly. They need no hand edit and must not get one.
+⚠ Every census was proven able to find a known sentence before any zero was believed (R17);
+`grep -rn` only, never `-i` combined with `-F`/`-f`.
+
+#### Duration, derived rather than quoted (R7)
+
+Measured on this stack today: `supabase test db` **87 s** (Files=262, Tests=8876, PASS) ·
+`supabase db reset --local` **63 s** · the merge **3 s** · a full CASE **~96 s** (P3: 386 s for
+startup + baseline + 3 cases), so **~99 s** with the merge a full run adds.
+`120 × 99 s = 3.30 h` + `5 scheduled resets × (63 + 87 + ~15 s) = 14 min` + retries at the door
+run's observed 6.5 % (≈ 8 × 264 s = 35 min) ⇒ **≈ 4.1 h; window ≈ 3.6–5.0 h.**
+
+#### Gate-relevant state at the stop
+
+`npm run lint` bare **rc 0** (eslint `--max-warnings=0`; registers OK) · `npm run typecheck` bare
+**rc 0** · `npm run test:db` bare **rc 0** on a **fresh** `supabase db reset --local`, shape
+**unmoved** at Files=262, Tests=8876 · `git diff --name-only main... -- supabase/migrations
+supabase/seed.sql src` **EMPTY** · `git status --porcelain` shows only the harness ·
+`degenerate_NON_SELECT = 0` · no sentinel at any path · committed baseline `1903941766 13882`,
+byte-identical to the start of the turn.
+⛔ Tier 2's 190 doors stay **deferred by ADR 0171 and are NOT cleared**.
+⛔ `FROMFINDINGS=1 ARM=policy` is RED pre-existing, is **not** one of CLAUDE.md §6's four arms, and
+its twelve are not allowlisted.
+
+#### Follow-ups filed this turn
+
+`FUP-WRITEPATH-BASELINE-CASES-EMPTY-STRING-DEGRADES-TO-A-FULL-RUN` (names both arms; fixed in the write arm, filed
+against the door arm) · `FUP-WRITEPATH-BASELINE-HARDCODED-COUNTS-IN-HARNESS-BANNERS` (the class across five
+harnesses) · `FUP-WRITEPATH-BASELINE-REGISTER-CLOSES-WHEN-TRUNCATED` (R21 — check for a length gate before
+restoring) · `FUP-WRITEPATH-BASELINE-ESCALATED-ROLE-ARM-UNEXERCISED`.
+
+#### Not done, and why
+
+- **The full run was NOT launched.** R12: a failed pre-launch item means stop and report.
+- **ADR 0192 is not written.** Three of its four subjects are settled — the `CASES` fix, the
+  `RESET_EVERY` port and why the door's design was not portable as-is, and the recovery step. The
+  fourth, the connection role, is exactly what the open ruling decides, and an ADR recording a
+  decision nobody has taken would have to be rewritten. It is blocked on the ruling, not deferred
+  behind the run.
+- The recovery step's prose is drafted and goes into the harness header,
+  `.claude/rules/mutation-harnesses-are-not-killable.md` and ADR 0192 **before** any launch.

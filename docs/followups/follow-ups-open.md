@@ -989,6 +989,35 @@ a hypothesis, not a finding.
 **Status:** open
 **Body:** [FUP-ADR-CROSS-LINKS-HAVE-NO-GATE.md](FUP-ADR-CROSS-LINKS-HAVE-NO-GATE.md)
 
+### 🟠 FUP-WRITEPATH-BASELINE-CASES-EMPTY-STRING-DEGRADES-TO-A-FULL-RUN — `CASES=""` is indistinguishable from `CASES` unset in the door arm, so a caller that captures the deriver's stdout without consuming its exit code gets a FULL sweep that writes the COMMITTED baseline, with the `exit 3 UNPROVEN` door unreachable (owner: backend; filed 2026-09-07 by `backend`, measured on `authz-writepath-baseline`)
+
+**Filed:** 2026-09-07 (by `backend`, Batch 3 build turn; measured, not inferred) · **Owner:** backend · **Severity:** high — a correct door nothing can reach, composed with reading a gate instead of gating on it
+**Closes when:** `p0-authz-door-audit.sh` distinguishes *unset* from *set-and-empty* — set-ness captured BEFORE the `${CASES:-}` default — so that an explicitly-empty `CASES` reaches its UNPROVEN exit and can never point `$FINDINGS` at the committed baseline; proven by a selection table whose control is *CASES unset* vs *CASES set-and-empty* (same value, opposite outcome), each read at its bare exit code.
+**Status:** open
+**Detail.** `p0-authz-writepath-audit.sh:181` read `CASES="${CASES:-}"` and every branch keyed on `[ -n "$CASES" ]` (`:201` placement, `:315` `want()`, `:805`/`:1064` accounting). So the empty string selected EVERYTHING, `SUBSET_RUN` came out 0, and the run opened `docs/reviews/authz-writepath-audit-findings.md` for write. The caller that produces it is the one CLAUDE.md §6 step 1 prescribes — `CASES="$(bash scripts/door-sweep-cases.sh …)"` — whose *exit 1/3 IS the "no gate changed" claim*, discarded by command substitution. ⭐ **FIXED IN THE WRITE ARM 2026-09-07** (ADR 0192): `CASES_EXPLICIT` captured before the default; `want()` returns 1 on set-and-empty; placement keyed on set-ness; a `SELECTION-SOURCE` line naming which of the three states the run is in. Observed: fixed harness `CASES=""` → `ARM-DOMAIN guard=0/13 policy=0/107`, bare **rc 3**; pre-change predicates, same value → `FULL SWEEP … MERGES into the committed baseline`, `guard=13/13 policy=107/107`, bare **rc 0**.
+⛔ **`p0-authz-door-audit.sh` carries the identical defect at its own `[ -n "$CASES" ]` and is deliberately NOT fixed here.** Batch 2 closed that harness and QA approved it; fixing one of two would read as fixing the class (the Batch 0 mis-scope, twice paid for). This entry names both arms so the class is visible.
+
+### 🟡 FUP-WRITEPATH-BASELINE-HARDCODED-COUNTS-IN-HARNESS-BANNERS — an executed banner asserts a count that no longer matches the list beneath it, across the four mutation harnesses (owner: backend; filed 2026-09-07 by `backend`)
+
+**Filed:** 2026-09-07 (by `backend`, found while planning Batch 3) · **Owner:** backend · **Severity:** medium — the banner is what a human reads to decide a run is aimed correctly
+**Closes when:** every count printed in an executed banner across `p0-authz-{door,writepath,invoker,rowdoor}-audit.sh` and `c2-command-door-neutralizer.sh` is DERIVED from the list it describes, and the absence of a fresh literal is asserted by a check rather than by inspection. ⛔ Re-typing a correct literal does not close this — a new literal is the same defect with a newer number.
+**Status:** open
+**Detail.** `p0-authz-writepath-audit.sh:763` printed `ARM 1: 7 authz raise-guards` while `GUARD_KEYS` held **13** and the loop directly beneath it iterated all 13. That file's own header warns about this exact recurrence — *"a count in a comment is an assertion, and this one was false for four additions"* — and it recurred in the banner rather than the comment. ⭐ **FIXED IN THE WRITE ARM 2026-09-07** by deriving from `GUARD_KEYS` (observed: `ARM 1: 13 authz raise-guards`). The other four harnesses are **not** swept for this; one of five fixed reads as the class fixed, which is why this entry exists.
+
+### 🟡 FUP-WRITEPATH-BASELINE-REGISTER-CLOSES-WHEN-TRUNCATED — this register's `Closes when` for `FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED` ends in a literal `…`, so the clause a closure must quote cannot be quoted whole from the register (owner: lead; filed 2026-09-07 by `backend`)
+
+**Filed:** 2026-09-07 (by `backend`, while quoting the clause for Batch 3's closure) · **Owner:** lead · **Severity:** medium — a register that has lost information reads exactly like one that never had it
+**Closes when:** either the full sentence is restored to the register field, or the field is documented as a deliberate excerpt with the body named as authoritative. ⛔ **Check first whether a gate caps that field's length**; if one does, do not fight the gate — leave the body authoritative and record that. ⛔ Do not paraphrase the missing tail: the body holds it verbatim at `FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED.md:143-147`.
+**Status:** open
+**Detail.** Sibling shape to `FUP-DOCS-CONSOLIDATION-CLOSURE-DROPS-THE-CLOSES-WHEN-FIELD`. The truncated tail carries the load-bearing clause that the contamination surface is the WORKING TREE, not the database.
+
+### 🟡 FUP-WRITEPATH-BASELINE-ESCALATED-ROLE-ARM-UNEXERCISED — the write arm's owner-capable fallback role is reachable in code and required by ZERO of the 107 in-domain policies, so the escalated path has never been exercised (owner: backend/PO; filed 2026-09-07 by `backend`)
+
+**Filed:** 2026-09-07 (by `backend`, Batch 3 build turn) · **Owner:** backend + PO · **Severity:** medium — an authority with zero callers is a conformance finding, not a reassurance
+**Closes when:** PO to rule — either the escalation is REMOVED (the harness connects only as `postgres`, and the three `storage.objects` policies keep the verdicts they already earned), or it is KEPT and its arm is exercised against a case that genuinely requires it, so the branch is not first executed during a real sweep. ⛔ A green run that never entered the branch is not evidence the branch works.
+**Status:** open
+**Detail.** Measured 2026-09-07: `storage.objects` is owned by `supabase_storage_admin`, `pg_has_role('postgres', relowner,'USAGE')` = **false**, `postgres` is `rolsuper=f` — and `ALTER POLICY` nonetheless SUCCEEDS, because this stack sets `supautils.policy_grants = {"postgres":[… "storage.objects" …]}` and the extension's utility hook grants POLICY DDL outside `pg_class.relowner`. The harness's predicate is therefore the disjunction (ownership OR `supautils.policy_grants`), and under it **0 of 107** policies require the escalated role. The run's DOMAIN-STATEMENT prints that zero rather than implying the branch was used.
+
 ### 🟠 FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED — the mandated per-phase sweep had a FOUR-part hole: the deriver names ONE arm for a TWO-arm list; arm 2 reports success at exit 0 having measured nothing; 9 policies fall outside both arms; and a killed run leaves an RLS policy WIDE OPEN with nothing reporting it (owner: backend/lead; filed 2026-08-27 by `backend`, all four measured during AE1.5)
 
 **Filed:** 2026-08-27 (by `backend`, all four measured during AE1.5) · **Owner:** lead + backend · **Severity:** high — per emoji at consolidation
