@@ -85,6 +85,12 @@ then the closures. **Read Batch 2's record first** — it is the template, inclu
 
 ### Batch 4 — Enforcement manifest + the template's re-key defect — owner backend, one PO item
 
+> **Status 2026-09-07: BUILT, QA-APPROVED (round 3), PO-APPROVED at `dab3cc87`, GATED on branch
+> `authz-enforcement-manifest` (second machine, macOS) — NOT merged, by the ruled order below.**
+> Hub [enforcement-manifest.md](../features/enforcement-manifest.md) · record
+> [enforcement-manifest.md](../progress/enforcement-manifest.md) · ADR 0193 `accepted`. Batch 5 rode
+> along and is closed in the same branch. The merge session's checklist is the hub's `### Next`.
+
 | Follow-up | Sev | The gap |
 |---|---|---|
 | `FUP-AE4-HARDDENY-CLASSES-CANNOT-FAIL` | 🟠 | `hardDenyClasses` is `[]` on 43/43 manifest rows; lint arm M7 iterates an empty list and **cannot fail**; §6.2 has no discrimination control and searches only depth 1. PO took remediation (a) — a *disclosure*; (b) is still owed and must land as **one change** (populate or convert the loop + a discrimination control + a transitive search). **The one literal "before AE5" sentence** in the corpus (Gate AE4 review: "when non-empty rows first appear"). |
@@ -268,5 +274,5 @@ inside a role increment"* (ADR [0176](../decisions/0176-authz-permission-layer-m
    shows no `in_progress` hub. If either is false, stop and read the hub that is in progress.
 2. Read Batch 2's [record](../progress/pred-domain.md) § "run 1 voided by tail drift" and § "the CARRIED
    enumeration" — Batch 3 repeats both shapes on the write arm.
-3. Say **"initiate Batch 3"** to the lead. The lead opens the hub + record, cuts `authz-writepath-baseline`,
+3. Say **"initiate Batch 3"** to the lead (or, once Batch 3 is on `main`, **"merge Batch 4"** — the hub's `### Next` is the checklist). The lead opens the hub + record, cuts `authz-writepath-baseline`,
    and spawns `backend` for the plan — never the build first.

@@ -654,3 +654,22 @@ R3-REC-1 (a dated bracket beside the gate entry's "16"), R3-REC-2 (the merge com
 rebase diff is recognised by a human, not a gate, and that the idempotence loop is a hardcoded
 five-name list, not the fixture directory). `SELFTEST=1 bash scripts/door-sweep-cases.sh` re-run
 after the comment edit — comment-only, but measured, not assumed.
+
+### 2026-09-07 — Record step, part 1 (lead): PO approved at `dab3cc87`; unit GATED pending Batch 3
+
+**PO approval** (AskUserQuestion, built / tests / QA / open risks presented): **Approve**, hub shape
+**gated** while the branch waits for Batch 3 (ruled merge order, plan §3 Batch 4 items 1–2). Done in
+this commit: ADR 0193 `proposed` → **`accepted`** and removed from `proposed-review.json`;
+`npm run adr:index`; hub `status: gated`, Current state replaced with the merge-session checklist.
+**Deliberately NOT done** (part 2, at the merge session after the rebase re-run of both arms): the
+ledger row, the hub cut to `complete`, the ff-merge, the branch deletion — a ledger row citing a
+pre-rebase tip would be a claim the rebase can falsify.
+
+**Push state, measured:** `git rev-list --count origin/main..main` = **0** on this clone (the plan's
+§5 "97 unpushed" no longer holds; `origin/main` fetched 2026-09-07); the branch itself has no remote.
+**CLAUDE.md review queue:** `.claude/claude-md-review-queue.md` is non-empty (15 lines) — playbook §4
+step 7 owes `/review-claude-md` before the next unit opens; left for the merge session, not run here.
+**Lessons candidates for LESSONS.md** (lead files at the merge session, with the record as witness):
+(1) an empty-but-set `CASES` is a full run (filed as a follow-up); (2) a mutation harness must own
+the stack — concurrent catalog readers produced a spurious ABORT that a solo re-run did not reproduce;
+(3) a catalog read during a sweep returns mutants (QA F-REC-2).

@@ -1,7 +1,7 @@
 ---
 id: ENFORCEMENT-MANIFEST
 title: Enforcement manifest — hardDenyClasses made falsifiable, the template's re-key defect (policy re-keyed, DEFINER writer left on layer 1) resolved across the `_staff_admin_write` class, the two undeclared consumers recorded, and the rollback runbook re-measured (pre-AE5 Batch 4, Batch 5 riding along)
-status: in_progress
+status: gated
 kind: feature
 program: AUTHZ
 phase: "Pre-AE5 remediation — Batch 4 of the follow-up batches ruled 2026-09-04 (runs on the second machine, in parallel with Batch 3; merge order Batch 3 first)"
@@ -65,48 +65,38 @@ legacy gate, and the rollback runbook AE5 will run eleven times.
 
 ### Objective
 Make the enforcement manifest a falsifiable oracle before AE5 copies the per-role template eleven
-times: a `hardDenyClasses` arm that can fail, a transitive §6.2, the policy-re-keyed-but-DEFINER-still-
-legacy defect resolved across the `_staff_admin_write` class, the two undeclared consumers recorded,
-and the rollback runbook re-measured at the tip (Batch 5).
+times: a `hardDenyClasses` arm that can fail, a transitive §6.2, the policy-re-keyed-but-DEFINER-
+still-legacy defect resolved across the `_staff_admin_write` class, the two undeclared consumers
+recorded, and the rollback runbook re-measured at the tip (Batch 5).
 
 ### Done since start
-- **All five follow-ups closed**, each on its own quoted condition, rotated to the archive with its
-  body (ADR 0185 D5); `FUP-AUTHZ-HARDDENY-GATELESS-CLASSES-HAVE-NO-DETECTOR` filed (PO ruling Q5).
-  ADR **0193** written, `proposed`, amends 0176 + 0178. `hardDenyClasses` is a committed claim with a
-  falsifiable `410` §6.2 (transitive set equality, no depth bound); one migration `20261003007350`
-  re-keys `public.set_item_validations`; PO rulings Q1/Q3/Q6 applied; ten fire-proofs observed,
-  red-first honoured.
-- **QA iteration 1 closed all eight findings** (six commits over `7b9b1eb7`; detail + proofs in the
-  record): runbook §6 re-measured at the tip (Batch 5) found a sixth stale figure (`a115005b…`
-  unreachable by this revert, landing value `c227d64eb11909e94400b7ba6bcaab0b`); the deriver's
-  `FINDING (1)` discharged by a real targeted mutation case, COVERED; the findings-baseline merge
-  made portable (GNU-only block replaced), `SELFTEST=1` PASS 34/0/0; three text corrections,
-  `FUP-AUTHZ-EMPTY-CASES-RUNS-A-FULL-SWEEP` filed (owner lead).
-- **The lead's tip gate ran and ruled** (2026-09-07): all four authz arms, `SELFTEST=1` (deriver +
-  door harness), the set-valued targeted home, and the diff-scoped sweep both arms all quoted; exit 1
-  on the sweep is the FINDING itself, discharged by the targeted case above (ADR 0190). Two lead
-  process errors recorded, one filed as `FUP-AUTHZ-EMPTY-CASES-RUNS-A-FULL-SWEEP`.
-- **QA re-review round 2 returned CHANGES REQUESTED** (N-1 blocking, N-2, N-3, N-4, N-REC-1, N-REC-2);
-  **iteration 2 closed all six** (four commits over `5a64520f`; detail + proofs in the record): the
-  runbook's three remaining `a115005b…` occurrences corrected (5 hits left, all now correct); commit
-  counts corrected and made re-derivable (`git rev-list --count main..HEAD`); this hub brought level
-  with the record, `reviews:` populated; the merge-scenario comment corrected to 18 with its
-  derivation named; the targeted case's COVERED verdict pinned to the exact assertion (test 32,
-  § 2.10e, by description text), proven with a real run and a scratch negative control; the merge's
-  `diff`-alignment dependency disclosed with a dated qualifier. Gate re-run clean: `lint` 0/0,
-  `typecheck`, `test:db` `Files=262, Tests=8882, PASS`, `SELFTEST=1` 34/0/0, targeted case COVERED
-  bare rc 0 — no migration/RLS/`src`/`e2e` touched, so the arms and door sweep were not re-run.
+- **PO-approved 2026-09-07 at `dab3cc87`** (24 commits over `main` @ `23ec1fa5`, measured by
+  `git rev-list --count main..HEAD`) on QA round 3 **APPROVED** — after round 1 (2 BLOCK) and round 2
+  (1 BLOCK), every fix re-derived by QA by measurement. ADR **0193** → `accepted`, off the
+  proposed-review list. All five follow-ups closed on their own quoted clause; two filed.
+- Built: `hardDenyClasses` a committed claim, `410` §6.2 a transitive set equality with planted +
+  natural controls; one migration `20261003007350` re-keys `public.set_item_validations`; seven
+  DEFINER splits declared in `definerSurface`; `current_professional_read_organizations` declared a
+  site; `_audit_access_authorized` a declared non-enforcement consumer with a partition arm; the
+  rollback runbook §6 rewritten for six policies + the DEFINER door (six stale figures re-measured);
+  the findings-baseline merge made portable; a targeted command-door case home.
+- Lead's tip gate (record): lint 0/0 · pgTAP 262/8882 PASS on fresh resets · census 581/604 HOLD ·
+  hat · floor · wrapper 41 HOLD · deriver SELFTEST 34/0 · door SELFTEST 23/23 · set-valued 3/3 CLEAN ·
+  diff-scoped deriver `SCOPE:` quoted, exit 1 FINDING discharged by the targeted case (COVERED).
 
 ### In progress
-- Nothing. Iteration 2 is complete and committed on `authz-enforcement-manifest` —
-  `git rev-list --count main..HEAD` = **22** as of `926f4066` (before this doc commit); the full
-  commit list is in the record.
+- Nothing on this branch. **Waiting for Batch 3** (`authz-writepath-baseline`, other machine) to
+  merge into `main` first — ruled order; the other way round Batch 3's baseline measures a
+  `set_item_validations` body that no longer exists.
 
 ### Next
-- QA re-review round 3 of the six N-findings above, or Record at the lead's discretion. Then PO →
-  wait for Batch 3 → rebase, re-run both arms, `npm run lint` mid-merge → Record (ADR 0193 →
-  `accepted`).
+- **Merge session** (lead, after Batch 3 is on `main`): rebase `authz-enforcement-manifest` onto
+  `main` · renumber ADR 0193 only if 0192 moved · `npm run adr:index` + `features:index` (never
+  hand-merge the indexes) · `npm run lint` MID-merge · fresh reset + `test:db` · **re-run the
+  diff-scoped deriver over `main` and BOTH arms** — read the deriver's bare exit BEFORE substituting
+  `CASES=` (exit 1 ⇒ the targeted case, never a sweep) — `SCOPE:` re-quoted, write-arm verdict landing
+  in Batch 3's re-baselined findings file · ledger row · hub → `complete` with this block cut into the
+  record · `phase(ENFORCEMENT-MANIFEST): complete` · `git merge --ff-only` · branch deleted.
 
 ### Blockers
-- None. ⚠ Merge order fixed: **Batch 3 first** — the other way round, its write-path baseline
-  measures a `set_item_validations` body that no longer exists.
+- Batch 3 not yet merged (this clone has no `authz-writepath-baseline`). Nothing else.
