@@ -130,7 +130,9 @@ The rollback record (append to `docs/progress/` for the active phase) must carry
 - **application-code → database** compatibility: does the currently deployed app still work
   against the rolled-back schema?
 - **database → application-code** compatibility: does the rolled-back schema still work against a
-  *newer* app build that may auto-deploy?
+  *newer* app build that someone may deploy? (Coolify auto-deploy is **off** — the newer
+  build reaches the server only on a manual Deploy, so this is a question about what is
+  *pushed and deployable*, not about a race.)
 
 ⛔ Both directions, explicitly. Stating one and leaving the other implied is how a rollback fixes
 the database and breaks the deploy. Per the schema-first rule

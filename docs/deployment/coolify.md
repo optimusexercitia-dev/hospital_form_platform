@@ -2,8 +2,12 @@
 
 This runbook stands up the platform on a **DigitalOcean droplet running
 [Coolify](https://coolify.io)**, with the app talking to the **existing Supabase
-Cloud project** (`azkbbhskturikxpgmafq`). It also sets up **auto-deploy on git
-push**, so the local-dev → push → live loop works while you keep building.
+Cloud project** (`azkbbhskturikxpgmafq`).
+
+> ⚠ **Automatic Deployment is OFF** (as of 2026-09-07). A `git push` no longer
+> deploys anything: the deploy is a **manual** action in Coolify (the app's
+> **Deploy** button, or its deploy webhook). Pushing to `main` is therefore safe
+> on its own — code reaches the server only when someone deploys it.
 
 > **Scope:** this is a *test* deployment, not the formal Phase 9 gate. It builds
 > the deploy substrate (Dockerfile image, health probe, env contract, Supabase
@@ -15,7 +19,8 @@ push**, so the local-dev → push → live loop works while you keep building.
 
 ```
  GitHub (optimusexercitia-dev/hospital_form_platform)
-    │  push to the deploy branch  ──►  webhook
+    │  push to the deploy branch   (does NOT deploy — no webhook)
+    │  a HUMAN presses Deploy in Coolify  ──►
     ▼
  Coolify (DigitalOcean droplet)
     │  builds the Dockerfile (Next.js standalone image)   ← NEXT_PUBLIC_* baked in
@@ -39,8 +44,9 @@ deployed **separately** from the app (Supabase CLI), never from inside the image
    <https://coolify.io/docs/installation>. Point a DNS `A` record (e.g.
    `app.yourdomain.com`) at the droplet IP.
 2. **Coolify ↔ GitHub connected.** In Coolify → *Sources*, connect the GitHub
-   account/org (`optimusexercitia-dev`) via the GitHub App (preferred — gives
-   automatic webhooks) or a deploy key.
+   account/org (`optimusexercitia-dev`) via the GitHub App (preferred) or a
+   deploy key. The GitHub App also installs a push webhook — leave **Automatic
+   Deployment** off (Step 5) so that webhook does not deploy.
 3. **Supabase CLI locally**, logged in and able to reach the project
    (`supabase login`). You already have `db:*` npm scripts wired to it (below).
 
@@ -271,29 +277,33 @@ list in [`.env.production.example`](../../.env.production.example).
 
 ---
 
-## Step 5 — Auto-deploy on git push
+## Step 5 — Deploying (MANUAL — auto-deploy is off)
 
-- If you connected via the **GitHub App** (Step, prereq 2), Coolify installs the
-  webhook automatically. In the application's **Settings → General**, enable
-  **"Automatic Deployment"** and confirm the **branch** matches Step 3.
-- Every push to that branch now triggers: pull → `docker build` → health-checked
-  rolling replace. Watch progress under the app's **Deployments** tab.
+⛔ **"Automatic Deployment" is disabled** in the application's **Settings →
+General** (as of 2026-09-07). Even if the GitHub App installed a webhook, no
+push deploys anything.
 
-**Recommended branch strategy for "test locally, then deploy":**
-- Keep building and testing on feature branches / `main` **locally** (local
-  Supabase stack — see the workflow below).
-- Point Coolify at a **`deploy`** branch (or `main` if you prefer). When a change
-  is ready to test on the server, `git push origin <branch>` → Coolify redeploys.
-- **Order of operations when a change includes DB migrations:** run
-  `npm run db:push` **first** (so the Cloud schema is ready), *then* push code so
-  Coolify redeploys against the migrated DB. App-then-DB risks the new build
-  querying columns that don't exist yet.
+- To deploy: open the application in Coolify and press **Deploy**. That triggers
+  pull → `docker build` → health-checked rolling replace. Watch progress under
+  the app's **Deployments** tab.
+- Confirm the configured **branch** matches Step 3 — Coolify builds whatever is
+  at that branch's head **at the moment you press Deploy**, not what was there
+  when you pushed.
+
+**What this changes for the day-to-day loop:**
+- A `git push` is now a *publish to GitHub*, nothing more. Pushing `main` does
+  not put code on the server, so the push itself is safe and reversible.
+- **Order of operations when a change includes DB migrations:** still run
+  `npm run db:push` **first** and verify in the remote catalog, *then* deploy the
+  app — the risky moment is now the **Deploy click**, not the `git push`.
+  App-then-DB risks the new build querying columns that don't exist yet.
+  (See [`push-schema-before-code`](../../.claude/rules/push-schema-before-code.md).)
 
 ---
 
 ## Step 6 — First deploy + smoke test
 
-1. Trigger the first deploy (push, or Coolify **Deploy** button).
+1. Trigger the first deploy with the Coolify **Deploy** button (a push will not).
 2. **Liveness:** `curl https://app.yourdomain.com/api/health` → `{"status":"ok",…}`.
 3. **Auth (the ADR 0009 validation):** open the site, log in as
    `admin@test.local` / `Test1234!`. Two distinct things are being validated —
@@ -333,8 +343,9 @@ npm run test && npm run e2e
 
 ```bash
 npm run db:push                 # 1. apply any NEW migrations to Cloud (skip if none)
-git push origin <deploy-branch> # 2. Coolify auto-builds + redeploys the app
-# 3. verify at https://app.yourdomain.com/api/health and smoke-test the feature
+git push origin <deploy-branch> # 2. publish the code — this does NOT deploy
+# 3. press Deploy in Coolify (manual — auto-deploy is off) and watch Deployments
+# 4. verify at https://app.yourdomain.com/api/health and smoke-test the feature
 ```
 
 Local dev and the remote deploy stay fully isolated — different Supabase

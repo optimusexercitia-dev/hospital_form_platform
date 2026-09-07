@@ -114,7 +114,8 @@ is private, so Coolify needs read access. Two options — pick one:
    the repository URL in Coolify (the `github-optimus` host alias only
    exists in your local `~/.ssh/config` — Coolify needs the real host).
 
-**Option B — GitHub App (adds auto-deploy-on-push webhooks for free)**
+**Option B — GitHub App (also installs push webhooks — keep "Automatic
+Deployment" OFF; deploys are manual, see `deployment/coolify.md` Step 5)**
 1. In Coolify: **Sources → GitHub App → Connect**, install it scoped to just
    this repo.
 2. Select the repo when creating the application.

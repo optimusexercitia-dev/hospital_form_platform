@@ -11,13 +11,15 @@ anchors:
 source: AFF4 Record step 2026-08-26 — the order was documented, read, and violated · rotated from PROGRESS.md's Now section (retired 2026-09-03, ADR 0185)
 ---
 
-# Push SCHEMA before CODE — `db push` first, `git push` second
+# Push SCHEMA before CODE — `db push` first, DEPLOY second
 
-⛔ **Never `git push` application code before the migrations it needs are on the remote.**
-Coolify **auto-deploys on the `git push`** (`docs/deployment/coolify.md`), so pushing code
-first opens a live window in which deployed code queries objects the remote does not have.
+⛔ **Code must never reach the server before the migrations it needs** — deployed code
+querying objects the remote lacks is a live outage.
 
-✅ Order: `npm run db:push` → verify **in the remote catalog** → then `git push`.
+✅ Order: `npm run db:push` → verify **in the remote catalog** → then ship the code.
+
+⚠ **2026-09-07: Coolify auto-deploy is OFF** (`coolify.md` Step 5) — a `git push` deploys
+nothing; the window opens at the **manual Deploy click**. The ordering rule is unchanged.
 
 ## Non-obvious parts
 
@@ -25,8 +27,8 @@ first opens a live window in which deployed code queries objects the remote does
   That clause was written into an earlier record and is **false** whenever a migration
   *drops* something the deployed build still selects. The order holds regardless, because
   the reverse breaks sooner and wider (ADR 0137 Amendment 2).
-- **A `git push` is not a `db push`.** Neither implies the other, and Coolify's deploy
-  outcome is not measured by either — check Coolify.
+- **`git push` ≠ `db push` ≠ deploy.** None implies another; the deploy outcome is
+  measured only in Coolify (which builds the branch HEAD at the click).
 - Verify in the remote CATALOG, never from `db push`'s own report.
 - ⛔ **Nothing to push is not a reason to skip the check** — confirm the remote head.
 
@@ -34,6 +36,5 @@ first opens a live window in which deployed code queries objects the remote does
 
 No gate enforces this and none can: the order is an operator action leaving no artifact
 in the tree. AFF4 shipped the violation — the warning existed, was read, and was violated
-anyway, because it sat under a heading about an unmerged branch rather than beside the
-push. That is the whole reason this rule is path-scoped to the migrations directory: a
-warning is only as good as its position relative to the action it governs.
+anyway: it sat under a heading about an unmerged branch rather than beside the push. Hence
+the path-scope — a warning is only as good as its position relative to its action.

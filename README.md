@@ -33,7 +33,8 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 
 The app deploys as a Next.js standalone Docker image (see `Dockerfile`) and runs
 against Supabase Cloud. For the DigitalOcean + Coolify test environment
-(auto-deploy on git push), follow the runbook in
+(deploys are triggered manually in Coolify — a `git push` does **not** deploy),
+follow the runbook in
 [`docs/deployment/coolify.md`](docs/deployment/coolify.md). Production env vars
 are documented in [`.env.production.example`](.env.production.example); the
 liveness probe is `GET /api/health`.
