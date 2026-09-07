@@ -2706,7 +2706,7 @@ script as argv[1]), at HEAD `4ace3bfb`, 04:36–04:45; every code read bare from
 - `ARM=floor` rc **0** —  OK: every never-called door is on the floor allowlist.  OK: every floor-allowlist entry resolves to a live door. 
 - `FROMFINDINGS=1 ARM=wrapper` rc **0** —  BLIND set size: 41  OK: every BLIND wrapper is on the allowlist. 
 - deriver `SELFTEST=1` rc **0** — SELF-TEST: PASS 34 · FAIL 0 · SKIPPED 0
-- door harness `SELFTEST=1` rc **0** —   ok    shape MOVED + PASS                 -> ERROR    (files=262 tests=8712)
+- `door harness `SELFTEST=1`` rc **0** — `SELFTEST TOTAL: 23/23 ok, 0 failed` (classify · resets · emit_result · domain-statement 3/3); committed baseline VERIFIED unchanged (cksum)
 
 Logs kept under `…/scratchpad/pd/lead-gate/`. This is the gate evidence the PO approval rests on; the
 builder's step-11 figures at `6f94a634` (census 581/602) are superseded by these at `4ace3bfb`
