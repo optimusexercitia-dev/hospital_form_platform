@@ -444,15 +444,59 @@ awk -F'\t' "$AWKLIB"'
 for f in carried.tsv suffixes merged_rows.tsv carried_rows; do [ -f "$T/$f" ] || : > "$T/$f"; done
 
 # ── 3. prose alignment ──────────────────────────────────────────────────────────────
-diff --unchanged-line-format='U%L' --old-line-format='O%L' --new-line-format='N%L' \
-     --unchanged-group-format='%=' \
-     --old-group-format=$'\002DEL\n%<' \
-     --new-group-format=$'\002INS\n%>' \
-     --changed-group-format=$'\002CHG\n%<%>' \
-     "$T/g_norm" "$T/b_norm" > "$T/tagged" 2>/dev/null
+# ⚠ PORTABLE BY MEASUREMENT, 2026-09-07 (QA F-MAJOR-1). This block used GNU diffutils'
+#   `--unchanged-line-format` / `--*-group-format` family. Apple's diff (FreeBSD) rejects
+#   those options and exits 2, so on stock macOS EVERY merge aborted — `SELFTEST=1 bash
+#   scripts/door-sweep-cases.sh` was PASS 17 · FAIL 17, and ADR 0190's findings-baseline
+#   merge was simply unavailable on that machine (an aborted merge leaves the baseline
+#   unchanged, which is byte-for-byte what "no verdict moved" looks like). The SAME tagged
+#   stream is now built from diff's PORTABLE normal output: only the hunk HEADERS are read
+#   (`^[0-9]`, unambiguous — every content line normal diff emits starts with `<`, `>`, `-`
+#   or `\`), and the LINES themselves come from the two files, never from diff's quoting.
+#   The grammar the step-3 consumer reads is unchanged, line for line:
+#     U<line>              a line common to both files
+#     \002DEL then O<line> lines only in the GENERATED file  (file 1 = $T/g_norm)
+#     \002INS then N<line> lines only in the BASELINE  file  (file 2 = $T/b_norm)
+#     \002CHG then O… N…   a changed group, OLD (generated-side) before NEW (baseline-side)
+#   ⛔ Do NOT "simplify" this back to a group-format diff. The equivalence is asserted by the
+#     17 committed merge scenarios (including merge(b,b) == b byte-for-byte on all five
+#     baselines), which is the only reason the rewrite is believable rather than plausible.
+diff "$T/g_norm" "$T/b_norm" > "$T/hunks" 2>/dev/null
 # diff exits 1 when the files differ, which is the normal case here; only >1 is an error.
 drc=$?
 [ "$drc" -le 1 ] || die "diff failed with rc=$drc while aligning $GENERATED against $BASELINE"
+awk -v HUNKS="$T/hunks" -v GN="$T/g_norm" '
+  function unchanged(upto) { while (cur1 <= upto) { print "U" gl[cur1]; cur1++ } }
+  # a normal-diff range is `n` or `n,m`; a bare `n` means the one-line span n,n.
+  function span(r, A,   n) { n = split(r, A, ","); if (n < 2) A[2] = A[1]; return n }
+  FILENAME == HUNKS { if ($0 ~ /^[0-9]/) hunk[++nh] = $0; next }
+  FILENAME == GN    { gl[++ng] = $0; next }
+                    { bl[++nb] = $0 }
+  END {
+    cur1 = 1
+    for (h = 1; h <= nh; h++) {
+      p = match(hunk[h], /[acd]/); op = substr(hunk[h], p, 1)
+      span(substr(hunk[h], 1, p - 1), L); span(substr(hunk[h], p + 1), R)
+      if (op == "a") {                      # append after L[1] of file 1 -> INSERT
+        unchanged(L[1] + 0)
+        print "\002INS"
+        for (i = R[1] + 0; i <= R[2] + 0; i++) print "N" bl[i]
+      } else if (op == "d") {               # file 1 only -> DELETE
+        unchanged(L[1] - 1)
+        print "\002DEL"
+        for (i = L[1] + 0; i <= L[2] + 0; i++) print "O" gl[i]
+        cur1 = L[2] + 1
+      } else {                              # both sides -> CHANGED
+        unchanged(L[1] - 1)
+        print "\002CHG"
+        for (i = L[1] + 0; i <= L[2] + 0; i++) print "O" gl[i]
+        for (i = R[1] + 0; i <= R[2] + 0; i++) print "N" bl[i]
+        cur1 = L[2] + 1
+      }
+    }
+    unchanged(ng)
+  }
+' "$T/hunks" "$T/g_norm" "$T/b_norm" > "$T/tagged"
 
 # ⚠ A CHANGED group emits its OLD (generated-side) lines BEFORE its NEW (baseline-side)
 #   ones, so both sides are buffered and flushed together — that is what lets the narrow
