@@ -52,6 +52,63 @@ entry describes, and it is exactly the absence-of-a-verdict-is-not-absence-of-co
 ⚠ Fixing all 296 blindly is **not** proposed. Most will never be reached by a mutation that makes
 their door raise; the value is in the triage and the detector, not the churn.
 
+
+## The WORK-LIST — 23 measured sites, dated 2026-09-07 (PO ruling on the NOTICED class)
+
+⛔ **This section is the remedy the PO's NOTICED ruling points at, written down as rows rather than
+as a sentence.** On 2026-09-07 the PO ruled that `NOTICED` — a door-sweep case whose suite reddened
+while a file ABORTED — is **disclosed, non-blocking, work-listed**: coverage EVIDENCE, never a
+verdict, quoted in every gate record, and not a phase blocker (BLIND still is). *Work-listed* is
+the operative word, and this is the list.
+
+The 23 rows below are every `NOTICED` case of the door arm's run 2 (2026-09-06, 353 cases, a fresh
+`supabase db reset`, `ARM-DOMAIN predicate=127/127 policy=226/226`). ⭐ **Each was retried after a
+reset and all 23 REPRODUCED**, so these are the class this entry describes and not tail drift —
+run 1's 102 `NOTICED` were mostly drift and are deliberately NOT carried here.
+
+⛔ **Every one has `Files=262`**: all 262 files RAN; only the `Tests=` count moved, by −8 to −207
+against 8876. That is this entry's shape exactly — a value assertion whose subject raises when its
+gate is opened, aborting *that file's* plan — and **not** a generic catalog-shape detector: ZERO of
+the 23 abort in an authz meta-test (`250_authz_p0_isolation`, `290_authz_never_called_door_floor`
+and `246_authz_f1_referral_split` appear in no row's aborting set). 15 distinct aborting-file
+signatures over 23 rows; the largest group is 4.
+
+**A row is discharged when its aborting file's value assertion is converted to capture-then-assert
+AND the door arm's case for that gate returns a verdict at the unmoved suite shape** — not when the
+suite merely goes green with the gate closed, which is the state today.
+
+| gate (door-arm key) | aborting file(s) — the site(s) to convert |
+| --- | --- |
+| `app.can_read_referral_internal_note(p_note_id uuid, p_uid uuid)` | `150_referrals.sql` |
+| `app.can_sign_meeting(p_attendee_id uuid, p_signer uuid)` | `120_meetings.sql` |
+| `app.can_view_printed_document(p_source_kind text, p_source_id uuid, p_uid uuid)` | `368_printed_documents_cases.sql` |
+| `app.event_current_custodian(p_event_id uuid, p_user_id uuid)` | `140_patient_safety.sql` |
+| `app.has_role(p_scope_type text, p_scope_id uuid, p_role text, p_user_id uuid)` | `140_patient_safety.sql`, `205_administrativo.sql`, `225_supersession.sql` |
+| `app.has_role_any(p_scope_type text, p_scope_id uuid, p_user_id uuid)` | `200_controlled_documents.sql`, `244_authz_c6_reserved_session_lifecycle.sql`, `90_cases.sql` |
+| `app.is_active(p_user_id uuid)` | `200_controlled_documents.sql` |
+| `app.is_dpo_of(p_hospital_id uuid)` | `349_dsr_request_workflow.sql` |
+| `app.is_dpo_of_for(p_hospital_id uuid, p_user_id uuid)` | `349_dsr_request_workflow.sql` |
+| `app.is_entitled_document_approver(p_hospital uuid, p_user uuid)` | `200_controlled_documents.sql` |
+| `app.is_member_of_for(p_commission_id uuid, p_user_id uuid)` | `244_authz_c6_reserved_session_lifecycle.sql`, `90_cases.sql` |
+| `app.is_nsp_coordinator_of_for(p_hospital_id uuid, p_user_id uuid)` | `140_patient_safety.sql` |
+| `app.is_oversight_only_reader(p_case_id uuid, p_uid uuid)` | `227_action_item_satellites.sql`, `264_correction_requests.sql`, `265_reopen_void_narrative.sql`, `267_ethics_e3a_autoderive.sql`, `272_ff2_door_parity.sql`, `347_correction_conclusion_gate.sql`, `367_deferred_staff_signoff.sql` |
+| `app.is_pqs_member_of_for(p_hospital_id uuid, p_user_id uuid)` | `140_patient_safety.sql` |
+| `app.is_pqs_operator_of_for(p_hospital_id uuid, p_user_id uuid)` | `140_patient_safety.sql` |
+| `app.is_staff_admin_of(p_commission_id uuid)` | `113_case_action_items.sql`, `150_referrals.sql`, `182_action_items.sql`, `205_administrativo.sql`, `225_supersession.sql` |
+| `app.is_tenancy_admin_of(p_commission_id uuid)` | `205_administrativo.sql`, `225_supersession.sql` |
+| `app.is_tenancy_admin_of_for(p_commission_id uuid, p_user_id uuid)` | `205_administrativo.sql`, `225_supersession.sql` |
+| `app.referral_target_analyst(p_referral_id uuid, p_uid uuid)` | `150_referrals.sql` |
+| `authz.holds_role(p_principal uuid, p_role_code text, p_scope_kind text, p_scope_id uuid)` | `113_case_action_items.sql`, `150_referrals.sql`, `182_action_items.sql`, `205_administrativo.sql`, `225_supersession.sql`, `405_ae46_wrapper_cutover_invariants.sql` |
+| `cases.cases_staff_admin_write (ALL)` | `205_administrativo.sql` |
+| `form_item_options.form_item_options_staff_admin_write (ALL)` | `409_ae49_d6_rekey_differential.sql` |
+| `forms.forms_staff_admin_write (ALL)` | `409_ae49_d6_rekey_differential.sql` |
+
+⚠ **Four of the 23 are weaker still and are tracked separately** in
+`FUP-AUTHZ-NOTICED-ROWS-WITHOUT-AN-AUTHZ-SHAPED-REDDENING`: for 19 of 23 at least one *authz-shaped*
+file reddens OUTSIDE the aborting file, but `app.event_current_custodian`, `app.is_dpo_of`,
+`app.is_dpo_of_for` and `app.is_entitled_document_approver` have not even that name-shaped signal.
+⛔ A name-shaped signal is not a verdict in either case — it is offered as input, not as coverage.
+
 ## Related
 
 - **LEARN-083** — the register row for this shape.

@@ -9539,6 +9539,29 @@ Index entry: [follow-ups-open.md](follow-ups-open.md) · filed 2026-08-27 · sta
 > rather than quietly fixed: rows keyed on column 1 alone collided on `app.can_sign_section(…)`,
 > which the baseline carries TWICE, and **5 rows vanished silently** while the prose check reported
 > clean. Rows are now keyed on NAME + ORDINAL.
+>
+> ⭐ **2026-09-07 — THE CLOSURE'S OWN "NO SWEEP WAS RUN" CAVEAT IS NOW DISCHARGED, and the figures
+> are from a real run, not from copies.** The block above closed this item on a merge proven
+> against synthetic inputs, and said so. The first REAL full door-arm run has since happened (unit
+> PRED-DOMAIN, Batch 2; run 2 of 2026-09-06, **353 cases / 14 h 53 m**, merged into the committed
+> baseline and committed at `b59d4bbf`), and it preserved:
+>
+> - **426 / 426** hand-authored prose lines,
+> - **9 / 9** `HAND-MERGED` blockquote blocks,
+> - **7 / 7** `## Note` sections,
+> - **11** spliced hand suffixes and **275** carried whole rows,
+>
+> verified three ways: the sweep's own bare rc (**1** — DIRTY on BLIND, ⛔ *not* 2, which is what an
+> aborted merge returns, and `grep -c 'MERGE ABORTED'` over the 15-hour log prints 0); a
+> `SELFTEST=1 MERGE_VERIFY=<merged file>` pass over the artefact (**bare rc 0**: *"holds all 426
+> hand-authored prose line(s), 11 suffix(es) and 275 carried row(s)"*); and enumeration on disk.
+> The baseline the run merged against was confirmed byte-identical to the committed pre-run file
+> (`cksum 1895535637 131621`, `cmp` bare rc 0).
+>
+> ⛔ **What this does NOT retire**: the closure's option-(b) design, which is what made the
+> preservation possible, and the ⚠ note that "what exists today is a hint, not a gate" — the
+> startup warning is still a warning. What is now measured rather than argued is that the merge
+> survives a REAL full run, which is the one condition the original closure could not test.
 
 **The register entry as it stood, verbatim.** Kept here rather than left to `git`, which is what
 `FUP-DOCS-CONSOLIDATION-CLOSURE-DROPS-THE-CLOSES-WHEN-FIELD` asks for — a closure must be
@@ -9678,3 +9701,521 @@ observing zero unmatched. Objects the diff touched that no arm can sweep must st
 **printed**, with the reason, so removing them from `CASES` is not the same as hiding them.
 ⛔ Not closed by deleting the tokens silently: an object the deriver stops naming is an object
 nobody rules on.
+
+### ✅ FUP-DOOR-SWEEP-DOMAIN-MISSES-THE-AUTHZ-RESOLVERS — two `prosecdef` boolean authorization resolvers are in NEITHER sweep arm's domain, so neither arm can ever select them (owner: lead + backend; filed 2026-09-03) — **RESOLVED 2026-09-07**
+
+> **RESOLVED 2026-09-07 — unit PRED-DOMAIN (Batch 2), commit `b59d4bbf`.** Closed JOINTLY with
+> `FUP-DOOR-SWEEP-DOMAIN-GAP-WIDENED-BY-SET-VALUED-RESOLVERS`, as both bodies ask. Design: ADR
+> [0191](../decisions/0191-the-door-arms-domain-gains-a-schema-axis-a-targeted-home-and-a-fourth-outcome.md)
+> D1 + D2 + D3. Record: [pred-domain.md](../progress/pred-domain.md).
+> ⚠ **DISCLOSED: the condition audited is the BODY's `**What would close it.**` paragraph.** Here it
+> is word-identical to the register's `**Closes when:**` apart from the label, so the two agree —
+> unlike this entry's twin, where the register field is truncated mid-word. Clause by clause:
+>
+> 1. *"widen `PRED_DOMAIN` so a `prosecdef` boolean in the `authz` schema is in domain by virtue of
+>    its schema"* — ✅ ADR 0191 D1. A third admitting disjunct, written as the LITERAL
+>    `n.nspname = 'authz'` (PO ruling Q4: no new sub-variable, so the deriver's lift needs no
+>    change), bounded at `t.typname='bool'`. ⛔ The bound is load-bearing and was MEASURED, not
+>    assumed: unbounded, `nspname='authz'` admits 8 functions, 6 of them non-boolean, each of which
+>    the classifier would label `positive` → `select true` → a type error → **6 guaranteed ERROR
+>    rows**.
+> 2. *"in domain by virtue of its schema"*, proven by SELECTION not by a passing sweep (ADR 0173 §4)
+>    — ✅ `PRED_TOTAL` 125 → **127**, `PRED_OUT` 37 → **35**; the delta is EXACTLY
+>    `authz.candidate_has_permission` and `authz.scope_reaches`; the reverse delta is **0 rows**, so
+>    none of the 33 legitimately-outside functions was pulled in.
+> 3. *"and re-baseline the findings file, since `PRED_TOTAL` moves"* — ✅ done through the merge, not
+>    by hand: ONE detached full run, 2026-09-06, **353 cases / 14 h 53 m**,
+>    `ARM-DOMAIN predicate=127/127 policy=226/226`, merged into the committed baseline and committed
+>    at `b59d4bbf`. (Run 1 is VOID from case 275 to tail drift; ADR 0191 D8 records why and what was built
+>    to bound it.)
+> 4. *"Either way `candidate_has_permission` owes a first verdict"* — ✅ **COVERED**, its first
+>    verdict in any direction, from the 353-case run:
+>    `403_ae45_differential_oracle.sql,407_ae49_resolver_contract.sql,413_ae4_authorized_scope_ids.sql`.
+>    ⛔ It read `ERROR` in run 1; that ERROR was a drift artefact, not a finding, and the retry net
+>    converted the whole class (ERROR 5 → 0).
+> 5. *"⛔ What must NOT be mistaken for closing it. The `scope_reaches` COVERED result above — it is
+>    one function, measured once, by hand, outside any arm"* — ✅ not what closes it. `scope_reaches`
+>    earned its verdict INSIDE the arm, in the same 353-case run, with six aborting-free files
+>    naming it. The hand result is corroborated, not cited.
+> 6. *"⛔ Nor a green from `ARM=census`/`hat`/`floor`/`wrapper`: their domains are bounded by
+>    `p.prosecdef` on a name/identity regex too"* — ✅ no other arm's green is cited. The evidence is
+>    this arm's own sweep at the widened domain. `ARM=census` is quoted only for BOOKKEEPING (both
+>    backlog entries deleted in the same commit, as the file's own instruction required), and that
+>    bookkeeping was itself proven non-vacuous: removing the two resolver rows from the findings file
+>    makes `ARM=census` red naming both (bare rc 1), restored byte-identical.
+
+**The register entry as it stood, verbatim.** Kept here rather than left to `git`, which is what
+`FUP-DOCS-CONSOLIDATION-CLOSURE-DROPS-THE-CLOSES-WHEN-FIELD` asks for — a closure must be
+auditable against the condition it was closed on. Only the `### ` heading line is omitted (its
+text is this entry's heading, above).
+
+**Filed:** 2026-09-03 (AE4 `authz.scope_reaches` fix increment, 2026-09-02 — ADR [0180](../decisions/0180-scope-reaches-commission-org-ascent-plan-fix.md) · **Owner:** lead + backend · **Severity:** high — a standing gate has a hole in its domain, on the
+**Closes when:** Either (a) widen `PRED_DOMAIN` so a `prosecdef` boolean in the `authz` schema is in domain by virtue of its schema — and re-baseline the findings file, since `PRED_TOTAL` moves; or (b) rule explicitly that the resolver family is swept by targeted cases instead, and give those cases a committed home so they run on a schedule rather than when someone remembers. Either way `candidate_has_permission` owes a first verdict.
+**Status:** open
+
+**Body** — the pre-closure pointer line pointed at `FUP-DOOR-SWEEP-DOMAIN-MISSES-THE-AUTHZ-RESOLVERS.md`; that file was removed by this closure and its content is inline below. (The literal pointer token cannot survive in the archive: `lint:registers` reds on it, ADR 0185 D5.)
+**The body as it stood, verbatim.** Its own file `docs/followups/FUP-DOOR-SWEEP-DOMAIN-MISSES-THE-AUTHZ-RESOLVERS.md` is removed by this
+closure, so nothing here is summarised. Only its `# ` title line is omitted (same text as the
+heading above).
+
+Index entry: [follow-ups-open.md](follow-ups-open.md) · filed 2026-09-03 · status open
+
+authorization path, and the hole is invisible from the gate's own green. Not 🔴 because both
+functions are in fact covered behaviourally (measured below), so this is a coverage-*apparatus*
+gap and not a known live leak. Above 🟡 because the same shape is what ADR 0079 exists for.
+
+**What is wrong.** `p0-authz-door-audit.sh`'s `PRED_DOMAIN` selects a `prosecdef` boolean when its
+name matches `^(is_|can_|has_|referral_target_analyst|attachment_confidentiality_ok)` **or** its
+comment-stripped `prosrc` matches `auth\.uid\(\)|memberships|member_can|app\.is_|app\.can_|app\.has_|principal_id`.
+**`authz.scope_reaches` and `authz.candidate_has_permission` match neither**, so a `CASES=` token
+naming either selects nothing and the sweep exits 3 UNPROVEN. Meanwhile `authz.has_permission`
+**is** in domain (`^has_`). The resolver family is therefore swept **on one axis only**, and the
+green from that axis reads as if it covered the family.
+
+**How it was MEASURED.** `scripts/door-sweep-cases.sh` over `20261003007310` returned **exit 1 =
+FINDING** (migrations touched, zero cases derived) with `scope_reaches` on its EXCLUDED-BY-NAME
+review list. The domain query run directly against the live catalog returns **35** `prosecdef`
+booleans in `app`/`public`/`authz` outside `PRED_DOMAIN`; 33 are feature flags (`*_enabled`),
+validators (`validate_*`) and structural predicates, and **two are authorization resolvers** —
+`authz.scope_reaches`, `authz.candidate_has_permission`. ⭐ The harness does **not** hide them: its
+§7.17b out-of-domain census prints them. Nothing reads that census as a worklist.
+
+**Not a live leak, and here is the evidence for that.** A TARGETED mutation case was run by hand
+for `scope_reaches` on 2026-09-02 (body → `select true`, attributes preserved, the open gate proven
+live by a commission reaching a foreign organization): the full suite went **Result: FAIL at the
+identical shape** — 260 files / 8709 tests, no `Dubious` — with **10 suites and 29 assertions**
+noticing, including `171_cross_org_isolation`. Restore proven byte-identical. So `scope_reaches` is
+**COVERED**; it simply has no verdict any *arm* can produce. ⛔ `authz.candidate_has_permission` has
+had **no such case run** and holds no verdict of any kind.
+
+**What would close it.** Either (a) widen `PRED_DOMAIN` so a `prosecdef` boolean in the `authz`
+schema is in domain by virtue of its schema — and re-baseline the findings file, since `PRED_TOTAL`
+moves; or (b) rule explicitly that the resolver family is swept by targeted cases instead, and give
+those cases a committed home so they run on a schedule rather than when someone remembers. Either
+way `candidate_has_permission` owes a first verdict.
+
+⛔ **What must NOT be mistaken for closing it.** The `scope_reaches` COVERED result above — it is one
+function, measured once, by hand, outside any arm. ⛔ Nor a green from `ARM=census`/`hat`/`floor`/
+`wrapper`: **their domains are bounded by `p.prosecdef` on a name/identity regex too**, so they are
+silent about exactly this population. *A green arm bounds its own domain* (ADR 0079); an arm that
+cannot select a gate has not cleared it.
+
+### ✅ FUP-DOOR-SWEEP-DOMAIN-GAP-WIDENED-BY-SET-VALUED-RESOLVERS — three more authorization functions are outside `PRED_DOMAIN`, this time by RETURN TYPE (owner: lead + backend; filed 2026-09-03) — **RESOLVED 2026-09-07**
+
+> **RESOLVED 2026-09-07 — unit PRED-DOMAIN (Batch 2), commit `b59d4bbf`.** Closed JOINTLY with
+> `FUP-DOOR-SWEEP-DOMAIN-MISSES-THE-AUTHZ-RESOLVERS`. Design: ADR
+> [0191](../decisions/0191-the-door-arms-domain-gains-a-schema-axis-a-targeted-home-and-a-fourth-outcome.md)
+> D3. Record: [pred-domain.md](../progress/pred-domain.md).
+> ⛔ **DISCLOSED, and it matters here: the register's `**Closes when:**` field is TRUNCATED MID-WORD**
+> — it ends `they are one apparatus gap with tw…` with a literal U+2026. The condition audited is
+> therefore the BODY's `**What would close it.**` paragraph, which is the complete sentence. Clause
+> by clause:
+>
+> 1. *"Extend `PRED_DOMAIN` along the return-type axis … regardless of `typname`"* — ⛔ **NOT the
+>    route taken, deliberately.** Neutralization by "swap the body for `select true`" is defined only
+>    for a BOOLEAN (ADR 0079 hazard 4); a `SETOF uuid` function cannot be opened that way, so a
+>    return-type widening would have produced ERROR rows, not verdicts. ADR 0173 §4's refusal is
+>    about exactly this axis and stands.
+> 2. *"**or** rule that set-valued resolvers are swept by targeted cases and give those cases a
+>    committed home"* — ✅ the route taken. `supabase/tests/mutation/authz-setvalued-targeted-cases.sh`
+>    is committed, with the door arm's own semantics (neutralize to the UNIVERSAL set → run the FULL
+>    suite → read `Result:`), a verified restore, its own crash sentinel, and its own degeneracy arms
+>    (§4a residue detector, §4b cardinality control). All three resolvers earned their FIRST recorded
+>    verdicts there — ADR 0182 records no suite shape and no verdict token for any of them.
+> 3. *"the follow-up's own proposed selecting property"* — ⛔ **measured and rejected in writing.** "a
+>    scope-id set consumed by a policy" selects exactly **1 of the 3** on the live catalog (only
+>    `app.current_professional_read_organizations`, via `professional_profiles_select`); the two
+>    `authz.*` resolvers are reached only transitively. A property that selects 1 of 3 while being
+>    described as selecting the family is the very shape this program exists to catch, so the scope
+>    is an explicit recorded list of 3 whose CARDINALITY is asserted (§4b), with the 2 out-of-scope
+>    `SETOF uuid` functions named beside their disposition.
+> 4. *"so they run on a schedule rather than when someone remembers"* — ⚠ **NOT DISCHARGED BY THIS
+>    COMMIT, and it is filed rather than glossed.** The scheduling line belongs in
+>    `docs/lead-playbook.md` §4, which is outside the engineer's write scope; the sentence is drafted
+>    verbatim in the record and its landing is tracked as **`FUP-AUTHZ-SETVALUED-TARGETED-HOME-HAS-NO-SCHEDULE`**
+>    (owner: lead). ⛔ A residual that lives only inside a closure note is a residual nobody can
+>    audit, which is why it gets its own open entry instead.
+> 5. *"⛔ What must NOT be mistaken for closing it. The targeted mutation cases run in this increment:
+>    they are three functions, measured once, by hand, outside any arm"* — ✅ not what is cited. What
+>    closes it is a COMMITTED harness with a recorded scope, controls and a restore protocol — the
+>    difference between a measurement and an instrument.
+> 6. *"⛔ Nor a green from `ARM=census`/`hat`/`floor`/`wrapper`"* — ✅ none is cited as coverage for
+>    this family.
+
+**The register entry as it stood, verbatim.** Kept here rather than left to `git`, which is what
+`FUP-DOCS-CONSOLIDATION-CLOSURE-DROPS-THE-CLOSES-WHEN-FIELD` asks for — a closure must be
+auditable against the condition it was closed on. Only the `### ` heading line is omitted (its
+text is this entry's heading, above).
+
+**Filed:** 2026-09-03 (diff-scoped door sweep, AE4 `20261003007320` — ADR [0182](../decisions/0182-statement-scoped-authorized-scope-ids.md) · **Owner:** lead + backend · **Severity:** high — same class and same reason as
+**Closes when:** Extend `PRED_DOMAIN` along the return-type axis (a `prosecdef` function in `authz`, or one whose result is a scope-id set consumed by a policy, is in domain regardless of `typname`) and re-baseline the findings file; or rule that set-valued resolvers are swept by targeted cases and give those cases a committed home so they run on a schedule. Either way this should be resolved together with `FUP-DOOR-SWEEP-DOMAIN-MISSES-THE-AUTHZ-RESOLVERS` — they are one apparatus gap with tw…
+**Status:** open
+
+**Body** — the pre-closure pointer line pointed at `FUP-DOOR-SWEEP-DOMAIN-GAP-WIDENED-BY-SET-VALUED-RESOLVERS.md`; that file was removed by this closure and its content is inline below. (The literal pointer token cannot survive in the archive: `lint:registers` reds on it, ADR 0185 D5.)
+**The body as it stood, verbatim.** Its own file `docs/followups/FUP-DOOR-SWEEP-DOMAIN-GAP-WIDENED-BY-SET-VALUED-RESOLVERS.md` is removed by this
+closure, so nothing here is summarised. Only its `# ` title line is omitted (same text as the
+heading above).
+
+Index entry: [follow-ups-open.md](follow-ups-open.md) · filed 2026-09-03 · status open
+
+`FUP-DOOR-SWEEP-DOMAIN-MISSES-THE-AUTHZ-RESOLVERS`, which this compounds. Not 🔴 because all three
+are covered behaviourally by targeted mutation cases run in this increment; above 🟡 because the
+population the apparatus cannot select has now grown twice in two increments, which is a trend.
+
+**What is wrong.** `p0-authz-door-audit.sh`'s `PRED_DOMAIN` bounds itself with `t.typname = 'bool'`.
+The three functions added by `20261003007320` — `authz.authorized_scope_ids`,
+`authz.candidate_authorized_scope_ids`, `app.current_professional_read_organizations` — all return
+`SETOF uuid`. They are therefore excluded **structurally**, by return type, before the name and
+identity regexes are even consulted. The existing FUP records exclusion by *name/identity* regex;
+this is a third exclusion axis, and it cannot be fixed by widening those regexes.
+
+**How it was MEASURED.** `bash scripts/door-sweep-cases.sh` on 2026-09-03 returned **exit 0
+(DERIVED, 1 case)** — the altered policy `professional_profiles_select` — and printed all three new
+functions on its `⛔ EXCLUDED BY NAME — A REVIEW LIST, NOT A DROP` list, with the script's own
+ruling: *"If any of these is an authorization gate, it owes a TARGETED mutation case (the door sweep
+can only neutralize a boolean predicate), and the ruling belongs in the gate record."* ⚠ The exit
+code is **0, not 1** — the handoff into this increment predicted exit 1, and that prediction was
+wrong because the ALTERed policy alone is enough to make the derivation non-empty. **A non-empty
+derivation is not evidence that the derivation was complete.**
+
+⭐ **A SECOND MEASUREMENT, and it is the more instructive one.** The follow-on migration
+`20261003007330` (ADR 0182 § Corrections) `create or replace`s the same door with no policy change
+at all. The deriver over that diff returns **exit 1 — FINDING: "the diff TOUCHED
+supabase/migrations and ZERO cases were derived"** with an EMPTY case list. ⛔ So the same door
+produces **exit 0 and exit 1 from the same apparatus** depending on whether an unrelated policy
+happens to be in the diff beside it — the door itself is invisible to the selector in both runs,
+and only the *company it keeps* moves the exit code. Ruled here rather than passed: 7330 creates and
+alters no policy, and its one function already holds a targeted mutation verdict. ⚠ That verdict had
+to be **RE-EARNED**, not carried: pgTAP 413 grew five assertions and the suite shape moved
+`Files=261, Tests=8733` → `8738`, and a verdict recorded at one shape is not a verdict at another.
+
+**What would close it.** Extend `PRED_DOMAIN` along the return-type axis (a `prosecdef` function in
+`authz`, or one whose result is a scope-id set consumed by a policy, is in domain regardless of
+`typname`) and re-baseline the findings file; **or** rule that set-valued resolvers are swept by
+targeted cases and give those cases a committed home so they run on a schedule. Either way this
+should be resolved together with `FUP-DOOR-SWEEP-DOMAIN-MISSES-THE-AUTHZ-RESOLVERS` — they are one
+apparatus gap with two symptoms.
+
+⛔ **THREE HERE, ONE IN `authz-unswept-backlog.txt` — and both are right.** Added 2026-09-04
+(gate AE4 re-review, LOW-8), because the two records disagreed and nothing bridged them, which
+reads as one of them being stale. They count **different sets**:
+
+- **This follow-up's THREE is the primary figure**: what `PRED_DOMAIN` (`p0-authz-door-audit.sh`,
+  ARM 1's domain) excludes **by return type**. All three return `SETOF uuid`, so
+  `t.typname = 'bool'` drops them before any name regex runs.
+- **The backlog's ONE is DERIVED from those three** by the census's own reachability clause.
+  `authz-unswept-backlog.txt`'s contract is census closure (ARM 3), whose set-returning clause is
+  `p.proretset AND has_function_privilege('authenticated', p.oid, 'EXECUTE')`. Only
+  `app.current_professional_read_organizations()` satisfies it, so only it can owe that file an
+  entry.
+
+**Measured on the live catalog 2026-09-04**, not read off the migration:
+
+| function | `prosecdef` | result | `authenticated` EXECUTE | in `PRED_DOMAIN` | in census domain |
+| --- | --- | --- | --- | --- | --- |
+| `app.current_professional_read_organizations()` | t | `SETOF uuid` | **t** | no | **yes** |
+| `authz.authorized_scope_ids(uuid,text,text)` | t | `SETOF uuid` | f | no | no |
+| `authz.candidate_authorized_scope_ids(uuid,text,text)` | t | `SETOF uuid` | f | no | no |
+
+The two `authz.*` resolvers hold EXECUTE for no application role (pgTAP 401 § 18.1 pins that at 0
+across 27 probes), which is why the census never demands a verdict for them. ⛔ That is a
+**reachability** bound, not a clearance — *absence of a verdict is not absence of coverage*, and
+here it runs the other way too: being outside every arm is precisely this follow-up's complaint.
+If either resolver ever gains `authenticated` EXECUTE it enters the backlog's domain that same day.
+
+⛔ **What must NOT be mistaken for closing it.** The targeted mutation cases run in this increment:
+they are three functions, measured once, by hand, outside any arm. ⛔ Nor a green from
+`ARM=census`/`hat`/`floor`/`wrapper` — every one of those bounds its domain on `p.prosecdef` over a
+name/identity regex and is silent about this population. *An arm that cannot select a gate has not
+cleared it.*
+
+### ✅ FUP-DOOR-AUDIT-ALL-POLICY-COVERED-IS-MIRROR-AMBIGUOUS — a read-arm COVERED on a `FOR ALL` policy can be earned by a write keystone (owner: backend; filed 2026-09-02) — **RESOLVED 2026-09-07**
+
+> **RESOLVED 2026-09-07 — unit PRED-DOMAIN (Batch 2), commit `b59d4bbf`.** Design: ADR
+> [0191](../decisions/0191-the-door-arms-domain-gains-a-schema-axis-a-targeted-home-and-a-fourth-outcome.md)
+> D4. Record: [pred-domain.md](../progress/pred-domain.md).
+> The register's `**Closes when:**` and the body's `**What would close it.**` are word-identical
+> here; the body adds only the ⛔ negative. Clause by clause:
+>
+> 1. *"Either open the halves separately in the read arm too"* — ✅ the route taken. The read arm
+>    drops ` with check (true)` and opens `using (true)` **alone**. The capture, the restore and the
+>    in-flight probe (which hashes BOTH halves) are unchanged, so a killed run still restores both.
+> 2. *"or record per verdict which half the keystone exercised"* — ✅ done as well, in prose rather
+>    than in the direction column: the findings header and the printed `DOMAIN-STATEMENT` both state
+>    that a COVERED on a `FOR ALL` policy is a claim about the **READ** half and nothing else, and
+>    that rows carried over from before 2026-09-05 may have been earned by a WRITE keystone. ⚠ The
+>    direction column still reads `open->true` for both eras — DEFERRED by PO ruling Q5, because
+>    re-keying it would send all 62 `(ALL)` rows through the merge's CARRIED branch as formatting
+>    noise. The deferral is recorded in ADR 0191 D4, not left implicit.
+> 3. *"⛔ What must NOT be mistaken for closing it. The write arm's fix"* — ✅ not cited. The change
+>    is in `supabase/tests/mutation/p0-authz-door-audit.sh`'s own policy neutralizer; the write arm
+>    was already correct and says so at three sites.
+> 4. **Proven by DISCRIMINATION, not by a green run.** The mutation is strictly weaker, so only
+>    COVERED → BLIND flips are possible and only on `(ALL)` rows. A 6-ALL + 6-SELECT subset was run
+>    against BOTH harness versions on the same fresh reset: the SELECT half was identical before and
+>    after. Over the full 353-case run, **all 11 COVERED → BLIND transitions are `(ALL)` policies and
+>    ZERO SELECT rows moved** — the discrimination half holds over the whole population, not a
+>    sample.
+> 5. **The cost is DISCLOSED, not absorbed** (PO ruling Q1): the 11 flipped rows are named, with
+>    their `using` qual, their write-half fixture and what a read-half keystone must assert, in
+>    `FUP-AUTHZ-FOR-ALL-READ-HALF-BLINDS` (open). ⛔ No flipped row was relabelled to keep it
+>    COVERED. Of run 2's 36 BLIND rows, 25 were BLIND in the committed baseline and 11 are these
+>    flips: there is no coverage loss anywhere outside the mirror fix.
+
+**The register entry as it stood, verbatim.** Kept here rather than left to `git`, which is what
+`FUP-DOCS-CONSOLIDATION-CLOSURE-DROPS-THE-CLOSES-WHEN-FIELD` asks for — a closure must be
+auditable against the condition it was closed on. Only the `### ` heading line is omitted (its
+text is this entry's heading, above).
+
+**Filed:** 2026-09-02 (write-arm re-aim; the file is not that agent's to change) · **Owner:** backend · **Severity:** medium — it weakens what a read COVERED means; it opens nothing.
+**Closes when:** Either open the halves separately in the read arm too, or record per verdict which half the keystone exercised.
+**Status:** open
+
+**Body** — the pre-closure pointer line pointed at `FUP-DOOR-AUDIT-ALL-POLICY-COVERED-IS-MIRROR-AMBIGUOUS.md`; that file was removed by this closure and its content is inline below. (The literal pointer token cannot survive in the archive: `lint:registers` reds on it, ADR 0185 D5.)
+**The body as it stood, verbatim.** Its own file `docs/followups/FUP-DOOR-AUDIT-ALL-POLICY-COVERED-IS-MIRROR-AMBIGUOUS.md` is removed by this
+closure, so nothing here is summarised. Only its `# ` title line is omitted (same text as the
+heading above).
+
+Index entry: [follow-ups-open.md](follow-ups-open.md) · filed 2026-09-02 · status open
+
+`p0-authz-door-audit.sh` bounds itself `polcmd in ('r','*')` and opens **both** `using (true)` and
+`with check (true)` on a `FOR ALL` policy. So a COVERED verdict there can be produced by a keystone that
+only exercises the **write** half — the mirror of the defect the write arm just fixed by opening the
+`with check` half alone.
+
+**How it was measured.** Read from `p0-authz-door-audit.sh` around line 807 while re-deriving the write
+arm's domain.
+
+**What would close it.** Either open the halves separately in the read arm too, or record per verdict which
+half the keystone exercised.
+
+⛔ **What must NOT be mistaken for closing it.** The write arm's fix. It made the *write* verdicts
+unambiguous and left the read side exactly as it was.
+
+### ✅ FUP-DOOR-SWEEP-BROAD-GATE-ABORTS-A-FILE — a broad gate's neutralization aborts a pgTAP file, so the shape guard withholds a verdict the suite plainly had (owner: backend; filed 2026-08-24) — **RESOLVED 2026-09-07**
+
+> **RESOLVED 2026-09-07 — unit PRED-DOMAIN (Batch 2), commit `b59d4bbf`.** Design: ADR
+> [0191](../decisions/0191-the-door-arms-domain-gains-a-schema-axis-a-targeted-home-and-a-fourth-outcome.md)
+> D5 and its Amendment 1. Record: [pred-domain.md](../progress/pred-domain.md).
+> ⛔ **DISCLOSED, and this one needs saying plainly: the BODY STATES NO CLOSING CONDITION.** It offers
+> `**Decide between:**` (a) and (b) — a CHOICE, not a discharge. The register's `**Closes when:**` is
+> a flattened, de-bulleted rendering of that list (complete with a stray `; or;` joint), i.e. a
+> register-side reading of options as a condition. Both are quoted below and the audit is against the
+> body's clauses. Precedent for this exact disclosure: the archived
+> `FUP-DOOR-SWEEP-FULL-RUN-DESTROYS-HAND-MERGED-ANNOTATIONS`, whose register field read "PO to rule".
+> Clause by clause:
+>
+> 1. *"(a) a bespoke neutralization per case … precise, and it does not touch the classifier"* — ⛔
+>    **NOT taken, and the reason is measured, not stylistic.** The abort is `140_patient_safety.sql`'s
+>    own value assertion whose subject raises once the gate opens (LEARN-083 / the 296-site class), so
+>    there is no defect in the neutralization to write bespoke code around. And the class GROWS with
+>    the arm's domain: a broader gate is exactly the kind whose opening makes some file abort. Run 2
+>    bears that out — **15 distinct aborting-file signatures over 23 rows**, in 15 different domain
+>    files, not one recurring harness bug.
+> 2. *"(b) teaching the classifier a fourth outcome for 'shape moved AND the suite went FAIL', which
+>    is strictly more information than ERROR"* — ✅ the route taken. `NOTICED`. Shape moved **and**
+>    `Result: FAIL` → `NOTICED`; every other shape move stays `ERROR`.
+> 3. *"⛔ but it must never collapse into COVERED, because the failing assertions may belong to a
+>    different gate entirely"* — ✅ enforced in three places, not asserted once: `NOTICED` has its own
+>    count and its own token in the tables; `COVERED` is computed as the residual and `NOTICED` is
+>    subtracted from it, so a fourth outcome cannot inflate COVERED by arithmetic after being kept
+>    out of it by logic; and the SELFTEST's **control** is the (shape-moved, PASS) → ERROR case,
+>    which is what distinguishes this from merely renaming ERROR.
+> 4. *"✅ The harness is right and must not be loosened. ⚠ But ERROR here means unclassifiable, not
+>    unprotected"* — ✅ that distinction is now IN THE INSTRUMENT rather than in a comment: run 2
+>    reports `ERROR 0` and `NOTICED 23`, so the unclassifiable-but-noticed cases no longer travel
+>    under the same token as a harness bug.
+> 5. *"⛔ And it is not a pass either: CLAUDE.md §6 requires ERROR to be covered in the phase's
+>    mutation audit"* — ✅ `NOTICED` is not a pass and is not COVERED. ⚠ **AMENDED by the PO on
+>    2026-09-07**, and the amendment is the one place this closure changes what D5 originally said:
+>    `NOTICED` is **disclosed, non-blocking, work-listed** — coverage EVIDENCE, its own class, quoted
+>    in every gate record beside the BLIND count, and it does NOT block the phase (BLIND does). A run
+>    with 0 BLIND, 0 ERROR and >0 NOTICED now exits **0 with the disclosure printed**. That ruling is
+>    encoded where the RESULT line is computed (`emit_result()`), not only in prose, and its SELFTEST
+>    control is the PAIR (0 BLIND, 1 NOTICED) → rc 0 vs (1 BLIND, 1 NOTICED) → rc 1.
+> 6. **Proven able to fire, on the live subject the follow-up names.** `app.event_current_custodian`
+>    read `ERROR — run-shape!=baseline` before the change and `NOTICED` after, naming
+>    `140_patient_safety.sql` as the aborting file — the same file, the same test 11. The 23 NOTICED
+>    rows of run 2 were each retried after a fresh reset and **all 23 reproduced**, so the class is
+>    the follow-up's class and not drift.
+> 7. **The remedy is work-listed, not merely named** — `FUP-C2-TIER1-VALUE-ASSERTIONS-ABORT-ON-AN-INLINE-RAISE`
+>    now carries run 2's 23 rows with their aborting files as its work-list, and the four rows whose
+>    suite reddened only INSIDE the aborting file are tracked separately in
+>    `FUP-AUTHZ-NOTICED-ROWS-WITHOUT-AN-AUTHZ-SHAPED-REDDENING`.
+
+**The register entry as it stood, verbatim.** Kept here rather than left to `git`, which is what
+`FUP-DOCS-CONSOLIDATION-CLOSURE-DROPS-THE-CLOSES-WHEN-FIELD` asks for — a closure must be
+auditable against the condition it was closed on. Only the `### ` heading line is omitted (its
+text is this entry's heading, above).
+
+**Filed:** 2026-08-24 (lead) · **Owner:** backend · **Severity:** medium — the heading carried NO emoji at consolidation; medium is the default, PO to confirm
+**Closes when:** (a) a bespoke neutralization per case (what ADR 0079 Amendment 1 already prescribes for value-returning raise-guards) — precise, and it does not touch the classifier; or; (b) teaching the classifier a fourth outcome for "shape moved AND the suite went FAIL", which is strictly more information than ERROR — ⛔ but it must never collapse into COVERED, because the failing assertions may belong to a different gate entirely.
+**Status:** open
+
+**Body** — the pre-closure pointer line pointed at `FUP-DOOR-SWEEP-BROAD-GATE-ABORTS-A-FILE.md`; that file was removed by this closure and its content is inline below. (The literal pointer token cannot survive in the archive: `lint:registers` reds on it, ADR 0185 D5.)
+**The body as it stood, verbatim.** Its own file `docs/followups/FUP-DOOR-SWEEP-BROAD-GATE-ABORTS-A-FILE.md` is removed by this
+closure, so nothing here is summarised. Only its `# ` title line is omitted (same text as the
+heading above).
+
+Index entry: [follow-ups-open.md](follow-ups-open.md) · filed 2026-08-24 · status open
+
+⚠ **NEW — a harness ceiling the same widening exposed.** Filed 2026-08-24 (lead).
+
+`app.event_current_custodian` came back **ERROR**: `run-shape != baseline (Files=218 Tests=7199)`.
+The cause is exact — with the gate open, `140_patient_safety.sql` fails its test 11 and then
+**ABORTS** (`Bad plan. You planned 35 tests but ran 11`), so the denominator moves and §7.15
+withholds a verdict rather than recording one against a run whose assertions did not all execute.
+
+✅ **The harness is right and must not be loosened.** ⚠ But **ERROR here means *unclassifiable*, not
+*unprotected*** — the suite plainly DID notice (test 11 reddened). ⛔ And it is not a pass either:
+CLAUDE.md §6 requires ERROR to be covered in the phase's mutation audit.
+
+⭐ **The class matters more than this one case.** Widening the arm by property admits BROADER gates
+— capability resolvers, audit gates — and a broad gate is exactly the kind whose opening makes some
+file abort. Expect more of these, not fewer, as the arm's domain grows.
+
+**Decide between:**
+- **(a)** a bespoke neutralization per case (what ADR 0079 Amendment 1 already prescribes for
+  value-returning raise-guards) — precise, and it does not touch the classifier; or
+- **(b)** teaching the classifier a fourth outcome for "shape moved AND the suite went FAIL", which
+  is strictly more information than ERROR — ⛔ but it must never collapse into COVERED, because the
+  failing assertions may belong to a different gate entirely.
+
+**Owner:** backend.
+
+---
+
+### ✅ FUP-C2-TIER1-TRIGGER-ENFORCERS-OUT-OF-SWEEP-DOMAIN — a trigger guard has no call edge, so it is in 0 of the 171 and its door reads BLIND for the wrong cause (owner: lead + backend; filed 2026-09-04) — **RESOLVED 2026-09-07**
+
+> **RESOLVED 2026-09-07 — unit PRED-DOMAIN (Batch 2), commit `b59d4bbf`.** Design: ADR
+> [0191](../decisions/0191-the-door-arms-domain-gains-a-schema-axis-a-targeted-home-and-a-fourth-outcome.md)
+> D6. Record: [pred-domain.md](../progress/pred-domain.md).
+> ⚠ **DISCLOSED: the condition audited is the BODY's `## Closes when` section, which is STRICTLY
+> LARGER than the register's field.** The register drops the body's two named discharge routes
+> entirely and drops the reasoned ⛔ bar. Both are quoted below; the audit is against the body.
+> Clause by clause:
+>
+> 1. *"The sweep's domain statement names trigger enforcers as **out of domain**"* — ✅ printed on
+>    EVERY run and emitted into the findings header as `DOMAIN-STATEMENT` population 4, **derived
+>    from the live catalog each run and never literal**: `174 prosecdef trigger function(s) behind
+>    268 wired trigger(s)` today. Proven to be a derivation and not a constant: a planted `prosecdef`
+>    trigger function moves 174 → 175 and a non-`prosecdef` one leaves it at 174.
+> 2. *"so a BLIND caused by a trigger is distinguishable from a BLIND caused by an absent
+>    assertion"* — ⚠ **DISCHARGED AT THE LEVEL OF ACTION, NOT OF THE VERDICT TOKEN, and the
+>    difference is stated rather than smoothed over.** The delivered statement says the OPPOSITE of
+>    the clause's word: *"a trigger-caused BLIND is INDISTINGUISHABLE here from an absent-assertion
+>    BLIND"* — because Postgres invokes a trigger FROM THE TABLE, so a trigger function has no call
+>    edge from the door that fires it and no boolean this arm can flip. What the statement then makes
+>    distinguishable is the REMEDY: the first is discharged only by a keystone on a fixture the
+>    TRIGGER does not already refuse, the second by a keystone on the door. ⛔ A reader of a BLIND row
+>    now knows the population exists and which keystone to write; a reader who wants the verdict
+>    token itself to carry the distinction does not get it, and would need the body's first named
+>    route (below), which was NOT built.
+> 3. *"either by extending the worklist derivation to attribute trigger enforcement to the doors that
+>    reach the table"* — ⛔ **NOT built.** Named here so the closure cannot be read as having taken
+>    it.
+> 4. *"or by a recorded ruling that trigger guards are covered by a different arm and naming which"* —
+>    ⛔ **also not taken**, because it would be false: no arm sweeps trigger functions today. The
+>    third route was delivered instead — a recorded, per-run, catalog-derived statement that the
+>    population is out of THIS arm's domain, with the remedy for each cause named.
+> 5. *"⛔ An allowlist entry does not close it: the door is not never-called, and its verdict is not
+>    wrong — the *domain* is unstated"* — ✅ **no allowlist entry was added anywhere.** The change is
+>    a printed domain statement, which is the follow-up's own diagnosis ("a gate record names the arm
+>    and its domain, never the script").
+> 6. **The witness the follow-up was filed on is carried IN the statement, not in a comment**:
+>    `public.reopen_interview` BLIND while `121_interviews.sql` pins its `HC038`, where the `HC038`
+>    observed is raised by `app.guard_interview_status`, a **trigger** on `case_interviews`. The
+>    statement adds the generalisation the follow-up implies: a defence-in-depth pair (door guard +
+>    trigger guard) can LOOK like a gap.
+> 7. *"ADR 0184 point 4 names three uncovered populations a gate record must state; **this is a
+>    fourth**"* (the register's `**Status:**` narrative) — ✅ it is population 4 of the
+>    `DOMAIN-STATEMENT`, and every gate record citing this sweep must quote the block, not the
+>    script. (There are **five** populations since 2026-09-07: D5 Amendment 1 added `NOTICED`.)
+
+**The register entry as it stood, verbatim.** Kept here rather than left to `git`, which is what
+`FUP-DOCS-CONSOLIDATION-CLOSURE-DROPS-THE-CLOSES-WHEN-FIELD` asks for — a closure must be
+auditable against the condition it was closed on. Only the `### ` heading line is omitted (its
+text is this entry's heading, above).
+
+**Filed:** 2026-09-04 (C2 Phase A, resolving `public.reopen_interview`'s contradiction) · **Owner:** lead + backend · **Severity:** high — a measurement-domain gap in a standing gate's instrument; it cannot produce a false COVERED, it produces a **correct BLIND that is not actionable as one**
+**Closes when:** the sweep's domain statement names trigger enforcers as out of domain, so a BLIND caused by a trigger is distinguishable from a BLIND caused by an absent assertion — ⛔ an allowlist entry does not close it
+**Status:** open — found because `121:292-294` pins `HC038` on `reopen_interview`'s only anchored raise and the door still came back BLIND; the `HC038` observed is raised by `app.guard_interview_status`, a **trigger** on `case_interviews`. It already changed two Phase B specs. ADR 0184 point 4 names three uncovered populations a gate record must state; **this is a fourth**
+
+**Body** — the pre-closure pointer line pointed at `FUP-C2-TIER1-TRIGGER-ENFORCERS-OUT-OF-SWEEP-DOMAIN.md`; that file was removed by this closure and its content is inline below. (The literal pointer token cannot survive in the archive: `lint:registers` reds on it, ADR 0185 D5.)
+**The body as it stood, verbatim.** Its own file `docs/followups/FUP-C2-TIER1-TRIGGER-ENFORCERS-OUT-OF-SWEEP-DOMAIN.md` is removed by this
+closure, so nothing here is summarised. Only its `# ` title line is omitted (same text as the
+heading above).
+
+**Filed:** 2026-09-04 (C2 Phase A, while resolving `public.reopen_interview`'s contradiction)
+**Owner:** lead + backend
+**Severity:** high — a measurement-domain gap in a standing gate's instrument, not a demonstrated
+live hole. It cannot produce a false COVERED; it produces a **correct BLIND that is not actionable
+as a BLIND**, which is a different and more misleading thing.
+
+## The finding
+
+`public.reopen_interview` came back BLIND from the full sweep. `121_interviews.sql:292-294` pins
+`HC038` on the door itself with a `throws_ok`, and `HC038` is the door's **only** anchored raise, in
+its **own** body — so by the harness's own mutation semantics (all anchored raises in the target's
+body are neutralized at once) that assertion should have gone red and the verdict should have been
+COVERED. It did not.
+
+Measured 2026-09-04, with the mutation actually landed: `121` returns `Files=1, Tests=60, PASS`.
+The `HC038` the test observes is **not the door's**. It comes from **`app.guard_interview_status`, a
+trigger on `case_interviews`** — `cancelled → in_progress` is not in its allowlist, and
+`reopen_interview` sets `app.in_interview_rpc='on'`, so execution reaches the trigger. The door's own
+`HC038` never fires on that fixture.
+
+⭐ **`app.guard_interview_status` is in 0 of the 171.** The C2 worklist is built from a call-edge
+closure (`c2n.edges` → `c2n.clo_full`), and **a trigger function has no call edge from the door that
+causes it to fire** — Postgres invokes it from the table, not from the function body. So no trigger
+enforcer can ever enter this sweep's population, however load-bearing it is.
+
+## Why this is worth an entry rather than a footnote
+
+The sweep's BLIND verdict here is **correct** — nothing in the suite would notice
+`reopen_interview`'s own guard vanish. But the reason is not the usual one. The usual BLIND says
+*"this door's refusal is unasserted."* This one says *"this door's refusal is delivered by a
+different enforcer, which this instrument cannot see."* Those two require different remedies, and the
+findings file cannot tell them apart:
+
+- the usual BLIND is discharged by a keystone on the door;
+- **this** BLIND is discharged only by a keystone that constructs a fixture the *trigger* does not
+  already refuse — otherwise the new assertion passes for the trigger's reason and the verdict does
+  not move, which reads as a failed keystone rather than as a misdiagnosis.
+
+It also means a **defence-in-depth pair can look like a gap**: door guard plus trigger guard, with
+the trigger doing the work on the fixture the suite happens to use.
+
+## What it already cost, and what it prevented
+
+Two Phase B specs changed on this reading:
+
+- `public.reopen_interview`'s keystone must use a **`scheduled` / `awaiting_follow_up`** fixture plus
+  a message pin, not the `cancelled` one the existing arm uses.
+- `public.cancel_interview` needs **no** ADR 0187 D3-style "unreachable raise" ruling — its `HC038`
+  *is* reachable — but its keystone must use an **already-`cancelled`** interview, because a
+  `completed` one is satisfied by the trigger rather than by the door.
+
+Without the catalog read, the first would have been written against a fixture the trigger already
+refuses, and the second would have been written off as dead code.
+
+## Closes when
+
+The sweep's domain statement names trigger enforcers as **out of domain**, so a BLIND caused by a
+trigger is distinguishable from a BLIND caused by an absent assertion — either by extending the
+worklist derivation to attribute trigger enforcement to the doors that reach the table, or by a
+recorded ruling that trigger guards are covered by a different arm and naming which. ⛔ An allowlist
+entry does **not** close it: the door is not never-called, and its verdict is not wrong — the
+*domain* is unstated, which is precisely the ADR 0079 failure this program exists to prevent
+("a gate record names the arm and its domain, never the script").
+
+## Related
+
+- ADR [0079](../decisions/0079-authz-door-blindness-standing-invariant.md) — a verdict is meaningless
+  without its domain.
+- ADR [0184](../decisions/0184-c2-sweep-runs-against-the-current-branch-schema.md) point 4 — the
+  three uncovered populations a gate record must state. **This is a fourth**, discovered after that
+  ADR was written, and it should be stated alongside them.
+- `docs/reviews/c2-suite-abort-diagnosis.md` — the measurement.
+- `docs/design/authz-c2-blind-keystone-specs.md` §6.4 — the contradiction that led here.

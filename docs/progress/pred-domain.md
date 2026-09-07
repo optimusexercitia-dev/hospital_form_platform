@@ -2269,3 +2269,189 @@ reason it was archived rather than re-attached.
   ```
   | app.resolve_document_version_bytes(p_document_version_id uuid, p_rendition_kind text, p_uid uuid) | row-door | positive | COVERED | 342_dm5_s3_printed_renditions.sql (NEW at DM5·S3, migration 20260927000330, ADR 0120 D12 — the shared byte resolver both `open_document_version` and `open_printed_document` delegate to. ⚠ **NO CENSUS ENTRY IS OWED, and that is a measured claim, not an omission.** ARM 3's row-door clause is `p.proretset AND has_function_privilege('authenticated', p.oid, 'EXECUTE')`; this function is `proretset` but its EXECUTE is granted to **postgres only** and revoked from PUBLIC, so it is outside the domain by construction. That is the census's own stated justification correctly not applying — *"a row-returning door is a gate you can walk through"* — because nothing but the owner can walk through this one. `ARM=census` re-run after it landed: live **546**, unchanged. Its coverage is therefore ENTIRELY bespoke, exactly as ADR 0120's Consequences predicted for every DM5 door: 342 S3h1 pins the ACL in all three directions (PUBLIC/anon/authenticated), S3g1/S3g2 pin that it is rendition-parameterized while the core door still passes only `'source'`, and S3c5/S3i1 exercise both outcomes of the D12 conjunction end to end) |
   ```
+
+#### Step 11 — the gate, on a FRESH reset, every code read BARE and nothing piped
+
+`git status --short` was empty before the reset (the re-baseline commit `b59d4bbf` had landed).
+
+| gate | bare rc | observed |
+| --- | --- | --- |
+| `npx supabase db reset --local` | **0** | ⛔ run from the repo root, so it targets `supabase_db_azkbbhskturikxpgmafq` and not the second stack (`escalume`) that is also up on this machine |
+| `npm run lint` (full chain) | **0** | eslint 0 errors / 0 warnings; `check-docs-registers: OK`; ratchets unchanged except `longHeadings 91→90` |
+| `npm run typecheck` | **0** | `tsc --noEmit`, silent |
+| `npm run test:db` | **0** | `Files=262, Tests=8876, Result: PASS`, 112 wallclock secs — **shape UNMOVED** against the run's own baseline |
+| `ARM=census` | **0** | `INVARIANT HOLDS` · live authz gates **581** · gates carrying a verdict **602** · extension-owned excluded 0 · no unswept newcomer |
+| `ARM=hat` | **0** | `INVARIANT HOLDS` · self-test **7/7** · anchors carry the active-role condition · 4 findings, all reasoned-allowlisted |
+| `ARM=floor` | **0** | `INVARIANT HOLDS` · authenticated-reachable `prosecdef` doors with 0 calls **63**, every one on the allowlist, every allowlist entry resolving to a live door |
+| `FROMFINDINGS=1 ARM=wrapper` | **0** | `INVARIANT HOLDS` · BLIND set size **41** ⊆ allowlist |
+| `SELFTEST=1 bash scripts/door-sweep-cases.sh` | **0** | `SELF-TEST: PASS 34 · FAIL 0 · SKIPPED 0` |
+| `SELFTEST=1 bash …/p0-authz-door-audit.sh` | **0** | classify **6/6** · resets_enabled **6/6** · emit_result **8/8** · TOTAL **20/20** |
+| `bash -n …/p0-authz-door-audit.sh` | **0** | — |
+| diff-scoped deriver, `main..HEAD` | **3** | `NOT-APPLICABLE — no migration file in the diff` |
+
+`SCOPE:` line, quoted rather than summarised:
+
+```
+SCOPE: 0 file(s) — 0 committed (main..HEAD), 0 worktree, 0 untracked | filter: none | derivation: NOT REACHED (this run ended before the catalog was probed)
+       0 case(s) — nothing was derived, and the line above is what the gate record
+       quotes to say so.
+```
+
+⛔ **This unit is a HARNESS change, not a gate change**, and the deriver's rc 3 is the checkable
+form of that claim rather than a convenient silence: `git diff --name-only main...HEAD --
+supabase/migrations supabase/seed.sql src` is **empty**, so no policy and no `prosecdef` gate
+changed and no diff-scoped sweep is owed in either arm. ⭐ The same run also re-verifies the lift
+this widening depends on: `PRED_DOMAIN lifted whole (10 line(s)), 3 sub-vars expanded, no residual $`.
+
+⭐ **THE CENSUS GREEN IS PROVEN NON-VACUOUS, because a bookkeeping arm that passes for the wrong
+reason is worth nothing.** The claim under test is that the census now accounts the 2 resolvers
+(whose backlog entries this commit deleted) and the 3 census-mandatory re-files. Negative control:
+delete exactly those five rows from the findings file and re-run.
+
+```
+ARM=census, five rows removed  ->  bare rc 1, INVARIANT VIOLATED, verdicts 602 -> 597, and it NAMES:
+      app.storage_upload_reserved(p_bucket text, p_name text, p_uid uuid)
+      authz.candidate_has_permission(p_principal uuid, p_scope_kind text, p_scope_id uuid, p_permission_code text)
+      authz.scope_reaches(p_assignment_kind text, p_assignment_id uuid, p_resolution_kind text, p_requested_id uuid)
+      public.commission_cadence_overview()
+      public.document_delete_affordances(p_document_ids uuid[])
+file restored: md5 8043002f28f125d4d6eee3186720100a before AND after (`git checkout --`), diff rc 0
+```
+
+⚠ **The verdict-set figure moved and the movement is explained, not waved through**: 625 → **602**
+(−23). The door findings file lost 43 verdict keys (399 → 356 + 3 re-files); most were also carried
+by another findings file, so the UNION fell by 23. ⛔ The load-bearing claim is not the number — it
+is `no unswept newcomer WITHIN THIS ARM'S DOMAIN`, which is the arm comparing **581 live gates**
+against the verdict-carrying set. Had any deleted key been live and in domain with no verdict
+anywhere, the arm would have named it; it named none. The 13 `POLICY LIVE (INSERT/UPDATE/DELETE)`
+rows retired to the write arm are the sharpest case — every RLS policy is in the census's domain, so
+if the write findings file did not carry them this arm would have reddened.
+
+#### ⛔ A REAL FINDING AT STEP 11, and it is DISCLOSED rather than filed away quietly
+
+`FROMFINDINGS=1 ARM=policy` — **not** one of CLAUDE.md §6's four arms, but an arm, and it reads the
+file this unit re-baselined — is **RED, bare rc 1**.
+
+⛔ **It was ALREADY RED before this session's commit**, and that is measured rather than assumed. I
+replicated its selector (`blind_from_findings` over door + writepath + rowdoor, minus
+`authz-blind-allowlist.txt`) against `git show HEAD~1:…` and against HEAD:
+
+```
+at main / HEAD~1 : BLIND union 72   offenders 16      (door section rows: 68)
+at HEAD          : BLIND union 78   offenders 24      (door section rows: 74)
+offenders NEW ∖ OLD (11): the 5 capa_*_write + the 6 rca_*_write (ALL) policies
+offenders OLD ∖ NEW  (3): app.can_read_document_object, attachment_references_select,
+                          attachment_subjects_select — subjects that no longer exist
+```
+
+So the re-baseline adds exactly the **11 mirror flips** — already enumerated, already re-filed to
+`FUP-AUTHZ-FOR-ALL-READ-HALF-BLINDS`, and DISCLOSED under PO ruling Q1 — and removes 3 dead
+subjects. ⛔ They were deliberately NOT added to `authz-blind-allowlist.txt`: the PO ruled that
+keystoning them is its own increment and that a flipped row is never relabelled to keep it COVERED,
+and an allowlist entry is the relabelling's quieter cousin.
+
+⭐ **AND THE ARM'S BLIND SET IS WRONG BY CONSTRUCTION — a NEW finding, surfaced by the first real
+full-run merge.** `blind_from_findings` selects rows by MEMBERSHIP OF THE `## BLIND` SECTION, not by
+column 4. The merge rewrites a row's verdict IN PLACE, at its baseline position, so after a merge
+section and verdict disagree:
+
+```
+the `## BLIND` section holds 75 rows: 36 carry BLIND, 38 carry COVERED (the BLIND -> COVERED
+transitions), 1 is the header.   BLIND rows sitting OUTSIDE that section: 0.
+=> the arm reports a door BLIND set of 74 where the run measured 36.
+```
+
+⚠ Today it costs **nothing**: all 38 phantoms are already on the blind allowlist, so **0 of the 24
+offenders is false** (measured, `comm -12`). ⛔ But the mechanism is a stale-finding generator — a
+gate that was BLIND-and-unallowlisted and has since been keystoned would go on being named as new
+door-blindness for ever, which is the failure mode that trains a reader to stop reading the arm.
+Filed as `FUP-AUTHZ-BLIND-SET-READ-FROM-THE-SECTION-NOT-THE-VERDICT` (🟡, backend). ⛔ Not fixed
+here: it is a different harness, and re-predicating a selector at step 11 without a plan is exactly
+how one gate's repair inverts another's failure mode.
+
+#### The targeted-case home — it has NO self-check, stated rather than skipped silently
+
+`supabase/tests/mutation/authz-setvalued-targeted-cases.sh` has **no `SELFTEST` mode**: `grep -n
+'SELFTEST\|SELF-TEST\|selftest'` prints nothing. Its two controls — §4a (the residue detector) and
+§4b (the cardinality control asserting the live set-valued population is exactly the 5 this file
+rules on) — are IN-RUN preflights that fire before the first case, so exercising them means running
+the whole harness (~4 suite runs). Its three verdicts were earned on 2026-09-05 and nothing in this
+commit touches its subjects, so it was not re-run. ⛔ Recorded as a gap in the harness, not as a
+gate that was skipped: a home whose controls cannot be exercised without a 10-minute run is one more
+reason the scheduling line matters.
+
+#### Closures — five, each on its QUOTED condition, clause by clause
+
+Rotated per lead-playbook §5 by `…/scratchpad/dispo/close.py`: byte-extract the register entry and
+the body, assert every non-blank line of both survives into the archive block, then cut. Body files
+deleted; no id keeps a `### ` heading in the open register (asserted).
+
+| follow-up | closed on | ⚠ disclosure |
+| --- | --- | --- |
+| `FUP-DOOR-SWEEP-DOMAIN-MISSES-THE-AUTHZ-RESOLVERS` | the BODY's `**What would close it.**` | word-identical to the register field here, so the two agree |
+| `FUP-DOOR-SWEEP-DOMAIN-GAP-WIDENED-BY-SET-VALUED-RESOLVERS` | the BODY's `**What would close it.**` | ⛔ the register field is **truncated mid-word** (`…with tw…`, a literal U+2026), so it is not a complete condition at all |
+| `FUP-DOOR-AUDIT-ALL-POLICY-COVERED-IS-MIRROR-AMBIGUOUS` | the BODY's `**What would close it.**` | word-identical; the body adds only the ⛔ negative |
+| `FUP-DOOR-SWEEP-BROAD-GATE-ABORTS-A-FILE` | the BODY's `**Decide between:**` | ⛔ **the body states NO closing condition** — it offers two options. The register field is a flattened rendering of that list (with a stray `; or;` joint), i.e. a register-side reading of options as a condition. Precedent for this exact disclosure: the archived `FUP-DOOR-SWEEP-FULL-RUN-DESTROYS-HAND-MERGED-ANNOTATIONS`, whose register field read "PO to rule" |
+| `FUP-C2-TIER1-TRIGGER-ENFORCERS-OUT-OF-SWEEP-DOMAIN` | the BODY's `## Closes when` | ⚠ the register field is a STRICT SUBSET — it drops the body's two named discharge routes and the reasoned ⛔ bar entirely |
+
+⛔ **Two clauses are NOT discharged, and both are named in the closure text rather than absorbed:**
+
+1. **The set-valued home's SCHEDULE.** The body asks for a committed home *"so they run on a
+   schedule rather than when someone remembers"*. The home is committed; the schedule is one line in
+   `docs/lead-playbook.md` §4, which no teammate but the lead may write. ⛔ A residual living only
+   inside an archived closure note is a residual nobody can audit, so it has its own open entry:
+   **`FUP-AUTHZ-SETVALUED-TARGETED-HOME-HAS-NO-SCHEDULE`** (🟠, owner **lead**), whose condition is
+   "paste the sentence drafted verbatim in this record".
+2. **The trigger-enforcer clause's WORD.** It asks that a trigger-caused BLIND be *distinguishable*
+   from an absent-assertion BLIND. The delivered `DOMAIN-STATEMENT` says the opposite in as many
+   words — *"INDISTINGUISHABLE here"* — and makes the REMEDY distinguishable instead (a keystone on
+   a fixture the trigger does not already refuse, vs a keystone on the door). Neither of the body's
+   two named routes was built, and the closure says so in numbered clauses 3 and 4 rather than
+   letting the ✅ column imply otherwise.
+
+**Two new follow-ups beyond those** (both 🟠/🟡, backend): `FUP-AUTHZ-NOTICED-ROWS-WITHOUT-AN-AUTHZ-SHAPED-REDDENING`
+(the 4 of 23 with no authz-shaped file reddening outside the aborting file — filed as a SIBLING
+rather than into `FUP-AUTHZ-FOR-ALL-READ-HALF-BLINDS`, because that body says in terms that NOTICED
+rows are *"not work items in this follow-up"*, and appending them there would have contradicted its
+own sentence) and `FUP-AUTHZ-BLIND-SET-READ-FROM-THE-SECTION-NOT-THE-VERDICT`.
+
+**Work-lists written, not merely pointed at**: `FUP-C2-TIER1-VALUE-ASSERTIONS-ABORT-ON-AN-INLINE-RAISE`
+gains a dated `## The WORK-LIST — 23 measured sites` section carrying every NOTICED row of run 2
+with its aborting file(s), the discharge condition per row, and the measured facts that keep it
+honest (all at `Files=262`; zero abort in an authz meta-test; 15 distinct signatures; all 23
+reproduced after a reset).
+
+**The archived `FUP-DOOR-SWEEP-FULL-RUN-DESTROYS-HAND-MERGED-ANNOTATIONS` gains a dated note.** Its
+closure had said, in its own words, *"⛔ NO SWEEP WAS RUN"* — the merge was proven on copies. The
+note records that the first REAL full run preserved **426/426** hand-authored prose lines, **9/9**
+`HAND-MERGED` blocks, **7/7** `## Note` sections, **11** spliced suffixes and **275** carried rows,
+verified three ways, and states what it does **not** retire (the option-(b) design, and the standing
+⚠ that the startup warning is a hint, not a gate).
+
+#### Registers, after
+
+`lint:registers` **bare rc 0**: follow-ups 208 → **206** (5 closed, 3 filed), follow-up bodies 163 →
+**158**, ratchet `longHeadings` 91 → **90**. ⚠ `FUP-SETVALUED-…` was rejected by the CODES gate on
+its first write (`uses no registered code`) and renamed to `FUP-AUTHZ-SETVALUED-…` — the gate
+working, and worth recording because the id is cited from the archive.
+
+#### For the lead — the SECOND §4 line, drafted here, not applied
+
+The first (the targeted home's scheduling sentence) stands unchanged above. The second is the
+NOTICED class, which every gate record citing this sweep must now carry:
+
+> **NOTICED (door sweep)** — a gate whose neutralization reddened the suite while a pgTAP file
+> ABORTED. It is coverage **EVIDENCE, not a verdict**: the denominator moved, so the failing
+> assertions cannot be attributed to that gate. ⛔ It is never COVERED and never a pass, and a
+> NOTICED row is an UNRESOLVED gate. **It does NOT block the phase — BLIND does** (PO ruling
+> 2026-09-07), and a run with 0 BLIND and 0 ERROR exits 0 printing `CLEAN WITH DISCLOSURE`. Quote
+> the NOTICED count beside the BLIND count in every gate record, with the remedy's follow-up id
+> (`FUP-C2-TIER1-VALUE-ASSERTIONS-ABORT-ON-AN-INLINE-RAISE`). Never report BLIND + NOTICED as one
+> number: they are three different claims and only one of them blocks.
+
+#### What the next session does
+
+1. QA review of the unit, then PO approval, then the lead's §5 Record step.
+2. The lead lands the two §4 lines above (`docs/lead-playbook.md` is outside the engineer's scope).
+3. Nothing else is in flight: `git status --short` is empty and no production file changed on this
+   branch (`git diff --name-only main...HEAD -- supabase/migrations supabase/seed.sql src` empty).

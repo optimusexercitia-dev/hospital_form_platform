@@ -215,7 +215,54 @@ Proven on four constructed strings with **the control named**: (shape-moved, PAS
 distinguishes this from renaming ERROR. The instrument was itself proven able to fail, and the
 pre-change classifier was run over the identical strings.
 
+#### D5 Amendment 1 — 2026-09-07, PO ruling: `NOTICED` is DISCLOSED, NON-BLOCKING, WORK-LISTED
+
+⛔ **This amendment supersedes exactly one sentence of D5**, and it is quoted here rather than
+rewritten in place: *"it is in the DIRTY test, so it exits 1 exactly like a BLIND"*. Everything
+else D5 says stands — `NOTICED` still never collapses into COVERED, is still never a pass, is
+still subtracted from the COVERED residual, and still claims strictly **less** than COVERED.
+
+The PO ruled on the 23 `NOTICED` rows of run 2 (2026-09-07): **`NOTICED` is coverage EVIDENCE, not
+a verdict.** It is its own class; it must be **quoted in every gate record** that cites this sweep,
+beside the BLIND count; and it **does not block the phase**. BLIND still blocks; ERROR is still not
+a pass.
+
+The ruling changes an **exit code**, so it is encoded where the RESULT line is computed and not
+only in the prose that describes it. `p0-authz-door-audit.sh`'s trailing `if/elif` chain was
+extracted into **`emit_result()`** for exactly that reason: inline, the only way to exercise it was
+a 15-hour sweep, which is how the `NOTICED` class came to ship with its classifier tested and its
+exit semantics untested.
+
+| tally | before | after |
+| --- | --- | --- |
+| any BLIND, or any ERROR | 1 — `DIRTY` | **unchanged**, 1 — `DIRTY`, with the classes printed separately |
+| 0 BLIND · 0 ERROR · >0 NOTICED | 1 — `DIRTY` | **0 — `CLEAN WITH DISCLOSURE`**, the NOTICED count and its remedy printed |
+| merge abort · `swept=0` · UNMATCHED | 2 · 3 · 3 | unchanged (and UNMATCHED still outranks a bare NOTICED) |
+
+The RESULT line now separates the three claims — `N BLIND (blocks) · M NOTICED (disclosed,
+non-blocking — evidence, not a verdict) · K ERROR (not a pass)` — because `36 BLIND, 23 NOTICED,
+0 ERROR` invited a reader to sum them into "59 problems", which is three different questions
+answered as one.
+
+⛔ **A non-blocking class must not become an invisible one**, which is the failure mode this
+amendment is closest to. Two safeguards: the rc-0 branch **prints** the disclosure (an rc 0 that
+printed nothing would be a silent pass — worse than the DIRTY it replaces), and the remedy is
+**work-listed**, not merely named: capture-then-assert under
+`FUP-C2-TIER1-VALUE-ASSERTIONS-ABORT-ON-AN-INLINE-RAISE`, whose body now carries run 2's 23
+aborting-file signatures, plus a keystone entry for the four rows with no authz-shaped file
+reddening outside the aborting file.
+
+SELFTEST gains an 8-case arm over `emit_result()`. ⛔ Its control is the **pair** `(0 BLIND,
+0 ERROR, 1 NOTICED) → rc 0` against `(1 BLIND, 0 ERROR, 1 NOTICED) → rc 1`: same NOTICED count,
+opposite code. Without both halves a green row would prove only that the function returns a number,
+not that NOTICED stopped blocking **while BLIND kept blocking**, which is the whole ruling. Proven
+able to fail: a mutant restoring `|| [ "$noticed" -gt 0 ]` in the DIRTY test reds exactly the two
+rows that encode the ruling and no others (bare rc 1).
+
 ### D6 — Every run prints a `DOMAIN-STATEMENT`, and it names FOUR uncovered populations
+
+⚠ **FIVE since 2026-09-07** — population 5 below was added by D5 Amendment 1 and the heading is
+left as written so the amendment is visible rather than smoothed away.
 
 Quotable exactly like the deriver's `SCOPE:` line, printed on stdout and emitted into the findings
 header. It states, **derived from the live catalog each run, never literal**:
@@ -228,6 +275,12 @@ header. It states, **derived from the live catalog each run, never literal**:
    trigger-caused BLIND is **indistinguishable here** from an absent-assertion BLIND: the first is
    discharged only by a keystone on a fixture the **trigger** does not already refuse, the second
    by a keystone on the door. A defence-in-depth pair can therefore look like a gap.
+
+5. ⭐ **The `NOTICED` class — disclosed, non-blocking, and NOT a verdict** (added 2026-09-07 by D5
+   Amendment 1). A gate whose neutralization reddened the suite while a file ABORTED carries
+   `NOTICED`, never `COVERED`: the denominator moved, so the failing assertions cannot be
+   attributed to THIS gate. It is an **UNRESOLVED** gate, not a covered one. The population must
+   be quoted beside the BLIND count, and its remedy is capture-then-assert.
 
 Plus this arm's own bounds: `PRED_OUT`, the 2 side-effecting writers, the value-returning
 raise-guards, the set-valued family with a pointer to its home, and the `using`-half statement.
@@ -247,6 +300,55 @@ row); and `git status --short` must show only that file changed.
 verdict, note, which arm's file the row belongs to, and a recommended disposition (re-attach /
 retire-to-another-arm / delete deliberately) — and the re-baselined file is committed only after
 that ruling.
+
+#### D7 Amendment 1 — 2026-09-07: the run-2 provenance, the ruling, and what the disposition cost
+
+**The baseline that is committed is run 2's, and run 1 is void** (D8). Provenance, measured:
+
+```
+353 cases · 14 h 53 m 42 s · bare rc 1 · resets=40 (RESET_EVERY=20)
+   = 17 scheduled ((DONE-1) % 20 == 0 over 353) + 23 retries; `grep -c 'drift suspected'` = 23
+ARM-DOMAIN predicate=127/127 policy=226/226 out-of-domain-bool=35   (policy arm: `using` half ONLY)
+SWEPT 353 · COVERED 294 · BLIND 36 · NOTICED 23 · ERROR 0
+   all 23 NOTICED were RETRIED after a reset and all 23 REPRODUCED — 23 rows carry
+   `(retried after reset)` in both the generated and the merged file, so none recovered
+POST_MD5 d2ca2de362b97a0f7b486d34c1e0411a · 2043 lines · merge verified three ways
+```
+
+⭐ **ERROR fell 5 → 0 and the 84 rows that moved between runs moved in ONE direction only** — out
+of the unclassifiable classes (NOTICED→COVERED 61, NOTICED→BLIND 18, ERROR→COVERED 5; zero run-1
+COVERED and zero run-1 BLIND rows moved at all). Run 2 is the same measurement with 84 previously
+unreadable cells filled in, which is the strongest available evidence that the retrofit resolved
+drift rather than perturbing the arm.
+
+**The PO carried the disposition table as recommended (2026-09-07).** 275 CARRIED rows, applied
+**by script** off that table — joined 1:1 on key + baseline verdict + run-2 verdict + a hand flag
+**recomputed from column 5** rather than read from the table, so the join key is not a restatement
+of the thing it keys on (it agreed at 31/31):
+
+| | n |
+| --- | --- |
+| deleted or retired to another arm | **242** |
+| hand notes re-attached to their run-2 row, byte-for-byte | **15** (13 carried + 2 HOLD-resolved) |
+| hand notes archived verbatim into `docs/progress/pred-domain.md` | **15** (10 + 4 HOLD-resolved + 1 retired to C2) |
+| re-filed as ROWS so `ARM=census` reads a verdict, not a bookkeeping hole | **3** |
+| hand-prose rows in → preserved | **31 → 31**, zero lost |
+
+⛔ **The re-filed three are shaped against the merge's classifier, not to taste.** A row is
+classified as a verdict row if it sits under a header the generator emits, **or** carries a
+generator verdict token in column 4, **or** carries a key the generator emitted — and a verdict row
+absent from the next run is relocated into the `CARRIED` block, where the leading-pipe test
+`ARM=census` uses no longer matches it. Re-filing them under the generator's own header with a bare
+`COVERED` would have re-created the hole one full run later. They therefore use a header the
+generator never emits and `COVERED (targeted mutation)` in column 4, so the merge keeps them as
+prose, in place — while the header still contains the literal `gate / policy` that the census's own
+`grep -vE 'gate . policy'` uses to drop a header.
+
+⛔ **The `CARRIED` block, comment included, was removed** — not left empty. The merge appends the
+whole block only when it carries something, and it aborts when a baseline prose line does not
+survive; an empty comment block would therefore be duplicated by the next run that carries
+something and would abort the next run that carries nothing. Removal is the only state stable in
+both directions.
 
 ### D8 — The door arm bounds its own TAIL DRIFT: ADR 0189 D6's design is ported here, and the first full run is VOID from case 275
 
@@ -345,8 +447,12 @@ bounded below by 5 and above by 21 until run 2 measures them.
 - The findings baseline moves, and `ARM=census` gains two accounted gates — so the two backlog
   entries for the same resolvers are **removed** in the same change, or the census double-accounts
   them through `allow_body "$UNSWEPT"`.
-- A run can now end DIRTY for a **third** reason (`NOTICED`), and a gate record must quote four
-  counts, not three.
+- ~~A run can now end DIRTY for a **third** reason (`NOTICED`), and a gate record must quote four
+  counts, not three.~~ ⚠ **Corrected 2026-09-07 by D5 Amendment 1**: `NOTICED` does **not** end a
+  run DIRTY. A gate record still quotes four counts, and `NOTICED` is still never a pass and never
+  COVERED — but with 0 BLIND and 0 ERROR the run exits **0**, printing `CLEAN WITH DISCLOSURE`.
+  BLIND blocks; `NOTICED` discloses.
+- The `DOMAIN-STATEMENT` names **five** uncovered populations, not four.
 - **A gate record citing this arm must quote the `DOMAIN-STATEMENT`**, not merely say "the arms
   hold".
 - The set-valued home needs a **scheduling line** in the lead playbook, or it becomes the thing it

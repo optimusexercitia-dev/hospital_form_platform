@@ -23,7 +23,7 @@ The unit closes **five** open follow-ups in `docs/followups/follow-ups-open.md`,
 subject is `supabase/tests/mutation/p0-authz-door-audit.sh`'s `PRED_DOMAIN` (which Batch 1's
 deriver now **lifts**, so a widening here needs no deriver change) and its read arm.
 
-- [ ] `FUP-DOOR-SWEEP-DOMAIN-MISSES-THE-AUTHZ-RESOLVERS` 🟠 **+**
+- [x] `FUP-DOOR-SWEEP-DOMAIN-MISSES-THE-AUTHZ-RESOLVERS` 🟠 **+**
       `FUP-DOOR-SWEEP-DOMAIN-GAP-WIDENED-BY-SET-VALUED-RESOLVERS` 🟠 — **one apparatus gap, two
       symptoms, resolved together**: either `PRED_DOMAIN` is widened along the schema axis (a
       `prosecdef` boolean in `authz` is in domain by its schema) **and** the return-type axis (a
@@ -33,25 +33,25 @@ deriver now **lifts**, so a widening here needs no deriver change) and its read 
       `authz.candidate_has_permission` owes a **first** verdict, and `app.current_professional_read_organizations`
       (Batch 1's `9a4bbd22` door) owes its targeted case. ⛔ Not closed by the one-off hand-run
       verdicts of 2026-09-02/03, nor by a green from any arm whose domain excludes the population.
-- [ ] `FUP-DOOR-AUDIT-ALL-POLICY-COVERED-IS-MIRROR-AMBIGUOUS` 🟡 — the read arm opens `using` and
+- [x] `FUP-DOOR-AUDIT-ALL-POLICY-COVERED-IS-MIRROR-AMBIGUOUS` 🟡 — the read arm opens `using` and
       `with check` **separately** on a `FOR ALL` policy, or every verdict records which half the
       keystone exercised. ⛔ Not closed by the write arm's earlier fix.
-- [ ] `FUP-DOOR-SWEEP-BROAD-GATE-ABORTS-A-FILE` 🟡 — ruled and built: (a) bespoke neutralization per
+- [x] `FUP-DOOR-SWEEP-BROAD-GATE-ABORTS-A-FILE` 🟡 — ruled and built: (a) bespoke neutralization per
       aborting case, or (b) a fourth classifier outcome for "shape moved AND the suite went FAIL"
       that **never collapses into COVERED**. Proven on `app.event_current_custodian` / `140` test 11.
-- [ ] `FUP-C2-TIER1-TRIGGER-ENFORCERS-OUT-OF-SWEEP-DOMAIN` 🟠 — the sweep's **domain statement**
+- [x] `FUP-C2-TIER1-TRIGGER-ENFORCERS-OUT-OF-SWEEP-DOMAIN` 🟠 — the sweep's **domain statement**
       names trigger enforcers as out of domain (or attributes trigger enforcement to the doors that
       reach the table), so a trigger-caused BLIND is distinguishable from an absent-assertion BLIND.
       ⛔ Not an allowlist entry.
-- [ ] **The findings baseline re-earned through the merge** — the first real full door-arm run since
+- [x] **The findings baseline re-earned through the merge** — the first real full door-arm run since
       ADR 0190: detached, crash-safe (Batch 0), hand-authored material preserved (Batch 1), the
       `CARRIED` block (bound **2 ≤ n ≤ 26** hand rows) re-filed by hand and each re-filing
       justified; the four authz arms' figures re-derived at the new `PRED_TOTAL`.
-- [ ] Every widened selection proven to **select** what it claims (ADR 0173 §4: selection is the
+- [x] Every widened selection proven to **select** what it claims (ADR 0173 §4: selection is the
       success criterion, a passing sweep is not) and every new classifier outcome **proven able to
       fire**, each with a clean negative control. `act-hat-blind-sweep.sh:18`'s stale domain
       sentence ("app+public" vs the executed `('app','public','authz')`) corrected.
-- [ ] Gate: `npm run lint` green; `npm run test:db` on a fresh reset green; the four authz arms hold
+- [x] Gate: `npm run lint` green; `npm run test:db` on a fresh reset green; the four authz arms hold
       at the re-baselined figures; `SELFTEST=1 bash scripts/door-sweep-cases.sh` 34/0; the
       diff-scoped door sweep derived by the Batch 1 deriver with its `SCOPE:` line quoted — and
       **owed, both arms, if any policy or `prosecdef` gate changed** (a `PRED_DOMAIN` widening is a
@@ -69,51 +69,42 @@ findings baseline through Batch 1's merge, before AE5's eleven increments re-key
 these resolvers.
 
 ### Done since start
-- Plan APPROVED with five rulings; §1 re-measured on a fresh reset — **every figure reproduced**.
-- **Schema axis** proven by SELECTION: `PRED_TOTAL` 125→**127**, `PRED_OUT` 37→**35**, delta =
-  exactly the two resolvers, **reverse delta 0**; deriver lift survives (**34/0**).
-- **`NOTICED`** built and proven able to fire; **`using`-only mirror**; **`DOMAIN-STATEMENT`**
-  (trigger enforcers 174/268); **targeted home** — all 3 set-valued resolvers COVERED, first
-  recorded verdicts, §4a residue arm 0-on-clean and proven to FIRE on a live mutation.
-- **Run 1 voided by tail drift (proven, no originating case)**; ADR 0189 D6's reset design
-  **ported** (ADR 0191 D8) with `RESET_EVERY`, interlock-first reset, retry-once on `SHAPE_MOVED`,
-  and the OID re-resolved from IDENTITY per case.
-- ⭐ **RUN 2 LANDED AND IS VERIFIED** — 14 h 53 m, `FULLRUN_BARE_RC=1` (DIRTY: BLIND blocks),
-  `SWEPT 353 · COVERED 294 · BLIND 36 · NOTICED 23 · ERROR 0`, `resets=40 (RESET_EVERY=20)` =
-  17 scheduled + 23 retries. Stack ENUMERATED clean (0 degenerate non-`SELECT` policies, 0 bodies
-  across all four forms, 0 §4a residue, no sentinel); merge verified three ways (`MERGE_VERIFY`
-  bare rc 0, 9/9 hand blocks, 7/7 notes, `MERGE ABORTED` count 0). ADR **0191**, 5 follow-ups.
+- Schema axis proven by SELECTION (`PRED_TOTAL` 125→**127**, `PRED_OUT` 37→**35**, delta = exactly
+  the two resolvers, reverse delta 0); `NOTICED`; `using`-only mirror; `DOMAIN-STATEMENT`; the
+  targeted home with all three set-valued resolvers' FIRST recorded verdicts.
+- Run 1 voided by tail drift; ADR 0189 D6's reset design ported (ADR 0191 D8). ⭐ **RUN 2 LANDED**
+  — 353 cases / 14 h 53 m, `SWEPT 353 · COVERED 294 · BLIND 36 · NOTICED 23 · ERROR 0`,
+  `resets=40` = 17 scheduled + 23 retries; **all 23 NOTICED retried and all 23 reproduced**.
+- ⭐ **RE-BASELINE COMMITTED** (`b59d4bbf`). The 275 CARRIED rows dispositioned **by script** off
+  the PO-carried table (join 1:1 on key + both verdicts + a hand flag RECOMPUTED from column 5,
+  agreeing 31/31): **242** deleted/retired · **15** hand notes re-attached byte-for-byte · **15**
+  archived verbatim into the record · **3** re-filed as rows. **31 hand rows in → 31 preserved.**
+- ⭐ **The NOTICED ruling is encoded WHERE THE RESULT LINE IS COMPUTED**, not only in prose: the
+  exit chain extracted into `emit_result()`, classes printed separately, and 0 BLIND ∧ 0 ERROR ∧
+  >0 NOTICED now exits **0 with the disclosure**. SELFTEST 20/20; a mutant restoring the old
+  behaviour reds exactly the two rows that encode the ruling.
+- **Five follow-ups CLOSED** clause by clause and rotated to the archive; the archived
+  `FUP-DOOR-SWEEP-FULL-RUN-DESTROYS-HAND-MERGED-ANNOTATIONS` gained the dated note discharging its
+  own "NO SWEEP WAS RUN" caveat (426/426 prose lines, 9/9 blocks, 7/7 notes, 11 suffixes, 275 rows).
 
 ### In progress
-- ⭐ **Run 2 has NO void tail**, measured three ways: 23 of 353 rows carry an off-baseline shape
-  (330 at `Files=262, Tests=8876`), over **16** distinct `Tests=` values, longest repeat **2**, last
-  at ordinal **264** with 89 clean cases after. Run 1 ended in 78 consecutive rows at one value.
-- ⭐ **84 keys differ run 1 → run 2, ALL in one direction**: NOTICED→COVERED 61, NOTICED→BLIND 18,
-  ERROR→COVERED 5. **Zero run-1 COVERED or BLIND rows moved.** The void tail's 79 rows now read
-  61 COVERED + 18 BLIND + **0 NOTICED**.
-- ⭐ **PO Q1 SETTLED: the flip count is ELEVEN** (5 CAPA + 6 `rca_*_write`), inside the stated bound
-  5 ≤ n ≤ 21. **Zero non-`(ALL)` flips over all 353 cases**, and all 36 BLIND rows are either
-  baseline-BLIND (25) or one of the 11 — **no coverage loss outside the mirror fix**. Of the 16
-  stranded `(ALL)` rows, exactly the 6 RCA flipped; the other 10 came back COVERED.
-- ⭐ **NOTICED attribution INVERTS run 1's reading**: **zero** of the 23 abort in an authz meta-test.
-  Each aborts a *domain* file (15 distinct signatures, largest group 4), all at `Files=262` with
-  only `Tests=` moving (−8…−207) — the LEARN-083 value-assertion shape, not a generic detector.
-  All 23 were reset-and-retried and **all 23 reproduced**. ⚠ 19/23 have an authz-shaped file
-  reddening outside the aborting one: a NAME-shaped signal, offered as input, **not a verdict**.
-- **CARRIED = 275** (run 1's 318 superseded): 244 mechanical, **31 hand-prose**. 48 absent rows
-  resolved against the LIVE catalog and the parts sum; that 45-key set is byte-identical to run 1's,
-  so the **3 census-mandatory re-files stand** (`storage_upload_reserved`,
-  `commission_cadence_overview`, `document_delete_affordances`).
+- **Step 11 gate, all bare**: fresh reset **0** · `lint` **0** · `typecheck` **0** · `test:db` **0**
+  at `Files=262, Tests=8876, PASS` (shape unmoved) · `census` **0** · `hat` **0** · `floor` **0** ·
+  `FROMFINDINGS=1 wrapper` **0** · deriver `SELFTEST` **34/0** · door `SELFTEST` **20/20** ·
+  diff-scoped deriver **3** (`SCOPE: 0 file(s) … derivation: NOT REACHED`) — a HARNESS change, no
+  migration in the diff, so no sweep is owed.
+- ⭐ **The census green is proven non-vacuous**: deleting the 2 resolver rows and the 3 re-filed
+  rows makes `ARM=census` red naming all five (bare rc 1); file restored byte-identical.
 
 ### Next
-- ⛔ **PO rulings owed: Q2 (the 275 CARRIED, 31 of them human) and the NOTICED class.** Both
-  enumerations are in the record; nothing has been re-filed.
-- Then, in ONE commit: apply the dispositions → commit `docs/reviews/authz-door-audit-findings.md`
-  → delete `authz-unswept-backlog.txt:806` and `:863` (drafted, not applied).
-- Then step 11 (four arms, `test:db`, deriver + `SCOPE:`), then the closures.
+- **QA review → PO approval → Record** (lead-playbook §§4–5). The lead lands two §4 lines drafted
+  in the record: the targeted home's scheduling sentence and the NOTICED class definition.
 
 ### Blockers
-- ⛔ `docs/reviews/authz-door-audit-findings.md` is **uncommitted by design** and is the only path
-  the run changed. Step 11 is blocked on it: `FROMFINDINGS=1` and `ARM=census` both read it, so
-  running them now would measure the OLD baseline against the NEW domain.
-- ⚠ The lead is working this tree concurrently; commits from both sides landed this week.
+- **None.** ⚠ Two disclosures the reviewer must see, neither blocking: (1) `FROMFINDINGS=1
+  ARM=policy` is RED — **already red at `main`** (16 offenders); the re-baseline moves it to 24,
+  +11 being exactly the mirror flips already work-listed in `FUP-AUTHZ-FOR-ALL-READ-HALF-BLINDS`
+  and −3 subjects that no longer exist. It is not one of §6's four arms and no flipped row was
+  relabelled. (2) `blind_from_findings` reads a row's SECTION, not column 4, so after a merge it
+  counts 74 door BLINDs where the run measured 36 — filed as
+  `FUP-AUTHZ-BLIND-SET-READ-FROM-THE-SECTION-NOT-THE-VERDICT`, 0 false offenders today.

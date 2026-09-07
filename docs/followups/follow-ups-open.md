@@ -786,13 +786,6 @@ a hypothesis, not a finding.
 **Status:** open
 **Body:** [FUP-VITEST-CATALOG-DRIVEN-CASE-COUNT.md](FUP-VITEST-CATALOG-DRIVEN-CASE-COUNT.md)
 
-### 🟡 FUP-DOOR-SWEEP-BROAD-GATE-ABORTS-A-FILE
-
-**Filed:** 2026-08-24 (lead) · **Owner:** backend · **Severity:** medium — the heading carried NO emoji at consolidation; medium is the default, PO to confirm
-**Closes when:** (a) a bespoke neutralization per case (what ADR 0079 Amendment 1 already prescribes for value-returning raise-guards) — precise, and it does not touch the classifier; or; (b) teaching the classifier a fourth outcome for "shape moved AND the suite went FAIL", which is strictly more information than ERROR — ⛔ but it must never collapse into COVERED, because the failing assertions may belong to a different gate entirely.
-**Status:** open
-**Body:** [FUP-DOOR-SWEEP-BROAD-GATE-ABORTS-A-FILE.md](FUP-DOOR-SWEEP-BROAD-GATE-ABORTS-A-FILE.md)
-
 ### 🟡 FUP-E2E-CREATEFRESHCASE-SILENT-NULL
 
 **Filed:** 2026-08-23 (tester) · **Owner:** tester · **Severity:** medium — the heading carried NO emoji at consolidation; medium is the default, PO to confirm
@@ -1208,26 +1201,12 @@ same commit, or not at all.**
 **Status:** open
 **Body:** [FUP-PERF-ANALYZE-ENDS-AE0-COMPARABILITY.md](FUP-PERF-ANALYZE-ENDS-AE0-COMPARABILITY.md)
 
-### 🟡 FUP-DOOR-AUDIT-ALL-POLICY-COVERED-IS-MIRROR-AMBIGUOUS — a read-arm COVERED on a `FOR ALL` policy can be earned by a write keystone
-
-**Filed:** 2026-09-02 (write-arm re-aim; the file is not that agent's to change) · **Owner:** backend · **Severity:** medium — it weakens what a read COVERED means; it opens nothing.
-**Closes when:** Either open the halves separately in the read arm too, or record per verdict which half the keystone exercised.
-**Status:** open
-**Body:** [FUP-DOOR-AUDIT-ALL-POLICY-COVERED-IS-MIRROR-AMBIGUOUS.md](FUP-DOOR-AUDIT-ALL-POLICY-COVERED-IS-MIRROR-AMBIGUOUS.md)
-
 ### 🟡 FUP-AUDIT-REGISTRY-CONSUMER-OF-READ-AUTHORIZER-UNRECORDED — `app._audit_access_authorized` routes a permission to a re-keyed authorizer and appears in no manifest row
 
 **Filed:** 2026-09-02 (rollback runbook §6, commit `3634a3ad`) · **Owner:** backend · **Severity:** medium — correct as it stands; what is missing is the record that it exists.
 **Closes when:** A named note wherever the authorizer's consumers are enumerated — the manifest row's qualifier, or `../backend-state.md`'s authz section — saying the audit registry is a consumer and is deliberately not an enforcement site.
 **Status:** open
 **Body:** [FUP-AUDIT-REGISTRY-CONSUMER-OF-READ-AUTHORIZER-UNRECORDED.md](FUP-AUDIT-REGISTRY-CONSUMER-OF-READ-AUTHORIZER-UNRECORDED.md)
-
-### 🟠 FUP-C2-TIER1-TRIGGER-ENFORCERS-OUT-OF-SWEEP-DOMAIN — a trigger guard has no call edge, so it is in 0 of the 171 and its door reads BLIND for the wrong cause
-
-**Filed:** 2026-09-04 (C2 Phase A, resolving `public.reopen_interview`'s contradiction) · **Owner:** lead + backend · **Severity:** high — a measurement-domain gap in a standing gate's instrument; it cannot produce a false COVERED, it produces a **correct BLIND that is not actionable as one**
-**Closes when:** the sweep's domain statement names trigger enforcers as out of domain, so a BLIND caused by a trigger is distinguishable from a BLIND caused by an absent assertion — ⛔ an allowlist entry does not close it
-**Status:** open — found because `121:292-294` pins `HC038` on `reopen_interview`'s only anchored raise and the door still came back BLIND; the `HC038` observed is raised by `app.guard_interview_status`, a **trigger** on `case_interviews`. It already changed two Phase B specs. ADR 0184 point 4 names three uncovered populations a gate record must state; **this is a fourth**
-**Body:** [FUP-C2-TIER1-TRIGGER-ENFORCERS-OUT-OF-SWEEP-DOMAIN.md](FUP-C2-TIER1-TRIGGER-ENFORCERS-OUT-OF-SWEEP-DOMAIN.md)
 
 ### 🟠 FUP-C2-TIER1-VALUE-ASSERTIONS-ABORT-ON-AN-INLINE-RAISE — a value assertion evaluates its subject before it is entered, so a raising door aborts the file
 
@@ -1250,26 +1229,12 @@ same commit, or not at all.**
 **Status:** open — AE4 is the **first hub whose completion depends on a ledger row**, which is why a mismatch this old surfaced only now. `| AE4 |` currently sits unbolded alone among 76 rows
 **Body:** [FUP-DOCS-CONSOLIDATION-LEDGER-ID-BOLD-DEFEATS-THE-COMPLETE-GATE.md](FUP-DOCS-CONSOLIDATION-LEDGER-ID-BOLD-DEFEATS-THE-COMPLETE-GATE.md)
 
-### 🟠 FUP-DOOR-SWEEP-DOMAIN-MISSES-THE-AUTHZ-RESOLVERS — two `prosecdef` boolean authorization resolvers are in NEITHER sweep arm's domain, so neither arm can ever select them
-
-**Filed:** 2026-09-03 (AE4 `authz.scope_reaches` fix increment, 2026-09-02 — ADR [0180](../decisions/0180-scope-reaches-commission-org-ascent-plan-fix.md) · **Owner:** lead + backend · **Severity:** high — a standing gate has a hole in its domain, on the
-**Closes when:** Either (a) widen `PRED_DOMAIN` so a `prosecdef` boolean in the `authz` schema is in domain by virtue of its schema — and re-baseline the findings file, since `PRED_TOTAL` moves; or (b) rule explicitly that the resolver family is swept by targeted cases instead, and give those cases a committed home so they run on a schedule rather than when someone remembers. Either way `candidate_has_permission` owes a first verdict.
-**Status:** open
-**Body:** [FUP-DOOR-SWEEP-DOMAIN-MISSES-THE-AUTHZ-RESOLVERS.md](FUP-DOOR-SWEEP-DOMAIN-MISSES-THE-AUTHZ-RESOLVERS.md)
-
 ### 🟡 FUP-PROFESSIONAL-PARTICIPANTS-SELECT-STILL-PER-ROW — the second policy on the same authorizer was NOT converted, and it cannot serve as a control either
 
 **Filed:** 2026-09-03 (AE4 / IA-F9 statement-scoped increment, `20261003007320` — ADR [0182](../decisions/0182-statement-scoped-authorized-scope-ids.md) · **Owner:** lead + backend · **Severity:** medium — a known, bounded residual with no failing condition
 **Closes when:** Either convert it to the same statement-scoped arm (it needs its own candidate map, because the policy's column is `professional_profile_id`, not `organization_id` — the set would have to be a set of profile ids or the predicate would need a join), or rule explicitly that a ≤ 20-row per-row evaluation is accepted and record the bound as a product invariant with something that reds when the page size grows.
 **Status:** open
 **Body:** [FUP-PROFESSIONAL-PARTICIPANTS-SELECT-STILL-PER-ROW.md](FUP-PROFESSIONAL-PARTICIPANTS-SELECT-STILL-PER-ROW.md)
-
-### 🟠 FUP-DOOR-SWEEP-DOMAIN-GAP-WIDENED-BY-SET-VALUED-RESOLVERS — three more authorization functions are outside `PRED_DOMAIN`, this time by RETURN TYPE
-
-**Filed:** 2026-09-03 (diff-scoped door sweep, AE4 `20261003007320` — ADR [0182](../decisions/0182-statement-scoped-authorized-scope-ids.md) · **Owner:** lead + backend · **Severity:** high — same class and same reason as
-**Closes when:** Extend `PRED_DOMAIN` along the return-type axis (a `prosecdef` function in `authz`, or one whose result is a scope-id set consumed by a policy, is in domain regardless of `typname`) and re-baseline the findings file; or rule that set-valued resolvers are swept by targeted cases and give those cases a committed home so they run on a schedule. Either way this should be resolved together with `FUP-DOOR-SWEEP-DOMAIN-MISSES-THE-AUTHZ-RESOLVERS` — they are one apparatus gap with tw…
-**Status:** open
-**Body:** [FUP-DOOR-SWEEP-DOMAIN-GAP-WIDENED-BY-SET-VALUED-RESOLVERS.md](FUP-DOOR-SWEEP-DOMAIN-GAP-WIDENED-BY-SET-VALUED-RESOLVERS.md)
 
 ### 🟡 FUP-NO-GATE-CATCHES-A-COLLAPSED-SEARCH-PATH — a `SET search_path` that silently resolves to nothing passes every gate in the chain
 
@@ -1722,3 +1687,21 @@ regex).
 **Closes when:** `supabase/tests/mutation/c2-command-door-neutralizer.sh` addresses each case by its **identity** (`nspname.proname(identity_args)`) resolved at case time rather than by the `pg_proc.oid` captured into `$WORK/worklist.tsv` before the first case — with a case whose identity no longer resolves scored as an error rather than mutated. ⛔ Proven, not asserted: the door arm's equivalent is proven by a mid-sweep reset in which the re-derived worklist is compared with **field 1 deliberately dropped** and the case still lands on the right function; C2 owes the same demonstration. ⚠ Not closed by adding an OID-stability assertion — the fix is to stop depending on OID stability, not to check for it
 **Status:** open — MEASURED at HEAD `ea5783c0`: `$foid` is read as field 1 of the pre-captured worklist at `c2-command-door-neutralizer.sh:878`, bound at `:797` (`local foid="$1"`), and passed to `sweep_one` at **`:889`** (first measurement) and **`:922`** (the retry after a reset). `periodic_reset` runs `npx supabase db reset --local` (`:764`), which drops and recreates the database and therefore **reassigns every `pg_proc.oid`**; its own worklist comparison at `:775` is `cut -f2,5` — name and raise-count only — so a moved OID cannot abort it. Inside `sweep_one` the OID is what `hash_of`, `snapshot` and `mutate` address. ⚠ Masked so far because a deterministic replay of the same migrations tends to reproduce the same OIDs. ⛔ **Not fixed by unit PRED-DOMAIN** — different harness, different owner; the door arm was corrected in the same session (ADR 0191 D8 point 2) and this is its unfixed sibling
 **Body:** [FUP-AUTHZ-C2-NEUTRALIZER-CAPTURED-OIDS-SURVIVE-ITS-OWN-RESET.md](FUP-AUTHZ-C2-NEUTRALIZER-CAPTURED-OIDS-SURVIVE-ITS-OWN-RESET.md)
+
+### 🟠 FUP-AUTHZ-SETVALUED-TARGETED-HOME-HAS-NO-SCHEDULE — the set-valued resolvers have a committed home and nothing that makes it run
+
+**Filed:** 2026-09-07 (unit PRED-DOMAIN, closing `FUP-DOOR-SWEEP-DOMAIN-GAP-WIDENED-BY-SET-VALUED-RESOLVERS` — the one sub-clause that commit `b59d4bbf` does not discharge) · **Owner:** lead · **Severity:** high — a harness nothing schedules is the thing it was built to replace: cases that run when someone remembers
+**Closes when:** the one-line scheduling sentence for `supabase/tests/mutation/authz-setvalued-targeted-cases.sh` lands in `docs/lead-playbook.md` §4 — drafted VERBATIM in `docs/progress/pred-domain.md` under "For the lead — the ONE-LINE lead-playbook §4 sentence the targeted home needs", so this closes by pasting, not by re-deciding. ⛔ Not closed by the harness being committed: that is the half that already exists. ⛔ Not closed by running it once by hand
+**Status:** open — ADR 0191 D3 says so of itself: *"a committed home that nothing schedules becomes the thing it was built to replace"*. The engineer cannot land it (`docs/lead-playbook.md` is outside the write scope of every teammate but the lead), which is why it is a register entry rather than a line in a closure note nobody can audit. The three resolvers DID earn their first recorded verdicts on 2026-09-05; the risk is the SECOND run, not the first
+
+### 🟠 FUP-AUTHZ-NOTICED-ROWS-WITHOUT-AN-AUTHZ-SHAPED-REDDENING — four NOTICED gates whose suite reddened only INSIDE the file that aborted
+
+**Filed:** 2026-09-07 (unit PRED-DOMAIN, run 2 of the door arm; PO ruling on the NOTICED class, same day) · **Owner:** backend · **Severity:** high — these are the four weakest cells in the whole run: a keystone reddened, but nothing outside the aborting file did, so even the name-shaped evidence that supports the other 19 is absent
+**Closes when:** each of `app.event_current_custodian(p_event_id uuid, p_user_id uuid)`, `app.is_dpo_of(p_hospital_id uuid)`, `app.is_dpo_of_for(p_hospital_id uuid, p_user_id uuid)` and `app.is_entitled_document_approver(p_hospital uuid, p_user uuid)` carries a keystone that **moves the door arm's verdict for it to COVERED** on a run whose shape does not move — i.e. the aborting file's value assertion is converted to capture-then-assert FIRST, so the gate can be measured at all. ⛔ Not closed by adding an assertion and reading a green suite: a keystone that does not move this arm's verdict is the vacuity the programme exists to catch. ⛔ Not closed by the row staying NOTICED — NOTICED is disclosure, not coverage
+**Status:** open — MEASURED 2026-09-06 over run 2's 23 NOTICED rows. For **19/23** at least one *authz-shaped* file reddens OUTSIDE the aborting file (`171_cross_org_isolation`, `298_authz_p0_isolation`, `184_hospital_admin_isolation`, `231_authz_m5_is_active_gate`, `300_rowdoor_gate_keystones`, …). ⚠ That is a NAME-shaped signal and NOT a verdict — "a file whose name contains `authz` reddened" is not "an assertion about THIS gate reddened" — but these four have not even that. Aborting files: `140_patient_safety.sql` · `349_dsr_request_workflow.sql` (×2) · `200_controlled_documents.sql`. Sibling of `FUP-C2-TIER1-VALUE-ASSERTIONS-ABORT-ON-AN-INLINE-RAISE`, which carries the other 19 and the mechanism; filed separately because `FUP-AUTHZ-FOR-ALL-READ-HALF-BLINDS` explicitly fences NOTICED rows out of its own work-list
+
+### 🟡 FUP-AUTHZ-BLIND-SET-READ-FROM-THE-SECTION-NOT-THE-VERDICT — ARM 1 counts a row's TABLE, not its column 4, so a merged findings file inflates the BLIND set
+
+**Filed:** 2026-09-07 (unit PRED-DOMAIN, step 11 — surfaced by the first real full-run merge) · **Owner:** backend · **Severity:** medium — it over-reports, so it fails LOUD rather than open; but it makes a fixed gate keep reporting as broken, which is the shape that trains a reader to ignore the arm
+**Closes when:** `blind_from_findings` in `supabase/tests/mutation/p0-authz-invariant.sh` selects on the VERDICT COLUMN (`$4 == "BLIND"`) rather than on membership of the `## BLIND` section, with a vacuity control proving the new selector still finds the rows the old one found — ⛔ not closed by re-sorting the findings file so sections and verdicts agree, because the next merge undoes that, and not closed by "no false offender today"
+**Status:** open — MEASURED 2026-09-07 on the re-baselined door file: the `## BLIND` section holds **75 rows of which only 36 carry `BLIND`**; the other **38** are `BLIND -> COVERED` transitions that the merge left at their BASELINE POSITION while correctly rewriting column 4. `blind_from_findings` reads the section, so `FROMFINDINGS=1 ARM=policy` reports a door BLIND set of **74** where the run measured **36**. ⛔ Today it produces **0** false offenders (all 38 are already on the blind allowlist), which is luck, not design: a row that was BLIND-and-unallowlisted and has since been keystoned would go on being named as new door-blindness for ever. ⚠ Separately and NOT part of this item: that arm is ALREADY red for a different reason (16 offenders at `main`, 24 after the re-baseline)
