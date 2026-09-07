@@ -473,3 +473,176 @@ on a fresh reset was CLEAN at 8882. A mutation harness must own the stack — th
 not an incomplete restore, and it is not allowlisted anywhere.
 
 **Verdict at the tip:** gate complete on the fix-loop tip; QA re-review requested.
+
+### 2026-09-07 — QA fix loop, iteration 2 (backend)
+
+QA re-review returned **CHANGES REQUESTED** (`docs/reviews/enforcement-manifest-rereview.md`):
+N-1 (blocking), N-2, N-3, N-4, N-REC-1, N-REC-2. This entry addresses all six, on the lead's
+rulings. Commits `65e7ed04` (re-review committed unmodified) · `b7c901b7` (N-4/N-REC-2) ·
+`cd2ef7eb` (N-1) · `926f4066` (N-REC-1), on `authz-enforcement-manifest` over `7b9b1eb7` —
+`git rev-list --count main..HEAD` = **22**, measured at `926f4066` immediately before this
+entry's own commit (`main` @ `23ec1fa5`).
+
+#### N-1 (BLOCKING) — the fix corrected one of four `a115005b…` occurrences; § 6.1 contradicted § 6.7
+
+**Finding.** `docs/deployment/authz-rollback-runbook.md` F-BLOCK-1 fixed only `:770`'s landing-value
+table; three more occurrences (`:180` derived-expectations list, `:236` § 6.1 pre-flight table,
+`:833`/`:839` § 6.9) still told the operator C1 returns to `a115005b6106573c70d98a6aceb8a4fe` — the
+exact value `:770` proves is unreachable by this revert alone, an operator-facing self-contradiction
+inside one 03:00 procedure.
+
+**Change.** One dated note at the § 6 header (not four separate dates, per the lead's ruling)
+explains all four corrections together. § 6.1's `form_versions_staff_admin_write` row now points at
+`c227d64eb11909e94400b7ba6bcaab0b` and § 6.7 step 4's four-value table, keeping `a115005b…` only as
+the pre-D6 value `387`'s own comment records. § 6.9's row and prose paragraph corrected to
+`c227d64e…`; the existing dated attribution note there (a different, already-correct correction) is
+left untouched. The derived-expectations paragraph moves the `387` C1 md5 OUT of the "derived, not
+measured" list — unlike the others it **was** measured, by inversion in a rolled-back transaction —
+and says so.
+
+**Observed.** `rg -n "a115005b" docs/deployment/authz-rollback-runbook.md` → 5 hits, all correct as
+they stand:
+```
+:167,169,171  the new header note's own three references — naming a115005b… and explaining why it
+              is the pre-D6 value and unreachable by this revert alone
+:251          § 6.1's form_versions_staff_admin_write row — labelled pre-D6, unreachable, pointing
+              at the measured landing value and § 6.7 step 4
+:782          § 6.7 step 4's own four-value table row — UNMODIFIED, already correct since F-BLOCK-1
+```
+No occurrence left claiming C1 *returns to* `a115005b…`.
+
+#### N-2 (MINOR) — commit counts
+
+**Finding.** Hub `:89` said "5 commits" for iteration 1; the record's own list at `:275` names six
+by sha. The lead's gate entry header (`:436`) said "16 commits over `main`"; measured 17 at that tip.
+
+**Change.** Hub `:89` "5 commits" → "six commits" (the lead's ruling scoped the concrete edit to the
+hub). Every new commit-count figure in this entry and the replaced hub Current state is measured
+with `git rev-list --count main..HEAD` at the moment of writing, with the command named beside the
+number, rather than copied forward from a prior entry.
+
+**Observed** (re-derived independently, matching the re-review's own table):
+```
+git rev-list --count main..bd289466   -> 16
+git rev-list --count main..e5796940   -> 17
+git rev-list --count main..5a64520f   -> 18
+git rev-list --count main..926f4066   -> 22   (this iteration's four commits so far)
+```
+
+#### N-3 (MINOR) — hub behind the record, `reviews: []`
+
+**Finding.** Hub `### Next` still pointed at "the lead's tip gate (§E)" after it had already run at
+`5a64520f`, and `### In progress` read "Nothing. Iteration 1 is complete" with no mention of the
+gate having run. `reviews:` frontmatter was `[]` though both reviews are committed.
+
+**Change.** `reviews:` frontmatter populated with both review paths, rereview first (matching
+`docs/features/pred-domain.md`'s form). Hub `## Current state` replaced below (this same commit) to
+record the gate having run and this fix loop's close, so `### Next` no longer names a step already
+done.
+
+**Observed.** `docs/features/enforcement-manifest.md` frontmatter now reads
+`reviews: ["../reviews/enforcement-manifest-rereview.md", "../reviews/enforcement-manifest-review.md"]`.
+
+#### N-4 (MINOR) — merge-scenario count
+
+**Finding.** `scripts/lib/merge-findings-baseline.sh` said "17 committed merge scenarios";
+`SELFTEST=1 bash scripts/door-sweep-cases.sh` measures **18** merge scenarios (of 34 total: 16
+deriver + 18 merge).
+
+**Change.** Comment corrected to 18, with the derivation named: 13 static `merge_scenario` calls in
+`scripts/door-sweep-selftest.sh` plus one `idempotent: <name>` per baseline fixture file under
+`scripts/fixtures/door-sweep/merge/*.baseline.md` (currently 5) — 13 + 5 = 18.
+
+**Observed.**
+```
+SELFTEST=1 bash scripts/door-sweep-cases.sh 2>&1 | grep -cE "^(PASS|FAIL|SKIP)"   -> 34
+  (first 16 lines are deriver scenarios; the remaining 18 are merge scenarios, 5 of them
+  the "idempotent: <name>" loop)
+ls scripts/fixtures/door-sweep/merge/*.baseline.md | wc -l                        -> 5
+grep -c '^merge_scenario ' scripts/door-sweep-selftest.sh                         -> 14
+  (13 call sites + the function's own definition line)
+```
+`SELF-TEST: PASS 34 · FAIL 0 · SKIPPED 0`, unchanged after the comment-only edit.
+
+#### N-REC-1 — the targeted case's COVERED verdict was not pinned to a specific assertion
+
+**Finding.** `supabase/tests/mutation/authz-command-door-targeted-cases.sh` decided COVERED from a
+bare `run_suite` rc (absence of `^Result: PASS`); any red in the 75-assertion `409` file — a flake,
+a fixture collision, a future assertion — would read as COVERED, not only the behavioural assertion
+(test 32, § 2.10e) the case exists to move.
+
+**Change.** After the mutated run, the case counts failing-assertion lines in the captured log and
+requires exactly one, keyed on `# Failed test 32: "…"` (measured directly: `npx supabase test db`
+runs `pg_prove` NON-verbose, so failures surface as prove's own summary line, never a raw TAP
+`not ok` line), and requires that line to carry the pinned DESCRIPTION TEXT ("2.10e … THE GATE LINE
+AT THE DEFINER DOOR"), not only the number — a renumbering of `409` now fails LOUDLY as ERROR
+instead of silently reading COVERED. Anything else (0 failures, >1, or a text mismatch) sets
+`VERDICT=ERROR`, which the script's existing exit contract already treats as a finding, not a pass.
+
+**Observed** (fingerprint `3c244fa6a08a510aa4708b87516e1be2` confirmed before both runs):
+```
+REAL RUN (this file, fresh reset at 20261003007350):
+  bare rc 0
+  "pin verified: # Failed test 32: "2.10e ⭐⭐ THE GATE LINE AT THE DEFINER DOOR — the assertion
+   20261003007350 exists for. With the …"
+  CASE 1 VERDICT: COVERED · RESULT: 1 of 1 case(s) COVERED
+  fingerprint restored: 3c244fa6a08a510aa4708b87516e1be2 (matches before)
+
+NEGATIVE CONTROL (scratch COPY in the session scratchpad, ROOT hardcoded to the real repo so the
+  suite path still resolves; PIN='9\.99z DELIBERATELY WRONG PIN TEXT'; the real script file was
+  never touched):
+  bare rc 1
+  "!! CASE 1: the one red assertion is NOT the pinned one (test 32, "§ 2.10e … THE GATE LINE AT
+   THE DEFINER DOOR") — either 409 renumbered or reworded it (update PIN above) or a different
+   assertion reds."
+  CASE 1 VERDICT: ERROR · RESULT: 0 of 1 case(s) COVERED
+
+  fingerprint after BOTH runs: 3c244fa6a08a510aa4708b87516e1be2 (unchanged — each run's own
+  restore step ran regardless of verdict; the negative control needed no manual restore because
+  the copy is self-restoring, same as the real script)
+```
+
+#### N-REC-2 — the merge's alignment is now the host's `diff`, undisclosed
+
+**Finding.** The portable rewrite reconstructs whatever edit script `diff` hands it faithfully, but
+Apple `diff` and GNU `diff` do not always choose the same minimal edit script when more than one
+exists, and `merge(b,b)` — the strongest-sounding fixture evidence — cannot discriminate the two
+implementations, since identical inputs make `diff` emit no hunks on either host.
+
+**Change.** `scripts/lib/merge-findings-baseline.sh`'s header comment (the same `:447` block N-4
+touches) now qualifies "the SAME tagged stream" with "given the same `diff` alignment"; records the
+measured divergence rate (10/60 on a duplicate-heavy adversarial corpus, 0/40 on realistic
+findings-baseline content, 0/4 on the real committed baselines); and states the consequence: this
+program runs Batch 3 and Batch 4 of the pre-AE5 remediation **on different machines**, and both
+merge this SAME committed findings baseline — it is the merge's input AND output. A divergent
+alignment on that merge would surface as a diff AT REBASE, not as a false pass here, which is where
+it is caught; it is disclosed rather than fixed because the measured risk on real content is 0/4
+and 0/40.
+
+**Observed.** Comment reviewed in place (`scripts/lib/merge-findings-baseline.sh:446-471`);
+`bash -n` clean; `SELFTEST=1 bash scripts/door-sweep-cases.sh` unaffected — still
+`PASS 34 · FAIL 0 · SKIPPED 0` (the change is comment-only, no behaviour moved).
+
+#### Gate (fresh reset at head `20261003007350`)
+
+| step | bare rc | observed |
+|---|---|---|
+| `npm run lint` | 0 | 13 gates, 0 errors / 0 warnings; `gen-authz-matrix-cells: in sync (2002 cells … sha 2ddda77978bb; manifest 43 rows … sha 493370f994a5)`; `build-features-index: OK` — unchanged shape from the tip gate |
+| `npm run typecheck` | 0 | — |
+| `npm run test:db` on a fresh reset | 0 | `Files=262, Tests=8882, Result: PASS` — unchanged shape, no assertion added or deleted this iteration |
+| `SELFTEST=1 bash scripts/door-sweep-cases.sh` | 0 | `SELF-TEST: PASS 34 · FAIL 0 · SKIPPED 0` |
+| targeted command-door case, on the fresh reset | 0 | `public.set_item_validations`: `fingerprint before 3c244fa6… → mutated bdcccfe0… → restored 3c244fa6… (matches before)` · pin verified on test 32, § 2.10e · `CASE 1 VERDICT: COVERED` · `RESULT: 1 of 1 case(s) COVERED` |
+
+⚠ **No migration, RLS policy, grant, or `src/`/`e2e/` file touched this iteration** —
+`git diff --stat 5a64520f..HEAD` (before this entry's own commit) touches only
+`docs/deployment/authz-rollback-runbook.md`, `docs/reviews/enforcement-manifest-rereview.md`,
+`scripts/lib/merge-findings-baseline.sh` and
+`supabase/tests/mutation/authz-command-door-targeted-cases.sh`. The diff-scoped door sweep, C2, and
+the four authz arms are therefore **not re-run** — nothing under `supabase/migrations/` moved, so no
+gate in their domain changed, consistent with the lead's ruling scoping this iteration to N-1..N-4,
+N-REC-1, N-REC-2 and not asking for a re-run of the arms or the sweep.
+
+`npm run features:index`, `lint:progress`, `lint:registers`: green (see the commit that follows).
+
+**Verdict:** all six findings addressed with observed proof; ready for QA re-review round 3, or
+Record at the lead's discretion.
