@@ -2694,3 +2694,21 @@ decoration.
    QA has already taken, so the re-check is a diff against the report.
 3. PO approval, then the §5 Record step — including closing
    `FUP-AUTHZ-SETVALUED-TARGETED-HOME-HAS-NO-SCHEDULE`, satisfied at `376d5717` (F-REC-9).
+
+### 2026-09-07 — lead: the four arms re-read at the tip by someone other than the builder (QA could-not-verify #1)
+
+Run by the lead, detached (`…/scratchpad/pd/lead-gate/runner.sh`, `Start-Process` on `bash.exe` with the
+script as argv[1]), at HEAD `4ace3bfb`, 04:36–04:45; every code read bare from `rc.txt`:
+
+- `supabase db reset --local` rc **0** · `npm run test:db` rc **0** — `Files=262, Tests=8876, Result: PASS`
+- `ARM=census` rc **0** —  live authz gates (catalog): 581  gates carrying a verdict: 604 `INVARIANT HOLDS`
+- `ARM=hat` rc **0** — self-test: 7/7 OK (blind flagged · covered not flagged · class-4 param flagged · has_role_any anchor flip seen · x-table policy flagged · covered x-table policy not flagged · authz.holds_role an
+- `ARM=floor` rc **0** —  OK: every never-called door is on the floor allowlist.  OK: every floor-allowlist entry resolves to a live door. 
+- `FROMFINDINGS=1 ARM=wrapper` rc **0** —  BLIND set size: 41  OK: every BLIND wrapper is on the allowlist. 
+- deriver `SELFTEST=1` rc **0** — SELF-TEST: PASS 34 · FAIL 0 · SKIPPED 0
+- door harness `SELFTEST=1` rc **0** —   ok    shape MOVED + PASS                 -> ERROR    (files=262 tests=8712)
+
+Logs kept under `…/scratchpad/pd/lead-gate/`. This is the gate evidence the PO approval rests on; the
+builder's step-11 figures at `6f94a634` (census 581/602) are superseded by these at `4ace3bfb`
+(the three set-valued rows added by the fix loop move "carrying a verdict" 602 → 604 after the
+re-files' bookkeeping — re-derived, not summed).
