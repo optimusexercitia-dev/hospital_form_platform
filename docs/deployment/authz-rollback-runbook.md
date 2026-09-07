@@ -163,6 +163,18 @@ only non-vacuous moved-row count, so a `0/0` parity can pass while nothing moved
 
 ## 6. Worked example — reverting the AE4.9 D6 re-key
 
+⚠ **Corrected 2026-09-07 (QA re-review, N-1).** Four places below named
+`a115005b6106573c70d98a6aceb8a4fe` as what pgTAP `387` C1 returns to once this revert lands: § 6.1's
+pre-flight provenance table, this section's own derived-expectations paragraph, and two cells in
+§ 6.9's expected-red inventory. **All four were wrong.** `a115005b…` is `387`'s recorded **pre-D6**
+value; `20261003007320` has since moved a *different* member of the same 99-policy aggregate
+(`professional_profiles_select`), so `a115005b…` is **not reachable by this revert alone** — landing
+on it means you also reverted `20261003007320`, which this rollback does not cover. § 6.7 step 4
+below carries the full explanation and the four-value landing table; that step was fixed first (QA
+F-BLOCK-1) and is what the other four occurrences are now brought level with, in this one change. The
+measured value C1 actually returns to is **`c227d64eb11909e94400b7ba6bcaab0b`**, derived by inversion
+in a rolled-back transaction. This note is dated once, here, rather than four more times below.
+
 **Every post-cutover fact below was MEASURED on the live catalog at migration head
 `20261003007300`, 2026-09-02** (`npx supabase status` → `DB_URL`, queries run as `postgres`). None
 of it was read off `supabase/migrations/20261003007300_*.sql` and believed — migration text in this
@@ -177,9 +189,12 @@ the record; they agree with each other, which is not the same as being verified.
 
 ⛔ **AND THE REVERT ITSELF HAS NOT BEEN EXECUTED.** This example was written against the *cutover*
 catalog on a shared local stack; applying it would have destroyed another agent's evidence. So every
-**post-revert** number here — the `63`, the `1`-row code census, the `a115005b…` md5, the
+**post-revert** number here — the `63`, the `1`-row code census, the
 `grant DELETED` column of § 6.7 step 3 — is a **derived expectation**, not a measurement, and each is
-labelled as one where it appears. They are derivable rather than guessed (the arithmetic, the pinned
+labelled as one where it appears. The one exception is `387` C1's md5, and it is an exception in the
+other direction: it now reads **`c227d64eb11909e94400b7ba6bcaab0b`**, and unlike the rest of this list
+it **was measured**, not merely derived — by inversion, in a rolled-back transaction (§ 6.7 step 4).
+They are derivable rather than guessed (the arithmetic, the pinned
 constants and the assertions they come from are all named), but the first operator to run this
 **owes the record the measured values**, and a discrepancy is a finding about this file, not about
 their rollback.
@@ -233,7 +248,7 @@ add is not.
 | --- | --- | --- |
 | `forms_staff_admin_write` | record | ✅ `case_tags_staff_admin_write`, `case_outcomes_staff_admin_write` and 8 more carry the identical `(app.is_staff_admin_of(commission_id) OR app.is_tenancy_admin_of(commission_id))` in **both halves** |
 | `form_sections_staff_admin_write`, `form_items_staff_admin_write`, `form_item_options_staff_admin_write`, `form_item_validations_staff_admin_write` | **record only** | ⛔⛔ **THE LIVE TWIN IS DEAD — THIS ROW'S ✅ EXPIRED AT HEAD `20261003007340`, MEASURED DEAD ON 2026-09-07.** (⚠ corrected 2026-09-07, QA F-MINOR-1: this read *"EXPIRED ON 2026-10-03"* — `2026-10-03` is the leading digits of the **migration id**, not a calendar date, and as written it dated an expiry four weeks into the future.) It used to read: *"✅ `form_item_options_staff_admin_write` and `form_item_validations_staff_admin_write` carry the identical `app.commission_of_version(form_version_id)` shape in **both halves** — sibling tables the re-key did not touch."* `20261003007340` re-keyed both of them, so they became sites of this revert instead of controls for it. Measured at the tip: `select count(*) from pg_policies where coalesce(qual,'')||coalesce(with_check,'') like '%is_staff_admin_of(app.commission_of_version%'` → **0 rows**. ⭐ This is § 6.1's own ⭐ class turned on § 6.1: *a change that alters a count invalidates every control that READS that count.* All **four** `commission_of_version`-shaped sites are now record-only, and the record is `docs/bugs/BUG-AE49-D6-REKEY-INCOMPLETE.md` — `app.is_staff_admin_of(app.commission_of_version(form_version_id)) OR app.is_tenancy_admin_of(app.commission_of_version(form_version_id))`, identical in both halves, **staff arm first** |
-| `form_versions_staff_admin_write` | record | ⛔ **NO live twin.** Measured: it is the only policy in the database whose expression derives the commission via `(select f.commission_id from forms f where f.id = …)`. ✅ But it is the one site with a **128-bit** check: pgTAP `387` C1 records the pre-D6 md5 `a115005b6106573c70d98a6aceb8a4fe`, **re-derived by inverting the change**, not by reading a value off the catalog. Get this policy's text right — arm order included, § 6.2 — and C1 returns to that constant exactly |
+| `form_versions_staff_admin_write` | record | ⛔ **NO live twin.** Measured: it is the only policy in the database whose expression derives the commission via `(select f.commission_id from forms f where f.id = …)`. ✅ But it is the one site with a **128-bit** check: pgTAP `387` C1 records the pre-D6 md5 `a115005b6106573c70d98a6aceb8a4fe` (that value is unreachable by this revert alone — § 6.7 step 4). Get this policy's text right — arm order included, § 6.2 — and C1 returns to **`c227d64eb11909e94400b7ba6bcaab0b`** (§ 6.7 step 4's four-value landing table), **re-derived by inverting the change**, not by reading a value off the catalog |
 | `app.can_create_professional` | record | ✅ **the pre-cutover body is live under two other names.** `app.can_manage_case_vocabulary` and `app.can_manage_external_participant` still share the body the re-key split off — comment-stripped md5 `3a86b0232dce959487a401f88ab7128c` on both, versus `f17a0c42c80895a47964e68adf55a69b` on the re-keyed `can_create_professional`. `select pg_get_functiondef('app.can_manage_case_vocabulary(uuid,uuid)'::regprocedure)` **prints the exact text § 6.3 restores** |
 | `app.can_read_professional_profile` | record **only** for its arm 2 | ⚠ Partial: the null guard, the `is_admin` arm and the case-committee traversal are **unchanged and live**, so only the two lines § 6.4 collapses back into one are on trust |
 
@@ -830,13 +845,13 @@ you nothing at all.
 | **`410`** (the manifest) | the scissor above | unavoidable |
 | **`401`** | **§ 19.2b only**, `2 → 1` | see § 6.5 |
 | **`404`** (`BUG-PROF-INACTIVE-001`) | **§ 1.6 HOP1** — a chain probe that greps `can_create_professional`'s body for the literal `org.professionals.create` | red on a **site-2** revert |
-| **`387`** (InitPlan / arm identity) | **C1** — a single md5 constant over 99 hot-table policies, now `f2a0693be216cfe08eb6cf0283565e7c` (⚠ this cell said `3901715193753db33f980f939c6467de`; the value moved again. ⚠ **Attribution corrected 2026-09-07 (QA F-BLOCK-1 re-measure):** it was `20261003007320`, not `20261003007340`. `387`'s own re-capture note names `20261003007320` and the one policy that moved (`professional_profiles_select`); and `20261003007340`'s two policies, `form_item_options_staff_admin_write` and `form_item_validations_staff_admin_write`, were measured today to be **outside** `387`'s hot subset — so that migration could not have moved C1 at all), reverting toward `a115005b6106573c70d98a6aceb8a4fe` | red on a **site-1** revert, and see the ⛔ below |
+| **`387`** (InitPlan / arm identity) | **C1** — a single md5 constant over 99 hot-table policies, now `f2a0693be216cfe08eb6cf0283565e7c` (⚠ this cell said `3901715193753db33f980f939c6467de`; the value moved again. ⚠ **Attribution corrected 2026-09-07 (QA F-BLOCK-1 re-measure):** it was `20261003007320`, not `20261003007340`. `387`'s own re-capture note names `20261003007320` and the one policy that moved (`professional_profiles_select`); and `20261003007340`'s two policies, `form_item_options_staff_admin_write` and `form_item_validations_staff_admin_write`, were measured today to be **outside** `387`'s hot subset — so that migration could not have moved C1 at all), reverting toward `c227d64eb11909e94400b7ba6bcaab0b` | red on a **site-1** revert, and see the ⛔ below |
 
 ⛔ **`404` and `387` are the two whose file names give no hint of the subject**, and `387` C1 in
 particular is a **single 32-hex constant whose "fix" looks like a one-token edit**. Its own comment
 forbids that: *"Re-capturing by pasting a freshly measured value proves nothing at all; invert the
 change or leave the pin red."* Here you are *performing* the inversion, so C1 returning to
-`a115005b…` is not a chore — **it is the best single verification in this whole section**, a 128-bit
+`c227d64e…` is not a chore — **it is the best single verification in this whole section**, a 128-bit
 statement that your `alter policy` statements moved exactly what they claimed and nothing else.
 Add it to § 6.7 as step 5.
 
