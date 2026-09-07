@@ -59,7 +59,7 @@ deriver now **lifts**, so a widening here needs no deriver change) and its read 
 
 ## Current state
 
-**Updated:** 2026-09-06
+**Updated:** 2026-09-07
 
 ### Objective
 Close the door-audit arm's measurement-domain gaps — the `authz.*` boolean resolvers excluded by
@@ -70,50 +70,50 @@ these resolvers.
 
 ### Done since start
 - Plan APPROVED with five rulings; §1 re-measured on a fresh reset — **every figure reproduced**.
-- **Schema axis**: `PRED_DOMAIN` gains a literal `n.nspname='authz'` bounded at `bool`. Proven by
-  SELECTION: 125→**127**, `PRED_OUT` 37→**35**, delta = exactly the two resolvers, **reverse delta
-  0**, policy worklist byte-identical; deriver lift survives (**34/0**).
-- **`authz.candidate_has_permission` has a FIRST verdict — COVERED**; `scope_reaches` COVERED from
-  an arm rather than a hand run.
-- **`NOTICED`** built; SELFTEST 6/6 with the instrument proven able to fail and the pre-change
-  classifier run over the identical strings; fired live on the same runlog (ERROR → NOTICED).
-- **`using`-only mirror** (all 62 ALL policies carry a non-null `polwithcheck`, so not vacuous);
-  **`DOMAIN-STATEMENT`** with trigger enforcers derived (174/268).
-- **Targeted home** — all 3 set-valued resolvers **COVERED**, first recorded verdicts; §4a residue
-  arm 0-on-clean and proven to FIRE on each live mutation; §4b cardinality control green.
-- ADR **0191** (proposed), 4 follow-ups, `act-hat-blind-sweep.sh:18`; gate all bare rc 0
-  (`npm run lint`, door SELFTEST 6/6, deriver 34/0, typecheck); five commits.
+- **Schema axis** proven by SELECTION: `PRED_TOTAL` 125→**127**, `PRED_OUT` 37→**35**, delta =
+  exactly the two resolvers, **reverse delta 0**; deriver lift survives (**34/0**).
+- **`NOTICED`** built and proven able to fire; **`using`-only mirror**; **`DOMAIN-STATEMENT`**
+  (trigger enforcers 174/268); **targeted home** — all 3 set-valued resolvers COVERED, first
+  recorded verdicts, §4a residue arm 0-on-clean and proven to FIRE on a live mutation.
+- **Run 1 voided by tail drift (proven, no originating case)**; ADR 0189 D6's reset design
+  **ported** (ADR 0191 D8) with `RESET_EVERY`, interlock-first reset, retry-once on `SHAPE_MOVED`,
+  and the OID re-resolved from IDENTITY per case.
+- ⭐ **RUN 2 LANDED AND IS VERIFIED** — 14 h 53 m, `FULLRUN_BARE_RC=1` (DIRTY: BLIND blocks),
+  `SWEPT 353 · COVERED 294 · BLIND 36 · NOTICED 23 · ERROR 0`, `resets=40 (RESET_EVERY=20)` =
+  17 scheduled + 23 retries. Stack ENUMERATED clean (0 degenerate non-`SELECT` policies, 0 bodies
+  across all four forms, 0 §4a residue, no sentinel); merge verified three ways (`MERGE_VERIFY`
+  bare rc 0, 9/9 hand blocks, 7/7 notes, `MERGE ABORTED` count 0). ADR **0191**, 5 follow-ups.
 
 ### In progress
-- ⛔ **RUN 1 IS VOID FROM CASE 275 AND WILL NOT BE COMMITTED — TAIL DRIFT, PROVEN.** From case 275
-  to 353 the suite read `Files=262, Tests=8470` with the **identical** nine aborting files on all
-  **79** cases (78 NOTICED + 1 ERROR). Two subset runs, each on its own fresh reset, both bare rc 0:
-  tail cases run alone come back **COVERED** at `Files=262, Tests=8876`, and cases 274/275/276
-  re-run in worklist order come back **3/3 COVERED with the shape never moving**. ⭐ So there is
-  **no originating case** — the damage is cumulative in the number of preceding suite runs. Restore
-  verified per case (`exit 2` never fired; catalog clean) ⇒ residue is DATA, not an open gate.
-- ⛔ **The C2 tail-drift closure (2026-09-04) covered ONE of its two sites.** ADR 0189 D6's design
-  is now **ported** (ADR 0191 D8): `RESET_EVERY` (default 20, set-ness before the default),
-  interlock-first, `cd "$ROOT"`, post-reset preflight + worklist re-derivation + baseline
-  re-capture, reset-and-retry-once keyed on the classifier's own `SHAPE_MOVED`, and the OID
-  re-resolved from IDENTITY per case (a reset reassigns every OID — ⚠ **C2 still has that hazard**;
-  reported, not fixed here).
-- ⚠ **PO Q1's "exactly 5 flips" is a FLOOR, corrected beside the original**: 16 `(ALL)` rows that
-  were COVERED in the baseline sit unmeasured in the void tail, so the bound is **5 ≤ n ≤ 21** and
-  "zero SELECT rows flipped" holds over 274 of 353 cases. The five (ordinals 152–160) stand.
-- **CARRIED 318 explained**: 48 absent (= the dry run's exact prediction) · 79 drift · 125
-  note-only · 66 other. The merge itself is VINDICATED — `MERGE_VERIFY` bare rc 0, 9/9 hand blocks,
-  7/7 notes. ⚠ The 08:17 "external revert" was **this unit** (step 3), not another session.
+- ⭐ **Run 2 has NO void tail**, measured three ways: 23 of 353 rows carry an off-baseline shape
+  (330 at `Files=262, Tests=8876`), over **16** distinct `Tests=` values, longest repeat **2**, last
+  at ordinal **264** with 89 clean cases after. Run 1 ended in 78 consecutive rows at one value.
+- ⭐ **84 keys differ run 1 → run 2, ALL in one direction**: NOTICED→COVERED 61, NOTICED→BLIND 18,
+  ERROR→COVERED 5. **Zero run-1 COVERED or BLIND rows moved.** The void tail's 79 rows now read
+  61 COVERED + 18 BLIND + **0 NOTICED**.
+- ⭐ **PO Q1 SETTLED: the flip count is ELEVEN** (5 CAPA + 6 `rca_*_write`), inside the stated bound
+  5 ≤ n ≤ 21. **Zero non-`(ALL)` flips over all 353 cases**, and all 36 BLIND rows are either
+  baseline-BLIND (25) or one of the 11 — **no coverage loss outside the mirror fix**. Of the 16
+  stranded `(ALL)` rows, exactly the 6 RCA flipped; the other 10 came back COVERED.
+- ⭐ **NOTICED attribution INVERTS run 1's reading**: **zero** of the 23 abort in an authz meta-test.
+  Each aborts a *domain* file (15 distinct signatures, largest group 4), all at `Files=262` with
+  only `Tests=` moving (−8…−207) — the LEARN-083 value-assertion shape, not a generic detector.
+  All 23 were reset-and-retried and **all 23 reproduced**. ⚠ 19/23 have an authz-shaped file
+  reddening outside the aborting one: a NAME-shaped signal, offered as input, **not a verdict**.
+- **CARRIED = 275** (run 1's 318 superseded): 244 mechanical, **31 hand-prose**. 48 absent rows
+  resolved against the LIVE catalog and the parts sum; that 45-key set is byte-identical to run 1's,
+  so the **3 census-mandatory re-files stand** (`storage_upload_reserved`,
+  `commission_cadence_overview`, `document_delete_affordances`).
 
 ### Next
-- **RUN 2 is launched** — fresh reset, `RESET_EVERY` at its default 20, `WORK=/tmp/pd-full2`,
-  detached, ETA ~15–16 h. It is the run the re-baseline is earned from and it settles both the
-  CARRIED list and the `(ALL)` flip count. ⛔ Run 1's CARRIED enumeration is superseded.
-- Then: PO rules on run 2's CARRIED → commit the re-baseline + the two backlog lines + the stale
-  heading together → step 11 (four arms at `WORK=/tmp/pd-full2`, `test:db`, diff-scoped deriver).
-  ⚠ The NOTICED class still needs its own ruling; run 2 says how many survive a bounded run.
+- ⛔ **PO rulings owed: Q2 (the 275 CARRIED, 31 of them human) and the NOTICED class.** Both
+  enumerations are in the record; nothing has been re-filed.
+- Then, in ONE commit: apply the dispositions → commit `docs/reviews/authz-door-audit-findings.md`
+  → delete `authz-unswept-backlog.txt:806` and `:863` (drafted, not applied).
+- Then step 11 (four arms, `test:db`, deriver + `SCOPE:`), then the closures.
 
 ### Blockers
-- ⛔ Nothing may be concluded from run 1's verdicts beyond the drift measurement itself. Its merged
-  output is kept OUT of tree (`…/scratchpad/pd/full/run1-merged.md`, `555b058d…`, 2215 lines).
-- ⚠ The lead is working this tree concurrently; commits from both sides landed today.
+- ⛔ `docs/reviews/authz-door-audit-findings.md` is **uncommitted by design** and is the only path
+  the run changed. Step 11 is blocked on it: `FROMFINDINGS=1` and `ARM=census` both read it, so
+  running them now would measure the OLD baseline against the NEW domain.
+- ⚠ The lead is working this tree concurrently; commits from both sides landed this week.

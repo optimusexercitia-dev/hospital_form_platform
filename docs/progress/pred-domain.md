@@ -1301,3 +1301,688 @@ ruling (it is superseded), or take any figure from run 1's tail. Read `FULLRUN_B
 `…/scratchpad/pd/full2/rc.txt` **bare**, and expect the new `preconditions: … resets=N
 (RESET_EVERY=20)` line to be quoted in the gate record beside the counts — `resets=0` on a
 353-case run is the exact state that voided run 1.
+
+### 2026-09-07 — backend: run 2 verified; the enumerations for the PO
+
+⛔ **This session STOPS before committing `docs/reviews/authz-door-audit-findings.md`.** The file is
+on disk, merged, verified three ways, and left **uncommitted** pending the PO's Q2 (CARRIED) and
+NOTICED rulings. `git status --short` shows that one path and nothing else changed by the run.
+
+#### The run, read bare
+
+```
+START 2026-09-06T09:03:59-03:00        END 2026-09-06T23:57:41-03:00      -> 14 h 53 m 42 s
+RESET_BARE_RC=0      FULLRUN_BARE_RC=1                (DIRTY: BLIND blocks the phase, as designed)
+PRE_MD5  2ef469cabceff65e3f291e2a3054972f   924 lines   POST_MD5 d2ca2de362b97a0f7b486d34c1e0411a  2043 lines
+GIT_HEAD 496170af…    HARNESS_MD5 f7208f614ed4d4a8b4d5584d156f496e     RESET_EVERY_IN_ENV: unset
+```
+
+```
+ARM-DOMAIN predicate=127/127 policy=226/226 out-of-domain-bool=35
+    POLICY ARM HALF: `using` ONLY — a COVERED on a FOR ALL policy is a READ-half claim.
+SWEPT: 353 gate(s)   COVERED: 294   BLIND: 36   NOTICED: 23   ERROR(harness): 0
+    preconditions: baseline GREEN at the LAST capture (shape=Files=262, Tests=8876) · resets=40 (RESET_EVERY=20)
+=== RESULT: DIRTY — 36 BLIND, 23 NOTICED, 0 ERROR. BLIND blocks the phase (§6 step 1);
+```
+
+⭐ **`resets=40` decomposes exactly**: `grep -c 'PERIODIC RESET'` = **40** = **17 scheduled**
+(`(DONE-1) % 20 == 0` over 353 — the arithmetic the previous session predicted) + **23 retries**, and
+`grep -c 'drift suspected'` = **23**. ⛔ **ERROR fell 5 → 0.** The whole ERROR class of run 1 was
+drift, and the retry net converted it.
+
+#### Step 1 — the stack, ENUMERATED not counted (bare rc beside each)
+
+| check, on `supabase_db_azkbbhskturikxpgmafq` | result |
+| --- | --- |
+| degenerate **non-`SELECT`** policies (`qual='true' or with_check='true'`) | **zero rows**, psql rc 0 |
+| control for that query: `SELECT` policies with `qual='true'` | **10** — the by-design figure §1 measured, so the query is not silently empty |
+| degenerate function bodies, **all four** forms (`begin return true`, `select true`, `begin return`, `P0-SETVALUED-NEUTRALIZED`) | **zero rows**, psql rc 0 |
+| §4a set-valued residue (`prosecdef ∧ proretset ∧ uuid`, no authz term in the stripped body) | **zero rows**, psql rc 0 |
+| control for §4a: subjects the detector ranges over | **5** — non-empty, so its 0 is a measurement |
+| the run's sentinel `/tmp/pd-full2-door-INFLIGHT.sql` + `.probe` + `.want` | **absent** (not merely empty) |
+| the default `/tmp/authz-door-INFLIGHT.sql` + sidecars, and `/tmp/authz-setvalued-INFLIGHT.sql` | **absent** |
+
+⚠ **Reported, not acted on:** `/tmp` holds four sentinels belonging to OTHER harnesses —
+`c2-neutralizer-INFLIGHT.sql` (+`.body`, 2026-09-04 15:00) and `it2-e2e` / `it2-reg`
+(+`.body`/`.md5`/`.oid`, 2026-09-04 22:02–22:16). They are stale leftovers of earlier sessions, not
+live mutations: the catalog rows above are the proof, since a live mutation would show as a
+degenerate body. They are outside this unit's ownership and were left untouched.
+
+#### Step 2 — the merge, verified three ways
+
+1. **Bare rc = 1** (DIRTY), ⛔ not 2, which is what an aborted merge returns; and
+   `grep -c 'MERGE ABORTED'` over the 15-hour log prints **0**. ⚠ That `grep -c` exits **1** on a
+   zero count — the printed `0` is the measurement, the rc is grep's no-match code. Read as a
+   guard it would have failed the chain, which is why it is read as a *number* here.
+2. `SELFTEST=1 MERGE_VERIFY=docs/reviews/authz-door-audit-findings.md bash
+   scripts/lib/merge-findings-baseline.sh /tmp/pd-full2/authz-door-audit-findings.baseline.md
+   /tmp/pd-full2/authz-door-audit-findings.generated.md /dev/null` → **bare rc 0**:
+   *"holds all 426 hand-authored prose line(s), 11 suffix(es) and 275 carried row(s)."*
+3. **Enumerated on the on-disk file**: `HAND-MERGED` **9/9** · `## Note` sections **7/7** · verdict
+   rows **353** · CARRIED entries **275** · `git diff --stat` = **1451 insertions(+), 332
+   deletions(-)**, one file.
+
+The baseline the run merged against was confirmed **byte-identical** to the committed pre-run file:
+`git show HEAD:… | cksum` = `1895535637 131621` = the snapshot's, `cmp` **bare rc 0**.
+
+Copy saved: `…/scratchpad/pd/full2/run2-merged.md` — `cksum 2166358832 263156`,
+`md5 d2ca2de362b97a0f7b486d34c1e0411a`, 2043 lines, i.e. **equal to the runner's own `POST_CKSUM` /
+`POST_MD5`**, so the analysis below is against the artefact the run produced.
+
+#### The retry net, on the real run — two excerpts VERBATIM
+
+```
+    drift suspected — resetting and retrying app.can_read_referral_internal_note(p_note_id uuid, p_uid uuid) ONCE
+--- PERIODIC RESET (retry — app.can_read_referral_internal_note(p_note_id uuid, p_uid uuid) recorded a drift-shaped NOTICED) ---
+    post-reset §7.16 preflight: clean — 0 degenerate bodies
+    post-reset baseline: PASS (shape=Files=262, Tests=8876)  |  worklist re-derived: predicate=127 policy=226 (unchanged)
+  NOTICED  app.can_read_referral_internal_note(p_note_id uuid, p_uid uuid)
+```
+
+```
+    drift suspected — resetting and retrying app.event_current_custodian(p_event_id uuid, p_user_id uuid) ONCE
+--- PERIODIC RESET (retry — app.event_current_custodian(p_event_id uuid, p_user_id uuid) recorded a drift-shaped NOTICED) ---
+    post-reset §7.16 preflight: clean — 0 degenerate bodies
+    post-reset baseline: PASS (shape=Files=262, Tests=8876)  |  worklist re-derived: predicate=127 policy=226 (unchanged)
+  NOTICED  app.event_current_custodian(p_event_id uuid, p_user_id uuid)
+```
+
+⭐ **All 23 NOTICED were retried and all 23 REPRODUCED.** The arithmetic closes it without needing
+trust: 23 retries fired, 23 rows carry the `(retried after reset)` suffix in BOTH the generated and
+the merged file, and a row can only end NOTICED if it was drift-shaped on the first pass — so
+23 retries with 23 NOTICED means none recovered. Each retry's `post-reset baseline` came back at the
+**true** shape `Files=262, Tests=8876`, so the reproduction was measured against a clean DB, not a
+degraded one.
+
+#### Step 3 — run 1 vs run 2, and the DRIFT ROWS are now real verdicts
+
+Both runs emit 353 rows over the **same 353 keys** (`keys only in run1: []`, `keys only in run2: []`).
+
+```
+run 1   COVERED 228   BLIND 18   NOTICED 102   ERROR 5
+run 2   COVERED 294   BLIND 36   NOTICED  23   ERROR 0
+```
+
+⭐ **84 keys differ, and every one moves in ONE direction — out of the unclassifiable classes:**
+
+| run 1 | run 2 | n |
+| --- | --- | --- |
+| NOTICED | COVERED | 61 |
+| NOTICED | BLIND | 18 |
+| ERROR | COVERED | 5 |
+
+⛔ **Zero run-1 COVERED rows and zero run-1 BLIND rows moved at all.** Run 2 is not a different
+measurement of the same gates; it is the same measurement with 84 previously-unreadable cells filled
+in. That is the strongest available evidence that the retrofit resolved drift rather than perturbing
+the arm.
+
+**The void tail is discharged.** Run 1's ordinals 275–353 (79 rows: 78 NOTICED + 1 ERROR) now read:
+
+```
+run 2 verdicts for run 1's tail keys :  COVERED 61   BLIND 18   NOTICED 0
+the 78 rows that carried Tests=8470  :  COVERED 60   BLIND 18   NOTICED 0
+   (the 79th is process_template_versions_select, run 1's ERROR at Files=0 Tests=0 -> COVERED)
+```
+
+**And run 2 has no tail of its own**, measured three ways rather than asserted:
+
+| | run 1 | run 2 |
+| --- | --- | --- |
+| rows carrying an **off-baseline** suite shape | 104 of 353 | **23 of 353** (the other 330 at `Files=262, Tests=8876`) |
+| distinct `Tests=` values among them | 18 | **16** |
+| longest run of the SAME value, consecutive | **44** | **2** |
+| ordinal of the LAST shape-moved row | **353** (contiguous to the end) | **264** — 89 clean cases follow |
+
+#### ⭐ THE NOTICED ATTRIBUTION — and it INVERTS run 1's reading
+
+The brief asked which files abort for the 23, and whether the three authz meta-tests
+(`250_authz_p0_isolation`, `290_authz_never_called_door_floor`, `246_authz_f1_referral_split`) are
+among them — i.e. whether NOTICED means "the suite's generic open-policy detectors fired".
+
+⛔ **The answer is NO, measured: ZERO of the 23 abort in an authz meta-test.** Not one of the three
+appears in any row's `aborting file(s):` list. They appear only in `reddened:` lists, which is a
+different claim. Run 1's tail — where those three DID abort, in 78 identical rows — was the drift,
+and the drift is gone.
+
+What aborts instead is a **domain** file, per gate, in a small and specific set:
+
+```
+  6  205_administrativo.sql            2  244_authz_c6_reserved_session_lifecycle.sql
+  5  140_patient_safety.sql            2  90_cases.sql            2  113_case_action_items.sql
+  5  225_supersession.sql              2  182_action_items.sql    2  349_dsr_request_workflow.sql
+  4  150_referrals.sql                 2  409_ae49_d6_rekey_differential.sql
+  3  200_controlled_documents.sql
+  1 each: 120_meetings · 368_printed_documents_cases · 405_ae46_wrapper_cutover_invariants ·
+          227_action_item_satellites · 264_correction_requests · 265_reopen_void_narrative ·
+          267_ethics_e3a_autoderive · 272_ff2_door_parity · 347_correction_conclusion_gate ·
+          367_deferred_staff_signoff
+```
+
+15 distinct aborting-file signatures over 23 rows — the largest group is 4 (`140_patient_safety.sql`,
+the NSP/PQS family). **Every row has `Files=262`**: all 262 files ran; only the `Tests=` count moved,
+by −8 to −207 against 8876. That is the LEARN-083 / 296-site shape — a **value assertion whose
+subject raises when its gate is opened**, aborting *that* file's plan — not a generic catalog-shape
+detector.
+
+**The evidence half, which the ruling also needs.** For all **23/23** the `reddened:` set is a
+STRICT SUPERSET of the aborting set, and for **19/23** at least one *authz-shaped* file reddens
+OUTSIDE the aborting file (`171_cross_org_isolation`, `298_authz_p0_isolation`,
+`184_hospital_admin_isolation`, `231_authz_m5_is_active_gate`, `300_rowdoor_gate_keystones`, …).
+⚠ **That is a NAME-shaped signal, not a verdict** — "a file whose name contains `authz` reddened" is
+not "an assertion about THIS gate reddened", and reading it as coverage is precisely the
+`sweeping one sibling AXIS reads as sweeping the class` error. It is offered as input to the ruling,
+and the four rows WITHOUT it are named so the weaker cases are visible rather than averaged away:
+`app.event_current_custodian`, `app.is_dpo_of`, `app.is_dpo_of_for`,
+`app.is_entitled_document_approver`.
+
+⛔ **I am not ruling.** Measured: the abort is per-gate and domain-local; the meta-tests are not
+implicated; a NOTICED row's suite DID redden. Unresolved: whether the reddening is attributable to
+the opened gate. The lead owes the PO the ruling.
+
+#### Step 4 — the `(ALL)` flips (PO Q1): the final n is **ELEVEN**
+
+Measured **baseline → run 2** (the comparison the follow-up is about; run 1 is not the reference):
+
+```
+BLIND -> COVERED  38     ERROR -> NOTICED  17     ERROR -> COVERED  11
+COVERED -> BLIND  11     COVERED -> NOTICED 6                          (83 transitions)
+```
+
+**All 11 COVERED → BLIND rows are `(ALL)` policies. There are ZERO non-`(ALL)` flips**, so the
+brief's second question — "list every OTHER row that flipped COVERED → BLIND, with its reason" — has
+the answer **there are none**, and no separate explanation is owed. Stronger still: of run 2's 36
+BLIND rows, **25 were BLIND in the committed baseline and 11 are these flips** — none is a new
+subject. There is **no coverage loss anywhere outside the mirror fix**.
+
+| # | policy | `using` qual (live catalog, 2026-09-07) | write-half fixture | what a read-half keystone must assert |
+| --- | --- | --- | --- | --- |
+| 1 | `capa_action_evidence.capa_action_evidence_write (ALL)` | `app.can_write_capa((select ca.capa_id from capa_action ca where ca.id = capa_action_evidence.action_id), auth.uid())` | `252_authz_p0_isolation.sql` | rows of a writable CAPA visible **and zero rows** for a foreign one |
+| 2 | `capa_action_task.capa_action_task_write (ALL)` | same, joined through `capa_action.action_id` | `252_authz_p0_isolation.sql` | same denial half |
+| 3 | `capa_effectiveness.capa_effectiveness_write (ALL)` | `app.can_write_capa(capa_id, auth.uid())` | `252_authz_p0_isolation.sql` | a foreign CAPA's effectiveness rows **invisible**, not merely un-writable |
+| 4 | `capa_measure.capa_measure_write (ALL)` | `app.can_write_capa(capa_id, auth.uid())` | `252_authz_p0_isolation.sql` | same |
+| 5 | `capa_measure_result.capa_measure_result_write (ALL)` | same, joined through `capa_measure.measure_id` | `252_authz_p0_isolation.sql` | same |
+| 6 | `rca_evidence.rca_evidence_write (ALL)` | `app.can_write_rca(rca_id, auth.uid())` | `252_authz_p0_isolation.sql` | evidence of a writable RCA visible **and zero rows** for a foreign one |
+| 7 | `rca_factors.rca_factors_write (ALL)` | `app.can_write_rca(rca_id, auth.uid())` | `252_authz_p0_isolation.sql` | same denial half |
+| 8 | `rca_members.rca_members_write (ALL)` | `app.can_write_rca(rca_id, auth.uid())` | `252_authz_p0_isolation.sql` | ⚠ assert through THIS policy, not via an `rca_select` route |
+| 9 | `rca_root_causes.rca_root_causes_write (ALL)` | `app.can_write_rca(rca_id, auth.uid())` | `252_authz_p0_isolation.sql` | same |
+| 10 | `rca_timeline_entries.rca_timeline_write (ALL)` | `app.can_write_rca(rca_id, auth.uid())` | `252_authz_p0_isolation.sql` | same |
+| 11 | `rca_why_chains.rca_why_chains_write (ALL)` | `app.can_write_rca(rca_id, auth.uid())` | `252_authz_p0_isolation.sql` | same |
+
+⭐ **The bound 5 ≤ n ≤ 21 resolves to 11, from INSIDE the interval** — the 5 CAPA rows reproduced
+(run 1 BLIND, run 2 BLIND) and 6 `rca_*_write` rows that run 1 could not measure (run 1 NOTICED,
+run 2 BLIND). ⭐ Of the **16** stranded `(ALL)` rows the previous session named, exactly the **6**
+`rca_*_write` flipped; the other **10** — `interview_sessions_write`, `organizations_admin_write`,
+`phase_results_staff_admin_write`, five `process_template*_staff_admin_write`, two
+`response_group_instances_write_*` — came back **COVERED**. *Absence of a verdict was not absence of
+coverage, in either direction.*
+
+⚠ **Four further `(ALL)` rows went run-1-NOTICED → run-2-BLIND and are NOT flips**
+(`process_template_phase_allowed_results_staff_admin_write`,
+`process_template_phase_offered_results_staff_admin_write`, `process_templates_staff_admin_write`,
+`professional_categories_admin_write`), together with three `*_write_admin` referral policies and
+five SELECT rows: **all twelve were BLIND in the committed baseline already**. Counting them as
+newly-blinded would inflate the work-list by more than it holds.
+
+⛔ Both halves of each of the 11 use the **same** predicate (`can_write_capa` / `can_write_rca`,
+byte-identical `using` and `with check`), so the CAPA trap reproduces exactly for RCA: a read-back
+assertion for a permitted principal passes with `using` opened to `true`. The denial half is
+load-bearing in all eleven.
+
+`FUP-AUTHZ-FOR-ALL-READ-HALF-BLINDS` updated (register line + body) with a dated **SETTLED**
+section carrying the eleven; the earlier "exactly five" text and its FLOOR correction are left
+standing beside it, never rewritten.
+
+#### Step 5 — the CARRIED enumeration (PO Q2), FINAL
+
+**275 rows** (run 1's 318 was measured against a partly-void run and is superseded). Splitting on
+the one thing that matters — does column 5 hold HAND PROSE (`**`, `[merged`, ⭐ ⚠ ⛔ →):
+
+```
+TOTAL CARRIED ROWS: 275      HAND PROSE (a real human decision): 31      MECHANICAL: 244
+
+transition                          total   hand   mech
+COVERED -> COVERED                    144     13    131
+COVERED -> (absent from this run)      42     12     30
+BLIND   -> COVERED                     38      0     38
+ERROR   -> NOTICED                     17      3     14
+COVERED -> BLIND                       11      0     11
+ERROR   -> COVERED                     11      0     11
+COVERED -> NOTICED                      6      3      3
+BLIND   -> (absent from this run)       5      0      5
+ERROR   -> (absent from this run)       1      0      1
+```
+
+**The 48 `(absent)` rows resolved against the LIVE catalog** (not against memory of run 1), and the
+parts sum: 41 baseline keys genuinely outside the live domain + 4 second-ordinal rows of keys the run
+DOES emit (`app.can_sign_section`, `commissions_select_member_or_admin`, `hospitals_select`,
+`organizations_select`) + 3 second copies of already-absent DSR keys = **48**.
+⭐ The 45-key absent set is **byte-identical to run 1's** (`diff` bare rc 0), so the census
+consequence carries forward unchanged.
+
+| live status | n | which arm |
+| --- | --- | --- |
+| FUNC GONE | 20 | none — the door no longer exists |
+| POLICY GONE | 7 | none |
+| POLICY LIVE, `INSERT`/`UPDATE`/`DELETE` | 13 | **writepath** (`p0-authz-writepath-audit.sh`) |
+| POLICY LIVE, `SELECT` | 3 | this arm — all three are second-ordinal duplicates |
+| FUNC LIVE, `prosecdef` **SETOF record** | 3 | **C2** (`resolve_document_version_bytes`, `commission_cadence_overview`, `document_delete_affordances`) |
+| FUNC LIVE, `prosecdef` **boolean**, out of domain | 2 | this arm §7.17b (`can_sign_section` dup; `storage_upload_reserved`, which IS in the 35 out-of-domain enumeration) |
+
+**Counts per recommended disposition** — this is the list the PO rules on:
+
+| disposition | n | hand |
+| --- | --- | --- |
+| DELETE — note-only drift (`COVERED -> COVERED`, note empty or a generated file list) | 131 | 0 |
+| DELETE — the gate GAINED a verdict (`BLIND -> COVERED` 38, `ERROR -> COVERED` 11) | 49 | 0 |
+| ⛔ HOLD — awaits the PO ruling on the NOTICED class | 23 | 6 |
+| DELETE — subject GONE, no hand prose | 17 | 0 |
+| RE-ATTACH the hand note to the new row | 13 | 13 |
+| RETIRE to `p0-authz-writepath-audit.sh` | 13 | 0 |
+| RE-FILED to `FUP-AUTHZ-FOR-ALL-READ-HALF-BLINDS` (done 2026-09-07), then delete | 11 | 0 |
+| ARCHIVE the prose (a `## Note`, never a verdict row), then delete | 10 | 10 |
+| DELETE — 2nd ordinal of a key the run DOES emit | 4 | 0 |
+| ⛔ **RE-FILE REQUIRED (census)**, then retire to C2 | 2 | 0 |
+| ⛔ **RE-FILE REQUIRED (census)** | 1 | 1 |
+| RETIRE to C2 | 1 | 1 |
+| **total** | **275** | **31** |
+
+⛔ **The three census-mandatory re-files** (identical to run 1's prediction, and to the dry run's):
+`app.storage_upload_reserved(p_bucket text, p_name text, p_uid uuid)`,
+`public.commission_cadence_overview()`, `public.document_delete_affordances(p_document_ids uuid[])`.
+Without them `ARM=census` reds on a bookkeeping hole rather than on a finding, and that must not
+happen at step 11.
+
+⛔ **The 31 hand-prose rows — the ones a human must actually read.** Nothing below has been
+re-filed, moved or deleted.
+
+```
+ARCHIVE the prose, then delete (10)
+   app.patient_trajectory_bundle(text, text, uuid)
+   authz.has_direct_permission(p_principal uuid, p_scope_kind text, p_scope_id uuid, p_permission_code text)
+   public.attest_dsr_task(uuid, text, integer, text)                [x2 — both baseline copies]
+   public.close_dsr_request(uuid, text, text, text)
+   public.complete_dsr_task(uuid, text)
+   public.create_dsr_request(uuid, text, text, text, integer)
+   public.list_my_dsr_task_commissions(uuid)
+   public.list_my_executable_dsr_tasks(uuid)
+   public.search_patient_xref(text, text, uuid)
+
+HOLD — pending the NOTICED ruling (6)
+   app.can_view_printed_document(p_source_kind text, p_source_id uuid, p_uid uuid)   COVERED -> NOTICED
+   app.is_oversight_only_reader(p_case_id uuid, p_uid uuid)                          COVERED -> NOTICED
+   forms.forms_staff_admin_write (ALL)                                               COVERED -> NOTICED
+   app.event_current_custodian(p_event_id uuid, p_user_id uuid)                      ERROR   -> NOTICED
+   app.is_staff_admin_of(p_commission_id uuid)                                       ERROR   -> NOTICED
+   authz.holds_role(p_principal uuid, p_role_code text, p_scope_kind text, p_scope_id uuid)  ERROR -> NOTICED
+
+RE-ATTACH the hand note to the new row (13, all COVERED -> COVERED)
+   app._audit_access_authorized · app.can_edit_commission_forms · app.can_manage_case_vocabulary
+   app.can_manage_professional · app.can_read_document · app.can_read_full_case_content
+   app.can_sign_section · app.can_write_document · app.member_can_for · authz.has_permission
+   commissions.commissions_select_member_or_admin (SELECT) · form_versions.form_versions_staff_admin_write (ALL)
+   professional_profiles.professional_profiles_select (SELECT)
+
+RE-FILE REQUIRED (census) (1)      app.storage_upload_reserved(p_bucket text, p_name text, p_uid uuid)
+RETIRE to C2 (1)                   app.resolve_document_version_bytes(p_document_version_id uuid, p_rendition_kind text, p_uid uuid)
+```
+
+⚠ **Two rows changed hand-status since run 1's list of 32**, both explained rather than smoothed
+over: `public.capa_viewer_can_manage` no longer CARRIES at all (baseline COVERED → run 2 COVERED with
+an identical note, so the merge took the `identical` branch — its run-1 `COVERED -> ERROR` was
+drift), and `professional_profiles.professional_profiles_select` moved from `COVERED -> NOTICED` to
+`COVERED -> COVERED`. 32 − 2 + 1 = 31.
+
+**THE FULL 275-ROW TABLE** — key · baseline verdict · run-2 verdict · hand flag · live status · arm ·
+disposition, sorted by disposition:
+
+| # | key | baseline | run 2 | hand | live status | arm | disposition |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | `app.patient_trajectory_bundle(text, text, uuid)` | COVERED | (absent from this run) | **H** | FUNC GONE | none — the door no longer exists | ARCHIVE the prose, then delete |
+| 2 | `authz.has_direct_permission(p_principal uuid, p_scope_kind text, p_scope_id uuid, p_permission_code text)` | COVERED | (absent from this run) | **H** | FUNC GONE | none — the door no longer exists | ARCHIVE the prose, then delete |
+| 3 | `public.attest_dsr_task(uuid, text, integer, text)` | COVERED | (absent from this run) | **H** | FUNC GONE | none — the door no longer exists | ARCHIVE the prose, then delete |
+| 4 | `public.attest_dsr_task(uuid, text, integer, text)` | COVERED | (absent from this run) | **H** | FUNC GONE [2nd ordinal] | none — the door no longer exists | ARCHIVE the prose, then delete |
+| 5 | `public.close_dsr_request(uuid, text, text, text)` | COVERED | (absent from this run) | **H** | FUNC GONE | none — the door no longer exists | ARCHIVE the prose, then delete |
+| 6 | `public.complete_dsr_task(uuid, text)` | COVERED | (absent from this run) | **H** | FUNC GONE [2nd ordinal] | none — the door no longer exists | ARCHIVE the prose, then delete |
+| 7 | `public.create_dsr_request(uuid, text, text, text, integer)` | COVERED | (absent from this run) | **H** | FUNC GONE | none — the door no longer exists | ARCHIVE the prose, then delete |
+| 8 | `public.list_my_dsr_task_commissions(uuid)` | COVERED | (absent from this run) | **H** | FUNC GONE | none — the door no longer exists | ARCHIVE the prose, then delete |
+| 9 | `public.list_my_executable_dsr_tasks(uuid)` | COVERED | (absent from this run) | **H** | FUNC GONE | none — the door no longer exists | ARCHIVE the prose, then delete |
+| 10 | `public.search_patient_xref(text, text, uuid)` | COVERED | (absent from this run) | **H** | FUNC GONE | none — the door no longer exists | ARCHIVE the prose, then delete |
+| 11 | `app.can_read_document_object(p_name text, p_uid uuid)` | BLIND | (absent from this run) |  | FUNC GONE | none — the door no longer exists | DELETE |
+| 12 | `app.has_role(p_scope_type text, p_scope_id uuid, p_role text)` | BLIND | (absent from this run) |  | FUNC GONE | none — the door no longer exists | DELETE |
+| 13 | `attachment_references.attachment_references_select (SELECT)` | BLIND | (absent from this run) |  | POLICY GONE | none — the door no longer exists | DELETE |
+| 14 | `attachment_subjects.attachment_subjects_select (SELECT)` | BLIND | (absent from this run) |  | POLICY GONE | none — the door no longer exists | DELETE |
+| 15 | `referral_reply_attachment.referral_reply_attachment_select_readable (SELECT)` | BLIND | (absent from this run) |  | POLICY GONE | none — the door no longer exists | DELETE |
+| 16 | `app.attachment_confidentiality_ok(p_owner_type text, p_owner_id uuid, p_label text, p_uid uuid)` | COVERED | (absent from this run) |  | FUNC GONE | none — the door no longer exists | DELETE |
+| 17 | `app.can_read_attachment(p_owner_type text, p_owner_id uuid, p_uid uuid)` | COVERED | (absent from this run) |  | FUNC GONE | none — the door no longer exists | DELETE |
+| 18 | `app.can_read_snapshot_document(p_object_name text, p_uid uuid)` | COVERED | (absent from this run) |  | FUNC GONE | none — the door no longer exists | DELETE |
+| 19 | `app.can_write_attachment(p_owner_type text, p_owner_id uuid, p_uid uuid)` | COVERED | (absent from this run) |  | FUNC GONE | none — the door no longer exists | DELETE |
+| 20 | `attachments.attachments_select (SELECT)` | COVERED | (absent from this run) |  | POLICY GONE | none — the door no longer exists | DELETE |
+| 21 | `public.adjudicate_dsr_request(uuid, text, text, text, uuid[])` | COVERED | (absent from this run) |  | FUNC GONE | none — the door no longer exists | DELETE |
+| 22 | `public.close_dsr_request(uuid, text, text, text)` | COVERED | (absent from this run) |  | FUNC GONE [2nd ordinal] | none — the door no longer exists | DELETE |
+| 23 | `public.complete_dsr_task(uuid, text)` | COVERED | (absent from this run) |  | FUNC GONE | none — the door no longer exists | DELETE |
+| 24 | `public.list_dsr_disposable_meetings(uuid)` | COVERED | (absent from this run) |  | FUNC GONE | none — the door no longer exists | DELETE |
+| 25 | `referral_note_types.referral_note_types_select (SELECT)` | COVERED | (absent from this run) |  | POLICY GONE | none — the door no longer exists | DELETE |
+| 26 | `referral_note_types.referral_note_types_staff_admin_write (ALL)` | COVERED | (absent from this run) |  | POLICY GONE | none — the door no longer exists | DELETE |
+| 27 | `responses.responses_admin_all (ALL)` | COVERED | (absent from this run) |  | POLICY GONE | none — the door no longer exists | DELETE |
+| 28 | `app.can_sign_section(p_response_id uuid, p_section_id uuid, p_signer uuid)` | COVERED | (absent from this run) |  | FUNC LIVE secdef=true setof=false ret=boolean | this arm | DELETE — 2nd ordinal of a key the run DOES emit |
+| 29 | `hospitals.hospitals_select (SELECT)` | COVERED | (absent from this run) |  | POLICY LIVE (SELECT) | this arm | DELETE — 2nd ordinal of a key the run DOES emit |
+| 30 | `organizations.organizations_select (SELECT)` | COVERED | (absent from this run) |  | POLICY LIVE (SELECT) | this arm | DELETE — 2nd ordinal of a key the run DOES emit |
+| 31 | `commissions.commissions_select_member_or_admin (SELECT)` | ERROR | (absent from this run) |  | POLICY LIVE (SELECT) | this arm | DELETE — 2nd ordinal of a key the run DOES emit |
+| 32 | `action_item_assignments.action_item_assignments_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 33 | `action_item_checklists.action_item_checklists_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 34 | `action_item_reminders.action_item_reminders_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 35 | `action_item_status_history.action_item_status_history_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 36 | `action_item_updates.action_item_updates_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 37 | `action_items.action_items_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 38 | `action_items.action_items_staff_admin_write (ALL)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 39 | `answer_references.answer_references_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 40 | `answer_selected_options.answer_selected_options_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 41 | `answer_selected_options.answer_selected_options_write_own_draft (ALL)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 42 | `answers.answers_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 43 | `answers.answers_write_own_draft (ALL)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 44 | `app.can_access_targeted_response(p_response_id uuid, p_uid uuid)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 45 | `app.can_access_targeted_version(p_form_version_id uuid, p_uid uuid)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 46 | `app.can_create_professional(p_org uuid, p_uid uuid)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 47 | `app.can_edit_referral_internal_note(p_note_id uuid, p_uid uuid)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 48 | `app.can_execute_dsr_task(p_hospital_id uuid, p_commission_id uuid, p_uid uuid)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 49 | `app.can_manage_external_participant(p_org uuid, p_uid uuid)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 50 | `app.can_manage_referral_internal_note(p_note_id uuid, p_uid uuid)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 51 | `app.can_reach_meeting(p_meeting_id uuid, p_uid uuid)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 52 | `app.can_read_action_item(p_action_item_id uuid, p_uid uuid)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 53 | `app.can_read_case(p_case_id uuid, p_uid uuid)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 54 | `app.can_read_case_committee(p_case_id uuid, p_uid uuid)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 55 | `app.can_read_case_patient(p_case_id uuid, p_uid uuid)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 56 | `app.can_read_correction_response(p_response_id uuid, p_uid uuid)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 57 | `app.can_read_document_hold(p_document_id uuid, p_uid uuid)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 58 | `app.can_read_document_of_version(p_version_id uuid, p_uid uuid)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 59 | `app.can_read_event(p_event_id uuid, p_user_id uuid)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 60 | `app.can_read_event_patient(p_event_id uuid, p_user_id uuid)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 61 | `app.can_read_interview(p_interview_id uuid, p_uid uuid)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 62 | `app.can_read_minutes_transcript(p_job_id uuid, p_uid uuid)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 63 | `app.can_read_professional_profile(p_profile_id uuid, p_uid uuid)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 64 | `app.can_read_referral_metadata(p_referral_id uuid, p_uid uuid)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 65 | `app.can_read_referral_phi(p_referral_id uuid, p_uid uuid)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 66 | `app.can_read_signoff(p_response_id uuid)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 67 | `app.can_write_action_item_stake(p_action_item_id uuid, p_uid uuid)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 68 | `app.can_write_case_content(p_case_id uuid, p_uid uuid)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 69 | `app.can_write_case_narrative(p_narrative_id uuid, p_uid uuid)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 70 | `app.can_write_interview(p_interview_id uuid, p_uid uuid)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 71 | `app.can_write_rca(p_rca_id uuid, p_uid uuid)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 72 | `app.has_case_capability(p_case_id uuid, p_uid uuid, p_cap text)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 73 | `app.is_admin()` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 74 | `app.is_admin_for(p_user_id uuid)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 75 | `app.is_case_excluded(p_case_id uuid, p_uid uuid)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 76 | `app.is_case_respondent(p_case_id uuid, p_uid uuid)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 77 | `app.is_document_approver_of(p_document_id uuid, p_uid uuid)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 78 | `app.is_document_version_approver(p_version_id uuid, p_uid uuid)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 79 | `app.is_hospital_admin_of_for(p_hospital_id uuid, p_user_id uuid)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 80 | `app.is_nsp_coordinator_of(p_hospital_id uuid)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 81 | `app.is_org_admin_of_for(p_org_id uuid, p_user_id uuid)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 82 | `app.is_org_commission_staff_admin(p_org uuid, p_uid uuid)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 83 | `app.is_org_level_admin_within(p_org_id uuid)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 84 | `app.is_org_member(p_org_id uuid)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 85 | `app.is_pqs_member_of_any(p_user_id uuid)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 86 | `app.is_pqs_operator_in_org(p_org_id uuid)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 87 | `app.is_pqs_operator_in_org_for(p_org_id uuid, p_user_id uuid)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 88 | `app.is_quality_reviewer_of(p_hospital_id uuid)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 89 | `app.is_quality_reviewer_of_for(p_hospital_id uuid, p_user_id uuid)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 90 | `app.is_recused_from_case(p_case_id uuid, p_uid uuid)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 91 | `app.is_technical_director_of_for(p_hospital_id uuid, p_user_id uuid)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 92 | `app.person_is_anchorless(p_user uuid)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 93 | `app.person_known_to_org(p_user uuid, p_organization uuid)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 94 | `audit_log.audit_log_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 95 | `capa_action.capa_action_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 96 | `capa_action.capa_action_write (ALL)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 97 | `capa_plan.capa_plan_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 98 | `case_access_grants.case_access_grants_select_own (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 99 | `case_custom_field_values.case_custom_field_values_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 100 | `case_custom_field_values.case_custom_field_values_staff_admin_write (ALL)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 101 | `case_events.case_events_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 102 | `case_narrative_types.case_narrative_types_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 103 | `case_narrative_types.case_narrative_types_staff_admin_write (ALL)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 104 | `case_narratives.case_narratives_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 105 | `case_narratives.case_narratives_staff_admin_write (ALL)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 106 | `case_offered_outcomes.case_offered_outcomes_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 107 | `case_offered_outcomes.case_offered_outcomes_staff_admin_write (ALL)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 108 | `case_outcomes.case_outcomes_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 109 | `case_outcomes.case_outcomes_staff_admin_write (ALL)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 110 | `case_participant_roles.case_participant_roles_admin_write (ALL)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 111 | `case_participant_roles.case_participant_roles_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 112 | `case_phase_allowed_results.case_phase_allowed_results_staff_admin_write (ALL)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 113 | `case_phase_offered_results.case_phase_offered_results_staff_admin_write (ALL)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 114 | `case_phases.case_phases_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 115 | `case_phases.case_phases_staff_admin_write (ALL)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 116 | `case_tag_assignments.case_tag_assignments_staff_admin_write (ALL)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 117 | `case_tags.case_tags_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 118 | `case_tags.case_tags_staff_admin_write (ALL)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 119 | `case_types.case_types_admin_write (ALL)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 120 | `case_types.case_types_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 121 | `cases.cases_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 122 | `commission_administrativo_capabilities.commission_administrativo_capabilities_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 123 | `commission_administrativos.commission_administrativos_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 124 | `controlled_document_versions.controlled_document_versions_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 125 | `controlled_documents.controlled_documents_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 126 | `document_approvals.document_approvals_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 127 | `documents.documents_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 128 | `dsr_requests.dsr_requests_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 129 | `dsr_tasks.dsr_tasks_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 130 | `ethics_allegations.ethics_allegations_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 131 | `ethics_appeals.ethics_appeals_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 132 | `ethics_case_details.ethics_case_details_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 133 | `ethics_decision_details.ethics_decision_details_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 134 | `ethics_findings.ethics_findings_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 135 | `ethics_hearings.ethics_hearings_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 136 | `ethics_notifications.ethics_notifications_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 137 | `event_custody.event_custody_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 138 | `event_triage.event_triage_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 139 | `form_block_library.form_block_library_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 140 | `form_items.form_items_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 141 | `form_sections.form_sections_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 142 | `form_versions.form_versions_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 143 | `hospital_affiliations.hospital_affiliations_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 144 | `hospitals.hospitals_write (ALL)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 145 | `interview_sessions.interview_sessions_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 146 | `meeting_cases.meeting_cases_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 147 | `meeting_minutes_jobs.meeting_minutes_jobs_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 148 | `organization_affiliations.organization_affiliations_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 149 | `organizations.organizations_admin_write (ALL)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 150 | `patient_safety_event.patient_safety_event_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 151 | `printed_documents.printed_documents_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 152 | `professional_participants.professional_participants_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 153 | `public.can_dispose_referral_phi(p_referral_id uuid)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 154 | `rca.rca_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 155 | `referral_reply.referral_reply_select_phi (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 156 | `referral_shared_item.referral_shared_item_select_phi (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 157 | `response_group_instances.response_group_instances_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 158 | `response_group_instances.response_group_instances_select_targeted (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 159 | `response_group_instances.response_group_instances_write_targeted (ALL)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 160 | `response_section_signoffs.signoffs_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 161 | `responses.responses_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 162 | `standard_ownerships.standard_ownerships_select (SELECT)` | COVERED | COVERED |  | in domain | this arm | DELETE — note-only drift |
+| 163 | `accreditation_standards.accreditation_standards_select (SELECT)` | BLIND | COVERED |  | in domain | this arm | DELETE — the gate GAINED a verdict |
+| 164 | `answer_matrix_cells.answer_matrix_cells_select (SELECT)` | BLIND | COVERED |  | in domain | this arm | DELETE — the gate GAINED a verdict |
+| 165 | `answer_risk_matrix.answer_risk_matrix_select (SELECT)` | BLIND | COVERED |  | in domain | this arm | DELETE — the gate GAINED a verdict |
+| 166 | `answer_selected_options.answer_selected_options_select_targeted (SELECT)` | BLIND | COVERED |  | in domain | this arm | DELETE — the gate GAINED a verdict |
+| 167 | `answer_selected_options.answer_selected_options_write_targeted (ALL)` | BLIND | COVERED |  | in domain | this arm | DELETE — the gate GAINED a verdict |
+| 168 | `capa_action_evidence.capa_action_evidence_select (SELECT)` | BLIND | COVERED |  | in domain | this arm | DELETE — the gate GAINED a verdict |
+| 169 | `capa_action_task.capa_action_task_select (SELECT)` | BLIND | COVERED |  | in domain | this arm | DELETE — the gate GAINED a verdict |
+| 170 | `capa_effectiveness.capa_effectiveness_select (SELECT)` | BLIND | COVERED |  | in domain | this arm | DELETE — the gate GAINED a verdict |
+| 171 | `capa_measure.capa_measure_select (SELECT)` | BLIND | COVERED |  | in domain | this arm | DELETE — the gate GAINED a verdict |
+| 172 | `capa_measure_result.capa_measure_result_select (SELECT)` | BLIND | COVERED |  | in domain | this arm | DELETE — the gate GAINED a verdict |
+| 173 | `case_assignment_roles.case_assignment_roles_select (SELECT)` | BLIND | COVERED |  | in domain | this arm | DELETE — the gate GAINED a verdict |
+| 174 | `case_narrative_revisions.case_narrative_revisions_select (SELECT)` | BLIND | COVERED |  | in domain | this arm | DELETE — the gate GAINED a verdict |
+| 175 | `case_phase_allowed_results.case_phase_allowed_results_select (SELECT)` | BLIND | COVERED |  | in domain | this arm | DELETE — the gate GAINED a verdict |
+| 176 | `case_phase_offered_results.case_phase_offered_results_select (SELECT)` | BLIND | COVERED |  | in domain | this arm | DELETE — the gate GAINED a verdict |
+| 177 | `case_type_terminology.case_type_terminology_admin_write (ALL)` | BLIND | COVERED |  | in domain | this arm | DELETE — the gate GAINED a verdict |
+| 178 | `case_type_terminology.case_type_terminology_select (SELECT)` | BLIND | COVERED |  | in domain | this arm | DELETE — the gate GAINED a verdict |
+| 179 | `ethics_sanction_types.ethics_sanction_types_select (SELECT)` | BLIND | COVERED |  | in domain | this arm | DELETE — the gate GAINED a verdict |
+| 180 | `event_patient.event_patient_select (SELECT)` | BLIND | COVERED |  | in domain | this arm | DELETE — the gate GAINED a verdict |
+| 181 | `event_triage_sentinel_flags.event_triage_sentinel_flags_select (SELECT)` | BLIND | COVERED |  | in domain | this arm | DELETE — the gate GAINED a verdict |
+| 182 | `form_item_options.form_item_options_select (SELECT)` | BLIND | COVERED |  | in domain | this arm | DELETE — the gate GAINED a verdict |
+| 183 | `form_item_options.form_item_options_select_targeted (SELECT)` | BLIND | COVERED |  | in domain | this arm | DELETE — the gate GAINED a verdict |
+| 184 | `indicator_measurements.indicator_measurements_select (SELECT)` | BLIND | COVERED |  | in domain | this arm | DELETE — the gate GAINED a verdict |
+| 185 | `interview_session_attendance.interview_session_attendance_select (SELECT)` | BLIND | COVERED |  | in domain | this arm | DELETE — the gate GAINED a verdict |
+| 186 | `interview_summaries.interview_summaries_select (SELECT)` | BLIND | COVERED |  | in domain | this arm | DELETE — the gate GAINED a verdict |
+| 187 | `interview_topics.interview_topics_select (SELECT)` | BLIND | COVERED |  | in domain | this arm | DELETE — the gate GAINED a verdict |
+| 188 | `meeting_signatures.meeting_signatures_select (SELECT)` | BLIND | COVERED |  | in domain | this arm | DELETE — the gate GAINED a verdict |
+| 189 | `patient_xref.patient_xref_select_pqs (SELECT)` | BLIND | COVERED |  | in domain | this arm | DELETE — the gate GAINED a verdict |
+| 190 | `rca_evidence.rca_evidence_select (SELECT)` | BLIND | COVERED |  | in domain | this arm | DELETE — the gate GAINED a verdict |
+| 191 | `rca_factors.rca_factors_select (SELECT)` | BLIND | COVERED |  | in domain | this arm | DELETE — the gate GAINED a verdict |
+| 192 | `rca_members.rca_members_select (SELECT)` | BLIND | COVERED |  | in domain | this arm | DELETE — the gate GAINED a verdict |
+| 193 | `rca_root_causes.rca_root_causes_select (SELECT)` | BLIND | COVERED |  | in domain | this arm | DELETE — the gate GAINED a verdict |
+| 194 | `rca_timeline_entries.rca_timeline_select (SELECT)` | BLIND | COVERED |  | in domain | this arm | DELETE — the gate GAINED a verdict |
+| 195 | `rca_why_chains.rca_why_chains_select (SELECT)` | BLIND | COVERED |  | in domain | this arm | DELETE — the gate GAINED a verdict |
+| 196 | `referral_assignments.referral_assignments_select_metadata (SELECT)` | BLIND | COVERED |  | in domain | this arm | DELETE — the gate GAINED a verdict |
+| 197 | `referral_case_links.referral_case_links_select_metadata (SELECT)` | BLIND | COVERED |  | in domain | this arm | DELETE — the gate GAINED a verdict |
+| 198 | `referral_internal_notes.referral_internal_notes_select (SELECT)` | BLIND | COVERED |  | in domain | this arm | DELETE — the gate GAINED a verdict |
+| 199 | `referral_read_receipts.referral_read_receipts_select_metadata (SELECT)` | BLIND | COVERED |  | in domain | this arm | DELETE — the gate GAINED a verdict |
+| 200 | `referral_resolutions.referral_resolutions_select_metadata (SELECT)` | BLIND | COVERED |  | in domain | this arm | DELETE — the gate GAINED a verdict |
+| 201 | `app.can_manage_referral_source(p_referral_id uuid, p_uid uuid)` | ERROR | COVERED |  | in domain | this arm | DELETE — the gate GAINED a verdict |
+| 202 | `app.can_manage_referral_target(p_referral_id uuid, p_uid uuid)` | ERROR | COVERED |  | in domain | this arm | DELETE — the gate GAINED a verdict |
+| 203 | `app.can_write_capa(p_capa_id uuid, p_uid uuid)` | ERROR | COVERED |  | in domain | this arm | DELETE — the gate GAINED a verdict |
+| 204 | `app.is_hospital_admin_of(p_hospital_id uuid)` | ERROR | COVERED |  | in domain | this arm | DELETE — the gate GAINED a verdict |
+| 205 | `app.is_member_of(p_commission_id uuid)` | ERROR | COVERED |  | in domain | this arm | DELETE — the gate GAINED a verdict |
+| 206 | `app.is_nsp_org_admin_of(p_org_id uuid)` | ERROR | COVERED |  | in domain | this arm | DELETE — the gate GAINED a verdict |
+| 207 | `app.is_nsp_org_admin_of_for(p_org_id uuid, p_user_id uuid)` | ERROR | COVERED |  | in domain | this arm | DELETE — the gate GAINED a verdict |
+| 208 | `app.is_org_admin_of(p_org_id uuid)` | ERROR | COVERED |  | in domain | this arm | DELETE — the gate GAINED a verdict |
+| 209 | `app.is_pqs_operator_of(p_hospital_id uuid)` | ERROR | COVERED |  | in domain | this arm | DELETE — the gate GAINED a verdict |
+| 210 | `app.is_staff_admin_of_for(p_commission_id uuid, p_user_id uuid)` | ERROR | COVERED |  | in domain | this arm | DELETE — the gate GAINED a verdict |
+| 211 | `commissions.commissions_admin_write (ALL)` | ERROR | COVERED |  | in domain | this arm | DELETE — the gate GAINED a verdict |
+| 212 | `app.can_view_printed_document(p_source_kind text, p_source_id uuid, p_uid uuid)` | COVERED | NOTICED | **H** | in domain | this arm | HOLD — awaits the PO ruling on the NOTICED class |
+| 213 | `app.is_dpo_of(p_hospital_id uuid)` | COVERED | NOTICED |  | in domain | this arm | HOLD — awaits the PO ruling on the NOTICED class |
+| 214 | `app.is_dpo_of_for(p_hospital_id uuid, p_user_id uuid)` | COVERED | NOTICED |  | in domain | this arm | HOLD — awaits the PO ruling on the NOTICED class |
+| 215 | `app.is_oversight_only_reader(p_case_id uuid, p_uid uuid)` | COVERED | NOTICED | **H** | in domain | this arm | HOLD — awaits the PO ruling on the NOTICED class |
+| 216 | `form_item_options.form_item_options_staff_admin_write (ALL)` | COVERED | NOTICED |  | in domain | this arm | HOLD — awaits the PO ruling on the NOTICED class |
+| 217 | `forms.forms_staff_admin_write (ALL)` | COVERED | NOTICED | **H** | in domain | this arm | HOLD — awaits the PO ruling on the NOTICED class |
+| 218 | `app.can_read_referral_internal_note(p_note_id uuid, p_uid uuid)` | ERROR | NOTICED |  | in domain | this arm | HOLD — awaits the PO ruling on the NOTICED class |
+| 219 | `app.can_sign_meeting(p_attendee_id uuid, p_signer uuid)` | ERROR | NOTICED |  | in domain | this arm | HOLD — awaits the PO ruling on the NOTICED class |
+| 220 | `app.event_current_custodian(p_event_id uuid, p_user_id uuid)` | ERROR | NOTICED | **H** | in domain | this arm | HOLD — awaits the PO ruling on the NOTICED class |
+| 221 | `app.has_role(p_scope_type text, p_scope_id uuid, p_role text, p_user_id uuid)` | ERROR | NOTICED |  | in domain | this arm | HOLD — awaits the PO ruling on the NOTICED class |
+| 222 | `app.has_role_any(p_scope_type text, p_scope_id uuid, p_user_id uuid)` | ERROR | NOTICED |  | in domain | this arm | HOLD — awaits the PO ruling on the NOTICED class |
+| 223 | `app.is_active(p_user_id uuid)` | ERROR | NOTICED |  | in domain | this arm | HOLD — awaits the PO ruling on the NOTICED class |
+| 224 | `app.is_entitled_document_approver(p_hospital uuid, p_user uuid)` | ERROR | NOTICED |  | in domain | this arm | HOLD — awaits the PO ruling on the NOTICED class |
+| 225 | `app.is_member_of_for(p_commission_id uuid, p_user_id uuid)` | ERROR | NOTICED |  | in domain | this arm | HOLD — awaits the PO ruling on the NOTICED class |
+| 226 | `app.is_nsp_coordinator_of_for(p_hospital_id uuid, p_user_id uuid)` | ERROR | NOTICED |  | in domain | this arm | HOLD — awaits the PO ruling on the NOTICED class |
+| 227 | `app.is_pqs_member_of_for(p_hospital_id uuid, p_user_id uuid)` | ERROR | NOTICED |  | in domain | this arm | HOLD — awaits the PO ruling on the NOTICED class |
+| 228 | `app.is_pqs_operator_of_for(p_hospital_id uuid, p_user_id uuid)` | ERROR | NOTICED |  | in domain | this arm | HOLD — awaits the PO ruling on the NOTICED class |
+| 229 | `app.is_staff_admin_of(p_commission_id uuid)` | ERROR | NOTICED | **H** | in domain | this arm | HOLD — awaits the PO ruling on the NOTICED class |
+| 230 | `app.is_tenancy_admin_of(p_commission_id uuid)` | ERROR | NOTICED |  | in domain | this arm | HOLD — awaits the PO ruling on the NOTICED class |
+| 231 | `app.is_tenancy_admin_of_for(p_commission_id uuid, p_user_id uuid)` | ERROR | NOTICED |  | in domain | this arm | HOLD — awaits the PO ruling on the NOTICED class |
+| 232 | `app.referral_target_analyst(p_referral_id uuid, p_uid uuid)` | ERROR | NOTICED |  | in domain | this arm | HOLD — awaits the PO ruling on the NOTICED class |
+| 233 | `authz.holds_role(p_principal uuid, p_role_code text, p_scope_kind text, p_scope_id uuid)` | ERROR | NOTICED | **H** | in domain | this arm | HOLD — awaits the PO ruling on the NOTICED class |
+| 234 | `cases.cases_staff_admin_write (ALL)` | ERROR | NOTICED |  | in domain | this arm | HOLD — awaits the PO ruling on the NOTICED class |
+| 235 | `app._audit_access_authorized(p_action text, p_entity_id uuid, p_commission uuid)` | COVERED | COVERED | **H** | in domain | this arm | RE-ATTACH the hand note to the new row |
+| 236 | `app.can_edit_commission_forms(p_commission_id uuid, p_uid uuid)` | COVERED | COVERED | **H** | in domain | this arm | RE-ATTACH the hand note to the new row |
+| 237 | `app.can_manage_case_vocabulary(p_org uuid, p_uid uuid)` | COVERED | COVERED | **H** | in domain | this arm | RE-ATTACH the hand note to the new row |
+| 238 | `app.can_manage_professional(p_org uuid, p_uid uuid)` | COVERED | COVERED | **H** | in domain | this arm | RE-ATTACH the hand note to the new row |
+| 239 | `app.can_read_document(p_document_id uuid, p_uid uuid)` | COVERED | COVERED | **H** | in domain | this arm | RE-ATTACH the hand note to the new row |
+| 240 | `app.can_read_full_case_content(p_case_id uuid, p_uid uuid)` | COVERED | COVERED | **H** | in domain | this arm | RE-ATTACH the hand note to the new row |
+| 241 | `app.can_sign_section(p_response_id uuid, p_section_id uuid, p_signer uuid)` | COVERED | COVERED | **H** | in domain | this arm | RE-ATTACH the hand note to the new row |
+| 242 | `app.can_write_document(p_document_id uuid, p_uid uuid)` | COVERED | COVERED | **H** | in domain | this arm | RE-ATTACH the hand note to the new row |
+| 243 | `app.member_can_for(p_commission_id uuid, p_capability text, p_user_id uuid)` | COVERED | COVERED | **H** | in domain | this arm | RE-ATTACH the hand note to the new row |
+| 244 | `authz.has_permission(p_principal uuid, p_scope_kind text, p_scope_id uuid, p_permission_code text)` | COVERED | COVERED | **H** | in domain | this arm | RE-ATTACH the hand note to the new row |
+| 245 | `commissions.commissions_select_member_or_admin (SELECT)` | COVERED | COVERED | **H** | in domain | this arm | RE-ATTACH the hand note to the new row |
+| 246 | `form_versions.form_versions_staff_admin_write (ALL)` | COVERED | COVERED | **H** | in domain | this arm | RE-ATTACH the hand note to the new row |
+| 247 | `professional_profiles.professional_profiles_select (SELECT)` | COVERED | COVERED | **H** | in domain | this arm | RE-ATTACH the hand note to the new row |
+| 248 | `app.storage_upload_reserved(p_bucket text, p_name text, p_uid uuid)` | COVERED | (absent from this run) | **H** | FUNC LIVE secdef=true setof=false ret=boolean | this arm §7.17b (out-of-domain bool) | RE-FILE REQUIRED (census) |
+| 249 | `public.commission_cadence_overview()` | COVERED | (absent from this run) |  | FUNC LIVE secdef=true setof=true ret=record | C2 (command door) | RE-FILE REQUIRED (census) then retire to C2 |
+| 250 | `public.document_delete_affordances(p_document_ids uuid[])` | COVERED | (absent from this run) |  | FUNC LIVE secdef=true setof=true ret=record | C2 (command door) | RE-FILE REQUIRED (census) then retire to C2 |
+| 251 | `capa_action_evidence.capa_action_evidence_write (ALL)` | COVERED | BLIND |  | in domain | this arm | RE-FILED to FUP-AUTHZ-FOR-ALL-READ-HALF-BLINDS (2026-09-07); then DELETE |
+| 252 | `capa_action_task.capa_action_task_write (ALL)` | COVERED | BLIND |  | in domain | this arm | RE-FILED to FUP-AUTHZ-FOR-ALL-READ-HALF-BLINDS (2026-09-07); then DELETE |
+| 253 | `capa_effectiveness.capa_effectiveness_write (ALL)` | COVERED | BLIND |  | in domain | this arm | RE-FILED to FUP-AUTHZ-FOR-ALL-READ-HALF-BLINDS (2026-09-07); then DELETE |
+| 254 | `capa_measure.capa_measure_write (ALL)` | COVERED | BLIND |  | in domain | this arm | RE-FILED to FUP-AUTHZ-FOR-ALL-READ-HALF-BLINDS (2026-09-07); then DELETE |
+| 255 | `capa_measure_result.capa_measure_result_write (ALL)` | COVERED | BLIND |  | in domain | this arm | RE-FILED to FUP-AUTHZ-FOR-ALL-READ-HALF-BLINDS (2026-09-07); then DELETE |
+| 256 | `rca_evidence.rca_evidence_write (ALL)` | COVERED | BLIND |  | in domain | this arm | RE-FILED to FUP-AUTHZ-FOR-ALL-READ-HALF-BLINDS (2026-09-07); then DELETE |
+| 257 | `rca_factors.rca_factors_write (ALL)` | COVERED | BLIND |  | in domain | this arm | RE-FILED to FUP-AUTHZ-FOR-ALL-READ-HALF-BLINDS (2026-09-07); then DELETE |
+| 258 | `rca_members.rca_members_write (ALL)` | COVERED | BLIND |  | in domain | this arm | RE-FILED to FUP-AUTHZ-FOR-ALL-READ-HALF-BLINDS (2026-09-07); then DELETE |
+| 259 | `rca_root_causes.rca_root_causes_write (ALL)` | COVERED | BLIND |  | in domain | this arm | RE-FILED to FUP-AUTHZ-FOR-ALL-READ-HALF-BLINDS (2026-09-07); then DELETE |
+| 260 | `rca_timeline_entries.rca_timeline_write (ALL)` | COVERED | BLIND |  | in domain | this arm | RE-FILED to FUP-AUTHZ-FOR-ALL-READ-HALF-BLINDS (2026-09-07); then DELETE |
+| 261 | `rca_why_chains.rca_why_chains_write (ALL)` | COVERED | BLIND |  | in domain | this arm | RE-FILED to FUP-AUTHZ-FOR-ALL-READ-HALF-BLINDS (2026-09-07); then DELETE |
+| 262 | `app.resolve_document_version_bytes(p_document_version_id uuid, p_rendition_kind text, p_uid uuid)` | COVERED | (absent from this run) | **H** | FUNC LIVE secdef=true setof=true ret=record | C2 (command door) | RETIRE to C2 |
+| 263 | `case_interviews.case_interviews_delete (DELETE)` | COVERED | (absent from this run) |  | POLICY LIVE (DELETE) | writepath | RETIRE to p0-authz-writepath-audit.sh |
+| 264 | `case_interviews.case_interviews_insert (INSERT)` | COVERED | (absent from this run) |  | POLICY LIVE (INSERT) | writepath | RETIRE to p0-authz-writepath-audit.sh |
+| 265 | `case_interviews.case_interviews_update (UPDATE)` | COVERED | (absent from this run) |  | POLICY LIVE (UPDATE) | writepath | RETIRE to p0-authz-writepath-audit.sh |
+| 266 | `case_referral.case_referral_delete_draft_source (DELETE)` | COVERED | (absent from this run) |  | POLICY LIVE (DELETE) | writepath | RETIRE to p0-authz-writepath-audit.sh |
+| 267 | `case_referral.case_referral_insert_source_coord (INSERT)` | COVERED | (absent from this run) |  | POLICY LIVE (INSERT) | writepath | RETIRE to p0-authz-writepath-audit.sh |
+| 268 | `case_referral.case_referral_update_coord (UPDATE)` | COVERED | (absent from this run) |  | POLICY LIVE (UPDATE) | writepath | RETIRE to p0-authz-writepath-audit.sh |
+| 269 | `meeting_cases.meeting_cases_staff_admin_delete (DELETE)` | COVERED | (absent from this run) |  | POLICY LIVE (DELETE) | writepath | RETIRE to p0-authz-writepath-audit.sh |
+| 270 | `meeting_cases.meeting_cases_staff_admin_insert (INSERT)` | COVERED | (absent from this run) |  | POLICY LIVE (INSERT) | writepath | RETIRE to p0-authz-writepath-audit.sh |
+| 271 | `meeting_cases.meeting_cases_staff_admin_update (UPDATE)` | COVERED | (absent from this run) |  | POLICY LIVE (UPDATE) | writepath | RETIRE to p0-authz-writepath-audit.sh |
+| 272 | `meeting_signatures.meeting_signatures_insert (INSERT)` | COVERED | (absent from this run) |  | POLICY LIVE (INSERT) | writepath | RETIRE to p0-authz-writepath-audit.sh |
+| 273 | `profiles.profiles_update_self (UPDATE)` | COVERED | (absent from this run) |  | POLICY LIVE (UPDATE) | writepath | RETIRE to p0-authz-writepath-audit.sh |
+| 274 | `response_section_signoffs.signoffs_insert (INSERT)` | COVERED | (absent from this run) |  | POLICY LIVE (INSERT) | writepath | RETIRE to p0-authz-writepath-audit.sh |
+| 275 | `responses.responses_delete_own_draft (DELETE)` | COVERED | (absent from this run) |  | POLICY LIVE (DELETE) | writepath | RETIRE to p0-authz-writepath-audit.sh |
+
+#### Bookkeeping — DRAFTED, deliberately NOT APPLIED
+
+`supabase/tests/mutation/authz-unswept-backlog.txt` carries both resolvers with an explicit
+in-file instruction from the previous session: *"THE LINE BELOW IS DELETED IN THE COMMIT THAT
+CARRIES THE RE-BASELINED docs/reviews/authz-door-audit-findings.md, AND NOT BEFORE"* (`:796`) and
+*"SAME DELETION RULE AS THE `scope_reaches` BLOCK ABOVE"* (`:851`). That commit has not happened, so
+**the file is untouched by this session**. The change, ready to apply the moment the findings file
+is committed:
+
+```
+delete  :806  authz.scope_reaches(p_assignment_kind text, p_assignment_id uuid, p_resolution_kind text, p_requested_id uuid)
+delete  :863  authz.candidate_has_permission(p_principal uuid, p_scope_kind text, p_scope_id uuid, p_permission_code text)
+keep    both surrounding prose blocks; rewrite their "IS DELETED IN THE COMMIT" markers into the
+        past tense and record run 2's verdict beside the 2026-09-05 subset verdict.
+```
+
+⭐ **Both resolvers earned a verdict in the full run, at the full suite shape** — the subset verdicts
+of 2026-09-05 were at the same shape and are now corroborated by a 353-case run:
+
+```
+authz.scope_reaches(…)              COVERED   171_cross_org_isolation.sql, 172_phaseb_rls_rewrite.sql,
+                                              255_ethics_e2_targeted.sql, 272_ff2_door_parity.sql,
+                                              318_act_hat_blind_caller_gate_siblings.sql, 401_ae4_aut…
+authz.candidate_has_permission(…)   COVERED   403_ae45_differential_oracle.sql, 407_ae49_resolver_contract.sql,
+                                              413_ae4_authorized_scope_ids.sql
+```
+
+⛔ **`candidate_has_permission` was `ERROR` in run 1 and is `COVERED` here** — the plan's predicted
+verdict, earned only once the drift was bounded. Its run-1 ERROR was an artefact, not a finding.
+
+#### Filed this session — the C2 sibling hazard
+
+`FUP-AUTHZ-C2-NEUTRALIZER-CAPTURED-OIDS-SURVIVE-ITS-OWN-RESET` (🟠, backend), register entry +
+body. Line citations **re-anchored against HEAD `ea5783c0`, each read individually** rather than
+carried from the brief:
+
+```
+:350  derive_worklist "$WORK/worklist.tsv" || exit 2                       <- captured ONCE, before any case
+:764  ( cd "$ROOT" && npx supabase db reset --local ) …                    <- reassigns EVERY pg_proc.oid
+:775  if ! cut -f2,5 "$WORK/worklist.reset.tsv" | sort | diff -q …         <- field 1 DROPPED, so a moved OID cannot abort
+:797  local foid="$1" sig="$2" …                                           <- hash_of/snapshot/mutate address BY OID
+:878  while IFS=$'\t' read -r foid name sig ndoors nraise nanchored; do    <- foid = field 1 of the stale worklist
+:889  sweep_one "$foid" "$sig" …                                           <- first measurement
+:922  sweep_one "$foid" "$sig" …                                           <- the RETRY, i.e. AFTER a reset
+```
+
+⚠ The hazard has never fired because a deterministic replay of the same migrations tends to
+reproduce the same OIDs — masked by an incidental property, not closed by a guard, which is the
+shape of `an incidental guard closes a hole the definition predicts` read the other way round. ⛔ Not
+fixed here: different harness, different owner. The door arm's own copy of this hazard was closed by
+ADR 0191 D8 point 2 (identity re-resolved at case time), and that is the remedy the follow-up names.
+
+#### Gate for THIS commit — bare exit codes, nothing piped
+
+| gate | bare rc | observed |
+| --- | --- | --- |
+| `npm run lint` (full chain) | — | see below |
+| `npm run lint:registers` | — | see below |
+
+⛔ **What this session did NOT run, stated rather than quietly skipped**: `npm run test:db`, the four
+authz arms (`census`, `hat`, `floor`, `FROMFINDINGS=1 wrapper`) and the diff-scoped deriver. All are
+**step 11**, and step 11 is blocked on the findings file being committed — `FROMFINDINGS=1` and
+`ARM=census` both read that file, so running them now would measure the OLD baseline against the NEW
+domain and report a bookkeeping artefact.
+
+#### What the next session does, in order
+
+1. Take the PO's **Q2 (CARRIED)** and **NOTICED** rulings from the lead.
+2. Apply the CARRIED dispositions, then commit `docs/reviews/authz-door-audit-findings.md`.
+3. In the SAME commit, delete `authz-unswept-backlog.txt:806` and `:863` and rewrite their blocks.
+4. Then step 11: re-derive the four arms · `npm run test:db` · `SELFTEST=1` deriver · the
+   diff-scoped deriver with `SCOPE:` quoted.
+5. Then the closures (ADR 0191 amendments, the hub, the lead-playbook §4 sentence the lead lands).

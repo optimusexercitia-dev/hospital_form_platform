@@ -77,6 +77,65 @@ assertion that merely *reads back rows the caller may write* passes identically 
 clause opened to `true` — which is the exact state the sweep constructs. Each keystone therefore
 needs the **denial** half: a principal for whom `can_write_capa` is false must see **zero rows**.
 
+## ⭐ SETTLED, 2026-09-07 — run 2 resolves the bound to ELEVEN
+
+> The section above is left standing: what it measured is what run 1 could see, and the correction
+> block above it is what bounded that. This section is the **answer**, not a further correction.
+
+Run 2 swept the same 353 cases on the retrofitted harness (`resets=40 (RESET_EVERY=20)`, 17 scheduled
++ 23 retries, `FULLRUN_BARE_RC=1` — DIRTY because BLIND blocks, as designed) and **has no void tail**,
+measured three ways: only **23 of 353** rows carry an off-baseline suite shape at all (the other 330
+measured at `Files=262, Tests=8876`), those 23 spread over **16 distinct** `Tests=` values with the
+longest repeat being **2**, and the **last** of them sits at ordinal **264** — 89 clean cases follow it.
+Run 1, for contrast, ended in **78 consecutive rows at the single value `Tests=8470`**, ordinals
+275–353. Every drift-shaped case in run 2 was reset-and-retried once. Against the same committed
+baseline:
+
+```
+BASELINE -> RUN 2 transitions          COVERED -> BLIND : 11     <- this work-list
+                                       BLIND   -> COVERED: 38
+                                       ERROR   -> COVERED: 11
+                                       ERROR   -> NOTICED: 17
+                                       COVERED -> NOTICED:  6
+run 2 BLIND rows, by baseline verdict  BLIND 25  +  COVERED 11  =  36     (none absent from baseline)
+```
+
+⭐ **`n = 11`, inside the stated bound 5 ≤ n ≤ 21.** ⭐ **Zero non-`(ALL)` rows flipped, over all 353
+cases** — the discrimination run 1 could only claim for its clean prefix. ⭐ And every BLIND row in
+run 2 is either baseline-BLIND or one of these 11, so there is **no coverage loss outside the mirror
+fix** anywhere in the arm.
+
+⚠ Of the **16** `(ALL)` rows the correction named as stranded-and-unmeasured, exactly the **6**
+`rca_*_write` flipped. The other ten — `interview_sessions_write`, `organizations_admin_write`,
+`phase_results_staff_admin_write`, the five `process_template*_staff_admin_write`, and the two
+`response_group_instances_write_*` — came back **COVERED**. *Absence of a verdict was not absence of
+coverage, in either direction.*
+
+### The six NEW rows — RCA, and the same trap as CAPA
+
+`app.can_write_rca(rca_id, auth.uid())` is the `using` qual of all six, in the **direct** form (no
+join), and it is byte-identical to each policy's `with check` — so the CAPA trap reproduces exactly:
+a read-back assertion for a principal who *may* write passes with `using` opened to `true`.
+Quals read from `pg_policies` on the live catalog, 2026-09-07.
+
+| policy | previous verdict + write-half fixture | what a read-half keystone must assert |
+| --- | --- | --- |
+| `rca_evidence.rca_evidence_write (ALL)` | COVERED via `252_authz_p0_isolation.sql` | `using` = `app.can_write_rca(rca_id, auth.uid())`. A SELECT on `rca_evidence` must return the evidence of an RCA the caller may write **and zero rows** for an RCA it may not |
+| `rca_factors.rca_factors_write (ALL)` | COVERED via `252_authz_p0_isolation.sql` | same qual, same denial half — a foreign RCA's contributing factors must be **invisible**, not merely un-writable |
+| `rca_members.rca_members_write (ALL)` | COVERED via `252_authz_p0_isolation.sql` | same qual. ⚠ The roster is the one of the six a reader is most likely to reach by a legitimate sibling path — the keystone must assert through **this** policy, not through any `rca_select` route |
+| `rca_root_causes.rca_root_causes_write (ALL)` | COVERED via `252_authz_p0_isolation.sql` | same qual, same denial half |
+| `rca_timeline_entries.rca_timeline_write (ALL)` | COVERED via `252_authz_p0_isolation.sql` | same qual, same denial half |
+| `rca_why_chains.rca_why_chains_write (ALL)` | COVERED via `252_authz_p0_isolation.sql` | same qual, same denial half |
+
+⭐ **All eleven are covered by ONE file**, `252_authz_p0_isolation.sql`, across **two** modules. The
+"one coherent gap" reading from run 1 survives and widens: that file exercises the CAPA **and** RCA
+write paths, and nothing anywhere exercises either read path.
+
+⚠ **What did NOT settle here.** Run 2's **23 NOTICED** rows include 6 that were COVERED in the
+baseline and 17 that were already ERROR. They are unclassifiable, **not** flips, and are **not** work
+items in this follow-up — they belong to `FUP-DOOR-SWEEP-BROAD-GATE-ABORTS-A-FILE`'s class and are
+awaiting a PO ruling on the NOTICED class as a whole.
+
 ## Closes when
 
 Every row above has a keystone that **fails when the policy's `using` half is opened to `true`**,
