@@ -35,15 +35,24 @@ date may have been earned by a WRITE keystone — the direction column still rea
 `open->true` for both eras (deferred deliberately: re-keying it would carry every ALL row).
 
 DOMAIN-STATEMENT: what a COVERED/BLIND verdict from THIS arm does NOT cover.
-(§7.17c — derived from the live catalog on every run; quote this block, not the script.)
+(§7.17c — quote this block, not the script. ⚠ PROVENANCE IS PER FIGURE, not per block:
+ every figure below is tagged either DERIVED THIS RUN — read from the live catalog by this
+ script — or `[literal …]` with its source and as-of date. Populations 1, 2 and 3 are
+ DECISION figures from ADR 0171 / ADR 0184 pt 4; nothing in this tree derives them, and a
+ derivation invented here would be a claim with no owner — the shape
+ `p0-authz-invariant.sh`'s ARM 3 banner exists to stop.)
 
-1. **Tier 2 — 190 doors, deferred by ADR 0171, not cleared.** (ADR 0187 D1: every gate
-   record citing this sweep must say so in those words.)
-2. **The `HCDS*` family (60 raises) and `28000` (6).** The C2 neutralizer anchors on
+1. **Tier 2's 190 doors stay deferred by ADR 0171 and are NOT cleared.**
+   [literal — ADR 0171 via ADR 0187 D1, as of 2026-09-04.] ADR 0187 D1 requires that
+   sentence VERBATIM in every gate record citing this sweep; the emphasis markers are
+   outside it, and the door harness SELFTEST asserts it byte-exact against the ADR.
+2. **The `HCDS*` family (60 raises) and `28000` (6)** [literal — ADR 0184 pt 4, as of
+   2026-09-04]. The C2 neutralizer anchors on
    `errcode = '(42501|HC0[A-Z0-9]{2})'`, which requires a literal `0` in position 3, and
    the gate-fn filter uses the same anchor — so these doors are STRUCTURALLY ABSENT from
    that worklist and appear in its findings neither as a verdict nor as an ERROR.
-3. **The C2 ERROR class — ~10 enforcers expected, no verdict.** 39 anchored raises carry a
+3. **The C2 ERROR class — ~10 enforcers expected, no verdict** [literal — ADR 0184 pt 4,
+   as of 2026-09-04]. 39 anchored raises carry a
    `;` inside the message literal, which the negated-semicolon anchor cannot span, so the
    mutation never lands. It fails CLOSED (never a false COVERED), and a door with no
    verdict is still not a covered door.
@@ -52,9 +61,20 @@ DOMAIN-STATEMENT: what a COVERED/BLIND verdict from THIS arm does NOT cover.
    function has no call edge from the door that fires it and no boolean this arm can flip.
    ⛔ Therefore a trigger-caused BLIND is INDISTINGUISHABLE here from an absent-assertion
    BLIND: the first is discharged only by a keystone on a fixture the TRIGGER does not
-   already refuse; the second by a keystone on the door. Measured witness:
-   `public.reopen_interview` BLIND while `121_interviews.sql` pins its `HC038` — the
-   `HC038` observed comes from `app.guard_interview_status`, a trigger on `case_interviews`.
+   already refuse; the second by a keystone on the door. Measured witness — HISTORICAL
+   AND DATED, because its DISCHARGE is what makes it useful: `public.reopen_interview`
+   was C2-**BLIND** on 2026-09-02 because `121_interviews.sql:297` pinned only the CODE
+   (`throws_ok(…, 'HC038', null, …)`); under mutation the `HC038` observed came from
+   `app.guard_interview_status` — a `prosecdef` TRIGGER wired on `case_interviews` —
+   refusing `cancelled -> in_progress`, so a null-message pin passed against the WRONG
+   enforcer. It went **COVERED on 2026-09-04** (`f33d9ba7`;
+   `docs/reviews/c2-command-door-findings.md`) when `121_interviews.sql:565` pinned the
+   door's OWN message on an `awaiting_follow_up` fixture the trigger cannot pre-empt —
+   the exact remedy this bullet names, executed.
+   ⛔ NO LIVE WITNESS EXISTS TODAY: no BLIND door on this stack is attributable to a
+   trigger (C2 stands at 170 COVERED / 1 BLIND / 0 ERROR, and the one BLIND,
+   `app.print_source_series`, has no trigger in its path). So population 4 is currently
+   ASSERTED — bounded by the two DERIVED counts above — and witnessed only historically.
    ⚠ A defence-in-depth pair (door guard + trigger guard) can therefore LOOK like a gap.
 5. **The NOTICED class — DISCLOSED, NON-BLOCKING, and NOT a verdict** (PO ruling
    2026-09-07). A gate whose neutralization reddened the suite while a file ABORTED
@@ -73,7 +93,9 @@ DOMAIN-STATEMENT: what a COVERED/BLIND verdict from THIS arm does NOT cover.
 - **35 `prosecdef` boolean(s) outside the domain**, listed at the end of this report.
   "Outside this arm" is NOT "unswept" — other arms exist — and 35 is the size of the
   UNCLASSIFIED set, never a defect count.
-- **The 2 side-effecting writers** (`app.enqueue_notification`,
+- **The 2 side-effecting writers** [literal, and SELF-EVIDENCING — the hold-out is a
+  NAME LIST in this script, so the count is the length of the list beside it]
+  (`app.enqueue_notification`,
   `public.remind_document_approver`) are held out BY NAME: swapping their body for
   `select true` would disarm a notification enqueue / an approver reminder rather than
   open a gate, and the suite would go green for the wrong reason.
@@ -83,8 +105,11 @@ DOMAIN-STATEMENT: what a COVERED/BLIND verdict from THIS arm does NOT cover.
 - **Set-valued resolvers — 5 `prosecdef` `SETOF uuid` function(s), DERIVED this
   run.** Only a BOOLEAN predicate is sweepable by this mechanism (ADR 0079 hazard 4), so
   they are out of domain by RETURN TYPE, before any name or body test runs. Three of them
-  are authorization scope resolvers and have a committed, scheduled home:
-  `supabase/tests/mutation/authz-setvalued-targeted-cases.sh`.
+  [literal, and SELF-EVIDENCING — an explicit scope list in that harness, whose live
+  cardinality its own §4b asserts each run] are authorization scope resolvers and have a
+  committed, scheduled home: `supabase/tests/mutation/authz-setvalued-targeted-cases.sh`.
+  Their verdicts are FILED as rows in this report (§ The three set-valued scope
+  resolvers), keyed as `census_proc_domain` emits them, since 2026-09-07.
 - **RLS policies**: this arm sees `polcmd in ('r','*')` only, and since 2026-09-05 it opens
   the `using` half ALONE. A verdict here is a claim about the READ half and nothing else;
   the `with check` half belongs to `p0-authz-writepath-audit.sh`.

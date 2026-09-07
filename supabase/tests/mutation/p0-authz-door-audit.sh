@@ -418,9 +418,19 @@ classify () {
   # So: shape moved AND `Result: FAIL` -> `NOTICED`. Every OTHER shape move stays `ERROR`.
   # ⛔ `NOTICED` NEVER COLLAPSES INTO COVERED and is never a pass:
   #   · it has its OWN count on the report line and its own column in the tables;
-  #   · it is in the DIRTY test, so a NOTICED case exits 1 exactly like a BLIND;
+  #   · ⛔ SUPERSEDED 2026-09-07 by the PO ruling recorded as ADR 0191 D5 Amendment 1. This
+  #     line read: "it is in the DIRTY test, so a NOTICED case exits 1 exactly like a BLIND".
+  #     It is quoted rather than deleted because the thing the ruling changed IS an exit code.
+  #     ⭐ THE SHIPPED RULE, and `emit_result()` at the bottom of this section is where it is
+  #     encoded: NOTICED is OUT of the DIRTY test. A run whose only findings are NOTICED
+  #     prints `RESULT: CLEAN WITH DISCLOSURE` and returns **0**; any BLIND or ERROR still
+  #     returns 1. Asserted offline by the SELFTEST's control PAIR — (0 BLIND, 0 ERROR,
+  #     1 NOTICED) -> 0 against (1 BLIND, 0 ERROR, 1 NOTICED) -> 1, same NOTICED count,
+  #     opposite code — plus a row asserting the disclosure text is actually printed;
   #   · it claims strictly LESS than COVERED — the failing assertions may belong to a
   #     DIFFERENT gate entirely, and with the denominator moved we cannot say they do not.
+  #     ⚠ Non-blocking is not covered: a NOTICED row is an UNRESOLVED gate, work-listed
+  #     under `FUP-C2-TIER1-VALUE-ASSERTIONS-ABORT-ON-AN-INLINE-RAISE`.
   # ⚠ `[ -z "$res" ]` (no `Result:` line at all) is a shape move whose `res` is not FAIL, so it
   #   stays ERROR — the ordering below makes that explicit rather than incidental.
   # ⛔ GLOBAL, not `local`, since 2026-09-06 (ADR 0191 D8). The retry net must fire on exactly
@@ -608,8 +618,43 @@ Files=262, Tests=8876, Result: FAIL"
   MERGE_FAILED=0
   echo "--- SELFTEST emit_result: $((8 - er_fail))/8 ok, $er_fail failed ---"
 
-  echo "--- SELFTEST TOTAL: $((20 - st_fail - rt_fail - er_fail))/20 ok, $((st_fail + rt_fail + er_fail)) failed ---"
-  [ "$((st_fail + rt_fail + er_fail))" -eq 0 ] || exit 1
+  # ── ARM 4: the DOMAIN-STATEMENT carries ADR 0187 D1's Tier-2 sentence BYTE-EXACT. ──
+  # ⛔ WHY THIS ARM EXISTS (QA F-MAJOR-1, 2026-09-07). The block shipped a REORDERING of D1's
+  # sentence — "Tier 2 — 190 doors, deferred by ADR 0171, not cleared" — while a parenthetical
+  # beside it asserted the sentence was there "in those words". A block whose whole purpose is
+  # to be quoted verbatim into every gate record cannot self-certify compliance in prose.
+  # ⛔ THE EXPECTATION IS EXTRACTED FROM THE ADR, NEVER RE-TYPED HERE. A hand-copied
+  # expectation drifts with the copy and then passes for ever ("a harness can hold a
+  # HAND-WRITTEN COPY of production text"). ADR 0187 is the authority; this arm only compares.
+  # ⚠ The subject is the SCRIPT'S OWN SOURCE, not domain_statement()'s output: that function is
+  # defined ~450 lines below and its four counts come from psql, and this whole SELFTEST arm
+  # exists BEFORE anything touches the catalog. Grepping the shipping file is the same bytes.
+  echo "=== SELFTEST: DOMAIN-STATEMENT vs ADR 0187 D1's Tier-2 sentence (no DB) ==="
+  d1_fail=0
+  D1_ADR="$ROOT/docs/decisions/0187-c2-closes-on-disclosure-and-the-blind-set-is-labelled-by-property.md"
+  D1_SENTENCE="$(tr '\n' ' ' < "$D1_ADR" 2>/dev/null \
+    | grep -o 'Tier-2 sentence verbatim\*\*[^"]*"[^"]*"' | head -1 \
+    | sed -E 's/^.*"([^"]*)"$/\1/' | tr -s ' ')"
+  d1_case () {  # $1 label  $2 expected(0=ok)  $3 actual
+    if [ "$2" = "$3" ]; then printf '  ok    %-56s\n' "$1"
+    else printf '  NOT OK %-55s (got %s, expected %s)\n' "$1" "$3" "$2"; d1_fail=$((d1_fail+1)); fi
+  }
+  # ⭐ THE INSTRUMENT-ALIVE ROW. An extractor that silently returns "" makes `grep -qF ""`
+  # match every file, so the next two rows would be green against nothing at all.
+  d1_alive=1
+  [ -n "$D1_SENTENCE" ] && [ "${#D1_SENTENCE}" -ge 40 ] && [ "${#D1_SENTENCE}" -le 160 ] \
+    && case "$D1_SENTENCE" in *"ADR 0171"*) d1_alive=0 ;; esac
+  d1_case "the ADR yielded a sentence (extractor alive)" 0 "$d1_alive"
+  d1_present=1; grep -qF -- "$D1_SENTENCE" "${BASH_SOURCE[0]}" && d1_present=0
+  d1_case "this script emits it byte-exact" 0 "$d1_present"
+  # ⭐ DISCRIMINATION HALF. Perturb one token of the SAME sentence: it must NOT be found.
+  # Without this row a matcher that matched everything would report the row above green.
+  d1_perturbed=1; grep -qF -- "${D1_SENTENCE/ADR 0171/ADR 0172}" "${BASH_SOURCE[0]}" && d1_perturbed=0
+  d1_case "a one-token perturbation is NOT found (control)" 1 "$d1_perturbed"
+  echo "--- SELFTEST domain-statement: $((3 - d1_fail))/3 ok, $d1_fail failed ---"
+
+  echo "--- SELFTEST TOTAL: $((23 - st_fail - rt_fail - er_fail - d1_fail))/23 ok, $((st_fail + rt_fail + er_fail + d1_fail)) failed ---"
+  [ "$((st_fail + rt_fail + er_fail + d1_fail))" -eq 0 ] || exit 1
   exit 0
 fi
 
@@ -960,15 +1005,24 @@ SETVALUED_N=$(psql_c -c "select count(*) from pg_proc p join pg_namespace n on n
 
 domain_statement () {   # markdown that also reads correctly on a terminal
   echo "DOMAIN-STATEMENT: what a COVERED/BLIND verdict from THIS arm does NOT cover."
-  echo "(§7.17c — derived from the live catalog on every run; quote this block, not the script.)"
+  echo "(§7.17c — quote this block, not the script. ⚠ PROVENANCE IS PER FIGURE, not per block:"
+  echo " every figure below is tagged either DERIVED THIS RUN — read from the live catalog by this"
+  echo " script — or \`[literal …]\` with its source and as-of date. Populations 1, 2 and 3 are"
+  echo " DECISION figures from ADR 0171 / ADR 0184 pt 4; nothing in this tree derives them, and a"
+  echo " derivation invented here would be a claim with no owner — the shape"
+  echo " \`p0-authz-invariant.sh\`'s ARM 3 banner exists to stop.)"
   echo
-  echo "1. **Tier 2 — 190 doors, deferred by ADR 0171, not cleared.** (ADR 0187 D1: every gate"
-  echo "   record citing this sweep must say so in those words.)"
-  echo "2. **The \`HCDS*\` family (60 raises) and \`28000\` (6).** The C2 neutralizer anchors on"
+  echo "1. **Tier 2's 190 doors stay deferred by ADR 0171 and are NOT cleared.**"
+  echo "   [literal — ADR 0171 via ADR 0187 D1, as of 2026-09-04.] ADR 0187 D1 requires that"
+  echo "   sentence VERBATIM in every gate record citing this sweep; the emphasis markers are"
+  echo "   outside it, and the door harness SELFTEST asserts it byte-exact against the ADR."
+  echo "2. **The \`HCDS*\` family (60 raises) and \`28000\` (6)** [literal — ADR 0184 pt 4, as of"
+  echo "   2026-09-04]. The C2 neutralizer anchors on"
   echo "   \`errcode = '(42501|HC0[A-Z0-9]{2})'\`, which requires a literal \`0\` in position 3, and"
   echo "   the gate-fn filter uses the same anchor — so these doors are STRUCTURALLY ABSENT from"
   echo "   that worklist and appear in its findings neither as a verdict nor as an ERROR."
-  echo "3. **The C2 ERROR class — ~10 enforcers expected, no verdict.** 39 anchored raises carry a"
+  echo "3. **The C2 ERROR class — ~10 enforcers expected, no verdict** [literal — ADR 0184 pt 4,"
+  echo "   as of 2026-09-04]. 39 anchored raises carry a"
   echo "   \`;\` inside the message literal, which the negated-semicolon anchor cannot span, so the"
   echo "   mutation never lands. It fails CLOSED (never a false COVERED), and a door with no"
   echo "   verdict is still not a covered door."
@@ -977,9 +1031,20 @@ domain_statement () {   # markdown that also reads correctly on a terminal
   echo "   function has no call edge from the door that fires it and no boolean this arm can flip."
   echo "   ⛔ Therefore a trigger-caused BLIND is INDISTINGUISHABLE here from an absent-assertion"
   echo "   BLIND: the first is discharged only by a keystone on a fixture the TRIGGER does not"
-  echo "   already refuse; the second by a keystone on the door. Measured witness:"
-  echo "   \`public.reopen_interview\` BLIND while \`121_interviews.sql\` pins its \`HC038\` — the"
-  echo "   \`HC038\` observed comes from \`app.guard_interview_status\`, a trigger on \`case_interviews\`."
+  echo "   already refuse; the second by a keystone on the door. Measured witness — HISTORICAL"
+  echo "   AND DATED, because its DISCHARGE is what makes it useful: \`public.reopen_interview\`"
+  echo "   was C2-**BLIND** on 2026-09-02 because \`121_interviews.sql:297\` pinned only the CODE"
+  echo "   (\`throws_ok(…, 'HC038', null, …)\`); under mutation the \`HC038\` observed came from"
+  echo "   \`app.guard_interview_status\` — a \`prosecdef\` TRIGGER wired on \`case_interviews\` —"
+  echo "   refusing \`cancelled -> in_progress\`, so a null-message pin passed against the WRONG"
+  echo "   enforcer. It went **COVERED on 2026-09-04** (\`f33d9ba7\`;"
+  echo "   \`docs/reviews/c2-command-door-findings.md\`) when \`121_interviews.sql:565\` pinned the"
+  echo "   door's OWN message on an \`awaiting_follow_up\` fixture the trigger cannot pre-empt —"
+  echo "   the exact remedy this bullet names, executed."
+  echo "   ⛔ NO LIVE WITNESS EXISTS TODAY: no BLIND door on this stack is attributable to a"
+  echo "   trigger (C2 stands at 170 COVERED / 1 BLIND / 0 ERROR, and the one BLIND,"
+  echo "   \`app.print_source_series\`, has no trigger in its path). So population 4 is currently"
+  echo "   ASSERTED — bounded by the two DERIVED counts above — and witnessed only historically."
   echo "   ⚠ A defence-in-depth pair (door guard + trigger guard) can therefore LOOK like a gap."
   echo "5. **The NOTICED class — DISCLOSED, NON-BLOCKING, and NOT a verdict** (PO ruling"
   echo "   2026-09-07). A gate whose neutralization reddened the suite while a file ABORTED"
@@ -998,7 +1063,9 @@ domain_statement () {   # markdown that also reads correctly on a terminal
   echo "- **$PRED_OUT \`prosecdef\` boolean(s) outside the domain**, listed at the end of this report."
   echo "  \"Outside this arm\" is NOT \"unswept\" — other arms exist — and $PRED_OUT is the size of the"
   echo "  UNCLASSIFIED set, never a defect count."
-  echo "- **The 2 side-effecting writers** (\`app.enqueue_notification\`,"
+  echo "- **The 2 side-effecting writers** [literal, and SELF-EVIDENCING — the hold-out is a"
+  echo "  NAME LIST in this script, so the count is the length of the list beside it]"
+  echo "  (\`app.enqueue_notification\`,"
   echo "  \`public.remind_document_approver\`) are held out BY NAME: swapping their body for"
   echo "  \`select true\` would disarm a notification enqueue / an approver reminder rather than"
   echo "  open a gate, and the suite would go green for the wrong reason."
@@ -1008,8 +1075,11 @@ domain_statement () {   # markdown that also reads correctly on a terminal
   echo "- **Set-valued resolvers — $SETVALUED_N \`prosecdef\` \`SETOF uuid\` function(s), DERIVED this"
   echo "  run.** Only a BOOLEAN predicate is sweepable by this mechanism (ADR 0079 hazard 4), so"
   echo "  they are out of domain by RETURN TYPE, before any name or body test runs. Three of them"
-  echo "  are authorization scope resolvers and have a committed, scheduled home:"
-  echo "  \`supabase/tests/mutation/authz-setvalued-targeted-cases.sh\`."
+  echo "  [literal, and SELF-EVIDENCING — an explicit scope list in that harness, whose live"
+  echo "  cardinality its own §4b asserts each run] are authorization scope resolvers and have a"
+  echo "  committed, scheduled home: \`supabase/tests/mutation/authz-setvalued-targeted-cases.sh\`."
+  echo "  Their verdicts are FILED as rows in this report (§ The three set-valued scope"
+  echo "  resolvers), keyed as \`census_proc_domain\` emits them, since 2026-09-07."
   echo "- **RLS policies**: this arm sees \`polcmd in ('r','*')\` only, and since 2026-09-05 it opens"
   echo "  the \`using\` half ALONE. A verdict here is a claim about the READ half and nothing else;"
   echo "  the \`with check\` half belongs to \`p0-authz-writepath-audit.sh\`."

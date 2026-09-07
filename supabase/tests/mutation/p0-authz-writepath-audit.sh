@@ -81,15 +81,22 @@
 #
 # ⭐ WHY `ALL` OPENS THE WITH-CHECK HALF ALONE, and it is not conservatism. An `ALL` policy's
 # `using` clause ALSO gates SELECT, and `p0-authz-door-audit.sh` already sweeps it: its policy
-# arm's domain is `pol.polcmd in ('r','*')` and it opens `using (true)` (plus `with check
-# (true)` when one exists). If this arm also opened `using`, a COVERED here could be earned by
-# a READ keystone and would say nothing about the write path — a false coverage claim, the
-# exact failure this harness exists to prevent. Opening the WITH CHECK alone isolates the
-# INSERT / UPDATE-new-row half, which is the half no read keystone can reach.
+# arm's domain is `pol.polcmd in ('r','*')` and it opens `using (true)` — ⛔ **the `using` half
+# ALONE since 2026-09-05 (ADR 0191 D2 / `FUP-DOOR-AUDIT-ALL-POLICY-COVERED-IS-MIRROR-AMBIGUOUS`).
+# This comment used to read "(plus `with check (true)` when one exists)", which described the
+# read arm before that fix; it is corrected here rather than deleted because the two arms'
+# halves only add up if both files state the same split.** If this arm also opened `using`, a
+# COVERED here could be earned by a READ keystone and would say nothing about the write path —
+# a false coverage claim, the exact failure this harness exists to prevent. Opening the WITH
+# CHECK alone isolates the INSERT / UPDATE-new-row half, which is the half no read keystone
+# can reach.
 # ⚠ STATED, not hidden: the DELETE and UPDATE-row-visibility half of an `ALL` policy is
 # governed by that same `using` clause and is therefore NOT opened by this arm. It is opened
-# by the read arm, whose COVERED for an `ALL` policy is correspondingly ambiguous in the other
-# direction. Neither arm currently attributes an `ALL` policy's verdict by command.
+# by the read arm — ⭐ and since 2026-09-05 the read arm's COVERED for an `ALL` policy is
+# NO LONGER ambiguous in the other direction: it is a claim about the READ half and nothing
+# else. The two halves are now disjoint and jointly exhaustive, which is what makes the split
+# a partition rather than an overlap. ⚠ Still true: neither arm attributes an `ALL` policy's
+# verdict by COMMAND — the read arm's `using` covers SELECT and DELETE-row-visibility together.
 # ⚠ Measured 2026-09-02: all 62 live `ALL` policies carry an EXPLICIT `with_check`, so the
 # open and its restore are both plain `ALTER POLICY` and round-trip byte-exact. An `ALL`
 # policy with a NULL `with_check` (its WITH CHECK defaulting to its USING) cannot be opened
