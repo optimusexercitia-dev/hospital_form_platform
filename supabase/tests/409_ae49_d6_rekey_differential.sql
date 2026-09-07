@@ -39,7 +39,7 @@
 -- `authz` (401 §18), so layer-2 probes run at the suite's default role and door probes run under
 -- `set local role authenticated`. Deleting a grant likewise needs `reset role` first.
 --
--- RUN SHAPE: `Files=2, Tests=74` (73 here + 00_setup.sql's one). ⛔ Keep this line in step with
+-- RUN SHAPE: `Files=2, Tests=76` (75 here + 00_setup.sql's one). ⛔ Keep this line in step with
 -- plan() — a stale RUN SHAPE is read as the expected shape by the next person diagnosing a
 -- count mismatch.
 -- ⚠ 63 -> 72 at 20261003007340: § 2's mutated half now covers `form_item_options` and
@@ -48,9 +48,12 @@
 -- production door".
 -- ⚠ 72 -> 73 at the Gate AE4 review (F-MAJOR-4a): § 2.9a, the mutated twin `form_versions`
 -- never had. § 2.5 had been a one-sided baseline since the file was written.
+-- ⚠ 73 -> 75 at 20261003007350 (pre-AE5 Batch 4, ADR 0193 D5): § 2.6f / § 2.10e, the BEHAVIOURAL
+-- differential for the DEFINER door `public.set_item_validations`, on both polarities. § 2.10c
+-- changed its EXPECTED VALUE in the same change and is not a count movement.
 
 begin;
-select plan(73);
+select plan(75);
 
 -- ============================================================================
 -- §0 — FIXTURE + PRECONDITIONS. Every precondition is ASSERTED, never claimed: a reading is not
@@ -369,6 +372,34 @@ select is(
   '`authenticated`. So the two sites 20261003007340 touches have OPPOSITE reachability, the '
   'probe distinguishes them, and 2.6b/2.10a are known to be exercising a live door.');
 
+-- ⛔⛔ 2.6f IS HALF OF A DIFFERENTIAL AND IS USELESS ALONE. Its twin is 2.10e. Site 6's policy is
+-- unreachable (2.6d), so the ONLY thing that can carry `commission.forms.edit` to
+-- `form_item_validations` is the SECURITY DEFINER door — which is why 20261003007350 re-keyed the
+-- DOOR rather than the policy (ADR 0193 D5). ⛔ A `throws_ok('42501')` under the mutation proves
+-- NOTHING on its own: a door that denies this principal for an unrelated reason was already
+-- denying before the grant moved ("a `door = false` that was already false proves nothing about
+-- the grant", this file's header). THIS assertion is what makes 2.10e attributable.
+-- ⚠ The item is `q409st` (short_text) and the rule `text_length`, because
+-- `app.validation_rule_allowed` permits that pair and rejects it on the choice item — a coverage
+-- failure raises HC0Q1, which 2.10e's `42501` key would not confuse with authority, but which
+-- would make THIS half red for the wrong reason.
+select lives_ok($$ select public.set_item_validations(
+                     (select id from public.form_items
+                       where form_version_id = (select id from public.form_versions
+                                                 where form_id = (select fid from f409s)
+                                                   and version_number = 9091)
+                         and question_key = 'q409st'),
+                     '[{"rule_type":"text_length","severity":"error",
+                        "message":"Máximo 10 caracteres","position":1,
+                        "config":{"max":10}}]'::jsonb) $$,
+  '2.6f ⭐⭐ BASELINE, THE DEFINER DOOR: with the grant PRESENT the staff_admin may set validations '
+  'through `public.set_item_validations`. ⭐ ITS MUTATED TWIN IS 2.10e. Before 20261003007350 the '
+  'door gated on `app.is_staff_admin_of(...) OR app.is_tenancy_admin_of(...)` and BOTH halves of '
+  'this differential read "succeeds" — the permission was inert for the whole table. ⛔ The flag '
+  '`item_validations` must be ON for this to be an authority measurement at all: the door raises '
+  'HC0Q0 before the authority check, and a flag failure read as an authority failure is exactly '
+  'the trap §3.0 closes for representative 2.');
+
 reset role;
 
 -- ---------- ⭐ THE MUTATION ----------
@@ -454,25 +485,39 @@ select is(
                then 'carries-the-code' else 'no-code' end
      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.proname = 'set_item_validations'),
-  'layer1/no-code',
-  '2.10c ⭐⭐ THE DISCLOSED LIMIT OF REPRESENTATIVE 1, PINNED SO IT CANNOT BE READ AS DONE. '
-  '`public.set_item_validations` is the ONLY `authenticated`-reachable write path to '
-  '`form_item_validations` (2.6d), and it still gates on `app.is_staff_admin_of(...) OR '
-  'app.is_tenancy_admin_of(...)` and carries NO permission-code literal. So deleting the '
-  '`staff_admin -> commission.forms.edit` grant does NOT stop a staff_admin editing validations '
-  '— the POLICY door flips (that is what 20261003007340 achieved and what 2.1 asserts), the '
-  'DEFINER door does not. ⛔ THIS PINS A KNOWN STATE, NOT A DEFECT TO PRESERVE: matrix row 1''s '
-  '"D 8 form fns" are 0-of-8 re-keyed (measured: exactly FOUR permission-code literals exist in '
-  '`app`+`public` at this head, all of them authorizers), and moving them is AE5 work. WHEN AE5 '
-  'RE-KEYS THIS DOOR THIS ASSERTION REDS, and the fix is to change the expected string to '
-  '`moved/carries-the-code` and add the behavioural differential — never to delete the line. '
-  '⚠ THE NEEDLE IS THE CODE AS A STRING LITERAL, WITH ITS QUOTES, AND `position` RATHER THAN A '
-  'REGEX — permission codes contain `.`, which a regex reads as "any character". ⛔ It names the '
-  'ONE code rather than joining `authz.permissions`: this probe runs under `set local role '
-  'authenticated`, which holds NO USAGE on `authz` (see this file''s header). The first draft '
-  'joined that table and died with `permission denied for schema authz` mid-section. '
-  '⚠ Without this pin, §2''s green reads as "the production door for commission.forms.edit '
-  'flips", which is true of the six policies and false of the eight doors.');
+  'moved/no-code',
+  '2.10c ⭐⭐ REPRESENTATIVE 1''s DEFINER DOOR — RE-AIMED at 20261003007350 (pre-AE5 Batch 4, ADR '
+  '0193 D5). MEASURED NOW: `moved/no-code`. `public.set_item_validations` gates on '
+  '`app.can_edit_commission_forms(v_commission, (select auth.uid()))` — the authorizer, exactly '
+  'as the six policies do — and the permission-code literal stays where D7 put it, in the '
+  'authorizer ALONE. The behavioural halves are 2.6f (grant present, succeeds) and 2.10e (grant '
+  'deleted, `42501`). ⛔ THE NEEDLE IS STILL THE CODE AS A STRING LITERAL, WITH ITS QUOTES, AND '
+  '`position` RATHER THAN A REGEX — permission codes contain `.`, which a regex reads as "any '
+  'character"; and it names the ONE code rather than joining `authz.permissions`, because this '
+  'probe runs under `set local role authenticated`, which holds NO USAGE on `authz`. '
+  '⚠⚠ DATED NOTE, 2026-09-07 — THE ORIGINAL PRESCRIPTION WAS WRONG, AND IS KEPT VERBATIM BELOW '
+  'RATHER THAN REWRITTEN (LEARN-088: a correction is a dated note beside the original, never a '
+  'replacement of it). It prescribed `moved/carries-the-code`. That is wrong for the CORRECT '
+  'implementation: a re-key onto the authorizer does not put the literal in `public`, and doing '
+  'so would break this row''s own claim that `app.can_edit_commission_forms` is the ONLY place '
+  '`commission.forms.edit` appears in the catalog and would move 410 § 8.6''s carrier count from '
+  '4 to 5. Its second clause — "add the behavioural differential … never to delete the line" — '
+  'held and was honoured. Its "0-of-8 re-keyed" is now 1-of-8 (the other seven stay AE5''s and '
+  'are declared, not prose, in the manifest row''s `definerSurface`). '
+  '⛔ ORIGINAL TEXT, VERBATIM, AS THE RECORD OF THE PRE-20261003007350 STATE: "THE DISCLOSED '
+  'LIMIT OF REPRESENTATIVE 1, PINNED SO IT CANNOT BE READ AS DONE. `public.set_item_validations` '
+  'is the ONLY `authenticated`-reachable write path to `form_item_validations` (2.6d), and it '
+  'still gates on `app.is_staff_admin_of(...) OR app.is_tenancy_admin_of(...)` and carries NO '
+  'permission-code literal. So deleting the `staff_admin -> commission.forms.edit` grant does NOT '
+  'stop a staff_admin editing validations — the POLICY door flips (that is what 20261003007340 '
+  'achieved and what 2.1 asserts), the DEFINER door does not. ⛔ THIS PINS A KNOWN STATE, NOT A '
+  'DEFECT TO PRESERVE: matrix row 1''s "D 8 form fns" are 0-of-8 re-keyed (measured: exactly FOUR '
+  'permission-code literals exist in `app`+`public` at this head, all of them authorizers), and '
+  'moving them is AE5 work. WHEN AE5 RE-KEYS THIS DOOR THIS ASSERTION REDS, and the fix is to '
+  'change the expected string to `moved/carries-the-code` and add the behavioural differential — '
+  'never to delete the line. ⚠ Without this pin, §2''s green reads as "the production door for '
+  'commission.forms.edit flips", which is true of the six policies and false of the eight '
+  'doors."');
 
 select cmp_ok((select count(*)::int from public.form_item_options
                 where item_id = (select id from public.form_items
@@ -486,6 +531,31 @@ select cmp_ok((select count(*)::int from public.form_item_options
   'gate closing and not the row vanishing. ⛔ Exactly ONE row: 2.6b''s. 2.10a''s insert was '
   'rejected, so a count of 2 here would mean 2.10a''s throws_ok caught a rollback of something '
   'that had already been written.');
+
+-- ⭐⭐ THE BEHAVIOURAL DIFFERENTIAL FOR THE DEFINER DOOR. Twin of 2.6f; exactly one fact differs
+-- between them and it is a row in `authz.role_permissions`. ⛔ Captured under `throws_ok`, never
+-- inline in an `is()`: a door that raises inside a value assertion's subject expression ABORTS the
+-- file instead of failing the test, and a mutation harness reads that as ERROR — the verdict is
+-- lost, never earned (LEARN-083).
+select throws_ok($$ select public.set_item_validations(
+                      (select id from public.form_items
+                        where form_version_id = (select id from public.form_versions
+                                                  where form_id = (select fid from f409s)
+                                                    and version_number = 9091)
+                          and question_key = 'q409st'),
+                      '[{"rule_type":"text_length","severity":"error",
+                         "message":"Máximo 20 caracteres","position":1,
+                         "config":{"max":20}}]'::jsonb) $$, '42501', null,
+  '2.10e ⭐⭐ THE GATE LINE AT THE DEFINER DOOR — the assertion 20261003007350 exists for. With the '
+  '`staff_admin -> commission.forms.edit` grant DELETED, `public.set_item_validations` now raises '
+  '`42501`; 2.6f is the same call, same principal, same fixture, with the grant present, and it '
+  'SUCCEEDS. ⛔ BEFORE 20261003007350 THIS ASSERTION WAS RED and its counterpart 2.6f green: the '
+  'door gated on `app.is_staff_admin_of`, so the permission was load-bearing on nothing for this '
+  'table — the policy site is unreachable (2.6d), which is why the re-key had to move the DOOR. '
+  '⚠ Keyed on `42501` SPECIFICALLY: the door raises HC0Q0 (flag), HC0Q1 (item / coverage), HC0P4 '
+  '(published version) and HC0Q2 (payload shape) on other branches, and a bare `throws_ok` would '
+  'read any of them as the authority gate — the ADR 0079 discipline the door itself follows in '
+  'its own "AUTHORITY FIRST" comment.');
 
 select cmp_ok((select count(*)::int from public.forms where id = (select fid from f409s)), '>=', 1,
   '2.11 ⭐⭐ THE PERMISSIVE-SIBLING CONTROL, AND IT IS WHAT MAKES §2 EVIDENCE. Under the SAME '
@@ -817,10 +887,18 @@ select is((select count(*)::int from pg_policies
 
 select is((select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
             where n.nspname in ('app','public','authz')
-              and regexp_replace(p.prosrc, '--[^' || chr(10) || ']*', '', 'g') ~ 'is_staff_admin_of'), 179,
-  '5.2 ...and its FUNCTION-body surface did not move at all: 179 bodies reference the `_of`/`_for` '
-  'pair (unanchored prefix match — 151 + 28, the two figures 0176 Context records). This '
-  'increment touched no function that calls the wrapper.');
+              and regexp_replace(p.prosrc, '--[^' || chr(10) || ']*', '', 'g') ~ 'is_staff_admin_of'), 178,
+  '5.2 ...and its FUNCTION-body surface has now moved by exactly ONE: 178 bodies reference the '
+  '`_of`/`_for` pair (unanchored prefix match). ⚠ DATED NOTE, 2026-09-07 — the original caption '
+  'read "did not move at all: 179 bodies … This increment touched no function that calls the '
+  'wrapper" (unanchored prefix match — 151 + 28, the two figures 0176 Context records), and it '
+  'was true of 20261003007300 and 20261003007340, which moved POLICIES only. 20261003007350 is '
+  'the first increment to re-key a FUNCTION: `public.set_item_validations` no longer calls the '
+  'wrapper, so 179 -> 178. It is kept beside the corrected figure rather than rewritten '
+  '(LEARN-088). ⛔ THE DELTA IS FULLY ATTRIBUTED: 20261003007350 replaces exactly one function '
+  'body, that body matched this pattern before and does not now, and no other function was '
+  'touched. Each further AE5 door re-key moves this number DOWN by one; a red here is the '
+  'increment being recorded, never a number to restore.');
 
 select ok((select regexp_replace(p.prosrc, '--[^' || chr(10) || ']*', '', 'g')
              from pg_proc p join pg_namespace n on n.oid = p.pronamespace
