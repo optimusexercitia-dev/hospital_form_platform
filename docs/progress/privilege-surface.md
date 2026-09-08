@@ -756,3 +756,15 @@ defect.
 which is what R33 requires before PO approval. ⚠ The ceiling entry's heading still describes the
 budget as *"759 against a ceiling of 752"*, now superseded by R24 — the closure is the place that
 fixes it.
+
+**⛔⛔ `45204ddb`'s message is malformed the SAME way `b657aaf6`'s was, and it is NOT amended.** A
+PowerShell here-string (`@'…'@`) was passed to the **Bash** tool, where `@'` is an ordinary literal,
+so the subject carries a leading `@ ` and the body a trailing `@`. ⭐ **This is the trap Track A
+wrote down in this very file, and it caught the next writer to touch the file — one entry later, by
+a different agent, on a turn that had already READ that entry.** ⇒ Recording a hazard in a session
+log is demonstrably not the same as being protected from it; the remedy that would actually bind is
+a habit or a gate, not a paragraph. Per the standing rule *a subagent must never `git commit
+--amend`* — whose named remedy is *"a bad message gets a follow-up commit"* — it is corrected here
+rather than rewritten, and the rule's mechanism is not hypothetical even for a sole owner: `--amend`
+targets **HEAD**, not *"my commit"*, and this runner cannot prove nothing landed between its
+`git status` and its `git commit`. The content of `45204ddb` is exactly this file, **+167/−0**.
