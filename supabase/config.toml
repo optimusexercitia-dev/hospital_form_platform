@@ -10,6 +10,44 @@ enabled = true
 port = 54321
 # Schemas to expose in your API. Tables, views and stored procedures in this schema will get API
 # endpoints. `public` and `graphql_public` schemas are included by default.
+# ⛔ THE `schemas` LINE BELOW IS LOAD-BEARING. (It is cited across this repo as
+# `config.toml:13`; this block was added above it on 2026-09-08, so the assignment now
+# sits lower and an older `:13` citation lands here, on its explanation.)
+#
+# Schema `app` holds 467 functions, of which 237 are `anon`-executable — mostly through
+# `proacl IS NULL`, the Postgres default that includes PUBLIC, and not through any
+# deliberate grant (measured 2026-08-22 from the live catalog;
+# docs/followups/FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED.md). Those grants confer
+# nothing today for exactly ONE reason: PostgREST is not told to expose `app`. This list
+# is that instruction. Add "app" here and all 237 become directly `anon`-callable in the
+# same edit — the ACLs are not holding that line; this list is.
+#
+# Six in-tree documents argue their own severity from "only `public`/`graphql_public` are
+# exposed", so ANY added schema invalidates them, not only "app":
+#   supabase/tests/320_act_expiry_and_acl_hardening.sql:285-287 (and :186-188) — the
+#     severity argument of the LIVE U1 assertion pinning the `app` PUBLIC-executable set
+#     at 236: "config.toml exposes ONLY the `public` schema ... This is defence-in-depth."
+#   docs/backend-state.md:3547-3549 — why `session_context()` lives in `public`, not `app`
+#   docs/design/authz-ae1-revoke-partition.md:44 — the rationale of the UNCHANGED partition
+#   docs/design/authz-definer-classification-ae1.md:41 and :484-486 — "no `app` function
+#     is client-invocable", under 320 `app` DEFINER grants and 213 of the 233 AE1 revokes
+#   docs/followups/FUP-UI-AUTHZ-WRAPPERS-DUPLICATE-THE-ENFORCING-PREDICATE.md:15-18 — why
+#     the `public` wrappers are NOT redundant and must not be "simplified" away
+#   docs/phases/ethics-e4-participant-seating.md:40-43 — "every new door goes in `public`"
+#
+# GATED since 2026-09-08 by `npm run lint` gate 14,
+# scripts/check-supabase-config-schemas.mjs (ruling R2, unit PRIVILEGE-SURFACE): it reds
+# if this list gains "app" (a SECURITY event, named as such) and, separately, if the list
+# changes at all (a REVIEW event). Before that gate, nothing in the tree noticed a change
+# to this line — the only two programmatic readers of this file match `project_id` only.
+#
+# ⛔ THE BOUND OF THAT GATE, stated here so it is not over-read: it proves THIS FILE
+# never gains `app`. It does NOT prove the DEPLOYED PostgREST configuration matches this
+# file (the hosted exposed-schema setting lives outside this repo), and no behavioural
+# test anywhere asserts `app.*` is unreachable over the API — filed as
+# FUP-AUTHZ-NO-BEHAVIOURAL-PROOF-APP-SCHEMA-UNREACHABLE-OVER-POSTGREST.
+#
+# ⛔ LOAD-BEARING — DO NOT ADD "app" TO THIS LIST.
 schemas = ["public", "graphql_public"]
 # Extra schemas to add to the search_path of every request.
 extra_search_path = ["public", "extensions"]

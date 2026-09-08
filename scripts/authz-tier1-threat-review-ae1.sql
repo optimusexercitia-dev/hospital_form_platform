@@ -60,6 +60,33 @@ select 'migration head'   as figure, max(version)::text as value from supabase_m
 union all
 select 'migrations applied', count(*)::text from supabase_migrations.schema_migrations
 union all
+-- ⚠ THE LITERAL BELOW IS A TRANSCRIPTION, NOT A READING.
+--
+-- It was typed by hand from the `[api].schemas` assignment in `supabase/config.toml`
+-- (historically cited as `config.toml:13`; a load-bearing comment block now sits above
+-- it, so the assignment is lower in the file). Nothing here opens that file, so if the
+-- exposed-schema list ever changes, this block prints the STALE value and the script
+-- still exits 0 -- and every figure below inherits a reachability premise that is no
+-- longer true. ⚠ The label already says config.toml is the authority; this note says
+-- what follows from that, which is that the string is evidence about 2026-08-27 and
+-- about nothing later.
+--
+-- ⚠ AND NOTHING RUNS THIS SCRIPT. Verified 2026-09-08: no npm script and no harness
+-- invokes it (`grep -rn authz-tier1-threat-review` outside `graphify-out/` returns
+-- prose citations only, in seven documents). It is a hand-run deriving instrument, so
+-- the staleness above would surface only when someone re-runs it by hand and reads the
+-- output as current.
+--
+-- The config line itself IS now protected: `npm run lint` gate 14
+-- (`lint:config-schemas`, `scripts/check-supabase-config-schemas.mjs`, ruling R2 of unit
+-- PRIVILEGE-SURFACE) reds if that list gains `app` or changes at all.
+--
+-- ⛔ DELIBERATELY NOT PINNED HERE. Asserting the literal in this script too would give
+-- one fact two homes that can disagree, and the drifted one would be a number with no
+-- owner -- the exact disease ARM=census carries a standing prohibition against
+-- ("⚠ DERIVED, NEVER FROZEN ... A number a banner states about a population NOTHING
+-- re-derives is a claim with no owner"). The line has ONE gated home; this is a pointer
+-- to it, not a second copy of it.
 select 'exposed schemas (config.toml is the authority; this is the reachability premise)',
        'public, graphql_public';
 
