@@ -53,7 +53,9 @@ explicit; `AUTHZ · Gate 2` given the review link it never had; the malformed 8-
 ⭐ **`DSR` was admitted AFTER the ruling**, under the ruling's own principle rather than inside the
 option the PO picked — **PO-RATIFIED 2026-09-08**: the objection was *procedural* (who authorised it),
 not *factual* (is it true), and only the factual kind impeaches a record.
-Ledger now **89 rows, every one 9 cells** (was 81 with one 8-cell row). ⚠ This block read "87" — a
+Ledger now **every row 9 cells** (it was 81 rows with one 8-cell row). ⛔ The row TOTAL is not
+quoted: it moved 87 → 88 → 89 during this work and goes to 90 when Batch 6 writes its own row.
+⚠ This block read "87" — a
 mid-session figure standing beside the final one four lines below it (QA r2 MINOR-5); 88 once Batch 6's
 AE2 row merged with these six, 89 once this unit got its own row.
 

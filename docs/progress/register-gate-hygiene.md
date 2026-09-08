@@ -674,3 +674,79 @@ be deleted at Record without redding gate 13's `in_progress` branch check.
 - ⚠ `check-docs-registers.mjs`'s unguarded `pathToFileURL(process.argv[1])` crashed the module on
   **import** under `node -e` — transitive to gate 9, which now imports from it — and cost two
   verification attempts before being guarded.
+
+### 2026-09-08 — QA fix loop 4 (lead): the SEVENTH, and why it differs from the other six
+
+⭐ **QA r4's headline is that the code is done and could not be broken** — every finding in rounds
+2, 3 and 4 was **documentation about measurements**, not a gate defect. The unit was, in its words,
+one edit-pass from shippable. This entry records that pass and the finding that made it necessary.
+
+#### The seventh instance is BESIDE the correction, not inside it
+
+Fix loop 3 did the right thing — **remove** the class instead of correcting the number a seventh
+time — and then **scoped the removal to the PHRASE the previous round argued about** ("readable/total
+ratio") rather than deriving the population of **counts** in the files it was editing. Direction
+right, population unmeasured, one level up. Three survivors, all in this unit's own files:
+
+| Site | Asserted | Measured at HEAD |
+|---|---|---|
+| `check-docs-registers.mjs:273` | *"29 of phase-ledger.md's 83 pipe-lines already write `\| **AE0** \|`"*, present tense | 91 pipe-lines, 42 bolded, 89 data rows |
+| `check-docs-registers.mjs:278` | *"Not fixed by unbolding 76 rows"* | 76 is the figure this unit's own hub calls **refuted** |
+| `follow-ups-open.md:1303` | *"`\| AE4 \|` **currently** sits unbolded alone among 76 rows"* | `\| **AE4** \|` — re-bolded by this unit |
+
+⛔ **`:273` was EXACTLY TRUE at its own commit** (`375726b2`) and was falsified **by this unit's own
+later commits** — and it sat 66 lines above the banner `⛔⛔ NO COUNTS LIVE IN THIS COMMENT,
+DELIBERATELY`, which tells the next reader not to look there. ⭐ A banner asserting a property the
+file does not have is worse than no banner: it redirects the only person who might have checked.
+
+**MAJOR-1 — the fourth site of a withdrawn figure, in the register a PO ruling reads.**
+`follow-ups-open.md:1002` still carried *"two independent sweeps gave 12 and 13 here"* — the exact
+`file:line` r3 MAJOR-4 named, and the one home where a PO would act on it. Three of four sites had
+been fixed. ⛔ **That line was edited TWICE after the retraction** (shape (a) in `694531f4`, shape (d)
+in `a3b7d136`) and the figures survived both — an edit that does not re-read the sentence it is
+editing is not an edit.
+
+**MAJOR-2 — the closing condition could not bind its own most-severe shape.** The entry's
+`Closes when` read *"either the remaining shapes are read, or a ruling says they stay unread"*.
+⛔ **Shapes (a)(b)(c) are false NEGATIVES; shape (d) is a false POSITIVE** — a fenced or indented
+*quotation* of a verdict being accepted. "Read more" is what CAUSES (d), so the first disjunct was
+satisfiable **by the bug itself** and the entry's own "most likely to bite" shape closed for free.
+Split into two conditions of opposite polarity, (ii) carrying its own proven-able-to-fire fixture.
+
+#### The repair, done as a derivation this time
+
+The population was **derived** — every numeric claim in the files this unit authored, then each
+dispositioned **live / dated / withdrawn** — rather than fixing the sites QA happened to name:
+counts removed from the gate comment and its fixture note, from the hub's summary and acceptance
+criteria, from the `LEDGER-COMPLETENESS` hub (its total goes to 90 the moment this unit writes its
+own ledger row, so it is no longer stated), and from two register entries. Dated recon figures keep
+their `@ 6810d95b` and say they are dated. ⚠ Even inside this pass the sweep's own vocabulary missed
+a present-tense *"**14** broken today"* in the acceptance criteria, caught on a second read — the
+population is only as good as the terms you sweep for.
+
+#### What QA verified rather than accepted
+
+- The ratio **re-derived from the comment's own recipe in six lines**, confirming the derivation form
+  is sufficient and nothing load-bearing became unmeasurable. ⭐ A quoted figure would have been false
+  again the moment the r4 report itself committed.
+- The load-bearing claim survives and is checkable: **no `complete` hub depends on an unread
+  verdict** — every `complete` hub passes, and the only one passing review-only does so on a
+  *readable* review.
+- r3 MINOR-1 fully discharged: **both** widened classes now carry accept **and** reject fixtures.
+- Shape (d) re-measured independently: fenced ✓ accepted, indented ✓ accepted — the filing is
+  accurate even though its clause was not.
+
+#### QA's own instrument failure, reported by QA
+
+⭐ Its first per-commit census used `git ls-files --with-tree=<sha>`, which **unions the index** and
+returned the same total for all seven commits — which would have made r3's MAJOR-1 look fabricated.
+`git ls-tree` gives the true per-commit series and r3 reproduces exactly. ⛔ Recorded because it is
+the same failure class as the unit's own: an instrument that answers confidently without measuring
+what you think it measures.
+
+#### Still owed at the Record step (QA r4 §4, verified against the tree)
+
+`REGISTER-GATE-HYGIENE` has `inLedger=false` and `reviews: []`, so its hub **cannot** go `complete`
+until it has its own ledger row — and writing that row moves the total again, which is why
+`ledger-completeness.md` no longer quotes one. The `DSR` cell-3 rewrite is still owed. All six
+follow-up ids are still `Status: open` by design. `--ff-only` is still possible.

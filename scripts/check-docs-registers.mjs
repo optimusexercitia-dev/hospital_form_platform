@@ -270,12 +270,15 @@ export const RESOLVED_HEADING_RX = /⬛|✅ ?\*{0,2}(RESOLVED|CLOSED)\b/u
  * `\b${id}\b` scan passed on a MENTION ("see AE4 for context") with no row behind it at all.
  *
  * ⭐ 2026-09-08 (FUP-DOCS-CONSOLIDATION-LEDGER-ID-BOLD-DEFEATS-THE-COMPLETE-GATE): the first
- * cell may be BOLD. 29 of phase-ledger.md's 83 pipe-lines already write `| **AE0** | …`, and the
- * old ` *` before the id is a SPACE quantifier, so every one of those rows was invisible to this
- * check — a row-grade gate defeated by two asterisks, silently, with the row sitting right there.
+ * cell may be BOLD. Most of `phase-ledger.md`'s rows write `| **AE0** | …`, and the old ` *`
+ * before the id is a SPACE quantifier, so every one of those rows was invisible to this check — a
+ * row-grade gate defeated by two asterisks, silently, with the row sitting right there.
+ * ⛔ No bolded/total tally is quoted here. One was, and this unit's OWN later commits falsified
+ * it while it sat 66 lines above a banner saying no counts live in this comment (QA r4).
  * The widening is bounded to the decoration itself (`**`, in either or both positions): the id
  * must still be the WHOLE first cell, so `| AE4 — see below |` and `| Phase 4 |` stay rejected
- * and the row-grade property the plan bought is intact. ⛔ Not fixed by unbolding 76 rows.
+ * and the row-grade property the plan bought is intact. ⛔ Not fixed by unbolding the ledger's
+ * rows — the entry that proposed that put a row count on it which this unit later refuted.
  */
 export function hubHasLedgerRow(id, ledgerText) {
   const esc = String(id).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -1649,7 +1652,7 @@ function selfTest() {
   const accepts = (name, fn, s) => must(`${name} ACCEPTS ${JSON.stringify(s)}`, [fn(s) ? '' : 'x'].filter(Boolean), false)
   const rejects = (name, fn, s) => must(`${name} REJECTS ${JSON.stringify(s)}`, [fn(s) ? 'x' : ''].filter(Boolean), false)
   const inLedger = (s) => hubHasLedgerRow('AE4', s)
-  // ACCEPT: the bold first cell 29 of the live ledger's 83 pipe-lines already use.
+  // ACCEPT: the bold first cell most live ledger rows use (⛔ count derived, never quoted).
   accepts('hubHasLedgerRow', inLedger, '| **AE4** | complete | ...')
   accepts('hubHasLedgerRow', inLedger, '| **AE4** | x |')
   accepts('hubHasLedgerRow', inLedger, '|  AE4  | x |')
