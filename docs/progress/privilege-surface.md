@@ -1039,3 +1039,119 @@ than left to inference — an unrun gate is not a passed one.
   error this unit corrected as 137-vs-138.
 - The hub's **Gate at the tip** paragraph now names the commit it describes (`bd50dfc9`) and states
   that the gate is **re-owed at the final tip**, because the lead broke the freeze (R37).
+
+## 2026-09-08 — QA fix loop, iteration 2 of ≤5 (`backend`)
+
+QA's **re-review** (`docs/reviews/privilege-surface-rereview.md`, reviewed at `834e55d8`) returned
+**CHANGES REQUESTED** on two items owned by this role: **B1** (blocking) and the **MAJOR** census
+note. ⛔ **B2, the hub and ADR 0195 are the lead's** and are untouched here.
+
+**B1 — this role INTRODUCED the defect it is fixing, and the worse half was the comment.** Gate 14's
+escalation covered four of the five combination cells; the fifth — a list rewritten **multi-line**
+with `"app"` on a later line — returned `P3_MULTILINE`, a rendering complaint whose headline never
+says `app`. The probe read `kv[1]`, everything after `schemas =` **on that one line**, which for a
+multi-line array is `[`. ⛔ And the comment added above it in iteration 1 asserted the opposite in
+terms: *"because a multi-line or malformed array must not be a way to smuggle the word past the
+headline."* The malformed half was true; the multi-line half was false. **A false claim nailed over
+an unexercised cell is the class this batch exists to close**, so the repair is code **plus** two
+fixtures, never a narrower sentence — the superseded sentence is quoted at its own site.
+
+⭐ **Coverage was VALUE-DEPENDENT, and that is why there are TWO fixtures.** `schemas = ["app",` +
+newline escalated (the word was inside `kv[1]`); `schemas = [` + newline + `"app",` did not. Whether
+the SECURITY headline appeared turned on where the editor happened to break the line. *A structural
+binding can be value-dependent* — one fixture landing on the escalating side would have been green
+from birth and proven nothing about the class.
+
+Repair: a new exported `collectArrayBody()` makes the sighting probe the **whole array body** —
+comment-stripped lines appended until one contains `]`; a TOML table header contains `]` too, so a
+never-closed array stops at the next header instead of swallowing the file. The positives are
+untouched: P3 still **refuses** a multi-line array. ⛔ The bound is written beside it rather than
+left to be discovered: it is a TEXT probe for the literal quoted word, so a unicode-escaped spelling
+defeats both arms. New fixtures `B12+` (word on the opening line) and `B13+` (word on a later line),
+each with `expect` **and** a new `expectUnder` pinning that the structural finding is kept
+underneath, each with a `shape` guard naming **which side of the break** its own word sits on so
+neither can drift into a copy of the other.
+
+**Red-first evidence — every run on a COPY of the gate in `scripts/`, never the real file, and every
+copy deleted afterwards (`git status --porcelain -- scripts/` then showed only the real file
+modified).** The copies live in `scripts/` deliberately: `CONFIG_PATH` resolves from
+`import.meta.url`, so a copy anywhere else would have probed a config that does not exist.
+
+| run | mutation | observed | rc |
+| --- | --- | --- | --- |
+| first attempt | probe reverted to `kv[1]` only | `B12+` **and** `B13+`: *MUTATION APPLIED WRONG — the `schemas` assignment must survive* | **2** |
+| M-A | probe reverted to `kv[1]` only | `B13+ caught for the WRONG REASON: expected N1_APP_EXPOSED_WITH_DEFECT, got P3_MULTILINE`; `B12+` green | **2** |
+| M-B | escalation disabled (`positive()` returns the bare code) | `B11+`, `B12+`, `B13+` all *caught for the WRONG REASON* | **2** |
+| M-C | escalation reports `under: 'P3_NONE'` | `B11+`, `B12+`, `B13+` all *escalated over the WRONG structural finding* | **2** |
+| clean | none | 13 bad fixtures each caught for its own reason, 4 good each clean | **0** |
+
+M-A is the cell's own red-first: it reproduces the exact defect and shows `B13+` discriminating the
+repair. M-B is `B12+`'s, since `B12+` was green before the repair — ⛔ *a fixture green on its first
+run is vacuous until something is shown to red it*. M-C proves the **new** `expectUnder` assertion can
+fail; a check that has only ever been green has not been shown to be a check.
+
+⭐ **The first run is a finding, not a false start, and it is recorded rather than tidied away.** The
+fixture text was built with `/^\s*schemas\s*=.*$/m` (the pattern `B7` uses). `\s` matches `\n`, and
+JS's multiline `^` also matches after a bare `\r` — so on this **CRLF working tree**
+(`git ls-files --eol` = `i/lf w/crlf`, the R29 fact recurring) the match began at the **previous**
+line's `\n` and the replacement swallowed it, gluing the sentinel line to the new opening line behind
+a lone `\r`. The mutation "applied" (bytes differed) and was **not** the mutation intended. Both
+`shape` guards caught it on their first run — the guard earning its place, exactly as `B5`/`B6`/`B8`
+and `B11+` were written to. Fixed with `^[ \t]*` and by splitting on `/\r\n|\r|\n/` so the guard
+reads lines the way `normalise()` does, not the way an LF checkout would. ⚠ `B7` carries the same
+construction; it is **sound** (its guard is a `/m` regex, which does match after a lone `\r`, and
+`normalise()` folds the `\r` to `\n` before `inspect()` sees it) and is deliberately left alone — it
+sits in the re-review's *"do not re-do"* list.
+
+M-A also **reproduces QA's own measurement exactly**: the private probe QA ran returned
+`P3_MULTILINE` for the later-line placement, and so does M-A. After the repair both placements return
+`N1_APP_EXPOSED_WITH_DEFECT (under=P3_MULTILINE)` with the headline *"⛔⛔ SECURITY EVENT —
+supabase/config.toml:71: `"app"` HAS BEEN ADDED TO THE POSTGREST-EXPOSED SCHEMAS — 236 `app`
+functions become directly `anon`-callable in this same edit."*
+
+**MAJOR (the N3 census note) — three ungated copies of the figures, inside the argument that every
+copy is gated.** `supabase/tests/mutation/p0-authz-invariant.sh` restated the **superseded**
+three-condition framing while citing ADR 0195 D2 as its authority — the ADR that the *same* fix loop
+had already cut to **(i) and (iii)**, because (ii) is false of two of the three pinned literals.
+Re-worded to cite **(i) compared-vs-printed** and **(iii) one home, every copy gated**, with the
+superseded sentence quoted; the labels are kept **unrenumbered** so they still key to the ADR's text.
+⛔ The three figures are **not restated at all** — the note now points at `320` §U4 and ADR 0195
+D2/D2a as their homes and says in its own words why: `lint:budget-anchor` reads `docs/backend-state.md`
+and `320` only, so a figure copied into this comment is an ungated copy sitting inside the sentence
+arguing there are none. ⭐ That irony is the finding, not a style note, and the correction says so.
+Verified: `grep -nE '\b(759|326|433)\b'` over the note's block → **rc 1, no match**.
+⚠ One `326` survives elsewhere in that file (`:686`) and is **correct**: it is a *quotation of what
+that comment USED to read* about the census-reachable population, dated and marked as superseded — a
+different predicate on a different population, the same trap re-review **N7** flags for the two
+`237`s. ⛔ Do not "correct" it.
+
+**N1's one word, corrected in passing and disclosed as beyond the two items.** The gate header read
+*"`M1+` … it is the only place in this **file** that calls `report()`"*, which is false of the file
+it sits in — `report()` recurses at its own escalation branch and the real scan calls it to print any
+finding. Corrected to *"the only place in the **self-test**"*, which is the true and load-bearing
+claim, with the superseded text quoted. Done because it is a false claim in the file this role was
+already editing; ⛔ nothing else from `N1–N5` was actioned.
+⚠ **This record's own copy is corrected here, as a dated note rather than a rewrite**: `:892` reads
+*"It is the **only** thing in the file that calls `report()`"* and carries the same error. Read it as
+*"the only thing in the SELF-TEST that calls `report()`"*.
+
+**Gates owed at this tip, exit codes read BARE, on their own line.**
+
+- `npm run lint` → **rc 0**, and the chain **REACHED ALL 15 GATES** — `eslint --max-warnings=0` (gate
+  1, no problem summary emitted) then the fourteen banners `lint:css-vars · lint:memberships-door ·
+  lint:client-server-imports · lint:vacuous · lint:set-local · lint:progress · lint:rules ·
+  lint:adr-index · lint:mojibake · lint:service-role-registry · lint:authz-vectors · lint:registers ·
+  lint:config-schemas · lint:budget-anchor`, gate 15 last and its `OK` line the final line of the run.
+  ⛔ The first attempt was `npm run lint | tail -60`, whose `$?` is the **tail's**; that reading is
+  discarded and the rc above comes from a run redirected to a file, which does not consume it.
+  *A pipe erases the exit code.*
+- `node scripts/check-supabase-config-schemas.mjs --self-test` → **rc 0**. Real scan → **rc 0**.
+- `bash -n supabase/tests/mutation/p0-authz-invariant.sh` → **rc 0**.
+- ⛔ **`npm run test:db` was NOT run, and it is not owed.** The only file touched under
+  `supabase/tests/` is `mutation/p0-authz-invariant.sh` — a **`.sh` harness**, which the pgTAP runner
+  does not collect (it runs `.sql`), and the edit is a **comment block**: no assertion, no literal.
+  Asserted rather than assumed: `git status --porcelain -- 'supabase/tests/*.sql'` → **empty output**.
+  No pinned literal moved anywhere in this iteration.
+- Files changed: `scripts/check-supabase-config-schemas.mjs`, `supabase/tests/mutation/p0-authz-invariant.sh`.
+  The R5 pathspec (`supabase/migrations supabase/seed.sql src`) is untouched, as in every prior
+  iteration.

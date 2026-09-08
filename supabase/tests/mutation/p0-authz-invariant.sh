@@ -533,15 +533,34 @@ run_arm_census () {
   #
   # ⭐ 2026-09-08 — THIS PROHIBITION IS QUALIFIED, NOT WEAKENED, AND HERE IS WHERE TO READ
   # THE QUALIFICATION. `supabase/tests/320_act_expiry_and_acl_hardening.sql` §U4 commits
-  # three privilege-budget literals on purpose, and ADR 0195 D2 argues why that is a
-  # different object from the banner above. The reconciliation is stated in §U4's own
-  # header and rests on three conditions: (i) the population is RE-DERIVED from the live
-  # catalog every run by `pg_temp.budget()` and the literal is COMPARED to it — never
-  # printed beside it, which is the whole of what went wrong here; (ii) the ceiling 759 is
-  # a PO RULING rather than a description (⚠ its per-schema split, `app` 326 / `public`
-  # 433, is NOT a ruling — it is a measurement pinned as a ratchet, and §U4 says so);
-  # (iii) the decision has ONE HOME, `docs/backend-state.md` § Privilege budget, with every
-  # copy gated by `npm run lint:budget-anchor`.
+  # privilege-budget literals on purpose, and ADR 0195 D2 argues why that is a different
+  # object from the banner above.
+  #
+  # ⛔ THE FIGURES THEMSELVES ARE DELIBERATELY NOT REPEATED HERE. Read them at `320` §U4
+  # and at ADR 0195 D2/D2a, which are their homes. Nothing gates this file's prose —
+  # `lint:budget-anchor` parses `docs/backend-state.md` and `320`, and this script is not
+  # among its subjects — so a figure copied into this comment would be precisely the thing
+  # the paragraph below says does not exist: an UNGATED COPY, sitting inside the sentence
+  # that argues every copy is gated.
+  #
+  # The reconciliation rests on TWO conditions, per ADR 0195 D2:
+  #   (i)   the population is RE-DERIVED from the live catalog every run by
+  #         `pg_temp.budget()` and the literal is COMPARED to it — never printed beside it,
+  #         which is the whole of what went wrong here; and
+  #   (iii) the committed number has ONE HOME, `docs/backend-state.md` § Privilege budget,
+  #         with every copy gated by `npm run lint:budget-anchor`.
+  #
+  # ⚠ CORRECTED 2026-09-08 (QA re-review, finding M1). Superseded text, quoted so the edit
+  # is legible rather than silent: this paragraph read *"The reconciliation is stated in
+  # §U4's own header and rests on three conditions"* and gave a *"(ii) the ceiling … is a
+  # PO RULING rather than a description"*. §U4's header still states three; ADR 0195 D2
+  # rests the reconciliation on (i) and (iii) and explains why (ii) does NOT carry the
+  # per-schema pins — those were never ruled on, they ARE descriptions of a population
+  # pinned as a ratchet, and D2a gives them their own owner. The (i)/(iii) labels are kept
+  # unrenumbered so they still key to the ADR's own text.
+  # ⛔ Recorded as a defect of this note, not of the ADR: it was written AFTER the ADR had
+  # been corrected to two conditions, and cited that same ADR as its authority. That is the
+  # failure named in the last line of this block, committed by the line asserting it.
   # ⛔ §U4 does NOT do what this arm did as its own remedy — it does not make the figure
   # DERIVED FROM THE PREDICATE, because a derived figure cannot ratchet against itself.
   # That is a deliberate, weaker, differently-owned choice. If gate 15 is ever removed,

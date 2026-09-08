@@ -111,10 +111,14 @@
  * A reader who meets the red must know from ONE line which of the two happened. N1 is
  * reported first and alone when both hold.
  * ⭐ R16's condition is HELD BY A FIXTURE, not by reading: `M1+` asserts the N1 and N2
- * headlines are distinct strings, and it is the only place in this file that calls
+ * headlines are distinct strings, and it is the only place in the SELF-TEST that calls
  * `report()`. Until 2026-09-08 the self-test compared codes only, so the condition on the
  * PROSE was enforced by nobody — in a gate whose whole subject is that a sentence is not
  * an enforcer.
+ * ⚠ CORRECTED 2026-09-08 (re-review N1). That sentence read *"the only place in this FILE
+ * that calls `report()`"*, which is false of the file it sits in: `report()` recurses at
+ * its own `N1_APP_EXPOSED_WITH_DEFECT` branch and the real scan calls it to print any
+ * finding. The true and load-bearing claim is the one about the SELF-TEST.
  *
  * POSITIVES BEFORE THE NEGATIVE (plan §3.3). A gate that "found nothing" must not pass:
  *   P1  the file exists and is non-empty
@@ -141,6 +145,11 @@
  * ⛔ A MULTI-LINE ARRAY IS REFUSED, NOT PARSED. `schemas = [` with its `]` on a later line
  * is reported as unreadable and reds. It must never parse the first line and pass — that
  * is how a gate reports green over a list it never saw.
+ * ⚠ REFUSED AS A POSITIVE ≠ UNREAD BY THE SIGHTING, and conflating the two was finding B1
+ * of the 2026-09-08 re-review. P3 still refuses a multi-line array outright; the `app`
+ * sighting reads its whole BODY anyway (`collectArrayBody`), so `"app"` added multi-line
+ * escalates to the SECURITY headline with `P3_MULTILINE` kept underneath — on EITHER side
+ * of the line break, which is what `B12+` and `B13+` pin.
  *
  * ⚠ CRLF IS NORMALISED BEFORE ANYTHING ELSE, and this is not hypothetical here.
  * `.gitattributes` says `* text=auto eol=lf`, `git check-attr` agrees, `git status` is
@@ -323,6 +332,55 @@ export function parseArrayLiteral(valueText) {
   return { ok: true, items }
 }
 
+/**
+ * ⭐⭐ THE `app` SIGHTING'S SUBJECT: the WHOLE array body, never one line.
+ *
+ * ⚠ ADDED 2026-09-08 (QA re-review, finding B1 — a defect the previous fix loop
+ * INTRODUCED). The sighting probe used to read `kv[1]` alone, i.e. everything after
+ * `schemas =` ON THE ASSIGNMENT LINE. For `schemas = [` with the items below it that text
+ * is just `[`: `parseArrayLiteral('[')` refuses, the fallback `/["']app["']/` sees nothing,
+ * and no later line matches `^schemas\s*=`, so the word never entered the probe and `"app"`
+ * added multi-line came back `P3_MULTILINE` — a rendering complaint whose headline never
+ * says `app`, which is the exact regression the escalation was built to close.
+ * ⛔ And the coverage was VALUE-DEPENDENT: `schemas = ["app",` escalated while
+ * `schemas = [` + newline + `"app",` did not, so whether the SECURITY headline appeared
+ * turned on where the editor happened to break the line. *A structural binding can be
+ * value-dependent* — fixtures `B12+` and `B13+` pin BOTH placements for that reason, and
+ * one fixture on either side of the break would have proven nothing about the class.
+ *
+ * The scan is deliberately DUMB and bounded: comment-stripped, non-blank lines are appended
+ * until one contains `]`. A TOML table header contains `]` too, so a never-closed array
+ * stops at the next header instead of swallowing the file; a body that never closes at all
+ * stops at EOF. Over-collecting can only ever ESCALATE a red that is already firing (the
+ * positives are decided by the single-line parse below, untouched), which is the safe
+ * direction for this probe.
+ *
+ * ⛔ WHAT IT STILL DOES NOT BUY — stated here so this comment is not the next false claim
+ * nailed over an unexercised cell. It is a TEXT probe for the literal quoted word: a basic
+ * string spelling it by escape (`"app"`) defeats both arms, because the parse path
+ * decodes backslash escapes only. The claim is *"the word `app`, wherever it sits inside
+ * the array"*, NOT *"any expression denoting that schema"*.
+ *
+ * @param {string[]} lines      the normalised file, split on `\n`.
+ * @param {number}   startIdx   0-based index of the `schemas = …` line.
+ * @param {string}   valueText  everything after `schemas =` on that line, trimmed.
+ * @returns {{text: string, closed: boolean, endLine: number}}
+ */
+export function collectArrayBody(lines, startIdx, valueText) {
+  // Single-line (or not an array at all): the body IS the value text. Unchanged behaviour.
+  if (!valueText.startsWith('[') || valueText.includes(']')) {
+    return { text: valueText, closed: valueText.includes(']'), endLine: startIdx + 1 }
+  }
+  const parts = [valueText]
+  for (let k = startIdx + 1; k < lines.length; k++) {
+    const body = stripTrailingComment(lines[k]).trim()
+    if (body === '') continue
+    parts.push(body)
+    if (body.includes(']')) return { text: parts.join(' '), closed: true, endLine: k + 1 }
+  }
+  return { text: parts.join(' '), closed: false, endLine: lines.length }
+}
+
 // ---------------------------------------------------------------------------
 // The checker. One function, so the self-test and the real scan cannot diverge.
 // ---------------------------------------------------------------------------
@@ -371,17 +429,28 @@ export function inspect(raw) {
 
     // ⛔ Deliberately BEFORE the `[api]` filter and before the parse: the question this
     // answers is "did this edit name `app`?", which is a fact about the EDIT, not about
-    // which table the key landed under. An unparseable value still gets a text probe,
-    // because a multi-line or malformed array must not be a way to smuggle the word past
-    // the headline.
+    // which table the key landed under. An unparseable value still gets a text probe, and
+    // the probe's subject is the WHOLE ARRAY BODY — see `collectArrayBody` — so neither a
+    // multi-line nor a malformed array is a way to smuggle the word past the headline.
+    //
+    // ⚠ CORRECTED 2026-09-08 (QA re-review B1). The sentence above stood over code that
+    // probed ONE LINE, so its multi-line half was false. Superseded text, quoted verbatim
+    // so the claim and its refutation stay together rather than the claim just vanishing:
+    //     "An unparseable value still gets a text probe, because a multi-line or malformed
+    //      array must not be a way to smuggle the word past the headline."
+    // The malformed half WAS honoured (`schemas = "app"` escalated correctly); the
+    // multi-line half was not, and it was named first. ⭐ A false claim nailed over an
+    // unexercised cell is the defect class this gate exists to close, so the repair is the
+    // code plus two fixtures, never a narrower sentence.
     {
       const anyValueText = kv[1].trim()
-      const anyParsed = parseArrayLiteral(anyValueText)
+      const probed = collectArrayBody(lines, idx, anyValueText)
+      const anyParsed = parseArrayLiteral(probed.text)
       const namesApp = anyParsed.ok
         ? anyParsed.items.includes('app')
-        : /["']app["']/.test(anyValueText)
+        : /["']app["']/.test(probed.text)
       if (namesApp && !appSighting) {
-        appSighting = { line: idx + 1, valueText: anyValueText, table }
+        appSighting = { line: idx + 1, valueText: probed.text, table }
       }
     }
 
@@ -632,7 +701,11 @@ function buildFixtures(baseline) {
   const eol = baseline.includes('\r\n') ? '\r\n' : '\n'
   const schemasLine = baseline.split(/\r?\n/).find((l) => /^\s*schemas\s*=/.test(l))
 
-  /** @type {{id:string,name:string,text:string,mustCatch:boolean,expect?:string}[]} */
+  /**
+   * @type {{id:string,name:string,text:string,mustCatch:boolean,expect?:string,
+   *         expectUnder?:string,mustDifferFromBaseline?:boolean,eolPair?:string,
+   *         shape?:(t:string)=>true|string}[]}
+   */
   const fx = [
     // ---- the eight BAD fixtures from the plan's §3.4 table -----------------
     {
@@ -755,12 +828,82 @@ function buildFixtures(baseline) {
       ),
       mustCatch: true,
       expect: 'N1_APP_EXPOSED_WITH_DEFECT',
+      expectUnder: 'P4_NO_SENTINEL',
       // ⛔ Both halves must actually be present, or this silently degrades into a copy of
       // B1 (sentinel never removed) or of B4 (value never changed) — same green, a
       // fixture that no longer tests the combination at all.
       shape: (t) => {
         if (/DO NOT ADD "app" TO THIS LIST/.test(t)) return 'the sentinel must be GONE'
         if (!/^\s*schemas\s*=.*"app"/m.test(t)) return 'the schemas line must NAME "app"'
+        return true
+      },
+    },
+
+    // ⭐⭐ THE MULTI-LINE COMBINATION CELL, IN BOTH ITS PLACEMENTS (re-review B1).
+    // `B7` is multi-line WITHOUT `app`; `B11+` is single-line WITH it. Neither asked what
+    // happens when a list is REFORMATTED WHILE BEING EXTENDED — the second-most-predictable
+    // way to add a schema — and the answer was `P3_MULTILINE`, a rendering complaint whose
+    // headline never says `app`.
+    // ⛔ TWO fixtures, not one, and the reason is a measurement: before the repair, the
+    // opening-line placement ESCALATED (the word was inside `kv[1]`) and the later-line
+    // placement did NOT. A single fixture that happened to sit on the escalating side would
+    // have been green from birth and would have proven nothing about the class —
+    // *a structural binding can be value-dependent*. Each shape guard therefore pins WHICH
+    // side of the break its own word sits on, so neither can drift into a copy of the other.
+    // ⚠ `^[ \t]*`, NOT `^\s*`, and that is a MEASUREMENT, not a style choice. `\s` matches
+    // `\n`, and JS's multiline `^` also matches after a lone `\r` — so on this CRLF working
+    // tree (`git ls-files --eol` = `i/lf w/crlf`) `/^\s*schemas/m` matched starting at the
+    // `\n` of the PREVIOUS line's CRLF and the replacement swallowed it, gluing the sentinel
+    // line and the new opening line together behind a bare `\r`. Both shape guards below
+    // caught it on their first run (`the schemas assignment must survive`) — which is the
+    // guard earning its place — and `split(/\r\n|\r|\n/)` is used rather than `/\r?\n/` so
+    // the guard reads lines the way `normalise()` does, not the way a LF tree would.
+    {
+      id: 'B12+',
+      name: '[ADDED] multi-line array with "app" ON THE OPENING LINE — the placement that already escalated',
+      text: baseline.replace(
+        /^[ \t]*schemas[ \t]*=.*$/m,
+        ['schemas = ["app",', '  "public",', '  "graphql_public",', ']'].join(eol),
+      ),
+      mustCatch: true,
+      expect: 'N1_APP_EXPOSED_WITH_DEFECT',
+      expectUnder: 'P3_MULTILINE',
+      shape: (t) => {
+        const ls = t.split(/\r\n|\r|\n/)
+        const i = ls.findIndex((l) => /^\s*schemas\s*=/.test(l))
+        if (i === -1) return 'the `schemas` assignment must survive'
+        if (!/^\s*schemas\s*=\s*\[[^\]]*$/.test(ls[i])) {
+          return 'the array must OPEN on the assignment line and must NOT close on it'
+        }
+        if (!/"app"/.test(ls[i])) {
+          return 'this cell puts "app" ON THE OPENING LINE — that placement is the whole difference from B13+'
+        }
+        return true
+      },
+    },
+    {
+      id: 'B13+',
+      name: '[ADDED] multi-line array with "app" on a LATER line — the cell that returned P3_MULTILINE and never said `app`',
+      text: baseline.replace(
+        /^[ \t]*schemas[ \t]*=.*$/m,
+        ['schemas = [', '  "public",', '  "graphql_public",', '  "app",', ']'].join(eol),
+      ),
+      mustCatch: true,
+      expect: 'N1_APP_EXPOSED_WITH_DEFECT',
+      expectUnder: 'P3_MULTILINE',
+      shape: (t) => {
+        const ls = t.split(/\r\n|\r|\n/)
+        const i = ls.findIndex((l) => /^\s*schemas\s*=/.test(l))
+        if (i === -1) return 'the `schemas` assignment must survive'
+        if (!/^\s*schemas\s*=\s*\[\s*$/.test(ls[i])) {
+          return 'the opening line must carry NOTHING after `[` — that `kv[1]` is exactly `[` IS the defect this cell reproduces'
+        }
+        if (/"app"/.test(ls[i])) return '"app" must NOT be on the opening line — that cell is B12+'
+        const close = ls.findIndex((l, k) => k > i && l.includes(']'))
+        if (close === -1) return 'the array must CLOSE, or this is testing an unterminated file instead'
+        if (!ls.slice(i + 1, close + 1).some((l) => /"app"/.test(l))) {
+          return '"app" must appear on a line AFTER the opening line and inside the array body'
+        }
         return true
       },
     },
@@ -940,6 +1083,17 @@ function selfTest({ verbose } = {}) {
       if (f.expect && got.code !== f.expect) {
         broken++
         lines.push(`  ${f.id} caught for the WRONG REASON: expected ${f.expect}, got ${got.code}`)
+        continue
+      }
+      // ⛔ `expect` alone cannot see whether the STRUCTURAL finding survived UNDERNEATH an
+      // escalated headline, and "kept, never traded away" is the whole content of B4's
+      // repair. A fixture that names `expectUnder` asserts both halves. ⚠ A missing
+      // `detail` fails here rather than passing silently — an absent field is not a match.
+      if (f.expectUnder && (!got.detail || got.detail.under !== f.expectUnder)) {
+        broken++
+        lines.push(
+          `  ${f.id} escalated over the WRONG structural finding: expected under=${f.expectUnder}, got under=${got.detail ? String(got.detail.under) : '(no detail)'}`,
+        )
         continue
       }
       if (verbose) {
