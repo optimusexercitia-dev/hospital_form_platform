@@ -231,6 +231,15 @@ positive `is_staff_admin_of` 43, `can_edit_commission_forms` 6, `member_can` 3; 
 - ⚠ The first AE1-shape control **reused the current-shape columns**, which would have laundered
   every predicate change into the control and made "0 moved rows" vacuous by construction. Caught
   before it ran; replaced with a recomputation from raw columns.
+- ⛔ **`b657aaf6`'s message is malformed and is NOT amended.** A PowerShell here-string (`@'…'@`)
+  was passed to the **Bash** tool, where `@'` is an ordinary literal, so the subject carries a
+  leading `@ ` and the body a trailing `@`. Per the standing rule *a subagent must never
+  `git commit --amend`* — whose named remedy is *"a bad message gets a follow-up commit"* — it is
+  corrected here rather than rewritten. ⭐ **The rule's mechanism was live, not hypothetical:**
+  between this turn's `git status` and its `git commit`, the parallel track committed `6fee08ae`
+  onto the same branch. `--amend` targets **HEAD**, not "my commit", and a few seconds' different
+  timing would have retitled *their* commit with *this* message. The content of `b657aaf6` is
+  exactly its three named doc files, +315/−0.
 
 **Not done here, by scope:** §2 pgTAP (blocked on the PO ruling per R14 — ⛔ the pinned literal is
 filled in from the ruling, never chosen by the builder), §3's config gate (another track), §5.
