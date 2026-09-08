@@ -233,6 +233,18 @@ the same turn added and then did not re-measure — the 4-line HTML comment at `
 figure, in its summary, and it is the fourth instance in this batch of a printed count contradicting
 its own sentence.
 
+> ⚠ **CORRECTION 2026-09-08 (documentation audit, pre-merge) — "`256` … unchanged since" is FALSE,
+> and this correction is the defect's own next instance.** The file moved **twice more inside the
+> fix loop this review governs**. ⛔ Repaired by **anchoring**, never by a fresher number — a count
+> is stale the moment anything after it is edited, so every figure below carries the commit it was
+> measured at:
+> `137` at `23ec1fa5` (`main`) · `401` at `e4062712` · **`256` at `3c763ffe`** and `6d0db87a` ·
+> `304` at `0ff7d321` · **`311` at `a608e240`, `45f5880a` and `e4a16b33`**.
+> ⭐ The finding is not the digit. `256` was itself this review's N1 correction of `251`; the fix
+> loop then added 55 lines and nobody re-measured, and the stale figure **escaped the documents
+> into a live instruction** when it was quoted as current in the audit brief. That is what N1
+> predicted, one level up: a corrected count is not a fixed count.
+
 **N2 — the harness header's guard count is stale by two, inside the sentence that warns about exactly
 that.**
 `supabase/tests/mutation/p0-authz-writepath-audit.sh:21-26`:

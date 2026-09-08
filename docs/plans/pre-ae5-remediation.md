@@ -2,7 +2,9 @@
 
 **Status:** live plan · **Owner:** lead (orchestration), backend (build), qa (review), PO (rulings)
 **Program:** AUTHZ — ADR [0155](../decisions/0155-post-aff4-tenancy-and-person-model-evolution-sequence.md) ·
-**Ruled:** 2026-09-04 (lead session `9346f622`) · **Last updated:** 2026-09-07 at `main` @ `d7964398`
+**Ruled:** 2026-09-04 (lead session `9346f622`) · **Last updated:** 2026-09-08 on branch
+`authz-writepath-baseline`, Batch 3 closed at `e4a16b33` and ⛔ **not yet merged into `main`**
+(previous value, superseded: *"2026-09-07 at `main` @ `d7964398`"*)
 
 > Continuation of this plan happens in a **different session**. Everything a resuming lead needs is
 > here or one link away: what was concluded (§2), what remains and why it comes before AE5 (§3),
@@ -34,7 +36,12 @@ first (Batch 1); Batch 4's re-key needs a working diff-scoped sweep (Batches 1�
 must not create sweep blindness (Batch 2's domain). Batch 6 is the inter-phase window's own work.
 Batch 9 is not a fix — it is the AE5 plan's opening ADR.
 
-## 2. Concluded — Batches 0, 1, 2 (all on `main`, all PO-approved, all QA-approved)
+## 2. Concluded — Batches 0, 1, 2, 3 (all PO-approved, all QA-approved; 0–2 on `main`)
+
+> ⚠ **EDITED 2026-09-08.** The heading read *"Concluded — Batches 0, 1, 2 (all on `main`, all
+> PO-approved, all QA-approved)"*. Batch 3 is concluded but **not on `main`** at the time of writing,
+> so the parenthetical could not be extended as-is; the superseded text is quoted here and the
+> per-row merge state is measured in the `Merged` column, which is the only place it belongs.
 
 Each row's authority is its hub (summary) and record (log); this table is a pointer, never a
 restatement. **Re-measure anything you rely on.**
@@ -44,6 +51,7 @@ restatement. **Re-measure anything you rely on.**
 | 0 | `HARNESS-CRASH-SAFETY` — [hub](../features/harness-crash-safety.md) · [record](../progress/harness-crash-safety.md) · ADR [0189](../decisions/0189-one-crash-safety-protocol-across-the-mutation-harnesses.md) | `76d87a4f` 2026-09-04 | `FUP-C2-TIER1-INFLIGHT-SENTINEL-ERASED-BY-ITS-OWN-RESTORE` · `FUP-AUTHZ-HARNESS-PRECONDITIONS` · `FUP-C2-NEUTRALIZER-TAIL-DRIFT-INVALIDATES-LATE-VERDICTS` · `FUP-AUTHZ-HARNESS-TRANSACTIONAL` (PO: **detect-only**, marker not built by decision) | A restore is believed only when the **catalog** agrees (psql rc **and** md5); a failed restore **keeps** the sentinel; `RECOVER=1` in all three sentinel-bearing harnesses; both verdict preconditions asserted and printed; `SUITE=` is a subset; the C2 neutralizer bounds tail drift (`RESET_EVERY`, interlock, retry-once). ⚠ **Mis-scoped as closed**: the tail-drift fix reached the C2 harness only — Batch 2 paid for that (its archive amendment says so). |
 | 1 | `DOOR-SWEEP-DERIVER` — [hub](../features/door-sweep-deriver.md) · [record](../progress/door-sweep-deriver.md) · ADR [0190](../decisions/0190-the-door-sweep-deriver-selects-by-property-and-a-full-run-merges.md) (amends 0173, 0079) | `bbda5392` 2026-09-05 | `FUP-DOOR-SWEEP-DERIVER-NAME-FILTER-DROPS-A-REAL-GATE` (on a **visibly amended** condition — ADR 0079 hazard 4) · `…MARKER-BLIND-TO-CONTINUATION-LINES` · `…DERIVER-BLIND-TO-ALTER-FUNCTION` · `…DERIVER-SPANS-THE-WHOLE-WORKING-TREE` · `…FULL-RUN-DESTROYS-HAND-MERGED-ANNOTATIONS` · `FUP-AUTHZ-DOOR-SWEEP-DERIVER-OVERSELECTS-INTO-UNPROVEN` | The deriver **lifts** `PRED_DOMAIN` from the harness (ABORT on drift) instead of copying it; a door is a **catalog** fact and `CASES=` is the sweepable tier only; `ALTER FUNCTION … SECURITY DEFINER` read like `ALTER POLICY`; the whole `door-sweep-targets:` declaration parsed; per-case provenance and a quotable `SCOPE:` line on every exit; the four sweeps' full-run emit **merges** into the committed baseline, preserving every line the generator did not produce (verifier proven on the old helper's real losses); `SELFTEST=1` over committed fixtures (34 scenarios). QA took four rounds — round 1 found a genuine blocker (the merge destroyed hand-authored material at exit 0). |
 | 2 | `PRED-DOMAIN` — [hub](../features/pred-domain.md) · [record](../progress/pred-domain.md) · ADR [0191](../decisions/0191-the-door-arms-domain-gains-a-schema-axis-a-targeted-home-and-a-fourth-outcome.md) (amends 0173, 0079) | `d7964398` 2026-09-07 | `FUP-DOOR-SWEEP-DOMAIN-MISSES-THE-AUTHZ-RESOLVERS` + `…GAP-WIDENED-BY-SET-VALUED-RESOLVERS` (jointly) · `FUP-DOOR-AUDIT-ALL-POLICY-COVERED-IS-MIRROR-AMBIGUOUS` · `FUP-DOOR-SWEEP-BROAD-GATE-ABORTS-A-FILE` · `FUP-C2-TIER1-TRIGGER-ENFORCERS-OUT-OF-SWEEP-DOMAIN` · `FUP-AUTHZ-SETVALUED-TARGETED-HOME-HAS-NO-SCHEDULE` | `PRED_DOMAIN` gains the `authz` **schema axis** (bounded to boolean); selection delta exactly `candidate_has_permission` + `scope_reaches`; the `SETOF uuid` resolvers get a committed **targeted-case home** (scheduled in lead-playbook §4); `NOTICED` = a fourth outcome, PO-ruled **evidence not a verdict** (disclosed, non-blocking); the read arm opens `using` only (11 `(ALL)` flips work-listed); a per-run `DOMAIN-STATEMENT` with ADR 0187 D1's sentence byte-exact; the door harness gained Batch 0's tail-drift design after run 1's 78-row drift tail was proven with **no originating case**; the door baseline **re-earned** through a bounded run (353 cases, 40 resets: 294 COVERED · 36 BLIND · 23 NOTICED · 0 ERROR), 275 CARRIED rows dispositioned per PO ruling, 31 hand notes preserved. |
+| 3 | `WRITEPATH-BASELINE` — [hub](../features/writepath-baseline.md) · [record](../progress/writepath-baseline.md) · [review](../reviews/writepath-baseline-review.md) · ADR [0192](../decisions/0192-ownership-is-a-proxy-not-the-property-and-the-write-arms-crash-safety.md) (amends 0189, 0153) | ⛔ **NOT MERGED as of 2026-09-08** — complete, PO-approved and QA-approved on branch `authz-writepath-baseline` @ `e4a16b33`; the `git merge --ff-only` is the **lead's** step and is ordered **before** Batch 4's (§3 Batch 4 item 1). ⚠ **Measure this cell, never quote it** — the hub's `branch:` is nulled at the Record step and is ⛔ not a claim that it merged | `FUP-WRITEPATH-FINDINGS-FILE-COVERS-33-OF-107` (⚠ its **title figure was stale at 39**, not 33, when it closed — title figures are not amended retroactively) · `FUP-STORAGE-OBJECTS-INSERT-POLICIES-NEWLY-IN-DOMAIN` (closed from the **plain** run; the predicted ownership blocker was measured and **DISPROVEN** — `supautils.policy_grants` grants POLICY DDL outside `pg_class.relowner`) · `FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED` (Parts 2–4; closed on the **recovery step** + the **nine policies actually swept**, ⛔ never on the exit codes) | ⭐ **Ownership is a PROXY, not the property** — a permission question is answered by attempting the permission or reading every grant path, never by reading `relowner` alone; the approved superuser escalation was **dropped** and its corrected predicate kept as a **detector** (dormant on 0 of 107, so proven able to fire only by a plant). `CASES=""` no longer degrades to a full run **in the write arm** (⛔ the door arm's identical defect is FILED, not fixed). `RESET_EVERY` **ported, not copied** — the door's `periodic_reset()` re-derives two catalog worklists while Arm 1 is a **static** `GUARD_KEYS`, so Arm 1 got its own post-reset OID check. The recovery step Part 4 owed is prose in the harness header naming `git checkout -- docs/reviews/authz-writepath-audit-findings.md` + the sentinel/`RECOVER=1` protocol + the **working-tree/suite-shape** clause. The write baseline **re-earned** through one 3.88 h detached run (120 cases, `resets=8`: **102 COVERED · 15 BLIND · 3 ERROR**, bare **rc 1 = DIRTY**, the correct outcome), coverage **51 of 120 → 120 of 120 measured**, guard arm **12 of 13 → 13 of 13**; 45 CARRIED rows dispositioned per PO ruling (9 re-filed, 36 deleted), all 11 hand-annotated rows preserved by byte comparison. ⚠ **Eleven instrument faults caught**, every one reading like a live defect; ⛔ the 15 BLINDs and the 3 UNVERDICTED `process_template_*` ERRORs are **findings, never allowlisted**, and `297_process_template_versioning.sql` is **correctly not fixed here** (the fix moves `Tests=`, and `Tests=` **is** the shape the run asserted 120 times). |
 
 **PO rulings taken so far** (each recorded in the ADR / record it belongs to): Batch 0 Q2 —
 transactional residual **detect-only**; Batch 1 — approval ratified three closures whose register field
@@ -56,7 +64,12 @@ each is named so nobody re-discovers it: `FUP-AUTHZ-INVOKER-AND-ROWDOOR-HARNESSE
 `FUP-AUTHZ-ROWDOOR-INVOKER-HARNESSES-HAVE-NO-GRADED-EXIT` 🟡 · `FUP-AUTHZ-DOOR-SWEEP-MARKER-DECLARES-POLICIES-TOO` 🟡 ·
 `FUP-DOCS-CONSOLIDATION-CLOSURE-DROPS-THE-CLOSES-WHEN-FIELD` 🟡 · `FUP-AUTHZ-FOR-ALL-READ-HALF-BLINDS` 🟠 (the 11) ·
 `FUP-AUTHZ-BLIND-SET-READ-FROM-THE-SECTION-NOT-THE-VERDICT` 🟠 (⛔ **`FROMFINDINGS=1 ARM=policy` is RED
-pre-existing and unreadable until this lands — 12 stale rows, never allowlist them**) ·
+pre-existing and unreadable until this lands — 12 stale rows, never allowlist them** · ⚠ **2026-09-08:
+that `12` is one of THREE grains and ⛔ must not be rewritten to any of the others** — the arm reports
+**12**, the door findings file measurably holds **38** section-vs-verdict disagreements, and Batch 3
+added **5** off-allowlist BLINDs the red cannot register. All three, with the merge mechanism and what
+is deliberately not fixed, are in §5's dated note; the item now owns the *reader* and the *writer*
+halves both) ·
 `FUP-AUTHZ-C2-NEUTRALIZER-CAPTURED-OIDS-SURVIVE-ITS-OWN-RESET` 🟠 · `FUP-AUTHZ-SETVALUED-HOME-DOES-NOT-EMIT-ROWS` 🟡 ·
 `FUP-AUTHZ-MERGE-HEADERS-RELOCATE-AND-MALFORMED-ARM-HAS-NO-SELFTEST` 🟡 · `FUP-AUTHZ-NOTICED-ROWS-WITHOUT-AN-AUTHZ-SHAPED-REDDENING` 🟠.
 
@@ -65,7 +78,45 @@ pre-existing and unreadable until this lands — 12 stale rows, never allowlist 
 Severities and ids were re-verified against `docs/followups/follow-ups-open.md` at `d7964398`.
 Every batch closes its follow-ups **on their own quoted `Closes when` clause**, never on a summary.
 
+> ⚠ **2026-09-08 — the remaining set is now Batches 4 to 9.** Batch 3 concluded (§2 row 3, unmerged);
+> its block is retained below in full under a `⚠ SUPERSEDED` banner rather than deleted, because what
+> the plan **predicted** and what the run **measured** differ in four places and the difference is the
+> instructive part.
+
 ### Batch 3 — Write-arm baseline (`supabase/tests/mutation/p0-authz-writepath-audit.sh`) — owner backend
+
+> ⚠ **SUPERSEDED 2026-09-08 — this block is the plan as ruled 2026-09-04; the unit is CONCLUDED and
+> four of its figures were overturned by measurement.** ⛔ Retained, not rewritten: the live state is
+> §2 row 3 → the hub `docs/features/writepath-baseline.md` → the record `docs/progress/writepath-baseline.md`.
+> Read nothing below as current. What measurement overturned, each figure beside the one it replaces:
+>
+> - **"passes vacuously over 74 of 107 policies"** (below, *Why before AE5*) → **0**. The run swept
+>   `policy=107/107` and `guard=13/13` — **120 of 120 cases measured**. ⭐ And the *baseline* figure
+>   the whole batch was named for was itself wrong at open: **39 of 107, not 33** (the 33 omitted the
+>   2 rows merged from the `BUG-AE49-D6-REKEY-INCOMPLETE` subset run of 2026-09-03, and 4 from
+>   AE4.9 D6). The follow-up's **title** still says 33 and was stale by six when it closed.
+> - **"~13 h"** (below, and again in the Batch 4 block) → **3.88 h**, measured. The 13 h was inherited
+>   rhetoric with no measured parent — the only sweep in this repo near it is the C2 command-door
+>   neutralizer (~9.5 h), a **different harness**. The write arm's own header documented ~50 min for
+>   its full domain; the true cost is `per-case × 120 + resets × reset cost`, derived before launch.
+> - **"~9 annotated rows"** → **11**. The 9 came from a decorative-token pattern (`⭐ ⚠ ⛔ ** [merged`)
+>   that ⭐ **cannot see hand prose written without decoration** (`authz-writepath-audit-findings.md:60`
+>   and `:61`). Two independent methods — a token-keyed classifier and a reader inspection — agreed on
+>   a wrong number because they shared one blind spot; agreement between methods with the same blind
+>   spot is not corroboration. All 11 survived 120 merge rewrites, delta 0, re-asserted by byte
+>   comparison.
+> - **"the write arm's empty-set exit made a FINDING"** → ⛔ **that criterion named a state that was
+>   ALREADY handled.** `CASES` set to tokens matching nothing had reached `exit 3 UNPROVEN` since the
+>   2026-08-29 repair; Batch 3 **proved** it rather than building it. The real defect was one grain
+>   over: `CASES` **set to the empty string** was indistinguishable from `CASES` **unset**, so a caller
+>   that captured the deriver's stdout without consuming its exit code got a full 120-case run writing
+>   the **committed** baseline with the UNPROVEN door unreachable. Fixed in the write arm; ⛔ **filed,
+>   not fixed, in the door arm** (`FUP-WRITEPATH-BASELINE-CASES-EMPTY-STRING-DEGRADES-TO-A-FULL-RUN`).
+> - ⚠ **Also predicted and DISPROVEN:** the three `storage.objects` INSERT policies were expected to
+>   land `ERROR — must be owner of table objects`. All three verdicted **COVERED** as plain
+>   `postgres`: `supautils.policy_grants` grants POLICY DDL outside `pg_class.relowner`. **Ownership
+>   was a proxy for a permission granted by another route** — and a superuser escalation was approved
+>   on that false inference before being dropped (ADR 0192).
 
 | Follow-up | Sev | The gap |
 |---|---|---|
@@ -92,12 +143,48 @@ then the closures. **Read Batch 2's record first** — it is the template, inclu
 | `FUP-READ-ORGANIZATIONS-LITERAL-IN-NO-MANIFEST-ROW` | 🟡 | `app.current_professional_read_organizations` carries the literal `org.professionals.read` and appears in no `enforcementSites` row — deliberate, undeclared, held green by a by-name pin in pgTAP `410 §8.5`. **PO call**: add it to the row or record a reviewed exclusion; delete the pin in the same change. |
 | `FUP-AUDIT-REGISTRY-CONSUMER-OF-READ-AUTHORIZER-UNRECORDED` | 🟡 | `app._audit_access_authorized` is a fourth consumer of `can_read_professional_profile`; nothing records that changing the authorizer moves the audit gate. A note in the manifest row's qualifier or `backend-state.md`. ⛔ NOT added to `enforcementSites` (that would make the site-axis closure check measure a fiction). |
 
+> ⭐ **HAND-OFF FROM BATCH 3, added 2026-09-08 — five `_staff_admin_write` / `_admin_write` policies
+> already enumerated WITH VERDICTS.** `FUP-VALIDATIONS-WRITE-PATH-IS-LAYER-1` (row above) says
+> *"⚠ Unswept class: every `_staff_admin_write` policy in the tree — enumerate it."* Batch 3's full
+> write-arm run enumerated the whole class and five came back **BLIND and off-allowlist**. ⛔ Do not
+> re-derive them; ⛔ do not allowlist them — a BLIND is a real finding to keystone. All five are
+> `(ALL)` policies whose `with check` half opens to `true` with **no test noticing**
+> (`docs/reviews/authz-writepath-audit-findings.md`, `## BLIND`, lines 71/74/75/78/81):
+>
+> `cases.cases_staff_admin_write` · `commission_member_titles.member_titles_staff_admin_write` ·
+> `commissions.commissions_admin_write` · `phase_results.phase_results_staff_admin_write` ·
+> `process_template_versions.process_template_versions_staff_admin_write`
+>
+> Each carries `[snapshot:ABSENT — no §7.2 drift tripwire on this verdict]`, so none has a drift
+> tripwire either. Filed as a set, keyed on the **property** and never on a name pattern — the set
+> Batch 3 found spans at least four shapes (`*_staff_admin_write`, `*_admin_write`, `*_update_own`,
+> `*_write_admin`) and ⭐ **every name-based boundary guessed during that run was wrong within two
+> cases**. Counter-evidence that the arm discriminates rather than blanket-failing on the family
+> name: `form_items`, `form_sections` and `form_versions` `*_staff_admin_write` all verdict COVERED.
+>
+> ⛔ **Two disclosure conditions on re-using these five.** (1) The BLIND count moved **3 → 15** and
+> off-allowlist **0 → 5** across Batch 3; because `FROMFINDINGS=1 ARM=policy` is **already red**, ⚠
+> *no gate can register that change* — whoever repairs the red meets five offenders and this note is
+> their provenance. (2) The **5** is **derived from the committed artifacts, not observed from an arm
+> run** (QA could not run that arm; it is red). State it that way wherever it is quoted.
+>
+> ⚠ Three further `process_template_*` write policies are **UNVERDICTED**, not BLIND and not COVERED:
+> opening them aborts `supabase/tests/297_process_template_versioning.sql` (`Bad plan`), which moves
+> the suite shape. ⭐ **Assertions FIRED and named the file** — *absence of a verdict is not absence
+> of coverage*. If Batch 4 re-keys any `process_template_*` policy, that test file is in its blast
+> radius and the three owe a re-sweep in whichever unit repairs it.
+
 **Why before AE5:** the manifest is the per-role template's oracle; F-BLOCK-1's recurrence "AE5
 multiplies by 11". Any re-key here is a **migration** → the diff-scoped sweep is owed, **both arms**,
 derived by the Batch 1 deriver with its `SCOPE:` line quoted (Batches 1–2 are its prerequisites).
 
-**Runs on a SEPARATE MACHINE, in parallel with Batch 3 (ruled 2026-09-07).** Batch 3's ~13 h
-`RESET_EVERY` sweep owns the dev machine's local stack for a day; Batch 4 needs the stack for hours,
+**Runs on a SEPARATE MACHINE, in parallel with Batch 3 (ruled 2026-09-07).** ⚠ **EDITED 2026-09-08:
+Batch 3's sweep is FINISHED — it took `3.88 h`, not the `~13 h` this sentence budgeted, and the dev
+machine's local stack is free.** (Superseded text, quoted so nothing is lost: *"Batch 3's ~13 h
+`RESET_EVERY` sweep owns the dev machine's local stack for a day"*. The `~13 h` had no measured
+parent; see the SUPERSEDED banner on the Batch 3 block.) The separate-machine arrangement stands as
+built and ⛔ **the merge-order and rebase obligations below are unchanged** — they are about the
+artifacts, not the schedule. Batch 4 needs the stack for hours,
 so it runs on its own clone + Docker stack. Code files are disjoint (Batch 3: the writepath harness +
 its findings file; Batch 4: migrations, the manifest, pgTAP `410`, `backend-state.md`, the runbook if
 Batch 5 rides along). What is NOT independent — care before merging Batch 4 from the other machine:
@@ -109,9 +196,30 @@ Batch 5 rides along). What is NOT independent — care before merging Batch 4 fr
    `SCOPE:` line re-quoted — its write-arm verdicts must land in the re-baselined findings file, and
    the rebase changes the case list the deriver sees. Re-run `npm run lint` MID-merge (a clean
    auto-merge can undo a bulk repair).
-3. **The write arm's empty-set trap is still open while Batch 4 runs** — Batch 3 is what makes "exit 0
-   over zero cases" a FINDING. Until it lands, check BY HAND that the deriver's write-arm case list is
-   non-empty before reading the arm's exit code as a pass.
+3. **⚠ EDITED 2026-09-08 (Batch 3 closed) — the by-hand check is still owed, but for the DOOR arm, and
+   for the write arm only until Batch 3 merges.** The superseded instruction read, in full: *"**The
+   write arm's empty-set trap is still open while Batch 4 runs** — Batch 3 is what makes 'exit 0 over
+   zero cases' a FINDING. Until it lands, check BY HAND that the deriver's write-arm case list is
+   non-empty before reading the arm's exit code as a pass."* It is edited rather than annotated
+   because it is an **operational instruction** an operator acts on, and Batch 3 changed what the
+   correct action is. What is true now, measured on branch `authz-writepath-baseline` @ `e4a16b33`:
+   - **Two states share the name "empty" and behave oppositely.** (a) `CASES` set to tokens matching
+     nothing **already** reached `exit 3 UNPROVEN` before Batch 3 (built by the 2026-08-29 REPAIR);
+     Batch 3 **proved** it, did not build it. (b) `CASES` set to the **empty string** was
+     indistinguishable from `CASES` **unset**, so a caller that captured the deriver's stdout without
+     consuming its exit code got a **full 120-case run writing the COMMITTED baseline**, with (a)'s
+     door unreachable. (b) was the real trap.
+   - **Fixed in the WRITE arm only** (`p0-authz-writepath-audit.sh`; ADR 0192): set-ness is captured
+     **before** the `${CASES:-}` default, so set-and-empty reaches the UNPROVEN exit.
+   - ⛔ **NOT fixed in the DOOR arm.** `p0-authz-door-audit.sh` carries the identical defect,
+     deliberately untouched (fixing one of two reads as fixing the class, and Batch 2's unit is
+     merged). Filed as `FUP-WRITEPATH-BASELINE-CASES-EMPTY-STRING-DEGRADES-TO-A-FULL-RUN` 🟠, **open**.
+   - **So, the action for Batch 4:** for the **door arm**, check BY HAND that the deriver's case list
+     is non-empty before reading that arm's exit code as a pass — that check is owed permanently until
+     the follow-up above lands. For the **write arm**, the same by-hand check is owed only while your
+     checkout predates the Batch 3 merge; after the rebase in item 2 the arm distinguishes the two
+     states itself. ⛔ Consume the deriver's **exit code**; capturing only its stdout is the caller
+     shape that produced the trap.
 4. **ADR numbers reserved up front** (parallel branches collide in sequential numbering, twice on
    record): **0192 → Batch 3, 0193 → Batch 4.** Renumber inside the rebase stop if either moved.
 5. **Tracker files conflict, resolvably**: both branches edit `follow-ups-open.md`,
@@ -240,6 +348,18 @@ inside a role increment"* (ADR [0176](../decisions/0176-authz-permission-layer-m
 - **Tail drift is real and has no originating case.** A long sweep degrades its own DB cumulatively;
   the door harness and the C2 neutralizer bound it with `RESET_EVERY` — **the writepath, rowdoor and
   invoker harnesses do not yet** (check before any full run; port first, prove as Batch 2 did).
+  - ⚠ **CORRECTED 2026-09-08, beside the original — the writepath harness NOW HAS `RESET_EVERY`;
+    only `rowdoor` and `invoker` remain.** Ported by Batch 3 (ADR 0192) and ⛔ **not a copy**: the
+    door's `periodic_reset()` re-derives **two** catalog worklists, while the write arm's Arm 1 is
+    the **static** `GUARD_KEYS`, so the Arm-1 half needed its own post-reset check (every entry
+    still resolves to an OID) and the write arm has no `degenerate_gates()` analogue at all. ⛔ The
+    instruction stands verbatim for the other two: **port first, prove by a planted drift
+    reproducer, and pair it with a clean-tree negative control and a discrimination half** — a
+    reset that cannot be shown to fire is not a bound. ⭐ And the port is proven **by selection**,
+    never assumed inherited: Batch 0's closure was mis-scoped exactly that way and Batch 2 paid for
+    it with a voided run. Evidence it worked here: 120 cases, `resets=8`, longest consecutive
+    off-baseline run **0** against a void threshold of 3. ⚠ `resets=0` on a full run is the state
+    that voided the door arm's run 1 — quote the `resets=N` line, never assume it.
 - **A full run through the merge yields a CARRIED block** that a human dispositions (Batch 2: 275 rows,
   31 hand notes). Budget it; bring the enumeration to the PO before committing the file; the three
   census-mandatory re-files (`app.storage_upload_reserved`, `public.commission_cadence_overview`,
@@ -247,6 +367,35 @@ inside a role increment"* (ADR [0176](../decisions/0176-authz-permission-layer-m
 - **`FROMFINDINGS=1 ARM=policy` is RED** (pre-existing; 24 offenders, 12 section-stale COVERED rows) and
   unreadable until `FUP-AUTHZ-BLIND-SET-READ-FROM-THE-SECTION-NOT-THE-VERDICT` lands. It is not one of
   §6's four arms. ⛔ Never allowlist the twelve.
+  - ⚠ **2026-09-08 — read the figure above at ITS OWN GRAIN, and add a second grain and a delta.**
+    ⛔ **Do not rewrite `12` to `38`; both are true, of different things.**
+    - **12 — what the ARM REPORTS.** The red's own description (24 offenders / 12 section-stale
+      COVERED rows) is unchanged and still the number a reader of that arm's output sees.
+    - **38 — what the DOOR FILE HOLDS.** An `awk` census over section × column 4 at `dc643256`
+      measured `docs/reviews/authz-door-audit-findings.md` at 74 `## BLIND` rows / 256 `## COVERED`
+      rows with **38 disagreements** — every one in the `BLIND → COVERED` direction, none opposite.
+      The write file measured **0** after QA finding B1. ⭐ **Mechanism:**
+      `merge-findings-baseline.sh` step 3 emits a merged row at the **first** diff-aligned
+      placeholder and `## BLIND` comes first, so an improving verdict misfiles and a worsening one
+      files correctly — ⭐ *the merge is correct only for the direction that makes things worse. It
+      fails closed*, which is exactly why no gate hunting for under-reporting could trip on it.
+      A 38-of-38 one-directional result is itself the confirmation that the cause is the placement
+      rule and not chance. ⛔ **NOT fixed here** — those rows live in Batch 2's **merged** baseline
+      and repairing them re-opens a merged unit; measured onto
+      `FUP-AUTHZ-BLIND-SET-READ-FROM-THE-SECTION-NOT-THE-VERDICT`, which now owns **both halves**,
+      the *reader* (the arm reads the section) and the *writer* (the merge writes the section).
+      ⚠ Five documents describe the red as *"12 section-stale rows"*; the standing figure understates
+      the door file by **26**, and because that arm is red ⛔ **no gate can contradict the number** —
+      the precise condition under which a register figure rots.
+    - **+5 — what Batch 3 ADDED that the red cannot register.** BLIND went **3 → 15** and
+      off-allowlist **0 → 5** (`cases_staff_admin_write`, `member_titles_staff_admin_write`,
+      `commissions_admin_write`, `phase_results_staff_admin_write`,
+      `process_template_versions_staff_admin_write` — enumerated with verdicts in the Batch 4
+      hand-off note in §3). ⛔ **Nothing was allowlisted; the rule was obeyed.** The defect is
+      **disclosure**: ⭐ *an escape hatch for the UNMEASURABLE also silences the MEASURED* — a
+      standing red is where new regressions land invisibly. Whoever repairs the red meets twelve
+      **plus five**. ⚠ The **5** is **derived from committed artifacts, not observed from an arm
+      run**. ⛔ Never allowlist the twelve, the thirty-eight, or the five.
 - **Two Supabase stacks are up on the dev machine** (`supabase_db_azkbbhskturikxpgmafq` is ours;
   `escalume` is not). `supabase db reset --local` applies the directory you stand in; a catalog check
   that picks the first `supabase_db_*` container reads the wrong one (it happened). Discriminate by the
@@ -261,12 +410,47 @@ inside a role increment"* (ADR [0176](../decisions/0176-authz-permission-layer-m
   step's step 7 re-checks it before each unit opens.
 - `main` is far ahead of `origin/main` (97 commits at `d7964398`) and **unpushed**; push state is
   measured, never quoted.
+  - ⚠ **CORRECTED 2026-09-08, beside the original — and the correction is the line's own clause
+    proving itself.** `main` has since been **published**: `origin/main` = `23ec1fa5`, pushed
+    2026-09-07 06:23 -0300. **Push distance measured at `e4a16b33`: `1`**, not 97. So the Record
+    step's *"do not push; measure the push distance and say it"* now says **1**. ⭐ The bullet
+    ended *"push state is measured, never quoted"* and was itself quoted, stale, for a day — a
+    standing fact about an **external** system goes stale with no gate able to contradict it.
+    ⛔ Re-run `git rev-list --count origin/main..main`; do not carry the `1` forward either.
 
 ## 6. Where the next session starts
 
-1. `git status` clean on `main`; `git log --oneline -1` shows `d7964398` or later; `docs/features/INDEX.md`
-   shows no `in_progress` hub. If either is false, stop and read the hub that is in progress.
-2. Read Batch 2's [record](../progress/pred-domain.md) § "run 1 voided by tail drift" and § "the CARRIED
-   enumeration" — Batch 3 repeats both shapes on the write arm.
-3. Say **"initiate Batch 3"** to the lead. The lead opens the hub + record, cuts `authz-writepath-baseline`,
-   and spawns `backend` for the plan — never the build first.
+> ⚠ **EDITED 2026-09-08 — this checklist now reads BATCH 4.** It is an **operational instruction**, so
+> it is edited rather than annotated (R45: leaving *"Say 'initiate Batch 3'"* standing beside a
+> correction invites acting on the wrong one). The superseded text, quoted in full so nothing is lost:
+> *"1. `git status` clean on `main`; `git log --oneline -1` shows `d7964398` or later;
+> `docs/features/INDEX.md` shows no `in_progress` hub. If either is false, stop and read the hub that
+> is in progress. 2. Read Batch 2's record § 'run 1 voided by tail drift' and § 'the CARRIED
+> enumeration' — Batch 3 repeats both shapes on the write arm. 3. Say **'initiate Batch 3'** to the
+> lead. The lead opens the hub + record, cuts `authz-writepath-baseline`, and spawns `backend` for the
+> plan — never the build first."*
+
+⚠ **Batch 4 is not started from zero — it is ALREADY RUNNING on the second machine** (begun in
+parallel while Batch 3 swept). So the live step is Batch 4's **merge**, not its initiation, and the
+step before that is Batch 3's.
+
+1. **Measure, do not assume, where Batch 3 stands.** `git branch --list authz-writepath-baseline` and
+   `git log --oneline -1 main`. If the branch still exists, Batch 3 is **built, PO-approved and
+   QA-approved but NOT merged** (`e4a16b33` + the pre-merge documentation-audit commit); the lead's
+   `git merge --ff-only` into `main`, branch deletion, and ⛔ **do not push** are the outstanding
+   Record-step actions. ⚠ The hub's `branch:` is nulled at the Record step and is ⛔ **not** a claim
+   that it merged — §2 row 3 is where the merge state is written, and even that is measured, never
+   quoted.
+2. **Merge order is fixed and is not a preference: Batch 3, then Batch 4** (§3 Batch 4 item 1). Batch 3
+   rewrites the committed write-path findings file; Batch 4 re-keys write policies. Merged the other
+   way round, Batch 3's baseline measures policies that no longer exist. Batch 4 then **rebases onto
+   merged Batch 3 and RE-RUNS its diff-scoped sweep, both arms**, with the `SCOPE:` line re-quoted, and
+   `npm run lint` is re-run **MID-merge** — ⭐ a clean auto-merge can undo a bulk repair.
+3. **Before touching Batch 4's tree, read two things**: the Batch 3 hand-off note in §3's Batch 4 block
+   (five `_admin_write`/`_staff_admin_write` policies already enumerated **with verdicts** — ⛔ do not
+   re-derive, ⛔ do not allowlist), and Batch 2's [record](../progress/pred-domain.md) § "run 1 voided
+   by tail drift" + § "the CARRIED enumeration", which Batch 3 repeated in full on the write arm.
+4. **Then say "initiate Batch 4" to the lead only if step 1 shows no Batch 4 branch** — otherwise say
+   *"resume Batch 4"* and name the sha you measured. Either way the lead opens or re-opens the hub +
+   record and spawns `backend` for the plan — ⛔ never the build first. Once Batch 4 merges, the next
+   to initiate is **Batch 5**.

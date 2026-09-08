@@ -1493,6 +1493,13 @@ repaired; no BLIND is allowlisted; the four authz arms are **not** re-run by the
   *"seven as filed 2026-09-08, ten at `45f5880a`"*, each figure carrying its provenance. This is
   the **seventh** instance in this unit of *a count quoted from before the last edit* — and a fresh
   literal is the same defect with a newer number (R6).
+  > ⚠ **EXTENDED 2026-09-08 (pre-merge documentation audit), beside the original — the register now
+  > reads *"seven as filed 2026-09-08, ten at `45f5880a`, eleven at `e4a16b33`"*.** ⭐ The anchor was
+  > off by one **BY CONSTRUCTION**, which is more interesting than a miscount: the **eleventh** fault
+  > was caught *in the verification of this very Record cut* and recorded in `e4a16b33`, the next
+  > commit — so an anchor taken at commit N structurally cannot include a fault recorded at N+1, and
+  > ⭐ **the Record step is exactly where the last fault lands.** Anchoring is still the right repair;
+  > it just cannot be the last word while the unit is still committing. ⛔ Appended, never refreshed.
 - **O2 — 47 lines of hand prose added to a gate input whose only protection is indentation.**
   The write-path findings file's non-table hand-authored lines went **112 → 159** across the fix
   loop, and the new material includes the B1 note's **deliberately indented** pseudo-table.
@@ -1613,7 +1620,14 @@ arm's empty-set and killed-run behaviour findings rather than silence — before
   aborts/contamination/restore failures, no sentinel. R20: **all 13 retired door rows PRESENT and COVERED, 0 missing**.
 - ⭐ **The CARRIED disposition is APPLIED** (PO ruling R30): 9 re-filed, 36 deleted, line 27's stale tail deleted; the
   file went 401 → **256** lines (⛔ *"251" corrected 2026-09-08, QA N1 — the gap was the 5 lines that same turn added and
-  never re-measured*), CARRIED replaced by a dated `## Note`. **Condition 1 caught 0 rows** — for all 45 the carried
+  never re-measured*), CARRIED replaced by a dated `## Note`.
+  > ⚠ **RE-ANCHORED 2026-09-08 (documentation audit, pre-merge) — the `256` above is correct AT ITS COMMIT and stale
+  > as a present-tense claim; the file moved twice more after it.** ⛔ Anchored, never refreshed:
+  > `137` at `23ec1fa5` · `401` at `e4062712` · **`256` at `3c763ffe`/`6d0db87a`** · `304` at `0ff7d321` ·
+  > **`311` at `a608e240`/`45f5880a`/`e4a16b33`**. ⭐ The **eighth** instance in this unit of *a count quoted from
+  > before the last edit*, and the second time the correcting note was itself overtaken — `256` was QA's N1
+  > correction of `251`, then the fix loop added 55 lines. The repair is an anchor, because a fresh literal is the
+  > same defect with a newer number (R6/R44). **Condition 1 caught 0 rows** — for all 45 the carried
   citations are a subset of the live row's, and the matcher was proven able to find one before its zero was believed.
   **R14 re-asserted by byte comparison: 15 protected strings, all present, bare rc 0**, three mutations proving red.
   ⚠ **Finding inside it:** for 6 of the 9 the "hand commentary" was a *superseded provenance* stamp, false of the live

@@ -903,6 +903,37 @@ name as still present and hiding a rename.
   still carry NO verdict here: all four rows are **`snapshot:ABSENT`** (no §7.2 drift tripwire), and the
   **guard arm selected 0 of 13** — the same shape as the blank this fixed, and not a pass. The committed
   baseline covers **37 of 107**; a `FROMFINDINGS` arm cannot see the other 70.
+  - ✅ **CORRECTED 2026-09-08 — the three claims in the sentence above are OVERTURNED by unit
+    WRITEPATH-BASELINE (pre-AE5 Batch 3).** Left beside the original, not rewritten: each was true
+    when written and the reasoning is the part worth keeping. Measured on branch
+    `authz-writepath-baseline` @ `e4a16b33` from one full detached run of
+    `p0-authz-writepath-audit.sh` (3.88 h, `RESET_EVERY=20`, `resets=8`, bare **rc 1 = DIRTY**, which
+    is the correct outcome when `blind_ct>0 || err_ct>0`).
+    - *"the **guard arm selected 0 of 13**"* → the run swept **`guard=13/13`**. Every `GUARD_KEYS`
+      entry carries a verdict, `public.set_primary_subject(uuid)` — which had **never** been
+      verdicted by anything — included.
+    - *"The committed baseline covers **37 of 107**"* → the **37 was itself short by two** at the
+      time (it omitted the 2 rows merged from the `BUG-AE49-D6-REKEY-INCOMPLETE` subset run of
+      2026-09-03; the true figure at open was **39 of 107**). It is now **107 of 107** policies and
+      **13 of 13** guards — **120 of 120 cases measured**: 102 COVERED · 15 BLIND · 3 ERROR.
+    - *"a `FROMFINDINGS` arm cannot see the other 70"* → **that vacuity is closed**; every policy in
+      the arm's domain now carries a row, so a policy can no longer pass by being absent.
+    - ⛔ **"Measured" is not "clean", and a row is not a pass.** 15 are **BLIND** (a write-capable
+      policy whose `with check` half opens to `true` with no test noticing) — each a real finding to
+      keystone, ⛔ **never allowlisted**. 3 are **ERROR / UNVERDICTED**, not COVERED: opening a
+      `process_template_*` write policy aborts
+      `supabase/tests/297_process_template_versioning.sql` (`Bad plan`), and the harness refuses to
+      infer a verdict it did not earn. ⭐ Assertions **did** fire in those three and named the file —
+      *absence of a verdict is not absence of coverage.*
+    - ⚠ **`FROMFINDINGS=1 ARM=policy` is a separate, pre-existing RED** and is unaffected by this:
+      it is **not** one of CLAUDE.md §6's four arms, its twelve are never allowlisted, and Batch 3
+      added **five** new off-allowlist BLINDs it structurally cannot register (see the plan's
+      Batch 4 hand-off note). That figure is **derived from the committed artifacts, not observed
+      from an arm run**.
+    - ⛔ **State, not merged.** All of the above is on branch `authz-writepath-baseline`; it reaches
+      `main` only at the lead's ff-merge, which is ordered **before** Batch 4's. Re-measure rather
+      than quote. (Corrected by `backend` on the lead's instruction — this file's Record-step
+      custody is the lead's, and the omission was the lead's.)
 - The four altered policies carried **stale `COVERED` verdicts** from five unrelated suites, earned
   against the **pre-ALTER** predicate. ⛔ `ARM=census` structurally cannot catch this — the gate is
   not a newcomer, it already has a verdict, and that is exactly what makes it silent.

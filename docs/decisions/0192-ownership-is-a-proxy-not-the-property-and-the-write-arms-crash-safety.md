@@ -13,12 +13,19 @@ placement rule is unchanged in intent, but its INPUT was wrong: an explicitly-em
 indistinguishable from an unset one)
 **Related:** ADR [0079](./0079-authz-door-blindness-standing-invariant.md) (a green arm bounds its
 own domain; the DOMAIN-STATEMENT this arm now prints) · ADR
-[0171](./0171-c2-command-doors-are-a-separate-deferred-sweep.md) (Tier 2's 190 doors remain
+[0171](./0171-c2-tier1-regrain-and-the-command-door-neutralizer.md) (Tier 2's 190 doors remain
 deferred and are **not** cleared by anything here) · ADR
 [0190](./0190-the-door-sweep-deriver-selects-by-property-and-a-full-run-merges.md) (the merge
 whose protected set is reconciled here) ·
-[FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED](../followups/follow-ups-open.md) Part 4, whose `Closes when`
-this ADR's §4 discharges
+[FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED](../followups/follow-ups-archive.md) Part 4, whose `Closes when`
+this ADR's §4 discharges — ⚠ *retargeted 2026-09-08 from `follow-ups-open.md`*: this ADR's own unit
+closed and archived that item on 2026-09-08, so the link pointed at a register it had just left.
+⭐ *A rename orphans a name-keyed reference* — the citation was correct when written and became false
+through no edit of its own; its body file was deleted by the closure and its content is now inline in
+the archive under the same heading, § PART 4, under its `Owed:` line
+⚠ *(no bold used in this label value by design — a bold-with-colon phrase in an ADR header value
+creates a phantom label, and positional `**` pairing can swallow a following label; see
+`FUP-ADR-CROSS-LINKS-HAVE-NO-GATE`)*
 
 ---
 

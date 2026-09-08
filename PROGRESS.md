@@ -24,7 +24,7 @@
 **Live feature state:** [docs/features/INDEX.md](docs/features/INDEX.md) — generated from hub
 frontmatter, sorted in-progress first (ADR 0186 D1–D2).
 
-## State — the three live remote facts (measure, never quote)
+## State — the live remote facts (measure, never quote)
 
 _Concluded measurements → [backend-state.md](docs/backend-state.md) § REMOTE CENSUS
 2026-08-18 (every figure with its deriving query); standing rules — the re-measure
@@ -33,6 +33,10 @@ recipes, the editable window, "a git push is not a `db push`", the flags posture
 and its three-times-stale correction history →
 [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md). Only facts
 still awaiting a concluding event stay here:_
+
+_⚠ 2026-09-08: the heading's numeral (`the three live remote facts`) was **deleted, not corrected to
+"two"** — one row expires at pilot data-load, so any count here rots on its own schedule with no gate
+able to contradict it. ⛔ Never re-add a number to this heading; count the rows._
 
 | live fact | concludes when |
 | --- | --- |
