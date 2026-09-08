@@ -191,6 +191,32 @@ first attempt was piped to `tail`, and the task chip reported **exit 0 while the
   an earlier gate, so "the baseline was green" was never established. Left for Batch 6, whose stated
   subject is register/gate hygiene; fixing it here would collide with the file they are rewriting.
 
+  > ⚠ **CORRECTED 2026-09-08 by the Batch 6 lead, beside the original — the conclusion is wrong,
+  > and the reasoning that produced it is the instructive part.** Gate 11 is **NOT red on `main`**.
+  > Measured on the primary tree at the Batch 6 tip: `npm run lint:rules` → **rc 0**,
+  > `check-rules-staleness: OK (10 rule file(s), anchors + globs resolve)`. The 24 findings **were**
+  > reproduced exactly — by running the same script *from this unit's worktree*
+  > (`.claude/worktrees/zen-vaughan-7dcae2`), **rc 1**.
+  >
+  > **Cause: the worktree's `.claude/rules/*.md` are CRLF; the primary tree's are LF.** Measured on
+  > `prettier-does-not-govern-this-tree.md`: **47** CR bytes there, **0** here, both 47 lines —
+  > 2058 bytes vs 2011. That +47 is exactly what carries three files past the **2048-byte cap**, and
+  > `paths:` / `anchors:` / `source:` "go missing" because the parser is handed `paths:\r`.
+  >
+  > ⛔ **Why "byte-identical to `main`" was measured and still wrong.** `git hash-object` returns the
+  > **same blob** for both copies, and `git status` is clean in both — because `.gitattributes`'
+  > `* text=auto eol=lf` clean filter normalises the CR away *on the way in*. So every git-mediated
+  > comparison agrees they are identical while the bytes on disk differ. A claim about a file's
+  > **content** is not a claim about the **bytes a gate reads**, and on Windows that gap is invisible
+  > to the tool everyone reaches for.
+  >
+  > ⭐ **The finding that survives, and it is a real one:** the gate **misattributed its own failure
+  > cause**. It said *"no `paths:` globs"* and *"no `anchors:`"* when the truth was *"this file has
+  > CRLF"* — and that misattribution is what turned a line-ending artifact into a committed claim
+  > that `main` was broken. Batch 6 owns the fix: the gate must name CRLF as CRLF. Gate 9, which
+  > forbids CR outright, is **rc 0** in that same worktree, so the drift is confined to
+  > `.claude/rules/`.
+
 `node_modules` is **borrowed from the primary checkout** (this worktree has none);
 `git diff --stat main -- package-lock.json` is **empty**, the documented condition under which
 borrowed results are comparable ([docs/worktrees.md](../worktrees.md)). ⛔ Stated because an

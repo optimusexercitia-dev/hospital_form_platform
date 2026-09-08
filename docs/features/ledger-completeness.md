@@ -76,11 +76,18 @@ a row **ARRIVED**.
 
 ### Blockers
 
-⛔ **`npm run lint` exits 1 — on `main` too, and not from this unit.** Gate 11
-`check-rules-staleness`: 24 findings across 10 rule files (missing `paths:`/`anchors:`/`source:`,
-3 over the byte cap). `.claude/` is byte-identical to `main` **and** to Batch 6's tip, and the gate
-script is byte-identical to `main`. Left to Batch 6 — register/gate hygiene is its stated subject
-and it is actively rewriting that area. **Gate 13 `lint:registers` is exit 0.**
+✅ **The gate-11 blocker is DISSOLVED — it was a worktree artifact, not a repo defect.**
+This block previously read: *"`npm run lint` exits 1 — on `main` too, and not from this unit …
+`.claude/` is byte-identical to `main`"*. Measured by the Batch 6 lead 2026-09-08 on the primary
+tree: `lint:rules` → **rc 0**, `OK (10 rule file(s))`. The 24 findings reproduce only when the
+script is run **from this unit's worktree**, whose `.claude/rules/*.md` are **CRLF** (47 CR bytes
+vs 0, 2058 vs 2011 bytes — which is what crosses the 2048 cap, and what makes the parser see
+`paths:\r`). `git hash-object` and `git status` both call the two copies identical, because
+`.gitattributes`' `* text=auto eol=lf` clean filter normalises CR on the way in — so the
+"byte-identical" measurement was correct and the conclusion drawn from it was not.
+⭐ What survives is a real Batch 6 item: the gate **misattributed its own failure cause**, reporting
+*"no `anchors:`"* where the truth was *"CRLF"*. Full correction: record § 2026-09-08.
+**Gate 13 `lint:registers` is exit 0**, and so is the full chain on the primary tree.
 
 ⚠ **The coordination premise changed mid-session.** `authz-register-gate-hygiene` did not exist at
 session open (measured) and appeared partway through; this branch was rebased onto it per the
