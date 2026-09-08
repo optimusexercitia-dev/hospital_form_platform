@@ -73,7 +73,12 @@ Gate 13 already carries the **eight ratchets** (`RATCHETS`, `:157-178`; `checkRa
 Measured today: `npm run lint:adr-index` → rc 0, *"OK (191 ADRs indexed, next free 0194)"*, **with 14
 dangling link targets in the tree**.
 Re-derivation over 786 intra-`docs/decisions/` path links: **14 broken**, in 8 files, but only **10
-distinct wrong strings** — `./0037-inter-committee-referrals.md` alone accounts for 5. Of 168 links
+distinct wrong strings** — `./0037-inter-committee-referrals.md` alone accounts for 5.
+⚠ **CORRECTED 2026-09-08 beside the original (QA MINOR): it is NINE files, not eight.** The repair
+commit's own `--name-only` list is `0053 0056 0063 0064 0072 0073 0078 0105 0191`; 0078 carries five
+of the fourteen, which is what made an eyeballed file count come up short. The lead repeated the
+wrong figure to the PO before it was caught. ⛔ Small, and recorded anyway: a miscount that no gate
+can contradict is precisely what this unit exists to stop. Of 168 links
 pointing **outside** `docs/decisions/`: **0 broken** (a census of all 168, not a sample). 0 case-only
 mismatches, checked by `readdirSync` component walk rather than `existsSync`.
 ⚠ **13 → 14 is fully accounted**: 13 measured 2026-09-02, −1 (0177 repaired), +2 (ADR 0191, added
@@ -531,3 +536,34 @@ was deliberately not run — it is the
 ~105-minute path, no Phase Gate arm reaches it, and the caller repair in it is therefore verified by
 construction and self-test, not by execution (recorded as such in the build entry, and as M4 in the
 plan).
+
+### 2026-09-08 — PO ruling on the `DSR` ledger row (lead, recorded before it is applied)
+
+The spun-off `LEDGER-COMPLETENESS` session flagged that its `DSR` row was written **after** the PO
+ruling, under that ruling's own principle rather than inside the option the PO had picked, and it
+wrote a standing self-strike clause into the row: *"⛔ **PO: strike this row if that reading is
+wrong.**"* The lead declined to resolve it alone and banked it for the PO.
+
+**Ruled 2026-09-08, three parts:**
+
+1. **Keep the row.** ⭐ *"The substance is verified independently of who authorized it. The objection
+   is procedural (who said yes), not factual (is it true)."* A procedural objection and a factual one
+   do not have the same remedy, and only the factual one impeaches a record.
+2. **Rewrite cell 3 at ratification.** Replace the self-strike invitation with a plain statement of
+   provenance and disposition — *"row reconstructed 2026-09-08 by `LEDGER-COMPLETENESS`; presented
+   UNDECIDED, PO-ratified 2026-09-08"*. ⛔ **A permanent record carrying a standing "delete me if I'm
+   wrong" clause is a permanent open question** — every future reader has to re-litigate it. And
+   ⛔ **ratifying without editing the cell leaves the worst of both**: the row is settled while its
+   own text still says it might not be.
+3. **Leave the derivation record alone.** `docs/progress/ledger-completeness.md` keeps the "written
+   after the ruling" account **verbatim**. That is honest process history and the near-miss belongs
+   there. ⛔ Only the ledger's **live cell** is cleaned up.
+
+⚠ **Applied at the Record step, not on receipt** — the PO's own wording is *"when you ratify"*, and
+the QA re-review was reading these exact rows when the ruling arrived; changing the artifact under
+review would have made the round-2 findings unciteable. The ruling is recorded here first so it
+cannot be lost between the two events.
+
+⭐ The general shape, worth carrying: **a live record states what is true; the process history states
+how it got there.** Mixing them puts a question mark in the artifact that readers are supposed to
+rely on, and the fix is not to delete the doubt but to move it to where doubt belongs.
