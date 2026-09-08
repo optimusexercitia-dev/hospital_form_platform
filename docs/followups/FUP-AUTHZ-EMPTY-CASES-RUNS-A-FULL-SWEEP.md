@@ -19,6 +19,26 @@ to the **empty string** — *set*, but empty — and the harness ran a **FULL sw
 domain**. It had to be killed after it had been running for hours, mid-merge, having already begun
 rewriting the committed findings baseline.
 
+> ⚠ **CORRECTED 2026-09-08, beside the original — the two figures in the sentence above are both
+> wrong, and the unit's own record measures them.** [`docs/progress/enforcement-manifest.md`](../progress/enforcement-manifest.md),
+> § *tip gate*, *"Two lead errors, recorded"*, first person and same day: the run *"swept
+> `app.can_create_professional`, not in the diff"*, its merge *"then aborted on Apple diff"*, and it
+> was **`killed after ~10 min`** — then, measured rather than assumed, **`git diff --stat` on both
+> committed findings files empty**, DB restored by a fresh reset, and the two stale sentinels it left
+> inspected and found healthy (`RECOVER=1` not needed). So: **~10 minutes, not hours**, and the
+> committed baseline was **byte-unchanged**, not "already begun rewriting".
+>
+> ⛔ **This is not a downgrade, and the severity above stands unamended.** What stopped the run was an
+> **unrelated merge abort plus a human noticing** — no guard fired, nothing reported, and
+> `PARTIAL RUN — CASES=""` was never printed because it cannot be. An incident survived by luck is
+> the same defect as one that is not; the argument for fixing it is *silent + it writes + reachable
+> from the documented recipe*, none of which depends on how long that one run lasted.
+>
+> ⭐ The drift is worth naming because this file **is** the evidence a later session will quote: a
+> narrative sentence in a follow-up body and a measured line in a record disagreed for a day, and the
+> narrative is the one that reads as more alarming, so it is the one that gets repeated. It was, into
+> the plan's Batch 6 row and the open register — both corrected the same day.
+
 ## The mechanism, in the two harnesses' own lines
 
 `supabase/tests/mutation/p0-authz-door-audit.sh`:
