@@ -1767,6 +1767,13 @@ regex).
 **Status:** open
 **Body:** [FUP-AUTHZ-NO-BEHAVIOURAL-PROOF-APP-SCHEMA-UNREACHABLE-OVER-POSTGREST.md](FUP-AUTHZ-NO-BEHAVIOURAL-PROOF-APP-SCHEMA-UNREACHABLE-OVER-POSTGREST.md)
 
+### 🟡 FUP-AUTHZ-ANON-RESIDUE-FIGURE-HAS-MORE-HOMES-THAN-ANY-SWEEP-FOUND — three hand-listed sweeps each found a different total
+
+**Filed:** 2026-09-08 (unit PRIVILEGE-SURFACE, pre-AE5 Batch 7 — the final independent tip gate found a 6th and 7th home of a figure two prior rounds had each declared fully swept, one of them inside the hub bullet an earlier round had edited) · **Owner:** backend · **Severity:** medium — ⛔ **the stale number is not the finding.** The finding is that three consecutive sweeps were each produced by reading rather than deriving, and each was reported as complete; the figure is informational and bounded by a config line, so no exposure follows from it
+**Closes when:** the three non-ADR present-tense sites named in the body are each decided — corrected, dated, or ruled correct-for-their-own-predicate — **and** the class's enumeration is written down so the next reader does not hand-list it a fourth time (the count is one query over `app`; the homes are derivable by `git grep`). ⛔ **Not closed by correcting the sites alone** — that is precisely what each of the three previous rounds did. ⛔ Not closed by editing ADRs 0155 or 0160, which record what was measured on their dates and one of which exists to correct the other's reading of this very figure. ⛔ Not closed by any sweep that treats `237` as one class: most occurrences in the tree are C2 Tier-1 door counts, perf-trace buffer hits, or line references.
+**Status:** open
+**Body:** [FUP-AUTHZ-ANON-RESIDUE-FIGURE-HAS-MORE-HOMES-THAN-ANY-SWEEP-FOUND.md](FUP-AUTHZ-ANON-RESIDUE-FIGURE-HAS-MORE-HOMES-THAN-ANY-SWEEP-FOUND.md)
+
 ### 🟡 FUP-AUTHZ-42501-MATCHER-CANNOT-TELL-A-GATE-FROM-AN-ACL — `398`'s negative arms pass identically whether the door refuses or the grant is gone
 
 **Filed:** 2026-09-08 (unit PRIVILEGE-SURFACE, pre-AE5 Batch 7 Track C — found while probing `public.recover_orphan_person_to_org` for the reachability analysis ruling R25 ordered; the probe's revoke reded only the `lives_ok`) · **Owner:** backend · **Severity:** medium — ⛔ **not a defect today.** The grant is in place and `398` is green for the right reason. It is medium because ruling R1 deferred AE1's 233 revokes to a later unit whose entire job is moving EXECUTE grants, and that unit would have no reason to look at a green suite

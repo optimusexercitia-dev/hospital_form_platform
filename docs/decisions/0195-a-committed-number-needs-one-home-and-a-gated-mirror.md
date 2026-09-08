@@ -194,10 +194,17 @@ own source forbids reusing.
 - ⚠ **Two gates were added, so `npm run lint` has 15, not 13.** Any record, review or prose citing
   "gate N" positionally must be read against that. Both were appended at the **end** for exactly
   this reason — an insertion would have silently renumbered every existing citation.
-- ⚠ **D6's mitigation for displaced citations is not gated.** The comment block moved the `schemas`
-  assignment off line 13, and old `config.toml:13` citations now land on a note explaining the move.
-  Gate 14 pins the **assignment**, not the note's position — ⭐ so that graceful degradation depends
-  on something no gate enforces. Stated here so a future edit to that block meets this sentence.
+- ⚠ **D6's mitigation for displaced citations is not gated — MEASURED, not predicted.** The comment
+  block moved the `schemas` assignment off line 13, and old `config.toml:13` citations now land on a
+  note explaining the move. Gate 14 pins the **assignment**, not the note's position. ⭐ The
+  independent tip runner **witnessed** it: rewriting the line-13 mitigation banner leaves gate 14
+  **green (rc 0)**, because the pinned sentinel is a different line (`docs/progress/privilege-surface.md`,
+  the `d428d515` gate entry). ⇒ The graceful degradation depends on something **no gate enforces**,
+  and that is now a measurement rather than this ADR's guess. Stated here so a future edit to that
+  block meets this sentence.
+  ⚠ **And the citation it protects has already rotted twice**: `config.toml:13` → *"line 51"* →
+  **71** within this unit. ⇒ The durable form is to cite the **key** (`[api].schemas`), never a line;
+  re-correcting a line number only resets its clock.
 - ⚠ **`UNCHANGED = 161` of AE1's 233 remains unexamined, not cleared.** No arm looked at those rows
   before or after; this decision does not change that.
 - ⭐ Both new gates were proven able to fail before being believed — planted reds with observed exit

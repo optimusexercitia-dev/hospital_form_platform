@@ -57,11 +57,15 @@ Entries stay `Status: open` until the Record step, after PO approval.
       a stored CHECK expression (`42501`), so such a revoke **breaks writes to the constrained
       table**. ⚠ `UNCHANGED = 161` is unexamined, not cleared.
 - [ ] `FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED` 🟢 — `Closes when: PO to rule`. Informational
-      anchor: 237 of 467 `app` functions are `anon`-executable, bounded by `supabase/config.toml`'s
-      **`[api].schemas`** key (`["public", "graphql_public"]`) — **a config line, not the ACLs**.
-      ⚠ Cited by **key, not line number**: this read `config.toml:13` until 2026-09-08, when the
-      gate's own comment block displaced the assignment to line 51 (R30). *A cited line number rots
-      when its artifact is overwritten* — the key cannot. ⛔ Not a
+      anchor: **236 of 526** `app` functions are `anon`-executable (measured 2026-09-08 at head
+      `20261003007350`; `526` = `prokind='f'` in `app`, `236` = `has_function_privilege('anon', …)`,
+      the **effective** predicate — ⛔ **not** `320` §U1's ACL-shaped 236, which coincides by
+      accident), bounded by `supabase/config.toml`'s **`[api].schemas`** key — **a config line, not
+      the ACLs**. ⚠ Cited by **key, not line number**, and this bullet had to learn that twice: it
+      read `config.toml:13`, was corrected to *"line 51"* under R30 — and by the final gate the
+      assignment was at **71**. ⛔ The line number is gone rather than re-corrected; *a cited line
+      number rots when its artifact is overwritten*, and replacing one with another only resets its
+      clock. ⛔ Not a
       vulnerability and must not be reported as one. The body's own close path is a decision in
       three parts (default-`REVOKE` `app` from PUBLIC or not · if yes a **red-first pgTAP** gate,
       because DB anchors are not checkable in `npm run lint` · and a comment on the load-bearing
@@ -107,7 +111,9 @@ new functions, all with explicit `authenticated` grants, **0 unattributable**. B
 is the finding — ⛔ not "759 == 759", which is exactly what an add/remove pair looks like. Full AE1
 re-derivation reproduces 44/5/23/161 = 233; all six arm predicates had moved, the largest a write-arm
 worklist that tripled its domain. **Track B** — gate 14 pins `[api].schemas`; its fixture count is
-in the self-test's own output, not restated here (it said "13"; the self-test reports 14).
+in the self-test's own output, not restated here. ⛔ **This clause has now carried a stale count
+twice** — it said "13", was corrected to "14" while renouncing counts, and the self-test reports a
+third figure two iterations later. The number is gone; `--self-test` prints it.
 **Track C** — reachability verdicts REQUIRED / UNNECESSARY / UNDECIDED (⛔ a closed three-way set,
 never a binary), the ceiling's move in its one home, `320` §U4/U5/U6, and gate 15. **Track D** —
 citations repointed to the **key**, and the silent no-op class corrected to 138 beside 137.
