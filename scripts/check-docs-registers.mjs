@@ -78,7 +78,7 @@
 import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs'
 import { join, dirname, resolve, relative, basename } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { execSync } from 'node:child_process'
+import { execFileSync, execSync } from 'node:child_process'
 import yaml from 'js-yaml'
 
 export const ROOT = process.cwd()
@@ -1131,6 +1131,19 @@ function git(cmd) {
     return ''
   }
 }
+// ⛔ SHELL-FREE. `git()` above interpolates into a shell string, and `--format=%(refname:short)`
+// cannot survive BOTH shells: bare, `/bin/sh` reads `(` as a subshell (fixed by quoting in
+// 3057ac1c, "every in_progress hub redded as 'branch does not exist'"); quoted, cmd.exe on Windows
+// keeps the quotes literally, so every branch arrives as `'main'` and the SAME check reds again on
+// the other platform. One quoting choice cannot be right on both, so this passes an argv array and
+// no shell parses anything. ⛔ Use this for any git call whose arguments carry shell metacharacters.
+function gitArgs(args) {
+  try {
+    return execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
+  } catch {
+    return ''
+  }
+}
 function walkMd(dir, out = []) {
   const skip = new Set(['node_modules', '.next', 'worktrees', 'graphify-out', '.git'])
   for (const e of readdirSync(join(ROOT, dir), { withFileTypes: true })) {
@@ -1176,7 +1189,7 @@ function buildCtx() {
     bugIds: new Set((bugsTable?.rows || []).map((r) => r.cells.ID)),
     shaExists: (sha) => git(`cat-file -e ${sha}^{commit} && echo ok`) === 'ok' || git(`rev-parse --verify --quiet ${sha}^{commit}`) !== '',
     lintScripts: new Set(Object.keys(pkg.scripts || {}).filter((k) => k.startsWith('lint:'))),
-    branches: git("branch --list --format='%(refname:short)'").split('\n').filter(Boolean),
+    branches: gitArgs(['branch', '--list', '--format=%(refname:short)']).split('\n').filter(Boolean),
     currentBranch: git('branch --show-current'),
     newestCodeCommitDate: git('log -1 --format=%cs -- src supabase e2e') || null,
     ledgerText: read(PATHS.phaseLedger) || '',
