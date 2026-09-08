@@ -57,8 +57,11 @@ Entries stay `Status: open` until the Record step, after PO approval.
       a stored CHECK expression (`42501`), so such a revoke **breaks writes to the constrained
       table**. ⚠ `UNCHANGED = 161` is unexamined, not cleared.
 - [ ] `FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED` 🟢 — `Closes when: PO to rule`. Informational
-      anchor: 237 of 467 `app` functions are `anon`-executable, bounded by `supabase/config.toml:13`
-      (`schemas = ["public", "graphql_public"]`) — **a config line, not the ACLs**. ⛔ Not a
+      anchor: 237 of 467 `app` functions are `anon`-executable, bounded by `supabase/config.toml`'s
+      **`[api].schemas`** key (`["public", "graphql_public"]`) — **a config line, not the ACLs**.
+      ⚠ Cited by **key, not line number**: this read `config.toml:13` until 2026-09-08, when the
+      gate's own comment block displaced the assignment to line 51 (R30). *A cited line number rots
+      when its artifact is overwritten* — the key cannot. ⛔ Not a
       vulnerability and must not be reported as one. The body's own close path is a decision in
       three parts (default-`REVOKE` `app` from PUBLIC or not · if yes a **red-first pgTAP** gate,
       because DB anchors are not checkable in `npm run lint` · and a comment on the load-bearing
@@ -90,24 +93,34 @@ classified-but-unexecuted 233-revoke set whose majority is a silent no-op as wri
 
 ### Done since start
 
-Unit opened: hub + record written, `docs/features/INDEX.md` regenerated, gates 7 and 13 run, branch
-`authz-privilege-surface` cut off `main` at `412fa4d7`. The three follow-ups were read in their
-**bodies**, not their register summaries; the register's own `Closes when` for the ceiling item is
-truncated mid-sentence with an ellipsis, so the body is the operative text.
+Unit opened off `main` @ `412fa4d7`; follow-ups read in their **bodies**, not the register (the
+ceiling item's `Closes when` is truncated mid-sentence there). Four PO rulings taken: **R1** defer
+revoke execution ⇒ no migration, no ACL change · **R2** keep the `app` floor's config bound and gate
+the config line · **R24** the ceiling **moves 752 → 759** · **R25** run the reachability analysis
+on the three unproven grants. 31 rulings in the unit's rulings file.
+
+**Track A** — three-head catalog run (`…005300`/484 · `…007330`/522 · `…007350`/524, keyed on the
+**pair**, since a head alone does not identify a migration set). A→B: **7 ADDED, 0 REMOVED**, all
+new functions, all with explicit `authenticated` grants, **0 unattributable**. B→C: the empty **set**
+is the finding — ⛔ not "759 == 759", which is exactly what an add/remove pair looks like. Full AE1
+re-derivation reproduces 44/5/23/161 = 233; all six arm predicates had moved, the largest a write-arm
+worklist that tripled its domain. **Track B** — gate 14 pins `[api].schemas`, 13 fixtures, self-test
+exits 2 if the checker cannot fail.
 
 ### In progress
 
-Nothing built. The unit is at protocol §4 step 2 — **plan first, full plan** — with the two
-scope-deciding PO questions not yet put.
+**Track C** — the reachability verdicts (REQUIRED / UNNECESSARY / UNDECIDED), the ceiling's move in
+its one home, `320` §U4/U5/U6 pinning the **ruled** 759 (`app` 326 · `public` 433) with rising **and
+falling** controls, and the anchor gate that makes the mirror of that number gated rather than free.
+**Track D** — repointing the `config.toml:13` citations to the **key**, and correcting the silent
+no-op class to 138 as a dated note beside 137.
 
 ### Next
 
-Put the scope question to the PO **before** the build (does Batch 7 execute revokes, or is it
-measurement + ruling + gate only) — it changes whether this unit carries a migration at all, and
-therefore whether it owes a both-arms diff-scoped sweep. The attribution and partition
-re-derivations are measurements, so their rulings go to the PO **after** them (§4 step 2).
+QA review → fix loop → re-review → PO approval → Record step. Three follow-ups close on their own
+quoted clauses; two of them on `PO to rule`, so each closure carries **the ruling**, and R1's carries
+a **re-open condition** rather than a bare "deferred".
 
 ### Blockers
 
-None. ⚠ 27 commits unpushed on `main` at unit open — a fact about the tree, not a blocker for this
-unit.
+None. ⚠ 27 commits unpushed on `main` at unit open — a fact about the tree, not a blocker here.
