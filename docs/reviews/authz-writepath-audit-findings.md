@@ -8,10 +8,23 @@ policy check set to `true`), run the FULL pgTAP suite, read `Result:`.
 writer). **BLIND** = suite stayed `PASS` (no keystone exercises it — a work-list item).
 **ERROR** = run shape != baseline (harness bug: fix the neutralization, not a result).
 
-Baseline: Files=156, Tests=4796, Result: PASS.
-Arm 1 guards: 7 (excluded non-authz validators: `assert_meeting_roster_nonempty`,
-`assert_condition_value_codes`). Arm 2 write policies: from the embedded snapshot.
+Baseline: Files=262, Tests=8876, Result: PASS.
+Arm 1 guards: 13 (excluded non-authz validators: `assert_meeting_roster_nonempty`,
+`assert_condition_value_codes`).
 
+Arm 2 domain: **107** — every RLS policy in the live catalog whose command can
+permit a write (`INSERT`, `UPDATE`, `DELETE` **and `ALL`**), in every schema.
+⛔ It EXCLUDES `FOR SELECT` policies (the read arm's domain) and, for an `ALL` policy,
+the `using` half — that clause also gates SELECT and is opened by
+`p0-authz-door-audit.sh` (`polcmd in ('r','*')`), so opening it here would let a READ
+keystone produce a COVERED that says nothing about the write path.
+⚠ Until 2026-09-02 this domain was a 33-row embedded snapshot bounded on
+`cmd in (INSERT,UPDATE,DELETE)` — a syntax, not the property. That snapshot survives as
+a **drift tripwire only**; a row marked `snapshot:ABSENT` was swept without one.
+⛔ **Rows in this file are only as complete as the run that wrote them.** A row count
+below 107 means no full sweep has covered the widened domain yet — absence of a
+row here is absence of a verdict, never a COVERED.
+`assert_condition_value_codes`). Arm 2 write policies: from the embedded snapshot.
 > ⚠ **HAND-MERGED, 2026-08-06 (QO·A / ADR 0100 D9; Amendment 5 scope-in).** The
 > `public.set_commission_oversight(uuid,text)` row below was merged by hand from a
 > **diff-scoped** run (`CASES="set_commission_oversight"`, baseline Files=171,
@@ -20,27 +33,22 @@ Arm 1 guards: 7 (excluded non-authz validators: `assert_meeting_roster_nonempty`
 > Arm-1 list (now 8) in the same change; its authority + raw-write guard are
 > additionally RED-proven by `q1-quality-mutation-audit.sh` (`door_authority`,
 > `guard_noop`).
-
 ## Note — 2026-09-03: THIS FILE COVERS 39 OF 107. The arm's domain was widened; no full sweep has run since. (33 predate the widening; **4** were merged from the AE4.9 D6 subset run 2026-09-02 and **2** more from the BUG-AE49-D6-REKEY-INCOMPLETE subset run 2026-09-03 — all COVERED, all marked snapshot:ABSENT, so no drift tripwire protects them.)
-
 ⛔ **Do not read this file as the write-path audit's result.** Its rows were produced when
 ARM 2's domain was a **33-row embedded snapshot** bounded on `cmd in (INSERT,UPDATE,DELETE)`
 — a syntax, not the property. `FOR ALL` is a write command too. Measured on the live catalog
 2026-09-02: **107** policies can permit a write (62 `ALL` · 17 `INSERT` · 17 `UPDATE` ·
 11 `DELETE`), so **74 were outside the arm entirely** and were reported as *"matched no gate"*.
 At the AE4.9 D6 gate that produced `policy=0/33`, **zero gates selected, exit 3**.
-
 The harness's domain is now lifted from `pg_policy` at run time (`polcmd <> 'r'`, every
 schema). The 74 decompose exactly: **62** `FOR ALL` policies · the **9** named in
 `FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED` Part 3 (re-derived here from the property, not from
 that list) · **3** `storage.objects` INSERT policies, which the `ARM=census` domain also
 misses because it bounds itself to `public`.
-
 ⚠ **Consequently: absence of a row below is absence of a VERDICT, never a COVERED.** A
 `FROMFINDINGS` arm reading this file re-measures nothing, so it cannot see the gap. The gap
 closes only when a **full** sweep runs against the widened domain (~50 min, 120 cases) and
 its rows are **merged** into this file — never copied over it (ADR 0079 Amendment 1 hazard 1).
-
 ⚠ A regenerated report marks each row `snapshot:ABSENT` when no §7.2 drift tripwire protects
 its verdict. All **33** snapshot rows were verified byte-identical to the live catalog on
 2026-09-02, so none of them is stale.
@@ -49,9 +57,22 @@ its verdict. All **33** snapshot rows were verified byte-identical to the live c
 
 | gate / policy | arm | direction | verdict | note |
 |---|---|---|---|---|
-| notification_preferences.notification_preferences_update_own (UPDATE) | policy | open->true | BLIND |  |
-| notifications.notifications_update_own (UPDATE) | policy | open->true | BLIND |  |
-| responses.responses_delete_own_draft (DELETE) | policy | open->true | BLIND |  |
+| cases.cases_staff_admin_write (ALL) | policy | open with-check->true | BLIND |  [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| commission_meeting_settings.meeting_settings_staff_admin_write (ALL) | policy | open with-check->true | BLIND |  [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| commission_meeting_types.meeting_types_staff_admin_write (ALL) | policy | open with-check->true | BLIND |  [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| commission_member_titles.member_titles_staff_admin_write (ALL) | policy | open with-check->true | BLIND |  [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| commissions.commissions_admin_write (ALL) | policy | open with-check->true | BLIND |  [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| notification_preferences.notification_preferences_update_own (UPDATE) | policy | open using+check->true | BLIND |  [role=postgres via ownership (owner=postgres)] |
+| notifications.notifications_update_own (UPDATE) | policy | open using+check->true | BLIND |  [role=postgres via ownership (owner=postgres)] |
+| phase_results.phase_results_staff_admin_write (ALL) | policy | open with-check->true | BLIND |  [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| process_template_phase_allowed_results.process_template_phase_allowed_results_staff_admin_write (ALL) | policy | open with-check->true | BLIND |  [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| process_template_phase_offered_results.process_template_phase_offered_results_staff_admin_write (ALL) | policy | open with-check->true | BLIND |  [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| process_template_versions.process_template_versions_staff_admin_write (ALL) | policy | open with-check->true | BLIND |  [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| process_templates.process_templates_staff_admin_write (ALL) | policy | open with-check->true | BLIND |  [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| professional_categories.professional_categories_admin_write (ALL) | policy | open with-check->true | BLIND |  [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| referral_types.referral_types_write_admin (ALL) | policy | open with-check->true | BLIND |  [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| reply_outcomes.reply_outcomes_write_admin (ALL) | policy | open with-check->true | BLIND |  [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| responses.responses_delete_own_draft (DELETE) | policy | open using->true | COVERED | 387_initplan_wrap_and_profiles_arm_identity.sql [role=postgres via ownership (owner=postgres)] |
 
 ## COVERED (asserted-through) + ERROR (harness bug) + SKIPPED (vacuous)
 
@@ -59,52 +80,108 @@ its verdict. All **33** snapshot rows were verified byte-identical to the live c
 |---|---|---|---|---|
 | public.set_commission_oversight(uuid,text) | guard | authz-open | COVERED | 307_commission_oversight.sql (QO·A hand-merge — see header note) |
 | public.create_external_participant(uuid,text,text) | guard | authz-open | COVERED | 320_act_expiry_and_acl_hardening.sql,321_eth_e4_participant_seating.sql (RE-SWEPT 2026-09-01, AE4.7c — its gate moved to app.can_manage_external_participant (matrix row 31). Same ERROR-then-fix as its sibling above) |
-| public.create_professional_profile(uuid,text,text,text,text,text,text,uuid) | guard | authz-open | COVERED | 228_ethics_e1.sql,320_act_expiry_and_acl_hardening.sql (NEW to this arm in AE4.7c — scoped in for the same reason its three siblings were: it returns uuid, so ARM=census's domain (prosecdef returning bool or rows) and the door audit's boolean-only predicate arm both exclude it, and its 42501 authority block IS the whole boundary. ⭐ It is also where AE4.7c's row-43 gate actually lives, so leaving it out would have meant the increment's own door had no standing arm) |
-| public.ensure_professional_participant(uuid) | guard | authz-open | COVERED | 320_act_expiry_and_acl_hardening.sql,321_eth_e4_participant_seating.sql (RE-SWEPT 2026-09-01, AE4.7c — its gate moved to app.can_create_professional. ⛔ The first run of this sweep scored it ERROR `neutralize failed`: this harness holds a hand-written copy of each guard's gate TEXT, and the split falsified it. ERROR is not BLIND and is not a pass — it means nothing was measured. The copy was corrected and the case re-run) |
-| public.set_professional_link_state(uuid,text,uuid) | guard | authz-open | COVERED | 320_act_expiry_and_acl_hardening.sql (NEW to this arm in AE4.7c. ⚠ BOUNDED VERDICT, stated rather than left to be assumed: this door now has TWO authority blocks — the POPULATION gate (can_create_professional) and AE4.7c's `link_state = 'unknown'` BOUND. The neutralizer opens the first, so COVERED here means the population gate is asserted through and says NOTHING about the bound. The bound has its own deterministic mutation twin in pgTAP 406 §5; the division of labour is recorded in the harness beside the gate string) |
+| public.create_professional_profile(uuid,text,text,text,text,text,text,uuid) | guard | authz-open | COVERED | 228_ethics_e1.sql,320_act_expiry_and_acl_hardening.sql,409_ae49_d6_rekey_differential.sql,410_ae49_d5_enforcement_manifest.sql |
+| public.ensure_professional_participant(uuid) | guard | authz-open | COVERED | 320_act_expiry_and_acl_hardening.sql,321_eth_e4_participant_seating.sql,410_ae49_d5_enforcement_manifest.sql |
+| public.set_professional_link_state(uuid,text,uuid) | guard | authz-open | COVERED | 320_act_expiry_and_acl_hardening.sql,410_ae49_d5_enforcement_manifest.sql |
 | app.assert_capa_writable(uuid) | guard | authz-open | COVERED | 143_capa.sql |
-| app.assert_meeting_staff_admin(uuid) | guard | authz-open | COVERED | 206_meeting_held_time.sql |
+| app.assert_meeting_staff_admin(uuid) | guard | authz-open | COVERED | 206_meeting_held_time.sql,327_invoker_wrapper_meeting_authority.sql,409_ae49_d6_rekey_differential.sql |
 | app.assert_interview_writable(uuid) | guard | authz-open | COVERED | 121_interviews.sql,250_authz_p0_isolation.sql |
-| app.assert_rca_writable(uuid) | guard | authz-open | COVERED | 142_rca.sql |
+| app.assert_rca_writable(uuid) | guard | authz-open | COVERED | 142_rca.sql,341_dm5_s2_nsp_evidence_substrate.sql |
 | app.assert_session_writable(uuid) | guard | authz-open | COVERED | 250_authz_p0_isolation.sql |
-| app.assert_referral_draft_writable(uuid) | guard | authz-open | COVERED | 250_authz_p0_isolation.sql |
+| app.assert_referral_draft_writable(uuid) | guard | authz-open | COVERED | 250_authz_p0_isolation.sql,340_dm4_referral_documents.sql |
 | app.assert_referral_target_acts(uuid,text[]) | guard | authz-open | COVERED | 250_authz_p0_isolation.sql |
-| capa_plan.capa_plan_delete (DELETE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
-| capa_plan.capa_plan_update (UPDATE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
-| case_interviews.case_interviews_delete (DELETE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
-| case_interviews.case_interviews_insert (INSERT) | policy | open->true | COVERED | 236_authz_exclusion_perimeter_u1.sql |
-| case_interviews.case_interviews_update (UPDATE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
-| case_referral.case_referral_delete_draft_source (DELETE) | policy | open->true | COVERED | 250_authz_p0_isolation.sql |
-| case_referral.case_referral_insert_source_coord (INSERT) | policy | open->true | COVERED | 250_authz_p0_isolation.sql |
-| case_referral.case_referral_update_coord (UPDATE) | policy | open->true | COVERED | 250_authz_p0_isolation.sql |
-| meeting_agenda_items.meeting_agenda_items_staff_admin_delete (DELETE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
-| meeting_agenda_items.meeting_agenda_items_staff_admin_insert (INSERT) | policy | open->true | COVERED | 245_authz_c7_org_user_meeting_surface.sql,252_authz_p0_isolation.sql |
-| meeting_agenda_items.meeting_agenda_items_staff_admin_update (UPDATE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
-| meeting_attendees.meeting_attendees_staff_admin_delete (DELETE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
-| meeting_attendees.meeting_attendees_staff_admin_insert (INSERT) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
-| meeting_attendees.meeting_attendees_staff_admin_update (UPDATE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
-| meeting_cases.meeting_cases_staff_admin_delete (DELETE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
-| meeting_cases.meeting_cases_staff_admin_insert (INSERT) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
-| meeting_cases.meeting_cases_staff_admin_update (UPDATE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
-| meeting_signatures.meeting_signatures_insert (INSERT) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
-| meetings.meetings_staff_admin_delete (DELETE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
-| meetings.meetings_staff_admin_insert (INSERT) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
-| meetings.meetings_staff_admin_update (UPDATE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
-| notification_preferences.notification_preferences_insert_own (INSERT) | policy | open->true | COVERED | 226_notifications.sql |
-| profiles.profiles_admin_insert (INSERT) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
-| profiles.profiles_admin_update (UPDATE) | policy | open->true | ERROR | run-shape!=baseline (Files=156 Tests=4788) |
-| profiles.profiles_update_self (UPDATE) | policy | open->true | ERROR | run-shape!=baseline (Files=156 Tests=4788) |
-| rca.rca_delete (DELETE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
-| rca.rca_update (UPDATE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
-| response_section_signoffs.signoffs_insert (INSERT) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
-| responses.responses_insert_own (INSERT) | policy | open->true | COVERED | 198_perf_hardening.sql |
-| responses.responses_update_own_draft (UPDATE) | policy | open->true | COVERED | 198_perf_hardening.sql |
-| form_items.form_items_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 387_initplan_wrap_and_profiles_arm_identity.sql,409_ae49_d6_rekey_differential.sql [merged 2026-09-02 from a subset run per ADR 0079 Amdt 1 · snapshot:ABSENT — no §7.2 drift tripwire on this verdict] |
-| form_sections.form_sections_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 387_initplan_wrap_and_profiles_arm_identity.sql,409_ae49_d6_rekey_differential.sql [merged 2026-09-02 from a subset run per ADR 0079 Amdt 1 · snapshot:ABSENT — no §7.2 drift tripwire on this verdict] |
-| form_versions.form_versions_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 387_initplan_wrap_and_profiles_arm_identity.sql,409_ae49_d6_rekey_differential.sql [merged 2026-09-02 from a subset run per ADR 0079 Amdt 1 · snapshot:ABSENT — no §7.2 drift tripwire on this verdict] |
-| forms.forms_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 409_ae49_d6_rekey_differential.sql [merged 2026-09-02 from a subset run per ADR 0079 Amdt 1 · snapshot:ABSENT — no §7.2 drift tripwire on this verdict] |
-| form_item_options.form_item_options_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 409_ae49_d6_rekey_differential.sql [merged 2026-09-03 from a subset run per ADR 0079 Amdt 1 · snapshot:ABSENT — no §7.2 drift tripwire on this verdict] |
-| form_item_validations.form_item_validations_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 274_ff3_validations.sql,409_ae49_d6_rekey_differential.sql [merged 2026-09-03 from a subset run per ADR 0079 Amdt 1 · snapshot:ABSENT — no §7.2 drift tripwire on this verdict] |
+| public.set_primary_subject(uuid) | guard | authz-open | COVERED | 314_qob_org_admin_content_wall.sql,321_eth_e4_participant_seating.sql,409_ae49_d6_rekey_differential.sql |
+| action_items.action_items_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 182_action_items.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| answer_selected_options.answer_selected_options_write_own_draft (ALL) | policy | open with-check->true | COVERED | 298_authz_p0_isolation.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| answer_selected_options.answer_selected_options_write_targeted (ALL) | policy | open with-check->true | COVERED | 298_authz_p0_isolation.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| answers.answers_insert_targeted (INSERT) | policy | open with-check->true | COVERED | 387_initplan_wrap_and_profiles_arm_identity.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| answers.answers_update_targeted (UPDATE) | policy | open using+check->true | COVERED | 387_initplan_wrap_and_profiles_arm_identity.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| answers.answers_write_own_draft (ALL) | policy | open with-check->true | COVERED | 387_initplan_wrap_and_profiles_arm_identity.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| capa_action_evidence.capa_action_evidence_write (ALL) | policy | open with-check->true | COVERED | 252_authz_p0_isolation.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| capa_action_task.capa_action_task_write (ALL) | policy | open with-check->true | COVERED | 252_authz_p0_isolation.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| capa_action.capa_action_write (ALL) | policy | open with-check->true | COVERED | 196_capa_tenant_anchor.sql,252_authz_p0_isolation.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| capa_effectiveness.capa_effectiveness_write (ALL) | policy | open with-check->true | COVERED | 252_authz_p0_isolation.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| capa_measure_result.capa_measure_result_write (ALL) | policy | open with-check->true | COVERED | 252_authz_p0_isolation.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| capa_measure.capa_measure_write (ALL) | policy | open with-check->true | COVERED | 252_authz_p0_isolation.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| capa_plan.capa_plan_delete (DELETE) | policy | open using->true | COVERED | 251_authz_p0_isolation.sql,387_initplan_wrap_and_profiles_arm_identity.sql [role=postgres via ownership (owner=postgres)] |
+| capa_plan.capa_plan_update (UPDATE) | policy | open using+check->true | COVERED | 251_authz_p0_isolation.sql,387_initplan_wrap_and_profiles_arm_identity.sql [role=postgres via ownership (owner=postgres)] |
+| case_custom_field_values.case_custom_field_values_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 188_case_custom_fields.sql,387_initplan_wrap_and_profiles_arm_identity.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| case_events.case_events_staff_admin_delete (DELETE) | policy | open using->true | COVERED | 387_initplan_wrap_and_profiles_arm_identity.sql,409_ae49_d6_rekey_differential.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| case_events.case_events_staff_admin_insert (INSERT) | policy | open with-check->true | COVERED | 111_case_docs_events.sql,234_authz_a2_resolver.sql,268_ethics_e3a_terminology_reads.sql,387_initplan_wrap_and_profiles_arm_identity.sql,409_ae49_d6_rekey_differential.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| case_events.case_events_staff_admin_update (UPDATE) | policy | open using+check->true | COVERED | 111_case_docs_events.sql,387_initplan_wrap_and_profiles_arm_identity.sql,409_ae49_d6_rekey_differential.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| case_events.case_events_writer_delete (DELETE) | policy | open using->true | COVERED | 387_initplan_wrap_and_profiles_arm_identity.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| case_events.case_events_writer_insert (INSERT) | policy | open with-check->true | COVERED | 111_case_docs_events.sql,234_authz_a2_resolver.sql,268_ethics_e3a_terminology_reads.sql,387_initplan_wrap_and_profiles_arm_identity.sql,409_ae49_d6_rekey_differential.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| case_events.case_events_writer_update (UPDATE) | policy | open using+check->true | COVERED | 111_case_docs_events.sql,387_initplan_wrap_and_profiles_arm_identity.sql,409_ae49_d6_rekey_differential.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| case_interview_interviewers.case_interview_interviewers_write (ALL) | policy | open with-check->true | COVERED | 387_initplan_wrap_and_profiles_arm_identity.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| case_interview_links.case_interview_links_write (ALL) | policy | open with-check->true | COVERED | 387_initplan_wrap_and_profiles_arm_identity.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| case_interview_subjects.case_interview_subjects_write (ALL) | policy | open with-check->true | COVERED | 387_initplan_wrap_and_profiles_arm_identity.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| case_interviews.case_interviews_delete (DELETE) | policy | open using->true | COVERED | 251_authz_p0_isolation.sql,387_initplan_wrap_and_profiles_arm_identity.sql [role=postgres via ownership (owner=postgres)] |
+| case_interviews.case_interviews_insert (INSERT) | policy | open with-check->true | COVERED | 236_authz_exclusion_perimeter_u1.sql,387_initplan_wrap_and_profiles_arm_identity.sql,409_ae49_d6_rekey_differential.sql [role=postgres via ownership (owner=postgres)] |
+| case_interviews.case_interviews_update (UPDATE) | policy | open using+check->true | COVERED | 251_authz_p0_isolation.sql,387_initplan_wrap_and_profiles_arm_identity.sql [role=postgres via ownership (owner=postgres)] |
+| case_narrative_types.case_narrative_types_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 387_initplan_wrap_and_profiles_arm_identity.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| case_narratives.case_narratives_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 387_initplan_wrap_and_profiles_arm_identity.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| case_offered_outcomes.case_offered_outcomes_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 177_processless_cases.sql,387_initplan_wrap_and_profiles_arm_identity.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| case_outcomes.case_outcomes_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 387_initplan_wrap_and_profiles_arm_identity.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| case_participant_roles.case_participant_roles_admin_write (ALL) | policy | open with-check->true | COVERED | 252_authz_p0_isolation.sql,387_initplan_wrap_and_profiles_arm_identity.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| case_phase_allowed_results.case_phase_allowed_results_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 252_authz_p0_isolation.sql,387_initplan_wrap_and_profiles_arm_identity.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| case_phase_offered_results.case_phase_offered_results_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 252_authz_p0_isolation.sql,387_initplan_wrap_and_profiles_arm_identity.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| case_phases.case_phases_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 387_initplan_wrap_and_profiles_arm_identity.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| case_referral.case_referral_delete_draft_source (DELETE) | policy | open using->true | COVERED | 250_authz_p0_isolation.sql,387_initplan_wrap_and_profiles_arm_identity.sql [role=postgres via ownership (owner=postgres)] |
+| case_referral.case_referral_insert_source_coord (INSERT) | policy | open with-check->true | COVERED | 250_authz_p0_isolation.sql,387_initplan_wrap_and_profiles_arm_identity.sql [role=postgres via ownership (owner=postgres)] |
+| case_referral.case_referral_update_coord (UPDATE) | policy | open using+check->true | COVERED | 250_authz_p0_isolation.sql,387_initplan_wrap_and_profiles_arm_identity.sql [role=postgres via ownership (owner=postgres)] |
+| case_tag_assignments.case_tag_assignments_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 252_authz_p0_isolation.sql,387_initplan_wrap_and_profiles_arm_identity.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| case_tags.case_tags_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 387_initplan_wrap_and_profiles_arm_identity.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| case_type_terminology.case_type_terminology_admin_write (ALL) | policy | open with-check->true | COVERED | 387_initplan_wrap_and_profiles_arm_identity.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| case_types.case_types_admin_write (ALL) | policy | open with-check->true | COVERED | 207_case_participants_e0.sql,387_initplan_wrap_and_profiles_arm_identity.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| form_item_options.form_item_options_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 409_ae49_d6_rekey_differential.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| form_item_validations.form_item_validations_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 274_ff3_validations.sql,409_ae49_d6_rekey_differential.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| form_items.form_items_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 387_initplan_wrap_and_profiles_arm_identity.sql,409_ae49_d6_rekey_differential.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| form_sections.form_sections_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 387_initplan_wrap_and_profiles_arm_identity.sql,409_ae49_d6_rekey_differential.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| form_versions.form_versions_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 387_initplan_wrap_and_profiles_arm_identity.sql,409_ae49_d6_rekey_differential.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| forms.forms_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 409_ae49_d6_rekey_differential.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| hospital_departments.hospital_departments_write (ALL) | policy | open with-check->true | COVERED | 201_hospital_departments.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| hospitals.hospitals_write (ALL) | policy | open with-check->true | COVERED | 170_multitenancy_hierarchy.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| interview_sessions.interview_sessions_write (ALL) | policy | open with-check->true | COVERED | 252_authz_p0_isolation.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| meeting_agenda_items.meeting_agenda_items_staff_admin_delete (DELETE) | policy | open using->true | COVERED | 251_authz_p0_isolation.sql,409_ae49_d6_rekey_differential.sql [role=postgres via ownership (owner=postgres)] |
+| meeting_agenda_items.meeting_agenda_items_staff_admin_insert (INSERT) | policy | open with-check->true | COVERED | 245_authz_c7_org_user_meeting_surface.sql,252_authz_p0_isolation.sql,409_ae49_d6_rekey_differential.sql [role=postgres via ownership (owner=postgres)] |
+| meeting_agenda_items.meeting_agenda_items_staff_admin_update (UPDATE) | policy | open using+check->true | COVERED | 251_authz_p0_isolation.sql,409_ae49_d6_rekey_differential.sql [role=postgres via ownership (owner=postgres)] |
+| meeting_attendees.meeting_attendees_staff_admin_delete (DELETE) | policy | open using->true | COVERED | 251_authz_p0_isolation.sql,409_ae49_d6_rekey_differential.sql [role=postgres via ownership (owner=postgres)] |
+| meeting_attendees.meeting_attendees_staff_admin_insert (INSERT) | policy | open with-check->true | COVERED | 251_authz_p0_isolation.sql,409_ae49_d6_rekey_differential.sql [role=postgres via ownership (owner=postgres)] |
+| meeting_attendees.meeting_attendees_staff_admin_update (UPDATE) | policy | open using+check->true | COVERED | 251_authz_p0_isolation.sql,409_ae49_d6_rekey_differential.sql [role=postgres via ownership (owner=postgres)] |
+| meeting_cases.meeting_cases_staff_admin_delete (DELETE) | policy | open using->true | COVERED | 251_authz_p0_isolation.sql,387_initplan_wrap_and_profiles_arm_identity.sql,409_ae49_d6_rekey_differential.sql [role=postgres via ownership (owner=postgres)] |
+| meeting_cases.meeting_cases_staff_admin_insert (INSERT) | policy | open with-check->true | COVERED | 251_authz_p0_isolation.sql,387_initplan_wrap_and_profiles_arm_identity.sql,409_ae49_d6_rekey_differential.sql [role=postgres via ownership (owner=postgres)] |
+| meeting_cases.meeting_cases_staff_admin_update (UPDATE) | policy | open using+check->true | COVERED | 251_authz_p0_isolation.sql,387_initplan_wrap_and_profiles_arm_identity.sql,409_ae49_d6_rekey_differential.sql [role=postgres via ownership (owner=postgres)] |
+| meeting_signatures.meeting_signatures_insert (INSERT) | policy | open with-check->true | COVERED | 251_authz_p0_isolation.sql,387_initplan_wrap_and_profiles_arm_identity.sql [role=postgres via ownership (owner=postgres)] |
+| meetings.meetings_staff_admin_delete (DELETE) | policy | open using->true | COVERED | 251_authz_p0_isolation.sql,409_ae49_d6_rekey_differential.sql [role=postgres via ownership (owner=postgres)] |
+| meetings.meetings_staff_admin_insert (INSERT) | policy | open with-check->true | COVERED | 239_authz_c8_meeting_for_all_recut.sql,251_authz_p0_isolation.sql,409_ae49_d6_rekey_differential.sql [role=postgres via ownership (owner=postgres)] |
+| meetings.meetings_staff_admin_update (UPDATE) | policy | open using+check->true | COVERED | 251_authz_p0_isolation.sql,409_ae49_d6_rekey_differential.sql [role=postgres via ownership (owner=postgres)] |
+| notification_preferences.notification_preferences_insert_own (INSERT) | policy | open with-check->true | COVERED | 226_notifications.sql [role=postgres via ownership (owner=postgres)] |
+| organizations.organizations_admin_write (ALL) | policy | open with-check->true | COVERED | 170_multitenancy_hierarchy.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| process_template_custom_fields.process_template_custom_fields_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 188_case_custom_fields.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| process_template_narratives.process_template_narratives_staff_admin_write (ALL) | policy | open with-check->true | ERROR | run-shape!=baseline (Files=262 Tests=8874) [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] (retried once after a reset) |
+| process_template_outcomes.process_template_outcomes_staff_admin_write (ALL) | policy | open with-check->true | ERROR | run-shape!=baseline (Files=262 Tests=8875) [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] (retried once after a reset) |
+| process_template_phases.process_template_phases_staff_admin_write (ALL) | policy | open with-check->true | ERROR | run-shape!=baseline (Files=262 Tests=8873) [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] (retried once after a reset) |
+| profiles.profiles_admin_insert (INSERT) | policy | open with-check->true | COVERED | 251_authz_p0_isolation.sql,387_initplan_wrap_and_profiles_arm_identity.sql [role=postgres via ownership (owner=postgres)] |
+| profiles.profiles_admin_update (UPDATE) | policy | open using+check->true | COVERED | 188_hospital_user_mgmt.sql,371_offboarded_person_visibility.sql,387_initplan_wrap_and_profiles_arm_identity.sql [role=postgres via ownership (owner=postgres)] |
+| profiles.profiles_update_self (UPDATE) | policy | open using+check->true | COVERED | 188_hospital_user_mgmt.sql,371_offboarded_person_visibility.sql,387_initplan_wrap_and_profiles_arm_identity.sql [role=postgres via ownership (owner=postgres)] |
+| rca_evidence.rca_evidence_write (ALL) | policy | open with-check->true | COVERED | 252_authz_p0_isolation.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| rca_factors.rca_factors_write (ALL) | policy | open with-check->true | COVERED | 252_authz_p0_isolation.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| rca_members.rca_members_write (ALL) | policy | open with-check->true | COVERED | 252_authz_p0_isolation.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| rca_root_causes.rca_root_causes_write (ALL) | policy | open with-check->true | COVERED | 252_authz_p0_isolation.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| rca_timeline_entries.rca_timeline_write (ALL) | policy | open with-check->true | COVERED | 252_authz_p0_isolation.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| rca_why_chains.rca_why_chains_write (ALL) | policy | open with-check->true | COVERED | 252_authz_p0_isolation.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| rca.rca_delete (DELETE) | policy | open using->true | COVERED | 251_authz_p0_isolation.sql,387_initplan_wrap_and_profiles_arm_identity.sql [role=postgres via ownership (owner=postgres)] |
+| rca.rca_update (UPDATE) | policy | open using+check->true | COVERED | 251_authz_p0_isolation.sql,387_initplan_wrap_and_profiles_arm_identity.sql [role=postgres via ownership (owner=postgres)] |
+| referral_requested_actions.referral_requested_actions_write_admin (ALL) | policy | open with-check->true | COVERED | 298_authz_p0_isolation.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| response_group_instances.response_group_instances_write_own_draft (ALL) | policy | open with-check->true | COVERED | 270_ff1_repeating_groups.sql,387_initplan_wrap_and_profiles_arm_identity.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| response_group_instances.response_group_instances_write_targeted (ALL) | policy | open with-check->true | COVERED | 270_ff1_repeating_groups.sql,387_initplan_wrap_and_profiles_arm_identity.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| response_section_signoffs.signoffs_insert (INSERT) | policy | open with-check->true | COVERED | 251_authz_p0_isolation.sql,387_initplan_wrap_and_profiles_arm_identity.sql [role=postgres via ownership (owner=postgres)] |
+| responses.responses_insert_own (INSERT) | policy | open with-check->true | COVERED | 198_perf_hardening.sql,387_initplan_wrap_and_profiles_arm_identity.sql [role=postgres via ownership (owner=postgres)] |
+| responses.responses_update_own_draft (UPDATE) | policy | open using+check->true | COVERED | 198_perf_hardening.sql,387_initplan_wrap_and_profiles_arm_identity.sql [role=postgres via ownership (owner=postgres)] |
+| responses.responses_update_targeted (UPDATE) | policy | open using+check->true | COVERED | 387_initplan_wrap_and_profiles_arm_identity.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| objects.documents_phi_obj_insert_reserved (INSERT) | policy | open with-check->true | COVERED | 143_capa.sql,312_printed_documents.sql,325_legacy_bucket_policy_pin.sql,328_dm1_document_substrate.sql,330_dm3_controlled_documents.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via supautils.policy_grants (owner=supabase_storage_admin)] |
+| objects.documents_std_obj_insert_reserved (INSERT) | policy | open with-check->true | COVERED | 143_capa.sql,312_printed_documents.sql,328_dm1_document_substrate.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via supautils.policy_grants (owner=supabase_storage_admin)] |
+| objects.form_assets_insert_staff_admin (INSERT) | policy | open with-check->true | COVERED | 312_printed_documents.sql,328_dm1_document_substrate.sql,409_ae49_d6_rekey_differential.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via supautils.policy_grants (owner=supabase_storage_admin)] |
 
 ---
 
@@ -135,3 +212,190 @@ inside a scoped increment.
 ⚠ They are **not** on C2's Tier-1 worklist either (measured: zero hits in
 `c2-tier1-doors.txt`) — they write `none`-sensitivity vocabulary rows, so C2's gate-aware
 closure puts them in **Tier 2 = deferred, NOT cleared**.
+
+<!-- CARRIED: whole baseline rows whose verdict CHANGED in this run, whose
+     hand-edited columns this run would have overwritten, or whose gate is ABSENT
+     from this run's domain. Nothing here was produced by the generator and nothing
+     here is a verdict — a note earned against one verdict is not a claim about
+     another. Re-file each one, or delete it deliberately. -->
+
+- `notification_preferences.notification_preferences_update_own (UPDATE)` — BLIND -> BLIND — baseline row carried verbatim:
+
+      | notification_preferences.notification_preferences_update_own (UPDATE) | policy | open->true | BLIND |  |
+
+- `notifications.notifications_update_own (UPDATE)` — BLIND -> BLIND — baseline row carried verbatim:
+
+      | notifications.notifications_update_own (UPDATE) | policy | open->true | BLIND |  |
+
+- `app.assert_meeting_staff_admin(uuid)` — COVERED -> COVERED — baseline row carried verbatim:
+
+      | app.assert_meeting_staff_admin(uuid) | guard | authz-open | COVERED | 206_meeting_held_time.sql |
+
+- `app.assert_rca_writable(uuid)` — COVERED -> COVERED — baseline row carried verbatim:
+
+      | app.assert_rca_writable(uuid) | guard | authz-open | COVERED | 142_rca.sql |
+
+- `app.assert_referral_draft_writable(uuid)` — COVERED -> COVERED — baseline row carried verbatim:
+
+      | app.assert_referral_draft_writable(uuid) | guard | authz-open | COVERED | 250_authz_p0_isolation.sql |
+
+- `public.ensure_professional_participant(uuid)` — COVERED -> COVERED — baseline row carried verbatim:
+
+      | public.ensure_professional_participant(uuid) | guard | authz-open | COVERED | 320_act_expiry_and_acl_hardening.sql,321_eth_e4_participant_seating.sql (RE-SWEPT 2026-09-01, AE4.7c — its gate moved to app.can_create_professional. ⛔ The first run of this sweep scored it ERROR `neutralize failed`: this harness holds a hand-written copy of each guard's gate TEXT, and the split falsified it. ERROR is not BLIND and is not a pass — it means nothing was measured. The copy was corrected and the case re-run) |
+
+- `public.create_professional_profile(uuid,text,text,text,text,text,text,uuid)` — COVERED -> COVERED — baseline row carried verbatim:
+
+      | public.create_professional_profile(uuid,text,text,text,text,text,text,uuid) | guard | authz-open | COVERED | 228_ethics_e1.sql,320_act_expiry_and_acl_hardening.sql (NEW to this arm in AE4.7c — scoped in for the same reason its three siblings were: it returns uuid, so ARM=census's domain (prosecdef returning bool or rows) and the door audit's boolean-only predicate arm both exclude it, and its 42501 authority block IS the whole boundary. ⭐ It is also where AE4.7c's row-43 gate actually lives, so leaving it out would have meant the increment's own door had no standing arm) |
+
+- `public.set_professional_link_state(uuid,text,uuid)` — COVERED -> COVERED — baseline row carried verbatim:
+
+      | public.set_professional_link_state(uuid,text,uuid) | guard | authz-open | COVERED | 320_act_expiry_and_acl_hardening.sql (NEW to this arm in AE4.7c. ⚠ BOUNDED VERDICT, stated rather than left to be assumed: this door now has TWO authority blocks — the POPULATION gate (can_create_professional) and AE4.7c's `link_state = 'unknown'` BOUND. The neutralizer opens the first, so COVERED here means the population gate is asserted through and says NOTHING about the bound. The bound has its own deterministic mutation twin in pgTAP 406 §5; the division of labour is recorded in the harness beside the gate string) |
+
+- `capa_plan.capa_plan_delete (DELETE)` — COVERED -> COVERED — baseline row carried verbatim:
+
+      | capa_plan.capa_plan_delete (DELETE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+
+- `capa_plan.capa_plan_update (UPDATE)` — COVERED -> COVERED — baseline row carried verbatim:
+
+      | capa_plan.capa_plan_update (UPDATE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+
+- `case_interviews.case_interviews_delete (DELETE)` — COVERED -> COVERED — baseline row carried verbatim:
+
+      | case_interviews.case_interviews_delete (DELETE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+
+- `case_interviews.case_interviews_insert (INSERT)` — COVERED -> COVERED — baseline row carried verbatim:
+
+      | case_interviews.case_interviews_insert (INSERT) | policy | open->true | COVERED | 236_authz_exclusion_perimeter_u1.sql |
+
+- `case_interviews.case_interviews_update (UPDATE)` — COVERED -> COVERED — baseline row carried verbatim:
+
+      | case_interviews.case_interviews_update (UPDATE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+
+- `case_referral.case_referral_delete_draft_source (DELETE)` — COVERED -> COVERED — baseline row carried verbatim:
+
+      | case_referral.case_referral_delete_draft_source (DELETE) | policy | open->true | COVERED | 250_authz_p0_isolation.sql |
+
+- `case_referral.case_referral_insert_source_coord (INSERT)` — COVERED -> COVERED — baseline row carried verbatim:
+
+      | case_referral.case_referral_insert_source_coord (INSERT) | policy | open->true | COVERED | 250_authz_p0_isolation.sql |
+
+- `case_referral.case_referral_update_coord (UPDATE)` — COVERED -> COVERED — baseline row carried verbatim:
+
+      | case_referral.case_referral_update_coord (UPDATE) | policy | open->true | COVERED | 250_authz_p0_isolation.sql |
+
+- `form_item_options.form_item_options_staff_admin_write (ALL)` — COVERED -> COVERED — baseline row carried verbatim:
+
+      | form_item_options.form_item_options_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 409_ae49_d6_rekey_differential.sql [merged 2026-09-03 from a subset run per ADR 0079 Amdt 1 · snapshot:ABSENT — no §7.2 drift tripwire on this verdict] |
+
+- `form_item_validations.form_item_validations_staff_admin_write (ALL)` — COVERED -> COVERED — baseline row carried verbatim:
+
+      | form_item_validations.form_item_validations_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 274_ff3_validations.sql,409_ae49_d6_rekey_differential.sql [merged 2026-09-03 from a subset run per ADR 0079 Amdt 1 · snapshot:ABSENT — no §7.2 drift tripwire on this verdict] |
+
+- `form_items.form_items_staff_admin_write (ALL)` — COVERED -> COVERED — baseline row carried verbatim:
+
+      | form_items.form_items_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 387_initplan_wrap_and_profiles_arm_identity.sql,409_ae49_d6_rekey_differential.sql [merged 2026-09-02 from a subset run per ADR 0079 Amdt 1 · snapshot:ABSENT — no §7.2 drift tripwire on this verdict] |
+
+- `form_sections.form_sections_staff_admin_write (ALL)` — COVERED -> COVERED — baseline row carried verbatim:
+
+      | form_sections.form_sections_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 387_initplan_wrap_and_profiles_arm_identity.sql,409_ae49_d6_rekey_differential.sql [merged 2026-09-02 from a subset run per ADR 0079 Amdt 1 · snapshot:ABSENT — no §7.2 drift tripwire on this verdict] |
+
+- `form_versions.form_versions_staff_admin_write (ALL)` — COVERED -> COVERED — baseline row carried verbatim:
+
+      | form_versions.form_versions_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 387_initplan_wrap_and_profiles_arm_identity.sql,409_ae49_d6_rekey_differential.sql [merged 2026-09-02 from a subset run per ADR 0079 Amdt 1 · snapshot:ABSENT — no §7.2 drift tripwire on this verdict] |
+
+- `forms.forms_staff_admin_write (ALL)` — COVERED -> COVERED — baseline row carried verbatim:
+
+      | forms.forms_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 409_ae49_d6_rekey_differential.sql [merged 2026-09-02 from a subset run per ADR 0079 Amdt 1 · snapshot:ABSENT — no §7.2 drift tripwire on this verdict] |
+
+- `meeting_agenda_items.meeting_agenda_items_staff_admin_delete (DELETE)` — COVERED -> COVERED — baseline row carried verbatim:
+
+      | meeting_agenda_items.meeting_agenda_items_staff_admin_delete (DELETE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+
+- `meeting_agenda_items.meeting_agenda_items_staff_admin_insert (INSERT)` — COVERED -> COVERED — baseline row carried verbatim:
+
+      | meeting_agenda_items.meeting_agenda_items_staff_admin_insert (INSERT) | policy | open->true | COVERED | 245_authz_c7_org_user_meeting_surface.sql,252_authz_p0_isolation.sql |
+
+- `meeting_agenda_items.meeting_agenda_items_staff_admin_update (UPDATE)` — COVERED -> COVERED — baseline row carried verbatim:
+
+      | meeting_agenda_items.meeting_agenda_items_staff_admin_update (UPDATE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+
+- `meeting_attendees.meeting_attendees_staff_admin_delete (DELETE)` — COVERED -> COVERED — baseline row carried verbatim:
+
+      | meeting_attendees.meeting_attendees_staff_admin_delete (DELETE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+
+- `meeting_attendees.meeting_attendees_staff_admin_insert (INSERT)` — COVERED -> COVERED — baseline row carried verbatim:
+
+      | meeting_attendees.meeting_attendees_staff_admin_insert (INSERT) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+
+- `meeting_attendees.meeting_attendees_staff_admin_update (UPDATE)` — COVERED -> COVERED — baseline row carried verbatim:
+
+      | meeting_attendees.meeting_attendees_staff_admin_update (UPDATE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+
+- `meeting_cases.meeting_cases_staff_admin_delete (DELETE)` — COVERED -> COVERED — baseline row carried verbatim:
+
+      | meeting_cases.meeting_cases_staff_admin_delete (DELETE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+
+- `meeting_cases.meeting_cases_staff_admin_insert (INSERT)` — COVERED -> COVERED — baseline row carried verbatim:
+
+      | meeting_cases.meeting_cases_staff_admin_insert (INSERT) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+
+- `meeting_cases.meeting_cases_staff_admin_update (UPDATE)` — COVERED -> COVERED — baseline row carried verbatim:
+
+      | meeting_cases.meeting_cases_staff_admin_update (UPDATE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+
+- `meeting_signatures.meeting_signatures_insert (INSERT)` — COVERED -> COVERED — baseline row carried verbatim:
+
+      | meeting_signatures.meeting_signatures_insert (INSERT) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+
+- `meetings.meetings_staff_admin_delete (DELETE)` — COVERED -> COVERED — baseline row carried verbatim:
+
+      | meetings.meetings_staff_admin_delete (DELETE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+
+- `meetings.meetings_staff_admin_insert (INSERT)` — COVERED -> COVERED — baseline row carried verbatim:
+
+      | meetings.meetings_staff_admin_insert (INSERT) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+
+- `meetings.meetings_staff_admin_update (UPDATE)` — COVERED -> COVERED — baseline row carried verbatim:
+
+      | meetings.meetings_staff_admin_update (UPDATE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+
+- `notification_preferences.notification_preferences_insert_own (INSERT)` — COVERED -> COVERED — baseline row carried verbatim:
+
+      | notification_preferences.notification_preferences_insert_own (INSERT) | policy | open->true | COVERED | 226_notifications.sql |
+
+- `profiles.profiles_admin_insert (INSERT)` — COVERED -> COVERED — baseline row carried verbatim:
+
+      | profiles.profiles_admin_insert (INSERT) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+
+- `profiles.profiles_admin_update (UPDATE)` — ERROR -> COVERED — baseline row carried verbatim:
+
+      | profiles.profiles_admin_update (UPDATE) | policy | open->true | ERROR | run-shape!=baseline (Files=156 Tests=4788) |
+
+- `profiles.profiles_update_self (UPDATE)` — ERROR -> COVERED — baseline row carried verbatim:
+
+      | profiles.profiles_update_self (UPDATE) | policy | open->true | ERROR | run-shape!=baseline (Files=156 Tests=4788) |
+
+- `rca.rca_delete (DELETE)` — COVERED -> COVERED — baseline row carried verbatim:
+
+      | rca.rca_delete (DELETE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+
+- `rca.rca_update (UPDATE)` — COVERED -> COVERED — baseline row carried verbatim:
+
+      | rca.rca_update (UPDATE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+
+- `response_section_signoffs.signoffs_insert (INSERT)` — COVERED -> COVERED — baseline row carried verbatim:
+
+      | response_section_signoffs.signoffs_insert (INSERT) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+
+- `responses.responses_delete_own_draft (DELETE)` — BLIND -> COVERED — baseline row carried verbatim:
+
+      | responses.responses_delete_own_draft (DELETE) | policy | open->true | BLIND |  |
+
+- `responses.responses_insert_own (INSERT)` — COVERED -> COVERED — baseline row carried verbatim:
+
+      | responses.responses_insert_own (INSERT) | policy | open->true | COVERED | 198_perf_hardening.sql |
+
+- `responses.responses_update_own_draft (UPDATE)` — COVERED -> COVERED — baseline row carried verbatim:
+
+      | responses.responses_update_own_draft (UPDATE) | policy | open->true | COVERED | 198_perf_hardening.sql |
+

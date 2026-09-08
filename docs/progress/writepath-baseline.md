@@ -564,3 +564,136 @@ question is answered by attempting the permission or by reading every grant path
 ⛔ Standing, unchanged: Tier 2's 190 doors stay **deferred by ADR 0171 and are NOT cleared**.
 ⛔ `FROMFINDINGS=1 ARM=policy` is RED pre-existing, is **not** one of CLAUDE.md §6's four arms, and
 its twelve are not allowlisted.
+
+---
+
+### 2026-09-08 — `backend`, THE FULL RUN COMPLETED. 120 of 120 swept, bare rc 1 (DIRTY)
+
+**20:11:08 → 00:04:08 = 3.88 h.** Derived estimate 3.8 h, stated window 3.2–4.6 h ⇒ **inside the
+window, within 2 % of the arithmetic.** The two-point measurement (91 s/case slope, 92 s intercept)
+held; the case-12 correction to 100 s/case over-corrected, because the later cases ran faster.
+
+    ARM-DOMAIN guard=13/13 policy=107/107
+    SWEPT: 120   COVERED: 102   BLIND: 15   ERROR(harness): 3   SKIPPED(vacuous): 0
+    preconditions: resets=8 (RESET_EVERY=20, explicit=0, subset=0 — ENABLED)
+    connection role: postgres only (no escalation — ADR 0192). POLICY-DDL detector fired on 0 of 120.
+    === RESULT: DIRTY — 15 BLIND, 3 ERROR. ===                             bare rc 1
+
+**Coverage moved 51 of 120 → 120 of 120 measured**, of which **117 carry a verdict** (102 COVERED +
+15 BLIND) and 3 are UNVERDICTED. The guard arm is **13 of 13** — `public.set_primary_subject(uuid)`,
+the gap R15 found and nobody had stated, came back **COVERED** naming
+`314_qob_org_admin_content_wall.sql, 321_eth_e4_participant_seating.sql, 409_ae49_d6_rekey_differential.sql`.
+
+#### The run's own health — the things that voided the door arm's run 1
+
+| observable | measured |
+|---|---|
+| suite shape per case, all 120 runlogs | **117 at `Files=262, Tests=8876`**; 3 off-baseline, and each off-baseline case **IS** one of the 3 ERRORs — every off-baseline shape has an originating cause |
+| longest consecutive OFF-BASELINE run | **1** (threshold for VOID was ≥3). No drift tail |
+| `preconditions: resets` | **8** = 5 scheduled (cases 21/41/61/81/101) + 3 retries. ⛔ Not `resets=0`, the exact state that voided the door run |
+| every reset's post-conditions | preflight clean · **all 13 `GUARD_KEYS` still resolve** · post-reset baseline `PASS (Files=262, Tests=8876)` · worklist `107 (unchanged)` — on all 8 |
+| aborts / contamination / restore failures | **0 / 0 / 0** |
+| sentinel after the run · `degenerate_NON_SELECT` | absent · **0** |
+| production diff vs `main` | **EMPTY** (`supabase/migrations`, `seed.sql`, `src`) |
+| `npm run lint` | bare **rc 0** |
+
+⭐ **The `RESET_EVERY` port earned itself in this run**, and not only on the schedule: the **retry
+net** fired 3 times on drift-shaped ERRORs and each retry ran a full reset + fresh baseline before
+re-running the case. Without it those three would have been recorded as ERRORs with no way to tell
+a crashed test file from a contaminated DB — which is exactly what the retry established.
+
+#### R19 — ERROR triage. All 3 are ONE defect, measured rather than inferred from the family name
+
+All three blame **`supabase/tests/297_process_template_versioning.sql`**, which plans 37 tests and
+**exits 3** partway when a `process_template_*` write policy is opened (ran 35 / 36 / 34). Not
+drift — each survived a reset with a verified-clean post-reset baseline.
+⭐ **A test file that DIES when a gate is opened converts a COVERED into an ERROR**: the suite *did*
+notice (assertions failed, naming the file), but the same mutation crashed the file, and a crashed
+file is indistinguishable **by shape** from a contaminated database. ⛔ Not recorded as COVERED —
+that would infer a verdict the instrument refused to give. Filed as
+`FUP-WRITEPATH-BASELINE-297-TEST-FILE-ABORTS-AND-CONVERTS-COVERED-INTO-ERROR`; the 3 policies are
+**UNVERDICTED** and block the swept claim for themselves only.
+⇒ **Zero drift-tripwire ERRORs and zero POLICY-DDL BLOCKED firings.** The detector stayed dormant in
+production exactly as the plant predicted.
+
+#### R20 — the 13 rows Batch 2 retired from the door arm: **13 PRESENT, 0 missing, all COVERED**
+
+`case_interviews_{insert,update,delete}` · `case_referral_{insert_source_coord,update_coord,delete_draft_source}` ·
+`meeting_cases_staff_admin_{insert,update,delete}` · `meeting_signatures_insert` · `profiles_update_self` ·
+`signoffs_insert` · `responses_delete_own_draft` — each checked **by name** against the run's own
+progress TSV. **No verdict was orphaned by the retirement.**
+⚠ **A count is not an identity:** `pred-domain.md:1616` filed the retirement as `… | 13 | 0`, a
+count, so it could not be checked name-by-name; the names were recovered from the deletion commit
+`b59d4bbf`. The door record should have named its 13 rows — a records defect worth its own line.
+⚠ The matcher was proven before any "ABSENT" was believed: it finds real rows, reports a genuine
+absence, and rejects both a `_decoy` suffix and a truncated prefix.
+
+#### THE CARRIED ENUMERATION — 45 rows, with dispositions
+
+⚠ **I nearly published "CARRIED: none."** My first enumeration anchored on `^|` and found nothing,
+while the merge's own line said `CARRIED 45 whole row(s)` — the carried rows are **indented** inside
+the block the merge appends. ⭐ *An enumeration boundary is a syntax, not a property* — caught only
+because the merge prints its own count and the two disagreed. **Always reconcile an enumeration
+against the producer's count.**
+
+| # | class | disposition |
+|---|---|---|
+| **9** | carried note holds **hand commentary** the regenerated row lacks — the 3 `professional_*` guards and the 6 `form*`/`forms` `*_staff_admin_write` rows | **RE-FILE** the commentary onto the live row, then delete the carried copy |
+| **34** | carried note's files are a strict **subset** of the live row's (the live row names the same files **plus** new ones) | **DELETE** — the live row supersedes and says more |
+| **2** | `profiles.profiles_admin_update`, `profiles.profiles_update_self` — carried note is `run-shape!=baseline (Files=156 Tests=4788)`, a **stale statistic against a retired baseline**, and both are now genuinely **COVERED** | **DELETE** — keeping them asserts two policies are unverdicted when they are not |
+| **0** | carried row naming a file the live row does **not** | — |
+
+That last row is the load-bearing one: **category C is 0**, so deleting the 34 (and the 2) loses no
+information. Without it "the live row supersedes" would have been an assumption.
+
+**Verdict transitions across the 45:** `COVERED -> COVERED` 40 · `BLIND -> BLIND` 2 ·
+**`BLIND -> COVERED` 1** (`responses.responses_delete_own_draft` — a real improvement) ·
+**`ERROR -> COVERED` 2** (the two `profiles` rows above). Nothing regressed.
+
+#### ⭐ The two `11`s are NOT the same 11 — and that is the interesting part
+
+R24 settled the hand-annotated inventory at **11** and recorded that my token-keyed pattern's **9**
+was wrong by two. The merge handled them by **two different mechanisms**, which the run made visible:
+
+- **9** carried as whole rows (their hand commentary sits in the note column), and
+- **2** preserved as **hand suffixes re-attached to the regenerated live rows** —
+  `public.set_commission_oversight(uuid,text)` → `(QO·A hand-merge — see header note)` and
+  `public.create_external_participant(uuid,text,text)` → `(RE-SWEPT 2026-09-01, AE4.7c …)`.
+
+Those two are **exactly** R4's `:60`/`:61`, the pair whose prose carries no decorative token. So the
+"9" was not simply wrong — it was the correct count of a **different, real subset**. ⇒ **All 11
+survive; nothing hand-authored was lost.** The merge reported `PRESERVED 51 hand-authored prose
+line(s), 2 hand suffix(es); CARRIED 45`, and 9 + 36 = 45 reconciles.
+⚠ My own classifier mis-binned the 2 stale-`profiles` ERROR rows as "hand commentary" because their
+note contains prose; reading the actual text corrected it. *A prose-detector is not an
+authorship-detector.*
+
+#### CARRIED, other dispositions
+
+- **Line 13's stale tail** — `Arm 2 write policies: from the embedded snapshot.` survived the merge
+  as predicted (now at **line 27**; the file grew to 401 lines). **DELETE** per R24: the domain is
+  lifted live, so the sentence is factually false.
+- **The regenerated statistics are now CORRECT and need no hand edit** — `Baseline: Files=262,
+  Tests=8876, Result: PASS.` and `Arm 1 guards: 13`. Both were stale (`Files=156, Tests=4796` and
+  `7`) and the merge replaced them. R10.4's prediction confirmed in both directions: the merge
+  **replaces** regenerated statistics and **preserves** prose it cannot match.
+- ⚠ **The file's hand-material inventory CHANGED**: the merge added an **HTML comment block** (the
+  CARRIED header). R4 recorded *"no HTML comment block in this file"* — true of the pre-run
+  baseline, false now. A future merge's protected-set reconciliation must use the new inventory.
+
+#### Findings filed from the run
+
+`FUP-WRITEPATH-BASELINE-15-BLIND-WRITE-POLICIES-NO-TEST-NOTICES` (R18: verdicts recorded, the set
+named, **never allowlisted**) — 15 policies, clustered: `process_template_*` (5), commission
+vocabulary/settings (4), tenancy + cases (2), **self-scoped UPDATE (2)**, referral vocabulary (2).
+⚠ The two self-scoped ones are sharpest: `notification_preferences_update_own` and
+`notifications_update_own` opened to `true` and unnoticed means nothing asserts a user cannot update
+another user's rows. Both were `BLIND -> BLIND`, so a re-confirmation, not a regression.
+⭐ It **discriminates**: 102 of 120 came back COVERED, including six sibling `*_staff_admin_write`
+policies. The naming shape is not the predictor — the subsystem is.
+
+`FUP-WRITEPATH-BASELINE-297-TEST-FILE-ABORTS-AND-CONVERTS-COVERED-INTO-ERROR` (R19).
+
+⛔ Standing, unchanged: Tier 2's 190 doors stay **deferred by ADR 0171 and are NOT cleared**.
+⛔ `FROMFINDINGS=1 ARM=policy` is RED pre-existing, is **not** one of CLAUDE.md §6's four arms, and
+its twelve are not allowlisted.

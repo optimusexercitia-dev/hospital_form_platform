@@ -108,15 +108,24 @@ behaviour findings rather than silence — before AE5 re-keys write policies ele
   `supabase/migrations`, `seed.sql`, `src` is EMPTY.
 - **ADR 0192** written and indexed.
 
+- ⭐ **THE FULL RUN IS DONE** (2026-09-07 20:11 → 2026-09-08 00:04, **3.88 h**, inside the derived
+  3.2–4.6 h window). `guard=13/13 policy=107/107` · **SWEPT 120 · COVERED 102 · BLIND 15 · ERROR 3
+  · SKIPPED 0** · `resets=8` · bare **rc 1 (DIRTY)**. Coverage moved **51 of 120 → 120 of 120
+  measured**, 117 carrying a verdict. Guard arm now **13 of 13** — `set_primary_subject`, the gap
+  R15 found, is COVERED. Run health: 117/120 runlogs at the exact baseline shape, longest
+  consecutive off-baseline run **1** (VOID threshold 3), **0** aborts/contamination/restore
+  failures, no sentinel, `degenerate_NON_SELECT = 0`.
+- R20: **all 13 retired door rows PRESENT and COVERED, 0 missing** — no verdict was orphaned.
+- CARRIED **45** enumerated with dispositions (9 re-file, 36 delete, **0** that would lose
+  information). All **11** hand-annotated rows survive — 9 carried, 2 re-attached as hand suffixes.
+
 ### In progress
-- **The full run is LAUNCHED** (detached, 2026-09-07 ~20:10 -0300). Derived window **≈ 3.2–4.6 h**
-  from a two-point measurement (91 s/case, 92 s intercept); expected finish ≈ 00:00 -0300. The
-  resume note — command, WORK, log, bare-rc file, sentinel, checkpoint schedule, recovery step — is
-  in the record. ⛔ The committed findings file is a MOVING TARGET while it runs; freeze the tree.
+- Dispositions to apply to the findings file (delete the 36, re-file the 9, delete line 27's stale
+  tail), then gate → QA → PO → Record.
 
 ### Next
-- CARRIED enumeration + dispositions → R19 ERROR triage → R20's 13 checked by name in the output →
-  re-file → closures → gate → QA → PO → Record.
+- Apply the CARRIED dispositions → keystones for the 15 BLINDs (never allowlist) → fix
+  `297_process_template_versioning.sql` and re-sweep its 3 policies → gate → QA → PO → Record.
 
 ### Blockers
 - ⚠ Batch 4 runs on a separate machine in parallel; merge order is Batch 3 FIRST.

@@ -1020,6 +1020,43 @@ a hypothesis, not a finding.
 **⚠ RE-PURPOSED, NOT WITHDRAWN — 2026-09-07 (PO ruling R23), and the change is stated because a follow-up silently retargeted is a follow-up nobody can audit.** The original subject — an *escalated superuser role* reachable in code and required by zero policies — **no longer exists**: the escalation was removed outright. This entry now supersedes that wording. What did NOT go away is the **dormancy**, and it moves to the detector that replaced the escalation: the same ownership-OR-`supautils.policy_grants` predicate, kept because it is genuinely better than the ownership test, but demoted from a ROUTER to a DETECTOR that emits a loud finding and leaves the policy UNVERDICTED. It fires on **0 of 107** here. The old title is left in place deliberately so a reader searching for the escalated arm lands on its successor.
 **Detail.** Why the escalation went: measured 2026-09-07, `storage.objects` is owned by `supabase_storage_admin`, `pg_has_role('postgres', relowner,'USAGE')` = **false**, `postgres` is `rolsuper=f` — and `ALTER POLICY` nonetheless SUCCEEDS, because this stack sets `supautils.policy_grants = {"postgres":[… "storage.objects" …]}` and the extension's utility hook grants POLICY DDL outside `pg_class.relowner`. Every measured fact was true and the conclusion drawn from them was false. **Ownership is a proxy, not the property** (ADR 0192). Proven able to fire 2026-09-07 by a PLANT in a scratch copy (both halves forced false for one table, `diff`-verified as exactly that injection): the planted policy reported `POLICY-DDL BLOCKED … UNVERDICTED` naming both failing halves and the role, at bare **rc 1**, while a sibling policy on another table in the SAME run swept COVERED (the discrimination half); the clean-tree negative control on the same two cases fired 0 times at bare **rc 0**.
 
+### 🟠 FUP-WRITEPATH-BASELINE-15-BLIND-WRITE-POLICIES-NO-TEST-NOTICES — 15 write policies can be opened to `true` and the entire 8876-test suite does not notice (owner: backend; filed 2026-09-08 by `backend`)
+
+**Filed:** 2026-09-08 (by `backend`, from the write arm's FIRST full run over its widened 120-case domain) · **Owner:** backend · **Severity:** high — a BLIND is an assertion gap in the write path, and BLIND blocks the phase (CLAUDE.md §6 step 1)
+**Closes when:** each of the 15 has a keystone that RED-proves its predicate, or a dated ruling records why that policy is deliberately unasserted. ⛔ **Never allowlist one** — a BLIND is a real finding, and allowlisting is what made the door arm blind for four increments.
+**Status:** open
+**Detail.** The full run (120 cases, bare rc 1 DIRTY, resets=8, 2026-09-07 20:11 → 2026-09-08 00:04) opened each write gate and asked the whole pgTAP suite whether anyone noticed. These 15 policies were opened and **nothing failed**. Every one is `[role=postgres via ownership]` and `snapshot:ABSENT` (no §7.2 drift tripwire protects the verdict).
+
+⚠ **Read the DIRECTION, not just the verdict.** Twelve are `ALL` policies opened `with-check->true`, so each BLIND is a claim about the **`with check` half only** — it says nothing about that policy's `using` half, which this arm deliberately does not open (that is the door arm's domain). Three are single-command policies opened `open->true`.
+
+**The set, by cluster:**
+- **`process_template_*` (5)** — `process_templates`, `process_template_versions`, `process_template_phase_allowed_results`, `process_template_phase_offered_results`, plus `phase_results.phase_results_staff_admin_write`. The same subsystem also owns all 3 ERRORs (see the sibling follow-up), so the process-template write path is the least-asserted area found.
+- **commission vocabulary / settings (4)** — `commission_meeting_settings`, `commission_meeting_types`, `commission_member_titles`, `professional_categories.professional_categories_admin_write`.
+- **tenancy + cases (2)** — `commissions.commissions_admin_write`, `cases.cases_staff_admin_write`.
+- **self-scoped UPDATE (2)** — `notification_preferences.notification_preferences_update_own`, `notifications.notifications_update_own`. ⚠ These two are the sharpest: a self-scoped UPDATE opened to `true` and unnoticed means **nothing asserts that one user cannot update another user's rows**. Both were already BLIND in the previous baseline (`BLIND -> BLIND`), so this is a re-confirmation, not a regression.
+- **referral vocabulary (2)** — `referral_types.referral_types_write_admin`, `reply_outcomes.reply_outcomes_write_admin`.
+
+⭐ **It discriminates, so it is not a blanket gap:** 102 of the same 120 cases came back COVERED, including six sibling `*_staff_admin_write` policies (`forms`, `form_items`, `form_sections`, `form_versions`, `form_item_options`, `form_item_validations`). The naming shape is not the predictor; the subsystem is.
+
+### 🟠 FUP-WRITEPATH-BASELINE-297-TEST-FILE-ABORTS-AND-CONVERTS-COVERED-INTO-ERROR — one pgTAP file dies when a `process_template_*` write policy is opened, leaving 3 policies UNVERDICTED (owner: backend; filed 2026-09-08 by `backend`)
+
+**Filed:** 2026-09-08 (by `backend`, R19 triage of the full run's 3 ERRORs) · **Owner:** backend · **Severity:** high — it does not merely lose a verdict, it makes a probable COVERED unreadable, and `ERROR` is not a pass (CLAUDE.md §6)
+**Closes when:** `supabase/tests/297_process_template_versioning.sql` completes its declared plan when any `process_template_*` write policy is opened (a plan that matches what it runs, or assertions that fail without aborting the file), **and** the three policies below are re-swept and carry real verdicts. ⛔ Do not close by widening the shape tolerance — the shape guard is what distinguishes a crashed file from a contaminated database, and loosening it would blind the drift tripwire this batch exists to protect.
+**Status:** open
+**Detail.** All three ERRORs in the 120-case full run blame **the same file**, measured (not inferred from the family name) by reading each case's runlog:
+
+| policy (all `ALL`, `open with-check->true`) | `297_…` ran | suite shape |
+|---|---|---|
+| `process_template_narratives.process_template_narratives_staff_admin_write` | 35 of 37 | `Files=262 Tests=8874` |
+| `process_template_outcomes.process_template_outcomes_staff_admin_write` | 36 of 37 | `Files=262 Tests=8875` |
+| `process_template_phases.process_template_phases_staff_admin_write` | 34 of 37 | `Files=262 Tests=8873` |
+
+Each: `Dubious, test returned 3 (wstat 768, 0x300)` · `Parse errors: Bad plan. You planned 37 tests but ran N`.
+
+**It is not drift, and the harness proved that itself.** The retry net fired on each: reset → `post-reset preflight: clean — 0 degenerate` → `all 13 GUARD_KEYS still resolve` → `post-reset baseline: PASS (Files=262, Tests=8876)` → worklist `107 (unchanged)` → re-ran the case → **same off-baseline shape**. Transient drift disappears across a reset; this reproduces against a verified-clean baseline, so it is a deterministic consequence of opening the gate.
+
+⭐ **The shape worth keeping: a test file that DIES when a gate is opened converts a COVERED into an ERROR.** The suite *did* notice — assertions failed and they name the file — but the same mutation that tripped them also crashed the file, and a crashed file is indistinguishable **by suite shape** from a contaminated database. The harness is right to refuse. ⛔ **These three must NOT be recorded as COVERED**: that would infer a verdict the instrument explicitly refused to give, which is the move this program keeps finding and rejecting. They are **UNVERDICTED**, and they block the "swept" claim for themselves only.
+
 ### 🟡 FUP-WRITEPATH-BASELINE-REFUSED-RESTORE-ASSERTS-A-STATE-IT-DID-NOT-MEASURE — a restore whose verification fails prints "The gate is STILL OPEN", which is a catalog claim the failure path never established (owner: backend; filed 2026-09-07 by `backend`)
 
 **Filed:** 2026-09-07 (by `backend`, observed while re-earning the `RECOVER=1` proof) · **Owner:** backend · **Severity:** medium — the message errs toward alarm, so it is safe, but it states a fact it did not measure
