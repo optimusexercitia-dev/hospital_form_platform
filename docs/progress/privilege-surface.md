@@ -768,3 +768,37 @@ a habit or a gate, not a paragraph. Per the standing rule *a subagent must never
 rather than rewritten, and the rule's mechanism is not hypothetical even for a sole owner: `--amend`
 targets **HEAD**, not *"my commit"*, and this runner cannot prove nothing landed between its
 `git status` and its `git commit`. The content of `45204ddb` is exactly this file, **+167/−0**.
+
+**⛔⛔ CORRECTION, same day, measured 6 minutes after the entry above was committed: THE TIP MOVED
+UNDER THE GATE, and the rule's mechanism was LIVE, not hypothetical.** `45204ddb`'s parent is
+**`42ca7718`**, not `bd50dfc9` — a commit by another agent landed on this branch at **13:32:25**,
+while this runner's set-valued arm was still in flight. ⭐ Had `--amend` been used to fix the
+malformed message above, it would have targeted **that agent's commit**, retitling their ADR work
+with this runner's gate message. The standing rule was not a formality here; it was load-bearing
+within one turn of being cited.
+
+⇒ **Two consequences, both measured rather than reasoned.**
+
+1. **A claim in the entry above is now FALSE and is corrected here, not rewritten.** It reads *"No
+   **ADR** exists on this branch, where Batches 0–6 each produced one"*. `42ca7718` added
+   **ADR 0195 — "A committed number needs ONE home and a GATED mirror, and a ratchet joins its
+   incumbent"** (`Status: Proposed`), and updated `docs/decisions/INDEX.md`, `proposed-review.json`
+   and the hub's `adrs:` frontmatter to `["0079","0127","0134","0155","0160","0182","0191","0192",
+   "0193","0195"]`. ⛔ Worse than stale-after-the-fact: the ADR landed at 13:32 and the sentence was
+   *written* at ~13:37, so the claim was **already false when it was written** — the runner derived
+   it at ~13:25 and did not re-derive before committing. *Your own measurement goes stale like any
+   other.* ⭐ Findings (2), (3) and (4) were **re-checked at the new tip and all still hold**: the
+   hub still says *"31 rulings"* against a file of **34**, still says Track B built *"13 fixtures"*
+   against a self-test reporting **10 bad + 4 good = 14**, and still lists Tracks C and D under
+   `### In progress` — `42ca7718` touched only the hub's frontmatter, not its `## Current state`.
+2. **What the gate's verdict now covers, stated exactly rather than left to read as "the tip".**
+   Runs 1–14 above were executed at `bd50dfc9`. The diff `bd50dfc9..HEAD` is **five files, all under
+   `docs/`**, and that is asserted, not eyeballed: `git diff --name-only bd50dfc9..HEAD -- src
+   supabase scripts package.json` is **0 bytes**. ⇒ No arm that reads code, the catalog or the
+   package chain can be affected. The one gate the diff *can* move is `npm run lint` (gates 9 and 13
+   read `docs/decisions/` and the hub), and it was **re-run twice after `42ca7718` landed** — rc
+   **0**, **15 of 15 gates reached**, ratchets unmoved at `longHeadings=95/97`. ⛔ Still recorded as
+   a protocol breach rather than waved through: **R34 exists so the tip gate runs on a FROZEN tip**,
+   and a builder committing into the window defeats the word *"tip"* whatever the diff turns out to
+   contain. The next runner should be told the branch is frozen, and the freeze should be observable
+   rather than assumed.
