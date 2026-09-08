@@ -1,6 +1,6 @@
 # ADR 0193 — The enforcement manifest declares what it measured, and the measurement is a fixed point over the call closure
 
-**Status:** accepted — 2026-09-07, PO approval of unit ENFORCEMENT-MANIFEST (pre-AE5 remediation Batch 4, with Batch 5 riding along) at `dab3cc87`; the branch merges after Batch 3 by ruled order
+**Status:** accepted — 2026-09-07, PO approval of unit ENFORCEMENT-MANIFEST (pre-AE5 remediation Batch 4, with Batch 5 riding along) at `dab3cc87`; the branch merges after Batch 3 by ruled order. ⚠ **2026-09-08: merged, and `dab3cc87` no longer resolves** — the ruled order was honoured by a **rebase** onto merged Batch 3 (tip `bb85f0c4` → `74459926`), which rewrote every sha this ADR and the unit's reviews cite. The decisions below are unaffected; only the references are. Merge state: `docs/plans/pre-ae5-remediation.md` §2 row 4
 **Date:** 2026-09-07
 **Area:** authorization / the enforcement manifest as an oracle / vacuity of gates / rollback procedure
 **Amends:** ADR [0176](./0176-authz-permission-layer-made-real.md) (D5 — the manifest's field contract

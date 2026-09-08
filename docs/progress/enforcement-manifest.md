@@ -673,3 +673,134 @@ step 7 owes `/review-claude-md` before the next unit opens; left for the merge s
 (1) an empty-but-set `CASES` is a full run (filed as a follow-up); (2) a mutation harness must own
 the stack — concurrent catalog readers produced a spurious ABORT that a solo re-run did not reproduce;
 (3) a catalog read during a sweep returns mutants (QA F-REC-2).
+
+### 2026-09-08 — Record step, part 2 (lead, dev machine): the MERGE session — rebased onto Batch 3 and the whole gate re-earned
+
+Part 1 ended with the unit **gated**, waiting on the ruled order. Batch 3 merged into `main` and was
+pushed to `origin` on 2026-09-08, so this session ran the merge on the **dev machine** — not the
+second machine that built the unit. ⛔ Nothing below is carried from part 1's gate table: the tip it
+measured no longer exists.
+
+**The rebase.** `authz-enforcement-manifest` base `23ec1fa5` → `main`, **25 commits replayed**, tip
+`bb85f0c4` → **`74459926`**; afterwards `git rev-list --count HEAD..main` = **0** (it contains merged
+Batch 3) and `main..HEAD` = **25**. ⛔ **Every sha part 1 and the three reviews cite belongs to the
+pre-rebase line and no longer resolves** — `dab3cc87` (PO approval), `e5796940` (tip), `7b9b1eb7`
+(build tip) among them. The mapping is one hop and the old line stays readable on
+`origin/authz-enforcement-manifest` until that ref is deleted. This is the cost of the ruled merge
+order; it was paid knowingly rather than discovered.
+
+**Conflicts: five files, none auto-taken.**
+
+| file | how it conflicted | resolution |
+|---|---|---|
+| `docs/features/INDEX.md` · `docs/decisions/INDEX.md` | both units added a hub / an ADR | **regenerated** (`build-features-index.mjs --write`, `build-adr-index.mjs --write`) — ⛔ never hand-merged, per §3 Batch 4 item 5 |
+| `docs/followups/follow-ups-open.md` | each side had **already deleted** entries the other still listed — Batch 3's three closures against Batch 4's five | **both sides removed**; verified by diffing the resolution against stage 2 — 35 lines, **all deletions, zero additions**, and the five removed headings are exactly the five ENFORCEMENT-MANIFEST ids |
+| `docs/followups/follow-ups-archive.md` | both sides **appended** closure blocks at EOF | **union**, Batch 3's three then Batch 4's five |
+| `docs/plans/pre-ae5-remediation.md` §6 | this branch edited the "initiate Batch 3" checklist that `main` had since **rewritten** | kept `main`'s rewritten checklist and **folded in this branch's own contribution** — the `"merge Batch 4"` trigger and "the hub's `### Next` is the checklist" |
+
+⭐ **A stale line I wrote that hour, caught by this merge.** `main`'s §6 step 1 sub-bullet said
+`git ls-remote` showed **no Batch 4 branch published** — measured, true, and false within the hour
+when the second machine pushed. It was written as a fact about **`origin`** and explicitly not about
+that clone, which is the only reason it cost a correction instead of a wrong conclusion. Corrected
+beside the original in the same resolution.
+
+**The gate, re-earned at `74459926`. Every exit code read BARE from its own `rc` file, never through
+a pipe.** Catalog head `20261003007350` on a fresh `supabase db reset --local` (rc 0).
+
+| step | bare rc | observed |
+|---|---|---|
+| `npm run lint` | **0** | 13 gates, eslint 0 errors / 0 warnings. ⚠ First run was **rc 1** — gate 13 caught the hub's `Updated: 2026-09-07` as older than the newest code commit on the branch, which the rebase made true. A real red, fixed by updating the hub, not by re-running |
+| `npm run typecheck` | **0** | — |
+| `npm run test:db` (fresh reset) | **0** | `Files=262, Tests=8882, Result: PASS` — ⭐ **identical to the shape part 1 measured pre-rebase**, and `main` alone was 8876, so the merge composed both units rather than one clobbering the other |
+| `ARM=census` | **0** | `live authz gates (catalog): 581` · `gates carrying a verdict: 608` · `extension-owned, excluded: 0` · `=== INVARIANT HOLDS ===`. ⭐ **604 → 608**: part 1 measured 604 pre-rebase and Batch 3's tip measured 608; the merged value is Batch 3's, which is the arithmetic that says the re-baselined findings file actually landed underneath this unit |
+| `ARM=hat` | **0** | `HAT-BLIND SWEEP HOLDS: 4 finding(s), all reasoned-allowlisted`; self-test 7/7 |
+| `ARM=floor` | **0** | every never-called door on the floor allowlist; every allowlist entry resolves to a live door |
+| `FROMFINDINGS=1 ARM=wrapper` | **0** | `BLIND set size: 41`, all allowlisted |
+| `SELFTEST=1 bash scripts/door-sweep-cases.sh` | **0** | `SELF-TEST: PASS 34 · FAIL 0 · SKIPPED 0` |
+| `SELFTEST=1 …p0-authz-door-audit.sh` | **0** | `classify 6/6 · resets_enabled 6/6 · TOTAL: 23/23 ok` |
+| diff-scoped deriver over `main`, `ARM=read` | **1** | `SCOPE: 1 file(s) — 1 committed (main..HEAD), 0 worktree, 0 untracked \| filter: none \| derivation: catalog` · `RESULT: FINDING (1) — DOORS IDENTIFIED: 1. SWEEPABLE BY THIS ARM: 0.` |
+| diff-scoped deriver over `main`, `ARM=write` | **1** | byte-identical `SCOPE:` and `RESULT:` lines |
+| targeted command-door case | **0** | `set_item_validations`: `fingerprint before 3c244fa6… → mutated bdcccfe0… → restored 3c244fa6… (matches before)` · `CASE 1 VERDICT: COVERED` · `RESULT: 1 of 1 case(s) COVERED` |
+| `git diff --name-only main...HEAD -- supabase/migrations supabase/seed.sql src` | — | exactly `20261003007350_batch4_rekey_set_item_validations.sql` — so `e2e:prod` is **not applicable** (no `src/`) |
+| set-valued targeted home (solo, after the arms) | **0** | `ARM-DOMAIN setvalued=3/3 (in scope) out-of-scope=2 (named, with dispositions)` · 3/3 **COVERED** · `(3) suite after restore: Result: PASS (Files=262, Tests=8882)` · `RESULT: CLEAN`. ⭐ One resolver moved: `app.current_professional_read_organizations` is now noticed by **`410_ae49_d5_enforcement_manifest.sql`** as well — this unit's own §8.5/§8.7 arms added that file to the noticing set, which is the merge showing up *inside* an instrument rather than beside it |
+| `npm run gen:types` | **0** | empty diff on `src/lib/types/database.ts` — the migration adds no type surface (Rule 8) |
+
+⛔ **The deriver's exit 1 was read BEFORE anything was substituted into `CASES=`.** That is not a
+formality here: exit 1 with `SWEEPABLE BY THIS ARM: 0` prints **no case list**, so
+`CASES="$(…)"` would have set `CASES` to the empty string and — in the door arm, which is still
+unfixed — taken the **full-run branch that rewrites the committed baseline**. That is the exact
+incident that opened `FUP-AUTHZ-EMPTY-CASES-RUNS-A-FULL-SWEEP` on this unit's own tip gate a day
+earlier. The obligation the exit 1 creates is discharged by the **targeted** case above, never by a
+sweep (ADR 0079 hazard 4: a door outside `PRED_DOMAIN` must not be put in `CASES=`).
+
+**Register reconciliation the merge surfaced.** `FUP-AUTHZ-EMPTY-CASES-RUNS-A-FULL-SWEEP` (this unit,
+owner lead) and `FUP-WRITEPATH-BASELINE-CASES-EMPTY-STRING-DEGRADES-TO-A-FULL-RUN` (Batch 3, owner
+backend) are **one mechanism filed twice** by two machines that could not see each other — one found
+by construction on the write arm, one by a live incident on the door arm. Each had deferred to the
+other: Batch 4's entry said "Part 2 is Batch 3's", and Batch 3 fixed **only** the write arm by
+design. Both entries were cross-linked and dated rather than merged — ⛔ retiring an id mid-merge
+orphans every citation that names it, so consolidation is left as a **PO call**. The surviving work
+is one item: `p0-authz-door-audit.sh`, plus the lead-playbook §4 clause about reading the deriver's
+exit before substituting — which this session had to satisfy **by hand**.
+
+#### Hub `## Current state` at closure — cut from the hub 2026-09-08 (ADR 0186 D8)
+
+The hub carries no `## Current state` once its status is `complete`. Verbatim, as it stood at the
+merge session's last edit — ⛔ **not** rewritten to read as finished: its `### In progress` describes
+the merge that was running when it was written, and the completion narrative is the ledger row's job,
+not a retro-edit of this block.
+
+---
+
+## Current state
+
+**Updated:** 2026-09-08
+
+### Objective
+Make the enforcement manifest a falsifiable oracle before AE5 copies the per-role template eleven
+times: a `hardDenyClasses` arm that can fail, a transitive §6.2, the policy-re-keyed-but-DEFINER-
+still-legacy defect resolved across the `_staff_admin_write` class, the two undeclared consumers
+recorded, and the rollback runbook re-measured at the tip (Batch 5).
+
+### Done since start
+- **PO-approved 2026-09-07 at `dab3cc87`** (24 commits over `main` @ `23ec1fa5`, measured by
+  `git rev-list --count main..HEAD`) on QA round 3 **APPROVED** — after round 1 (2 BLOCK) and round 2
+  (1 BLOCK), every fix re-derived by QA by measurement. ADR **0193** → `accepted`, off the
+  proposed-review list. All five follow-ups closed on their own quoted clause; two filed.
+- Built: `hardDenyClasses` a committed claim, `410` §6.2 a transitive set equality with planted +
+  natural controls; one migration `20261003007350` re-keys `public.set_item_validations`; seven
+  DEFINER splits declared in `definerSurface`; `current_professional_read_organizations` declared a
+  site; `_audit_access_authorized` a declared non-enforcement consumer with a partition arm; the
+  rollback runbook §6 rewritten for six policies + the DEFINER door (six stale figures re-measured);
+  the findings-baseline merge made portable; a targeted command-door case home.
+- Lead's tip gate (record): lint 0/0 · pgTAP 262/8882 PASS on fresh resets · census 581/604 HOLD ·
+  hat · floor · wrapper 41 HOLD · deriver SELFTEST 34/0 · door SELFTEST 23/23 · set-valued 3/3 CLEAN ·
+  diff-scoped deriver `SCOPE:` quoted, exit 1 FINDING discharged by the targeted case (COVERED).
+
+### In progress
+- **Merge session, 2026-09-08 (lead, dev machine).** The ruled order is discharged: Batch 3 is on
+  `main` and on `origin/main`, so this branch was **rebased onto merged Batch 3** — base `23ec1fa5`
+  → `main`, 25 commits replayed, tip `bb85f0c4` → `74459926`. ⛔ **Every sha this unit's record and
+  reviews cite is from the pre-rebase line and no longer resolves**; the mapping is one hop
+  (`bb85f0c4` → `74459926`) and the old shas remain readable on `origin/authz-enforcement-manifest`
+  until that ref is deleted. Conflicts were real in five files and resolved, not auto-taken: the two
+  generated indexes by **regeneration**, the two follow-up registers by **union in the archive and
+  removal of both sides in the open register** (each side had closed entries the other still
+  listed), and the plan's §6 by keeping the rewritten checklist and folding in this branch's own
+  trigger line. ⛔ The unit's completion rests on the gate **re-run at the rebased tip**, never on
+  part 1's pre-rebase run — that tip no longer exists. The re-run's table is in the record's
+  `### 2026-09-08 — Record step, part 2` entry; the ledger row carries its headline.
+
+### Next
+- **Merge session** (lead, after Batch 3 is on `main`): rebase `authz-enforcement-manifest` onto
+  `main` · renumber ADR 0193 only if 0192 moved · `npm run adr:index` + `features:index` (never
+  hand-merge the indexes) · `npm run lint` MID-merge · fresh reset + `test:db` · **re-run the
+  diff-scoped deriver over `main` and BOTH arms** — read the deriver's bare exit BEFORE substituting
+  `CASES=` (exit 1 ⇒ the targeted case, never a sweep) — `SCOPE:` re-quoted, write-arm verdict landing
+  in Batch 3's re-baselined findings file · ledger row · hub → `complete` with this block cut into the
+  record · `phase(ENFORCEMENT-MANIFEST): complete` · `git merge --ff-only` · branch deleted.
+
+### Blockers
+- None. ⚠ Superseded 2026-09-08: *"Batch 3 not yet merged (this clone has no
+  `authz-writepath-baseline`)"* — that clause was true of the **second machine's** clone and is
+  measured false here, which is the whole reason the merge session runs on this one.

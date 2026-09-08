@@ -1,15 +1,15 @@
 ---
 id: ENFORCEMENT-MANIFEST
 title: Enforcement manifest — hardDenyClasses made falsifiable, the template's re-key defect (policy re-keyed, DEFINER writer left on layer 1) resolved across the `_staff_admin_write` class, the two undeclared consumers recorded, and the rollback runbook re-measured (pre-AE5 Batch 4, Batch 5 riding along)
-status: gated
+status: complete
 kind: feature
 program: AUTHZ
 phase: "Pre-AE5 remediation — Batch 4 of the follow-up batches ruled 2026-09-04 (runs on the second machine, in parallel with Batch 3; merge order Batch 3 first)"
-branch: authz-enforcement-manifest
+branch: ~   # nulled at the Record step because the unit is closed. ⛔ NOT a claim about the merge — the merge state is `docs/plans/pre-ae5-remediation.md` §2 row 4, measured there and never quoted, and this unit merged through a REBASE so its cited shas are pre-rebase
 plan: ../plans/pre-ae5-remediation.md
 progress: ../progress/enforcement-manifest.md
 reviews: ["../reviews/enforcement-manifest-rereview-2.md", "../reviews/enforcement-manifest-rereview.md", "../reviews/enforcement-manifest-review.md"]
-adrs: ["0079", "0162", "0176", "0190", "0191"]
+adrs: ["0079", "0162", "0176", "0178", "0190", "0191", "0193"]
 handoff: ~
 fup: ~
 ---
@@ -49,54 +49,21 @@ legacy gate, and the rollback runbook AE5 will run eleven times.
 - [x] Every new check **proven able to fire** on a planted reproducer with the observed exit code and
       output, beside a clean-tree negative control and a discrimination half; the transitive search
       proven by **selection** (the depth-2/3/4 sites it now finds, named, against the depth-1 set).
-- [ ] Gate: `npm run lint` 0/0; `typecheck`; `npm run test:db` on a fresh reset (shape must not move
+- [x] Gate: `npm run lint` 0/0; `typecheck`; `npm run test:db` on a fresh reset (shape must not move
       except where a `410` pin is deleted — state the delta); the four authz arms with domains quoted;
       `SELFTEST=1` (deriver + door harness); the set-valued targeted home; **the diff-scoped sweep,
       both arms, derived over `main...HEAD` with its `SCOPE:` line quoted** — owed because any re-key
       is a migration. ⚠ Until Batch 3 lands, the write-arm case list is checked **by hand** to be
       non-empty before its exit code is read as a pass. **Re-run both arms after the rebase onto
       merged Batch 3**, `SCOPE:` re-quoted; `npm run lint` mid-merge.
-- [ ] ADR **0193** (reserved 2026-09-07; 0192 is Batch 3's — renumber inside the rebase stop if either
+      ✅ **Met at the rebased tip `74459926`, 2026-09-08** — the full table is in the record's Record
+      step part 2. Delta stated: `test:db` moved `main`'s 8876 → **8882**, all of it this unit's
+      (`409` 73→75, `410` 40→44, no assertion deleted). ⛔ The by-hand clause was satisfied by the
+      stronger route: **both arms exited 1 FINDING with 0 sweepable**, so nothing was substituted into
+      `CASES=` at all and the obligation went to the targeted case.
+- [x] ADR **0193** (reserved 2026-09-07; 0192 is Batch 3's — renumber inside the rebase stop if either
       moved), `accepted` at the Record step.
-
-## Current state
-
-**Updated:** 2026-09-07
-
-### Objective
-Make the enforcement manifest a falsifiable oracle before AE5 copies the per-role template eleven
-times: a `hardDenyClasses` arm that can fail, a transitive §6.2, the policy-re-keyed-but-DEFINER-
-still-legacy defect resolved across the `_staff_admin_write` class, the two undeclared consumers
-recorded, and the rollback runbook re-measured at the tip (Batch 5).
-
-### Done since start
-- **PO-approved 2026-09-07 at `dab3cc87`** (24 commits over `main` @ `23ec1fa5`, measured by
-  `git rev-list --count main..HEAD`) on QA round 3 **APPROVED** — after round 1 (2 BLOCK) and round 2
-  (1 BLOCK), every fix re-derived by QA by measurement. ADR **0193** → `accepted`, off the
-  proposed-review list. All five follow-ups closed on their own quoted clause; two filed.
-- Built: `hardDenyClasses` a committed claim, `410` §6.2 a transitive set equality with planted +
-  natural controls; one migration `20261003007350` re-keys `public.set_item_validations`; seven
-  DEFINER splits declared in `definerSurface`; `current_professional_read_organizations` declared a
-  site; `_audit_access_authorized` a declared non-enforcement consumer with a partition arm; the
-  rollback runbook §6 rewritten for six policies + the DEFINER door (six stale figures re-measured);
-  the findings-baseline merge made portable; a targeted command-door case home.
-- Lead's tip gate (record): lint 0/0 · pgTAP 262/8882 PASS on fresh resets · census 581/604 HOLD ·
-  hat · floor · wrapper 41 HOLD · deriver SELFTEST 34/0 · door SELFTEST 23/23 · set-valued 3/3 CLEAN ·
-  diff-scoped deriver `SCOPE:` quoted, exit 1 FINDING discharged by the targeted case (COVERED).
-
-### In progress
-- Nothing on this branch. **Waiting for Batch 3** (`authz-writepath-baseline`, other machine) to
-  merge into `main` first — ruled order; the other way round Batch 3's baseline measures a
-  `set_item_validations` body that no longer exists.
-
-### Next
-- **Merge session** (lead, after Batch 3 is on `main`): rebase `authz-enforcement-manifest` onto
-  `main` · renumber ADR 0193 only if 0192 moved · `npm run adr:index` + `features:index` (never
-  hand-merge the indexes) · `npm run lint` MID-merge · fresh reset + `test:db` · **re-run the
-  diff-scoped deriver over `main` and BOTH arms** — read the deriver's bare exit BEFORE substituting
-  `CASES=` (exit 1 ⇒ the targeted case, never a sweep) — `SCOPE:` re-quoted, write-arm verdict landing
-  in Batch 3's re-baselined findings file · ledger row · hub → `complete` with this block cut into the
-  record · `phase(ENFORCEMENT-MANIFEST): complete` · `git merge --ff-only` · branch deleted.
-
-### Blockers
-- Batch 3 not yet merged (this clone has no `authz-writepath-baseline`). Nothing else.
+      ✅ **Neither moved** — `docs/decisions/` carries exactly one `0192` (Batch 3) and one `0193`
+      (this unit), duplicate-number check clean, `next free 0194`. The `**Amends:**` label naming
+      0176 and 0178 is present, so `npm run adr:index` had back-pointers to regenerate — the one
+      thing no gate can catch.
