@@ -196,7 +196,16 @@ still resolve.
 3. **Empty-`CASES` proof home** → **put the proof where it can run**: a `sel_case` arm in the door
    harness's own `SELFTEST=1` block mirroring ADR 0192's Arm 3, and **EDIT ADR 0079 § The recipe** to
    the exit-code-first form with the superseded text quoted (an operational instruction is edited,
-   not annotated — R45). ADR 0194 records that the clause named two wrong homes and why.
+   not annotated — R45).
+   > ⚠ **CORRECTED 2026-09-08 (QA MINOR).** This sentence continued *"ADR 0194 records that the
+   > clause named two wrong homes and why."* **It does not** — 0194 describes the three-state
+   > `CASES` decision and the two-process control, not the follow-up's mis-naming. The "two wrong
+   > homes" account lives **here**, in the entry above, and the recipe half of it lives in ADR 0079's
+   > own dated note. ⛔ Attributing content to a document that does not carry it is the same defect
+   > class as a link whose target does not exist: it reads as a citation and resolves to nothing.
+   > ⚠ And the framing is now historical anyway — after this batch **both** named homes DO host the
+   > fix: `door-sweep-selftest.sh` has the two-polarity runner, and `lead-playbook.md` §4 has the
+   > exit-code-first recipe.
 4. **Re-bolding** → **the 6 workaround rows only**, derived as a property; the 46 legacy rows are
    left alone and the 81/52/29 derivation is recorded so the refuted figures are not re-quoted.
 
@@ -276,6 +285,17 @@ Three of this unit's own repairs shipped a first cut that read as complete and w
    itself the counter-example. ⚠ BOUNDED: **14** files still unreadable — they put WORDS before the
    label (`## Re-review (2026-07-17) — VERDICT:`); admitting those readmits `Prior verdict: APPROVED`,
    so it is FILED, not fixed. Measured: no `complete` hub depends on one.
+   > ⛔ **CORRECTED 2026-09-08 beside the original — QA MAJOR-1, and it is a FOURTH instance of this
+   > entry's own pattern.** The claim above is one shape described as if it were all of them, and the
+   > number is detector-dependent (14 / 20 / 23 by three definitions; the lead's original window
+   > required "verdict" and "approved" on the SAME line, which is exactly what the missing shape does
+   > not do). The residual is **two** shapes: **9** with words on the label line — the stated
+   > rationale is true of these — and **10** with a **bare `## Verdict` heading and the verdict on
+   > the NEXT line**, which is a LINE BOUNDARY, not decoration. ⛔ **The rationale for not fixing was
+   > never true of those 10**, so half the residual was filed under a reason that did not apply.
+   > They are now **FIXED** (bare-heading arm, 12 new fixtures, both polarities): readable
+   > **102 → 112 of 170**. The remaining 9 + 1 blockquote keep the corrected rationale.
+   > ⭐ QA's independent measurement of 10 and the lead's tightened re-measurement agree exactly.
 2. **The archive ratchet's domain.** Its first cut selected `^### ` only — a **syntax**, not the
    property. ⛔ **The lead's critique of it was itself bounded by a syntax:** the brief said 5 genuine
    `##` entries and used `#{2,4}`; the re-derivation found **27** (the 22 `## ⬛ FUP-0137-…` headings

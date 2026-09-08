@@ -135,6 +135,21 @@ export function parseFrontmatter(text) {
  * @param deps  {exists, globMatch, fileHas} — injected so the self-test can drive the
  *              checker against fixtures without touching the filesystem.
  */
+/**
+ * Detect CRLF and normalise, as ONE exported step.
+ * ⛔ THIS IS A FUNCTION SO THE SELF-TEST CAN ASSERT IT. It used to be two inline expressions in
+ * `main()`, and QA proved (2026-09-08, MINOR) that severing the detection there left BOTH the gate
+ * and `--self-test` at exit 0: the `crlf` flag had fixtures for what `checkRule` does WITH it, and
+ * nothing asserting it was ever computed. A detector wired to no assertion is the defect this whole
+ * batch is about — "a declared param no caller passes is invisible".
+ * ⛔ Normalisation happens here, BEFORE parsing and BEFORE the byte cap, so the cap measures the
+ * rule's CONTENT and never the checkout's line endings.
+ */
+export function readRuleText(raw) {
+  const crlf = /\r\n/.test(raw)
+  return { crlf, text: crlf ? raw.split('\r\n').join('\n') : raw }
+}
+
 export function checkRule(name, fm, deps, bytes = 0, crlf = false) {
   const { exists, globMatch, fileHas } = deps
   // ⛔ CRLF IS REPORTED AS CRLF, AND FIRST. A CRLF checkout used to surface here as "no `paths:`
@@ -314,6 +329,18 @@ function selfTest() {
   // The frontmatter-less early return must carry it too — it is a separate exit path.
   const none = checkRule('r', null, ok, 0, true)
   if (none.length !== 2 || !/CRLF/.test(none[0])) fails.push('crlf-on-the-no-frontmatter-path')
+  // ⛔ THE DETECTION ITSELF, not just what is done with it (QA MINOR, 2026-09-08). Severing the
+  // detect-and-normalise step used to leave the gate AND this self-test at exit 0.
+  const crlfIn = readRuleText('a\r\nb\r\n')
+  if (crlfIn.crlf !== true) fails.push('readRuleText-detects-crlf')
+  if (crlfIn.text !== 'a\nb\n') fails.push('readRuleText-normalises-crlf')
+  const lfIn = readRuleText('a\nb\n')
+  if (lfIn.crlf !== false) fails.push('readRuleText-does-not-cry-crlf-on-lf')
+  if (lfIn.text !== 'a\nb\n') fails.push('readRuleText-leaves-lf-alone')
+  // ⭐ The byte cap must measure CONTENT: the same rule in both endings must yield the same length.
+  if (Buffer.byteLength(crlfIn.text) !== Buffer.byteLength(lfIn.text)) {
+    fails.push('readRuleText-byte-cap-still-sees-line-endings')
+  }
 
   const wide = { ...ok, globMatch: () => new Array(MAX_GLOB_FILES + 1).fill('f') }
   red('too-broad', checkRule('r', good, wide))
@@ -383,10 +410,7 @@ function main() {
 
   for (const f of files) {
     const raw = readFileSync(join(RULES_DIR, f), 'utf8')
-    const crlf = /\r\n/.test(raw)
-    // ⛔ Normalised BEFORE parsing AND before the byte cap, so the cap measures the rule's
-    // CONTENT, never the checkout's line endings. The CRLF itself is reported by checkRule.
-    const text = crlf ? raw.split('\r\n').join('\n') : raw
+    const { crlf, text } = readRuleText(raw)
     findings.push(
       ...checkRule(
         `.claude/rules/${f}`,

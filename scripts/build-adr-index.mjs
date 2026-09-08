@@ -386,8 +386,11 @@ export function hardFindings({ duplicates, dangling, malformed }) {
 // reads `[0171](./0171-anything-at-all.md)` as the target `'0171'`, `analyse` asks only
 // whether `byNum` has it, and the answer is yes — so a link naming a file that has never
 // existed is byte-for-byte as green as a correct one. Measured 2026-09-08 over the whole
-// corpus: **14 dangling targets in 8 files, 954 file links checked**, while this gate exited
-// 0 with `OK (191 ADRs indexed)`.
+// corpus: **14 dangling targets in 9 files, 954 file links checked**, while this gate exited
+// 0 with `OK (191 ADRs indexed)`. ⚠ This read "8 files" until QA corrected it (2026-09-08); the
+// repair commit's own `--name-only` list is 0053 0056 0063 0064 0072 0073 0078 0105 0191 = nine,
+// and 0078 carries five of the fourteen. ⛔ A miscount in a comment that nothing can contradict is
+// the exact class this gate was added to end, so it is corrected rather than left as "close enough".
 //
 // The failure mode is PLAUSIBLE RECONSTRUCTION, which is why review never caught them: every
 // broken target is an on-topic, readable slug for the ADR actually meant. Two consecutive

@@ -547,7 +547,17 @@ audit_polarity () {  # $1 harness path  $2 polarity: unset|empty  $3 expected st
 a_out () { grep -qF -- "$1" "$AOUT"; }
 
 for h in "$AUDIT" "$WRITE_AUDIT" "$ROW_AUDIT" "$INV_AUDIT"; do
-  [ -f "$h" ] || continue
+  # ⛔ A MISSING HARNESS IS A FAILURE, NEVER A SKIP. This was `[ -f "$h" ] || continue`, which made
+  # the FAIL branch below unreachable: rename or move a sweep and this suite silently drops its two
+  # scenarios, prints a SMALLER total, and still exits 0. ⭐ The whole point of this group is the
+  # two-process control that one process cannot observe — a control that quietly stops running is
+  # worse than one that never existed, because the green now asserts something nobody measured.
+  # (QA MINOR, 2026-09-08. Silence is not success.)
+  if [ ! -f "$h" ]; then
+    FAIL=$((FAIL + 1)); FAILED_NAMES="$FAILED_NAMES missing:$(basename "$h")"
+    printf 'FAIL  %-44s harness not found at %s\n' "$(basename "$h")" "$h"
+    continue
+  fi
   audit_polarity "$h" unset 0
   assert "the harness must PRINT its startup capture" "$(a_out 'SELFTEST-STARTUP: CASES_EXPLICIT_AT_STARTUP=' && echo 1 || echo 0)"
   assert "CASES unset must capture 0" "$(a_out 'SELFTEST-STARTUP: CASES_EXPLICIT_AT_STARTUP=0' && echo 1 || echo 0)"

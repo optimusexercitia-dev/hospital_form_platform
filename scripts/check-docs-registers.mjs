@@ -339,14 +339,48 @@ export function countLedgerDataRows(text) {
 // excludes every letter and digit, so no amount of it can span them. `>` and `~` stay excluded on
 // BOTH sides so a blockquoted (`> **Verdict:** APPROVED`) or struck-through (`~~Verdict:
 // APPROVED~~`, `Verdict: ~~APPROVED~~`) verdict is still not an approval.
-// ⚠ BOUNDED, STATED: 14 files remain unreadable because they put WORDS before the label
-// (`## Re-review (2026-07-17) — VERDICT:`, `**Reviewer:** … · **Verdict:**`, `TOP-LINE VERDICT:`).
-// Admitting those means admitting arbitrary leading words, which readmits `Prior verdict: APPROVED`
-// — so it is FILED, not fixed. No `complete` hub depends on one (measured 2026-09-08).
+// ⚠ BOUNDED, STATED — and CORRECTED 2026-09-08 by QA (MAJOR-1). This note previously read
+// *"14 files remain unreadable because they put WORDS before the label"*. That was **one shape
+// described as if it were all of them**, and the count depended on the detector's own window
+// (14 / 20 / 23 by three definitions). The residual is TWO shapes, and only one is what the note
+// claimed:
+//   · **9** put words on the label line (`## Re-review (2026-07-17) — VERDICT:`,
+//     `**Reviewer:** … · **Verdict:**`). Admitting these means admitting arbitrary leading words,
+//     which readmits `Prior verdict: APPROVED` — genuinely FILED, not fixed.
+//   · **10** were a BARE `## Verdict` heading with the verdict on the NEXT line — a LINE BOUNDARY,
+//     not decoration, so the rationale above never applied to them. ⛔ Half the residual was filed
+//     under a reason that was not true of it. **Now FIXED** by `reviewHasApprovedVerdict`'s
+//     bare-heading arm; readable went 102 → 112 of 170.
+//   · 1 is a blockquoted verdict, excluded on purpose.
+// No `complete` hub depends on any remaining one — verified against `checkHub`'s actual predicate:
+// 9 complete hubs, all pass, and every unreadable review linked from one is a genuine earlier
+// CHANGES REQUESTED round (QA re-derived this independently).
 export const REVIEW_VERDICT_APPROVED_RX = /^#{0,6}[^\p{L}\p{N}\r\n>~]{0,8}Verdict:[^\p{L}\p{N}\r\n>~]{0,8}APPROVED\b/imu
 
+// ⛔ THE SECOND SHAPE: a BARE `## Verdict` heading with the verdict on the NEXT line. This is a
+// LINE-BOUNDARY problem, not a decoration problem, so no amount of widening the single-line class
+// reaches it — and the residual note originally filed these 10 files under the decoration
+// rationale ("admitting them readmits `Prior verdict: APPROVED`"), which is simply not true of
+// them. ⭐ It is safe for the opposite reason: the heading must be BARE (nothing but the word),
+// so `Prior verdict: APPROVED` and `**r2 verdict: APPROVED**` cannot reach it — they carry words
+// on the heading line and fail `VERDICT_BARE_HEADING_RX`.
+// ⚠ The verdict line itself is matched by the SAME "no letters or digits before it" rule as the
+// single-line form, so `NOT APPROVED` / `CHANGES REQUESTED` under a bare heading stay rejected,
+// and `>`/`~` stay excluded so a blockquoted or struck verdict is still not an approval.
+export const VERDICT_BARE_HEADING_RX = /^#{1,6}[^\p{L}\p{N}\r\n]{0,4}(?:FINAL |TOP-LINE |RE-)?VERDICT[^\p{L}\p{N}\r\n]{0,4}$/iu
+export const VERDICT_LINE_APPROVED_RX = /^[^\p{L}\p{N}\r\n>~]{0,8}APPROVED\b/iu
+
 export function reviewHasApprovedVerdict(text) {
-  return REVIEW_VERDICT_APPROVED_RX.test(text || '')
+  const t = text || ''
+  if (REVIEW_VERDICT_APPROVED_RX.test(t)) return true
+  const lines = t.split(/\r?\n/)
+  for (let i = 0; i < lines.length; i++) {
+    if (!VERDICT_BARE_HEADING_RX.test(lines[i].trim())) continue
+    let j = i + 1
+    while (j < lines.length && lines[j].trim() === '') j++
+    if (j < lines.length && VERDICT_LINE_APPROVED_RX.test(lines[j].trim())) return true
+  }
+  return false
 }
 
 // ─── parsing helpers (pure) ──────────────────────────────────────────────────────────────
@@ -1636,6 +1670,23 @@ function selfTest() {
   rejects('reviewHasApprovedVerdict', reviewHasApprovedVerdict, '**Verdict: `NOT APPROVED`**')
   rejects('reviewHasApprovedVerdict', reviewHasApprovedVerdict, '**Verdict:** ~~APPROVED~~')
   rejects('reviewHasApprovedVerdict', reviewHasApprovedVerdict, '> **Verdict:** ✅ APPROVED')
+  // ── the BARE-HEADING shape: verdict on the NEXT line (QA MAJOR-1, 2026-09-08) ──────────
+  // ⛔ These 10 files were originally filed as "words before the label", which is FALSE of them —
+  // it is a LINE BOUNDARY, not decoration, and the rationale for not fixing did not apply.
+  accepts('reviewHasApprovedVerdict', reviewHasApprovedVerdict, '## Verdict\n\n# ✅ APPROVED')
+  accepts('reviewHasApprovedVerdict', reviewHasApprovedVerdict, '### Verdict\n**✅ APPROVED.** rest')
+  accepts('reviewHasApprovedVerdict', reviewHasApprovedVerdict, '## Verdict\n\n**APPROVED** (re-verified)')
+  accepts('reviewHasApprovedVerdict', reviewHasApprovedVerdict, '## FINAL VERDICT\n\nAPPROVED')
+  // ⭐ Safe because the heading must be BARE — these all carry words on the heading line, or a
+  // rejection under it, or a retraction marker, and none may pass.
+  rejects('reviewHasApprovedVerdict', reviewHasApprovedVerdict, '## Verdict\n\n# ⛔ NOT APPROVED')
+  rejects('reviewHasApprovedVerdict', reviewHasApprovedVerdict, '## Verdict\n\nCHANGES REQUESTED')
+  rejects('reviewHasApprovedVerdict', reviewHasApprovedVerdict, '## Verdict\n\nnot approved')
+  rejects('reviewHasApprovedVerdict', reviewHasApprovedVerdict, '## Verdict\n\n> ✅ APPROVED')
+  rejects('reviewHasApprovedVerdict', reviewHasApprovedVerdict, '## Verdict\n\n~~APPROVED~~')
+  rejects('reviewHasApprovedVerdict', reviewHasApprovedVerdict, '## r2 verdict: APPROVED')
+  rejects('reviewHasApprovedVerdict', reviewHasApprovedVerdict, '## Verdicts\n\nAPPROVED')
+  rejects('reviewHasApprovedVerdict', reviewHasApprovedVerdict, '## Verdict\n\nThe work is APPROVED once X')
   accepts('reviewHasApprovedVerdict', reviewHasApprovedVerdict, 'header\n\n### ⭐ Verdict: APPROVED\n\nbody')
   // ⛔ REJECT — the discrimination half. `i` makes the WORD case-blind; it must not make the
   // SENTENCE case-blind. `[\s*]{0,4}` after the colon is what keeps every one of these out.
@@ -2328,4 +2379,8 @@ function main() {
   console.log(`check-docs-registers: ratchets: ${ratchetsLine}`)
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) main()
+// ⛔ `process.argv[1] &&` is load-bearing, not defensive noise. Without it, IMPORTING this module
+// throws `ERR_INVALID_ARG_TYPE` under `node -e` / `node --input-type=module`, where argv[1] is
+// undefined — and since gate 9 now imports `checkLinks` from here, the crash is transitive. It cost
+// two verification attempts before being fixed. `build-adr-index.mjs:985` already guards this way.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main()
