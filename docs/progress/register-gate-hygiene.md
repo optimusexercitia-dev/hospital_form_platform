@@ -254,3 +254,190 @@ entry that is already closed. It is recorded here and belongs in ADR 0194.
 
 **Next.** ⛔ Plan the empty-`CASES` port **in full** before any edit to the harness — it opens a live
 gate, and the batch's *"cheap, and the window is structural"* reasoning explicitly does not cover it.
+
+### 2026-09-08 — build: four parallel streams, and the corrections each one forced (lead + backend)
+
+**Streams and file ownership** (binding; no two streams shared a file). `gate13-fix` →
+`scripts/check-docs-registers.mjs`. `adr-links` → `scripts/build-adr-index.mjs` + `docs/decisions/**`.
+`cases-plan`/`cases-build` (backend) → `supabase/tests/mutation/*`, `scripts/door-sweep-selftest.sh`,
+`docs/lead-playbook.md`, `docs/followups/follow-ups-open.md`. Lead → `docs/progress/phase-ledger.md`,
+the plan, `docs/lint-gates.md`, this record, the hub. ⚠ `docs/decisions/` was held by `adr-links`, so
+the ADRs were delivered as scratch drafts and applied by the lead afterwards (ruling R4).
+
+#### The recurring shape: a fix correct in DIRECTION and unmeasured in MAGNITUDE
+
+Three of this unit's own repairs shipped a first cut that read as complete and was not.
+
+1. **The verdict regex.** `375726b2` admitted decoration BEFORE `Verdict:` and left `[\s*]{0,4}`
+   after it — so `Verdict: ✅ APPROVED`, a backticked verdict, and even `**Verdict:** **APPROVED**`
+   (five characters where four were allowed) stayed unreadable. Measured over `docs/reviews/`:
+   **65 of 169** readable. Widening the middle to the identical class → **102 of 169** (`405523f3`).
+   ⭐ Found only because AE2's own r3 verdict is backticked, so the ledger row being written was
+   itself the counter-example. ⚠ BOUNDED: **14** files still unreadable — they put WORDS before the
+   label (`## Re-review (2026-07-17) — VERDICT:`); admitting those readmits `Prior verdict: APPROVED`,
+   so it is FILED, not fixed. Measured: no `complete` hub depends on one.
+2. **The archive ratchet's domain.** Its first cut selected `^### ` only — a **syntax**, not the
+   property. ⛔ **The lead's critique of it was itself bounded by a syntax:** the brief said 5 genuine
+   `##` entries and used `#{2,4}`; the re-derivation found **27** (the 22 `## ⬛ FUP-0137-…` headings
+   are real entries, read to confirm) plus five more at `#`. Real population **179**, not 174. Cap
+   **108 → 121**, parts summing per level (144 ids = 23 with + 121 without; 27 h2 + 117 h3). ⛔ A
+   truer number, not a regression. ⭐ The 13 newly-visible are led by
+   `FUP-IS-STAFF-ADMIN-OF-CARRIES-PUBLIC-EXECUTE`, archived at `##` with its body moved *"VERBATIM"*,
+   `Filed`/`Owner`/`Severity` intact and `Closes when` dropped — a live instance of the exact defect
+   the arm exists for (`577637b4`).
+3. **Gate 11's diagnosis** — see the CRLF section below.
+
+#### gate13-fix — the two `complete` regexes and the ratchet (`375726b2`, `202106ab`)
+
+⭐ **A finding that made the lead's sequencing load-bearing rather than cautious:** *four* complete
+hubs (AE4, DOOR-SWEEP-DERIVER, HARNESS-CRASH-SAFETY, PRED-DOMAIN) pass on their **ledger row alone**
+today, their genuine APPROVED reviews unreadable to the old regex. Re-bolding any one of them before
+the regex landed would have redded the gate — not just AE4's. The re-bolding was held until after
+`375726b2`.
+⚠ The stream caught its own error mid-flight by reconciling two censuses (`202106ab`): the counter
+first read the leading field block, which sees only 9 of the 27 column-0 fields, setting the cap 15
+too high **and** guaranteeing a red on the next correctly-written closure.
+
+#### adr-links — gate 9 resolves TARGETS (`af9cf1e4`)
+
+Gate 9's only existence check was over the **number** map: `[0171](./0171-anything.md)` was green
+because `0171` exists, and the slug was never read. 14 dangling ADR-to-ADR links sat in the tree
+while it printed `OK`. Independently re-derived by a sweep that does not import the shared checker;
+a census, not a sample — 959 raw link openers, 1 blanked inside code, 958 matched, **zero
+unmatched**; 786 intra-`docs/decisions/`, 168 outbound of which **0** broken. The register's
+twice-written *"the other 11 predate this phase"* is refuted by its own enumeration: **12**.
+⭐ The proof that matters is the mutation arm: a planted wrong-case link reds (**rc 1**), and with
+`exists` reverted to naive `existsSync` the self-test reds **rc 2 — `links-wrong-case-detect (cannot
+fire)`**, while bypassing the self-test ships it green. `existsSync` measured `true` on that plant,
+so the NTFS trap is live, not theoretical.
+⛔ Findings are `--check`-only, deliberately not in `hardFindings()`: routing them into the generated
+`INDEX.md` would surface a broken link first as *"INDEX.md is out of date"*, sending the reader to a
+regeneration that fixes nothing, and would commit a normalised list of the defect — an allowlist in
+all but name.
+⚠ New coupling: gate 9 now imports `checkLinks` from `check-docs-registers.mjs`.
+⚠ Residual: gates 7 and 13 still use the case-insensitive `exists`. Zero wrong-case links today
+(measured), so a gap, not debt.
+
+#### The ledger (`8b194439`) and the spun-off session (`7e8618e5`)
+
+Re-bolding was derived as a **property** — *unbolded ∧ after the first bolded row* — selecting
+exactly lines 124–129 without being taken from the plan's list. ⛔ The plan's figures are refuted as
+statements about the ledger: **81 rows, 52 unbolded / 29 bolded**, not "six of 76"; the "six" named
+the right class and the wrong population. AE2's row is marked **reconstructed** and says in its own
+cells that every figure is transcribed, not measured here; it carries a ⛔ against the stale task
+table in `authz-ae2.md`. All 16 of its links verified **case-exactly**, not by `existsSync`.
+Clause (b) was spun out to a separate worktree and returned six further reconstructed rows, merged
+`--ff-only`. Verified **after** the merge: 88 rows, every one 9 cells (the 8-cell row that made a
+column-indexed reader take a commit sha as a date is repaired), no duplicate ids, 41 + 47 = 88.
+⭐ Their best finding: a name-agnostic join matched a record to a row when both cited the same review
+file, silently linking `authz-ae2` through a **shared audit-findings file** — hiding the one subject
+the derivation existed to find. **Citation is relevance, not identity**, and the rule failed toward a
+clean result.
+
+#### Gate 11 — a false "`main` is broken", and the real defect underneath (`bc8a27b0`, `654bdbb0`)
+
+That session recorded ⛔ *"`npm run lint` reds on `main` itself"*, proven by `.claude/` being
+byte-identical to `main`. **Not reproducible here**: `lint:rules` → **rc 0** on the primary tree, and
+**rc 1 with the identical 24 findings** when the same script runs from their worktree. Cause: their
+`.claude/rules/*.md` are **CRLF** — 47 CR bytes vs 0, 2058 vs 2011 bytes, same 47 lines. That +47 is
+exactly what carries three files past the 2048 cap, and `paths:`/`anchors:` "go missing" because the
+parser is handed a trailing CR on the key line.
+⛔ **Their measurement was right and the conclusion was not.** `.gitattributes` carries
+`* text=auto eol=lf`, so the clean filter normalises CR **on the way in**: `git hash-object` returns
+the same blob and `git status` is clean in both trees. Every git-mediated comparison agrees they are
+identical while the bytes on disk differ. **A claim about a file's CONTENT is not a claim about the
+BYTES A GATE READS**, and on Windows git cannot show you the difference.
+⭐ The defect that survives is **attribution**: the gate blamed each rule's content for its own
+reader's assumption. Fixed to name CRLF as CRLF and to normalise before parsing **and** before the
+byte cap. Four arms, exit codes bare, in a scratch worktree with genuinely CRLF files:
+
+| arm | observed |
+|---|---|
+| unfixed gate, CRLF tree | **rc 1**, 24 findings, **zero** mentioning CRLF |
+| fixed gate, same tree | **rc 1**, 10 findings, **all** naming CRLF, 0 spurious, 0 byte-cap |
+| fixed gate, LF restored | **rc 0** — discrimination; not always-red |
+| primary tree | **rc 0** |
+
+Five fixtures, deliberately two-sided — the defect was attribution, not detection, so a one-sided
+"it reds" fixture would have passed on the broken version too. Proven able to fail: dropping the
+finding from the accumulator makes the self-test exit **2** naming the three arms that die.
+The false claim was corrected **in the merged files**: a dated note beside the original in the
+append-only record, and a replacement of the hub's live `### Blockers` block.
+
+#### cases-build — the empty-`CASES` port across four harnesses (`8f87a7c3`, `1b580e4e`)
+
+**Red-first held** (plan §8 step 2). The new arm, its row 0 and the counter rework landed against
+**unmodified** decision logic and rows **C** and **E3** were observed RED, bare rc 1, `8/10 ok`:
+`C CASES="" EXPLICIT -> selects=yes writes=committed (expected no / subset)`.
+⛔ **The build corrected the lead's own ruling.** R1 restated the plan's claim that row **D** would
+also be red at step 2. It was green — because D's mutation target is *dropping the
+`BASE_SHAPE_OVERRIDE` disjunct*, and that disjunct **exists pre-fix**. The stream treated
+green-on-first-run as a finding, checked the **assertion** rather than the code, found the plan had
+filed D under the wrong mutation, and proved D **by selection** instead: dropping the disjunct reds
+**D and only D**. ⭐ That is the correct response to a ruling that does not match the code.
+After the fix, all four harnesses exit **0** in both states (door 33/33, writepath 27/27, rowdoor
+9/9, invoker 10/10), row 0 printing the startup capture as `0` unset / `1` empty in each. The new
+`door-sweep-selftest.sh` runner: **rc 0**, `PASS 42 · FAIL 0`, groups deriver 16 · merge helper 18 ·
+audit startup capture 8 — proven able to fire by hard-wiring the captured bit (**rc 1**, and *only*
+the empty half failing, which is why the pair is the control).
+⛔ **Every port proven by selection, never by inheritance:** reverting one harness's own predicates
+reds only that harness (`1/0/0`, then `0/1/0`, then `0/0/1`). This is the mis-scope that cost Batch 2
+a voided run, and it was checked rather than assumed.
+⚠ **Scope call, ratified by the lead:** `rowdoor` and `invoker` had **no domain gate at all**, so the
+three named sites alone would have swapped a silent full sweep for a silent **zero** sweep at exit 0
+— a run that measured nothing reading as a pass. Each got a domain gate (zero selected → UNPROVEN,
+exit 3). Beyond the clause, written up as a partial touch on a separate follow-up; BLIND-bearing runs
+still exit 0.
+⚠ A mechanical trap the plan missed: `want()`/`count_sel()` were defined ~450 lines **below** the
+self-test block, so the arm as specified would have died with `want: command not found`. The
+definitions were relocated rather than copied — a harness holding a hand-written copy of production
+text proves nothing.
+Baselines untouched: `git diff --stat` on both committed findings files, bare, **empty**, across
+`af9cf1e4..HEAD`.
+Beyond brief: the **write arm had the identical row-0 vacuity** — its own fixture assigned the
+set-ness variable, so ADR 0192's capture was asserted by nothing. It now carries the handle.
+
+#### ADRs (`82af2a33`)
+
+ADR **0194** (amends 0192) placed from the backend draft; `INDEX.md` regenerated to 192 ADRs,
+back-pointer written into 0192. ⭐ Gate 9's new target resolution **passes on 0194** — the gate
+checking the ADR that documents the batch that built it.
+ADR **0079 § The recipe EDITED** to the two-step form (R45: an operational instruction is edited, not
+annotated), with the superseded one-liner quoted inside the dated note **below** the correction so a
+reader cannot act on it. ⛔ That is where the substitution actually lived — neither `lead-playbook`
+nor `CLAUDE.md` ever contained one, so the follow-up's clause named two files that could not host its
+fix. `lead-playbook.md` §4 now carries the two-step recipe, and its hardcoded scenario counts were
+replaced by a pointer to what the harness itself prints.
+
+#### Lead errors, recorded because they cost real time
+
+- ⛔ **The lead damaged the shared `node_modules`.** A `git worktree remove --force` was run on a
+  worktree containing a **junction to the real `node_modules`**; its *"Filename too long"* failure was
+  git deleting **through** the junction. `.bin/` and `@eslint-community/eslint-utils` were destroyed,
+  which is why the build stream could not complete `npm run lint` and reported the gate as owed.
+  Repaired with `npm install` (202 packages restored, `package.json`/`package-lock.json`
+  **unmodified** — verified). **Lesson: remove the junction before removing the worktree.**
+- ⛔ **Two mutation attempts silently failed to apply, and each green meant nothing.** Once because
+  Windows Python could not resolve `/tmp` while Node could (so the "mutant" was the unmutated file);
+  once because the shell ate a backslash level. Both caught only by verifying the mutation was
+  **present in the file** before trusting its result — now the standing practice here.
+- ⚠ The lead wrote **four broken ADR links from memory** into this record, each with a correct
+  number, so gate 9 would have passed all four. Caught by an unprompted directory listing. They never
+  reached a commit and change no count; recorded because they are the cheapest proof that the repair
+  had to be a gate and not a sweep.
+- ⚠ An exit code was read **through a pipe** early in the session and reported 0 for a command whose
+  status was not 0. Every exit code in this record was re-read bare or from a redirect.
+
+#### Gate at the tip so far (lead, not the builder)
+
+`npm run lint` **rc 0**, eslint running, 0 errors / 0 warnings · `npm run typecheck` **rc 0** ·
+`npm run lint:adr-index` **rc 0** (192 ADRs) · gate 13 **rc 0**, ratchets all at or under cap
+(`archiveMissingClosesWhen=121/121`, `longHeadings` back to 97/97) ·
+`git diff --name-only main... -- supabase/migrations supabase/seed.sql src` **EMPTY** — no migration
+and no `src/` change, so the diff-scoped sweep is not owed both arms and E2E is not implicated.
+**Still owed:** `npm run test`, `npm run test:db` on a fresh reset, the four authz arms with domains
+quoted, `SELFTEST=1` on the deriver and the door harness, and the diff-scoped deriver over
+`main...HEAD` with its `SCOPE:` line quoted and its exit read **bare before any substitution**.
+
+**Not yet done, and deliberately:** the five follow-ups remain `open`. Closure is a Record-step action
+after PO approval, and closing them earlier would assert an approval that has not happened.

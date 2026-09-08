@@ -77,36 +77,48 @@ door arm, which is the one item here that touches a live gate's harness.
 
 ### Done since start
 
-- Preconditions measured, not assumed: `git status` clean, `origin/main..main` = 0, no `in_progress`
-  hub. Unit opened; branch `authz-register-gate-hygiene` cut off `main` @ `6810d95b`.
-- Four read-only recon sweeps landed (record § 2026-09-08). Three of them **refuted a written
-  figure**: the ledger is 81 rows / 52 unbolded (not 76 / 6); the broken ADR links are 14 (not 13,
-  and the entry's own "11" is off by one against its own enumeration); the archive holds **27**
-  register-style `Closes when` fields of 174 entries (the entry measured 3 on 2026-09-04 — the gap is
-  the interim practice working, ⛔ not a number to overwrite).
-- Two close conditions found to **name homes that cannot host their fix** — `door-sweep-selftest.sh`
-  never runs an audit harness, and neither the playbook nor CLAUDE.md contains the substitution.
-- PO ruled all four scope questions (record § 2026-09-08). The non-AE2 ledger gaps are spun off.
+- Preconditions measured, not assumed; branch cut off `main` @ `6810d95b`. Four read-only recon
+  sweeps **refuted three written figures** (ledger 81 rows / 52 unbolded, not 76 / 6; ADR links 14,
+  not 13, and the entry's "11" off by one against its own list; archive 27 of 174, not 3) — each
+  correct when written, so each is a dated note beside it, ⛔ never a rewrite.
+- Two close conditions **named homes that cannot host their fix**; the PO ruled all four scope
+  questions and the non-AE2 ledger gaps were spun off to their own worktree and merged back.
 - **A sixth defect, found by opening the unit:** gate 13's branch check could not pass on Windows —
-  `git()` interpolates into a shell and `cmd.exe` keeps the single quotes, so branches arrive as
-  `'main'`. ⭐ Those quotes were `3057ac1c`'s fix for `/bin/sh` on macOS: **the same check redding
-  with the same message on the opposite platform.** Fixed shell-free (`execFileSync`, argv array);
-  proven rc 0 real / rc 1 planted-absent / rc 0 reverted, read bare.
+  `cmd.exe` keeps the quotes in `--format='%(refname:short)'`, so branches arrive as `'main'`.
+  ⭐ Those quotes were `3057ac1c`'s fix for `/bin/sh` on macOS: **the same check, the same message,
+  the opposite platform.** Fixed shell-free; rc 0 real / rc 1 planted-absent / rc 0 reverted.
+
+- **All five follow-ups built.** Gate 9 resolves link **targets** case-exactly and all 14 dangling
+  links repaired; the `complete` gate's two regexes read a bolded id and a decorated verdict
+  (readable reviews **65 → 102** of 169); a ninth ratchet `archiveMissingClosesWhen` (**121**, domain
+  re-derived by *property* after its first cut was bounded by a syntax); AE2 plus six further
+  reconstructed ledger rows (**88 rows, all 9 cells**); and `CASES` made three-state across **all
+  four** sweep harnesses plus their four `p0-authz-invariant.sh` callers.
+- ADR **0194** placed (amends 0192); ADR **0079 § The recipe** EDITED to the two-step form, which is
+  where the substitution actually lived.
+- ⛔ **Three of this unit's own repairs first shipped correct in DIRECTION and unmeasured in
+  MAGNITUDE** — the verdict regex, the ratchet's domain, and gate 11's diagnosis. Each is recorded
+  with what the second measurement found.
 
 ### In progress
 
-Nothing built from the five follow-ups yet. The plan for the mutation-harness item is the next
-artifact; the only code change so far is the gate-13 unblock above.
+The gate at the tip, run by the lead rather than the builder. Green so far: `lint` **rc 0** (0/0,
+eslint running) · `typecheck` **rc 0** · `test:db` **rc 0** on a fresh reset — **262 files / 8,882
+tests PASS** · gate 13 **rc 0**, every ratchet at or under cap ·
+`git diff --name-only main... -- supabase/migrations supabase/seed.sql src` **EMPTY**, so the sweep
+is not owed both arms and E2E is not implicated.
 
 ### Next
 
-1. Plan the empty-`CASES` port **in full** before editing it — `backend` returns the plan, the lead
-   approves with rulings in one scratch file. ⛔ Never the build first.
-2. Build the four register/gate items, each with a planted-red proof and a clean-tree negative
-   control.
-3. ADR **0194** (highest on any live branch + 1 — `main` and `authz-enforcement-manifest` both at
-   0193, so no collision), amending 0079 and 0186.
+1. Finish the gate: `npm run test`, the four authz arms with domains quoted, `SELFTEST=1` on the
+   deriver and the door harness, and the diff-scoped deriver with its `SCOPE:` line and its exit read
+   **bare before any substitution**.
+2. QA review → fix loop → re-review.
+3. PO approval, then the Record step: close the five follow-ups on their own quoted clauses, flip
+   `FUP-AE2`'s status, ledger row, hub → `complete`, `git merge --ff-only`.
 
 ### Blockers
 
-None. The four PO rulings that gated scope are given.
+None. ⚠ One decision is **banked for the PO at approval**, not blocking: whether the `DSR` ledger row
+stays — the spun-off session wrote it outside the option the PO picked, under its principle rather
+than inside it, and the row invites its own removal in its own text.
