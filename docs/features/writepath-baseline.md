@@ -5,7 +5,7 @@ status: complete
 kind: feature
 program: AUTHZ
 phase: "Pre-AE5 remediation — Batch 3 of the follow-up batches ruled 2026-09-04"
-branch: ~   # nulled at the Record step because the unit is closed. ⛔ NOT a claim that it merged — the ff-merge into `main` is the LEAD's step AFTER this Record commit; the measured state is in the ledger row
+branch: ~   # nulled at the Record step because the unit is closed. ⛔ NOT a claim that it merged — the ff-merge into `main` is the LEAD's step AFTER this Record commit. ⚠ CORRECTED 2026-09-08: the merge state is NOT in the ledger row (that row says in its own words that it asserts nothing about the merge, the push or the branch deletion) — it is `docs/plans/pre-ae5-remediation.md` §2 row 3, measured there and never quoted
 plan: ../plans/pre-ae5-remediation.md
 progress: ../progress/writepath-baseline.md
 reviews: ["../reviews/writepath-baseline-review.md"]
