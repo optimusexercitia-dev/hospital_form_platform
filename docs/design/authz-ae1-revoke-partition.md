@@ -1313,3 +1313,96 @@ Named rather than approximated, per the file's own standard:
 - **Behaviour under an actual revoke.** Everything here is simulated in the predicate. No
   `REVOKE` was applied to any of the 233, and no pgTAP/E2E run was made against a revoked state,
   so the *runtime* consequence of the batches remains predicted, not observed.
+
+---
+
+## 9. RE-DERIVATION at head `20261003007350`, 2026-09-08 (Batch 7, `PRIVILEGE-SURFACE`)
+
+⛔ **This section stands BESIDE §§1–8, which are left exactly as written at `…005300`.** §5's
+numbers are not edited, and this section is not a patch onto their arithmetic — the partition was
+recomputed from scratch against the live catalog at the current head, per the file's own rule
+(*"Re-derive again from scratch if the catalog moves"*). Where the two agree, they agree because
+they were both measured, not because one was carried.
+
+### 9.1 Result — the partition is UNCHANGED, and that is now a measurement rather than an assumption
+
+| bucket | `…005300` (§5.1) | **`…007350` (re-derived)** |
+| --- | ---: | ---: |
+| PROCEED (property-rescued) | 44 | **44** |
+| PROCEED (name-rescued) | 5 | **5** |
+| **HOLD (blindness created)** | 23 | **23** |
+| UNCHANGED (never swept) | 161 | **161** |
+| TOTAL | 233 | **233** |
+
+Input and premise checks at this head: composition **233 = 213 `app` + 20 `public` = 134 trigger
+body + 99 internal helper**, 233 distinct; resolution **233 in / 233 out / 0 overloads /
+0 unresolved** — so **every one of the 233 still resolves in `pg_proc` at the current head**;
+premises **233/233 `prosecdef`**, **233/233 hold `authenticated` EXECUTE**, **0 extension-owned**.
+
+### 9.2 ⛔ All SIX arm predicates were re-read from source, and ALL SIX had moved
+
+The `…005300` re-verification found the predicates unchanged in substance and only four *citations*
+drifted. That is **no longer true**. Every arm's domain moved between `…005300` and `…007350`, and
+each was shown verdict-neutral **for these 233** by its own named measurement — never by assumption.
+
+| arm | source (2026-09-08) | delta since `…005300` | why neutral for the 233 | shown by |
+| --- | --- | --- | --- | --- |
+| `floor` | `p0-authz-invariant.sh` :404-410 | **none** — still `nspname='public'` | — | re-read |
+| `census` cl.1 | `p0-authz-invariant.sh` :490-497 | `+authz` schema; **`+NOT_EXTENSION_OWNED`** | no `authz` row in the 233; **0 of 233 extension-owned** | CHECK G, CHECK C |
+| `census` cl.2 | `p0-authz-invariant.sh` :508-515 | `+NOT_EXTENSION_OWNED` | all 233 are `prosecdef`, so the clause is false either way | CHECK C |
+| `policy` predicate | `p0-authz-door-audit.sh` :1065-1074 + :1103-1105 | `+n.nspname='authz'` disjunct; `+authz` in the outer clause | the disjunct can only admit `authz` rows | CHECK G (0) |
+| `policy` rowdoor | `p0-authz-rowdoor-audit.sh` :372-375 | `+authz` schema | same | CHECK G (0) |
+| `policy` write-path (a) | `p0-authz-writepath-audit.sh` :587 | **`GUARD_KEYS` 11 → 13** (`create_professional_profile`, `set_professional_link_state`) | neither new name is in the 233 | CHECK D (0, 0) |
+| `policy` write-path (b) | `p0-authz-writepath-audit.sh` :948-963 | ⛔ **the static 33-entry snapshot was REPLACED by a live-derived worklist** — every `pg_policy` row with `polcmd <> 'r'`, schema-unbounded: **107** policies | **0 of the 233** is referenced by any of the 107 | CHECK F (0) |
+| `wrapper` | `p0-authz-invoker-audit.sh` :426 | still `not p.prosecdef` | all 233 are `prosecdef` | CHECK C |
+| `hat` (not a rescue) | `act-hat-blind-sweep.sh` :205 | `+authz` schema | not counted as a rescue in any case | — |
+
+⭐ **The write-path (b) row is the one this re-derivation existed to find.** §2's transcription of
+that arm — *"a 33-entry write-policy snapshot … confirmed to add nothing"* — describes an artefact
+that no longer exists. Its domain is now **3× larger and derived live**, and it is the only delta
+that could have moved a verdict by admitting one of the 233 rather than being neutral by schema.
+It did not; but *"the two deltas already known were neutral"* was never evidence about the other
+four, and the arm that changed most was not among the two.
+
+### 9.3 The controls, because a partition that reproduces is exactly what a dead instrument reports
+
+- **Control run.** Every row was scored a second time under the **`…005300` arm shapes**,
+  recomputed from raw catalog columns rather than reusing the current-shape columns — reusing them
+  would launder a predicate change into the control. Rows whose verdict moved: **0**.
+- ⭐ **Vacuity control, because "0 moved" and "the comparison cannot move" look identical.** With
+  `public.handle_new_user` planted into the current-shape `GUARD_KEYS` (13 → 14), the comparison
+  reported **exactly 1 moved row** — `HOLD (blindness created)` → `PROCEED (name-rescued)` — and the
+  totals shifted 23 → 22 HOLD / 5 → 6 name-rescued. ⇒ the clean run's zero is a measured zero.
+- ⭐ **Discrimination control for CHECK F**, because a reference detector returning 0 of 233 is
+  indistinguishable from a broken regex. Positive half: `is_staff_admin_of` **43** policies,
+  `can_edit_commission_forms` **6**, `member_can` **3**. Negative half: the trigger bodies
+  `handle_new_user` and `guard_submitted_response` **0**. The `\m…\M` word boundary is what keeps
+  `is_staff_admin_of` from swallowing `is_staff_admin_of_for` — the recorded `X` / `X_for` trap.
+
+### 9.4 ⛔ A CORRECTION to §5.6: the silent-no-op count is **138**, not 137 — and the 138th is named
+
+§5.6 and the follow-up both state that **137** of the 233 reach `authenticated` only via `PUBLIC`,
+keyed on **`proacl IS NULL`**. Re-measured at this head, `proacl IS NULL` is **still exactly 137** —
+that figure reproduces. But the **operational** question is *"for how many is `revoke execute … from
+authenticated` a silent no-op?"*, and the answer is **138**:
+
+**`app.latest_published_version`** has a **non-NULL** `proacl` that nonetheless carries an explicit
+PUBLIC grant — `{=X/postgres,postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}`,
+where the empty grantee `=X` **is** PUBLIC. Revoking `authenticated` leaves EXECUTE arriving via
+PUBLIC exactly as it does for the other 137.
+
+⭐ **The recorded lesson has a converse that bit here.** *"`proacl IS NULL` includes PUBLIC"* is
+true and is why the 137 exist. Its converse — *"`proacl IS NOT NULL` therefore excludes PUBLIC"* —
+is **false**, and keying the class on the ACL-text predicate rather than on the effective one is
+what hid the 138th. Six further `app` DEFINER functions share this shape (`answer_map`,
+`can_read_correction_response`, `commission_of_version`, `is_admin`, `is_member_of`,
+`is_org_admin_of`); they are outside the 233 and so outside this partition, but they are the same
+class and the same trap.
+
+### 9.5 What this re-derivation still does NOT establish
+
+- ⚠ **`UNCHANGED = 161` remains UNEXAMINED, not cleared.** §8's statement stands verbatim: no arm
+  examined those rows before or after, and this re-derivation did not change that.
+- ⚠ **The 23 HOLD rows are an absence of coverage, not a finding of vulnerability** (§8).
+- ⛔ **Still zero revokes executed.** Per Batch 7's R1 the execution is *ruled and deferred*, so
+  everything here remains simulated in the predicate, exactly as §8 says of the original.

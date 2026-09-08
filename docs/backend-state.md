@@ -534,6 +534,61 @@ in its own gate record**, and **the ceiling moves only by PO ruling**.
 > it moves only by PO ruling, and quietly raising it to 759 would convert a breach into a baseline.
 > Filed as `FUP-PRIVILEGE-BUDGET-CEILING-BREACHED-BY-SEVEN`.
 
+### 2026-09-08 — the seven are ATTRIBUTED, function by function (Batch 7, `PRIVILEGE-SURFACE`)
+
+⛔ **`CEILING: 752` is UNCHANGED above and is not edited here.** The ceiling moves only by PO
+ruling; this section supplies the measurement a ruling needs and nothing more.
+
+**Three heads, each a fresh `supabase db reset`, each identified by the PAIR `(max(version),
+count(*))` — a head alone does not identify a migration set** (`…004710` was inserted *below*
+`…005300` after the commit that added it, which is why the AE1 doc records 484 on disk while that
+commit carries 483):
+
+| head | pair | DEFINER `app`+`public` | **budget** | `app` | `public` |
+| --- | --- | ---: | ---: | ---: | ---: |
+| `…005300` | 484 | 856 | **752** | 320 | 432 |
+| `…007330` | 522 | 880 | **759** | 326 | 433 |
+| `…007350` **(live head, canonical reset)** | 524 | 880 | **759** | **326** | **433** |
+
+Heads A and B reproduce their historical measurements (2026-08-27 and 2026-09-03) **to the unit**,
+which is what licenses pointing the same instrument at new ground. Method: `supabase db reset
+--local --version <head>`, which reaches a head **without moving any migration file** — the run's
+`git status --porcelain -- supabase/migrations` was 0 before and after. Six per-head checks gated
+every snapshot (head pair · two object-level markers proving the *schema* truncated and not merely
+the registry · a positive canary · a negative canary with its discrimination half · a two-instrument
+count reconciliation); a head failing any check was to be discarded, and none did.
+
+**A→B is 7 ADDED and 0 REMOVED** — measured as a set difference, because a count of +7 is equally
+consistent with 9 added and 2 removed. All seven are **new functions**, absent from head A under
+*any* signature and *any* privilege state (so none is a re-key wearing a new identity), and all
+seven hold an **explicit** `authenticated=X/postgres` grant — none arrives via the default-ACL
+PUBLIC route. ⇒ The follow-up's predicted mechanism (*"one convenient `grant execute … to
+authenticated` at a time, each individually defensible"*) is **confirmed, not falsified**.
+
+| # | function | created + granted by | justification |
+| --- | --- | --- | --- |
+| 1 | `app.can_administer_person_via_affiliation(p_person uuid)` | `20261003005400_ae22_person_authority_via_affiliation` (:204-205) | none on record |
+| 2 | `app.can_edit_commission_forms(p_commission_id uuid, p_uid uuid)` | `20261003007300_ae49_d6_rekey_three_representatives` | none on record |
+| 3 | `app.current_professional_read_organizations()` | `20261003007320_ae4_statement_scoped_authorized_scope_ids`; body re-created by `…007330` | ⭐ **the one already named** (ADR 0182) |
+| 4 | `app.is_affiliated_with_hospital(p_hospital_id uuid)` | `20261003007000_bug_meusdados_hospitals_self_affiliation_arm` (:93-94) | none on record |
+| 5 | `app.is_affiliated_with_hospital_for(p_hospital_id uuid, p_user_id uuid)` | `20261003007000_…` (:91-92) | none on record |
+| 6 | `app.person_has_active_org_affiliation(p_person uuid, p_organization uuid)` | `20261003005800_ae24_inc4_linkable_picker_on_affiliations` (:139-140) | none on record |
+| 7 | `public.recover_orphan_person_to_org(p_user uuid, p_organization uuid, p_started_on date)` | `20261003006100_adr0168_three_doors_orphan_recovery` (:764-765) | none on record |
+
+**Zero `UNATTRIBUTED-BY-TEXT`.** ⚠ Attribution is a **text** claim — `pg_proc` carries no
+"created by" column — but it is bounded on both sides by catalog measurement: each function is
+**absent at A**, **present at B**, and has **exactly one** creating statement in the 38-migration
+window between them (only #3 has two, and both are named). ⛔ Five of the seven grants are written
+across **two lines**, and a line-anchored `grep` for `grant execute … authenticated` finds none of
+them — the same shape as *`grep -A` on a declaration cannot see its docstring*.
+
+**B→C is 0 ADDED and 0 REMOVED.** ⛔ **A zero count delta is not zero change**, and this empty set
+is the *measurement* that says so — never the inference from 759 == 759. `…007350` really did
+rewrite `public.set_item_validations(uuid, jsonb)`'s body (the run's own marker check proves the
+body moved). ⇒ The correct claim is **"Batch 4 moved no member of the privilege population"**;
+*"Batch 4 changed nothing"* would be false, and an identity-keyed set diff is structurally blind to
+a body rewrite under an unchanged signature.
+
 ⚠ **Re-derive, never quote.** The figures above were catalog-measured 2026-08-27 at head
 `20261003004300` and are re-derived at each Record step. Two changes since are believed not to
 move the count and must be **confirmed** rather than assumed: AE1.3's six doors grant
