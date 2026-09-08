@@ -32,7 +32,7 @@ Batch 6 / `REGISTER-GATE-HYGIENE`.
       that admitted it, not a title that claimed it.
 - [x] PO ruling taken on the three open questions before any row was written.
 - [x] The malformed 8-cell row repaired (`0136`), with its `Completed` date **measured**.
-- [ ] Batch 6 writes AE2's row (not this unit).
+- [x] Batch 6 writes AE2's row (not this unit) — ✅ done by them at `8b194439`, mid-session.
 
 ## Current state
 
@@ -57,14 +57,22 @@ as delegating.
 
 ### In progress
 
-Nothing — the ruled work is written and **rebased onto Batch 6**
-(`authz-register-gate-hygiene` @ `202106ab`), the ledger re-derived after the rebase.
+Nothing — the ruled work is written and **rebased onto Batch 6 twice**: first at `202106ab`, then
+again at `8b194439` after Batch 6 wrote AE2's row and re-bolded the six workaround ids. ⚠ **The
+second rebase hit a real content conflict in the ledger** (their re-bolded tail vs my two
+`DOCS-*` rows); resolved by taking **both** — their bolding kept, my rows re-added and bolded to
+match the convention they had just set. Ledger re-derived **mid-merge**: 88 rows, all 9 cells,
+their AE2 row and my six each present exactly once.
 
 ### Next
 
-Batch 6 writes AE2's row (clause (a)). `FUP-LEDGER-COMPLETENESS-ROWS-NOT-MACHINE-READABLE` carries
-what the ruling deferred: the escaped-pipe column trap, the six odd-`**` rows, and the real remedy —
-a gate that checks a row **ARRIVED**.
+Batch 6 rules on the `DSR` row (written after the ruling — strike it if the reading is wrong) and
+flips `FUP-AE2`'s `Status:`, both clauses now being discharged.
+`FUP-LEDGER-COMPLETENESS-ROWS-NOT-MACHINE-READABLE` carries what the ruling deferred: the
+escaped-pipe column trap, the six odd-`**` rows (⚠ **a different six** from the workaround ids
+Batch 6 re-bolded — theirs were the tail units; these are `hospital-admin`, `nsp-per-hospital`,
+`f-cleanup`, `referrals-v2`, `interviews-v2`, `ETH·E1`), and the real remedy — a gate that checks
+a row **ARRIVED**.
 
 ### Blockers
 

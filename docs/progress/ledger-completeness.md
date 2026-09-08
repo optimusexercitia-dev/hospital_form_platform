@@ -149,12 +149,25 @@ and the primary checkout had moved onto it at `202106ab` — Batch 6 opened in t
 mid-session. ⭐ This is [[a-local-branch-ref-is-a-live-fact]] in the *appearing* direction; the
 recorded lesson is about one vanishing. **A branch check is an instant, not a lease.**
 
-Re-measured before acting: Batch 6 touches **neither `docs/progress/phase-ledger.md` nor
-`docs/followups/`**, and still has no AE2 row. Overlap with this unit was exactly one file,
+Re-measured before acting: at `202106ab` Batch 6 touched **neither `docs/progress/phase-ledger.md`
+nor `docs/followups/`**, and still had no AE2 row. Overlap was exactly one file,
 `docs/features/INDEX.md`, which is **generated**. So the brief's rule ("rebase onto it before
 touching the ledger") was followed: `git rebase authz-register-gate-hygiene`, the one conflict
 resolved by **regenerating** the index rather than hand-merging it, and the ledger re-derived
-**after** the rebase — 87 rows, all 9 cells, unchanged ([[a-clean-automerge-can-undo-a-bulk-repair]]).
+**after** the rebase — 87 rows, all 9 cells.
+
+⚠ **Then it moved AGAIN, and the second time it DID touch the ledger.** At handoff, Batch 6's tip
+was `8b194439` — *"AE2 re-enters the ledger as a reconstructed row, and the six workaround ids get
+their bold back"*. So clause **(a) is theirs and is now DONE**, and the base I had rebased onto was
+already stale. Second rebase, this time a **real content conflict** in `phase-ledger.md`: their
+re-bolded tail rows against my two `DOCS-*` rows inserted before `AE4`.
+⭐ **Resolved by taking BOTH sides, not by choosing one** — their bolding kept verbatim, my two rows
+re-added and **bolded to match the convention they had just established**. The union was verified
+**mid-merge**, not after ([[a-clean-automerge-can-undo-a-bulk-repair]]): **88 rows** (81 + my 6 +
+their AE2), **all 9 cells**, and each of the seven new ids present **exactly once** — the check that
+would have caught a resolution that silently dropped a side.
+⚠ Their "six workaround ids" are the **tail units** (`AE4`…`ENFORCEMENT-MANIFEST`) — a *different*
+six from the six odd-`**` rows this unit filed, which are untouched and still stand.
 
 #### Gate
 

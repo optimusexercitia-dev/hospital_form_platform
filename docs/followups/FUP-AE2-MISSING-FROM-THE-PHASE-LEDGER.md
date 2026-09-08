@@ -45,6 +45,11 @@ Index entry: [follow-ups-open.md](follow-ups-open.md) · filed 2026-09-02 · sta
   record-less — `docs/progress/s1-substrate.md` is its record, reachable only by a name-agnostic
   join. The record-less set is 7, not 5, and none of the 7 is a defect.
 
-- ⛔ **(a) STILL OPEN and deliberately NOT done here.** AE2's row belongs to Batch 6 /
-  `REGISTER-GATE-HYGIENE`, which owns `phase-ledger.md`. ⚠ Measured 2026-09-08:
-  `authz-register-gate-hygiene` exists neither locally nor on `origin`, and AE2 still has no row.
+- ✅ **(a) DONE 2026-09-08 by Batch 6 / `REGISTER-GATE-HYGIENE`, not by this unit.** AE2's row is
+  in the ledger, 9 cells, marked reconstructed — written on `authz-register-gate-hygiene` at
+  `8b194439` *"AE2 re-enters the ledger as a reconstructed row"*. ⚠ **This bullet was written
+  earlier the same day saying (a) was still open and the branch did not exist** — both were true
+  when measured and false within the hour. Corrected by re-measuring at the rebase, not by
+  re-reading the earlier line.
+  ⛔ **Flipping this entry's `Status:` is Batch 6's call at its Record step**, not this unit's:
+  both clauses are now discharged, but the entry belongs to their gate.
