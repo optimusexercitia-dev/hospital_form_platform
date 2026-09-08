@@ -329,7 +329,21 @@ export function countLedgerDataRows(text) {
  * The self-test asserts all of these as REJECTIONS, not as an afterthought: a gate widened until
  * it accepts everything has been deleted, not repaired.
  */
-export const REVIEW_VERDICT_APPROVED_RX = /^#{0,6}[^\p{L}\p{N}\r\n>~]{0,8}Verdict:[\s*]{0,4}APPROVED\b/imu
+// ⛔ THE SAME CLASS ON BOTH SIDES OF THE COLON, AND THAT IS THE WHOLE SAFETY ARGUMENT.
+// The first widening (375726b2) admitted decoration BEFORE `Verdict:` and left `[\s*]{0,4}` after
+// it, which still rejected `Verdict: ✅ APPROVED`, ``Verdict: `APPROVED` `` and even
+// `**Verdict:** **APPROVED**` (five characters where four were allowed) — 65 of 169 review files
+// readable. DIRECTION fixed, MAGNITUDE never re-derived: a partial fix reading as a complete one.
+// Widening the middle to the identical class takes it to 102 of 169.
+// ⭐ Why this cannot admit a rejection: `NOT` and `CHANGES REQUESTED` are LETTERS, and the class
+// excludes every letter and digit, so no amount of it can span them. `>` and `~` stay excluded on
+// BOTH sides so a blockquoted (`> **Verdict:** APPROVED`) or struck-through (`~~Verdict:
+// APPROVED~~`, `Verdict: ~~APPROVED~~`) verdict is still not an approval.
+// ⚠ BOUNDED, STATED: 14 files remain unreadable because they put WORDS before the label
+// (`## Re-review (2026-07-17) — VERDICT:`, `**Reviewer:** … · **Verdict:**`, `TOP-LINE VERDICT:`).
+// Admitting those means admitting arbitrary leading words, which readmits `Prior verdict: APPROVED`
+// — so it is FILED, not fixed. No `complete` hub depends on one (measured 2026-09-08).
+export const REVIEW_VERDICT_APPROVED_RX = /^#{0,6}[^\p{L}\p{N}\r\n>~]{0,8}Verdict:[^\p{L}\p{N}\r\n>~]{0,8}APPROVED\b/imu
 
 export function reviewHasApprovedVerdict(text) {
   return REVIEW_VERDICT_APPROVED_RX.test(text || '')
@@ -1606,6 +1620,22 @@ function selfTest() {
   accepts('reviewHasApprovedVerdict', reviewHasApprovedVerdict, '## ✅ VERDICT: **APPROVED**')
   accepts('reviewHasApprovedVerdict', reviewHasApprovedVerdict, 'verdict: approved')
   accepts('reviewHasApprovedVerdict', reviewHasApprovedVerdict, '- **Verdict: APPROVED** (round 2)')
+  // ── decoration BETWEEN the colon and the verb (the second widening) ────────────────────
+  // ⛔ Every one of these is a REAL approval that the first widening still rejected; the old
+  // `[\s*]{0,4}` fixed the leading side only. AE2's own r3 is the backticked form.
+  accepts('reviewHasApprovedVerdict', reviewHasApprovedVerdict, '**Verdict: `APPROVED`**')
+  accepts('reviewHasApprovedVerdict', reviewHasApprovedVerdict, '## Verdict: ✅ APPROVED')
+  accepts('reviewHasApprovedVerdict', reviewHasApprovedVerdict, '**Verdict:** ✅ **APPROVED**')
+  accepts('reviewHasApprovedVerdict', reviewHasApprovedVerdict, '**Verdict:** **APPROVED**')
+  accepts('reviewHasApprovedVerdict', reviewHasApprovedVerdict, '**Verdict: ✅ APPROVED**')
+  // ── and the rejections the widened middle must STILL make ─────────────────────────────
+  // ⭐ The safety argument is that `NOT` and `CHANGES` are LETTERS and the class admits none,
+  // so these cannot be reached by widening decoration. Asserted, not trusted.
+  rejects('reviewHasApprovedVerdict', reviewHasApprovedVerdict, '## Verdict: ✅ NOT APPROVED')
+  rejects('reviewHasApprovedVerdict', reviewHasApprovedVerdict, '**Verdict:** ✅ **CHANGES REQUESTED**')
+  rejects('reviewHasApprovedVerdict', reviewHasApprovedVerdict, '**Verdict: `NOT APPROVED`**')
+  rejects('reviewHasApprovedVerdict', reviewHasApprovedVerdict, '**Verdict:** ~~APPROVED~~')
+  rejects('reviewHasApprovedVerdict', reviewHasApprovedVerdict, '> **Verdict:** ✅ APPROVED')
   accepts('reviewHasApprovedVerdict', reviewHasApprovedVerdict, 'header\n\n### ⭐ Verdict: APPROVED\n\nbody')
   // ⛔ REJECT — the discrimination half. `i` makes the WORD case-blind; it must not make the
   // SENTENCE case-blind. `[\s*]{0,4}` after the colon is what keeps every one of these out.
