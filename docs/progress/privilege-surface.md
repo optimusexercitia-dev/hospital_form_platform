@@ -1903,3 +1903,34 @@ existence **not `#anchors`** (production `checkLinks` does check them; 0 anchor 
 `docs/design/temp/`, so anchors do not explain the partition gap), and it used **NTFS
 case-insensitive** semantics, so a wrong-case link is invisible to the sweep **and to gates 7 and 13
 inside their own corpora**. Only gate 9 is case-exact.
+
+### 2026-09-08 — lead, SECOND-PASS close-out: the three repair classes re-verified independently
+
+⛔ **Re-derived by the lead rather than accepted from either the audit or the repair report.** Both
+were high quality and both were wrong about something — the audit under-reported the live broken-link
+set by one (4 vs the true **5**), and an earlier lead brief named the wrong reviewer row. A report is
+evidence, not a verdict.
+
+| check | result | disposition |
+|---|---|---|
+| dead paths to the three deleted follow-up bodies, in **live** docs (excluding reviews, progress, the archive itself, and `graphify-out/`) | **0** | ✅ closed |
+| anon-residue-shaped `237` in live plans + `backend-state.md`, matched **by the class** (`anon`/`residue`/`of 467`/`of 454`/`PUBLIC-execut`), ⛔ never by the string `237 of 467` | **7** | 5 legitimate (dated notes quoting the superseded value, and the protected `167 → 237` predicate-change correction); **2 tracked** — see below |
+| `twelve … gate` outside reviews/progress | **5 files** | all legitimate: two dated correction notes quoting their own superseded text, ADR 0185's historical consequence line, the plan banner, and **one false positive of the lead's own regex** — `pre-pilot-release-scope-expansion.md:612` means a *design* gate, not a lint gate |
+| `npm run lint`, bare | **rc 0, 15 of 15 gates REACHED** | ✅ |
+
+⚠ **The two tracked `237`s are `docs/backend-state.md:1880` and `:5424`, and they are DELIBERATELY NOT
+FIXED HERE.** Both describe `320` §U1's **ACL-shaped** population (`proacl IS NULL` or an explicit
+PUBLIC grant) — a **different predicate** from the `anon`-effective one this batch corrected — and
+both read `237` where the live pin is **236** (ADR 0174 re-pinned it when AE4.7b revoked the PUBLIC
+grant on `app.is_staff_admin_of`). ⇒ They are named in
+`FUP-AUTHZ-ANON-RESIDUE-FIGURE-HAS-MORE-HOMES-THAN-ANY-SWEEP-FOUND`'s *"what it did NOT correct"*
+list, whose own words are that each *"must be decided per site, not swept"*. ⛔ Fixing them here
+would be the fifth consecutive round to close this class on **instances** — which is precisely what
+that entry's `Closes when` refuses. Tracked is the correct state; corrected-in-passing is not.
+
+⭐ **What the second pass cost and bought.** It was run because the PO asked, not because a gate said
+so, and it found: three log entries at h2 that gate 13's ordering check could not see; a follow-up
+that reproduced its own named defect twice; a stale ⛔⛔ blockquote whose quieter sibling five lines
+below **had** been repaired; a decided PO ruling still described as pending in the live AE plan;
+three rotted gate counts; and **59 unresolved relative links of which every single one falls in no
+gate's corpus**. ⛔ Not one of those was visible to `npm run lint`, which was rc 0 throughout.
