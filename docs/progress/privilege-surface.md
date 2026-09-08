@@ -1155,3 +1155,104 @@ already editing; ⛔ nothing else from `N1–N5` was actioned.
 - Files changed: `scripts/check-supabase-config-schemas.mjs`, `supabase/tests/mutation/p0-authz-invariant.sh`.
   The R5 pathspec (`supabase/migrations supabase/seed.sql src`) is untouched, as in every prior
   iteration.
+
+## 2026-09-08 — QA fix loop, iteration 3 of ≤5 (`backend`)
+
+**Scope: ruling R40 only** — the three combination cells of gate 14 that were *"held by nobody"*.
+⛔ Nothing else in the unit was touched; the R5 pathspec (`supabase/migrations supabase/seed.sql
+src`) is untouched, as in every prior iteration.
+
+### ⚠ The brief's third row was wrong, and building what it named would have left the real cell unheld
+
+R40 names rows **2**, **3** and **4** of the QA re-review's five-row measurement table
+(`docs/reviews/privilege-surface-rereview.md` §B1) and describes row 4 as *"multi-line array,
+`"app"` on the **opening** line"*. ⛔ **That is not row 4 — it is row 5's opening-line placement,
+i.e. `B12+`, built in iteration 2 and green at HEAD.** The table's actual row 4 is *"the
+`[api].schemas` line deleted, `app` named under `[db.x]`"*. Measured before building, not assumed:
+the baseline self-test at `56550ea9` printed **13 bad fixtures**, with `B12+` among them
+(*"multi-line array with "app" ON THE OPENING LINE"*), and **no** fixture reaching `P2` with `app`,
+`P3_DUPLICATE` at all, or `P3_NONE` with `app`.
+
+⇒ Had the brief been followed literally, `B12+` would have been rebuilt, row 4 would have stayed
+unheld, and the report would have said three cells closed. ⭐ *A brief's line numbers rot exactly
+like the ones being repaired* — R32 endorsed that observation four rulings ago about
+`config.toml:13`, and it recurred here about a table's row numbers. The subject is the table; a
+paraphrase of it is not.
+
+### The three fixtures, each PROVEN RED FIRST
+
+⛔ All three were **green on their first run**, which the brief correctly calls a finding rather
+than a result. Four mutations follow, each on a **copy** of the gate written into `scripts/`
+(`CONFIG_PATH` resolves from `import.meta.url`, so a copy elsewhere probes a config that does not
+exist), each applied by a harness that **exits 3 if the mutation did not apply** so a silent no-op
+can never be read as "green under the mutation". Copy deleted after; `git status --porcelain --
+scripts/` then showed only the real file modified.
+
+| fixture | cell | bare structural code (M-D) | expectUnder |
+| --- | --- | --- | --- |
+| `B14+` | `"app"` added **and** the `[api]` header removed | `P2_NO_API_TABLE` | `P2_NO_API_TABLE` |
+| `B15+` | `"app"` in a **duplicate** `[api]` table | `P3_DUPLICATE` | `P3_DUPLICATE` |
+| `B16+` | `[api].schemas` **deleted**, `app` named under `[db]` | `P3_NONE` | `P3_NONE` |
+
+| run | mutation | observed | rc |
+| --- | --- | --- | --- |
+| baseline | none, at `56550ea9` | 13 bad / 4 good, all green — the three cells did not exist | **0** |
+| first run | none, fixtures added | 16 bad / 4 good, all green — ⛔ **a finding, not a result** | **0** |
+| **M-D** | `positive()` returns the bare code (escalation disabled) | all six escalating fixtures *caught for the WRONG REASON*; `B14+` got `P2_NO_API_TABLE`, `B15+` got `P3_DUPLICATE`, `B16+` got `P3_NONE` | **2** |
+| **M-E** | `under: code` → `under: 'P4_NO_SENTINEL'` | five *escalated over the WRONG structural finding*; ⭐ `B11+` stayed **green** — its `under` genuinely is `P4_NO_SENTINEL` | **2** |
+| **M-F** | the sighting probe gated behind `table === 'api'` | ⭐ **only `B14+` and `B16+`** red (`P2_NO_API_TABLE` / `P3_NONE`); `B11+`, `B12+`, `B13+`, `B15+` green | **2** |
+| **M-G** | the `hits.length > 1` → `P3_DUPLICATE` branch deleted | ⭐ **only `B15+`** moved, to **`NOT CAUGHT (OK)`** | **2** |
+| clean | none | 16 bad each caught for its own reason, 4 good each clean | **0** |
+
+⭐ **M-D is the red-first for all three and it also proves they are three cells, not one repeated:**
+each returns a **different** bare structural code, so no two of them could be satisfying the same
+assertion. M-E proves each new `expectUnder` can fail, and is **discriminating rather than a
+blanket reddener** — `B11+` survives it. M-F and M-G are per-cell: M-F reds exactly the two
+fixtures whose `app` sighting lies **outside** `[api]`, which is the *"a fact about the EDIT, not
+about which table the key landed under"* property the escalation's comment asserts and which
+nothing had tested; M-G reds exactly `B15+`.
+
+⛔ **M-G is the iteration's real finding.** Deleting the `P3_DUPLICATE` branch outright moved
+**nothing** except the new `B15+` — so before this iteration, a whole branch of this gate could be
+deleted with no arm noticing. `P3_DUPLICATE` had **no fixture at all**, escalated or bare.
+
+⚠ Construction follows R42 throughout — `^[ \t]*` never `^\s*` for a line anchor, and
+`split(/\r\n|\r|\n/)` in every `shape` guard — because `\s` matches `\n` **and** JS's multiline `^`
+also matches after a bare `\r`, which on this CRLF working tree glued two lines together in
+iteration 2 while `mustDifferFromBaseline` **passed**. `B7` keeps its old construction and is
+deliberately untouched (it is sound for its own reason; R42's ⛔).
+
+### Disclosed beyond the three fixtures: the `OK` path discards an `app` sighting
+
+M-G's `NOT CAUGHT (OK)` implied the final `return { code: 'OK', … }` is the one return **not**
+routed through `positive()`. ⛔ Implication is not measurement, so the state was **constructed and
+read** rather than inferred (`inspect()` called directly on two built files):
+
+    `[api].schemas` pinned  + `schemas = [… "app"]` under `[db]`  →  **OK**       (sighting discarded)
+    `[api].schemas` DELETED + the same line under `[db]`          →  N1_APP_EXPOSED_WITH_DEFECT (under P3_NONE)
+
+Same sighting, opposite verdict, decided by an unrelated structural fact — and the second case is
+QA's row 4, now `B16+`. ⛔ **Not fixed here.** Which of the two verdicts is correct is a judgement
+with an owner: `[db].schemas` is not the exposed list, so `OK` is defensible — but then `B16+`'s
+escalated headline (*"HAS BEEN ADDED TO THE POSTGREST-EXPOSED SCHEMAS"*) over-claims by the same
+argument. A bound note sits at the deciding line, and the decision is filed as
+**`FUP-AUTHZ-GATE14-OK-PATH-DISCARDS-THE-APP-SIGHTING`** (🟢 low — the pinned list is still gated;
+this is an inconsistency between two of the gate's own verdicts, not a missed exposure).
+
+### Gates owed at this tip, exit codes read BARE, on their own line
+
+- `node scripts/check-supabase-config-schemas.mjs --self-test` → **rc 0** (16 bad / 4 good).
+  Real scan (no args) → **rc 0**.
+- `npm run lint` → **rc 0**, and the chain **REACHED ALL 15 GATES** — `eslint --max-warnings=0`
+  (gate 1) then the fourteen banners `lint:css-vars · lint:memberships-door ·
+  lint:client-server-imports · lint:vacuous · lint:set-local · lint:progress · lint:rules ·
+  lint:adr-index · lint:mojibake · lint:service-role-registry · lint:authz-vectors ·
+  lint:registers · lint:config-schemas · lint:budget-anchor`, gate 15 last. ⛔ Redirected to a
+  file, never piped — *a pipe erases the exit code*, and iteration 2 caught itself reading a
+  `tail`'s rc.
+- ⛔ **`npm run test:db` was NOT run, and it is not owed.** Asserted rather than assumed:
+  `git status --porcelain -- 'supabase/tests/*.sql'` → **empty output**, and
+  `git status --porcelain -- supabase` → **empty output** too. Nothing under `supabase/` was
+  touched at all this iteration, so no pinned literal moved.
+- Files changed: `scripts/check-supabase-config-schemas.mjs`, `docs/followups/follow-ups-open.md`,
+  `docs/progress/privilege-surface.md`.

@@ -522,6 +522,24 @@ export function inspect(raw) {
   if (!sameValue) return { code: 'N2A_LIST_CHANGED', detail: hit }
   if (hit.valueText !== PINNED_VALUE_TEXT) return { code: 'N2B_RERENDERED', detail: hit }
 
+  // ⛔ BOUND, MEASURED 2026-09-08 (fix loop 3), not reasoned: this is the ONE return that
+  // is not routed through `positive()`, so an `appSighting` reaching here is DISCARDED.
+  // Constructed and read directly rather than inferred:
+  //   `[api].schemas` pinned + `schemas = [… "app"]` under `[db]`  → **OK**
+  //   `[api].schemas` DELETED + the same line under `[db]`         → N1_APP_EXPOSED_WITH_DEFECT (under P3_NONE)
+  // Same sighting, opposite verdict, decided by an unrelated structural fact. ⇒ The
+  // escalation comment above the probe says the sighting is *"a fact about the EDIT, not
+  // about which table the key landed under"*; that is true of every POSITIVE path and
+  // false here, and the sentence is left standing only because this note bounds it.
+  // ⚠ Deliberately NOT "fixed": whether this should red is a judgement, not a bug report.
+  // `[db].schemas` is not the PostgREST-exposed list, so `OK` is defensible — but then the
+  // escalated headline the deleted-line case prints (*"HAS BEEN ADDED TO THE
+  // POSTGREST-EXPOSED SCHEMAS"*) over-claims by the same argument, and picking which of
+  // the two moves is a decision with an owner. Filed for that owner rather than taken here:
+  // `FUP-AUTHZ-GATE14-OK-PATH-DISCARDS-THE-APP-SIGHTING` (docs/followups/follow-ups-open.md).
+  // ⭐ Found by mutation `M-G` (the `P3_DUPLICATE` branch deleted): `B15+` was the only
+  // fixture that moved, and it moved to NOT CAUGHT — i.e. before `B15+` existed, deleting
+  // that branch broke nothing observable.
   return { code: 'OK', detail: hit }
 }
 
@@ -904,6 +922,112 @@ function buildFixtures(baseline) {
         if (!ls.slice(i + 1, close + 1).some((l) => /"app"/.test(l))) {
           return '"app" must appear on a line AFTER the opening line and inside the array body'
         }
+        return true
+      },
+    },
+
+    // ⭐⭐ THE THREE REMAINING COMBINATION CELLS (ruling R40, fix loop 3).
+    //
+    // ⛔ WHY THESE EXIST AT ALL, since the counter-argument against them was reasonable and
+    // was OVERRULED BY A MEASUREMENT one row away. All five cells ride the same `positive()`
+    // escalation branch, so at first sight they are one risk with five faces and one fixture
+    // would do. `B12+` refutes that: it was green BEFORE the multi-line repair and green
+    // AFTER it, **for a different reason each time** — before, because the word happened to
+    // sit inside `kv[1]`; after, because `collectArrayBody()` reads the whole array. A cell
+    // that passes may be passing for the wrong reason, and this gate has already produced
+    // exactly that once. *A green gate can mean the fixture cannot reach the failing state.*
+    // Gate 14 exists to answer the unexercised-cell class; it does not get to carry three of
+    // its own.
+    //
+    // ⛔ PROVENANCE OF THE THREE, because a brief's row numbers rot exactly like the line
+    // numbers this unit spent a ruling repairing. They are rows 2, 3 and 4 of the QA
+    // re-review's own five-row measurement table (`docs/reviews/privilege-surface-rereview.md`,
+    // §B1) — the rows QA verified with a private probe in `os.tmpdir()`, which is a
+    // MEASUREMENT and not an arm. Rows 1 and 5 were already held by `B11+` and `B13+`.
+    // ⚠ The fix-loop brief described its third row as *"multi-line array, `"app"` on the
+    // opening line"*; that is `B12+`, built in iteration 2 and green above. Building it again
+    // would have left QA's actual row 4 — the `[api].schemas` line deleted with `app` named
+    // under another table — unheld while reporting three cells closed. The table is the
+    // subject; the brief's paraphrase of it is not.
+    //
+    // ⚠ Construction follows R42 throughout: `^[ \t]*` and never `^\s*` for a line anchor,
+    // and `split(/\r\n|\r|\n/)` in every guard, because `\s` matches `\n` AND JS's multiline
+    // `^` also matches after a bare `\r` — on this CRLF working tree that silently glued two
+    // lines together once already, and `mustDifferFromBaseline` PASSED on the corruption.
+    {
+      id: 'B14+',
+      name: '[ADDED] "app" added AND the [api] table header removed — the P2 combination cell',
+      text: dropLineMatching(
+        withValue(baseline, '["public", "graphql_public", "app"]'),
+        /^\[api\]$/,
+      ),
+      mustCatch: true,
+      expect: 'N1_APP_EXPOSED_WITH_DEFECT',
+      expectUnder: 'P2_NO_API_TABLE',
+      // ⛔ Without these it degrades silently into `B10+` (header gone, list clean → a bare
+      // P2) or into `B1` (list dirty, header intact → a bare N1). Both are already green
+      // elsewhere, so either degradation is invisible.
+      shape: (t) => {
+        const ls = t.split(/\r\n|\r|\n/)
+        if (ls.some((l) => l.trim() === '[api]')) return 'the `[api]` header must be GONE'
+        if (!ls.some((l) => l.trim() === '[api.tls]')) {
+          return 'the `[api.tls]` header must SURVIVE — only `[api]` is removed, and a mutation that took both is testing something else'
+        }
+        const i = ls.findIndex((l) => /^[ \t]*schemas[ \t]*=/.test(l))
+        if (i === -1) return 'the `schemas` assignment must SURVIVE — this cell removes the HEADER, not the line'
+        if (!/"app"/.test(ls[i])) return 'the `schemas` line must NAME "app" — without it this is a copy of B10+'
+        return true
+      },
+    },
+    {
+      id: 'B15+',
+      name: '[ADDED] "app" in a DUPLICATE [api] table — the P3_DUPLICATE cell, which NO fixture reached at all',
+      // ⭐ This is the only fixture in the suite that reaches `P3_DUPLICATE` in any form,
+      // escalated or bare: before it, deleting the `hits.length > 1` branch outright broke
+      // nothing (measured — see the record's M-G row, which returns `OK`, i.e. NOT CAUGHT).
+      text: `${baseline.replace(/[\r\n]+$/, '')}${eol}${eol}[api]${eol}schemas = ["public", "graphql_public", "app"]${eol}`,
+      mustCatch: true,
+      expect: 'N1_APP_EXPOSED_WITH_DEFECT',
+      expectUnder: 'P3_DUPLICATE',
+      shape: (t) => {
+        const ls = t.split(/\r\n|\r|\n/)
+        const apis = ls.filter((l) => l.trim() === '[api]').length
+        if (apis !== 2) return `there must be EXACTLY TWO \`[api]\` headers, found ${apis}`
+        const sch = ls.filter((l) => /^[ \t]*schemas[ \t]*=/.test(l))
+        if (sch.length !== 2) return `there must be EXACTLY TWO \`schemas\` assignments, found ${sch.length}`
+        // ⛔ The ORIGINAL stays clean on purpose: the duplicate is what carries `app`, so the
+        // escalation is reached through the SECOND hit and not through a dirtied first one.
+        if (/"app"/.test(sch[0])) return 'the ORIGINAL assignment must be left CLEAN — the DUPLICATE is what names "app"'
+        if (!/"app"/.test(sch[1])) return 'the DUPLICATE assignment must NAME "app"'
+        return true
+      },
+    },
+    {
+      id: 'B16+',
+      name: '[ADDED] the [api].schemas line DELETED and "app" named under [db] — the P3_NONE combination cell',
+      // ⛔ `B8` moves the line under `[api.tls]` WITHOUT `app` and lands on a bare P3_NONE.
+      // This cell is the same structural finding with the word present under a different
+      // table, which is precisely the case the escalation's own comment claims to cover:
+      // *"a fact about the EDIT, not about which table the key landed under"*. Until now
+      // that sentence was asserted by nobody.
+      text: dropLineMatching(baseline, /^[ \t]*schemas[ \t]*=/).replace(
+        /^\[db\]$/m,
+        `[db]${eol}schemas = ["public", "graphql_public", "app"]`,
+      ),
+      mustCatch: true,
+      expect: 'N1_APP_EXPOSED_WITH_DEFECT',
+      expectUnder: 'P3_NONE',
+      shape: (t) => {
+        const ls = t.split(/\r\n|\r|\n/)
+        const api = ls.findIndex((l) => l.trim() === '[api]')
+        const db = ls.findIndex((l) => l.trim() === '[db]')
+        if (api === -1) return 'the `[api]` header must SURVIVE — without it this degrades into B14+ (P2, not P3_NONE)'
+        if (db === -1) return 'the `[db]` header must be present — the assignment is moved UNDER it'
+        const idx = ls.map((l, k) => [k, l]).filter(([, l]) => /^[ \t]*schemas[ \t]*=/.test(String(l)))
+        if (idx.length !== 1) return `there must be EXACTLY ONE \`schemas\` assignment, found ${idx.length}`
+        const [k, line] = idx[0]
+        if (Number(k) <= db) return 'the `schemas` assignment must sit UNDER `[db]` — above it, it is still an `[api]` key and this is not the cell'
+        if (!/"app"/.test(String(line))) return 'the moved assignment must NAME "app" — without it this is a copy of B8 (a bare P3_NONE)'
         return true
       },
     },

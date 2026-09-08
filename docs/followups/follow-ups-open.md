@@ -1787,3 +1787,17 @@ regex).
 
 ⛔ **Why nothing was revoked.** Batch 7's ruling R1 is *rule and defer*: the PO ruled that revoke **execution** is its own later unit, on the stated grounds that RV3 proved a revoke on a CHECK-referenced function breaks writes, that 138 of the 233 are silent no-ops as written, and that a revoke **evicts a function from `ARM=floor`'s domain** — sweep blindness the batch exists to prevent, not create. ⚠ That last point applies here too: this function is currently **inside** `ARM=floor`'s domain by virtue of the grant this item proposes to remove, so the executing unit owes the eviction check, not just the revoke. ⚠ And `UNNECESSARY` is a statement about **today's callers**: a future `SECURITY INVOKER` caller would make the grant required again with no migration touching the ACL at all.
 
+### 🟢 FUP-AUTHZ-GATE14-OK-PATH-DISCARDS-THE-APP-SIGHTING — the same `app` sighting reds or passes depending on an unrelated structural fact
+
+**Filed:** 2026-09-08 (unit PRIVILEGE-SURFACE, pre-AE5 Batch 7 QA fix loop 3 — surfaced by mutation `M-G` while proving the three combination-cell fixtures ruling R40 ordered) · **Owner:** backend + PO · **Severity:** low — ⛔ **not a hole today and must not be reported as one.** The pinned `[api].schemas` line is the only list PostgREST reads; a `schemas` key under `[db]` exposes nothing, and gate 14 still reds on every edit to the real list. This is an INCONSISTENCY between two of the gate's own verdicts, not a missed exposure
+**Closes when:** the PO (or lead) rules WHICH of the two verdicts is the correct one and the gate is made consistent with the ruling — either (a) the `OK` return is routed through `positive()` too, so any `schemas` line naming `app` anywhere reds, **and** the N1 headline is re-worded because *"HAS BEEN ADDED TO THE POSTGREST-EXPOSED SCHEMAS"* is then false for a `[db]` line; or (b) the escalation is narrowed to sightings that could plausibly BE the exposed list, and `B16+`'s expectation changes with it. ⛔ **Not closed by editing the comment** — the bound note is already there and this entry exists because a bound is not a decision. ⛔ Not closed by observing that both branches exit non-zero today: one of them exits **0**, which is the whole item.
+**Status:** open
+
+**Measured, not reasoned** (`scripts/check-supabase-config-schemas.mjs`, `inspect()` run directly on two constructed files, 2026-09-08):
+
+    `[api].schemas` pinned  + `schemas = [… "app"]` under `[db]`  →  **OK**
+    `[api].schemas` DELETED + the same line under `[db]`          →  N1_APP_EXPOSED_WITH_DEFECT (under `P3_NONE`)
+
+The second is the QA re-review's own row 4, now held by fixture `B16+`. The mechanism is that the final `return { code: 'OK', … }` is the one return **not** routed through `positive()`, so an `appSighting` that reaches it is discarded. ⇒ The escalation's comment — the sighting is *"a fact about the EDIT, not about which table the key landed under"* — is true of every POSITIVE path and false on the `OK` path.
+
+⭐ **How it was found is the point.** Mutation `M-G` deleted the `P3_DUPLICATE` branch; the ONLY fixture that moved was the new `B15+`, and it moved to `NOT CAUGHT (OK)`. Before `B15+` existed, deleting a whole branch of this gate broke nothing observable — *a green gate can mean the fixture cannot reach the failing state*.
