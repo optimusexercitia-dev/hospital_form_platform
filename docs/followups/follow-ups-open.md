@@ -996,6 +996,12 @@ a hypothesis, not a finding.
 **Status:** open
 **Body:** [FUP-ADR-CROSS-LINKS-HAVE-NO-GATE.md](FUP-ADR-CROSS-LINKS-HAVE-NO-GATE.md)
 
+### 🟢 FUP-REGISTER-GATE-HYGIENE-VERDICT-SHAPES — approvals the verdict predicate still cannot read
+
+**Filed:** 2026-09-08 (Batch 6, QA round 2 MAJOR-1) · **Owner:** lead · **Severity:** low — no `complete` hub depends on one (re-verified against `checkHub`’s predicate), so this is future-proofing, not a live hole
+**Closes when:** either the remaining shapes are read, or a ruling says they stay unread with the reason stated per shape. ⛔ Not closed by another single-shape widening described as if it covered the residual — that is exactly how this entry was born. Known shapes: (a) **words on the label line** (`## Re-review (2026-07-17) — VERDICT:`, `**Reviewer:** … · **Verdict:**`) — ⛔ admitting these means admitting arbitrary leading words, which readmits `Prior verdict: APPROVED`, so this one may be genuinely unfixable and should be *ruled* so; (b) a verdict separated from its bare heading by a **prose paragraph** or sitting two lines down; (c) a **blockquoted** verdict, excluded on purpose — confirm that is still wanted. ⭐ Whatever is done, the **size** of the residual must be reported with the detector that produced it: two independent sweeps gave 12 and 13 here and differed in MEMBERSHIP both ways, so a bare count is not a fact.
+**Status:** open
+
 ### 🟠 FUP-WRITEPATH-BASELINE-CASES-EMPTY-STRING-DEGRADES-TO-A-FULL-RUN — `CASES=""` is indistinguishable from `CASES` unset in the door arm, so a caller that captures the deriver's stdout without consuming its exit code gets a FULL sweep that writes the COMMITTED baseline, with the `exit 3 UNPROVEN` door unreachable (owner: backend; filed 2026-09-07 by `backend`, measured on `authz-writepath-baseline`)
 
 **Filed:** 2026-09-07 (by `backend`, Batch 3 build turn; measured, not inferred) · **Owner:** backend · **Severity:** high — a correct door nothing can reach, composed with reading a gate instead of gating on it

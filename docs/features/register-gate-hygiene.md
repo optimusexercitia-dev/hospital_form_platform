@@ -54,9 +54,12 @@ reasoning (plan §3).
       never a full run, in **both** harnesses (the write arm already landed it in ADR 0192);
       **proven able to fire**; and the recipe reads the deriver's EXIT CODE before substituting its
       stdout. ⛔ **Ported, not copied.** ⛔ Do not consolidate the two ids to close this.
-      **PO ruled 2026-09-08 — the clause names two homes that cannot host the fix:** the proof goes
-      where it can run (the door harness's own `SELFTEST=1` block, mirroring ADR 0192's Arm 3), and
-      the recipe fix EDITS **ADR 0079 § The recipe**, which is where the substitution actually lives.
+      **PO ruled 2026-09-08 — the clause named two homes that COULD NOT host the fix at the time:**
+      the proof went where it could run (the door harness's own `SELFTEST=1` block, mirroring ADR
+      0192's Arm 3), and the recipe fix EDITS **ADR 0079 § The recipe**, where the substitution
+      actually lived. ⚠ **Past tense on purpose:** after this batch **both** named homes DO host it —
+      `door-sweep-selftest.sh` gained the two-polarity runner and `lead-playbook.md` §4 the
+      exit-code-first recipe. A later reader must not see a shipped deviation that did not ship.
 
 **Gate.** `npm run lint` 0 errors / 0 warnings · `typecheck` · `npm run test` · `test:db` on a fresh
 reset · the four authz arms with domains quoted · `SELFTEST=1` on the deriver **and** the door
@@ -88,37 +91,37 @@ door arm, which is the one item here that touches a live gate's harness.
   ⭐ Those quotes were `3057ac1c`'s fix for `/bin/sh` on macOS: **the same check, the same message,
   the opposite platform.** Fixed shell-free; rc 0 real / rc 1 planted-absent / rc 0 reverted.
 
-- **All five follow-ups built.** Gate 9 resolves link **targets** case-exactly and all 14 dangling
-  links repaired; the `complete` gate's two regexes read a bolded id and a decorated verdict
-  (readable reviews **65 → 102** of 169); a ninth ratchet `archiveMissingClosesWhen` (**121**, domain
-  re-derived by *property* after its first cut was bounded by a syntax); AE2 plus six further
-  reconstructed ledger rows (**88 rows, all 9 cells**); and `CASES` made three-state across **all
-  four** sweep harnesses plus their four `p0-authz-invariant.sh` callers.
-- ADR **0194** placed (amends 0192); ADR **0079 § The recipe** EDITED to the two-step form, which is
-  where the substitution actually lived.
-- ⛔ **Three of this unit's own repairs first shipped correct in DIRECTION and unmeasured in
-  MAGNITUDE** — the verdict regex, the ratchet's domain, and gate 11's diagnosis. Each is recorded
-  with what the second measurement found.
+- **All five follow-ups built.** Gate 9 resolves link **targets** case-exactly, all 14 dangling links
+  repaired; the `complete` gate reads a bolded id and a decorated verdict — including a bare
+  `## Verdict` heading with the verdict on the next line (readable reviews **65 → 114 of 169
+  tracked**); a ninth ratchet `archiveMissingClosesWhen` (**121**, domain re-derived by *property*
+  after its first cut was bounded by a syntax); AE2 plus six further reconstructed rows and one for
+  `LEDGER-COMPLETENESS` (**89 rows, every one 9 cells**); `CASES` made three-state across **all four**
+  sweep harnesses plus their four `p0-authz-invariant.sh` callers.
+- ADR **0194** placed (amends 0192); ADR **0079 § The recipe** EDITED to the two-step form.
+- ⛔ **FIVE of this unit's own claims shipped correct in DIRECTION and unmeasured in MAGNITUDE** — the
+  verdict regex, the ratchet's domain, gate 11's diagnosis, the residual note *correcting* the first
+  of those, and a sentence asserting two measurements "agree exactly" because both said 10 while
+  their **membership differed two ways**. ⭐ Equal counts are not the same set.
+- **PO ratified the `DSR` row 2026-09-08** on the ground that the objection was *procedural*, not
+  *factual*; cell 3's standing self-strike clause is rewritten at the Record step.
 
 ### In progress
 
-The gate at the tip, run by the lead rather than the builder. Green so far: `lint` **rc 0** (0/0,
-eslint running) · `typecheck` **rc 0** · `test:db` **rc 0** on a fresh reset — **262 files / 8,882
-tests PASS** · gate 13 **rc 0**, every ratchet at or under cap ·
-`git diff --name-only main... -- supabase/migrations supabase/seed.sql src` **EMPTY**, so the sweep
-is not owed both arms and E2E is not implicated.
+QA round-2 fix loop (round 1 CHANGES REQUESTED → fixed → round 2 CHANGES REQUESTED, 2 MAJOR + 5
+MINOR, all addressed). Gate at the tip is complete and green: `lint` 0/0 · `typecheck` · `test`
+151 files/2,056 · `test:db` 262 files/8,882 on a fresh reset · four authz arms **INVARIANT HOLDS** ·
+`SELFTEST` PASS 42 · deriver **rc 3 NOT-APPLICABLE**, `SCOPE:` quoted, stdout 0 bytes ·
+migrations/seed/`src` diff **EMPTY**, so E2E has no subject.
 
 ### Next
 
-1. Finish the gate: `npm run test`, the four authz arms with domains quoted, `SELFTEST=1` on the
-   deriver and the door harness, and the diff-scoped deriver with its `SCOPE:` line and its exit read
-   **bare before any substitution**.
-2. QA review → fix loop → re-review.
-3. PO approval, then the Record step: close the five follow-ups on their own quoted clauses, flip
-   `FUP-AE2`'s status, ledger row, hub → `complete`, `git merge --ff-only`.
+1. QA re-review round 3.
+2. PO approval, then the Record step: `DSR` cell 3 first, then close the five follow-ups on their own
+   quoted clauses, flip `FUP-AE2`'s status, hub → `complete`, `git merge --ff-only`.
 
 ### Blockers
 
-None. ⚠ One decision is **banked for the PO at approval**, not blocking: whether the `DSR` ledger row
-stays — the spun-off session wrote it outside the option the PO picked, under its principle rather
-than inside it, and the row invites its own removal in its own text.
+None. ⚠ `LEDGER-COMPLETENESS` stays `in_progress` with `reviews: []` until round 3 lands: QA ruled it
+must **not** be flipped `complete` on a CHANGES REQUESTED verdict, and gave it a ledger row instead
+so its branch can still be deleted at Record.

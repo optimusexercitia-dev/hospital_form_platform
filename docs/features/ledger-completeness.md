@@ -47,49 +47,41 @@ only the rows the ruling admits — each marked **reconstructed** with its sourc
 
 Four independent instruments built and cross-checked (ledger ids · progress records · QA verdicts ·
 `phase(x): complete` commits · `status: complete` hubs). Three successive rule sets, each corrected
-after it was caught mis-matching. PO ruled all four questions. Ledger now: **87 rows, every one
-9 cells** (was 81 with one 8-cell row). **Six** reconstructed rows written — `AI`, `QO·FUP`, `CS·1`,
-`DOCS-RESTRUCTURE`, `DOCS-CONSOLIDATION`, and ⚠ **`DSR`, admitted AFTER the ruling** under the
-ruling's own principle (it was presented as UNDECIDED and resolved afterwards by reading
-`dsr-program.md`; the row says so and invites the PO to strike it). Four umbrella rows made
-explicit; `AUTHZ · Gate 2` given the review link it never had; two program-umbrella rows labelled
-as delegating.
+after it was caught mis-matching. PO ruled all four questions. **Six** reconstructed rows written —
+`AI`, `QO·FUP`, `CS·1`, `DOCS-RESTRUCTURE`, `DOCS-CONSOLIDATION`, `DSR`; four umbrella rows made
+explicit; `AUTHZ · Gate 2` given the review link it never had; the malformed 8-cell row repaired.
+⭐ **`DSR` was admitted AFTER the ruling**, under the ruling's own principle rather than inside the
+option the PO picked — **PO-RATIFIED 2026-09-08**: the objection was *procedural* (who authorised it),
+not *factual* (is it true), and only the factual kind impeaches a record.
+Ledger now **89 rows, every one 9 cells** (was 81 with one 8-cell row). ⚠ This block read "87" — a
+mid-session figure standing beside the final one four lines below it (QA r2 MINOR-5); 88 once Batch 6's
+AE2 row merged with these six, 89 once this unit got its own row.
 
 ### In progress
 
-Nothing — the ruled work is written and **rebased onto Batch 6 twice**: first at `202106ab`, then
-again at `8b194439` after Batch 6 wrote AE2's row and re-bolded the six workaround ids. ⚠ **The
-second rebase hit a real content conflict in the ledger** (their re-bolded tail vs my two
-`DOCS-*` rows); resolved by taking **both** — their bolding kept, my rows re-added and bolded to
-match the convention they had just set. Ledger re-derived **mid-merge**: 88 rows, all 9 cells,
-their AE2 row and my six each present exactly once.
+Nothing of this unit's own. It rode into Batch 6 and is verified inside that gate. ⚠ It was **rebased
+onto Batch 6 twice**, and the second rebase hit a real ledger conflict (their re-bolded tail vs these
+`DOCS-*` rows) resolved by taking **both** sides, re-derived **mid-merge**.
+⚠ Batch 6's QA round 2 audited this unit's **output** — all seven rows re-derived against their cited
+sources — and found **three Human-✓ cells asserting approvals their sources do not record**
+(`QO·FUP`, `DOCS-RESTRUCTURE`, `DOCS-CONSOLIDATION`), since corrected in place. ⛔ It did **not**
+audit the completeness derivation, so `reviews:` stays `[]`.
 
 ### Next
 
-Batch 6 rules on the `DSR` row (written after the ruling — strike it if the reading is wrong) and
-flips `FUP-AE2`'s `Status:`, both clauses now being discharged.
+Status flips to `complete` at Batch 6's Record step, on the **ledger row** it now has rather than a
+review — QA ruled it must not be flipped on a CHANGES REQUESTED verdict, and the row is what lets
+this branch be deleted.
 `FUP-LEDGER-COMPLETENESS-ROWS-NOT-MACHINE-READABLE` carries what the ruling deferred: the
 escaped-pipe column trap, the six odd-`**` rows (⚠ **a different six** from the workaround ids
-Batch 6 re-bolded — theirs were the tail units; these are `hospital-admin`, `nsp-per-hospital`,
-`f-cleanup`, `referrals-v2`, `interviews-v2`, `ETH·E1`), and the real remedy — a gate that checks
-a row **ARRIVED**.
+Batch 6 re-bolded), and the real remedy — a gate that checks a row **ARRIVED**.
 
 ### Blockers
 
-✅ **The gate-11 blocker is DISSOLVED — it was a worktree artifact, not a repo defect.**
-This block previously read: *"`npm run lint` exits 1 — on `main` too, and not from this unit …
-`.claude/` is byte-identical to `main`"*. Measured by the Batch 6 lead 2026-09-08 on the primary
-tree: `lint:rules` → **rc 0**, `OK (10 rule file(s))`. The 24 findings reproduce only when the
-script is run **from this unit's worktree**, whose `.claude/rules/*.md` are **CRLF** (47 CR bytes
-vs 0, 2058 vs 2011 bytes — which is what crosses the 2048 cap, and what makes the parser see
-`paths:\r`). `git hash-object` and `git status` both call the two copies identical, because
-`.gitattributes`' `* text=auto eol=lf` clean filter normalises CR on the way in — so the
-"byte-identical" measurement was correct and the conclusion drawn from it was not.
-⭐ What survives is a real Batch 6 item: the gate **misattributed its own failure cause**, reporting
-*"no `anchors:`"* where the truth was *"CRLF"*. Full correction: record § 2026-09-08.
-**Gate 13 `lint:registers` is exit 0**, and so is the full chain on the primary tree.
-
-⚠ **The coordination premise changed mid-session.** `authz-register-gate-hygiene` did not exist at
-session open (measured) and appeared partway through; this branch was rebased onto it per the
-brief's rule. It touches neither the ledger nor the follow-ups, so the only conflict was the
-generated `docs/features/INDEX.md`, resolved by regenerating rather than hand-merging.
+None. ✅ **The gate-11 blocker is DISSOLVED — a worktree artifact, not a repo defect.** This block
+claimed `npm run lint` reds on `main`; it does not (`lint:rules` **rc 0** on the primary tree). The
+24 findings reproduce only from this unit's worktree, whose `.claude/rules/*.md` are **CRLF**, and
+`.gitattributes`' clean filter hides that from `git status` and `git hash-object` alike — so the
+"byte-identical" measurement was right and the conclusion from it was wrong. ⭐ What survived is a
+real Batch 6 fix: the gate now names CRLF as CRLF instead of blaming the rule's content. Full
+account and the four proof arms: record § 2026-09-08 and `docs/lint-gates.md`.

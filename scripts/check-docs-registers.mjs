@@ -347,11 +347,20 @@ export function countLedgerDataRows(text) {
 //   · **9** put words on the label line (`## Re-review (2026-07-17) — VERDICT:`,
 //     `**Reviewer:** … · **Verdict:**`). Admitting these means admitting arbitrary leading words,
 //     which readmits `Prior verdict: APPROVED` — genuinely FILED, not fixed.
-//   · **10** were a BARE `## Verdict` heading with the verdict on the NEXT line — a LINE BOUNDARY,
-//     not decoration, so the rationale above never applied to them. ⛔ Half the residual was filed
+//   · a BARE `## Verdict` heading with the verdict on the NEXT line — a LINE BOUNDARY, not
+//     decoration, so the rationale above never applied to them. ⛔ Much of the residual was filed
 //     under a reason that was not true of it. **Now FIXED** by `reviewHasApprovedVerdict`'s
-//     bare-heading arm; readable went 102 → 112 of 170.
-//   · 1 is a blockquoted verdict, excluded on purpose.
+//     bare-heading arm (which also admits a numbered `## 7. Verdict`).
+//   · a blockquoted verdict, excluded on purpose.
+//   · shapes no arm here reaches: a verdict separated from its heading by a prose paragraph, or
+//     sitting two lines down. ⛔ FILED, not fixed — see `FUP-VERDICT-PREDICATE-RESIDUAL-SHAPES`.
+// ⛔ **THE ONLY EXACT NUMBER HERE IS THE READABLE ONE: 114 of 169 TRACKED files.** The size of the
+// residual is DETECTOR-DEPENDENT and must not be stated as a fact: two independent sweeps produced
+// 12 and 13 and their MEMBERSHIP differs in both directions (one sweeps in genuine CHANGES
+// REQUESTED rounds, the other reaches verdicts further from their heading).
+// ⛔ An earlier version of this note claimed two measurements "agree exactly" because both said 10.
+// They agreed in CARDINALITY and differed by two members each way. **Equal counts are not the same
+// set**, and a corroboration sentence that never compared membership corroborates nothing (QA r2).
 // No `complete` hub depends on any remaining one — verified against `checkHub`'s actual predicate:
 // 9 complete hubs, all pass, and every unreadable review linked from one is a genuine earlier
 // CHANGES REQUESTED round (QA re-derived this independently).
@@ -367,7 +376,11 @@ export const REVIEW_VERDICT_APPROVED_RX = /^#{0,6}[^\p{L}\p{N}\r\n>~]{0,8}Verdic
 // ⚠ The verdict line itself is matched by the SAME "no letters or digits before it" rule as the
 // single-line form, so `NOT APPROVED` / `CHANGES REQUESTED` under a bare heading stay rejected,
 // and `>`/`~` stay excluded so a blockquoted or struck verdict is still not an approval.
-export const VERDICT_BARE_HEADING_RX = /^#{1,6}[^\p{L}\p{N}\r\n]{0,4}(?:FINAL |TOP-LINE |RE-)?VERDICT[^\p{L}\p{N}\r\n]{0,4}$/iu
+// ⚠ The lead-in admits DIGITS (`## 7. Verdict` is a numbered heading, a normal convention) but
+// never LETTERS — which is what keeps `## r2 verdict:` and `Prior verdict:` out, since any word
+// before the label must spend a letter the class cannot pay for. QA round 2 found `## 7. Verdict`
+// blocked by exactly one digit.
+export const VERDICT_BARE_HEADING_RX = /^#{1,6}[^\p{L}\r\n]{0,6}(?:FINAL |TOP-LINE |RE-)?VERDICT[^\p{L}\r\n]{0,4}$/iu
 export const VERDICT_LINE_APPROVED_RX = /^[^\p{L}\p{N}\r\n>~]{0,8}APPROVED\b/iu
 
 export function reviewHasApprovedVerdict(text) {
@@ -1687,6 +1700,8 @@ function selfTest() {
   rejects('reviewHasApprovedVerdict', reviewHasApprovedVerdict, '## r2 verdict: APPROVED')
   rejects('reviewHasApprovedVerdict', reviewHasApprovedVerdict, '## Verdicts\n\nAPPROVED')
   rejects('reviewHasApprovedVerdict', reviewHasApprovedVerdict, '## Verdict\n\nThe work is APPROVED once X')
+  accepts('reviewHasApprovedVerdict', reviewHasApprovedVerdict, '## 7. Verdict\n\n✅ APPROVED')
+  rejects('reviewHasApprovedVerdict', reviewHasApprovedVerdict, '## 7. Prior verdict\n\nAPPROVED')
   accepts('reviewHasApprovedVerdict', reviewHasApprovedVerdict, 'header\n\n### ⭐ Verdict: APPROVED\n\nbody')
   // ⛔ REJECT — the discrimination half. `i` makes the WORD case-blind; it must not make the
   // SENTENCE case-blind. `[\s*]{0,4}` after the colon is what keeps every one of these out.

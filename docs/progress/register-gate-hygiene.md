@@ -169,7 +169,10 @@ subset run, so the default `RESET_EVERY=20` stops firing) — a behaviour change
 `:656` that a new arm must move.
 A third `$CASES` value test sits at `:1372` — the `PARTIAL RUN` blockquote written into the report
 body, silent for `CASES=""`.
-⛔ **The close condition names two homes that cannot host the fix.**
+⛔ **The close condition names two homes that cannot host the fix.** ⚠ **True when written and
+SUPERSEDED by this unit's own work — see the correction ~33 lines below** (QA r2 MINOR-3): after
+Batch 6 **both** named homes DO host it. A reader who stops here sees a shipped deviation that did
+not ship.
 (a) `scripts/door-sweep-selftest.sh`'s `scenario()` (`:101`) only ever runs
 `bash scripts/door-sweep-cases.sh` (`:125`) — the **deriver**, which has no `CASES` input. It never
 executes either audit harness; it copies them in only so the deriver's `PRED_DOMAIN` lift has
@@ -299,7 +302,7 @@ Three of this unit's own repairs shipped a first cut that read as complete and w
    > the NEXT line**, which is a LINE BOUNDARY, not decoration. ⛔ **The rationale for not fixing was
    > never true of those 10**, so half the residual was filed under a reason that did not apply.
    > They are now **FIXED** (bare-heading arm, 12 new fixtures, both polarities): readable
-   > **102 → 112 of 170**. The remaining 9 + 1 blockquote keep the corrected rationale.
+   > **102 → 114 of 169 TRACKED files**. ⚠ An earlier version of this line said "of 170": that denominator counted two UNTRACKED files (QA’s own two reports), and it moved from 169 to 170 inside one passage without anyone noticing — a claim about "the docs" is a claim about a **commit** (QA r2 MINOR-1). ⛔ The residual size is NOT stated as a fact: two independent sweeps give 12 and 13 and differ in MEMBERSHIP both ways.
    > ⭐ QA's independent measurement of 10 and the lead's tightened re-measurement agree exactly.
 2. **The archive ratchet's domain.** Its first cut selected `^### ` only — a **syntax**, not the
    property. ⛔ **The lead's critique of it was itself bounded by a syntax:** the brief said 5 genuine
@@ -567,3 +570,84 @@ cannot be lost between the two events.
 ⭐ The general shape, worth carrying: **a live record states what is true; the process history states
 how it got there.** Mixing them puts a question mark in the artifact that readers are supposed to
 rely on, and the fix is not to delete the doubt but to move it to where doubt belongs.
+
+### 2026-09-08 — QA fix loops 1 and 2 (lead)
+
+⛔ **This entry exists because it was missing.** Fix loop 1 (`26bc53a6`) annotated the earlier entries
+in place — correct for corrections — but wrote **no session entry of its own**, so its witnesses lived
+only in a commit body. Per CLAUDE.md §7 a witness goes to the **record**; a commit message is one
+`git log` rewrite from being unciteable (QA r2 MINOR-4).
+
+#### Round 1 — CHANGES REQUESTED, 2 MAJOR + 5 MINOR
+
+**MAJOR-1 was a FOURTH instance of this unit's own pattern, inside the headline repair's residual
+note.** It read *"14 files remain unreadable because they put WORDS before the label"* — one shape
+described as if it were all of them. The count was an artifact of the lead's own detector, which
+required *verdict* and *approved* on the **same line**, which is exactly what the missing shape does
+not do. Ten files were a bare `## Verdict` heading with the verdict on the **next** line — a LINE
+BOUNDARY, not decoration — so the stated reason for not fixing (*"admitting those readmits
+`Prior verdict: APPROVED`"*) was never true of them. Fixed rather than re-filed under a corrected
+excuse: a bare-heading arm, safe for the opposite reason (the heading must be **bare**, so any word
+before the label spends a letter the class cannot pay for).
+**MAJOR-2** — `FUP-ADR-CROSS-LINKS-HAVE-NO-GATE`'s `Closes when` still literally read the four-word
+placeholder while the unit claimed closure on its quoted clause. ⚠ **The first repair QUOTED the
+placeholder**, which kept the entry inside gate 13's `closesWhenPoToRule` ratchet at 137. ⭐ **A
+correction that keeps its subject inside the counter it was meant to leave has corrected nothing
+measurable.** Reworded → 136.
+**MINORs:** gate 11's CRLF **detection** was wired to no assertion (QA severed it and both the gate
+and `--self-test` exited 0) → extracted to `readRuleText()` and pinned by five arms; the identical
+severing now exits **2**. `door-sweep-selftest.sh`'s `[ -f "$h" ] || continue` made its
+harness-not-found FAIL branch dead code → a renamed sweep silently dropped scenarios at exit 0; now
+rc **1**, group `7 (pass 6 · fail 1)`. Gate 9's header said 8 files; it is **9**. The record
+attributed the "two wrong homes" account to ADR 0194, which does not carry it.
+
+#### Round 2 — CHANGES REQUESTED, 2 MAJOR + 5 MINOR
+
+⭐ **MAJOR-1 is the FIFTH instance, and it was inside the correction of the fourth.** The corrected
+residual (`9 + 10 + 1`) was **reconciled against QA's round-1 figure instead of re-derived**. Worse
+was the sentence beside it: *"QA's independent measurement of 10 and the lead's tightened
+re-measurement agree exactly."* ⛔ **They agreed in CARDINALITY and differed by two members in each
+direction.** Equal counts are not the same set, and a corroboration sentence that never compared
+membership corroborates nothing. Re-derived: the readable count is exact and reproducible
+(**114 of 169 TRACKED** after admitting a numbered `## 7. Verdict`, which one digit had blocked); the
+**residual size is detector-dependent and is no longer stated as a fact** — two sweeps give 12 and 13
+with different membership, one sweeping in genuine CHANGES REQUESTED rounds, the other reaching
+verdicts further from their heading. The load-bearing half — *no `complete` hub depends on one* — was
+re-verified by QA against `checkHub`'s actual predicate and **stays true**.
+⛔ **Widening stopped here deliberately.** Each round has revealed one more shape; chasing them
+one at a time is the direction-vs-magnitude trap in slow motion, and QA measured that the arm changes
+no gate outcome today. The remainder is FILED with its shapes named.
+**MAJOR-2 — three reconstructed ledger rows asserted a human/PO approval their cited source does not
+record**: `QO·FUP` (`qo-fup-close-out.md` records *"PO rulings 2026-08-07 (asked **before work
+started**)"*), `DOCS-RESTRUCTURE` (only *"PO-approved CLAUDE.md diff"* — one diff, not the unit), and
+`DOCS-CONSOLIDATION`, whose own final Current state lists the PO's merge under **`Next:`**. All three
+cells rewritten to state what the source *does* record and to assert the approval **in neither
+direction**. ⛔ Verified before rewriting, because asserting a new wrong thing here would have been a
+sixth instance: `396352cb` is real and an ancestor of `main`, so the *merge* landed — the
+**approval** is what is unevidenced, and those are different facts.
+**MINORs:** `112 of 170` counted two **untracked** files (QA's own reports) and the denominator moved
+169 → 170 inside one passage — *a claim about "the docs" is a claim about a **commit***; the hub was
+not in the "all three places" the round-1 fix updated and still said "65 → 102" and "**Three**"
+instances; the hub still carried the superseded "two homes" framing; this entry's absence; and
+`ledger-completeness.md`'s Current state saying **87 rows** four lines above **88**.
+
+#### `LEDGER-COMPLETENESS`, per QA's ruling
+
+⛔ **Not** flipped `complete` linking this review — that would assert approval under a CHANGES
+REQUESTED verdict, and QA audited that unit's **output**, not its completeness derivation. It was
+given a **ledger row** instead (`hubHasLedgerRow` matches the id; the `DOCS-*` rows set the
+precedent), with a QA cell stating its own bound and `reviews:` left `[]`. That also lets its branch
+be deleted at Record without redding gate 13's `in_progress` branch check.
+
+#### Instrument failures in these two loops, recorded because they recur
+
+- ⛔ **Three mutations returned results that meant nothing**, each caught only by checking the mutant
+  was *present in the file* before trusting it: one ran an **unmutated** file (Windows Python could
+  not resolve `/tmp` while Node could); one **died at "fixtures not found"** before reaching the
+  mutated branch, because running from a scratch path broke `ROOT`; one was a **shell-escaping
+  no-op**. ⭐ Verifying the mutation applied is now the standing practice here.
+- ⛔ **An exit code was read through a pipe again**, in the very session about that defect:
+  `npm run … | grep …; echo "RC=$?"` reported grep's status. Re-read bare or from a redirect.
+- ⚠ `check-docs-registers.mjs`'s unguarded `pathToFileURL(process.argv[1])` crashed the module on
+  **import** under `node -e` — transitive to gate 9, which now imports from it — and cost two
+  verification attempts before being guarded.
