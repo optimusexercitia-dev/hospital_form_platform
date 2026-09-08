@@ -244,3 +244,104 @@ positive `is_staff_admin_of` 43, `can_edit_commission_forms` 6, `member_can` 3; 
 **Not done here, by scope:** §2 pgTAP (blocked on the PO ruling per R14 — ⛔ the pinned literal is
 filled in from the ruling, never chosen by the builder), §3's config gate (another track), §5.
 ⛔ `CEILING: 752` is **unchanged** in `docs/backend-state.md`.
+
+### 2026-09-08 — backend, Track B: the config-line gate (gate 14), its two failure texts, and two findings the build turned up
+
+Scope: the plan §3 config gate plus two §2.7 items. ⛔ No DB command, no migration, no
+`supabase/tests/`, no `docs/backend-state.md`, no `docs/design/` — Track A owned the stack and those
+files for the whole window. **R5 re-asserted at this commit:** `git diff --name-only main... --
+supabase/migrations supabase/seed.sql src` is **EMPTY**. ⚠ `supabase/config.toml` is deliberately
+outside that pathspec, so touching it does not weaken the assertion (R5 says so in terms).
+
+**Shipped** (`6fee08ae`): `scripts/check-supabase-config-schemas.mjs` (new gate) ·
+`lint:config-schemas` **appended at the END** of `package.json`'s chain as **gate 14** — ⛔ never
+inserted, because "gate N" is positional and cited by number across docs, records and reviews, and
+an insertion silently renumbers all of them with nothing red · its bullet in `docs/lint-gates.md`
+**in the same commit** (nothing gates that file) · the load-bearing block in `supabase/config.toml`
+above the assignment · the annotation on `scripts/authz-tier1-threat-review-ae1.sql` · and
+`FUP-AUTHZ-NO-BEHAVIOURAL-PROOF-APP-SCHEMA-UNREACHABLE-OVER-POSTGREST`.
+
+**Every exit code observed, in order, each read bare or through a redirect (⛔ never a pipe):**
+
+| # | run | rc | what it witnessed |
+|---|---|---|---|
+| 1 | `--self-test`, first build | **2** | ⭐ `G3-crlf DID NOT APPLY — fixture bytes identical to the baseline`. See finding F1 |
+| 2 | `--self-test`, after the G3 pair guard | **0** | 10 bad caught each for its own reason, 4 good clean |
+| 3 | planted checker M1 (B8 `[api.tls]` anchor broken) | **2** | `B8 MUTATION APPLIED WRONG — the schemas line must be MOVED, not deleted` |
+| 4 | planted checker M2 (B6 comment-out neutered) | **2** | `B6 DID NOT APPLY` |
+| 5 | planted checker M3 (B7 multi-line neutered) | **2** | `B7 MUTATION APPLIED WRONG — the array must actually open and not close on its line` |
+| 6 | planted config `["public","graphql_public","app"]`, **first build** | **2** | ⛔ the wrong code. See finding F2 |
+| 7 | same plant, after the fix | **1** | `⛔⛔ SECURITY EVENT — … "app" HAS BEEN ADDED TO THE POSTGREST-EXPOSED SCHEMAS` |
+| 8 | planted config `[…,"authz"]` | **1** | `REVIEW EVENT — … the pinned [api].schemas list CHANGED VALUE` |
+| 9 | real run, clean tree | **0** | prints the parsed list and its own bound |
+| 10 | `npm run lint:registers` | **1** | `[CODES] … uses no registered code`. See finding F3 |
+| 11 | `npm run lint:registers`, after the rename | **0** | ratchets all at or under cap; `longHeadings=95/97` |
+| 12 | `npm run lint` | **0** | **all 14 gates reached** (see below) |
+
+**Gates the full run actually REACHED**, quoted rather than assumed, because `&&` short-circuits and
+a run that dies early proves nothing about later gates: `eslint` (silent, 0 findings) · `css-vars` ·
+`memberships-door` · `client-server-imports` · `vacuous` · `set-local` · `progress` · `rules` ·
+`adr-index` · `mojibake` · `service-role-registry` · `authz-vectors` · `registers` ·
+**`config-schemas`** — 14 of 14, rc **0**. R22's correction holds: nothing reds at `lint:rules`.
+
+**⭐ F1 — the CRLF hazard is LIVE on this exact file, not hypothetical.** `git ls-files --eol
+supabase/config.toml` → **`i/lf w/crlf`**: the index is LF and the working tree the gate reads is
+CRLF (451 CR bytes), while `.gitattributes` says `* text=auto eol=lf`, `git check-attr` agrees and
+`git status` is clean. ⇒ The plan's fixture **G3 "the real file with CRLF endings" is byte-identical
+to G1** and discriminates nothing — a good fixture that re-runs the control under a new name. It is
+now run in **both** directions and the pair is proven against **itself** (they must differ from each
+other and each carry the endings it claims), never against a baseline whose endings are an accident
+of the checkout. ⛔ The byte-difference guard is the only reason this was visible at all. Same shape
+as the Batch 6 lesson, on a new file, one week later.
+
+**⭐⭐ F2 — the positive control contaminated its subject, and it hid the one red the gate exists
+for.** Fixtures are mutations of the real file (structurally honest: real tables, real comments, real
+endings, never a hand-written copy of production text). But plant `"app"` in the real file and the
+fixtures inherit it: B1's mutation becomes a no-op, G1/G2/G3 are all "falsely caught", and the run
+exits **2 — the checker is broken** instead of **1 — SECURITY EVENT**. Measured, not reasoned (row 6
+above). R16 demands a reader know from one line *which* happened; they would have met a verdict about
+the instrument instead. **Fix:** the fixture baseline is the real file **canonicalised** (pinned value
+text and sentinel forced on), so the self-test asks *"can this checker fail, and pass?"* — about the
+CHECKER — while the real scan asks *"is this file pinned?"* — about the FILE. When the file is clean
+the two are byte-identical and G1 **is** the real file's bytes, as the plan asks; when it is not, the
+output says so and the real scan reports the finding. ⛔ Conflating the two questions loses the second.
+
+**F3 — the follow-up id in the brief fails gate 13, so it was renamed.**
+`FUP-NO-BEHAVIOURAL-PROOF-APP-SCHEMA-UNREACHABLE-OVER-POSTGREST` carries no registered code and
+`[CODES]` reds on it (rc 1, row 10). Renamed to
+**`FUP-AUTHZ-NO-BEHAVIOURAL-PROOF-APP-SCHEMA-UNREACHABLE-OVER-POSTGREST`** — `AUTHZ` is the
+registered code for the program that owns the property, and the item outlives this unit. All five
+citing sites were swept in the same edit (config block, gate header, `lint-gates.md`, the register
+entry, the body file + its filename), each replacement verified as applied.
+
+**Design decisions worth a later reader's time.** (a) The pinned artefact is the **value text**
+`["public", "graphql_public"]`, character for character; indentation, spacing around `=`, a trailing
+comment and line endings are all tolerated. That is the only rule under which the plan's whole §3.4
+table is coherent — B2 "no spaces" must red while G2 "extra whitespace" must not — and it makes the
+line, quoted verbatim in six documents, byte-stable. **Order is behaviour, not cosmetics**:
+PostgREST's first schema is the default profile. (b) P4's sentinel is sought in the maximal run of
+comment lines **immediately above** the assignment, not at line N−1 exactly, so the block's prose
+stays editable while deleting the warning still reds. (c) ⚠ The block **displaces the assignment**:
+`schemas` moved from line 13 to line **51**, so every `config.toml:13` citation in the tree now
+points into the block instead of at the line. Mitigated by making the block's **banner** line 13, so
+an old citation lands on the explanation — ⛔ but the citations themselves are **not** repointed:
+three of them live in files this track does not own. *A cited line number rots when its artifact is
+overwritten.*
+
+**Two premise claims verified at their own sites before being cited** (⛔ never from a summary —
+*a-paraphrase-can-invert-the-sentence-it-summarizes*): all six prose premises were read and quoted at
+their own line; and R12's *"reportedly"* on the removed `rpc/member_can` probe was checked at
+`e2e/orphan-administrativo-reachability.spec.ts:306-313` and is **more precise than the summary** —
+the probe was wrapped in `if (rpc.ok())` around a permanent `PGRST202`, so *"the assertion inside
+NEVER RAN"*. ⇒ The follow-up says a **vacuous** witness was correctly retired and nothing deliberate
+replaced it, ⛔ never that a proof was deleted. R12's own claim that no npm script or harness invokes
+`authz-tier1-threat-review-ae1.sql` was also re-verified (prose citations in seven documents only).
+
+**⚠ Left uncommitted deliberately:** this record. At the time of `6fee08ae` it carried Track A's
+in-flight entries, and committing another agent's file mid-edit is not this track's to do. Whoever
+commits the record picks up this entry with theirs.
+
+**Not done here, by scope:** the budget-anchor text check (plan §2.4 — mirrors literals out of a
+pgTAP section that does not exist yet, blocked on R14), anything in `supabase/tests/`,
+`docs/backend-state.md`, `docs/design/` or `supabase/migrations/`, and ⛔ **no behavioural probe** —
+outside R2, and filed instead.
