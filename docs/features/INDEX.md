@@ -12,10 +12,11 @@
 > A hub's `## Current state` is its summary; its progress record's `## Session log`
 > (`docs/progress/<code>.md`) is its detail (ADR 0186 D3).
 
-**13 hubs** · in progress 0 · gated 0 · planned 2 · parked 0 · complete 11
+**14 hubs** · in progress 1 · gated 0 · planned 2 · parked 0 · complete 11
 
 | ID | Title | Status | Kind | Program | Branch | Hub |
 |---|---|---|---|---|---|---|
+| PRIVILEGE-SURFACE | Privilege surface — the authenticated-executable DEFINER budget's seven-over-ceiling breach attributed function by function, the 233 held AE1 revokes ruled on with their 137 silent no-ops named, and the app-schema PUBLIC floor given the decision it has been waiting for (pre-AE5 Batch 7) | 🟢 in progress | feature | AUTHZ | `authz-privilege-surface` | [privilege-surface.md](privilege-surface.md) |
 | C1B-DISPOSAL | PHI-disposal Cloud rehearsal (C1b) | 🔜 planned | feature | DM5 | — | [c1b-disposal.md](c1b-disposal.md) |
 | DLB | Deliberation & Voting Model — typed committee decisions with vote arithmetic the database owns | 🔜 planned | feature | DLB | — | [dlb.md](dlb.md) |
 | AE4 | Authz catalog cutover — staff_admin substituted, 3 of 43 permissions load-bearing | ✅ complete | feature | AUTHZ | — | [ae4.md](ae4.md) |
