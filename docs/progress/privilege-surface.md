@@ -1256,3 +1256,283 @@ this is an inconsistency between two of the gate's own verdicts, not a missed ex
   touched at all this iteration, so no pinned literal moved.
 - Files changed: `scripts/check-supabase-config-schemas.mjs`, `docs/followups/follow-ups-open.md`,
   `docs/progress/privilege-surface.md`.
+
+### 2026-09-08 — FINAL gate at the tip `d428d515` (independent runner)
+
+⛔ **The runner built none of this unit's four tracks and repaired nothing** (protocol §4 step 4,
+ruling R34). Every line below is a reading; the only file this turn edits is this record. The tip
+was `d428d515` at the first command and **`d428d515` at the last** — verified bare, both ends — and
+`git status --porcelain` was empty at both. R46's freeze held: nothing committed under this run.
+
+⚠ This supersedes nothing in the `bd50dfc9` entry above; that entry describes a **different commit**,
+and three fix-loop iterations (R35 / R36 / R40, plus two re-review rounds) landed between them.
+
+**Every command, every exit code read BARE** — own line or a redirected rc file. ⛔ Never through a
+pipe, never in a `;`-chain that consumes it, never `grep -c` as a guard.
+
+| # | command | rc |
+|---|---|---|
+| 1 | `npm ci` | **0** — 957 packages |
+| 2 | `npm run lint` | **0** — 15 of 15 gates REACHED |
+| 3 | `npm run typecheck` | **0** |
+| 4 | `npm run test` | ⚠ **1**, then **0** on an immediate re-run — see finding 1 |
+| 5 | `supabase db reset --local` | **0** — head `20261003007350` |
+| 6 | `npm run test:db` | **0** — `All tests successful.` Files=**262**, Tests=**8900**, `Result: PASS` |
+| 7 | `ARM=census` | **0** — `=== INVARIANT HOLDS ===` |
+| 8 | `ARM=hat` | **0** — `=== INVARIANT HOLDS ===` |
+| 9 | `ARM=floor` | **0** — `=== INVARIANT HOLDS ===` |
+| 10 | `FROMFINDINGS=1 ARM=wrapper` | **0** — `=== INVARIANT HOLDS ===` |
+| 11 | `SELFTEST=1 scripts/door-sweep-selftest.sh` | **0** — `SELF-TEST: PASS 42 · FAIL 0 · SKIPPED 0` |
+| 12 | `SELFTEST=1 scripts/door-sweep-cases.sh` | **0** — `SELF-TEST: PASS 42 · FAIL 0 · SKIPPED 0` |
+| 13 | `scripts/door-sweep-cases.sh main` | **3** — deriver NOT-APPLICABLE |
+| 14 | `authz-setvalued-targeted-cases.sh` (detached) | **0** — `RESULT: CLEAN — 3 resolver(s) measured, all COVERED.` |
+
+⛔ **`&&` short-circuits, so the gates a run REACHED are quoted, never assumed** (R13). `eslint` ·
+`css-vars` · `memberships-door` · `client-server-imports` · `vacuous` · `set-local` · `progress` ·
+`rules` · `adr-index` · `mojibake` · `service-role-registry` · `authz-vectors` · `registers` ·
+`config-schemas` · `budget-anchor` — **15 of 15**, gate 15 last, each banner read from the run's own
+redirected log. Gates 14 and 15 each ran their self-test ahead of their scan, so the chain's rc 0
+carries *"the checker can fail"* and not only *"the file is clean"*: `config-schemas self-test: OK
+(16 bad fixtures each caught for its own reason, 4 good fixtures each clean …)` and `budget-anchor
+self-test: OK (15 bad pairs …, 5 good pairs …)`.
+
+**Each arm's DOMAIN, quoted verbatim, because a verdict without its domain means nothing.**
+⛔ The ARM is named, never the script (§6 step 5).
+
+- **`ARM=census`** — `domain: prosecdef bool | prosecdef set-returning+reachable | public INVOKER
+  plpgsql | all RLS policies`; exclusion line `NOT in domain: prosecdef scalar non-bool command
+  doors (427 reachable, DERIVED this run) — FUP-AUTHZ-COMMAND-DOOR-UNSWEPT`. Verdict:
+  `OK: no unswept newcomer WITHIN THIS ARM'S DOMAIN (see the domain lines above).`
+- **`ARM=hat`** — ⚠ prints **no line labelled `domain:`**; recorded as observed rather than
+  paraphrased into one. Its scope statement is `anchors: app.has_role(4-arg) + app.has_role_any +
+  authz.holds_role carry the active-role condition`, over `self-test: 7/7 OK`. Verdict:
+  `HAT-BLIND SWEEP HOLDS: 4 finding(s), all reasoned-allowlisted` — `authz.assignment_facts` ·
+  `public.assume_role` · `public.session_context` · policy `public.memberships.memberships_select`.
+- **`ARM=floor`** — `authenticated-reachable prosecdef doors with 0 calls: 63`, derived this run
+  from a full pgTAP suite under `track_functions=all`. Both closure directions asserted:
+  `OK: every never-called door is on the floor allowlist.` and `OK: every floor-allowlist entry
+  resolves to a live door.` ⭐ This is the population R1's defer protects.
+- **`FROMFINDINGS=1 ARM=wrapper`** — `mode: FROMFINDINGS (comparing COMMITTED findings md, no
+  sweep)`, `BLIND set size: 41`. Verdict: `OK: every BLIND wrapper is on the allowlist.`
+- Every arm additionally printed its preflight `clean — 0 degenerate bodies in app+public (all three
+  forms)`.
+- **set-valued targeted home** — `ARM-DOMAIN setvalued=3/3 (in scope) out-of-scope=2 (named, with
+  dispositions)`; `authz.authorized_scope_ids(uuid,text,text)` ·
+  `authz.candidate_authorized_scope_ids(uuid,text,text)` ·
+  `app.current_professional_read_organizations()`, each **COVERED** on the
+  `open->universal-set` direction, each with its failing-file list printed. Its own three-way
+  restore verification passed: `(2) §4a residue: 0 rows` · `(3) suite after restore: Result: PASS
+  (Files=262, Tests=8900)` · `(4) sentinel + sidecars: absent`, and each case's
+  `fingerprint restored` returned to its `fingerprint before`.
+
+**⭐ The arm script itself is MODIFIED by this unit — checked rather than assumed.**
+`supabase/tests/mutation/p0-authz-invariant.sh` appears in `main...HEAD`. A unit that edits the
+harness it is then judged by is worth reading, so the diff was read in full: **+38 lines, all
+comment**, inside `run_arm_census`, and **zero executable lines changed**. The four verdicts above
+are therefore produced by the same code `main` carries.
+
+**The diff-scoped door sweep — NOT-APPLICABLE, and the rc was read BEFORE any substitution.**
+`CASELIST="$(bash scripts/door-sweep-cases.sh main)"; rc=$?` → `RC=3` on its own line, with
+`CASELIST_BYTES=0` printed beside it. ⛔ The rc was consumed first and the empty capture was never
+fed to a sweep — an empty `CASES` is the **third state** and would have exited 3 *UNPROVEN*.
+⚠ This **3 is the deriver's NOT-APPLICABLE**, a different exit from a sweep's **3 UNPROVEN**; the two
+share a number and conflating them is its own defect. Neither sweep arm is owed: there is no
+migration for one to have a domain over. The `SCOPE:` line, verbatim:
+
+```
+SCOPE: 0 file(s) — 0 committed (main..HEAD), 0 worktree, 0 untracked | filter: none | derivation: NOT REACHED (this run ended before the catalog was probed)
+       0 case(s) — nothing was derived, and the line above is what the gate record
+       quotes to say so.
+```
+
+**R5, asserted rather than eyeballed.** `git diff --name-only main... -- supabase/migrations
+supabase/seed.sql src > pathspec.txt` (rc **0**), then `wc -c` → **`PATHSPEC_BYTES=0`**.
+⚠ Beside that zero, and required by R5 so no reader wonders whether the check was weakened: the full
+`main...HEAD` name-status is **25 files** (19 at `bd50dfc9`), of which **0** are under
+`supabase/migrations`, `supabase/seed.sql` or `src`. What this unit *did* touch, all deliberately
+outside the pathspec: `supabase/config.toml` · `supabase/tests/320_act_expiry_and_acl_hardening.sql`
+· `supabase/tests/mutation/p0-authz-invariant.sh` (comments only, above) · `scripts/` (both new
+checkers plus the annotation on `authz-tier1-threat-review-ae1.sql`) · `package.json` · `docs/`.
+⇒ R1's defer and R2's ruling are honoured, and the emptiness is what says so.
+
+---
+
+#### The four independent verifications
+
+**1. `320` §U1 is still 236, undisturbed by §U4/§U5/§U6.** Live catalog, queried directly on the
+fresh reset by the runner's own SQL over `pg_proc` / `aclexplode`: **236**. The file's literals at
+`:301` (§U1) and `:337` (§U2b control-restored) both read `236`. ⚠ **A correction to the previous
+entry's METHOD, not to its result:** that entry's third leg was *"§U6h asserts it a second time"*.
+After R35 (`c84dd823`) **§U6h no longer asserts the value** — it asserts a **delta of 0** from a
+baseline snapshotted before the first probe, and its own message says so: *"⛔ This asserts
+NON-DISTURBANCE, not the ratchet's value; §U1's own assertion above is what pins that, absolutely,
+and is the only owner of the number."* Repeating the old phrasing would have been a stale method
+claim, so the third leg is stated as what it now is.
+
+**2. The live budget matches the pins.** Re-derived on the fresh reset: `app` **326** · `public`
+**433** · total **759** (`prosecdef` ∧ `has_function_privilege('authenticated', …, 'EXECUTE')`). The
+head **pair** (R19 — a head alone does not identify a migration set) reads **`(20261003007350,
+524)`**. All three figures match §U4's pins, `docs/backend-state.md`'s anchor (`ceiling=759 app=326
+public=433 total=759`) and gate 15's own report line.
+
+**3. Both new gates can still fail after three iterations of edits.** Proven from the outside, on
+copies in the scratchpad, so `git status --porcelain` stayed empty throughout. Each plant asserted
+its needle occurred **exactly once** and exited 9 otherwise, and every replacement was a plain
+string split/join — ⛔ never a line-anchored regex, which R42 measured to be unsafe on this tree.
+
+| plant | subject | rc | observed |
+|---|---|---|---|
+| gate 14, unmodified copy in a mirror root | control | **0** | reproduces the in-tree run line for line |
+| gate 14, check **N1** neutered | checker | **2** | `B1 caught for the WRONG REASON: expected N1_APP_EXPOSED, got N2A_LIST_CHANGED` |
+| gate 14, `P3_DUPLICATE` branch **deleted** (R44's M-G) | checker | **2** | `B15+ NOT CAUGHT (OK)` — and **only** `B15+` |
+| gate 14, the **escalation** neutered | checker | **2** | `B11+ B12+ B13+ B14+ B15+ B16+` each *"caught for the WRONG REASON"*, six separately named |
+| gate 15, unmodified copy in a mirror root | control | **0** | reproduces the in-tree run |
+| gate 15, `320`'s `app` literal 326 → 327 | file | **1** | `THE MIRROR HAS DRIFTED FROM ITS HOME — key app` |
+| gate 15, a **consistent** census over the ceiling | file | **1** | `⛔⛔ THE BUDGET IS OVER ITS CEILING — total 760 > ceiling 759` |
+| gate 15, check **C** neutered | checker | **2** | `B2 NOT CAUGHT (OK) — ⭐ anchor: a consistent census that is OVER the ceiling` |
+
+⇒ The **exit-2-if-it-cannot-fail** shape survives in both, and in its strong form: the N1 mutation
+still *redded* its fixture, at a different check, and only the per-fixture `expect` code exposed it.
+A self-test keyed on *"did it red?"* would have called that green.
+⭐ **R44 reproduced exactly at this tip**: deleting `P3_DUPLICATE` moves `B15+` and nothing else, so
+that branch genuinely had no fixture before iteration 3 and could have been deleted with no arm
+noticing. The three new fixtures were not belt-and-braces. And the escalation mutation reds all six
+of `B11+`–`B16+` separately, so the combination cells are separately reachable — the fixer's
+withdrawn counter-argument is refuted a second time, independently.
+
+**4. `236 of 526`, both predicates measured SEPARATELY.** ⛔ Neither was inferred from the other —
+that is R26's exact error, and the config block says so in its own words.
+
+| query | result |
+|---|---|
+| `pg_proc` rows in `app` with `prokind='f'` | **526** |
+| control: the `prokind` breakdown of all `app` rows | `f` → **526**, no other kind, so the filter is a no-op |
+| **EFFECTIVE**: of those, `has_function_privilege('anon', p.oid, 'EXECUTE')` | **236** |
+| **ACL-SHAPED**: `proacl IS NULL` ∨ an explicit PUBLIC grant (§U1's predicate) | **236** |
+| **the disagreement query**: rows where the two predicates differ | **0** |
+
+⇒ The coincidence claimed in `supabase/config.toml` is **measured at this tip**, not assumed, and it
+is still a coincidence. Sites that agree: `supabase/config.toml` (the block, with both predicates and
+the head pair) · `docs/lint-gates.md:31` · `docs/decisions/0195-…:32` ·
+`docs/followups/FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED.md:32` (superseded `237` quoted) and
+its item 3 · this record. ⚠ **Two sites do not** — finding 2 below.
+
+**R32's unenforced dependency, re-verified rather than carried.** `supabase/config.toml` line **13**
+is still the mitigation banner (*"⛔ THE `schemas` LINE BELOW IS LOAD-BEARING. (It is cited across
+this repo as `config.toml:13` …)"*), so an old `:13` citation still lands on its own explanation.
+⚠ The assignment itself is now at line **71** — gate 14 reports it — where R30 recorded 51; the block
+has grown twice since.
+
+---
+
+#### Findings. ⛔ Reported, not repaired — the runner may not touch the unit's files.
+
+**1. `npm run test` is FLAKY at this tip, and the flake is unrecorded anywhere.** The first full run
+exited **1**: `src/components/referrals/referral-send-wizard-mrn-warning.test.tsx > … > 6 never
+renders BEFORE the review step, even when the MRN is missing` →
+`TestingLibraryElementError: Unable to find role="button" and name /enviar encaminhamento/i` at
+`:259`, a `findByRole` timeout under full-suite load (that file took 11541 ms). Re-run alone: **rc
+0**. Second full run: **rc 0**, 151/151 files, 2056/2056 tests. ⛔ **Not caused by this unit** — the
+R5 pathspec proves `src/` is 0 bytes changed, so it is a pre-existing condition inherited from
+`main`. But it is in **no** `docs/bugs/BUGS.md` row, **no** lesson and **no** follow-up: the repo has
+a documented flaky baseline for `e2e:prod` and none for Vitest. ⇒ A Phase-Gate step-1 command that
+reds roughly one run in two on a clean tree makes its own green uninformative, and the next runner
+who meets it has nothing to check it against. Worth a `BUGS.md` row or a follow-up; the disposal is
+the lead's.
+
+**2. ⭐ The `237 of 467` sweep is still INCOMPLETE, and one of the two misses is this unit's own hub.**
+Review round 1 (B1) enumerated *"four new artefacts"*; round 2 (B2) found *"the **fifth** home"* and
+closed with the standard quoted from B1: *"⛔ Do not update one site — a figure with four homes and
+one correction is worse than four stale ones."* At `d428d515`, `git grep -n "237 of 467"` still
+returns two **present-tense, undated** live claims that neither round swept:
+
+- `docs/features/privilege-surface.md:60` — the hub's `## Acceptance criteria`: *"Informational
+  anchor: 237 of 467 `app` functions are `anon`-executable"*. This is the file QA opens first, and
+  it is **the same bullet the fix loop edited** for R30 (the `⚠ Cited by key, not line number` note
+  at `:62`) — so the section is demonstrably not treated as frozen, and the "quoting the clause as
+  filed" defence is not available to it.
+- `docs/plans/pre-ae5-remediation.md:325` — the program plan the hub's own frontmatter names as
+  `plan:`: *"Informational anchor: 237 of 467 `app` functions carry `anon` EXECUTE"*. This file is
+  **not in `main...HEAD` at all**, so it was never considered.
+
+⭐ **The standard is this unit's own, written down in this very file.** The `<!-- N1 / 2026-09-08 fix
+loop -->` note in the Subjects header above says it exactly: *"this Subjects header is PRESENT TENSE
+and is the first thing a reader meets, so unlike the dated log entries below it cannot be left to
+rot."* That principle was applied to this record's header — which correctly carries **71** and the
+ruled ceiling — and not to its sibling, the hub's present-tense acceptance criteria. *Sweeping one
+sibling axis reads as sweeping the class.* ⚠ A third, smaller instance: within the closed follow-up
+itself, `FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED.md:50` still reads *"the class is 237 of
+467"* unannotated, while `:32` a few lines above now reads 236 with the superseded figure quoted —
+one file, corrected and uncorrected instances side by side.
+
+**3. ⭐⭐ R36's repair REINTRODUCED a live count in the same sentence that renounces one, and it has
+already gone stale.** `docs/features/privilege-surface.md:109-110` reads: *"gate 14 pins
+`[api].schemas`; its fixture count is **in the self-test's own output, not restated here** (it said
+"13"; the self-test reports **14**)."* At `d428d515` the self-test reports **16 bad fixtures … 4 good
+fixtures** — neither figure. R40 added `B14+`, `B15+` and `B16+` two iterations after that sentence
+was written, and nothing gates it. ⇒ R36's standing repair is *"remove the count, give the
+derivation"*; what was written removed one count and **introduced another inside the clause asserting
+it was not restating one**. The derivation form is available and is used correctly for the rulings
+three lines above (`grep -c '^## R' batch7-rulings.md`, which returns **46** at this tip and is
+right). ⭐ This is R36's own defect class recurring inside R36's own fix — the same shape as R42
+(R29 recurring inside the fix for R29) and R43 (a paraphrase of the finding replacing the finding).
+
+**4. ⭐⭐ `docs/lint-gates.md:33` attributes the FALLING polarity to §U6, and R35's own fix took that
+property away from §U6.** The clause reads: *"its ceiling check is `total <= ceiling`, deliberately
+**one-directional and silent on a fall** … the falling half is `320` §U6, which is exact-equality and
+reds either way; two instruments, two polarities, stated rather than inherited."* Measured:
+
+- At `c84dd823^` §U6c was `'budget U6c FALLING CONTROL: … the budget fell 760 → 759'` — absolute
+  literals, exact equality against committed numbers. **The clause was true when written**
+  (`5602830d`).
+- At HEAD §U6a is `select is(pg_temp.budget() - pg_temp.base(), 1, …)` and §U6c reads *"the budget
+  fell back to the baseline (delta +1 → 0)"* — a delta from a baseline **re-derived from the live
+  catalog** in the same transaction.
+
+⇒ If the real population fell to 758, `pg_temp.base()` would snapshot 758 and **every §U6 delta would
+still hold**; the assertion that reds is §U4's absolute `is(pg_temp.budget(), 759)`. So after R35 the
+falling polarity is carried by **§U4**, not §U6, and §U6 is what R35 renamed it to be — a *control*
+proving the detector can move down. ⛔ **Nothing is unprotected**: both polarities are still covered,
+and the same bullet elsewhere calls §U5/§U6 *"its rising and falling controls"*, correctly. The
+defect is the attribution in clause (c), and it matters because R11 exists precisely so the polarity
+story is *"stated rather than inherited"* — this is now stated wrongly. ⚠ `1956e7bd` edited
+`docs/lint-gates.md` **after** `c84dd823` and did not catch it, and the bullet's own closing sentence
+is *"Nothing gates this file."*
+
+**5. R38 appears UNDISCHARGED.** R38 ruled: *"Upgrade the wording in ADR 0195's Consequences from a
+prediction to a **measured** statement, and cite the witness."* At HEAD,
+`docs/decisions/0195-…:198-200` still reads *"…so that graceful degradation depends on something no
+gate enforces. **Stated here so a future edit to that block meets this sentence.**"* — the prediction,
+unchanged. The witness exists and is recorded (this record at `:762`: rewriting the R32 mitigation
+banner *"left gate 14 **green (rc 0)**"*), but the ADR does not cite it, and neither the ADR, this
+record, nor either review file mentions `R38` at all. ⇒ Either the ruling was missed in the fix loop
+or it was consciously deferred; nothing written says which, which is itself the gap.
+
+**6. Gate 15 resolves its subjects from `process.cwd()`; gate 14 was hardened away from exactly that,
+in this same unit, on this same day.** `check-supabase-config-schemas.mjs:198-207` carries the
+reasoning verbatim — *"⛔ Resolved from THIS FILE, never from `process.cwd()`. Until 2026-09-08 it was
+`join(process.cwd(), …)`, so running the gate from any directory but the repo root exited 1 with
+`P1_MISSING` … a FALSE RED that sends a reader hunting for a config nobody deleted."*
+`check-budget-anchor.mjs:107-108` is still `join(process.cwd(), …)` for both subjects. Measured:
+running gate 15 from the scratchpad exits **1** with *"docs/backend-state.md does not exist. That file
+is the ceiling's ONE HOME…"* — the same false red, with the same bound gate 14's header states for its
+own pre-fix self (latent under `npm run lint`, which always runs at the package root, and it fails
+loudly rather than green, so it is **not a hole**). ⇒ A fix correct at one of two sibling sites written
+in the same unit. Low severity, cheap to close, and worth a follow-up rather than silence.
+
+⚠ **Also observed, no action proposed:** N6 of the re-review (the hub's `reviews:` frontmatter is
+still `[]`) is correctly still open — it is Record-step work, and gate 13's cross-check on that field
+is row-grade only once the hub goes `complete`, which is why `npm run lint` is rc 0 today.
+
+#### Verdict
+
+**Every gate owed at this tip is GREEN**, with the one qualification that `npm run test` needed a
+second run and the reason is a pre-existing `src/` flake this unit did not introduce and cannot have
+introduced. Findings 2–6 are records and documentation, not gate reds; ⛔ none of them was repaired
+here, and the runner holds no opinion on their disposal beyond having measured them.
+
+⭐ **Three of the six (2, 3, and the `line 51` half of 2) live in `docs/features/privilege-surface.md`
+— the hub, the lead's own file, and the one QA opens first.** That is the same concentration QA's M1
+and M4 already found there, after a repair aimed at it. The pattern worth the next reader's time is
+not any single stale number: it is that the hub's two present-tense sections have no gate, no
+derivation discipline, and three separate stale figures at a tip whose every other artefact agrees.
