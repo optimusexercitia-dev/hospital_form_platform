@@ -47,7 +47,11 @@
  *             In follow-ups-archive.md a `**Body:**` link is forbidden outright, and the count of
  *             archived FUP ids whose entry block carries NO `**Closes when:**` is a ratchet
  *             (`archiveMissingClosesWhen`) — the already-archived closures are grandfathered by
- *             the cap, the next one that drops the field reds.
+ *             the cap, the next one that drops the field reds. Its domain is the CLASSIFIED
+ *             property "an archived follow-up entry" at ANY heading level (`classifyArchiveHeading`
+ *             / `archiveEntrySections`), not the `^### ` syntax it was first written against; a
+ *             heading that names an id and fits neither the entry nor the section shape is an
+ *             UNDECIDED finding, never a guess.
  *   RATCHET   (ADR 0186 D6) every count this gate used to print as a warning — `Closes when: PO
  *             to rule`, `Severity: … per emoji at consolidation`, `unrated`, a long verbatim
  *             heading, BUGS `untriaged`/`unrated`, LESSONS `prose only` — is now a named
@@ -186,23 +190,44 @@ export const RATCHETS = {
   // A RATCHET rather than a blanket assertion because the entry says in as many words that
   // retrofitting the already-archived closures is NOT required: this cap is today's population,
   // so the historical 123 are grandfathered and the NEXT closure that drops the field reds.
-  // Derived 2026-09-08 by `checkArchiveClosesWhen` over docs/followups/follow-ups-archive.md.
+  // ⛔ RE-DERIVED 108 -> 121 on 2026-09-08, in the same commit that WIDENED THE DOMAIN — and this
+  // is the one way this number is allowed to rise. The first cap was measured over `^### `
+  // headings only, a SYNTAX; the domain is now the classified property "an archived follow-up
+  // entry" at any heading level (`archiveEntrySections`). 13 archived closures that were never in
+  // the population are now in it, and every one of them is missing the field, so the true number
+  // was always 121 and the old 108 was the instrument's blind spot, not a better score.
+  // ⛔ 121 is MEASURED over the widened domain, never 108 + 13 by arithmetic; the arithmetic is
+  // shown only because it has to agree, and it does.
   // Every part sums, which is the only reason to believe any of them:
-  //   · 157 `### ` headings = 139 carrying a FUP id + 18 section/rotation-note headings;
-  //   · 139 headings = 131 distinct ids + 8 second headings (a closure writes the dated note
-  //     under one heading and the verbatim register block under a second, same id);
-  //   · 131 ids = 23 carrying a column-0 `**Closes when:**` + 108 without  ← the cap;
-  //     the 23 split 8 in a leading field block + 15 with the block after a `>` closure note;
+  //   · 237 headings in the file = 179 naming a FUP id + 58 naming none;
+  //   · the 179 by level = 5 `#` + 34 `##` + 139 `###` + 1 `####`;
+  //   · the 179 by class = 170 ENTRY + 9 SECTION (rotation/batch headings that merely name the
+  //     ids they are about) + 0 UNDECIDED — the partition is complete over the real archive;
+  //   · 170 entry headings = 144 distinct ids + 26 repeat headings (a closure writes the dated
+  //     note and the verbatim register block under two headings; a `<details>` original and a
+  //     folded-in `#` body title add more, all carrying their entry's own id);
+  //   · 144 ids by the level of their FIRST entry heading = 27 `##` + 117 `###`  ← `#` and
+  //     `####` introduce ZERO ids: all 5 h1 titles and the single h4 heading belong to ids that
+  //     already have a `###` entry. Their shapes are still admitted; see the classifier.
+  //   · 144 ids = 23 carrying a column-0 `**Closes when:**` + 121 without  ← the cap;
+  //     by level, the 27 `##`-first ids split 2 with / 25 without, the 117 `###`-first ids
+  //     split 21 with / 96 without, and 2 + 21 = 23, 25 + 96 = 121.
+  //   · versus the old domain: 131 ids -> 144 (+13, all `##`-first), withField 23 -> 23
+  //     (UNCHANGED — the widening added no field-carrying id), missing 108 -> 121. No id left
+  //     the population and no id's verdict flipped, so the delta is admission, not re-scoring.
   //   · 37 literal `**Closes when:**` occurrences in the file = 27 at column 0 (the fields)
   //     + 9 quoted inside closure-note blockquotes + 1 inside an inline code span.
   // ⚠ The five ENFORCEMENT-MANIFEST closures of 2026-09-07/08 are all in the `with` half — the
   // interim hand practice works, and this cap is what stops it lapsing. When it reds, the offender
   // is an id in `checkArchiveClosesWhen`'s `missingIds`; the fix is to move the entry block with
-  // the body, never to raise the cap.
+  // the body, never to raise the cap. ⭐ The 13 newly-admitted ids are led by
+  // FUP-IS-STAFF-ADMIN-OF-CARRIES-PUBLIC-EXECUTE (archived 2026-09-01 at `##`, body moved
+  // "VERBATIM" with Filed/Owner/Severity intact and `**Closes when:**` dropped) — a live instance
+  // of exactly the defect this arm was built for, that the old domain could not see.
   // BOUNDED, STATED: a ratchet bounds the POPULATION, not each closure — retrofitting an old
   // entry in the same commit that drops a new one would keep the total flat. Nothing here claims
   // otherwise; the assertion is that the count of field-less archived closures may only fall.
-  archiveMissingClosesWhen: 108,
+  archiveMissingClosesWhen: 121,
 }
 
 /** Every live count that exceeds its RATCHETS constant is a finding; may only be LOWERED. */
@@ -898,6 +923,136 @@ export function checkArchiveNoBodyLink(archiveText) {
  */
 export const CLOSES_WHEN_FIELD_RX = /^\*\*Closes when:\*\*[^\S\r\n]*\S/m
 
+// ─── the DOMAIN of "an archived follow-up entry" (2026-09-08, second finding on this arm) ────
+/**
+ * ⛔ THE DEFECT THIS REPLACES: the first version of the archive counter took its domain from
+ * `parseEntries`, whose boundary is the literal `^### `. That is a SYNTAX standing in for a
+ * PROPERTY, and the archive does not respect it. Measured on follow-ups-archive.md 2026-09-08,
+ * **179** headings name a FUP id, at FOUR levels — 5 `#` + 34 `##` + 139 `###` + 1 `####` — so a
+ * closure archived one `#` up or one `#` down was invisible to the ratchet. That is the same
+ * family the arm exists to close ("a green gate can mean the fixture cannot reach the failing
+ * state"), one heading level out, and the blindness was measured before it was fixed: an `##`
+ * plant and a `####` plant both left the gate at `archiveMissingClosesWhen=108/108`, exit 0.
+ *
+ * ⛔ AND THE OPPOSITE ERROR IS JUST AS EASY. "Any heading that mentions a FUP id" is not the
+ * property either: 9 of the 179 are ROTATION/SECTION headings that merely name the ids they are
+ * about (`## Rotated 2026-08-05 — the pre-resolution text of FUP-AUTHZ-2, FUP-MEM-1 and
+ * FUP-BULK-1`). Swallowing those inflates the population, which RAISES the cap and makes the
+ * ratchet weaker — a wider gate that catches less. So the domain is CLASSIFIED, not assumed.
+ *
+ * THE CLASSIFIER, stated so it can be argued with. Take the heading's title, find the first
+ * `FUP-…` id in it, and look ONLY at what stands between the hashes and that id:
+ *   · ENTRY     — that lead-in contains no words at all beyond DECORATION (anything that is not
+ *                 a letter or a digit: `⬛ ✅ 🟡 ↩ * — :`), CLOSURE words (ARCHIVE_STATUS_WORDS)
+ *                 and ISO dates. The id is the SUBJECT of the heading. Covers all four live
+ *                 shapes: `## FUP-PDF-1 — …`, `## ⬛ FUP-0137-… — ✅ **FIXED 2026-08-24**`,
+ *                 `#### 🔴 FUP-P16-1 — …` and `### ✅ RESOLVED 2026-08-27 — FUP-MINUTES-… — …`,
+ *                 that last one being why closure words are admitted and not just decoration.
+ *   · SECTION   — the lead-in (or, with no id, the whole title) carries a GROUPING word
+ *                 (ARCHIVE_GROUPING_WORDS). The heading is about a rotation or a batch; the id
+ *                 is its OBJECT, not its subject. Owns no body, and ENDS the previous entry's.
+ *   · UNDECIDED — names an id and fits neither rule. ⛔ Reported as a FINDING, never guessed
+ *                 either way: reading it as an entry inflates the cap, reading it as a section
+ *                 leaves the hole, and both are silent. Live count today is **0**, so the
+ *                 partition is complete over the real archive — which is the only thing that
+ *                 makes "0 undecided" evidence rather than an escape hatch.
+ *   · OTHER     — no id and no grouping word. Body structure (`## The finding`, `## Related`,
+ *                 `## Closes when`, `#### ⭐ Third instance …` — 16 live today), not a boundary.
+ *
+ * ⚠ KNOWN, MEASURED, BENIGN: the 5 `#`-level "entries" are not independent entries at all —
+ * they are the folded-in `# ` TITLE of a follow-up's own body file, nested inside the `### ✅ …`
+ * entry that archived it. They carry the SAME id as their parent, so at ID grain (below) they
+ * union away and add nothing: all 5 were already counted, and h1 + h4 together introduce ZERO
+ * new ids. They are admitted anyway because excluding them would be another level-shaped
+ * exception, and the next folded body could be the only heading its id has.
+ *
+ * ⚠ FAILURE MODES, none of them hypothetical-only:
+ *   1. A GROUPED closure heading whose first id sits right after decoration — `## ✅ RESOLVED
+ *      2026-09-08 — FUP-A, FUP-B and FUP-C` — reads as ONE entry for FUP-A, and B and C are
+ *      invisible unless they have headings of their own. Under-counts. None live today (the 9
+ *      grouped headings all carry a rotation word), and the fix if one appears is to give each
+ *      id its own heading, which is the shape the register already uses.
+ *   2. A folded-in body whose `#` title names a DIFFERENT id than its parent entry would
+ *      introduce a phantom id with no field and INFLATE the count. None live today.
+ *   3. An entry heading that decorates the id with an ordinary word — `### ⚠ Partially resolved
+ *      2026-09-01 — FUP-X` — is UNDECIDED and reds. That is deliberate friction: the answer is
+ *      to add the word to the vocabulary in review, or to write the heading in the register's
+ *      own shape. ⛔ It is NOT to widen the lead-in to `.*`, which admits every section heading.
+ *   4. An id that appears ONLY in an entry's body and never in a heading is not in this domain
+ *      at all. The heading is the join key here, exactly as it is in the open register.
+ */
+export const ARCHIVE_HEADING_RX = /^(#{1,6}) +(.*)$/
+export const FUP_ID_RX = /\b(FUP-[A-Z0-9][A-Z0-9-]*)/
+/** Words that may stand between the hashes and the id without making the heading prose. */
+export const ARCHIVE_STATUS_WORDS = /^(RESOLVED|CLOSED|FIXED|CONCLUDED|DONE|WITHDRAWN|OBSOLETE|SUPERSEDED|DUPLICATE|WONTFIX)$/i
+/**
+ * Words that mark a heading as being about a ROTATION or a BATCH of entries, not about one.
+ * ⚠ Deliberately SMALL, and trimmed by measurement: `INDEX` and `CONTENTS` were in the first
+ * draft and bought nothing — every heading they matched was already matched by `ROTATED` — while
+ * `CONTENTS` alone mislabelled `### ⛔ INCIDENT — … DELETES THE BUCKET, not just its contents`
+ * as a rotation heading. The census is identical with them and without them (170 entries / 144
+ * ids / 23 with / 121 without, 0 undecided, measured both ways), so the smaller vocabulary wins:
+ * a word in here can only ever turn body structure into a body BOUNDARY.
+ */
+export const ARCHIVE_GROUPING_WORDS = /^(ROTATED|ROTATION|ROTATE|BATCH|WAVE|ARCHIVE)$/i
+const ISO_DATE_TOKEN_RX = /^\d{4}-\d{2}-\d{2}$/
+
+/** One heading → `{ level, title, kind: entry|section|undecided|other, id }`, or null if the
+ *  line is not a heading. The classifier above, and nothing else, decides `kind`. */
+export function classifyArchiveHeading(line) {
+  const m = String(line).match(ARCHIVE_HEADING_RX)
+  if (!m) return null
+  const level = m[1].length
+  const title = m[2]
+  const idm = title.match(FUP_ID_RX)
+  const lead = idm ? title.slice(0, idm.index) : title
+  // Runs of letters/digits only — every other character is decoration by construction, so the
+  // emoji, arrows, asterisks and em-dashes never have to be enumerated one by one.
+  const words = lead.match(/[\p{L}\p{N}][\p{L}\p{N}._-]*/gu) || []
+  if (idm && words.every((w) => ARCHIVE_STATUS_WORDS.test(w) || ISO_DATE_TOKEN_RX.test(w))) {
+    return { level, title, kind: 'entry', id: idm[1] }
+  }
+  if (words.some((w) => ARCHIVE_GROUPING_WORDS.test(w))) return { level, title, kind: 'section', id: null }
+  if (idm) return { level, title, kind: 'undecided', id: idm[1] }
+  return { level, title, kind: 'other', id: null }
+}
+
+/**
+ * The archive's entry headings with the body each one owns, plus the undecided headings.
+ *
+ * ⭐ THE SPAN RULE, and why it is not "the next heading". A body runs to the next heading that
+ * is ITSELF about a follow-up — entry, section or undecided — and a plain structural heading
+ * inside a body does NOT end it. The alternative (strict level nesting: a heading of level ≤ the
+ * owner's ends its section) measures IDENTICALLY on today's archive — both give 170 entry
+ * headings / 144 ids / 23 with / 121 without — so the choice was made on failure mode, not on
+ * the number. Level nesting breaks an entry at its own sub-headings: the archive already
+ * contains an entry whose folded body is structured with `## The finding` / `## Closes when` /
+ * `## Related`, and under level nesting a `**Closes when:**` field written after one of those
+ * would be attributed to nobody and the entry would red as field-less. A gate that reds on
+ * correctly-written work is the one that gets allowlisted away, so the rule that cannot do it
+ * wins. What this rule risks instead is the opposite and quieter error — an entry absorbing a
+ * trailing rotation note that carries a column-0 field — which under-counts rather than
+ * fabricating a finding, and which is strictly LESS generous than the `^### `-to-`^### ` span it
+ * replaces (that one bled straight through `##` and `####` headings alike).
+ */
+export function archiveEntrySections(text) {
+  const lines = String(text).split('\n')
+  const heads = []
+  lines.forEach((l, i) => {
+    const c = classifyArchiveHeading(l)
+    if (c) heads.push({ ...c, index: i, line: i + 1 })
+  })
+  const bounds = heads.filter((h) => h.kind !== 'other')
+  const entries = []
+  for (let k = 0; k < bounds.length; k++) {
+    const h = bounds[k]
+    if (h.kind !== 'entry') continue
+    const end = k + 1 < bounds.length ? bounds[k + 1].index : lines.length
+    entries.push({ ...h, body: lines.slice(h.index + 1, end).join('\n') })
+  }
+  return { entries, undecided: heads.filter((h) => h.kind === 'undecided') }
+}
+
 /**
  * ADR 0185 D5 / FUP-DOCS-CONSOLIDATION-CLOSURE-DROPS-THE-CLOSES-WHEN-FIELD: when an entry is
  * resolved, the rotation moves its BODY into follow-ups-archive.md — and used to leave the entry
@@ -906,12 +1061,17 @@ export const CLOSES_WHEN_FIELD_RX = /^\*\*Closes when:\*\*[^\S\r\n]*\S/m
  * it in its own header), so the assertion is here.
  *
  * Grain is the ID, not the heading, and that is load-bearing: the current closure shape writes TWO
- * `### ` headings per closure — the dated closure note, which carries no register block by design,
+ * headings per closure — the dated closure note, which carries no register block by design,
  * and the verbatim entry block, which does. Counting headings would red on a CORRECTLY archived
  * closure (it adds one field-less heading) and is therefore unusable; counting ids, a correct
  * closure adds one id that HAS the field and moves the ratchet not at all, while a closure that
  * drops the field adds one that does not and moves it by one. That is the discrimination the
- * self-test pins in both directions.
+ * self-test pins in both directions. The id grain is also what makes the `#`-level folded body
+ * titles and the `<details>`-nested originals free: same id, unioned, counted once.
+ *
+ * ⭐ 2026-09-08: the DOMAIN is now `archiveEntrySections` (see its classifier above), not
+ * `fupEntriesOf`. The old domain was every `^### ` heading, which is a syntax, not the property
+ * "an archived follow-up entry" — a closure archived at `##` or `####` was invisible, measured.
  *
  * BOUNDED, STATED: this knows a `Closes when` is PRESENT and non-empty. It cannot know it is the
  * condition that was actually satisfied — the archive itself records two closures whose field read
@@ -921,20 +1081,37 @@ export function checkArchiveClosesWhen(archiveText) {
   const F = []
   if (archiveText == null) {
     F.push(`[FOLLOWUPS] ${PATHS.fupArchive} — missing; the archive \`**Closes when:**\` ratchet cannot be measured against a file that is not there`)
-    return { findings: F, entries: 0, ids: 0, withField: 0, missing: 0, missingIds: [] }
+    return { findings: F, entries: 0, ids: 0, withField: 0, missing: 0, missingIds: [], byLevel: {}, undecided: 0 }
+  }
+  const { entries, undecided } = archiveEntrySections(archiveText)
+  // ⛔ Never guessed in either direction — see the classifier's UNDECIDED clause. Reading it as an
+  // entry inflates the cap; reading it as a section leaves the hole; both are silent, so it reds.
+  for (const u of undecided) {
+    F.push(
+      `[FOLLOWUPS] ${PATHS.fupArchive}:${u.line} — heading names ${u.id} but is neither an ENTRY ` +
+        `(only decoration, a closure word or a date before the id) nor a SECTION (a rotation/batch ` +
+        `word): \`${u.title.slice(0, 90)}\`. Write it in the register's own shape, or classify it — ` +
+        `guessing either way is exactly what \`archiveMissingClosesWhen\` exists to stop`,
+    )
   }
   const seen = new Map()
-  const entries = fupEntriesOf(archiveText)
-  for (const e of entries) seen.set(e.id, (seen.get(e.id) || false) || CLOSES_WHEN_FIELD_RX.test(e.body))
+  const byLevel = {}
+  for (const e of entries) {
+    if (!seen.has(e.id)) byLevel[e.level] = (byLevel[e.level] || 0) + 1 // level of an id's FIRST heading
+    seen.set(e.id, (seen.get(e.id) || false) || CLOSES_WHEN_FIELD_RX.test(e.body))
+  }
   const ids = [...seen.keys()]
   const missingIds = ids.filter((id) => !seen.get(id))
   // Anti-vacuity: an empty (or renamed, or truncated) archive would otherwise hand the ratchet a
   // count of 0 and read as the cleanest possible run. A detector that finds nothing has to be
-  // unable to find nothing SILENTLY.
+  // unable to find nothing SILENTLY. ⭐ The widened domain cannot silently select zero either: it
+  // is a SUPERSET of the old `^### ` one (every `### ` entry heading the old rule matched is still
+  // an entry heading unless it is a rotation heading, which owns no body in either rule), so the
+  // only way to reach 0 is the same one as before — an archive with no follow-up headings at all.
   if (!ids.length) {
     F.push(`[FOLLOWUPS] ${PATHS.fupArchive} — no archived FUP entries found (wrong file?); the \`archiveMissingClosesWhen\` ratchet below would pass vacuously`)
   }
-  return { findings: F, entries: entries.length, ids: ids.length, withField: ids.length - missingIds.length, missing: missingIds.length, missingIds }
+  return { findings: F, entries: entries.length, ids: ids.length, withField: ids.length - missingIds.length, missing: missingIds.length, missingIds, byLevel, undecided: undecided.length }
 }
 
 export function checkFollowups({ open, criticalIds, bodyFiles = [] }) {
@@ -1752,6 +1929,113 @@ function selfTest() {
   must('checkArchiveClosesWhen missing file reds', checkArchiveClosesWhen(null).findings, true)
   must('checkArchiveClosesWhen empty archive reds', checkArchiveClosesWhen('# Archive\n\nnothing here yet\n').findings, true)
   must('checkArchiveClosesWhen a real archive does not red on presence', archCount(archGood).findings, false)
+  // ⛔ The vacuity guard must fire on the WIDENED selector too, not only on the old one: a domain
+  // that can silently select zero hands the ratchet a 0 and reads as the cleanest run ever.
+  must('checkArchiveClosesWhen a file of section headings only reds (selector cannot select 0 silently)', checkArchiveClosesWhen('## Rotated 2026-09-08 — the FUP-A-1 batch\n\nprose\n').findings, true)
+  must('checkArchiveClosesWhen section-only file really is zero ids', [checkArchiveClosesWhen('## Rotated 2026-09-08 — the FUP-A-1 batch\n\nprose\n').ids === 0 ? '' : 'x'].filter(Boolean), false)
+
+  // ── 2026-09-08, SECOND finding on this arm: the domain was a SYNTAX (`^### `), not the property
+  // "an archived follow-up entry". Measured blind before the fix: a `##` plant and a `####` plant
+  // both left the live gate at archiveMissingClosesWhen=108/108, exit 0. These fixtures are the
+  // permanent form of that plant, one per newly-admitted shape, in BOTH polarities.
+  const archAt = (h, id, opts = {}) =>
+    `${h} ${opts.plain ? '' : '⬛ '}${id} — a claim — ✅ **RESOLVED 2026-09-08**\n\n` +
+    `**Filed:** 2026-09-01 (x) · **Owner:** lead · **Severity:** medium — why\n` +
+    (opts.noField ? '' : '**Closes when:** the thing is measured\n') +
+    `**Status:** open → RESOLVED\n\nthe body, inline\n\n`
+  // ⚠ The level tag is UPPERCASE inside the id: `FUP-[A-Z0-9][A-Z0-9-]*` stops at a lowercase
+  // letter, so `FUP-WIDE-h1-DROPPED` parses as the id `FUP-WIDE-` and all three levels collide on
+  // one indistinguishable id. Caught by the `missingIds[0]` assertion below — which is why the
+  // assertion names the id and does not settle for the count.
+  for (const [name, hashes] of [
+    ['H1', '#'],
+    ['H2', '##'],
+    ['H4', '####'],
+  ]) {
+    const dropped = archCount(archGood + archAt(hashes, `FUP-WIDE-${name}-DROPPED`, { noField: true }))
+    must(
+      `checkArchiveClosesWhen a ${name} closure that DROPS the field is counted (was blind pre-fix)`,
+      [dropped.ids === 4 && dropped.missing === 1 && dropped.missingIds[0] === `FUP-WIDE-${name}-DROPPED` ? '' : `ids=${dropped.ids} missing=${dropped.missing} (${dropped.missingIds.join(',')})`].filter(Boolean),
+      false,
+    )
+    must(`checkArchiveClosesWhen the ${name} plant reds against a cap at the clean count`, checkRatchets({ archiveMissingClosesWhen: dropped.missing }, { archiveMissingClosesWhen: g.missing }), true)
+    // ⛔ THE DISCRIMINATION HALF, per shape: a correct closure at the same level must keep the
+    // count flat. A counter that rises on every admitted heading reds on correct work.
+    const kept = archCount(archGood + archAt(hashes, `FUP-WIDE-${name}-KEPT`))
+    must(
+      `checkArchiveClosesWhen a ${name} closure that KEEPS the field does not raise the count`,
+      [kept.ids === 4 && kept.missing === g.missing ? '' : `ids=${kept.ids} missing=${kept.missing} vs ${g.missing}`].filter(Boolean),
+      false,
+    )
+    must(`checkArchiveClosesWhen the ${name} correct closure stays under the cap`, checkRatchets({ archiveMissingClosesWhen: kept.missing }, { archiveMissingClosesWhen: g.missing }), false)
+  }
+  // The bare-id shape with no emoji at all (`## FUP-PDF-1 — …`, 3 of the 13 newly-admitted ids).
+  must(
+    'checkArchiveClosesWhen an undecorated ## entry heading is an entry',
+    [archCount(archGood + archAt('##', 'FUP-WIDE-BARE', { noField: true, plain: true })).missing === 1 ? '' : 'x'].filter(Boolean),
+    false,
+  )
+  // ⛔ THE OTHER DIRECTION, and the reason the domain is classified rather than widened: a
+  // ROTATION/SECTION heading merely NAMES the ids it is about. Counting it as an entry would add
+  // a field-less id, RAISE the cap, and leave a weaker gate wearing a bigger number. Verbatim
+  // shape of one of the 9 live section headings (follow-ups-archive.md:218).
+  const sectionHeading = '## Rotated 2026-08-05 — the pre-resolution text of FUP-SECT-ONLY-A, FUP-SECT-ONLY-B and FUP-SECT-ONLY-C\n\nprose about the rotation\n\n'
+  const gSection = archCount(archGood + sectionHeading)
+  must(
+    'checkArchiveClosesWhen a section/rotation heading is NOT an entry',
+    [gSection.ids === g.ids && gSection.missing === g.missing && gSection.entries === g.entries ? '' : `ids=${gSection.ids}/${g.ids} missing=${gSection.missing}/${g.missing} entries=${gSection.entries}/${g.entries}`].filter(Boolean),
+    false,
+  )
+  must('checkArchiveClosesWhen a section heading does not move the ratchet', checkRatchets({ archiveMissingClosesWhen: gSection.missing }, { archiveMissingClosesWhen: g.missing }), false)
+  must('checkArchiveClosesWhen a section heading introduces no id', [gSection.missingIds.some((x) => x.startsWith('FUP-SECT-ONLY')) ? 'leaked' : ''].filter(Boolean), false)
+  // …and it still ENDS the previous entry's body, so a rotation note's own text cannot be read as
+  // the preceding closure's field.
+  must(
+    'checkArchiveClosesWhen a section heading ends the previous entry body',
+    [archCount(archAt('###', 'FUP-SECT-END', { noField: true }) + '## Rotated 2026-09-08 — batch\n\n**Closes when:** not this entry\n').missing === 1 ? '' : 'x'].filter(Boolean),
+    false,
+  )
+  // The classifier's four verdicts, pinned directly — the live shapes, one each.
+  // ⚠ `kindOf` never dereferences a null: narrowing ARCHIVE_HEADING_RX back to `###` (the exact
+  // regression these fixtures exist to catch) makes classifyArchiveHeading return null for the
+  // `##`/`####` shapes, and `.kind` on that THROWS — which is still a non-zero exit, but it
+  // aborts the run before `must`'s report names a single failing arm. A gate whose failure mode
+  // is a stack trace tells the next reader less than one that says which property broke.
+  const kindOf = (h) => (classifyArchiveHeading(h) || { kind: '(not a heading)' }).kind
+  must('classifyArchiveHeading bare id is an entry', [kindOf('## FUP-PDF-1 — creator-mint had no UI surface — ✅ RESOLVED 2026-08-08') === 'entry' ? '' : 'x'].filter(Boolean), false)
+  must('classifyArchiveHeading decorated id is an entry', [kindOf('#### 🔴 FUP-P16-1 — **14** never-called doors fail the floor') === 'entry' ? '' : 'x'].filter(Boolean), false)
+  must('classifyArchiveHeading h1 folded-body title is an entry', [kindOf('# FUP-AE4-HARDDENY-CLASSES-CANNOT-FAIL — `hardDenyClasses` is empty on all 43 rows') === 'entry' ? '' : 'x'].filter(Boolean), false)
+  must('classifyArchiveHeading closure-word lead is an entry', [kindOf('### ✅ RESOLVED 2026-08-27 — FUP-MINUTES-WEBHOOK-HMAC-DENY-TEST — rider R2') === 'entry' ? '' : 'x'].filter(Boolean), false)
+  must('classifyArchiveHeading rotation heading is a section', [kindOf('## ↩ Rotated from follow-ups.md 2026-08-31 — FUP-DISPOSE-DIALOG-OVERCLAIM\'s body, VERBATIM') === 'section' ? '' : 'x'].filter(Boolean), false)
+  must('classifyArchiveHeading structural heading is other', [kindOf('## The finding') === 'other' ? '' : 'x'].filter(Boolean), false)
+  must('classifyArchiveHeading an id-less rotation heading is still a section', [kindOf('## Batch 3 closures — unit WRITEPATH-BASELINE (2026-09-08)') === 'section' ? '' : 'x'].filter(Boolean), false)
+  must('classifyArchiveHeading non-heading is null', [classifyArchiveHeading('**Closes when:** x') === null ? '' : 'x'].filter(Boolean), false)
+  // ⛔ UNDECIDED is a FINDING, never a guess in either direction: read as an entry it inflates the
+  // cap, read as a section it leaves the hole, and both are silent.
+  const undecidedHeading = '### ⚠ Partially resolved 2026-09-01 — FUP-UNDECIDED-1 — a claim\n\nbody\n'
+  must('classifyArchiveHeading prose lead is undecided', [classifyArchiveHeading(undecidedHeading.split('\n')[0]).kind === 'undecided' ? '' : 'x'].filter(Boolean), false)
+  must('checkArchiveClosesWhen an undecided heading reds', archCount(archGood + undecidedHeading).findings, true)
+  must('checkArchiveClosesWhen an undecided heading is not counted as an entry', [archCount(archGood + undecidedHeading).ids === g.ids ? '' : 'x'].filter(Boolean), false)
+  must('checkArchiveClosesWhen the live archive has zero undecided headings', [archCount(archGood).undecided === 0 ? '' : 'x'].filter(Boolean), false)
+  // ⭐ THE SPAN RULE: a plain structural heading inside a body does NOT truncate the entry that
+  // owns it. Under strict level nesting the field below would be attributed to nobody and this
+  // correctly-written closure would red — the failure mode the span rule is chosen to avoid.
+  must(
+    'checkArchiveClosesWhen a structural sub-heading does not truncate the entry body',
+    [archCount('### ⬛ FUP-SPAN-1 — a claim — ✅ **RESOLVED 2026-09-08**\n\n## The finding\n\nprose\n\n## Related\n\n**Closes when:** the thing is measured\n').missing === 0 ? '' : 'x'].filter(Boolean),
+    false,
+  )
+  // A `##` entry and its `<details>`-nested `###` original, and a folded-in `#` body title, all
+  // carry the SAME id — the three live multi-heading shapes. Id grain unions them into one.
+  const nested = archCount('## ⬛ FUP-NEST-1 — a claim — ✅ **RESOLVED 2026-09-08**\n\n> the ruling\n\n### 🟡 FUP-NEST-1 — as filed\n\n**Closes when:** the thing is measured\n\n# FUP-NEST-1 — the folded body title\n\nbody\n')
+  must('checkArchiveClosesWhen nested same-id headings count once', [nested.ids === 1 && nested.entries === 3 && nested.missing === 0 ? '' : `ids=${nested.ids} entries=${nested.entries} missing=${nested.missing}`].filter(Boolean), false)
+  // byLevel is a CENSUS: its parts must sum to the id count, or the OK line is decoration.
+  const lv = archCount(archGood + archAt('##', 'FUP-LV-2', { noField: true }) + archAt('####', 'FUP-LV-4', { noField: true }))
+  must(
+    'checkArchiveClosesWhen byLevel parts sum to the id count',
+    [Object.values(lv.byLevel).reduce((a, b) => a + b, 0) === lv.ids && lv.withField + lv.missing === lv.ids ? '' : `byLevel=${JSON.stringify(lv.byLevel)} ids=${lv.ids} with=${lv.withField} missing=${lv.missing}`].filter(Boolean),
+    false,
+  )
 
   // RATCHETS (ADR 0186 D6): a live count over its constant reds; Infinity never fires.
   must('checkRatchets exceeded reds', checkRatchets({ x: 5 }, { x: 3 }), true)
@@ -2005,7 +2289,9 @@ function main() {
   console.log(
     `check-docs-registers: OK (self-test + ${hubs.length} hubs, ${recordsChecked} records, ` +
       `${ledgerRowsChecked} ledger rows, ${ctx.bugsTable?.rows.length ?? 0} bugs, ${ctx.bugDocFiles.length} bug docs, ` +
-      `${fupCount} follow-ups, ${archive.ids} archived follow-ups (${archive.entries} entry headings), ` +
+      `${fupCount} follow-ups, ${archive.ids} archived follow-ups ` +
+      `(${archive.entries} entry headings; ids first seen at ` +
+      `${Object.keys(archive.byLevel).sort().map((l) => `h${l}=${archive.byLevel[l]}`).join(' ') || 'none'}), ` +
       `${fupBodyFiles.length} follow-up bodies, ${les.ids.size} lessons, ` +
       `${pmFiles.length} postmortems, ${hoFiles.length} handoffs, ${retiredFiles.length} md files scanned for retired citations)`,
   )
