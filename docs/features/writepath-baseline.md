@@ -77,55 +77,55 @@ baseline `docs/reviews/authz-writepath-audit-findings.md`, re-earned through
 
 ## Current state
 
-**Updated:** 2026-09-07
+**Updated:** 2026-09-08
 
 ### Objective
 Make the write arm's committed baseline cover every write-capable policy the widened domain selects
-(**107** policies + **13** guards = 120 cases; the committed file verdicts **51 of 120** — 39 of 107
-policies and 12 of 13 guards, `public.set_primary_subject(uuid)` never verdicted), record a verdict
+(**107** policies + **13** guards = 120 cases; at open the committed file verdicted **51 of 120** —
+39 of 107 policies, 12 of 13 guards, `set_primary_subject` never verdicted), record a verdict
 for the three `storage.objects` INSERT policies, and make the arm's empty-set and killed-run
 behaviour findings rather than silence — before AE5 re-keys write policies eleven times against it.
 
 ### Done since start
-- Harness built: `CASES` set-ness fix, `RESET_EVERY` port (with a retry net and an Arm-1-specific
-  post-reset OID check the door's design does not cover), a `SELFTEST` arm (the file had none), the
-  DRYRUN banner's count derived from `GUARD_KEYS`. Every change proven with a planted reproducer at
-  its **bare** exit code, a clean negative control and a discrimination half; each self-test table
-  shown able to go RED before its green was believed.
+- Harness built: `CASES` set-ness fix, `RESET_EVERY` port (retry net + an Arm-1-specific post-reset
+  OID check the door's design does not cover), a `SELFTEST` arm (the file had none), the DRYRUN
+  banner's count derived from `GUARD_KEYS`. Every change proven with a planted reproducer at its
+  **bare** exit code, a clean negative control and a discrimination half.
 - ⭐ **The superuser escalation was built, then REMOVED** (PO ruling R23). Its premise — ownership —
   was a **proxy**, not the property: `supautils.policy_grants` grants POLICY DDL outside
   `pg_class.relowner`. One connection role (`postgres`) for all 120 cases; the corrected predicate
-  is kept as a **DETECTOR** that names its failing half and leaves a policy UNVERDICTED, never
-  routing around it. Dormant on 0 of 107, so **proven able to fire by a plant** in a scratch copy,
-  with a clean-tree negative control and a discrimination half in the same run.
+  is kept as a **DETECTOR** that leaves a policy UNVERDICTED rather than routing around it, dormant
+  on 0 of 107 and therefore **proven able to fire by a plant**, against a clean negative control.
 - The three `storage.objects` INSERT policies **swept and verdicted COVERED** as plain `postgres`,
-  each row carrying `via supautils.policy_grants` — re-earned on the escalation-free harness.
-- `RECOVER=1` re-earned on a **storage** policy with no role sidecar, plus a discrimination half
-  (corrupted `.want` ⇒ refused, sentinel KEPT) proving the catalog verification is load-bearing.
-- Merge protected set reconciled: **delta 0, settled at 11** (R24).
-- `npm run lint` 0/0, `npm run typecheck`, and `npm run test:db` on a fresh reset all green
-  (Files=262, Tests=8876 — shape unmoved). No production change: the `main...` diff over
-  `supabase/migrations`, `seed.sql`, `src` is EMPTY.
+  each row carrying `via supautils.policy_grants`. `RECOVER=1` re-earned on a **storage** policy
+  with no role sidecar, with a discrimination half proving the catalog verification load-bearing.
 - **ADR 0192** written and indexed.
-
 - ⭐ **THE FULL RUN IS DONE** (2026-09-07 20:11 → 2026-09-08 00:04, **3.88 h**, inside the derived
   3.2–4.6 h window). `guard=13/13 policy=107/107` · **SWEPT 120 · COVERED 102 · BLIND 15 · ERROR 3
   · SKIPPED 0** · `resets=8` · bare **rc 1 (DIRTY)**. Coverage moved **51 of 120 → 120 of 120
-  measured**, 117 carrying a verdict. Guard arm now **13 of 13** — `set_primary_subject`, the gap
-  R15 found, is COVERED. Run health: 117/120 runlogs at the exact baseline shape, longest
-  consecutive off-baseline run **1** (VOID threshold 3), **0** aborts/contamination/restore
-  failures, no sentinel, `degenerate_NON_SELECT = 0`.
+  measured**, 117 carrying a verdict; the guard arm is now **13 of 13**. Run health: 117/120
+  runlogs at the exact baseline shape, longest consecutive off-baseline run **1** (VOID threshold
+  3), **0** aborts/contamination/restore failures, no sentinel, `degenerate_NON_SELECT = 0`.
 - R20: **all 13 retired door rows PRESENT and COVERED, 0 missing** — no verdict was orphaned.
-- CARRIED **45** enumerated with dispositions (9 re-file, 36 delete, **0** that would lose
-  information). All **11** hand-annotated rows survive — 9 carried, 2 re-attached as hand suffixes.
+- ⭐ **The CARRIED disposition is APPLIED** (PO ruling R30): 9 re-filed, 36 deleted, line 27's stale
+  tail deleted; the file went 401 → 251 lines, the CARRIED block replaced by a dated `## Note`.
+  **Condition 1 caught 0 rows** — for all 45 the carried citations are a subset of the live row's,
+  and the matcher was proven able to find one before its zero was believed. **R14 re-asserted by
+  byte comparison: 15 protected strings, all present, bare rc 0**, three mutations proving red.
+- ⚠ **Finding inside the disposition:** for 6 of the 9 the "hand commentary" was a *superseded
+  provenance* stamp, false of the live verdict, whose substantive half was already on the live row.
+  Re-filed verbatim but **attributed**. Third instance in this batch of *decoration read as
+  authorship*. The merge's **51 / 2 / 6** reconciled: three counters over three populations, each
+  derived (`63 − 10 − 2 = 51`); the 6 were carried rows and neither suffix holds that string.
 
 ### In progress
-- Dispositions to apply to the findings file (delete the 36, re-file the 9, delete line 27's stale
-  tail), then gate → QA → PO → Record.
+- Gate at the tip (the four authz arms are run by the lead, not the builder) → QA → PO → Record.
 
 ### Next
-- Apply the CARRIED dispositions → keystones for the 15 BLINDs (never allowlist) → fix
-  `297_process_template_versioning.sql` and re-sweep its 3 policies → gate → QA → PO → Record.
+- Gate → QA → PO → Record. Deferred to their own units by design: keystones for the 15 BLINDs
+  (⛔ never allowlist), and the `297_process_template_versioning.sql` repair — ⭐ fixing 297 moves
+  `Tests=`, and `Tests=` **is** the baseline shape this run asserted 120 times, so the fix and
+  this run cannot coexist in one unit (R31). The repairing unit re-sweeps the 3 policies.
 
 ### Blockers
 - ⚠ Batch 4 runs on a separate machine in parallel; merge order is Batch 3 FIRST.

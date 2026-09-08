@@ -697,3 +697,130 @@ policies. The naming shape is not the predictor — the subsystem is.
 ⛔ Standing, unchanged: Tier 2's 190 doors stay **deferred by ADR 0171 and are NOT cleared**.
 ⛔ `FROMFINDINGS=1 ARM=policy` is RED pre-existing, is **not** one of CLAUDE.md §6's four arms, and
 its twelve are not allowlisted.
+
+---
+
+### 2026-09-08 — `backend`, the CARRIED disposition APPLIED (PO ruling R30), and why test file 297 is deliberately NOT fixed here
+
+**What changed on disk:** `docs/reviews/authz-writepath-audit-findings.md` only — 401 → 251
+lines, LF throughout. The 120 verdict rows are byte-identical except the 9 that were re-filed
+onto, and the CARRIED block is replaced by a dated `## Note` that is the disposition's own
+audit trail.
+
+#### R30 condition 1 — **0 rows caught**, and here is how the zero was earned
+
+The condition excludes from deletion any carried row whose live replacement does **not** cite at
+least the files the carried row cited. Measured as set inclusion `carried_files ⊆ live_files`
+over **all 45** rows, not over the 36: **every** carried row's citations are a subset of its live
+row's. ⇒ **0 exclusions**, and the 36 deletions lose no citation.
+
+⭐ **A zero from a matcher is worth nothing until the matcher is shown able to find something**,
+so three controls ran before the zero was believed:
+
+| control | result |
+|---|---|
+| strict `\b\d{3}[A-Za-z0-9_]*\.sql\b` vs loose `[A-Za-z0-9_./-]*\.sql`, over all 45 notes | **zero delta** — the strict pattern misses no `.sql` token |
+| broader filename-shaped scan over the same 45 notes | only `7.2` and `AE4.7c` — **no non-`.sql` citation exists**, so nothing lives outside the matcher's alphabet |
+| positive control (a planted `999_probe_file.sql`) · discrimination (a decoy with a trailing letter after the extension, and a bare extension) | found · both rejected |
+
+#### ⚠ FINDING — for 6 of the 9, "hand commentary" was **not** hand commentary
+
+The disposition the PO approved described the 9 as *"carried note holds hand commentary the
+regenerated row lacks"*. Byte-diffing each carried note against its live note shows that is true
+of **3** and false of **6**:
+
+- **3 guard rows** (`ensure_professional_participant`, `create_professional_profile`,
+  `set_professional_link_state`) carry real hand prose whose substance still qualifies the LIVE
+  verdict. `set_professional_link_state`'s is load-bearing: its **BOUNDED VERDICT** note says the
+  neutralizer opens only the population gate, so its COVERED says nothing about the
+  `link_state = 'unknown'` bound. Losing it would let a reader over-read a live COVERED.
+  ⇒ re-filed **verbatim**.
+- **6 `form*`/`forms` `*_staff_admin_write` rows**: the *entire* delta between carried and live
+  note is the 55-character clause `merged 2026-09-0X from a subset run per ADR 0079 Amdt 1`.
+  Its substantive companion (`snapshot:ABSENT — no §7.2 drift tripwire on this verdict`) is
+  **already on the live row**. And the clause is **provenance of the superseded verdict** — this
+  run's COVERED came from the full sweep, not from a 2026-09-02/03 subset merge. Splicing it
+  verbatim onto the live note would assert something **false of the live verdict** — precisely
+  what the CARRIED block's own header warns against: *"a note earned against one verdict is not a
+  claim about another."*
+  ⇒ re-filed **verbatim but explicitly attributed**:
+  `[prior provenance, carried 2026-09-08 — describes the SUPERSEDED verdict, NOT this one: "…"]`.
+  The clause's bytes were copied programmatically from the carried note, never retyped (R30.2);
+  only the trailing separator — punctuation joining it to a clause already present — was dropped.
+
+⭐ **The shape, and it is the third instance in this batch.** My token-keyed classifier called
+these 6 "hand commentary" because they wear a bracket; the lead's R4 reader-inspection counted
+them for the same reason. Both were reading **decoration**, not **authorship**. Earlier in this
+same batch: *a prose-detector is not an authorship-detector* (the 2 stale `profiles` rows), and
+*a decoration-keyed pattern cannot see undecorated hand prose* (R24's `:60`/`:61`). Same class,
+third occurrence. ⛔ The lead may prefer these 6 clauses simply DELETED as superseded provenance;
+attributing rather than deleting was chosen because R30 approved **9** re-filings, and reducing
+that to 3 unilaterally would have been a disposition change, not an application of one.
+
+#### R30 condition 4 — R14 re-asserted **by byte comparison**, and the 51 / 2 / 6 reconciled
+
+A pre-edit snapshot captured **15** byte-exact strings — 3 guard commentaries, 6 form clauses,
+the 2 spliced hand suffixes, and the 4 hand prose blocks (the `HAND-MERGED` blockquote 585 ch,
+the 39-of-107 `## Note` 347 ch, the `---` rule, the AE4.7c `## Note` 1850 ch). Post-edit, all 15
+are present as substrings; the 120 row identities, arms, directions and verdicts are unchanged;
+the verdict census is unchanged (`COVERED 102 · BLIND 15 · ERROR 3`); and **exactly** the 9
+re-filed notes differ, each strictly GREW (the pre-edit note is a substring of the post-edit one).
+Bare **rc 0**.
+
+⭐ **The verifier was proven able to go RED before its green was believed** — three mutations on a
+scratch copy, each bare **rc 1**, each naming the right subject:
+`BOUNDED VERDICT, stated rather than` → `…rather then` ⇒ FAIL on `set_professional_link_state` ·
+one byte added inside the `HAND-MERGED` blockquote ⇒ FAIL on `blockquote_HAND-MERGED` ·
+`forms.forms_staff_admin_write` flipped COVERED→BLIND ⇒ FAIL on both the row-triple check and the
+census check.
+
+**The 51 / 2 / 6 that were standing unexplained are three counters over three populations, and
+none counts the same material as another.** The merge's banner is
+`PRESERVED $NHAND hand-authored prose line(s), $NSUFF hand suffix(es); CARRIED $NCROW whole row(s)`
+(`scripts/lib/merge-findings-baseline.sh:684`):
+
+| counter | population | value | derivation (measured, not read off the banner) |
+|---|---|---|---|
+| `NHAND` | hand-authored **prose LINES** preserved in place | **51** | the 137-line pre-run baseline holds **63** non-blank non-table lines; the generator re-emits **10** verbatim; the merge *replaced* **2** stale statistics (`Baseline: Files=156, Tests=4796…`, `Arm 1 guards: 7…`) instead of preserving them. 63 − 10 − 2 = 51 |
+| `NSUFF` | hand **SUFFIXES** spliced onto regenerated rows | **2** | `set_commission_oversight` and `create_external_participant` — R24's `:60`/`:61`. ⭐ **Neither contains a `merged 2026-09-0` string**, so the 6 could not have been these 2 under any reading |
+| `NCROW` | whole **ROWS** carried | **45** | of which **6** contain a `merged 2026-09-0…` string, all 6 inside the CARRIED block (`:288 :292 :296 :300 :304 :308`), **none** on a live row |
+
+⇒ The file's 6 belonged to the 45. Two numbers about *different* material were standing side by
+side; there was never a contradiction to resolve, only a grain to state. ⭐ The derivation also
+**explains** why line 27's stale tail survived the merge: `` `assert_condition_value_codes`). Arm 2
+write policies: from the embedded snapshot.`` is a hand-MODIFIED line the generator does not emit
+verbatim, so it counted inside the 51 and was preserved as prose. R24 predicted the mechanism;
+this is the measurement of it.
+
+#### R30 condition 3 — line 27's stale tail DELETED
+
+`` `assert_condition_value_codes`). Arm 2 write policies: from the embedded snapshot.`` — located
+by its text, not by the remembered line number (it moved 13 → **27** as the file grew to 401
+lines). Factually false since 2026-09-02: the domain is lifted live from `pg_policy`.
+
+#### One action BEYOND R30's three, stated so it can be reverted in one line
+
+The `## Note — 2026-09-03: THIS FILE COVERS 39 OF 107 … no full sweep has run since` sits at the
+top of the file and its second clause is now false. It is protected hand prose, so it was **not**
+rewritten; a dated `⛔ SUPERSEDED 2026-09-08` line was **added beneath it** naming the real state
+(120 of 120 cases, 117 verdicted, 3 UNVERDICTED, the 297 follow-up named). This follows the
+project's dated-correction-beside-the-original convention rather than R30's letter; it is one
+added line and nothing else.
+
+#### R31 — why `297_process_template_versioning.sql` is CORRECTLY not fixed in this unit
+
+⭐ **Fixing it would change `Tests=`, and `Tests=` IS the baseline shape this run asserted 120
+times.** Every one of the 120 cases was judged by comparing its run shape against
+`Files=262, Tests=8876`; the reset design re-verified that exact shape at all 8 resets. Repairing
+file 297 moves `Tests=`, which retroactively invalidates the comparison that every verdict in this
+file rests on — **the fix and the run cannot coexist in one unit**. It is filed as
+`FUP-WRITEPATH-BASELINE-297-TEST-FILE-ABORTS-AND-CONVERTS-COVERED-INTO-ERROR`, and the unit that
+repairs it re-sweeps the three `process_template_*` write policies against the new shape.
+⭐ And the entry must keep saying what the run showed: **the assertions FIRED** — the tests noticed
+and named the file; the same mutation also crashed it. *Absence of a verdict is not absence of
+coverage.* Without that sentence a later reader files these 3 beside the 15 BLINDs and concludes
+the exact opposite of what the run measured.
+
+⛔ Standing, unchanged: Tier 2's 190 doors stay **deferred by ADR 0171 and are NOT cleared**.
+⛔ `FROMFINDINGS=1 ARM=policy` is RED pre-existing, is **not** one of CLAUDE.md §6's four arms, and
+its twelve are not allowlisted.

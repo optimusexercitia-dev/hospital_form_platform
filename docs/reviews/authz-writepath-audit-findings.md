@@ -24,7 +24,6 @@ a **drift tripwire only**; a row marked `snapshot:ABSENT` was swept without one.
 ⛔ **Rows in this file are only as complete as the run that wrote them.** A row count
 below 107 means no full sweep has covered the widened domain yet — absence of a
 row here is absence of a verdict, never a COVERED.
-`assert_condition_value_codes`). Arm 2 write policies: from the embedded snapshot.
 > ⚠ **HAND-MERGED, 2026-08-06 (QO·A / ADR 0100 D9; Amendment 5 scope-in).** The
 > `public.set_commission_oversight(uuid,text)` row below was merged by hand from a
 > **diff-scoped** run (`CASES="set_commission_oversight"`, baseline Files=171,
@@ -34,6 +33,7 @@ row here is absence of a verdict, never a COVERED.
 > additionally RED-proven by `q1-quality-mutation-audit.sh` (`door_authority`,
 > `guard_noop`).
 ## Note — 2026-09-03: THIS FILE COVERS 39 OF 107. The arm's domain was widened; no full sweep has run since. (33 predate the widening; **4** were merged from the AE4.9 D6 subset run 2026-09-02 and **2** more from the BUG-AE49-D6-REKEY-INCOMPLETE subset run 2026-09-03 — all COVERED, all marked snapshot:ABSENT, so no drift tripwire protects them.)
+⛔ **SUPERSEDED 2026-09-08:** the full sweep landed. This file now covers **120 of 120** cases (107 policies + 13 guards); **117 carry a verdict** (102 COVERED · 15 BLIND) and **3 are UNVERDICTED** — `process_template_*` writes, where `supabase/tests/297_process_template_versioning.sql` aborts when the gate is opened (`FUP-WRITEPATH-BASELINE-297-TEST-FILE-ABORTS-AND-CONVERTS-COVERED-INTO-ERROR`). ⚠ The note above is kept as the dated record of the state it described — do not read it as current.
 ⛔ **Do not read this file as the write-path audit's result.** Its rows were produced when
 ARM 2's domain was a **33-row embedded snapshot** bounded on `cmd in (INSERT,UPDATE,DELETE)`
 — a syntax, not the property. `FOR ALL` is a write command too. Measured on the live catalog
@@ -80,9 +80,9 @@ its verdict. All **33** snapshot rows were verified byte-identical to the live c
 |---|---|---|---|---|
 | public.set_commission_oversight(uuid,text) | guard | authz-open | COVERED | 307_commission_oversight.sql (QO·A hand-merge — see header note) |
 | public.create_external_participant(uuid,text,text) | guard | authz-open | COVERED | 320_act_expiry_and_acl_hardening.sql,321_eth_e4_participant_seating.sql (RE-SWEPT 2026-09-01, AE4.7c — its gate moved to app.can_manage_external_participant (matrix row 31). Same ERROR-then-fix as its sibling above) |
-| public.create_professional_profile(uuid,text,text,text,text,text,text,uuid) | guard | authz-open | COVERED | 228_ethics_e1.sql,320_act_expiry_and_acl_hardening.sql,409_ae49_d6_rekey_differential.sql,410_ae49_d5_enforcement_manifest.sql |
-| public.ensure_professional_participant(uuid) | guard | authz-open | COVERED | 320_act_expiry_and_acl_hardening.sql,321_eth_e4_participant_seating.sql,410_ae49_d5_enforcement_manifest.sql |
-| public.set_professional_link_state(uuid,text,uuid) | guard | authz-open | COVERED | 320_act_expiry_and_acl_hardening.sql,410_ae49_d5_enforcement_manifest.sql |
+| public.create_professional_profile(uuid,text,text,text,text,text,text,uuid) | guard | authz-open | COVERED | 228_ethics_e1.sql,320_act_expiry_and_acl_hardening.sql,409_ae49_d6_rekey_differential.sql,410_ae49_d5_enforcement_manifest.sql (NEW to this arm in AE4.7c — scoped in for the same reason its three siblings were: it returns uuid, so ARM=census's domain (prosecdef returning bool or rows) and the door audit's boolean-only predicate arm both exclude it, and its 42501 authority block IS the whole boundary. ⭐ It is also where AE4.7c's row-43 gate actually lives, so leaving it out would have meant the increment's own door had no standing arm) |
+| public.ensure_professional_participant(uuid) | guard | authz-open | COVERED | 320_act_expiry_and_acl_hardening.sql,321_eth_e4_participant_seating.sql,410_ae49_d5_enforcement_manifest.sql (RE-SWEPT 2026-09-01, AE4.7c — its gate moved to app.can_create_professional. ⛔ The first run of this sweep scored it ERROR `neutralize failed`: this harness holds a hand-written copy of each guard's gate TEXT, and the split falsified it. ERROR is not BLIND and is not a pass — it means nothing was measured. The copy was corrected and the case re-run) |
+| public.set_professional_link_state(uuid,text,uuid) | guard | authz-open | COVERED | 320_act_expiry_and_acl_hardening.sql,410_ae49_d5_enforcement_manifest.sql (NEW to this arm in AE4.7c. ⚠ BOUNDED VERDICT, stated rather than left to be assumed: this door now has TWO authority blocks — the POPULATION gate (can_create_professional) and AE4.7c's `link_state = 'unknown'` BOUND. The neutralizer opens the first, so COVERED here means the population gate is asserted through and says NOTHING about the bound. The bound has its own deterministic mutation twin in pgTAP 406 §5; the division of labour is recorded in the harness beside the gate string) |
 | app.assert_capa_writable(uuid) | guard | authz-open | COVERED | 143_capa.sql |
 | app.assert_meeting_staff_admin(uuid) | guard | authz-open | COVERED | 206_meeting_held_time.sql,327_invoker_wrapper_meeting_authority.sql,409_ae49_d6_rekey_differential.sql |
 | app.assert_interview_writable(uuid) | guard | authz-open | COVERED | 121_interviews.sql,250_authz_p0_isolation.sql |
@@ -133,12 +133,12 @@ its verdict. All **33** snapshot rows were verified byte-identical to the live c
 | case_tags.case_tags_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 387_initplan_wrap_and_profiles_arm_identity.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
 | case_type_terminology.case_type_terminology_admin_write (ALL) | policy | open with-check->true | COVERED | 387_initplan_wrap_and_profiles_arm_identity.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
 | case_types.case_types_admin_write (ALL) | policy | open with-check->true | COVERED | 207_case_participants_e0.sql,387_initplan_wrap_and_profiles_arm_identity.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
-| form_item_options.form_item_options_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 409_ae49_d6_rekey_differential.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
-| form_item_validations.form_item_validations_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 274_ff3_validations.sql,409_ae49_d6_rekey_differential.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
-| form_items.form_items_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 387_initplan_wrap_and_profiles_arm_identity.sql,409_ae49_d6_rekey_differential.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
-| form_sections.form_sections_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 387_initplan_wrap_and_profiles_arm_identity.sql,409_ae49_d6_rekey_differential.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
-| form_versions.form_versions_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 387_initplan_wrap_and_profiles_arm_identity.sql,409_ae49_d6_rekey_differential.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
-| forms.forms_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 409_ae49_d6_rekey_differential.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
+| form_item_options.form_item_options_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 409_ae49_d6_rekey_differential.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] [prior provenance, carried 2026-09-08 — describes the SUPERSEDED verdict, NOT this one: "merged 2026-09-03 from a subset run per ADR 0079 Amdt 1"] |
+| form_item_validations.form_item_validations_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 274_ff3_validations.sql,409_ae49_d6_rekey_differential.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] [prior provenance, carried 2026-09-08 — describes the SUPERSEDED verdict, NOT this one: "merged 2026-09-03 from a subset run per ADR 0079 Amdt 1"] |
+| form_items.form_items_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 387_initplan_wrap_and_profiles_arm_identity.sql,409_ae49_d6_rekey_differential.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] [prior provenance, carried 2026-09-08 — describes the SUPERSEDED verdict, NOT this one: "merged 2026-09-02 from a subset run per ADR 0079 Amdt 1"] |
+| form_sections.form_sections_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 387_initplan_wrap_and_profiles_arm_identity.sql,409_ae49_d6_rekey_differential.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] [prior provenance, carried 2026-09-08 — describes the SUPERSEDED verdict, NOT this one: "merged 2026-09-02 from a subset run per ADR 0079 Amdt 1"] |
+| form_versions.form_versions_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 387_initplan_wrap_and_profiles_arm_identity.sql,409_ae49_d6_rekey_differential.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] [prior provenance, carried 2026-09-08 — describes the SUPERSEDED verdict, NOT this one: "merged 2026-09-02 from a subset run per ADR 0079 Amdt 1"] |
+| forms.forms_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 409_ae49_d6_rekey_differential.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] [prior provenance, carried 2026-09-08 — describes the SUPERSEDED verdict, NOT this one: "merged 2026-09-02 from a subset run per ADR 0079 Amdt 1"] |
 | hospital_departments.hospital_departments_write (ALL) | policy | open with-check->true | COVERED | 201_hospital_departments.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
 | hospitals.hospitals_write (ALL) | policy | open with-check->true | COVERED | 170_multitenancy_hierarchy.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
 | interview_sessions.interview_sessions_write (ALL) | policy | open with-check->true | COVERED | 252_authz_p0_isolation.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
@@ -213,189 +213,44 @@ inside a scoped increment.
 `c2-tier1-doors.txt`) — they write `none`-sensitivity vocabulary rows, so C2's gate-aware
 closure puts them in **Tier 2 = deferred, NOT cleared**.
 
-<!-- CARRIED: whole baseline rows whose verdict CHANGED in this run, whose
-     hand-edited columns this run would have overwritten, or whose gate is ABSENT
-     from this run's domain. Nothing here was produced by the generator and nothing
-     here is a verdict — a note earned against one verdict is not a claim about
-     another. Re-file each one, or delete it deliberately. -->
-
-- `notification_preferences.notification_preferences_update_own (UPDATE)` — BLIND -> BLIND — baseline row carried verbatim:
-
-      | notification_preferences.notification_preferences_update_own (UPDATE) | policy | open->true | BLIND |  |
-
-- `notifications.notifications_update_own (UPDATE)` — BLIND -> BLIND — baseline row carried verbatim:
-
-      | notifications.notifications_update_own (UPDATE) | policy | open->true | BLIND |  |
-
-- `app.assert_meeting_staff_admin(uuid)` — COVERED -> COVERED — baseline row carried verbatim:
-
-      | app.assert_meeting_staff_admin(uuid) | guard | authz-open | COVERED | 206_meeting_held_time.sql |
-
-- `app.assert_rca_writable(uuid)` — COVERED -> COVERED — baseline row carried verbatim:
-
-      | app.assert_rca_writable(uuid) | guard | authz-open | COVERED | 142_rca.sql |
-
-- `app.assert_referral_draft_writable(uuid)` — COVERED -> COVERED — baseline row carried verbatim:
-
-      | app.assert_referral_draft_writable(uuid) | guard | authz-open | COVERED | 250_authz_p0_isolation.sql |
-
-- `public.ensure_professional_participant(uuid)` — COVERED -> COVERED — baseline row carried verbatim:
-
-      | public.ensure_professional_participant(uuid) | guard | authz-open | COVERED | 320_act_expiry_and_acl_hardening.sql,321_eth_e4_participant_seating.sql (RE-SWEPT 2026-09-01, AE4.7c — its gate moved to app.can_create_professional. ⛔ The first run of this sweep scored it ERROR `neutralize failed`: this harness holds a hand-written copy of each guard's gate TEXT, and the split falsified it. ERROR is not BLIND and is not a pass — it means nothing was measured. The copy was corrected and the case re-run) |
-
-- `public.create_professional_profile(uuid,text,text,text,text,text,text,uuid)` — COVERED -> COVERED — baseline row carried verbatim:
-
-      | public.create_professional_profile(uuid,text,text,text,text,text,text,uuid) | guard | authz-open | COVERED | 228_ethics_e1.sql,320_act_expiry_and_acl_hardening.sql (NEW to this arm in AE4.7c — scoped in for the same reason its three siblings were: it returns uuid, so ARM=census's domain (prosecdef returning bool or rows) and the door audit's boolean-only predicate arm both exclude it, and its 42501 authority block IS the whole boundary. ⭐ It is also where AE4.7c's row-43 gate actually lives, so leaving it out would have meant the increment's own door had no standing arm) |
-
-- `public.set_professional_link_state(uuid,text,uuid)` — COVERED -> COVERED — baseline row carried verbatim:
-
-      | public.set_professional_link_state(uuid,text,uuid) | guard | authz-open | COVERED | 320_act_expiry_and_acl_hardening.sql (NEW to this arm in AE4.7c. ⚠ BOUNDED VERDICT, stated rather than left to be assumed: this door now has TWO authority blocks — the POPULATION gate (can_create_professional) and AE4.7c's `link_state = 'unknown'` BOUND. The neutralizer opens the first, so COVERED here means the population gate is asserted through and says NOTHING about the bound. The bound has its own deterministic mutation twin in pgTAP 406 §5; the division of labour is recorded in the harness beside the gate string) |
-
-- `capa_plan.capa_plan_delete (DELETE)` — COVERED -> COVERED — baseline row carried verbatim:
-
-      | capa_plan.capa_plan_delete (DELETE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
-
-- `capa_plan.capa_plan_update (UPDATE)` — COVERED -> COVERED — baseline row carried verbatim:
-
-      | capa_plan.capa_plan_update (UPDATE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
-
-- `case_interviews.case_interviews_delete (DELETE)` — COVERED -> COVERED — baseline row carried verbatim:
-
-      | case_interviews.case_interviews_delete (DELETE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
-
-- `case_interviews.case_interviews_insert (INSERT)` — COVERED -> COVERED — baseline row carried verbatim:
-
-      | case_interviews.case_interviews_insert (INSERT) | policy | open->true | COVERED | 236_authz_exclusion_perimeter_u1.sql |
-
-- `case_interviews.case_interviews_update (UPDATE)` — COVERED -> COVERED — baseline row carried verbatim:
-
-      | case_interviews.case_interviews_update (UPDATE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
-
-- `case_referral.case_referral_delete_draft_source (DELETE)` — COVERED -> COVERED — baseline row carried verbatim:
-
-      | case_referral.case_referral_delete_draft_source (DELETE) | policy | open->true | COVERED | 250_authz_p0_isolation.sql |
-
-- `case_referral.case_referral_insert_source_coord (INSERT)` — COVERED -> COVERED — baseline row carried verbatim:
-
-      | case_referral.case_referral_insert_source_coord (INSERT) | policy | open->true | COVERED | 250_authz_p0_isolation.sql |
-
-- `case_referral.case_referral_update_coord (UPDATE)` — COVERED -> COVERED — baseline row carried verbatim:
-
-      | case_referral.case_referral_update_coord (UPDATE) | policy | open->true | COVERED | 250_authz_p0_isolation.sql |
-
-- `form_item_options.form_item_options_staff_admin_write (ALL)` — COVERED -> COVERED — baseline row carried verbatim:
-
-      | form_item_options.form_item_options_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 409_ae49_d6_rekey_differential.sql [merged 2026-09-03 from a subset run per ADR 0079 Amdt 1 · snapshot:ABSENT — no §7.2 drift tripwire on this verdict] |
-
-- `form_item_validations.form_item_validations_staff_admin_write (ALL)` — COVERED -> COVERED — baseline row carried verbatim:
-
-      | form_item_validations.form_item_validations_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 274_ff3_validations.sql,409_ae49_d6_rekey_differential.sql [merged 2026-09-03 from a subset run per ADR 0079 Amdt 1 · snapshot:ABSENT — no §7.2 drift tripwire on this verdict] |
-
-- `form_items.form_items_staff_admin_write (ALL)` — COVERED -> COVERED — baseline row carried verbatim:
-
-      | form_items.form_items_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 387_initplan_wrap_and_profiles_arm_identity.sql,409_ae49_d6_rekey_differential.sql [merged 2026-09-02 from a subset run per ADR 0079 Amdt 1 · snapshot:ABSENT — no §7.2 drift tripwire on this verdict] |
-
-- `form_sections.form_sections_staff_admin_write (ALL)` — COVERED -> COVERED — baseline row carried verbatim:
-
-      | form_sections.form_sections_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 387_initplan_wrap_and_profiles_arm_identity.sql,409_ae49_d6_rekey_differential.sql [merged 2026-09-02 from a subset run per ADR 0079 Amdt 1 · snapshot:ABSENT — no §7.2 drift tripwire on this verdict] |
-
-- `form_versions.form_versions_staff_admin_write (ALL)` — COVERED -> COVERED — baseline row carried verbatim:
-
-      | form_versions.form_versions_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 387_initplan_wrap_and_profiles_arm_identity.sql,409_ae49_d6_rekey_differential.sql [merged 2026-09-02 from a subset run per ADR 0079 Amdt 1 · snapshot:ABSENT — no §7.2 drift tripwire on this verdict] |
-
-- `forms.forms_staff_admin_write (ALL)` — COVERED -> COVERED — baseline row carried verbatim:
-
-      | forms.forms_staff_admin_write (ALL) | policy | open with-check->true | COVERED | 409_ae49_d6_rekey_differential.sql [merged 2026-09-02 from a subset run per ADR 0079 Amdt 1 · snapshot:ABSENT — no §7.2 drift tripwire on this verdict] |
-
-- `meeting_agenda_items.meeting_agenda_items_staff_admin_delete (DELETE)` — COVERED -> COVERED — baseline row carried verbatim:
-
-      | meeting_agenda_items.meeting_agenda_items_staff_admin_delete (DELETE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
-
-- `meeting_agenda_items.meeting_agenda_items_staff_admin_insert (INSERT)` — COVERED -> COVERED — baseline row carried verbatim:
-
-      | meeting_agenda_items.meeting_agenda_items_staff_admin_insert (INSERT) | policy | open->true | COVERED | 245_authz_c7_org_user_meeting_surface.sql,252_authz_p0_isolation.sql |
-
-- `meeting_agenda_items.meeting_agenda_items_staff_admin_update (UPDATE)` — COVERED -> COVERED — baseline row carried verbatim:
-
-      | meeting_agenda_items.meeting_agenda_items_staff_admin_update (UPDATE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
-
-- `meeting_attendees.meeting_attendees_staff_admin_delete (DELETE)` — COVERED -> COVERED — baseline row carried verbatim:
-
-      | meeting_attendees.meeting_attendees_staff_admin_delete (DELETE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
-
-- `meeting_attendees.meeting_attendees_staff_admin_insert (INSERT)` — COVERED -> COVERED — baseline row carried verbatim:
-
-      | meeting_attendees.meeting_attendees_staff_admin_insert (INSERT) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
-
-- `meeting_attendees.meeting_attendees_staff_admin_update (UPDATE)` — COVERED -> COVERED — baseline row carried verbatim:
-
-      | meeting_attendees.meeting_attendees_staff_admin_update (UPDATE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
-
-- `meeting_cases.meeting_cases_staff_admin_delete (DELETE)` — COVERED -> COVERED — baseline row carried verbatim:
-
-      | meeting_cases.meeting_cases_staff_admin_delete (DELETE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
-
-- `meeting_cases.meeting_cases_staff_admin_insert (INSERT)` — COVERED -> COVERED — baseline row carried verbatim:
-
-      | meeting_cases.meeting_cases_staff_admin_insert (INSERT) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
-
-- `meeting_cases.meeting_cases_staff_admin_update (UPDATE)` — COVERED -> COVERED — baseline row carried verbatim:
-
-      | meeting_cases.meeting_cases_staff_admin_update (UPDATE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
-
-- `meeting_signatures.meeting_signatures_insert (INSERT)` — COVERED -> COVERED — baseline row carried verbatim:
-
-      | meeting_signatures.meeting_signatures_insert (INSERT) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
-
-- `meetings.meetings_staff_admin_delete (DELETE)` — COVERED -> COVERED — baseline row carried verbatim:
-
-      | meetings.meetings_staff_admin_delete (DELETE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
-
-- `meetings.meetings_staff_admin_insert (INSERT)` — COVERED -> COVERED — baseline row carried verbatim:
-
-      | meetings.meetings_staff_admin_insert (INSERT) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
-
-- `meetings.meetings_staff_admin_update (UPDATE)` — COVERED -> COVERED — baseline row carried verbatim:
-
-      | meetings.meetings_staff_admin_update (UPDATE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
-
-- `notification_preferences.notification_preferences_insert_own (INSERT)` — COVERED -> COVERED — baseline row carried verbatim:
-
-      | notification_preferences.notification_preferences_insert_own (INSERT) | policy | open->true | COVERED | 226_notifications.sql |
-
-- `profiles.profiles_admin_insert (INSERT)` — COVERED -> COVERED — baseline row carried verbatim:
-
-      | profiles.profiles_admin_insert (INSERT) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
-
-- `profiles.profiles_admin_update (UPDATE)` — ERROR -> COVERED — baseline row carried verbatim:
-
-      | profiles.profiles_admin_update (UPDATE) | policy | open->true | ERROR | run-shape!=baseline (Files=156 Tests=4788) |
-
-- `profiles.profiles_update_self (UPDATE)` — ERROR -> COVERED — baseline row carried verbatim:
-
-      | profiles.profiles_update_self (UPDATE) | policy | open->true | ERROR | run-shape!=baseline (Files=156 Tests=4788) |
-
-- `rca.rca_delete (DELETE)` — COVERED -> COVERED — baseline row carried verbatim:
-
-      | rca.rca_delete (DELETE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
-
-- `rca.rca_update (UPDATE)` — COVERED -> COVERED — baseline row carried verbatim:
-
-      | rca.rca_update (UPDATE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
-
-- `response_section_signoffs.signoffs_insert (INSERT)` — COVERED -> COVERED — baseline row carried verbatim:
-
-      | response_section_signoffs.signoffs_insert (INSERT) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
-
-- `responses.responses_delete_own_draft (DELETE)` — BLIND -> COVERED — baseline row carried verbatim:
-
-      | responses.responses_delete_own_draft (DELETE) | policy | open->true | BLIND |  |
-
-- `responses.responses_insert_own (INSERT)` — COVERED -> COVERED — baseline row carried verbatim:
-
-      | responses.responses_insert_own (INSERT) | policy | open->true | COVERED | 198_perf_hardening.sql |
-
-- `responses.responses_update_own_draft (UPDATE)` — COVERED -> COVERED — baseline row carried verbatim:
-
-      | responses.responses_update_own_draft (UPDATE) | policy | open->true | COVERED | 198_perf_hardening.sql |
-
+<!-- The CARRIED block was DISPOSITIONED 2026-09-08 (PO ruling R30) and no longer exists in
+     this file. Nothing in it was lost: 9 rows' hand commentary was re-filed onto the live rows
+     above, 36 were deleted because the live row supersedes them, and 0 were excluded. The note
+     below is the audit trail; the reasoning is in docs/progress/writepath-baseline.md. -->
+
+## Note — 2026-09-08: the merge's 45 CARRIED rows, dispositioned (PO ruling R30)
+
+The first full sweep of the widened domain (2026-09-07 20:11 → 2026-09-08 00:04, **120 of 120**
+cases) re-earned this file through `scripts/lib/merge-findings-baseline.sh`, which reported
+`PRESERVED 51 hand-authored prose line(s), 2 hand suffix(es); CARRIED 45 whole row(s)`.
+
+⭐ **Across those 45, no verdict regressed** — 40 `COVERED -> COVERED`, 2 `ERROR -> COVERED`,
+1 `BLIND -> COVERED`, 2 `BLIND -> BLIND`: three improved, 42 held, **zero** `COVERED -> BLIND`.
+That whole-set property, not a row-by-row judgement, is what makes the deletions safe.
+
+- **9 RE-FILED** onto their live rows, commentary byte-identical. Three are guard rows whose
+  prose still qualifies the live verdict — in particular `public.set_professional_link_state`'s
+  **BOUNDED VERDICT** note, without which a reader over-reads its COVERED. Six are the
+  `form*`/`forms` `*_staff_admin_write` rows; ⚠ the only thing their carried note held that the
+  live row lacked was the clause `merged 2026-09-0X from a subset run per ADR 0079 Amdt 1`, which
+  is **provenance of the superseded verdict and false of the live one** (this verdict came from
+  the full run). It is re-filed verbatim but **explicitly attributed**, never asserted of the new
+  verdict. Their substantive half (`snapshot:ABSENT …`) was already on the live row.
+- **36 DELETED** — the live row supersedes and says more. Proven, not assumed: for all 45 rows
+  the carried note's cited files are a **subset** of the live row's, so no citation was lost.
+- **0 EXCLUDED** by R30 condition 1 (a carried row citing a file the live row does not). The
+  matcher was proven able to find a citation before its zero was believed: a strict
+  `\d{3}…\.sql` pattern and a loose `*.sql` pattern agree on all 45 notes, a broader
+  filename-shaped scan finds no non-`.sql` citation anywhere in them, a planted token is found,
+  and a decoy filename carrying a trailing letter after the extension is rejected.
+
+⚠ **Three numbers about this merge count three different populations** and do not contradict
+each other: **51** hand-authored *prose lines* preserved in place, **2** hand *suffixes* spliced
+back onto regenerated rows (`set_commission_oversight`, `create_external_participant`), and
+**45** whole *rows* carried — 6 of which happened to contain a `merged 2026-09-0…` string. The
+6 were carried rows, never suffixes; neither of the 2 suffixes contains that string, so the
+"6" could not have been the "2" under any reading. Each figure is derived, not asserted:
+the 137-line pre-run baseline held **63** non-blank non-table lines, the generator re-emits
+**10** of them verbatim, and the merge *replaced* **2** stale statistics
+(`Baseline: Files=156, Tests=4796…` and `Arm 1 guards: 7…`) rather than preserving them —
+63 − 10 − 2 = **51**.
