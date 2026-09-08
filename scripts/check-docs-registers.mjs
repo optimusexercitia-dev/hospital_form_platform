@@ -186,18 +186,23 @@ export const RATCHETS = {
   // A RATCHET rather than a blanket assertion because the entry says in as many words that
   // retrofitting the already-archived closures is NOT required: this cap is today's population,
   // so the historical 123 are grandfathered and the NEXT closure that drops the field reds.
-  // Derived 2026-09-08 by `checkArchiveClosesWhen` over docs/followups/follow-ups-archive.md;
-  // the parts sum: 157 `### ` headings = 139 carrying a FUP id + 18 section/rotation notes;
-  // 139 headings = 131 distinct ids + 8 second headings (the current closure shape writes the
-  // closure note under one heading and the verbatim entry block under a second, same id);
-  // 131 ids = 8 with the field + 123 without. ⚠ The five ENFORCEMENT-MANIFEST closures of
-  // 2026-09-07/08 are all in the `with` half — the interim hand practice works, and this cap is
-  // what stops it lapsing. When it reds, the offender is an id in `checkArchiveClosesWhen`'s
-  // `missingIds`; the fix is to move the entry block with the body, never to raise the cap.
+  // Derived 2026-09-08 by `checkArchiveClosesWhen` over docs/followups/follow-ups-archive.md.
+  // Every part sums, which is the only reason to believe any of them:
+  //   · 157 `### ` headings = 139 carrying a FUP id + 18 section/rotation-note headings;
+  //   · 139 headings = 131 distinct ids + 8 second headings (a closure writes the dated note
+  //     under one heading and the verbatim register block under a second, same id);
+  //   · 131 ids = 23 carrying a column-0 `**Closes when:**` + 108 without  ← the cap;
+  //     the 23 split 8 in a leading field block + 15 with the block after a `>` closure note;
+  //   · 37 literal `**Closes when:**` occurrences in the file = 27 at column 0 (the fields)
+  //     + 9 quoted inside closure-note blockquotes + 1 inside an inline code span.
+  // ⚠ The five ENFORCEMENT-MANIFEST closures of 2026-09-07/08 are all in the `with` half — the
+  // interim hand practice works, and this cap is what stops it lapsing. When it reds, the offender
+  // is an id in `checkArchiveClosesWhen`'s `missingIds`; the fix is to move the entry block with
+  // the body, never to raise the cap.
   // BOUNDED, STATED: a ratchet bounds the POPULATION, not each closure — retrofitting an old
   // entry in the same commit that drops a new one would keep the total flat. Nothing here claims
   // otherwise; the assertion is that the count of field-less archived closures may only fall.
-  archiveMissingClosesWhen: 123,
+  archiveMissingClosesWhen: 108,
 }
 
 /** Every live count that exceeds its RATCHETS constant is a finding; may only be LOWERED. */
@@ -871,11 +876,19 @@ export function checkArchiveNoBodyLink(archiveText) {
 /**
  * The register-shaped `**Closes when:**` FIELD — a line of the entry block, not a mention of the
  * field anywhere in the prose. The distinction is the whole check: on 2026-09-08 the archive
- * carried 37 occurrences of the literal `**Closes when:**`, of which 27 were fields at column 0,
- * 9 were the string QUOTED inside a closure note's blockquote (`> … **Closes when:** field read
- * literally \`PO to rule\``) and 1 was inline prose. Anchored + `m`, applied to an entry's leading
- * `**`-prefixed field block, both non-field kinds are excluded by construction: a `>`-prefixed or
- * mid-paragraph line never enters `parseEntries`' `fields`.
+ * carried 37 occurrences of the literal `**Closes when:**`, partitioning into 27 fields at column
+ * 0, 9 of the string QUOTED inside a closure note's blockquote (`> … **Closes when:** field read
+ * literally \`PO to rule\``) and 1 inline prose mention (inside a code span). 27 + 9 + 1 = 37, so
+ * COLUMN 0 is the discriminator that separates the field from both kinds of talk ABOUT the field,
+ * and `^` under `m` is the whole of it.
+ *
+ * ⚠ Applied to an entry's whole BODY, not to `parseEntries`' leading `fields` block. Written
+ * against `fields` first, and reconciling the two censuses caught it: 27 column-0 fields, but only
+ * 9 of them sat in a leading field block, because 18 of the archived entries (15 distinct ids)
+ * open with a `>` closure note or a prose line and carry the register block AFTER it — a shape
+ * that is correct and that `fields` reports as field-less. Counting those as missing would have
+ * set the cap 15 too high AND red the gate on the next closure written that way, which is the
+ * exact "reds on correct work" failure the id-grain choice below exists to avoid.
  *
  * ⚠ The trailing test is `[^\S\r\n]*\S`, HORIZONTAL whitespace, not `\s*\S`: `\s` matches `\n`,
  * so `\s*\S` on a bare `**Closes when:**` walks to the `*` of the NEXT field line and reports an
@@ -893,8 +906,8 @@ export const CLOSES_WHEN_FIELD_RX = /^\*\*Closes when:\*\*[^\S\r\n]*\S/m
  * it in its own header), so the assertion is here.
  *
  * Grain is the ID, not the heading, and that is load-bearing: the current closure shape writes TWO
- * `### ` headings per closure — the dated closure note, which has no field block by design, and
- * the verbatim entry block, which does. Counting headings would red on a CORRECTLY archived
+ * `### ` headings per closure — the dated closure note, which carries no register block by design,
+ * and the verbatim entry block, which does. Counting headings would red on a CORRECTLY archived
  * closure (it adds one field-less heading) and is therefore unusable; counting ids, a correct
  * closure adds one id that HAS the field and moves the ratchet not at all, while a closure that
  * drops the field adds one that does not and moves it by one. That is the discrimination the
@@ -912,7 +925,7 @@ export function checkArchiveClosesWhen(archiveText) {
   }
   const seen = new Map()
   const entries = fupEntriesOf(archiveText)
-  for (const e of entries) seen.set(e.id, (seen.get(e.id) || false) || CLOSES_WHEN_FIELD_RX.test(e.fields))
+  for (const e of entries) seen.set(e.id, (seen.get(e.id) || false) || CLOSES_WHEN_FIELD_RX.test(e.body))
   const ids = [...seen.keys()]
   const missingIds = ids.filter((id) => !seen.get(id))
   // Anti-vacuity: an empty (or renamed, or truncated) archive would otherwise hand the ratchet a
@@ -1712,6 +1725,26 @@ function selfTest() {
   must(
     'checkArchiveClosesWhen a blockquoted mention is not a field',
     [archCount(`### ✅ 🟡 FUP-A-7 — a claim\n\n> the entry's **Closes when:** field read \`PO to rule\`\n\nbody\n`).missing === 1 ? '' : 'x'].filter(Boolean),
+    false,
+  )
+  must(
+    'checkArchiveClosesWhen an inline code-span mention is not a field',
+    [archCount('### ✅ 🟡 FUP-A-8 — a claim\n\nsome prose where `**Closes when:** PO to rule` is discussed\n\nbody\n').missing === 1 ? '' : 'x'].filter(Boolean),
+    false,
+  )
+  // ⭐ The OTHER live archived shape, and the reason the grain is the entry BODY and not
+  // `parseEntries`' leading `fields` block: ONE heading, a `>` closure note first, the register
+  // block after it. 18 of the archive's 27 column-0 fields (15 distinct ids) are written this way.
+  // Read at the `fields` grain they look field-less, which would have set the cap 15 too high and
+  // then RED the gate on the next closure written the same correct way.
+  must(
+    'checkArchiveClosesWhen a field AFTER a closure note under one heading counts',
+    [
+      archCount('### ✅ 🟡 FUP-A-9 — a claim — **RESOLVED 2026-09-08**\n\n> **RESOLVED 2026-09-08** — note first.\n\n**Filed:** 2026-09-01 (x) · **Owner:** lead\n**Closes when:** the thing is measured\n**Status:** open → RESOLVED\n\nbody\n')
+        .missing === 0
+        ? ''
+        : 'x',
+    ].filter(Boolean),
     false,
   )
   // Anti-vacuity: an archive that is missing, renamed or emptied must not hand the ratchet a
