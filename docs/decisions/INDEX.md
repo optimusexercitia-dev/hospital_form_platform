@@ -14,7 +14,7 @@
 >
 > Edges are **advisory** and over-inclusive by design; the ADR text is truth.
 
-**191 ADRs** · next free number: **0194** · 67 carry an inbound supersedes/amends edge
+**192 ADRs** · next free number: **0195** · 68 carry an inbound supersedes/amends edge
 
 ## ⚠ Anomalies
 
@@ -215,5 +215,6 @@
 | 0189 | [One crash-safety protocol across the mutation harnesses: a verified restore, a bounded…](0189-one-crash-safety-protocol-across-the-mutation-harnesses.md) | accepted | 2026-09-04 | amends 0153, 0171 | ⚠ amended by 0192 |
 | 0190 | [The door-sweep deriver selects doors by PROPERTY, scopes what it swept, and a full run…](0190-the-door-sweep-deriver-selects-by-property-and-a-full-run-merges.md) | accepted | 2026-09-05 | amends 0079, 0173 | – |
 | 0191 | [The door arm's domain gains a SCHEMA axis, the set-valued resolvers get a committed hom…](0191-the-door-arms-domain-gains-a-schema-axis-a-targeted-home-and-a-fourth-outcome.md) | accepted | 2026-09-05 | amends 0079, 0173 | – |
-| 0192 | [Ownership is a PROXY, not the property: the write arm keeps one connection role and gai…](0192-ownership-is-a-proxy-not-the-property-and-the-write-arms-crash-safety.md) | accepted | 2026-09-07 | amends 0153, 0189 | – |
+| 0192 | [Ownership is a PROXY, not the property: the write arm keeps one connection role and gai…](0192-ownership-is-a-proxy-not-the-property-and-the-write-arms-crash-safety.md) | accepted | 2026-09-07 | amends 0153, 0189 | ⚠ amended by 0194 |
 | 0193 | [The enforcement manifest declares what it measured, and the measurement is a fixed poin…](0193-the-enforcement-manifest-declares-what-it-measured.md) | accepted | 2026-09-07 | amends 0176, 0178 | – |
+| 0194 | [A sweep's `CASES` has three states, and a parent asks for a full run by UNSETTING it](0194-a-sweeps-cases-has-three-states-and-a-parent-unsets-it.md) | accepted | – | amends 0192 | – |

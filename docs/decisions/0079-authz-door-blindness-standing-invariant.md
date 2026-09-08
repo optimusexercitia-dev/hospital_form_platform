@@ -103,11 +103,41 @@ the entire diagnosis by hand during AFF3 (`FUP-DOOR-SWEEP-RECIPE-STILL-BLIND-TO-
 Ruling 2 in particular needs somewhere that *reds*, and a paragraph cannot red.
 
 ```bash
-CASES="$(bash scripts/door-sweep-cases.sh <phase-base>)"   # stdout = the case list, nothing else
+# ⛔ TWO STEPS. Read the exit code BEFORE substituting the stdout — never both in one breath.
+CASELIST="$(bash scripts/door-sweep-cases.sh <phase-base>)"; rc=$?   # rc read BARE: no pipe, no `| tail`
 #   exit 0 DERIVED  · 1 FINDING (migrations touched, ZERO cases — NOT a pass)
 #        2 ABORT    · 3 NOT-APPLICABLE (no migration in the diff at all)
-WORK=<scratch> CASES="$CASES" bash supabase/tests/mutation/p0-authz-door-audit.sh
+case $rc in
+  0) WORK=<scratch> CASES="$CASELIST" bash supabase/tests/mutation/p0-authz-door-audit.sh ;;
+  1) : ;;   # FINDING — RULE on it in the gate record. ⛔ Do NOT sweep: there is no case list.
+  2) : ;;   # ABORT   — the deriver could not run. A missing list is not an empty one.
+  3) : ;;   # NOT-APPLICABLE — no migration in the diff.
+esac
+
+# A FULL sweep asked for by a parent script:
+#   ✅ ( cd "$ROOT" && unset CASES && bash supabase/tests/mutation/p0-authz-door-audit.sh )
+#   ⛔ CASES= bash …    — `VAR= cmd` sets VAR to the EMPTY STRING in the child, which since
+#                         2026-09-08 is the THIRD state and exits 3 UNPROVEN, not a full run.
 ```
+
+> ⚠ **Dated note, 2026-09-08 (Batch 6, ADR 0194).** The instruction above **replaces** a
+> one-liner that stood here until this date and that is now known to be unsafe. The superseded
+> text, quoted so it is recognisable and not so it can be followed:
+> *`CASES="$(bash scripts/door-sweep-cases.sh <phase-base>)"` … `WORK=<scratch> CASES="$CASES"
+> bash supabase/tests/mutation/p0-authz-door-audit.sh`.*
+> **Why it was wrong:** command substitution **discards the exit code**, and the exit code IS the
+> claim this section spends four bullets establishing — *"exit 1 is an obligation, never a
+> pass"*. On that exit 1 the deriver correctly prints **no case list** (it is `finish 1` before
+> the sole stdout block; `say()` is stderr-only), so `CASES` became the **empty string**, which
+> every sweep then read as *"no subset requested"* and swept the whole domain, merging the
+> COMMITTED baseline. ⭐ The section's own hazard list is what made this invisible: it warns at
+> length about what must **not** go into `CASES=`, and never about `CASES=` being **empty**.
+> ⛔ Since 2026-09-08 all four `p0-authz-*-audit.sh` sweeps read `CASES` on **set-ness**, so the
+> empty string is a distinct third state that exits **3 UNPROVEN**. That converts a silent full
+> sweep into a loud stop — it does **not** make the one-liner safe, because a run that exits 3
+> has still measured nothing and the operator still never saw the exit 1.
+> Related: `FUP-AUTHZ-EMPTY-CASES-RUNS-A-FULL-SWEEP`,
+> `FUP-WRITEPATH-BASELINE-CASES-EMPTY-STRING-DEGRADES-TO-A-FULL-RUN`.
 
 What the script does that the old one-liner did not — each one a **measured miss**, not a
 refinement:
