@@ -62,6 +62,13 @@ question the ELSE arm would have asked.
 | views / defaults / constraints referencing it | **0 / 0 / 0** (`pg_rewrite`, `pg_attrdef`, `pg_constraint`) |
 | PostgREST exposed schemas (`supabase/config.toml:13`) | `["public", "graphql_public"]` — `app` and `authz` are **not** reachable as RPCs |
 
+> **2026-09-08 annotation (Track D, R30/R31, PRIVILEGE-SURFACE Batch 7):** this review is a historical
+> record of what was measured on 2026-09-03 and its `config.toml:13` citation is left as written, not
+> rewritten. A 2026-09-08 comment block in `supabase/config.toml` displaced the cited `schemas`
+> assignment to line 51 (the block's own banner now sits at line 13, so this citation lands on the
+> explanation rather than on nothing). The measurement itself — `schemas = ["public", "graphql_public"]`
+> — is unchanged and still holds at the current head; only the line number has moved.
+
 **The empirical differential.** 413 §5 measures the subset property for **one** principal. I ran a much
 wider one, in the **self/hat context the policy actually uses** (`request.jwt.claims` set per principal
 with that principal's own role as the hat), over **37 principals × 11 distinct hats × all 13

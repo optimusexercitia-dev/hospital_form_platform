@@ -345,3 +345,45 @@ commits the record picks up this entry with theirs.
 pgTAP section that does not exist yet, blocked on R14), anything in `supabase/tests/`,
 `docs/backend-state.md`, `docs/design/` or `supabase/migrations/`, and ⛔ **no behavioural probe** —
 outside R2, and filed instead.
+
+### 2026-09-08 — backend, Track D: repointing the rotted `config.toml:13` citations (R30) and the 137→138 dated note (R26)
+
+Scope: text-only, no DB command, no migration. ⛔ No `supabase/migrations`, `supabase/tests`,
+`docs/backend-state.md`, `docs/design/authz-ae1-revoke-partition.md` or `docs/features/privilege-surface.md`
+touched — those are other tracks'/the lead's.
+
+**R30.** Verified each of the three owned sites against the file before editing (a cited line number
+rots the same way a stale one does): `FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED.md` (two `:13`
+occurrences, not one — line 27's severity-bound claim **and** line 47's "to close" item 3, which R2 has
+since discharged; both repointed and item 3 noted **done**), `FUP-UI-AUTHZ-WRAPPERS-DUPLICATE-THE-ENFORCING-PREDICATE.md`
+line 16 (repointed; the line-9 `config.toml:13` citation is inside a block explicitly marked *rotated
+VERBATIM* from the retired PROGRESS.md and left untouched — rewriting a verbatim-preserved quote would
+break its own integrity claim), `authz-ae4-if9-statement-scoped-review.md` line 63 (a historical QA
+verdict — annotated with a dated note below the table, the reviewer's row left exactly as written, per
+the same rule Track D was told to apply to review files). All three repointed to the **key**
+(`supabase/config.toml`'s `[api].schemas`) rather than a line number.
+
+**Swept the tree** for any other literal `config.toml:13` / `config.toml line 13`. Found, **not edited**
+(outside the three owned files, reported for the lead to route): `docs/reviews/case-surface-split-increment-2-review.md:770`,
+`docs/reviews/authz-evolution-plan-audit-2026-08-27.md:513`, `docs/reviews/external-db-audit-2026-07-evaluation.md:10`,
+`docs/reviews/ff-3-review.md:347`, `docs/reviews/dm4-referrals-review.md:390` — all historical review
+records, same shape as the AE4 review. `docs/progress/privilege-surface.md` (this file, lines 9/98/325)
+and `docs/features/privilege-surface.md` (the hub) are the unit's own record/hub and out of Track D's
+pathspec by the brief. `scripts/authz-tier1-threat-review-ae1.sql:66` and `supabase/config.toml:14`
+already carry Track B's annotation (*"historically cited as `config.toml:13`"*) — verified current, not
+touched.
+
+**R26.** Added the 138 correction as a dated note beside the original 137 figure in
+`FUP-AE1-REVOKE-SET-EXECUTION.md` (the claim's operative sentence, not the title) — both numbers stated
+with what each counts (137 = `proacl IS NULL`; 138 = the effective silent-no-op class, the extra member
+being `app.latest_published_version`'s non-NULL `proacl` carrying an explicit PUBLIC grant), quoting
+Track A's §9.4 wording rather than paraphrasing it, and citing both `docs/design/authz-ae1-revoke-partition.md`
+§9.4 and this record instead of restating the six-function list a third time. The original 137 sentence
+and the 130/137 UNCHANGED breakdown are untouched.
+
+**Gates:** `npm run lint:registers` — **rc 0** (read bare), ratchets unmoved
+(`closesWhenPoToRule=136/147` etc., same as Track B's row). `npm run lint:progress` —
+**rc 0** (read bare, `check-progress-doc: OK`).
+
+Commit: `docs(privilege-surface): repoint config.toml:13 citations to the key and correct 137→138 (Track D, R26/R30)`,
+explicit pathspec on the four edited docs plus this record.

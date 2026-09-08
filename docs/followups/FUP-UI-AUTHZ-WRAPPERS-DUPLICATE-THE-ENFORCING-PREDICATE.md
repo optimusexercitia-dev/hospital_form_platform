@@ -13,7 +13,9 @@ summarised away — the text below is the removed substring exactly as it stood:
 `select app.can_write_rca(p_rca_id, auth.uid())`.
 
 ⛔ **They are NOT redundant, and must not be "simplified" away.** Measured: `app` is **not a
-PostgREST-exposed schema** (`supabase/config.toml:13` → `schemas = ["public", "graphql_public"]`), so the UI
+PostgREST-exposed schema** (`supabase/config.toml`'s `[api].schemas` key → `schemas = ["public", "graphql_public"]`;
+2026-09-08 note, Track D: cited by line as `config.toml:13` until a 2026-09-08 comment block displaced
+the assignment to line 51 — repointed to the key per R30), so the UI
 cannot call the enforcing predicate over the API *even though* `authenticated` does hold EXECUTE on
 `app.can_write_rca`. The wrapper is a necessary bridge. ⭐ Recorded because the first reading of the grant
 alone said "redundant" and was wrong — the exposure, not the grant, is what makes them load-bearing.

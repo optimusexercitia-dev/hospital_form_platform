@@ -24,7 +24,9 @@ The nine explicit ones: `answer_map`, `can_read_correction_response`, `commissio
 `latest_published_version`. Four of those nine are **authorization predicates**.
 
 ⛔ **THE BOUND, and it is the whole severity argument.** Schema `app` is **not exposed to PostgREST** —
-`supabase/config.toml:13` is `schemas = ["public", "graphql_public"]`. An `anon` caller cannot reach
+`supabase/config.toml`'s `[api].schemas` key is `schemas = ["public", "graphql_public"]`. (2026-09-08
+note, Track D: cited by line as `config.toml:13` until a 2026-09-08 comment block displaced the
+assignment to line 51 — repointed to the key per R30 so the citation cannot rot again.) An `anon` caller cannot reach
 `app.*` over the API at all (this repo has already recorded that `app.*` RPCs are 404). So these grants
 confer nothing today. ⇒ **defense-in-depth gap, not a vulnerability.** If that one line ever gains
 `"app"`, 237 functions become directly callable by `anon` in the same edit — the ACLs are not the thing
@@ -44,9 +46,11 @@ default nobody wrote. A one-outlier framing invites a one-function fix that woul
 2. If yes, the honest gate is a **pgTAP** assertion (⚠ DB anchors are not checkable in `npm run lint` —
    ADR 0127's stated bound), and it must be **red-first**: create a throwaway `app` function with a NULL
    `proacl` and require the gate to catch it, or the gate proves only that today's 228 were listed.
-3. Whatever is decided, `supabase/config.toml:13` should carry a comment saying that 237 `app` functions
-   are anon-executable and this line is what makes that safe. Right now the load-bearing line looks
-   routine.
+3. Whatever is decided, `supabase/config.toml`'s `[api].schemas` key should carry a comment saying that
+   237 `app` functions are anon-executable and this line is what makes that safe. Right now the
+   load-bearing line looks routine. (2026-09-08 note, Track D: **done** — R2 ruled item 3 owed, widened
+   to comment + a `npm run lint` gate on the line itself; see the comment block above `schemas` in
+   `supabase/config.toml` and gate 14, `lint:config-schemas`.)
 
 ⛔ **Do not "fix" this by adding `REVOKE` to the ADR 0134 migration.** It is outside that ruling's
 approval scope, it is unrelated to the case surface split, and a sweeping privilege change smuggled into

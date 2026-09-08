@@ -32,6 +32,23 @@ Index entry: [follow-ups-open.md](follow-ups-open.md) · filed 2026-08-27 · sta
 > ✅ All **23 HOLD** rows carry a direct grant and no PUBLIC grant, so the revoke is fully
 > effective on exactly the rows the verdict is about; the no-ops concentrate in UNCHANGED (130/137).
 >
+> **2026-09-08 note (Track A re-derivation, adopted by Track D per R26 — beside the figure, not a
+> rewrite of it):** re-measured at head `20261003007350`. `proacl IS NULL` reproduces at exactly
+> **137** — that half of the claim above is unchanged. But the *operational* question is "for how
+> many is `revoke execute … from authenticated` a silent no-op?", and the answer is **138**:
+> **`app.latest_published_version`** has a **non-NULL** `proacl` that nonetheless carries an explicit
+> PUBLIC grant (`{=X/postgres,postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}`,
+> where the empty-grantee `=X` **is** PUBLIC), so revoking `authenticated` leaves EXECUTE arriving via
+> PUBLIC exactly as it does for the other 137. **137 and 138 are different predicates, not a stale
+> figure and a fresh one**: 137 is `proacl IS NULL`; 138 is the effective silent-no-op class.
+> *"`proacl IS NULL` includes PUBLIC"* is true and is why the 137 exist; its converse — *"`proacl IS
+> NOT NULL` therefore excludes PUBLIC"* — is **false**, and keying the class on the ACL-text predicate
+> instead of the effective one is what hid the 138th. Six further `app` DEFINER functions share this
+> shape (`answer_map`, `can_read_correction_response`, `commission_of_version`, `is_admin`,
+> `is_member_of`, `is_org_admin_of`) — outside the 233 and so outside this partition, but the same
+> class and the same trap. Full re-derivation: `docs/design/authz-ae1-revoke-partition.md` §9.4;
+> session log: `docs/progress/privilege-surface.md`.
+>
 > ⚠ **Batch 1's "lowest-consequence" framing is half false.** True at runtime (EXECUTE on a
 > trigger function is checked at `CREATE TRIGGER`, never at fire time); false for observability —
 > `ARM=floor` applies no return-type filter, so those 19 trigger bodies are in its domain **today**
