@@ -330,40 +330,38 @@ export function countLedgerDataRows(text) {
  * it accepts everything has been deleted, not repaired.
  */
 // ⛔ THE SAME CLASS ON BOTH SIDES OF THE COLON, AND THAT IS THE WHOLE SAFETY ARGUMENT.
-// The first widening (375726b2) admitted decoration BEFORE `Verdict:` and left `[\s*]{0,4}` after
-// it, which still rejected `Verdict: ✅ APPROVED`, ``Verdict: `APPROVED` `` and even
-// `**Verdict:** **APPROVED**` (five characters where four were allowed) — 65 of 169 review files
-// readable. DIRECTION fixed, MAGNITUDE never re-derived: a partial fix reading as a complete one.
-// Widening the middle to the identical class takes it to 102 of 169.
-// ⭐ Why this cannot admit a rejection: `NOT` and `CHANGES REQUESTED` are LETTERS, and the class
-// excludes every letter and digit, so no amount of it can span them. `>` and `~` stay excluded on
-// BOTH sides so a blockquoted (`> **Verdict:** APPROVED`) or struck-through (`~~Verdict:
-// APPROVED~~`, `Verdict: ~~APPROVED~~`) verdict is still not an approval.
-// ⚠ BOUNDED, STATED — and CORRECTED 2026-09-08 by QA (MAJOR-1). This note previously read
-// *"14 files remain unreadable because they put WORDS before the label"*. That was **one shape
-// described as if it were all of them**, and the count depended on the detector's own window
-// (14 / 20 / 23 by three definitions). The residual is TWO shapes, and only one is what the note
-// claimed:
-//   · **9** put words on the label line (`## Re-review (2026-07-17) — VERDICT:`,
-//     `**Reviewer:** … · **Verdict:**`). Admitting these means admitting arbitrary leading words,
-//     which readmits `Prior verdict: APPROVED` — genuinely FILED, not fixed.
-//   · a BARE `## Verdict` heading with the verdict on the NEXT line — a LINE BOUNDARY, not
-//     decoration, so the rationale above never applied to them. ⛔ Much of the residual was filed
-//     under a reason that was not true of it. **Now FIXED** by `reviewHasApprovedVerdict`'s
-//     bare-heading arm (which also admits a numbered `## 7. Verdict`).
-//   · a blockquoted verdict, excluded on purpose.
-//   · shapes no arm here reaches: a verdict separated from its heading by a prose paragraph, or
-//     sitting two lines down. ⛔ FILED, not fixed — see `FUP-VERDICT-PREDICATE-RESIDUAL-SHAPES`.
-// ⛔ **THE ONLY EXACT NUMBER HERE IS THE READABLE ONE: 114 of 169 TRACKED files.** The size of the
-// residual is DETECTOR-DEPENDENT and must not be stated as a fact: two independent sweeps produced
-// 12 and 13 and their MEMBERSHIP differs in both directions (one sweeps in genuine CHANGES
-// REQUESTED rounds, the other reaches verdicts further from their heading).
-// ⛔ An earlier version of this note claimed two measurements "agree exactly" because both said 10.
-// They agreed in CARDINALITY and differed by two members each way. **Equal counts are not the same
-// set**, and a corroboration sentence that never compared membership corroborates nothing (QA r2).
-// No `complete` hub depends on any remaining one — verified against `checkHub`'s actual predicate:
-// 9 complete hubs, all pass, and every unreadable review linked from one is a genuine earlier
-// CHANGES REQUESTED round (QA re-derived this independently).
+// `NOT` and `CHANGES REQUESTED` are LETTERS, and the class excludes every letter, so no amount of
+// decoration can span them. `>` and `~` stay excluded on BOTH sides, so a blockquoted
+// (`> **Verdict:** APPROVED`) or struck-through (`~~Verdict: APPROVED~~`) verdict is not an
+// approval. The bare-heading arm below is safe for the OPPOSITE reason: the heading must be bare,
+// so any word before the label spends a letter the class cannot pay for.
+//
+// ⛔⛔ NO COUNTS LIVE IN THIS COMMENT, DELIBERATELY, AND THAT IS THE POINT.
+// This block carried a readable/total ratio and a residual size through six revisions, and **every
+// single revision of it was wrong** — 14, then 20, then 23, then `9 + 10 + 1`, then 114-of-169 —
+// each corrected, each correction introducing the next error, twice INSIDE the correction of the
+// previous one. The reasons are structural, not careless:
+//   · the DENOMINATOR moves whenever any review file is committed — including the QA reports that
+//     review this very predicate, which is how "114 of 169" was already false at the commit that
+//     wrote it (that commit tracked 171);
+//   · the RESIDUAL size is detector-dependent, and three defensible detectors disagree on both the
+//     count and the MEMBERSHIP. ⭐ Two of them once returned the same integer over different sets,
+//     and that was written up as "agreeing exactly". Equal counts are not the same set.
+// ⛔ So: DERIVE IT, NEVER QUOTE IT (`.claude/rules/live-facts-measure-dont-quote.md`):
+//     Import `reviewHasApprovedVerdict` from this module, take the tracked corpus from
+//     `git ls-files docs/reviews` (split on newlines, keep `.md`), and count how many files it
+//     accepts. ⛔ Use `git ls-files`, not `readdirSync` — an untracked report in the working tree
+//     is not part of "the docs", and mixing the two is what made the last figure wrong.
+//
+// What IS stable, and is therefore what this comment states — the SHAPES, not their sizes:
+//   · READ: decoration either side of the colon; a bare `## Verdict` heading (numbered or not) with
+//     the verdict on the next non-empty line.
+//   · NOT READ, ON PURPOSE: a blockquoted or struck-through verdict.
+//   · NOT READ, FILED: words on the label line, and a verdict separated from its heading by prose.
+//     See `FUP-REGISTER-GATE-HYGIENE-VERDICT-SHAPES` — ⛔ whose own rationale for shape (a) was
+//     itself measured false by QA r3 and corrected there.
+// The load-bearing claim is not a count and is checkable: **no `complete` hub depends on an unread
+// verdict** — verified against `checkHub`'s actual predicate, and re-verified by QA at r2 and r3.
 export const REVIEW_VERDICT_APPROVED_RX = /^#{0,6}[^\p{L}\p{N}\r\n>~]{0,8}Verdict:[^\p{L}\p{N}\r\n>~]{0,8}APPROVED\b/imu
 
 // ⛔ THE SECOND SHAPE: a BARE `## Verdict` heading with the verdict on the NEXT line. This is a
@@ -376,10 +374,12 @@ export const REVIEW_VERDICT_APPROVED_RX = /^#{0,6}[^\p{L}\p{N}\r\n>~]{0,8}Verdic
 // ⚠ The verdict line itself is matched by the SAME "no letters or digits before it" rule as the
 // single-line form, so `NOT APPROVED` / `CHANGES REQUESTED` under a bare heading stay rejected,
 // and `>`/`~` stay excluded so a blockquoted or struck verdict is still not an approval.
-// ⚠ The lead-in admits DIGITS (`## 7. Verdict` is a numbered heading, a normal convention) but
-// never LETTERS — which is what keeps `## r2 verdict:` and `Prior verdict:` out, since any word
-// before the label must spend a letter the class cannot pay for. QA round 2 found `## 7. Verdict`
-// blocked by exactly one digit.
+// ⚠ BOTH classes admit DIGITS and neither admits LETTERS — say both, because the change dropped
+// `\p{N}` on each side and an earlier version of this comment described only the lead-in (QA r3).
+// Lead-in: `## 7. Verdict` is a numbered heading, a normal convention, and was blocked by exactly
+// one digit. Trailing: `## Verdict 2` is now accepted the same way. ⭐ Excluding LETTERS is the
+// whole safety property — `## r2 verdict:`, `Prior verdict:`, `Earlier verdict:` each have to spend
+// a letter the class cannot pay for. Both sides are fixtured below, accept and reject.
 export const VERDICT_BARE_HEADING_RX = /^#{1,6}[^\p{L}\r\n]{0,6}(?:FINAL |TOP-LINE |RE-)?VERDICT[^\p{L}\r\n]{0,4}$/iu
 export const VERDICT_LINE_APPROVED_RX = /^[^\p{L}\p{N}\r\n>~]{0,8}APPROVED\b/iu
 
@@ -1701,7 +1701,10 @@ function selfTest() {
   rejects('reviewHasApprovedVerdict', reviewHasApprovedVerdict, '## Verdicts\n\nAPPROVED')
   rejects('reviewHasApprovedVerdict', reviewHasApprovedVerdict, '## Verdict\n\nThe work is APPROVED once X')
   accepts('reviewHasApprovedVerdict', reviewHasApprovedVerdict, '## 7. Verdict\n\n✅ APPROVED')
+  accepts('reviewHasApprovedVerdict', reviewHasApprovedVerdict, '## Verdict 2\n\n✅ APPROVED')
   rejects('reviewHasApprovedVerdict', reviewHasApprovedVerdict, '## 7. Prior verdict\n\nAPPROVED')
+  rejects('reviewHasApprovedVerdict', reviewHasApprovedVerdict, '## Verdict two\n\nAPPROVED')
+  rejects('reviewHasApprovedVerdict', reviewHasApprovedVerdict, '## Earlier verdict\n\nAPPROVED')
   accepts('reviewHasApprovedVerdict', reviewHasApprovedVerdict, 'header\n\n### ⭐ Verdict: APPROVED\n\nbody')
   // ⛔ REJECT — the discrimination half. `i` makes the WORD case-blind; it must not make the
   // SENTENCE case-blind. `[\s*]{0,4}` after the colon is what keeps every one of these out.

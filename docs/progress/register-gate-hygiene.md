@@ -301,9 +301,25 @@ Three of this unit's own repairs shipped a first cut that read as complete and w
    > rationale is true of these — and **10** with a **bare `## Verdict` heading and the verdict on
    > the NEXT line**, which is a LINE BOUNDARY, not decoration. ⛔ **The rationale for not fixing was
    > never true of those 10**, so half the residual was filed under a reason that did not apply.
-   > They are now **FIXED** (bare-heading arm, 12 new fixtures, both polarities): readable
-   > **102 → 114 of 169 TRACKED files**. ⚠ An earlier version of this line said "of 170": that denominator counted two UNTRACKED files (QA’s own two reports), and it moved from 169 to 170 inside one passage without anyone noticing — a claim about "the docs" is a claim about a **commit** (QA r2 MINOR-1). ⛔ The residual size is NOT stated as a fact: two independent sweeps give 12 and 13 and differ in MEMBERSHIP both ways.
-   > ⭐ QA's independent measurement of 10 and the lead's tightened re-measurement agree exactly.
+   > They are now **FIXED** (bare-heading arm, fixtures both polarities).
+   >
+   > ⛔⛔ **RETRACTED IN FULL 2026-09-08 (QA r3) — EVERY NUMBER IN THIS BLOCKQUOTE, INCLUDING THE
+   > ONES ADDED TO CORRECT IT.** This block has been revised three times and was wrong each time.
+   > What stood here and is now withdrawn: the `9 + 10` two-shape bound (there are at least three
+   > shapes); a readable ratio *"102 → 114 of 169 TRACKED files"* (**false at its own commit** — that
+   > commit tracked **171**, because it added the two QA reports it called untracked, so the sentence
+   > arguing *"a claim about 'the docs' is a claim about a commit"* was itself wrong about its
+   > commit); *"two independent sweeps give 12 and 13"* (**reproduces under nothing** — three
+   > detectors at HEAD give 7 / 11 / 14, and the `13` was QA's own **pre-widening** figure, carried
+   > forward without re-deriving); and ⭐ *"QA's independent measurement of 10 and the lead's
+   > tightened re-measurement **agree exactly**"* (**they agreed in CARDINALITY over different
+   > sets** — equal counts are not the same set, and a corroboration that never compared membership
+   > corroborates nothing).
+   > ⛔ **The standing repair is not another number: no readable/total ratio is stated anywhere any
+   > more.** `.claude/rules/live-facts-measure-dont-quote.md` — derive it from `git ls-files
+   > docs/reviews`; the method lives in the predicate's own comment. The stable facts are the
+   > SHAPES, and the load-bearing one is checkable and not a count: **no `complete` hub depends on
+   > an unread verdict** (re-verified by QA at r2 and r3).
 2. **The archive ratchet's domain.** Its first cut selected `^### ` only — a **syntax**, not the
    property. ⛔ **The lead's critique of it was itself bounded by a syntax:** the brief said 5 genuine
    `##` entries and used `#{2,4}`; the re-derivation found **27** (the 22 `## ⬛ FUP-0137-…` headings
@@ -608,12 +624,17 @@ residual (`9 + 10 + 1`) was **reconciled against QA's round-1 figure instead of 
 was the sentence beside it: *"QA's independent measurement of 10 and the lead's tightened
 re-measurement agree exactly."* ⛔ **They agreed in CARDINALITY and differed by two members in each
 direction.** Equal counts are not the same set, and a corroboration sentence that never compared
-membership corroborates nothing. Re-derived: the readable count is exact and reproducible
-(**114 of 169 TRACKED** after admitting a numbered `## 7. Verdict`, which one digit had blocked); the
-**residual size is detector-dependent and is no longer stated as a fact** — two sweeps give 12 and 13
-with different membership, one sweeping in genuine CHANGES REQUESTED rounds, the other reaching
-verdicts further from their heading. The load-bearing half — *no `complete` hub depends on one* — was
-re-verified by QA against `checkHub`'s actual predicate and **stays true**.
+membership corroborates nothing. A numbered `## 7. Verdict`, blocked by one digit, was also admitted.
+> ⛔ **RETRACTED 2026-09-08 (QA r3).** This paragraph then said *"the readable count is exact and
+> reproducible (**114 of 169 TRACKED**)"* and *"two sweeps give 12 and 13"*. **Both wrong, and wrong
+> in the same way the thing they were correcting was wrong.** The ratio was false at its own commit
+> (which tracked **171**, having added the two QA reports); the `12 and 13` reproduces under nothing
+> — three detectors at HEAD give **7 / 11 / 14**, and the `13` was QA's **pre-widening** figure
+> carried forward unre-derived. ⛔ **No ratio is stated anywhere any more** — derive it
+> (`live-facts-measure-dont-quote`). ⭐ Six instances, twice inside the correction of the previous
+> one, is not carelessness; it is a number living where no gate can reach it.
+The load-bearing half — *no `complete` hub depends on one* — is **not a count**, was re-verified by
+QA against `checkHub`'s actual predicate at r2 **and** r3, and **stays true**.
 ⛔ **Widening stopped here deliberately.** Each round has revealed one more shape; chasing them
 one at a time is the direction-vs-magnitude trap in slow motion, and QA measured that the arm changes
 no gate outcome today. The remainder is FILED with its shapes named.
@@ -625,8 +646,10 @@ cells rewritten to state what the source *does* record and to assert the approva
 direction**. ⛔ Verified before rewriting, because asserting a new wrong thing here would have been a
 sixth instance: `396352cb` is real and an ancestor of `main`, so the *merge* landed — the
 **approval** is what is unevidenced, and those are different facts.
-**MINORs:** `112 of 170` counted two **untracked** files (QA's own reports) and the denominator moved
-169 → 170 inside one passage — *a claim about "the docs" is a claim about a **commit***; the hub was
+**MINORs:** the readable ratio counted files that were untracked *when measured* and the denominator
+moved inside one passage — *a claim about "the docs" is a claim about a **commit***. ⚠ The fix for
+this was itself wrong: the two QA reports **were tracked** by the commit that called them untracked
+(QA r3 MAJOR-1), which is why no ratio survives anywhere now. The hub was
 not in the "all three places" the round-1 fix updated and still said "65 → 102" and "**Three**"
 instances; the hub still carried the superseded "two homes" framing; this entry's absence; and
 `ledger-completeness.md`'s Current state saying **87 rows** four lines above **88**.
