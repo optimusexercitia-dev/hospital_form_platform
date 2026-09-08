@@ -11957,3 +11957,414 @@ these same two harnesses — which is why this was **deliberately not fixed** in
 
 ✅ **2026-09-08 — FIXED with its twin (Batch 6, ADR 0194).** The three-state fix ADR 0192 made in the write arm is now in `p0-authz-{door,rowdoor,invoker}-audit.sh` as well, and the four `CASES= bash <child>` call sites in `p0-authz-invariant.sh` — which asked for a full sweep in the syntax that now means *"selection came back empty"* — read `unset CASES && bash …`. Evidence and bounds are on the twin entry, `FUP-AUTHZ-EMPTY-CASES-RUNS-A-FULL-SWEEP`, whose clause is the stricter and the one both close on. ⛔ This id is **not** retired or consolidated; the register tidies itself when the two archive together.
 
+
+### 🟠 FUP-PRIVILEGE-BUDGET-CEILING-BREACHED-BY-SEVEN — the `authenticated`-executable DEFINER budget is 759 against a ceiling of 752, and six of the seven are unattributed — ✅ CLOSED 2026-09-08
+
+> **RESOLVED 2026-09-08** — pre-AE5 **Batch 7**, unit `PRIVILEGE-SURFACE`, ADR
+> [0195](../decisions/0195-a-committed-number-needs-one-home-and-a-gated-mirror.md) D1 · D3 · D4 · D5 · D7.
+> Closed on **its own clause, read from the body file below and not from the register summary**:
+> *"Attribute the six — diff the `authenticated`-executable DEFINER set between head `…005300` and
+> head `…007330` (the query above, run against each), name each function and the increment that added
+> it — then put the aggregate to the PO: either the ceiling moves by ruling to the justified number,
+> or the unjustified grants are revoked."*
+>
+> **Both halves are discharged, and the first overshot the clause.** (1) **All SEVEN are attributed,
+> not six.** The clause's own pair was run — reproducing the finding is what shows the instrument
+> works before it is pointed at new ground — **plus** the live head, as a **three-head set diff**:
+> `…005300`/**484** · `…007330`/**522** · `…007350`/**524**, each keyed on the **pair**
+> `(max(version), count(*))`, because a migration was once inserted *below* an existing head after the
+> fact, so **a head alone does not identify a migration set** (R19). ⛔ The diff is over **SETS, never
+> counts**: a count difference of 7 is consistent with 9 added and 2 removed, and counts cannot name a
+> function. ⛔ And the budget at `…007350` is **759 — identical to the `…007330` measurement**; that
+> identity is the **reason to run the third-head diff**, never evidence that the two Batch 4 re-key
+> migrations changed nothing, since a re-key that drops and recreates a function under a changed
+> signature nets to zero in a count and is invisible (R20). The seven, each beside the increment that
+> **created and granted** it, are listed in `docs/backend-state.md` § Privilege budget. **Four of the
+> seven are referenced inside live RLS policy expressions and are therefore structurally required** —
+> `can_edit_commission_forms` **6** policies · `can_administer_person_via_affiliation` **3** ·
+> `current_professional_read_organizations` **1** · `is_affiliated_with_hospital` **1**, re-measured
+> against `pg_policies` rather than carried from the ruling's summary — because a policy expression is
+> evaluated as the **invoking** role, so for those four the `authenticated` grant is not optional. ⛔ The
+> three zero-policy rows were **traced, not assumed** (*"no policy text names it"* is an absence of a
+> verdict, not a verdict): **REQUIRED · REQUIRED · UNNECESSARY** (R25), the `UNNECESSARY` one filed as
+> `FUP-AUTHZ-IS-AFFILIATED-WITH-HOSPITAL-FOR-GRANT-UNNECESSARY` and **not acted on**, because R1's defer
+> stands and an `UNNECESSARY` verdict is a filed follow-up, not an action. (2) **The aggregate was put
+> to the PO, who ruled the ceiling MOVES: `CEILING: 752` → `CEILING: 759`** (PO ruling **R24**,
+> 2026-09-08), with the superseded value quoted beside it. The clause's other offered disposition —
+> *"the unjustified grants are revoked"* — was **not** taken; it is a different and much smaller set
+> than AE1's 233, and taking it would have reopened this unit's no-migration scope (flagged to the PO
+> with the attribution, per R14, rather than sprung afterwards).
+>
+> ⛔⛔ **THIS CLOSURE'S EDIT IS, AS AN ARTEFACT, THE EDIT THIS ENTRY FORBIDS.** The entry names *"Editing
+> the ceiling to 759"* as the thing that *"converts a breach into a baseline"*, and **that prohibition
+> is still in force**. The `CEILING:` line written into `docs/backend-state.md` is the same bytes
+> either way, and **no gate can tell the two apart** — gate 15 checks only that the mirror equals its
+> home, never that a ruling exists, and §U4 pins whatever number it is handed
+> — **the only thing that distinguishes them is a dated PO ruling recorded beside the number**, which
+> exists here and was taken **after** the attribution was measured, never before (R14 dissolved the
+> pin-vs-assert dilemma by ordering the ruling ahead of the build, so the pinned figure records a
+> decision instead of ratifying a breach). ⇒ A later reader tells the two apart by exactly that: a
+> `CEILING` edit with a ruling recorded beside it is this one; a `CEILING` edit without is the forbidden
+> one, whatever number it carries. ⛔ This closure is **not** licence to move the ceiling again — the
+> merge rule reserves the move to the PO, unchanged.
+>
+> ⚠ **The entry's ⭐ is recorded as AMENDED BY MEASUREMENT, never as delivered as asked** (rulings R4 /
+> R12; ADR 0195 D3). It asked for *"a `lint:*` step that reds when it exceeds a committed figure"*,
+> converting *"nobody noticed for a week"* into *"the next commit noticed"*. Measured against that ask:
+> the count is **one query against a live catalog**, and ADR 0127's stated bound is that DB anchors are
+> not checkable in `npm run lint`. ⇒ The **catalog half** lives in pgTAP —
+> `supabase/tests/320_act_expiry_and_acl_hardening.sql` **§U4**, pinning the population per schema and
+> in total (`app` **326** · `public` **433** · total **759**), equality in both directions (D5: a
+> *fall* is not good news either), with a rising control §U5 and a two-halved falling control §U6 — and
+> that runs under `npm run test:db`, i.e. **Phase-Gate step 1**. So it buys *"the next **Phase Gate**
+> noticed"*, one gate coarser than the ⭐ asked for. The **text half** is in the lint chain — **gate 15**,
+> `npm run lint:budget-anchor`, which reds if §U4's literals and `docs/backend-state.md`'s
+> `BUDGET-ANCHOR` ever disagree — but it compares two committed texts and **can never observe the live
+> population**. ⛔ Neither half, nor both, is the ⭐ as written, and saying otherwise would be the
+> comfortable sentence rather than the true one.
+>
+> ⛔ **The entry block below is preserved VERBATIM, its `Closes when` field included; only `**Status:**`
+> is rewritten.** A closure that drops the field cannot be audited against the condition it was closed
+> on — the practice Batch 6 turned into the `archiveMissingClosesWhen` ratchet.
+
+**Filed:** 2026-09-03 (AE4/IA-F9 statement-scoped increment — found while recording the one function that increment adds…) · **Owner:** lead + PO · **Severity:** high — the budget's whole purpose is that it may not rise silently,
+**Closes when:** Attribute the six — diff the `authenticated`-executable DEFINER set between head `…005300` and head `…007330` (the query above, run against each), name each function and the increment that added it — then put the aggregate to the PO: either the ceiling moves by ruling to the justified number, or the unjustified grants are revoked. ⭐ A gate would be cheap and is the durable form: the count is one query, and a `lint:*` step that reds when it exceeds a committed figure converts …
+**Status:** ✅ CLOSED 2026-09-08 (pre-AE5 Batch 7, unit `PRIVILEGE-SURFACE`)
+
+> ⛔ **BODY MOVED HERE VERBATIM 2026-09-08 and `FUP-PRIVILEGE-BUDGET-CEILING-BREACHED-BY-SEVEN.md`
+> DELETED.** The archive may not carry a `Body:` link (gate 13 reds on one), so a closed entry keeps its
+> body inline or loses it. The body's own `# ` title is demoted to `## ` so it nests under this entry —
+> the only byte changed. ⚠ Its measured figures are a **2026-09-03 record at head `…007330`** and are
+> correct as of that date; the live figures are the ones in the closure note above.
+
+## FUP-PRIVILEGE-BUDGET-CEILING-BREACHED-BY-SEVEN — the `authenticated`-executable DEFINER budget is 759 against a ceiling of 752, and six of the seven are unattributed
+
+Index entry: [follow-ups-open.md](follow-ups-open.md) · filed 2026-09-03 · status open
+
+and it has risen silently. Not 🔴 because no individual grant is known to be wrong and the count is
+an aggregate risk measure, not an exposure. Above 🟡 because the merge rule was breached six times
+without anyone noticing, which is a fact about the *process*, not about any one function.
+
+**What is wrong.** `docs/backend-state.md` § Privilege budget records **CEILING: 752** with the
+merge rule *"no increment may raise the count without a named justification in its own gate record,
+and the ceiling moves only by PO ruling."* The live count is **759**.
+
+**How it was MEASURED.** 2026-09-03 at head `20261003007330`, live catalog:
+
+```
+select n.nspname,
+       count(*) filter (where p.prosecdef) as definer,
+       count(*) filter (where p.prosecdef and has_function_privilege('authenticated', p.oid, 'EXECUTE')) as auth_exec
+  from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+ where n.nspname in ('app','public') group by 1;
+```
+
+→ `app` 415 DEFINER / **326** authenticated-executable · `public` 465 / **433**. Totals **880** and
+**759**, against the recorded **856** and **752** (measured 2026-08-27 at head `…005300`).
+**One** of the seven is attributed: `app.current_professional_read_organizations`, justified by name
+in backend-state § Privilege budget and in ADR 0182. **Six are not.**
+
+**What would close it.** Attribute the six — diff the `authenticated`-executable DEFINER set between
+head `…005300` and head `…007330` (the query above, run against each), name each function and the
+increment that added it — then put the aggregate to the PO: either the ceiling moves by ruling to
+the justified number, or the unjustified grants are revoked. ⭐ **A gate would be cheap and is the
+durable form**: the count is one query, and a `lint:*` step that reds when it exceeds a committed
+figure converts "nobody noticed for a week" into "the next commit noticed".
+
+⛔ **What must NOT be mistaken for closing it.** ⛔ **Editing the ceiling to 759.** That converts a
+breach into a baseline and is precisely what the merge rule reserves to the PO. ⛔ Nor does ADR
+0182's named justification close it — that accounts for exactly one of the seven, and the section's
+own ⭐ note already predicted this shape: *"it rises silently, one convenient `grant execute … to
+authenticated` at a time, each individually defensible."* ⚠ Note also that a **revoke may not create
+sweep blindness** — revoking `authenticated` EXECUTE removes a function from `ARM=floor`'s domain
+(RV0's load-bearing ruling), so the remedy is not simply "revoke until the number fits".
+
+### 🟠 FUP-AE1-REVOKE-SET-EXECUTION — 233 classified revokes are HELD, partitioned, and 137 of them are a silent no-op as written (owner: backend/PO) — ✅ CLOSED 2026-09-08
+
+> **RESOLVED 2026-09-08** — pre-AE5 **Batch 7**, unit `PRIVILEGE-SURFACE`, ADR
+> [0195](../decisions/0195-a-committed-number-needs-one-home-and-a-gated-mirror.md) D8, on PO ruling
+> **R1**. ⚠ **The condition is the literal `**Closes when:** PO to rule`** — the body file below states
+> no discharge condition of its own (it states a *precondition on execution*, quoted at the end of this
+> note), so the register's field is the literal the template prescribes when the body states none, and
+> that literal is what this closes on. ⛔ Not closed on any paraphrase of the body's summary.
+>
+> **The ruling: RULE AND DEFER — execution is its own later unit.** The PO ruled *"Rule + defer
+> execution — No revokes, no migration. Batch 7 = re-derive the partition at the current head, record
+> it, and you rule execution into its own later unit."* Stated grounds, all measured, not recalled:
+> RV3 proved PostgreSQL **re-checks EXECUTE at write time** on a function referenced inside a stored
+> `CHECK` expression (`42501`, not the constraint's `23514`), so such a revoke **breaks writes to the
+> constrained table**; the effective silent-no-op class is **138** (below); and a revoke **evicts its
+> subject from `ARM=floor`'s domain**, i.e. it manufactures the sweep blindness this batch exists to
+> prevent. ⇒ This unit produced **no migration and no ACL change**, and the R5 pathspec diff over
+> `supabase/migrations supabase/seed.sql src` is empty as the assertion of it.
+>
+> ⛔ **A DEFER WITHOUT A RE-OPEN CONDITION IS A SHRUG, so here is the condition, copied from ADR 0195 D8
+> where it is written out** (precedent: Batch 0's `FUP-AUTHZ-HARNESS-TRANSACTIONAL`, ruled *detect-only*
+> with the marker **not built by decision** and the condition under which it comes back written down —
+> that condition is what makes a defer safe to carry). **`FUP-AE1-REVOKE-SET-EXECUTION` returns to open
+> on ANY of:** **(a)** `320` **§U4 reds upward** — a rise means the surface is growing while a 233-item
+> revoke set sits unexecuted, which is the condition that made the set worth classifying at all;
+> **(b)** any unit is opened to execute **any** revoke on this surface — including the single-item
+> `FUP-AUTHZ-IS-AFFILIATED-WITH-HOSPITAL-FOR-GRANT-UNNECESSARY`, the smallest instance, whose execution
+> would prove the machinery the 233 need; **(c)** AE5's opening ADR is drafted (pre-AE5 Batch 9), since
+> AE5 substitutes role by role **on this surface** and an unexecuted revoke set is one of its inputs;
+> **(d)** any of the three measured hazards above is **discharged or refuted**. ⛔ **What does NOT
+> re-open it:** time passing, or the register looking untidy. ⛔ **And whatever re-opens it, the
+> partition is re-derived at the THEN-CURRENT head first** — this entry's own source forbids reusing its
+> figures, and D7 is why: *a count that has not moved is not a set that has not moved*.
+>
+> **So that the deferred unit does not restart from `…005300` figures the body forbids reusing, the
+> partition WAS re-derived here, at head `20261003007350`** (`docs/design/authz-ae1-revoke-partition.md`
+> §9). It **reproduces**: PROCEED property-rescued **44** · PROCEED name-rescued **5** · **HOLD 23** ·
+> UNCHANGED **161** = **233**, with 233/233 still resolving in `pg_proc`, 233/233 `prosecdef`, 233/233
+> holding `authenticated` EXECUTE, 0 extension-owned. ⛔ **That reproduction is a measurement, not an
+> assumption, and it is not the trivial re-run it looks like: all SIX arm predicates were re-read from
+> source and ALL SIX had moved** since `…005300` (§9.2) — a partition that reproduces is also exactly
+> what a dead instrument reports, which is why §9.3's controls exist. ⚠ **`UNCHANGED = 161` remains
+> UNEXAMINED, not cleared** — no arm examined those rows before the revoke or after, and the
+> re-derivation did not change that; ⚠ and the **23 HOLD** rows are an *absence of coverage*, not a
+> finding of vulnerability.
+>
+> ⭐ **A CORRECTION this closure carries rather than buries: the silent-no-op class is 138, not 137, and
+> the two are DIFFERENT PREDICATES — not a stale figure and a fresh one** (ruling R26). **137 counts
+> `proacl IS NULL`**, and it re-measures at exactly 137, so that half of the entry's claim reproduces
+> unchanged. **138 counts the effective class** — *for how many is `revoke execute … from authenticated`
+> a silent no-op?* — and the 138th is **`app.latest_published_version`**, whose `proacl` is **NOT NULL**
+> and nonetheless carries an explicit PUBLIC grant (`=X/postgres`, the empty grantee being PUBLIC), so
+> EXECUTE survives the revoke exactly as it does for the other 137. *"`proacl IS NULL` includes PUBLIC"*
+> is true and is why the 137 exist; its converse *"`NOT NULL` therefore excludes PUBLIC"* is **false**,
+> and keying the class on the ACL-text predicate instead of the effective one is what hid it. Six
+> further `app` DEFINERs share the shape outside the 233. ⇒ Both numbers are stated wherever either is,
+> with what each counts, and neither replaces the other.
+>
+> ⚠ **The body's own standing precondition survives the defer and binds the executing unit**, quoted so
+> the deferred work inherits it: *"Before any batch runs: re-derive the partition at the then-current
+> head (⛔ never reuse these numbers — the file's own header forbids it), scope each revoke to the route
+> that actually holds the privilege, and assert `has_function_privilege` **moved** after each batch. An
+> unmoved predicate is a failure, not idempotence."*
+>
+> ⛔ **The entry block below is preserved VERBATIM, its `Closes when` field included; only `**Status:**`
+> is rewritten.** A closure that drops the field cannot be audited against the condition it was closed on.
+
+**Filed:** 2026-08-27 (at AE1's RV0 completion) · **Owner:** backend + PO · **Severity:** high — per emoji at consolidation
+**Closes when:** PO to rule
+**Status:** ✅ CLOSED 2026-09-08 (pre-AE5 Batch 7, unit `PRIVILEGE-SURFACE`)
+
+> ⛔ **BODY MOVED HERE VERBATIM 2026-09-08 and `FUP-AE1-REVOKE-SET-EXECUTION.md` DELETED.** The archive
+> may not carry a `Body:` link (gate 13 reds on one), so a closed entry keeps its body inline or loses
+> it. The body's own `# ` title is demoted to `## ` so it nests under this entry — the only byte changed.
+> ⚠ The body already carries the 2026-09-08 `137`-beside-`138` correction as a dated note, which is why
+> that note is not re-applied here.
+
+## FUP-AE1-REVOKE-SET-EXECUTION — 233 classified revokes are HELD, partitioned, and 137 of them are a silent no-op as written (owner: backend/PO)
+
+Index entry: [follow-ups-open.md](follow-ups-open.md) · filed 2026-08-27 · status open
+
+> Filed 2026-08-27 at AE1's RV0 completion. Full decision record:
+> [authz-ae1-revoke-partition.md](../design/authz-ae1-revoke-partition.md). ⛔ **AE1 executed
+> none of these** — the phase produced the partition, not the revokes.
+>
+> **The partition** (head `20261003005300`, read-only, verdicts are a DELTA in arm-domain
+> membership, not an absolute): PROCEED property-rescued **44** · PROCEED name-rescued **5**
+> · **HOLD 23** · UNCHANGED **161** = 233 ✓.
+>
+> - **HOLD = 23** is the set a revoke would make sweep-blind: 3 `app` set-returning
+>   (`case_phase_option_aggregates`, `eligible_voters`, `submitted_form_responses`) + 20 `public`
+>   leaving `ARM=floor`, being 19 trigger bodies and **`set_participant_patient`** (Rule 12 PHI).
+> - **The 5 name-rescued** are rescued *only* by `p0-authz-writepath-audit.sh`'s 11-name
+>   `GUARD_KEYS` hand list. A rename silently evicts them from the sweep — the
+>   *a-rename-orphans-a-name-keyed-verdict* shape. Never merge them into property-rescued.
+> - **UNCHANGED = 161 is NOT a clean bill.** Those were in zero arms' domains before the revoke
+>   and stay at zero after; they are unexamined, not cleared.
+>
+> ⛔⛔ **Whoever executes these batches must probe, not trust the exit code.** **137 of the 233**
+> reach `authenticated` **only via `PUBLIC`** (`proacl IS NULL`), so `revoke execute … from
+> authenticated` leaves `has_function_privilege` **true** and nothing observable changes — and
+> **no arm would notice**, because every arm returns an identical verdict for the honest reason
+> that the privilege never moved. Re-proved by the lead as an *effective* probe rather than an ACL
+> reading (rolled back, with a positive control): `app.can_read_event_patient` (`proacl` NULL)
+> stayed `true` after the revoke while `app.commission_of_case` (explicit ACL) went `false`. The
+> materialised ACL is the tell — `=X/postgres,…`, whose **leading `=X/` with an empty grantee IS
+> the surviving PUBLIC grant**. ⚠ The probe landed on a **Rule 12 PHI read predicate**, so the
+> no-op class is not confined to inert helpers. Fifth sighting of *a NULL `proacl` includes PUBLIC*.
+> ✅ All **23 HOLD** rows carry a direct grant and no PUBLIC grant, so the revoke is fully
+> effective on exactly the rows the verdict is about; the no-ops concentrate in UNCHANGED (130/137).
+>
+> **2026-09-08 note (Track A re-derivation, adopted by Track D per R26 — beside the figure, not a
+> rewrite of it):** re-measured at head `20261003007350`. `proacl IS NULL` reproduces at exactly
+> **137** — that half of the claim above is unchanged. But the *operational* question is "for how
+> many is `revoke execute … from authenticated` a silent no-op?", and the answer is **138**:
+> **`app.latest_published_version`** has a **non-NULL** `proacl` that nonetheless carries an explicit
+> PUBLIC grant (`{=X/postgres,postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}`,
+> where the empty-grantee `=X` **is** PUBLIC), so revoking `authenticated` leaves EXECUTE arriving via
+> PUBLIC exactly as it does for the other 137. **137 and 138 are different predicates, not a stale
+> figure and a fresh one**: 137 is `proacl IS NULL`; 138 is the effective silent-no-op class.
+> *"`proacl IS NULL` includes PUBLIC"* is true and is why the 137 exist; its converse — *"`proacl IS
+> NOT NULL` therefore excludes PUBLIC"* — is **false**, and keying the class on the ACL-text predicate
+> instead of the effective one is what hid the 138th. Six further `app` DEFINER functions share this
+> shape (`answer_map`, `can_read_correction_response`, `commission_of_version`, `is_admin`,
+> `is_member_of`, `is_org_admin_of`) — outside the 233 and so outside this partition, but the same
+> class and the same trap. Full re-derivation: `docs/design/authz-ae1-revoke-partition.md` §9.4;
+> session log: `docs/progress/privilege-surface.md`.
+>
+> ⚠ **Batch 1's "lowest-consequence" framing is half false.** True at runtime (EXECUTE on a
+> trigger function is checked at `CREATE TRIGGER`, never at fire time); false for observability —
+> `ARM=floor` applies no return-type filter, so those 19 trigger bodies are in its domain **today**
+> and the revoke evicts all 19.
+>
+> ✅ **RV3 is answered and is a hard input to any future revoke**: PostgreSQL **does** re-check
+> EXECUTE at write time on a function referenced inside a stored CHECK expression — `42501`, not
+> the constraint's `23514` — on both `plpgsql` and inlinable `sql`. Revoking EXECUTE on a
+> constraint-referenced function therefore **breaks writes to the constrained table**.
+>
+> **Before any batch runs:** re-derive the partition at the then-current head (⛔ never reuse these
+> numbers — the file's own header forbids it), scope each revoke to the route that actually holds
+> the privilege, and assert `has_function_privilege` **moved** after each batch. An unmoved
+> predicate is a failure, not idempotence.
+
+### 🟢 FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED — half of `app` is PUBLIC-executable, and the only thing bounding it is one config line (owner: backend; filed 2026-08-22, found while deriving an ACL by property for ADR 0134 Amdt 6) — ✅ CLOSED 2026-09-08
+
+> **RESOLVED 2026-09-08** — pre-AE5 **Batch 7**, unit `PRIVILEGE-SURFACE`, ADR
+> [0195](../decisions/0195-a-committed-number-needs-one-home-and-a-gated-mirror.md) D6, on PO ruling
+> **R2**. ⚠ **The condition is the literal `**Closes when:** PO to rule`** — the body file below asks
+> for *"a decision, not a patch"* and states no discharge condition of its own, so the register's field
+> carries the template's literal and that is what this closes on. ⛔ Not closed on a paraphrase of the
+> body's three numbered items.
+>
+> **The ruling: KEEP THE CONFIG BOUND, GATE THE CONFIG LINE.** The PO ruled *"Keep the config bound,
+> gate the config line — Rule NO to a sweeping default-REVOKE. Instead: comment `config.toml:13` saying
+> 237 `app` functions are anon-executable and this line is what makes that safe, PLUS a lint gate that
+> reds if `schemas` ever gains `"app"`."*
+>
+> ⚠ **Two things inside that quote have since rotted, and it is quoted anyway because it is the
+> ruling's own text.** (i) **`config.toml:13`** — the comment block this ruling ordered pushed the
+> `schemas` assignment **below itself**, so every citation is repointed to the **key** `[api].schemas`
+> rather than to a line number that can rot again (R30); line 13 now carries a mitigation banner
+> saying exactly that, so an old `:13` citation lands on its own explanation. ⭐ **R30 itself named
+> the new position as line `51`, and that number had already rotted when this closure was written:
+> measured at this tip, `^schemas` is at line **71**.** Two rotations of one citation inside one unit
+> is why the repair is *"cite the key"* and not *"cite the corrected line"* — the folded body below
+> keeps its own dated `51` verbatim, as the record of what was true when it was written. (ii) **`237`** — the
+> figure the ruling asked the comment to state; the comment actually delivered says **236 of 526**,
+> for the reason set out below.
+>
+> **Item by item, against the body's own list.** ⇒ **Item 1 is ruled NO** — no default-`REVOKE` of `app`
+> from PUBLIC. ⇒ **Item 2's pgTAP gate is therefore OUT OF SCOPE BY RULING, not skipped work**: the body
+> makes it conditional (*"If yes, the honest gate is a pgTAP assertion"*), item 1 was answered *no*, so
+> the condition never fired. ⛔ It must not be reported as an unbuilt deliverable, and it must not be
+> reported as built. ⇒ **Item 3 is DONE and was widened by the ruling** from a comment to a comment
+> **plus a gate on the line itself**: `supabase/config.toml`'s `[api].schemas` key now carries a
+> comment block saying what it holds up, and **gate 14, `npm run lint:config-schemas`
+> (`scripts/check-supabase-config-schemas.mjs`)**, pins that key. ⭐ The gate's justification is stronger
+> than *"documenting a posture"*: `supabase/tests/320_act_expiry_and_acl_hardening.sql` **§U1's severity
+> argument itself rests on that line, in prose, with nothing checking it** (R9) — so the gate protects
+> the premise of a **live pgTAP assertion**, not merely a documented stance.
+>
+> ⛔⛔ **THE BOUND, and a closure without it claims more than the gate buys** (R18; written in three
+> places by ruling — the gate's own header, the unit record, and here). **Gate 14 proves the FILE never
+> gains `app`. It does NOT prove the DEPLOYED PostgREST configuration matches the file.** It is a text
+> check over one committed artefact; the hosted project's exposed-schema list is a separate fact that
+> nothing in this repo observes, and probing production is a network action reserved to the PO. ⇒ The
+> gate is a **PROXY for reachability, not the property**, and the residual is filed as its own item,
+> `FUP-AUTHZ-NO-BEHAVIOURAL-PROOF-APP-SCHEMA-UNREACHABLE-OVER-POSTGREST` (which stays **open**). ⚠ Even
+> a local probe would close only half: the local stack is configured *from* the file, so it proves
+> FILE→LOCAL and says nothing about the hosted deployment.
+>
+> ⚠ **THE FIGURE MOVED, AND THE TWO 236s ARE NOT THE SAME 236.** The entry's live consequence clause read
+> **237 of 467**; re-measured on a fresh reset at head `20261003007350`, `app` holds **526** functions
+> (`prokind='f'`), of which **236** satisfy `has_function_privilege('anon', …, 'EXECUTE')` — **both**
+> halves of the pair had moved, and the delivered `config.toml` comment says **236 of 526**. ⛔ **That 236
+> is NOT `320` §U1's 236.** §U1 pins the **ACL-shaped** population (`proacl IS NULL` **or** an explicit
+> PUBLIC grant); this is the **effective** population. They coincide today **by accident**, and were
+> **proven able to disagree** — granting `anon` EXECUTE on one `app` function moved the effective count to
+> **237** while the ACL-shaped count stayed at **236** (rolled back). Inferring either from the other is
+> the same error this unit corrected as 137-vs-138 on the sibling entry. ⛔ The body's dated 2026-08-22
+> measurement table is **not** rewritten — it is correct as a record of that day; only present-tense
+> clauses were annotated.
+>
+> ⛔ **The entry block below is preserved VERBATIM, its `Closes when` field included; only `**Status:**`
+> is rewritten.** A closure that drops the field cannot be audited against the condition it was closed on.
+
+**Filed:** 2026-08-22 (found while deriving an ACL by property for ADR 0134 Amdt 6) · **Owner:** backend · **Severity:** low — per emoji at consolidation
+**Closes when:** PO to rule
+**Status:** ✅ CLOSED 2026-09-08 (pre-AE5 Batch 7, unit `PRIVILEGE-SURFACE`)
+
+> ⛔ **BODY MOVED HERE VERBATIM 2026-09-08 and `FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED.md`
+> DELETED.** The archive may not carry a `Body:` link (gate 13 reds on one), so a closed entry keeps its
+> body inline or loses it. The body's own `# ` title is demoted to `## ` so it nests under this entry —
+> the only byte changed; its dated notes and the ⚠ EDITED item 3 travel with it.
+
+## FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED — half of `app` is PUBLIC-executable, and the only thing bounding it is one config line (owner: backend; filed 2026-08-22, found while deriving an ACL by property for ADR 0134 Amdt 6)
+
+Index entry: [follow-ups-open.md](follow-ups-open.md) · filed 2026-08-22 · status open
+
+**Found while doing something else** — the ADR 0134 Amendment 6 condition "derive `member_can_for`'s ACL
+from the catalog by property, do not invent one". The derivation surfaced an asymmetry, and the
+asymmetry turned out to be the small end of a much larger measured fact.
+
+**Filed as 🟢 informational, deliberately.** It is **not** a live hole, and it must not be reported as
+one — see the bound below. It is filed because the bound is a *config line*, not the ACLs, and nothing
+in the tree says so.
+
+**Measured 2026-08-22 from the live catalog** (property + count for each):
+
+| property | count |
+|---|---|
+| functions in schema `app` (`prokind='f'`) | **467** |
+| of those, **`anon` holds EXECUTE** (`has_function_privilege`) | **237** |
+| `proacl IS NULL` — the *permissive default*, which includes PUBLIC | **228** |
+| an **explicit** `=X/postgres` PUBLIC entry in `proacl` | **9** |
+
+The nine explicit ones: `answer_map`, `can_read_correction_response`, `commission_of_version`,
+`eval_condition`, `is_admin`, **`is_member_of`**, `is_org_admin_of`, **`is_staff_admin_of`**,
+`latest_published_version`. Four of those nine are **authorization predicates**.
+
+⛔ **THE BOUND, and it is the whole severity argument.** Schema `app` is **not exposed to PostgREST** —
+`supabase/config.toml`'s `[api].schemas` key is `schemas = ["public", "graphql_public"]`. (2026-09-08
+note, Track D: cited by line as `config.toml:13` until a 2026-09-08 comment block displaced the
+assignment to line 51 — repointed to the key per R30 so the citation cannot rot again.) An `anon` caller cannot reach
+`app.*` over the API at all (this repo has already recorded that `app.*` RPCs are 404). So these grants
+confer nothing today. ⇒ **defense-in-depth gap, not a vulnerability.** If that one line ever gains
+`"app"`, **236** functions become directly callable by `anon` in the same edit — the ACLs are not the
+thing holding the line, and a reader auditing the ACLs would conclude they were.
+
+> ⚠ **2026-09-08 (Batch 7, QA re-review B2): this consequence clause read `237`, and BOTH halves of
+> that pair had moved.** Re-measured on a fresh reset at head `20261003007350`: `app` holds **526**
+> functions (`prokind='f'`), of which **236** satisfy `has_function_privilege('anon', …, 'EXECUTE')`.
+> ⛔ **The `:17-18` table above is NOT corrected** — it is a dated 2026-08-22 measurement and is
+> correct as a record of that day; only this present-tense clause was making a live claim.
+> ⛔ **And 236 here is NOT §U1's 236.** `320` §U1 pins the **ACL-shaped** set (`proacl IS NULL` or an
+> explicit PUBLIC grant); this is the **effective** set. They coincide today **by accident**, and were
+> proven able to disagree — granting `anon` EXECUTE on one `app` function moved the effective count to
+> 237 while the ACL-shaped count stayed at 236 (rolled back). Inferring either from the other is the
+> same error this unit corrected as 137-vs-138.
+
+⭐ **How this was nearly filed wrong, which is the reusable part.** It was first reported as
+*"`app.is_member_of` carries a PUBLIC EXECUTE grant while its `_for` twin and the whole `_for` family do
+not — `is_member_of` is wider than every sibling."* Every clause of that is **true**, and the framing is
+**wrong in the way this repo keeps being wrong**: it names the instance found instead of the class. Run
+by property, the class is 237 of 467, `is_staff_admin_of` is a second explicit member the sentence
+missed, and the dominant mechanism is not a deliberate grant at all but **`proacl IS NULL`** — the
+default nobody wrote. A one-outlier framing invites a one-function fix that would change nothing.
+
+**To close** — this needs a *decision*, not a patch, and the decision is not this increment's:
+1. Rule whether `app` should be default-`REVOKE`d from PUBLIC at all (a sweeping ACL change across 228
+   functions, each of which must still work for `authenticated` / `service_role` / the DEFINER chains).
+2. If yes, the honest gate is a **pgTAP** assertion (⚠ DB anchors are not checkable in `npm run lint` —
+   ADR 0127's stated bound), and it must be **red-first**: create a throwaway `app` function with a NULL
+   `proacl` and require the gate to catch it, or the gate proves only that today's 228 were listed.
+3. Whatever is decided, `supabase/config.toml`'s `[api].schemas` key should carry a comment saying how
+   many `app` functions are anon-executable and that this line is what makes that safe. Right now the
+   load-bearing line looks routine. (⚠ **EDITED 2026-09-08, QA re-review B2** — this read *"a comment
+   saying that **237** `app` functions are anon-executable"*. It is an **operational instruction**, so
+   it is edited rather than annotated: a reader following it would have written a figure that was
+   already stale, and the comment actually delivered says **236 of 526**. ⛔ The count is deliberately
+   **not restated here** — this item asks for a comment, and the figure belongs in the comment, which
+   is gated, not in the instruction to write one.) (2026-09-08 note, Track D: **done** — R2 ruled item
+   3 owed, widened to comment + a `npm run lint` gate on the line itself; see the comment block above
+   `schemas` in
+   `supabase/config.toml` and gate 14, `lint:config-schemas`.)
+
+⛔ **Do not "fix" this by adding `REVOKE` to the ADR 0134 migration.** It is outside that ruling's
+approval scope, it is unrelated to the case surface split, and a sweeping privilege change smuggled into
+a feature migration is how the next reader loses the reasoning.

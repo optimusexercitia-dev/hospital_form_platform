@@ -19,7 +19,7 @@
  *         predicate, run as its own query
  * ⭐ SUPERSEDED, quoted so the edit is legible: this block read *"467 functions, **237**
  * of which are `anon`-executable (measured 2026-08-22)"*
- * (`docs/followups/FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED.md`). Both halves had
+ * (`docs/followups/follow-ups-archive.md, id FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED -- CLOSED and archived 2026-09-08 at Batch 7 Record step; the standalone body file is gone, the entry and its folded body live in the archive`). Both halves had
  * moved: +59 functions landed in the intervening migrations, and the `anon`-executable
  * set fell by one when AE4.7b (`20261003007210`) revoked the PUBLIC grant on
  * `app.is_staff_admin_of`.

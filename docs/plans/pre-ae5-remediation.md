@@ -38,7 +38,7 @@ first (Batch 1); Batch 4's re-key needs a working diff-scoped sweep (Batches 1�
 must not create sweep blindness (Batch 2's domain). Batch 6 is the inter-phase window's own work.
 Batch 9 is not a fix — it is the AE5 plan's opening ADR.
 
-## 2. Concluded — Batches 0, 1, 2, 3, 4, 6 (Batch 5 rode inside Batch 4)
+## 2. Concluded — Batches 0, 1, 2, 3, 4, 6, 7 (Batch 5 rode inside Batch 4)
 
 > ⚠ **This heading said "all QA-approved" until 2026-09-08. Batch 6 is the exception and it is
 > named rather than absorbed:** its four QA rounds were **every one `CHANGES REQUESTED`**, and the
@@ -64,6 +64,9 @@ restatement. **Re-measure anything you rely on.**
 | 2 | `PRED-DOMAIN` — [hub](../features/pred-domain.md) · [record](../progress/pred-domain.md) · ADR [0191](../decisions/0191-the-door-arms-domain-gains-a-schema-axis-a-targeted-home-and-a-fourth-outcome.md) (amends 0173, 0079) | `d7964398` 2026-09-07 | `FUP-DOOR-SWEEP-DOMAIN-MISSES-THE-AUTHZ-RESOLVERS` + `…GAP-WIDENED-BY-SET-VALUED-RESOLVERS` (jointly) · `FUP-DOOR-AUDIT-ALL-POLICY-COVERED-IS-MIRROR-AMBIGUOUS` · `FUP-DOOR-SWEEP-BROAD-GATE-ABORTS-A-FILE` · `FUP-C2-TIER1-TRIGGER-ENFORCERS-OUT-OF-SWEEP-DOMAIN` · `FUP-AUTHZ-SETVALUED-TARGETED-HOME-HAS-NO-SCHEDULE` | `PRED_DOMAIN` gains the `authz` **schema axis** (bounded to boolean); selection delta exactly `candidate_has_permission` + `scope_reaches`; the `SETOF uuid` resolvers get a committed **targeted-case home** (scheduled in lead-playbook §4); `NOTICED` = a fourth outcome, PO-ruled **evidence not a verdict** (disclosed, non-blocking); the read arm opens `using` only (11 `(ALL)` flips work-listed); a per-run `DOMAIN-STATEMENT` with ADR 0187 D1's sentence byte-exact; the door harness gained Batch 0's tail-drift design after run 1's 78-row drift tail was proven with **no originating case**; the door baseline **re-earned** through a bounded run (353 cases, 40 resets: 294 COVERED · 36 BLIND · 23 NOTICED · 0 ERROR), 275 CARRIED rows dispositioned per PO ruling, 31 hand notes preserved. |
 | 3 | `WRITEPATH-BASELINE` — [hub](../features/writepath-baseline.md) · [record](../progress/writepath-baseline.md) · [review](../reviews/writepath-baseline-review.md) · ADR [0192](../decisions/0192-ownership-is-a-proxy-not-the-property-and-the-write-arms-crash-safety.md) (amends 0189, 0153) | ✅ **MERGED and PUBLISHED — measured 2026-09-08**, not asserted: `main` @ `1fba8729` contains `e4a16b33`, `git branch --list authz-writepath-baseline` is **empty** (branch deleted), and `origin/main` = `1fba8729` with push distance **0** — the PO directed the push so the second machine can rebase onto merged Batch 3 (§3 Batch 4 item 2). Superseded text, quoted so nothing is lost: *"⛔ **NOT MERGED as of 2026-09-08** — complete, PO-approved and QA-approved on branch `authz-writepath-baseline` @ `e4a16b33`; the `git merge --ff-only` is the **lead's** step and is ordered **before** Batch 4's (§3 Batch 4 item 1)."* ⚠ **Measure this cell, never quote it** — the hub's `branch:` is nulled at the Record step and is ⛔ not a claim that it merged; a deleted branch is not one either (it is deleted at the same step) — what proves the merge is the ancestry check `git merge-base --is-ancestor e4a16b33 main`, run bare, which is how the ✅ above was earned | `FUP-WRITEPATH-FINDINGS-FILE-COVERS-33-OF-107` (⚠ its **title figure was stale at 39**, not 33, when it closed — title figures are not amended retroactively) · `FUP-STORAGE-OBJECTS-INSERT-POLICIES-NEWLY-IN-DOMAIN` (closed from the **plain** run; the predicted ownership blocker was measured and **DISPROVEN** — `supautils.policy_grants` grants POLICY DDL outside `pg_class.relowner`) · `FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED` (Parts 2–4; closed on the **recovery step** + the **nine policies actually swept**, ⛔ never on the exit codes) | ⭐ **Ownership is a PROXY, not the property** — a permission question is answered by attempting the permission or reading every grant path, never by reading `relowner` alone; the approved superuser escalation was **dropped** and its corrected predicate kept as a **detector** (dormant on 0 of 107, so proven able to fire only by a plant). `CASES=""` no longer degrades to a full run **in the write arm** (⛔ the door arm's identical defect is FILED, not fixed). `RESET_EVERY` **ported, not copied** — the door's `periodic_reset()` re-derives two catalog worklists while Arm 1 is a **static** `GUARD_KEYS`, so Arm 1 got its own post-reset OID check. The recovery step Part 4 owed is prose in the harness header naming `git checkout -- docs/reviews/authz-writepath-audit-findings.md` + the sentinel/`RECOVER=1` protocol + the **working-tree/suite-shape** clause. The write baseline **re-earned** through one 3.88 h detached run (120 cases, `resets=8`: **102 COVERED · 15 BLIND · 3 ERROR**, bare **rc 1 = DIRTY**, the correct outcome), coverage **51 of 120 → 120 of 120 measured**, guard arm **12 of 13 → 13 of 13**; 45 CARRIED rows dispositioned per PO ruling (9 re-filed, 36 deleted), all 11 hand-annotated rows preserved by byte comparison. ⚠ **Eleven instrument faults caught**, every one reading like a live defect; ⛔ the 15 BLINDs and the 3 UNVERDICTED `process_template_*` ERRORs are **findings, never allowlisted**, and `297_process_template_versioning.sql` is **correctly not fixed here** (the fix moves `Tests=`, and `Tests=` **is** the shape the run asserted 120 times). |
 | 4 (+5) | `ENFORCEMENT-MANIFEST` — [hub](../features/enforcement-manifest.md) · [record](../progress/enforcement-manifest.md) · [review](../reviews/enforcement-manifest-review.md) · [re-review](../reviews/enforcement-manifest-rereview.md) · [re-review 2](../reviews/enforcement-manifest-rereview-2.md) · ADR [0193](../decisions/0193-the-enforcement-manifest-declares-what-it-measured.md) (amends 0176, 0178) | `74459926` 2026-09-08 — ⛔ **rebased**, so this sha is NOT the one the record and the three reviews cite (`bb85f0c4` pre-rebase; `dab3cc87`, the PO approval, no longer resolves) | `FUP-AE4-HARDDENY-CLASSES-CANNOT-FAIL` (**the one literal "before AE5" sentence** in the corpus) · `FUP-VALIDATIONS-WRITE-PATH-IS-LAYER-1` · `FUP-READ-ORGANIZATIONS-LITERAL-IN-NO-MANIFEST-ROW` · `FUP-AUDIT-REGISTRY-CONSUMER-OF-READ-AUTHORIZER-UNRECORDED` · **`FUP-AE4-ROLLBACK-RUNBOOK-SIX-SCOPED-TO-FOUR`** (Batch 5, riding along) — each on its own quoted clause; 2 filed | `hardDenyClasses` became a **committed claim** instead of `[]`, so pgTAP `410` §6.2 has an arm that can fail — and its search is now **transitive over the composed-call closure**, not one hop, with planted and natural controls. One migration re-keys `public.set_item_validations` onto the permission, closing the template defect **AE5 would have copied eleven times** (a re-key at the policy that leaves the DEFINER writer on its legacy gate); seven DEFINER splits declared in `definerSurface`; the two undeclared consumers recorded — `current_professional_read_organizations` as a **site**, `app._audit_access_authorized` as a **non-enforcement** consumer with a partition arm, so changing the authorizer can no longer move the audit gate unnoticed. Rollback runbook §6 rewritten for six policies plus the DEFINER door (six stale figures re-measured). ⚠ The `hardDenyClasses` values are a **claim that ages**: any migration changing a call chain reds §6.2 by design (ADR 0193 D8), and the missing instrument for gateless classes is **filed, not built**. ⭐ Merged through a **rebase**, so the gate was re-earned at the rebased tip; `ARM=census` moved **604 → 608** verdicts, which is the arithmetic that says Batch 3 landed *underneath* this unit rather than beside it. |
+| 7 | `PRIVILEGE-SURFACE` — [hub](../features/privilege-surface.md) · [record](../progress/privilege-surface.md) · [review](../reviews/privilege-surface-review.md) · [re-review](../reviews/privilege-surface-rereview.md) · [re-review 2](../reviews/privilege-surface-rereview-2.md) · ADR [0195](../decisions/0195-a-committed-number-needs-one-home-and-a-gated-mirror.md) (**amends nothing** — stated as a claim, since every sibling batch ADR amends something) | ff-merged to `main` 2026-09-08; **pushed** by PO ruling (⚠ the standing instruction in §6 is *"do not push"* — overridden, as for Batch 4) | 3 closed, **5 filed** | The ceiling moved **752 → 759 by PO ruling** with all seven attributed across **three** heads (the clause named two; keyed on the **pair** `(max(version), count)` because a head alone does not identify a migration set). **Four of the seven are referenced inside live RLS policies**, so *"revoke the unjustified grants"* was largely unavailable. AE1's 233 revokes **deferred with a written re-open condition**, partition re-derived (44/5/23/161 reproduces; ⛔ all **six** arm predicates had moved). The `app` PUBLIC floor keeps its **config** bound, now gated as text. `npm run lint` gains **gates 14 and 15** and has **15**, not 13. ⛔ **`PATHSPEC_BYTES=0`** — no migration, no ACL change, no `src/` |
+
+> ⚠ **Batch 6 is named in this heading but has NO ROW in the table above** — it was concluded without one, and Batch 7 (2026-09-08) added its own rather than silently inheriting that gap. ⛔ Stated rather than fixed: reconstructing a row after the fact is the `LEDGER-COMPLETENESS` shape, and it belongs to whoever re-derives the set, not to a passing batch. Batch 6's conclusion is recorded in §3 under its CONCLUDED banner and in the phase ledger.
 
 **PO rulings taken so far** (each recorded in the ADR / record it belongs to): Batch 0 Q2 —
 transactional residual **detect-only**; Batch 1 — approval ratified three closures whose register field
@@ -85,7 +88,7 @@ halves both) ·
 `FUP-AUTHZ-C2-NEUTRALIZER-CAPTURED-OIDS-SURVIVE-ITS-OWN-RESET` 🟠 · `FUP-AUTHZ-SETVALUED-HOME-DOES-NOT-EMIT-ROWS` 🟡 ·
 `FUP-AUTHZ-MERGE-HEADERS-RELOCATE-AND-MALFORMED-ARM-HAS-NO-SELFTEST` 🟡 · `FUP-AUTHZ-NOTICED-ROWS-WITHOUT-AN-AUTHZ-SHAPED-REDDENING` 🟠.
 
-## 3. Remaining — Batches 7 to 9, in dependency order
+## 3. Remaining — Batches 8 to 9, in dependency order
 
 > ⚠ **EDITED 2026-09-08 (Batch 6 Record step).** The heading read *"Batches 6 to 9"*. Batch 6 is
 > concluded; its block below is **kept, not deleted** — it carries the derivation a later batch
@@ -318,6 +321,13 @@ new guard is proven able to fire — the rest of the batch may not silently set 
 
 ### Batch 7 — Privilege surface — owner lead + **PO** (rulings), backend (execution)
 
+> ✅ **CONCLUDED 2026-09-08 — unit `PRIVILEGE-SURFACE`, ADR 0195, QA APPROVED at `52959b8a` after three review rounds and four fix iterations; PO-approved, ff-merged, pushed.** The block below is **kept, not deleted** — it carries the derivation a later batch still reads — and this banner is what stops a reader acting on it twice.
+>
+> ⛔ **Two of its own clauses were WRONG when this block was written, and both are corrected here rather than left to be re-discovered:**
+> **(a)** the ceiling row says *"Attribute by diffing heads `…005300` → `…007330`"*. By the time the batch ran, the live head was **`…007350`** — the run used **three** heads, and diffing only the named pair would have satisfied the clause while leaving the newer delta invisible.
+> **(b)** the AE1 row says *"137 reach `authenticated` only via `PUBLIC` (`proacl IS NULL`)"*. `proacl IS NULL` re-measures at exactly **137**, but the **effective** silent-no-op class is **138** — `app.latest_published_version` carries a *non-NULL* `proacl` holding an explicit PUBLIC grant. ⛔ *"`proacl IS NULL` includes PUBLIC"* is true; its converse is **false**, and keying the class on the ACL-shaped predicate is what hid it. State **both**, with what each counts — they are different predicates, not a stale figure and a fresh one.
+> **(c)** the green row's *"237 of 467"* is now **236 of 526** — ⛔ *both halves* had moved.
+
 | Follow-up | Sev | The gap |
 |---|---|---|
 | `FUP-PRIVILEGE-BUDGET-CEILING-BREACHED-BY-SEVEN` | 🟠 | The `authenticated`-executable DEFINER budget is **759 against a ceiling of 752**; six of the seven are unattributed. Attribute by diffing heads `…005300` → `…007330`; then the PO either moves the ceiling by ruling or the unjustified grants are revoked. ⛔ Editing the ceiling is reserved to the PO. The durable form is a `lint:*` gate. |
@@ -497,33 +507,62 @@ inside a role increment"* (ADR [0176](../decisions/0176-authz-permission-layer-m
 
 ## 6. Where the next session starts
 
-> ⚠ **EDITED 2026-09-08 — this checklist now reads BATCH 6.** It is an **operational instruction**,
-> so it is edited rather than annotated (R45). The superseded checklist was the Batch 3/4 **merge**
-> checklist; ⛔ its facts are not lost and are not repeated here — every measurement it carried
-> (merge shas, push distance, the ancestry check, the `ls-remote` boundary) now lives in **§2 rows 3
-> and 4**, which is that fact's one home. What the superseded text told a reader to *do* — merge
-> Batch 3, then rebase and merge Batch 4 — is **done**.
+> ⚠ **EDITED 2026-09-08 — this checklist now reads BATCH 8.** It is an **operational instruction**,
+> so it is edited rather than annotated (R45). The superseded checklist read BATCH 7; ⛔ its facts are
+> not lost and are not repeated here — every measurement it carried now lives in **§2 row 7** and in
+> the Batch 7 block's CONCLUDED banner in §3, which is that fact's one home.
+>
+> ⛔ **The superseded text also said "Do not push"** (§4 step 6). The PO **overrode it by ruling on
+> 2026-09-08**, for Batch 7's merge, on the grounds that `origin/main` was 27 commits behind before
+> the merge and 52 after. ⚠ Scoped in writing to **that push**, exactly as the Batch 4 override was —
+> ⛔ **not a standing licence.** Pushing `main` is deploy-safe *only while* Coolify's Automatic
+> Deployment is off; ⭐ that was **re-verified at the push**, not quoted from
+> `docs/deployment/coolify.md` — a record's claim about an external system goes stale silently.
 
-Batches 0–5 are concluded (§2). **Batch 6 is next**, and it is the lead's own work: register and gate
-hygiene, in the inter-batch window, because a gate added mid-phase blocks that phase.
+Batches 0–7 are concluded (§2). **Batch 8 is next.**
 
 1. **Measure, do not assume, where the tree stands.** `git status` clean on `main`;
-   `git rev-list --count origin/main..main` (⛔ re-run it — a clean push state is an instant, not a
-   lease); `docs/features/INDEX.md` shows no `in_progress` hub. If any is false, stop and read the hub
-   that is in progress.
-2. **Read Batch 6's block in §3** — **five** follow-ups carrying **six ids** (one mechanism carries
-   two), each with its own quoted `Closes when`. **Three** of them are about **gates that cannot
-   fail** — the `complete` gate's two regexes, gate 9's blindness to a link *target*, and the archive
-   nothing asserts over — so each fix owes a proof that the repaired gate *can* fire, on a planted
-   red, before it is believed. The fifth is the opposite polarity: a harness that runs when it should
-   have stopped, so its proof is that an empty `CASES` now **exits** rather than sweeping.
-   > ⚠ **EDITED 2026-09-08 (Batch 6, unit opened).** The superseded text read: *"four follow-ups,
-   > each with its own quoted `Closes when`. Two of them are about **gates that cannot fail**"*. It
-   > was correct when written and went stale when the empty-`CASES` item was batched into §3 on
-   > 2026-09-08 — the same day, by the commit directly above it. Edited rather than annotated because
-   > it is an **operational instruction**: a reader who counts four stops one item short.
-3. Say **"initiate Batch 7"** to the lead (⚠ **EDITED 2026-09-08** — this said Batch 6, which is concluded; an operational instruction is edited, not annotated). The lead opens the hub + record and plans before touching a
-   script — ⛔ never the build first. These scripts are the ones every other unit's Record step runs,
-   so a change here reds the tree for everyone until it is right.
-4. After Batch 7: **8, 9** in that order (§3). Batch 9 is not a fix — it is AE5's opening ADR, and
-   AE5 itself stays **post-pilot** by ADR 0155 G1.
+   `git rev-list --count origin/main..main` (⛔ re-run it — a clean push state is an **instant, not a
+   lease**, and Batch 6 proved a branch can appear mid-session); `docs/features/INDEX.md` shows no
+   `in_progress` hub. If any is false, stop and read the hub that is in progress.
+   ⛔ **A deleted branch is not evidence of a merge** — the proof is
+   `git merge-base --is-ancestor <unit tip> main`, run **bare**.
+
+2. **Read Batch 8's block in §3.** It is **one** follow-up,
+   `FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-ARM` 🟠, and it is **PO-gated**: its blocker
+   `BUG-PROF-INACTIVE-001` is fixed (2026-09-01), so it is unblocked and awaits a ruling.
+   ⚠ **Unlike Batch 7, this one is a MIGRATION.** `app.can_manage_professional` is parameterised on a
+   third party but its first arm is `coalesce(app.is_admin(), false)`, which reads `auth.uid()` — it
+   answers about the **caller**, never `p_uid`. ⇒ It owes its own reachability analysis, and then a
+   migration → **diff-scoped sweep, BOTH ARMS**, over the derived case list. ⛔ Batch 7's empty
+   `PATHSPEC_BYTES=0` assertion will **not** apply, and E2E may be owed.
+
+3. Say **"initiate Batch 8"** to the lead. The lead opens the hub + record **before** the branch
+   (gate 13's branch check is live on Windows since Batch 6, and it wants the branch to exist), then
+   plans before touching anything.
+
+4. After Batch 8: **9** (§3). Batch 9 is not a fix — it is AE5's opening ADR, and AE5 itself stays
+   **post-pilot** by ADR 0155 G1.
+
+### ⭐ What Batch 7 learned that the next batch should not re-learn
+
+- ⛔ **A follow-up's `Closes when` can name STALE HEADS, a WRONG PREDICATE, or a case that cannot
+  fail.** Batch 7's three clauses contained all three faults. Read the **body**, re-measure what it
+  names, and correct the clause *before* closing on it — never around it.
+- ⛔ **A count is not a set.** The budget was **identical** at two heads and the set diff was still
+  the only instrument that could see an add/remove pair. A zero delta is what a compensating pair
+  looks like.
+- ⛔ **"Head N" does not identify a migration set.** Key reproduction on the **pair**
+  `(max(version), count(*))`.
+- ⛔ **Before building a gate, grep for its incumbent.** `320` §U1 already pinned an overlapping
+  population with its own merge rule; a second home would have been two ratchets and two rules over
+  one surface.
+- ⛔ **A committed number needs ONE home and a GATED mirror**, and a live-catalog count cannot be a
+  `npm run lint` step (no Docker) — it buys *"the next Phase Gate noticed"*, never *"the next commit
+  noticed"*. Say which you delivered.
+- ⛔ **Fixtures derived from the real artefact are poisoned by the plant they exist to detect** —
+  gate 14 nearly shipped with its one real red unreachable and its exit code **inverted** from
+  *finding* to *checker broken*.
+- ⛔ **A "derived" sweep that is piped through `head` is a hand-list wearing a label.** Batch 7 filed
+  a follow-up naming that exact failure and then committed it one commit later, over 132 matching
+  lines. ⭐ Four of the batch's findings were the **lead's own**, and this was the sharpest.

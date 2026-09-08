@@ -12,11 +12,10 @@
 > A hub's `## Current state` is its summary; its progress record's `## Session log`
 > (`docs/progress/<code>.md`) is its detail (ADR 0186 D3).
 
-**14 hubs** · in progress 1 · gated 0 · planned 2 · parked 0 · complete 11
+**14 hubs** · in progress 0 · gated 0 · planned 2 · parked 0 · complete 12
 
 | ID | Title | Status | Kind | Program | Branch | Hub |
 |---|---|---|---|---|---|---|
-| PRIVILEGE-SURFACE | Privilege surface — the authenticated-executable DEFINER budget's seven-over-ceiling breach attributed function by function, the 233 held AE1 revokes ruled on with their 137 silent no-ops named, and the app-schema PUBLIC floor given the decision it has been waiting for (pre-AE5 Batch 7) | 🟢 in progress | feature | AUTHZ | `authz-privilege-surface` | [privilege-surface.md](privilege-surface.md) |
 | C1B-DISPOSAL | PHI-disposal Cloud rehearsal (C1b) | 🔜 planned | feature | DM5 | — | [c1b-disposal.md](c1b-disposal.md) |
 | DLB | Deliberation & Voting Model — typed committee decisions with vote arithmetic the database owns | 🔜 planned | feature | DLB | — | [dlb.md](dlb.md) |
 | AE4 | Authz catalog cutover — staff_admin substituted, 3 of 43 permissions load-bearing | ✅ complete | feature | AUTHZ | — | [ae4.md](ae4.md) |
@@ -28,5 +27,6 @@
 | HARNESS-CRASH-SAFETY | Mutation-harness crash safety — a killed sweep may never leave a door open without a trace (pre-AE5 Batch 0) | ✅ complete | feature | AUTHZ | — | [harness-crash-safety.md](harness-crash-safety.md) |
 | LEDGER-COMPLETENESS | Phase-ledger completeness — the general question behind FUP-AE2 derived, not eyeballed; four missing rows found, two umbrella idioms separated, and the 8-cell row repaired | ✅ complete | feature | DOCS | — | [ledger-completeness.md](ledger-completeness.md) |
 | PRED-DOMAIN | Door-audit domain — the authz resolvers enter PRED_DOMAIN (or a scheduled targeted-case home), the read arm stops mirror-ambiguous, and the findings baseline is re-earned through the merge (pre-AE5 Batch 2) | ✅ complete | feature | AUTHZ | — | [pred-domain.md](pred-domain.md) |
+| PRIVILEGE-SURFACE | Privilege surface — the authenticated-executable DEFINER budget's seven-over-ceiling breach attributed function by function, the 233 held AE1 revokes ruled on with their 137 silent no-ops named, and the app-schema PUBLIC floor given the decision it has been waiting for (pre-AE5 Batch 7) | ✅ complete | feature | AUTHZ | — | [privilege-surface.md](privilege-surface.md) |
 | REGISTER-GATE-HYGIENE | Register and gate hygiene — the complete-gate regexes learn bold ids and real verdict lines, ADR link TARGETS get resolved, AE2 re-enters the ledger, an archived closure keeps its `Closes when`, and the door arm stops reading an empty `CASES` as a full sweep (pre-AE5 Batch 6) | ✅ complete | feature | DOCS | — | [register-gate-hygiene.md](register-gate-hygiene.md) |
 | WRITEPATH-BASELINE | Write-arm baseline — the committed write-path findings file re-earned over the widened 107-policy domain through the merge, the three storage.objects INSERT policies verdicted, and the write arm's empty-set exit made a FINDING (pre-AE5 Batch 3) | ✅ complete | feature | AUTHZ | — | [writepath-baseline.md](writepath-baseline.md) |

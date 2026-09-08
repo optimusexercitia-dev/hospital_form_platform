@@ -119,13 +119,6 @@ assigned `FUP-BACKLOG-<slug>` ids (legend row: [legacy-codes.md](legacy-codes.md
 **Status:** open
 **Body:** [FUP-AE2-PERSON-PREAMBLE-THREE-COPIES.md](FUP-AE2-PERSON-PREAMBLE-THREE-COPIES.md)
 
-### 🟠 FUP-AE1-REVOKE-SET-EXECUTION — 233 classified revokes are HELD, partitioned, and 137 of them are a silent no-op as written (owner: backend/PO)
-
-**Filed:** 2026-08-27 (at AE1's RV0 completion) · **Owner:** backend + PO · **Severity:** high — per emoji at consolidation
-**Closes when:** PO to rule
-**Status:** open
-**Body:** [FUP-AE1-REVOKE-SET-EXECUTION.md](FUP-AE1-REVOKE-SET-EXECUTION.md)
-
 ### 🟡 FUP-DEFINER-EXISTENCE-BEFORE-AUTHORITY — 31 Tier-1 DEFINER doors confirm an object exists before checking authority (owner: backend/PO)
 
 **Filed:** 2026-08-27 (by AE1 close condition #3, the [tier-1 threat review](../design/authz-ae1-tier1-threat-review.md) §4.2 (finding F-T1-2)) · **Owner:** backend + PO · **Severity:** medium — per emoji at consolidation
@@ -695,13 +688,6 @@ a hypothesis, not a finding.
 **Status:** open
 **Body:** [FUP-ETHICS-RESPONDENT-PIN-FIRES-TOO-LATE.md](FUP-ETHICS-RESPONDENT-PIN-FIRES-TOO-LATE.md)
 
-### 🟢 FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED — half of `app` is PUBLIC-executable, and the only thing bounding it is one config line (owner: backend; filed 2026-08-22, found while deriving an ACL by property for ADR 0134 Amdt 6)
-
-**Filed:** 2026-08-22 (found while deriving an ACL by property for ADR 0134 Amdt 6) · **Owner:** backend · **Severity:** low — per emoji at consolidation
-**Closes when:** PO to rule
-**Status:** open
-**Body:** [FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED.md](FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED.md)
-
 ### 🟡 FUP-SIGNATURE-STRING-CALLERS-ABORT-ON-A-DROP-CREATE — a caller that names the OLD ARITY fails as a plan mismatch, pointing nowhere near signatures (owner: backend; filed 2026-08-22, found when the full suite failed in a file this increment never touched)
 
 **Filed:** 2026-08-22 (found when the full suite failed in a file this increment never touched) · **Owner:** backend · **Severity:** medium — per emoji at consolidation
@@ -1268,13 +1254,6 @@ same commit, or not at all.**
 **Closes when:** A `lint:*` gate (or a pgTAP catalog assertion, which is cheaper — it needs no new script and the DB is already the authority) asserting that for every `prosecdef` function in `app`/`public`/`authz`, `proconfig`'s `search_path` either is the empty form or splits into schemas that all exist in `pg_namespace`. ⛔ Text-matching for a quote is the *symptom*; the property is *"every named schema resolves"*.
 **Status:** open
 **Body:** [FUP-NO-GATE-CATCHES-A-COLLAPSED-SEARCH-PATH.md](FUP-NO-GATE-CATCHES-A-COLLAPSED-SEARCH-PATH.md)
-
-### 🟠 FUP-PRIVILEGE-BUDGET-CEILING-BREACHED-BY-SEVEN — the `authenticated`-executable DEFINER budget is 759 against a ceiling of 752, and six of the seven are unattributed
-
-**Filed:** 2026-09-03 (AE4/IA-F9 statement-scoped increment — found while recording the one function that increment adds…) · **Owner:** lead + PO · **Severity:** high — the budget's whole purpose is that it may not rise silently,
-**Closes when:** Attribute the six — diff the `authenticated`-executable DEFINER set between head `…005300` and head `…007330` (the query above, run against each), name each function and the increment that added it — then put the aggregate to the PO: either the ceiling moves by ruling to the justified number, or the unjustified grants are revoked. ⭐ A gate would be cheap and is the durable form: the count is one query, and a `lint:*` step that reds when it exceeds a committed figure converts …
-**Status:** open
-**Body:** [FUP-PRIVILEGE-BUDGET-CEILING-BREACHED-BY-SEVEN.md](FUP-PRIVILEGE-BUDGET-CEILING-BREACHED-BY-SEVEN.md)
 
 ### 🟡 FUP-AE4-CANDIDATE-SCOPE-FANOUT-IS-UNBOUNDED — the statement-scoped resolver costs `(1 + D) × O(M)` per statement, and nothing states or watches `D`
 

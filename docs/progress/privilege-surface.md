@@ -1717,3 +1717,67 @@ applied in this commit:**
 Related cell cites `d428d515`. **A rebase would rot it**, exactly as Batch 4's rebase rotted every
 sha its record, reviews and ADR cited. If this branch merges by fast-forward the sha holds; if it
 must rebase, the citation is re-pointed or de-referenced **inside the rebase stop**, never after.
+
+### 2026-09-08 - Record step: the hub CURRENT STATE cut VERBATIM into the record (protocol 4 step 6)
+
+The block below is the hub final Current state, moved here byte-for-byte before the hub was set to
+complete. Verified by cmp against the extracted bytes, not by eye.
+
+## Current state
+
+**Updated:** 2026-09-08
+
+### Objective
+
+Retire the three pre-live privilege-surface liabilities before AE5 substitutes role by role on top
+of this surface: an aggregate budget that rose seven over its ceiling without anyone noticing, a
+classified-but-unexecuted 233-revoke set whose majority is a silent no-op as written, and an
+`app`-schema PUBLIC floor whose only bound is one config line.
+
+### Done since start
+
+Unit opened off `main` @ `412fa4d7`; follow-ups read in their **bodies**, not the register (the
+ceiling item's `Closes when` is truncated mid-sentence there). Four PO rulings taken: **R1** defer
+revoke execution ⇒ no migration, no ACL change · **R2** keep the `app` floor's config bound and gate
+the config line · **R24** the ceiling **moves 752 → 759** · **R25** run the reachability analysis
+on the three unproven grants. ⛔ **No live count of the rulings is stated here** — it said "31" and
+the file held 34 by the time anyone read it (QA M4). Batch 6's standing repair: *no live count in
+the unit's files; the derivation instead* — `grep -c '^## R' batch7-rulings.md`.
+
+**Track A** — three-head catalog run (`…005300`/484 · `…007330`/522 · `…007350`/524, keyed on the
+**pair**, since a head alone does not identify a migration set). A→B: **7 ADDED, 0 REMOVED**, all
+new functions, all with explicit `authenticated` grants, **0 unattributable**. B→C: the empty **set**
+is the finding — ⛔ not "759 == 759", which is exactly what an add/remove pair looks like. Full AE1
+re-derivation reproduces 44/5/23/161 = 233; all six arm predicates had moved, the largest a write-arm
+worklist that tripled its domain. **Track B** — gate 14 pins `[api].schemas`; its fixture count is
+in the self-test's own output, not restated here. ⛔ **This clause has now carried a stale count
+twice** — it said "13", was corrected to "14" while renouncing counts, and the self-test reports a
+third figure two iterations later. The number is gone; `--self-test` prints it.
+**Track C** — reachability verdicts REQUIRED / UNNECESSARY / UNDECIDED (⛔ a closed three-way set,
+never a binary), the ceiling's move in its one home, `320` §U4/U5/U6, and gate 15. **Track D** —
+citations repointed to the **key**, and the silent no-op class corrected to 138 beside 137.
+
+**Gate at the tip — run TWICE, by non-builders.** The first (`bd50dfc9`) was invalidated as a frozen
+run: ⛔ the lead broke the freeze by committing ADR 0195 mid-run (R37), and the runner caught it and
+asserted the delta was docs-only. **The FINAL 14-command gate ran at `d428d515`** — every rc **0**:
+`lint` 15/15 gates reached, `test:db` PASS (262 files / 8900 tests), four authz arms `INVARIANT
+HOLDS`, deriver rc 3 NOT-APPLICABLE, set-valued `CLEAN`, `PATHSPEC_BYTES=0`. ADR **0195** filed — the
+first runner's own finding that every prior batch left one and this had none.
+
+### In progress
+
+**Nothing building. QA APPROVED at `52959b8a`** (`docs/reviews/privilege-surface-rereview-2.md`),
+after **four** fix-loop iterations against three review rounds. Remaining work is the Record step and
+four MAJORs QA ruled *not* must-not-ship. ⚠ **Four of the findings across those rounds were the
+lead's own**: a live count in prose (twice), a tip-gate freeze broken, two commits landed with no
+session-log entry, and a "derived" sweep that was `| head -40` over 132 matching lines.
+
+### Next
+
+Re-review → PO approval → Record step. Three follow-ups close on their own quoted clauses; two on
+`PO to rule`, so each closure carries **the ruling**, and R1's carries a **re-open condition** rather
+than a bare "deferred".
+
+### Blockers
+
+None. ⚠ 27 commits unpushed on `main` at unit open — a fact about the tree, not a blocker here.
