@@ -7,8 +7,14 @@ its **log** (ADR 0186 D3): one dated subsection per session, appended.
 Subjects: `docs/backend-state.md` § Privilege budget (`CEILING: 759`, the merge rule, and the
 `RE-MEASURED … 759` block), `docs/design/authz-ae1-revoke-partition.md` (the 233-revoke partition
 RV0 produced and executed none of), `supabase/config.toml`'s **`[api].schemas`** key (the one line
-that bounds the `app` PUBLIC floor), and — if the PO rules for execution — `supabase/migrations/` plus every authz arm
-whose domain a revoke moves. Decisions: ADR
+that bounds the `app` PUBLIC floor). ⛔ **`supabase/migrations/` is NOT a subject of this unit** —
+this read *"and — if the PO rules for execution — `supabase/migrations/` plus every authz arm whose
+domain a revoke moves"*, written before the ruling existed; **the PO ruled DEFER (R1) at unit open**,
+so the conditional resolved to *no migration and no ACL change*, and R5's empty-pathspec assertion is
+what proves it. Edited rather than annotated because a present-tense conditional whose condition has
+been decided is an **operational instruction** pointing at work nobody should do.
+Decisions: ADR [0195](../decisions/0195-a-committed-number-needs-one-home-and-a-gated-mirror.md)
+(this unit's own — the one home, the gated mirror, the ratchet's boundary with its incumbent),
 [0079](../decisions/0079-authz-door-blindness-standing-invariant.md) (the door-audit sweep is a
 standing gate; a revoke that evicts a function from an arm's domain is sweep blindness),
 <!-- N1 / 2026-09-08 fix loop: this Subjects header is PRESENT TENSE and is the first thing a

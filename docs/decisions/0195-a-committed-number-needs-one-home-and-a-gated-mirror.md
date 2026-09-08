@@ -1,6 +1,6 @@
 # 0195 — A committed number needs ONE home and a GATED mirror, and a ratchet joins its incumbent
 
-**Status:** Proposed
+**Status:** Proposed — ⇒ **Accepted at unit `PRIVILEGE-SURFACE`'s Record step, after PO approval.** ⛔ That flip is the *only* thing that moves it, and **no gate reds if it never happens**: registering this ADR in `proposed-review.json` is what makes gate 9's drift check green, so the safety net here is this sentence and the Record-step checklist, not an enforcer (QA N5 — filed against exactly the disease this batch is about).
 **Area:** authorization / privilege surface / gates
 **Related:** [0079](./0079-authz-door-blindness-standing-invariant.md) · [0127](./0127-standing-rules-home-and-staleness-gate.md) · [0134](./0134-case-surface-split-and-administrativo-case-read.md) · [0155](./0155-post-aff4-tenancy-and-person-model-evolution-sequence.md) · [0160](./0160-ae0-corrections-to-adr-0155-measured-figures.md) · [0182](./0182-statement-scoped-authorized-scope-ids.md) · [0191](./0191-the-door-arms-domain-gains-a-schema-axis-a-targeted-home-and-a-fourth-outcome.md) · [0192](./0192-ownership-is-a-proxy-not-the-property-and-the-write-arms-crash-safety.md)
 
@@ -29,7 +29,10 @@ gate.
 
 Two adjacent liabilities were batched with it (pre-AE5 Batch 7): AE1's **233** classified revokes,
 executed **none**, of which a majority are a silent no-op as written; and the `app` schema's PUBLIC
-floor — **237 of 467** `app` functions are `anon`-executable, bounded not by their ACLs but by one
+floor — **236 of 526** `app` functions are `anon`-executable (measured 2026-09-08 at head
+`20261003007350`: `526` = `prokind='f'` in `app`; `236` = `has_function_privilege('anon', …,
+'EXECUTE')`, the **effective** predicate, not the ACL-shaped one — they coincide today and were
+proven able to disagree), bounded not by their ACLs but by one
 line of `supabase/config.toml`.
 
 ## Problem
@@ -145,6 +148,23 @@ expression (`42501`), so such a revoke **breaks writes to the constrained table*
 silent-no-op class is **138**; and a revoke evicts its subject from `ARM=floor`'s domain. The
 partition was re-derived at the current head so the deferred unit does not restart from figures its
 own source forbids reusing.
+
+> **The re-open condition, written out** — because a defer without one is a shrug, and because this
+> heading claimed to carry one before it did (QA N2, corrected 2026-09-08 before acceptance).
+> `FUP-AE1-REVOKE-SET-EXECUTION` returns to open on **any** of:
+> **(a)** §U4 reds **upward** — a rise means the surface is growing while a 233-item revoke set sits
+> unexecuted, which is the condition that made the set worth classifying in the first place;
+> **(b)** any unit is opened to execute **any** revoke on this surface — including the single-item
+> `FUP-AUTHZ-IS-AFFILIATED-WITH-HOSPITAL-FOR-GRANT-UNNECESSARY`, which is the smallest instance and
+> whose execution would prove the machinery the 233 need;
+> **(c)** AE5's opening ADR is drafted (pre-AE5 Batch 9), since AE5 substitutes role by role **on
+> this surface** and an unexecuted revoke set is one of its inputs;
+> **(d)** any of the three measured hazards above is discharged or refuted.
+>
+> ⛔ **What does NOT re-open it:** time passing, or the register looking untidy. ⛔ And whatever
+> re-opens it, the partition is **re-derived at the then-current head first** — its source forbids
+> reusing its own figures, and this ADR's D7 is why: a count that has not moved is not a set that
+> has not moved.
 
 ## Considered options
 
