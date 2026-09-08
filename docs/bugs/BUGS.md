@@ -5,7 +5,8 @@ column, not a section** (edit `Status`, never cut/paste the row — the
 open→closed rotation this replaces was chronically skipped). The **Doc**
 column links to [docs/bugs/archive.md](archive.md) for the **48** ids below
 that have a heading of their own there (anchor computed from the heading
-text); **2** more have a per-bug `docs/bugs/<ID>.md`. The other **111** carry
+text); **3** more have a per-bug `docs/bugs/<ID>.md` — ⛔ do not trust that
+figure, derive it: `git ls-files 'docs/bugs/BUG-*.md'`. The other **111** carry
 no Doc link because no body is reachable by anchor: a measured **10**,
 checked against the archive's full text, have no trace of any kind; most of
 the rest do have detail somewhere in the archive — a bare table row or an
@@ -34,6 +35,7 @@ sequential numbers do.
 
 | ID | Status | Severity | Area | Description | Opened | Closed | Related | Doc |
 |---|---|---|---|---|---|---|---|---|
+| BUG-0137-MRN-WARNING-TEST-FLAKY | open | high | referrals | `npm run test` reds nondeterministically on `referral-send-wizard-mrn-warning.test.tsx` test 6 — a `findByRole(/enviar encaminhamento/i)` timeout that appears only under full-suite load, never in isolation. Load-dependent, not a code defect: `src/` is unchanged. A Phase-Gate step-1 command that can red on a clean tree makes its own green uninformative | 2026-09-08 | — | PRIVILEGE-SURFACE tip gate at d428d515; docs/progress/privilege-surface.md § Session log; FUP-E2E-REPEAT-FLAKY (the e2e analogue, not this) | [doc](BUG-0137-MRN-WARNING-TEST-FLAKY.md) |
 | BUG-AE47C-LINKAGE-001 | verified | high | cases | Create-inline "possui conta" participant dialog never closed because the redundant follow-up link-state call hit AE4.7c's new bound and raised 42501 | 2026-09-02 | 2026-09-02 | AE4.7c, AE4.8, ethics-e4-participants.spec.ts | [archive](archive.md#-bug-ae47c-linkage-001-rotated-from-progressmd-2026-09-02-closed-at-rotation-both-casualties-fixed-and-tester-verified) |
 | BUG-AE49-D6-REKEY-INCOMPLETE | fixed | critical | authz | commission.forms.edit re-keyed at only 4 of 7 policy sites the PO-approved matrix names; two ALL policies still read pre-cutover text. Fixed by 20261003007340 — all SIX live R policies now re-keyed in both halves (catalog-verified); the 7th, form_block_library, is a D site the matrix misdeclared | 2026-09-02 | 2026-09-03 | AE4, D6, authz-ae4-gate-review.md, migration 20261003007340, pgTAP 409 §2 + 410 §8 | [doc](BUG-AE49-D6-REKEY-INCOMPLETE.md) |
 | BUG-CASEPHASE-DUEDATE-001 | fixed | high | forms | Clicking the "Prazo" phase due-date label CLEARED the value instead of opening the picker (label/control mis-association) | 2026-08-26 | 2026-08-26 | activate-phase-dialog.tsx, FUP-DATEPICKER-VALUE-ABSENT-FROM-ACCESSIBLE-NAME | [archive](archive.md#rotated-2026-08-26-bug-casephase-duedate-001-filed-and-resolved-the-same-session) |

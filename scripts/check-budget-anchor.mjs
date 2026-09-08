@@ -104,8 +104,22 @@ import { fileURLToPath } from 'node:url'
 
 const DOC_REL = 'docs/backend-state.md'
 const SQL_REL = 'supabase/tests/320_act_expiry_and_acl_hardening.sql'
-const DOC_PATH = join(process.cwd(), 'docs', 'backend-state.md')
-const SQL_PATH = join(process.cwd(), 'supabase', 'tests', '320_act_expiry_and_acl_hardening.sql')
+// ⛔ Resolved from THIS FILE, never from `process.cwd()` — the same hardening
+// `scripts/check-supabase-config-schemas.mjs` (gate 14) took on 2026-09-08, applied here on the
+// same day at the sibling site it was NOT applied to. Until this line it was
+// `join(process.cwd(), …)`, so running the gate from any directory but the repo root exited 1
+// with *"docs/backend-state.md does not exist. That file is the ceiling's ONE HOME…"* — a FALSE
+// RED that sends a reader hunting for a home nobody deleted. Latent under `npm run lint` (always
+// the package root) and it failed loudly rather than green, so it was never a hole; it is fixed
+// because the message misdescribed the result, and because a fix correct at one of two sibling
+// sites written in the same unit reads as a fix. ⚠ MEASURED CONSEQUENCE, not predicted: a COPY of
+// this script under a mirror root's `scripts/` still resolves that mirror's pair (rc 0 before and
+// after — the property the tip gate's external mutation harness relies on), while a copy placed
+// FLAT outside a `scripts/` directory now reports its subject absent (rc 1) instead of reading
+// whatever the cwd happened to hold. Gate 14 behaves identically on both, verified side by side.
+const REPO_ROOT = resolve(fileURLToPath(import.meta.url), '..', '..')
+const DOC_PATH = join(REPO_ROOT, 'docs', 'backend-state.md')
+const SQL_PATH = join(REPO_ROOT, 'supabase', 'tests', '320_act_expiry_and_acl_hardening.sql')
 
 /** The three keys the mirror must carry. `ceiling` lives only in the home. */
 export const MIRROR_KEYS = ['app', 'public', 'total']

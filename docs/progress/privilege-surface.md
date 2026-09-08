@@ -1536,3 +1536,117 @@ here, and the runner holds no opinion on their disposal beyond having measured t
 and M4 already found there, after a repair aimed at it. The pattern worth the next reader's time is
 not any single stale number: it is that the hub's two present-tense sections have no gate, no
 derivation discipline, and three separate stale figures at a tip whose every other artefact agrees.
+
+---
+
+### 2026-09-08 — fix loop 4, `backend`'s three of the tip gate's six findings (1, 4, 6)
+
+Spawned at `f3bb6258` against the FINAL tip-gate entry above. ⛔ **Three findings only** — 2, 3 and 5
+are the lead's and were not touched; `docs/features/privilege-surface.md`,
+`docs/plans/pre-ae5-remediation.md` and `docs/decisions/0195-*.md` were not opened for writing.
+
+**Files this turn changed, and nothing else:** `scripts/check-budget-anchor.mjs` ·
+`docs/lint-gates.md` · `docs/bugs/BUGS.md` · `docs/bugs/BUG-0137-MRN-WARNING-TEST-FLAKY.md` (new) ·
+this record. ⛔ `git status --porcelain -- supabase` → **0 bytes**, read bare, which is why
+`npm run test:db` is **not owed** this turn — asserted rather than assumed.
+
+#### Finding 1 — the Vitest flake now has a home
+
+`docs/INDEX.md`'s one table routes it: *"a bug | one row in `docs/bugs/BUGS.md`; status is a cell,
+there is no rotation; a `docs/bugs/<ID>.md` file when severity ≥ high"*. ⇒
+**`BUG-0137-MRN-WARNING-TEST-FLAKY`**, `open` / `high` / `referrals`, plus its per-bug document.
+The code `0137` is not a guess: the subject file was added by `5c8f3542 fix(0137): …`
+(`git log --diff-filter=A`), and `0137` is a registered code in `docs/followups/legacy-codes.md`,
+which is what `checkCodes` requires of an id filed after the watermark.
+
+⭐ **The row states a SAMPLE, not a rate.** The brief and the gate entry both say "roughly one run in
+two"; the measurement behind it is **two** full-suite runs (rc **1**, then rc **0**) plus one
+isolated run (rc **0**). Two runs do not establish a frequency, so the row and the document say
+`n = 2` and let the reader draw the bound. ⚠ Severity `high` on the register's own ladder
+(*"blocks a phase gate"*): it redded a Phase-Gate step-1 command on a clean tree. The larger harm is
+the inverse and is written into the document's Impact — **a step-1 green stops being evidence**,
+because a suite that reds nondeterministically cannot tell "the tree is clean" from "the flake did
+not fire this time".
+
+⛔ The test itself was **not touched** — outside this unit and outside `backend`'s remit here.
+Every cited fact was re-verified against the file rather than inherited from the finding (R43): the
+test is `it("6 never renders BEFORE the review step, even when the MRN is missing")` at `:241`, and
+`:259` is exactly `await screen.findByRole("button", { name: /enviar encaminhamento/i });`.
+
+⚠ **A side effect that had to be paid, not left:** `docs/bugs/BUGS.md`'s header prose counts per-bug
+documents, and adding one made *"**2** more have a per-bug doc"* false in the same edit. Corrected to
+**3** **and given its derivation** (`git ls-files 'docs/bugs/BUG-*.md'`), per R36's standing repair —
+correcting a count in prose alone just restarts its clock. The `48` and `111` figures beside it are
+untouched and still sum (48 + 3 + 111 = 162 rows).
+
+#### Finding 4 — `docs/lint-gates.md` clause (c): the falling polarity was attributed to §U6
+
+Verified from the artefacts, never from the finding's paraphrase:
+
+- `git show 5602830d:docs/lint-gates.md | grep -c "the falling half is"` → **1**: the clause was
+  written there.
+- `git show c84dd823^:…/320_….sql` → §U6c read *"the budget fell 760 → 759"* — absolute literals, so
+  **the clause was true when written**.
+- At HEAD, §U5b–U5g and §U6a–U6h are all `is(pg_temp.budget(…) - pg_temp.base(…), <delta>)` against
+  `pg_temp.budget_baseline`, a table snapshotted from the live catalog in the same transaction
+  (`320:557-560`). §U4a/U4b/U4c remain absolute `is(pg_temp.budget(…), 326|433|759)`.
+- Topo order confirms `5602830d` → `c84dd823` → `1956e7bd`, and `1956e7bd --name-only` lists
+  `docs/lint-gates.md`: it edited the file **after** the property moved and did not catch it.
+
+⇒ A real fall to 758 snapshots 758 and **every §U6 delta still holds**; the assertion that reds is
+§U4's absolute pin. The clause now says so, **with the superseded sentence quoted rather than
+overwritten**, and says in its own words that nothing was unprotected — this was an attribution
+defect, not a red gate. ⚠ **Checked and deliberately NOT changed:** `320`'s own boundary prose
+(`:391-395`) calls §U6 *"the falling control"*, which is correct under R35 and carries no
+misattribution — so no `.sql` was touched and no `test:db` debt was created for a docs fix. The same
+bullet's earlier phrase *"§U5/§U6 as its rising and falling controls"* was already right and is left
+alone.
+
+#### Finding 6 — gate 15 resolves from `import.meta.url`, like gate 14
+
+`scripts/check-budget-anchor.mjs:107-108` was `join(process.cwd(), …)` for both subjects; it is now
+`const REPO_ROOT = resolve(fileURLToPath(import.meta.url), '..', '..')`, the identical construction
+`check-supabase-config-schemas.mjs` took the same day, with a header comment naming it as the sibling
+site that fix missed.
+
+**Proof, both directions, every rc read BARE on its own line. Plants lived in the scratchpad; the
+tree carried only the intended edits throughout.**
+
+| run | before | after | gate 14 (already hardened) |
+|---|---|---|---|
+| in-tree script, cwd = scratchpad | **1** — *"docs/backend-state.md does not exist…"* (the false red) | **0** — full OK banner | **0** |
+| a COPY under `<mirror>/scripts/`, cwd = `<mirror>` | **0** | **0** | **0** |
+| a copy placed FLAT outside any `scripts/`, cwd = `<mirror>` | **0** | **1** — subject absent | **1** |
+
+⭐ **The rc-0 mirror control is not a dead instrument, and that was measured rather than argued.** A
+copy that silently read the *repo's* pair would also print rc 0, so a discrimination half was run:
+planting `326 → 327` in the **mirror's** `320` only (needle asserted to occur exactly once, plain
+string split/join — ⛔ never a line-anchored regex, R42) makes the mirror copy exit **1** with
+`THE MIRROR HAS DRIFTED FROM ITS HOME — key app`, while the repo's own pair stays clean. ⇒ the copy
+reads the mirror, and the control discriminates.
+
+⇒ **The behaviour change is the flat-copy row, and it is a change, not a no-op.** It moves gate 15
+from "reads whatever the cwd holds" to "reports its subject absent", which is exactly where gate 14
+already stood — measured side by side in the same session, not assumed. The mirror-root shape the tip
+gate's external mutation harness relies on is **preserved in both**.
+
+#### Gates owed at this tip
+
+- `npm run lint:registers` → **rc 0**, read bare. `162 bugs, 3 bug docs` (was 161 / 2). ⛔ **No
+  ratchet moved**: the nine printed are `closesWhenPoToRule=136/147 severityPerEmoji=125/135
+  severityUnrated=29/29 revisitWhenPoToRule=38/38 longHeadings=95/97 bugsUntriaged=10/10
+  bugsUnrated=40/40 lessonsProseOnly=52/52 archiveMissingClosesWhen=121/121`. Seven range over
+  `docs/followups/**` and `docs/learning/LESSONS.md`, and `git status --porcelain -- docs/followups
+  docs/learning` is **0 bytes**; the two BUGS-derived ones cannot have moved because the new row is
+  `open` (not `untriaged`) and `high` (not `unrated`).
+- `npm run lint` → **rc 0**, read bare. ⛔ `&&` short-circuits, so the gates it REACHED are quoted
+  from the run's own log: `eslint` · `css-vars` · `memberships-door` · `client-server-imports` ·
+  `vacuous` · `set-local` · `progress` · `rules` · `adr-index` · `mojibake` ·
+  `service-role-registry` · `authz-vectors` · `registers` · `config-schemas` · `budget-anchor` —
+  **15 of 15**, the last one's OK banner present, so nothing short-circuited. Gate 15's self-test
+  still reports `15 bad pairs … 5 good pairs` from *"the real files' current bytes"*, unchanged by
+  the path edit.
+- `npm run test:db` — **not owed**, asserted: `git status --porcelain -- supabase` is 0 bytes.
+- `npm run test` — **not run**, and deliberately: finding 1 is that this command is
+  nondeterministic here, so a single green from it would have been exactly the uninformative result
+  the new row documents.
