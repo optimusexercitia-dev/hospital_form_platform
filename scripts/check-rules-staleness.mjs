@@ -135,15 +135,34 @@ export function parseFrontmatter(text) {
  * @param deps  {exists, globMatch, fileHas} — injected so the self-test can drive the
  *              checker against fixtures without touching the filesystem.
  */
-export function checkRule(name, fm, deps, bytes = 0) {
+export function checkRule(name, fm, deps, bytes = 0, crlf = false) {
   const { exists, globMatch, fileHas } = deps
+  // ⛔ CRLF IS REPORTED AS CRLF, AND FIRST. A CRLF checkout used to surface here as "no `paths:`
+  // globs" / "no `anchors:`" plus byte-cap breaches (+1 byte per line carries a 2011-byte file
+  // past the 2048 cap) — the gate blaming the rule's CONTENT for its own reader's line-ending
+  // assumption. That misattribution cost a session on 2026-09-08: it was recorded as `npm run
+  // lint` redding on `main`, with `.claude/` measured byte-identical to `main` to prove it. Both
+  // measurements were true. `.gitattributes` carries `* text=auto eol=lf`, so the clean filter
+  // normalises CR ON THE WAY IN — `git hash-object` returns the same blob and `git status` is
+  // clean while the bytes on disk differ.
+  // ⛔ A claim about a file's CONTENT is not a claim about the BYTES A GATE READS.
+  const crlfFindings = crlf
+    ? [
+        `${name} — file has CRLF line endings; this tree is LF-only (\`.gitattributes\`: ` +
+          `\`* text=auto eol=lf\`). ⛔ git CANNOT show you this — the clean filter normalises CR ` +
+          `on the way in, so \`git status\` is clean and \`git hash-object\` matches. Rewrite the ` +
+          `file with LF. Every OTHER finding for this file is reported against the NORMALISED ` +
+          `text, so none of them is a line-ending artifact.`,
+      ]
+    : []
   if (!fm) {
     return [
+      ...crlfFindings,
       `${name} — no YAML frontmatter. Without \`paths:\` this rule loads on EVERY ` +
         `session and every teammate spawn.`,
     ]
   }
-  const out = []
+  const out = [...crlfFindings]
   const list = (k) => (Array.isArray(fm[k]) ? fm[k] : fm[k] ? [fm[k]] : [])
 
   const paths = list('paths')
@@ -277,6 +296,25 @@ function selfTest() {
   red('no-anchors', checkRule('r', { ...good, anchors: [] }, ok))
   red('no-source', checkRule('r', { paths: ['src/**'], anchors: ['src/x.ts'] }, ok))
 
+  // ── CRLF is named as CRLF, and a healthy LF rule is not accused of it ──────────────────
+  // ⛔ Both polarities, because the defect was ATTRIBUTION, not detection: the old gate DID
+  // red on a CRLF tree (24 findings) — it just blamed `paths:`/`anchors:`/the byte cap. A
+  // one-sided "it reds" fixture would have passed on the broken version too.
+  red('crlf-named', checkRule('r', good, ok, 0, true))
+  green('lf-not-accused', checkRule('r', good, ok, 0, false))
+  if (!/CRLF line endings/.test(checkRule('r', good, ok, 0, true)[0] || '')) {
+    fails.push('crlf-finding-is-first-and-says-CRLF')
+  }
+  // A CRLF file with REAL defects reports both, CRLF first — the normalised text is what the
+  // other checks see, so they stay meaningful rather than becoming line-ending noise.
+  const both = checkRule('r', { ...good, anchors: [] }, ok, 0, true)
+  if (both.length !== 2 || !/CRLF/.test(both[0]) || !/no `anchors:`/.test(both[1])) {
+    fails.push(`crlf-plus-real-finding (got ${both.length}: ${both.join(' | ').slice(0, 80)})`)
+  }
+  // The frontmatter-less early return must carry it too — it is a separate exit path.
+  const none = checkRule('r', null, ok, 0, true)
+  if (none.length !== 2 || !/CRLF/.test(none[0])) fails.push('crlf-on-the-no-frontmatter-path')
+
   const wide = { ...ok, globMatch: () => new Array(MAX_GLOB_FILES + 1).fill('f') }
   red('too-broad', checkRule('r', good, wide))
   // Breadth must be waivable IN WRITING, and the waiver must actually waive.
@@ -344,9 +382,19 @@ function main() {
   }
 
   for (const f of files) {
-    const text = readFileSync(join(RULES_DIR, f), 'utf8')
+    const raw = readFileSync(join(RULES_DIR, f), 'utf8')
+    const crlf = /\r\n/.test(raw)
+    // ⛔ Normalised BEFORE parsing AND before the byte cap, so the cap measures the rule's
+    // CONTENT, never the checkout's line endings. The CRLF itself is reported by checkRule.
+    const text = crlf ? raw.split('\r\n').join('\n') : raw
     findings.push(
-      ...checkRule(`.claude/rules/${f}`, parseFrontmatter(text), deps, Buffer.byteLength(text)),
+      ...checkRule(
+        `.claude/rules/${f}`,
+        parseFrontmatter(text),
+        deps,
+        Buffer.byteLength(text),
+        crlf,
+      ),
     )
   }
 
