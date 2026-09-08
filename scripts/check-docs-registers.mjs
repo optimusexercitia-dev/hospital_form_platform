@@ -44,11 +44,16 @@
  *             its data rows are capped at 300 chars each (plan 5.6). `PO to rule` is a legal
  *             value and is COUNTED, not flagged — but D6 turns every such count into a RATCHET
  *             (see RATCHETS below): a gate that only ever bounds presence still bounds GROWTH.
+ *             In follow-ups-archive.md a `**Body:**` link is forbidden outright, and the count of
+ *             archived FUP ids whose entry block carries NO `**Closes when:**` is a ratchet
+ *             (`archiveMissingClosesWhen`) — the already-archived closures are grandfathered by
+ *             the cap, the next one that drops the field reds.
  *   RATCHET   (ADR 0186 D6) every count this gate used to print as a warning — `Closes when: PO
  *             to rule`, `Severity: … per emoji at consolidation`, `unrated`, a long verbatim
  *             heading, BUGS `untriaged`/`unrated`, LESSONS `prose only` — is now a named
  *             constant in RATCHETS that may only be LOWERED; a commit that raises the live
- *             count above it reds. Every arm prints its live count on the OK line.
+ *             count above it reds. Every arm prints its live count on the OK line. Joined
+ *             2026-09-08 by `archiveMissingClosesWhen` (see FOLLOWUPS above).
  *   LESSONS   docs/learning/LESSONS.md — exact columns; unique LEARN ids; Origin resolves
  *             (ADR / FUP / BUG / sha / path); Enforcement is `prose only` or tokens that
  *             each exist (lint:<script> in package.json, ARM=<arm>, a path, a rule file).
@@ -175,6 +180,24 @@ export const RATCHETS = {
   // cap come back to 51. Left undone deliberately — a new gate is a bigger change than the session
   // that surfaced it, and a gate added in haste is the defect this register exists to record.
   lessonsProseOnly: 52,
+  // ⭐ ADDED 2026-09-08 (FUP-DOCS-CONSOLIDATION-CLOSURE-DROPS-THE-CLOSES-WHEN-FIELD): archived
+  // FUP ids whose entry block carries NO `**Closes when:**` field — the condition a closure is
+  // supposed to discharge, dropped on the way into the archive, where no gate could contradict it.
+  // A RATCHET rather than a blanket assertion because the entry says in as many words that
+  // retrofitting the already-archived closures is NOT required: this cap is today's population,
+  // so the historical 123 are grandfathered and the NEXT closure that drops the field reds.
+  // Derived 2026-09-08 by `checkArchiveClosesWhen` over docs/followups/follow-ups-archive.md;
+  // the parts sum: 157 `### ` headings = 139 carrying a FUP id + 18 section/rotation notes;
+  // 139 headings = 131 distinct ids + 8 second headings (the current closure shape writes the
+  // closure note under one heading and the verbatim entry block under a second, same id);
+  // 131 ids = 8 with the field + 123 without. ⚠ The five ENFORCEMENT-MANIFEST closures of
+  // 2026-09-07/08 are all in the `with` half — the interim hand practice works, and this cap is
+  // what stops it lapsing. When it reds, the offender is an id in `checkArchiveClosesWhen`'s
+  // `missingIds`; the fix is to move the entry block with the body, never to raise the cap.
+  // BOUNDED, STATED: a ratchet bounds the POPULATION, not each closure — retrofitting an old
+  // entry in the same commit that drops a new one would keep the total flat. Nothing here claims
+  // otherwise; the assertion is that the count of field-less archived closures may only fall.
+  archiveMissingClosesWhen: 123,
 }
 
 /** Every live count that exceeds its RATCHETS constant is a finding; may only be LOWERED. */
@@ -215,10 +238,18 @@ export const RESOLVED_HEADING_RX = /⬛|✅ ?\*{0,2}(RESOLVED|CLOSED)\b/u
  * ADR 0186 D8 / plan 6.1: the `complete` cross-check is ROW-grade — a ledger TABLE ROW whose
  * first cell is the id, never "the id string appears anywhere in the ledger". The old
  * `\b${id}\b` scan passed on a MENTION ("see AE4 for context") with no row behind it at all.
+ *
+ * ⭐ 2026-09-08 (FUP-DOCS-CONSOLIDATION-LEDGER-ID-BOLD-DEFEATS-THE-COMPLETE-GATE): the first
+ * cell may be BOLD. 29 of phase-ledger.md's 83 pipe-lines already write `| **AE0** | …`, and the
+ * old ` *` before the id is a SPACE quantifier, so every one of those rows was invisible to this
+ * check — a row-grade gate defeated by two asterisks, silently, with the row sitting right there.
+ * The widening is bounded to the decoration itself (`**`, in either or both positions): the id
+ * must still be the WHOLE first cell, so `| AE4 — see below |` and `| Phase 4 |` stay rejected
+ * and the row-grade property the plan bought is intact. ⛔ Not fixed by unbolding 76 rows.
  */
 export function hubHasLedgerRow(id, ledgerText) {
   const esc = String(id).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const rx = new RegExp(`^\\| *${esc} *\\|`)
+  const rx = new RegExp(`^\\| *\\*{0,2} *${esc} *\\*{0,2} *\\|`)
   return ledgerText.split('\n').some((l) => rx.test(l))
 }
 
@@ -242,12 +273,33 @@ export function countLedgerDataRows(text) {
  * bold-paragraph forms the plan names (`**Verdict: APPROVED**`, `**Verdict:** APPROVED`) AND
  * the heading form most reviews actually use (`## Verdict: **APPROVED**`) — DOCS-RESTRUCTURE,
  * the one hub this gate has to keep passing, is recorded that way; a regex built only from the
- * plan's two literal examples would have reintroduced a red on the live tree. `[\s*]{0,4}`
- * skips up to 4 chars of space/bold decoration IN EITHER ORDER between the colon and the verdict
- * word, but no more — "Verdict: NOT APPROVED" stops at "NOT" (not whitespace/`*`) and does not
- * match, so a genuine non-approval still reds.
+ * plan's two literal examples would have reintroduced a red on the live tree.
+ *
+ * ⭐ 2026-09-08 (FUP-DOCS-CONSOLIDATION-LEDGER-ID-BOLD-DEFEATS-THE-COMPLETE-GATE): widened on
+ * exactly two axes, because the first version was case-SENSITIVE and allowed only `#`, space and
+ * `*` ahead of the word — so `# ✅ VERDICT: APPROVED`, a real approval, failed TWICE. Measured
+ * over the 169 files in docs/reviews/ the widening turns 16 genuine approvals from invisible to
+ * visible and loses none (153 unchanged + 16 gained = 169), and FOUR complete hubs — AE4,
+ * DOOR-SWEEP-DERIVER, HARNESS-CRASH-SAFETY, PRED-DOMAIN — were passing on their ledger row ALONE
+ * with a real APPROVED review this regex could not read.
+ *   1. `i` — `VERDICT:` / `verdict:` / `approved` all count. The word, not its casing, is the fact.
+ *   2. the decoration run before the word is now `[^\p{L}\p{N}\r\n>~]{0,8}` instead of ` *\*{0,2}`
+ *      — up to 8 chars that are neither letter nor digit, so `✅`, `⭐`, `- ` and `**` all pass.
+ *
+ * ⛔ WHAT IS DELIBERATELY *NOT* WIDENED, and why this is not `/Verdict:.*APPROVED/i`. `checkHub`
+ * treats a verdict as authorisation to call a unit `complete`, so every character admitted here
+ * has to be one that cannot spell a negation:
+ *   · `[\s*]{0,4}` between the colon and the word is UNTOUCHED — that class is the whole reason
+ *     `Verdict: NOT APPROVED` reds, because `N` is neither whitespace nor `*`. Case-folding it
+ *     would not have changed that, but widening it to `.*` would have destroyed it.
+ *   · letters and digits stay excluded from the leading run, so `Prior verdict: APPROVED` and
+ *     `Verdict 2: APPROVED` do not match — the run can decorate a verdict, never introduce one.
+ *   · `>` is excluded so a review QUOTING another document's approval in a blockquote is not read
+ *     as issuing one, and `~` so a struck-through `~~Verdict: APPROVED~~` stays retracted.
+ * The self-test asserts all of these as REJECTIONS, not as an afterthought: a gate widened until
+ * it accepts everything has been deleted, not repaired.
  */
-export const REVIEW_VERDICT_APPROVED_RX = /^#{0,6} *\*{0,2}Verdict:[\s*]{0,4}APPROVED\b/m
+export const REVIEW_VERDICT_APPROVED_RX = /^#{0,6}[^\p{L}\p{N}\r\n>~]{0,8}Verdict:[\s*]{0,4}APPROVED\b/imu
 
 export function reviewHasApprovedVerdict(text) {
   return REVIEW_VERDICT_APPROVED_RX.test(text || '')
@@ -816,6 +868,62 @@ export function checkArchiveNoBodyLink(archiveText) {
   return F
 }
 
+/**
+ * The register-shaped `**Closes when:**` FIELD — a line of the entry block, not a mention of the
+ * field anywhere in the prose. The distinction is the whole check: on 2026-09-08 the archive
+ * carried 37 occurrences of the literal `**Closes when:**`, of which 27 were fields at column 0,
+ * 9 were the string QUOTED inside a closure note's blockquote (`> … **Closes when:** field read
+ * literally \`PO to rule\``) and 1 was inline prose. Anchored + `m`, applied to an entry's leading
+ * `**`-prefixed field block, both non-field kinds are excluded by construction: a `>`-prefixed or
+ * mid-paragraph line never enters `parseEntries`' `fields`.
+ *
+ * ⚠ The trailing test is `[^\S\r\n]*\S`, HORIZONTAL whitespace, not `\s*\S`: `\s` matches `\n`,
+ * so `\s*\S` on a bare `**Closes when:**` walks to the `*` of the NEXT field line and reports an
+ * empty condition as present. Written as `\s*\S` first, and the self-test's empty-field fixture
+ * red on it — which is the fixture doing its job, not decoration. (`checkFollowups` is not
+ * affected: its `(.*)` is same-line by construction, then trimmed.)
+ */
+export const CLOSES_WHEN_FIELD_RX = /^\*\*Closes when:\*\*[^\S\r\n]*\S/m
+
+/**
+ * ADR 0185 D5 / FUP-DOCS-CONSOLIDATION-CLOSURE-DROPS-THE-CLOSES-WHEN-FIELD: when an entry is
+ * resolved, the rotation moves its BODY into follow-ups-archive.md — and used to leave the entry
+ * BLOCK behind in git history, so the archived closure no longer stood beside the condition it
+ * claimed to discharge. The register shape is this gate's domain (check-progress-doc.mjs disclaims
+ * it in its own header), so the assertion is here.
+ *
+ * Grain is the ID, not the heading, and that is load-bearing: the current closure shape writes TWO
+ * `### ` headings per closure — the dated closure note, which has no field block by design, and
+ * the verbatim entry block, which does. Counting headings would red on a CORRECTLY archived
+ * closure (it adds one field-less heading) and is therefore unusable; counting ids, a correct
+ * closure adds one id that HAS the field and moves the ratchet not at all, while a closure that
+ * drops the field adds one that does not and moves it by one. That is the discrimination the
+ * self-test pins in both directions.
+ *
+ * BOUNDED, STATED: this knows a `Closes when` is PRESENT and non-empty. It cannot know it is the
+ * condition that was actually satisfied — the archive itself records two closures whose field read
+ * `PO to rule` while the body's condition was the one discharged. That remains a review question.
+ */
+export function checkArchiveClosesWhen(archiveText) {
+  const F = []
+  if (archiveText == null) {
+    F.push(`[FOLLOWUPS] ${PATHS.fupArchive} — missing; the archive \`**Closes when:**\` ratchet cannot be measured against a file that is not there`)
+    return { findings: F, entries: 0, ids: 0, withField: 0, missing: 0, missingIds: [] }
+  }
+  const seen = new Map()
+  const entries = fupEntriesOf(archiveText)
+  for (const e of entries) seen.set(e.id, (seen.get(e.id) || false) || CLOSES_WHEN_FIELD_RX.test(e.fields))
+  const ids = [...seen.keys()]
+  const missingIds = ids.filter((id) => !seen.get(id))
+  // Anti-vacuity: an empty (or renamed, or truncated) archive would otherwise hand the ratchet a
+  // count of 0 and read as the cleanest possible run. A detector that finds nothing has to be
+  // unable to find nothing SILENTLY.
+  if (!ids.length) {
+    F.push(`[FOLLOWUPS] ${PATHS.fupArchive} — no archived FUP entries found (wrong file?); the \`archiveMissingClosesWhen\` ratchet below would pass vacuously`)
+  }
+  return { findings: F, entries: entries.length, ids: ids.length, withField: ids.length - missingIds.length, missing: missingIds.length, missingIds }
+}
+
 export function checkFollowups({ open, criticalIds, bodyFiles = [] }) {
   const F = []
   const counts = { poToRule: 0, severityPerEmoji: 0, severityUnrated: 0, revisitWhenPoToRule: 0, longHeadings: 0 }
@@ -1282,6 +1390,58 @@ function selfTest() {
   must('reviewHasApprovedVerdict heading', [reviewHasApprovedVerdict('## Verdict: **APPROVED**') ? '' : 'x'].filter(Boolean), false)
   must('reviewHasApprovedVerdict not approved', [reviewHasApprovedVerdict('**Verdict: NOT APPROVED**') ? 'x' : ''].filter(Boolean), false)
   must('reviewHasApprovedVerdict changes requested', [reviewHasApprovedVerdict('**Verdict: CHANGES REQUESTED**') ? 'x' : ''].filter(Boolean), false)
+  // ── 2026-09-08, FUP-DOCS-CONSOLIDATION-LEDGER-ID-BOLD-DEFEATS-THE-COMPLETE-GATE ─────────────
+  // The widening of the two `complete` regexes, pinned in BOTH directions. The ACCEPT half is the
+  // defect being fixed; the REJECT half is what stops the fix becoming `/Verdict:.*APPROVED/i`,
+  // which would have called `Verdict: NOT APPROVED` an approval and authorised `status: complete`
+  // off a rejection. Neither half is decoration: delete either and the other proves nothing.
+  const accepts = (name, fn, s) => must(`${name} ACCEPTS ${JSON.stringify(s)}`, [fn(s) ? '' : 'x'].filter(Boolean), false)
+  const rejects = (name, fn, s) => must(`${name} REJECTS ${JSON.stringify(s)}`, [fn(s) ? 'x' : ''].filter(Boolean), false)
+  const inLedger = (s) => hubHasLedgerRow('AE4', s)
+  // ACCEPT: the bold first cell 29 of the live ledger's 83 pipe-lines already use.
+  accepts('hubHasLedgerRow', inLedger, '| **AE4** | complete | ...')
+  accepts('hubHasLedgerRow', inLedger, '| **AE4** | x |')
+  accepts('hubHasLedgerRow', inLedger, '|  AE4  | x |')
+  // REJECT: the widening admits the DECORATION, never a different cell. The id must still be the
+  // whole first cell — a prose mention, a longer cell, and a different id all stay out.
+  rejects('hubHasLedgerRow', inLedger, 'mentions **AE4** in prose')
+  rejects('hubHasLedgerRow', inLedger, '| **AE4** and AE5 | x |')
+  rejects('hubHasLedgerRow', inLedger, '| AE4-BIS | x |')
+  rejects('hubHasLedgerRow', inLedger, '| **Phase 4** | x |')
+  // ACCEPT: the live casualty this change exists for — docs/reviews/authz-ae4-gate-rereview.md:3
+  // is a genuine APPROVED that the pre-2026-09-08 regex failed on BOTH axes at once (uppercase
+  // VERDICT, and a ✅ where only `#`/space/`*` were allowed).
+  accepts('reviewHasApprovedVerdict', reviewHasApprovedVerdict, '# ✅ VERDICT: APPROVED')
+  accepts('reviewHasApprovedVerdict', reviewHasApprovedVerdict, '# VERDICT: APPROVED')
+  accepts('reviewHasApprovedVerdict', reviewHasApprovedVerdict, '## ✅ VERDICT: **APPROVED**')
+  accepts('reviewHasApprovedVerdict', reviewHasApprovedVerdict, 'verdict: approved')
+  accepts('reviewHasApprovedVerdict', reviewHasApprovedVerdict, '- **Verdict: APPROVED** (round 2)')
+  accepts('reviewHasApprovedVerdict', reviewHasApprovedVerdict, 'header\n\n### ⭐ Verdict: APPROVED\n\nbody')
+  // ⛔ REJECT — the discrimination half. `i` makes the WORD case-blind; it must not make the
+  // SENTENCE case-blind. `[\s*]{0,4}` after the colon is what keeps every one of these out.
+  rejects('reviewHasApprovedVerdict', reviewHasApprovedVerdict, '**Verdict: NOT APPROVED**')
+  rejects('reviewHasApprovedVerdict', reviewHasApprovedVerdict, '**Verdict:** NOT APPROVED')
+  rejects('reviewHasApprovedVerdict', reviewHasApprovedVerdict, '# ⛔ VERDICT: NOT APPROVED')
+  rejects('reviewHasApprovedVerdict', reviewHasApprovedVerdict, '**Verdict:** not approved')
+  rejects('reviewHasApprovedVerdict', reviewHasApprovedVerdict, 'verdict: not approved')
+  rejects('reviewHasApprovedVerdict', reviewHasApprovedVerdict, '**Verdict: CHANGES REQUESTED**')
+  rejects('reviewHasApprovedVerdict', reviewHasApprovedVerdict, 'Verdict: CHANGES REQUESTED — not approved')
+  rejects('reviewHasApprovedVerdict', reviewHasApprovedVerdict, '## ⛔ Verdict: changes requested')
+  // …and the two exclusions inside the decoration class, which is why it is not `[^\p{L}\p{N}]`:
+  rejects('reviewHasApprovedVerdict', reviewHasApprovedVerdict, '> **Verdict:** APPROVED') // quoting, not issuing
+  rejects('reviewHasApprovedVerdict', reviewHasApprovedVerdict, '~~Verdict: APPROVED~~') // retracted
+  rejects('reviewHasApprovedVerdict', reviewHasApprovedVerdict, 'Prior verdict: APPROVED') // letters can't decorate
+  rejects('reviewHasApprovedVerdict', reviewHasApprovedVerdict, 'The verdict of round 1: APPROVED')
+  rejects('reviewHasApprovedVerdict', reviewHasApprovedVerdict, 'APPROVED')
+  rejects('reviewHasApprovedVerdict', reviewHasApprovedVerdict, '')
+  // …and the whole point of the widening, at the level the gate actually decides at: a `complete`
+  // hub whose ONLY evidence is a bolded ledger row, or the ✅-heading review, must now pass — and
+  // one whose only evidence is a rejection must still red.
+  const completeHub = { ...goodHub, fm: { ...goodHub.fm, status: 'complete', reviews: ['review.md'] }, body: '# X1\n' }
+  must('HUBS complete via BOLDED ledger row ok', checkHub(completeHub, { ...okCtx, ledgerText: '| **X1** | done |', readRel: () => '' }), false)
+  must('HUBS complete via emoji-heading APPROVED ok', checkHub(completeHub, { ...okCtx, ledgerText: '', readRel: () => '# ✅ VERDICT: APPROVED\n' }), false)
+  must('HUBS complete via emoji-heading NOT APPROVED reds', checkHub(completeHub, { ...okCtx, ledgerText: '', readRel: () => '# ⛔ VERDICT: NOT APPROVED\n' }), true)
+  must('HUBS complete via bolded row for ANOTHER id reds', checkHub(completeHub, { ...okCtx, ledgerText: '| **X2** | done |', readRel: () => '' }), true)
   must('HUBS sections out of order', checkHub({ ...goodHub, body: '# X1\n' + goodBlock.replace('### Next\nd\n### Blockers\ne\n', '### Blockers\ne\n### Next\nd\n') }, okCtx), true)
   must('HUBS no Updated', checkHub({ ...goodHub, body: '# X1\n' + goodBlock.replace(/\*\*Updated:\*\* \S+\n/, '') }, okCtx), true)
   must('HUBS stale Updated', checkHub({ ...goodHub, body: '# X1\n' + goodBlock.replace('2026-09-02', '2026-08-01') }, okCtx), true)
@@ -1496,6 +1656,70 @@ function selfTest() {
     true,
   )
 
+  // ── 2026-09-08, FUP-DOCS-CONSOLIDATION-CLOSURE-DROPS-THE-CLOSES-WHEN-FIELD ──────────────────
+  // An archived closure must stand beside the condition it discharges. The ratchet counts archived
+  // FUP IDS with no `**Closes when:**` FIELD; these fixtures pin the counter itself, because a
+  // ratchet whose live number is wrong is a cap on the wrong thing. The fixtures are written in
+  // the shapes the real archive actually contains, all four of them.
+  const archEntry = (id, opts = {}) =>
+    `### ${opts.resolved ? '✅ ' : ''}🟡 ${id} — a claim${opts.resolved ? ' — **RESOLVED 2026-09-08**' : ''}\n\n` +
+    `**Filed:** 2026-09-01 (x) · **Owner:** lead · **Severity:** medium — why\n` +
+    (opts.noField ? '' : '**Closes when:** the thing is measured\n') +
+    `**Status:** open → RESOLVED\n\nthe body, inline\n\n`
+  // The CURRENT closure shape: a dated closure NOTE (blockquote, no field block) under one
+  // heading, then the register entry block verbatim under a SECOND heading with the same id.
+  // Both halves are one closure, so the census is keyed on the id — count headings instead and a
+  // correctly archived closure raises the ratchet, which is a gate that reds on the right answer.
+  const archClosure = (id, opts = {}) =>
+    `### ✅ 🟡 ${id} — a claim — **RESOLVED 2026-09-08**\n\n` +
+    `> **RESOLVED 2026-09-08.** The entry's \`**Closes when:**\` field read literally \`PO to rule\`,\n` +
+    `> so what was satisfied is the body's own condition — quoted here, not in a field.\n\n` +
+    `**The register entry as it stood, verbatim.**\n\n` +
+    archEntry(id, opts)
+  const archCount = (t) => checkArchiveClosesWhen(t)
+  const archGood = archEntry('FUP-A-1') + archClosure('FUP-A-2') + archEntry('FUP-A-3', { resolved: true })
+  const g = archCount(archGood)
+  must(
+    'checkArchiveClosesWhen census parts sum (ids = with + without)',
+    [g.ids === 3 && g.withField === 3 && g.missing === 0 && g.withField + g.missing === g.ids ? '' : `ids=${g.ids} with=${g.withField} missing=${g.missing} entries=${g.entries}`].filter(Boolean),
+    false,
+  )
+  must('checkArchiveClosesWhen two headings one id count once', [archCount(archClosure('FUP-A-2')).ids === 1 ? '' : 'x'].filter(Boolean), false)
+  must('checkArchiveClosesWhen entry headings counted separately', [archCount(archClosure('FUP-A-2')).entries === 2 ? '' : 'x'].filter(Boolean), false)
+  // ⭐ THE PLANT, permanent: one archived closure with the field dropped raises the count by
+  // exactly one, which is what makes the ratchet able to red. A detector that cannot find this
+  // is not bounding anything.
+  const gDropped = archCount(archGood + archEntry('FUP-A-4', { noField: true, resolved: true }))
+  must(
+    'checkArchiveClosesWhen a dropped Closes when raises the count by one',
+    [gDropped.ids === 4 && gDropped.missing === 1 && gDropped.missingIds[0] === 'FUP-A-4' ? '' : `ids=${gDropped.ids} missing=${gDropped.missing} (${gDropped.missingIds.join(',')})`].filter(Boolean),
+    false,
+  )
+  must('checkArchiveClosesWhen the plant reds against a cap at the clean count', checkRatchets({ archiveMissingClosesWhen: gDropped.missing }, { archiveMissingClosesWhen: g.missing }), true)
+  // ⛔ THE DISCRIMINATION HALF: a new closure that DOES carry the field must not move the ratchet.
+  // A counter that rises on every archived entry would red on correct work and be allowlisted away.
+  const gAdded = archCount(archGood + archEntry('FUP-A-5', { resolved: true }))
+  must(
+    'checkArchiveClosesWhen an added entry WITH the field does not raise the count',
+    [gAdded.ids === 4 && gAdded.missing === g.missing ? '' : `ids=${gAdded.ids} missing=${gAdded.missing} vs ${g.missing}`].filter(Boolean),
+    false,
+  )
+  must('checkArchiveClosesWhen an added entry WITH the field stays under the cap', checkRatchets({ archiveMissingClosesWhen: gAdded.missing }, { archiveMissingClosesWhen: g.missing }), false)
+  // An empty field is not a closing condition, and a QUOTATION of the field is not the field: the
+  // 9 blockquoted `**Closes when:**` strings in the live archive must not be read as fields, or
+  // the count is understated and the cap is set on a number that never existed.
+  must('checkArchiveClosesWhen an empty Closes when is missing', [archCount(archEntry('FUP-A-6', { noField: true }).replace('**Status:**', '**Closes when:**\n**Status:**')).missing === 1 ? '' : 'x'].filter(Boolean), false)
+  must(
+    'checkArchiveClosesWhen a blockquoted mention is not a field',
+    [archCount(`### ✅ 🟡 FUP-A-7 — a claim\n\n> the entry's **Closes when:** field read \`PO to rule\`\n\nbody\n`).missing === 1 ? '' : 'x'].filter(Boolean),
+    false,
+  )
+  // Anti-vacuity: an archive that is missing, renamed or emptied must not hand the ratchet a
+  // count of 0 and read as the cleanest run this gate has ever had.
+  must('checkArchiveClosesWhen missing file reds', checkArchiveClosesWhen(null).findings, true)
+  must('checkArchiveClosesWhen empty archive reds', checkArchiveClosesWhen('# Archive\n\nnothing here yet\n').findings, true)
+  must('checkArchiveClosesWhen a real archive does not red on presence', archCount(archGood).findings, false)
+
   // RATCHETS (ADR 0186 D6): a live count over its constant reds; Infinity never fires.
   must('checkRatchets exceeded reds', checkRatchets({ x: 5 }, { x: 3 }), true)
   must('checkRatchets under cap ok', checkRatchets({ x: 2 }, { x: 3 }), false)
@@ -1655,6 +1879,8 @@ function main() {
   }
   const archiveText = read(PATHS.fupArchive)
   if (archiveText != null) F.push(...checkArchiveNoBodyLink(archiveText))
+  const archive = checkArchiveClosesWhen(archiveText)
+  F.push(...archive.findings)
 
   // LESSONS + POSTMORTEMS
   const lessonsText = read(PATHS.lessons)
@@ -1726,6 +1952,7 @@ function main() {
     bugsUntriaged: bugs.counts?.untriaged ?? 0,
     bugsUnrated: bugs.counts?.unrated ?? 0,
     lessonsProseOnly: les.counts?.prose ?? 0,
+    archiveMissingClosesWhen: archive.missing,
   }
   F.push(...checkRatchets(ratchetCounts))
 
@@ -1745,7 +1972,8 @@ function main() {
   console.log(
     `check-docs-registers: OK (self-test + ${hubs.length} hubs, ${recordsChecked} records, ` +
       `${ledgerRowsChecked} ledger rows, ${ctx.bugsTable?.rows.length ?? 0} bugs, ${ctx.bugDocFiles.length} bug docs, ` +
-      `${fupCount} follow-ups, ${fupBodyFiles.length} follow-up bodies, ${les.ids.size} lessons, ` +
+      `${fupCount} follow-ups, ${archive.ids} archived follow-ups (${archive.entries} entry headings), ` +
+      `${fupBodyFiles.length} follow-up bodies, ${les.ids.size} lessons, ` +
       `${pmFiles.length} postmortems, ${hoFiles.length} handoffs, ${retiredFiles.length} md files scanned for retired citations)`,
   )
   console.log(`check-docs-registers: ratchets: ${ratchetsLine}`)
