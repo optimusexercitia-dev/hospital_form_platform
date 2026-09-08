@@ -589,3 +589,170 @@ hub's `## Current state` (the lead's), and ⛔ **any revoke** — R1's defer hol
 `FUP-AUTHZ-IS-AFFILIATED-WITH-HOSPITAL-FOR-GRANT-UNNECESSARY` whose `Closes when` requires the
 revoke to assert its predicate **moved** *and* to re-pin §U4 and the anchor in the same migration,
 because gate 15 reds if they disagree.
+
+### 2026-09-08 — gate at the tip (independent runner)
+
+Run at `bd50dfc9`, branch `authz-privilege-surface`, working tree clean before and after. ⛔ **The
+runner built none of the four tracks** (protocol §4 step 4, ruling R34) and **repaired nothing** —
+every observation below is a reading, and the only file this turn edits is this record. `npm run
+lint` carries **15** gates now, not 13.
+
+**Every command, every exit code read BARE** (own line or a redirected rc file; ⛔ never through a
+pipe, never in a `;`-chain that consumes it).
+
+| # | command | rc |
+|---|---|---|
+| 1 | `npm ci` | **0** (957 packages) |
+| 2 | `npm run lint` | **0** — 15 of 15 gates REACHED, eslint silent at 0 findings |
+| 3 | `npm run typecheck` | **0** |
+| 4 | `npm run test` | **0** — 151 files, 2056 tests |
+| 5 | `supabase db reset --local` | **0** — head `20261003007350` |
+| 6 | `npm run test:db` | **0** — `All tests successful.` Files=**262**, Tests=**8900**, `Result: PASS` |
+| 7 | `ARM=census` | **0** — `=== INVARIANT HOLDS ===` |
+| 8 | `ARM=hat` | **0** — `=== INVARIANT HOLDS ===` |
+| 9 | `ARM=floor` | **0** — `=== INVARIANT HOLDS ===` |
+| 10 | `FROMFINDINGS=1 ARM=wrapper` | **0** — `=== INVARIANT HOLDS ===` |
+| 11 | `SELFTEST=1 scripts/door-sweep-selftest.sh` | **0** — `SELF-TEST: PASS 42 · FAIL 0 · SKIPPED 0` |
+| 12 | `SELFTEST=1 scripts/door-sweep-cases.sh` | **0** — `SELF-TEST: PASS 42 · FAIL 0 · SKIPPED 0` |
+| 13 | `scripts/door-sweep-cases.sh main` | **3** — NOT-APPLICABLE |
+| 14 | `authz-setvalued-targeted-cases.sh` (detached) | **0** — `RESULT: CLEAN — 3 resolver(s) measured, all COVERED.` |
+
+⛔ **`&&` short-circuits, so the gates a run REACHED are quoted, never assumed** (R13): `eslint` ·
+`css-vars` · `memberships-door` · `client-server-imports` · `vacuous` · `set-local` · `progress` ·
+`rules` · `adr-index` · `mojibake` · `service-role-registry` · `authz-vectors` · `registers` ·
+`config-schemas` · `budget-anchor` — **15 of 15**. Gates 14 and 15 each ran their self-test ahead of
+their scan on this run, so the chain's rc 0 carries *"the checker can fail"* and not only *"the file
+is clean"*.
+
+**Each arm's DOMAIN, quoted verbatim, because a verdict without its domain means nothing.**
+
+- **`ARM=census`** — `domain: prosecdef bool | prosecdef set-returning+reachable | public INVOKER
+  plpgsql | all RLS policies`, and its own exclusion line, `NOT in domain: prosecdef scalar non-bool
+  command doors (427 reachable, DERIVED this run) — FUP-AUTHZ-COMMAND-DOOR-UNSWEPT`. Verdict:
+  `OK: no unswept newcomer WITHIN THIS ARM'S DOMAIN`, with five live backlog entries listed as
+  outside it and explicitly KEPT.
+- **`ARM=hat`** — ⚠ prints **no line labelled `domain:`**; recorded as observed rather than
+  paraphrased into one. Its scope statement is `anchors: app.has_role(4-arg) + app.has_role_any +
+  authz.holds_role carry the active-role condition`, over `self-test: 7/7 OK`. Verdict:
+  `HAT-BLIND SWEEP HOLDS: 4 finding(s), all reasoned-allowlisted`.
+- **`ARM=floor`** — `authenticated-reachable prosecdef doors with 0 calls: 63`, derived this run
+  from a full pgTAP suite under `track_functions=all`. Both closure directions asserted:
+  `OK: every never-called door is on the floor allowlist.` and `OK: every floor-allowlist entry
+  resolves to a live door.` ⭐ This is the population R1's defer protects — a revoke would EVICT
+  members from it and the arm would go quiet for the honest reason that it can no longer see them.
+- **`FROMFINDINGS=1 ARM=wrapper`** — `mode: FROMFINDINGS (comparing COMMITTED findings md, no
+  sweep)`, `BLIND set size: 41`. Verdict: `OK: every BLIND wrapper is on the allowlist.`
+- **set-valued targeted home** — `ARM-DOMAIN setvalued=3/3 (in scope) out-of-scope=2 (named, with
+  dispositions)`; all three COVERED, and its own three-way restore verification passed
+  (`§4a residue: 0 rows` · `suite after restore: Result: PASS (Files=262, Tests=8900)` ·
+  `sentinel + sidecars: absent`).
+
+**The diff-scoped door sweep — NOT-APPLICABLE, and the rc was read BEFORE any substitution.**
+`bash scripts/door-sweep-cases.sh main` → `rc=$?` on its own line → **3**. ⛔ No `CASES` variable was
+ever built from its stdout, so the empty-string third state could not arise. ⚠ This **3 is the
+deriver's NOT-APPLICABLE**, which is a different exit from the **3 UNPROVEN** an empty `CASES`
+produces inside a sweep; the two share a number and conflating them is its own defect. Neither
+sweep arm is owed, because there is no migration for one to have a domain over. The `SCOPE:` line,
+verbatim:
+
+```
+SCOPE: 0 file(s) — 0 committed (main..HEAD), 0 worktree, 0 untracked | filter: none | derivation: NOT REACHED (this run ended before the catalog was probed)
+       0 case(s) — nothing was derived, and the line above is what the gate record
+       quotes to say so.
+```
+
+**R5, asserted rather than eyeballed.** `git diff --name-only main... -- supabase/migrations
+supabase/seed.sql src > pathspec.txt` (rc **0**), then `wc -c` → **`PATHSPEC_BYTES=0`**. ⚠ Beside
+that zero, and required by R5 so no reader wonders whether the check was weakened: this unit **did**
+touch five areas the pathspec deliberately does not cover — `supabase/config.toml`,
+`supabase/tests/320_act_expiry_and_acl_hardening.sql`, `scripts/` (both new checkers plus the
+annotation on `authz-tier1-threat-review-ae1.sql`), `package.json`, and `docs/`. The full
+`main...HEAD` name-status is 19 files, **0** of them under `supabase/migrations`, `supabase/seed.sql`
+or `src`. ⇒ R1's defer and R2's ruling are honoured, and the emptiness is what says so.
+
+**§U1 is still 236 — verified THREE independent ways, not read off a green bar.** (1) The live
+catalog, queried directly on the fresh reset by the runner's own SQL: **236**. (2) The literal in
+`320` at line 301 is unchanged at `236`, and `git diff main...` over that file is **+243/−1**, the
+single deletion being `plan(18)` → `plan(36)`. (3) `320` §U6h asserts it a second time *after*
+§U4–§U6 have created, granted, revoked and dropped `app` functions including one granted to PUBLIC,
+and it is the last assertion in the file before `finish()`. The same run re-derived the budget:
+`app` **326** · `public` **433** · total **759**, matching all three §U4 pins and the anchor in
+`docs/backend-state.md`. The head **pair** (R19) reads `(20261003007350, 524)`, exactly as Track A
+recorded it.
+
+**⭐ The two new gates were proven to FIRE by the runner, not taken from the build record.** Both
+checkers resolve their subjects from `process.cwd()` and build fixtures in `os.tmpdir()`, so both
+halves were provable **without touching the repo** — `git status --porcelain` was **0 lines** before
+and after every plant.
+
+| plant | subject | rc | observed |
+|---|---|---|---|
+| real checker, copied clean tree | control | **0** | reproduces the in-tree run byte for byte |
+| `"app"` added to `[api].schemas` | file | **1** | `⛔⛔ SECURITY EVENT — … "app" HAS BEEN ADDED TO THE POSTGREST-EXPOSED SCHEMAS` |
+| `"authz"` added instead | file | **1** | `REVIEW EVENT — … the pinned [api].schemas list CHANGED VALUE` |
+| the sentinel line deleted | file | **1** | `the load-bearing comment sentinel is missing…` |
+| `320`'s `app` literal 326 → 327 | file | **1** | `THE MIRROR HAS DRIFTED FROM ITS HOME — key app` |
+| a **consistent** census over the ceiling | file | **1** | `⛔⛔ THE BUDGET IS OVER ITS CEILING — total 760 > ceiling 759` |
+| prose reverts to the superseded 752 | file | **1** | `THE ONE HOME DISAGREES WITH ITSELF` |
+| check **C** neutered in a copy of the checker | checker | **2** | `B2 NOT CAUGHT (OK)` → `SELF-TEST FAILED` |
+| check **N1** neutered in a copy of the checker | checker | **2** | `B1 caught for the WRONG REASON: expected N1_APP_EXPOSED, got N2A_LIST_CHANGED` |
+
+⭐ R28's fix is confirmed from the outside: with `"app"` planted, the self-test line reads *"G1 = the
+real file CANONICALISED — the bytes on disk are NOT clean, see the finding below"* and the run exits
+**1**, not 2 — the checker verdict and the file verdict stay separate, which is the whole point.
+⭐ The N1 mutation is the better of the two: the fixture still redded, at a *different* check, and
+only the per-fixture `expect` code exposed it. A self-test keyed on *"did it red?"* would call that
+green.
+
+**⭐ §U4 was proven to fire too, because it had only ever been GREEN in this runner's hands.** A
+granted `public` SECURITY DEFINER probe was created in the live catalog (`public` 433 → **434**,
+`has_function_privilege` verified **t** before the run), `00_setup` + `320` re-run: **rc 1**,
+`Result: FAIL`, `Failed 10/36 subtests`. U4b `have 434 want 433` and U4c `have 760 want 759` both
+red while **U4a stayed GREEN** — the per-schema discrimination Track C claims. Probe dropped,
+population verified back to `app` 326 / `public` 433 with **0** residue rows, and the pair re-run
+**rc 0, `Result: PASS`**.
+
+⚠ **A measured correction to the build record, offered as a finding and not a repair.** Track C's M1
+row reports that mutation as *"rc 1; U4b …, U4c …, ⭐ U4a stayed GREEN"* — three assertions. The
+runner's identical mutation redded **ten**: `U4b · U4c · U5b · U5d · U5f · U6a · U6c · U6d · U6f ·
+U6g`. The seven extra are §U5/§U6's controls, which are pinned on **absolute** literals (`759` →
+`760` → `759`) rather than on a delta from a re-derived baseline. ⇒ Two consequences worth the next
+reader's time: a single unrelated `+1` anywhere in the population reds **7 control assertions that
+carry no finding**, burying the 2 that do; and the controls are **baseline-coupled**, so they stop
+measuring *"the detector moves"* the moment the baseline moves. ⛔ Not blocking, not repaired here,
+and the pin itself is correct and discriminating — but the build record's account of M1 is
+**incomplete**, and *a partial account of a measurement reads as a complete one*.
+
+**Environment traps the earlier tracks recorded, honoured rather than rediscovered:** every `psql`
+run went through `docker exec -i … -v ON_ERROR_STOP=1` on stdin; the planter used here **exits 9 if
+its target string is absent or the bytes do not change**, and it earned that on the first attempt —
+a plant keyed on `**CEILING: 759**` did not match the file's `**CEILING: 759.**` and exited **9**
+instead of reporting the green that a silent no-op would have produced (*a mutation that did not
+fully apply reports green*). One plant aimed at the wrong string is also recorded: rewriting the
+R32 mitigation banner (`THE \`schemas\` LINE BELOW IS LOAD-BEARING`) left gate 14 **green (rc 0)**,
+because the pinned sentinel is the separate line `⛔ LOAD-BEARING — DO NOT ADD "app" TO THIS LIST.`
+⇒ R32's own stated dependency — *"this ruling depends on something NO GATE ENFORCES"* — is now
+**measured** rather than assumed.
+
+**Not run, and why:** the E2E gate. `PATHSPEC_BYTES=0` means no `src`, no migration and no seed
+change, so no acceptance criterion moved and the prod-standalone suite is not owed.
+
+⚠ **Four observations handed to the lead for the Record step, none of them gate-blocking.** (1) No
+**ADR** exists on this branch, where Batches 0–6 each produced one (0189 · 0190 · 0191 · 0192 ·
+0193 · 0194) — while this unit made ADR-shaped decisions (extend `320` vs. a new file with the
+§U1/§U4 boundary argued; the two-instrument split that answers `ARM=census`'s standing prohibition;
+the polarity choice; the ceiling's one home plus merge rule). (2) The **hub's `## Current state` is
+three commits stale**: it lists Tracks C and D under `### In progress` though both are committed
+(`a2f9f981`, `5602830d`, `bd50dfc9`), and it says *"31 rulings"* where the rulings file holds
+**34**. (3) The hub also says Track B built *"13 fixtures"*; the gate's own self-test reports
+**10 bad + 4 good = 14**, and the checker has been touched exactly once (`6fee08ae`), so the figure
+was never right rather than having drifted. (4) The record cites R-numbers **62 times** against a
+rulings file that lives only in a session temp directory and is in no commit — ⚠ a **pre-existing
+program-wide pattern**, not a Batch 7 novelty (`register-gate-hygiene.md` cites R1/R4/R45,
+`enforcement-manifest.md` cites R3), so it is raised as a program question, not as this unit's
+defect.
+
+⭐ All three follow-ups correctly still read `Status: open` in `docs/followups/follow-ups-open.md`,
+which is what R33 requires before PO approval. ⚠ The ceiling entry's heading still describes the
+budget as *"759 against a ceiling of 752"*, now superseded by R24 — the closure is the place that
+fixes it.
