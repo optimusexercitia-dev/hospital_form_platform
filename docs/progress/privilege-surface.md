@@ -833,7 +833,7 @@ within one turn of being cited.
    contain. The next runner should be told the branch is frozen, and the freeze should be observable
    rather than assumed.
 
-## 2026-09-08 — QA fix loop, iteration 1 of ≤5 (`backend`)
+### 2026-09-08 — QA fix loop, iteration 1 of ≤5 (`backend`)
 
 QA returned **CHANGES REQUESTED** (`docs/reviews/privilege-surface-review.md`, reviewed at
 `42ca7718`). This entry covers **B1–B4, M2 (backend half), M3, N1, N3, N4, N8–N10, N12** and
@@ -1040,7 +1040,7 @@ than left to inference — an unrun gate is not a passed one.
 - The hub's **Gate at the tip** paragraph now names the commit it describes (`bd50dfc9`) and states
   that the gate is **re-owed at the final tip**, because the lead broke the freeze (R37).
 
-## 2026-09-08 — QA fix loop, iteration 2 of ≤5 (`backend`)
+### 2026-09-08 — QA fix loop, iteration 2 of ≤5 (`backend`)
 
 QA's **re-review** (`docs/reviews/privilege-surface-rereview.md`, reviewed at `834e55d8`) returned
 **CHANGES REQUESTED** on two items owned by this role: **B1** (blocking) and the **MAJOR** census
@@ -1156,7 +1156,7 @@ already editing; ⛔ nothing else from `N1–N5` was actioned.
   The R5 pathspec (`supabase/migrations supabase/seed.sql src`) is untouched, as in every prior
   iteration.
 
-## 2026-09-08 — QA fix loop, iteration 3 of ≤5 (`backend`)
+### 2026-09-08 — QA fix loop, iteration 3 of ≤5 (`backend`)
 
 **Scope: ruling R40 only** — the three combination cells of gate 14 that were *"held by nobody"*.
 ⛔ Nothing else in the unit was touched; the R5 pathspec (`supabase/migrations supabase/seed.sql
@@ -1781,3 +1781,52 @@ than a bare "deferred".
 ### Blockers
 
 None. ⚠ 27 commits unpushed on `main` at unit open — a fact about the tree, not a blocker here.
+
+### 2026-09-08 — lead, SECOND-PASS audit of the Record step (post-merge)
+
+⛔ **Run because the PO asked whether every relevant file was actually updated — not because a gate
+said so.** The checklist was **derived from `docs/lead-playbook.md` §5**, not recalled; this batch
+spent four fix iterations on hand-listed sweeps and it would be absurd to audit itself with one.
+
+**Item found and repaired: three log entries were OUTSIDE the log.** `## 2026-09-08 — QA fix loop,
+iteration 1/2/3 of ≤5` were written at **h2**, making them **siblings of `## Session log`** rather
+than entries under it. ⇒ Gate 13's records arm checks *"a `## Session log` heading whose
+`### YYYY-MM-DD` subsections are non-decreasing"* — at h2 those three are **not subsections at all**,
+so the ordering check **could not see them**. Green, and blind to the cell.
+
+⭐ **Derived, not eyeballed:** `git grep -c '^## 2026-' -- 'docs/progress/*.md'` returns **2 files of
+143** — this record (3) and `test-run-archive.md` (4, an archive with a different shape). A 3-of-143
+anomaly is a defect, not a convention. Promoted to `###`; gate 7 **rc 0**, gate 13 **rc 0**, and the
+file now carries **15** `### 2026-` entries with none at h2. ⛔ Repaired **structurally** rather than
+annotated: the heading text is unchanged, so there is no superseded claim to quote — a dated note
+beside a heading level would be noise (Batch 6's *"the structural repair instead of a seventh
+number"*).
+
+**Checked and correct, so the next reader does not re-check them:**
+
+- **PROGRESS.md — nothing owed, and that is a fact rather than an omission.** It carries `§ Phase
+  Status` (live *phase* rows only) and `§ State` (live *remote DB* facts). A **unit** is not a phase:
+  its live state is `docs/features/INDEX.md`, generated from hub frontmatter. Derived:
+  `grep -i 'privilege-surface\|batch 7' PROGRESS.md` → **0 hits**, and its `§ State` rows are about
+  the linked Supabase project, which this batch never touched.
+- **Hub** — `## Current state` fully cut (`grep -c 'Current state'` → **0**), `status: complete`,
+  `branch: ~`, three reviews listed, ADR 0195 in `adrs:`. Index regenerated: **14 hubs, in progress 0**.
+- **Record** — the cut block sits under a dated `### 2026-09-08` entry, verified by **`cmp` rc 0**
+  against the extracted bytes *before* the source was deleted. ⚠ The block itself keeps its own
+  `## Current state` h2 because it was cut **verbatim**; that matches the standing precedent
+  (`docs/progress/writepath-baseline.md`), and gate 13 accepts it.
+- **Ledger** row written · **ADR 0195** `Accepted` and removed from `proposed-review.json`, index
+  rebuilt (the rebuild was **owed and initially missed** — gate 9 caught it, chain died at gate 9, so
+  that run proved nothing about gates 10–15) · **follow-ups** archived with bodies, 0 ids in both
+  files, `archiveMissingClosesWhen` **121/121 unchanged** and three ratchets moved **down only** ·
+  **handoffs** 0 · **bug row** added (this batch closed none, so no status cell to flip).
+- **`docs/backend-state.md`** — updated by Track C at the ceiling move; named explicitly here because
+  the standing rule is that a Record-step brief must name **the plan and backend-state**, after a
+  prior batch closed without touching the plan it was executing.
+- **Plan** §2 (row 7 + a note that Batch 6 has no row and this batch did **not** silently
+  reconstruct one), §3 (heading → *Batches 8 to 9*, CONCLUDED banner on Batch 7 naming **three of its
+  own clauses that were wrong when written**), §6 (rewritten for Batch 8, with the push override
+  scoped in writing to this push only).
+- ⛔ **The premature "pushed" claim** in the plan row and the ledger row was caught **after** the
+  Record commit and corrected in `2666fba4` — the push is approved and **held** pending a live
+  Coolify check the lead could not perform.
