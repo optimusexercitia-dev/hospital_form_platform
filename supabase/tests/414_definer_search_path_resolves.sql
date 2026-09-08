@@ -10,9 +10,12 @@
 -- measured on the one known instance, `current_schemas(true)` inside
 -- `app.current_professional_read_organizations` was `{pg_temp_N, pg_catalog}` against its
 -- sibling's `{pg_temp_N, app, public, pg_catalog}`. Nothing in this repo noticed — not the
--- twelve lint gates (none read `proconfig`), not the four authz arms, not the door sweep, and
--- not pgTAP, whose one relevant assertion had hand-typed its expected value BY COPYING THE
--- BROKEN CATALOG and therefore pinned the defect as expected.
+-- lint chain — ⭐ NO gate in `package.json`'s `lint` script reads `proconfig`, and that is the
+-- claim, not a count. (This read *"the twelve lint gates"*; re-verified 2026-09-08 against the
+-- two gates appended that day, `lint:config-schemas` and `lint:budget-anchor` — neither reads
+-- `proconfig` either, so the substantive claim survived the numeral.) Nor the four authz arms,
+-- nor the door sweep, nor pgTAP, whose one relevant assertion had hand-typed its expected
+-- value BY COPYING THE BROKEN CATALOG and therefore pinned the defect as expected.
 --
 -- ⛔ THE CHECK IS BOUND ON THE PROPERTY, NOT ON THE SYMPTOM. The property is *every named
 -- schema resolves in pg_namespace*; the symptom is *the stored value contains a quote*. They

@@ -4,15 +4,24 @@ Index entry: [follow-ups-open.md](follow-ups-open.md) · filed 2026-09-03 · sta
 
 **one** function and it is fixed, measured below, so this is a missing gate rather than a live
 exposure. Above 🔵 because the class is silent by construction on the authorization path and the
-one instance survived pgTAP, twelve lint gates, four authz arms and a door sweep.
+one instance survived pgTAP, the whole `npm run lint` chain, four authz arms and a door sweep.
 
 **What is wrong.** `set search_path to 'app, public, pg_catalog'` — single-quoted — is accepted by
 Postgres as **ONE identifier** naming a schema that does not exist, not a three-element list, and a
 non-existent schema in `search_path` is skipped rather than erroring. A `SECURITY DEFINER` function
 written that way declares a schema resolution order it does not have. **Nothing in this repo
-notices.** `npm run lint`'s twelve gates do not read `proconfig`; pgTAP only checks the functions
-someone thought to assert, and the assertion that *should* have caught this instead **pinned it**,
-because its expected value was hand-typed by copying the broken catalog output.
+notices.** **No** gate in `package.json`'s `lint` script reads `proconfig`; pgTAP only checks the
+functions someone thought to assert, and the assertion that *should* have caught this instead
+**pinned it**, because its expected value was hand-typed by copying the broken catalog output.
+
+⛔ **DATED CORRECTION 2026-09-08 — two numerals in this body were stale, and the claim was not.** Both
+sites above read *"twelve lint gates"*; two gates were appended to `npm run lint` on 2026-09-08
+(`lint:config-schemas`, `lint:budget-anchor`) and **neither reads `proconfig`**, verified by reading
+both scripts rather than by counting. ⇒ The clause is restated on the **property** — *no gate in the
+chain reads `proconfig`* — because a live count in ungated prose is precisely what rotted here, twice,
+in a body whose whole subject is a check bound on a property rather than a symptom. ⚠ Nothing
+positional moved: both gates were **appended**, so every by-number reference elsewhere in the tree is
+still correct.
 
 **How it was MEASURED.** 2026-09-03, live catalog: `current_schemas(true)` inside
 `app.current_professional_read_organizations` returned `{pg_temp_N, pg_catalog}` against its sibling

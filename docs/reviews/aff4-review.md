@@ -710,7 +710,17 @@ hospital tier"*, `**Status:** Accepted · 2026-08-26`, `**Amends:** 0154`. The l
 well-formed (colon present — the malformed `**Amends**` variant is invisible to the parser),
 and the **generated** back-pointer has landed in 0154's header:
 
-> ⬅ **A later ADR changes this one** — it is **amended by** [0158](0158-hospital-directory-keeps-its-predicate.md).
+> ⬅ **A later ADR changes this one** — it is **amended by** [0158](../decisions/0158-hospital-directory-keeps-its-predicate.md).
+
+<!-- ⚠ 2026-09-08, second-pass audit after pre-AE5 Batch 7 (⛔ NOT introduced by Batch 7 — this
+     line has stood since `6d33f395`, 2026-08-26). The blockquote above reproduces a GENERATED ADR
+     back-pointer, whose `./`-relative destination is written for `docs/decisions/` and therefore
+     resolved to `docs/reviews/0158-…` when copied here. Only the link DESTINATION was prefixed with
+     `../decisions/`: the reviewer's prose is untouched and the quotation renders byte-identical
+     (its visible text is `0158`). ⭐ This is exactly the class gate 9 was extended for on
+     2026-09-08 — but gate 9's corpus is `docs/decisions/` only, so nothing gates a back-pointer
+     copied into a review. That corpus gap is filed as
+     `FUP-REGISTER-GATE-HYGIENE-LINK-CHECKING-HAS-NO-GATE-OUTSIDE-THREE-CORPORA`. -->
 
 That is the inverse edge no ADR can record about itself, and it is what makes 0154 stop
 reading as unqualified law. The ADR carries the measurement (a `hospital_admin` reads 1

@@ -803,7 +803,19 @@ summary deserves its own branch rather than falling through to "failed".
 
 ## 5. What to write in the QA Verdicts table (lead-owned)
 
-> ✅ **APPROVED (r2)** [review](docs/reviews/dm2-orchestration-wave-a-review.md) — r1's 1 P0 · 3
+<!-- ⚠ 2026-09-08, second-pass audit after pre-AE5 Batch 7 (⛔ NOT introduced by Batch 7).
+     ⭐ THE DERIVED SWEEP THAT FOUND THE OTHER FOUR MISSED THIS ONE: re-run with the gates' own
+     `checkLinks` (imported from `scripts/check-docs-registers.mjs`) rather than a reimplementation,
+     it is the FIFTH live instance outside `docs/design/temp/`, and the same class as the second —
+     a REPO-ROOTED path used relatively, resolving here to `docs/reviews/docs/reviews/…`.
+     The snippet below is a template written to be COPIED into PROGRESS.md `§ QA Verdicts`, where
+     the repo-rooted form WAS correct; that section is retired (ADR 0185 D6), so the destination no
+     longer exists and the only remaining reader reads it in situ. ⇒ Only the link DESTINATION is
+     changed to a sibling-relative one — the reviewer's prose and the rendered visible text
+     (`review`) are untouched. Corpus gap filed as
+     `FUP-REGISTER-GATE-HYGIENE-LINK-CHECKING-HAS-NO-GATE-OUTSIDE-THREE-CORPORA`. -->
+
+> ✅ **APPROVED (r2)** [review](dm2-orchestration-wave-a-review.md) — r1's 1 P0 · 3
 > MAJOR · 6 MINOR · 4 INFO all discharged; **P0-1's proof re-executed by QA, not accepted** (all
 > three mutations reproduced in rolled-back txns, restores md5-verified; the `308` 5.2s sentinel
 > observed RED under cut-removal with its control green; `can_read_document`'s coverage re-derived

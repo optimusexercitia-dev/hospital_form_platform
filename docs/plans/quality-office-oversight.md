@@ -159,7 +159,7 @@ never a member role, or `role === 'staff_admin'` write gates open [V-SRC] ·
   renders disabled/absent for the viewer.
 - New route group `src/app/o/[org]/qualidade/`: `layout.tsx` (server gate →
   `notFound()`, hospital switcher as `?hospital=` filter — mirror
-  [nsp/layout.tsx](../../src/app/o/%5Borg%5D/nsp/layout.tsx) [V-SRC]), `page.tsx`
+  [nsp/layout.tsx](../../src/app/o/[org]/nsp/layout.tsx) [V-SRC]), `page.tsx`
   (cross-committee board + locked-count chips), `dashboards/page.tsx`,
   loading/error/not-found.
 - New `src/lib/queries/quality.ts` (Rule 9): `quality_board_summary` wrapper,

@@ -5,7 +5,11 @@
 -- Sibling gate: `npm run lint:authz-vectors` (gate 12).
 --
 -- ⛔⛔ WHY THE WORK IS SPLIT ACROSS TWO GATES, AND WHY MOVING IT BACK IS A REGRESSION.
--- `npm run lint` chains twelve gates and must never require Docker. So the lint half is PURE
+-- `npm run lint` chains EVERY gate in `package.json`'s `lint` script and must never require
+-- Docker. (⛔ This read *"twelve gates"* until 2026-09-08, when two appended gates rotted the
+-- numeral without touching the argument. The load-bearing half is the Docker prohibition, so
+-- the clause now names the PROPERTY — a live count in an ungated comment is what rotted.)
+-- So the lint half is PURE
 -- JSON: it proves the manifest is internally consistent, carries NO DEFAULT ARM, and agrees
 -- with the COMMITTED SNAPSHOT inside the manifest. It cannot prove that snapshot is current —
 -- nothing without a database can. THIS FILE is that proof, and it runs where the DB is

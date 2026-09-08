@@ -236,7 +236,7 @@ existing harnesses open a **boolean** gate or a policy `USING`; these doors retu
 > AE4 reached this population from a different direction. Kept in THIS file rather than the
 > AE4 record because a future C2 session reads this one.
 
-⭐ **CROSS-REFERENCE, not a new finding (ADR [0173](docs/decisions/0173-door-sweep-deriver-blind-to-runtime-rewrite-migrations.md)):**
+⭐ **CROSS-REFERENCE, not a new finding (ADR [0173](../decisions/0173-door-sweep-deriver-blind-to-runtime-rewrite-migrations.md)):**
      AE4 reached this same population from a different direction. Of 29 doors touched by
      runtime-rewrite migrations and **absent** from the door-audit findings, **not one** is
      `prosecdef` + `authenticated`-reachable + `returns bool` — they are absent because

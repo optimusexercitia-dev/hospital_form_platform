@@ -237,11 +237,34 @@ gate subset; the phase gate closes over the last increment. AE1's sizing was dra
    EXECUTE a **declared property** of the schema instead of a fact that happens to hold, and AE4's
    new `authz` schema can set it once, before any object exists, at zero cost. ⚠ It is **not**
    remediation of a trend — do not re-import that framing.
-4. ⚠ **The `anon` residue itself** (237 `app` functions, bounded only by
-   `config.toml`'s exposed-schema line) is `FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED` and
-   is a **PO decision, not a patch** — AE1 prepares the enumeration and the default-privilege
-   stop; the historical-residue revoke sweep executes only under that FUP's ruling. Do not
-   smuggle it into a feature migration.
+4. ⚠ **The `anon` residue itself.** Measured **2026-09-08** on a fresh `supabase db reset` at head
+   `20261003007350`: **236 of 526**, where `526` = `count(*)` over `pg_proc` in `app` with
+   `prokind = 'f'` and `236` = of those, `has_function_privilege('anon', p.oid, 'EXECUTE')` — the
+   **effective** predicate, run as its own query. What bounds it is not the ACLs but `config.toml`'s
+   exposed-schema line, and that line is now pinned by `npm run lint:config-schemas`.
+   ⛔ **This `236` is NOT the `236` of `supabase/tests/320_act_expiry_and_acl_hardening.sql` §U1**,
+   which pins the **ACL-shaped** population (`proacl IS NULL` **or** an explicit PUBLIC grant). The two
+   coincide **today, by accident**, and were **proven able to disagree**: granting `anon` EXECUTE on one
+   `app` function moved the effective count to **237** while the ACL-shaped count stayed **236** (rolled
+   back). ⛔ Never infer either from the other.
+   ✅ **The PO decision this clause was waiting on HAS BEEN TAKEN** (2026-09-08, ruling R2, ADR
+   [0195](../decisions/0195-a-committed-number-needs-one-home-and-a-gated-mirror.md) D6): *keep the
+   config bound, gate the config line*; the sweeping default-`REVOKE` of `app` from PUBLIC is ruled
+   **NO**. `FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED` is CLOSED and folded into
+   [follow-ups-archive.md](../followups/follow-ups-archive.md) — ⛔ its standalone body file is deleted;
+   cite the archive. AE1's enumeration and default-privilege stop stand on their own merits. ⛔ Still do
+   not smuggle a historical-residue revoke into a feature migration: revoke **execution** was deferred to
+   its own later unit by pre-AE5 Batch 7 ruling **R1**, on the measured grounds that 138 of the 233 are
+   silent no-ops as written and that a revoke **evicts** a function from `ARM=floor`'s domain.
+   ⭐ **SUPERSEDED, quoted so the edit is legible — and why this site outlived four corrective sweeps.**
+   It read: *"(237 `app` functions, bounded only by `config.toml`'s exposed-schema line) is
+   `FUP-APP-SCHEMA-…` and is a **PO decision, not a patch**"*. Two staleness in one sentence: a decision
+   described as pending after it was made, and an **eighth home** of the superseded figure. All four
+   prior sweeps keyed on the literal string `237 of 467`; this site never writes that string — it writes
+   ``237 `app` functions``. **A sweep bounded by a SYNTAX cannot find the CLASS.** The class is *"the
+   `anon`-residue figure"*, its count is one query, and its homes are derivable by `git grep` — not
+   hand-listable, which is what `FUP-AUTHZ-ANON-RESIDUE-FIGURE-HAS-MORE-HOMES-THAN-ANY-SWEEP-FOUND`
+   exists to say.
 5. Track the reachable-definer count as a budget line in `docs/backend-state.md`; the AE1 Record
    step writes the starting value **plus a ceiling and a merge rule [PA-F11]: no increment may
    raise the count without a named justification in its gate record, and the ceiling moves
@@ -1196,7 +1219,7 @@ Not scheduled. Entry conditions (all before a proposal is even writable):
 | When | Decision | Prepared by |
 | --- | --- | --- |
 | AE0.5 | matrix axes approval | lead |
-| AE1.2/4 | the `anon`-residue sweep ruling (`FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED`) | backend |
+| **AE1.2/4** | ✅ **RULED 2026-09-08** — the `anon`-residue sweep: **keep the config bound, gate the config line** (`supabase/config.toml`'s `[api].schemas` key now carries the comment and `npm run lint:config-schemas` pins it); a sweeping default-`REVOKE` of `app` from PUBLIC was ruled **NO**, so the conditional pgTAP gate is out of scope *by ruling*, not skipped → `FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED`, ✅ CLOSED and folded into [follow-ups-archive.md](../followups/follow-ups-archive.md) (⛔ the standalone body file is **deleted** — cite the archive, never the old path). ⚠ Residual bound: the gate proves the FILE, not the deployed PostgREST config — `FUP-AUTHZ-NO-BEHAVIOURAL-PROOF-APP-SCHEMA-UNREACHABLE-OVER-POSTGREST` stays open | backend |
 | AE1.4 | ✅ **RULED 2026-08-27** — the 11 `.rpc()` sites (1 in-function door, 10 system-actor; riders R1–R3; 4 observations → 1 fix + 3 FUPs) → [rulings](../design/authz-ae1-rpc-rulings.md) [PA-F10] | backend |
 | **AE2.0** | ✅ **RULED 2026-08-27** — offboarded-person lifecycle authority: **(a) last-org retention**, SUBSET capabilities, four bounds → [ADR 0163](../decisions/0163-offboarded-person-lifecycle-authority.md) | lead |
 | **AE2.4** | **containment-trigger disposition (T2 or a third option): accept the anchorless-profile window that opens once the column goes, or design around it. ⛔ T1 rejected; the window is inherent, not T2-introduced** | backend + PO |

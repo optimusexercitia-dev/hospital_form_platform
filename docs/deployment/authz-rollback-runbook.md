@@ -1,6 +1,6 @@
 # Authorization rollback runbook (AE4.6 · AE4.9 · every AE5 per-role increment)
 
-**Authority:** ADR [0162](../decisions/0162-plan-audit-corrections-authorization-evolution-program.md) §1
+**Authority:** ADR [0162](../decisions/0162-authz-evolution-plan-audit-corrections.md) §1
 (which **retracts** ADR 0155 D7's "retain a forward rollback migration") · ADR
 [0176](../decisions/0176-authz-permission-layer-made-real.md) D2/D6 + Consequences · plan
 [authz-evolution.md](../plans/authz-evolution.md) § AE4.6.

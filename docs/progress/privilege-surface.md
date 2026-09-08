@@ -1830,3 +1830,76 @@ number"*).
 - ⛔ **The premature "pushed" claim** in the plan row and the ledger row was caught **after** the
   Record commit and corrected in `2666fba4` — the push is approved and **held** pending a live
   Coolify check the lead could not perform.
+
+### 2026-09-08 — backend, second-pass repairs: two decided-but-stale plan clauses, three rotted gate counts, and a corpus gap
+
+⛔ **Every site was re-read before editing; the audit's line numbers were treated as hints.** This
+batch was bitten three times by a cited line number rotting under an overwritten artifact, so each
+target was matched on its **text**, not its offset. All held except where noted below.
+
+**Repair 1 — `docs/plans/authz-evolution.md`, two clauses that outlived their own decision.**
+`FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED` closed 2026-09-08 (ruling R2, ADR 0195 D6): *keep
+the config bound, gate the config line*; a sweeping default-`REVOKE` of `app` from PUBLIC ruled
+**NO**. Its body is folded into `docs/followups/follow-ups-archive.md` and the standalone file is
+deleted. ⇒ The PO-decision table row now carries `✅ **RULED 2026-09-08**` with the ruling's
+substance and points at the **archive**, and the §AE1 clause is rewritten. ⚠ The §AE1 clause held
+**two** staleness in one sentence: a pending decision that had been made, **and** an **eighth home**
+of the superseded figure. Replaced with the live pair **236 of 526**, dated, carrying **both**
+predicates (`prokind='f'` in `app`; `has_function_privilege('anon', …, 'EXECUTE')`, the *effective*
+one) and the ⛔ warning that it is **not** `320` §U1's ACL-shaped `236` — they coincide by accident
+and were proven able to disagree (a planted grant moved the effective count to 237 while the
+ACL-shaped count stayed 236).
+
+⭐ **Why this site outlived four corrective sweeps, which is the durable half.** All four keyed on
+the literal string `237 of 467`; this site writes ``237 `app` functions`` and never contains that
+string. **A sweep bounded by a SYNTAX cannot find the CLASS.** Written into the clause itself, not
+only here.
+
+**Repair 2 — three "twelve gates" claims; `npm run lint` now chains 15.** Derived from
+`package.json`, not counted by eye: eslint plus 14 `lint:*` scripts, the two newest
+(`lint:config-schemas`, `lint:budget-anchor`) **appended**. ⇒ Positions 1–13 are unchanged and **no
+positional reference anywhere is wrong** — only the counts were. ⛔ None of the three was repaired
+by writing `15`: a bare live count in ungated prose is what rotted here twice, so each now names the
+**property** (*every gate in `package.json`'s `lint` script*) and carries a dated note saying what
+moved.
+- `supabase/tests/410_…:8` — the load-bearing half (*must never require Docker*) was **true** and is
+  preserved verbatim; only the numeral was replaced.
+- `supabase/tests/414_…:13` — the substantive claim (*none read `proconfig`*) **survives**, and it was
+  **verified before being asserted**: both new scripts read, plus `grep -n 'proconfig\|search_path'`
+  over them → **no match**. Gate 14 reads `config.toml`'s `[api].schemas`; gate 15 reads the budget
+  ceiling. Neither goes near `proconfig`.
+- `docs/followups/FUP-NO-GATE-CATCHES-A-COLLAPSED-SEARCH-PATH.md:7` and `:13` — an **open 🟡**
+  follow-up in the present tense, two sites in one body; both restated on the property, with one
+  dated correction note.
+
+⚠ **`supabase/tests/*.sql` edits make `npm run test:db` owed — unless they are comment-only, and that
+was ASSERTED, not assumed**: `git diff -- supabase/tests/` filtered to changed lines yields **zero**
+lines not beginning `--`. ⇒ No SQL semantics moved, no fresh `supabase db reset` run, and the pgTAP
+suite is not owed by this commit. Gates run: the `npm run lint` chain, `lint:registers`, `lint:progress`.
+
+**Repair 3 — the link-checking corpus gap, and an error in the audit that found it.**
+⭐ **Re-measured with the gates' OWN `checkLinks`** (imported from `scripts/check-docs-registers.mjs`)
+rather than the audit's reimplementation — because a reimplementation of a gate's checker is a
+**second instrument**. It disagreed: the audit reported **59 = 55 historical + 4 live**; production
+`checkLinks` gives the same total but partitioned **54 + 5**. ⇒ **The audit under-reported the live
+set by one**, and the missed instance (`docs/reviews/dm2-orchestration-wave-a-review.md:806`) sits in
+the same directory as one it did find. Two instruments agreeing on a total can still disagree on the
+partition that decides the work.
+
+All five repaired; **none introduced by Batch 7** (introducing commits derived with `git log -S`, the
+oldest `aa8e05dc`, 2026-08-07). The two in `docs/reviews/` are historical records: only the link
+**destination** moved, the reviewers' prose and the rendered visible text are untouched, each with a
+dated `<!-- -->` annotation. The `dm2` snippet was a template for PROGRESS.md `§ QA Verdicts` — a
+**retired** section — so its repo-rooted form had a destination that no longer exists.
+
+Filed `FUP-REGISTER-GATE-HYGIENE-LINK-CHECKING-HAS-NO-GATE-OUTSIDE-THREE-CORPORA` (🟡, register + body). Its
+`Closes when` closes on the **corpus gap**, never on the five instances. Corpora derived by reading
+the three scripts: gate 7 = `PROGRESS.md` + `CLAUDE.md` + `docs/progress/*` + `docs/followups/*` +
+`docs/bugs/*`; gate 9 = `docs/decisions/*`; gate 13 = its `owned` list. ⇒ **320** `.md` files in
+subset NONE. ⭐ **Two findings beyond the audit's brief**: `ARCHITECTURE.md` and `PHASES.md` are
+**not** link-checked either (`LINK_CHECKED_DOCS` is `['PROGRESS.md','CLAUDE.md']`) — clean today,
+which is exactly when a gap is invisible; and the audit's two stated bounds are recorded — it checked
+existence **not `#anchors`** (production `checkLinks` does check them; 0 anchor findings in
+`docs/design/temp/`, so anchors do not explain the partition gap), and it used **NTFS
+case-insensitive** semantics, so a wrong-case link is invisible to the sweep **and to gates 7 and 13
+inside their own corpora**. Only gate 9 is case-exact.
