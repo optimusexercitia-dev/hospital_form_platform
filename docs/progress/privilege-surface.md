@@ -4,13 +4,24 @@ Privilege surface: pre-AE5 remediation **Batch 7**. The unit's **summary** is it
 [docs/features/privilege-surface.md](../features/privilege-surface.md) § Current state; this file is
 its **log** (ADR 0186 D3): one dated subsection per session, appended.
 
-Subjects: `docs/backend-state.md` § Privilege budget (`CEILING: 752`, the merge rule, and the
+Subjects: `docs/backend-state.md` § Privilege budget (`CEILING: 759`, the merge rule, and the
 `RE-MEASURED … 759` block), `docs/design/authz-ae1-revoke-partition.md` (the 233-revoke partition
-RV0 produced and executed none of), `supabase/config.toml:13` (the one line that bounds the `app`
-PUBLIC floor), and — if the PO rules for execution — `supabase/migrations/` plus every authz arm
+RV0 produced and executed none of), `supabase/config.toml`'s **`[api].schemas`** key (the one line
+that bounds the `app` PUBLIC floor), and — if the PO rules for execution — `supabase/migrations/` plus every authz arm
 whose domain a revoke moves. Decisions: ADR
 [0079](../decisions/0079-authz-door-blindness-standing-invariant.md) (the door-audit sweep is a
 standing gate; a revoke that evicts a function from an arm's domain is sweep blindness),
+<!-- N1 / 2026-09-08 fix loop: this Subjects header is PRESENT TENSE and is the first thing a
+     reader meets, so unlike the dated log entries below it cannot be left to rot. Two citations
+     were repointed here, and the superseded text is quoted rather than erased: it read
+     *"`CEILING: 752`"* (the ceiling moved to 759 by PO ruling R24 on 2026-09-08, in this very
+     unit) and *"`supabase/config.toml:13`"* (the new comment block displaced the assignment from
+     line 13 to line 71, so the citation is now keyed to `[api].schemas` — a KEY cannot rot the way
+     a line number does, per R30). ⛔ The dated entries further down that carry `:13` are LEFT AS
+     WRITTEN: they are a record of what was true when written, and R32 ruled them no-action on the
+     strength of the line-13 mitigation banner, which is still in place and was re-verified this
+     fix loop. -->
+
 [0134](../decisions/0134-case-surface-split-and-administrativo-case-read.md) Amdt 6 (where the `app` PUBLIC floor was found, while
 deriving an ACL **by property**), [0155](../decisions/0155-post-aff4-tenancy-and-person-model-evolution-sequence.md) D9 +
 [0160](../decisions/0160-ae0-corrections-to-adr-0155-measured-figures.md) D3 (the budget's origin and the 843 → 856
@@ -494,17 +505,6 @@ ever been green has not been shown to be a gate). Two committed catalog mutation
 R11 warned would otherwise go unproven. Both mutations were verified *applied* before the run
 (M2's `has_function_privilege` read **f**), and both restored after.
 
-**Gate 15 — `lint:budget-anchor`, appended at the END of the chain.** ⛔ Not folded into
-`lint:config-schemas`: one exit code for two unrelated subjects is what the plan rejected for
-`lint:set-local`. `scripts/check-budget-anchor.mjs` reads the **home**
-(`docs/backend-state.md`'s `<!-- BUDGET-ANCHOR … -->` plus its prose `**CEILING: N**`, which must
-agree with each other) and the **mirror** (`320` §U4's three pinned literals, read from the literal's
-own tagged line — ⭐ **never from a comment restating it**, because two comments can agree while the
-`is()` literal says something else). Checks: P1–P4 positives · **D** home-agrees-with-itself · **A**
-parts sum · **C** `total <= ceiling` · **B** mirror matches home. ⭐ **C is what makes it a gate**:
-raising §U4's pin without a ruling forces the doc's `total` up (or B reds), and a total above the
-ceiling reds at C — so the only way to pass with a higher population is to also move `CEILING`,
-which the merge rule reserves to the PO. ⛔ **C is `<=`, not `==`**, and fixture **G3** (ceiling 800
 > ⚠ **2026-09-08 fix loop, R35(a) — a dated note beside the M1 row above, NOT a rewrite of it.**
 > The M1 row reports **three** assertions. The independent tip-gate runner re-ran the identical
 > mutation and it redded **TEN**: `U4b · U4c · U5b · U5d · U5f · U6a · U6c · U6d · U6f · U6g`. ⛔ The
@@ -518,6 +518,17 @@ which the merge rule reserves to the PO. ⛔ **C is `<=`, not `==`**, and fixtur
 > see this session's entry for the observed count, which is the only thing that makes the repair a
 > claim about the file rather than about the intention.
 
+**Gate 15 — `lint:budget-anchor`, appended at the END of the chain.** ⛔ Not folded into
+`lint:config-schemas`: one exit code for two unrelated subjects is what the plan rejected for
+`lint:set-local`. `scripts/check-budget-anchor.mjs` reads the **home**
+(`docs/backend-state.md`'s `<!-- BUDGET-ANCHOR … -->` plus its prose `**CEILING: N**`, which must
+agree with each other) and the **mirror** (`320` §U4's three pinned literals, read from the literal's
+own tagged line — ⭐ **never from a comment restating it**, because two comments can agree while the
+`is()` literal says something else). Checks: P1–P4 positives · **D** home-agrees-with-itself · **A**
+parts sum · **C** `total <= ceiling` · **B** mirror matches home. ⭐ **C is what makes it a gate**:
+raising §U4's pin without a ruling forces the doc's `total` up (or B reds), and a total above the
+ceiling reds at C — so the only way to pass with a higher population is to also move `CEILING`,
+which the merge rule reserves to the PO. ⛔ **C is `<=`, not `==`**, and fixture **G3** (ceiling 800
 over a total of 759) is the discrimination half proving the gate does not quietly demand equality.
 Its bullet is in `docs/lint-gates.md` **in the same commit** (nothing gates that file), which also
 corrects that file's exit-2 list — it had omitted `lint:config-schemas` since Track B landed it.
@@ -815,3 +826,130 @@ within one turn of being cited.
    and a builder committing into the window defeats the word *"tip"* whatever the diff turns out to
    contain. The next runner should be told the branch is frozen, and the freeze should be observable
    rather than assumed.
+
+## 2026-09-08 — QA fix loop, iteration 1 of ≤5 (`backend`)
+
+QA returned **CHANGES REQUESTED** (`docs/reviews/privilege-surface-review.md`, reviewed at
+`42ca7718`). This entry covers **B1–B4, M2 (backend half), M3, N1, N3, N4, N8–N10, N12** and
+**R35**, committed as **two** commits — R35 separately, per the lead's instruction. ⛔ Items NOT
+actioned here because they edit `docs/decisions/0195-*.md` or the hub, both reserved by the lead:
+**B1's fourth site (`:32`), N2 (D8's heading), N5 (the `Proposed` status), M1**, and **M4 / R36**.
+They are handed back with the exact replacement figures below.
+
+**B1 — the figure was RE-MEASURED, both predicates, on a fresh reset.** `supabase db reset --local`
+then queried at head **`20261003007350` / 524 migrations** (the PAIR, per R19):
+
+| predicate | figure |
+| --- | --- |
+| `app` functions, `prokind = 'f'` | **526** (was `467`, a 2026-08-22 snapshot) |
+| of those, `has_function_privilege('anon', p.oid, 'EXECUTE')` — the EFFECTIVE set | **236** (was `237`) |
+| control: ACL-shaped (`proacl IS NULL` or a PUBLIC grant), same filter | **236** |
+| control: §U1's verbatim predicate, no `prokind` filter | **236** — the live ratchet, undisturbed |
+| control: every `app` `pg_proc` row is `prokind='f'` | 526 of 526, so the filter is a no-op here |
+
+⛔ **The 236 was NOT inferred from §U1's 236** — that is R26's exact error and the reason the
+follow-up's own numbers may not be reused. Both predicates were run as separate queries. ⭐ And the
+agreement was **proven non-vacuous rather than assumed**: the disagreement query returned zero rows,
+which is indistinguishable from a dead query, so a probe granting EXECUTE to `anon` alone on one
+`app` function was run inside `begin … rollback` — it moved the **effective** count to **237** while
+the **ACL-shaped** count stayed at **236**, i.e. the two predicates provably disagree on this very
+schema and merely coincide today. Zero residue after rollback (526 / 236 restored). *A detector that
+finds nothing must be proven able to find something.*
+
+Updated together, never one at a time: `supabase/config.toml`, `scripts/check-supabase-config-schemas.mjs`
+(including the N1 SECURITY message a reader meets at the red), `docs/lint-gates.md`. Each site now
+carries **the predicate and the date**, with the superseded text quoted beside it.
+⚠ `grep -c` counted the `lint-gates.md` bullet as ONE hit because it is one long line; `grep -o | wc -l`
+found a **second** stale `237` in it. A count of lines is not a count of occurrences.
+
+**B2 — `docs/lint-gates.md:1` said "five days"; measured 48 minutes.** `6fee08ae` 12:17:44 →
+`5602830d` 13:05:44, same afternoon, and `5602830d` is the very next commit to touch the file. The
+finding is KEPT (the list is hand-maintained and did lag) and R13's same-commit rule is recorded as
+**honoured**: `6fee08ae` touched `package.json` and added the `lint:config-schemas` bullet in one
+commit. *Two accounts of one event — the alarming one gets repeated.*
+
+**B3 — `320` §U6d's assertion message** attributed a `proacl IS NULL` count (159) to a "no direct
+grant" property twelve lines above §U6e, which cites R26 by name. Re-worded to the predicate that
+was measured. ⛔ Message text only; `plan(36)` and every `is()` literal are untouched by B3.
+
+**B4 — the escalation, and the coverage hole under it.** Positives ran before negatives, so `"app"`
+added **AND** the sentinel deleted in one commit returned `P4_NO_SENTINEL` and the word `app` never
+reached the headline — the one edit the sentinel exists to survive. Measured before:
+`P4_NO_SENTINEL`. After: **`N1_APP_EXPOSED_WITH_DEFECT`** — the SECURITY headline first, the
+structural finding kept underneath rather than traded away. Two fixtures added, **both proven red
+before being believed**:
+
+- `B11+`, the B1+B4 combination cell, with its expected code pinned. Mutation (escalation disabled):
+  self-test **rc 2**, `B11+ caught for the WRONG REASON: expected N1_APP_EXPOSED_WITH_DEFECT, got
+  P4_NO_SENTINEL`.
+- `M1+`, which asserts the N1/N2 headlines are **distinct strings** and that both N1 forms name
+  `app` on line one. It is the **only** thing in the file that calls `report()` — the self-test
+  compared `got.code` and never the prose, so R16's *hard condition* was held by reading, in a gate
+  whose whole subject is that a sentence is not an enforcer. `report()` is now exported. Mutation
+  (escalated case loses its headline): **rc 2**, naming B4's exact regression.
+  ⭐ `M1+` carries a **dead-instrument guard** (each headline must be a substantial string, since two
+  `undefined`s are also "distinct") and a **positive control on the comparator** (it must be able to
+  report SAME, or "they differ" is a verdict from an instrument with only one answer).
+
+⚠ A third mutation **did not apply** (a `grep -c` on its target returned 0) and reported **green**.
+Recorded, not counted: *a mutation that did not fully apply reports green*, and its green is not
+evidence. The two that applied cover both assertions.
+
+**M2 (backend half)** — `320:452` claimed *"THESE THREE LITERALS ARE A RULING"* of all three pins.
+True of **759** (PO ruling R24); false of `app` **326** and `public` **433**, which are measurements
+pinned as a ratchet. Split honestly at `:452`, at `:406` (condition (ii) is claimed for 759 alone,
+with (i) named as what actually carries the other two, and what `ARM=census`'s own stronger remedy
+did differently stated rather than glossed), and at `:381` — where *"an engineer may not edit §U4's
+literals"* had left a legitimate total-preserving re-distribution with **no named owner**. It has one
+now: the same triage owner §U1 names.
+
+**M3** — dated note beside `docs/backend-state.md:551`, which reads *"`CEILING: 752` is UNCHANGED
+above"* while the anchor above it says **759**. Left as written per convention; the note says the
+ceiling DID move, by ruling R24, in the subsection below, and that the sentence describes its own
+section's scope. Gate 15 re-run after: **rc 0**, still exactly one prose ceiling at `:505`.
+
+**N1** — the record's present-tense Subjects header still said `CEILING: 752` and
+`supabase/config.toml:13`. Repointed; the config citation is now keyed to **`[api].schemas`**, which
+cannot rot the way a line number does (R30). ⛔ The dated log entries carrying `:13` are left as
+written — R32 ruled them no-action, and the line-13 mitigation banner it depends on was **verified
+still in place** after this session's `config.toml` edits (the new text was inserted *below* it).
+
+**N3** — the `ARM=census` prohibition now carries the qualification beside it, naming §U4 and the
+three conditions, and saying out loud that §U4 does **not** adopt this arm's own stronger remedy.
+*Only the amending document knows about the amendment.*
+
+**N4** — the `FUP-AUTHZ-IS-AFFILIATED-…` closure instruction named §U4 and the anchor as the whole
+re-pin surface while §U5/§U6 held ten more absolute literals; the executor would have met a red it
+was told had been prevented. Corrected, and tied to R35's repair.
+
+**N8** — three header overclaims corrected in place ("run before every real scan" → ATTEMPTED, since
+the `return 1` branch builds no fixture; "a byte-difference guard on EVERY mutation"; "clean by
+construction whatever the file on disk says").
+
+**N9** — ⛔ **QA's finding is right but its comparison is wrong, and this was measured.** The report
+says gate 15 *does* implement `--print` and only gate 14 fails to. Neither does: the only `argv`
+reads in **both** files are `--self-test` (`check-budget-anchor.mjs:550,552`). Both usage lines are
+corrected in the same commit; the flag is removed rather than implemented.
+
+**N10** — gate 14 resolved `CONFIG_PATH` from `process.cwd()` and exited 1 with *"does not exist.
+The gate has no subject"* from any directory but the repo root. Now resolved from the module's own
+URL.
+
+**N12** — blank line restored before the `FUP-AUTHZ-42501-MATCHER-…` heading.
+
+**Gate runs owed at this tip** (`&&` short-circuits, so which gates were REACHED is quoted, and every
+rc read **bare** on its own line):
+
+- `supabase db reset --local` → **rc 0**, `Finished supabase db reset`, head pair `20261003007350`/524.
+- `npm run test:db` on the clean tree → **rc 0**, `Files=262, Tests=8900`, `Result: PASS`,
+  `All tests successful.` `320` ran all **36** of its plan.
+- The R35 re-measurement under plant → rc 1, `Failed 2/36` in `320` (subtests **20–21 = U4b, U4c**)
+  plus `414` test 2, which is the **plant's own artifact** — a `SECURITY DEFINER` probe with no
+  `set search_path`, which is exactly what `414` exists to catch. Not a consequence of any change in
+  this loop. Plant dropped, residue 0, population restored to 433.
+- ⚠ **A rc-capture bug of my own, recorded rather than hidden.** The first reset ran as
+  `… | tail -20; echo "RESET_RC_BARE:"; echo "${PIPESTATUS[0]}"` — the intervening `echo` **resets
+  `PIPESTATUS`**, so that line could only ever print 0. The pipe-erases-the-exit-code family, in the
+  very session whose brief warns about it. That reset's success is carried instead by the wrapper's
+  own exit code, the `Finished supabase db reset` line and the head-pair query; the *authoritative*
+  reset and `test:db` at the fix-loop tip capture `rc=$?` on the line immediately after the command.

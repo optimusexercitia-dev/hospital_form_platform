@@ -530,6 +530,25 @@ run_arm_census () {
   # banner states about a population NOTHING re-derives is a claim with no owner, and
   # this arm exists to stop exactly that shape. The predicate below IS the definition of
   # the out-of-domain class, so the figure and the class can never disagree again.
+  #
+  # ⭐ 2026-09-08 — THIS PROHIBITION IS QUALIFIED, NOT WEAKENED, AND HERE IS WHERE TO READ
+  # THE QUALIFICATION. `supabase/tests/320_act_expiry_and_acl_hardening.sql` §U4 commits
+  # three privilege-budget literals on purpose, and ADR 0195 D2 argues why that is a
+  # different object from the banner above. The reconciliation is stated in §U4's own
+  # header and rests on three conditions: (i) the population is RE-DERIVED from the live
+  # catalog every run by `pg_temp.budget()` and the literal is COMPARED to it — never
+  # printed beside it, which is the whole of what went wrong here; (ii) the ceiling 759 is
+  # a PO RULING rather than a description (⚠ its per-schema split, `app` 326 / `public`
+  # 433, is NOT a ruling — it is a measurement pinned as a ratchet, and §U4 says so);
+  # (iii) the decision has ONE HOME, `docs/backend-state.md` § Privilege budget, with every
+  # copy gated by `npm run lint:budget-anchor`.
+  # ⛔ §U4 does NOT do what this arm did as its own remedy — it does not make the figure
+  # DERIVED FROM THE PREDICATE, because a derived figure cannot ratchet against itself.
+  # That is a deliberate, weaker, differently-owned choice. If gate 15 is ever removed,
+  # §U4 inherits this prohibition in full.
+  # ⭐ Written here because *only the amending document knows about the amendment*: a
+  # reader who meets this paragraph and then finds §U4's literals would otherwise conclude
+  # the prohibition was simply ignored.
   local uncovered
   # ⚠ Carries $NOT_EXTENSION_OWNED too, so the IN-domain and OUT-of-domain figures are bounded
   # the same way. Measured: no extension ships a prosecdef function here, so this reads 427 with

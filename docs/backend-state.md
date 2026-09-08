@@ -551,6 +551,18 @@ gate exists to enforce.
 ⛔ **`CEILING: 752` is UNCHANGED above and is not edited here.** The ceiling moves only by PO
 ruling; this section supplies the measurement a ruling needs and nothing more.
 
+> ⚠ **2026-09-08, later the same day — READ THIS BEFORE THE SENTENCE ABOVE.** The ceiling **DID**
+> move, to **`CEILING: 759`**, by PO ruling R24, in the subsection *"the ceiling MOVES to 759 by PO
+> ruling"* **below** this one — and the anchor at the top of this section already reads `759`. So a
+> reader arriving here meets a present-tense sentence that is false about the document in front of
+> them. It is left as written, per this repo's convention that a correction is a **dated note beside
+> the original, never a rewrite**: the sentence was TRUE when this attribution section was written,
+> and it describes **this section's own scope** — the attribution measured the seven and deliberately
+> did not touch the ceiling, which is exactly what made the later ruling legitimate rather than a
+> breach rebased into a baseline. ⛔ Nothing gates this: gate 15's `PROSE_RE` is `/\*\*CEILING:/` and
+> does not match ``**`CEILING: 752`**``, which is why P3 still finds exactly one prose ceiling and why
+> this note is the only thing standing between the two sentences.
+
 **Three heads, each a fresh `supabase db reset`, each identified by the PAIR `(max(version),
 count(*))` — a head alone does not identify a migration set** (`…004710` was inserted *below*
 `…005300` after the commit that added it, which is why the AE1 doc records 484 on disk while that

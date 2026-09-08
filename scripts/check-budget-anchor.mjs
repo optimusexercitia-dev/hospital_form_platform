@@ -87,7 +87,13 @@
  * self-test still measures the checker and the scan reports the real finding, and the
  * output says which happened.
  *
- *   node scripts/check-budget-anchor.mjs [--self-test] [--print]
+ *   node scripts/check-budget-anchor.mjs [--self-test]
+ *
+ * ⚠ `--print` was advertised on this line until 2026-09-08 and never read: the only
+ * `argv` reads in this file are `--self-test`. Removed rather than implemented. ⭐ A
+ * review had recorded this gate as the one that DOES honour `--print`, in contrast to
+ * gate 14 — measuring `argv` in both files showed neither did. Both usage lines are
+ * corrected in the same commit. *A comment is an assertion that goes stale silently.*
  *
  * EXIT CODES: 0 clean · 1 a finding · 2 the checker itself is broken.
  */

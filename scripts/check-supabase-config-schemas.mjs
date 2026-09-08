@@ -2,15 +2,36 @@
 /**
  * GATE 14 — `supabase/config.toml`'s `[api].schemas` list is PINNED.
  *
- * WHY THIS GATE EXISTS. Schema `app` holds 467 functions, **237** of which are
- * `anon`-executable (measured 2026-08-22 from the live catalog;
- * `docs/followups/FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED.md`). The dominant
- * mechanism is not a deliberate grant — it is `proacl IS NULL`, the Postgres default,
- * which includes PUBLIC. Those grants confer nothing today for exactly one reason:
- * PostgREST is not told to expose `app`. That instruction is ONE LINE of ONE FILE, the
- * `schemas` assignment this gate reads. If it ever gains `"app"`, 237 functions become
- * directly `anon`-callable **in the same edit**, and a reader auditing the ACLs would
- * conclude the ACLs were holding the line. They are not.
+ * WHY THIS GATE EXISTS. Schema `app` holds **526** functions, **236** of which are
+ * `anon`-executable. The dominant mechanism is not a deliberate grant — it is
+ * `proacl IS NULL`, the Postgres default, which includes PUBLIC. Those grants confer
+ * nothing today for exactly one reason: PostgREST is not told to expose `app`. That
+ * instruction is ONE LINE of ONE FILE, the `schemas` assignment this gate reads. If it
+ * ever gains `"app"`, 236 functions become directly `anon`-callable **in the same edit**,
+ * and a reader auditing the ACLs would conclude the ACLs were holding the line. They are
+ * not.
+ *
+ * ⛔ BOTH FIGURES CARRY THEIR PREDICATE AND THEIR DATE, because they are live counts and
+ * this comment is not gated. Measured 2026-09-08 on a fresh `supabase db reset` at head
+ * `20261003007350` (524 migrations — the pair, per R19):
+ *   526 = `count(*)` over `pg_proc` in `app` with `prokind = 'f'`
+ *   236 = of those, `has_function_privilege('anon', p.oid, 'EXECUTE')` — the EFFECTIVE
+ *         predicate, run as its own query
+ * ⭐ SUPERSEDED, quoted so the edit is legible: this block read *"467 functions, **237**
+ * of which are `anon`-executable (measured 2026-08-22)"*
+ * (`docs/followups/FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED.md`). Both halves had
+ * moved: +59 functions landed in the intervening migrations, and the `anon`-executable
+ * set fell by one when AE4.7b (`20261003007210`) revoked the PUBLIC grant on
+ * `app.is_staff_admin_of`.
+ *
+ * ⛔ DO NOT INFER 236 FROM `320` §U1's 236 — that is ruling R26's exact error, and it is
+ * the reason this figure is re-measured rather than copied. §U1 pins the ACL-SHAPED set
+ * (`proacl IS NULL` or an explicit PUBLIC grant); the figure above is the EFFECTIVE set.
+ * The two coincide at 236 today — measured, not assumed, and the disagreement query
+ * returned zero rows — but they are provably capable of disagreeing on this very schema:
+ * granting EXECUTE to `anon` alone on one `app` function moved the effective count to 237
+ * while the ACL-shaped count stayed at 236 (probe run inside `begin … rollback`, zero
+ * residue, 2026-09-08). A coincidence that has been measured is still a coincidence.
  *
  * ⭐ AND IT IS NOT MERELY A DOCUMENTED POSTURE — it is the premise of a LIVE ASSERTION
  * (rulings R9 + R2, unit PRIVILEGE-SURFACE). `supabase/tests/320_act_expiry_and_acl_hardening.sql`
@@ -80,14 +101,20 @@
  *     so `["graphql_public", "public"]` is a behaviour change, not a sort.
  *
  * TWO FAILURE TEXTS, DELIBERATELY DISTINCT (ruling R16 is a hard condition):
- *   N1  `app` is in the list          → a **SECURITY EVENT**. The message names the
- *                                       consequence: 237 `app` functions become directly
- *                                       `anon`-callable in the same edit.
+ *   N1  `app` is in the list          → a **SECURITY EVENT**. The consequence is on the
+ *                                       HEADLINE, not five lines down: 236 `app`
+ *                                       functions become directly `anon`-callable in the
+ *                                       same edit.
  *   N2  any other change to the list  → a **REVIEW EVENT**. The list is pinned; a new
  *                                       exposure needs a note. N2a = value/order changed,
  *                                       N2b = same value, re-rendered.
  * A reader who meets the red must know from ONE line which of the two happened. N1 is
  * reported first and alone when both hold.
+ * ⭐ R16's condition is HELD BY A FIXTURE, not by reading: `M1+` asserts the N1 and N2
+ * headlines are distinct strings, and it is the only place in this file that calls
+ * `report()`. Until 2026-09-08 the self-test compared codes only, so the condition on the
+ * PROSE was enforced by nobody — in a gate whose whole subject is that a sentence is not
+ * an enforcer.
  *
  * POSITIVES BEFORE THE NEGATIVE (plan §3.3). A gate that "found nothing" must not pass:
  *   P1  the file exists and is non-empty
@@ -96,6 +123,20 @@
  *       list  ⭐ the anti-vacuity assertion — zero matches AND two matches both red
  *   P4  the load-bearing comment sentinel sits in the comment block immediately above it
  * Only then N1, then N2.
+ *
+ * ⛔⛔ BUT THE SECURITY EVENT ESCALATES OVER THE POSITIVES, and this was a real hole.
+ * Ordering the positives first means `"app"` added **AND the sentinel deleted in the same
+ * commit** returned `P4_NO_SENTINEL` — a formatting complaint whose headline never says
+ * the word `app`. That is precisely the edit the sentinel exists to survive, and it was
+ * the one edit for which the gate stopped naming the security event. (Measured
+ * 2026-09-08: `inspect()` on that combination returned `P4_NO_SENTINEL`.) The two
+ * fixtures were also strictly separate, so no arm of the self-test had ever asked what
+ * happens when both hold — *a mutation list keyed on assertions cannot see an unexercised
+ * cell*, inside the gate built to answer that class.
+ * ⇒ Whenever a `schemas` assignment anywhere in the file names `app`, a P2/P3/P4 finding
+ * is escalated to `N1_APP_EXPOSED_WITH_DEFECT`: the N1 SECURITY headline first, the
+ * structural finding kept underneath it, never traded away. P1 is exempt — a missing or
+ * empty file has no list to name `app`.
  *
  * ⛔ A MULTI-LINE ARRAY IS REFUSED, NOT PARSED. `schemas = [` with its `]` on a later line
  * is reported as unreadable and reds. It must never parse the first line and pass — that
@@ -110,12 +151,31 @@
  * assumption, and cost a session. ⛔ A claim about a file's CONTENT is not a claim about
  * the BYTES A GATE READS.
  *
- * SELF-TEST, run before every real scan, exit 2 if the checker cannot fail (R13 house
- * shape). Fixtures are MUTATIONS OF THE REAL FILE written to `os.tmpdir()` — ⛔ plants
- * never touch the real tree — with a byte-difference guard on every mutation, because
- * *a mutation that did not fully apply reports green*.
+ * SELF-TEST, ATTEMPTED before every real scan, exit 2 if the checker cannot fail (R13
+ * house shape). Fixtures are MUTATIONS OF THE REAL FILE written to `os.tmpdir()` — ⛔
+ * plants never touch the real tree — with a byte-difference guard on every mutation whose
+ * point IS a mutation, because *a mutation that did not fully apply reports green*.
  *
- *   node scripts/check-supabase-config-schemas.mjs [--self-test] [--print]
+ * ⚠ THREE PRECISIONS, each one a claim this header used to overstate (2026-09-08):
+ *   (a) "run before every real scan" was wrong: in the `return 1` branch no fixture is
+ *       ever built and the scan proceeds with an UNEXERCISED instrument. It is not a hole
+ *       — every state reaching that branch also reds the real scan — but the JSDoc on
+ *       `selfTest()` was honest about it and this header was not. Hence "ATTEMPTED".
+ *   (b) "a byte-difference guard on EVERY mutation" was wrong: `B9+` is a hand-written
+ *       literal rather than a mutation of anything, and `mustDifferFromBaseline: false`
+ *       exempts G1 and the G3 pair — one of which is byte-identical to the baseline on
+ *       any CRLF checkout, which is why the `eolPair` guard exists to keep the pair
+ *       non-vacuous. The fixtures are sound; the word "every" was not.
+ *   (c) the fixture baseline is NOT "clean by construction whatever the file on disk
+ *       says" — see the note above `canonicaliseBaseline`, corrected there.
+ *
+ *   node scripts/check-supabase-config-schemas.mjs [--self-test]
+ *
+ * ⚠ `--print` was advertised here until 2026-09-08 and never read: the only `argv` reads
+ * are `--self-test`. It is removed from the usage line rather than implemented. ⭐ The
+ * same false advertisement stood in `scripts/check-budget-anchor.mjs` and is corrected
+ * there in the same commit — a review had recorded gate 15 as honouring the flag, and
+ * measuring `argv` in both files is what showed neither did.
  *
  * EXIT CODES: 0 clean · 1 a finding (P1–P4, N1, N2, or an unreadable assignment) ·
  *             2 the checker itself is broken.
@@ -126,7 +186,16 @@ import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const CONFIG_REL = 'supabase/config.toml'
-const CONFIG_PATH = join(process.cwd(), 'supabase', 'config.toml')
+// ⛔ Resolved from THIS FILE, never from `process.cwd()`. Until 2026-09-08 it was
+// `join(process.cwd(), …)`, so running the gate from any directory but the repo root
+// exited 1 with `P1_MISSING` — *"does not exist. The gate has no subject"* — a FALSE RED
+// that sends a reader hunting for a config nobody deleted. Latent under `npm run lint`
+// (always repo root) and it failed loudly rather than green, so it was never a hole; it
+// is fixed because the message misdescribed the result, and because message-text
+// assertions are only writable as an importable test if the module resolves its own
+// subject.
+const REPO_ROOT = resolve(fileURLToPath(import.meta.url), '..', '..')
+const CONFIG_PATH = join(REPO_ROOT, 'supabase', 'config.toml')
 
 /** The pinned value text, character for character. */
 export const PINNED_VALUE_TEXT = '["public", "graphql_public"]'
@@ -273,6 +342,10 @@ export function inspect(raw) {
   let sawApiTable = false
   const hits = [] // parseable `schemas = [...]` inside [api]
   const unreadable = [] // `schemas` inside [api] the gate refuses to interpret
+  // ⛔⛔ The escalation sighting: ANY `schemas` assignment anywhere in the file that names
+  // `app`, recorded independently of the positives so a structural defect in the same
+  // edit cannot bury the security event. See the header's escalation note.
+  let appSighting = null
 
   for (let idx = 0; idx < lines.length; idx++) {
     const rawLine = lines[idx]
@@ -295,6 +368,23 @@ export function inspect(raw) {
 
     const kv = /^schemas\s*=\s*(.+)$/.exec(body)
     if (!kv) continue
+
+    // ⛔ Deliberately BEFORE the `[api]` filter and before the parse: the question this
+    // answers is "did this edit name `app`?", which is a fact about the EDIT, not about
+    // which table the key landed under. An unparseable value still gets a text probe,
+    // because a multi-line or malformed array must not be a way to smuggle the word past
+    // the headline.
+    {
+      const anyValueText = kv[1].trim()
+      const anyParsed = parseArrayLiteral(anyValueText)
+      const namesApp = anyParsed.ok
+        ? anyParsed.items.includes('app')
+        : /["']app["']/.test(anyValueText)
+      if (namesApp && !appSighting) {
+        appSighting = { line: idx + 1, valueText: anyValueText, table }
+      }
+    }
+
     if (table !== 'api') continue
 
     const valueText = kv[1].trim()
@@ -306,25 +396,41 @@ export function inspect(raw) {
     hits.push({ line: idx + 1, valueText, items: parsed.items })
   }
 
+  // ⛔⛔ ESCALATION. A positive (P2/P3/P4) is a statement about the file's SHAPE; N1 is a
+  // statement about what the file now EXPOSES. When both hold, the second one is the
+  // headline — otherwise `"app"` added and the sentinel deleted in one commit reds as a
+  // formatting problem and the word `app` never reaches the reader. The structural
+  // finding is kept, never traded away: it rides underneath, named in `detail.under`.
+  const positive = (code, detail) =>
+    appSighting
+      ? {
+          code: 'N1_APP_EXPOSED_WITH_DEFECT',
+          detail: {
+            ...detail,
+            under: code,
+            line: appSighting.line,
+            valueText: appSighting.valueText,
+            table: appSighting.table,
+          },
+        }
+      : { code, detail }
+
   // ---- P2 — an [api] table exists ------------------------------------------
-  if (!sawApiTable) return { code: 'P2_NO_API_TABLE', detail: {} }
+  if (!sawApiTable) return positive('P2_NO_API_TABLE', {})
 
   // ---- P3's precondition — anything unreadable is REFUSED, never skipped ----
   // Ordered ahead of the count so a multi-line array can never degrade into
   // "zero assignments found", which reads as a different (and wrong) defect.
   if (unreadable.length > 0) {
     const u = unreadable[0]
-    return {
-      code: u.reason === 'multiline' ? 'P3_MULTILINE' : 'P3_UNREADABLE',
-      detail: u,
-    }
+    return positive(u.reason === 'multiline' ? 'P3_MULTILINE' : 'P3_UNREADABLE', u)
   }
 
   // ---- P3 — exactly one, parsing to a NON-EMPTY list ------------------------
-  if (hits.length === 0) return { code: 'P3_NONE', detail: {} }
-  if (hits.length > 1) return { code: 'P3_DUPLICATE', detail: { hits } }
+  if (hits.length === 0) return positive('P3_NONE', {})
+  if (hits.length > 1) return positive('P3_DUPLICATE', { hits })
   const hit = hits[0]
-  if (hit.items.length === 0) return { code: 'P3_EMPTY_LIST', detail: hit }
+  if (hit.items.length === 0) return positive('P3_EMPTY_LIST', hit)
 
   // ---- P4 — the sentinel is in the comment block immediately above ----------
   // "Immediately above" = the maximal run of consecutive comment lines directly
@@ -336,7 +442,7 @@ export function inspect(raw) {
     if (!t.startsWith('#')) break
     block.push(t.replace(/^#+\s?/, '').trim())
   }
-  if (!block.includes(SENTINEL)) return { code: 'P4_NO_SENTINEL', detail: hit }
+  if (!block.includes(SENTINEL)) return positive('P4_NO_SENTINEL', hit)
 
   // ---- N1 — the security event ---------------------------------------------
   if (hit.items.includes('app')) return { code: 'N1_APP_EXPOSED', detail: hit }
@@ -354,8 +460,39 @@ export function inspect(raw) {
 // Messages. N1 and N2 must not read alike (R16).
 // ---------------------------------------------------------------------------
 
-function report(code, detail) {
+/**
+ * ⭐ EXPORTED since 2026-09-08 so the self-test can assert R16's condition on the MESSAGE
+ * TEXT. Until then the self-test compared `got.code` against `f.expect` and never called
+ * this function once, so "N1 and N2 must not produce the same message" — a hard condition
+ * — was held by reading the file, not by anything that could red. Fixture `M1+` closes it.
+ */
+export function report(code, detail) {
   const at = detail && detail.line ? `${CONFIG_REL}:${detail.line}` : CONFIG_REL
+  // The consequence figures. ⛔ Live counts: see the header for their predicates, their
+  // date and why the effective one is NOT inferred from `320` §U1's ACL-shaped 236.
+  const APP_FN_TOTAL = 526
+  const APP_FN_ANON_EXECUTABLE = 236
+  const n1Headline = `⛔⛔ SECURITY EVENT — ${at}: \`"app"\` HAS BEEN ADDED TO THE POSTGREST-EXPOSED SCHEMAS — ${APP_FN_ANON_EXECUTABLE} \`app\` functions become directly \`anon\`-callable in this same edit.`
+  const n1Body = [
+    ``,
+    `    ${detail && detail.valueText ? detail.valueText : '(list unreadable — see below)'}`,
+    ``,
+    `THE CONSEQUENCE, in this same edit: schema \`app\` holds ${APP_FN_TOTAL} functions, of which`,
+    `**${APP_FN_ANON_EXECUTABLE}** are \`anon\`-executable — mostly through \`proacl IS NULL\`, the Postgres default`,
+    `nobody wrote, which includes PUBLIC. They confer nothing today ONLY because \`app\` is not`,
+    `exposed. Exposing it makes all ${APP_FN_ANON_EXECUTABLE} directly callable by \`anon\` over PostgREST`,
+    `(\`POST /rest/v1/rpc/<fn>\`) with no other change anywhere. The ACLs are not holding this`,
+    `line; this list is.`,
+    ``,
+    `It also invalidates the severity argument of a LIVE assertion —`,
+    `\`supabase/tests/320_act_expiry_and_acl_hardening.sql\` §U1 pins the \`app\``,
+    `PUBLIC-executable set at 236 and calls it defence-in-depth *because* this file exposes`,
+    `only \`public\` — plus five further in-tree premises listed in this script's header.`,
+    ``,
+    `⛔ Do not "fix" this by editing the gate. If exposing \`app\` is genuinely intended, it`,
+    `is a PO decision with an ACL programme attached (default-REVOKE \`app\` from PUBLIC`,
+    `first), not a config edit — see FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED.`,
+  ]
   switch (code) {
     case 'P1_MISSING':
       return `${CONFIG_REL} does not exist. The gate has no subject: it cannot assert anything about the exposed schemas, and a missing subject is a finding, never a pass.`
@@ -374,28 +511,24 @@ function report(code, detail) {
     case 'P3_EMPTY_LIST':
       return `${at}: \`schemas\` parses to an EMPTY list. A gate that pins an empty population asserts nothing; this reds rather than passing.`
     case 'P4_NO_SENTINEL':
-      return `${at}: the load-bearing comment sentinel is missing from the comment block immediately above the \`schemas\` assignment. Expected this line, verbatim:\n\n    # ${SENTINEL}\n\nThe block's prose may be edited freely; the sentinel is what must survive, because it is the only thing telling the next editor that this line is the whole bound on 237 \`anon\`-executable \`app\` functions.`
+      return `${at}: the load-bearing comment sentinel is missing from the comment block immediately above the \`schemas\` assignment. Expected this line, verbatim:\n\n    # ${SENTINEL}\n\nThe block's prose may be edited freely; the sentinel is what must survive, because it is the only thing telling the next editor that this line is the whole bound on ${APP_FN_ANON_EXECUTABLE} \`anon\`-executable \`app\` functions.`
     case 'N1_APP_EXPOSED':
+      return [n1Headline, ...n1Body].join('\n')
+    case 'N1_APP_EXPOSED_WITH_DEFECT':
       return [
-        `⛔⛔ SECURITY EVENT — ${at}: \`"app"\` HAS BEEN ADDED TO THE POSTGREST-EXPOSED SCHEMAS.`,
+        n1Headline,
         ``,
-        `    ${detail.valueText}`,
+        `⚠ AND THE FILE IS ALSO STRUCTURALLY BROKEN IN THE SAME EDIT (${detail.under}). The`,
+        `security event is reported FIRST and the structural finding is kept, not traded away:`,
+        `read both, fix both. Before 2026-09-08 this combination reported only the structural`,
+        `code — so \`"app"\` added together with a deleted sentinel reds as a formatting`,
+        `complaint whose headline never said the word \`app\`, which is exactly the edit the`,
+        `sentinel exists to survive.`,
+        ...n1Body,
         ``,
-        `THE CONSEQUENCE, in this same edit: schema \`app\` holds 467 functions, of which **237**`,
-        `are \`anon\`-executable — mostly through \`proacl IS NULL\`, the Postgres default nobody`,
-        `wrote, which includes PUBLIC. They confer nothing today ONLY because \`app\` is not`,
-        `exposed. Exposing it makes all 237 directly callable by \`anon\` over PostgREST`,
-        `(\`POST /rest/v1/rpc/<fn>\`) with no other change anywhere. The ACLs are not holding this`,
-        `line; this list is.`,
+        `── THE STRUCTURAL FINDING UNDERNEATH (${detail.under}) ──`,
         ``,
-        `It also invalidates the severity argument of a LIVE assertion —`,
-        `\`supabase/tests/320_act_expiry_and_acl_hardening.sql\` §U1 pins the \`app\``,
-        `PUBLIC-executable set at 236 and calls it defence-in-depth *because* this file exposes`,
-        `only \`public\` — plus five further in-tree premises listed in this script's header.`,
-        ``,
-        `⛔ Do not "fix" this by editing the gate. If exposing \`app\` is genuinely intended, it`,
-        `is a PO decision with an ACL programme attached (default-REVOKE \`app\` from PUBLIC`,
-        `first), not a config edit — see FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED.`,
+        report(detail.under, detail),
       ].join('\n')
     case 'N2A_LIST_CHANGED':
       return [
@@ -453,10 +586,19 @@ function report(code, detail) {
  *   the SELF-TEST asks "can this checker fail, and can it pass?" — about the CHECKER;
  *   the REAL SCAN asks "is this file pinned?" — about the FILE.
  * So the fixture baseline is the real file with the pinned value text and the sentinel
- * FORCED on, i.e. clean by construction whatever the file on disk says. When the file is
- * clean the two are byte-identical and G1 is literally the real file's current bytes, as
- * the plan's §3.4 table asks. When it is not, the self-test still measures the checker and
- * the real scan reports the finding — and the output says which of the two happened.
+ * FORCED on. When the file is clean the two are byte-identical and G1 is literally the
+ * real file's current bytes, as the plan's §3.4 table asks. When it is not, the self-test
+ * still measures the checker and the real scan reports the finding — and the output says
+ * which of the two happened.
+ *
+ * ⚠ CORRECTED 2026-09-08. This paragraph used to end *"i.e. clean by construction whatever
+ * the file on disk says"*, and that is FALSE. The repair below is narrow by design: it
+ * rewrites the VALUE TEXT (first match only, no `/g`) and re-inserts a GLOBALLY ABSENT
+ * sentinel. It cannot produce `OK` from a deleted `schemas` line, a duplicate assignment,
+ * a multi-line array, a missing `[api]` table, or a sentinel that still exists somewhere
+ * else in the file. ⭐ That is not a defect — `selfTest()`'s `return 1` branch exists
+ * precisely for those cases and says so — but "whatever the file says" claimed a totality
+ * the code never had.
  */
 function canonicaliseBaseline(raw) {
   const eol = raw.includes('\r\n') ? '\r\n' : '\n'
@@ -598,6 +740,30 @@ function buildFixtures(baseline) {
       mustCatch: true,
       expect: 'P2_NO_API_TABLE',
     },
+    // ⭐⭐ THE COMBINATION CELL. B1 and B4 were strictly separate fixtures, so no arm of
+    // this self-test had ever asked what happens when BOTH hold — and the answer was
+    // wrong: `P4_NO_SENTINEL`, a formatting complaint whose headline never says `app`.
+    // *A mutation list keyed on assertions cannot see an unexercised cell*, inside the
+    // gate built to answer that class. ⛔ It is not enough that this reds; it must red as
+    // the SECURITY event, which is what pinning `expect` here asserts.
+    {
+      id: 'B11+',
+      name: '[ADDED] "app" added AND the sentinel deleted in the same edit — the combination cell',
+      text: dropLineMatching(
+        withValue(baseline, '["public", "graphql_public", "app"]'),
+        /DO NOT ADD "app" TO THIS LIST/,
+      ),
+      mustCatch: true,
+      expect: 'N1_APP_EXPOSED_WITH_DEFECT',
+      // ⛔ Both halves must actually be present, or this silently degrades into a copy of
+      // B1 (sentinel never removed) or of B4 (value never changed) — same green, a
+      // fixture that no longer tests the combination at all.
+      shape: (t) => {
+        if (/DO NOT ADD "app" TO THIS LIST/.test(t)) return 'the sentinel must be GONE'
+        if (!/^\s*schemas\s*=.*"app"/m.test(t)) return 'the schemas line must NAME "app"'
+        return true
+      },
+    },
 
     // ---- the GOOD fixtures — the discrimination control -------------------
     {
@@ -690,6 +856,56 @@ function selfTest({ verbose } = {}) {
     lines.push(
       '  G3 PAIR IS NOT A PAIR — the CRLF and LF fixtures must differ from each other, and each must actually carry the endings it claims',
     )
+  }
+
+  // ⭐⭐ M1+ — R16's HARD CONDITION, asserted on the MESSAGE instead of read off the file.
+  // "N1 and N2 must not produce the same message … a reader who meets the red must be
+  // able to tell in ONE LINE which of the two happened." Every fixture above compares
+  // `got.code`; none of them had ever called `report()`, so the condition on the PROSE was
+  // enforced by nobody — in a gate whose whole subject is that a sentence is not an
+  // enforcer.
+  {
+    const d = { line: 51, valueText: '["public", "graphql_public", "app"]', under: 'P4_NO_SENTINEL' }
+    const headline = (code) => String(report(code, d)).split('\n')[0]
+    const fail = (why) => {
+      broken++
+      lines.push(`  M1+ R16 MESSAGE CONDITION — ${why}`)
+    }
+    const n1 = headline('N1_APP_EXPOSED')
+    const n1d = headline('N1_APP_EXPOSED_WITH_DEFECT')
+    const n2a = headline('N2A_LIST_CHANGED')
+    const n2b = headline('N2B_RERENDERED')
+
+    // ⛔ THE DEAD-INSTRUMENT GUARD, first. Two `undefined`s are also "distinct" from
+    // nothing and identical to each other; a distinctness check over empty strings proves
+    // nothing. Each headline must be a real, substantial line before its difference means
+    // anything.
+    for (const [name, h] of [['N1', n1], ['N1+defect', n1d], ['N2A', n2a], ['N2B', n2b]]) {
+      if (typeof h !== 'string' || h.trim().length < 40) {
+        fail(`${name}'s headline is not a substantial string (got ${JSON.stringify(h)}) — a distinctness result over this would be vacuous`)
+      }
+    }
+    // ⭐ POSITIVE CONTROL on the comparator itself: it must be able to say SAME, or
+    // "they differ" is a verdict from an instrument that can only ever return one answer.
+    if (headline('N2A_LIST_CHANGED') !== n2a) {
+      fail('the comparator cannot recognise two identical headlines as identical — it can only ever report "distinct", which is not a measurement')
+    }
+
+    if (n1 === n2a || n1 === n2b) fail('the N1 and N2 headlines are the SAME STRING')
+    if (n1d === n2a || n1d === n2b) fail('the escalated N1 headline is the same string as an N2 headline')
+    // ⛔ B4's condition, held here and nowhere else: the security event must NAME ITS
+    // SUBJECT on line one, in BOTH the plain and the escalated form. The escalated form is
+    // the one that used to come back as `P4_NO_SENTINEL` with `app` nowhere in sight.
+    if (!/\bapp\b/.test(n1)) fail('the N1 headline does not contain the word `app`')
+    if (!/\bapp\b/.test(n1d)) fail('the ESCALATED N1 headline does not contain the word `app` — this is the exact regression B4 records')
+    if (!/SECURITY EVENT/.test(n1d)) fail('the escalated headline does not announce a SECURITY EVENT')
+    // R16 also requires the N1 text to name the consequence; the header claims it does so
+    // on the headline, so assert that rather than trusting the claim.
+    if (!/\d{2,}/.test(n1)) fail('the N1 headline does not carry the consequence COUNT, though the header says it does')
+    // And the review event must not masquerade as the security one.
+    if (/SECURITY EVENT/.test(n2a) || /SECURITY EVENT/.test(n2b)) {
+      fail('an N2 REVIEW-event headline announces itself as a SECURITY EVENT')
+    }
   }
 
   try {

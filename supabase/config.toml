@@ -14,13 +14,33 @@ port = 54321
 # `config.toml:13`; this block was added above it on 2026-09-08, so the assignment now
 # sits lower and an older `:13` citation lands here, on its explanation.)
 #
-# Schema `app` holds 467 functions, of which 237 are `anon`-executable — mostly through
+# Schema `app` holds 526 functions, of which 236 are `anon`-executable — mostly through
 # `proacl IS NULL`, the Postgres default that includes PUBLIC, and not through any
-# deliberate grant (measured 2026-08-22 from the live catalog;
-# docs/followups/FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED.md). Those grants confer
-# nothing today for exactly ONE reason: PostgREST is not told to expose `app`. This list
-# is that instruction. Add "app" here and all 237 become directly `anon`-callable in the
-# same edit — the ACLs are not holding that line; this list is.
+# deliberate grant. Those grants confer nothing today for exactly ONE reason: PostgREST is
+# not told to expose `app`. This list is that instruction. Add "app" here and all 236
+# become directly `anon`-callable in the same edit — the ACLs are not holding that line;
+# this list is.
+#
+# ⛔ BOTH FIGURES CARRY THEIR PREDICATE AND THEIR DATE. Measured 2026-09-08 on a fresh
+# `supabase db reset` at head `20261003007350` (524 migrations — the pair, per R19):
+#   526 = count of `pg_proc` rows in `app` with `prokind = 'f'`
+#   236 = of those, `has_function_privilege('anon', p.oid, 'EXECUTE')` — the EFFECTIVE
+#         predicate, run as its own query and NOT inferred from anything
+# ⭐ SUPERSEDED, quoted so the edit is legible rather than silent: this paragraph read
+# *"467 functions, of which 237 are `anon`-executable … all 237 become directly
+# `anon`-callable"* (measured 2026-08-22;
+# docs/followups/FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED.md). Both halves had
+# moved: +59 functions landed in the intervening migrations, and the `anon`-executable set
+# fell by one when AE4.7b (`20261003007210`) revoked the PUBLIC grant on
+# `app.is_staff_admin_of`.
+#
+# ⛔ DO NOT INFER THIS 236 FROM THE 236 IN `320` §U1 — that is ruling R26's exact error.
+# §U1 pins the ACL-SHAPED set (`proacl IS NULL` or an explicit PUBLIC grant); the figure
+# above is the EFFECTIVE set. They coincide at 236 today — measured, with the
+# disagreement query returning zero rows — but they are provably able to disagree on this
+# schema: granting EXECUTE to `anon` alone on one `app` function moved the effective count
+# to 237 while the ACL-shaped count stayed at 236 (probe inside `begin … rollback`, zero
+# residue, 2026-09-08). A coincidence that has been measured is still a coincidence.
 #
 # Six in-tree documents argue their own severity from "only `public`/`graphql_public` are
 # exposed", so ANY added schema invalidates them, not only "app":

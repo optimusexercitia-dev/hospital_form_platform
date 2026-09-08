@@ -378,8 +378,15 @@ select ok(
 --                     already moved 237 → 236 with the removal named in a
 --                     migration. §U4's ceiling moves **ONLY BY PO RULING**
 --                     (`docs/backend-state.md` § Privilege budget, MERGE RULE).
---                     ⛔ An engineer may not edit §U4's literals; the same
+--                     ⛔ An engineer may not edit §U4's CEILING (759); the same
 --                     engineer may lower §U1's with the removal measured.
+--                     ⚠ CORRECTED 2026-09-08: this read *"may not edit §U4's
+--                     literals"*, plural, which handed the per-schema pins the
+--                     ceiling's owner. They do not have it — 326 and 433 are
+--                     measurements, not rulings (see §U4's own note below), and
+--                     a total-preserving re-distribution reds them with no PO
+--                     decision involved. Their owner is the triage owner, same
+--                     as §U1's.
 --
 --   DIRECTION OF CONCERN. §U1 fears the set GROWING while triage is pending.
 --                     §U4 fears the same, but its FALL is also interesting: a
@@ -403,11 +410,29 @@ select ok(
 -- are asserted, not asserted-about:
 --   (i)   THE POPULATION FIGURE IS RE-DERIVED EVERY RUN. `pg_temp.budget()`
 --         below queries the live catalog; nothing is read from a file.
---   (ii)  THE COMMITTED NUMBER IS A DECISION, NOT A DESCRIPTION. 759 is what the
---         PO ruled on 2026-09-08, having been shown the seven increments named
---         one by one. A ruling written down is not a stale claim about a
+--   (ii)  THE COMMITTED CEILING IS A DECISION, NOT A DESCRIPTION. 759 is what
+--         the PO ruled on 2026-09-08, having been shown the seven increments
+--         named one by one. A ruling written down is not a stale claim about a
 --         population; it is the record of a decision, and it is supposed to
 --         stay put until the next ruling.
+--         ⚠ CORRECTED 2026-09-08 — this condition used to be claimed for all
+--         THREE literals, and for two of them it is false: `app` 326 and
+--         `public` 433 are descriptions of a population, which is precisely what
+--         the census prohibition is about. ⇒ (ii) is claimed for 759 ALONE.
+--         ⭐ WHAT ACTUALLY CARRIES THE OTHER TWO IS (i), AND (i) ALONE IS
+--         ENOUGH. The census banner's `(407 reachable)` was PRINTED and compared
+--         to nothing, so it could drift 20 while four arms stayed green. These
+--         literals are COMPARED, every run, against a figure `pg_temp.budget()`
+--         re-derives from the live catalog — a drift cannot survive one run.
+--         That is a different object from a banner, and it is the difference
+--         (ii) was being asked to carry and could not.
+--         ⛔ HONEST ABOUT WHAT WE DID NOT DO: `ARM=census`'s own remedy went
+--         further — it made the printed figure DERIVED FROM THE PREDICATE, so
+--         "the figure and the class can never disagree again". §U4 does not do
+--         that; it commits a literal and gates its copies. That is a deliberate
+--         and different choice — it is exactly what §U1 is, and it is what makes
+--         a RATCHET possible at all, since a derived figure cannot ratchet
+--         against itself — but it is weaker, and the weakness is (iii)'s job.
 --   (iii) THE DECISION HAS ONE HOME, AND EVERY COPY IS GATED.
 --         ⭐ ONE HOME = `docs/backend-state.md` § Privilege budget.
 --         The literals below are a MIRROR, and `npm run lint:budget-anchor`
@@ -449,13 +474,37 @@ $bud$;
 -- to zero and would pass silently. The parts must sum to the whole, and pinning
 -- all three is what makes that checkable.
 --
--- ⛔ THESE THREE LITERALS ARE A RULING, NOT A MEASUREMENT THE BUILDER CHOSE.
--- PO ruling 2026-09-08 (Batch 7 R24): "Move the ceiling to 759", on the measured
--- basis that all seven increments over the previous ceiling of 752 are
--- attributed, four are structurally required by live RLS policy expressions
--- (which evaluate as the INVOKING role), and three were sent for a reachability
--- analysis rather than assumed. The `-- BUDGET-ANCHOR` markers are read by
--- gate 15; keep them on the literal's own line.
+-- ⛔ ONE OF THESE THREE LITERALS IS A RULING; THE OTHER TWO ARE MEASUREMENTS.
+-- ⚠ CORRECTED 2026-09-08. This paragraph read *"THESE THREE LITERALS ARE A
+-- RULING, NOT A MEASUREMENT THE BUILDER CHOSE"*, which is true of one and false
+-- of two — and saying it of all three is the kind of claim that later gets
+-- quoted to refuse a legitimate repair. The honest split:
+--
+--   759 (`total`) IS A RULING. PO ruling 2026-09-08 (Batch 7 R24): "Move the
+--   ceiling to 759", on the measured basis that all seven increments over the
+--   previous ceiling of 752 are attributed, four are structurally required by
+--   live RLS policy expressions (which evaluate as the INVOKING role), and three
+--   were sent for a reachability analysis rather than assumed.
+--
+--   326 (`app`) and 433 (`public`) ARE MEASUREMENTS, pinned as a ratchet. The PO
+--   was never asked how the total should DISTRIBUTE across the two schemas and
+--   ruled nothing about it; these two describe a population, which is exactly
+--   what a measurement is. They are pinned because a total-only pin is blind to
+--   a +1/-1 pair (see above), not because anyone decided they should be these
+--   values.
+--
+-- ⇒ THE CONSEQUENCE, and it is not hypothetical. A legitimate re-distribution —
+-- `app` 326 → 325 with `public` 433 → 434, total unchanged at 759, the merge
+-- rule untouched because nothing rose — reds U4a and U4b while U4c stays green.
+-- Under the old wording that repair had NO NAMED OWNER: the PO's authority is
+-- over the ceiling, and a "ruling" cannot be edited by an engineer. It has one
+-- now. The per-schema split moves under the SAME owner §U1 names — the triage
+-- owner (FUP-ACL-APP-POPULATION) — with the mover attributed and measured, in
+-- the same commit, exactly as §U1's own literal already moves. ⛔ What still
+-- moves ONLY by PO ruling is 759.
+--
+-- The `-- BUDGET-ANCHOR` markers are read by gate 15; keep them on the literal's
+-- own line.
 
 select is(pg_temp.budget('app'),
   326,  -- BUDGET-ANCHOR app
@@ -469,55 +518,6 @@ select is(pg_temp.budget(),
   759,  -- BUDGET-ANCHOR total
   'budget U4c ⭐⭐ THE PARTS SUM TO THE WHOLE: 326 + 433 = 759, the ceiling as ruled by the PO on 2026-09-08 (superseded value: 752). ⛔ The ceiling moves ONLY by PO ruling — if this reds, attribute the mover and take it to the PO; do not edit this number');
 
--- ── §U5 — THE RISING CONTROL ───────────────────────────────────────────────
--- A population assertion that has never been shown to MOVE is a number, not a
--- detector. §U5 constructs the condition it probes for rather than borrowing it
--- from an ambient default — the same correction §U2 above already had to make.
-create function app.zz_budget_probe_rising() returns boolean
-  language sql immutable security definer as $r$ select true $r$;
-
--- ⭐ `20261003005300` revoked the built-in PUBLIC EXECUTE default for the
--- `postgres` creator role, so a freshly created function joins NOTHING on its
--- own. This is asserted rather than assumed, because the whole control depends
--- on the grant being what moves the count.
-select ok(
-  not has_function_privilege('authenticated', 'app.zz_budget_probe_rising()', 'EXECUTE'),
-  'budget U5a CONTROL PRECONDITION: a freshly created `app` DEFINER is NOT `authenticated`-executable — 20261003005300''s default revoke is live, so the grant below is what moves the count and not an ambient default');
-
-select is(pg_temp.budget() - pg_temp.base(),
-  0,
-  'budget U5b CONTROL: CREATING the probe alone does not move the budget (delta 0 from the snapshotted baseline) — the population is defined by the PRIVILEGE, not by the existence of a DEFINER function');
-
-grant execute on function app.zz_budget_probe_rising() to authenticated;
-
-select ok(
-  has_function_privilege('authenticated', 'app.zz_budget_probe_rising()', 'EXECUTE'),
-  'budget U5c CONTROL: the explicit grant MOVED the effective predicate to true');
-
-select is(pg_temp.budget() - pg_temp.base(),
-  1,
-  'budget U5d ⭐ RISING CONTROL: granting ONE `app` DEFINER to `authenticated` moves the budget by EXACTLY +1 from the baseline — the detector demonstrably finds what it claims to look for, measured against what the catalog says now rather than against a literal');
-
-select is(pg_temp.budget('app') - pg_temp.base('app'),
-  1,
-  'budget U5e RISING CONTROL: and it moved in the `app` half specifically (+1), so the per-schema pins are live too and not a copy of the total');
-
-drop function app.zz_budget_probe_rising();
-
-select is(pg_temp.budget() - pg_temp.base(),
-  0,
-  'budget U5f CONTROL RESTORED: dropping the probe returns the total to baseline (delta 0), so U4 measured the real population and not a leftover');
-
-select is(pg_temp.budget('app') - pg_temp.base('app'),
-  0,
-  'budget U5g CONTROL RESTORED: and the `app` half too (delta 0)');
-
--- ── §U6 — THE FALLING CONTROL, IN TWO HALVES ───────────────────────────────
--- ⛔⛔ THE ORDER OF THE TWO ASSERTIONS IN HALF 1 IS THE WHOLE POINT.
--- `has_function_privilege` is asserted to have MOVED **before** the count is
--- asserted to have fallen. This is AE1's 137/138 lesson applied to this file's
--- own control: `revoke execute … from authenticated` against a function that
--- reaches `authenticated` through PUBLIC leaves the effective predicate TRUE and
 -- ── THE CONTROL BASELINE — SNAPSHOTTED HERE, ONCE, BEFORE ANY PROBE ────────
 -- ⭐⭐ WHY §U5/§U6 BELOW ASSERT DELTAS AND NOT COUNTS (fix-loop ruling R35).
 -- These controls used to be written with absolute literals — `is(budget(), 760)`,
@@ -575,6 +575,55 @@ create function pg_temp.base(p_schema text default null) returns int
     from pg_temp.budget_baseline
 $base$;
 
+-- ── §U5 — THE RISING CONTROL ───────────────────────────────────────────────
+-- A population assertion that has never been shown to MOVE is a number, not a
+-- detector. §U5 constructs the condition it probes for rather than borrowing it
+-- from an ambient default — the same correction §U2 above already had to make.
+create function app.zz_budget_probe_rising() returns boolean
+  language sql immutable security definer as $r$ select true $r$;
+
+-- ⭐ `20261003005300` revoked the built-in PUBLIC EXECUTE default for the
+-- `postgres` creator role, so a freshly created function joins NOTHING on its
+-- own. This is asserted rather than assumed, because the whole control depends
+-- on the grant being what moves the count.
+select ok(
+  not has_function_privilege('authenticated', 'app.zz_budget_probe_rising()', 'EXECUTE'),
+  'budget U5a CONTROL PRECONDITION: a freshly created `app` DEFINER is NOT `authenticated`-executable — 20261003005300''s default revoke is live, so the grant below is what moves the count and not an ambient default');
+
+select is(pg_temp.budget() - pg_temp.base(),
+  0,
+  'budget U5b CONTROL: CREATING the probe alone does not move the budget (delta 0 from the snapshotted baseline) — the population is defined by the PRIVILEGE, not by the existence of a DEFINER function');
+
+grant execute on function app.zz_budget_probe_rising() to authenticated;
+
+select ok(
+  has_function_privilege('authenticated', 'app.zz_budget_probe_rising()', 'EXECUTE'),
+  'budget U5c CONTROL: the explicit grant MOVED the effective predicate to true');
+
+select is(pg_temp.budget() - pg_temp.base(),
+  1,
+  'budget U5d ⭐ RISING CONTROL: granting ONE `app` DEFINER to `authenticated` moves the budget by EXACTLY +1 from the baseline — the detector demonstrably finds what it claims to look for, measured against what the catalog says now rather than against a literal');
+
+select is(pg_temp.budget('app') - pg_temp.base('app'),
+  1,
+  'budget U5e RISING CONTROL: and it moved in the `app` half specifically (+1), so the per-schema pins are live too and not a copy of the total');
+
+drop function app.zz_budget_probe_rising();
+
+select is(pg_temp.budget() - pg_temp.base(),
+  0,
+  'budget U5f CONTROL RESTORED: dropping the probe returns the total to baseline (delta 0), so U4 measured the real population and not a leftover');
+
+select is(pg_temp.budget('app') - pg_temp.base('app'),
+  0,
+  'budget U5g CONTROL RESTORED: and the `app` half too (delta 0)');
+
+-- ── §U6 — THE FALLING CONTROL, IN TWO HALVES ───────────────────────────────
+-- ⛔⛔ THE ORDER OF THE TWO ASSERTIONS IN HALF 1 IS THE WHOLE POINT.
+-- `has_function_privilege` is asserted to have MOVED **before** the count is
+-- asserted to have fallen. This is AE1's 137/138 lesson applied to this file's
+-- own control: `revoke execute … from authenticated` against a function that
+-- reaches `authenticated` through PUBLIC leaves the effective predicate TRUE and
 -- moves nothing at all — and a falling control that only asserts "the count
 -- fell" would then red with no indication of which of two very different things
 -- happened. Worse, a control built the other way round (revoke, then assert the
@@ -608,9 +657,23 @@ create function app.zz_budget_probe_public_routed() returns boolean
   language sql immutable security definer as $p$ select true $p$;
 grant execute on function app.zz_budget_probe_public_routed() to public;
 
+-- ⚠ B3 / 2026-09-08 — THE PREDICATE IN THIS MESSAGE WAS CORRECTED.
+-- It read *"which is exactly why 159 members of this population have no direct
+-- grant at all"*. The 159 was measured under `proacl IS NULL`
+-- (`docs/progress/privilege-surface.md`, the `proacl IS NULL` in budget column,
+-- at all four heads). `proacl IS NULL` implies "no direct grant"; ⛔ THE CONVERSE
+-- DOES NOT HOLD, and THIS UNIT IS WHAT PROVED IT DOES NOT — `docs/design/
+-- authz-ae1-revoke-partition.md` §9.4 names seven `app` DEFINER functions with a
+-- NON-NULL `proacl` carrying an explicit PUBLIC entry. Any of those lacking an
+-- `authenticated=X` entry has no direct grant either and is NOT among the 159.
+-- ⇒ "159 have no direct grant" was never measured at any head, and the gate
+-- could not have told you: it is prose inside an assertion message, not a pinned
+-- literal. This is ruling R26's exact confusion, twelve lines above U6e, which
+-- cites R26's lesson by name. The sentence now states the predicate that WAS
+-- measured. The point it makes is unchanged and still load-bearing.
 select is(pg_temp.budget() - pg_temp.base(),
   1,
-  'budget U6d SILENT-NO-OP HALF, precondition: a PUBLIC grant puts the probe in the budget too (delta +1) — `authenticated` resolves EXECUTE through PUBLIC, which is exactly why 159 members of this population have no direct grant at all');
+  'budget U6d SILENT-NO-OP HALF, precondition: a PUBLIC grant puts the probe in the budget too (delta +1) — `authenticated` resolves EXECUTE through PUBLIC, which is exactly why 159 members of this population have `proacl IS NULL` and are reached with no entry naming `authenticated` at all');
 
 revoke execute on function app.zz_budget_probe_public_routed() from authenticated;
 
