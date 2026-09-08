@@ -49,6 +49,28 @@ review that reads for sense. The real filename (`…tier1-regrain-and-the-comman
 describes a *different* facet of the same ADR than either citation chose, which is precisely why
 neither writer's memory reproduced it.
 
+⭐ **The phantom-label half is no longer a "tested false lead" — it is MEASURED on a live ADR, with a
+discrimination half, and gate 9 stays green.** Recorded 2026-09-08, because repairing the 0192 link
+above meant editing an ADR **header**, which is exactly where this blindness lives — and the first
+draft of that repair contained `"**Owed:**"` inside the `**Related:**` value, i.e. ⚠ **this defect was
+reproduced while fixing its sibling, in the same header, in the same edit.** It was caught by hand
+before commit and the note rewritten with no bold at all. What the plant then showed, run on the real
+file and reverted (`cmp` byte-identical afterwards):
+
+- **clean (committed)** → `parseLabels` returns **5** labels, `parseEdges` returns the 2 real edges,
+  `npm run lint:adr-index` bare **rc 0**.
+- **planted (`**Owed:**` inside the `Related:` value)** → `parseLabels` returns **6** — a phantom
+  `Owed` label materialises — `parseEdges` still returns the same 2 edges, and
+  `npm run lint:adr-index` is bare **rc 0** with the message `OK (190 ADRs indexed)`.
+
+⛔ The green is **not** the plant failing to apply: the label count moved 5 → 6, so the mutation is
+proven live and the gate is proven blind to it. The edges are unchanged here only because `Related:`
+is the **last** label in 0192's header, so there was no following label for the stray `**` to swallow
+— ⚠ **which means the severity of this defect depends entirely on where in the header it lands**, and
+nothing tells an author that. The same phrase one label higher is the 0178 failure: a real
+`**Amends:**` silently not parsed, `adr:index` printing success, and ⭐ *the failure state and the
+healthy state rendered identically*.
+
 ⚠ **Consequence for the durable form, and it strengthens the case rather than complicating it.** The
 "repair the 11 and add the gate as one work item" plan was sized against a **fixed** backlog. The
 backlog is **growing**, so the gate's arrival date sets the size of its own red — and every batch
