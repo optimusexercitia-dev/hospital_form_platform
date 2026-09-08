@@ -118,20 +118,20 @@ third figure two iterations later. The number is gone; `--self-test` prints it.
 never a binary), the ceiling's move in its one home, `320` §U4/U5/U6, and gate 15. **Track D** —
 citations repointed to the **key**, and the silent no-op class corrected to 138 beside 137.
 
-**Gate at the tip** (independent runner, not a builder) — ⚠ **run against `bd50dfc9`, which is NOT
-the current tip**: every command rc **0**, `lint` reaching all 15 gates, `test:db` PASS, four authz
-arms `INVARIANT HOLDS`, deriver rc 3 NOT-APPLICABLE, set-valued `CLEAN`, `PATHSPEC_BYTES=0`.
-⛔ The lead broke the freeze by committing ADR 0195 mid-run (R37); the runner caught it and asserted
-the delta was docs-only. ⇒ **The gate is re-owed at the final tip** and this paragraph names its
-commit so the two cannot be confused. ADR **0195** filed — the runner's own finding that every prior
-batch left one and this had none.
+**Gate at the tip — run TWICE, by non-builders.** The first (`bd50dfc9`) was invalidated as a frozen
+run: ⛔ the lead broke the freeze by committing ADR 0195 mid-run (R37), and the runner caught it and
+asserted the delta was docs-only. **The FINAL 14-command gate ran at `d428d515`** — every rc **0**:
+`lint` 15/15 gates reached, `test:db` PASS (262 files / 8900 tests), four authz arms `INVARIANT
+HOLDS`, deriver rc 3 NOT-APPLICABLE, set-valued `CLEAN`, `PATHSPEC_BYTES=0`. ADR **0195** filed — the
+first runner's own finding that every prior batch left one and this had none.
 
 ### In progress
 
-**Fix-loop iteration 1 of ≤5.** QA returned **CHANGES REQUESTED** (`docs/reviews/privilege-surface-review.md`)
-with four blocking findings. `backend` holds B1–B4, M2's `320` half and R35; the **lead** holds M1,
-M2's ADR half and this file. ⚠ Two of QA's findings are the lead's own defects — a live count in
-prose, and a tip-gate freeze the lead broke by committing while the gate ran.
+**Nothing building. QA APPROVED at `52959b8a`** (`docs/reviews/privilege-surface-rereview-2.md`),
+after **four** fix-loop iterations against three review rounds. Remaining work is the Record step and
+four MAJORs QA ruled *not* must-not-ship. ⚠ **Four of the findings across those rounds were the
+lead's own**: a live count in prose (twice), a tip-gate freeze broken, two commits landed with no
+session-log entry, and a "derived" sweep that was `| head -40` over 132 matching lines.
 
 ### Next
 

@@ -1650,3 +1650,70 @@ gate's external mutation harness relies on is **preserved in both**.
 - `npm run test` — **not run**, and deliberately: finding 1 is that this command is
   nondeterministic here, so a single green from it would have been exactly the uninformative result
   the new row documents.
+
+### 2026-09-08 — lead, fix loop 4 + the Record-step MAJORs. ⛔ THIS ENTRY IS LATE, AND THAT IS THE SECOND TIME
+
+⛔⛔ **Commit `316c5367` landed with no session-log entry and no gate run — a RECURRENCE of the
+defect blocked one iteration earlier**, whose repair entry opens with the words *"⛔ This entry
+exists because QA's re-review found the previous one missing."* ⇒ The rule was written, the entry
+explaining it was written, and the same omission happened two commits later. ⛔ **The record is
+append-only, so this is not repaired** — the entry is late and says so. What follows is the content
+that should have been here, not a claim that it was.
+
+**Fix loop 4, lead's half (`316c5367`)** — discharging the FINAL tip gate's findings 2, 3 and 5:
+
+- **Finding 2 — homes 6 and 7 of `237 of 467`.** `docs/features/privilege-surface.md`'s own
+  acceptance criteria (⭐ inside the bullet an earlier round had already edited) and
+  `docs/plans/pre-ae5-remediation.md`'s Batch 7 row. Both → **236 of 526**, dated, predicate named.
+  ⛔ And the same bullet's *"line 51"* was already **71** — the line number was **removed**, not
+  re-corrected, because replacing one with another only resets its clock.
+- **Finding 3 — R36's repair had reintroduced a live count**, inside the clause renouncing live
+  counts, stale two iterations later. Removed; `--self-test` prints it.
+- **Finding 5 — R38 discharged**: ADR 0195's unenforced-mitigation consequence upgraded from a
+  prediction to a **measurement**, citing the tip runner's witness (rewriting the banner leaves gate
+  14 green, rc 0).
+- Filed `FUP-AUTHZ-ANON-RESIDUE-FIGURE-HAS-MORE-HOMES-THAN-ANY-SWEEP-FOUND`, whose close condition is
+  **the enumeration, not the corrections** — correcting the sites is what all three prior rounds did.
+
+**Gate run at `316c5367`, read BARE** — owed and unrecorded until now:
+`lint:registers` **rc 0** (ratchets unmoved) · `lint:adr-index` **rc 0** · `lint:progress` **rc 0**.
+⚠ `npm run lint` (full chain) and `npm run test:db` were **not** run at that commit and are **not**
+claimed; the commit touched only `docs/`. The full 15-gate chain and `test:db` were run by the
+independent gate runner at `d428d515` and by `backend` at `52959b8a`.
+
+**Record-step MAJORs from QA's APPROVED re-review 2 (`docs/reviews/privilege-surface-rereview-2.md`),
+applied in this commit:**
+
+- **M1 — ⛔⛔ the "derived" sweep was TRUNCATED, and it is the batch's sharpest self-inflicted
+  finding.** The follow-up filed one commit earlier says the class's failure mode is hand-listing,
+  and claims to have derived it instead. The command was
+  `git grep -n '\b237\b' -- ':!docs/reviews' ':!docs/progress' | head -40`. ⛔ **`head -40` over
+  132 matching lines.** QA found `docs/design/authz-evolution-census-ae0.md` §6.2/§6.3 carrying the
+  figure **four times under the identical predicate over the identical population** (`:341`, `:384`,
+  `:391`, `:402`), one of them an **operational instruction**. ⇒ The entry's closing clause
+  *"⛔ Every other `237` in the tree is a different population"* was a **false universal negative**.
+  Corrected in the body, with the truncated command quoted, and `ae0` moved into the **protected**
+  class beside 0155/0160 — it is the census 0160 was written **from**, and §6.2's whole subject is
+  that `167` and `237` are two predicates at one instant rather than growth over time; rewriting its
+  figures would destroy the finding it records. ⭐ *A universal negative gets SAMPLED* — including by
+  the person writing the warning about it. **Round 4 declared this class swept, by a fourth method,
+  wrongly.**
+- **M2** — the hub still said *"the gate is re-owed at the final tip"* after the FINAL 14-command
+  gate had run at `d428d515`. Rewritten to record **both** runs and why the first was invalidated.
+- **M3** — the hub's `### In progress` still read *"Fix-loop iteration 1 of ≤5"* at round three.
+  Replaced with the actual state: **QA APPROVED at `52959b8a`**, and an explicit tally of the four
+  findings across all rounds that were the **lead's own**.
+- **N1** — `docs/lint-gates.md:33` said `pg_temp.base()` *"re-derives from the live catalog"*. It
+  reads back a table snapshotted **once** at `320:557-560`. ⭐ A version that re-derived per probe
+  would be **vacuous** — `320`'s own comment says a re-querying baseline *"would move WITH every
+  probe below and make every delta trivially 0"*. ⛔ One word, and it is the difference between
+  describing a control and describing a control that cannot fail.
+- **N2 — deliberately NOT actioned.** QA audited all three acceptance boxes as *met and proven* while
+  they render `- [ ]`, and confirmed the three follow-ups staying `Status: open` is **correct**:
+  closure is a Record-step action after PO approval, and closing earlier asserts an approval that has
+  not happened. The boxes understate on purpose.
+
+**⛔ Carried to the Record step, not fixed here:** `docs/bugs/BUG-0137-MRN-WARNING-TEST-FLAKY.md`'s
+Related cell cites `d428d515`. **A rebase would rot it**, exactly as Batch 4's rebase rotted every
+sha its record, reviews and ADR cited. If this branch merges by fast-forward the sha holds; if it
+must rebase, the citation is re-pointed or de-referenced **inside the rebase stop**, never after.
