@@ -441,3 +441,73 @@ quoted, `SELFTEST=1` on the deriver and the door harness, and the diff-scoped de
 
 **Not yet done, and deliberately:** the five follow-ups remain `open`. Closure is a Record-step action
 after PO approval, and closing them earlier would assert an approval that has not happened.
+
+### 2026-09-08 — gate at the tip (lead, run by someone other than the builder)
+
+Tip `41df6e63`. Every exit code below was read **bare** — from `; echo "RC=$?"` or from a redirected
+file, ⛔ never through a pipe. The DB gate ran on a **fresh `supabase db reset --local`**.
+
+| check | rc | measurement |
+|---|---|---|
+| `npm ci` | **0** | clean install; `package.json` / `package-lock.json` **unmodified** (verified) |
+| `npm run lint` | **0** | eslint running, **0 errors / 0 warnings**; all 13 gates |
+| `npm run typecheck` | **0** | `tsc --noEmit` |
+| `npm run test` | **0** | **151 files · 2,056 tests passed** |
+| `supabase db reset --local` | **0** | fresh reset before the suite |
+| `npm run test:db` | **0** | **262 files · 8,882 tests · Result: PASS** |
+| `ARM=census` | **0** | **INVARIANT HOLDS** — live authz gates (catalog) **581**, gates carrying a verdict **608** |
+| `ARM=hat` | **0** | **INVARIANT HOLDS** — self-test **7/7**; 4 findings, **all reasoned-allowlisted** |
+| `ARM=floor` | **0** | **INVARIANT HOLDS** — every never-called door on the floor allowlist, and every allowlist entry resolves to a live door |
+| `FROMFINDINGS=1 ARM=wrapper` | **0** | **INVARIANT HOLDS** — mode FROMFINDINGS (no sweep), BLIND set **41**, all allowlisted |
+| `SELFTEST=1 door-sweep-selftest.sh` | **0** | **PASS 42 · FAIL 0 · SKIPPED 0** — deriver 16 · merge helper 18 · **audit startup capture 8** (new) |
+| diff-scoped deriver, `main...HEAD` | **3** | NOT-APPLICABLE — quoted below |
+| `git diff --name-only main... -- supabase/migrations supabase/seed.sql src` | — | **EMPTY** |
+
+⛔ **The `SCOPE:` line, quoted rather than summarised** (CLAUDE.md §6 step 1):
+
+```
+=== RESULT: NOT-APPLICABLE (3) — no migration file in the diff. ===
+SCOPE: 0 file(s) — 0 committed (main..HEAD), 0 worktree, 0 untracked | filter: none | derivation: NOT REACHED (this run ended before the catalog was probed)
+```
+
+⭐ **The deriver run is itself a demonstration of what this unit fixed.** Its stdout measured **0
+bytes**, because a non-DERIVED exit prints no case list. Under the recipe that stood in ADR 0079
+until today, `CASES="$(bash scripts/door-sweep-cases.sh main)"` would have captured that empty string
+and passed it on — and before `8f87a7c3` every sweep read set-and-empty as *"no subset requested"*
+and swept the whole domain into the **committed** baseline. The exit was read **bare and first**, per
+the two-step form this unit wrote into 0079. ⛔ Note the distinction the fix does not erase: rc 3
+here means *no migration in the diff*, which is a legitimate NOT-APPLICABLE for a docs-and-scripts
+batch — it is **not** the rc 3 UNPROVEN that an empty `CASES` now produces inside a sweep. Two
+different exits with the same number, and conflating them would be its own defect.
+
+**Why E2E is not owed.** `git diff --name-only main... -- supabase/migrations supabase/seed.sql src`
+is **empty**: no migration, no seed change, no `src/`. The batch is 13 ADR files, 5 mutation
+harnesses, 4 scripts and docs. Plan §4 step 4's condition — *"empty unless the batch is a migration,
+in which case the sweep is owed both arms"* — is satisfied, so neither arm of the diff-scoped sweep
+is owed and the Playwright gate has no subject.
+
+**Shape checks.** pgTAP **262 files / 8,882 tests** (AE3 recorded 248f/8,285; growth is the intervening
+phases, and the shape did not move *within* this unit — the same suite was green before and after on
+the same reset). Gate 13's ratchets all at or under cap: `archiveMissingClosesWhen=121/121` (raised
+by the domain re-derivation, ⛔ a truer number and not a regression), `longHeadings` back to
+**97/97** after the build stream shortened its two new headings, every other cap untouched.
+
+⛔ **The first `npm run test` of this gate FAILED, and the cause was the lead, not the batch.** All
+151 files reported `0 test` with `transform 0ms · setup 0ms · import 0ms` — the signature of an
+environment that never initialised, on a batch that changed no `src/` file at all. Diagnosed rather
+than retried: `Failed to resolve import "@testing-library/jest-dom/vitest"`. The package **directory
+existed** with `vitest.js` and `vitest.d.ts` intact, but its `dist/` was gone — residual damage from
+the `node_modules` destruction recorded in the build entry, which `npm install` could not repair
+because it treats a present-but-gutted package as installed. ⭐ **A partially-deleted dependency is
+invisible to the tool that would normally fix it.** `npm ci` (which removes the tree and installs
+from the lockfile) resolved it: **151 files / 2,056 tests passed**, manifests unmodified.
+⛔ **`lint` and `typecheck` were therefore RE-RUN after the clean install and are reported above from
+that run, not the earlier one.** Their first greens were measured on a tree now known to be
+partially broken, and a green from a damaged tree is not a claim about the commit — the same
+reasoning this unit applied to the CRLF worktree.
+
+⚠ **Not run, and stated rather than implied:** `p0-authz-invariant.sh` ARM 1 in **FULL SWEEP** mode
+was deliberately not run — it is the
+~105-minute path, no Phase Gate arm reaches it, and the caller repair in it is therefore verified by
+construction and self-test, not by execution (recorded as such in the build entry, and as M4 in the
+plan).
