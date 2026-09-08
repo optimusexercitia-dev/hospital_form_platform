@@ -1406,3 +1406,145 @@ class and the same trap.
 - ⚠ **The 23 HOLD rows are an absence of coverage, not a finding of vulnerability** (§8).
 - ⛔ **Still zero revokes executed.** Per Batch 7's R1 the execution is *ruled and deferred*, so
   everything here remains simulated in the predicate, exactly as §8 says of the original.
+
+## 10. The three unproven grants — a reachability analysis (Batch 7 ruling R25, 2026-09-08)
+
+⛔ **DIFFERENT POPULATION, STATED FIRST.** Everything above this section is about **AE1's 233**.
+This section is about **three of the seven `authenticated`-executable DEFINER increments** that took
+the privilege budget from 752 to 759 (`docs/backend-state.md` § Privilege budget). ⚠ **None of the
+three is in the 233**, and that is structural rather than lucky: the 233 was derived at head
+`…005300`, and all seven are **absent from head `…005300` under any signature and any privilege
+state** (Track A's A→B set difference). The two sets do not overlap, no verdict here moves a verdict
+there, and this section lives in this file only because this is where the tree keeps
+revoke-justification reasoning.
+
+**The subjects** are the three of the seven that **no live RLS policy expression names** — measured
+against `pg_policies`, both `qual` and `with_check`, over the whole catalog:
+`app.is_affiliated_with_hospital_for(uuid,uuid)` · `app.person_has_active_org_affiliation(uuid,uuid)`
+· `public.recover_orphan_person_to_org(uuid,uuid,date)`.
+
+⛔ **"No policy text names it" is NOT the finding.** That is
+*absence-of-a-verdict-is-not-absence-of-coverage*, and one of the three is a `public` DEFINER door
+clients are **designed** to call. Each was traced through five channels — RLS policy references ·
+other function bodies that call it · PostgREST reachability · `src/` callers · pgTAP and E2E callers
+— and given a verdict from the closed set **REQUIRED / UNNECESSARY / UNDECIDED**.
+
+⛔ **This is a MEASUREMENT pass. R1's defer stands: no revoke was executed, and none is proposed
+here.** An `UNNECESSARY` verdict becomes a filed follow-up, never an action.
+
+### 10.1 The mechanism the whole analysis turns on, measured rather than reasoned
+
+EXECUTE is checked against the role that is current **at the moment of the call**. Inside a
+`SECURITY DEFINER` body the current role is the function's owner, so a call made from inside a
+DEFINER body is checked against **`postgres`**, not against the caller. Inside a `SECURITY INVOKER`
+body it is still the caller. ⇒ **A helper reached only through a DEFINER wrapper does not need the
+caller to hold EXECUTE on it; the same helper reached through an INVOKER wrapper does.** That single
+distinction separates verdict §10.4 from verdict §10.2, so it was *demonstrated on these exact
+objects* rather than recalled from the manual — with a discrimination half in both directions,
+because a call that does not raise proves nothing unless the same instrument is shown able to raise.
+
+| probe | what was done | observed |
+| --- | --- | --- |
+| A0 / A0b | control, before any revoke, as `authenticated` | the DEFINER wrapper `app.is_affiliated_with_hospital` returns `f`; the helper `…_for` is directly callable |
+| A1 | `revoke execute on … is_affiliated_with_hospital_for … from authenticated` | `has_function_privilege` → **f** — the predicate genuinely MOVED |
+| A2 | direct call to `…_for` as `authenticated` | ⛔ `ERROR: permission denied for function is_affiliated_with_hospital_for` — the revoke bites |
+| A3 / T3 | the **DEFINER wrapper**, same session, grant gone | ✅ returns `f` — **no error**. Re-run as T1/T3 with a genuine non-NULL `auth.uid()` from `request.jwt.claims`, because `…_for` being non-STRICT was checked (`proisstrict = f`) but a NULL argument still had to be excluded as an alternative explanation |
+| C0 / C1 | `select count(*) from public.hospitals` as `authenticated` — the real policied read, whose 6th arm is `app.is_affiliated_with_hospital(id)` | ✅ same result before and after the `…_for` revoke |
+| C2 | ⭐ **discrimination half** — revoke the grant the policy *does* need (the wrapper itself) and repeat the same read | ⛔ `ERROR: permission denied for function is_affiliated_with_hospital` |
+| B0 | control — the **INVOKER** RPC `public.list_linkable_org_users` as `authenticated` | ✅ runs |
+| B1 / B2 | revoke `authenticated` from `app.person_has_active_org_affiliation`, repeat | predicate → **f**, then ⛔ `ERROR: permission denied for function person_has_active_org_affiliation`, raised **inside** `list_linkable_org_users` at its `RETURN QUERY` |
+| D0 | control — `public.recover_orphan_person_to_org` as `authenticated` | refused by **the door's own gate**: `sem permissão`, raised from `recover_orphan_person_to_org_impl` line 14 |
+| D1 | revoke `authenticated`, repeat the identical call | ⛔ `ERROR: permission denied for function recover_orphan_person_to_org` — the ACL now fires **ahead of** the door gate |
+
+⚠ Every probe ran inside `begin … rollback`; nothing was left revoked, and no migration exists.
+⭐ **C1 is only believable because C2 exists.** C1 is a *negative* result on a policied read that
+returns 0 rows either way; without C2 showing that this exact read does raise when a grant it needs
+is removed, C1 would be indistinguishable from a dead instrument.
+
+### 10.2 Verdict — `app.person_has_active_org_affiliation(uuid, uuid)` → **REQUIRED**
+
+- **RLS policies naming it:** 0.
+- **Other bodies calling it:** exactly one, `public.list_linkable_org_users(uuid)`, and it is
+  **`SECURITY INVOKER`** (`prosecdef = f`) — so the inner call is privilege-checked against the
+  caller.
+- **PostgREST:** the wrapper is in `public` and holds `authenticated` EXECUTE, i.e. it is a live RPC.
+- **`src/` callers:** `src/lib/queries/members.ts:258` — `supabase.rpc('list_linkable_org_users', …)`.
+- **pgTAP:** `supabase/tests/395_ae24_inc4_linkable_picker.sql` exercises both the helper and the
+  wrapper; `396_ae2_provisioning_implies_org_affiliation.sql:490` calls the wrapper.
+- **Decisive probe:** B2. With the grant revoked, the production read path raises `42501` from
+  inside the wrapper.
+
+⇒ The grant is **load-bearing for a live production read**. Revoking it breaks the org-user picker.
+
+### 10.3 Verdict — `public.recover_orphan_person_to_org(uuid, uuid, date)` → **REQUIRED**
+
+- **RLS policies naming it:** 0 — and irrelevant. It is not a predicate; it is a **door**.
+- **PostgREST:** in `public` (an exposed schema, pinned by gate 14), `prokind = 'f'`, VOLATILE,
+  `authenticated` EXECUTE **t**, `anon` **f** ⇒ directly callable as
+  `POST /rest/v1/rpc/recover_orphan_person_to_org`. This is ADR 0168's design: *"orphan recovery
+  keeps its own door"*, gated internally by `app.is_admin_for(p_actor)` (platform admin only).
+- **`src/` callers:** ⚠ **ZERO today**, re-measured here rather than carried — the only `src/` hits
+  are the generated `database.ts` type and two prose comments. The tree already recorded this twice
+  (`docs/backend-state.md`, `docs/reviews/authz-ae2-review-r3.md:388`); this is a third, independent
+  measurement, not a citation of those.
+- **pgTAP:** `supabase/tests/398_adr0168_three_doors.sql` calls it **five times as `authenticated`**
+  (`set local role authenticated` at :182 and :288), including a **`lives_ok` positive control** at
+  :290-291 that succeeds and writes an affiliation row.
+- **Decisive probe:** D0/D1. With the grant revoked the call dies at the ACL instead of at the door,
+  so 398's positive control fails and the pgTAP suite reds.
+
+⇒ **REQUIRED, and the grain is stated rather than blurred:** required **by a live gate and by the
+door's design**, *not* by a production call site today. ⚠ ⭐ **A trap this probe exposed, recorded
+because it outlives this analysis:** 398's *negative* assertions use `throws_ok(…, '42501')`, and
+`permission denied for function` **is also 42501** — so a revoke would leave those negative
+assertions green while changing what they measure entirely. Only the `lives_ok` positive control
+reds. *An earlier guard firing leaves the later one untested*, in a live suite, today.
+
+### 10.4 Verdict — `app.is_affiliated_with_hospital_for(uuid, uuid)` → **UNNECESSARY**
+
+- **RLS policies naming it:** 0. The one policy in the whole catalog that names this family,
+  `public.hospitals.hospitals_select` (`{authenticated}`), names the **wrapper**
+  `app.is_affiliated_with_hospital(id)` as its 6th arm — never `…_for`.
+- **Other bodies calling it:** exactly one across **every schema** (`pg_proc`-wide, comment-stripped,
+  no `nspname` filter): `app.is_affiliated_with_hospital(uuid)`, and it is **`SECURITY DEFINER`**.
+  Its whole body is `select app.is_affiliated_with_hospital_for(p_hospital_id, auth.uid());`.
+- **PostgREST:** ⛔ impossible — schema `app` is not exposed (gate 14 pins the `[api].schemas` list),
+  so no client can name it. `anon` holds no EXECUTE on it either.
+- **`src/` callers:** 0 (and unreachable in principle, by the line above). **E2E:** 0 mentions.
+- **pgTAP callers:** **0 call sites.** The only occurrence anywhere under `supabase/tests/` is a
+  string *inside an assertion message* at `401_ae4_authz_catalog.sql:1425`. ⚠ The door-audit's
+  `COVERED` verdict for this predicate (`docs/reviews/authz-door-audit-findings.md:427`) is about
+  its **logic** being exercised through the wrapper; it is **not** evidence that the *grant* is
+  exercised, and the two must not be conflated.
+- **Dependent objects:** none — no CHECK constraint, no view and no `pg_depend` entry references it,
+  so **RV3's write-time re-check hazard does not apply** to this one.
+- **Decisive probes:** A3/T3 and C1, with **C2 as the discrimination half**.
+
+⇒ **UNNECESSARY**: no path — policy, DEFINER body, PostgREST, `src/`, pgTAP or E2E — requires
+`authenticated` to hold EXECUTE on it. ⭐ **And the mechanism is visible in the migration:**
+`20261003007000_bug_meusdados_hospitals_self_affiliation_arm` granted **both** the wrapper (required,
+proven by C2) **and** `…_for` (not required) to `authenticated` in the same edit. That is the
+follow-up's predicted mechanism — *"one convenient `grant execute … to authenticated` at a time,
+each individually defensible"* — caught in the act, riding alongside a grant that genuinely is
+needed.
+
+⛔ **No revoke executed** (R1). Filed as
+`FUP-AUTHZ-IS-AFFILIATED-WITH-HOSPITAL-FOR-GRANT-UNNECESSARY`.
+
+### 10.5 The bound — what this analysis does NOT establish
+
+- ⛔ **No verdict is UNDECIDED, and that is a result rather than an omission.** Each of the three has
+  a probe with a live discrimination half, so none had to be forced into a neighbouring class. What
+  *would* have made one UNDECIDED: a caller reached only through **dynamically assembled** SQL (a
+  body that concatenates the function name from fragments would not match a `prosrc` search for the
+  literal name), or a live production call site none of the five channels can see. ⚠ Neither was
+  found; neither can be excluded by these instruments, and §10.4's verdict is bounded by that.
+- ⚠ **`UNNECESSARY` is a statement about today's callers, not about the design.** A future
+  `SECURITY INVOKER` caller of `…_for` would make the grant required again with no migration
+  touching the ACL at all — which is precisely why the verdict is a **filed follow-up carrying its
+  own re-check condition**, not a revoke.
+- ⚠ **The `src/`-caller channel is a text measurement over `src/`**, bounded exactly the way
+  `.rpc('<name>')` is greppable. A call built from a variable name would be invisible to it.
+- ⛔ **The three verdicts do not license lowering the ceiling.** The ceiling is 759 because seven
+  arrived and the PO ruled; `UNNECESSARY` says one grant is not needed, not that the function is not
+  there.

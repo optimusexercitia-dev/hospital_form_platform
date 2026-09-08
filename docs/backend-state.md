@@ -502,8 +502,20 @@ both are stated here, not left to the gate record to imply.
 | **Tier 2** — `app` schema (`anon` holds no USAGE) | **320** | boundary = `FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED`. Unchanged; `app` is not PostgREST-exposed |
 | proposed revoke set | **233** | ⛔ **NONE EXECUTED — a scheduling fact, not an RV0 verdict.** RV0's partition (`docs/design/authz-ae1-revoke-partition.md` §5.1) **held 23**: 44 PROCEED property-rescued · 5 PROCEED name-rescued · **23 HOLD** · 161 UNCHANGED. The only rulings holding anything are RV1 (batch 4, **4**) + RV2 (`set_participant_patient`, **1**). ⚠ **Was *"all HELD under RV0"***, which reads as RV0 blocking the whole set when it cleared 49. ⛔ And UNCHANGED is **unexamined, not cleared** |
 
-**CEILING: 752.** **MERGE RULE:** no increment may raise the count without a **named justification
-in its own gate record**, and **the ceiling moves only by PO ruling**.
+**CEILING: 759.** ⛔ **Superseded value, quoted so the move is visible and not silent: `CEILING:
+752`** (the figure this file carried from 2026-08-27 to 2026-09-08). **Moved by PO ruling dated
+2026-09-08** — the ruling, its measured basis and the legitimacy argument are the subsection
+*"the ceiling MOVES to 759 by PO ruling"* at the end of this section. **MERGE RULE (unchanged):** no
+increment may raise the count without a **named justification in its own gate record**, and **the
+ceiling moves only by PO ruling**.
+
+<!-- BUDGET-ANCHOR ceiling=759 app=326 public=433 total=759 -->
+
+⚠ **This is the ceiling's ONE home** (ruling R10). The HTML comment above is machine-read by
+**`npm run lint:budget-anchor` (gate 15)**, which mirrors these four figures against the literals
+pinned in `supabase/tests/320_act_expiry_and_acl_hardening.sql` §U4 and reds on any disagreement.
+⛔ Do not edit the comment to match a changed pin — that inverts the direction of authority the
+gate exists to enforce.
 
 > ⛔⛔ **RE-MEASURED 2026-09-03 AT HEAD `20261003007330`: THE BUDGET IS 759 — SEVEN OVER THE
 > CEILING, AND THE BREACH PREDATES THE INCREMENT THAT FOUND IT.**
@@ -600,6 +612,60 @@ been executed**; it rises silently, one convenient `grant execute … to authent
 each individually defensible. The ceiling is what makes the aggregate a decision instead of a
 by-product. ⛔ And a revoke may not create sweep blindness — revoking `authenticated` EXECUTE
 removes a function from `ARM=floor`'s domain (RV0's load-bearing ruling).
+
+### 2026-09-08 — the ceiling MOVES to 759 by PO ruling (Batch 7 ruling R24)
+
+⛔⛔ **READ THIS BEFORE READING THE NUMBER.** `FUP-PRIVILEGE-BUDGET-CEILING-BREACHED-BY-SEVEN`
+names *"editing `CEILING: 752` to 759"* as **the thing to not mistake for a fix**, because an
+unruled edit *"converts a breach into a baseline"*. That prohibition is **still in force**. This
+edit is legitimate for exactly one reason and would be the forbidden edit without it: **a PO
+ruling exists, is dated, and is recorded** — put after the attribution above was measured, never
+before. **A later reader tells the two apart by this paragraph:** an edit with no ruling recorded
+beside it is the forbidden one, whatever number it carries.
+
+**The ruling, and its stated basis.** The PO ruled **"Move the ceiling to 759"** on the measured
+basis that all seven increments are attributed, **four are structurally required by live RLS policy
+expressions** (which are evaluated as the *invoking* role, so the grant is not optional for them),
+and **three are unproven either way** and were sent for a reachability analysis rather than
+assumed. ⚠ That four/three split was **re-measured here against `pg_policies`, not carried from the
+ruling's summary**: `can_edit_commission_forms` **6** policies · `can_administer_person_via_affiliation`
+**3** · `current_professional_read_organizations` **1** · `is_affiliated_with_hospital` **1** · the
+other three **0**. The alternative disposition the follow-up offers — *revoke the unjustified grants* — was
+**not** taken; it would have reopened this unit's no-migration scope.
+
+**The seven, each with the increment that added it** (ruling R24 requires them named beside the
+move; the full attribution, with its absent-at-A / present-at-B / one-creating-statement evidence,
+is the table in *"the seven are ATTRIBUTED, function by function"* above — that table is the
+evidence, this list is the ruling's subject):
+
+| # | function | increment that created **and granted** it | live RLS policies naming it |
+| --- | --- | --- | ---: |
+| 1 | `app.can_administer_person_via_affiliation(uuid)` | `20261003005400_ae22_person_authority_via_affiliation` | **3** |
+| 2 | `app.can_edit_commission_forms(uuid, uuid)` | `20261003007300_ae49_d6_rekey_three_representatives` | **6** |
+| 3 | `app.current_professional_read_organizations()` | `20261003007320_ae4_statement_scoped_authorized_scope_ids` | **1** (ADR 0182) |
+| 4 | `app.is_affiliated_with_hospital(uuid)` | `20261003007000_bug_meusdados_hospitals_self_affiliation_arm` | **1** (`hospitals_select`) |
+| 5 | `app.is_affiliated_with_hospital_for(uuid, uuid)` | `20261003007000_bug_meusdados_hospitals_self_affiliation_arm` | **0** |
+| 6 | `app.person_has_active_org_affiliation(uuid, uuid)` | `20261003005800_ae24_inc4_linkable_picker_on_affiliations` | **0** |
+| 7 | `public.recover_orphan_person_to_org(uuid, uuid, date)` | `20261003006100_adr0168_three_doors_orphan_recovery` | **0** |
+
+**The three ZERO rows were then traced, and the trace is in
+[`docs/design/authz-ae1-revoke-partition.md`](design/authz-ae1-revoke-partition.md) § *the three
+unproven grants* (ruling R25).** ⛔ *"No policy text names it"* is not itself a finding that a grant
+is unjustified. Verdicts, from the closed set **REQUIRED / UNNECESSARY / UNDECIDED**: **#6
+REQUIRED** · **#7 REQUIRED** · **#5 UNNECESSARY**. ⛔ **R1's defer stands and no revoke was
+executed** — #5's verdict is a filed follow-up
+(`FUP-AUTHZ-IS-AFFILIATED-WITH-HOSPITAL-FOR-GRANT-UNNECESSARY`), not an action, and it does
+**not** lower the ceiling: the ceiling is 759 because seven arrived, not because seven are needed.
+
+**The ceiling now has a gate.** `supabase/tests/320_act_expiry_and_acl_hardening.sql` §U4 pins the
+population **per schema and in total** (`app` **326** · `public` **433** · total **759**) with a
+rising control (§U5) and a two-halved falling control (§U6), and `npm run lint:budget-anchor`
+(gate 15) reds if those literals and the figures in this file ever disagree. ⚠ **What that buys is
+"the next Phase Gate noticed", not "the next commit noticed"** — the count needs a live catalog, so
+its home is `test:db`, not the `npm run lint` chain. The follow-up's ⭐ asked for a `lint:*` step;
+that ⭐ is recorded as **amended by measurement** (ruling R12), never as delivered as asked. The
+gate-15 half *is* in the lint chain, but it compares two committed texts — it can never observe the
+live population.
 
 ## Service-role DML registry (AE1.4; ADR 0155 Phase AE1; measured 2026-08-27)
 

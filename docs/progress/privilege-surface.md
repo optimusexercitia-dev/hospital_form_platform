@@ -387,3 +387,205 @@ and the 130/137 UNCHANGED breakdown are untouched.
 
 Commit: `docs(privilege-surface): repoint config.toml:13 citations to the key and correct 137→138 (Track D, R26/R30)`,
 explicit pathspec on the four edited docs plus this record.
+
+### 2026-09-08 — backend, Track C: the three unproven grants traced, the ceiling moved by ruling, §U4–§U6, and gate 15
+
+Scope: rulings **R24** (the ceiling moves to 759) and **R25** (the reachability analysis), plus the
+plan's §2.3/§2.6 pgTAP work and §2.4's budget-anchor gate. ⛔ **R1's defer held throughout: no
+revoke was executed, no migration exists, no ACL change is committed.** **R5 re-asserted at this
+commit, BOTH halves read bare** — `git diff --name-only main... -- supabase/migrations
+supabase/seed.sql src` is **EMPTY (rc 0)** *and* `git status --porcelain` over the same pathspec is
+**0 lines (rc 0)**. ⚠ The committed half alone would have been a weaker claim than it reads: this
+track's edits were uncommitted at the time of the check, so `main...HEAD` could not have seen them
+whatever they were. `supabase/tests/` and `package.json` are deliberately outside that pathspec.
+
+**R25 — the three verdicts, each with a live discrimination half.** Full transcript:
+`docs/design/authz-ae1-revoke-partition.md` **§10** (a new section that opens by stating it is a
+**different population** from AE1's 233 and why the two cannot overlap).
+
+| # | function | verdict | what decided it |
+| --- | --- | --- | --- |
+| 6 | `app.person_has_active_org_affiliation(uuid,uuid)` | **REQUIRED** | its one caller `public.list_linkable_org_users` is **SECURITY INVOKER**, so the inner call is checked against the caller. Revoked → the production read path (`src/lib/queries/members.ts:258`) raises `permission denied` from inside its `RETURN QUERY` |
+| 7 | `public.recover_orphan_person_to_org(uuid,uuid,date)` | **REQUIRED** | a `public` door clients call by design (ADR 0168), exercised **five times as `authenticated`** by `398_adr0168_three_doors.sql` incl. a `lives_ok` positive control. Revoked → the call dies at the ACL instead of at the door |
+| 5 | `app.is_affiliated_with_hospital_for(uuid,uuid)` | **UNNECESSARY** | its one caller across **every schema** is a **SECURITY DEFINER** wrapper, so the inner call is checked against `postgres`. Revoked → wrapper still works, and the real policied `select … from public.hospitals` still works |
+
+⭐ **The whole analysis turns on one mechanism, and it was DEMONSTRATED on these exact objects
+rather than recalled from the manual**: EXECUTE is checked against the role current *at the moment
+of the call*, which inside a DEFINER body is the owner. ⛔ Reasoning it would have been enough to
+get the right answer and no evidence at all.
+
+⭐⭐ **The negative results are believable only because of their discrimination halves.** Verdict #5
+rests on two calls that *did not raise*, and a call that does not raise is exactly what a dead
+instrument produces. So: (a) the same revoke was shown to make a **direct** call raise, and (b)
+revoking the grant the policy genuinely needs — the wrapper's own — makes the **identical**
+`public.hospitals` read raise `permission denied for function is_affiliated_with_hospital`. Every
+probe ran inside `begin … rollback`.
+
+⛔ **No verdict is UNDECIDED, and §10.5 says why that is a result and not an omission** — with the
+two things that *would* have forced one (a caller reached through dynamically assembled SQL; a
+production call site no channel can see), so a later reader can see the bound rather than infer it.
+
+⚠ **A trap found while probing #7, recorded because it outlives this analysis.** `398`'s *negative*
+assertions use `throws_ok(…, '42501')`, and `permission denied for function` **is also 42501** — so
+a revoke would leave those negative assertions **green while changing what they measure entirely**.
+Only the `lives_ok` positive control reds. *An earlier guard firing leaves the later one untested*,
+in a live suite, today.
+
+**R24 — the ceiling moved, and the record says why that is not the forbidden edit.**
+`docs/backend-state.md` § Privilege budget now reads **`CEILING: 759`** with **`CEILING: 752`**
+quoted beside it as the superseded value, and a new subsection carrying the PO ruling, its dated
+basis, and the seven named with the increment that added each. ⛔ **That subsection opens by
+restating the prohibition it is standing on**: the follow-up names this exact edit as the thing to
+not mistake for a fix, and it is legitimate here *only* because a ruling exists, is dated, and is
+recorded — put **after** the attribution was measured. A later reader tells the two apart by that
+paragraph; an edit with no ruling beside it is the forbidden one whatever number it carries.
+⚠ **The ruling's own basis was re-measured rather than carried**: "four are structurally required by
+live RLS policy expressions" reproduces exactly against `pg_policies` — `can_edit_commission_forms`
+**6** · `can_administer_person_via_affiliation` **3** · `current_professional_read_organizations`
+**1** · `is_affiliated_with_hospital` **1** · the other three **0**.
+
+**R15 — `320` EXTENDED, not replaced.** `supabase/tests/320_act_expiry_and_acl_hardening.sql` gains
+§U4/§U5/§U6, `plan(18)` → **`plan(36)`** (14 `is` + 4 `ok` = 18 new call sites, tagged U4a–U4c ·
+U5a–U5g · U6a–U6h). ⛔ No `415_*.sql` and no rename. The section header carries the two arguments
+R8/R10/R11 demanded, written for QA as their reader: the **§U1/§U4 boundary** (different
+*population* — neither contains the other; different *decision owner* — §U1's 236 moves by triage,
+§U4's ceiling only by PO ruling; different *direction of concern*; and neither derives from the
+other, both re-deriving from the live catalog every run), the **`ARM=census` reconciliation** with
+its three conditions named and the statement that removing gate 15 makes §U4 inherit the
+prohibition in full, and the **polarity** choice (exact equality both directions, matching §U1,
+because a fall is what a half-applied migration looks like).
+
+**Observed pgTAP output.** `00_setup` + `320` on the fresh reset: **`Result: PASS`, Files=2,
+Tests=37, rc 0** — all 18 new assertions green including both controls. The FULL suite, on its own
+fresh `supabase db reset --local` (rc **0**), read bare: **`All tests successful.`
+Files=262, Tests=8900, `Result: PASS`, rc 0**, with `320 … ok` in the file list. ⚠ **No
+before/after Tests delta is quoted here**: this track did not run `test:db` before its edit, so a
+"8882 → 8900" line would be 8900 minus a number nobody measured. What IS measured is `plan(18)`
+→ `plan(36)` in the file and 18 assertion call sites counted in the new block. The three controls that
+matter, in their own words:
+
+- **§U5 rising** — a freshly created `app` DEFINER is *not* `authenticated`-executable (U5a proves
+  `…005300`'s default revoke is live, so the grant is what moves the count and not an ambient
+  default); creating it alone does **not** move the budget (U5b); the explicit grant moves the
+  predicate (U5c) and the count 759 → **760** total / 326 → **327** `app` (U5d/U5e); the drop
+  restores both (U5f/U5g).
+- **§U6 falling, half 1** — ⭐⭐ **U6b asserts `has_function_privilege` actually MOVED to false
+  BEFORE U6c asserts the count fell.** That order is the whole point: a revoke against a
+  PUBLIC-routed function moves nothing, and a control that only asserts "the count fell" cannot tell
+  the two apart. It is also why a control built the other way round can be satisfied by a DROP, by a
+  rollback, or by nothing happening at all.
+- **§U6 falling, half 2** — ⭐⭐ the silent no-op is **CONSTRUCTED and ASSERTED**, not warned about:
+  a probe granted to PUBLIC is in the budget (U6d), `revoke … from authenticated` leaves the
+  effective predicate **TRUE** (U6e), and the count **does not move** (U6f). AE1's 138-of-233 class,
+  live, as a property of this database.
+- **U6h** closes by asserting **§U1's population is still 236** after §U4–§U6 have created, granted,
+  revoked and dropped `app` functions including one granted to PUBLIC — the "did not disturb the
+  incumbent" claim made *inside* the file rather than left to a reader's inspection.
+
+**⭐ The pin is PROVEN TO FIRE, in both polarities and per schema** (R4's bar: a gate that has only
+ever been green has not been shown to be a gate). Two committed catalog mutations, each restored:
+
+| mutation | what moved | observed |
+| --- | --- | --- |
+| **M1** — plant a granted `public` DEFINER (`+1`) | `public` 433 → 434 | rc **1**; U4b `have 434 want 433`, U4c `have 760 want 759`, ⭐ **U4a stayed GREEN** |
+| **M2** — revoke `authenticated` from a real `app` member (`−1`) | `app` 326 → 325 | rc **1**; U4a `have 325 want 326`, U4c `have 758 want 759`, ⭐ **U4b stayed GREEN** |
+
+⇒ The per-schema pins discriminate, and the **fall** is observable — which is exactly the polarity
+R11 warned would otherwise go unproven. Both mutations were verified *applied* before the run
+(M2's `has_function_privilege` read **f**), and both restored after.
+
+**Gate 15 — `lint:budget-anchor`, appended at the END of the chain.** ⛔ Not folded into
+`lint:config-schemas`: one exit code for two unrelated subjects is what the plan rejected for
+`lint:set-local`. `scripts/check-budget-anchor.mjs` reads the **home**
+(`docs/backend-state.md`'s `<!-- BUDGET-ANCHOR … -->` plus its prose `**CEILING: N**`, which must
+agree with each other) and the **mirror** (`320` §U4's three pinned literals, read from the literal's
+own tagged line — ⭐ **never from a comment restating it**, because two comments can agree while the
+`is()` literal says something else). Checks: P1–P4 positives · **D** home-agrees-with-itself · **A**
+parts sum · **C** `total <= ceiling` · **B** mirror matches home. ⭐ **C is what makes it a gate**:
+raising §U4's pin without a ruling forces the doc's `total` up (or B reds), and a total above the
+ceiling reds at C — so the only way to pass with a higher population is to also move `CEILING`,
+which the merge rule reserves to the PO. ⛔ **C is `<=`, not `==`**, and fixture **G3** (ceiling 800
+over a total of 759) is the discrimination half proving the gate does not quietly demand equality.
+Its bullet is in `docs/lint-gates.md` **in the same commit** (nothing gates that file), which also
+corrects that file's exit-2 list — it had omitted `lint:config-schemas` since Track B landed it.
+
+**Fixture results and every exit code, each read bare or through a redirect (⛔ never a pipe):**
+
+| # | run | rc | what it witnessed |
+|---|---|---|---|
+| 1 | `--self-test` | **0** | 15 bad pairs each caught **for its own reason**, 5 good pairs each clean; baseline = *"the real files' current bytes"* |
+| 2 | real scan, clean tree | **0** | prints ceiling/app/public/total, both mirror line numbers, and its own bound |
+| 3 | planted tree: `320`'s `app` literal 326 → 327 | **1** | `THE MIRROR HAS DRIFTED FROM ITS HOME — key app` |
+| 4 | planted tree: a **consistent** census over the ceiling (doc `app=327 total=760` + both mirrors) | **1** | ⛔⛔ `THE BUDGET IS OVER ITS CEILING — total 760 > ceiling 759` |
+| 5 | planted tree: prose reverts to the superseded 752 | **1** | `THE ONE HOME DISAGREES WITH ITSELF` |
+| 6 | planted **checker**: check C neutered | **2** | `B2 NOT CAUGHT (OK)` → `SELF-TEST FAILED` |
+| 7 | planted **checker**: check B neutered | **2** | `B3/B4/B5 NOT CAUGHT (OK)` |
+| 8 | planted **checker**: check A neutered | **2** | `B1 caught for the WRONG REASON: expected A_PARTS_DO_NOT_SUM, got B_MIRROR_DRIFT` |
+| 9 | `npm run lint` | **0** | **all 15 gates reached** (see below) |
+
+⭐⭐ **Rows 3–5 are the R28 test, and they pass it.** Track B measured that fixtures derived from the
+real artefact are poisoned by the very plant they exist to detect, which **inverted the exit code**
+from 1 (the finding) to 2 (the checker is broken) and made the gate's one real red unreachable. This
+gate's baseline is canonicalised the same way, and the proof is that rows 3–5 exit **1** while
+printing *"the real files CANONICALISED — the bytes on disk are NOT clean, see the finding below"* —
+the self-test correctly reporting on the CHECKER while the scan reports on the FILES.
+⭐ Row 8 is the better of the three checker mutations: the fixture still redded, at a *different*
+check, and only the per-fixture `expect` code exposed it. A self-test keyed on "did it red?" alone
+would have called that green.
+
+**Gates the full `npm run lint` actually REACHED**, quoted rather than assumed because `&&`
+short-circuits: `eslint` (silent, 0 findings) · `css-vars` · `memberships-door` ·
+`client-server-imports` · `vacuous` · `set-local` · `progress` · `rules` · `adr-index` · `mojibake` ·
+`service-role-registry` · `authz-vectors` · `registers` · `config-schemas` · **`budget-anchor`** —
+**15 of 15, rc 0**.
+
+**Dead ends and near-misses, each recorded because it cost a wrong belief for a while.**
+
+- ⛔⛔ **A planted-checker mutation SILENTLY DID NOT APPLY and reported green.** The first M-CHK run
+  used a `python3 - <<'PY'` heredoc inside a shell function; a Windows shim ran the heredoc under
+  **Node**, which died on `import io,sys` — and the run still printed `rc_MCHK=0`, which reads
+  exactly like *"the checker survived the mutation"*. It was caught only because the plant's own
+  output was inspected rather than its exit code trusted. *A mutation that did not fully apply
+  reports green*, in a mutation harness written to test for exactly that. Re-run with a Node planter
+  that **exits 9 if the target string is absent or the bytes do not change**, which is what produced
+  rows 6–8.
+- ⛔ **`psql` without `-v ON_ERROR_STOP=1` exits 0 over a file of errors.** The first ad-hoc run of
+  `320` printed `ERROR: function plan(integer) does not exist` followed by ~140
+  `current transaction is aborted` lines and still returned **rc 0**. The rc was read bare and was
+  still useless. (The real cause: `pgtap` is not installed in the database — `supabase test db`
+  creates it, so a bare `psql` run of any pgTAP file is not a shortcut.)
+- ⛔ `supabase test db <one file>` cannot run `320` alone: `test_helpers` is created by
+  `00_setup.sql`, so the single-file loop is `00_setup.sql` **plus** the target.
+- ⚠ A `node - <<'JS'` heredoc **collapsed `\\` to `\`** in a Windows path literal, producing
+  `Legacy octal escape is not permitted in strict mode`. Harmless because it was a syntax error, but
+  the same collapse inside a *string* would have silently written to the wrong path. Fixed by
+  passing paths as argv with forward slashes.
+- ⚠ **`ANCHOR_RE` is `^…$` without the `m` flag**, which is correct for the line-by-line scan and
+  **matches nothing** when applied to a whole document. Four fixtures used it that way and would all
+  have been silent no-ops; caught by the fixture harness's own *"DID NOT APPLY — bytes identical to
+  the baseline"* guard before the first green was believed.
+- ⚠ **Gate 13's `longHeadings` ratchet rose 95 → 96** on the first run with the new follow-up
+  filed, and stayed **under** its cap of 97, so the chain was green. ⛔ Green under cap is not the
+  bar — *"a rising ratchet on an otherwise-clean run is the thing to chase"*, and consuming the
+  last unit of headroom is how the next filer meets a red they did not cause. The heading was cut
+  229 → 150 chars and the ratchet re-measured back to **95/97**.
+- ⚠ `pg_depend` returning **0 rows** for these functions is **not** evidence of no callers — a SQL
+  function body is a string and records no dependency. It is only evidence there is no CHECK
+  constraint, view, default or index depending on them, which is the RV3 hazard and is what it was
+  read as.
+
+**Nothing contradicts a ruling.** R14 is discharged exactly as R24 says: the pinned figure is the
+ruled one and was not chosen here. R21.2 stayed vacuous (no park dir, per R27) and no parking
+apparatus was rebuilt — `supabase db reset --local` alone was sufficient, twice, each rc **0**, with
+`git status --porcelain -- supabase/migrations` **0 lines** before and after.
+
+**Not done here, by scope:** the four files **Track D** owns (its `FUP-APP-SCHEMA-…`,
+`FUP-UI-AUTHZ-…`, `FUP-AE1-REVOKE-SET-EXECUTION` and the AE4/IF9 review) — ⚠ Track D landed
+`a2f9f981` while this track was building, so **this entry was appended AFTER its entry rather than
+over it**, and the register edit here is **+13/−0 with zero deleted lines**, checked rather than
+assumed because Track D also writes to `docs/followups/`, the
+hub's `## Current state` (the lead's), and ⛔ **any revoke** — R1's defer holds, and §10.4's
+`UNNECESSARY` verdict is filed as
+`FUP-AUTHZ-IS-AFFILIATED-WITH-HOSPITAL-FOR-GRANT-UNNECESSARY` whose `Closes when` requires the
+revoke to assert its predicate **moved** *and* to re-pin §U4 and the anchor in the same migration,
+because gate 15 reds if they disagree.
