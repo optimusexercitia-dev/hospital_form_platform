@@ -285,6 +285,22 @@ RESET_EVERY_EXPLICIT=0; [ -n "${RESET_EVERY+x}" ] && RESET_EVERY_EXPLICIT=1
 RESET_EVERY="${RESET_EVERY:-20}"   # 0 disables
 RESETS=0
 DONE=0
+# ⛔ THE BASELINE ANCHOR — the cumulative case count at the moment the CURRENT baseline was
+# captured. It exists so the scheduled-reset banner can print a DELTA, and it is initialised
+# to 0 because the PREFLIGHT baseline is captured before case 1. Updated in exactly one
+# place: the END of `periodic_reset`, after the post-reset re-capture actually succeeded —
+# ⛔ never in `maybe_periodic_reset`, whose call may return early without re-capturing
+# anything when `resets_enabled` is false. An anchor advanced on a reset that did not happen
+# would under-report every later delta.
+# ⭐ WHY THIS VARIABLE EXISTS AT ALL (R27, ADR 0192 — the defect it repairs): the banner used
+# to interpolate `$((DONE - 1))`, the CUMULATIVE count, into the sentence *"case(s) swept
+# since the last baseline"*. The trigger was right and the number was wrong — at reset 2 with
+# RESET_EVERY=20 it read 40 where the true delta is 20, and it diverged further every reset.
+# ⛔ The lesson is NOT "hardcoded counts": `DONE - 1` is DERIVED, correctly, from live state,
+# and is simply not the quantity the sentence claims. **Deriving a number does not make it the
+# number the sentence claims.** The class is *a printed quantity whose SENTENCE and whose
+# EXPRESSION disagree*, and a derived number qualifies.
+LAST_BASELINE_SWEPT=0
 # ⛔ ONE predicate, derived once and read by all three sites (the gate inside periodic_reset,
 # the retry net, the summary banner). Three hand-written copies of the same condition is how a
 # banner comes to describe a rule the code no longer implements.
@@ -1275,6 +1291,100 @@ Files=262, Tests=8876, Result: FAIL"
   sel_case "B2 CASES=\"other_gate\" (subset, not this key)" 1 "other_gate"            no  subset
   sel_case "C  CASES=\"\" EXPLICIT  ⭐ vs A"                 1 ""                      no  subset
 
+  # ── ARM 4: the SCHEDULED-RESET BANNER's DELTA (R27, ADR 0192). ──────────────────────────
+  # ⛔ THE CONTROL IS RESET 1 vs RESET 2, and reset 1 is here only to be shown INERT. Under
+  # the pre-fix expression `$((DONE - 1))` reset 1 ALSO reads 20 — the cumulative count and
+  # the delta are equal exactly once, because the anchor is still 0 at that point. A table
+  # that stopped at the first occurrence would go green on the very defect it exists to
+  # catch. ⭐ Generalises past this line: when a counter is claimed as a DELTA, the first
+  # sample cannot distinguish it from a CUMULATIVE one.
+  # ⭐ 4c is the case a cumulative counter cannot express AT ALL: a retry reset re-captures
+  # the baseline mid-window, so the next scheduled delta is 16, not 20 — and no re-labelling
+  # of `DONE - 1` can produce 16.
+  # ⭐ 4d is the negative half: `periodic_reset` can return WITHOUT re-capturing anything
+  # (resets suppressed), and an anchor advanced there would under-report every later delta.
+  #
+  # ⛔ LIFTED FROM THIS FILE, NOT RE-TYPED. Both functions are defined ~380 lines BELOW this
+  # block, so they do not exist yet when the SELFTEST runs. The only alternative to lifting
+  # them is a hand-written copy of production text inside the harness that tests it — the
+  # artefact `emit_body`'s split exists to avoid, and the copy goes stale silently while its
+  # table stays green. The lift is itself asserted: a `sed` range that matched nothing would
+  # define nothing, and a table run against undefined functions must not read as green.
+  echo "=== SELFTEST: the scheduled-reset banner's DELTA — reset 1 CANNOT prove it (no DB) ==="
+  st_lift () {   # $1 = function name — define it HERE, from this file's own text
+    local src n
+    src=$(sed -n "/^$1 () {/,/^}/p" "${BASH_SOURCE[0]}")
+    n=$(printf '%s' "$src" | grep -c '')
+    st_total=$((st_total+1))
+    if [ -z "$src" ] || [ "$n" -lt 4 ]; then
+      printf '  NOT OK %-45s -> lifted %s line(s): the lift is DEAD and ARM 4 proves nothing\n' "lift $1()" "$n"
+      st_failed=$((st_failed+1)); return 1
+    fi
+    eval "$src"
+    if command -v "$1" >/dev/null 2>&1; then
+      printf '  ok    %-46s -> %s line(s) lifted and defined\n' "lift $1()" "$n"
+    else
+      printf '  NOT OK %-45s -> eval defined nothing\n' "lift $1()"
+      st_failed=$((st_failed+1)); return 1
+    fi
+  }
+  # The four primitives a reset would otherwise spend minutes in. ⚠ `supabase` shadows the
+  # BINARY — a shell function beats PATH, so `( cd "$ROOT" && supabase db reset --local )`
+  # runs this and touches no database. Everything ELSE in `periodic_reset` runs for real:
+  # the interlock, the gate, the worklist comparison, the GUARD_KEYS resolution loop, the
+  # post-reset assertions, and the anchor update whose placement is the thing under test.
+  supabase ()                  { return 0; }
+  degenerate_write_policies () { :; }
+  build_pol_worklist ()        { printf 'p1\np2\np3\n' > "$POLWL"; }
+  psql_c ()                    { echo 4242; }
+  run_suite ()                 { printf 'ok 1 - x\nFiles=262, Tests=8876, Result: PASS\n'; }
+  if st_lift periodic_reset && st_lift maybe_periodic_reset; then
+    POLWL="$WORK/selftest-arm4-worklist"; POL_TOTAL=3
+    GUARD_TOTAL=0; for _g in $GUARD_KEYS; do GUARD_TOTAL=$((GUARD_TOTAL + 1)); done
+    SENTINEL="$WORK/selftest-arm4-sentinel-that-does-not-exist"; rm -f "$SENTINEL"
+    a4_log="$WORK/selftest-arm4.log"
+    a4_drive () {   # $1 = cases to simulate  $2 = DONE values at which a RETRY reset fires
+      local i=0
+      DONE=0; RESETS=0; LAST_BASELINE_SWEPT=0
+      SUBSET_RUN=0; RESET_EVERY=20; RESET_EVERY_EXPLICIT=0
+      printf 'p1\np2\np3\n' > "$POLWL"
+      : > "$a4_log"
+      while [ "$i" -lt "$1" ]; do
+        DONE=$((DONE + 1))                       # exactly as both sweep loops do
+        maybe_periodic_reset >> "$a4_log" 2>&1
+        case " $2 " in
+          *" $DONE "*) periodic_reset "retry — simulated drift-shaped ERROR" >> "$a4_log" 2>&1 ;;
+        esac
+        i=$((i + 1))
+      done
+    }
+    a4_delta () {   # $1 = which scheduled banner (1-based) -> the number it printed
+      sed -n 's/.*scheduled .* \([0-9][0-9]*\) case(s) swept since the last baseline.*/\1/p' "$a4_log" \
+        | sed -n "$1p"
+    }
+    a4_case () {   # $1 label  $2 got  $3 expected
+      st_total=$((st_total+1))
+      if [ "$2" = "$3" ]; then printf '  ok    %-46s -> %s\n' "$1" "$2"
+      else printf '  NOT OK %-45s -> %s (expected %s)\n' "$1" "$2" "$3"; st_failed=$((st_failed+1)); fi
+    }
+    a4_drive 41 ""
+    a4_case "4a reset 1 delta ⚠ INERT: cumulative agrees here" "$(a4_delta 1)" 20
+    a4_case "4b reset 2 delta ⭐ THE DISCRIMINATOR (pre-fix 40)" "$(a4_delta 2)" 20
+    a4_case "4b' resets actually fired (else 4a/4b are vacuous)" "$RESETS" 2
+    a4_drive 41 "25"
+    a4_case "4c retry at 25 moves the anchor -> next delta" "$(a4_delta 2)" 16
+    a4_case "4c' resets fired (2 scheduled + 1 retry)" "$RESETS" 3
+    # 4d — the SUPPRESSED path, run for real: no stub is reached, `periodic_reset` returns at
+    # its own gate, and NOTHING may have moved. ⛔ An anchor advanced by a reset that did not
+    # happen is silent: every later delta reads short and nothing ever contradicts it.
+    DONE=31; RESETS=0; LAST_BASELINE_SWEPT=7
+    SUBSET_RUN=1; RESET_EVERY=20; RESET_EVERY_EXPLICIT=0
+    periodic_reset "suppressed — this reset must not happen" > "$a4_log" 2>&1
+    a4_case "4d suppressed: anchor UNMOVED" "$LAST_BASELINE_SWEPT" 7
+    a4_case "4d' suppressed: no reset counted" "$RESETS" 0
+    rm -f "$POLWL" "$POLWL.reset" "$a4_log"
+  fi
+
   echo "--- SELFTEST: $((st_total - st_failed))/$st_total ok, $st_failed failed ---"
   [ "$st_failed" -eq 0 ] || exit 1
   exit 0
@@ -1637,12 +1747,27 @@ periodic_reset () {   # $1 = why (printed)
     echo "    measured against a broken tree." >&2
     exit 2
   fi
+  # 7. ⛔ THE ANCHOR MOVES HERE AND NOWHERE ELSE — after a baseline was actually re-captured
+  #    and asserted green. `DONE - 1` at BOTH call paths, and it means the same thing at both:
+  #    case `$DONE` is the one about to be (re-)swept against this NEW baseline, so the cases
+  #    measured against it are counted from `DONE - 1`. At the SCHEDULED site case $DONE has
+  #    not run yet; at the RETRY site it ran once against the OLD baseline and is about to be
+  #    re-swept against this one — which is why the retry case must be counted forward, not
+  #    dropped. Getting this off by one is the same defect one grain smaller.
+  LAST_BASELINE_SWEPT=$((DONE - 1))
 }
 
 # Called BEFORE a case's work, so that case's baseline is at most RESET_EVERY cases old.
+# ⛔ THE TRIGGER AND THE MESSAGE ARE TWO DIFFERENT QUANTITIES, and only one of them was ever
+# wrong. The trigger fires on the CUMULATIVE count — every RESET_EVERY cases from the start —
+# and that is correct. The message must report the DELTA since the last baseline capture,
+# which is NOT the cumulative count once a retry reset has moved the anchor mid-window.
+# ⭐ THEY COINCIDE AT THE FIRST RESET AND ONLY THERE (`LAST_BASELINE_SWEPT` is 0 until the
+# first re-capture), so a spot check at reset 1 cannot tell a delta from a cumulative count.
+# ⛔ Any proof of this line must read the SECOND reset. See the SELFTEST's ARM 4.
 maybe_periodic_reset () {
   if [ "$RESET_EVERY" != "0" ] && [ "$DONE" -gt 1 ] && [ $(( (DONE - 1) % RESET_EVERY )) -eq 0 ]; then
-    periodic_reset "scheduled — $((DONE - 1)) case(s) swept since the last baseline"
+    periodic_reset "scheduled — $(( (DONE - 1) - LAST_BASELINE_SWEPT )) case(s) swept since the last baseline"
   fi
 }
 # ⛔ The retry net reads the CLASSIFIER's own SHAPE_MOVED, never the note text. A GENUINE
