@@ -1517,7 +1517,17 @@ will be wrong for exactly that population.
 new doors are `prosecdef` **scalar non-bool** command doors (`jsonb`/`void`/`integer`, `proretset=f`)
 — the `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` class, same as Slice 2's seven. The diff-scoped recipe's own
 syntax filter (`^(is_|can_|has_)`) yields an **EMPTY** case list for this diff, and a `CASES=`-scoped
-row-door run swept **0**. ⛔ So "the arms hold" is true and says NOTHING about these doors. Their
+row-door run swept **0**. ⛔ So "the arms hold" is true and says NOTHING about these doors.
+
+> ⚠ **2026-09-08 (pre-AE5 Batch 6, ADR [0194](decisions/0194-a-sweeps-cases-has-three-states-and-a-parent-unsets-it.md)) — the idiom in the sentence above has CHANGED MEANING; the measurement it records has not.**
+> All four `p0-authz-*-audit.sh` sweeps now read `CASES` on **set-ness**, not value: unset = FULL run,
+> set-and-non-empty = subset, **set-and-EMPTY = selects nothing and exits 3 UNPROVEN**. ⭐ A run that
+> "swept **0**" is exactly the outcome that used to be **silent** and is now a loud, non-zero exit —
+> which is the defect this batch closed: an empty `CASES` previously selected EVERYTHING and took the
+> full-run branch that rewrites the committed baseline. ⛔ So do not reproduce that historical run by
+> pasting `CASES=` — under the current semantics it stops rather than sweeps. A parent script asking
+> for a full sweep must **`unset CASES`**; `p0-authz-invariant.sh`'s four call sites were repaired to
+> that form in the same change. The two-step recipe is ADR 0079 § The recipe and `lead-playbook.md` §4. Their
 coverage is a hand-run **37-probe** neutralization battery, one at a time, every restore hash-verified —
 recorded per keystone in `350`'s header. **Do not read a green arm as a verdict here.**
 

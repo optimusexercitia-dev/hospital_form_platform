@@ -750,3 +750,77 @@ what you think it measures.
 until it has its own ledger row — and writing that row moves the total again, which is why
 `ledger-completeness.md` no longer quotes one. The `DSR` cell-3 rewrite is still owed. All six
 follow-up ids are still `Status: open` by design. `--ff-only` is still possible.
+
+### 2026-09-08 — Record step (lead): PO approved, round 5 SKIPPED by decision; unit closed
+
+⚠ **§6 step 3 was closed WITHOUT an `APPROVED` report.** Four QA rounds, every one
+`CHANGES REQUESTED` and every one correct; round 4 states the code is **done and could not
+be broken**, and every finding in rounds 2–4 was **documentation about measurements**, never
+a gate defect. Round 4’s findings were addressed at `74869c62`; the **PO skipped round 5 by
+decision on 2026-09-08**. ⛔ Recorded plainly because a gate met by ruling is not a gate met
+by report, and a later reader must not infer an approval that was never issued.
+
+⛔ The block below is this hub’s `## Current state`, **cut VERBATIM** at the Record step
+(ADR 0186 D3): the summary has one home while a unit is live and one home after it closes,
+and copying rather than moving is how two homes start disagreeing.
+
+## Current state
+
+**Updated:** 2026-09-08
+
+### Objective
+
+Repair the gates and registers that every other unit's Record step runs, in the inter-batch window,
+because a gate added mid-phase blocks that phase — and port the write arm's empty-`CASES` fix to the
+door arm, which is the one item here that touches a live gate's harness.
+
+### Done since start
+
+- Preconditions measured, not assumed; branch cut off `main` @ `6810d95b`. Four read-only recon
+  sweeps **refuted three written figures** (the ledger's row/unbold counts, the broken-link total,
+  the archive's `Closes when` population). ⛔ Each was correct when written and got a dated note
+  beside it, never a rewrite — and the recon's own replacements were later refuted too, which is
+  why this summary names **no counts at all**. Derive them from `lint:registers`.
+- Two close conditions **named homes that could not host their fix**; the PO ruled four scope
+  questions, and the non-AE2 ledger gaps were spun off to a worktree and merged back.
+- **A sixth defect, found by opening the unit:** gate 13's branch check could not pass on Windows —
+  `cmd.exe` keeps the quotes in `--format='%(refname:short)'`, so branches arrive as `'main'`.
+  ⭐ Those quotes were `3057ac1c`'s fix for `/bin/sh` on macOS: **the same check, the same message,
+  the opposite platform.** Fixed shell-free; rc 0 real / rc 1 planted-absent / rc 0 reverted.
+- **All five follow-ups built.** Gate 9 resolves link **targets** case-exactly and every dangling
+  link is repaired; the `complete` gate reads a bolded id and a decorated verdict, including a bare
+  `## Verdict` heading with the verdict on the next line; a ninth ratchet
+  `archiveMissingClosesWhen`, its domain re-derived by *property* after the first cut was bounded
+  by a syntax; AE2 plus six further reconstructed ledger rows, every row 9 cells; and `CASES` made
+  three-state across **all four** sweep harnesses plus their four `p0-authz-invariant.sh` callers.
+- ADR **0194** placed (amends 0192); ADR **0079 § The recipe** EDITED to the two-step form.
+- ⛔ **SEVEN claims of this unit's own shipped correct in DIRECTION and unmeasured in MAGNITUDE** —
+  twice inside the correction of the previous one, and the seventh *beside* it: the removal was
+  scoped to the phrase the last round argued about instead of to the class. ⭐ Structural, not
+  careless — a number in prose has no gate. Repair: no live count is stated in this unit's files;
+  the derivation is stated instead (`live-facts-measure-dont-quote`). Equal counts are also not
+  the same set.
+- **PO ratified the `DSR` row 2026-09-08** — the objection was *procedural*, not *factual*; cell 3's
+  self-strike clause is rewritten at the Record step.
+
+### In progress
+
+QA fix loop 4. Four rounds, every one CHANGES REQUESTED and every one correct; ⭐ round 4 states the
+code is done and could not be broken, and every finding from rounds 2–4 was **documentation about
+measurements**, not a gate defect. Gate at the tip is complete and green: `lint` 0/0 · `typecheck` · `test`
+151 files/2,056 · `test:db` 262 files/8,882 on a fresh reset · four authz arms **INVARIANT HOLDS** ·
+`SELFTEST` PASS 42 · deriver **rc 3 NOT-APPLICABLE**, `SCOPE:` quoted, stdout 0 bytes ·
+migrations/seed/`src` diff **EMPTY**, so E2E has no subject.
+
+### Next
+
+1. QA re-review round 3.
+2. PO approval, then the Record step: `DSR` cell 3 first, then close the five follow-ups on their own
+   quoted clauses, flip `FUP-AE2`'s status, hub → `complete`, `git merge --ff-only`.
+
+### Blockers
+
+None. ⚠ `LEDGER-COMPLETENESS` stays `in_progress` with `reviews: []` until round 3 lands: QA ruled it
+must **not** be flipped `complete` on a CHANGES REQUESTED verdict, and gave it a ledger row instead
+so its branch can still be deleted at Record.
+

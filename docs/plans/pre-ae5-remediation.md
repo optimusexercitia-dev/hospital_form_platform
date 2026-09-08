@@ -38,7 +38,13 @@ first (Batch 1); Batch 4's re-key needs a working diff-scoped sweep (Batches 1�
 must not create sweep blindness (Batch 2's domain). Batch 6 is the inter-phase window's own work.
 Batch 9 is not a fix — it is the AE5 plan's opening ADR.
 
-## 2. Concluded — Batches 0, 1, 2, 3, 4 (all PO-approved, all QA-approved; Batch 5 rode inside Batch 4)
+## 2. Concluded — Batches 0, 1, 2, 3, 4, 6 (Batch 5 rode inside Batch 4)
+
+> ⚠ **This heading said "all QA-approved" until 2026-09-08. Batch 6 is the exception and it is
+> named rather than absorbed:** its four QA rounds were **every one `CHANGES REQUESTED`**, and the
+> PO **skipped round 5 by decision**, closing §6 step 3 without an `APPROVED` report. Round 4 states
+> the code is done and could not be broken, and every finding in rounds 2–4 was documentation about
+> measurements rather than a gate defect. ⛔ A gate met by ruling is not a gate met by report.
 
 > ⚠ **EDITED 2026-09-08.** The heading read *"Concluded — Batches 0, 1, 2 (all on `main`, all
 > PO-approved, all QA-approved)"*. Batch 3 is concluded but **not on `main`** at the time of writing,
@@ -79,7 +85,13 @@ halves both) ·
 `FUP-AUTHZ-C2-NEUTRALIZER-CAPTURED-OIDS-SURVIVE-ITS-OWN-RESET` 🟠 · `FUP-AUTHZ-SETVALUED-HOME-DOES-NOT-EMIT-ROWS` 🟡 ·
 `FUP-AUTHZ-MERGE-HEADERS-RELOCATE-AND-MALFORMED-ARM-HAS-NO-SELFTEST` 🟡 · `FUP-AUTHZ-NOTICED-ROWS-WITHOUT-AN-AUTHZ-SHAPED-REDDENING` 🟠.
 
-## 3. Remaining — Batches 6 to 9, in dependency order
+## 3. Remaining — Batches 7 to 9, in dependency order
+
+> ⚠ **EDITED 2026-09-08 (Batch 6 Record step).** The heading read *"Batches 6 to 9"*. Batch 6 is
+> concluded; its block below is **kept, not deleted** — it carries the derivation a later batch
+> still reads — and now opens with a CONCLUDED banner, because ⛔ a block under a "Remaining"
+> heading is an instruction to do the work, and the banner is what stops a reader acting on one
+> twice.
 
 > ⚠ **EDITED 2026-09-08 (Batch 4 merge session).** The heading read *"Remaining — Batches 3 to 9"*.
 > Batches 3, 4 and 5 are concluded and their rows are in §2; their blocks below are **kept, not
@@ -272,6 +284,22 @@ post-merge — the window is now. Also re-measure §6.1's `can_manage_case_vocab
 ship inside Batch 4's commit range.
 
 ### Batch 6 — Register / gate hygiene — owner lead (`scripts/check-*.mjs`, `build-adr-index.mjs`, and — added 2026-09-08 — `supabase/tests/mutation/p0-authz-door-audit.sh` + the deriver self-test + lead-playbook §4)
+
+> ✅ **CONCLUDED 2026-09-08 — unit `REGISTER-GATE-HYGIENE`, ADR 0194 (amends 0192), ADR 0079
+> § The recipe EDITED.** All five follow-ups (six ids) closed on their own quoted clauses and
+> archived **with their entry blocks**, so `Closes when` survived the closure — the practice this
+> batch turned into a gate. ⭐ The batch found two of its own subjects: gate 13's branch check could
+> never pass on Windows (quotes added to fix `/bin/sh` on macOS — the same check, the same message,
+> the opposite platform), and gate 11 blamed a rule's content for CRLF that git cannot show you.
+> ⛔ **The batch's own recurring defect, recorded because it outlasted six corrections:** SEVEN
+> times it asserted a count it had not derived — twice inside the correction of the previous one,
+> and the seventh *beside* it, when the removal was scoped to the phrase the last round argued
+> about rather than to the class. The standing repair is that no live count is stated in this
+> unit's files; the derivation is (`live-facts-measure-dont-quote`).
+> ⚠ Two items were deliberately NOT taken: the residual verdict shapes
+> (`FUP-REGISTER-GATE-HYGIENE-VERDICT-SHAPES`, now carrying two conditions of opposite polarity
+> because one clause could be satisfied **by the bug**), and the `c2-command-door-neutralizer`
+> port, filed with its measured line numbers and why it is not a mechanical port.
 
 | Follow-up | Sev | The gap |
 |---|---|---|
@@ -494,8 +522,8 @@ hygiene, in the inter-batch window, because a gate added mid-phase blocks that p
    > was correct when written and went stale when the empty-`CASES` item was batched into §3 on
    > 2026-09-08 — the same day, by the commit directly above it. Edited rather than annotated because
    > it is an **operational instruction**: a reader who counts four stops one item short.
-3. Say **"initiate Batch 6"** to the lead. The lead opens the hub + record and plans before touching a
+3. Say **"initiate Batch 7"** to the lead (⚠ **EDITED 2026-09-08** — this said Batch 6, which is concluded; an operational instruction is edited, not annotated). The lead opens the hub + record and plans before touching a
    script — ⛔ never the build first. These scripts are the ones every other unit's Record step runs,
    so a change here reds the tree for everyone until it is right.
-4. After Batch 6: **7, 8, 9** in that order (§3). Batch 9 is not a fix — it is AE5's opening ADR, and
+4. After Batch 7: **8, 9** in that order (§3). Batch 9 is not a fix — it is AE5's opening ADR, and
    AE5 itself stays **post-pilot** by ADR 0155 G1.

@@ -11442,3 +11442,518 @@ app.is_tenancy_admin_of(app.commission_of_version(form_version_id))`, identical 
 the PO ruled the deferral stands and it is written **post-merge**. The ruling was taken on the
 premise that §6 was merely unwritten; it was then measured as written-but-scoped-to-four, which is
 why the interim banner was added rather than leaving the deferral to cover a live hazard.
+
+### 🟡 FUP-DOCS-CONSOLIDATION-LEDGER-ID-BOLD-DEFEATS-THE-COMPLETE-GATE — the ledger writes ids bold and the gate's regex cannot match them — ✅ CLOSED 2026-09-08
+
+> **RESOLVED 2026-09-08** — pre-AE5 **Batch 6**, unit `REGISTER-GATE-HYGIENE`, ADR
+> [0194](../decisions/0194-a-sweeps-cases-has-three-states-and-a-parent-unsets-it.md).
+> `hubHasLedgerRow` tolerates `**` around the id and the verdict regex is case-insensitive and tolerant of a leading emoji — **both proven able to fire** by planted reds naming the arms that die, paired with a discrimination half keeping `NOT APPROVED`, `CHANGES REQUESTED`, blockquoted and struck-through verdicts rejected. The workaround rows were re-bolded, ⛔ **derived** as *unbolded ∧ after the first bolded row*, never hand-listed. ⛔ Not closed by rewriting rows to drop their bold, which the clause forbids. ⭐ The sequencing was load-bearing rather than cautious: FOUR `complete` hubs passed on their ledger row ALONE, their genuine APPROVED reviews unreadable to the old regex, so re-bolding before the fix would have redded the gate for all four.
+>
+> ⛔ **The entry block below is preserved VERBATIM, its `Closes when` included** — the
+> practice this batch turned into a gate. A closure that drops the field cannot be
+> audited against the condition it was closed on.
+
+
+**Filed:** 2026-09-04 (Gate AE4 Record step — hit for real) · **Owner:** lead · **Severity:** medium — it blocks a correct `complete` and names the right rule, so it costs time, never truth; but the workaround now in the tree is an inconsistency the next editor will "fix"
+**Closes when:** `hubHasLedgerRow` tolerates `**` around the id **and** the verdict regex becomes case-insensitive and tolerant of a leading emoji, both **proven able to fire**; then the AE4 row is re-bolded so no row is load-bearing on its formatting. ⛔ Not by rewriting 76 rows to drop their bold
+**Status:** ✅ CLOSED 2026-09-08 (pre-AE5 Batch 6, unit `REGISTER-GATE-HYGIENE`)
+
+> ⛔ **BODY MOVED HERE VERBATIM 2026-09-08 and `FUP-DOCS-CONSOLIDATION-LEDGER-ID-BOLD-DEFEATS-THE-COMPLETE-GATE.md` DELETED.** The archive may
+> not carry a `Body:` link (gate 13 reds on one), so a closed entry keeps its body inline or
+> loses it. ⭐ Both halves travel together — the register entry above and the body below —
+> which is the whole point of the `Closes when` clause this batch turned into a gate.
+
+## FUP-DOCS-CONSOLIDATION-LEDGER-ID-BOLD-DEFEATS-THE-COMPLETE-GATE
+
+**Filed:** 2026-09-04 (Gate AE4 Record step — hit for real) · **Owner:** lead
+**Severity:** medium — it blocks a correct `complete` and the message names the right rule, so it
+costs time, never truth. But the workaround now in the tree **is an inconsistency**, and the next
+person to touch it will most likely "fix" it.
+
+### The mismatch
+
+ADR 0186 D8 lets a hub reach `status: complete` on **either** a phase-ledger row **or** a linked
+review whose verdict line says APPROVED. Both satisfiers are narrower than the tree they read:
+
+- **`hubHasLedgerRow`** (`scripts/check-docs-registers.mjs`) builds `^\| *<id> *\|`. Every existing
+  row in `docs/progress/phase-ledger.md` writes its id **bold** — `| **AE3** |`, `| **QO·B** |` —
+  which that regex cannot match. The convention and the gate disagree.
+- **`REVIEW_VERDICT_APPROVED_RX`** is `/^#{0,6} *\*{0,2}Verdict:[\s*]{0,4}APPROVED\b/m` — **case
+  sensitive**, and tolerant of `#` and `*` but of nothing else before `Verdict:`.
+  `docs/reviews/authz-ae4-gate-rereview.md` opens `# ✅ VERDICT: APPROVED`, which fails on both the
+  emoji and the capitalisation despite being an unambiguous approval.
+
+⚠ **It went unnoticed because it had never been exercised.** Ledger rows long predate hubs, and the
+phases holding bold rows (AE0–AE3, QO·B …) have no hub at all. **AE4 is the first hub whose
+completion depends on a ledger row**, so a mismatch this old surfaced only now.
+
+### What is in the tree right now
+
+`| AE4 | …` — **unbolded, alone among 76 rows**, purely to satisfy the regex. That is a workaround
+wearing the shape of a style inconsistency: an editor who tidies it to match its neighbours silently
+reds the AE4 hub, and the error will point at ADR 0186 D8 rather than at their edit.
+
+### Closes when
+
+The matchers accept the tree's own conventions — `hubHasLedgerRow` tolerates `**` around the id, and
+the verdict regex becomes case-insensitive and tolerant of a leading emoji — **and** the AE4 row is
+re-bolded, so no row is load-bearing on its formatting. ⛔ Do **not** close it by rewriting 76 ledger
+rows to drop their bold: the convention is older than the gate and reads better.
+
+⚠ Both widenings must be **proven able to fire** — a matcher loosened without a test that a
+non-matching row still reds is how a gate quietly stops gating.
+
+### Related
+
+- ADR [0186](../decisions/0186-documentation-consolidation-one-home-per-fact.md) D8 — the rule.
+- `docs/progress/phase-ledger.md` — the AE4 row.
+- `docs/reviews/authz-ae4-gate-rereview.md` — an APPROVED verdict the gate cannot read.
+### 🟠 FUP-ADR-CROSS-LINKS-HAVE-NO-GATE — 13 broken ADR-to-ADR links, and gate 9 structurally cannot see them (owner: lead/backend; filed 2026-09-02 by `lead`, measured during AE4.9 D6) — ✅ CLOSED 2026-09-08
+
+> **RESOLVED 2026-09-08** — pre-AE5 **Batch 6**, unit `REGISTER-GATE-HYGIENE`, ADR
+> [0194](../decisions/0194-a-sweeps-cases-has-three-states-and-a-parent-unsets-it.md).
+> Closed on the clause the PO wrote to replace the placeholder (gate + repair, ONE work item). Gate 9 now resolves link **targets**, not merely the 4-digit number; its `exists` is **case-exact** via a `readdirSync` membership walk rather than `existsSync`, which measured `true` on a planted wrong-case link on this NTFS machine. Proven able to fire on a planted broken link AND a planted wrong-case link, with a clean-tree control and a discrimination half (external URLs, anchors and fenced code do not red); and **every** dangling link was repaired in the same change. ⛔ No allowlist and no exception list — the entry own bar. ⭐ Proven able to detect its own disabling: reverting `exists` to the naive form makes the self-test exit 2 naming the arm that cannot fire.
+>
+> ⛔ **The entry block below is preserved VERBATIM, its `Closes when` included** — the
+> practice this batch turned into a gate. A closure that drops the field cannot be
+> audited against the condition it was closed on.
+
+
+**Filed:** 2026-09-02 (by `lead`, measured during AE4.9 D6) · **Owner:** lead + backend · **Severity:** high — per emoji at consolidation
+**Closes when:** ⭐ **PO RULED 2026-09-08 (pre-AE5 Batch 6): gate + repair, ONE work item.** Closes when (a) a target-resolution check reaches every link in `docs/decisions/` — asserting the **file** exists, not merely that the 4-digit number does, which is all gate 9 ever checked; (b) its `exists` is **case-exact** (a `readdirSync` membership walk, ⛔ never `existsSync`, which is case-insensitive on NTFS and would make the gate green here and red on a case-sensitive CI); (c) it is **proven able to fire** on a planted broken link *and* a planted wrong-case link, with a clean-tree control and a discrimination half (external URLs, `#anchor`s, fenced code must NOT red); and (d) **every** broken link then in the tree is repaired in the same change. ⛔ Not closed by a gate that is allowlisted past its own findings — *"a gate added and immediately allowlisted is worse than none: it converts N visible defects into one invisible exception."* ⚠ The superseded field was the four-word bulk-consolidation placeholder that gate 13's `closesWhenPoToRule` ratchet counts as unresolved. It is **replaced, not annotated**, because a closing condition is an **operational instruction** — and because quoting the placeholder verbatim here would keep this entry inside that ratchet's count, leaving the register asserting "still awaiting a ruling" about an entry whose ruling is written directly above. ⛔ A correction that keeps its subject inside the counter it was meant to leave has corrected nothing measurable.
+**Status:** ✅ CLOSED 2026-09-08 (pre-AE5 Batch 6, unit `REGISTER-GATE-HYGIENE`)
+
+> ⛔ **BODY MOVED HERE VERBATIM 2026-09-08 and `FUP-ADR-CROSS-LINKS-HAVE-NO-GATE.md` DELETED.** The archive may
+> not carry a `Body:` link (gate 13 reds on one), so a closed entry keeps its body inline or
+> loses it. ⭐ Both halves travel together — the register entry above and the body below —
+> which is the whole point of the `Closes when` clause this batch turned into a gate.
+
+## FUP-ADR-CROSS-LINKS-HAVE-NO-GATE — 13 broken ADR-to-ADR links, and gate 9 structurally cannot see them (owner: lead/backend; filed 2026-09-02 by `lead`, measured during AE4.9 D6)
+
+Index entry: [follow-ups-open.md](follow-ups-open.md) · filed 2026-09-02 · status open
+
+**What was measured.** A sweep of every `](./NNNN-*.md)` target across `docs/decisions/` resolved
+each against the filesystem: **13 broken**, in 0053, 0056, 0063, 0064, 0072, 0073, 0078 (×5),
+0105 and 0177.
+
+**Why no gate catches it.** `npm run adr:index` / `lint:adr-index` (gate 9) parses ADR **headers**
+to rebuild `INDEX.md` and the back-pointer column. It never resolves a link **target**. So a
+citation naming a file that has never existed is byte-for-byte as green as a correct one, and the
+index it regenerates reports success either way — gate 9 said *"back-pointer blocks already
+current"* on the same run that left 13 dangling links in place.
+
+⚠ **The failure mode is PLAUSIBLE RECONSTRUCTION, which is what makes it survive review.** Every
+broken target is a readable, on-topic slug for the ADR that was actually meant — it names the right
+number and a fair description of that ADR's subject. Nothing about it reads as a typo. ADR 0177
+cited 0175 as `0175-ae45-differential-oracle-scope-and-f3-discharge.md` **one day after 0175 was
+written**, and the real filename is `0175-ae4-po-batch-oracle-inputs-and-arm3-deferral.md`. A
+reviewer scanning that line sees a sensible reference to a real decision.
+
+⚠ Note the asymmetry with the rest of the ADR contract: the `Amends:`/`Supersedes:` **label** has
+no gate either (CLAUDE.md §8 says so outright), so both halves of an ADR's cross-reference graph —
+the edge's existence and the edge's target — are unenforced. The index's *back-pointer column* is
+derived from the label, so a wrong-but-plausible filename in a `Relates:` line degrades silently
+while the index still renders.
+
+### ⭐ 2026-09-08 — the class is REPRODUCING ONCE PER BATCH, measured on two consecutive ADRs
+
+Added at unit WRITEPATH-BASELINE's pre-merge documentation audit. The 13 measured 2026-09-02 were a
+**snapshot of accumulated debt**; this is the newer and worse fact — **the defect is still being
+manufactured, at a rate of roughly one per batch, by writers who know about this entry.**
+
+Two consecutive ADRs from the pre-AE5 remediation batches cite the same ADR 0171 under **two
+different wrong filenames**, neither of which has ever existed:
+
+- `0191-…md:20` cites `./0171-c2-tier-2-deferred.md` — Batch 2. ⛔ **Not repaired**: 0191 is merged,
+  and a one-line link fix inside a merged unit is not free (it re-opens the unit's diff).
+- `0192-…md:16` cited `./0171-c2-command-doors-are-a-separate-deferred-sweep.md` — Batch 3,
+  **introduced by that unit**, i.e. *after* this entry existed. **Repaired 2026-09-08** to the real
+  file, `0171-c2-tier1-regrain-and-the-command-door-neutralizer.md`.
+
+⭐ **Why two writers produced two different wrong names for one file, independently.** Both wrote a
+**plausible reconstruction** of what 0171 is *about* — "tier 2 deferred", "command doors are a
+separate deferred sweep" — because both had read its content and neither re-read its **filename**.
+That is the same mechanism this entry already names, seen at its moment of creation rather than in
+the aftermath: ⚠ the target is *semantically* correct and *lexically* invented, so it survives every
+review that reads for sense. The real filename (`…tier1-regrain-and-the-command-door-neutralizer`)
+describes a *different* facet of the same ADR than either citation chose, which is precisely why
+neither writer's memory reproduced it.
+
+⭐ **The phantom-label half is no longer a "tested false lead" — it is MEASURED on a live ADR, with a
+discrimination half, and gate 9 stays green.** Recorded 2026-09-08, because repairing the 0192 link
+above meant editing an ADR **header**, which is exactly where this blindness lives — and the first
+draft of that repair contained `"**Owed:**"` inside the `**Related:**` value, i.e. ⚠ **this defect was
+reproduced while fixing its sibling, in the same header, in the same edit.** It was caught by hand
+before commit and the note rewritten with no bold at all. What the plant then showed, run on the real
+file and reverted (`cmp` byte-identical afterwards):
+
+- **clean (committed)** → `parseLabels` returns **5** labels, `parseEdges` returns the 2 real edges,
+  `npm run lint:adr-index` bare **rc 0**.
+- **planted (`**Owed:**` inside the `Related:` value)** → `parseLabels` returns **6** — a phantom
+  `Owed` label materialises — `parseEdges` still returns the same 2 edges, and
+  `npm run lint:adr-index` is bare **rc 0** with the message `OK (190 ADRs indexed)`.
+
+⛔ The green is **not** the plant failing to apply: the label count moved 5 → 6, so the mutation is
+proven live and the gate is proven blind to it. The edges are unchanged here only because `Related:`
+is the **last** label in 0192's header, so there was no following label for the stray `**` to swallow
+— ⚠ **which means the severity of this defect depends entirely on where in the header it lands**, and
+nothing tells an author that. The same phrase one label higher is the 0178 failure: a real
+`**Amends:**` silently not parsed, `adr:index` printing success, and ⭐ *the failure state and the
+healthy state rendered identically*.
+
+⚠ **Consequence for the durable form, and it strengthens the case rather than complicating it.** The
+"repair the 11 and add the gate as one work item" plan was sized against a **fixed** backlog. The
+backlog is **growing**, so the gate's arrival date sets the size of its own red — and every batch
+that ships without it adds roughly one. ⛔ Still do not add the gate mid-phase (it reds on the
+untouched pre-existing instances and would block an unrelated unit); the inter-batch window remains
+the only time. ⛔ And a same-day repair like 0192's ⚠ **is not evidence the class is contained** — it
+was caught by a hand audit, not by any gate, and the identical defect one ADR earlier went unnoticed
+through a full QA review, a PO approval and a merge.
+
+**⛔ What was NOT done, and why.** Only the **two AE4-phase instances** (0177 and 0178) were
+repaired, both verified to resolve afterwards. The other **11 predate this phase and are untouched
+by ruling** — repairing them here would bury an unrelated 11-file documentation diff inside an
+authorization gate, and a diff whose stated subject is authz should not silently carry it.
+
+⭐ **A SECOND, INDEPENDENT BLINDNESS IN THE SAME GATE, found 2026-09-02 while writing ADR 0178:
+BOLD EMPHASIS INSIDE A LABEL VALUE CAN SWALLOW THE *NEXT* LABEL.** `parseLabels`' regex
+`/\*\*\s*([A-Za-z][^*
+]{1,44}?)\s*(:?)\s*\*\*(\s*:)?/g` pairs `**` marks positionally. A bold
+phrase in one label's value leaves a closing `**` that pairs with the OPENING `**` of the next
+label, consuming it — the label then does not exist as far as the parser is concerned.
+
+Concretely: 0178's `**Implements:**` value contained `**regression was discovered by the build**`,
+and the `**Amends:** 0175` two lines below **did not parse**. `parseLabels` returned
+`Status | Implements | Relates`, `parseEdges` returned `[]`, and `npm run adr:index` printed
+**"back-pointer blocks already current"** — a success message — while writing `– | –` in the
+⚠ Changed-by column. Removing the two `**` pairs was the entire fix; the edge then resolved to
+`{verb: amends, target: 0175}` and the back-pointer landed in 0175.
+
+⛔ **Why this is worse than the broken-link half.** A broken link is visible to a reader who clicks
+it. A swallowed label is visible to **nobody**: the ADR looks correct (the label is right there in
+the header), the index renders a normal row, and the generator reports success. The only symptom is
+an empty column that also means "this ADR legitimately amends nothing" — ⭐ **the failure state and
+the healthy state are rendered identically.** And per CLAUDE.md §8 the label is the ONLY input to
+that column, so the target ADR never learns it was amended.
+
+⚠ Two false leads recorded so a re-investigation does not repeat them: `NOTHING_RX` is `^`-anchored,
+so an `Amends:` value containing the word "not" is NOT skipped; and a bold-plus-colon phrase in a
+value (`**no gate can notice it missing**:`) does create a phantom label but was NOT the cause here.
+⛔ Both were tested and disproved before the real cause was found — do not "fix" on either.
+
+**Durable form for this half:** assert in gate 9 that every ADR whose body text says it amends or
+supersedes another parses a matching edge; or make `parseLabels` require a label to start a line.
+⚠ The second is the smaller change but would reclassify existing mid-line labels the parser
+deliberately accepts (its own comment names `... always implied). **Supersedes:** nothing.`), so it
+is not a free tightening.
+
+**The durable form.** A target-resolution check inside gate 9: for every `](./NNNN-*.md)` in
+`docs/decisions/`, assert the file exists. ⚠ It will **red on those 11** the moment it is added, so
+adding the gate and repairing the 11 are one work item, not two — and it must not be added
+mid-phase, or it blocks Gate AE4 on unrelated debt. ⛔ A gate that is added and immediately
+allowlisted past its own findings is worse than none: it converts 11 visible defects into one
+invisible exception.
+### 🟠 FUP-AE2-MISSING-FROM-THE-PHASE-LEDGER — a shipped phase absent from the append-only record (owner: lead) — ✅ CLOSED 2026-09-08
+
+> **RESOLVED 2026-09-08** — pre-AE5 **Batch 6**, unit `REGISTER-GATE-HYGIENE`, ADR
+> [0194](../decisions/0194-a-sweeps-cases-has-three-states-and-a-parent-unsets-it.md).
+> Both clauses. **(a)** AE2 row written and marked **reconstructed**, stating in its own cells that every figure is transcribed rather than measured at the Record step, and carrying a ⛔ against the stale task table in `authz-ae2.md`. **(b)** DERIVED, never by eye — and the answer is **no**, AE2 was not the only one. The derivation, its matching rules and each rule failure mode live in `docs/progress/ledger-completeness.md`; the rows it admitted are in the ledger, each marked reconstructed. ⭐ The trap it caught: a name-agnostic join matched a record to a row when both cited the same review file, silently linking `authz-ae2` through a shared audit-findings file and hiding the one subject the derivation existed to find — **citation is relevance, not identity**.
+>
+> ⛔ **The entry block below is preserved VERBATIM, its `Closes when` included** — the
+> practice this batch turned into a gate. A closure that drops the field cannot be
+> audited against the condition it was closed on.
+
+
+**Filed:** 2026-09-02 (ad-hoc: PROGRESS.md consolidation 2026-09-02) · **Owner:** lead · **Severity:** high — per emoji at consolidation
+**Closes when:** (a) write AE2's row, marked reconstructed — ✅ **DONE 2026-09-08 by Batch 6 / `REGISTER-GATE-HYGIENE`** at `8b194439` (9 cells, reconstructed); and (b) the general question — is AE2 the only one? ⛔ Do not answer that by eye: derive it, by diffing the phases named in `phase-ledger.md` against those with a `docs/progress/<phase>.md` record and a QA verdict. This one was found by accident, which is not a method — lead · ✅ **(b) DISCHARGED 2026-09-08** by `LEDGER-COMPLETENESS`: the answer is **no** — four subjects had a `phase(x): complete` commit and no row (`ae2`, `ai`, `case-split-1`, `qo-fup`) plus two `status: complete` hubs; all five non-AE2 rows written as reconstructed. Derivation, rules and failure modes: [ledger-completeness.md](../progress/ledger-completeness.md). ⭐ **Both clauses are now discharged** — flipping `Status:` is Batch 6's call at its Record step, not `LEDGER-COMPLETENESS`'s
+**Status:** ✅ CLOSED 2026-09-08 (pre-AE5 Batch 6, unit `REGISTER-GATE-HYGIENE`)
+
+> ⛔ **BODY MOVED HERE VERBATIM 2026-09-08 and `FUP-AE2-MISSING-FROM-THE-PHASE-LEDGER.md` DELETED.** The archive may
+> not carry a `Body:` link (gate 13 reds on one), so a closed entry keeps its body inline or
+> loses it. ⭐ Both halves travel together — the register entry above and the body below —
+> which is the whole point of the `Closes when` clause this batch turned into a gate.
+
+## FUP-AE2-MISSING-FROM-THE-PHASE-LEDGER — a shipped phase absent from the append-only record (owner: lead)
+
+Index entry: [follow-ups-open.md](follow-ups-open.md) · filed 2026-09-02 · status open
+
+- 🟠 **FUP-AE2-MISSING-FROM-THE-PHASE-LEDGER** — found 2026-08-31 while writing AE3's ledger row.
+  `docs/progress/phase-ledger.md` opens *"the append-only ledger of every phase this project has
+  run"* and *"rows never leave — a missing row breaks the many places that point here"*. Measured:
+  it holds rows for **AE0** and **AE1**, and **none for AE2** — a phase that completed, was
+  QA-APPROVED at r3, was PO-approved, and **shipped to the remote** on 2026-08-29.
+
+- ⛔ **NO GATE CAN SEE THIS, WHICH IS WHY IT NEEDS A LINE.** `npm run lint:progress` enforces the
+  *departure* half of the contract — a `✅ complete` row may not remain in `PROGRESS.md` — and it
+  is satisfied the moment the row is **deleted**. Nothing checks that the row **ARRIVED**. A
+  rotation that drops its payload therefore passes the gate exactly as a correct one does, and the
+  evidence that a phase ever ran disappears silently. ⚠ This is the same asymmetry as
+  [[rotation-whose-source-cut-is-clobbered-becomes-duplication]], one tense over: there the source
+  cut was lost, here the destination write was.
+
+- ⚠ **I did not reconstruct the row.** AE2's figures are recoverable from
+  [authz-ae2.md](../progress/authz-ae2.md) and [2026-Q3.md](../progress/2026-Q3.md), but a ledger row assembled after the
+  fact by someone who did not run the phase is a *plausible* record, not a true one — and it would
+  be indistinguishable from a contemporaneous one forever after. Whoever reconstructs it should
+  mark it reconstructed, with its sources.
+
+- **Owed:** (a) write AE2's row, marked reconstructed; and (b) the general question — **is AE2 the
+  only one?** ⛔ Do not answer that by eye: derive it, by diffing the phases named in
+  `phase-ledger.md` against those with a `docs/progress/<phase>.md` record and a QA verdict. This
+  one was found by accident, which is not a method — lead
+
+- ✅ **(b) DISCHARGED 2026-09-08** by `LEDGER-COMPLETENESS` — derivation, rules, failure modes and
+  witnesses in [ledger-completeness.md](../progress/ledger-completeness.md) § 2026-09-08.
+  **The answer is NO.** Four subjects had a `phase(x): complete` commit and no row —
+  `ae2` `28d90212`, `ai` `b0387d31`, `case-split-1` `0ab4b2da`, `qo-fup` `38b4f3a7` — and two
+  `status: complete` hubs had none (`docs-consolidation`, `docs-restructure`). All five
+  non-AE2 rows are written, marked **reconstructed** with sources; four umbrella rows now state
+  the sub-phases they cover; the 8-cell `0136` row is repaired.
+  ⭐ **The method that found them was not the one this clause specified.** Record-and-verdict
+  diffing alone yields 30 candidates, most of them archived features, and it cannot tell a phase
+  from a feature without trusting a title. The discriminator that worked is the
+  **`phase(x): complete` commit** — name-agnostic evidence that the §6 Record step actually ran.
+  ⛔ Its blind spot, stated: it under-detects work predating the convention, so **absence of a
+  completion commit is evidence, not proof**, and the nine "borderline completes" it excluded
+  were excluded by PO ruling, not by the instrument alone.
+  ⚠ **One correction to the derivation quoted in the Batch 6 brief:** line 68 `20` is **not**
+  record-less — `docs/progress/s1-substrate.md` is its record, reachable only by a name-agnostic
+  join. The record-less set is 7, not 5, and none of the 7 is a defect.
+
+- ✅ **(a) DONE 2026-09-08 by Batch 6 / `REGISTER-GATE-HYGIENE`, not by this unit.** AE2's row is
+  in the ledger, 9 cells, marked reconstructed — written on `authz-register-gate-hygiene` at
+  `8b194439` *"AE2 re-enters the ledger as a reconstructed row"*. ⚠ **This bullet was written
+  earlier the same day saying (a) was still open and the branch did not exist** — both were true
+  when measured and false within the hour. Corrected by re-measuring at the rebase, not by
+  re-reading the earlier line.
+  ⛔ **Flipping this entry's `Status:` is Batch 6's call at its Record step**, not this unit's:
+  both clauses are now discharged, but the entry belongs to their gate.
+### 🟡 FUP-DOCS-CONSOLIDATION-CLOSURE-DROPS-THE-CLOSES-WHEN-FIELD — a closure archives the body but DELETES the entry, so the field survives only in git — ✅ CLOSED 2026-09-08
+
+> **RESOLVED 2026-09-08** — pre-AE5 **Batch 6**, unit `REGISTER-GATE-HYGIENE`, ADR
+> [0194](../decisions/0194-a-sweeps-cases-has-three-states-and-a-parent-unsets-it.md).
+> Closed on the clause second disjunct — a gate over the registers — after confirming which gate owns register shape (**13**, `lint:registers`; gate 7 disclaims it in its own header), as the clause requires. `RATCHETS.archiveMissingClosesWhen` counts archived follow-up **ids** whose entry carries no column-0 `Closes when`, so ⚠ retrofitting is **not** required — exactly as the clause states — while the next closure that drops the field reds. Proven able to fire at three heading levels; a correct closure keeps the count flat. ⛔ Its first cut was bounded by a **syntax** rather than the property and was blind to entries at other levels, one of which was a live instance of this very defect; re-derived by classifying the heading lead-in. ⚠ BOUNDED and stated in the code: a ratchet bounds the population, not each closure.
+>
+> ⛔ **The entry block below is preserved VERBATIM, its `Closes when` included** — the
+> practice this batch turned into a gate. A closure that drops the field cannot be
+> audited against the condition it was closed on.
+
+
+**Filed:** 2026-09-04 (QA review of HARNESS-CRASH-SAFETY, finding F-REC-4) · **Owner:** lead · **Severity:** medium — nothing is wrong in any closed item; what is lost is the ability to audit a closure against the condition it was closed on, and per item that loss is silent and total
+**Closes when:** EITHER the rotation moves the **entry block** as well as the body — verbatim, under the archived heading, exactly as the body is moved today — OR a lint gate over the registers asserts that an archived entry carries a `**Closes when:**` field (register shape is `lint:registers`' domain; the QA disposition named `lint:progress`, so confirm which gate owns it first). Whichever is chosen must be **proven able to fire**: archive one entry without the field and watch the gate red. ⚠ Retrofitting the already-archived closures is explicitly NOT required — what must stop is the next closure dropping it
+**Status:** ✅ CLOSED 2026-09-08 (pre-AE5 Batch 6, unit `REGISTER-GATE-HYGIENE`)
+
+> ⛔ **BODY MOVED HERE VERBATIM 2026-09-08 and `FUP-DOCS-CONSOLIDATION-CLOSURE-DROPS-THE-CLOSES-WHEN-FIELD.md` DELETED.** The archive may
+> not carry a `Body:` link (gate 13 reds on one), so a closed entry keeps its body inline or
+> loses it. ⭐ Both halves travel together — the register entry above and the body below —
+> which is the whole point of the `Closes when` clause this batch turned into a gate.
+
+## FUP-DOCS-CONSOLIDATION-CLOSURE-DROPS-THE-CLOSES-WHEN-FIELD — a closure archives the body but DELETES the entry, so the field survives only in git
+
+**Filed:** 2026-09-04 (QA review of HARNESS-CRASH-SAFETY, finding F-REC-4)
+**Owner:** lead
+**Severity:** medium — nothing is wrong in any closed item; what is lost is the ability to audit a
+closure against the condition it was closed on, and the loss is silent and total per item.
+
+### The rule, and what actually happens
+
+`docs/followups/follow-ups-open.md` states the rotation in its own words:
+
+> **Resolved** → move the whole entry — and its body file, if it has one — **verbatim**
+
+The **body** is moved verbatim; this unit's three closures were measured byte-identical against
+`main` (QA M18/M19). The **register entry block** — the six fields `Filed` / `Owner` / `Severity` /
+`Closes when` / `Status` / `Body` — is *deleted* rather than moved. The archived item therefore
+keeps the filed narrative and loses the field that says what would close it.
+
+### The measurement
+
+Taken 2026-09-04 on `authz-harness-crash-safety`:
+
+| what | measured |
+|---|---|
+| `docs/followups/follow-ups-archive.md` | **8963** lines, hundreds of closures |
+| register-style `**Closes when:**` lines in it | **3** (`:8014`, `:8282`, `:8321`) |
+
+Three surviving fields across the whole archive. ⛔ **Not attributable to any one unit** — it is
+longstanding practice, and it is raised as a register-procedure defect, not as a defect of the unit
+whose review found it.
+
+### Why it matters
+
+`docs/features/<unit>.md` hubs make the `Closes when` clause the **audit contract**: this unit's
+hub says *"each on its own `Closes when` clause — quoted there, not paraphrased here. **Nothing
+else counts as closure.**"* A reader auditing that claim after the rotation has to reconstruct the
+field from `git log`, and will more often simply take the closure note's word for it.
+
+⚠ The same review found the second-order consequence: two of this unit's four entries carried the
+consolidation placeholder `**Closes when:** PO to rule`, and were closed on their **body files'**
+conditions instead — a substitution that was correct but invisible, precisely because the field is
+not in the archive to compare against. (Disclosed in the two archived closure notes, 2026-09-04.)
+
+### Closes when
+
+**Either** of these, whichever the lead prefers:
+
+1. The rotation moves the **entry block** as well as the body — verbatim, under the archived
+   heading, exactly as the body is moved today; **or**
+2. a lint gate over the registers asserts that an archived entry carries a `**Closes when:**`
+   field. ⚠ The QA disposition named `lint:progress`; register **shape** is
+   `lint:registers`' domain (`scripts/check-docs-registers.mjs`), so that is the likelier home —
+   the implementer should confirm which gate owns the assertion before writing it.
+
+⛔ Whichever is chosen must be **proven able to fire**: archive one entry without the field and
+watch the gate red, or diff a rotation before/after and show the block arrived. A rule that nothing
+checks is what produced the 3-in-8963 figure above.
+
+⚠ Retrofitting the ~hundreds of already-archived closures is **explicitly not** required by this
+item; the fields are recoverable from git history and mass-editing the archive would be a worse
+risk than the gap. What must stop is the *next* closure dropping it.
+
+### Related
+
+- ADR [0179](../decisions/0179-follow-up-register-consolidation.md) — the rotation mechanics.
+- ADR [0186](../decisions/0186-documentation-consolidation-one-home-per-fact.md) — one home per
+  fact; the register's shape and gate 13's ratchets.
+- `docs/reviews/harness-crash-safety-review.md` § F-REC-4 and § F-MAJOR-4(b) — where it was found.
+### 🟠 FUP-AUTHZ-EMPTY-CASES-RUNS-A-FULL-SWEEP — `CASES=""` (set but EMPTY) selects EVERY gate and takes the full-run branch that rewrites the committed baseline — which is exactly what `$(bash scripts/door-sweep-cases.sh <base>)` yields when the deriver exits 1 FINDING (owner: lead; filed 2026-09-07 by `backend`, measured by the `lead` on the ENFORCEMENT-MANIFEST tip gate) — ✅ CLOSED 2026-09-08
+
+> **RESOLVED 2026-09-08** — pre-AE5 **Batch 6**, unit `REGISTER-GATE-HYGIENE`, ADR
+> [0194](../decisions/0194-a-sweeps-cases-has-three-states-and-a-parent-unsets-it.md).
+> Closed on **this** entry clause, the stricter of the twinned pair, as both entries direct. An empty-but-set `CASES` is a FINDING exit and never a full run in **both** named harnesses — and, by PO ruling, in `rowdoor` and `invoker` too, because the named fix alone would have swapped a silent full sweep for a silent **zero** sweep at exit 0. **Proven able to fire**, and ⛔ **red-first**: the arm landed against unmodified logic and its rows were OBSERVED red before any fix. The two-polarity startup capture lives in `scripts/door-sweep-selftest.sh` as the clause asks, because one process cannot observe both polarities of a set-ness capture. The recipe now reads the deriver EXIT CODE before substituting its stdout. ⛔ **The clause named two homes that could not host the fix** — that script ran only the deriver, and the substitution lived in ADR 0079, not the playbook — so the PO ruled the proof goes where it can run and ADR 0079 gets EDITED. Both named homes host it now. ⛔ Neither id was retired; both close together, so consolidating them stopped being owed.
+>
+> ⛔ **The entry block below is preserved VERBATIM, its `Closes when` included** — the
+> practice this batch turned into a gate. A closure that drops the field cannot be
+> audited against the condition it was closed on.
+
+
+**Filed:** 2026-09-07 (unit ENFORCEMENT-MANIFEST, QA fix loop iteration 1 — measured by the `lead` the same day, whose gate chain started a full sweep that had to be killed mid-merge — ⚠ **CORRECTED 2026-09-08: `~10 min`, not multi-hour, and both committed findings files were byte-unchanged**; the record measures it, the body says otherwise, and the note on the body has both) · **Owner:** lead · **Severity:** high — it turns "the deriver found a door you must discharge" into "sweep the whole domain and rewrite the committed baseline", with no `PARTIAL RUN` line to show it happened
+**Closes when:** an empty-but-set `CASES` is a **FINDING exit** — never a full run — in **both** `supabase/tests/mutation/p0-authz-door-audit.sh` (`:1097` `[ -z "$CASES" ] && return 0`, `:128` `if [ -n "$CASES" ]`) and `supabase/tests/mutation/p0-authz-writepath-audit.sh` (`:315`, `:201`/`:1064`), **proven able to fire** by a `scripts/door-sweep-selftest.sh` scenario that passes `CASES=""`, **and** the lead-playbook § 4 recipe reads the deriver's EXIT CODE before substituting its stdout. ⛔ Not closed by a note telling operators to check by hand — the shape of the bug is that the check is invisible at the call site
+**Status:** ✅ CLOSED 2026-09-08 (pre-AE5 Batch 6, unit `REGISTER-GATE-HYGIENE`)
+⚠ **MERGE NOTE 2026-09-08 (Batch 4 merge session, lead): the deferral above has been PARTLY discharged, and the half that landed is the half this entry does not measure.** Batch 3 (`WRITEPATH-BASELINE`, ADR 0192) fixed `p0-authz-writepath-audit.sh` — set-ness captured before the `${CASES:-}` default, `CASES=""` now reaching a bare **rc 3 UNPROVEN** — and left `p0-authz-door-audit.sh` **deliberately untouched**, which is the arm whose live incident opened this entry. Its twin is `FUP-WRITEPATH-BASELINE-CASES-EMPTY-STRING-DEGRADES-TO-A-FULL-RUN` (owner backend, register entry only, no body). ⭐ **This entry's `Closes when` is the one to keep**: it names both harnesses **and** the self-test scenario **and** the lead-playbook §4 recipe, so the write-arm fix alone cannot discharge it. ⚠ The playbook clause is still owed and was navigated **by hand** in this merge session — the deriver exited **1 FINDING on both arms** and its stdout was never substituted into `CASES=`. Consolidating the two ids is a PO call, deliberately not taken mid-merge. ⭐ **BATCHED 2026-09-08 into Batch 6** (`docs/plans/pre-ae5-remediation.md` §3, the home of the batching decision) — ⛔ it is the only mutation-harness item in that batch, so the batch's own *"cheap, and the window is structural"* reasoning does **not** cover it: plan before editing, and prove every new guard able to fire.
+
+⭐ **2026-09-08 — the `Closes when` above is WIDENED, and the widening is itself the finding (PO ruling, Batch 6).** The clause names two harnesses, a self-test scenario and the playbook recipe. All four can be satisfied **literally while the door arm's only executable caller stays broken**: `supabase/tests/mutation/p0-authz-invariant.sh` invokes all four sweeps as `CASES= bash <child>` — `:336`, `:337`, `:338`, `:754` — deliberately, as its way of saying *"full sweep"*. `VAR= cmd` sets `VAR` to the **empty string** in the child, which is exactly the state this entry converts into `exit 3 UNPROVEN`. ⛔ **The sweep boundary was drawn from the incident's own call path** — the lead's hand-typed substitution — and never saw the harness's other caller. **ADD to the clause:** every parent invocation of a sweep asks for a full run with `unset CASES &&`, never `CASES=`.
+
+⚠ **`:337` (writepath) was ALREADY BROKEN on `main` from Batch 3 until 2026-09-08 — LATENT, not observed, and both halves matter.** ADR 0192 re-predicated the write arm and did not update this caller, so `ARM=policy` **without** `FROMFINDINGS=1` — the ~105-min full sweep — could not have passed since. ⛔ **It was not producing a false green at any gate**: CLAUDE.md §6 step 1 names the arms as `census`, `hat`, `floor` and `FROMFINDINGS=1 wrapper`, and **no Phase Gate arm reaches that branch**. ⛔ Nor is it theoretical: `|| RC=1` would have fired **loudly at the RC level** while failing **vacuously at the measurement level** — the child writes `blinds_writepath.SUBSET.tsv` or nothing, the union's `awk … 2>/dev/null` swallows the absence, and the BLIND set silently loses that arm's contribution while the arm still prints its size and its HOLDS line. Do not upgrade it to *"the gate was lying"*; do not downgrade it to *"theoretical"*.
+
+⭐ **The lesson, and it is why this took a second pair of eyes to see: `CASES=` was introduced in `p0-authz-invariant.sh` AS A DEFENCE** — its own comment says *"'FULL SWEEP' is now a fact about the child, not a hope"* — against an exported `CASES` narrowing a child into a silent subset. Re-predicating the child **inverted the parent's failure mode**. The defence became the defect.
+
+✅ **2026-09-08 — FIXED, and this is what was actually done (Batch 6, ADR 0194).** Three-state `CASES` — set-ness captured before the `${CASES:-}` default; `want()` returning 1 on set-and-empty; placement keyed on set-ness through a `set_placement()` the self-test **exercises** rather than restates; a `SELECTION-SOURCE` line naming which state the run is in — ported to `p0-authz-{door,rowdoor,invoker}-audit.sh`. ⛔ **Ported, not copied**: the door keeps a second `BASE_SHAPE_OVERRIDE` disjunct with no sibling analogue, and the row-door and invoker sweeps had **no self-test at all** and **no domain gate at all**, so each got its own. All four `p0-authz-invariant.sh` call sites now read `unset CASES && bash …`, which means "full sweep" under **both** the old and the new semantics. Proven: rows **C** and **E3** observed **RED** against the unmodified logic (bare rc 1) before any fix, green after (bare rc 0); reverting **one** harness's own predicates reds **only that harness** — door 1/rowdoor 0/invoker 0, then 0/1/0, then 0/0/1 — so no port is claimed by inheritance. Both polarities of the startup capture are asserted from **two processes** by a new group in `scripts/door-sweep-selftest.sh` (8 scenarios, 4 harnesses x 2), because one process cannot observe both; that group is itself proven able to red by hard-wiring the captured bit in one harness (bare rc 1, and only the `empty -> 1` half failed, which is why the pair is the control). ⛔ **Not closed here** — closure is the PO's, and the twin entry closes on this same clause. ⛔ Neither id is retired or consolidated: retiring one orphans every citation naming it.
+
+> ⛔ **BODY MOVED HERE VERBATIM 2026-09-08 and `FUP-AUTHZ-EMPTY-CASES-RUNS-A-FULL-SWEEP.md` DELETED.** The archive may
+> not carry a `Body:` link (gate 13 reds on one), so a closed entry keeps its body inline or
+> loses it. ⭐ Both halves travel together — the register entry above and the body below —
+> which is the whole point of the `Closes when` clause this batch turned into a gate.
+
+## FUP-AUTHZ-EMPTY-CASES-RUNS-A-FULL-SWEEP — an empty-but-set `CASES` selects EVERY gate and takes the full-run branch
+
+**Filed:** 2026-09-07 (unit ENFORCEMENT-MANIFEST, QA fix loop iteration 1 — measured by the `lead`
+the same day on this unit's tip gate)
+**Owner:** lead · **Severity:** high — nothing about the *finding* is wrong; what is wrong is what
+the shell does with it. The failure is silent, expensive, and it writes.
+
+### What was measured
+
+The lead's tip-gate chain ran the diff-scoped deriver and substituted its stdout:
+
+```sh
+CASES="$(bash scripts/door-sweep-cases.sh main)" bash supabase/tests/mutation/p0-authz-door-audit.sh
+```
+
+The deriver exited **1 — FINDING**, having resolved a door (`public.set_item_validations`) that no
+arm's `PRED_DOMAIN` can select, and printed **no case list**. The substitution therefore set `CASES`
+to the **empty string** — *set*, but empty — and the harness ran a **FULL sweep over the whole
+domain**. It had to be killed after it had been running for hours, mid-merge, having already begun
+rewriting the committed findings baseline.
+
+> ⚠ **CORRECTED 2026-09-08, beside the original — the two figures in the sentence above are both
+> wrong, and the unit's own record measures them.** [`docs/progress/enforcement-manifest.md`](../progress/enforcement-manifest.md),
+> § *tip gate*, *"Two lead errors, recorded"*, first person and same day: the run *"swept
+> `app.can_create_professional`, not in the diff"*, its merge *"then aborted on Apple diff"*, and it
+> was **`killed after ~10 min`** — then, measured rather than assumed, **`git diff --stat` on both
+> committed findings files empty**, DB restored by a fresh reset, and the two stale sentinels it left
+> inspected and found healthy (`RECOVER=1` not needed). So: **~10 minutes, not hours**, and the
+> committed baseline was **byte-unchanged**, not "already begun rewriting".
+>
+> ⛔ **This is not a downgrade, and the severity above stands unamended.** What stopped the run was an
+> **unrelated merge abort plus a human noticing** — no guard fired, nothing reported, and
+> `PARTIAL RUN — CASES=""` was never printed because it cannot be. An incident survived by luck is
+> the same defect as one that is not; the argument for fixing it is *silent + it writes + reachable
+> from the documented recipe*, none of which depends on how long that one run lasted.
+>
+> ⭐ The drift is worth naming because this file **is** the evidence a later session will quote: a
+> narrative sentence in a follow-up body and a measured line in a record disagreed for a day, and the
+> narrative is the one that reads as more alarming, so it is the one that gets repeated. It was, into
+> the plan's Batch 6 row and the open register — both corrected the same day.
+
+### The mechanism, in the two harnesses' own lines
+
+`supabase/tests/mutation/p0-authz-door-audit.sh`:
+
+```sh
+:1096  want () {  # $1 = match key (proname or polname); returns 0 if in CASES (or CASES empty)
+:1097    [ -z "$CASES" ] && return 0          # ⛔ EMPTY selects EVERYTHING
+:128   if [ -n "$CASES" ] || [ -n "${BASE_SHAPE_OVERRIDE:-}" ]; then
+:129     SUBSET_RUN=1                          # ⛔ EMPTY is NOT a subset run …
+:130     FINDINGS="$WORK/authz-door-audit-findings.SUBSET.md"
+       else                                    # … so it falls to the branch that
+                                               #    WRITES THE COMMITTED BASELINE
+```
+
+`supabase/tests/mutation/p0-authz-writepath-audit.sh` has the identical shape at `:315`
+(`[ -z "$CASES" ] && return 0`) and `:201` / `:1064` (`if [ -n "$CASES" ]`).
+
+So the two states the caller cares about — *"no subset asked for, sweep everything"* and *"a subset
+was asked for and it came back empty"* — are **the same state** to both harnesses. The harness
+cannot tell "unset" from "set to nothing", and the more dangerous reading is the default.
+
+### Why it is worth a gate rather than a note
+
+* It is reachable from the **documented** recipe. `$(bash scripts/door-sweep-cases.sh <base>)` is how
+  the lead-playbook § 4 chain derives its case list, and the deriver's `FINDING` exit — the outcome
+  ADR 0191 added precisely so a door outside every `PRED_DOMAIN` is *named* rather than swallowed —
+  is exactly the outcome that empties the substitution.
+* The consequence is a **write**. A full run merges into the committed
+  `docs/reviews/authz-*-findings.md` baseline; a killed full run leaves the contamination
+  `FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED` Part 2 describes (and, per that item, a killed run can leave
+  an RLS policy neutralized with nothing reporting it).
+* The operator sees no signal at all: `PARTIAL RUN — CASES=""` is not printed, because
+  `if [ -n "$CASES" ]` is false. The run looks exactly like a deliberate full sweep.
+
+### Closes when
+
+An empty-but-set `CASES` is a **FINDING exit** — never a full run — in **both** harnesses, **proven
+able to fire** (a scenario in `scripts/door-sweep-selftest.sh` that passes `CASES=""` and requires
+that exit), **and** the lead-playbook § 4 recipe reads the deriver's **exit code** before
+substituting its stdout.
+
+⛔ **Not** closed by telling operators to check by hand: the shape of the bug is that the check is
+invisible at the call site. ⛔ **Not** closed by making the deriver print something on a FINDING
+exit either — a case list it must not emit is the one thing it correctly withholds.
+
+### Relation
+
+`FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED` **Part 2** ("arm 2 reports success at exit 0 having measured
+nothing") is the same family: a run that measured nothing must not be readable as a run that
+measured everything, in either direction. That item is Batch 3's, on the other machine, and it edits
+these same two harnesses — which is why this was **deliberately not fixed** in ENFORCEMENT-MANIFEST.
+### 🟠 FUP-WRITEPATH-BASELINE-CASES-EMPTY-STRING-DEGRADES-TO-A-FULL-RUN — `CASES=""` is indistinguishable from `CASES` unset in the door arm, so a caller that captures the deriver's stdout without consuming its exit code gets a FULL sweep that writes the COMMITTED baseline, with the `exit 3 UNPROVEN` door unreachable (owner: backend; filed 2026-09-07 by `backend`, measured on `authz-writepath-baseline`) — ✅ CLOSED 2026-09-08
+
+> **RESOLVED 2026-09-08** — pre-AE5 **Batch 6**, unit `REGISTER-GATE-HYGIENE`, ADR
+> [0194](../decisions/0194-a-sweeps-cases-has-three-states-and-a-parent-unsets-it.md).
+> Closed **with its twin**, on the twin stricter clause, exactly as this entry directs. Its own condition is also met: the door harness distinguishes *unset* from *set-and-empty*, set-ness captured before the default, so an explicitly-empty `CASES` reaches UNPROVEN and can never point the findings path at the committed baseline — proven by a selection table whose control is *unset* vs *set-and-empty*, the same value with opposite outcomes, each read at its bare exit code. ⛔ **Ported, not copied**: the door keeps a second self-proof disjunct the write arm has none of, and each harness port was proven **by selection** — reverting one harness own predicates reds only that harness.
+>
+> ⛔ **The entry block below is preserved VERBATIM, its `Closes when` included** — the
+> practice this batch turned into a gate. A closure that drops the field cannot be
+> audited against the condition it was closed on.
+
+
+**Filed:** 2026-09-07 (by `backend`, Batch 3 build turn; measured, not inferred) · **Owner:** backend · **Severity:** high — a correct door nothing can reach, composed with reading a gate instead of gating on it
+**Closes when:** `p0-authz-door-audit.sh` distinguishes *unset* from *set-and-empty* — set-ness captured BEFORE the `${CASES:-}` default — so that an explicitly-empty `CASES` reaches its UNPROVEN exit and can never point `$FINDINGS` at the committed baseline; proven by a selection table whose control is *CASES unset* vs *CASES set-and-empty* (same value, opposite outcome), each read at its bare exit code.
+**Status:** ✅ CLOSED 2026-09-08 (pre-AE5 Batch 6, unit `REGISTER-GATE-HYGIENE`)
+**Detail.** `p0-authz-writepath-audit.sh:181` read `CASES="${CASES:-}"` and every branch keyed on `[ -n "$CASES" ]` (`:201` placement, `:315` `want()`, `:805`/`:1064` accounting). So the empty string selected EVERYTHING, `SUBSET_RUN` came out 0, and the run opened `docs/reviews/authz-writepath-audit-findings.md` for write. The caller that produces it is the one CLAUDE.md §6 step 1 prescribes — `CASES="$(bash scripts/door-sweep-cases.sh …)"` — whose *exit 1/3 IS the "no gate changed" claim*, discarded by command substitution. ⭐ **FIXED IN THE WRITE ARM 2026-09-07** (ADR 0192): `CASES_EXPLICIT` captured before the default; `want()` returns 1 on set-and-empty; placement keyed on set-ness; a `SELECTION-SOURCE` line naming which of the three states the run is in. Observed: fixed harness `CASES=""` → `ARM-DOMAIN guard=0/13 policy=0/107`, bare **rc 3**; pre-change predicates, same value → `FULL SWEEP … MERGES into the committed baseline`, `guard=13/13 policy=107/107`, bare **rc 0**.
+⛔ **`p0-authz-door-audit.sh` carries the identical defect at its own `[ -n "$CASES" ]` and is deliberately NOT fixed here.** Batch 2 closed that harness and QA approved it; fixing one of two would read as fixing the class (the Batch 0 mis-scope, twice paid for). This entry names both arms so the class is visible.
+⚠ **MERGE NOTE 2026-09-08 (Batch 4 merge session, lead): this is ONE mechanism carrying TWO entries, filed the same day by two machines that could not see each other.** The twin is `FUP-AUTHZ-EMPTY-CASES-RUNS-A-FULL-SWEEP` (owner lead, body file, opened on the ENFORCEMENT-MANIFEST tip gate). ⭐ The two are **not redundant — they are different evidence for the same defect**: this one was found **by construction** on the write arm, the twin by a **live incident** on the door arm (a full sweep started where a targeted case was wanted, killed after **~10 min** with both committed findings files **byte-unchanged** — see the duration note on the twin: its body says *hours* and the unit record measures *~10 min*). ⛔ **Close on the twin's condition, which is strictly stronger** — both harnesses, a `CASES=""` self-test scenario proving the FINDING exit fires, and the lead-playbook §4 recipe reading the deriver's exit code **before** substituting its stdout. ⛔ Do **not** close this entry on the write-arm fix alone: half the class is exactly the shape both entries warn about. Consolidating the two ids is a PO call and is deliberately **not** taken here — retiring an id mid-merge orphans every citation that names it. ⭐ **BATCHED 2026-09-08 into Batch 6** (`docs/plans/pre-ae5-remediation.md` §3, which is where the batching decision lives): the fix closes both entries, so consolidation stops being owed rather than being done.
+
+✅ **2026-09-08 — FIXED with its twin (Batch 6, ADR 0194).** The three-state fix ADR 0192 made in the write arm is now in `p0-authz-{door,rowdoor,invoker}-audit.sh` as well, and the four `CASES= bash <child>` call sites in `p0-authz-invariant.sh` — which asked for a full sweep in the syntax that now means *"selection came back empty"* — read `unset CASES && bash …`. Evidence and bounds are on the twin entry, `FUP-AUTHZ-EMPTY-CASES-RUNS-A-FULL-SWEEP`, whose clause is the stricter and the one both close on. ⛔ This id is **not** retired or consolidated; the register tidies itself when the two archive together.
+
