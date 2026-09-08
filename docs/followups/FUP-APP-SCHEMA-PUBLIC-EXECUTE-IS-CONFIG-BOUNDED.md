@@ -29,8 +29,19 @@ note, Track D: cited by line as `config.toml:13` until a 2026-09-08 comment bloc
 assignment to line 51 — repointed to the key per R30 so the citation cannot rot again.) An `anon` caller cannot reach
 `app.*` over the API at all (this repo has already recorded that `app.*` RPCs are 404). So these grants
 confer nothing today. ⇒ **defense-in-depth gap, not a vulnerability.** If that one line ever gains
-`"app"`, 237 functions become directly callable by `anon` in the same edit — the ACLs are not the thing
-holding the line, and a reader auditing the ACLs would conclude they were.
+`"app"`, **236** functions become directly callable by `anon` in the same edit — the ACLs are not the
+thing holding the line, and a reader auditing the ACLs would conclude they were.
+
+> ⚠ **2026-09-08 (Batch 7, QA re-review B2): this consequence clause read `237`, and BOTH halves of
+> that pair had moved.** Re-measured on a fresh reset at head `20261003007350`: `app` holds **526**
+> functions (`prokind='f'`), of which **236** satisfy `has_function_privilege('anon', …, 'EXECUTE')`.
+> ⛔ **The `:17-18` table above is NOT corrected** — it is a dated 2026-08-22 measurement and is
+> correct as a record of that day; only this present-tense clause was making a live claim.
+> ⛔ **And 236 here is NOT §U1's 236.** `320` §U1 pins the **ACL-shaped** set (`proacl IS NULL` or an
+> explicit PUBLIC grant); this is the **effective** set. They coincide today **by accident**, and were
+> proven able to disagree — granting `anon` EXECUTE on one `app` function moved the effective count to
+> 237 while the ACL-shaped count stayed at 236 (rolled back). Inferring either from the other is the
+> same error this unit corrected as 137-vs-138.
 
 ⭐ **How this was nearly filed wrong, which is the reusable part.** It was first reported as
 *"`app.is_member_of` carries a PUBLIC EXECUTE grant while its `_for` twin and the whole `_for` family do
@@ -46,10 +57,16 @@ default nobody wrote. A one-outlier framing invites a one-function fix that woul
 2. If yes, the honest gate is a **pgTAP** assertion (⚠ DB anchors are not checkable in `npm run lint` —
    ADR 0127's stated bound), and it must be **red-first**: create a throwaway `app` function with a NULL
    `proacl` and require the gate to catch it, or the gate proves only that today's 228 were listed.
-3. Whatever is decided, `supabase/config.toml`'s `[api].schemas` key should carry a comment saying that
-   237 `app` functions are anon-executable and this line is what makes that safe. Right now the
-   load-bearing line looks routine. (2026-09-08 note, Track D: **done** — R2 ruled item 3 owed, widened
-   to comment + a `npm run lint` gate on the line itself; see the comment block above `schemas` in
+3. Whatever is decided, `supabase/config.toml`'s `[api].schemas` key should carry a comment saying how
+   many `app` functions are anon-executable and that this line is what makes that safe. Right now the
+   load-bearing line looks routine. (⚠ **EDITED 2026-09-08, QA re-review B2** — this read *"a comment
+   saying that **237** `app` functions are anon-executable"*. It is an **operational instruction**, so
+   it is edited rather than annotated: a reader following it would have written a figure that was
+   already stale, and the comment actually delivered says **236 of 526**. ⛔ The count is deliberately
+   **not restated here** — this item asks for a comment, and the figure belongs in the comment, which
+   is gated, not in the instruction to write one.) (2026-09-08 note, Track D: **done** — R2 ruled item
+   3 owed, widened to comment + a `npm run lint` gate on the line itself; see the comment block above
+   `schemas` in
    `supabase/config.toml` and gate 14, `lint:config-schemas`.)
 
 ⛔ **Do not "fix" this by adding `REVOKE` to the ADR 0134 migration.** It is outside that ruling's

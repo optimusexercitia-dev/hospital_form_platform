@@ -959,3 +959,83 @@ rc read **bare** on its own line):
   very session whose brief warns about it. That reset's success is carried instead by the wrapper's
   own exit code, the `Finished supabase db reset` line and the head-pair query; the *authoritative*
   reset and `test:db` at the fix-loop tip capture `rc=$?` on the line immediately after the command.
+
+### 2026-09-08 — lead, fix-loop iterations 1–2 (the lead's half), and the gate run `834e55d8` did not record
+
+**⛔ This entry exists because QA's re-review found the previous one missing.** Commit `834e55d8`
+landed the lead's remaining fix-loop items and **carried no session-log entry and no recorded gate
+run** — a breach of CLAUDE.md §7 (*never report status verbally without writing it there first*) and
+of R37, which the lead wrote **in this unit, about this unit's own freeze discipline**. ⭐ Writing a
+rule and then failing it two commits later is the more useful half of this note.
+
+**Fix-loop iteration 1, lead's half** (`4e3f0844`) — QA M1, M2's ADR half, M4/R36:
+
+- **M1** — ADR 0195's Consequences claimed *"the merge rule has an enforcer for the first time"*
+  while its own D1 says the artefact is identical whether ruled or not. ⛔ **Neither gate can observe
+  either clause** of that rule: a single commit moving the anchor's `ceiling` and `total`, §U4's
+  tagged literals and §U5/§U6's untagged ones passes `npm run lint` **and** `npm run test:db` with no
+  justification and no ruling anywhere in the tree. Re-worded to what closed — **a silent rise is now
+  impossible** — with the rule left *enforced by the record, not by a gate*.
+- **M2** — D2 rested the `ARM=census` reconciliation on three conditions, and **(ii) is false of two
+  of the three pinned literals**. The PO ruled the **total 759** (R24); `app` 326 and `public` 433
+  were never ruled on and *are* descriptions of a population. The defence survives on **(i)**
+  compared-vs-printed and **(iii)** one gated home. ⭐ Recorded that the census arm's own remedy is
+  **stronger** — it made the figure *derived from the predicate* — and that §U4 makes a different but
+  legitimate choice. Added **D2a**: the two kinds of literal have different owners, because a
+  legitimate `app` 326→325 / `public` 433→434 leaves the total and the merge rule untouched, reds
+  §U4a/§U4b, and had **no named owner** for the repair.
+- **M4/R36** — the hub said *"31 rulings"* (34) and *"13 fixtures"* (14). ⛔ **Removed rather than
+  corrected**: correcting a count in prose only restarts its clock (Batch 6's standing repair).
+
+**Fix-loop iteration 1, lead's remainder** (`834e55d8`) — B1's fourth site, N2, N5, N1's residue:
+
+- **B1 site 4** — ADR 0195 was the **fourth** home of `237 of 467`; the fix loop corrected three.
+  ⛔ A 3-of-4 correction is what B1 itself warns is worse than four stale figures. Set to
+  **236 of 526**, measured at head `20261003007350`, with **both predicates named**.
+- **N2** — D8's heading claimed a re-open condition; the body supplied only the grounds for
+  deferring. Condition written out: four falsifiable triggers, what does **not** re-open it, and the
+  requirement to re-derive at the then-current head whatever fires it.
+- **N5** — ⭐ registering ADR 0195 in `proposed-review.json` is *what makes gate 9 green*, so
+  **nothing would red if `Proposed` were never flipped** — in the batch whose subject is records that
+  go stale silently. The status line now carries its own flip trigger and says outright that no
+  enforcer backs it.
+- **N1 residue** — the record's Subjects header carried *"if the PO rules for execution —
+  `supabase/migrations/`"*, a present-tense conditional whose condition was decided at unit open
+  (R1 = defer). **Edited, not annotated**, with the superseded text quoted: an operational
+  instruction pointing at work nobody should do.
+- Committed QA's review report, which was **untracked** — a review nothing commits cannot be cited
+  by the gate record.
+
+**Gate run at `834e55d8`, read BARE** — this is the run that went unrecorded:
+
+```
+npm run lint  → RC=0   — all 15 gates REACHED (chain lines counted, not assumed):
+  eslint · css-vars · memberships-door · client-server-imports · vacuous · set-local ·
+  progress · rules · adr-index · mojibake · service-role-registry · authz-vectors ·
+  registers · config-schemas · budget-anchor
+npm run lint:progress   → RC=0
+npm run lint:adr-index  → RC=0
+npm run lint:registers  → RC=0   — every ratchet unmoved
+```
+
+⚠ `npm run test:db` was **not** re-run at `834e55d8` and is not claimed: that commit touched only
+`docs/`, and `320` was untouched between the fix loop's own green `test:db` and it. ⛔ Stated rather
+than left to inference — an unrun gate is not a passed one.
+
+**Fix-loop iteration 2, lead's half** (this commit) — QA re-review B2 and the missing record:
+
+- **B2 — the FIFTH home of the stale figure, and it is the follow-up this unit CLOSES on.**
+  `FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED.md:32` (a present-tense consequence clause) and
+  `:50` (an operational instruction telling a future reader to write the stale number into the
+  comment). ⛔ R33 makes the closure quote this body, so the superseded figure would have **walked
+  into the closure**. `:32` corrected with a dated note; `:50` **edited** with its superseded text
+  quoted, and the count deliberately **not restated** there — the figure belongs in the gated
+  comment, not in the instruction to write one. ⛔ The `:17-18` table is a dated 2026-08-22
+  measurement and was **not** touched.
+- ⭐ The note at `:32` states what the fix loop proved: **236 here is NOT §U1's 236.** §U1 pins the
+  **ACL-shaped** set, this is the **effective** set; they coincide today **by accident** and were
+  proven able to disagree (granting `anon` EXECUTE on one function moved the effective count to 237
+  while the ACL-shaped count stayed 236, rolled back). Inferring either from the other is the same
+  error this unit corrected as 137-vs-138.
+- The hub's **Gate at the tip** paragraph now names the commit it describes (`bd50dfc9`) and states
+  that the gate is **re-owed at the final tip**, because the lead broke the freeze (R37).

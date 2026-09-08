@@ -112,10 +112,13 @@ in the self-test's own output, not restated here (it said "13"; the self-test re
 never a binary), the ceiling's move in its one home, `320` §U4/U5/U6, and gate 15. **Track D** —
 citations repointed to the **key**, and the silent no-op class corrected to 138 beside 137.
 
-**Gate at the tip** (independent runner, not a builder): every command rc **0**, `lint` reaching all
-15 gates, `test:db` PASS, four authz arms `INVARIANT HOLDS`, deriver rc 3 NOT-APPLICABLE, set-valued
-`CLEAN`, `PATHSPEC_BYTES=0`. ADR **0195** filed — the runner's own finding that every prior batch
-left one and this had none.
+**Gate at the tip** (independent runner, not a builder) — ⚠ **run against `bd50dfc9`, which is NOT
+the current tip**: every command rc **0**, `lint` reaching all 15 gates, `test:db` PASS, four authz
+arms `INVARIANT HOLDS`, deriver rc 3 NOT-APPLICABLE, set-valued `CLEAN`, `PATHSPEC_BYTES=0`.
+⛔ The lead broke the freeze by committing ADR 0195 mid-run (R37); the runner caught it and asserted
+the delta was docs-only. ⇒ **The gate is re-owed at the final tip** and this paragraph names its
+commit so the two cannot be confused. ADR **0195** filed — the runner's own finding that every prior
+batch left one and this had none.
 
 ### In progress
 
