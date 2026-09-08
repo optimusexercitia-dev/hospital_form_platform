@@ -77,10 +77,29 @@ a new text gate — **gate 15, `lint:budget-anchor`** — parses both sites and 
 That converts P3's "two homes" into **one home plus a gated mirror**: the mirror cannot become a
 number with no owner, because the gate reds the moment it stops matching its owner.
 
-⇒ **The `ARM=census` prohibition is satisfied on three conditions, and all three must hold**:
-(i) the population figure is **re-derived every run**, never printed from a literal; (ii) the
-committed number is a **decision**, not a description of a population; (iii) the decision has **one
-home** and every copy is gated. The census banner failed (i) and (iii) together.
+⇒ **The `ARM=census` prohibition is satisfied on conditions (i) and (iii)**: (i) the population is
+**re-derived from the live catalog every run** and the literal is *compared* to it — where the census
+banner's `(407 reachable)` was *printed* and compared to nothing; (iii) the committed number has
+**one home** and every copy is gated. The census banner failed both together.
+
+> ⚠ **Corrected 2026-09-08 on QA finding M2, before acceptance — the defence survives, but not on
+> the argument first written.** This originally listed a third condition, *"(ii) the committed number
+> is a decision, not a description of a population"*, and rested the reconciliation on all three.
+> **(ii) is false of two of the three pinned literals.** The PO ruled the **total 759** (R24); `app`
+> **326** and `public` **433** were never ruled on — they *are* descriptions of a population, pinned
+> as a ratchet. The separation that actually does the work is (i) alone: *compared* versus *printed*.
+> ⭐ And the census arm's own remedy is **stronger** than this one — it made the figure **derived from
+> the predicate**, so *"the figure and the class can never disagree again"*, whereas §U4 commits a
+> literal and gates its copies. That is a legitimate different choice — it is exactly what §U1 is —
+> but it must be argued on (i) and (iii), and claiming (ii) papered over the difference.
+
+**D2a — the two kinds of pinned literal have DIFFERENT OWNERS, and the split must be stated.**
+`total` / `ceiling` **759** is a **PO ruling**; `app` **326** and `public` **433** are **measurements
+pinned as a ratchet**, whose owner is the same triage owner §U1's 236 has — movable with the mover
+**attributed and measured**. ⛔ Without this split the repair has no owner in a case that is not
+hypothetical: a legitimate `app` 326→325 / `public` 433→434 leaves the **total unchanged at 759** and
+the merge rule untouched (nothing rose), yet reds §U4a and §U4b — and the PO's authority is over the
+ceiling, not over how it distributes.
 
 **D3 — The obligation splits along its two natures, and the half that cannot be honest says so.**
 The **catalog half** (is the live budget still what we committed to?) lives in pgTAP under
@@ -141,7 +160,17 @@ own source forbids reusing.
 
 ## Consequences
 
-- The merge rule has an enforcer for the first time. **P1 closes.**
+- **A silent rise is now impossible** — that is what P1's closure amounts to, and the distinction is
+  load-bearing. ⛔ **The merge rule itself still has no enforcer**, and this ADR said otherwise in its
+  first draft (*"the merge rule has an enforcer for the first time"* — corrected 2026-09-08 on QA
+  finding M1, before acceptance). Its two clauses are *no increment may raise the count without a
+  named justification in its own gate record* and *the ceiling moves only by PO ruling*, and **no
+  gate can observe either**: a single commit that moves the anchor's `ceiling` and `total`, §U4's
+  tagged literals and §U5/§U6's untagged ones passes `npm run lint` **and** `npm run test:db` with no
+  justification and no ruling anywhere in the tree. D1 says as much in its own terms — *the artefact
+  is identical either way, and only the recorded ruling distinguishes a decision from a breach*. ⇒
+  **The merge rule remains enforced by the record, not by a gate.** What the gates buy is that the
+  number cannot move **unnoticed**; they do not and cannot check that it moved **legitimately**.
 - ⚠ **Two gates were added, so `npm run lint` has 15, not 13.** Any record, review or prose citing
   "gate N" positionally must be read against that. Both were appended at the **end** for exactly
   this reason — an insertion would have silently renumbered every existing citation.

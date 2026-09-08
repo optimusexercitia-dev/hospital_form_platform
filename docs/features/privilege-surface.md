@@ -97,29 +97,38 @@ Unit opened off `main` @ `412fa4d7`; follow-ups read in their **bodies**, not th
 ceiling item's `Closes when` is truncated mid-sentence there). Four PO rulings taken: **R1** defer
 revoke execution ⇒ no migration, no ACL change · **R2** keep the `app` floor's config bound and gate
 the config line · **R24** the ceiling **moves 752 → 759** · **R25** run the reachability analysis
-on the three unproven grants. 31 rulings in the unit's rulings file.
+on the three unproven grants. ⛔ **No live count of the rulings is stated here** — it said "31" and
+the file held 34 by the time anyone read it (QA M4). Batch 6's standing repair: *no live count in
+the unit's files; the derivation instead* — `grep -c '^## R' batch7-rulings.md`.
 
 **Track A** — three-head catalog run (`…005300`/484 · `…007330`/522 · `…007350`/524, keyed on the
 **pair**, since a head alone does not identify a migration set). A→B: **7 ADDED, 0 REMOVED**, all
 new functions, all with explicit `authenticated` grants, **0 unattributable**. B→C: the empty **set**
 is the finding — ⛔ not "759 == 759", which is exactly what an add/remove pair looks like. Full AE1
 re-derivation reproduces 44/5/23/161 = 233; all six arm predicates had moved, the largest a write-arm
-worklist that tripled its domain. **Track B** — gate 14 pins `[api].schemas`, 13 fixtures, self-test
-exits 2 if the checker cannot fail.
+worklist that tripled its domain. **Track B** — gate 14 pins `[api].schemas`; its fixture count is
+in the self-test's own output, not restated here (it said "13"; the self-test reports 14).
+**Track C** — reachability verdicts REQUIRED / UNNECESSARY / UNDECIDED (⛔ a closed three-way set,
+never a binary), the ceiling's move in its one home, `320` §U4/U5/U6, and gate 15. **Track D** —
+citations repointed to the **key**, and the silent no-op class corrected to 138 beside 137.
+
+**Gate at the tip** (independent runner, not a builder): every command rc **0**, `lint` reaching all
+15 gates, `test:db` PASS, four authz arms `INVARIANT HOLDS`, deriver rc 3 NOT-APPLICABLE, set-valued
+`CLEAN`, `PATHSPEC_BYTES=0`. ADR **0195** filed — the runner's own finding that every prior batch
+left one and this had none.
 
 ### In progress
 
-**Track C** — the reachability verdicts (REQUIRED / UNNECESSARY / UNDECIDED), the ceiling's move in
-its one home, `320` §U4/U5/U6 pinning the **ruled** 759 (`app` 326 · `public` 433) with rising **and
-falling** controls, and the anchor gate that makes the mirror of that number gated rather than free.
-**Track D** — repointing the `config.toml:13` citations to the **key**, and correcting the silent
-no-op class to 138 as a dated note beside 137.
+**Fix-loop iteration 1 of ≤5.** QA returned **CHANGES REQUESTED** (`docs/reviews/privilege-surface-review.md`)
+with four blocking findings. `backend` holds B1–B4, M2's `320` half and R35; the **lead** holds M1,
+M2's ADR half and this file. ⚠ Two of QA's findings are the lead's own defects — a live count in
+prose, and a tip-gate freeze the lead broke by committing while the gate ran.
 
 ### Next
 
-QA review → fix loop → re-review → PO approval → Record step. Three follow-ups close on their own
-quoted clauses; two of them on `PO to rule`, so each closure carries **the ruling**, and R1's carries
-a **re-open condition** rather than a bare "deferred".
+Re-review → PO approval → Record step. Three follow-ups close on their own quoted clauses; two on
+`PO to rule`, so each closure carries **the ruling**, and R1's carries a **re-open condition** rather
+than a bare "deferred".
 
 ### Blockers
 
