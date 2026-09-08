@@ -10309,3 +10309,626 @@ text is this entry's heading, above).
 **Filed:** 2026-09-07 (unit PRED-DOMAIN, closing `FUP-DOOR-SWEEP-DOMAIN-GAP-WIDENED-BY-SET-VALUED-RESOLVERS` — the one sub-clause that commit `b59d4bbf` does not discharge) · **Owner:** lead · **Severity:** high — a harness nothing schedules is the thing it was built to replace: cases that run when someone remembers
 **Closes when:** the one-line scheduling sentence for `supabase/tests/mutation/authz-setvalued-targeted-cases.sh` lands in `docs/lead-playbook.md` §4 — drafted VERBATIM in `docs/progress/pred-domain.md` under "For the lead — the ONE-LINE lead-playbook §4 sentence the targeted home needs", so this closes by pasting, not by re-deciding. ⛔ Not closed by the harness being committed: that is the half that already exists. ⛔ Not closed by running it once by hand
 **Status:** open — ADR 0191 D3 says so of itself: *"a committed home that nothing schedules becomes the thing it was built to replace"*. The engineer cannot land it (`docs/lead-playbook.md` is outside the write scope of every teammate but the lead), which is why it is a register entry rather than a line in a closure note nobody can audit. The three resolvers DID earn their first recorded verdicts on 2026-09-05; the risk is the SECOND run, not the first
+
+---
+
+## Batch 3 closures — unit WRITEPATH-BASELINE (2026-09-08)
+
+_Three follow-ups closed by the pre-AE5 remediation Batch 3. Design: ADR
+[0192](../decisions/0192-ownership-is-a-proxy-not-the-property-and-the-write-arms-crash-safety.md). Record:
+[writepath-baseline.md](../progress/writepath-baseline.md). The discharging measurement in all
+three is ONE run — the write arm's first full sweep over the widened domain, 2026-09-07 20:11 →
+2026-09-08 00:04 (3.88 h), `guard=13/13 policy=107/107`, **SWEPT 120 · COVERED 102 · BLIND 15 ·
+ERROR 3**, `resets=8`, bare **rc 1**. ⛔ `rc 1` is `DIRTY` (`blind_ct>0 || err_ct>0`) and is the
+CORRECT outcome for a first sweep over a domain 70 policies wider than the committed baseline; a
+CLEAN exit here would have been the suspicious result. ⚠ These closures are written at the BUILD
+step; the unit's QA review and PO approval at the Record step are still owed.
+⚠ **One line per entry is NOT verbatim, deliberately:** the entry's pointer-to-body line is
+reworded, because `lint:registers` (ADR 0185 D5) reds on that literal token surviving into the
+archive — the body it pointed at is inline instead. Everything else is byte-identical, `cmp`-checked
+at the destination before the source was cut.
+⚠ **Each body keeps its own `Index entry: … status open` line unrewritten.** That line described the
+pre-closure state and is false the moment the entry moves; it is left standing rather than smoothed,
+per this program's correction-beside-the-original convention._
+
+### ✅ FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED — the mandated per-phase sweep had a FOUR-part hole: the deriver names ONE arm for a TWO-arm list; arm 2 reports success at exit 0 having measured nothing; 9 policies fall outside both arms; and a killed run leaves an RLS policy WIDE OPEN with nothing reporting it (owner: backend/lead; filed 2026-08-27 by `backend`, all four measured during AE1.5) — **RESOLVED 2026-09-08**
+
+> **RESOLVED 2026-09-08 — unit WRITEPATH-BASELINE (pre-AE5 Batch 3).** Design: ADR
+> [0192](../decisions/0192-ownership-is-a-proxy-not-the-property-and-the-write-arms-crash-safety.md).
+> Record: [writepath-baseline.md](../progress/writepath-baseline.md). Closing commits: **`5e0173bd`**
+> (the recovery step, written into the harness header **before** any launch) and **`e4062712`** (the
+> full run, which swept the nine).
+>
+> ⚠ **The register's `Closes when` field is TRUNCATED — it ends in a literal `…`**, and has been
+> since consolidation. That loss is its own open item
+> (`FUP-WRITEPATH-BASELINE-REGISTER-CLOSES-WHEN-TRUNCATED`, 🟡, owner lead) and this closure does
+> **not** repair it — the field travels into this archive carrying its `…`, so that item's subject is
+> now at this location rather than in the open register. Quoted below is the field exactly as the
+> register held it, then the tail from the **body**, which is authoritative and holds the sentence
+> whole (`FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED.md` § PART 4, "**Owed:**", inline further down).
+> ⛔ Nothing is paraphrased into the gap.
+>
+> **The register field, verbatim:**
+>
+> > *"either a documented recovery step ("if you kill a run, do X"), or a restore that does not
+> > depend on a signal-catchable trap. Until then the operational rule is: a contaminated run must be
+> > allowed to FINISH and its verdicts discarded — never killed. ⛔ And the contamination surface is
+> > the WORKING TREE, not the database. The baseline is the suite's SHAPE (`Files=`/`Tests=`), so
+> > adding a test file invalidates a sweep exactly as effectively as touching the DB — and nothing
+> > about d…"*
+>
+> **The body's tail, verbatim, from where the field stops:**
+>
+> > *"…and nothing about doing so looks like DB activity to the person doing it. AE1.5 asked its
+> > siblings for "DB silence"; that request was insufficient. A sibling added one pgTAP file mid-run
+> > (+1 file, +62 tests) and every gate after it ERRORed."*
+>
+> **And the item's own residue note**, which names the second half of what was still owed: *"the nine
+> write policies outside the embedded worklist are still unswept"*.
+>
+> Clause by clause:
+>
+> 1. *"either a documented recovery step ("if you kill a run, do X"), or a restore that does not
+>    depend on a signal-catchable trap"* — ✅ **the FIRST disjunct**, stated plainly because a
+>    closure that does not say which arm of an OR it took cannot be audited. The restore still runs
+>    from a later process applying the sentinel; nothing about the trap changed. What landed is the
+>    documented step, in `supabase/tests/mutation/p0-authz-writepath-audit.sh`'s header under
+>    **"⛔ IF A RUN OF THIS ARM IS KILLED — the recovery step (ADR 0192; the deliverable
+>    FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED Part 4 owes)"**, six numbered steps that name the concrete
+>    commands: (1) `ls -l "$AUTHZ_SWEEP_SENTINEL"`, with the `.probe`/`.want` sidecars that let a
+>    later process identify the ORIGINAL catalog state; (2)
+>    `RECOVER=1 WORK=<the run's WORK> AUTHZ_SWEEP_SENTINEL=<the run's sentinel> bash "$0"`;
+>    (3) ⛔ **VERIFY IN THE CATALOG, NEVER FROM THE MESSAGE**, with the ENUMERATING query and its
+>    `cmd <> 'SELECT'` discriminator spelled out — a bare `count` reads ~11 on a clean stack because
+>    ten vocabulary SELECT policies are `true` by design; (4) `supabase db reset --local` **from the
+>    repo root**, with the `cd` called out as load-bearing; (5) **`git checkout --
+>    docs/reviews/authz-writepath-audit-findings.md`**, because `emit_report` runs after EVERY case
+>    and on a full run its target IS the committed file; (6) the killed run's verdicts are discarded.
+>    ⭐ **The step is not merely written — its load-bearing half was MEASURED**: `RECOVER=1` was
+>    re-earned on a **`storage.objects`** policy (record V1) — `*** RESTORE APPLIED and VERIFIED
+>    against the catalog`, md5 back to the original, sentinel moved to `.recovered`,
+>    `degenerate_NON_SELECT = 0`, bare **rc 2** (the by-design RECOVER exit) — paired with a
+>    **discrimination half** (V2) that corrupted the `.want` sidecar and observed `*** RESTORE
+>    FAILED` with the **sentinel KEPT**, proving the word "VERIFIED" in V1 is a catalog read and not
+>    decoration.
+>    ⚠ V2 also produced a finding this closure does not discharge: the refusal message asserts *"The
+>    gate is STILL OPEN"*, a catalog claim that failure path never established
+>    (`FUP-WRITEPATH-BASELINE-REFUSED-RESTORE-ASSERTS-A-STATE-IT-DID-NOT-MEASURE`, 🟡).
+> 2. *"Until then the operational rule is: a contaminated run must be allowed to FINISH and its
+>    verdicts discarded — never killed."* — ✅ **preserved, not superseded.** The header states it
+>    FIRST, above the six steps — *"⛔ FIRST, THE STANDING RULE: do not kill a running sweep. A
+>    contaminated run is allowed to FINISH and its verdicts are discarded. These steps are for a run
+>    that died anyway."* — and step 6 is the discard. The standing rule file
+>    `.claude/rules/mutation-harnesses-are-not-killable.md` continues to carry it unchanged; the
+>    recovery step was deliberately NOT put there (the file sits at 2032 of its 2048-byte cap, and
+>    compressing it to fit would select against exactly the qualifiers that make it true — accepted
+>    by the lead as R25).
+> 3. *"⛔ And the contamination surface is the WORKING TREE, not the database … adding a test file
+>    invalidates a sweep exactly as effectively as touching the DB"* (+ the body's tail) — ✅ carried
+>    into the same header block as its closing clause, in the same terms: *"⚠ AND THE CONTAMINATION
+>    SURFACE IS THE WORKING TREE, NOT ONLY THE DATABASE … ADDING ONE FILE UNDER `supabase/tests/`
+>    invalidates a run exactly as effectively as touching the DB — and it looks nothing like DB
+>    activity. Freeze the tree for the duration. ⛔ Never edit this script while a run executes it."*
+>    ⭐ **And the run then honoured it, measurably:** 117 of 120 runlogs sat at the exact baseline
+>    shape `Files=262, Tests=8876`, longest consecutive off-baseline run **1** against a void
+>    threshold of 3, zero aborts, zero contamination, zero restore failures, no sentinel left behind.
+>    The clause asks for a rule an operator can follow; the run is the evidence that it is followable.
+> 4. The residue — *"the nine write policies outside the embedded worklist are still unswept"* — ✅
+>    **all nine swept, each with a verdict, named individually** (the item's own instruction: never as
+>    a count, never in brace shorthand). Every one **COVERED**, in the committed baseline
+>    `docs/reviews/authz-writepath-audit-findings.md`:
+>
+>    | # | policy | cmd | verdict | the assertion that noticed |
+>    |---|---|---|---|---|
+>    | 1 | `answers.answers_insert_targeted` | INSERT | **COVERED** | `387_initplan_wrap_and_profiles_arm_identity.sql` |
+>    | 2 | `answers.answers_update_targeted` | UPDATE | **COVERED** | `387_initplan_wrap_and_profiles_arm_identity.sql` |
+>    | 3 | `case_events.case_events_staff_admin_insert` | INSERT | **COVERED** | `111_case_docs_events.sql`, `234_authz_a2_resolver.sql`, `268_ethics_e3a_terminology_reads.sql`, `387_…`, `409_ae49_d6_rekey_differential.sql` |
+>    | 4 | `case_events.case_events_staff_admin_update` | UPDATE | **COVERED** | `111_case_docs_events.sql`, `387_…`, `409_…` |
+>    | 5 | `case_events.case_events_staff_admin_delete` | DELETE | **COVERED** | `387_…`, `409_…` |
+>    | 6 | `case_events.case_events_writer_insert` | INSERT | **COVERED** | `111_…`, `234_…`, `268_…`, `387_…`, `409_…` |
+>    | 7 | `case_events.case_events_writer_update` | UPDATE | **COVERED** | `111_…`, `387_…`, `409_…` |
+>    | 8 | `case_events.case_events_writer_delete` | DELETE | **COVERED** | `387_…` |
+>    | 9 | `responses.responses_update_targeted` | UPDATE | **COVERED** | `387_…` |
+>
+>    ⚠ Each of the nine carries `[snapshot:ABSENT — no §7.2 drift tripwire on this verdict]`: they
+>    were never in the embedded snapshot, which is precisely why they were in the hole, so their
+>    verdicts have no per-case drift tripwire behind them. The RUN-level protection they do have is
+>    `resets=8` and the 117/120 baseline-shape record above. ⛔ Stated rather than smoothed.
+>    ⚠ And they were swept because the domain is now **lifted from the live catalog**, not because
+>    this list was handed to the harness — the item's own instruction (*"bound any fix by the
+>    PROPERTY … never by this list"*) was followed. The nine are read back out of the output here
+>    only to prove the property covered them.
+>
+> ⛔ **What did NOT close this item, said in terms because the temptation is real.** The exit-code
+> halves are **not** the discharge and were **not** built here:
+>
+> - **Part 1** (the deriver naming ONE arm for a TWO-arm list) → discharged by deriver ruling 4,
+>   Batch 1, `scripts/door-sweep-cases.sh`.
+> - **Part 2** (arm 2 reporting success at exit 0 having measured nothing) → repaired **2026-08-29**,
+>   this body's own `## § REPAIR` section. The all-ERROR state has reached `exit 1` (DIRTY,
+>   `blind_ct>0 || err_ct>0`) since that date.
+> - **Part 3's domain half** (9 policies in neither arm) → `d2069603`, 2026-09-02.
+>
+>   Those three exits were **PROVEN bare** in this unit's pre-launch checklist — an empty selection at
+>   **rc 3** (`CASES=""` EXPLICIT → `SELECTION-SOURCE: CASES set and EMPTY -> selects NOTHING`,
+>   `guard=0/13 policy=0/107`, `RESULT: UNPROVEN`; record P1) and a planted all-ERROR selection at
+>   **rc 1** (`SWEPT: 1 COVERED: 0 ERROR: 1`, `RESULT: DIRTY`; record P5) — but a proof of an
+>   already-repaired path is **evidence that the tree is as claimed, not a discharge of this clause**.
+>   Reading them as the closure would close a Part-4 item on Part-2 work.
+>
+> ⚠ **A related defect WAS found and fixed here, and it is also not this clause.** `CASES` set to the
+> EMPTY STRING was indistinguishable from `CASES` unset, so a caller that captured the case deriver's
+> stdout without consuming its exit code got a full ~120-case run that WROTE the committed baseline,
+> with the `exit 3 UNPROVEN` door unreachable from that caller — *a correct door nothing can reach*,
+> composed with *reading a gate is not gating on it*. Fixed in the write arm (ADR 0192), and **filed,
+> not fixed, in the door arm** (`FUP-WRITEPATH-BASELINE-CASES-EMPTY-STRING-DEGRADES-TO-A-FULL-RUN`,
+> 🟠) — fixing one of two would read as fixing the class, and Batch 2 owns that harness.
+>
+> ⚠ **Carried forward, not silently dropped:** the truncated register field (item above, unrepaired
+> and now living here); the 15 BLIND write policies the run found
+> (`FUP-WRITEPATH-BASELINE-15-BLIND-WRITE-POLICIES-NO-TEST-NOTICES`, 🟠 — ⛔ never allowlisted); the
+> 3 policies left UNVERDICTED by an aborting pgTAP file
+> (`FUP-WRITEPATH-BASELINE-297-TEST-FILE-ABORTS-AND-CONVERTS-COVERED-INTO-ERROR`, 🟠).
+
+**The register entry as it stood, verbatim.** Kept here rather than left to `git`, which is
+what `FUP-DOCS-CONSOLIDATION-CLOSURE-DROPS-THE-CLOSES-WHEN-FIELD` asks for — a closure must be
+auditable against the condition it was closed on. Only the `### ` heading line is omitted (its
+text is this entry's heading, above).
+
+**Filed:** 2026-08-27 (by `backend`, all four measured during AE1.5) · **Owner:** lead + backend · **Severity:** high — per emoji at consolidation
+**Closes when:** either a documented recovery step ("if you kill a run, do X"), or a restore that does not depend on a signal-catchable trap. Until then the operational rule is: a contaminated run must be allowed to FINISH and its verdicts discarded — never killed. ⛔ And the contamination surface is the WORKING TREE, not the database. The baseline is the suite's SHAPE (`Files=`/`Tests=`), so adding a test file invalidates a sweep exactly as effectively as touching the DB — and nothing about d…
+**Status:** open
+
+**Body** — the pre-closure pointer line pointed at `FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED.md`; that file was removed
+by this closure and its content is inline below. (The literal pointer token cannot survive in the
+archive: `lint:registers` reds on it, ADR 0185 D5.)
+**The body as it stood, verbatim.** Only its `# ` title line is omitted (same text as the heading
+above); its own `Index entry: … status open` line is left standing, false-as-of-now, rather than
+rewritten.
+
+Index entry: [follow-ups-open.md](follow-ups-open.md) · filed 2026-08-27 · status open
+
+> ⭕ **DOWNGRADED 🔴→🟠 2026-08-29 — all four instrument defects FIXED, each fix PROVEN able
+> to fire. See § REPAIR at the end of this item.** ⛔ **Deliberately not closed:** Parts 1–4
+> were about the apparatus *lying about its own domain*; the nine write policies outside the
+> embedded worklist are still **unswept**. The harness now says so out loud, and being told
+> is not being covered — that is precisely the distinction this item exists to defend.
+
+> ## PART 1 — the deriver names one arm for a two-arm list
+>
+> **Measured 2026-08-27.** `scripts/door-sweep-cases.sh` derived **53** cases from AE1.5's
+> migration. Handed to the command the deriver itself prints
+> (`supabase/tests/mutation/p0-authz-door-audit.sh`), **22 of them matched no gate**:
+> *"REQUESTED CASES THAT MATCHED NO GATE IN EITHER ARM"*. They were exactly the **non-SELECT**
+> policies.
+>
+> **Cause, from the harness headers rather than inferred:**
+> - `p0-authz-door-audit.sh` audits **the READ layer** — *"boolean predicates + SELECT/ALL read
+>   policies"*.
+> - `p0-authz-writepath-audit.sh` audits **the WRITE layer** — *"the value-returning authz
+>   RAISE-GUARDS **and the INSERT/UPDATE/DELETE policies**"* — and its own header states that a
+>   `CASES=` run is *"the diff-scoped run CLAUDE.md §6 step 1 mandates EVERY PHASE"*.
+>
+> ⛔ **The deriver greps `create policy` / `alter policy` without regard to command, so its case
+> list spans both arms — but the paste-able command it prints names only the READ harness.** An
+> operator who follows the deriver's own output sweeps the read half; the write half goes
+> unmeasured. AE1.5's clause census of its own 52: **31 `USING`-only, 8 `WITH CHECK`-only, 13
+> both** — the 30/22 split falls straight out of it.
+>
+> **The fix is PRINT-ONLY and that is what makes it safe:** emit both commands, or split stdout
+> by arm. It cannot change *what* is derived, only *what an operator is told to run*. ⚠ Keep
+> stdout a bare token list for `CASES=$(...)` composability — if the output is split by arm, the
+> arms need separate invocations or a documented key, not two lists concatenated into one.
+>
+> ⚠ **Why this survived so long:** the read harness *does* report its unmatched cases and
+> **refuses to end CLEAN** (exit 3, `UNPROVEN (PARTIAL)`) — which is the only reason AE1.5 saw it
+> at all. A phase whose migration happened to alter only SELECT policies would derive a
+> fully-matching list and never notice the recipe is half-aimed.
+>
+> ---
+>
+> ## ⛔ PART 2 — arm 2 reports SUCCESS at exit 0 having measured NOTHING
+>
+> **Measured 2026-08-27.** `supabase/tests/mutation/p0-authz-writepath-audit.sh`, run with
+> `CASES=` over AE1.5's 52 altered policies, printed:
+>
+> ```
+> BLIND: 0   ERROR(harness): 13   SKIPPED(vacuous): 0   (COVERED = the rest)
+> ```
+> **and exited 0.**
+>
+> **It measured ZERO of the requested cases.** Of AE1.5's 22 write-layer cases: **13** were in the
+> harness's embedded 33-policy worklist and every one hit the **§7.2 drift tripwire** (the wrap
+> changed their `qual`/`with_check` text, so the embedded snapshot no longer matched and the
+> harness correctly refused to neutralize); the other **9** are absent from the worklist entirely.
+> **COVERED: 0.**
+>
+> ⛔ **Two defects, and the tripwire is NOT one of them** — refusing to neutralize against a stale
+> snapshot is exactly right:
+> 1. **The exit code.** 13 `ERROR`s and nothing measured yields **exit 0**. CLAUDE.md §6 says in
+>    terms that *"`ERROR` is not a pass"*, and here the exit code says pass. This is the
+>    *"a gate that never SETS a non-zero exit"* mechanism.
+> 2. **`(COVERED = the rest)`** computes a positive-sounding residual against a set that, on a
+>    fully-ERRORed subset run, is **empty** — so the summary line reads like coverage.
+>
+> ⭐ **The sharpest fact: its sibling already does this correctly.** `p0-authz-door-audit.sh`, in
+> the identical situation, exits **3 `UNPROVEN (PARTIAL)`** with *"A clean verdict over a subset of
+> what was asked for is the finding this gate exists to prevent. NOT a pass."* **Two harnesses
+> meant to be halves of one gate, the same class of shortfall, opposite handling.** Port the door
+> audit's PARTIAL/UNPROVEN accounting into the write-path audit rather than inventing a second
+> scheme.
+>
+> ## PART 3 — the harness lies about its own domain, and 9 policies fall in the hole
+>
+> ⭐⭐ **`p0-authz-writepath-audit.sh` cannot distinguish "I swept your case" from "your case
+> is not in my worklist", and reports the second as the first.**
+>
+> That is worse than Part 2. Exit-0-on-nothing is a bad summary line; **silently dropping
+> requested cases and reporting the remainder as the whole** is an instrument that lies about
+> its own domain — every consumer of its output inherits a coverage claim it never made.
+>
+> ⛔ **MEASURED ABSENCE, not an assumption.** The harness was grepped for `never swept`,
+> `matched no gate` and `requested but`: **zero hits.** There is no "requested but never
+> swept" reporting of any kind.
+> A `CASES=` entry that is absent from its embedded 33-policy worklist is **silently ignored**:
+> no ERROR, no warning, no mention in the summary. So handing it 52 cases and receiving
+> `13 COVERED, exit 0` reads as coverage of **52**.
+>
+> ⭐ **The harness cannot distinguish "I swept your case" from "your case is not in my
+> worklist", and reports the second as though it were the first.** Its sibling
+> `p0-authz-door-audit.sh` prints `REQUESTED CASES THAT MATCHED NO GATE IN EITHER ARM` and
+> **refuses to end CLEAN** — which is the only reason AE1.5 ever learned these 9 exist.
+> Porting that accounting across is the same fix as Part 2 and should land with it.
+>
+> **THE 9, NAMED INDIVIDUALLY — never as a count, and never in brace shorthand.** A count is
+> what let them hide, and brace shorthand is not greppable: someone searching for one of these
+> policy names must land on this item.
+>
+> 1. `answers_insert_targeted` (`answers`, INSERT)
+> 2. `answers_update_targeted` (`answers`, UPDATE)
+> 3. `case_events_staff_admin_insert` (`case_events`, INSERT)
+> 4. `case_events_staff_admin_update` (`case_events`, UPDATE)
+> 5. `case_events_staff_admin_delete` (`case_events`, DELETE)
+> 6. `case_events_writer_insert` (`case_events`, INSERT)
+> 7. `case_events_writer_update` (`case_events`, UPDATE)
+> 8. `case_events_writer_delete` (`case_events`, DELETE)
+> 9. `responses_update_targeted` (`responses`, UPDATE)
+>
+> All nine sit in **neither arm's domain**. Pre-existing, **not caused by AE1.5** — it
+> **revealed** them by altering policies that happen to fall in the hole. Same family as
+> `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` (C2): an apparatus gap, not a defect in the policies.
+> ⚠ Bound any fix by the **property** (write-command policies absent from the embedded
+> worklist), never by this list — the list is here so a grep lands, not so it can be swept.
+>
+> ## ⛔ PART 4 — the harness is NOT SAFE TO KILL, and a killed run leaves a gate OPEN
+>
+> **Measured the hard way, 2026-08-27.** `p0-authz-writepath-audit.sh` (and its door-audit
+> sibling) mutate LIVE policies and rely on a `trap … EXIT` to restore them. A run killed
+> between "open the gate" and "restore it" does **not** run the trap. AE1.5 killed a
+> contaminated run and left **`meeting_cases.meeting_cases_staff_admin_update` at
+> `qual=true wc=true`** — a `FOR UPDATE` policy fully open to `authenticated` on the shared
+> local stack, with **nothing anywhere reporting it**. Recovered by `supabase db reset`.
+>
+> ⭐ **It was nearly missed by a count.** The degenerate-policy check returned **11**, of which
+> **ten are `qual = true` BY DESIGN** (vocabulary `SELECT` policies: `action_item_statuses`,
+> `referral_types`, `reply_outcomes`, `professional_categories`, `pqs_*`, `document_retention`).
+> "Is it zero?" returns 11 and reads as a pre-existing baseline. Only ENUMERATING them showed
+> the eleventh was an `UPDATE` policy with `wc=true`, which no lookup table has.
+>
+> **Owed:** either a documented recovery step ("if you kill a run, do X"), or a restore that
+> does not depend on a signal-catchable trap. Until then the operational rule is: **a
+> contaminated run must be allowed to FINISH and its verdicts discarded — never killed.**
+>
+> ⛔ **And the contamination surface is the WORKING TREE, not the database.** The baseline is
+> the suite's SHAPE (`Files=`/`Tests=`), so **adding a test file invalidates a sweep exactly as
+> effectively as touching the DB** — and nothing about doing so looks like DB activity to the
+> person doing it. AE1.5 asked its siblings for "DB silence"; that request was insufficient.
+> A sibling added one pgTAP file mid-run (+1 file, +62 tests) and every gate after it ERRORed.
+>
+> ⚠ **Operational note for whoever maintains the worklist:** it embeds exact predicate text, so
+> **any** future predicate rewrite — even a provably identity one — drifts it. Regenerate those
+> rows **from the live catalog**, never by hand.
+>
+> ---
+>
+> ## § REPAIR 2026-08-29 — all four parts, each proven able to fire
+>
+> ⛔ **Every claim below was measured, not inspected.** A repair to a detector that is only read
+> is the same class of artefact as the defect it repairs.
+>
+> **PART 1 — the arm split (`scripts/door-sweep-cases.sh`, "ruling 4").** The deriver now
+> classifies each case by POLICY COMMAND and prints **both** paste-able commands:
+> `FOR SELECT` → read arm · `INSERT/UPDATE/DELETE` → write arm · `FOR ALL` or no `FOR` → **both**
+> (an ALL policy genuinely IS in both domains — correct, not merely conservative).
+> ⭐ **An `ALTER POLICY` does not carry its command in the diff text**, and without help the split
+> degenerated to everything-in-both: measured 52/52 on AE1.5, doubling the sweep. `ALTER` cannot
+> change a policy's command, so it is resolved from **`pg_policies`** — the one catalog read in a
+> script that otherwise derives selection from diff text, legitimate under its own stated rule
+> (selection from the diff, CLAIMS from the catalog). It is **optional**: no DB reachable → fall
+> back to both arms, announced. ⚠ For a HISTORICAL range the catalog describes HEAD, which is
+> stated in the output rather than assumed away.
+> ✅ **Cross-check that makes this more than a plausible refactor:** re-run on AE1.5's own
+> migration it derives **read 30 / write 27** with **5 in both**. This item independently measured
+> **30** read and **22** that matched no read gate. 25 read-only + 22 write-only + 5 both = 52. ✓
+> ⛔ **Stated bound: a RAISE-GUARD the phase touched is in NEITHER derived list** — the function
+> filter demands `returns boolean` and the write harness's arm 1 is value-returning. The split
+> stops the recipe being aimed at one half; it does not make the derivation complete, and the
+> output now says so.
+> ⚠ STDOUT is unchanged by default (the union), so every existing `CASES=$(...)` caller keeps
+> working; `ARM=read` / `ARM=write` is the documented key this item asked for.
+>
+> **PARTS 2 + 3 — the write harness's accounting.** Ported from the sibling, not re-invented (as
+> this item requires): the §7.17 domain gate, the `REQUESTED CASES THAT MATCHED NO GATE` block
+> with a per-token catalog diagnostic, the ARM-DOMAIN line, an explicit **COVERED count** in place
+> of `(COVERED = the rest)`, and **an exit code where the file previously just ended on an echo**.
+> The worklist is now materialised **before** the preflight so an UNPROVEN run costs seconds
+> instead of a full suite run.
+> ✅ **All four exit paths proven, on the live stack:**
+> - `CASES="answers_insert_targeted case_events_writer_delete"` (two of this item's own nine) →
+>   **exit 3**, both named, each diagnosed from the catalog as `POLICY public.<t> FOR INSERT|DELETE`.
+>   ⭐ **The same input previously exited 0 and mentioned neither.**
+> - one real case + one unmatched → **exit 3 UNPROVEN (PARTIAL)**, `SWEPT: 1 COVERED: 1`.
+> - one real COVERED case alone → **exit 0 CLEAN**.
+> - a known-BLIND policy (`notifications_update_own`) → **exit 1 DIRTY**, reproducing its
+>   committed verdict.
+>
+> **PART 4 — kill safety, in BOTH harnesses.** ⛔ Ported to the door-audit sibling too: this item
+> names both, and repairing one of two reads as repairing the class.
+> Two layers, because neither alone suffices: (i) `INT`/`TERM`/`HUP` traps, covering Ctrl-C and an
+> ordinary `kill`; (ii) a **crash sentinel** holding the restore SQL, written before each gate
+> opens and removed only once its restore verifies — it survives SIGKILL, a power cut and a killed
+> container, which no trap does. The next run **REFUSES to start (exit 2)** and prints the SQL;
+> `RECOVER=1` applies it.
+> ⚠ **The sentinel path is FIXED and deliberately NOT under `$WORK`** — the recipe hands out a
+> fresh `WORK=…/authz-audit-$(date +%s)` per run, so a `$WORK`-relative sentinel would be invisible
+> to the very next run and the check would pass **vacuously**.
+> ⛔ **A defect found in this repair, by its own author, before it shipped:** the first version
+> cleared the sentinel in the `INFLIGHT=""` **initializer**, which runs *before* the startup check
+> — a control deleting its own witness. The sentinel is now dropped at exactly one kind of moment:
+> after a restore has been applied.
+> ✅ **Proven end-to-end without killing anything** (the standing rule forbids it and it was not
+> necessary): a real run was polled and the sentinel **observed mid-run** holding the actual
+> restore SQL, then **gone after a clean exit**. Then a policy was genuinely opened to `true` with
+> a matching sentinel — the next run **ABORTed exit 2** naming it, `RECOVER=1` **restored** it, and
+> the catalog was re-read to confirm: predicate back, `degenerate_NON_SELECT` = **0**.
+> ⚠ Verified with this repo's own discriminator, not a count: 10 policies are `qual = true` BY
+> DESIGN, so "is it zero?" returns 11 and walks past an open gate.
+>
+> **Record updated with it:** `.claude/rules/mutation-harnesses-are-not-killable.md` — its
+> mechanism sentence ("restores gates from an EXIT trap") had gone false, and no gate can catch a
+> rule whose claim goes false. ⚠ It was 2038 bytes against a 2048 cap, so this was a rewrite; the
+> volume gate red twice during it. Every qualifier was preserved — the enumerate-never-count
+> discriminator, the ~10-by-design figure, "verify, the message is not proof", and the DB-silence
+> section — because compressing a record to fit a cap selects against exactly those.
+
+⭐ **PART 3's DOMAIN HALF IS FIXED — 2026-09-02 (`d2069603`).** The write arm was bounded by an
+embedded 33-row snapshot whose rows were all `cmd in (INSERT,UPDATE,DELETE)` — a **syntax**, not the
+property, and `FOR ALL` is a write command. Live catalog: **107** write-capable policies (62 `ALL` +
+17 + 17 + 11), so **74** were reported as *"matched no gate"*. Re-bounded to every `pg_policy` row with
+`polcmd <> 'r'`, lifted at run time, in every schema; an `ALL` policy opens its **`with check` half
+alone**, because the read arm already opens `using` and opening it here would let a READ keystone earn
+a false WRITE `COVERED`. Proven in both directions before use. ⛔ **Parts 1, 2 and 4 are untouched**
+(repaired 2026-08-29), and Part 3's own *reporting* half was already done — this closed the domain half
+only. ⚠ Consequence recorded: a full write-path sweep now costs **~19 → ~50 min** (120 cases).
+
+---
+
+### ✅ FUP-WRITEPATH-FINDINGS-FILE-COVERS-33-OF-107 — the committed findings baseline predates the domain fix, and `FROMFINDINGS` arms structurally cannot notice — **RESOLVED 2026-09-08**
+
+> **RESOLVED 2026-09-08 — unit WRITEPATH-BASELINE (pre-AE5 Batch 3).** Design: ADR
+> [0192](../decisions/0192-ownership-is-a-proxy-not-the-property-and-the-write-arms-crash-safety.md).
+> Record: [writepath-baseline.md](../progress/writepath-baseline.md). Closing commits: **`e4062712`**
+> (the run and its merge) and **`3c763ffe`** (the CARRIED disposition the PO ruled on afterwards).
+>
+> **The condition audited is the register's `Closes when`, quoted verbatim** — and it is
+> word-for-word the body's own `**What would close it.**` paragraph, so there is no second condition
+> hiding in the body:
+>
+> > *"One full write-path sweep over the widened domain, with its rows merged into the committed
+> > findings file — not replacing it, since the 33 carry hand-merged annotations."*
+>
+> Clause by clause:
+>
+> 1. *"One full write-path sweep over the widened domain"* — ✅ 2026-09-07 20:11 → 2026-09-08
+>    00:04 -0300, **3.88 h**, detached, `CASES` **unset** (unset = FULL = merges the committed
+>    baseline; `CASES=""` would have exited 3). Domain lifted **live from the catalog**, not from the
+>    embedded snapshot: `guard=13/13 policy=107/107`. **SWEPT 120 · COVERED 102 · BLIND 15 · ERROR 3
+>    · SKIPPED 0**, `preconditions: resets=8` (`RESET_EVERY=20, explicit=0, subset=0 — ENABLED`; 5
+>    scheduled + 3 retry), bare **rc 1**. ⭐ `resets=8`, **not 0** — `resets=0` on a full run is the
+>    exact state that voided the door arm's run 1 (ADR 0191), which is why the preconditions line is
+>    quoted here rather than the exit code alone.
+> 2. *"with its rows merged into the committed findings file — not replacing it"* — ✅ merged by
+>    `scripts/lib/merge-findings-baseline.sh` from `$BASELINE_SNAPSHOT`, which is taken **once**
+>    (`p0-authz-writepath-audit.sh:365`, the only write site, at top level; `emit_report` only READS
+>    it), so the file cannot compound its own output across the 120 rewrites. The committed file went
+>    **137 → 401** lines. ⭐ **The census sums**, checked rather than asserted: new 102/15/3 = 120 ✓ ·
+>    CARRIED 40/3/2 = 45 ✓ · 120 + 45 = 165 rows ✓. Of the 45 carried, **no verdict regressed** — 40
+>    `COVERED -> COVERED`, 2 `ERROR -> COVERED`, 1 `BLIND -> COVERED`, 2 `BLIND -> BLIND`, **zero**
+>    `COVERED -> BLIND`.
+> 3. *"since the 33 carry hand-merged annotations"* — ✅ the final merge reported `PRESERVED 51
+>    hand-authored prose line(s), 2 hand suffix(es)`, **unchanged from the first merge** through all
+>    120 rewrites. ⛔ A merge banner is a claim, not a proof, so it was **re-asserted by byte
+>    comparison** after the CARRIED disposition: 15 protected strings, all present, bare **rc 0**,
+>    with three mutations proving the comparison able to go red. The 51 is *derived*, not asserted:
+>    63 non-blank non-table lines in the 137-line pre-run baseline − 10 re-emitted verbatim by the
+>    generator − 2 replaced stale statistics = **51** — and the same derivation explains why line 27's
+>    stale tail survived (a hand-modified line the generator does not re-emit), which the PO then
+>    ruled DELETE.
+>
+> ⛔ **What did NOT close it, per the body's own exclusions:** no `FROMFINDINGS=1` run is offered here
+> (it is green *because* the absent rows are absent); the 2026-09-02 domain fix is not offered (the
+> instrument was repaired, nothing was measured); and the 37-of-107 subset merge is not offered.
+>
+> ⚠ **THE TITLE FIGURE WAS STALE AT CLOSURE, and the title is NOT amended.** Headings are never
+> edited once filed — citations and anchors key on them — so this entry keeps `33-OF-107` for ever
+> and the correction lives here. **The true pre-run coverage was 39 of 107 policy rows**: 33
+> predating the widening + 4 from AE4.9 D6 (2026-09-02) + **2** merged from the
+> `BUG-AE49-D6-REKEY-INCOMPLETE` subset run on 2026-09-03. The file's own `## Note` at line 24 said
+> 39 and was self-consistent; the title said 33 and the hub said 37, and all three were describing
+> the same file. ⭐ **And the policy figure alone understated the hole**: counting the guard arm, the
+> committed baseline verdicted **51 of 120 cases** (39 of 107 policies + 12 of 13 guards) —
+> `public.set_primary_subject(uuid)` was in `GUARD_KEYS` and had **never** been verdicted, a gap no
+> document in this program had stated before 2026-09-07. Coverage now reads **120 of 120 measured**,
+> 117 of them carrying a verdict, and the guard arm is **13 of 13**.
+>
+> ⚠ **Carried forward, not silently dropped.** The run's own findings are follow-ups, not residue of
+> this one: **15 BLIND** write policies — a write-capable policy whose `with check` half can be opened
+> to `true` with no test noticing — in `FUP-WRITEPATH-BASELINE-15-BLIND-WRITE-POLICIES-NO-TEST-NOTICES`
+> (🟠; ⛔ never allowlisted, and ⛔ not keyed on a name pattern: the set spans at least four naming
+> shapes and every name-based boundary guessed during the run was wrong within two cases); and **3**
+> policies left UNVERDICTED because `supabase/tests/297_process_template_versioning.sql` aborts when a
+> `process_template_*` write policy is opened, in
+> `FUP-WRITEPATH-BASELINE-297-TEST-FILE-ABORTS-AND-CONVERTS-COVERED-INTO-ERROR` (🟠). ⭐ For those 3,
+> **assertions FIRED** — the tests noticed and named the file; *absence of a verdict is not absence of
+> coverage*, and without that sentence a later reader files them beside the 15 BLINDs and concludes
+> the exact opposite of what the run showed. ⛔ Fixing 297 inside this unit was refused on purpose: it
+> would move `Tests=`, and `Tests=` **is** the baseline shape this run asserted 120 times, so the fix
+> and the run cannot coexist in one unit.
+
+**The register entry as it stood, verbatim.** Kept here rather than left to `git`, which is
+what `FUP-DOCS-CONSOLIDATION-CLOSURE-DROPS-THE-CLOSES-WHEN-FIELD` asks for — a closure must be
+auditable against the condition it was closed on. Only the `### ` heading line is omitted (its
+text is this entry's heading, above).
+
+**Filed:** 2026-09-02 (write-arm re-aim, commit `d2069603`) · **Owner:** backend · **Severity:** high — the gap is invisible to precisely the cheap arm the phase gate runs.
+**Closes when:** One full write-path sweep over the widened domain, with its rows merged into the committed findings file — not replacing it, since the 33 carry hand-merged annotations.
+**Status:** open
+
+**Body** — the pre-closure pointer line pointed at `FUP-WRITEPATH-FINDINGS-FILE-COVERS-33-OF-107.md`; that file was removed
+by this closure and its content is inline below. (The literal pointer token cannot survive in the
+archive: `lint:registers` reds on it, ADR 0185 D5.)
+**The body as it stood, verbatim.** Only its `# ` title line is omitted (same text as the heading
+above); its own `Index entry: … status open` line is left standing, false-as-of-now, rather than
+rewritten.
+
+Index entry: [follow-ups-open.md](follow-ups-open.md) · filed 2026-09-02 · status open
+
+`p0-authz-writepath-audit.sh`'s domain was widened from an embedded 33-row snapshot to the live catalog's
+**107** write-capable policies (`polcmd <> 'r'`). `docs/reviews/authz-writepath-audit-findings.md` still
+holds verdicts for **33 of 107** and now says so in a note. Any `FROMFINDINGS=1` arm re-measures nothing —
+it compares against the committed rows — so **it cannot see the 74 absent ones**. A door absent from the
+findings passes vacuously.
+
+**How it was measured.** `pg_policy` grouped by `polcmd` on the live catalog: 62 `ALL` + 17 INSERT +
+17 UPDATE + 11 DELETE = 107; the committed file holds 33.
+
+**What would close it.** One full write-path sweep over the widened domain, with its rows **merged into**
+the committed findings file — not replacing it, since the 33 carry hand-merged annotations.
+
+⛔ **What must NOT be mistaken for closing it.** A green `FROMFINDINGS=1` run at any point before that
+merge: it is green *because* the 74 are absent. ⛔ Nor does the domain fix itself close it — the instrument
+was repaired, nothing was measured, and 4 gates *selected* is not 4 gates *measured*.
+
+⭐ **NOW 37 OF 107 — 2026-09-02.** The four AE4.9 D6 policies were swept (4 COVERED, 0 BLIND, exit 0)
+and their verdicts merged into the committed baseline per ADR 0079 Amdt 1 (`974328e6`), because a
+subset run writes only to SCRATCH (ADR 0153) and that directory is temporary. ⛔ **The item does not
+close on this:** 37 of 107 is not 107, the 70 unmeasured still pass any `FROMFINDINGS` arm vacuously
+by being absent, and all four new rows are `snapshot:ABSENT` — swept, but with no §7.2 drift tripwire
+protecting the verdict.
+
+---
+
+### ✅ FUP-STORAGE-OBJECTS-INSERT-POLICIES-NEWLY-IN-DOMAIN — three policies that were in no arm's domain may return BLIND on their first sweep — **RESOLVED 2026-09-08**
+
+> **RESOLVED 2026-09-08 — unit WRITEPATH-BASELINE (pre-AE5 Batch 3).** Design: ADR
+> [0192](../decisions/0192-ownership-is-a-proxy-not-the-property-and-the-write-arms-crash-safety.md).
+> Record: [writepath-baseline.md](../progress/writepath-baseline.md). Closing commit: **`e4062712`**
+> (the full run, whose merge put the three verdicts in the committed baseline).
+>
+> **The condition audited is the register's `Closes when`, quoted verbatim** — identical to the
+> body's `**What would close it.**` paragraph:
+>
+> > *"Sweep them and record a verdict per policy."*
+>
+> The entry's `**Status:**` narrative added a second, tighter condition, and it is audited too:
+> *"verdicts earned 2026-09-07, closes when the full run merges them into the committed baseline"*.
+>
+> Clause by clause:
+>
+> 1. *"Sweep them"* — ✅ all three swept in the **plain** full run, as ordinary members of the
+>    107-policy domain, with **no escalation and no special case**.
+> 2. *"and record a verdict per policy"* — ✅ three rows, three verdicts, in
+>    `docs/reviews/authz-writepath-audit-findings.md`, named individually:
+>
+>    | policy | cmd | verdict | the assertions that noticed |
+>    |---|---|---|---|
+>    | `storage.objects.documents_phi_obj_insert_reserved` | INSERT | **COVERED** | `143_capa.sql`, `312_printed_documents.sql`, `325_legacy_bucket_policy_pin.sql`, `328_dm1_document_substrate.sql`, `330_dm3_controlled_documents.sql` |
+>    | `storage.objects.documents_std_obj_insert_reserved` | INSERT | **COVERED** | `143_capa.sql`, `312_printed_documents.sql`, `328_dm1_document_substrate.sql` |
+>    | `storage.objects.form_assets_insert_staff_admin` | INSERT | **COVERED** | `312_printed_documents.sql`, `328_dm1_document_substrate.sql`, `409_ae49_d6_rekey_differential.sql` |
+>
+>    Each row carries `[role=postgres via supautils.policy_grants (owner=supabase_storage_admin)]` —
+>    the harness records **which route** granted it the POLICY DDL, per case, from the live catalog.
+> 3. The `Status` field's condition — *"closes when the full run merges them into the committed
+>    baseline"* — ✅ merged. The verdicts were first earned 2026-09-07 on a 3-case subset run, which
+>    writes only to SCRATCH (ADR 0153) and therefore could **not** close this; they are in the
+>    committed file because the full run put them there.
+>
+> ⛔ **The body's exclusions, honoured:** *"If any comes back BLIND, it is a real finding and must be
+> keystoned. ⛔ Never allowlist one."* — none came back BLIND, so no keystone is owed, and **none of
+> the three appears in `supabase/tests/mutation/authz-blind-allowlist.txt`** (checked, zero hits —
+> not inferred from the verdicts).
+>
+> ⭐ **THE PREDICTED BLOCKER WAS MEASURED AND DISPROVEN, and that is the part worth keeping.** This
+> item was expected to be the hard one. The reasoning was: `storage.objects` is owned by
+> `supabase_storage_admin`; `pg_has_role('postgres', relowner, 'USAGE')` = **f**; `postgres` is
+> `rolsuper=f` with `current_setting('is_superuser')` = `off`; therefore `postgres` cannot `ALTER
+> POLICY` on that table. Every one of those facts is TRUE and was verified twice — and **the
+> inference from them was wrong**. POLICY DDL on Supabase-managed tables is granted to `postgres` by
+> **`supautils.policy_grants`**, a route entirely outside `pg_class.relowner`. The harness at HEAD,
+> **unmodified**, swept all three as plain `postgres`: `SWEPT: 3 COVERED: 3 BLIND: 0 ERROR: 0`, bare
+> **rc 0**, restores byte-exact, `degenerate_NON_SELECT = 0`.
+>
+> A superuser escalation had already been built against the false premise, and it was **removed**
+> (PO ruling R23) rather than kept as harmless — with it went `$SENTINEL.role` and the role-aware
+> `RECOVER=1` restore, because a field that can only ever hold one value is a guard that can only
+> ever read one value. What was **kept** is the corrected predicate — ownership **OR**
+> `supautils.policy_grants`, both halves read live per case — re-purposed from a router into a
+> **detector**: when it says a policy is unopenable the harness emits a loud finding naming which
+> half failed and leaves the policy UNVERDICTED, rather than silently working around it.
+>
+> ⚠ **Carried forward:** that detector fires on **0 of 107** in production, so it is proven only by a
+> plant (fires: `SWEPT: 2 COVERED: 1 ERROR: 1`, DIRTY, bare rc 1; clean-tree negative control:
+> `SWEPT: 2 COVERED: 2 ERROR: 0`, detector `0 of 2`, CLEAN, bare rc 0). A detector that finds nothing
+> must be proven able to find something, and its dormancy in production is real:
+> `FUP-WRITEPATH-BASELINE-ESCALATED-ROLE-ARM-UNEXERCISED` (🟡) was **re-purposed, not withdrawn**,
+> onto the detector, and says so in its own entry.
+>
+> ⭐ **The lesson outlives the item, and it is ADR 0192's fourth subject: ownership is a PROXY, not
+> the property.** A permission question is answered by attempting the permission or by reading every
+> grant path — never by reading `relowner` alone. *A predicate quoted at the wrong grain* is what
+> produced a PO-approved superuser escalation from two correctly-measured catalog facts.
+
+**The register entry as it stood, verbatim.** Kept here rather than left to `git`, which is
+what `FUP-DOCS-CONSOLIDATION-CLOSURE-DROPS-THE-CLOSES-WHEN-FIELD` asks for — a closure must be
+auditable against the condition it was closed on. Only the `### ` heading line is omitted (its
+text is this entry's heading, above).
+
+**Filed:** 2026-09-02 (write-arm re-aim, commit `d2069603`) · **Owner:** backend · **Severity:** high — a first measurement of a never-measured population is where real findings live.
+**Closes when:** Sweep them and record a verdict per policy.
+**Status:** open — verdicts earned 2026-09-07, closes when the full run merges them into the committed baseline
+**⚠ 2026-09-07: the predicted blocker was measured and DISPROVEN.** This item was expected to be hard because `postgres` does not own `storage.objects` (owner `supabase_storage_admin`, `pg_has_role(…,'USAGE')` = false, `rolsuper` = f), and a superuser escalation was built to get past it. It was never needed: **`supautils.policy_grants`** grants POLICY DDL on Supabase-managed tables to `postgres` entirely outside `pg_class.relowner`. All three policies sweep as **plain `postgres`, no escalation, no special case** — `documents_phi_obj_insert_reserved`, `documents_std_obj_insert_reserved`, `form_assets_insert_staff_admin`, each **COVERED**, restores byte-exact, bare **rc 0**, each row carrying `[role=postgres via supautils.policy_grants (owner=supabase_storage_admin)]`. Re-earned on the escalation-free harness after a fresh reset. ⭐ The lesson outlives the item: **ownership is a proxy, not the property** (ADR 0192).
+
+**Body** — the pre-closure pointer line pointed at `FUP-STORAGE-OBJECTS-INSERT-POLICIES-NEWLY-IN-DOMAIN.md`; that file was removed
+by this closure and its content is inline below. (The literal pointer token cannot survive in the
+archive: `lint:registers` reds on it, ADR 0185 D5.)
+**The body as it stood, verbatim.** Only its `# ` title line is omitted (same text as the heading
+above); its own `Index entry: … status open` line is left standing, false-as-of-now, rather than
+rewritten.
+
+Index entry: [follow-ups-open.md](follow-ups-open.md) · filed 2026-09-02 · status open
+
+Three `storage.objects` INSERT policies sat outside every arm: `ARM=census` bounds itself to `public`,
+and the write-path arm's old snapshot held only 33 `public` rows. The domain fix puts them **in** the
+write arm's scope for the first time.
+
+**How it was measured.** The 74 policies the old snapshot missed decompose exactly as 62 `ALL` + 9
+(the names `FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED` Part 3 lists) + **3 `storage.objects` INSERT** — a
+decomposition re-derived from the property, not read off the FUP's list.
+
+**What would close it.** Sweep them and record a verdict per policy.
+
+⛔ **What must NOT be mistaken for closing it.** If any comes back **BLIND**, it is a real finding and
+must be keystoned. ⛔ **Never allowlist one** — floor and this arm would then agree while both measure
+nothing, and agreement reads as coverage.
+
+---

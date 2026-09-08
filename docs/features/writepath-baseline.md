@@ -24,12 +24,12 @@ subject is `supabase/tests/mutation/p0-authz-writepath-audit.sh` (the write arm)
 baseline `docs/reviews/authz-writepath-audit-findings.md`, re-earned through
 `scripts/lib/merge-findings-baseline.sh` exactly as Batch 2 did for the door file.
 
-- [ ] `FUP-WRITEPATH-FINDINGS-FILE-COVERS-33-OF-107` 🟠 — "One full write-path sweep over the
+- [x] `FUP-WRITEPATH-FINDINGS-FILE-COVERS-33-OF-107` 🟠 — "One full write-path sweep over the
       widened domain, with its rows merged into the committed findings file — not replacing it, since
       the 33 carry hand-merged annotations." ⛔ Not closed by a green `FROMFINDINGS=1` run before the
       merge (green *because* the absent rows are absent), nor by the 2026-09-02 domain fix (repaired,
       not measured), nor by the 37-of-107 subset merge.
-- [ ] `FUP-STORAGE-OBJECTS-INSERT-POLICIES-NEWLY-IN-DOMAIN` 🟠 — "Sweep them and record a verdict per
+- [x] `FUP-STORAGE-OBJECTS-INSERT-POLICIES-NEWLY-IN-DOMAIN` 🟠 — "Sweep them and record a verdict per
       policy." A BLIND is a real finding to keystone. ⛔ Never allowlist one.
       > ⚠ **CORRECTION 2026-09-07 (`backend`, build turn).** The plan predicted all three would land
       > `ERROR — must be owner of table objects`, because `postgres` is `rolsuper=f` and
@@ -39,7 +39,7 @@ baseline `docs/reviews/authz-writepath-audit-findings.md`, re-earned through
       > not the property. No privilege change is needed for this clause. (`p3-storage-3case`,
       > bare rc 0, `SWEPT: 3 COVERED: 3 BLIND: 0 ERROR: 0`; restores byte-exact, degenerate
       > NON-SELECT = 0.) The clause still needs these verdicts recorded through the FULL run's merge.
-- [ ] `FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED` 🟠 (Parts 2–4; Part 1 landed as deriver ruling 4) —
+- [x] `FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED` 🟠 (Parts 2–4; Part 1 landed as deriver ruling 4) —
       "either a documented recovery step ('if you kill a run, do X'), or a restore that does not depend
       on a signal-catchable trap." Plus, from the plan: the write arm's exit over an EMPTY case set
       is a FINDING, not exit 0; the nine policies Part 3 names are re-measured against the widened
@@ -87,46 +87,46 @@ for the three `storage.objects` INSERT policies, and make the arm's empty-set an
 behaviour findings rather than silence — before AE5 re-keys write policies eleven times against it.
 
 ### Done since start
-- Harness built: `CASES` set-ness fix, `RESET_EVERY` port (retry net + an Arm-1-specific post-reset
-  OID check the door's design does not cover), a `SELFTEST` arm (the file had none), the DRYRUN
-  banner's count derived from `GUARD_KEYS` — each proven with a planted reproducer at its **bare**
-  exit code, a clean negative control and a discrimination half.
-- ⭐ **The superuser escalation was built, then REMOVED** (PO ruling R23). Its premise — ownership —
-  was a **proxy**, not the property: `supautils.policy_grants` grants POLICY DDL outside
-  `pg_class.relowner`. One role (`postgres`) for all 120 cases; the corrected predicate is kept as
-  a **DETECTOR** leaving a policy UNVERDICTED rather than routing around it — dormant on 0 of 107,
-  so **proven able to fire by a plant** against a clean negative control.
-- The three `storage.objects` INSERT policies **swept and verdicted COVERED** as plain `postgres`,
-  each row carrying `via supautils.policy_grants`. `RECOVER=1` re-earned on a **storage** policy
-  with no role sidecar, with a discrimination half proving the catalog verification load-bearing.
-  **ADR 0192** written and indexed.
+- Harness built, each part proven with a planted reproducer at its **bare** exit code, a clean
+  negative control and a discrimination half: `CASES` set-ness fix, `RESET_EVERY` port (retry net +
+  an Arm-1 post-reset OID check the door's design does not cover), a first `SELFTEST` arm, the
+  DRYRUN banner derived from `GUARD_KEYS`.
+- ⭐ **The superuser escalation was built, then REMOVED** (PO R23): ownership was a **proxy**, not
+  the property — `supautils.policy_grants` grants POLICY DDL outside `pg_class.relowner`. One role
+  for all 120 cases; the corrected predicate kept as a **DETECTOR** that leaves a policy UNVERDICTED
+  rather than routing around it — dormant on 0 of 107, so proven able to fire by a plant. The three
+  `storage.objects` INSERT policies **swept COVERED** as plain `postgres`; `RECOVER=1` re-earned on
+  a **storage** policy with a discrimination half. **ADR 0192** written and indexed.
 - ⭐ **THE FULL RUN IS DONE** (2026-09-07 20:11 → 2026-09-08 00:04, **3.88 h**, inside the derived
   3.2–4.6 h window). `guard=13/13 policy=107/107` · **SWEPT 120 · COVERED 102 · BLIND 15 · ERROR 3
-  · SKIPPED 0** · `resets=8` · bare **rc 1 (DIRTY)**. Coverage moved **51 of 120 → 120 of 120
-  measured**, 117 carrying a verdict; the guard arm is now **13 of 13**. Run health: 117/120
-  runlogs at the exact baseline shape, longest consecutive off-baseline run **1** (VOID threshold
-  3), **0** aborts/contamination/restore failures, no sentinel, `degenerate_NON_SELECT = 0`. R20:
-  **all 13 retired door rows PRESENT and COVERED, 0 missing** — no verdict was orphaned.
+  · SKIPPED 0** · `resets=8` · bare **rc 1 (DIRTY)**. Coverage **51 of 120 → 120 of 120 measured**,
+  117 carrying a verdict; the guard arm is now **13 of 13**. Health: 117/120 runlogs at the exact
+  baseline shape, longest off-baseline run **1** (VOID threshold 3), **0** aborts/contamination/
+  restore failures, no sentinel. R20: **all 13 retired door rows PRESENT and COVERED, 0 missing**.
 - ⭐ **The CARRIED disposition is APPLIED** (PO ruling R30): 9 re-filed, 36 deleted, line 27's stale
   tail deleted; the file went 401 → 251 lines, the CARRIED block replaced by a dated `## Note`.
   **Condition 1 caught 0 rows** — for all 45 the carried citations are a subset of the live row's,
   and the matcher was proven able to find one before its zero was believed. **R14 re-asserted by
   byte comparison: 15 protected strings, all present, bare rc 0**, three mutations proving red.
 - ⚠ **Finding inside the disposition:** for 6 of the 9 the "hand commentary" was a *superseded
-  provenance* stamp, false of the live verdict, whose substantive half was already on the live row.
-  Re-filed verbatim but **attributed**. Third instance here of *decoration read as authorship*. The
-  merge's **51 / 2 / 6** reconciled: three counters, three populations, each derived
-  (`63 − 10 − 2 = 51`); the 6 were carried rows and neither suffix holds that string.
+  provenance* stamp, false of the live verdict. Re-filed verbatim but **attributed** (PO R33: keep
+  as built — reducing 9 → 3 is a disposition CHANGE, not an application of one). Third instance of
+  *decoration read as authorship*. Merge **51 / 2 / 6** reconciled: three derived counters, three
+  populations (`63 − 10 − 2 = 51`), which also explains why line 27's stale tail survived.
+- ⭐ **The three follow-ups are CLOSED and archived** (2026-09-08), each against its own quoted
+  `Closes when`, entry + body moved verbatim (byte-diffed at the destination before the source was
+  cut). **R27 FIXED**: the reset banner prints the DELTA, proven at the **second** reset — at the
+  first, cumulative and delta coincide. A **third** instance of that class was found while fixing
+  it (`READ ALL FIVE STEPS` above six) and repaired by deleting the numeral.
 - ⭐ **Gate at the tip GREEN**, every code read **bare**: `lint` **0** (eslint 0/0) · `typecheck`
   **0** · `test:db` on a fresh reset **0** at **`Files=262, Tests=8876`** (⭐ shape unmoved) ·
   deriver `SELFTEST` **0** (34/34) · door harness `SELFTEST` **0** (23/23) · set-valued targeted
-  home **0** (CLEAN, 3/3 COVERED, restores byte-exact) · production diff **EMPTY**. The
-  diff-scoped deriver is **rc 3 NOT-APPLICABLE** over both `main..HEAD` and `23ec1fa5..HEAD` (0
-  migration files), its counter proven live by a positive control. ⚠ The four authz arms are the
-  **lead's** to run at the tip, not the builder's.
+  home **0** (CLEAN, 3/3 COVERED) · production diff **EMPTY**. The diff-scoped deriver is **rc 3
+  NOT-APPLICABLE** over both `main..HEAD` and `23ec1fa5..HEAD` (0 migration files), its counter
+  proven live by a positive control.
 
 ### In progress
-- Lead runs the four authz arms → QA → PO → Record. ⛔ Owed before QA: the 3 follow-up closures.
+- Build is DONE. Lead runs the four authz arms at the tip (not the builder) → QA → PO → Record.
 
 ### Next
 - Deferred to their own units by design: keystones for the 15 BLINDs (⛔ never allowlist), and the

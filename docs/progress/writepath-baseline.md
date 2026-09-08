@@ -931,3 +931,168 @@ Two Supabase stacks are up. Ours is **`supabase_db_azkbbhskturikxpgmafq`**, disc
 `write policies: 107` (the run's exact domain); `supabase_db_escalume` reports `authz schema: 0`.
 
 ⛔ Standing, unchanged: Tier 2's **190 doors stay deferred by ADR 0171 and are NOT cleared**.
+
+### 2026-09-08 — `backend`, the LAST BUILD TURN before QA: three closures, the R27 fix proven at the SECOND reset, and a third instance of that class
+
+Ruled by the lead as **R35** (with **R33** correcting R30's premise and **R34** accepting the prior
+turn's measurements). Everything below was measured on this tree; exit codes are read **bare**.
+
+#### R33 — the premise correction, recorded BESIDE the approval, not folded into it
+
+⛔ The PO's **R30** approval described the 9 re-filings as *"carried notes holding hand commentary
+the regenerated row lacks"*. Byte-diffing says that is true of **3** and **false of 6**: for the six
+`form*`/`forms` rows the entire delta is the 55-character clause `merged 2026-09-0X from a subset run
+per ADR 0079 Amdt 1` — provenance of the **superseded** verdict and false of the live one, whose
+substantive half (`snapshot:ABSENT …`) already sits on the live row.
+
+**The as-built form STAYS** (R33). All 9 were re-filed — 3 verbatim, 6 verbatim but **labelled**
+`[prior provenance, carried 2026-09-08 — describes the SUPERSEDED verdict, NOT this one: "…"]` —
+rather than reduced to 3 unilaterally, because **reducing the count is a disposition CHANGE, not an
+application of one**, and the PO approved a disposition. The form is compliant (9 re-filed, 36
+deleted, exactly as approved) and honest (each of the six now says what it describes). ⛔ The
+approval is **not** restated as though it had been given on the corrected premise; this note sits
+beside it.
+
+⭐ **Third instance in this unit of *decoration read as authorship*.** My token-keyed classifier and
+the lead's R4 reader-inspection both counted those six, for the same reason — a bracket. **Two
+methods agreeing while sharing one blind spot is not corroboration.** R14's "11" was right that
+those lines are not generator output and wrong to call all 11 *commentary*.
+⭐ `set_professional_link_state`'s **BOUNDED VERDICT** note is the load-bearing re-filing: without it
+a reader over-reads its live COVERED. That one alone justifies the re-file column existing.
+
+#### R27 — the reset banner now prints the DELTA (commit `22402505`)
+
+`maybe_periodic_reset` interpolated `$((DONE - 1))` — the **cumulative** case count — into the
+sentence *"case(s) swept since the last baseline"*. The **trigger** was always correct
+(`(DONE-1) % RESET_EVERY == 0` fired at 20 and 40 in the full run); the **number** was not. At reset
+2 with `RESET_EVERY=20` it read **40** where the true delta is **20**, and it diverges further every
+reset (60, 80, 100). The mid-run checkpoint schedule instructs the operator to read exactly that
+line, so a banner reading 40 where 20 is due reads as *a reset was missed* — the drift-void
+condition. The instrument the run's safety rests on was lying in the reader's direction.
+
+**The fix computes the delta**, wording untouched (the operator needs the delta, so the sentence was
+the correct half); the interpolated expression is now
+`$(( (DONE - 1) - LAST_BASELINE_SWEPT ))`.
+
+`LAST_BASELINE_SWEPT` is initialised to 0 (the preflight baseline is captured before case 1) and
+updated in **exactly one place**: the END of `periodic_reset`, after the post-reset baseline was
+actually re-captured and asserted green. ⛔ Never in `maybe_periodic_reset` — `periodic_reset` can
+return at its own suppression gate having re-captured nothing, and an anchor advanced there would
+under-report every later delta silently. The anchor is `DONE - 1` at **both** call paths and means
+the same thing at both (case `$DONE` is the one about to be (re-)swept against the NEW baseline), so
+a **retry** reset moves the anchor mid-window and the next scheduled banner reports the true 16
+rather than 20 — a quantity no re-labelling of `DONE - 1` can produce.
+
+> **Deriving a number does not make it the number the sentence claims.**
+
+⭐ The class is **not** "hardcoded counts". R6's DRYRUN defect was a **literal** (`7`) and deriving it
+was the cure; this one **derives cleanly from live state and measures the wrong quantity**. Had the
+prescription been "derive it", this instance would have passed review as already-compliant. That is
+why the existing entry was **widened** rather than a second one opened.
+
+**SELFTEST ARM 4, and why it reads the SECOND reset.** `LAST_BASELINE_SWEPT` is 0 until the first
+re-capture, so at reset 1 the cumulative count and the delta are **equal** — a check that stops
+there goes green on the defect it exists to catch. ⭐ *When a counter is claimed as a DELTA, the
+first sample cannot distinguish it from a CUMULATIVE one.*
+
+⛔ **The arm LIFTS both functions from this file's own text rather than keeping a copy.**
+`periodic_reset` and `maybe_periodic_reset` are defined ~380 lines BELOW the SELFTEST block, so they
+do not exist yet when it runs; the only alternative to lifting is a hand-written copy of production
+text inside the harness that tests it — *a harness can hold a hand-written copy of production text*,
+and the copy goes stale silently while its table stays green. The lift is itself asserted (a `sed`
+range matching nothing defines nothing, and that must red rather than skip quietly). Four primitives
+are stubbed — including a shell function named `supabase`, which **shadows the binary**, so the
+`db reset` subshell touches no database. Everything else in `periodic_reset` runs for real: the
+interlock, the gate, the worklist comparison, the `GUARD_KEYS` resolution loop, the post-reset
+assertions, and the anchor update under test.
+
+| # | assertion | expected | why it is here |
+|---|---|---|---|
+| 4a | reset 1 delta | 20 | ⚠ **INERT by construction** — the cumulative expression agrees here |
+| 4b | reset 2 delta | 20 | ⭐ **THE DISCRIMINATOR** (pre-fix: 40) |
+| 4b' | resets actually fired | 2 | else 4a/4b compare against an empty capture |
+| 4c | retry at case 25 moves the anchor → next scheduled delta | 16 | the cumulative counter cannot express this at all |
+| 4c' | resets fired | 3 | 2 scheduled + 1 retry |
+| 4d | suppressed reset: anchor UNMOVED | 7 | the negative half, run for real — no stub is reached |
+| 4d' | suppressed reset: none counted | 0 | pairs with 4d |
+
+**Unmutated: 25/25 ok, bare rc 0.** ⛔ Green on a first run is a finding, not a pass, so four mutants
+were run on a `cmp`-verified scratch copy, each with its `diff` shown to be exactly the intended hunk:
+
+| mutant | observed | bare rc |
+|---|---|---|
+| PRE-CHANGE predicate restored (`$((DONE - 1))`) | **4a stays `ok` at 20**; 4b NOT OK **40 vs 20**; 4c NOT OK 40 vs 16 — 23/25 | **1** |
+| one expectation flipped (4d `7`→`8`) | NOT OK 4d — 24/25 | **1** |
+| the LIFT killed (`sed` range matches nothing) | NOT OK `lift periodic_reset() -> lifted 0 line(s)`, arm body skipped — **16/17**, i.e. 8 rows silently gone and one row saying why | **1** |
+| anchor update moved ABOVE the suppression gate | NOT OK 4d **30 vs 7** — 24/25 | **1** |
+
+⭐ The first mutant **is** the R27 proof: under the defect, reset 1 is green and only reset 2 reds.
+⚠ No repo file was touched by any mutant — the scratch copy's `ROOT` resolves into the scratchpad,
+and its own closing cksum line names that path rather than the repo's. That is the R25 ROOT trap
+avoided by construction, and visible in the output rather than assumed.
+
+#### A THIRD instance of the same class, found while fixing the second
+
+The harness header's recovery block read **`READ ALL FIVE STEPS BEFORE ACTING`** above **SIX**
+numbered steps — the comment form this file's own header warns about (*"a count in a comment is an
+assertion, and this one was false for four additions"*). It sits inside the very block that
+discharges the Part 4 clause closed today. ⛔ **Not repaired by typing "SIX"**: there is no runtime
+list to derive from, and a fresh literal is the same defect with a newer number. The **numeral is
+deleted** — the reader was going to read every step anyway, so it carried no information and only a
+way to go stale. `bash -n` rc **0**, `SELFTEST` 25/25 rc **0** after the edit.
+⛔ `FUP-WRITEPATH-BASELINE-HARDCODED-COUNTS-IN-HARNESS-BANNERS` stays **open** and now says so: three
+instances fixed **in one file** is not the class fixed, and the four sibling harnesses are unswept
+for both forms — the derived-but-wrong-quantity form as much as the literal one.
+
+#### The three closures (R35.1) — each against its OWN quoted `Closes when`
+
+The rotation was **mechanical**: entry block and body file moved as bytes, the destination verified
+**before** any source was cut, then the entries removed and the two body files deleted. Archive
+10312 → 10935 lines; open register 1791 → 1769.
+
+| item | discharged by | ⛔ NOT discharged by |
+|---|---|---|
+| `FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED` | the **documented recovery step** (harness header, `5e0173bd`, six steps naming `RECOVER=1`, the enumerating catalog query, `git checkout -- docs/reviews/authz-writepath-audit-findings.md`, and the working-tree/suite-shape clause) **+ the nine policies swept**, each COVERED, named individually | the exit-code halves — Part 1 → deriver ruling 4, Part 2 → the 2026-08-29 REPAIR, Part 3 domain half → `d2069603`; P1 rc 3 and P5 rc 1 are cited as **evidence the tree is as claimed**, not as the discharge |
+| `FUP-WRITEPATH-FINDINGS-FILE-COVERS-33-OF-107` | the full sweep **merged** into the committed file (137 → 401 lines, census sums 120 + 45 = 165, `PRESERVED 51 … 2 hand suffixes` re-asserted by byte comparison) | a green `FROMFINDINGS=1` run · the 2026-09-02 domain fix · the 37-of-107 subset merge |
+| `FUP-STORAGE-OBJECTS-INSERT-POLICIES-NEWLY-IN-DOMAIN` | the **plain** run — three rows, three COVERED verdicts, each carrying `via supautils.policy_grants`; none in `authz-blind-allowlist.txt` (checked, zero hits) | any escalated path — the escalation was removed before the run |
+
+⚠ **The title figure was stale and the title is NOT amended** (headings are never edited once
+filed): the true pre-run coverage was **39 of 107** policy rows — 33 predating the widening + 4 from
+AE4.9 D6 + **2** merged from the `BUG-AE49-D6-REKEY-INCOMPLETE` subset run on 2026-09-03 — and **51
+of 120** counting the guard arm, `set_primary_subject` never verdicted. The closure says so; the
+heading keeps `33-OF-107` for ever.
+
+⚠ **The `Closes when` of the half-aimed item is TRUNCATED in the register** (ends in a literal `…`).
+Both halves are quoted in the closure — the register field as the register held it, then the body's
+tail verbatim from where it stops — and ⛔ nothing is paraphrased into the gap. The truncation is
+**not** repaired by this closure: the field travelled into the archive still carrying its `…`, so
+`FUP-WRITEPATH-BASELINE-REGISTER-CLOSES-WHEN-TRUNCATED` stays open, and its entry now carries a
+dated note saying that (a) its subject moved and (b) its own citation
+`FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED.md:143-147` names a **file this closure deleted**. ⭐ *A rename
+orphans a name-keyed reference* — the citation was correct when written and became false through no
+edit of its own.
+
+#### ⚠ Instrument fault number SEVEN, caught in the verification of the closures themselves
+
+My first verbatim check located each moved body by **the last archive line matching the body's first
+line**. Two of the three bodies open with the byte-identical line
+`Index entry: [follow-ups-open.md](follow-ups-open.md) · filed 2026-09-02 · status open`, so the
+locator resolved both to the SAME block and reported `*** MISMATCH ***` for
+`FUP-WRITEPATH-FINDINGS-FILE-COVERS-33-OF-107` — a fabricated defect that read exactly like a
+data-loss bug in the rotation. ⭐ *Fixture-shared ids fabricate a defect AND an all-clear*: had the
+two entries been ordered the other way it would have printed **identical** for a block it never
+compared. Re-anchored on each entry's own `### ✅ …` heading and re-run: **all three bodies and all
+three entry field-blocks byte-identical** to `git show HEAD:` — 224, 24 and 15 body lines, and 3, 3
+and 4 field lines respectively. ⛔ Zero `**Body:**` tokens in the archive (`lint:registers`, ADR
+0185 D5).
+
+That is **seven** instrument faults in this unit, every one of which read like a live defect.
+
+#### Suite shape — why `npm run test:db` was NOT re-run for this turn
+
+R35.3 conditions it on touching something that could move the suite shape. This turn touched
+`supabase/tests/mutation/p0-authz-writepath-audit.sh` (a `.sh`) and Markdown. `supabase test db`
+collects `.sql` files, and `.sh` files **already** live in `supabase/tests/mutation/` — the
+`Files=262, Tests=8876` baseline was measured with them present, twice on this branch — so editing
+one cannot move `Files=`. The condition is not met; the shape check belongs to the lead's gate at
+the tip, on a fresh reset.

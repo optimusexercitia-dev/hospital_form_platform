@@ -160,7 +160,13 @@
 # The LEAD runs the full loop in the background (a background process dies at turn-end).
 #
 # ── ⛔ IF A RUN OF THIS ARM IS KILLED — the recovery step (ADR 0192; the deliverable
-#    FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED Part 4 owes). READ ALL FIVE STEPS BEFORE ACTING. ─────
+#    FUP-DIFF-SCOPED-SWEEP-IS-HALF-AIMED Part 4 owes). READ EVERY STEP BEFORE ACTING. ─────────
+#    ⚠ 2026-09-08: this line said "READ ALL FIVE STEPS" above SIX numbered steps — the THIRD
+#    instance in this file of *a written quantity whose sentence and whose expression disagree*
+#    (after the DRYRUN banner's `7` and the reset banner's cumulative-as-delta). ⛔ NOT repaired
+#    by typing "SIX": a fresh literal is the same defect with a newer number, and there is no
+#    runtime list here to derive from. The numeral is DELETED instead — the reader was going to
+#    read them all anyway, so it carried no information and only a way to go stale.
 #
 #  ⛔ FIRST, THE STANDING RULE: do not kill a running sweep. A contaminated run is allowed to
 #  FINISH and its verdicts are discarded. These steps are for a run that died anyway.
