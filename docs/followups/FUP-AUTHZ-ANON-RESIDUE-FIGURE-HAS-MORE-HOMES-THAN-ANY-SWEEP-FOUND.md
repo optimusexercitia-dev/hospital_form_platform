@@ -16,6 +16,7 @@ returned a different answer, because each was hand-listed.**
 | QA re-review, round 2 (B2) | *"the fifth home"* | corrected a 5th — the follow-up the unit **closes on** |
 | final tip gate, round 3 | *"two present-tense homes remain"* | corrected a 6th and 7th |
 | **this entry, round 4** | *"derived, not read"* | ⛔ **the derivation was `\| head -40` over 132 matching lines** — see the correction below |
+| **second-pass audit, round 5** | — | ⛔ found an **eighth** home *and* a dead path inside this entry's own "what we corrected" list. The sweeps that missed it keyed on the string `237 of 467`; that site writes ``237 `app` functions`` |
 
 ⭐ Each round's list was **produced by reading, not by deriving**, and each was reported as complete.
 That is *a "verified-facts baseline" is a HAND-LIST wearing a label*, and the accompanying shape
@@ -25,11 +26,28 @@ acceptance criteria** — inside the very bullet an earlier round had edited.
 **What Batch 7 corrected** (all `236 of 526`, dated, with the predicate named): `supabase/config.toml`
 · `scripts/check-supabase-config-schemas.mjs` · `docs/lint-gates.md` ·
 `docs/decisions/0195-a-committed-number-needs-one-home-and-a-gated-mirror.md` ·
-`docs/followups/FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED.md` ·
-`docs/features/privilege-surface.md` · `docs/plans/pre-ae5-remediation.md`.
+`FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED` (⚠ the standalone body file was **deleted** at the
+same Record step and its entry folded into `docs/followups/follow-ups-archive.md` — this line cited
+the dead path until 2026-09-08) · `docs/features/privilege-surface.md` ·
+`docs/plans/pre-ae5-remediation.md` · `docs/plans/authz-evolution.md`.
 
-**What it did NOT correct, and why** — these are outside the unit's subject and are listed here from
-a **derived** sweep (`git grep -n '\b237\b'`), not from reading:
+> ⛔⛔ **THIS ENTRY REPRODUCED ITS OWN DEFECT, TWICE, AND THAT IS NOW THE MOST USEFUL THING IN IT.**
+> A second-pass audit (2026-09-08, post-merge, derived) found that the entry filed to name
+> *"three hand-listed sweeps each found a different total"*:
+>
+> 1. **cited a file its own batch had deleted**, in the present-tense list of what it corrected — the
+>    two sibling paths on the same line were repointed and this one was not
+>    (*a fix correct at MOST sites hides that it is wrong*); and
+> 2. **was short by one live site.** `docs/plans/authz-evolution.md` (~`:240`) carries the figure in
+>    the **effective** predicate, present tense, in the live AE programme plan — an **eighth** home.
+>
+> ⭐ **Why it was missed is the reusable part, and it is not "carelessness":** every corrective sweep,
+> including this entry's own, keyed on the literal string **`237 of 467`**. That site writes it as
+> ``237 `app` functions``. ⇒ **A sweep bounded by a SYNTAX cannot find the CLASS** — the same shape as
+> *enumeration boundary is a syntax, not a property*, and the reason this entry's `Closes when`
+> insists on the **enumeration** rather than on correcting instances. ⚠ The count of rounds in the
+> table above is therefore **five**, not four, and ⛔ it is not restated here as a number — count the
+> rows.
 
 - `docs/design/authz-ae1-tier1-threat-review.md` — *"The known `anon` residue is 237 `app` functions
   and stays where it is"*. **Present tense**, in a 2026-08-27 threat review.

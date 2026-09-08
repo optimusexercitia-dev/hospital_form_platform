@@ -294,6 +294,32 @@ behind it is unprotected by RLS regardless of what the wrapper checks. (ADR 0079
 Amendment 7; CLAUDE.md § graphify)
 _Avoid_: proxy function, helper
 
+**Privilege budget**:
+The count of `SECURITY DEFINER` functions in `app` + `public` that role `authenticated`
+may EXECUTE. It is a **budget**, not an inventory: it has a **CEILING** and a merge rule
+— no increment may raise it without a named justification in its own gate record, and
+the ceiling moves **only by PO ruling**. Its ONE home is `docs/backend-state.md`
+§ Privilege budget. ⛔ Not the same population as the `app` PUBLIC floor, which is
+ACL-shaped; the two have coincided and were proven able to disagree. (ADR 0195; 0155 D9)
+_Avoid_: DEFINER count, privilege inventory
+
+**Ratchet**:
+An assertion that pins a measured population to a committed number so the set cannot
+**grow** unnoticed. A ratchet's number may only be **lowered**, and only with the removal
+named and measured. ⛔ A ratchet is not a target and not a verdict — it says the world
+has moved, never that the movement was wrong. (`320` §§U1/U4; `lint:registers`' nine
+register ratchets)
+_Avoid_: threshold, limit, quota
+
+**Budget anchor**:
+The machine-read literal that lets a text gate mirror the privilege budget without a
+database — the tagged line in the pgTAP assertion and its twin in `docs/backend-state.md`,
+compared by `lint:budget-anchor`. ⛔ It compares two committed **texts** and can never
+observe the live population; the catalog half is pgTAP under `npm run test:db`. ⭐ It
+exists so a committed number has **one home and a gated mirror**, never two homes free to
+drift. (ADR 0195 D2)
+_Avoid_: budget check, ceiling gate
+
 **Sweep**:
 One execution of a Neutralizer script (e.g. `p0-authz-door-audit.sh`) across every gate
 in its domain, producing a Verdict per gate. (ADR 0079 Decision 1)

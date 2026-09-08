@@ -499,7 +499,7 @@ both are stated here, not left to the gate record to imply.
 | DEFINER functions in `app` + `public` | **856** | re-derived 2026-08-27 at head `20261003005300`: `public` **460** + `app` **396**. ⛔ **Was 843** (ADR 0160 D3) — moved by exactly the **13** AE1.3 objects (6 doors + 6 kernels + the predicate). Re-measure; ADR 0160's *"quote 843, never 842"* settled a dispute between two instruments at one instant and is not a licence to quote it later |
 | …of which **`authenticated` may EXECUTE** — **the budget** | **752** | `public` **432** + `app` **320**. ⭐ **Unmoved by AE1.3, and that is a result, not a coincidence**: the row below predicted the 13 new objects would stay out of this population because they grant `service_role` only. Confirmed at head `…005300` |
 | **Tier 1** — remotely reachable (exposed schema + effective EXECUTE) | **523** | ⛔ **Was recorded as 432, which is the DEFINER SUBSET, not Tier 1.** Corrected 2026-08-27 (tier-1 threat review F-T1-1): `public` DEFINER **432** + `public` INVOKER **90** + `graphql_public.graphql` **1**. The 90 are exactly the class ADR 0079 Amendment 7 exists for — a `public` INVOKER wrapper in front of an `app` DEFINER body, in no arm's domain at all. ⚠ **This row was the falsified figure standing in the file every session is told to read instead of measuring** |
-| **Tier 2** — `app` schema (`anon` holds no USAGE) | **320** | boundary = `FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED`. Unchanged; `app` is not PostgREST-exposed |
+| **Tier 2** — `app` schema (`anon` holds no USAGE) | **320** | boundary = `FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED` — ⚠ **CLOSED 2026-09-08**, folded into `follow-ups-archive.md`; the boundary is now **gated** as `lint:config-schemas`, which pins `supabase/config.toml`'s `[api].schemas` key. ⛔ That gate proves the **FILE** never gains `app`; it does **not** prove the **deployed** PostgREST config matches the file. `app` is not PostgREST-exposed |
 | proposed revoke set | **233** | ⛔ **NONE EXECUTED — a scheduling fact, not an RV0 verdict.** RV0's partition (`docs/design/authz-ae1-revoke-partition.md` §5.1) **held 23**: 44 PROCEED property-rescued · 5 PROCEED name-rescued · **23 HOLD** · 161 UNCHANGED. The only rulings holding anything are RV1 (batch 4, **4**) + RV2 (`set_participant_patient`, **1**). ⚠ **Was *"all HELD under RV0"***, which reads as RV0 blocking the whole set when it cleared 49. ⛔ And UNCHANGED is **unexamined, not cleared** |
 
 **CEILING: 759.** ⛔ **Superseded value, quoted so the move is visible and not silent: `CEILING:
@@ -517,6 +517,23 @@ pinned in `supabase/tests/320_act_expiry_and_acl_hardening.sql` §U4 and reds on
 ⛔ Do not edit the comment to match a changed pin — that inverts the direction of authority the
 gate exists to enforce.
 
+> ⚠⚠ **DISCHARGED 2026-09-08 — READ THIS BEFORE THE BLOCK BELOW.** Everything from here to the end
+> of this blockquote is a **dated 2026-09-03 record** and is **correct as of that date and stale as a
+> present-tense claim**. Since then: all seven were **attributed** (three-head set diff), four proved
+> **structurally required** by live RLS policy expressions, and the **PO moved the ceiling 752 → 759
+> by ruling** — see § the 2026-09-08 ruling below, and `FUP-PRIVILEGE-BUDGET-CEILING-BREACHED-BY-SEVEN`,
+> now **CLOSED** and folded into `docs/followups/follow-ups-archive.md`.
+> ⛔ In particular *"THE OTHER SIX ARE UNATTRIBUTED, AND THAT IS THE FINDING"* and *"The ceiling is
+> NOT edited here"* are **both superseded**; they are kept, not deleted, because the block records
+> what was true when the breach was found.
+>
+> ⭐ **Why this note exists at all, and it is the batch's own defect:** the sibling stale sentence
+> five lines below (`CEILING: 752` is UNCHANGED above) **did** get a forward-pointing note at the
+> Record step, and this blockquote — which is **louder** (⛔⛔), **earlier in the file**, and carries
+> the headline a scanning reader takes away — got **none**. One of two adjacent stale present-tense
+> blocks was repaired. *Sweeping one sibling axis reads as sweeping the class.* Found by a
+> second-pass audit, not by any gate.
+>
 > ⛔⛔ **RE-MEASURED 2026-09-03 AT HEAD `20261003007330`: THE BUDGET IS 759 — SEVEN OVER THE
 > CEILING, AND THE BREACH PREDATES THE INCREMENT THAT FOUND IT.**
 >
