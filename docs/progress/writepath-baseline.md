@@ -34,6 +34,9 @@ and the door arm's full run through that merge with the tail-drift lesson (Batch
 production function, policy or migration (Batch 4 owns re-keys, on another machine); the
 `FROMFINDINGS=1 ARM=policy` red (unreadable until its own FUP lands; ⛔ never allowlist its
 twelve); Tier 2's 190 doors (deferred by ADR 0171, **not** cleared).
+⚠ **AMENDED 2026-09-08 (QA B2): twelve PLUS FIVE** — this unit's baseline adds 5 off-allowlist
+BLINDs to that arm's offender set (0 → 5; named in the 2026-09-08 QA-fix § Session log entry).
+⛔ Still never allowlisted, and the 5 is derived from committed artifacts, not observed from a run.
 
 **Facts at open** (from the follow-up bodies and the tree; every figure to be re-measured by the
 builder on a fresh reset — the catalog has moved since each was filed):
@@ -239,6 +242,13 @@ byte-identical to the start of the turn.
 ⛔ Tier 2's 190 doors stay **deferred by ADR 0171 and are NOT cleared**.
 ⛔ `FROMFINDINGS=1 ARM=policy` is RED pre-existing, is **not** one of CLAUDE.md §6's four arms, and
 its twelve are not allowlisted.
+⚠ **AMENDED 2026-09-08 beside the original (QA finding B2): after this unit it is twelve PLUS FIVE.**
+The sentence above stays because it was true when written; it is no longer complete. This unit's
+baseline takes the write arm's ARM-1 offender set from **0** off-allowlist BLINDs to **5**, named in
+the § Session log entry of 2026-09-08 (QA fix loop) and in
+`FUP-WRITEPATH-BASELINE-15-BLIND-WRITE-POLICIES-NO-TEST-NOTICES`. ⛔ **Zero allowlist entries were
+added** — `authz-blind-allowlist.txt` is byte-identical to `main`. The 5 is **derived from the
+committed artifacts** with the harness's own extractors, **not observed from an arm run**.
 
 #### Follow-ups filed this turn
 
@@ -564,6 +574,13 @@ question is answered by attempting the permission or by reading every grant path
 ⛔ Standing, unchanged: Tier 2's 190 doors stay **deferred by ADR 0171 and are NOT cleared**.
 ⛔ `FROMFINDINGS=1 ARM=policy` is RED pre-existing, is **not** one of CLAUDE.md §6's four arms, and
 its twelve are not allowlisted.
+⚠ **AMENDED 2026-09-08 beside the original (QA finding B2): after this unit it is twelve PLUS FIVE.**
+The sentence above stays because it was true when written; it is no longer complete. This unit's
+baseline takes the write arm's ARM-1 offender set from **0** off-allowlist BLINDs to **5**, named in
+the § Session log entry of 2026-09-08 (QA fix loop) and in
+`FUP-WRITEPATH-BASELINE-15-BLIND-WRITE-POLICIES-NO-TEST-NOTICES`. ⛔ **Zero allowlist entries were
+added** — `authz-blind-allowlist.txt` is byte-identical to `main`. The 5 is **derived from the
+committed artifacts** with the harness's own extractors, **not observed from an arm run**.
 
 ---
 
@@ -697,13 +714,25 @@ policies. The naming shape is not the predictor — the subsystem is.
 ⛔ Standing, unchanged: Tier 2's 190 doors stay **deferred by ADR 0171 and are NOT cleared**.
 ⛔ `FROMFINDINGS=1 ARM=policy` is RED pre-existing, is **not** one of CLAUDE.md §6's four arms, and
 its twelve are not allowlisted.
+⚠ **AMENDED 2026-09-08 beside the original (QA finding B2): after this unit it is twelve PLUS FIVE.**
+The sentence above stays because it was true when written; it is no longer complete. This unit's
+baseline takes the write arm's ARM-1 offender set from **0** off-allowlist BLINDs to **5**, named in
+the § Session log entry of 2026-09-08 (QA fix loop) and in
+`FUP-WRITEPATH-BASELINE-15-BLIND-WRITE-POLICIES-NO-TEST-NOTICES`. ⛔ **Zero allowlist entries were
+added** — `authz-blind-allowlist.txt` is byte-identical to `main`. The 5 is **derived from the
+committed artifacts** with the harness's own extractors, **not observed from an arm run**.
 
 ---
 
 ### 2026-09-08 — `backend`, the CARRIED disposition APPLIED (PO ruling R30), and why test file 297 is deliberately NOT fixed here
 
 **What changed on disk:** `docs/reviews/authz-writepath-audit-findings.md` only — 401 → 251
-lines, LF throughout. The 120 verdict rows are byte-identical except the 9 that were re-filed
+lines, LF throughout.
+⛔ **CORRECTED 2026-09-08 (QA finding N1): it is 401 → 256, not 251, and has been since `3c763ffe`.**
+⭐ The gap is *exactly* the **5** lines this same turn added and then did not re-measure — the 4-line
+HTML comment and the 1-line `SUPERSEDED` marker. 251 + 5 = 256. **A count measured before the last
+edit and quoted after it**: the fourth instance of a printed quantity contradicting its own sentence
+in this batch, and the first one where the sentence and the expression were both mine. The 120 verdict rows are byte-identical except the 9 that were re-filed
 onto, and the CARRIED block is replaced by a dated `## Note` that is the disposition's own
 audit trail.
 
@@ -783,7 +812,7 @@ none counts the same material as another.** The merge's banner is
 |---|---|---|---|
 | `NHAND` | hand-authored **prose LINES** preserved in place | **51** | the 137-line pre-run baseline holds **63** non-blank non-table lines; the generator re-emits **10** verbatim; the merge *replaced* **2** stale statistics (`Baseline: Files=156, Tests=4796…`, `Arm 1 guards: 7…`) instead of preserving them. 63 − 10 − 2 = 51 |
 | `NSUFF` | hand **SUFFIXES** spliced onto regenerated rows | **2** | `set_commission_oversight` and `create_external_participant` — R24's `:60`/`:61`. ⭐ **Neither contains a `merged 2026-09-0` string**, so the 6 could not have been these 2 under any reading |
-| `NCROW` | whole **ROWS** carried | **45** | of which **6** contain a `merged 2026-09-0…` string, all 6 inside the CARRIED block (in the 401-line post-run file, *before* this disposition: `:288 :292 :296 :300 :304 :308` — ⚠ those line numbers are dead against the 251-line file this turn produced; the identities are the six `form*`/`forms` `*_staff_admin_write` rows), **none** on a live row |
+| `NCROW` | whole **ROWS** carried | **45** | of which **6** contain a `merged 2026-09-0…` string, all 6 inside the CARRIED block (in the 401-line post-run file, *before* this disposition: `:288 :292 :296 :300 :304 :308` — ⚠ those line numbers are dead against the 256-line file this turn produced — ⛔ *corrected 2026-09-08 from "251-line", QA N1*; the identities are the six `form*`/`forms` `*_staff_admin_write` rows, and identities are what survive a re-count), **none** on a live row |
 
 ⇒ The file's 6 belonged to the 45. Two numbers about *different* material were standing side by
 side; there was never a contradiction to resolve, only a grain to state. ⭐ The derivation also
@@ -824,6 +853,13 @@ the exact opposite of what the run measured.
 ⛔ Standing, unchanged: Tier 2's 190 doors stay **deferred by ADR 0171 and are NOT cleared**.
 ⛔ `FROMFINDINGS=1 ARM=policy` is RED pre-existing, is **not** one of CLAUDE.md §6's four arms, and
 its twelve are not allowlisted.
+⚠ **AMENDED 2026-09-08 beside the original (QA finding B2): after this unit it is twelve PLUS FIVE.**
+The sentence above stays because it was true when written; it is no longer complete. This unit's
+baseline takes the write arm's ARM-1 offender set from **0** off-allowlist BLINDs to **5**, named in
+the § Session log entry of 2026-09-08 (QA fix loop) and in
+`FUP-WRITEPATH-BASELINE-15-BLIND-WRITE-POLICIES-NO-TEST-NOTICES`. ⛔ **Zero allowlist entries were
+added** — `authz-blind-allowlist.txt` is byte-identical to `main`. The 5 is **derived from the
+committed artifacts** with the harness's own extractors, **not observed from an arm run**.
 
 ---
 
@@ -836,6 +872,10 @@ distance re-measured and confirmed at **1**.
 ⚠ **The four authz arms are NOT in this record.** From Batch 2 on, someone other than the builder
 runs them at the tip, and the lead does. ⛔ `FROMFINDINGS=1 ARM=policy` stays RED pre-existing, is
 **not** one of CLAUDE.md §6's four arms, and its twelve are never allowlisted.
+⚠ **AMENDED 2026-09-08 (QA B2): twelve PLUS FIVE.** That arm's offender set gains 5 off-allowlist
+BLINDs from this unit's baseline (0 → 5). ⭐ Because the arm is *already* red, **no gate can register
+the change** — which is the whole reason it is written here rather than left to a gate: a standing
+red is where a new regression lands invisibly. ⛔ Never allowlisted; derived, not observed.
 
 | gate | command | bare rc | observed |
 |---|---|---|---|
@@ -1049,6 +1089,12 @@ for both forms — the derived-but-wrong-quantity form as much as the literal on
 The rotation was **mechanical**: entry block and body file moved as bytes, the destination verified
 **before** any source was cut, then the entries removed and the two body files deleted. Archive
 10312 → 10935 lines; open register 1791 → 1769.
+⛔ **CORRECTED 2026-09-08 (QA finding N5): both figures are off by one at each end.** Measured across
+this turn's own commit (`22402505` → `6d0db87a`): archive **10311 → 10934** (+623); open register
+**1790 → 1770**, a delta of **−20**, not the −22 the line above implies. ⚠ The rotation itself was
+byte-verified and is unaffected — but ⭐ *a delta quoted from two hand-read endpoints is two chances
+to be wrong, and here it was both*: the endpoints were read, not computed, so the error survived a
+turn whose whole subject was verifying bytes at the destination.
 
 | item | discharged by | ⛔ NOT discharged by |
 |---|---|---|
@@ -1096,3 +1142,187 @@ collects `.sql` files, and `.sh` files **already** live in `supabase/tests/mutat
 `Files=262, Tests=8876` baseline was measured with them present, twice on this branch — so editing
 one cannot move `Files=`. The condition is not met; the shape check belongs to the lead's gate at
 the tip, on a fresh reset.
+
+---
+
+### 2026-09-08 — `backend`, QA fix loop iteration 1 of ≤5 (`docs/reviews/writepath-baseline-review.md`: CHANGES REQUESTED, B1–B4 blocking + N1–N5)
+
+All four blocking findings accepted by the lead (R37) without argument; QA is right on every one.
+Three are prose-about-a-measurement. **B1 is not** — it is a live functional defect in a file a gate
+reads, and it is the most serious thing this unit produced.
+
+#### B1 — a COVERED row inside the `## BLIND` table. Fixed, and its MECHANISM measured
+
+`docs/reviews/authz-writepath-audit-findings.md:75` carried
+`responses.responses_delete_own_draft (DELETE) … | COVERED |` **inside** `## BLIND`.
+`p0-authz-invariant.sh:133-136`'s `blind_from_findings()` filters on `/^## BLIND/` and never reads
+column 4, so it returned **16** labels where the run measured 15 — pinning a policy the sweep found
+COVERED as BLIND for ever, and disabling ARM 1's stale-allowlist prune, the one mechanism that would
+have surfaced the staleness. **Row relocated by hand** into the COVERED table, in the alphabetical
+slot the generator itself uses. Re-verified with the consumer's own extractor, replicated verbatim:
+**15 labels**, not 16.
+
+⛔ **Census, never a sample** (the lead's instruction). An `awk` census over every table row, keyed
+on `section × column 4`:
+
+| file | rows scanned | section/verdict disagreements |
+|---|---|---|
+| `main` | 51 | **0** |
+| HEAD `6d0db87a` | 120 | **1** — B1's row, and only it |
+| after the fix | 120 | **0** |
+
+Parts sum on both bases (`main` 46+3+2 = 51; HEAD 101+15+3+1 = 120), so the census is not silently
+dropping a class. **The detector was proven able to find something before its zeros were believed:**
+a planted `COVERED` inside `main`'s BLIND table was found; a planted `BLIND` inside HEAD's COVERED
+table — **the opposite polarity, which no real file exercises** — was also found.
+
+⭐ **Instrument fault 8, caught by a guard rather than by luck.** The first negative-control plant
+targeted a policy name that does not exist in `main`'s 3-row BLIND table, so it changed nothing and
+the census reported a clean **0** — a *dead plant reading exactly like a passing control*. Caught by
+a `diff` between the source and the planted copy, which was empty. Re-planted on a row that exists,
+and the plant then fired. ⛔ A plant is not evidence until you have shown it applied.
+
+**The mechanism — measured on constructed inputs through the real merge library, not inferred.**
+`emit_body` places strictly by verdict (`$4=="BLIND"` / `$4!="BLIND"`), so the **generator cannot**
+produce this state. `merge-findings-baseline.sh` step 3 aligns baseline against generated by `diff`
+over row-key placeholders and emits each merged row at the **first** aligned position, deleting the
+key so the second occurrence emits nothing. Both polarities run through the library:
+
+| baseline | run | table the merge chose | correct? |
+|---|---|---|---|
+| BLIND | COVERED | `## BLIND` (the baseline's) | ❌ — B1 |
+| COVERED | BLIND | `## BLIND` (the run's) | ✅ |
+
+⭐ **The merge is correct only for the direction that makes things worse.** Because `## BLIND`
+precedes the COVERED table, "first position wins" files a **regression** correctly and misfiles an
+**improvement**. The arm therefore over-reports BLIND and can never under-report — it fails closed,
+which is exactly why nothing caught it for 38 door rows and now 1 write row. ⚠ The real run
+exercised only the failing polarity (1 `BLIND -> COVERED`, **zero** `COVERED -> BLIND`), so the
+correct half is a constructed observation, not a run witness.
+
+**Filed against the existing item, so both halves live together:**
+`FUP-AUTHZ-BLIND-SET-READ-FROM-THE-SECTION-NOT-THE-VERDICT` already owns the *reader* half (the arm
+trusts the section); the *writer* half (the merge writes the section) is now recorded there with the
+measurement above. ⛔ The hand relocation closes neither: it is a data fix.
+
+⚠ **A third correction to that entry, measured rather than argued.** Its `Closes when` says a
+re-sort *"is undone by the next merge"*. Re-running the merge with the corrected file as baseline
+and a generator-shaped report as input left the row in the COVERED table with **0** disagreements
+and spliced its hand suffix back (`PRESERVED … 1 hand suffix(es)` — the splice path, so the test was
+not the `brow == grow` identity fast path). A re-sort is undone only for a row whose verdict
+**crosses the boundary again**; that is still reason enough not to close on one, so the rule stands
+and only its factual half is corrected.
+
+⭐⭐ **The transferable lesson, and it indicts my own control.** R30 condition 4 asserted the 120
+rows' identities, arms, directions and verdicts were **unchanged across the disposition edit**. That
+control was green *because* the row was already misplaced before the edit. **A verification anchored
+on a DELTA cannot see a defect that predates the delta** — invariance across an edit is not
+correctness, and I chose invariance because the edit was what I was afraid of. The property the
+control should also have asserted is stateless: *every row's section agrees with its column 4*. That
+is now the census above, and it costs four lines of `awk`.
+
+#### B2 — five new off-allowlist BLINDs, disclosed (⛔ never allowlisted)
+
+Re-derived independently with the harness's own `blind_from_findings` + `allow_body`:
+
+| | write-arm BLIND labels | of which NOT on `authz-blind-allowlist.txt` |
+|---|---|---|
+| `main` | 3 | **0** |
+| this branch, after B1's fix | 15 | **5** |
+
+The five, named: `cases.cases_staff_admin_write`,
+`commission_member_titles.member_titles_staff_admin_write`,
+`commissions.commissions_admin_write`, `phase_results.phase_results_staff_admin_write`,
+`process_template_versions.process_template_versions_staff_admin_write`. The other **10** are already
+allowlist entries — tracked backlog, not newcomers. ⛔ **Zero entries were added**:
+`git diff --quiet main -- supabase/tests/mutation/authz-blind-allowlist.txt` is **rc 0**, byte-identical.
+
+⚠ **Labelled derived-not-observed everywhere it is stated (R39).** `FROMFINDINGS=1 ARM=policy` was
+**not run** — it is red pre-existing and unreadable until its own follow-up lands — so this is
+arithmetic over two committed artifacts using the consumer's extraction logic, not an arm's printed
+offender list. Its printed total may differ, because it also draws on the door and rowdoor findings
+files this branch did not touch.
+
+⭐ **Why disclosure IS the remedy here.** Because the arm is *already* red, no gate can register the
+change: *an escape hatch for the unmeasurable also silences the measured*. Stated beside **every**
+"its twelve" sentence — the record's four standing blocks plus `:34` and `:836`, ADR 0192 `:205`,
+the hub § Current state, and the 15-BLIND follow-up. ⛔ Still never allowlisted; the fix is keystones.
+
+#### B3 — the direction census was wrong, and it inverted its own conclusion
+
+`FUP-…-15-BLIND-WRITE-POLICIES-NO-TEST-NOTICES` claimed *"Twelve `ALL` … Three single-command
+policies opened `open->true`"*. Measured over the committed file: **13** `ALL` / `open
+with-check->true`, and **2** `UPDATE` / `open using+check->true` — a token the entry did not
+contain. ⭐ 12 + 3 = 15 summed while the partition was wrong: **a census whose parts sum is not
+thereby right.** Worse than the digits: the two are opened on **both halves**, so their BLIND is a
+claim about the **whole policy**, while the paragraph filed them under a "`with check` half only"
+reading — it inverted its own conclusion for the two rows it goes on to call the sharpest. Corrected
+in place with the original quoted beside it; the cluster list said 2 all along and was never wrong.
+
+⚠ **And the over-claim.** *"Nothing asserts that one user cannot update another user's rows"* is
+contradicted by `authz-blind-allowlist.txt:33-36`, which records
+`notification_preferences_update_own` as *"fully backstopped by `select_own`"*. **A BLIND means no
+keystone exercises THIS POLICY; it does not mean no mechanism constrains the behaviour.** Corrected
+to say the first without implying the second — the gap is still real and still worth a keystone,
+because the backstop is a side effect of a different policy and an unrelated edit can remove it.
+`notifications_update_own` has no recorded backstop and the entry now says that is **unmeasured**,
+not clear. *An incidental guard closes a hole the definition predicts.*
+
+#### B4 — the baseline no longer denies being the audit's result
+
+`:37-54` still opened *"⛔ Do not read this file as the write-path audit's result"* and *"The gap
+closes only when a full sweep runs"*, in the future tense, in bold, at the top of the unit's central
+deliverable. Given the same dated `⛔ SUPERSEDED 2026-09-08` treatment the adjacent `## Note` got at
+`:36` — ⛔ **beside** the original, not a rewrite and not a deletion, because it was true when
+written. The marker names all three now-false claims **and** the half that does not expire: *absence
+of a row is absence of a VERDICT, never a COVERED*, which is why the 3 `process_template_*` rows are
+`ERROR`/UNVERDICTED rather than scored.
+
+#### N1–N5
+
+- **N1** `401 → 251` is **256**, and has been since `3c763ffe`. ⭐ The gap is *exactly* the 5 lines
+  that same turn added (a 4-line HTML comment + the 1-line `SUPERSEDED`) and never re-measured —
+  **a count measured before the last edit and quoted after it**. Corrected in the hub and at both
+  record sites. ⚠ The file is now **304** lines after this loop's three additions.
+- **N2** `p0-authz-writepath-audit.sh:21` claimed `RAISE-GUARDS — 11` while `GUARD_KEYS` holds
+  **13** — the fifth instance of the class, sitting **inside the sentence that warns about it**.
+  Both halves done: the numeral **deleted** (no runtime list a comment can derive from, so a fresh
+  literal is the same defect with a newer number — the `READ ALL FIVE STEPS` route), and the
+  follow-up's `Closes when` **widened from "an executed banner" to "an executed banner or a header
+  comment"**. ⭐ The old boundary was drawn from where the *first* instance happened to live; the
+  `FIVE`/`SIX` instance it already counted was a comment too, so the scope word was wrong before
+  this instance existed. ⛔ Four repaired instances in one file is still not the class — the other
+  four harnesses are unswept.
+- **N3** hub `adrs:` gains `0192`; `npm run features:index` re-run (rc 0, no INDEX diff — the index
+  does not render that field, so the omission was hub-local).
+- **N4** acceptance criteria 4–6 checked, with B1's finding recorded as a quote block under 4.
+- **N5** archive/open-register deltas corrected against this turn's own commit range
+  (`22402505` → `6d0db87a`): archive **10311 → 10934**, open **1790 → 1770** (**−20**, not −22).
+  ⭐ *A delta quoted from two hand-read endpoints is two chances to be wrong*, and here it was both.
+
+#### R39 — the durable finding, filed rather than papered over
+
+`FUP-AUTHZ-PROOFS-CITED-BY-RECORDS-ARE-NOT-REPRODUCIBLE-FROM-THE-REPO` (🟠 high). Every proof this
+unit rests on — now **eight** instrument faults, four mutants, the planted drift reproducer, the
+policy-DDL detector's plant, the `RECOVER=1` storage restore, every discrimination half — lives in
+out-of-repo scratch plus prose here. QA's phrase is exact: *"attested, not audited"*. When the
+scratch is cleared the claims become **unfalsifiable**, which is not the same as wrong and is worse
+to review. ⛔ Not fixed by committing logs (a log re-runs nothing); the model is the committed
+`SELFTEST=1` arms, which is why R36 could quote `hat` 7/7 as a gate line.
+
+#### Gates for this turn, read BARE
+
+- `node scripts/check-docs-registers.mjs` — rc **0**, OK, ratchets unmoved (`longHeadings=97/97`,
+  so the new entry's heading is within cap). ⚠ Its first run this turn was read **through a pipe**
+  and printed `rc=0` beside 2 findings; re-run bare it was **rc 1**. *A pipe erases the exit code* —
+  caught here, again, on the first gate command of the turn.
+- `npm run features:index` — rc **0**.
+- ⛔ **`npm run test:db` deliberately NOT re-run.** This turn touched Markdown and one **comment**
+  in a `.sh` under `supabase/tests/mutation/`; `supabase test db` collects `.sql`, and those `.sh`
+  files were present when `Files=262, Tests=8876` was measured. Nothing here can move the shape.
+- ⛔ **The four authz arms NOT run by me** (protocol §4 — the lead runs them at the tip).
+  ⚠ **B1's row move changes the input to `FROMFINDINGS=1 ARM=policy`** and to nothing else: that
+  arm's write-arm BLIND set goes 16 → 15. The four §6 arms (`census`, `hat`, `floor`, `wrapper`) do
+  not read the `## BLIND` section of this file, so they are unaffected — QA states the same.
+- Production diff still **EMPTY**; Tier 2's 190 doors stay **deferred by ADR 0171 and are NOT
+  cleared**; ⛔ nothing was allowlisted.

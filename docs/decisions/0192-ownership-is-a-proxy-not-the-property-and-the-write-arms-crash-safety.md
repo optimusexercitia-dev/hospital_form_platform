@@ -204,3 +204,15 @@ cap-vs-qualifiers ground above.
 - ⛔ Tier 2's 190 doors remain **deferred by ADR 0171 and are NOT cleared** by anything here.
 - ⛔ `FROMFINDINGS=1 ARM=policy` is RED pre-existing, is **not** one of CLAUDE.md §6's four arms, and
   its twelve are not allowlisted by this or any other work in this unit.
+  - ⚠ **AMENDED 2026-09-08 (QA finding B2), beside the original.** After this unit that arm's
+    offender set is twelve **plus five**: the write-path baseline's BLIND set goes from **0** to
+    **5** entries that are not on `authz-blind-allowlist.txt` — `cases.cases_staff_admin_write`,
+    `commission_member_titles.member_titles_staff_admin_write`, `commissions.commissions_admin_write`,
+    `phase_results.phase_results_staff_admin_write`,
+    `process_template_versions.process_template_versions_staff_admin_write`. ⛔ **Zero allowlist
+    entries were added** and none may be; the file is byte-identical to `main`. The disclosure is
+    the remedy precisely because the arm is already red, so **no gate can register the change** —
+    otherwise whoever repairs that red meets five offenders with no provenance. ⚠ The **5** is
+    derived from the committed artifacts using the harness's own `blind_from_findings` +
+    `allow_body`; it was **not** observed from an `ARM=policy` run, which is unreadable until
+    `FUP-AUTHZ-BLIND-SET-READ-FROM-THE-SECTION-NOT-THE-VERDICT` lands.

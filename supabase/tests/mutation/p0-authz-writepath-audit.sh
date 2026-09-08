@@ -18,12 +18,20 @@
 # COMMITTED catalog (never migration text — memory: migration file text is STALE) and run
 # `supabase test db`.
 #
-# ── ARM 1: the authz RAISE-GUARDS — 11, NOT the 7 this header used to claim ─────────
-# ⚠ Corrected 2026-08-29, surfaced by the new ARM-DOMAIN line printing `guard=N/11`.
-# The 7 documented below are the ORIGINAL set; `GUARD_KEYS` has since gained
-# set_commission_oversight, ensure_professional_participant, create_external_participant
-# and set_primary_subject without this header moving. ⛔ GUARD_KEYS is the truth — a
-# count in a comment is an assertion, and this one was false for four additions.
+# ── ARM 1: the authz RAISE-GUARDS — the set is `GUARD_KEYS`, and only `GUARD_KEYS` ──
+# ⚠ Corrected 2026-08-29 (this header had claimed 7), and AGAIN 2026-09-08 (QA N2): it
+# then claimed **11** while `GUARD_KEYS` held **13** — create_professional_profile and
+# set_professional_link_state were added without this header moving, so the same sentence
+# was false for a SECOND batch of additions. ⛔ The numeral is now DELETED rather than
+# refreshed: there is no runtime list a comment can derive from, so a fresh literal would
+# be the same defect with a newer number (the `READ ALL FIVE STEPS` repair, same file,
+# same day, took the same route). The ARM-DOMAIN line prints `guard=N/M` from GUARD_KEYS
+# at run time — read that, never this.
+# The ORIGINAL set is the one documented below; `GUARD_KEYS` has since gained
+# set_commission_oversight, ensure_professional_participant, create_external_participant,
+# set_primary_subject, create_professional_profile and set_professional_link_state.
+# ⛔ GUARD_KEYS is the truth — a count in a comment is an assertion, and this one has now
+# gone stale twice, in a sentence whose whole subject is that it goes stale.
 # These are plpgsql, RETURN a value (uuid / case_referral) AND `raise … '42501'`(or an HC*
 # code) on unauthorized. The main door-audit EXCLUDES them from its auto-sweep because a
 # blanket body-swap on a value-returning raise-guard risks a NULL-propagation ABORT

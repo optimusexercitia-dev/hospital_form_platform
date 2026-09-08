@@ -52,6 +52,17 @@ its rows are **merged** into this file — never copied over it (ADR 0079 Amendm
 ⚠ A regenerated report marks each row `snapshot:ABSENT` when no §7.2 drift tripwire protects
 its verdict. All **33** snapshot rows were verified byte-identical to the live catalog on
 2026-09-02, so none of them is stale.
+⛔ **SUPERSEDED 2026-09-08:** all three of the block above's claims are now false **of this
+artifact**, and it is kept — not rewritten — because each was true when written. (1) *"Do not read
+this file as the write-path audit's result"*: **120 of 120** cases in it come from the full sweep
+of the widened live-catalog domain (2026-09-07 20:11 → 2026-09-08 00:04), so this file **is** the
+result. (2) *"The gap closes only when a full sweep runs … and its rows are merged"*: that sweep
+ran and its rows were merged (`scripts/lib/merge-findings-baseline.sh`, never copied over) — the
+sentence stands as the **discharged** condition, not as a pending one. (3) The **33**-row
+population no longer describes the file: 36 carried rows were deleted under PO ruling R30 and the
+tables are lifted live. ⚠ What does **not** expire is the block's load-bearing half — *absence of
+a row below is absence of a VERDICT, never a COVERED* — which is why the 3 UNVERDICTED
+`process_template_*` rows are marked `ERROR`, not scored.
 
 ## BLIND — the work-list (no keystone exercises these)
 
@@ -72,7 +83,6 @@ its verdict. All **33** snapshot rows were verified byte-identical to the live c
 | professional_categories.professional_categories_admin_write (ALL) | policy | open with-check->true | BLIND |  [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
 | referral_types.referral_types_write_admin (ALL) | policy | open with-check->true | BLIND |  [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
 | reply_outcomes.reply_outcomes_write_admin (ALL) | policy | open with-check->true | BLIND |  [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
-| responses.responses_delete_own_draft (DELETE) | policy | open using->true | COVERED | 387_initplan_wrap_and_profiles_arm_identity.sql [role=postgres via ownership (owner=postgres)] |
 
 ## COVERED (asserted-through) + ERROR (harness bug) + SKIPPED (vacuous)
 
@@ -176,6 +186,7 @@ its verdict. All **33** snapshot rows were verified byte-identical to the live c
 | response_group_instances.response_group_instances_write_own_draft (ALL) | policy | open with-check->true | COVERED | 270_ff1_repeating_groups.sql,387_initplan_wrap_and_profiles_arm_identity.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
 | response_group_instances.response_group_instances_write_targeted (ALL) | policy | open with-check->true | COVERED | 270_ff1_repeating_groups.sql,387_initplan_wrap_and_profiles_arm_identity.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
 | response_section_signoffs.signoffs_insert (INSERT) | policy | open with-check->true | COVERED | 251_authz_p0_isolation.sql,387_initplan_wrap_and_profiles_arm_identity.sql [role=postgres via ownership (owner=postgres)] |
+| responses.responses_delete_own_draft (DELETE) | policy | open using->true | COVERED | 387_initplan_wrap_and_profiles_arm_identity.sql [role=postgres via ownership (owner=postgres)] [row RELOCATED BY HAND 2026-09-08 — the 2026-09-07 merge emitted this COVERED row inside the `## BLIND` table; see the note at the foot of this file] |
 | responses.responses_insert_own (INSERT) | policy | open with-check->true | COVERED | 198_perf_hardening.sql,387_initplan_wrap_and_profiles_arm_identity.sql [role=postgres via ownership (owner=postgres)] |
 | responses.responses_update_own_draft (UPDATE) | policy | open using+check->true | COVERED | 198_perf_hardening.sql,387_initplan_wrap_and_profiles_arm_identity.sql [role=postgres via ownership (owner=postgres)] |
 | responses.responses_update_targeted (UPDATE) | policy | open using+check->true | COVERED | 387_initplan_wrap_and_profiles_arm_identity.sql [snapshot:ABSENT — no §7.2 drift tripwire on this verdict] [role=postgres via ownership (owner=postgres)] |
@@ -254,3 +265,40 @@ the 137-line pre-run baseline held **63** non-blank non-table lines, the generat
 **10** of them verbatim, and the merge *replaced* **2** stale statistics
 (`Baseline: Files=156, Tests=4796…` and `Arm 1 guards: 7…`) rather than preserving them —
 63 − 10 − 2 = **51**.
+
+## Note — 2026-09-08: one row was RELOCATED BY HAND, and why the merge put it in the wrong table
+
+`responses.responses_delete_own_draft (DELETE)` was emitted by the 2026-09-07 merge **inside the
+`## BLIND` table while carrying the verdict `COVERED`** (QA finding B1). It has been moved by hand
+into the COVERED table, in the alphabetical slot the generator itself would have used. Nothing
+about the verdict changed — the run measured it COVERED, and the record has said so since.
+
+⛔ **This is not cosmetic: the consumer keys on the HEADING, not on column 4.**
+`p0-authz-invariant.sh`'s `blind_from_findings()` selects on `/^## BLIND/` and never reads the
+verdict column, so while the row sat there `FROMFINDINGS=1 ARM=policy` read this policy as BLIND
+permanently, and ARM 1's stale-allowlist prune could never reach its allowlist entry — the one
+mechanism that would surface the staleness was disabled by the misplacement.
+
+**The mechanism, measured — not inferred.** `emit_body` places strictly by verdict
+(`$4=="BLIND"` into one table, `$4!="BLIND"` into the other), so the **generator cannot** produce
+this state. `merge-findings-baseline.sh` step 3 aligns the two files by `diff` over row-key
+placeholders and emits each merged row at the **first** aligned position, deleting the key so the
+second occurrence emits nothing. Reproduced on constructed inputs, both polarities:
+
+| baseline verdict | run verdict | table the merge chose | correct? |
+|---|---|---|---|
+| BLIND | COVERED | `## BLIND` (the baseline's) | ❌ — this is B1 |
+| COVERED | BLIND | `## BLIND` (the run's) | ✅ |
+
+⭐ **The merge is correct only for the direction that makes things worse.** Because the `## BLIND`
+table precedes the COVERED one, "first position wins" files a *regression* correctly and misfiles
+an *improvement*. So the arm can over-report BLIND but never under-report it — it fails closed,
+which is why nothing caught it, and it also means a fixed policy stays pinned as BLIND forever.
+⚠ The real run exercised only the failing polarity (1 `BLIND -> COVERED`, **zero**
+`COVERED -> BLIND`), so the correct half above is a constructed observation, not a run witness.
+
+The defect is filed against `FUP-AUTHZ-BLIND-SET-READ-FROM-THE-SECTION-NOT-THE-VERDICT` — the arm
+half of that follow-up says the *reader* trusts the section over the verdict; this is the *writer*
+half. Because this file's tables now agree with their verdicts, the next full sweep aligns both
+occurrences in the same table and reproduces the correct placement; the hand fix is stable, but it
+is a data fix and **not** a fix of the merge.
