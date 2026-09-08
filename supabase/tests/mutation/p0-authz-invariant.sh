@@ -326,16 +326,32 @@ run_arm_policy () {
       blind_from_findings "$ROW_FINDINGS"; } | sort -u > "$blinds"
   else
     echo "  mode: FULL SWEEP (door + writepath + rowdoor) — ~105 min"
-    # ⛔ CASES= is cleared EXPLICITLY for the children. This script never sets it, so an
-    # EXPORTED CASES in the operator's environment used to be inherited straight into the
-    # sweeps: each would silently run a subset, and this arm would then compare a SUBSET
-    # BLIND set against the full allowlist and find nothing unaccounted for — a narrower
-    # domain reading as a clean pass, which is FUP-DOOR-SWEEP-DESTROYS-ITS-OWN-BASELINE's
-    # sibling on the scratch side. "FULL SWEEP" is now a fact about the child, not a hope.
+    # ⛔ CASES is UNSET for the children. This script never sets it, so an EXPORTED CASES in
+    # the operator's environment used to be inherited straight into the sweeps: each would
+    # silently run a subset, and this arm would then compare a SUBSET BLIND set against the
+    # full allowlist and find nothing unaccounted for — a narrower domain reading as a clean
+    # pass, FUP-DOOR-SWEEP-DESTROYS-ITS-OWN-BASELINE's sibling on the scratch side. "FULL
+    # SWEEP" is a fact about the child, not a hope.
+    #
+    # ⛔ `unset CASES`, NEVER `CASES= cmd` (2026-09-08). `VAR= cmd` sets VAR to the EMPTY STRING
+    # in the child. Every sweep now reads CASES on SET-NESS, so an empty string is the THIRD
+    # state — "a selection that came back empty" — which selects NOTHING and exits 3 UNPROVEN.
+    # The old form therefore asked for a full sweep and would get a run that measured nothing.
+    # ⭐ THE DEFENCE BECAME THE DEFECT: `CASES=` was introduced here precisely to stop an
+    # inherited CASES narrowing a child, and re-predicating the child inverted this parent's
+    # failure mode. `unset` means "full sweep" under BOTH the old and the new semantics, so it
+    # is correct irrespective of which children carry the three-state read.
+    # ⚠ The writepath line was already broken this way from Batch 3 (ADR 0192) until now. It is
+    # LATENT, not observed: no Phase Gate arm reaches this branch — the gate names `census`,
+    # `hat`, `floor` and `FROMFINDINGS=1 wrapper`, and this is `ARM=policy` WITHOUT
+    # FROMFINDINGS, the ~105-min full sweep. It would have failed LOUDLY at the RC level
+    # (`|| RC=1`) while failing VACUOUSLY at the measurement level: the child writes
+    # blinds_writepath.SUBSET.tsv or nothing, the `awk … 2>/dev/null` below swallows the
+    # absence, and the BLIND union silently loses that arm's contribution.
     [ -n "${CASES:-}" ] && echo "  ⚠ CASES=\"$CASES\" is set in the environment — IGNORED here; this mode is a FULL sweep."
-    ( cd "$ROOT" && CASES= bash "$HERE/p0-authz-door-audit.sh" )      || { echo "  *** door sweep failed"; RC=1; }
-    ( cd "$ROOT" && CASES= bash "$HERE/p0-authz-writepath-audit.sh" ) || { echo "  *** writepath sweep failed"; RC=1; }
-    ( cd "$ROOT" && CASES= bash "$HERE/p0-authz-rowdoor-audit.sh" )   || { echo "  *** rowdoor sweep failed"; RC=1; }
+    ( cd "$ROOT" && unset CASES && bash "$HERE/p0-authz-door-audit.sh" )      || { echo "  *** door sweep failed"; RC=1; }
+    ( cd "$ROOT" && unset CASES && bash "$HERE/p0-authz-writepath-audit.sh" ) || { echo "  *** writepath sweep failed"; RC=1; }
+    ( cd "$ROOT" && unset CASES && bash "$HERE/p0-authz-rowdoor-audit.sh" )   || { echo "  *** rowdoor sweep failed"; RC=1; }
     # All three sweeps write a machine-readable BLIND tsv (col2 = gate) into $WORK.
     { awk -F'\t' 'NR>1{print $2}' "$WORK/blinds.tsv" 2>/dev/null;
       awk -F'\t' 'NR>1{print $2}' "$WORK/blinds_writepath.tsv" 2>/dev/null;
@@ -748,10 +764,13 @@ run_arm_wrapper () {
     blind_from_findings "$INV_FINDINGS" | sort -u > "$blinds"
   else
     echo "  mode: FULL SWEEP (invoker) — ~25 min"
-    # ⛔ CASES= cleared explicitly — see the same guard in ARM 1: an exported CASES would
+    # ⛔ CASES is UNSET for the child — see the same guard in ARM 1: an exported CASES would
     # make the child sweep a SUBSET whose narrower BLIND set reads here as a clean pass.
+    # ⛔ `unset CASES`, NEVER `CASES= cmd`: an empty string is the THIRD state (a selection that
+    # came back empty), which selects nothing and exits 3 UNPROVEN. `unset` means "full sweep"
+    # under both the old and the new semantics. Full reasoning at the ARM 1 call sites above.
     [ -n "${CASES:-}" ] && echo "  ⚠ CASES=\"$CASES\" is set in the environment — IGNORED here; this mode is a FULL sweep."
-    ( cd "$ROOT" && CASES= bash "$HERE/p0-authz-invoker-audit.sh" ) || { echo "  *** invoker sweep failed"; RC=1; }
+    ( cd "$ROOT" && unset CASES && bash "$HERE/p0-authz-invoker-audit.sh" ) || { echo "  *** invoker sweep failed"; RC=1; }
     awk -F'\t' 'NR>1{print $2}' "$WORK/blinds_invoker.tsv" 2>/dev/null | sort -u > "$blinds"
   fi
 

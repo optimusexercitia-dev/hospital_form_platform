@@ -98,7 +98,27 @@ When a phase passes human approval, the lead:
 **Gate step-1 note (authz sweeps):** derive the case list with
 `scripts/door-sweep-cases.sh <phase-base>` — never by hand, and never from the old prose
 one-liner (ADR 0079 § The recipe; exit 1 means *migrations touched, zero gates derived*,
-which is an obligation to rule on, not a pass). ⛔ **Do NOT `git checkout --` the findings
+which is an obligation to rule on, not a pass).
+
+⛔ **READ THE DERIVER'S EXIT CODE BEFORE YOU SUBSTITUTE ITS STDOUT.** ⛔ Never
+`CASES="$(bash scripts/door-sweep-cases.sh <base>)" bash <sweep>` in one breath: command
+substitution **discards the exit code that IS the claim**, and on the exit-1 FINDING the deriver
+correctly prints **no case list** — so `CASES` becomes the empty string. Two steps, always:
+
+```sh
+CASELIST="$(bash scripts/door-sweep-cases.sh <phase-base>)"; rc=$?   # ⛔ rc read BARE, no pipe
+case $rc in
+  0) CASES="$CASELIST" bash supabase/tests/mutation/p0-authz-door-audit.sh ;;  # sweep the list
+  1) : ;;   # FINDING — doors derived but none sweepable here. RULE on it; do NOT sweep.
+  2) : ;;   # ABORT   — the deriver could not run. Fix it; a missing list is not an empty one.
+  3) : ;;   # NOT-APPLICABLE — no migration in the diff.
+esac
+```
+
+Since 2026-09-08 an empty `CASES` is refused rather than silently widened: all four sweeps read
+`CASES` on **set-ness**, so `CASES=""` is *a selection that came back empty* and exits **3
+UNPROVEN**. That converts the old silent full sweep into a loud stop — it does **not** make the
+one-liner safe, because a run that exits 3 has still measured nothing. ⛔ **Do NOT `git checkout --` the findings
 file afterwards** — that instruction is retired (ADR 0153): a subset run now writes to
 scratch under `$WORK` and never opens the committed baseline for write. Verify by
 **measurement**, which stays right whether or not the guard is ever reverted:
@@ -119,10 +139,22 @@ merge aborted and wrote nothing, which also leaves the diff empty (QA F-MAJOR-5,
   targets unreadable*; the second one lists the doors that owe a **targeted** case and must not
   be put in `CASES=` (ADR 0079 hazard 4).
 - **Run `SELFTEST=1 bash scripts/door-sweep-cases.sh` beside the four authz arms** and record
-  `PASS · FAIL · SKIPPED` with the bare exit code — the deriver's 16 scenarios and the merge
-  helper's 18 over committed fixtures. It is deliberately **not** in `npm run lint` (it needs a
-  fake repo and, for catalog scenarios, the stack); a `SKIPPED > 0` result over catalog scenarios
-  is a stack-down run, not a pass.
+  `PASS · FAIL · SKIPPED` with the bare exit code, **plus the three `--- GROUP …` lines the
+  harness prints** — deriver · merge helper · audit startup capture. ⛔ **Do not restate the
+  per-group scenario counts here.** This line used to read *"the deriver's 16 scenarios and the
+  merge helper's 18"*, and adding the third group on 2026-09-08 made it stale the same day —
+  which is exactly `FUP-WRITEPATH-BASELINE-HARDCODED-COUNTS-IN-HARNESS-BANNERS`, and re-typing a
+  corrected literal would be the same defect with a newer number. The counts are now **derived**
+  by the harness from the scenarios that actually ran; quote what it printed. It is deliberately
+  **not** in `npm run lint` (it needs a fake repo and, for catalog scenarios, the stack); a
+  `SKIPPED > 0` result over catalog scenarios is a stack-down run, not a pass.
+- ⛔ **A parent script asking a sweep for a FULL run writes `unset CASES && bash <sweep>`, never
+  `CASES= bash <sweep>`** (2026-09-08). `VAR= cmd` sets `VAR` to the **empty string** in the
+  child, and all four sweeps now read `CASES` on **set-ness**: an empty string is the third
+  state — *a selection that came back empty* — which selects nothing and exits **3 UNPROVEN**.
+  ⭐ `CASES=` was introduced in `p0-authz-invariant.sh` as a **defence** against an exported
+  `CASES` narrowing a child into a silent subset; re-predicating the children inverted the
+  parent's failure mode, and the defence became the defect.
 
 **Since PRED-DOMAIN (ADR 0191, 2026-09-07), two more:**
 - **Set-valued authz resolvers** — `bash supabase/tests/mutation/authz-setvalued-targeted-cases.sh`

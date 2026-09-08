@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------------------
-# SELF-TEST for scripts/door-sweep-cases.sh AND scripts/lib/merge-findings-baseline.sh.
+# SELF-TEST for scripts/door-sweep-cases.sh, scripts/lib/merge-findings-baseline.sh AND the
+# STARTUP CAPTURE inside the four p0-authz-*-audit.sh sweeps.
 # Entry point:
 #
 #     SELFTEST=1 bash scripts/door-sweep-cases.sh
@@ -54,6 +55,10 @@ FIX="$ROOT/scripts/fixtures/door-sweep"
 DERIVER="$ROOT/scripts/door-sweep-cases.sh"
 AUDIT="$ROOT/supabase/tests/mutation/p0-authz-door-audit.sh"
 WRITE_AUDIT="$ROOT/supabase/tests/mutation/p0-authz-writepath-audit.sh"
+# ⚠ These two are NOT copied into the fake repo — the deriver never reads them. They are here
+# only for the startup-capture group, which runs the REAL files in place.
+ROW_AUDIT="$ROOT/supabase/tests/mutation/p0-authz-rowdoor-audit.sh"
+INV_AUDIT="$ROOT/supabase/tests/mutation/p0-authz-invoker-audit.sh"
 DB="${DOOR_SWEEP_DB:-supabase_db_azkbbhskturikxpgmafq}"
 
 T="${TMPDIR:-/tmp}/door-sweep-selftest.$$"
@@ -147,10 +152,26 @@ done_ok () {
 has_out () { grep -qw -- "$1" "$OUT"; }
 has_err () { grep -qF -- "$1" "$ERR"; }
 
+# ⛔ GROUP TOTALS ARE DERIVED, NEVER TYPED (FUP-WRITEPATH-BASELINE-HARDCODED-COUNTS-IN-
+# HARNESS-BANNERS). docs/lead-playbook.md used to restate "the deriver's 16 scenarios and the
+# merge helper's 18"; adding a group made that line stale the same day, which is the whole
+# class. A group's size is now the number of scenarios that actually ran between two marks.
+# ⛔ Re-typing a corrected literal does not close this — a new literal is the same defect with
+# a newer number. Nothing here is a literal.
+GRP=""; GP=0; GF=0; GS=0
+group_start () { GRP="$1"; GP=$PASS; GF=$FAIL; GS=$SKIP; }
+group_end () {
+  local p=$((PASS - GP)) f=$((FAIL - GF)) k=$((SKIP - GS))
+  printf -- '--- GROUP %-22s scenarios %s (pass %s · fail %s · skipped %s)\n' \
+    "$GRP:" "$((p + f + k))" "$p" "$f" "$k"
+  GRP=""
+}
+
 echo "=== DOOR-SWEEP DERIVER SELF-TEST ==="
 echo "    fixtures : $FIX"
 echo "    catalog  : $([ "$CATALOG" = 1 ] && echo "REACHABLE ($DB)" || echo "NOT reachable — catalog scenarios will SKIP")"
 echo
+group_start "deriver"
 
 # ── 1. THE PROPERTY: a DEFINER door in the arm's domain, admitted by PRED_DOMAIN's own
 #      named exception rather than by the `returns boolean` the old text filter demanded.
@@ -335,7 +356,9 @@ m_err  () { grep -qF -- "$1" "$MERR" 2>/dev/null; }
 fixline () { grep -F -m1 -- "$2" "$MFIX/$1"; }                  # pull a byte-exact fixture line
 
 echo
+group_end
 echo "--- merge helper ---"
+group_start "merge helper"
 
 # ── 16. F-BLOCK-1 WITNESS A. A markdown-escaped `\|` inside a note truncated the row.
 #      MEASURED on the pre-fix helper against the real committed rows: 727 B -> 579 B and
@@ -470,9 +493,86 @@ assert "the injection must be cmp-verified as landed" "$(m_err 'output changed, 
 assert "the verifier must name the lost row" "$(m_err 'CARRIED ROW:' && echo 1 || echo 0)"
 done_ok
 
+
 echo
+group_end
+
+# ═══════════════════════════════════════════════════════════════════════════════════
+# THE AUDIT HARNESSES' STARTUP CAPTURE — BOTH POLARITIES (2026-09-08).
+#
+# ⛔ WHY THIS GROUP HAS TO EXIST AT ALL, AND WHY IT COULD NOT LIVE INSIDE THE HARNESSES.
+# Each sweep captures `CASES_EXPLICIT` at startup, BEFORE `CASES="${CASES:-}"` destroys the
+# distinction between "set to the empty string" and "never set". Every fixture inside a
+# harness's own SELFTEST assigns CASES_EXPLICIT itself, so those rows pass whether or not the
+# startup capture exists — "an instrument primed by its own fixture". The harness's row 0 reads
+# `CASES_EXPLICIT_AT_STARTUP`, which no fixture writes, and prints it. But ONE PROCESS CAN
+# OBSERVE ONLY ONE POLARITY of a startup-time capture: a run launched with CASES unset can
+# never see what a run launched with CASES="" would have captured. The second polarity needs a
+# SECOND PROCESS, and that is this group.
+#
+# ⛔ THE PAIR IS THE CONTROL. `unset -> 0` alone is satisfied by hard-wiring the bit to 0;
+# `empty -> 1` alone by hard-wiring it to 1. Only the two together pin the DISTINCTION, which
+# is the entire defect: `CASES= bash <sweep>` used to mean "full sweep" and now means
+# "selection that came back empty -> UNPROVEN".
+#
+# ⚠ These run the REAL harnesses, not copies in the fake repo — SELFTEST=1 exits before any
+# catalog access, so no stack is needed, and running the shipping file is the point. WORK is
+# pointed at this suite's throwaway dir so nothing lands in the operator's .authz-work.
+# ⚠ `unset CASES` in a subshell, never `CASES= bash …`: the second form IS the defect, and this
+# suite must not be the last place in the repo still typing it.
+# ═══════════════════════════════════════════════════════════════════════════════════
+group_start "audit startup capture"
+AWORK="$T/audit-work"; mkdir -p "$AWORK"
+AOUT="$T/audit.out"
+
+audit_polarity () {  # $1 harness path  $2 polarity: unset|empty  $3 expected startup bit
+  SCEN="$(basename "$1" .sh) CASES $2 -> startup=$3"
+  [ -f "$1" ] || { FAIL=$((FAIL + 1)); FAILED_NAMES="$FAILED_NAMES $SCEN"
+                   printf 'FAIL  %-44s (harness not found)\n' "$SCEN"; SCEN=""; return 0; }
+  : > "$AOUT"
+  if [ "$2" = "empty" ]; then
+    ( cd "$ROOT" && WORK="$AWORK" SELFTEST=1 CASES="" bash "$1" ) > "$AOUT" 2>&1
+  else
+    ( cd "$ROOT" && unset CASES && WORK="$AWORK" SELFTEST=1 bash "$1" ) > "$AOUT" 2>&1
+  fi
+  RC=$?
+  if [ "$RC" != 0 ]; then
+    FAIL=$((FAIL + 1)); FAILED_NAMES="$FAILED_NAMES $SCEN"
+    printf 'FAIL  %-44s expected rc 0, got rc %s\n' "$SCEN" "$RC"
+    grep -E 'NOT OK|unbound|not found' "$AOUT" | head -6 | sed 's/^/        | /'
+    SCEN=""; return 0
+  fi
+  return 0
+}
+a_out () { grep -qF -- "$1" "$AOUT"; }
+
+for h in "$AUDIT" "$WRITE_AUDIT" "$ROW_AUDIT" "$INV_AUDIT"; do
+  [ -f "$h" ] || continue
+  audit_polarity "$h" unset 0
+  assert "the harness must PRINT its startup capture" "$(a_out 'SELFTEST-STARTUP: CASES_EXPLICIT_AT_STARTUP=' && echo 1 || echo 0)"
+  assert "CASES unset must capture 0" "$(a_out 'SELFTEST-STARTUP: CASES_EXPLICIT_AT_STARTUP=0' && echo 1 || echo 0)"
+  assert "⛔ and NOT 1 (the hard-wired-bit control)" "$(a_out 'SELFTEST-STARTUP: CASES_EXPLICIT_AT_STARTUP=1' && echo 0 || echo 1)"
+  assert "the run must name its selection source" "$(a_out 'SELECTION-SOURCE: CASES UNSET -> FULL run' && echo 1 || echo 0)"
+  done_ok
+
+  audit_polarity "$h" empty 1
+  assert "CASES=\"\" must capture 1  ⭐ the polarity one process cannot see" "$(a_out 'SELFTEST-STARTUP: CASES_EXPLICIT_AT_STARTUP=1' && echo 1 || echo 0)"
+  assert "⛔ and NOT 0 (the hard-wired-bit control)" "$(a_out 'SELFTEST-STARTUP: CASES_EXPLICIT_AT_STARTUP=0' && echo 0 || echo 1)"
+  assert "the run must say it is NOT a full run" "$(a_out 'CASES set and EMPTY -> selects NOTHING (UNPROVEN, exit 3). ⛔ NOT a full run.' && echo 1 || echo 0)"
+  done_ok
+done
+
+echo
+group_end
 echo "--------------------------------------------------------------------------------"
 echo "SELF-TEST: PASS $PASS · FAIL $FAIL · SKIPPED $SKIP"
+# ⭐ A suite that asserted NOTHING prints `PASS 0 · FAIL 0` and reads as a pass — the
+# empty-domain failure wearing the self-test's badge.
+if [ "$((PASS + FAIL + SKIP))" -eq 0 ]; then
+  echo "⛔ NOT OK — ZERO scenarios ran. Nothing was asserted; this is not a pass."
+  echo "--------------------------------------------------------------------------------"
+  exit 2
+fi
 if [ "$SKIP" -gt 0 ]; then
   echo "⚠ $SKIP scenario(s) SKIPPED because the live catalog was not reachable:$SKIPPED_NAMES"
   echo "  ⛔ A PASS over $PASS scenario(s) with $SKIP skipped is NOT a pass over all of them."

@@ -250,12 +250,24 @@ SENTINEL="${AUTHZ_SWEEP_SENTINEL:-${TMPDIR:-/tmp}/authz-writepath-INFLIGHT.sql}"
 # ⚠ `CASES=` set-and-empty is treated as a SUBSET run for placement purposes on purpose: an
 # explicitly-empty selection must never be able to open the committed baseline for write, even
 # if a later change let it past the domain gate.
-# ⛔ p0-authz-door-audit.sh carries the IDENTICAL defect at its own `[ -n "$CASES" ]`. It is
-# FILED, NOT FIXED here (FUP-CASES-EMPTY-STRING-DEGRADES-TO-A-FULL-RUN): that harness was
-# closed by Batch 2 and QA-approved, and fixing one of two would read as fixing the class.
+# ⛔ HISTORICAL, AND CORRECTED 2026-09-08. This block used to say the identical defect in
+# p0-authz-door-audit.sh was "FILED, NOT FIXED here" and cited
+# `FUP-CASES-EMPTY-STRING-DEGRADES-TO-A-FULL-RUN` — an id that exists in NO register. The two
+# real entries are `FUP-WRITEPATH-BASELINE-CASES-EMPTY-STRING-DEGRADES-TO-A-FULL-RUN` and
+# `FUP-AUTHZ-EMPTY-CASES-RUNS-A-FULL-SWEEP`; a dangling citation, in the very file whose
+# register entries warn that retiring an id orphans every citation naming it.
+# ⭐ The deferral is DISCHARGED: Batch 6 (2026-09-08) ported this fix to the door, row-door and
+# invoker sweeps and repaired the four `CASES= bash` call sites in p0-authz-invariant.sh that
+# were asking for a full sweep in the syntax that now means "selection came back empty".
 # ─────────────────────────────────────────────────────────────────────────────────────
 CASES_EXPLICIT=0; [ -n "${CASES+x}" ] && CASES_EXPLICIT=1
 CASES="${CASES:-}"                          # optional subset filter
+# ⭐ NEVER REASSIGNED (added 2026-09-08). ARM 3's sel_case fixture assigns $CASES_EXPLICIT
+# itself, so every row of it passed whether or not the capture on the line above had run — the
+# instrument primed by its own fixture, and ADR 0192's fix was unasserted in exactly that way.
+# Row 0 of ARM 3 reads THIS variable, which no fixture writes, and prints it for
+# scripts/door-sweep-selftest.sh to assert in BOTH polarities from two processes.
+CASES_EXPLICIT_AT_STARTUP="$CASES_EXPLICIT"
 if [ "$CASES_EXPLICIT" = "1" ] && [ -z "$CASES" ]; then
   SELECTION_SOURCE="CASES set and EMPTY -> selects NOTHING (UNPROVEN, exit 3). ⛔ NOT a full run."
 elif [ "$CASES_EXPLICIT" = "1" ]; then
@@ -1287,6 +1299,29 @@ Files=262, Tests=8876, Result: FAIL"
   # the case deriver's stdout without consuming its exit code got C and was given A.
   # ⚠ Placement is exercised through set_placement(), not restated here.
   echo "=== SELFTEST: CASES set-ness — selection AND placement (no DB) ==="
+  # ⛔ ROW 0 — the STARTUP CAPTURE, the one thing every fixture below could fake. sel_case
+  # assigns CASES_EXPLICIT itself, so ARM 3 passed in full even when nothing asserted that the
+  # capture at the top of this file had run at all. CASES_EXPLICIT_AT_STARTUP is written once,
+  # at startup, and by nothing else; deleting that line makes this row an unbound variable
+  # under `set -u` and the script dies here, loudly.
+  # ⛔ ONE PROCESS CAN OBSERVE ONLY ONE POLARITY of a startup-time capture. The line printed
+  # below is the machine-readable handle scripts/door-sweep-selftest.sh asserts in BOTH, by
+  # launching this file twice (CASES unset -> 0, CASES="" -> 1). This row on its own proves the
+  # capture SURVIVED to here unwritten; it does not prove it is CORRECT.
+  echo "SELFTEST-STARTUP: CASES_EXPLICIT_AT_STARTUP=$CASES_EXPLICIT_AT_STARTUP"
+  st_total=$((st_total+1))
+  case "$CASES_EXPLICIT_AT_STARTUP" in
+    0|1) printf '  ok    %-44s -> startup=%s\n' "0  startup capture is a set-ness bit" "$CASES_EXPLICIT_AT_STARTUP" ;;
+    *)   printf '  NOT OK %-43s -> startup=%s (expected 0 or 1)\n' "0  startup capture is a set-ness bit" "$CASES_EXPLICIT_AT_STARTUP"
+         st_failed=$((st_failed+1)) ;;
+  esac
+  st_total=$((st_total+1))
+  if [ "$CASES_EXPLICIT_AT_STARTUP" = "$CASES_EXPLICIT" ]; then
+    printf '  ok    %-44s -> %s\n' "0' startup capture UNWRITTEN by arms 1-2" "$CASES_EXPLICIT_AT_STARTUP"
+  else
+    printf '  NOT OK %-43s -> %s (expected %s)\n' "0' startup capture UNWRITTEN by arms 1-2" \
+      "$CASES_EXPLICIT" "$CASES_EXPLICIT_AT_STARTUP"; st_failed=$((st_failed+1))
+  fi
   sel_case () {  # $1 label  $2 CASES_EXPLICIT  $3 CASES  $4 expect want(responses_insert_own) yes|no
                  # $5 expect placement subset|committed
     local gotw gotp; st_total=$((st_total+1))
@@ -1836,7 +1871,12 @@ emit_body () {
     echo "⛔ **Rows in this file are only as complete as the run that wrote them.** A row count"
     echo "below $POL_TOTAL means no full sweep has covered the widened domain yet — absence of a"
     echo "row here is absence of a verdict, never a COVERED."
-    if [ -n "$CASES" ]; then echo; echo "> ⚠ PARTIAL RUN — CASES=\"$CASES\" (subset, not the full sweep)."; fi
+    # ⛔ SET-NESS, not value (2026-09-08) — a CASES="" run is a partial run, not a full one.
+    # ⚠ STATED HONESTLY: unreachable for CASES="" after ADR 0192, because emit_report runs only
+    # downstream of the SEL_TOTAL==0 -> exit 3 gate. Changed because the condition as written
+    # would MISLABEL a future caller, not because a scenario exercises it. Calling it "proven"
+    # would be the vacuity this repair exists to avoid.
+    if [ "$CASES_EXPLICIT" = "1" ]; then echo; echo "> ⚠ PARTIAL RUN — CASES=\"$CASES\" (subset, not the full sweep)."; fi
     echo
     echo "## BLIND — the work-list (no keystone exercises these)"
     echo

@@ -37,11 +37,17 @@
 # Run from repo root:  bash supabase/tests/mutation/p0-authz-door-audit.sh
 # Subset:              CASES="can_read_case is_case_respondent" bash .../p0-authz-door-audit.sh
 #   (CASES matches predicate proname OR policy name; space-separated.)
+#   ⛔ CASES HAS THREE STATES, NOT TWO — set-ness, not value:
+#     CASES UNSET          -> FULL run over the whole domain (may merge the committed baseline)
+#     CASES set, non-empty -> SUBSET run, scratch report only
+#     CASES set, EMPTY     -> SUBSET run selecting NOTHING -> exit 3 UNPROVEN. ⛔ NOT a full run.
+#   A full sweep from a parent script is therefore `unset CASES && bash ...`, never `CASES= bash
+#   ...`: the latter is the third state and is refused as unproven.
 # Bounded tail drift:  RESET_EVERY=N bash .../p0-authz-door-audit.sh
 #   Reset the DB + RE-CAPTURE the baseline every N cases, and reset-and-retry-once on a
 #   shape-moved verdict (ADR 0191 D8, porting ADR 0189 D6). Default 20; `0` disables.
 #   ⛔ THE GUARD IS SUBSET-NESS, NOT THE COUNTER: a NON-SUBSET run resets every N; a SUBSET
-#   run (`CASES=`) resets ONLY when RESET_EVERY is set EXPLICITLY — set-ness, not value, so
+#   run (a SET `CASES`) resets ONLY when RESET_EVERY is set EXPLICITLY — set-ness, not value, so
 #   a quick spike never triggers a destructive reset nobody asked for, while both mechanisms
 #   stay provable without a 13-hour sweep. Quote the `resets=` figure on the preconditions
 #   line, never the script name.
@@ -54,8 +60,11 @@
 #   0  CLEAN     a NON-EMPTY selection was swept and every case came back COVERED
 #   1  DIRTY     ≥1 BLIND and/or ERROR  (also: baseline not green)
 #   2  ABORT     contaminated stack / a restore that did not round-trip
-#   3  UNPROVEN  NOTHING was measured — zero cases selected, or a CASES token that
-#                matched no gate. ⛔ An UNPROVEN run is NOT a pass and never prints a
+#   3  UNPROVEN  NOTHING was measured — zero cases selected, a CASES token that matched no
+#                gate, or `CASES` set to the EMPTY STRING (a selection that came back empty is
+#                never a full sweep — that is the state the documented recipe produces when the
+#                deriver exits 1 and its stdout is captured without its exit code).
+#                ⛔ An UNPROVEN run is NOT a pass and never prints a
 #                BLIND/ERROR count: "BLIND: 0" over an empty domain used to be the
 #                BYTE-IDENTICAL string a clean full sweep prints, and one such run was
 #                read into a §6 gate record as coverage for a change adding a PHI writer.
@@ -81,7 +90,32 @@ PROGRESS="$WORK/progress.tsv"          # per-case log, written AS WE GO (§ mid-
 # sibling so the two harnesses never consume each other's evidence.
 SENTINEL="${AUTHZ_DOOR_SENTINEL:-${TMPDIR:-/tmp}/authz-door-INFLIGHT.sql}"
 RUNLOGS="$WORK/runlogs"                # full suite output per case, for forensics
+# ⛔ SET-NESS IS CAPTURED BEFORE THE DEFAULT DESTROYS IT. `CASES=""` and an unset CASES are the
+# same VALUE and must not be the same STATE: the first is a selection that came back EMPTY, the
+# second is "no selection asked for". The caller that produces the first is the documented recipe
+# — `CASES="$(bash scripts/door-sweep-cases.sh <base>)"` — whose exit 1 FINDING prints NO case
+# list, so the substitution yields "" and the exit code that WAS the signal is discarded.
+# ⭐ This is the file's OWN idiom, not an import: `RESET_EVERY_EXPLICIT` below reads set-ness the
+# same way, and the header calls it out as "set-ness, not value". CASES was the variable missed.
+CASES_EXPLICIT=0; [ -n "${CASES+x}" ] && CASES_EXPLICIT=1
 CASES="${CASES:-}"                     # optional subset filter
+# ⭐ NEVER REASSIGNED. Every SELFTEST fixture writes $CASES_EXPLICIT, so an arm that read only
+# that variable would pass even if the capture above were deleted — the instrument primed by its
+# own fixture. Row 0 of ARM 5 reads THIS one, which no fixture touches, so it can only be green
+# when the real initialisation path ran.
+CASES_EXPLICIT_AT_STARTUP="$CASES_EXPLICIT"
+# ⛔ THE THREE STATES, NAMED IN THE RUN'S OWN OUTPUT — printed beside the run banner and again
+# on the UNPROVEN exit. `${CASES:+…}` used to be the only place a run mentioned its selection,
+# and that is a VALUE test: on CASES="" the suffix vanished and the operator was told "0
+# selected" with no cause. The shape of this bug is that the check is INVISIBLE AT THE CALL
+# SITE; an exit 3 that does not name the empty substitution reproduces it in miniature.
+if [ "$CASES_EXPLICIT" = "1" ] && [ -z "$CASES" ]; then
+  SELECTION_SOURCE="CASES set and EMPTY -> selects NOTHING (UNPROVEN, exit 3). ⛔ NOT a full run."
+elif [ "$CASES_EXPLICIT" = "1" ]; then
+  SELECTION_SOURCE="CASES set to \"$CASES\" -> SUBSET run (scratch report only)."
+else
+  SELECTION_SOURCE="CASES UNSET -> FULL run over the whole domain."
+fi
 FINDINGS_COMMITTED="$ROOT/docs/reviews/authz-door-audit-findings.md"
 
 # ─────────────────────────────────────────────────────────────────────────────────────
@@ -125,15 +159,63 @@ if [ -n "${BASE_SHAPE_OVERRIDE:-}" ] && [ "${SELFPROOF:-0}" != "1" ]; then
   echo "       run: a real sweep must never inherit a forged baseline shape." >&2
   exit 2
 fi
-if [ -n "$CASES" ] || [ -n "${BASE_SHAPE_OVERRIDE:-}" ]; then
-  SUBSET_RUN=1
-  FINDINGS="$WORK/authz-door-audit-findings.SUBSET.md"
-  BLINDS_TSV="$WORK/blinds.SUBSET.tsv"
-else
-  SUBSET_RUN=0
-  FINDINGS="$FINDINGS_COMMITTED"
-  BLINDS_TSV="$WORK/blinds.tsv"
-fi
+# ⛔ A FUNCTION, so SELFTEST can EXERCISE the placement rule instead of restating it. A second
+# hand-written copy of this condition inside the self-test would prove only that I can type the
+# same `if` twice ("a harness can hold a HAND-WRITTEN COPY of production text").
+# ⛔ TWO DISJUNCTS, KEYED DIFFERENTLY ON PURPOSE. The write arm's twin reads CASES_EXPLICIT
+# ALONE because p0-authz-writepath-audit.sh has NO BASE_SHAPE_OVERRIDE (measured: zero
+# occurrences). Copying it here would silently delete the second disjunct and re-open the hole
+# the block above records — "exactly how it once pointed a fault-injected run at the COMMITTED
+# baseline" (Batch 0, QA F-MAJOR-3). ARM 5 row D is the assertion that dies if it is dropped.
+# ⭐ And the two disjuncts are keyed differently because the variables mean different things
+# when empty: an empty CASES is a selection that came back EMPTY (a RESULT — so set-ness), an
+# empty BASE_SHAPE_OVERRIDE is no forged shape supplied (an ABSENCE — so value). No caller
+# derives BASE_SHAPE_OVERRIDE from a command substitution; it is hand-set for self-proof and
+# refused above without SELFPROOF=1.
+set_placement () {   # reads CASES_EXPLICIT + BASE_SHAPE_OVERRIDE -> SUBSET_RUN, FINDINGS, BLINDS_TSV
+  if [ "$CASES_EXPLICIT" = "1" ] || [ -n "${BASE_SHAPE_OVERRIDE:-}" ]; then
+    SUBSET_RUN=1
+    FINDINGS="$WORK/authz-door-audit-findings.SUBSET.md"
+    BLINDS_TSV="$WORK/blinds.SUBSET.tsv"
+  else
+    SUBSET_RUN=0
+    FINDINGS="$FINDINGS_COMMITTED"
+    BLINDS_TSV="$WORK/blinds.tsv"
+  fi
+}
+set_placement
+
+# ─────────────────────────────────────────────────────────────────────────────────────
+# ⛔ DEFINED HERE, NOT BESIDE THE DOMAIN GATE ~1000 LINES BELOW, AND THE REASON IS MECHANICAL:
+# the SELFTEST block exits at the bottom of its own `if`, ~450 lines above where these two used
+# to be defined, so an arm that called them there died with `want: command not found`. Bash
+# defines a function when the definition EXECUTES. Defining a second copy up here instead would
+# have been a hand-written copy of production text — the self-test would then have measured the
+# copy while every sweep used the original. Neither is called before the domain gate, so this is
+# a pure relocation. `count_sel` stays documented by §7.17 at its call site.
+# ─────────────────────────────────────────────────────────────────────────────────────
+# ⛔ THREE STATES, NOT TWO. The old body was `[ -z "$CASES" ] && return 0`, which selected
+# EVERYTHING for an explicitly-empty CASES, and the old header comment stated that behaviour as
+# if it were the spec — so it is deleted, not amended. An UNSET CASES still selects everything
+# (that IS a full run); a SET-and-EMPTY CASES selects NOTHING, which is what makes the
+# SEL_TOTAL==0 / exit 3 UNPROVEN door reachable from the caller that actually produces it.
+want () {  # $1 = match key (proname or polname); rc 0 = selected
+  [ "$CASES_EXPLICIT" = "1" ] || return 0      # CASES UNSET -> full run, everything selected
+  [ -n "$CASES" ] || return 1                  # CASES SET and EMPTY -> nothing selected
+  local k
+  for k in $CASES; do [ "$k" = "$1" ] && return 0; done
+  return 1
+}
+
+count_sel () {  # $1 = worklist file, $2 = 1-based field holding the match key
+  local n=0 line key
+  while IFS= read -r line; do
+    [ -z "$line" ] && continue
+    key=$(printf '%s' "$line" | cut -f"$2")
+    want "$key" && n=$((n+1))
+  done < "$1"
+  echo "$n"
+}
 
 # ─────────────────────────────────────────────────────────────────────────────────────
 # BOUNDED TAIL DRIFT — PORTED FROM c2-command-door-neutralizer.sh, 2026-09-06 (ADR 0191 D8)
@@ -246,6 +328,7 @@ verify_baseline_untouched () {   # subset runs only; a mismatch ESCALATES to ABO
 }
 trap 'verify_baseline_untouched || exit 2' EXIT
 
+echo "SELECTION-SOURCE: $SELECTION_SOURCE"
 if [ "$SUBSET_RUN" = "1" ]; then
   echo "--------------------------------------------------------------------------------"
   echo "⚠ SUBSET RUN — CASES=\"$CASES\". This run writes to SCRATCH, never to the baseline."
@@ -528,13 +611,24 @@ emit_result () {
 # The discrimination half is therefore asserted explicitly: same input but for `Result:`,
 # opposite verdict.
 # ⚠ Run it BEFORE anything touches the catalog: `bash <this> ` with SELFTEST=1 exits here.
-#   `CASES=` is irrelevant to it and the committed baseline is never opened for write.
+#   ⛔ `CASES` is NO LONGER irrelevant to this block — ARM 5 is precisely the arm that tests it,
+#   and `SELFTEST=1 CASES="" bash <this>` is the second polarity `scripts/door-sweep-selftest.sh`
+#   launches. What still holds, and is re-asserted by the EXIT trap on every self-test run, is
+#   that the committed baseline is never opened for write.
 # ─────────────────────────────────────────────────────────────────────────────────────
 if [ "${SELFTEST:-0}" = "1" ]; then
   echo "=== SELFTEST: classify() — four outcomes on constructed strings (no DB) ==="
   BASE_FILES=262; BASE_TESTS=8876
-  st_fail=0
+  # ⛔ RUNNING COUNTERS, NOT LITERALS (FUP-WRITEPATH-BASELINE-HARDCODED-COUNTS-IN-HARNESS-
+  # BANNERS). Five hardcoded numerals used to live in this block — 6/6/8/3 and the grand 23 —
+  # and its own history shows them drifting: docs/reviews/pred-domain-review.md records
+  # `TOTAL 20/20` where later records quote `TOTAL: 23/23`, because the banner is what gate
+  # records copy. ⛔ Re-typing a correct literal does not fix this; a new literal is the same
+  # defect with a newer number. Each arm counts the rows that actually EXECUTED, and the grand
+  # total is the SUM OF THE PARTS, so a census whose parts don't sum cannot arise here.
+  st_fail=0; st_n=0
   st_case () {  # $1 = label   $2 = expected verdict   $3 = the constructed suite output
+    st_n=$((st_n+1))
     classify "$3"
     if [ "$VERDICT" = "$2" ]; then
       printf '  ok    %-34s -> %-8s (files=%s tests=%s)\n' "$1" "$VERDICT" "$RUNFILES" "$RUNTESTS"
@@ -555,7 +649,7 @@ Files=262, Tests=8712, Result: "
 Dubious, test returned 2
 Files=262, Tests=8876, Result: FAIL"
   st_case "no Result: line"     ERROR   "Files=262, Tests=8876"
-  echo "--- SELFTEST classify: $((6 - st_fail))/6 ok, $st_fail failed ---"
+  echo "--- SELFTEST classify: $((st_n - st_fail))/$st_n ok, $st_fail failed ---"
 
   # ── ARM 2: resets_enabled() POLARITY (ADR 0191 D8) — no DB, nothing destructive. ──────
   # ⛔ THE CONTROL IS TRIAL A vs TRIAL B: same value 20/1, same SUBSET, opposite SET-NESS.
@@ -563,9 +657,9 @@ Files=262, Tests=8876, Result: FAIL"
   # set-ness — which is the one distinction ADR 0189 D6's re-ruling is about, and the one a
   # `RESET_EVERY="${RESET_EVERY:-20}"` written ONE LINE EARLIER would silently destroy.
   echo "=== SELFTEST: resets_enabled() — the reset gate's polarity (no DB) ==="
-  rt_fail=0
+  rt_fail=0; rt_n=0
   rt_case () {  # $1 label  $2 SUBSET_RUN  $3 RESET_EVERY  $4 EXPLICIT  $5 expected (yes|no)
-    local got
+    local got; rt_n=$((rt_n+1))
     SUBSET_RUN="$2"; RESET_EVERY="$3"; RESET_EVERY_EXPLICIT="$4"
     if resets_enabled; then got=yes; else got=no; fi
     if [ "$got" = "$5" ]; then
@@ -580,7 +674,7 @@ Files=262, Tests=8876, Result: FAIL"
   rt_case "C  full run, RESET_EVERY unset (defaulted 20)" 0 20 0 yes
   rt_case "E  full run, RESET_EVERY=0"                   0 0  0 no
   rt_case "E' SUBSET,   RESET_EVERY=0 EXPLICIT"          1 0  1 no    # 0 disables EVERYWHERE
-  echo "--- SELFTEST resets_enabled: $((6 - rt_fail))/6 ok, $rt_fail failed ---"
+  echo "--- SELFTEST resets_enabled: $((rt_n - rt_fail))/$rt_n ok, $rt_fail failed ---"
 
   # ── ARM 3: emit_result() — the RESULT line and the EXIT CODE (PO ruling 2026-09-07). ──
   # ⛔ THE CONTROL IS THE PAIR (0 BLIND, 0 ERROR, 1 NOTICED) -> rc 0  vs  (1 BLIND, 0 ERROR,
@@ -592,9 +686,9 @@ Files=262, Tests=8876, Result: FAIL"
   echo "=== SELFTEST: emit_result() — result line + exit code on constructed tallies (no DB) ==="
   MERGE_FAILED=0; UNMATCHED=""
   FINDINGS="<selftest>"; BASELINE_SNAPSHOT="<selftest>"; GENERATED="<selftest>"
-  er_fail=0
+  er_fail=0; er_n=0
   er_case () {  # $1 label  $2..$5 swept blind noticed error  $6 expected rc  $7 required substring
-    local out rc
+    local out rc; er_n=$((er_n+1))
     out="$(emit_result "$2" "$3" "$4" "$5")"; rc=$?
     if [ "$rc" = "$6" ] && printf '%s' "$out" | grep -qF -- "$7"; then
       printf '  ok    %-48s -> rc=%s\n' "$1" "$rc"
@@ -616,7 +710,7 @@ Files=262, Tests=8876, Result: FAIL"
   MERGE_FAILED=1
   er_case "a MERGE ABORT still outranks all"     353 0 1 0 2 "MERGE ABORTED"
   MERGE_FAILED=0
-  echo "--- SELFTEST emit_result: $((8 - er_fail))/8 ok, $er_fail failed ---"
+  echo "--- SELFTEST emit_result: $((er_n - er_fail))/$er_n ok, $er_fail failed ---"
 
   # ── ARM 4: the DOMAIN-STATEMENT carries ADR 0187 D1's Tier-2 sentence BYTE-EXACT. ──
   # ⛔ WHY THIS ARM EXISTS (QA F-MAJOR-1, 2026-09-07). The block shipped a REORDERING of D1's
@@ -630,12 +724,13 @@ Files=262, Tests=8876, Result: FAIL"
   # defined ~450 lines below and its four counts come from psql, and this whole SELFTEST arm
   # exists BEFORE anything touches the catalog. Grepping the shipping file is the same bytes.
   echo "=== SELFTEST: DOMAIN-STATEMENT vs ADR 0187 D1's Tier-2 sentence (no DB) ==="
-  d1_fail=0
+  d1_fail=0; d1_n=0
   D1_ADR="$ROOT/docs/decisions/0187-c2-closes-on-disclosure-and-the-blind-set-is-labelled-by-property.md"
   D1_SENTENCE="$(tr '\n' ' ' < "$D1_ADR" 2>/dev/null \
     | grep -o 'Tier-2 sentence verbatim\*\*[^"]*"[^"]*"' | head -1 \
     | sed -E 's/^.*"([^"]*)"$/\1/' | tr -s ' ')"
   d1_case () {  # $1 label  $2 expected(0=ok)  $3 actual
+    d1_n=$((d1_n+1))
     if [ "$2" = "$3" ]; then printf '  ok    %-56s\n' "$1"
     else printf '  NOT OK %-55s (got %s, expected %s)\n' "$1" "$3" "$2"; d1_fail=$((d1_fail+1)); fi
   }
@@ -651,10 +746,114 @@ Files=262, Tests=8876, Result: FAIL"
   # Without this row a matcher that matched everything would report the row above green.
   d1_perturbed=1; grep -qF -- "${D1_SENTENCE/ADR 0171/ADR 0172}" "${BASH_SOURCE[0]}" && d1_perturbed=0
   d1_case "a one-token perturbation is NOT found (control)" 1 "$d1_perturbed"
-  echo "--- SELFTEST domain-statement: $((3 - d1_fail))/3 ok, $d1_fail failed ---"
+  echo "--- SELFTEST domain-statement: $((d1_n - d1_fail))/$d1_n ok, $d1_fail failed ---"
 
-  echo "--- SELFTEST TOTAL: $((23 - st_fail - rt_fail - er_fail - d1_fail))/23 ok, $((st_fail + rt_fail + er_fail + d1_fail)) failed ---"
-  [ "$((st_fail + rt_fail + er_fail + d1_fail))" -eq 0 ] || exit 1
+  # ── ARM 5: the CASES SELECTION — three states, and where each one WRITES. ───────────────
+  # ⛔ THE CONTROL IS TRIAL A vs TRIAL C: the SAME VALUE (the empty string is what $CASES holds
+  # in both) reached two ways — UNSET, and SET-AND-EMPTY — with OPPOSITE selection and OPPOSITE
+  # placement. That single distinction is the entire defect: the recipe
+  # `CASES="$(bash scripts/door-sweep-cases.sh <base>)"` yields "" on the deriver's exit-1
+  # FINDING, and "" used to select EVERYTHING and point $FINDINGS at the COMMITTED baseline.
+  # ⚠ Placement is exercised THROUGH set_placement(); selection THROUGH want() and count_sel().
+  # Nothing here restates either rule — a second hand-written copy would prove only that the
+  # same `if` can be typed twice.
+  # ⭐ ROW A IS THE NEGATIVE CONTROL AND IT CARRIES TWO POSITIVE EXPECTATIONS, because the two
+  # tempting over-fixes are both "disable it": a want() that denies everything, and a
+  # set_placement() that always says subset ("then nothing can ever write the baseline"). Row A
+  # reds on either, and without it a harness returning UNPROVEN for EVERY invocation would
+  # satisfy C and B2 and read as fixed.
+  # ⭐ THE PROBE IS SYNTHETIC ON PURPOSE. want() is pure string matching against $CASES and
+  # consults no catalog, so naming a real gate here would only add a name-keyed verdict that
+  # rots the day the gate is renamed (the write arm's twin keys on `responses_insert_own`).
+  echo "=== SELFTEST: CASES set-ness — selection, placement and the SELECTED COUNT (no DB) ==="
+  sel_fail=0; sel_n=0
+  SEL_PROBE="probe_gate_alpha"
+  # ⛔ V4 — GLOBAL LEAKAGE. ARM 2's rt_case already leaves SUBSET_RUN/RESET_EVERY set globally
+  # (they are not `local`), and the EXIT trap reads SUBSET_RUN to decide whether to cksum the
+  # committed baseline. ARM 5 therefore SAVES what it finds on entry and RESTORES it on exit —
+  # it does not reset to startup values, because silently removing the
+  # "committed baseline VERIFIED unchanged" line from self-test output would be an undeclared
+  # behaviour change of its own.
+  sel_sv_cases="$CASES"; sel_sv_expl="$CASES_EXPLICIT"; sel_sv_subset="$SUBSET_RUN"
+  sel_sv_findings="$FINDINGS"; sel_sv_blinds="$BLINDS_TSV"
+  sel_sv_bso_set=0; [ -n "${BASE_SHAPE_OVERRIDE+x}" ] && { sel_sv_bso_set=1; sel_sv_bso="$BASE_SHAPE_OVERRIDE"; }
+
+  sel_eq () {  # $1 label  $2 expected  $3 actual
+    sel_n=$((sel_n+1))
+    if [ "$2" = "$3" ]; then printf '  ok    %-52s -> %s\n' "$1" "$3"
+    else printf '  NOT OK %-51s -> %s (expected %s)\n' "$1" "$3" "$2"; sel_fail=$((sel_fail+1)); fi
+  }
+
+  # ── ROW 0 — the STARTUP CAPTURE, the one thing every fixture below could fake. ───────────
+  # ⛔ sel_case assigns CASES_EXPLICIT itself, so ARM 5 would pass in full even if the capture
+  # at the top of this file had never been written — "an instrument primed by its own fixture".
+  # CASES_EXPLICIT_AT_STARTUP is written ONCE, at startup, and by nothing else. Deleting that
+  # line makes this row an unbound variable under `set -u` and the script dies here, loudly.
+  # ⛔ ONE PROCESS CAN OBSERVE ONLY ONE POLARITY. The line printed below is the machine-readable
+  # handle `scripts/door-sweep-selftest.sh` asserts in BOTH polarities, by launching this file
+  # twice — once with CASES unset (expects 0) and once with CASES="" (expects 1). This row on
+  # its own proves the capture SURVIVED to here unwritten; it does not prove it is CORRECT.
+  echo "SELFTEST-STARTUP: CASES_EXPLICIT_AT_STARTUP=$CASES_EXPLICIT_AT_STARTUP"
+  sel_eq "0  startup capture is a set-ness bit (0|1)" \
+    1 "$(case "$CASES_EXPLICIT_AT_STARTUP" in 0|1) echo 1;; *) echo 0;; esac)"
+  sel_eq "0' startup capture UNWRITTEN by arms 1-4" \
+    "$CASES_EXPLICIT_AT_STARTUP" "$CASES_EXPLICIT"
+
+  sel_case () {  # $1 label $2 CASES_EXPLICIT $3 CASES $4 BASE_SHAPE_OVERRIDE
+                 # $5 expect want(probe) yes|no   $6 expect placement subset|committed
+    local gotw gotp; sel_n=$((sel_n+1))
+    CASES_EXPLICIT="$2"; CASES="$3"; BASE_SHAPE_OVERRIDE="$4"; set_placement
+    if want "$SEL_PROBE"; then gotw=yes; else gotw=no; fi
+    if [ "$FINDINGS" = "$FINDINGS_COMMITTED" ]; then gotp=committed; else gotp=subset; fi
+    if [ "$gotw" = "$5" ] && [ "$gotp" = "$6" ]; then
+      printf '  ok    %-52s -> selects=%-3s writes=%s\n' "$1" "$gotw" "$gotp"
+    else
+      printf '  NOT OK %-51s -> selects=%-3s writes=%s (expected %s / %s)\n' \
+        "$1" "$gotw" "$gotp" "$5" "$6"; sel_fail=$((sel_fail+1))
+    fi
+  }
+  sel_case "A  CASES UNSET (full run)  ⭐ NEGATIVE CONTROL" 0 ""            ""       yes committed
+  sel_case "B  CASES=\"<probe>\" (ordinary subset)"          1 "$SEL_PROBE"  ""       yes subset
+  sel_case "B2 CASES=\"other_gate\" (subset, not this key)"   1 "other_gate"  ""       no  subset
+  sel_case "C  CASES=\"\" EXPLICIT  ⭐ THE FIX, vs A"          1 ""            ""       no  subset
+  # ⭐ ROW D — the disjunct with NO write-arm analogue. BASE_SHAPE_OVERRIDE joins the subset set
+  # (ADR 0191 D8) and is keyed on VALUE, not set-ness. Port the write arm's one-disjunct
+  # set_placement() here and ONLY this row reds.
+  sel_case "D  BASE_SHAPE_OVERRIDE, CASES unset ⭐ trap 1"   0 ""            "forged" yes subset
+
+  # ── ROWS E1-E3: count_sel(), the link want() -> SEL_TOTAL -> the exit-3 UNPROVEN door. ───
+  # The rows above prove want() and placement. They do NOT execute the process exit. count_sel
+  # reads a FILE, so the next link can be measured with no DB and no catalog: E3 is what makes
+  # SEL_TOTAL==0 a MEASURED consequence of the fix instead of an inferred one.
+  # ⚠ The LAST link — `[ "$SEL_TOTAL" -eq 0 ] && exit 3` — is straight-line code with no other
+  # predicate at its site. It is CITED, not asserted here, and that bound is stated rather than
+  # papered over.
+  sel_wl () { printf 'a\tb\tprobe_one\na\tb\tprobe_two\na\tb\tprobe_three\n'; }
+  CASES_EXPLICIT=0; CASES=""
+  sel_eq "E1 CASES unset      -> count_sel = 3 (all)"  3 "$(count_sel <(sel_wl) 3)"
+  CASES_EXPLICIT=1; CASES="probe_two"
+  sel_eq "E2 CASES=\"probe_two\" -> count_sel = 1"       1 "$(count_sel <(sel_wl) 3)"
+  CASES_EXPLICIT=1; CASES=""
+  sel_eq "E3 CASES=\"\" EXPLICIT  -> count_sel = 0 ⭐"    0 "$(count_sel <(sel_wl) 3)"
+
+  CASES="$sel_sv_cases"; CASES_EXPLICIT="$sel_sv_expl"; SUBSET_RUN="$sel_sv_subset"
+  FINDINGS="$sel_sv_findings"; BLINDS_TSV="$sel_sv_blinds"
+  if [ "$sel_sv_bso_set" = "1" ]; then BASE_SHAPE_OVERRIDE="$sel_sv_bso"; else unset BASE_SHAPE_OVERRIDE; fi
+  echo "--- SELFTEST CASES set-ness: $((sel_n - sel_fail))/$sel_n ok, $sel_fail failed ---"
+
+  # ⛔ THE GRAND TOTAL IS THE SUM OF THE PARTS, never an independently-typed number: a census
+  # whose parts don't sum is wrong, and here it cannot happen by construction.
+  SELFTEST_TOT=$((st_n + rt_n + er_n + d1_n + sel_n))
+  SELFTEST_FAIL=$((st_fail + rt_fail + er_fail + d1_fail + sel_fail))
+  # ⭐ V3 — THE VACUITY GUARD. A counter that never incremented prints `0/0 ok`, which reads
+  # exactly like a pass: the empty-domain failure this harness exists to forbid, wearing the
+  # self-test's badge.
+  if [ "$SELFTEST_TOT" -le 0 ]; then
+    echo "--- NOT OK — SELFTEST counted ZERO rows. Nothing was asserted; this is not a pass. ---"
+    exit 1
+  fi
+  echo "--- SELFTEST TOTAL: $((SELFTEST_TOT - SELFTEST_FAIL))/$SELFTEST_TOT ok, $SELFTEST_FAIL failed ---"
+  [ "$SELFTEST_FAIL" -eq 0 ] || exit 1
   exit 0
 fi
 
@@ -1093,13 +1292,9 @@ domain_statement () {   # markdown that also reads correctly on a terminal
   echo "  the \`with check\` half belongs to \`p0-authz-writepath-audit.sh\`."
 }
 
-want () {  # $1 = match key (proname or polname); returns 0 if in CASES (or CASES empty)
-  [ -z "$CASES" ] && return 0
-  local k
-  for k in $CASES; do [ "$k" = "$1" ] && return 0; done
-  return 1
-}
-
+# ⚠ `want()` and `count_sel()` are defined near the top of this file, beside `set_placement()`,
+# so the SELFTEST block (which exits long before this line) can exercise the REAL functions
+# rather than a second copy of them. The domain gate they feed is documented here, where it runs.
 # ─────────────────────────────────────────────────────────────────────────────────────
 # §7.17  THE DOMAIN GATE — an EMPTY-DOMAIN RUN MUST NOT PRINT THE LINE A CLEAN RUN PRINTS
 #        (FUP-DOOR-AUDIT-PREDICATE-ARM-BOUNDED-BY-A-NAME)
@@ -1124,16 +1319,6 @@ want () {  # $1 = match key (proname or polname); returns 0 if in CASES (or CASE
 # ~0 s, mutates NOTHING (no suite run, no neutralization), and — because `emit_report` is
 # only ever called from `record` — cannot rewrite the findings file either.
 # ─────────────────────────────────────────────────────────────────────────────────────
-count_sel () {  # $1 = worklist file, $2 = 1-based field holding the match key
-  local n=0 line key
-  while IFS= read -r line; do
-    [ -z "$line" ] && continue
-    key=$(printf '%s' "$line" | cut -f"$2")
-    want "$key" && n=$((n+1))
-  done < "$1"
-  echo "$n"
-}
-
 PRED_TOTAL=$(grep -c . "$WORK/worklist_pred.tsv" | tr -d '[:space:]')
 POL_TOTAL=$(grep -c . "$WORK/worklist_pol.tsv"  | tr -d '[:space:]')
 PRED_OUT=$(grep -c . "$WORK/outofdomain_pred_bool.tsv" | tr -d '[:space:]')
@@ -1201,7 +1386,8 @@ fi
 if [ "$SEL_TOTAL" -eq 0 ]; then
   echo
   echo "=== RESULT: UNPROVEN — NOTHING WAS MEASURED. This is NOT a pass. ==="
-  echo "    Selected cases: 0 (predicate=$PRED_SEL, policy=$POL_SEL)${CASES:+ from CASES=\"$CASES\"}."
+  echo "    Selected cases: 0 (predicate=$PRED_SEL, policy=$POL_SEL)."
+  echo "    SELECTION-SOURCE: $SELECTION_SOURCE"
   echo "    A sweep of zero gates cannot distinguish 'no blind door' from 'no door looked at',"
   echo "    so this run deliberately does NOT print a BLIND/ERROR count."
   echo "    Nothing was neutralized; the baseline suite was NOT run; the COMMITTED baseline"
@@ -1369,7 +1555,15 @@ emit_body () {
     echo "\`open->true\` for both eras (deferred deliberately: re-keying it would carry every ALL row)."
     echo
     domain_statement
-    if [ -n "$CASES" ]; then echo; echo "> ⚠ PARTIAL RUN — CASES=\"$CASES\" (subset, not the full sweep)."; fi
+    # ⛔ SET-NESS, not value — a CASES="" run is a partial run, not a full one.
+    # ⚠ STATED HONESTLY: this line is UNREACHABLE for CASES="" after the fix and no scenario
+    # proves it fires for that state. emit_report is called only from record(), which runs only
+    # after the SEL_TOTAL==0 -> exit 3 gate, and CASES="" exits there. The change is made because
+    # the condition as written would MISLABEL a future caller, not because a test exercises it;
+    # calling it "proven" would be the vacuity this repair exists to avoid.
+    # (Pre-existing, filed not fixed: this keys on CASES where emit_report keys on SUBSET_RUN, so
+    # a BASE_SHAPE_OVERRIDE-only subset run emits a scratch report with NO partial-run blockquote.)
+    if [ "$CASES_EXPLICIT" = "1" ]; then echo; echo "> ⚠ PARTIAL RUN — CASES=\"$CASES\" (subset, not the full sweep)."; fi
     if [ -n "$UNMATCHED" ]; then
       echo
       echo "> ⛔ **UNPROVEN.** These were REQUESTED and matched no gate in either arm, so they"
