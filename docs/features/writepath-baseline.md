@@ -1,14 +1,14 @@
 ---
 id: WRITEPATH-BASELINE
 title: Write-arm baseline — the committed write-path findings file re-earned over the widened 107-policy domain through the merge, the three storage.objects INSERT policies verdicted, and the write arm's empty-set exit made a FINDING (pre-AE5 Batch 3)
-status: in_progress
+status: complete
 kind: feature
 program: AUTHZ
 phase: "Pre-AE5 remediation — Batch 3 of the follow-up batches ruled 2026-09-04"
-branch: authz-writepath-baseline
+branch: ~   # nulled at the Record step because the unit is closed. ⛔ NOT a claim that it merged — the ff-merge into `main` is the LEAD's step AFTER this Record commit; the measured state is in the ledger row
 plan: ../plans/pre-ae5-remediation.md
 progress: ../progress/writepath-baseline.md
-reviews: []
+reviews: ["../reviews/writepath-baseline-review.md"]
 adrs: ["0079", "0153", "0173", "0189", "0190", "0191", "0192"]
 handoff: ~
 fup: ~
@@ -81,64 +81,3 @@ baseline `docs/reviews/authz-writepath-audit-findings.md`, re-earned through
       diff-scoped sweep derived by the deriver over `main...HEAD` with its `SCOPE:` line quoted; and
       `git diff --name-only main... -- supabase/migrations supabase/seed.sql src` EMPTY (a harness
       change, not a gate change — state which).
-
-## Current state
-
-**Updated:** 2026-09-08
-
-### Objective
-Make the write arm's committed baseline cover every write-capable policy the widened domain selects (**107** policies +
-**13** guards = 120 cases; at open the committed file verdicted **51 of 120** — 39 of 107 policies, 12 of 13 guards,
-`set_primary_subject` never verdicted), record a verdict for the three `storage.objects` INSERT policies, and make the
-arm's empty-set and killed-run behaviour findings rather than silence — before AE5 re-keys write policies eleven times.
-
-### Done since start
-- Harness built, each part proven with a planted reproducer at its **bare** exit code, a clean negative control and a
-  discrimination half: `CASES` set-ness fix, `RESET_EVERY` port (retry net + an Arm-1 post-reset OID check the door's
-  design does not cover), a first `SELFTEST` arm, the DRYRUN banner derived from `GUARD_KEYS`.
-- ⭐ **The superuser escalation was built, then REMOVED** (PO R23): ownership was a **proxy**, not the property —
-  `supautils.policy_grants` grants POLICY DDL outside `pg_class.relowner`. One role for all 120 cases; the corrected
-  predicate kept as a **DETECTOR** that leaves a policy UNVERDICTED rather than routing around it — dormant on 0 of 107,
-  so proven able to fire by a plant. The three `storage.objects` INSERT policies **swept COVERED** as plain `postgres`;
-  `RECOVER=1` re-earned on a **storage** policy with a discrimination half. **ADR 0192** written and indexed.
-- ⭐ **THE FULL RUN IS DONE** (2026-09-07 20:11 → 2026-09-08 00:04, **3.88 h**, inside the derived 3.2–4.6 h window).
-  `guard=13/13 policy=107/107` · **SWEPT 120 · COVERED 102 · BLIND 15 · ERROR 3 · SKIPPED 0** · `resets=8` · bare
-  **rc 1 (DIRTY)**. Coverage **51 of 120 → 120 of 120 measured**, 117 carrying a verdict; the guard arm is now **13 of
-  13**. Health: 117/120 runlogs at the exact baseline shape, longest off-baseline run **1** (VOID threshold 3), **0**
-  aborts/contamination/restore failures, no sentinel. R20: **all 13 retired door rows PRESENT and COVERED, 0 missing**.
-- ⭐ **The CARRIED disposition is APPLIED** (PO ruling R30): 9 re-filed, 36 deleted, line 27's stale tail deleted; the
-  file went 401 → **256** lines (⛔ *"251" corrected 2026-09-08, QA N1 — the gap was the 5 lines that same turn added and
-  never re-measured*), CARRIED replaced by a dated `## Note`. **Condition 1 caught 0 rows** — for all 45 the carried
-  citations are a subset of the live row's, and the matcher was proven able to find one before its zero was believed.
-  **R14 re-asserted by byte comparison: 15 protected strings, all present, bare rc 0**, three mutations proving red.
-  ⚠ **Finding inside it:** for 6 of the 9 the "hand commentary" was a *superseded provenance* stamp, false of the live
-  verdict — re-filed verbatim but **attributed** (PO R33: keep as built; reducing 9 → 3 is a disposition CHANGE, not an
-  application of one). Third instance of *decoration read as authorship*. Merge **51 / 2 / 6** reconciled: three derived
-  counters, three populations (`63 − 10 − 2 = 51`), which also explains why line 27's stale tail survived.
-- ⭐ **The three follow-ups are CLOSED and archived** (2026-09-08), each against its own quoted `Closes when`, entry +
-  body moved verbatim (byte-diffed at the destination before the source was cut). **R27 FIXED**: the reset banner prints
-  the DELTA, proven at the **second** reset — at the first, cumulative and delta coincide. A **third** instance of that
-  class was found while fixing it (`READ ALL FIVE STEPS` above six) and repaired by deleting the numeral.
-- ⭐ **Gate at the tip GREEN**, every code read **bare**: `lint` **0** (eslint 0/0) · `typecheck` **0** · `test:db` on a
-  fresh reset **0** at **`Files=262, Tests=8876`** (⭐ shape unmoved) · deriver `SELFTEST` **0** (34/34) · door harness
-  `SELFTEST` **0** (23/23) · set-valued targeted home **0** (CLEAN, 3/3 COVERED) · production diff **EMPTY**. The
-  diff-scoped deriver is **rc 3 NOT-APPLICABLE** over both `main..HEAD` and `23ec1fa5..HEAD` (0 migration files), its
-  counter proven live by a positive control.
-
-### In progress
-- QA **CHANGES REQUESTED** → fix loop **iteration 1 of ≤5 applied 2026-09-08**: B1 (a COVERED row
-  inside the `## BLIND` table — a live gate input, fixed + census 1/120, 0 on `main`), B2, B3, B4 and
-  N1–N5, plus one new follow-up (proofs cited by records are not reproducible from the repo).
-- ⚠ **DISCLOSED, since no gate can register it:** this baseline takes `FROMFINDINGS=1 ARM=policy`'s write-arm BLIND set
-  **3 → 15** and its off-allowlist offenders **0 → 5** (`cases`, `commission_member_titles`, `commissions`,
-  `phase_results`, `process_template_versions` — each `*_admin_write`/`*_staff_admin_write`). ⛔ **Zero allowlist entries
-  added**; the arm is red pre-existing, so the 5 is **derived from committed artifacts, not observed from a run**. Then
-  re-review → PO → Record; the four authz arms are the lead's to run at the tip, not the builder's.
-
-### Next
-- Deferred to their own units by design: keystones for the 15 BLINDs (⛔ never allowlist), and the
-  `297_process_template_versioning.sql` repair — ⭐ fixing 297 moves `Tests=`, and `Tests=` **is**
-  the shape this run asserted 120 times, so fix and run cannot coexist in one unit (R31).
-
-### Blockers
-- ⚠ Batch 4 runs on a separate machine in parallel; merge order is Batch 3 FIRST.

@@ -5,7 +5,7 @@
 **Severity:** medium — neither half can lose a verdict. What both produce is a record that reads as
 measured and is not.
 
-## The two findings
+## The findings — **two as filed 2026-09-07; three since 2026-09-08** (N3 added from unit WRITEPATH-BASELINE's QA re-review, observation O2)
 
 ### N1 — the merge keeps hand ROWS in place and relocates their HEADER
 
@@ -74,6 +74,41 @@ alphabet from the artefact under test blinds the detector to `ERROR`, which is p
 this file's column 4 no longer contains. That the shipped instance was caught at all depends on the
 damaging suffix beginning with `E`.
 
+### N3 — an INDENTED pseudo-table is a gate input protected by whitespace alone, and nothing asserts the whitespace survives the merge
+
+⚠ **Added 2026-09-08** from unit WRITEPATH-BASELINE, QA re-review observation **O2**
+(`docs/reviews/writepath-baseline-review.md` § *Round 2*). Filed here rather than as its own entry
+because QA named this entry as the correct home: its `Closes when` already demands standing
+`scripts/door-sweep-selftest.sh` cases for hand-table preservation, and this is one more case of
+exactly that shape — the same merge, the same file, the same class of loss.
+
+MEASURED on the write-path baseline `docs/reviews/authz-writepath-audit-findings.md`, not inferred:
+
+| what | measured |
+| --- | --- |
+| non-table hand-authored lines, across the QA fix loop | **112 → 159** (+47) |
+| what keeps the B1 note's illustration out of `verdicts_from_findings` | its **leading whitespace**, nothing else |
+| `ARM=census` if those three lines are un-indented | **608 → 611**, *while failing nothing* |
+| assertions that the merge leaves an indented pseudo-table indented | **0**, in either direction |
+
+⭐ **The shape, and why it is N1's twin rather than a repeat of it.** N1 is about a hand *header*
+that the merge **moves and indents**; N3 is about hand *prose* whose correctness **depends on
+already being indented**. The two failure directions are opposite, and a case proving one says
+nothing about the other. In both, the census is the consumer and the census cannot tell a real
+gate label from a decorative one — 611 is not a red, it is three gates that do not exist reading
+as measured. That is the same *decoration read as authorship* family this batch hit three times.
+
+⛔ The in-file ⛔ warning above the illustration covers a **human** editing the file. The write-path
+record's *"a future merge's protected-set reconciliation must use the new inventory"*
+(`docs/progress/writepath-baseline.md:699`) covers the **inventory** — and it was written at
+`e4062712`, before this prose existed. Neither covers the **merge**, and AE5 re-keys this file
+eleven times.
+
+⚠ **The discrimination half already exists and should be reused**: Batch 2 measured `census`
+**353 → 352** when a row was indented, i.e. the instrument is proven able to see indentation move
+a count in the other direction. A case that only shows the indented line staying out of the census
+would be green on a merge that never ran.
+
 ## A related hazard, kept here rather than in its own entry
 
 The merge derives its verdict-row grammar (H/V/K) from the **generated** file. If a future
@@ -98,6 +133,14 @@ makes it green, per the file's own convention — covering:
 - **(b) one case per named blind spot** of the `MALFORMED` predicate: the non-letter seam (using
   the repaired row's own `. ⚠` among them), the comma-joined suffix, the non-`.sql` token seam, and
   the indented `CARRIED` row.
+- **(c) indentation preservation** (added 2026-09-08, N3). A **deliberately indented pseudo-table**
+  inside a hand-authored `## Note` survives the merge **still indented**, so it stays out of
+  `verdicts_from_findings` — measured as a census figure, not read off the file: the case asserts
+  `ARM=census` is unmoved across the merge and, as its discrimination half, that un-indenting the
+  same three lines moves it (**608 → 611** on the write-path baseline at `45f5880a`; Batch 2's
+  `353 → 352` is the same instrument in the other direction). ⛔ Not closed by a case that only
+  checks the indented lines are absent from the census **before** a merge runs — that is green on
+  a merge that never happened, which is the whole failure mode.
 
 ⛔ **Not closed by re-running the one ad-hoc pre/post pair by hand.** That is the run that already
 happened; the finding is about the next change, not this one.
@@ -118,4 +161,6 @@ That is the state the standing case is supposed to keep true.
   D7 — the re-baseline through the merge; its "keeps them as prose, in place" sentence and the
   dated correction beside it.
 - `docs/reviews/pred-domain-rereview.md` §3(d), §5 N1–N2, §7 items 1 and 5 — the measurements.
+- `docs/reviews/writepath-baseline-review.md` § *Round 2* O2 and could-not-verify item 4 — N3's
+  measurement, and QA's naming of this entry as its home.
 - LEARN-084 — a detector can be vacuous because of where its inputs come from.
