@@ -1283,7 +1283,13 @@ of a row is absence of a VERDICT, never a COVERED*, which is why the 3 `process_
 - **N1** `401 → 251` is **256**, and has been since `3c763ffe`. ⭐ The gap is *exactly* the 5 lines
   that same turn added (a 4-line HTML comment + the 1-line `SUPERSEDED`) and never re-measured —
   **a count measured before the last edit and quoted after it**. Corrected in the hub and at both
-  record sites. ⚠ The file is now **304** lines after this loop's three additions.
+  record sites. ⚠ The file is **311** lines *as committed at `a608e240`* — ⛔ **anchored to a commit
+  on purpose, because this very sentence reproduced N1 once more:** it was written saying **304**,
+  measured before the last edit of the loop (the instrument-fault-9 repair below) and quoted after
+  it. Caught by re-measuring against the committed blob rather than re-reading the sentence. ⭐ That
+  is the **sixth** instance of the class in this unit and the second in the note correcting the
+  fourth — the durable remedy is not a better number, it is *citing a count with the commit it was
+  measured at*, so a reader can re-run `git show <sha>:<path> | wc -l` instead of trusting prose.
 - **N2** `p0-authz-writepath-audit.sh:21` claimed `RAISE-GUARDS — 11` while `GUARD_KEYS` holds
   **13** — the fifth instance of the class, sitting **inside the sentence that warns about it**.
   Both halves done: the numeral **deleted** (no runtime list a comment can derive from, so a fresh
