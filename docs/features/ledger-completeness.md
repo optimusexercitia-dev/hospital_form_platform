@@ -57,15 +57,24 @@ as delegating.
 
 ### In progress
 
-Nothing — the ruled work is written. `npm run lint` re-run bare before commit.
+Nothing — the ruled work is written and **rebased onto Batch 6**
+(`authz-register-gate-hygiene` @ `202106ab`), the ledger re-derived after the rebase.
 
 ### Next
 
-Batch 6 writes AE2's row (clause (a)); `FUP-LEDGER-PARSE-TRAPS` carries what the ruling deferred.
+Batch 6 writes AE2's row (clause (a)). `FUP-LEDGER-COMPLETENESS-ROWS-NOT-MACHINE-READABLE` carries
+what the ruling deferred: the escaped-pipe column trap, the six odd-`**` rows, and the real remedy —
+a gate that checks a row **ARRIVED**.
 
 ### Blockers
 
-⚠ **Coordination, not a blocker:** the brief said `authz-register-gate-hygiene` owns
-`phase-ledger.md` until it merges. **That branch does not exist locally or on `origin`, and no
-`register-gate-hygiene` artifact exists anywhere in `docs/`** — measured 2026-09-08. The PO ruled
-to write on this branch anyway; Batch 6 rebases onto it and adds AE2's row.
+⛔ **`npm run lint` exits 1 — on `main` too, and not from this unit.** Gate 11
+`check-rules-staleness`: 24 findings across 10 rule files (missing `paths:`/`anchors:`/`source:`,
+3 over the byte cap). `.claude/` is byte-identical to `main` **and** to Batch 6's tip, and the gate
+script is byte-identical to `main`. Left to Batch 6 — register/gate hygiene is its stated subject
+and it is actively rewriting that area. **Gate 13 `lint:registers` is exit 0.**
+
+⚠ **The coordination premise changed mid-session.** `authz-register-gate-hygiene` did not exist at
+session open (measured) and appeared partway through; this branch was rebased onto it per the
+brief's rule. It touches neither the ledger nor the follow-ups, so the only conflict was the
+generated `docs/features/INDEX.md`, resolved by regenerating rather than hand-merging.

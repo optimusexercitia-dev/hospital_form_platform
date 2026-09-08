@@ -138,19 +138,47 @@ Human ✓ cell says 2026-08-24, and the neighbouring `0137` row completed 2026-0
   comparison. Restored with `git checkout -- CLAUDE.md` (disk now byte-identical to the blob) and
   the gate went green. **`main` was never red.**
 
-#### Coordination
+#### Coordination — ⚠ the branch APPEARED mid-session
 
-⚠ The brief said the in-flight `REGISTER-GATE-HYGIENE` (`authz-register-gate-hygiene`) owns this
-file until it merges. **Measured 2026-09-08: that branch exists neither locally nor on `origin`,
-no `register-gate-hygiene` artifact exists anywhere under `docs/` or `.claude/`, and AE2 still has
-no row** — so there was nothing to rebase onto and nothing to collide with in this repository. The
-PO ruled to proceed here. Batch 6 rebases onto this and adds AE2's row; the edits are confined to
-`phase-ledger.md`'s table plus this unit's own new files.
+At session open, measured: `authz-register-gate-hygiene` existed **neither locally nor on
+`origin`**, no `register-gate-hygiene` artifact existed anywhere under `docs/` or `.claude/`, and
+AE2 had no row. The PO ruled, on that measurement, to write here.
+
+⚠ **It came into existence while this unit was being built.** `git branch --list` later returned it,
+and the primary checkout had moved onto it at `202106ab` — Batch 6 opened in the primary worktree
+mid-session. ⭐ This is [[a-local-branch-ref-is-a-live-fact]] in the *appearing* direction; the
+recorded lesson is about one vanishing. **A branch check is an instant, not a lease.**
+
+Re-measured before acting: Batch 6 touches **neither `docs/progress/phase-ledger.md` nor
+`docs/followups/`**, and still has no AE2 row. Overlap with this unit was exactly one file,
+`docs/features/INDEX.md`, which is **generated**. So the brief's rule ("rebase onto it before
+touching the ledger") was followed: `git rebase authz-register-gate-hygiene`, the one conflict
+resolved by **regenerating** the index rather than hand-merging it, and the ledger re-derived
+**after** the rebase — 87 rows, all 9 cells, unchanged ([[a-clean-automerge-can-undo-a-bulk-repair]]).
 
 #### Gate
 
-`npm run lint` — run **bare**, exit code read directly, before the commit. `node_modules` is
-**borrowed from the primary checkout** (this worktree has none); `git diff --stat main --
-package-lock.json` is **empty**, which is the documented condition under which borrowed results are
-comparable ([docs/worktrees.md](../worktrees.md)). ⛔ Stated because an unattributable gate run is
-worth less than a stated one.
+`npm run lint` — run **bare** both before and after the rebase, exit code read directly (⛔ the
+first attempt was piped to `tail`, and the task chip reported **exit 0 while the chain exited 1**).
+
+- **Gate 13 `lint:registers` — exit 0.** ⭐ It was red before the rebase on
+  *"branch `claude/zen-vaughan-7dcae2` does not exist"* — **a gate defect, not a bad hub**:
+  `check-docs-registers.mjs` built its branch list with `execSync("git branch --list
+  --format='%(refname:short)'")`, and on Windows `cmd.exe` does **not** strip the single quotes, so
+  every name arrived as `'main'` and `branches.includes(...)` was **always false**. It had never
+  fired because there were **no `in_progress` hubs** — a check with zero live subjects, the exact
+  class ADR 0186's unit measured (11 of 74). ⭐ Batch 6 had **independently found and fixed the same
+  bug** on its branch (`gitArgs([...])`, shell-free, with a comment naming the hazard), so the
+  rebase cleared this finding on its own. Both findings stand; neither was copied from the other.
+- ⛔ **Gate 11 `check-rules-staleness` — 24 findings, and they are NOT this unit's.** Ten rule files
+  lack `paths:` and `anchors:`, three exceed the 2048-byte cap, one lacks `source:`. Proven
+  pre-existing: `.claude/` is **byte-identical to `main` and to Batch 6's tip**, and
+  `check-rules-staleness.mjs` is byte-identical to `main`, so **`npm run lint` reds on `main`
+  itself**. ⚠ This unit's own first baseline run did not see it — the `&&` chain short-circuited at
+  an earlier gate, so "the baseline was green" was never established. Left for Batch 6, whose stated
+  subject is register/gate hygiene; fixing it here would collide with the file they are rewriting.
+
+`node_modules` is **borrowed from the primary checkout** (this worktree has none);
+`git diff --stat main -- package-lock.json` is **empty**, the documented condition under which
+borrowed results are comparable ([docs/worktrees.md](../worktrees.md)). ⛔ Stated because an
+unattributable gate run is worth less than a stated one.
