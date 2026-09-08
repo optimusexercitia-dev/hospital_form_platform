@@ -36,14 +36,24 @@
  * rule and believe it), not a spurious one (you open one more ADR than you needed).
  */
 import { readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs'
-import { join, dirname, resolve } from 'node:path'
+import { join, dirname, resolve, relative, isAbsolute } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { checkLinks } from './check-docs-registers.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const DIR = join(ROOT, 'docs', 'decisions')
 const INDEX_PATH = join(DIR, 'INDEX.md')
 const ADR_FILE_RX = /^(\d{4})-(.+)\.md$/
 const TITLE_CAP = 88
+
+/**
+ * A repo path as `checkLinks` expects to see it: relative to the CWD (that is the shape its
+ * `resolve(dirname(file), target)` and its `exists(relative('.', p))` both assume), rendered
+ * with forward slashes so the findings read the same on Windows and on CI. Going through the
+ * CWD rather than hard-coding `docs/decisions/...` keeps the check correct when the script is
+ * invoked from somewhere other than the package root.
+ */
+const relFromRoot = (...parts) => relative('.', join(ROOT, ...parts)).split(/[\\/]/).join('/')
 
 // --------------------------------------------------------------------------
 // PARSE — pure functions over one ADR's text.
@@ -370,6 +380,104 @@ export function hardFindings({ duplicates, dangling, malformed }) {
 }
 
 // --------------------------------------------------------------------------
+// LINK TARGETS — every `](...)` an ADR writes must resolve to a real file.
+//
+// EVERYTHING ABOVE RESOLVES A CITATION TO ITS *NUMBER*, NEVER TO ITS SLUG. `parseEdges`
+// reads `[0171](./0171-anything-at-all.md)` as the target `'0171'`, `analyse` asks only
+// whether `byNum` has it, and the answer is yes — so a link naming a file that has never
+// existed is byte-for-byte as green as a correct one. Measured 2026-09-08 over the whole
+// corpus: **14 dangling targets in 8 files, 954 file links checked**, while this gate exited
+// 0 with `OK (191 ADRs indexed)`.
+//
+// The failure mode is PLAUSIBLE RECONSTRUCTION, which is why review never caught them: every
+// broken target is an on-topic, readable slug for the ADR actually meant. Two consecutive
+// pre-AE5 ADRs cited ADR 0171 under two *different* invented names, because both authors had
+// read its content and neither re-read its filename. The worst instance names the right number
+// with a *sibling's* slug — `[0176](./0176-ae49-resolver-contract.md)`, which is 0177's slug on
+// 0176's number — and a hand audit looking straight at that line missed it.
+//
+// ⛔ CASE-EXACT, AND THAT IS THE LOAD-BEARING HALF. `existsSync` is case-INSENSITIVE on NTFS
+// and APFS, so a wrong-case link is green on the author's machine and red on a case-sensitive
+// CI: a gate that is silently platform-asymmetric is not a gate. This repo has already paid for
+// that once — gate 13's branch listing was quoted to fix `/bin/sh` and the same check then
+// redded on `cmd.exe`. `checkLinks` takes `exists` as a PARAMETER precisely so the caller
+// decides; `makeCaseExactExists` walks the real directory listings, so the verdict is identical
+// on every filesystem. The corpus has zero wrong-case links today, so this arm carries no debt —
+// it exists so the *next* one cannot ship green.
+// --------------------------------------------------------------------------
+
+/**
+ * `exists(rel)` for `checkLinks`, resolved against the real directory listings rather than by
+ * `existsSync`, so CASE is part of the answer on every platform.
+ *
+ * `checkLinks` hands over `relative('.', abs)`, so `resolve()` round-trips it to the absolute
+ * path whatever the CWD is. A target that escapes `root` returns false rather than falling back
+ * to `existsSync`: a doc link out of the repo is not resolvable, and a fallback would put the
+ * platform split straight back in. Measured 2026-09-08: of 954 file links in `docs/decisions/`,
+ * **0** escape the repo, so that arm cannot fire on today's tree.
+ */
+export function makeCaseExactExists(root = ROOT) {
+  const rootAbs = resolve(root)
+  const listings = new Map()
+  const namesIn = (dir) => {
+    if (!listings.has(dir)) {
+      try {
+        listings.set(dir, new Set(readdirSync(dir)))
+      } catch {
+        listings.set(dir, null)
+      }
+    }
+    return listings.get(dir)
+  }
+  return (rel) => {
+    const abs = resolve(rel)
+    const inside = relative(rootAbs, abs)
+    if (inside === '') return true
+    if (inside.startsWith('..') || isAbsolute(inside)) return false
+    let dir = rootAbs
+    for (const part of inside.split(/[\\/]/).filter(Boolean)) {
+      const names = namesIn(dir)
+      if (!names || !names.has(part)) return false
+      dir = join(dir, part)
+    }
+    return true
+  }
+}
+
+/**
+ * ⭐ NOT A SECOND LINK CHECKER. `checkLinks` is imported from `check-docs-registers.mjs`, the
+ * same implementation gates 7 and 13 already share "so the two gates run one link checker, not
+ * two that could disagree" (ADR 0186 D8) — gate 9 joining them is that move a third time. It
+ * brings its fence and inline-code-span blanking, its http/mailto/data skip and its in-file
+ * `#anchor` handling with it, so the discrimination cases are the shared ones, not new local
+ * guesses. What gate 9 supplies is the corpus and the case-exact `exists`.
+ */
+export function checkAdrLinks(sources, exists) {
+  const F = []
+  for (const { file, text } of sources) F.push(...checkLinks(file, text, exists))
+  return F
+}
+
+/** Every `.md` in `docs/decisions/` — the generated INDEX.md included, since it links too. */
+export function loadLinkSources(dir = DIR) {
+  return readdirSync(dir)
+    .filter((f) => f.endsWith('.md'))
+    .sort()
+    .map((f) => ({ file: relFromRoot(relative(ROOT, dir), f), text: readFileSync(join(dir, f), 'utf8') }))
+}
+
+/**
+ * ⭐ THE ONE SEAM THAT CHOOSES `exists`, so the self-test and the gate cannot diverge.
+ * Both `--check` and `--write` call this, and the self-test calls it with an injected corpus —
+ * so swapping `makeCaseExactExists` for a plain `existsSync` here reds `links-wrong-case-detect`
+ * (exit 2, checker broken) instead of quietly going green on Windows. Keep the choice HERE:
+ * making the call sites pass their own `exists` puts the wiring back outside the proof.
+ */
+export function checkAdrLinkTargets(sources = loadLinkSources()) {
+  return checkAdrLinks(sources, makeCaseExactExists())
+}
+
+// --------------------------------------------------------------------------
 // RENDER — deterministic; no timestamps, nothing outside the ADR files.
 // --------------------------------------------------------------------------
 
@@ -408,7 +516,9 @@ export function render(adrs, a) {
   L.push('> ⚙ **GENERATED FILE — do not edit by hand.** Every column is derived from each')
   L.push('> ADR\'s own header block. Rebuild with `npm run adr:index`; `npm run lint:adr-index`')
   L.push('> (gate 9 of `npm run lint`) reds when this file is out of date, when two ADRs share')
-  L.push('> a number, or when an ADR cites a number that has no file.')
+  L.push('> a number, when an ADR cites a number that has no file, or when any `](link)` in')
+  L.push('> `docs/decisions/` names a file that does not exist — case included, so a wrong-case')
+  L.push('> target reds here and not first on a case-sensitive CI.')
   L.push('>')
   L.push('> **Writing a new ADR?** Take the *next free number* below, write the file, then run')
   L.push('> `npm run adr:index`. Declare what it changes in the header block with a')
@@ -727,6 +837,38 @@ function selfTest() {
   eq('bp-edge-neutral', parseEdges(parseLabels(withBlock.preamble), '0005'), [])
   eq('bp-status-still-parsed', parseAdr('0005-t.md', once).status, 'accepted')
 
+  // --- LINK TARGETS. Two families, because they fail for different reasons.
+  //
+  // (a) SYNTAX + DISCRIMINATION, against a stub `exists` that knows exactly one file. What must
+  //     red: a target naming a file that is not there. What must NOT red, ever: an external URL,
+  //     a pure in-file `#anchor`, and the same broken-looking link quoted inside a fenced block
+  //     or an inline code span — this follow-up's own body writes `](./NNNN-*.md)` in prose.
+  const stub = (rel) => relative('.', resolve(rel)).split(/[\\/]/).join('/') === 'docs/decisions/0037-real.md'
+  const src = (text) => [{ file: 'docs/decisions/0001-fixture.md', text }]
+  expectRed('links-broken-target-detect', checkAdrLinks(src('see ADR [0037](./0037-invented-slug.md)'), stub))
+  expectGreen('links-real-target-green', checkAdrLinks(src('see ADR [0037](./0037-real.md)'), stub))
+  expectGreen('links-external-url-green', checkAdrLinks(src('[spec](https://example.invalid/0037-invented-slug.md)'), stub))
+  expectGreen('links-anchor-green', checkAdrLinks(src('## Decision\n\nback to [the decision](#decision)'), stub))
+  expectRed('links-anchor-no-heading-detect', checkAdrLinks(src('## Decision\n\nsee [nowhere](#context)'), stub))
+  expectGreen('links-fenced-code-green', checkAdrLinks(src('```md\n[0037](./0037-invented-slug.md)\n```\n'), stub))
+  expectGreen('links-code-span-green', checkAdrLinks(src('the shape `[0037](./0037-invented-slug.md)` is what reds'), stub))
+
+  // (b) CASE, against the REAL filesystem and the REAL `exists` the gate wires in. This is the
+  //     arm `existsSync` silently fails: on NTFS/APFS it answers true for `./Build-Adr-Index.mjs`
+  //     and the wrong-case link ships green, to red later on a case-sensitive CI. Asserting a
+  //     red here is platform-SYMMETRIC — a case-sensitive filesystem reaches the same verdict by
+  //     a different route — so this test does not repeat gate 13's `/bin/sh`-vs-`cmd.exe` split.
+  //     The green twin is the discrimination half: a resolver stuck on false would pass (a)'s
+  //     red arms and this one, and only this pair catches it.
+  const caseFixture = relFromRoot('scripts', 'case-fixture.md') // only its DIRECTORY is used
+  const caseSrc = (target) => [{ file: caseFixture, text: `[gate](${target})` }]
+  const realExists = makeCaseExactExists()
+  expectGreen('links-case-exact-green', checkAdrLinkTargets(caseSrc('./build-adr-index.mjs')))
+  expectRed('links-wrong-case-detect', checkAdrLinkTargets(caseSrc('./Build-Adr-Index.mjs')))
+  eq('exists-missing-false', realExists(relFromRoot('scripts', 'no-such-file-here.mjs')), false)
+  eq('exists-wrong-case-dir-false', realExists(relFromRoot('Scripts', 'build-adr-index.mjs')), false)
+  eq('exists-outside-root-false', realExists(relFromRoot('..', 'definitely-not-in-this-repo.md')), false)
+
   // --- render must be deterministic and must escape pipes out of table cells.
   const corpus = [{ ...mk('0001'), title: 'A | B' }]
   eq('render-deterministic', render(corpus, analyse(corpus)), render(corpus, analyse(corpus)))
@@ -763,11 +905,20 @@ function main() {
         ? `build-adr-index: updated back-pointer blocks in ${plan.length} ADR(s): ${plan.map((p) => p.num).join(', ')}`
         : 'build-adr-index: back-pointer blocks already current',
     )
+    // After the writes, so the regenerated INDEX.md and back-pointer blocks are what gets read.
+    const links = checkAdrLinkTargets()
     if (hard.length) {
       console.error(`\nbuild-adr-index: ${hard.length} BLOCKING anomaly(ies) recorded in the index\n`)
       for (const h of hard) console.error(`  ✗ ${h}`)
-      process.exit(1)
     }
+    if (links.length) {
+      console.error(
+        `\nbuild-adr-index: ${links.length} unresolvable link target(s) — ⛔ REGENERATING DOES ` +
+          `NOT FIX THESE. Open the ADR and repair the citation against the real filename.\n`,
+      )
+      for (const l of links) console.error(`  ✗ ${l}`)
+    }
+    if (hard.length || links.length) process.exit(1)
     return
   }
 
@@ -794,6 +945,18 @@ function main() {
     )
   }
   findings.push(...hard)
+
+  // Link targets (FUP-ADR-CROSS-LINKS-HAVE-NO-GATE, PO ruling 2026-09-08). CHECK-TIME ONLY,
+  // like the review cadence below and unlike `hardFindings` — deliberately, for two reasons.
+  // (1) `hardFindings` lands in `render()`'s "Blocking" block and therefore in the committed
+  //     INDEX.md bytes, so a new broken link would first surface as "INDEX.md is out of date —
+  //     run `npm run adr:index`", which routes the reader to a regeneration that fixes nothing;
+  //     `checkEol` above exists because that mis-routing already cost this repo a session. It
+  //     would also commit a tidy, normalised list of the defect into the index — an allowlist
+  //     in all but name, which is exactly what the follow-up's bar forbids.
+  // (2) The rendered bytes are a function of the ADR headers and filenames; this check needs
+  //     each ADR's whole body, which `analyse()` deliberately never carries.
+  findings.push(...checkAdrLinkTargets())
 
   // Proposed-ADR review cadence (ADR 0140) — check-time only, never in the rendered bytes.
   const stampPath = join(DIR, 'proposed-review.json')

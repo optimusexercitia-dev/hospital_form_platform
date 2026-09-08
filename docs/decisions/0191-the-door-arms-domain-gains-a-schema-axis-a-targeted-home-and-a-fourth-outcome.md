@@ -17,7 +17,7 @@ uncovered populations a gate record must state — this ADR adds the fourth) · 
 [0190](./0190-the-door-sweep-deriver-selects-by-property-and-a-full-run-merges.md) (the deriver
 LIFTS `PRED_DOMAIN`, so this widening needs no deriver change; and the merge this re-baseline is
 the first real exercise of) · ADR [0153](./0153-subset-sweeps-write-to-scratch-not-the-committed-baseline.md)
-· ADR [0171](./0171-c2-tier-2-deferred.md) · ADR [0176](./0176-ae49-resolver-contract.md) D4 ·
+· ADR [0171](./0171-c2-tier1-regrain-and-the-command-door-neutralizer.md) · ADR [0176](./0176-authz-permission-layer-made-real.md) D4 ·
 `FUP-DOOR-SWEEP-DOMAIN-MISSES-THE-AUTHZ-RESOLVERS` ·
 `FUP-DOOR-SWEEP-DOMAIN-GAP-WIDENED-BY-SET-VALUED-RESOLVERS` ·
 `FUP-DOOR-AUDIT-ALL-POLICY-COVERED-IS-MIRROR-AMBIGUOUS` ·

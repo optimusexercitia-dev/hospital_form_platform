@@ -5,7 +5,7 @@ Hardening — WS-2 (C-4). Closes the who-read-what forgery vector in
 `public.log_audit_access`. Part of the pre-pilot hardening program
 ([pre-pilot-db-hardening-program.md](../plans/pre-pilot-db-hardening-program.md) §1 WS-2);
 triage in [external-db-audit-2026-07-evaluation.md](../reviews/external-db-audit-2026-07-evaluation.md)
-§2 C-4. Builds on the audit trail (ADR [0029](./0029-audit-trail.md), Architecture Rule 11)
+§2 C-4. Builds on the audit trail (ADR [0029](./0029-audit-trail-hash-chain.md), Architecture Rule 11)
 and the PHI posture (ADR [0030](./0030-patient-safety-phi-and-pqs-architecture.md) /
 [0035](./0035-lgpd-anvisa-regulatory-posture.md), Rule 12).
 

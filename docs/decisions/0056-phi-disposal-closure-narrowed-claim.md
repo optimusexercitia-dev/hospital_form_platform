@@ -9,7 +9,7 @@ triage in [external-db-audit-2026-07-evaluation.md](../reviews/external-db-audit
 §2 (C-6) + §6.4. Architecture Rule 11/12; the binding regime is LGPD + ANVISA/RDC + CFM
 1821/2007 (ADR [0035](./0035-lgpd-anvisa-regulatory-posture.md)). **Supersedes the erasure
 language** in the disposal-touching ADRs ([0030](./0030-patient-safety-phi-and-pqs-architecture.md),
-[0037](./0037-inter-committee-case-referrals.md), [0038](./0038-case-patient.md),
+[0037](./0037-inter-committee-case-referrals.md), [0038](./0038-case-patient-identifiers.md),
 [0052](./0052-nsp-per-hospital.md)) — those said "erased/disposed" without the DB-vs-Storage
 distinction this ADR makes precise.
 

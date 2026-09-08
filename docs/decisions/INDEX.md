@@ -3,7 +3,9 @@
 > ⚙ **GENERATED FILE — do not edit by hand.** Every column is derived from each
 > ADR's own header block. Rebuild with `npm run adr:index`; `npm run lint:adr-index`
 > (gate 9 of `npm run lint`) reds when this file is out of date, when two ADRs share
-> a number, or when an ADR cites a number that has no file.
+> a number, when an ADR cites a number that has no file, or when any `](link)` in
+> `docs/decisions/` names a file that does not exist — case included, so a wrong-case
+> target reds here and not first on a case-sensitive CI.
 >
 > **Writing a new ADR?** Take the *next free number* below, write the file, then run
 > `npm run adr:index`. Declare what it changes in the header block with a

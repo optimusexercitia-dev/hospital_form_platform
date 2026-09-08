@@ -2,7 +2,7 @@
 
 **Status:** Accepted (PO-approved 2026-08-08, deferred past QO·B, executed 2026-08-09)
 **Migration:** `20260917000200_rename_is_tenancy_admin_of.sql`
-**Relates to:** ADR [0041](./0041-multi-tenancy.md) (where the misnaming originated),
+**Relates to:** ADR [0041](./0041-multi-tenancy-organizations-hospitals.md) (where the misnaming originated),
 ADR [0100](./0100-quality-office-oversight.md) D12, ADR
 [0079](./0079-authz-door-blindness-standing-invariant.md)
 

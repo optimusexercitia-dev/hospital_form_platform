@@ -30,16 +30,16 @@ provenance. Its five open decisions O1–O5 are **all resolved here**.)
   `app.can_reach_case_on_member_surface` are retired at Stage G (D4, D8).
   0072's `case_access.max_confidentiality` clearance plane migrates to
   `case_access_grants.read_restricted_phi` + the retained label ceiling (D5·4).
-- **Amends ADR [0037](./0037-inter-committee-referrals.md)** (referrals): referral PHI **read** and
+- **Amends ADR [0037](./0037-inter-committee-case-referrals.md)** (referrals): referral PHI **read** and
   **write** authority are split; `set_referral_patient` leaves the public API (D7).
 - **Amends ARCHITECTURE.md Rule 12** — Standard PHI becomes a capability distinct from Case
   Content; ordinary case read and bare assignment no longer imply patient-identifier read.
 - **Retires the `case_access` feature flag** (D9).
 
-**Relates:** ADR [0041](./0041-tenancy-roles.md) · [0051](./0051-commission-admin-predicate.md) ·
-[0061](./0061-administrativo-delegated-capability.md) · [0063] F2 attachments ·
+**Relates:** ADR [0041](./0041-multi-tenancy-organizations-hospitals.md) · [0051](./0051-hospital-admin-tier-and-hospital-audit-tier.md) ·
+[0061](./0061-administrativo-delegated-role.md) · [0063] F2 attachments ·
 [0064](./0064-case-subject-generalization-participants.md) (`case_types`) ·
-[0065](./0065-polymorphism-dialects.md) App-A · [0071](./0071-pre-pilot-release-scope-expansion.md) ·
+[0065](./0065-pre-pilot-foundations-conventions.md) App-A · [0071](./0071-pre-pilot-release-scope-expansion.md) ·
 [0075](./0075-memberships-collapse-write-path-split.md).
 **Binding rules:** Rule 1 (RLS is the boundary), Rule 6/R6 (anti-recursion), Rule 8 (generated
 types), Rule 9 (queries layer), Rule 11 (audit), Rule 12 (PHI).

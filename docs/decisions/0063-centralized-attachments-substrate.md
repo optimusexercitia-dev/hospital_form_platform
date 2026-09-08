@@ -15,7 +15,7 @@
 ([`docs/phases/phase-14e-attachment-phi-classification.md`](../phases/phase-14e-attachment-phi-classification.md)),
 which this ADR refines but does **not** supersede; ADR [0030](./0030-patient-safety-phi-and-pqs-architecture.md)
 (PHI/PQS), [0035](./0035-lgpd-anvisa-regulatory-posture.md) (LGPD + ANVISA/RDC + CFM),
-[0037](./0037-inter-committee-referrals.md) (referral PHI module).
+[0037](./0037-inter-committee-case-referrals.md) (referral PHI module).
 **Binding rules:** Rule 1 (RLS is the boundary), Rule 6 (storage immutability), Rule 11 (audit),
 Rule 12 (PHI). **Schema draft:** [`docs/design/attachments-core-schema-draft.md`](../design/attachments-core-schema-draft.md).
 

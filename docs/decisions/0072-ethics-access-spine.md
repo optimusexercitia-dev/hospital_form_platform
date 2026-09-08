@@ -33,7 +33,7 @@ APPROVED) → [docs/reviews/phase-ETH-E1-review.md](../reviews/phase-ETH-E1-revi
   posture ADR 0064 §M2 deferred (see §7 below; a *recommendation* for human sign-off, not an open item).
 
 **Relates:** ADR [0035](./0035-lgpd-anvisa-regulatory-posture.md) (LGPD Art. 18 vs CFM-1821/2007
-20-yr retention — the M2 basis), ADR [0037](./0037-inter-committee-referrals.md) (referral
+20-yr retention — the M2 basis), ADR [0037](./0037-inter-committee-case-referrals.md) (referral
 internal-notes RLS keystone this mirrors), ADR [0063]/F2 attachments (the one confidentiality
 taxonomy — X-δ), ADR [0070](./0070-interview-data-model-v2-sessions.md) + the
 [Interviews-v2 plan](../plans/interviews-v2-sessions.md) (the IV2 fold-in target — X-γ).

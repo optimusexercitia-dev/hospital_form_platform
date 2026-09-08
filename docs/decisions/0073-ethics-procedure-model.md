@@ -116,7 +116,7 @@ top of the retention columns, and the pin trigger must not fight B7.
   *decision* that triggers the pin exists.
 
 **Relates:** ADR [0035](./0035-lgpd-anvisa-regulatory-posture.md) (LGPD Art. 18 vs
-CFM-1821/2007 20-yr retention — the M2 basis), ADR [0037](./0037-inter-committee-referrals.md) (the
+CFM-1821/2007 20-yr retention — the M2 basis), ADR [0037](./0037-inter-committee-case-referrals.md) (the
 inter-committee referral channel E2 **reuses** for the CRM/CFM/legal hand-off — §D7, not a new
 primitive), ADR [0050](./0050-action-items-fold-visibility-scope-case-access-expiry.md) +
 [action-items-satellites](../plans/action-items-satellites.md) (the `action_items` hub E2 **consumes**

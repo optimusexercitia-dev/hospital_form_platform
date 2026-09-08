@@ -25,7 +25,7 @@ the participant/case-type tables.
 **Relates:** ADR [0033](./0033-case-access-control.md) (`case_access` ACL — extended, not
 replaced), [0030](./0030-patient-safety-phi-and-pqs-architecture.md) (PHI/PQS isolation
 pattern), [0035](./0035-lgpd-anvisa-regulatory-posture.md) (LGPD + ANVISA/RDC + CFM; column
-encryption declined), [0037](./0037-inter-committee-referrals.md) (referral PHI module),
+encryption declined), [0037](./0037-inter-committee-case-referrals.md) (referral PHI module),
 [0017] (multi-phase cases), [0043] (result-based recommendation).
 **Binding rules:** Rule 1 (RLS is the boundary), Rule 11 (audit), Rule 12 (PHI /
 minimum-necessary). **Evaluation context:**
