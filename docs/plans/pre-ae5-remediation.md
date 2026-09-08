@@ -483,9 +483,17 @@ hygiene, in the inter-batch window, because a gate added mid-phase blocks that p
    `git rev-list --count origin/main..main` (⛔ re-run it — a clean push state is an instant, not a
    lease); `docs/features/INDEX.md` shows no `in_progress` hub. If any is false, stop and read the hub
    that is in progress.
-2. **Read Batch 6's block in §3** — four follow-ups, each with its own quoted `Closes when`. Two of
-   them are about **gates that cannot fail**, so each fix owes a proof that the repaired gate
-   *can* fire, on a planted red, before it is believed.
+2. **Read Batch 6's block in §3** — **five** follow-ups carrying **six ids** (one mechanism carries
+   two), each with its own quoted `Closes when`. **Three** of them are about **gates that cannot
+   fail** — the `complete` gate's two regexes, gate 9's blindness to a link *target*, and the archive
+   nothing asserts over — so each fix owes a proof that the repaired gate *can* fire, on a planted
+   red, before it is believed. The fifth is the opposite polarity: a harness that runs when it should
+   have stopped, so its proof is that an empty `CASES` now **exits** rather than sweeping.
+   > ⚠ **EDITED 2026-09-08 (Batch 6, unit opened).** The superseded text read: *"four follow-ups,
+   > each with its own quoted `Closes when`. Two of them are about **gates that cannot fail**"*. It
+   > was correct when written and went stale when the empty-`CASES` item was batched into §3 on
+   > 2026-09-08 — the same day, by the commit directly above it. Edited rather than annotated because
+   > it is an **operational instruction**: a reader who counts four stops one item short.
 3. Say **"initiate Batch 6"** to the lead. The lead opens the hub + record and plans before touching a
    script — ⛔ never the build first. These scripts are the ones every other unit's Record step runs,
    so a change here reds the tree for everyone until it is right.
