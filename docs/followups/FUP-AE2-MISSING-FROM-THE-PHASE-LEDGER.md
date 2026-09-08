@@ -26,3 +26,25 @@ Index entry: [follow-ups-open.md](follow-ups-open.md) · filed 2026-09-02 · sta
   only one?** ⛔ Do not answer that by eye: derive it, by diffing the phases named in
   `phase-ledger.md` against those with a `docs/progress/<phase>.md` record and a QA verdict. This
   one was found by accident, which is not a method — lead
+
+- ✅ **(b) DISCHARGED 2026-09-08** by `LEDGER-COMPLETENESS` — derivation, rules, failure modes and
+  witnesses in [ledger-completeness.md](../progress/ledger-completeness.md) § 2026-09-08.
+  **The answer is NO.** Four subjects had a `phase(x): complete` commit and no row —
+  `ae2` `28d90212`, `ai` `b0387d31`, `case-split-1` `0ab4b2da`, `qo-fup` `38b4f3a7` — and two
+  `status: complete` hubs had none (`docs-consolidation`, `docs-restructure`). All five
+  non-AE2 rows are written, marked **reconstructed** with sources; four umbrella rows now state
+  the sub-phases they cover; the 8-cell `0136` row is repaired.
+  ⭐ **The method that found them was not the one this clause specified.** Record-and-verdict
+  diffing alone yields 30 candidates, most of them archived features, and it cannot tell a phase
+  from a feature without trusting a title. The discriminator that worked is the
+  **`phase(x): complete` commit** — name-agnostic evidence that the §6 Record step actually ran.
+  ⛔ Its blind spot, stated: it under-detects work predating the convention, so **absence of a
+  completion commit is evidence, not proof**, and the nine "borderline completes" it excluded
+  were excluded by PO ruling, not by the instrument alone.
+  ⚠ **One correction to the derivation quoted in the Batch 6 brief:** line 68 `20` is **not**
+  record-less — `docs/progress/s1-substrate.md` is its record, reachable only by a name-agnostic
+  join. The record-less set is 7, not 5, and none of the 7 is a defect.
+
+- ⛔ **(a) STILL OPEN and deliberately NOT done here.** AE2's row belongs to Batch 6 /
+  `REGISTER-GATE-HYGIENE`, which owns `phase-ledger.md`. ⚠ Measured 2026-09-08:
+  `authz-register-gate-hygiene` exists neither locally nor on `origin`, and AE2 still has no row.

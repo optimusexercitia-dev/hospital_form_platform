@@ -467,9 +467,16 @@ the whitespace case is reachable only for **legacy rows**, the same population B
 ### 🟠 FUP-AE2-MISSING-FROM-THE-PHASE-LEDGER — a shipped phase absent from the append-only record (owner: lead)
 
 **Filed:** 2026-09-02 (ad-hoc: PROGRESS.md consolidation 2026-09-02) · **Owner:** lead · **Severity:** high — per emoji at consolidation
-**Closes when:** (a) write AE2's row, marked reconstructed; and (b) the general question — is AE2 the only one? ⛔ Do not answer that by eye: derive it, by diffing the phases named in `phase-ledger.md` against those with a `docs/progress/<phase>.md` record and a QA verdict. This one was found by accident, which is not a method — lead
+**Closes when:** (a) write AE2's row, marked reconstructed — **STILL OPEN, owned by Batch 6 / `REGISTER-GATE-HYGIENE`**; and (b) the general question — is AE2 the only one? ⛔ Do not answer that by eye: derive it, by diffing the phases named in `phase-ledger.md` against those with a `docs/progress/<phase>.md` record and a QA verdict. This one was found by accident, which is not a method — lead · ✅ **(b) DISCHARGED 2026-09-08** by `LEDGER-COMPLETENESS`: the answer is **no** — four subjects had a `phase(x): complete` commit and no row (`ae2`, `ai`, `case-split-1`, `qo-fup`) plus two `status: complete` hubs; all five non-AE2 rows written as reconstructed. Derivation, rules and failure modes: [ledger-completeness.md](../progress/ledger-completeness.md). ⚠ This entry stays **open on (a) alone**
 **Status:** open
 **Body:** [FUP-AE2-MISSING-FROM-THE-PHASE-LEDGER.md](FUP-AE2-MISSING-FROM-THE-PHASE-LEDGER.md)
+
+### 🟡 FUP-LEDGER-COMPLETENESS-ROWS-NOT-MACHINE-READABLE — the ledger answers column queries wrongly, and nothing checks a row ARRIVED (owner: lead)
+
+**Filed:** 2026-09-08 (by `LEDGER-COMPLETENESS`, from measurements it was not ruled to fix) · **Owner:** lead · **Severity:** medium
+**Closes when:** (a) a ruling on the **arrival gate** — every `phase(<token>): complete` token and every `status: complete` hub must resolve to a ledger row or to a row that declares it covers that token — plus the alias map it needs (⛔ the id namespace ≠ the commit-token namespace: `e1`↔`ETH·E1`, `f2`↔`14e`, `a`↔`hospital-admin`, `p3`↔`PDF·P3`; an id-keyed gate reds on ~30 correct rows and gets switched off); or (b) failing that, a header note telling readers to split on `(?<!\\)\|`. ⛔ Do not close by fixing the cosmetics — the 6 odd-`**` rows and the bold/unbold split are the *symptoms*, the missing arrival check is the defect that let five rows go missing for weeks
+**Status:** open
+**Body:** [FUP-LEDGER-COMPLETENESS-ROWS-NOT-MACHINE-READABLE.md](FUP-LEDGER-COMPLETENESS-ROWS-NOT-MACHINE-READABLE.md)
 
 ### 🟡 FUP-EVENT-PATIENT-POLICY-PREEMPTED — a PHI policy that never runs, and would arm silently (owner: backend + lead)
 
