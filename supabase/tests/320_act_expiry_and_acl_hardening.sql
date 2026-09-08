@@ -484,9 +484,9 @@ select ok(
   not has_function_privilege('authenticated', 'app.zz_budget_probe_rising()', 'EXECUTE'),
   'budget U5a CONTROL PRECONDITION: a freshly created `app` DEFINER is NOT `authenticated`-executable — 20261003005300''s default revoke is live, so the grant below is what moves the count and not an ambient default');
 
-select is(pg_temp.budget(),
-  759,
-  'budget U5b CONTROL: CREATING the probe alone does not move the budget — the population is defined by the PRIVILEGE, not by the existence of a DEFINER function');
+select is(pg_temp.budget() - pg_temp.base(),
+  0,
+  'budget U5b CONTROL: CREATING the probe alone does not move the budget (delta 0 from the snapshotted baseline) — the population is defined by the PRIVILEGE, not by the existence of a DEFINER function');
 
 grant execute on function app.zz_budget_probe_rising() to authenticated;
 
@@ -494,23 +494,23 @@ select ok(
   has_function_privilege('authenticated', 'app.zz_budget_probe_rising()', 'EXECUTE'),
   'budget U5c CONTROL: the explicit grant MOVED the effective predicate to true');
 
-select is(pg_temp.budget(),
-  760,
-  'budget U5d ⭐ RISING CONTROL: granting ONE `app` DEFINER to `authenticated` moves the budget 759 → 760 — the detector demonstrably finds what it claims to look for');
+select is(pg_temp.budget() - pg_temp.base(),
+  1,
+  'budget U5d ⭐ RISING CONTROL: granting ONE `app` DEFINER to `authenticated` moves the budget by EXACTLY +1 from the baseline — the detector demonstrably finds what it claims to look for, measured against what the catalog says now rather than against a literal');
 
-select is(pg_temp.budget('app'),
-  327,
-  'budget U5e RISING CONTROL: and it moved in the `app` half specifically (326 → 327), so the per-schema pins are live too and not a copy of the total');
+select is(pg_temp.budget('app') - pg_temp.base('app'),
+  1,
+  'budget U5e RISING CONTROL: and it moved in the `app` half specifically (+1), so the per-schema pins are live too and not a copy of the total');
 
 drop function app.zz_budget_probe_rising();
 
-select is(pg_temp.budget(),
-  759,
-  'budget U5f CONTROL RESTORED: dropping the probe returns the total to baseline, so U4 measured the real population and not a leftover');
+select is(pg_temp.budget() - pg_temp.base(),
+  0,
+  'budget U5f CONTROL RESTORED: dropping the probe returns the total to baseline (delta 0), so U4 measured the real population and not a leftover');
 
-select is(pg_temp.budget('app'),
-  326,
-  'budget U5g CONTROL RESTORED: and the `app` half too');
+select is(pg_temp.budget('app') - pg_temp.base('app'),
+  0,
+  'budget U5g CONTROL RESTORED: and the `app` half too (delta 0)');
 
 -- ── §U6 — THE FALLING CONTROL, IN TWO HALVES ───────────────────────────────
 -- ⛔⛔ THE ORDER OF THE TWO ASSERTIONS IN HALF 1 IS THE WHOLE POINT.
@@ -518,6 +518,63 @@ select is(pg_temp.budget('app'),
 -- asserted to have fallen. This is AE1's 137/138 lesson applied to this file's
 -- own control: `revoke execute … from authenticated` against a function that
 -- reaches `authenticated` through PUBLIC leaves the effective predicate TRUE and
+-- ── THE CONTROL BASELINE — SNAPSHOTTED HERE, ONCE, BEFORE ANY PROBE ────────
+-- ⭐⭐ WHY §U5/§U6 BELOW ASSERT DELTAS AND NOT COUNTS (fix-loop ruling R35).
+-- These controls used to be written with absolute literals — `is(budget(), 760)`,
+-- `is(budget(), 759)`, `is(budget('app'), 327)` — and MEASUREMENT showed what
+-- that costs. Track C's mutation M1 (an unrelated `public` +1) redded **TEN**
+-- assertions: U4b U4c U5b U5d U5f U6a U6c U6d U6f U6g. Only TWO of those carry
+-- the finding; the other seven are controls that were never asking about the
+-- baseline at all. Two separate defects follow from writing them absolutely:
+--   (i)  IT BURIES THE FINDING. Seven controls red beside the two that mean
+--        something, and a reader triaging ten reds cannot see which two matter.
+--   (ii) ⭐⭐ IT STOPS MEASURING "THE DETECTOR MOVES" THE MOMENT THE BASELINE
+--        MOVES. A control asserting `count == 760` is *trying* to assert
+--        `count == baseline + 1`. Written absolutely it silently becomes a
+--        second, un-owned copy of §U4's pin — and at the next ceiling move it
+--        reds for a reason that has nothing to do with what it controls.
+-- ⇒ The baseline is re-derived from the live catalog HERE and every §U5/§U6
+--   control is expressed as a delta from it. A plant is then measured against
+--   what the catalog says NOW, not against a literal that was true when it was
+--   typed.
+-- ⛔ §U4's pins above stay ABSOLUTE and must. They ARE the ratchet; a ratchet
+--   expressed as a delta from itself asserts nothing. That is the one place in
+--   this file where a literal belongs, and R35 says so explicitly.
+-- ⚠ THE PIN WAS NOT WRONG AND THIS IS NOT A RED BEING FIXED — the absolute form
+--   discriminates correctly today. It is a control that would have quietly
+--   stopped discriminating at the next ceiling move.
+--
+-- ⛔ A SNAPSHOT, NOT A VIEW. `create table … as select` freezes the values at
+-- this point in the transaction. A function re-querying the catalog would move
+-- WITH every probe below and make every delta trivially 0 — a control that
+-- cannot fail. This is the whole reason the baseline is materialised.
+-- ⭐ `u1_n` snapshots §U1's OWN population here too, for U6h below. U6h is not a
+-- ratchet — §U1's assertion far above is the ratchet, and it stays absolute.
+-- U6h asks a strictly different question: "did §U4-§U6's probes DISTURB the
+-- incumbent?" That is a delta claim in its nature, and writing it as `== 236`
+-- made it red on any legitimate §U1 triage move for a reason that has nothing to
+-- do with disturbance — the same defect R35 names, in §U6's last assertion.
+create table pg_temp.budget_baseline as
+  select pg_temp.budget()         as total_n,
+         pg_temp.budget('app')    as app_n,
+         pg_temp.budget('public') as public_n,
+         (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+           where n.nspname = 'app'
+             and (p.proacl is null
+                  or exists (select 1 from aclexplode(p.proacl) a where a.grantee = 0)))
+                                  as u1_n;
+
+create function pg_temp.base(p_schema text default null) returns int
+  language sql stable as $base$
+  select case
+           when p_schema is null     then total_n
+           when p_schema = 'app'     then app_n
+           when p_schema = 'public'  then public_n
+           when p_schema = 'u1'      then u1_n
+         end
+    from pg_temp.budget_baseline
+$base$;
+
 -- moves nothing at all — and a falling control that only asserts "the count
 -- fell" would then red with no indication of which of two very different things
 -- happened. Worse, a control built the other way round (revoke, then assert the
@@ -531,9 +588,9 @@ create function app.zz_budget_probe_falling() returns boolean
   language sql immutable security definer as $f$ select true $f$;
 grant execute on function app.zz_budget_probe_falling() to authenticated;
 
-select is(pg_temp.budget(),
-  760,
-  'budget U6a FALLING CONTROL, precondition: the probe is IN the population (759 → 760), which is the state the fall is measured from');
+select is(pg_temp.budget() - pg_temp.base(),
+  1,
+  'budget U6a FALLING CONTROL, precondition: the probe is IN the population (delta +1 from the baseline), which is the state the fall is measured from');
 
 revoke execute on function app.zz_budget_probe_falling() from authenticated;
 
@@ -541,9 +598,9 @@ select ok(
   not has_function_privilege('authenticated', 'app.zz_budget_probe_falling()', 'EXECUTE'),
   'budget U6b ⭐⭐ FALLING CONTROL, THE LOAD-BEARING HALF: the effective predicate ACTUALLY MOVED to false. Asserted BEFORE the count, because a revoke against a PUBLIC-routed function moves nothing and the count assertion alone cannot tell the two apart (AE1''s 137/138 finding)');
 
-select is(pg_temp.budget(),
-  759,
-  'budget U6c FALLING CONTROL: and only THEN, the budget fell 760 → 759 — the detector moves in the down direction too, so a fall is observable and not merely assumed to be impossible');
+select is(pg_temp.budget() - pg_temp.base(),
+  0,
+  'budget U6c FALLING CONTROL: and only THEN, the budget fell back to the baseline (delta +1 → 0) — the detector moves in the down direction too, so a fall is observable and not merely assumed to be impossible');
 
 drop function app.zz_budget_probe_falling();
 
@@ -551,9 +608,9 @@ create function app.zz_budget_probe_public_routed() returns boolean
   language sql immutable security definer as $p$ select true $p$;
 grant execute on function app.zz_budget_probe_public_routed() to public;
 
-select is(pg_temp.budget(),
-  760,
-  'budget U6d SILENT-NO-OP HALF, precondition: a PUBLIC grant puts the probe in the budget too — `authenticated` resolves EXECUTE through PUBLIC, which is exactly why 159 members of this population have no direct grant at all');
+select is(pg_temp.budget() - pg_temp.base(),
+  1,
+  'budget U6d SILENT-NO-OP HALF, precondition: a PUBLIC grant puts the probe in the budget too (delta +1) — `authenticated` resolves EXECUTE through PUBLIC, which is exactly why 159 members of this population have no direct grant at all');
 
 revoke execute on function app.zz_budget_probe_public_routed() from authenticated;
 
@@ -561,15 +618,15 @@ select ok(
   has_function_privilege('authenticated', 'app.zz_budget_probe_public_routed()', 'EXECUTE'),
   'budget U6e ⭐⭐ THE SILENT NO-OP, CONSTRUCTED AND ASSERTED: `revoke execute … from authenticated` against a PUBLIC-routed function leaves the effective predicate TRUE. This is AE1''s 138-of-233 class as a live property of this database, not a warning in a comment');
 
-select is(pg_temp.budget(),
-  760,
-  'budget U6f SILENT NO-OP: and the budget DID NOT MOVE. ⛔ An executed revoke batch that asserts only "the count fell" would report success here having changed nothing — which is why U6b asserts the predicate first');
+select is(pg_temp.budget() - pg_temp.base(),
+  1,
+  'budget U6f SILENT NO-OP: and the budget DID NOT MOVE — still +1, exactly where U6d left it. ⛔ An executed revoke batch that asserts only "the count fell" would report success here having changed nothing — which is why U6b asserts the predicate first');
 
 drop function app.zz_budget_probe_public_routed();
 
-select is(pg_temp.budget(),
-  759,
-  'budget U6g CONTROL RESTORED: every probe dropped, the budget is back at its pinned baseline');
+select is(pg_temp.budget() - pg_temp.base(),
+  0,
+  'budget U6g CONTROL RESTORED: every probe dropped, the budget is back at the snapshotted baseline (delta 0)');
 
 -- ⭐ THE INCUMBENT IS UNDISTURBED. §U6's second half grants to PUBLIC, which puts
 -- its probe into §U1's population as well as this one. Asserting §U1's baseline
@@ -579,9 +636,10 @@ select is(
   (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'app'
       and (p.proacl is null
-           or exists (select 1 from aclexplode(p.proacl) a where a.grantee = 0))),
-  236,
-  'budget U6h ⭐ §U1''s population is STILL 236 after §U4-§U6 have finished — the new sections created, granted, revoked and dropped `app` functions including one granted to PUBLIC, and left the incumbent schema-wide ratchet reading its own baseline');
+           or exists (select 1 from aclexplode(p.proacl) a where a.grantee = 0)))
+  - pg_temp.base('u1'),
+  0,
+  'budget U6h ⭐ §U1''s population is UNDISTURBED after §U4-§U6 have finished (delta 0 from the baseline snapshotted before the first probe) — the new sections created, granted, revoked and dropped `app` functions including one granted to PUBLIC, and left the incumbent schema-wide ratchet reading exactly what it read before them. ⛔ This asserts NON-DISTURBANCE, not the ratchet''s value; §U1''s own assertion above is what pins that, absolutely, and is the only owner of the number');
 
 select * from finish();
 rollback;

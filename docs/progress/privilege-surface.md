@@ -505,6 +505,19 @@ parts sum · **C** `total <= ceiling` · **B** mirror matches home. ⭐ **C is w
 raising §U4's pin without a ruling forces the doc's `total` up (or B reds), and a total above the
 ceiling reds at C — so the only way to pass with a higher population is to also move `CEILING`,
 which the merge rule reserves to the PO. ⛔ **C is `<=`, not `==`**, and fixture **G3** (ceiling 800
+> ⚠ **2026-09-08 fix loop, R35(a) — a dated note beside the M1 row above, NOT a rewrite of it.**
+> The M1 row reports **three** assertions. The independent tip-gate runner re-ran the identical
+> mutation and it redded **TEN**: `U4b · U4c · U5b · U5d · U5f · U6a · U6c · U6d · U6f · U6g`. ⛔ The
+> three the row names are **correct**; the **account** is not — *a partial account of a measurement
+> reads as a complete one*, which is why the number is added here rather than substituted above. The
+> seven extra were §U5/§U6 controls pinned on absolute literals, carrying no finding of their own and
+> burying the two that do.
+> ⭐ **REPAIRED in the same fix loop (R35(b)):** §U5/§U6's control assertions are now **deltas from a
+> baseline snapshotted before the first probe** (`pg_temp.budget_baseline` / `pg_temp.base()` in
+> `320`); §U4's pins stay **absolute**, because they are the ratchet. Re-measured after the repair —
+> see this session's entry for the observed count, which is the only thing that makes the repair a
+> claim about the file rather than about the intention.
+
 over a total of 759) is the discrimination half proving the gate does not quietly demand equality.
 Its bullet is in `docs/lint-gates.md` **in the same commit** (nothing gates that file), which also
 corrects that file's exit-2 list — it had omitted `lint:config-schemas` since Track B landed it.
