@@ -14,13 +14,13 @@
 >
 > Edges are **advisory** and over-inclusive by design; the ADR text is truth.
 
-**192 ADRs** · next free number: **0195** · 68 carry an inbound supersedes/amends edge
+**193 ADRs** · next free number: **0196** · 68 carry an inbound supersedes/amends edge
 
 ## ⚠ Anomalies
 
 - **Missing numbers:** 0034, 0077 — a gap is not automatically a defect (0077 was withdrawn by the PO and its subject re-filed as 0078; 0034 was never used), but a gap nobody can explain usually means a lost file.
 - **No parseable `Status:`:** none
-- **Still proposed / draft / deferred (8):** 0022, 0031, 0033, 0058, 0094, 0108, 0115, 0160 — an ADR's status is the author's claim on the day it was written, and nothing updates it when the code ships. The last review of this list is stamped in `proposed-review.json`; gate 9 reds when that review is more than 30 days old or this set has drifted from it.
+- **Still proposed / draft / deferred (9):** 0022, 0031, 0033, 0058, 0094, 0108, 0115, 0160, 0195 — an ADR's status is the author's claim on the day it was written, and nothing updates it when the code ships. The last review of this list is stamped in `proposed-review.json`; gate 9 reds when that review is more than 30 days old or this set has drifted from it.
 
 ## Index
 
@@ -218,3 +218,4 @@
 | 0192 | [Ownership is a PROXY, not the property: the write arm keeps one connection role and gai…](0192-ownership-is-a-proxy-not-the-property-and-the-write-arms-crash-safety.md) | accepted | 2026-09-07 | amends 0153, 0189 | ⚠ amended by 0194 |
 | 0193 | [The enforcement manifest declares what it measured, and the measurement is a fixed poin…](0193-the-enforcement-manifest-declares-what-it-measured.md) | accepted | 2026-09-07 | amends 0176, 0178 | – |
 | 0194 | [A sweep's `CASES` has three states, and a parent asks for a full run by UNSETTING it](0194-a-sweeps-cases-has-three-states-and-a-parent-unsets-it.md) | accepted | – | amends 0192 | – |
+| 0195 | [A committed number needs ONE home and a GATED mirror, and a ratchet joins its incumbent](0195-a-committed-number-needs-one-home-and-a-gated-mirror.md) | ⚠ proposed | – | – | – |

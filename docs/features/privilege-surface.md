@@ -9,7 +9,7 @@ branch: authz-privilege-surface
 plan: ../plans/pre-ae5-remediation.md
 progress: ../progress/privilege-surface.md
 reviews: []
-adrs: ["0079", "0134", "0155", "0160", "0182", "0191", "0192", "0193"]
+adrs: ["0079", "0127", "0134", "0155", "0160", "0182", "0191", "0192", "0193", "0195"]
 handoff: ~
 fup: ~
 ---
