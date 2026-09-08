@@ -783,7 +783,7 @@ none counts the same material as another.** The merge's banner is
 |---|---|---|---|
 | `NHAND` | hand-authored **prose LINES** preserved in place | **51** | the 137-line pre-run baseline holds **63** non-blank non-table lines; the generator re-emits **10** verbatim; the merge *replaced* **2** stale statistics (`Baseline: Files=156, Tests=4796…`, `Arm 1 guards: 7…`) instead of preserving them. 63 − 10 − 2 = 51 |
 | `NSUFF` | hand **SUFFIXES** spliced onto regenerated rows | **2** | `set_commission_oversight` and `create_external_participant` — R24's `:60`/`:61`. ⭐ **Neither contains a `merged 2026-09-0` string**, so the 6 could not have been these 2 under any reading |
-| `NCROW` | whole **ROWS** carried | **45** | of which **6** contain a `merged 2026-09-0…` string, all 6 inside the CARRIED block (`:288 :292 :296 :300 :304 :308`), **none** on a live row |
+| `NCROW` | whole **ROWS** carried | **45** | of which **6** contain a `merged 2026-09-0…` string, all 6 inside the CARRIED block (in the 401-line post-run file, *before* this disposition: `:288 :292 :296 :300 :304 :308` — ⚠ those line numbers are dead against the 251-line file this turn produced; the identities are the six `form*`/`forms` `*_staff_admin_write` rows), **none** on a live row |
 
 ⇒ The file's 6 belonged to the 45. Two numbers about *different* material were standing side by
 side; there was never a contradiction to resolve, only a grain to state. ⭐ The derivation also
@@ -824,3 +824,110 @@ the exact opposite of what the run measured.
 ⛔ Standing, unchanged: Tier 2's 190 doors stay **deferred by ADR 0171 and are NOT cleared**.
 ⛔ `FROMFINDINGS=1 ARM=policy` is RED pre-existing, is **not** one of CLAUDE.md §6's four arms, and
 its twelve are not allowlisted.
+
+---
+
+### 2026-09-08 — `backend`, GATE AT THE TIP (R32 step 2). Every exit code read **bare**, no pipes
+
+Tip = `3c763ffe` (the disposition commit), branch `authz-writepath-baseline`, 8 commits ahead of
+local `main` (`5a0ec8d5`), which is itself **1** ahead of `origin/main` (`23ec1fa5`) — R16's push
+distance re-measured and confirmed at **1**.
+
+⚠ **The four authz arms are NOT in this record.** From Batch 2 on, someone other than the builder
+runs them at the tip, and the lead does. ⛔ `FROMFINDINGS=1 ARM=policy` stays RED pre-existing, is
+**not** one of CLAUDE.md §6's four arms, and its twelve are never allowlisted.
+
+| gate | command | bare rc | observed |
+|---|---|---|---|
+| lint | `npm run lint` | **0** | `eslint --max-warnings=0` silent ⇒ **0 errors, 0 warnings**; all 13 chained gates green |
+| typecheck | `npm run typecheck` | **0** | `tsc --noEmit`, no output |
+| fresh reset | `npx supabase db reset --local` from the repo root | **0** | `Finished supabase db reset on branch authz-writepath-baseline` |
+| pgTAP | `npm run test:db` | **0** | `All tests successful.` · **`Files=262, Tests=8876`** · `Result: PASS` — ⭐ **the shape did not move**: byte-identical to the baseline this run asserted 120 times |
+| deriver self-test | `SELFTEST=1 bash scripts/door-sweep-cases.sh` | **0** | `SELF-TEST: PASS 34 · FAIL 0 · SKIPPED 0` |
+| door harness self-test | `SELFTEST=1 bash supabase/tests/mutation/p0-authz-door-audit.sh` | **0** | `SELFTEST TOTAL: 23/23 ok, 0 failed`; committed door baseline VERIFIED unchanged by cksum |
+| set-valued targeted home | `bash supabase/tests/mutation/authz-setvalued-targeted-cases.sh`, detached | **0** | `=== RESULT: CLEAN — 3 resolver(s) measured, all COVERED. ===` · `ARM-DOMAIN setvalued=3/3 (in scope) out-of-scope=2 (named, with dispositions)` |
+| production diff | `git diff --name-only main... -- supabase/migrations supabase/seed.sql src` | **0** | **EMPTY** |
+
+#### The diff-scoped deriver — `SCOPE:` line quoted **verbatim**
+
+Run over **both** candidate bases, because `main` and the commit the record names as the cut point
+are not the same object (local `main` = `5a0ec8d5`, the unit-opening commit; `origin/main` =
+`23ec1fa5`). Both agree, and the deriver's own warning — *"If the phase DID add a migration, the
+`<phase-base>` is wrong"* — is therefore discharged from two directions:
+
+    bash scripts/door-sweep-cases.sh main            -> bare rc 3
+    SCOPE: 0 file(s) — 0 committed (main..HEAD), 0 worktree, 0 untracked | filter: none | derivation: NOT REACHED (this run ended before the catalog was probed)
+           0 case(s) — nothing was derived, and the line above is what the gate record
+           quotes to say so.
+
+    bash scripts/door-sweep-cases.sh 23ec1fa5        -> bare rc 3
+    SCOPE: 0 file(s) — 0 committed (23ec1fa5..HEAD), 0 worktree, 0 untracked | filter: none | derivation: NOT REACHED (this run ended before the catalog was probed)
+           0 case(s) — nothing was derived, and the line above is what the gate record
+           quotes to say so.
+
+`=== RESULT: NOT-APPLICABLE (3) — no migration file in the diff. ===` **This exit 3 IS the "no gate
+changed" claim** (CLAUDE.md §6 step 1), and it is checkable, not a pass.
+
+⭐ **A zero from a file-counter is a dead instrument until it is shown able to count.** Positive
+control, same script, same syntax, a base whose range **does** contain a migration:
+
+    bash scripts/door-sweep-cases.sh 01628bb2^       -> bare rc 0
+      migrations : 1 file(s) touched
+      === RESULT: DERIVED (0) — 1 case(s). This is a SELECTION, not a verdict. ===
+      SCOPE: 1 file(s) — 1 committed (01628bb2^..HEAD), … | derivation: catalog
+
+⇒ the counter sees a migration when one exists and reaches the catalog; the 0 on our two bases is
+a measurement.
+
+#### The production-diff EMPTY is also a proven zero, not a silently-empty pathspec
+
+⚠ *A phantom worktree makes every pathspec filter silently empty.* Three controls, same syntax:
+`git diff --name-only main...` over ALL paths returns **9** files; over `docs/reviews` returns the
+one file this turn changed; `git worktree list` shows **one** worktree at the repo root. ⇒ the
+filter is live and its emptiness is real. **The only source file this branch changes is
+`supabase/tests/mutation/p0-authz-writepath-audit.sh` — a HARNESS change, not a gate change.**
+
+#### The set-valued targeted home — restore verified three ways, and its detector fired on every case
+
+Launched **detached** (PowerShell `Start-Process` on `C:\Program Files\Git\usr\bin\bash.exe`,
+`MSYSTEM=MINGW64`, script as argv[1], with the environment preflight the 2026-09-07 launch fault
+bought). ⛔ Never under a tool timeout — a killed run leaves a resolver sitting on the universal
+set. §4b held: **5 live, 3 in scope, 2 out of scope with a recorded disposition**. All three came
+back **COVERED**, and the restore was verified three ways, exactly as its header promises:
+
+    fingerprint before/restored, all three cases, byte-identical:
+      7e82cd4e9ef62edffede45520154c5e2   authz.authorized_scope_ids(uuid,text,text)
+      c48b844826147d749d0e795cc19ea17a   authz.candidate_authorized_scope_ids(uuid,text,text)
+      88a65e5b0fbe20a19ed1959f8b287c28   app.current_professional_read_organizations()
+    (2) §4a residue: 0 rows   (3) suite after restore: Result: PASS (Files=262, Tests=8876)
+    (4) sentinel + sidecars: absent
+
+⭐ **Its §4a detector proved itself on this run rather than by a knob** — while each mutation was
+live the check NAMED that resolver, and it enumerated to zero on the clean tree before and after.
+A detector that finds nothing must be proven able to find something; here the run is the proof.
+
+#### ⚠ TWO instrument faults of my own during this gate, both caught, both recorded
+
+1. **A liveness watcher built on a command that does not exist.** I armed a monitor whose
+   "is it still running" half was `pgrep -f authz-setvalued…`. **`pgrep` is not on this msys**, so
+   the check failed the way a missing binary fails, the loop read that as *the process is gone*,
+   and it emitted `SETVALUED PROCESS GONE with no rc file` **while the harness was mid-case-2**.
+   ⭐ Had that alarm been believed, the correct-looking response — investigate a half-finished
+   mutation run — is exactly the response that contaminates one. *A detector must be proven able
+   to find something before its finding is believed, and that applies to a liveness check as much
+   as to a security one.* Verified with an instrument that does work (PowerShell `Get-Process`:
+   14 bash/supabase processes alive) and the log's own progress, and the alarm was discarded.
+2. **A residue query I invented, at the wrong grain.** Checking the post-run state I ran a
+   `prosecdef … SETOF uuid` count over `authz`/`app` and got **4** — which is neither the
+   population the harness rules on (**5**) nor a test of whether anything sits on a universal set.
+   It measured the wrong property with an authoritative-looking number. ⛔ Discarded in favour of
+   the harness's own §4a check (`0 rows`) and its byte-exact fingerprint comparison. *A wrong
+   instrument reads exactly like a live defect* — the fifth occurrence in this unit.
+
+#### Stack discrimination — stated, not assumed
+
+Two Supabase stacks are up. Ours is **`supabase_db_azkbbhskturikxpgmafq`**, discriminated by the
+`authz` schema and confirmed in **both** directions: ours reports `authz schema: 1` and
+`write policies: 107` (the run's exact domain); `supabase_db_escalume` reports `authz schema: 0`.
+
+⛔ Standing, unchanged: Tier 2's **190 doors stay deferred by ADR 0171 and are NOT cleared**.
