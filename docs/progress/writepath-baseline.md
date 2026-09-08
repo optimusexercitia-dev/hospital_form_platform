@@ -1351,3 +1351,113 @@ to review. ⛔ Not fixed by committing logs (a log re-runs nothing); the model i
   to 611 in a quoted domain line and failed nothing.
 - Production diff still **EMPTY**; Tier 2's 190 doors stay **deferred by ADR 0171 and are NOT
   cleared**; ⛔ nothing was allowlisted.
+
+### 2026-09-08 — `backend`, rulings R40–R42 recorded; the section-vs-verdict census RE-DERIVED independently and widened from two files to the whole class
+
+**Filing turn only — no production change, no authz arm run.** Lead rulings R40/R41/R42
+(`scratchpad/batch3-lead-rulings.md` Part 10). R40 required the 38 to be re-derived rather than
+taken: *"if you get something other than 38, say so; two independent derivations disagreeing is a
+finding in itself."*
+
+- **The census was written from scratch, not replicated from the lead's `awk`.** Section class
+  (`## BLIND …` vs `## COVERED …`) × column 4, header and separator rows dropped, `## Note` /
+  `## Skipped` / `## OUTSIDE` / `## UNSUPPORTED` / `## Re-filed` sections out of population.
+  A `## COVERED` heading admits `COVERED` / `NOTICED` / `ERROR` / `SKIPPED` **by name**, so only
+  `BLIND` under it is a disagreement.
+- ⭐ **Widened from two files to four, and the widening was the point.** R40 measured the two files
+  the fix loop had touched. `blind_from_findings` (`p0-authz-invariant.sh:325-326`) reads **three**
+  findings files — door, write-path, **row-door** — and the wrapper arm (`:748`) a **fourth**,
+  invoker. Censusing two of four would have been *sweeping one sibling axis and reading it as
+  sweeping the class*. Result over **564** rows at `dc643256`:
+
+  | findings file | rows under `## BLIND` | rows under `## COVERED` | disagreements |
+  |---|---|---|---|
+  | `authz-door-audit-findings.md` | 74 | 279 | **38** — every one section=BLIND / verdict=COVERED |
+  | `authz-writepath-audit-findings.md` | 15 | 105 | **0** (after the B1 relocation) |
+  | `authz-rowdoor-audit-findings.md` | 1 | 36 | **0** |
+  | `authz-invoker-audit-findings.md` | 41 | 13 | **0** |
+
+  **38 confirmed — the two derivations agree.** Parts sum on every file (e.g. door 38 + 36 = 74
+  BLIND-section rows; 256 `COVERED` + 23 `NOTICED` = 279 COVERED-section rows).
+- ⚠ **One subsidiary figure differs from R40's table and it is a definitional difference, not a
+  disagreement.** R40 gives door `## COVERED` rows as **256**; that is the count of rows carrying
+  the *verdict* `COVERED`, while **279** is the count of rows *in the COVERED sections*. The 23
+  `NOTICED` rows are the whole delta, and they are legitimately in that section — its heading names
+  them. Stated because 74 + 256 = 330 and 74 + 279 = 353, and an unexplained gap of 23 in a census
+  is the shape this programme keeps paying for.
+- **Base-independent, so the 38 are demonstrably not this branch's.** `git diff main...HEAD --
+  docs/reviews/authz-door-audit-findings.md` is empty and the census returns **38 at both bases**.
+  ⛔ Not fixed here, per R40: they live in Batch 2's merged baseline.
+- ⭐ **The detector was proven able to find something before any of its four zeros were believed.**
+  Both polarities planted into scratch copies of **all four** files — a BLIND-section row flipped to
+  `COVERED`, and a COVERED-section row flipped to `BLIND` — each moving the count by exactly 1
+  (door 38 → 39 and 0 → 1; the other three 0 → 1 each way). The reverse polarity is **0 of 564** in
+  production, which is precisely the reading a dead instrument would also produce.
+- ⛔ **Instrument fault 10 — the fault-8 shape recurred, and only the guard saw it.** The first plant
+  targeted a line number that was not a verdict row; the substitution matched nothing and the census
+  reported an unchanged, clean **0**, which reads exactly like *"the opposite polarity cannot
+  occur"*. Caught by a `cmp` guard that aborts when the plant leaves the file byte-identical.
+  *A mutation that did not fully apply reports GREEN* — now twice in this unit, in two different
+  harnesses.
+- **A discrimination half, and it re-states fault 9 as a test.** An **indented** disagreeing row was
+  not counted, and the census population fell 353 → 352: indenting moves a row out of the data and
+  into prose. That is the same mechanism that repaired fault 9, asserted rather than asserted-about.
+
+**⚠ A correction to R40 itself: `12 → 38` is a change of GRAIN, not a stale figure.** R40 rules that
+the standing *"24 offenders, 12 section-stale COVERED rows"* understates the truth by 26. Measured:
+the 38 phantoms split **26 allowlisted + 12 not**, and the 12 not-allowlisted **are** the offenders
+that are section-stale. So 38 counts *all* section-stale rows; 12 counts *section-stale rows that
+are also offenders*; 26 + 12 = 38 reconciles them exactly, and both sentences are true at their own
+grain. ⛔ Rewriting the five documents' "12" to "38" would make a true sentence false in the other
+direction — the repair is to state **both** grains. ⭐ Settled by a **third** derivation, not by
+argument: my twelve (phantoms − allowlist) are **byte-identical** to the twelve enumerated
+2026-09-07 in `docs/progress/pred-domain.md`, reached there by a different route. *A predicate quoted
+at the wrong grain* — the same class this batch met in R23, where ownership was a proxy for a
+permission granted by another route.
+
+**⚠ And the follow-up's own `Status` line over-counts by one.** It says the door `## BLIND` section
+holds **75** rows; the data-row count is **74**. 75 is the pipe-prefixed *line* count, which includes
+the table header. The entry's own components contradict it (36 + 38 = 74), the same sentence says
+the arm reads 74 two clauses later, `blind_from_findings` excludes the header (`$0 !~ /gate . policy/`),
+and `docs/progress/pred-domain.md` § Blockers also says 74. ⭐ A census whose parts do not sum,
+inside the entry that exists to fix a counting defect. Corrected beside the original, not rewritten.
+
+**Filed** on `FUP-AUTHZ-BLIND-SET-READ-FROM-THE-SECTION-NOT-THE-VERDICT`, which now owns both halves
+— the *reader* (the arm reads the section) and the *writer* (the merge writes the section). It stops
+being a description and becomes a work order: the reader fix `$4 == "BLIND"` must take the door BLIND
+set **74 → 36** and drop the twelve named offenders from `ARM=policy`; a fix that does not move those
+two numbers has not closed it.
+
+**R41 recorded, in the lead's terms.** Fix loop 1 accepted in full. ⛔⛔ **Instrument fault 9 is the
+one worth carrying:** the B1 note's Markdown table injected three phantom gates into `ARM=census` and
+would have shifted *gates carrying a verdict* 608 → 611 **while failing nothing** — reaching the
+lead's gate run. *Documentation inside a measured file is input, not commentary*, the third time in
+this programme that prose changed a measurement. ⭐ **The lead re-ran `ARM=census` at `dc643256`
+rather than carrying the earlier gate forward** — bare **rc 0**, 581 live gates, **608** verdicts,
+identical to the run at `6d0db87a`. Necessary rather than ceremonial: fault 9 lived *between* those
+two commits, and *a measurement goes stale like any other record*. R36 stands, re-earned.
+⚠ **The fault-9 escape does not generalise, and this turn had to know that.** Indenting rescues a
+findings file because `verdicts_from_findings` anchors on `^\| `; it would **not** rescue
+`docs/followups/follow-ups-open.md`, where `check-docs-registers.mjs` matches `^\s*\|`. That is why
+this turn's filing is prose and bullets with **no table** in the register, while the table above sits
+in this record, which no verdict extractor reads.
+
+**R42 recorded.** The three disclosed deviations ruled: (1) the "3 → 16 BLIND" figure was pre-fix and
+is **3 → 15** post-fix — it moved *because of* the fix, which is why it must be stated post-fix;
+(2) going beyond R38 N2 to delete the stale numeral is **accepted, do not revert** — it matches the
+`FIVE`/`SIX` precedent and R6, a fresh literal being the same defect with a newer number;
+(3) the `Closes when` correction placed beside the original is right. Also accepted: N3's stated
+consequence was wrong (`features:index` produced no INDEX diff — the index does not render `adrs`,
+so the omission was hub-local), the hub fix still standing.
+
+- Production diff **EMPTY** (`git diff --name-only main... -- supabase/migrations supabase/seed.sql
+  src`); ⛔ nothing allowlisted; ⛔ the four authz arms deliberately **not** run this turn (R32 step 2
+  gives them to the lead); Tier 2's 190 doors stay **deferred by ADR 0171 and are NOT cleared**.
+- Gates at the tip of this turn, read **bare** (`; echo "BARE_RC=$?"`, no pipe — *a pipe erases the
+  exit code, and reading a gate is not gating on it*): `npm run lint` **rc 0**, eslint at 0/0 and
+  all thirteen gates OK (`check-docs-registers: OK … 212 follow-ups`; ratchets unmoved,
+  `closesWhenPoToRule=137/147 … lessonsProseOnly=52/52`); `npm run typecheck` **rc 0**. Re-run after
+  the last edit to this record, so the codes cover the tree as filed, not a tree one edit behind —
+  the N1 class in its own habitat. ⛔ The four authz arms were **not** run: this turn changed no
+  measured input to them (the two files touched are a register and this record, neither of which any
+  verdict extractor reads), and R32 step 2 gives the arms at the tip to the lead, not the builder.
