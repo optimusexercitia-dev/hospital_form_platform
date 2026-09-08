@@ -285,10 +285,17 @@ this state. `merge-findings-baseline.sh` step 3 aligns the two files by `diff` o
 placeholders and emits each merged row at the **first** aligned position, deleting the key so the
 second occurrence emits nothing. Reproduced on constructed inputs, both polarities:
 
-| baseline verdict | run verdict | table the merge chose | correct? |
-|---|---|---|---|
-| BLIND | COVERED | `## BLIND` (the baseline's) | ❌ — this is B1 |
-| COVERED | BLIND | `## BLIND` (the run's) | ✅ |
+⛔ **The two rows below are INDENTED on purpose** — the same reason the merge indents CARRIED rows.
+`verdicts_from_findings` (ARM 3, the census closure) reads **every** line in this file that starts
+with `| ` as a swept-gate label, so an illustrative table here would inject phantom gates into a
+gate's input. ⚠ Caught by measurement, not by review: the first draft of this note used a real
+table and took `verdicts_from_findings` from 120 labels to **123** (`baseline verdict`, `BLIND`,
+`COVERED`). ⭐ A fix for a findings-file defect that adds rows to the findings file is the same
+class of defect, one turn later.
+
+      baseline verdict | run verdict | table the merge chose | correct?
+      BLIND            | COVERED     | `## BLIND` (the baseline's) | NO  — this is B1
+      COVERED          | BLIND       | `## BLIND` (the run's)      | yes
 
 ⭐ **The merge is correct only for the direction that makes things worse.** Because the `## BLIND`
 table precedes the COVERED one, "first position wins" files a *regression* correctly and misfiles

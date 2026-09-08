@@ -1303,7 +1303,7 @@ of a row is absence of a VERDICT, never a COVERED*, which is why the 3 `process_
 #### R39 — the durable finding, filed rather than papered over
 
 `FUP-AUTHZ-PROOFS-CITED-BY-RECORDS-ARE-NOT-REPRODUCIBLE-FROM-THE-REPO` (🟠 high). Every proof this
-unit rests on — now **eight** instrument faults, four mutants, the planted drift reproducer, the
+unit rests on — now **nine** instrument faults, four mutants, the planted drift reproducer, the
 policy-DDL detector's plant, the `RECOVER=1` storage restore, every discrimination half — lives in
 out-of-repo scratch plus prose here. QA's phrase is exact: *"attested, not audited"*. When the
 scratch is cleared the claims become **unfalsifiable**, which is not the same as wrong and is worse
@@ -1320,9 +1320,28 @@ to review. ⛔ Not fixed by committing logs (a log re-runs nothing); the model i
 - ⛔ **`npm run test:db` deliberately NOT re-run.** This turn touched Markdown and one **comment**
   in a `.sh` under `supabase/tests/mutation/`; `supabase test db` collects `.sql`, and those `.sh`
   files were present when `Files=262, Tests=8876` was measured. Nothing here can move the shape.
-- ⛔ **The four authz arms NOT run by me** (protocol §4 — the lead runs them at the tip).
-  ⚠ **B1's row move changes the input to `FROMFINDINGS=1 ARM=policy`** and to nothing else: that
-  arm's write-arm BLIND set goes 16 → 15. The four §6 arms (`census`, `hat`, `floor`, `wrapper`) do
-  not read the `## BLIND` section of this file, so they are unaffected — QA states the same.
+- ⛔ **The four authz arms NOT run by me** (protocol §4 — the lead runs them at the tip). Which arm
+  inputs moved was **measured over all three consumers of this file**, not read off QA's sentence:
+
+  | consumer of `WP_FINDINGS` | arm | before | after |
+  |---|---|---|---|
+  | `blind_from_findings` (`:325`) | `FROMFINDINGS=1 ARM=policy` — **not** one of §6's four | 16 | **15** |
+  | `verdicts_from_findings` (`:542`) | ARM 3, `ARM=census` | 120 | **120**, set byte-identical |
+  | `skipped_from_findings` (`:550`) | ARM 3, `ARM=census` | 0 | **0** |
+
+  So exactly one arm's input changed, and it is not a §6 arm. ⭐ **`ARM=census` DOES read this file**
+  — QA's "the four arms do not read the `## BLIND` section" is true and is not the same claim as
+  "they do not read this file". It survives the row move only because ARM 3 reads labels from
+  **every** verdict table, so moving a row *between* tables leaves its input identical as a set.
+- ⛔⛔ **Instrument fault 9 — and this one was MINE, introduced by the B1 fix itself.** The first
+  draft of the relocation note illustrated the merge's two polarities with a **Markdown table**.
+  `verdicts_from_findings` greps `^\| ` and filters only `^\|---` and `gate . policy`, so those four
+  lines injected three phantom swept-gate labels — `baseline verdict`, `BLIND`, `COVERED` — taking
+  `ARM=census`'s input from 120 to **123**. Found by running the comparison above instead of
+  asserting it; repaired by **indenting** the illustration, which is exactly why the merge indents
+  CARRIED rows. ⭐ *A fix for a findings-file defect that adds rows to the findings file is the same
+  class of defect, one turn later* — and it would have reached the lead's gate run, because the
+  arm's verdict tolerates extra labels, so it would have shifted `gates carrying a verdict` from 608
+  to 611 in a quoted domain line and failed nothing.
 - Production diff still **EMPTY**; Tier 2's 190 doors stay **deferred by ADR 0171 and are NOT
   cleared**; ⛔ nothing was allowlisted.
