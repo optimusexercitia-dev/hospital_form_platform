@@ -502,10 +502,27 @@ tail is *cases whose verdict has no originating cause*, and a summary cannot sho
 | at the banner, before case 1 | `SELECTION-SOURCE`, `ARM-DOMAIN guard=13/13 policy=107/107`, `DOMAIN-SOURCE … live catalog … 107`, `POLICY-DDL DETECTOR: 0 of 107`, degenerate preflight, `baseline OK: … Files=262, Tests=8876`, `FULL SWEEP — this run MERGES …` | any of them wrong ⇒ kill NOW: before case 1 there is nothing to contaminate |
 | **new** — continuously | any `*** POLICY-DDL BLOCKED` line | the detector firing in a real run is a **finding**, not a void: record the policy as unverdicted and let the run finish |
 | case ~5 | the merged file still holds 2/2 `## Note`, the `HAND-MERGED` blockquote and the `---`; the merge's `PRESERVED … CARRIED …` line is non-zero | `PRESERVED 0`, or a hand block gone ⇒ the merge is losing material |
+
+⚠ **Reading trap found AT the case-5 checkpoint, recorded before it can mislead the final report:
+the merge banner's `— N row line(s)` is NOT the verdict count.** At 5 verdicts it printed `7 row
+line(s)`; the generated file's `^|` lines were **9** = 5 verdict rows + 2 table headers + 2
+separators. The counts reconcile, the merge is behaving correctly, and nothing here is a defect —
+but a reader taking `N row lines` for coverage over-reports by the table's own furniture. **The
+verdict count is `wc -l` of `writepath_progress.tsv`, and nothing else.** Same family as R6's
+hardcoded DRYRUN banner: *a count in banner text is an assertion about something, and not
+necessarily about what the reader thinks.*
 | case ~12 | elapsed since `baseline OK` ÷ cases done, against **91 s/case** | record the corrected rate BESIDE the estimate, never over it |
 | continuously, from `progress.tsv` | rows off the baseline shape · distinct off-baseline `Tests=` values · **longest consecutive run of the same off-baseline value** | **≥3 consecutive identical off-baseline shapes.** A per-case abort VARIES and the suite RECOVERS; drift never recovers. With `RESET_EVERY=20` this should be impossible — if it happens the reset did not fire and the run is VOID, not patchable |
 | at every `--- PERIODIC RESET ---` | preflight clean · policy worklist re-derived UNCHANGED · all 13 `GUARD_KEYS` still resolve · post-reset baseline PASS at the true shape | any `*** ABORT` ends the run |
 | at the end | `preconditions: resets=N` | **`resets=0` on a 120-case full run is the exact state that voided the door arm's run 1.** Quote this line in the gate record |
+
+#### Mid-run checkpoints AS OBSERVED (filled in as the run proceeds)
+
+| checkpoint | observed |
+|---|---|
+| banner, before case 1 | ✅ all of it: `SELECTION-SOURCE: CASES UNSET -> FULL run` · `Repo: /d/Development/…` (attempt 1 had `/mnt/d`) · `ARM-DOMAIN guard=13/13 policy=107/107` · `DOMAIN-SOURCE policy arm: live catalog (pg_policy, polcmd <> 'r') — 107` · `POLICY-DDL DETECTOR: 0 of 107 … ⛔ ZERO — DORMANT` · degenerate preflight `clean — 0` · `baseline OK: Result: PASS, Files=262, Tests=8876` · `FULL SWEEP — this run MERGES into the committed baseline` |
+| case ~5 | ✅ `PRESERVED 51 hand-authored prose line(s), 0 hand suffix(es)` on **every** merge — exactly the R14 number, stable; `CARRIED` falling (50 → 49 → 48) as verdicts replace carried rows, which is the merge working; the merged file holds 2/2 `## Note`, the `HAND-MERGED` blockquote and the bare `---`; two identical reads ⇒ not a partial read |
+| case ~12 (rate) | ⚠ **measured 100 s/case against the estimated 91** — recorded BESIDE the estimate, never over it. Revised: 92 s + 120×100 s + 13 min resets + ~33 min retries ≈ **4.1 h**, finish ≈ 00:15 -0300 — still inside the stated 3.2–4.6 h window. 12/12 guard rows, all COVERED |
 
 #### Recorded per R24/R25, settled without further work
 
