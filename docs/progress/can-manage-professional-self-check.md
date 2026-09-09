@@ -511,3 +511,83 @@ is the deriver's ADR and the source of the dedup rule this changes). The label g
 support multiple targets — verified against `scripts/build-adr-index.mjs` and against 0190 itself,
 whose own `**Amends:**` names 0079 **and** 0173 and produces both back-pointers. `npm run adr:index`
 re-run. ⚠ ADR 0200 is still `**Status:** proposed`; the amendment rides with it to the PO.
+
+### 2026-09-09 — gate at the tip (lead, run by someone other than the builder)
+
+Tip `ea92fbee` (four build commits + the deriver fix). Every exit code read **bare** into its own
+rc file by a detached driver (`Git\bin\bash.exe` via `Start-Process`, never under a tool timeout);
+logs retained in the session scratchpad `gate/`. Migration pair after reset: `20261003007360/525`.
+
+| # | command | rc |
+|---|---|---|
+| 1 | `supabase db reset --local` (fresh) | **0** |
+| 2 | `npm run test:db` | **0** — `All tests successful.` Files=**264**, Tests=**8923**, `Result: PASS` (Batch 7 tip: 262 / 8900; the backend measured 263 / 8906 on this branch with 415 moved out, so +1 file +17 tests = exactly 415's cells) |
+| 3 | `npm run lint` | **0** — REACHED all 17: `eslint` · `css-vars` · `memberships-door` · `client-server-imports` · `vacuous` · `set-local` · `progress` · `rules` · `adr-index` · `mojibake` · `service-role-registry` · `authz-vectors` · `registers` · `config-schemas` · `budget-anchor` · `backend-state` · `data-access` |
+| 4 | `npm run typecheck` | **0** |
+| 5 | `npm run test` | **0** — 151 files, 2056 tests |
+| 6 | `ARM=census` | **0** — `=== INVARIANT HOLDS ===` |
+| 7 | `ARM=hat` | **0** — `=== INVARIANT HOLDS ===` (prints no `domain:` line; recorded as observed) |
+| 8 | `ARM=floor` | **0** — `=== INVARIANT HOLDS ===` |
+| 9 | `FROMFINDINGS=1 ARM=wrapper` | **0** — `=== INVARIANT HOLDS ===` |
+| 10 | `SELFTEST=1 scripts/door-sweep-cases.sh` (before the deriver fix, at `e351f93f`) | **0** — `SELF-TEST: PASS 42 · FAIL 0 · SKIPPED 0` |
+| 11 | `SELFTEST=1 p0-authz-door-audit.sh` | **0** — `SELFTEST TOTAL: 33/33 ok, 0 failed`; committed baseline VERIFIED unchanged (cksum) |
+| 12 | `scripts/door-sweep-cases.sh main` at `e351f93f` | **1** — ⛔ FALSE FINDING (1), see below; sweeps NOT run on it |
+| 13 | `SELFTEST=1 scripts/door-sweep-cases.sh` (after the fix, at `ea92fbee`) | **0** — `SELF-TEST: PASS 46 · FAIL 0 · SKIPPED 0` (deriver group 16 → 20 = the four scenarios added) |
+| 14 | `scripts/door-sweep-cases.sh main` at `ea92fbee` — union / `ARM=read` / `ARM=write` | **0 / 0 / 0** — `DERIVED (0) — 2 case(s)`; `read arm : 2 case(s)   write arm: 0 case(s)` |
+| 15 | door arm, `CASES="can_manage_professional can_read_professional_profile"` | **0** — `SWEPT: 2 gate(s)   COVERED: 2   BLIND: 0   NOTICED: 0   ERROR(harness): 0` · `RESULT: CLEAN`; `git diff --stat -- docs/reviews/authz-door-audit-findings.md` empty |
+| 16 | write arm | **NOT RUN** — the deriver hands it 0 cases; `CASES=""` would exit 3 UNPROVEN and measure nothing. The claim it asks to check was checked: the migration's DDL is two `create or replace function … returns boolean` statements and **0** `create policy` / `create trigger` / `assert_*` raise guards (grep of the file) |
+| 17 | `authz-setvalued-targeted-cases.sh` (detached) | **0** — `ARM-DOMAIN setvalued=3/3 (in scope) out-of-scope=2 (named, with dispositions)` · `RESULT: CLEAN — 3 resolver(s) measured, all COVERED.` |
+| 18 | `REBUILD=1 npm run e2e:prod` — run 1 | **no rc** — process tree VANISHED mid batch 7 (see below) |
+| 19 | `SPECS=<83 remaining> REBUILD=1 npm run e2e:prod` — run 2 | **1** — `GATE SUMMARY: 934 passed · 6 failed · 0 infra · 1 flaky · 0 did-not-run · 16 batches` · `COVERAGE: accounted for 941 of 950 collected tests`; failures in b1 (1) and b2 (6) only |
+| 20 | `SPECS=<the 3 failing files> REBUILD=0 npm run e2e:prod` — isolated | **0** — `27 passed · 0 failed · 0 infra · 1 flaky · 0 did-not-run`, `accounted for 28 of 28` |
+
+**Arm domains, quoted.** `ARM=census` — `domain: prosecdef bool | prosecdef set-returning+reachable | public INVOKER plpgsql | all RLS policies`; `NOT in domain: prosecdef scalar non-bool command doors (427 reachable, DERIVED this run) — FUP-AUTHZ-COMMAND-DOOR-UNSWEPT`. `ARM=floor` — `authenticated-reachable prosecdef doors with 0 calls: 63`. `FROMFINDINGS=1 ARM=wrapper` — `mode: FROMFINDINGS (comparing COMMITTED findings md, no sweep)`. Door arm — `ARM-DOMAIN predicate=2/127 policy=0/226 out-of-domain-bool=35`, `POLICY ARM HALF: using ONLY`.
+
+**`SCOPE:` line, verbatim (identical in all three deriver modes at `ea92fbee`):**
+`SCOPE: 1 file(s) — 1 committed (main..HEAD), 0 worktree, 0 untracked | filter: none | derivation: catalog`
+with PROVENANCE `can_manage_professional <- 20261003007360_…` and `can_read_professional_profile <- 20261003007360_…`.
+At `e351f93f` the same line ended `derivation: NOT REACHED (this run ended before the catalog was probed)`.
+
+**⛔ Instrument fault found by this gate, fixed in this unit (row 12 → 13/14).** The deriver
+exited 1 `FINDING (1) — a RUNTIME-REWRITE migration whose TARGETS CANNOT BE READ` on a migration
+whose line 5 declares both targets. Mechanism, read from the script and then reproduced by
+`backend` on a doctored copy in a fake repo: the name path selected both functions (their
+`create or replace` chunks match the arm's name regex); the aggregate dedup `comm -23` then removed
+them from the declared set so a target is never listed twice; and FINDING (1) was decided on that
+emptied residue — a "cannot read" verdict evaluated after a subtraction. The first migration to
+combine a declaration + `create or replace` + `pg_get_functiondef` (landing assertions) was this
+one, so the 42 self-test scenarios were green over an unexercised cell. The reproduction also found
+the **masked polarity**: a declaring sibling in the same range silenced an undeclared rewrite at
+rc 0. Fix + seven scenarios + four self-test additions: `ea92fbee` (backend's entry above); ADR
+0200 gained `Amends: 0190`. Lead's own memory note written the same day.
+
+**⛔ E2E run 1 did not hang — its process tree VANISHED.** Batches 1–6 completed (b1 red on the
+INFRA signature only: `server_dead=1, conn_errors=50`, 12 did-not-run, retried once by the gate's
+`INFRA_RETRY=1` and red again on the same signature; b2–b6 = 39 specs, 320 passed, 0 failed);
+batch 7 wrote its 14th `ok` at 17:05 local and nothing after. Measured 90 min later: no
+`gate-driver-2`, `e2e-prod-gate.sh`, standalone `server.js` or Playwright process of THIS repo
+existed (`Win32_Process` command lines), no rc file, no `DONE2`. The Playwright processes that
+were alive belonged to **`D:\Development\claude\scheduler_platform`** — a second project's E2E
+run, with `scripts/probe-host-stall.mjs` / `probe-stall-surfaces.mjs` live on the same machine.
+⛔ Not attributed: the kill is unexplained and that run was not touched. ⚠ The lead's first stall
+detector watched the gate's SUMMARY log (one line per batch) and fired falsely on run 2 mid-batch;
+the second watched the per-batch logs' mtime. Run 2 was therefore over the **83** specs run 1
+never finished (`all 122 − green 39`), derived by `comm`, not by hand.
+
+**E2E verdict, per the flaky-baseline rule (memory `e2e-prod-build-flaky-baseline`: an increment
+is green when its own specs pass AND baseline triage shows 0 new access/data regressions).** Run
+2's seven failures: `act-role-assumption.spec.ts:164` (b1; `locator.click` 30 s waiting for a menu
+item, retry `page.waitForURL` 20 s leaving `/selecionar-perfil` inside `helpers/auth.ts:94`),
+`ff1-repeating-groups` FF1-1…FF1-5 and `ff5-references` FF5-5 (b2; `expect(locator).toBeHidden()`
+and `page.waitForURL` timeouts). Both batches' server logs carry the collapse signature (`The
+destination stream closed early` × **53** in b1, × **49** in b2). Run 1 had passed FF1-1…FF1-9
+before it died. **None** of the seven shows a 403 / notFound / empty-data / denied-path signature,
+and none of the three files touches a professional-identity predicate. All three files re-run
+ALONE on a fresh server + fresh DB at the same build: **27 / 27, 0 failed** (row 20). ⇒ Every
+collected test passed at least once at `ea92fbee`; 0 regressions attributed to the increment.
+⚠ `COVERAGE: accounted for 941 of 950 collected` in run 2 is quoted, not explained — the gate's
+own accounting, with every batch line reading `accounted N/N`.
+
+**What this gate did NOT do:** `gen:types` (not owed — no signature change; `grep` of
+`src/lib/types/database.ts` for the five predicate names = 0 hits, re-verified); `ARM=policy`
+(RED pre-existing and unreadable until its FUP — Batch 2's standing note).

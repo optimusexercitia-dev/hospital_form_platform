@@ -73,13 +73,21 @@ returned and lead-spot-checked: **both** arms caller-keyed, **0 reachable third-
 subject-keyed twins `is_admin_for` / `is_org_admin_of_for` already exist. PO ruled **R1 fix now ·
 R2 both sites · R3 tightening declared**; lead rulings L1–L11 written (record, same date).
 
+Built at `e351f93f`: pgTAP `415` observed RED-first (6 of 17), migration `…007360` re-keying
+both predicates with both-direction landing assertions, manifest row + regenerated projection,
+ADR 0200. Tip gate run by the lead (record, same date): `test:db` 264/8923 PASS, lint 17/17,
+four arms HOLD, door arm 2 gates COVERED / 0 BLIND, set-valued CLEAN, E2E green under the
+flaky-baseline rule (7 batched failures, all infra-signature, all 27/27 in isolation). The gate
+found a deriver false FINDING on the declare+replace cell — fixed with 7 reproductions and 4
+self-test scenarios at `ea92fbee` (ADR 0200 also amends 0190).
+
 ### In progress
-`backend` building: pgTAP `415` RED-first at head, then the migration (both functions, landing
-assertions both directions), manifest row + regenerated projection, ADR 0200 (`Amends: 0193`).
+QA review of the tip `ea92fbee`.
 
 ### Next
-Lead runs the tip gate (fresh reset → `test:db` → four arms → deriver bare → BOTH-arm sweep with
-`unset CASES` → `e2e:prod`), then QA review, fix loop, PO approval, Record step.
+Fix loop (≤ 5 iterations) → re-review → PO approval (AskUserQuestion: built / tests / QA / open
+risks) → Record step: seam slice + Current state, five FUPs filed, the FUP closed on its rewritten
+clause, ADR 0200 accepted, hub → complete, ff-merge, push distance measured and NOT pushed.
 
 ### Blockers
 None. The clause's precondition (`BUG-PROF-INACTIVE-001` green) holds.
