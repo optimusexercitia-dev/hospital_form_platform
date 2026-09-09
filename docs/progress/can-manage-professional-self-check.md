@@ -591,3 +591,164 @@ own accounting, with every batch line reading `accounted N/N`.
 **What this gate did NOT do:** `gen:types` (not owed — no signature change; `grep` of
 `src/lib/types/database.ts` for the five predicate names = 0 hits, re-verified); `ARM=policy`
 (RED pre-existing and unreadable until its FUP — Batch 2's standing note).
+
+### 2026-09-09 — QA MINOR closed: the AFTER landing assertions proven able to fire (backend)
+
+QA's review (`docs/reviews/can-manage-professional-self-check-review.md`) approved the unit with
+one MINOR: the migration's AFTER-block landing assertions (subject-keyed arms ABSENT, caller-keyed
+arm SURVIVED, `can_read_professional_profile` LOST a preserved arm) were asserted correct by
+reading, never demonstrated able to fire on a doctored body — only the BEFORE block's double-apply
+guard had been proven live (build entry above). Closed by measurement, per LEARN-084's own standard
+("prove the instrument can return the failing value at all").
+
+**Method.** Local stack at pair `(20261003007360, 525)`, re-confirmed before anything else
+(`select version from supabase_migrations.schema_migrations order by version desc limit 1` →
+`20261003007360`; row count `525`). Baseline `md5(pg_get_functiondef(...))`:
+`can_manage_professional` = `c8666e0e920074d706f3d39786b1d010`,
+`can_read_professional_profile` = `fb53f3e92fe42f9ae576feb0a8b283b1`. The migration's AFTER block
+(lines 200–234) was extracted **verbatim** with `sed -n '200,234p'` — never retyped — into a
+scratch file and reused unmodified in all five runs. Each run is
+`docker exec -i supabase_db_azkbbhskturikxpgmafq psql -U postgres -d postgres` fed a script of the
+shape `begin; <plant create-or-replace>; <AFTER block, verbatim>; rollback; select md5(...), md5(...);`
+— nothing committed, no migration file touched. `\set ON_ERROR_STOP off` lets `rollback;` run even
+after the `do $mig$` block raises (psql aborts the transaction on ERROR; `ROLLBACK` is always legal
+in an aborted transaction and un-aborts the session for the trailing `select`).
+
+⚠ **Needle check on plant (b), per the spawn's own warning.** `app.is_admin_for(` is a superstring
+of `app.is_admin(` only in the sense that `app.is_admin(` is a PREFIX-with-paren of the wrong
+identifier boundary — a body containing only `app.is_admin_for(p_uid)` does **not** contain the
+substring `app.is_admin(` (the character after `is_admin` there is `_`, not `(`). Grepped plant (b)
+directly: `app.is_admin_for(p_uid)` at one line, a separate `or app.is_admin()` at another — two
+distinct occurrences, so the plant is not vacuous for check 2.
+
+| plant | body | expected exception | observed | md5 unchanged after rollback |
+| --- | --- | --- | --- | --- |
+| (a) | `can_manage_professional` — OLD caller-keyed body (`coalesce(app.is_admin(), false) or app.is_org_admin_of(p_org)`) | "subject-keyed arms are ABSENT" | `ERROR: BATCH8: the subject-keyed arms are ABSENT from app.can_manage_professional after replace — the change did not land.` | yes — both md5s `c8666e0e…` / `fb53f3e9…`, identical to baseline |
+| (b) | `can_manage_professional` — `is_admin_for(p_uid)` + `is_org_admin_of_for(p_org, p_uid)` PLUS a surviving `or app.is_admin()` | "a caller-keyed arm SURVIVED" | `ERROR: BATCH8: a caller-keyed arm SURVIVED the replace in app.can_manage_professional.` | yes — both md5s unchanged |
+| (c) | `can_read_professional_profile` — `is_admin_for(p_uid)` kept, arm 3 (the DEFINER `professional_participants`/`case_participants` traversal) replaced with `return false;` | "LOST one of its three preserved arms" | `ERROR: BATCH8: app.can_read_professional_profile LOST one of its three preserved arms — this migration re-keys arm 1 only.` | yes — both md5s unchanged |
+| (d) | `can_read_professional_profile` — OLD `coalesce(app.is_admin(), false)` first arm, arms 2–4 verbatim from the preserved body | ABSENT/SURVIVED exception | `ERROR: BATCH8: the subject-keyed admin arm is ABSENT from app.can_read_professional_profile after replace — the change did not land.` | yes — both md5s unchanged |
+| (e) NEGATIVE CONTROL | real post-migration bodies, unplanted | AFTER block completes, no exception | `DO` (no `ERROR:` line) | yes — both md5s unchanged |
+
+A final catalog re-check after all five rolled-back transactions: `md5(pg_get_functiondef(...))`
+for both functions still `c8666e0e920074d706f3d39786b1d010` / `fb53f3e92fe42f9ae576feb0a8b283b1`,
+and `schema_migrations` head still `20261003007360` — the live catalog carries zero trace of any
+plant.
+
+**SQL used** (plant bodies; the AFTER block itself is lines 200–234 of
+`supabase/migrations/20261003007360_can_manage_professional_subject_keying.sql`, reused verbatim,
+not reproduced here):
+
+```sql
+-- plant (a)
+create or replace function app.can_manage_professional(p_org uuid, p_uid uuid)
+returns boolean
+language sql
+stable security definer
+set search_path to 'app', 'public', 'pg_catalog'
+as $function$
+  select p_uid is not null and (coalesce(app.is_admin(), false) or app.is_org_admin_of(p_org));
+$function$;
+
+-- plant (b)
+create or replace function app.can_manage_professional(p_org uuid, p_uid uuid)
+returns boolean
+language sql
+stable security definer
+set search_path to 'app', 'public', 'pg_catalog'
+as $function$
+  select p_uid is not null and (
+    app.is_admin_for(p_uid)
+    or app.is_org_admin_of_for(p_org, p_uid)
+    or app.is_admin()
+  );
+$function$;
+
+-- plant (c)
+create or replace function app.can_read_professional_profile(p_profile_id uuid, p_uid uuid)
+returns boolean
+language plpgsql
+stable security definer
+set search_path to 'app', 'public', 'pg_catalog'
+as $function$
+declare
+  v_org uuid;
+begin
+  if p_uid is null then
+    return false;
+  end if;
+  if coalesce(app.is_admin_for(p_uid), false) then
+    return true;
+  end if;
+
+  select organization_id into v_org
+  from public.professional_profiles
+  where id = p_profile_id;
+
+  if v_org is not null and (
+       app.can_manage_professional(v_org, p_uid)
+       or authz.has_permission(p_uid, 'organization', v_org, 'org.professionals.read')
+     ) then
+    return true;
+  end if;
+
+  -- arm 3 (DEFINER traversal over professional_participants/case_participants) deliberately
+  -- dropped for plant (c) -- this is the mutation under test.
+  return false;
+end;
+$function$;
+
+-- plant (d)
+create or replace function app.can_read_professional_profile(p_profile_id uuid, p_uid uuid)
+returns boolean
+language plpgsql
+stable security definer
+set search_path to 'app', 'public', 'pg_catalog'
+as $function$
+declare
+  v_org uuid;
+begin
+  if p_uid is null then
+    return false;
+  end if;
+  if coalesce(app.is_admin(), false) then
+    return true;
+  end if;
+
+  select organization_id into v_org
+  from public.professional_profiles
+  where id = p_profile_id;
+
+  if v_org is not null and (
+       app.can_manage_professional(v_org, p_uid)
+       or authz.has_permission(p_uid, 'organization', v_org, 'org.professionals.read')
+     ) then
+    return true;
+  end if;
+
+  return exists (
+    select 1
+    from public.professional_participants pp
+    join public.case_participants cp
+      on cp.participant_id = pp.participant_id
+     and cp.removed_at is null
+    where pp.professional_profile_id = p_profile_id
+      and app.can_read_case_committee(cp.case_id, p_uid)
+  );
+end;
+$function$;
+
+-- plant (e): none -- the real, live post-migration bodies, unmodified.
+```
+
+Each was wrapped `\set ON_ERROR_STOP off; begin; <plant>; <AFTER block verbatim>; rollback;
+select md5(...), md5(...);` and piped to
+`docker exec -i supabase_db_azkbbhskturikxpgmafq psql -U postgres -d postgres`. No migration file
+was edited; no transaction was committed.
+
+**Verdict on the MINOR.** All four failure branches the AFTER block guards (subject-keyed arms
+ABSENT at site 1, caller-keyed arm SURVIVED at site 1, subject-keyed arm ABSENT at site 2, a
+preserved arm LOST at site 2) fire on a doctored body with the documented `ERROR:` text, and the
+negative control shows the same block passes clean on the real bodies — so the AFTER block is not
+vacuous in either direction. `rollback` left the live catalog byte-identical throughout
+(`md5(pg_get_functiondef(...))` unchanged across all five transactions and after). QA's MINOR is
+closed by this measurement; no code or migration change was needed or made.
