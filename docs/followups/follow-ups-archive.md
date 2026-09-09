@@ -11,6 +11,125 @@
 > `follow-ups.md` and index lines in PROGRESS.md. That split is gone — the links have been
 > repointed, the sentences describing it are left as the record of what was true then.
 
+---
+
+## How a closure is archived — the standard shape
+
+> ⭐ **Forward-only, effective 2026-09-08. Nothing already in this file is retro-fitted.** The
+> entries below were written across three months of shifting convention and are the record of what
+> was true when each landed; their headings are anchor targets (`.claude/rules/`, ADRs, records and
+> reviews link into them, and gate 13 resolves those anchors), so rewriting them would break
+> citations to buy tidiness. **This section governs the NEXT closure, and every one after it.**
+
+⛔ **Two homes, and this is only one of them.** ADR
+[0186](../decisions/0186-documentation-consolidation-one-home-per-fact.md) D5 gives the rotation
+**procedure** — what moves where, when, and in what order — one home, `docs/lead-playbook.md` §5.
+This section is the home of the archived **shape**: what an entry looks like once it is here. Where
+a rule below touches the procedure it *cites* §5 or a gate; it does not restate it.
+
+**What "erratic" measures**, on this file, with gate 13's own classifier (`archiveEntrySections` in
+[check-docs-registers.mjs](../../scripts/check-docs-registers.mjs) — the gate's property, not a hand
+regex): **187 entry headings / 153 ids**, at **four** levels (5 `#` · 35 `##` · 146 `###` · 1
+`####`), opening with **seven** different glyphs (⬛ 71 · ✅ 41 · 🟠 24 · bare 24 · 🟡 20 · 🔴 4 ·
+🟢 3) and carrying **eleven** different closure words (RESOLVED 94 · CLOSED 20 · FIXED 10 · DONE 3 ·
+DISCHARGED 3 · COMPLETE 3 · BUILT 2 · CONCLUDED 1 · INVESTIGATED 1 · RULED 1 · PARTIAL 1) — with
+**48** headings carrying no closure word at all, and the `Status` field handled three ways (left
+`open`, arrowed, replaced outright). That spread is what this section ends.
+
+⚠ **Read the enforcer tag on each rule.** Rules 2, 4, 5 and 6 restate something a gate already
+measures — breaking them reds `npm run lint:registers`. Rules 1, 3, 7 and 8 are **decisions this
+header makes**: the sweep behind it found *no* governing text on where in the file a closure lands,
+what shape its heading takes, whether a closure note is owed, or whether this file is append-only.
+They hold because they are read, not because anything reds.
+
+### The shape
+
+````markdown
+### <severity emoji> FUP-<ID> — <the claim, VERBATIM from the open register> — ✅ <WORD> <YYYY-MM-DD>
+
+> **<WORD> <YYYY-MM-DD>** — <vehicle: phase N / unit CODE / batch N>, ADR <NNNN>. Record:
+> docs/progress/<code>.md. Closing commit(s): `<sha>`.
+> <The clause this closed ON, quoted from the entry's own `Closes when` below — then the
+> measurement that discharged it, and any bound the closure does NOT reach.>
+>
+> ⛔ **The entry block below is VERBATIM, its `Closes when` included.**
+
+**Filed:** <YYYY-MM-DD> (<origin>) · **Owner:** <role(s)> · **Severity:** <word> — <why>
+**Closes when:** <the condition, unedited — this line is what the closure is audited against>
+**Status:** open
+<the rest of the entry, byte-identical; a body file folded in under a `####` heading>
+````
+
+⛔ **The `FUP-<ID>` above is a placeholder on purpose.** A heading anywhere in this file that names a
+real id — a template, an example, a note *about* an entry — is classified as an ENTRY, gains an id
+with no `Closes when`, and reds gate 13. Placeholders that break the `FUP-[A-Z0-9]` shape do not.
+
+### The rules
+
+1. **Append at the END of the file; never insert, never re-order.** Position is the only record of
+   when an item closed, and the newest closures already sit at the tail. ⚠ Not to be confused with
+   the *operation* order, which gate 7 states: append to this file **before** cutting the source,
+   and `cmp`-verify at the destination first. — *new here, prose only.*
+2. **The entry travels VERBATIM — and the `Closes when` field travels with it, at column 0.** That
+   is the whole of "verbatim", asserted in four places (the open register's rotation line and its
+   table, lead-playbook §5, and this file's header above), and `.prettierignore` excludes
+   `docs/followups/` so the bytes survive. A closure that drops `Closes when` no longer stands
+   beside the condition it claims to discharge, and nothing can contradict it afterwards.
+   `archiveMissingClosesWhen` is a ratchet at **121/121 — at its cap, zero headroom**: the next
+   closure that drops the field reds, and ⛔ **the fix is to move the entry block, never to raise
+   the cap.** ⚠ Column 0 is the discriminator that separates the *field* from talk *about* the
+   field — keep the block unindented and outside the blockquote. — *gate 13 (`lint:registers`).*
+3. **The closure goes in the note, not into the entry's fields.** `**Status:** open` is false the
+   moment the entry moves, and it is still left standing: it is the item's last pre-closure
+   measurement, often carrying prose that is evidence, and the `>` note directly above it is what
+   makes it readable. This is the archive's own correction-beside-the-original convention. ⛔ Do not
+   "smooth" it and do not replace it — nine closures above do, and are not being retro-fitted, but
+   no governing sentence authorises that rewrite and "verbatim" forbids it. — *new here, prose
+   only.*
+4. **Exactly one line must NOT survive: the open register's bold `Body:` pointer.** ADR
+   [0185](../decisions/0185-documentation-restructure-feature-hubs-and-gated-registers.md) D5 puts a
+   resolved body INLINE here, so a surviving pointer is a rotation that dropped the file it named.
+   Fold the body in and reword that one line to say so. — *gate 13, which reds on the literal token
+   anywhere in this file.*
+5. **The closure word comes from gate 13's vocabulary, and stands AFTER the id.** Admitted between
+   the hashes and the id: decoration, an ISO date, and one of **RESOLVED · CLOSED · FIXED ·
+   CONCLUDED · DONE · WITHDRAWN · OBSOLETE · SUPERSEDED · DUPLICATE · WONTFIX**. ⛔ DISCHARGED,
+   COMPLETE, BUILT, INVESTIGATED, RULED and PARTIAL are all in use above and are **not** in that
+   list: *before* the id they make the heading UNDECIDED and gate 13 reds by design (it refuses to
+   guess, because guessing either way is silent). *After* the id — where 138 of the 139 already sit
+   — they are prose and pass. Default to **RESOLVED** for a fix and **CLOSED** for an item concluded
+   without one; when the truthful word is DISCHARGED or PARTIAL, put it after the id and say why in
+   the note. — *gate 13.*
+6. **One id, one heading.** ⛔ Never group ids into a single closure heading (`## ✅ RESOLVED <date>
+   — FUP-<A>, FUP-<B> and FUP-<C>`): gate 13 reads it as one entry for the first id, and the rest
+   are counted by nothing. A batch closes as one `##` **section** heading carrying a grouping word —
+   ROTATED · ROTATION · ROTATE · BATCH · WAVE · ARCHIVE — with a `###` entry per id beneath it. That
+   word is the whole of what makes the heading a section rather than an entry. — *gate 13 (the
+   grouped heading under-counts silently; the grouping word is what is measured).*
+7. **`###` for an entry, `##` for its batch section.** 146 of the 187 are already `###`, and it is
+   the open register's own level. A body file folded in keeps its own title heading, **demoted below
+   the entry's** (`####`) and naming the **same id** — a folded title naming a different id
+   fabricates a phantom entry. (Since 2026-09-08 the ratchet's domain is a classified property, so a
+   stray level no longer *hides* a closure from the gate; it only misleads a reader.) — *new here,
+   prose only.*
+8. **An archived entry is never edited and never deleted.** A later correction is **appended beneath
+   it, dated**, standing beside the text it corrects. ⚠ No governing sentence says this file is
+   append-only — the ones that exist are scoped to `docs/progress/` archives and the phase ledger —
+   but its headings are live anchor targets and its entries are cited as evidence, which is the same
+   obligation arrived at from the other direction. — *new here, prose only.*
+
+### Checking your work
+
+```bash
+npm run lint:registers && npm run lint:progress
+```
+
+Gate 13 prints its census on the OK line — `archived follow-ups (<n> entry headings; ids first seen
+at h2=… h3=…)` — and the ratchets beneath it. ⚠ Read the **exit code**, not the summary line: a
+count that moved and a gate that reds are different claims, and a pipe destroys the one that decides.
+
+---
+
 ## Follow-ups / Deferred Items
 
 - [ ] (minor QA findings, nice-to-haves, tech debt — reviewed at each phase start)
