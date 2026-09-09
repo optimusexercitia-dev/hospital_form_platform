@@ -894,3 +894,7 @@ branch → `git checkout main` → `git merge --ff-only` → `git merge-base --i
 run **bare** → branch deleted → `git rev-list --count origin/main..main` stated → `git push origin
 main` → distance re-measured at **0**. The shas and counts are in the next entry if the push
 produced anything worth recording beyond `git log`; otherwise `git log` is the home.
+
+### 2026-09-09 — merge and push witness (lead, on `main` after the fast-forward)
+
+`git merge --ff-only` `4fe0c464..26efca94` (32 files, +2435/−86); `git merge-base --is-ancestor 26efca94 main` rc **0** (bare); branch `authz-can-manage-professional-self-check` deleted at `26efca94`; `git rev-list --count origin/main..main` = **87** before the push; `git push origin main` → `6810d95b..26efca94`, rc **0**; after `git fetch`: **0 ahead / 0 behind**. The Coolify Automatic-Deployment state was not verifiable by the session (stated to the PO before the push). This entry is committed and pushed under the same PO instruction, as the one line the plan's §6 points readers at for the distance.
