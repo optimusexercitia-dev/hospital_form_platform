@@ -1,19 +1,8 @@
 # Backend State — authorization, privilege and audit
 
-> Part of `docs/backend-state/`. **Start at [`README.md`](README.md)** — it routes you to the one
-> file you need, and carries the maintenance rules in full.
->
-> This is a **map, not the authority.** `ARCHITECTURE.md` is the spec and the **live catalog** is
-> the truth (`pg_proc` incl. **`prosecdef`**, `pg_policies`, `pg_constraint`, `pg_trigger`, the
-> ACLs). ⚠ **Not the migration files** — some rewrite live function bodies at runtime, so their
-> text is stale by design (CLAUDE.md § graphify).
->
-> ⛔ **A posted section is frozen.** Corrections are APPENDED, never edited into the statement they
-> correct, and a correction leaves a forward marker at the statement it supersedes: a
-> `⚠ **Superseded** — …` line directly under that heading, naming where the correction lives.
->
-> ⛔ **A new phase EXTENDS its seam file.** It never opens a phase-named file, and the fix for an
-> over-cap file is never to raise the cap nor to delete a posted section.
+> Part of `docs/backend-state/` — **start at [`README.md`](README.md)**, which routes you to the
+> one file you need and carries the maintenance rules in full. ⛔ A posted section is FROZEN:
+> correct it by APPENDING a `⚠ **Superseded** — … See <file> § <heading>.` marker, never in place.
 
 ⚠ **The corrected pt-BR authority messages (`dispose_case_phi`, `revoke_printed_document`) are recorded in [`document-model.md`](document-model.md) § END STATE.** ⛔ That frozen text says **three** and names **two**; the third is not identified anywhere, and the discrepancy is inherited, not introduced here (QA m14). Re-derive from the catalog before relying on the count. The class matters here: every arm that moved had left its message behind, and no gate reads prose.
 

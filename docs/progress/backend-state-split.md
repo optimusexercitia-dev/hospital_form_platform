@@ -358,3 +358,51 @@ select against qualifiers.
 **Gate runs after reconciliation** — bare: `npm run lint` **rc=0** (`longHeadings=97/97`, at the cap,
 not over), `npm run typecheck` **rc=0**, gate 16 **rc=0** — 15 seam files + router, 1018 KB, largest
 `authorization-and-audit.md` at 128.7 KB against the 160 KB warn.
+
+### 2026-09-09 (5) — P2: the preamble tax, a bulk cap, and two properties left ungated on purpose
+
+**The duplicated preamble is gone.** The external review costed it at 11,640 bytes across twelve
+files; by the time I got to it the directory had fifteen, so it was **14,550 bytes** — the cost
+scales with every seam added, which is the argument. Replaced with a **3-line pointer** (970 → 299
+bytes per file, **10,065 bytes recovered**). ⛔ Before cutting, every rule the preamble carried was
+verified still present in `README.md § Maintenance rules` — map-not-authority, the live catalog,
+`prosecdef`, "not the migration files", EXTENDS-its-seam-file, frozen, the marker form. This was
+de-duplication, not deletion. Check A still enforces byte-identity of whatever the shared preamble
+is, so the pointer cannot drift either.
+
+**New check K — BULK.** Check D bounds a FILE and is silent on the shape inside one, and the
+predecessor's worst artefact was never a big file: it was a single **66,557-character line**, living
+in a file that was under cap the whole time, unreadable in any editor or diff. K caps lines at
+**8,000** anywhere and hand-written sections at **450** lines. Generated seams are exempt from the
+SECTION cap — their size is a property of their source, and check J already proves their currency —
+but never from the LINE cap, where a giant line is a generator bug rather than a large table.
+
+⚠ **Both caps sit ABOVE today's measured maxima** (longest line 6,798 in `conventions.md`; largest
+hand-written section 394 in `printing.md`), deliberately: K is a ceiling against the pathological
+case, not a style rule, and nothing already posted has to be reflowed. ⛔ **The consequence is that
+nothing in the tree exercises K, so the self-test and the real-corpus mutation are its ONLY
+evidence.** Six self-test arms (each paired with a silent half, including that a generated file is
+exempt from the section cap but NOT from the line cap), plus a live mutation planting a
+**66,557-character line** — the predecessor's actual defect — and a **502-line** section. Both fired;
+baseline green after rollback. Each mutation asserts it applied before the result is judged.
+
+⛔ **Two P2 properties are NOT gated, and the measurement is the reason.** The review asked for
+duplicate-fact and content-belongs-to-seam checks. Measured over this corpus first:
+
+| candidate key | distinct | in >1 seam | |
+|---|---:|---:|---|
+| migration ids | 186 | **33 (18%)** | legitimate — one migration touches several seams |
+| pgTAP suite refs | 117 | **18 (15%)** | same |
+| `##` section headings | 76 | **3 (4%)** | all three STRUCTURAL by design |
+
+The three duplicate headings are `## Current state`, `## Extracted from the pre-split stamp chain`
+and `## The generated function registry` — so a heading-keyed check enforces nothing once they are
+allowlisted, and the other two keys fire constantly and are *right* to. A detector that finds a lot
+needs proving as much as one that finds nothing; this one would be disabled within a week, which is
+worse than not having it. "Content belongs to its seam" is not mechanically decidable at all.
+**Both are written into the gate header as stated bounds**, so a green run is never read as coverage.
+
+**Gate runs** — bare: `npm run lint` **rc=0**, `npm run typecheck` **rc=0**, gate 16 self-test
+**90 arms** (the count is derived from the arm counter, not a literal — a P1 session fixed that),
+directory now **1008 KB** across 15 seam files + router, largest `authorization-and-audit.md` at
+**128.1 KB** against the 160 KB warn.

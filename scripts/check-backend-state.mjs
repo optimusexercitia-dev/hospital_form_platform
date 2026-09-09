@@ -11,7 +11,7 @@
  * carried 33 `SUPERSEDED` and 45 `STALE` markers and a hand-maintained "END STATE" block at the
  * top whose own registry figure had gone stale. The split re-files it on the MODULE SEAM axis.
  *
- * A split does not stay split on its own. ELEVEN checks hold it. A/B/C/D shipped 2026-09-09; B2 and E
+ * A split does not stay split on its own. TWELVE checks hold it. A/B/C/D shipped 2026-09-09; B2 and E
  * followed hours later when internal QA found each missing (M1, M2); F followed an EXTERNAL review
  * that found the defect all of them had walked past; G/H/I/J followed when that same review showed
  * the split had changed the FILING and not the CONTENT (ADR 0198) — see F, and the long block above
@@ -31,6 +31,9 @@
  *   E. A SEAM IS A NOUN — no digit in a seam filename. This is D2's enforcer; without it a routed
  *      `phase-24-2026-09-20.md` passed green and the phase axis could grow back one file at a time.
  *   F. LOCAL LINKS AND ANCHORS RESOLVE — via gate 13's `checkLinks`, imported, never re-implemented.
+ *   K. BULK — no line over 8,000 chars anywhere; no hand-written section over 450 lines. D bounds a
+ *      FILE and is silent on the shape inside one: the predecessor's worst artefact was a single
+ *      66,557-character line, in a file that was under cap the whole time.
  *
  *   G/H/I/J. THE CURRENT-STATE LAYER — every DOMAIN seam carries a replaceable, axis-free
  *      `## Current state` projection ABOVE its frozen slices; the projection stays a projection
@@ -46,6 +49,19 @@
  * three link-gated corpora. All 87 were fixed by prepending `../`. ⚠ The first mutation written to
  * prove F fires DID NOT APPLY (it edited a link the file does not contain) and reported rc=0 — a
  * vacuous test that read exactly like a passing one. Mutations here assert they applied.
+ *
+ * ⛔ TWO P2 PROPERTIES ARE DELIBERATELY NOT GATED, and the measurement is why — not an oversight:
+ *   · "DUPLICATE FACTS ACROSS SEAMS" has no non-noisy key. Measured over this corpus: migration ids
+ *     appear in more than one seam **18%** of the time (33 of 186) and pgTAP suite refs **15%**
+ *     (18 of 117) — both legitimately, because one migration touches several seams. Section
+ *     headings duplicate only **3** times and all three are STRUCTURAL by design (`## Current
+ *     state`, `## Extracted from the pre-split stamp chain`, `## The generated function registry`),
+ *     so a heading-keyed check would enforce nothing after allowlisting them. A gate on any of
+ *     these fires constantly, is right to, and gets disabled within a week.
+ *   · "CONTENT BELONGS TO ITS SEAM" is not mechanically decidable at all. Misfiling stays
+ *     invisible to this gate and is caught only by a reader.
+ *   Both are stated so nobody infers coverage from a green run. Do not add a noisy detector for
+ *   either; if one is wanted, it needs a key that is not the three measured above.
  *
  * ⚠ STATED BOUNDS, so nobody reads more coverage into this than it has:
  *   · F uses `existsSync` like gates 7 and 13 — case-INSENSITIVE on NTFS. Gate 9's case-exact
@@ -723,6 +739,56 @@ export function stateLayerStats(files) {
   return { domains, stateLines, historyLines, ratio: stateLines ? historyLines / stateLines : Infinity }
 }
 
+/**
+ * K. BULK — no pathological line, no runaway hand-written section.
+ *
+ * ⛔ Check D bounds a FILE. It is silent on the shape inside one, and the predecessor's worst
+ * artefact was not a big file but a single **66,557-character line** — the collapsed
+ * `Last updated / Previous / prior` chain, which no editor, diff or reviewer could read, and which
+ * hid its own contents for months. D never saw it because the file it lived in was under cap.
+ *
+ * The SECTION cap exempts `generated` and `archive` seams: their size is a property of their
+ * source, not of anyone's discipline, and they carry their own currency proof (check J). The LINE
+ * cap applies to everything, generated included — a catalog row that renders as an 8,000-character
+ * line is a generator bug, not a large table.
+ *
+ * ⚠ Both caps are set ABOVE today's measured maximum (line 6,798 in `conventions.md`; hand-written
+ * section 394 in `printing.md`), so this check does not force a reflow of anything already posted —
+ * it is a ceiling against the pathological case, never a style rule. ⛔ Because nothing in the tree
+ * violates it today, the ONLY evidence it works is its self-test and the real-corpus mutation.
+ */
+export const MAX_LINE_CHARS = 8000
+export const MAX_SECTION_LINES = 450
+
+export function checkBulk(files) {
+  const F = []
+  for (const f of files) {
+    const lines = normalise(f.text).split('\n')
+    lines.forEach((l, i) => {
+      if (l.length > MAX_LINE_CHARS) {
+        F.push(
+          `[K] ${DIR_REL}/${f.name}:${i + 1} — a single line of ${l.length} characters (cap ${MAX_LINE_CHARS}). ` +
+            `The predecessor's worst artefact was a 66,557-character line no reader could open; break it into lines.`,
+        )
+      }
+    })
+    const kind = classifySeam(f).kind
+    if (kind === 'generated' || kind === 'archive' || kind === 'router') continue
+    const idx = lines.map((l, i) => (l.startsWith('## ') ? i : -1)).filter((i) => i >= 0)
+    idx.forEach((start, k) => {
+      const end = k + 1 < idx.length ? idx[k + 1] : lines.length
+      if (end - start > MAX_SECTION_LINES) {
+        F.push(
+          `[K] ${DIR_REL}/${f.name}:${start + 1} — section "${lines[start].slice(3, 60)}" is ${end - start} lines ` +
+            `(cap ${MAX_SECTION_LINES}). ⛔ Do NOT raise the cap: a section this long is a seam that wants splitting, ` +
+            `or history that belongs in the unit record.`,
+        )
+      }
+    })
+  }
+  return F
+}
+
 export function runChecks(files, root = REPO_ROOT, exists = (p) => existsSync(join(root, p))) {
   const known = new Set(files.map((f) => f.name))
   const router = files.find((f) => f.name === ROUTER)
@@ -736,6 +802,7 @@ export function runChecks(files, root = REPO_ROOT, exists = (p) => existsSync(jo
       ...checkSupersededTargets(files, known),
       ...checkSeamNaming(files),
       ...checkLocalLinks(files, root, exists),
+      ...checkBulk(files),
       ...checkStatePresent(files),
       ...checkStateIsProjection(files),
       ...checkStateNotStale(files),
@@ -856,6 +923,27 @@ unrelated prose citing b.md
     const r = checkSizes([{ name: 'a.md', text: 'x'.repeat(1024) }])
     return r.F.length === 0 && r.W.length === 0
   })())
+
+  // ── K — bulk. Nothing in the tree violates K today, so these arms and the real-corpus mutation
+  // are the ONLY evidence it can fire at all. Each is paired with a silent half.
+  const bulkDoc = (body) => ({ name: 'a.md', text: `# X\n\n> pre\n\n${body}` })
+  t('K catches a pathological LINE', checkBulk([bulkDoc(`## S\n${'x'.repeat(MAX_LINE_CHARS + 1)}\n`)]).length === 1)
+  t('K clean on a long-but-sane line', checkBulk([bulkDoc(`## S\n${'x'.repeat(MAX_LINE_CHARS - 1)}\n`)]).length === 0)
+  t('K catches a runaway SECTION', checkBulk([bulkDoc(`## S\n${'body\n'.repeat(MAX_SECTION_LINES + 1)}`)]).length === 1)
+  t('K clean on a section at the cap', checkBulk([bulkDoc(`## S\n${'body\n'.repeat(MAX_SECTION_LINES - 2)}`)]).length === 0)
+  // The section cap must NOT apply to a generated file: its size is a property of its source.
+  t('K exempts a GENERATED file from the section cap', (() => {
+    const gen = {
+      name: 'generated-x.md',
+      text: `# X\n\n> pre\n\n> ⚙ **GENERATED FILE — do not edit by hand.** Rebuild with \`npm run gen:x\`; gate 16 reds on drift.\n\n## S\n${'body\n'.repeat(MAX_SECTION_LINES + 50)}`,
+    }
+    return classifySeam(gen).kind === 'generated' && checkBulk([gen]).length === 0
+  })())
+  // ...but the LINE cap still applies to it — a giant line is a generator bug, not a large table.
+  t('K still catches a pathological line in a GENERATED file', checkBulk([{
+    name: 'generated-x.md',
+    text: `# X\n\n> pre\n\n> ⚙ **GENERATED FILE — do not edit by hand.** Rebuild with \`npm run gen:x\`; gate 16 reds on drift.\n\n## S\n${'x'.repeat(MAX_LINE_CHARS + 1)}\n`,
+  }]).length === 1)
 
 
   // ── G/H/I/J — the current-state layer (ADR 0198) ─────────────────────────────────────────────
