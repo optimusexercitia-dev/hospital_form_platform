@@ -417,3 +417,25 @@ rather than a 500 that drops the body for non-ASCII messages (ADR 0018). The sta
 | `23514` | check violation | "Publique um rascunho." / "já enviada." / "recurso indisponível" (context) |
 | `23505` | unique violation | (resume race; question_key collision retry) |
 | `42501` | RLS denied | forbidden (e.g. wrong signer role) |
+
+## Extracted from the pre-split stamp chain
+
+Recovered when the frozen currency-stamp chain left this directory
+(→ [`../progress/backend-state-stamp-history-archive.md`](../progress/backend-state-stamp-history-archive.md),
+ADR 0199). Re-measured **2026-09-09** against the local catalog at migration `20261003007350`.
+
+- **⛔ A `supabase db reset --linked` silently reverts any out-of-band flag flip on the REMOTE.** It
+  reseeds from `seed.sql`, so a flag that was turned on by hand — not by a migration — goes back to its
+  seeded value with no error and no diff to notice. This is the standing rule behind the incident the
+  chain recorded (a tester's reset reverted the `patient_index` flag to OFF mid-fix-loop). It belongs
+  with the other **Remote discipline** rules above; a flag whose ON state is not expressed by a migration
+  is not deployed, it is merely currently true. Stamp 2026-06-23.
+- **⚠ The migration ledger below has a hole, and it is bounded.** The three 2026-07-12/13 tracks —
+  f-cleanup (ADR 0068/0069), S1·SUP and S1·MEM — were applied but never itemised here. Measured —
+  of the **16** migrations applied between `20260719000000` and `20260720000600`, **16 are absent from
+  this file**: `select version from supabase_migrations.schema_migrations where version between …`
+  cross-checked against this file's text. The ledger jumps `20260718000200` → `20260720000700`.
+  ⚠ Their *end states* did reach the seams, carried in by later work that assumed them — which is why an
+  identifier-only check scores this range green. What is missing is the record of **when and by what** the
+  surface changed. Filed as a follow-up rather than reconstructed from a frozen archive; the migration
+  files and `schema_migrations` are the sources, not the chain.

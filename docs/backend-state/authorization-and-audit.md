@@ -1109,3 +1109,62 @@ mutated policy quals, 5 controls green); w3/w4 harnesses re-signatured; w4
   data** (interviewees are STAFF, never patients).
 - **Patient-safety / NSP (Phase 14a — FIRST PHI; ADR 0030/0031; reverses the platform's prior "no patient data" rule under Architecture Rule 12):** `patient_safety_event` + the isolated PHI satellite `event_patient` + the append-only `event_custody` ledger all SELECT via the single **access-follows-custody** predicate `app.can_read_event(id, auth.uid())` = current custodian's commission OR the **reporting** commission (provenance, retained across hand-offs) OR PQS/admin. **No INSERT/UPDATE/DELETE policy** on any of the three — every write goes through a DEFINER RPC. A foreign committee sees nothing (route gating + RLS, not UI hiding). **PHI is minimum-necessary + isolated:** identifiers live ONLY in `event_patient`, never on the queue (`pqs_inbox`)/list/aggregate/timeline paths, and every read of it emits a Phase-13 `event_patient.read` audit row (empty metadata). `pqs_department` (non-PHI singleton config) SELECT = any authenticated member (`…121005`); writes DEFINER-only.
 - **Quality indicators (Phase 15; PHI-FREE; ADR 0057/0058) — RLS posture (b):** `indicators` + `indicator_measurements` grant **member-READ SELECT only** (a commission-member read policy + SELECT grant); **NO direct INSERT/UPDATE/DELETE policy or grant** — every write flows through a DEFINER RPC whose authority is `is_staff_admin_of OR is_tenancy_admin_of`, which also guarantees `value`/`status` are always RPC-computed (a plain staff RPC-write → 42501, a direct INSERT → permission denied, and the invoker `reclassify_*` UPDATE is denied too — defense-in-depth). Reads scope per-commission (a foreign-commission member sees nothing). `hospital_indicator_rollup` returns **PHI-free counts only** (no name/code/title columns) and re-gates per hospital. The two CAPA FKs (`capa_plan.source_indicator_id`, `capa_measure.indicator_id`) are ON DELETE SET NULL.
+
+## Extracted from the pre-split stamp chain
+
+Recovered when the frozen currency-stamp chain left this directory
+(→ [`../progress/backend-state-stamp-history-archive.md`](../progress/backend-state-stamp-history-archive.md),
+ADR 0199). Each entry carries the stamp it came from and the date its subject was re-measured. All
+re-measured **2026-09-09** against the local catalog at migration `20261003007350`.
+
+- **⛔ `public.verify_audit_chain` KEEPS its `app.is_admin()` arm ON PURPOSE — do not "uniform" it away.**
+  That arm is the function's **PLATFORM-tier branch**, reached only when all three scope arguments are
+  null; its hospital branch already excludes `platform_admin`. The global audit chain is one of the few
+  nouns `platform_admin` *is* granted (ADR 0078 A35), so this is not the BUG-AUTHZ-002 defect repeating.
+  Measured — `prosrc` shows the arm inside the `else` leg: `else if not app.is_admin() then raise
+  exception … using errcode = '42501'`. ⚠ This qualifier existed **nowhere but the chain**. A sweep that
+  strips `is_admin` arms for noun-rule conformance would have removed it and broken platform-tier chain
+  verification, with nothing in the seams to object. Stamp 2026-08-05 (BUG-AUTHZ-002).
+- **The hospital-tier content-door rule, and its runtime enforcer.** A DEFINER door that is hospital-tier
+  and returns **commission content** gates on `is_hospital_admin_of(p_hospital) OR
+  is_org_admin_of(org_of_hospital(p_hospital))` — never `app.is_admin()`, because commission content is
+  outside `platform_admin`'s nouns. `public.hospital_document_register` and
+  `public.hospital_indicator_rollup` are the two doors that lost the arm (`20260908000100`). Verified —
+  both are `prosecdef=t`, neither body matches `is_admin`, both match `is_hospital_admin_of` and
+  `is_org_admin_of`. **pgTAP `299_hospital_content_door_noun_rule.sql` §4 enumerates the class from
+  `pg_proc` at run time and reds on any member it does not recognise**, so a new hospital-tier door
+  inherits the rule instead of needing to be remembered. Stamp 2026-08-05.
+- **Two authz suites the seams never named:** `298_authz_p0_isolation.sql` (32 assertions, the FUP-AUTHZ-2
+  keystones) and `299_hospital_content_door_noun_rule.sql` (11). Both present in `supabase/tests/`.
+  Stamp 2026-08-05.
+- **`270_authz_dashboard_gate_uniformity.sql`** is the standing guard on the nine `public.dashboard_*`
+  doors (BUG-AUTHZ-001, `20260903000700`). It enumerates from `pg_proc` rather than fixing a list.
+  ⚠ Read it before changing any dashboard gate — and note the asymmetry recorded in
+  [`data-access.md`](data-access.md) § Extracted from the pre-split stamp chain: three of the nine gate on
+  `is_staff_admin_of` **alone**. Stamp 2026-08-03.
+- **⛔ Audit partitioning was REJECTED, and the reason is a standing design constraint.** A **time** axis
+  breaks per-chain-`seq` tamper-evidence; the only correct axis is `chain_key`. Verified still unpartitioned
+  — `select count(*) from pg_class where relname='audit_log' and relkind='p'` → **0**. Nothing else in the
+  seams records this, so a future proposal to partition `audit_log` by month would meet no objection.
+  Stamp 2026-07-05 (Wave 2, DEFERRED P7).
+- **`app.guard_audit_truncate` has a GUC escape hatch, and it is fixture-only.** It raises `HC042` unless
+  `current_setting('app.allow_audit_teardown', true) = 'on'`, which is set by pgTAP teardown and is
+  unreachable in production. The row-level DELETE/UPDATE immutability guard is a separate, ungated
+  mechanism and is untouched by it. Stamp 2026-07-05.
+- **`app.is_nsp_org_admin_of` is ZERO-PHI, and that is an invariant, not an accident.** It appears in **no**
+  `can_read_*`, `get_*patient*` or `*_phi*` door. Measured — that predicate over `pg_proc` returns **0 rows**,
+  while the control (`prosrc ~ 'is_nsp_org_admin_of'` unfiltered) returns **11**, so the sweep is looking at a
+  live population rather than an empty one. The org-tier NSP admin sees per-hospital rollups and roster, never
+  patient data. Stamp 2026-07-03 (ADR 0052).
+
+### Retired as stale — do NOT extract these
+
+- **`trg_audit_organization_members`, `trg_audit_pqs_members`, `trg_audit_hospital_admin_grant`** — named by
+  the chain as org/grant-tier audit emitters. None exists: `select tgname from pg_trigger where not
+  tgisinternal and tgname = …` → **0 rows** for all three. Their tables were collapsed into `memberships`
+  (S1·MEM, 2026-07-13), and membership-grant auditing now rides **`trg_audit_memberships`** on
+  `public.memberships`. Retired 2026-09-09.
+  ⚠ **Do not over-retire this set.** The chain names `trg_audit_hospital_updated` in the same breath and
+  that one is **LIVE**, on `public.hospitals`. The `trg_audit_*` prefix is not itself a legacy tell — **47**
+  live triggers use it, alongside the more common `audit_<table>_trg` form. Check `pg_trigger` per name;
+  the two naming conventions coexist by history, not by meaning.
