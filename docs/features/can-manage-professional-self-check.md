@@ -67,17 +67,19 @@ never done, put the disposition to the PO with that measurement in front of them
 fix — land the one-predicate migration with its red-first pgTAP cell and both-arm sweep.
 
 ### Done since start
-Unit opened 2026-09-09: preconditions measured (tree clean, no `in_progress` hub, 74 commits
-unpushed and NOT pushed — re-measure, never quote), branch cut off `main` @ `4fe0c464`, ADR
-number **0200** reserved (highest on any live branch is 0199, on local `main`).
+Unit opened 2026-09-09 (branch off `main` @ `4fe0c464`, ADR **0200** reserved). Full plan
+returned and lead-spot-checked: **both** arms caller-keyed, **0 reachable third-party paths**
+(the FUP's consequence refuted at head), a second defect site in `can_read_professional_profile`,
+subject-keyed twins `is_admin_for` / `is_org_admin_of_for` already exist. PO ruled **R1 fix now ·
+R2 both sites · R3 tightening declared**; lead rulings L1–L11 written (record, same date).
 
 ### In progress
-`backend` (Opus) producing the FULL plan: reachability analysis from the live catalog first.
+`backend` building: pgTAP `415` RED-first at head, then the migration (both functions, landing
+assertions both directions), manifest row + regenerated projection, ADR 0200 (`Amends: 0193`).
 
 ### Next
-Lead reviews the plan; rulings written to one scratch file; PO ruling via AskUserQuestion with
-the measurement in front of them; then build (if ruled), gate at the tip by someone other than
-the builder, QA review, fix loop, PO approval, Record step.
+Lead runs the tip gate (fresh reset → `test:db` → four arms → deriver bare → BOTH-arm sweep with
+`unset CASES` → `e2e:prod`), then QA review, fix loop, PO approval, Record step.
 
 ### Blockers
 None. The clause's precondition (`BUG-PROF-INACTIVE-001` green) holds.
