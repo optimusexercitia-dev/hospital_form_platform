@@ -752,3 +752,42 @@ negative control shows the same block passes clean on the real bodies — so the
 vacuous in either direction. `rollback` left the live catalog byte-identical throughout
 (`md5(pg_get_functiondef(...))` unchanged across all five transactions and after). QA's MINOR is
 closed by this measurement; no code or migration change was needed or made.
+
+### 2026-09-09 — QA verdict, the MINOR closed, and QA's "could not verify" list dispositioned (lead)
+
+**QA review (`docs/reviews/can-manage-professional-self-check-review.md`, over tip `e696d107`):
+`Verdict: APPROVED`** — 0 BLOCK, 0 MAJOR, 1 MINOR. QA verified from the live catalog (not the
+migration text): both re-keyed bodies; `is_admin()`'s JWT fast path vs `is_admin_for()`'s
+`profiles` read (R3 is real and SELF-scoped); `has_permission` for `chefe.ccih` and
+`staff1.qual.b` reproducing 415's §0.6/0.7 (why the read-gate over-grant subject is the cross-org
+`xb`, not `sa`); 0 triggers; `app` absent from `[api].schemas`; the regenerated manifest
+projection's sha256 equal to the committed `manifestSha256` (regeneration, not a hand edit).
+Scope discipline held: nothing under `src/`, `seed.sql`, `CLAUDE.md`, `docs/backend-state/`.
+
+**The MINOR, closed by measurement (backend, `0493e249`, entry above):** the migration's AFTER
+landing assertions had been *present* but never *demonstrated* to fire. Five plants inside
+`begin … rollback` on the live stack: (a) old caller-keyed body → `ABSENT` exception; (b)
+subject-keyed + a surviving `app.is_admin(` → `SURVIVED`; (c) read gate missing a preserved arm →
+`LOST`; (d) read gate with the old `is_admin()` arm → `ABSENT`; (e) the real bodies → `DO`, no
+error. `md5(pg_get_functiondef)` of both functions identical before each transaction and after
+each rollback. Plant (b) verified to contain `app.is_admin(` as a distinct substring from
+`app.is_admin_for(`, so the needle was discriminating, not vacuous.
+
+**QA's "could not verify" list — a work item, dispositioned:**
+1. AFTER assertions firing — **closed above**.
+2. The rewritten `Closes when` clause exists nowhere in the branch yet (correct under L8) — reviewed
+   for well-formedness at the Record step, below, when it is written.
+3. `COVERAGE: accounted for 941 of 950 collected` in E2E run 2 — **resolved by derivation**, not
+   explanation: the sixteen per-batch `accounted N/N` lines sum to **950/950**
+   (`grep -oE 'accounted [0-9]+/[0-9]+' | awk` over the gate log), and per batch
+   `passed+failed+flaky+skipped+did-not-run = accounted` holds for all sixteen. The gate's
+   COVERAGE line counts `passed+failed+flaky` = 934+6+1 = **941**; the other **9** are the tests
+   the specs themselves mark `skipped` (5+1+2+1 across batches 3, 6, 14, 16). No test was lost;
+   the 9 are skipped by their own authors, and the gate's summary line simply excludes that class.
+   ⚠ That is a reading of the gate's arithmetic, not a change to it — filed nowhere, because the
+   per-batch lines already carry the truth.
+4. The sweeps, arms, deriver self-test and `e2e:prod` — QA did not re-run them (by instruction;
+   the lead ran every one, exit codes bare, table in the gate entry).
+
+**Fix-loop count for the unit: 0 iterations on app code**; one measurement entry (the MINOR)
+and one instrument fix (the deriver, found by the gate before QA). Next: PO approval.
