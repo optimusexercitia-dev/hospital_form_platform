@@ -15,6 +15,14 @@
 > ⛔ **A new phase EXTENDS its seam file.** It never opens a phase-named file, and the fix for an
 > over-cap file is never to raise the cap nor to delete a posted section.
 
+⛔ **ARCHIVE — this file carries no current state, and must not be read for any.** It is the frozen
+pre-split edit history of the single-file map (ADR 0196 D9). What is TRUE about the backend NOW lives
+in the `## Current state` block at the top of each domain seam file, routed from
+[`README.md`](README.md); the four `generated-*.md` registries hold the inventory, derived from the
+live catalog. This declaration is why gate 16 check G does not require a `## Current state` block
+here — an exemption granted because the file is history OF something that has a live successor, not
+because nobody got round to writing one (ADR 0198 D4).
+
 ## Currency-stamp chain, as it stood at the split (2026-09-09)
 
 ⛔ **FROZEN — nothing is appended here again.** This is the `Last updated: … / Previous: … / prior: …` chain that the single-file `docs/backend-state.md` accumulated until the seam split. It is kept **verbatim** because several stamps carry facts that appear nowhere else (the two hospital-tier DEFINER doors that lost their `app.is_admin()` arm, `verify_audit_chain` KEEPING its platform branch, `earliestSessionStart()`), and cutting it would have selected against exactly those qualifiers.

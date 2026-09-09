@@ -15,6 +15,100 @@
 > ⛔ **A new phase EXTENDS its seam file.** It never opens a phase-named file, and the fix for an
 > over-cap file is never to raise the cap nor to delete a posted section.
 
+## Current state
+
+**Updated:** 2026-09-09 — a REPLACEABLE projection of the frozen slices below. Replace this block in
+place; never append to it, and never move a line of history into it (ADR 0198). Figures live in the
+generated registries; the live catalog is the authority (ADR 0078).
+
+### Surface
+
+- **The four registries are GENERATED, not maintained** — derived from the live catalog and from
+  `src/` by [`scripts/gen-data-access-surface.mjs`](../../scripts/gen-data-access-surface.mjs), whose
+  catalog grammar has ONE home in
+  [`scripts/data-access-census.sql`](../../scripts/data-access-census.sql); rebuild with
+  `npm run data-access:surface`. ⛔ A correction belongs in the GENERATOR or in the catalog, never in
+  a generated file: an edit there is erased by the next run and gated in the meantime.
+- **`public` RPCs** → [`generated-rpc-surface.md`](generated-rpc-surface.md). **`app` helpers,
+  predicates and trigger functions** → [`generated-helper-surface.md`](generated-helper-surface.md).
+  Each row carries the same facts: arguments, return type, `prosecdef`, volatility and EXECUTE
+  grants.
+- **Feature-flag keys**, each key's `FeatureFlags` field and the readers that resolve it →
+  [`generated-feature-flags.md`](generated-feature-flags.md); both drift polarities are derived — a
+  live key with no typed field, and a typed field naming no live key.
+- **Rule-9 query and action modules** and what each exports →
+  [`generated-query-modules.md`](generated-query-modules.md); the population is a DIRECTORY WALK
+  bound to the naming property, never a hand-list.
+- **What stays handwritten here is what a catalog cannot hold**: what a door is FOR and which of its
+  arms is load-bearing (§ RPC inventory's notes column); the helper GRAIN, `confidentiality_rank`'s
+  ordering, `can_read_case_or_admin`'s "ORing the admin arm OUTSIDE the DEFINER out-votes the deny",
+  and every SQL↔TS mirror whose drift is phase-blocking
+  (§ Helper functions); each flag's **production** claim (§ Feature flags); why a module seam is
+  where it is (§ Data-access & action modules). Each of the four frozen headings carries a forward
+  marker naming its generated file and stating what is superseded (the inventory) and what is not.
+
+### Invariants
+
+- **Architecture Rule 9 — data access goes through these modules; no inline supabase-js in UI.**
+  ⚠ Presence in the generated registry is **not a Rule-9 audit**: it answers "which module owns this
+  query", and a module appearing there is not evidence that nothing bypasses it.
+- **The condition evaluator is mirrored SQL ↔ TS.** `app.eval_condition` has the TypeScript twin
+  `evalCondition` in `src/lib/queries/conditions.ts`, kept in agreement by the shared vector file
+  `src/lib/queries/__fixtures__/condition-vectors.json`; **drift is phase-blocking.** § Helper
+  functions names the other dual evaluators and parity-tested twins under the same rule.
+- **A NULL `proacl` is rendered `<NULL=PUBLIC>` and means PUBLIC MAY EXECUTE** — it is the default,
+  not an absence of grants. Reading it as "no grants" inverts the fact.
+- **A `definer` row's gate REPLACES RLS**, so its EXECUTE list is the whole boundary: `prosecdef`
+  belongs beside `pg_policies`, never read alone (ADR 0078, ADR 0079).
+- **"The doc matches the catalog" is TWO composable halves, and neither alone is the verdict.**
+  `npm run lint:data-access` (gate 17) reds when a generated file and its pgTAP pin disagree — text
+  only, no database — and
+  [`supabase/tests/400_data_access_census.sql`](../../supabase/tests/400_data_access_census.sql), in
+  `npm run test:db`, reds when the pin and the catalog disagree.
+
+### Rollout
+
+- ⛔ Resolve each flag's VALUE, its `FeatureFlags` field and its readers from
+  [`generated-feature-flags.md`](generated-feature-flags.md), never from a sentence here.
+- ⛔ **The generated `local` column is NOT production.** `supabase/seed.sql` forces flags ON for local
+  + E2E. Nothing asserts on that column — not gate 17, not the pgTAP mirror — because only a human
+  knows whether the flip migration reached the remote, which is why the production claim stays
+  handwritten in § Feature flags. Resolve a value in `app.feature_flags.enabled` on the deployment
+  you mean, never from a table and never from a comment.
+- ⛔ **Deployment status is not stated in this layer** (ADR 0198 D5). Whether a migration reached the
+  remote is a claim about an external system that rots silently — measure it with the recipes in
+  [`conventions.md` § Remote discipline](conventions.md#remote-discipline--standing-rules-measure-never-quote).
+
+### Open edges
+
+- **Generation covers only what a machine can DERIVE.** What can be proven without a database is
+  proven by gate 17 itself; what cannot is NAMED rather than assumed — three states, never two.
+- **`Typed readers` is a nearest-preceding-export attribution, not a call graph.** A call inside a
+  non-exported helper is attributed to the exported symbol above it, which over-reports reach.
+- **The `public` registry is derived from the catalog, not from `src/lib/types/database.ts`** —
+  generated types expose only what PostgREST can see, and the gap between the two is itself
+  undocumented surface.
+- **Only these four registries are generated.** The remaining hand-maintained tables elsewhere in
+  `docs/backend-state/` are untouched, as is the follow-up filed against
+  `check-service-role-registry.mjs`'s `process.cwd()` resolution — deliberately, being a live
+  behaviour change to a gate outside that decision's subject.
+
+### Where the detail lives
+
+- The frozen slices below, in order: **§ RPC inventory** · **§ Helper functions** · **§ Feature
+  flags** · **§ Data-access & action modules** (carrying **§ Form-Builder Enhancements batch**).
+- The generated registries: [`generated-rpc-surface.md`](generated-rpc-surface.md) ·
+  [`generated-helper-surface.md`](generated-helper-surface.md) ·
+  [`generated-feature-flags.md`](generated-feature-flags.md) ·
+  [`generated-query-modules.md`](generated-query-modules.md).
+- ADR [0197](../decisions/0197-data-access-registries-are-generated-not-maintained.md) (the
+  registries are generated, and gated in two halves) ·
+  ADR [0196](../decisions/0196-backend-state-split-on-the-module-seam-axis.md) (the seam split; a
+  posted section is frozen) · ADR [0078](../decisions/0078-authorization-capability-model.md) and
+  ADR [0079](../decisions/0079-authz-door-blindness-standing-invariant.md) (the live catalog is the
+  truth; `prosecdef` beside `pg_policies`). Architecture Rule 9:
+  [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
+
 ## RPC inventory
 
 ⚠ **Superseded** — the table below is a hand-maintained snapshot which, measured 2026-09-09

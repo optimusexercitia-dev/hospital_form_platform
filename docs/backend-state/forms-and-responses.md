@@ -15,6 +15,106 @@
 > ⛔ **A new phase EXTENDS its seam file.** It never opens a phase-named file, and the fix for an
 > over-cap file is never to raise the cap nor to delete a posted section.
 
+## Current state
+
+**Updated:** 2026-09-09 — a REPLACEABLE projection of the frozen slices below. Replace this block in
+place; never append to it, and never move a line of history into it (ADR 0198). Figures live in the
+generated registries; the live catalog is the authority (ADR 0078).
+
+### Surface
+
+- **The canonical spine** (Architecture Rule 2) — `forms` → `form_versions` (`status ∈ draft |
+  published | archived`, plus the reserved per-version bag `behavior_config`) → `form_sections`
+  (`position`, `visible_when`, `requires_signoff`, `signoff_role ∈ respondent | staff_admin`) →
+  `form_items` (`item_type`; input items carry `question_key`, `label`, `required`, display items
+  `content`) · `form_item_options` · `responses` · `answers` · `answer_selected_options` ·
+  `response_group_instances` · `response_section_signoffs`.
+- **Matrix** — `form_matrix_rows` / `form_matrix_columns` (per item, per version; `code`, `label`,
+  `weight`) + `answer_matrix_cells` / `answer_risk_matrix`. `matrix` is a radio grid — one column per
+  row, `value='true'`, no payload; `risk_matrix` derives `risk_score` server-side as
+  `severity.weight * likelihood.weight`, and a client-sent score is never read.
+- **Entity reference** — `answer_references` in three lanes (participant / commission / profile), all
+  three target FKs `on delete restrict`, a kind↔target XOR CHECK, `unique (answer_id)`.
+- **Validation** — `form_item_validations` over six allowlisted rule types (`number_range`,
+  `text_length`, `regex`, `date_range`, `datetime_order`, `unique_within_group`) + `required_if` on
+  `form_items`: a **single** condition, not the `{match, conditions[]}` group shape `visible_when` takes.
+- **Power authoring** — `form_block_library` (commission-scoped jsonb snapshot of one item subtree,
+  denormalized provenance, **no FK**) + `form_items.default_source`, XOR'd against `default_value`.
+- **Doors** — signatures, `prosecdef`, volatility, EXECUTE grants:
+  [`generated-rpc-surface.md`](generated-rpc-surface.md) · [`generated-helper-surface.md`](generated-helper-surface.md);
+  the module owning a query (Rule 9): [`generated-query-modules.md`](generated-query-modules.md).
+
+### Invariants
+
+- **Rule 2 — extend, never contradict.** `form_items.item_type` stays a **CHECK enum widened per
+  feature**, never a data-driven catalog, and both constraints move together: the value enum and the
+  shape CHECK `form_items_input_vs_display`.
+- **Rule 3 — one draft, one door.** `unique (form_version_id, created_by) where status =
+  'in_progress'` gives one resumable draft per user per version, editable only by `created_by`.
+  `submit_response` is the sole lifecycle door: it evaluates section visibility server-side, verifies
+  every required input of every VISIBLE section and a sign-off row on every visible
+  `requires_signoff` section, deletes stray answers of finally-hidden sections, flips
+  `status → submitted`. Wizard validation is UX only; the RPC is the authority.
+- **Rule 3 — the condition evaluator exists exactly once per side**, `app.eval_condition` ↔
+  `evalCondition` (`src/lib/queries/conditions.ts`), held in agreement by a shared golden-vector
+  fixture; drift is phase-blocking. `contains`/`not_contains`/`is_empty`/`is_not_empty` stayed
+  evaluator-only until the storage gate **and both publish assertions** were widened in one change.
+- **Rule 4 — a sign-off is per `(response, section)`**, `unique (response_id, section_id)`;
+  `signoff_role` decides who signs — `respondent` (the response's `created_by`) or `staff_admin`
+  (any `staff_admin` of the commission) — and RLS, not the UI, enforces it. The window is while the
+  response is `in_progress` **and the section is visible**. ⚠ One carve-out: a `staff_admin` section
+  of a CASE-PHASE response is signed AFTER the response freezes, in the single window
+  `app.is_signoff_deferral_open` defines for `app.can_sign_section` (the `signoffs_insert`
+  `WITH CHECK`), `guard_submitted_signoffs` and `sign_section`. A STANDALONE response keeps the
+  `in_progress`-only rule; `responses.status` is unchanged — attestation lives on the PHASE.
+- **Rule 5 — a published version is IMMUTABLE**, enforced in the database on `form_versions`, their
+  `form_sections` AND their `form_items`, not only in the UI. Editing never mutates: cloning creates
+  a new draft and copies sections (with their conditions and sign-off settings) and items, remapping
+  ids, and `visible_when` references `question_key` rather than an item id **precisely so conditions
+  survive cloning unchanged**. `clone_form_version` stays INVOKER — its RLS-gated `form_versions`
+  INSERT is the authority proof — and delegates to `app.copy_version_children`, whose insert list
+  **is** the authoritative child enumeration.
+- **`question_key` is stable by construction** — no rename door exists anywhere in the platform and
+  none ever has: the editor pins the key, a new item mints `slug(label)` plus a random suffix. That
+  is what lets a dashboard aggregate one question across versions; matrix series key on the axis
+  `code`, held immutable by a `BEFORE UPDATE` trigger that does not consult version status.
+- **One arm, one place.** `app.item_required_satisfied` is the single required-presence predicate for
+  every item type and `app.copy_response_answers` the single correction-copy surface; a new answerable
+  shape owes an arm to each, plus one to `app.instance_is_empty` — without which `submit_response`
+  prunes an instance holding only that shape and cascades it away.
+
+### Rollout
+
+- Flags `matrix_fields`, `entity_refs`, `item_validations`, `power_authoring`,
+  `deferred_staff_signoff`. ⛔ Resolve each flag's VALUE and its readers from
+  [`generated-feature-flags.md`](generated-feature-flags.md), never from a sentence here.
+- ⛔ **Deployment status is not stated in this layer** (ADR 0198 D5). Whether a migration reached the
+  remote is a claim about an external system that rots silently — measure it with the recipes in
+  [`conventions.md` § Remote discipline](conventions.md#remote-discipline--standing-rules-measure-never-quote).
+
+### Open edges
+
+- The matrix definition tables carry **no published-structure freeze trigger** — the Rule 5 guard
+  `form_item_options` already had and that was reused to give `form_item_validations` the same freeze.
+- `form_items_default_source_type_check` is **tighter** than the shipped
+  `form_items_default_value_display_null`, which still permits a `default_value` on a matrix nothing
+  can apply; narrowing a shipped CHECK against existing rows is its own migration.
+- `answer_references` holds one target per item (multi-target is a constraint DROP; writer,
+  completeness arm and aggregation are already cardinality-agnostic); `form_block_library` is
+  commission-visible only, an org-visible arm being additive and deferred; `form_calculations` stays
+  reserved, not built; `app.pending_staff_signoffs` is **UNSUPPORTED** by the row-door sweep.
+
+### Where the detail lives
+
+- The frozen slices below, in order: **§ F3 — Flexible-Forms Foundation** · **§ FF-2 — Matrix & Risk
+  Matrix** (which also carries the DOOR-PARITY RULE and the policy-arms diff table) · **§ FF-5 —
+  Entity Reference** · **§ FF-3 — Validation Engine** · **§ FF-4 — Power Authoring** · **§ DSS —
+  Deferred `staff_admin` sign-off**.
+- ADR [0060](../decisions/0060-flexible-forms-foundation.md) · [0065](../decisions/0065-pre-pilot-foundations-conventions.md) · [0086](../decisions/0086-flexible-forms-pre-pilot.md)
+  · [0087](../decisions/0087-ff1-repeating-groups.md) · [0089](../decisions/0089-ff2-matrix-risk-matrix.md) · [0090](../decisions/0090-ff3-validation-engine.md)
+  · [0091](../decisions/0091-ff5-entity-reference.md) · [0092](../decisions/0092-ff4-power-authoring.md) · [0045](../decisions/0045-answer-model-v2.md)
+  · [0136](../decisions/0136-deferred-staff-admin-signoff-attests-frozen-content.md).
+
 ## F3 — Flexible-Forms Foundation (2026-07-11; ADR 0060/0065; migrations `20260718000000`–`…000200`; NO flag, structural)
 
 The pre-pilot form-engine bones for the four committed field types + the one live feature (dual-evaluator

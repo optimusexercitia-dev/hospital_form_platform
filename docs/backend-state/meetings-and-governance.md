@@ -17,6 +17,106 @@
 
 ⚠ **The cadence surface (`app.cadence_status_of`, `commission_cadence_overview`) is recorded in [`document-model.md`](document-model.md) § END STATE** — including that it is **STABLE, not IMMUTABLE**, and that `mensal` means 30 days, not a calendar month.
 
+## Current state
+
+**Updated:** 2026-09-09 — a REPLACEABLE projection of the frozen slices below. Replace this block in
+place; never append to it, and never move a line of history into it (ADR 0198). Figures live in the
+generated registries; the live catalog is the authority (ADR 0078).
+
+### Surface
+
+- **Meeting audio → ata** — private bucket `meeting-audio`, **no `authenticated` storage policies by
+  design**: the signed upload URL is minted server-side with the **service-role** client, path
+  `<meeting_id>/<job_id>/<file>`; table `public.meeting_minutes_jobs` FKs `meetings` **ON DELETE
+  CASCADE**. Doors are **all `public.*`** (`app.*` is unreachable through PostgREST):
+  `create_minutes_job` · `submit_minutes_job` · `cancel_minutes_job` · `save_minutes_draft` ·
+  `apply_minutes_review` · audited `read_minutes_transcript` · **service_role-only** latches
+  `complete_minutes_job`/`fail_minutes_job` and `list_stale_meeting_audio`.
+- **`commission_charters`** — `commission_id` PK, 1:1 with `commissions`: a NOT-NULL, CHECK-bounded
+  `meeting_frequency` plus an optional link to the commission's `doc_type='regimento'` controlled
+  document, whose content and dates live on the doc, not inline (`sem_regimento` = no row). Doors:
+  `upsert_commission_charter` · `meeting_cadence_status` · `suggest_carry_forward`. ⚠ The cadence
+  surface (`app.cadence_status_of`, `commission_cadence_overview`) lives in
+  [`document-model.md`](document-model.md) § END STATE — **STABLE, not IMMUTABLE**; `mensal` = 30 days.
+- **Accreditation** — RLS-on, SELECT-only-for-`authenticated` tables `accreditation_frameworks`,
+  `accreditation_standards`, `evidence_links`, `standard_assessments`, `standard_ownerships`; every
+  write is a DEFINER RPC (no table has an INSERT/UPDATE/DELETE policy or grant). Dispatch predicates
+  run one arm per `ArtifactKind`: `artifact_belongs_to_commission` (fail-**closed**) ·
+  `evidence_status_of` · `evidence_label_of`. Read doors: `readiness_report` · `readiness_evidence` ·
+  `hospital_readiness`.
+- Signatures, `prosecdef`, EXECUTE grants: [`generated-rpc-surface.md`](generated-rpc-surface.md) and
+  [`generated-helper-surface.md`](generated-helper-surface.md); SQLSTATEs: [`conventions.md`](conventions.md).
+
+### Invariants
+
+- **The transcript never leaves through the table.** `meeting_minutes_jobs` is **RLS enabled NOT
+  forced**, ONE SELECT policy `app.is_staff_admin_of(app.commission_of_meeting(meeting_id))`, a
+  **column grant excluding `transcript` AND `result`**, no INSERT/UPDATE/DELETE for `authenticated`.
+  The only path to a transcript is `read_minutes_transcript`: it gates on
+  `app.can_read_minutes_transcript` **first**, carries **NO admin arm** (noun rule), then logs
+  `minutes_transcript.read`.
+- **Apply is one transaction.** `apply_minutes_review` reads `draft->'agenda'`, calls
+  `create_committee_action_item`, sets the `app.in_meeting_rpc` GUC around the `minutes_md` write and
+  **returns `audio_path`** so the action can delete the object after apply. `save_minutes_draft` is a
+  whole-column overwrite, so the draft type must round-trip. One active job per meeting is a schema
+  fact: a partial unique index on `(meeting_id) where status in ('uploading','processing','done')`.
+- **A charter has no write policy.** ONE SELECT policy `app.is_member_of(commission_id)`, no
+  INSERT/UPDATE/DELETE policy, `authenticated` = SELECT-only; the sole write door is the DEFINER
+  `upsert_commission_charter`, whose write authority is `app.is_staff_admin_of` — **NOT** the broader
+  `is_tenancy_admin_of` — checked FIRST, before the regimento-link validity check.
+- **Cadence is derived, not stored** — `max(held_at)` over base tables where `held_at IS NOT NULL AND
+  visibility_policy='commission_default'`, calendar-interval windows, **inclusive** `em_dia` boundary;
+  states `em_dia`/`em_atraso`/`sem_reunioes`/`sem_regimento`. `suggest_carry_forward` is a pure read,
+  every carried item passed through `can_read_action_item`.
+- **An evidence link references, never copies.** It names an existing artifact by kind + id, so a
+  `case`/`ethics_procedure` link inherits ITS OWN confidentiality through the ADR 0093 D8 mask
+  (`evidence_label_of` returns null, masked by the caller) rather than duplicating it — PHI-free by
+  construction. A standard's parent stays inside its OWN framework the same way: composite self-FK
+  `(parent_id, framework_id) -> (id, framework_id)`, not a trigger.
+- **The readiness read doors carry no `is_admin()` arm.** `readiness_report`/`readiness_evidence` are
+  `is_member_of` ONLY; `hospital_readiness` is `is_hospital_admin_of(p_hospital) OR
+  is_org_admin_of(org_of_hospital)` ONLY — worst-status-wins, `nao_aplicavel` an abstention rather than
+  a vote, a `standard_ownerships` row short-circuiting it. The known-bad precedent (BUG-AUTHZ-002) was
+  brought into line and is now **historical rather than live**; all sit inside the ADR
+  [0079](../decisions/0079-authz-door-blindness-standing-invariant.md) standing door audit.
+  `is_admin()` has exactly ONE sanctioned home in this module — the global-pack arm of framework CRUD
+  (`owner_commission_id IS NULL`), platform_admin curating the shared vocabulary; every other arm,
+  `clone_framework` included, uses `is_staff_admin_of` only.
+- **The flag gate is checked FIRST in these doors** — `app.assert_charters_enabled` → `HC000`;
+  `app.assert_accreditation_enabled()` → `HC0Q9`, which gates READS too (no pre-existing ungated read
+  path to preserve).
+
+### Rollout
+
+- Flags `audio_minutes`, `charters`, `accreditation`. ⛔ Resolve each flag's VALUE and its readers from
+  [`generated-feature-flags.md`](generated-feature-flags.md), never from a sentence here.
+- `seed.sql` forces these flags ON for local/E2E — ⚠ **a flag-OFF spec must toggle the flag itself**.
+- ⛔ **Deployment status is not stated in this layer** (ADR 0198 D5). Whether a migration reached the
+  remote is a claim about an external system that rots silently — measure it with the recipes in
+  [`conventions.md` § Remote discipline](conventions.md#remote-discipline--standing-rules-measure-never-quote).
+
+### Open edges
+
+- **The ata pipeline reaches OUT OF THIS REPO.** The slice below names service repo `minute_generator`
+  (contract v2.1), reached by a kind-agnostic contract client over an HMAC-signed callback with env
+  `MINUTES_SERVICE_URL/_API_KEY`, `MINUTES_CALLBACK_HMAC_SECRET`, `MINUTES_CALLBACK_BASE_URL`.
+  Anything stated here about that service is a claim about a system outside this repository.
+- **Audio deletion stays app-side** — `storage.protect_delete()` refuses SQL DML, so
+  `list_stale_meeting_audio` is a sweep SOURCE, not a sweep. The sweep is **deliberately blunter** than
+  "no live job" and its shorter window is **lazy-enforced** (ADR 0099 Amendment 1 records the
+  residual); interview audio (case-PHI) reopens the cron question.
+- Left open below: the charter QA-INFO follow-ups; one readiness pgTAP suite's missing force-flag-OFF
+  section; ⚠ a controlled document's `code` is **per-commission**, so no cross-commission uniqueness.
+
+### Where the detail lives
+
+- The frozen slices below, in order: **§ MIN — Meeting audio → generated ata** · **§ CH — Committee
+  Charters & Cadence** · **§ P16 — Standards Crosswalk & Readiness/Gap Engine v2**.
+- ADR [0099](../decisions/0099-meeting-audio-minutes.md) (+ Amdt 1 — audio→ata) ·
+  [0080](../decisions/0080-committee-charters-cadence-model.md) (charters & cadence) ·
+  [0093](../decisions/0093-phase-16-standards-crosswalk-replan.md) (+ Amdts 1–3 — crosswalk) ·
+  [0079](../decisions/0079-authz-door-blindness-standing-invariant.md) (standing door audit).
+
 ## MIN — Meeting audio → generated ata (2026-08-06; ADR 0099 + Amendment 1; migrations `20260910000100`–`…000400`; flag `audio_minutes` **OFF** — seed forces ON for local/E2E)
 
 Full feature record → `docs/progress/min-audio-minutes.md` · runbook →

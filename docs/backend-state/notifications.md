@@ -15,6 +15,68 @@
 > ⛔ **A new phase EXTENDS its seam file.** It never opens a phase-named file, and the fix for an
 > over-cap file is never to raise the cap nor to delete a posted section.
 
+## Current state
+
+**Updated:** 2026-09-09 — a REPLACEABLE projection of the frozen slices below. Replace this block in
+place; never append to it, and never move a line of history into it (ADR 0198). Figures live in the
+generated registries; the live catalog is the authority (ADR 0078).
+
+### Surface
+
+- **`public.notifications`** — one actionable reminder per user. `kind` ∈ `capa` · `signoff` ·
+  `meeting` · `action_item`; `is_reminder` splits a non-suppressible, never-auto-resolved assignment
+  from a suppressible, auto-resolvable reminder; `unique(user_id, dedup_key)` is the idempotency key.
+  `title`/`body` are pt-BR snapshots of config-level fields only — PHI-free by construction (Rule 12).
+- **`public.notification_preferences`** — per `(user_id, surface)` reminder toggle. An ABSENT row means
+  enabled, and it suppresses the reminder stream only.
+- **`public.action_items`** — the shared, non-PHI hub — plus three satellites: `action_item_reminders`
+  (reminder RULES), `action_item_updates` (append-only narrative), `action_item_checklists` (ordered
+  binary subtasks).
+- **Doors** — `app.enqueue_notification` · `app.resolve_notifications_for` ·
+  `compute_due_notifications()` (four scan arms: CAPA, sign-off, meeting, action item) ·
+  `list_my_assigned_capa_actions()` · eight `committee_*` satellite mutators. Signatures, `prosecdef`
+  and EXECUTE grants: [`generated-rpc-surface.md`](generated-rpc-surface.md) and
+  [`generated-helper-surface.md`](generated-helper-surface.md).
+
+### Invariants
+
+- **No authenticated INSERT and no DELETE on `notifications`.** The sole write door is the DEFINER
+  `app.enqueue_notification`, so forging a notification is impossible by construction rather than
+  merely unauthorised. RLS on both tables is own-row (`user_id = auth.uid()`); the one authenticated
+  UPDATE is a column grant on `read_at` alone.
+- **The notify gate is the READ predicate, verbatim.** The action-item arm enqueues only when
+  `app.can_read_action_item(item, recipient)` holds, so an assignee who cannot read a
+  `case_restricted` case is never notified with its title. A new scan arm inherits that obligation.
+- **Notifications sit OUTSIDE the Rule-11 audit trail by design** (ADR 0076 D13) — own data, and the
+  source events are already audited.
+- **`NotificationSurface` is not `NotificationKind`.** Four kinds; three suppressible preference
+  surfaces. `action_item` is a kind with no surface. Widening one does not widen the other.
+- **Milestones are reused, never added.** The action-item arm reuses `due_soon`/`overdue`; the
+  milestone CHECK was not widened. The `kind` and `entity_type` CHECKs were.
+
+### Rollout
+
+- Flags `notifications`, `action_items`, `cases_extras`. ⛔ Resolve each flag's VALUE and its readers
+  from [`generated-feature-flags.md`](generated-feature-flags.md), never from a sentence here.
+- No `pg_cron` job schedules `compute_due_notifications()`; scheduling is a deploy step, not a
+  migration.
+- ⛔ **Deployment status is not stated in this layer** (ADR 0198 D5). Whether a migration reached the
+  remote is a claim about an external system that rots silently — measure it with the recipes in
+  [`conventions.md` § Remote discipline](conventions.md#remote-discipline--standing-rules-measure-never-quote).
+
+### Open edges
+
+- Email and escalation channels are deferred (ADR 0076); the engine and schema are kind-agnostic, so
+  both are additive.
+- The `action_item` preference surface is deferred — those reminders are opt-in-by-config and
+  currently non-suppressible.
+
+### Where the detail lives
+
+- The frozen slices below, in order: **§ N — Notifications** · **§ AI — Action-Items Satellites**.
+- ADR [0076](../decisions/0076-notifications-pilot-scope.md) (notifications, pilot scope) ·
+  ADR [0050](../decisions/0050-action-items-fold-visibility-scope-case-access-expiry.md) (action items).
+
 ## N — Notifications (S1·N, 2026-07-13; ADR 0076; migrations `20260720000700`–`…000730`; flag `notifications` ON)
 
 In-app notification centre for the pilot's ONE vertical — **CAPA action · section sign-off · meeting**,

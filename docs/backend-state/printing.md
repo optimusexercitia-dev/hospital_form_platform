@@ -15,6 +15,106 @@
 > ⛔ **A new phase EXTENDS its seam file.** It never opens a phase-named file, and the fix for an
 > over-cap file is never to raise the cap nor to delete a posted section.
 
+## Current state
+
+**Updated:** 2026-09-09 — a REPLACEABLE projection of the frozen slices below. Replace this block in
+place; never append to it, and never move a line of history into it (ADR 0198). Figures live in the
+generated registries; the live catalog is the authority (ADR 0078).
+
+### Surface
+
+- **`public.printed_documents`** — the emission registry: polymorphic `(source_kind, source_id)` with
+  **no FK**, `template_key` + `template_version`, sha-256 `content_hash`, `contains_phi`, status
+  `active|superseded|revoked`, unique `verification_token` + `verification_short_code`; **no DML
+  grants** (door-only writes). `verification_lookups` is the scan log — credential **HASH only**.
+- **The print SERIES, not the row** — `source_series_id` + `source_revision` computed at mint and frozen; the
+  one-active partial unique is keyed `(source_kind, source_series_id, template_key) where status='active'`.
+- **Prévia vs emission** — ONE print action: a **locked** source yields a registered emission, anything still
+  editable an **ephemeral prévia** — streamed, **no bytes at rest, no registry row**, its own audit row.
+  Prévia route `src/app/api/previa/[kind]/[id]/route.ts`; emission runs `src/lib/pdf-mint/actions.ts`.
+- **Four per-kind concepts, declared SEPARATELY even where they coincide** — `app.print_source_registers`
+  (lock) · `_watermark` · `_series` · `_head` (+ `_revision`), each its own dispatch with a **fail-closed
+  ELSE**; `app.resolve_print_source_state` resolves, `public.print_source_state` is the one gated read.
+- **Renditions** — tier from `contains_phi`, bucket `documents-phi` / `documents-standard` (⚠ **no
+  `printed-documents` bucket any more**). `/api/documents/[id]` is the ONLY byte path and is
+  **kind-agnostic**, overlaying `SUBSTITUÍDO`/`ANULADO` on non-active serves.
+- **The case dossier** — ONE fixed template rendering the whole dossier **inline**; uploaded case files
+  appear only as a hashed **manifest** line. Counter: the side table `public.case_print_revisions`. Mask:
+  `app.can_read_full_case_content`, seven `not exists` axes behind a **fail-closed preamble**.
+- **The provider registry** — `src/lib/pdf-mint/providers.ts`; an **unregistered kind fails closed**, and
+  the `case` provider's `phiCapable: true` is what makes the mint dialog offer the identified variant.
+- **Doors** — `mint_printed_document` · `open_printed_document` · `revoke_printed_document` ·
+  `lookup_printed_document` (**EXECUTE service_role ONLY**) · `log_document_previa` ·
+  `app.can_view_printed_document` · `public.printed_document_currency`. Signatures, `prosecdef`, grants:
+  [`generated-rpc-surface.md`](generated-rpc-surface.md) · [`generated-helper-surface.md`](generated-helper-surface.md).
+
+### Invariants
+
+- **A prévia never registers and never leaves bytes at rest.** `log_document_previa` refuses a **locked**
+  source (`HC0DV`) and the route logs BEFORE it streams, so a refusal means no bytes leave; no
+  `.upload()`, no mint RPC, **no temporary storage object at any point**.
+- **Registration is DERIVED, never chosen, and DB-ENFORCED.** The UI derives the affordance and **the
+  door refuses independently** (Rule 1); a non-registering source is refused at mint with `HC0DP`. The
+  per-kind rules are decisions, not symmetry: `registers(case) = status IN ('completed','cancelled') AND
+  phi_disposed_at IS NULL`, and ⭐ **`cancelled` REGISTERS for cases and is EXCLUDED for meetings.**
+- **CURRENCY is a third derived axis — `registers AND head`, computed at READ TIME and NEVER STAMPED.**
+  `status` keeps its meaning (deliberate acts only), so `status='active' AND NOT current` is a legal
+  combination; no trigger writes it. **`null` = NOT EVALUATED**, arising only for `revoked`.
+- **Compare-and-mint is a TOCTOU guard and the caller must cooperate** — `p_source_revision` must be the
+  **render-time observed** revision, or `HC0DU` is **vacuous while looking correct**.
+- **The terminality lock forces the case counter into a side table.** `app.guard_case_status` blocks any
+  non-status update to a terminal case, yet the counter must move *exactly while the case is terminal*.
+  So `case_print_revisions` has zero policies and no `authenticated` grant — that `revoke all` is
+  **load-bearing, not decorative** against Supabase's default grant. **An absent row means revision 0**, so
+  the client reads the value via `public.print_source_state`: under caller RLS it would read absent → 0 and
+  compare `0 = 0`. ⛔ **TWO functions write this table, not one — and both COMMENTs say one.**
+- **The identified / de-identified fork is `template_key`, and there is NO variant column** — `'case'` and
+  `'case_identified'` supersede **independently** over one series. ⛔ **`contains_phi` is NOT the variant
+  flag**: it is **constitutive** for the case kind (`containsPhi := !caseDisposed`), hence **true for every
+  live case mint including the de-identified variant**. Destruction therefore keys on the **TIER** and
+  download on the **VARIANT** — ⛔ gate the download on `template_key`, **NEVER `sensitivity_tier`**.
+- **PHI obligation (Rule 12) — gated twice, and the user's choice is never the key.** Mint raises `42501`
+  when `app.can_read_case_patient` fails; `open_printed_document` applies the same `template_key`-keyed
+  refusal **by `return` — no row, no audit**; `variant` comes from what the audited door returned, not from
+  the request. ⛔ **`log_document_previa` deliberately does NOT gate the identified variant** —
+  `p_template_key` is a **label** there, not an authorization input — so a case prévia is reachable only
+  while the case is **non-terminal, or terminal AND disposed**. `dispose_case_phi`'s registry half revokes
+  **exactly the set** its bytes half destroys and **never overwrites a HUMAN revocation**.
+- **Provider registration IS the activation** (ADR 0104 D15 / 0144 D12) — a new kind adds no flag, and an
+  unregistered kind fails closed.
+
+### Rollout
+
+- Gated by the **`document_printing`** flag; a new kind adds **NO new flag** and rides it, because
+  provider registration is the activation. ⛔ Resolve the flag's VALUE and its readers from
+  [`generated-feature-flags.md`](generated-feature-flags.md), never from a sentence here.
+- The renderer is an out-of-process **sidecar** (pinned Gotenberg image, `PDF_RENDERER_URL` +
+  `PDF_VERIFICATION_BASE_URL`) — runbook [`../deployment/pdf-renderer.md`](../deployment/pdf-renderer.md).
+- ⛔ **Deployment status is not stated in this layer** (ADR 0198 D5). Whether a migration reached the
+  remote is a claim about an external system that rots silently — measure it with the recipes in
+  [`conventions.md` § Remote discipline](conventions.md#remote-discipline--standing-rules-measure-never-quote).
+
+### Open edges
+
+- **The corridor needs a sidecar no gate starts** — `scripts/smoke/pdf-mint.smoke.ts` "needs stack + sidecar".
+  ⚠ **Gotenberg egress is verified OPEN, not merely unverified**: the sanitize schema is the **sole** mitigation, egress denial PO-deferred.
+- **"No registered case document can be standard-tier" is NOT held by the mint door** — no mirror refuses
+  `FALSE` for `case`; the registration gate one layer up closes it
+  (`FUP-MINT-KIND-TIER-RULE-ONE-DIRECTION`). **Axis C's parity is pinned by nothing in any layer**
+  (`FUP-DOSSIER-CAN-SILENTLY-OMIT-CONTENT`); **`app.case_is_terminal`'s status set MUST equal the `registers(case)` arm's**, held by one pgTAP set-equality assertion and nothing else.
+- **The revision-trigger set is scoped to the tables the template renders** — adding a dossier section can
+  require adding a trigger, and nothing but a comment in each direction holds that coupling.
+- **Two doors are UNSUPPORTED by the authz harness**, both with drilled keystones, filed in
+  `supabase/tests/mutation/authz-unswept-backlog.txt`: `printed_document_currency` ·
+  `open_printed_document`. ⚠ Separately, `revoked_reason_class` has **no table CHECK**.
+
+### Where the detail lives
+
+- The frozen slices below, in order: **§ PDF·P1** · **§ PDF·P2** · **§ PDF·P3**.
+- ADR [0104](../decisions/0104-pdf-document-printing-module.md) (module) · [0111](../decisions/0111-printed-document-door-return-shape.md) (door return shape) ·
+  [0125](../decisions/0125-previa-ephemeral-and-emission-registered.md) (prévia vs emission) · [0126](../decisions/0126-print-series-and-derived-currency.md) (series + currency) ·
+  [0144](../decisions/0144-case-printing-dossier-lock-and-phi-fork.md) (dossier, lock, PHI fork) · [0145](../decisions/0145-print-path-markdown-is-stricter-than-screen.md) (print-path Markdown).
+
 ## PDF·P1 — PDF document printing: Forms + full skeleton (2026-08-07; ADR 0104; migrations `20260913000000`-`...000300`; flag `document_printing` **OFF** — seed forces ON local/E2E)
 
 **A generated PDF is a RECORD (D1):** minting stores canonical bytes in Storage + one

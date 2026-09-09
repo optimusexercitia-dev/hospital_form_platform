@@ -207,10 +207,11 @@ lessons (`docs/learning/LESSONS.md`), standing prohibitions (`.claude/rules/`) �
 
 The **backend surface map** is [`docs/backend-state/`](./docs/backend-state/README.md) — **ONE
 file per module seam**, entered through its `README.md` router, which dispatches on what you are
-about to touch. ⛔ Never read the directory whole; open the ONE file the router names. A new phase
-**EXTENDS** its seam file — it never opens a phase-named file, and an over-cap file is never fixed
-by raising the cap or deleting a posted section. `lint:backend-state` (gate 16) holds the shape.
-ADR [0196](./docs/decisions/0196-backend-state-split-on-the-module-seam-axis.md).
+about to touch. ⛔ Never read the directory whole; open the ONE file the router names. A new phase **APPENDS** its slice
+to that seam file **and REPLACES the `## Current state` block on top of it** — never a phase-named
+file, and an over-cap file is never fixed by raising the cap or deleting a posted section.
+`lint:backend-state` (gate 16) holds the shape; `--scaffold` prints the block's canonical form. ADR
+[0196](./docs/decisions/0196-backend-state-split-on-the-module-seam-axis.md) + [0198](./docs/decisions/0198-backend-state-seams-get-a-replaceable-current-state-layer.md).
 
 ## 8. Conventions & Quality Bar
 

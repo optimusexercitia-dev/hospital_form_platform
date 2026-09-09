@@ -105,6 +105,45 @@ assigned `FUP-BACKLOG-<slug>` ids (legend row: [legacy-codes.md](legacy-codes.md
 
 ---
 
+### 🟠 FUP-BACKEND-STATE-CURRENT-STATE-AUTHZ-FILE-CONTRADICTS-ITSELF-TWICE-UNGATED — `authorization-and-audit.md` carries two live self-contradictions and the file itself records that nothing gates either (owner: backend)
+
+**Filed:** 2026-09-09 (at unit `BACKEND-STATE-CURRENT-STATE`, while drafting that seam's current-state projection from its frozen text) · **Owner:** backend · **Severity:** high — one half of each pair is a present-tense sentence that is false, in the file the lead is told to reference at phase start
+**Closes when:** an APPENDED correction (ADR 0196 D5 — never an in-place edit) resolves BOTH pairs and each superseded statement carries a `⚠ **Superseded**` forward marker; and the privilege-ceiling pair is either gated or ruled explicitly ungateable. ⚠ The two are separate defects sharing one file — closing one does not close this.
+**Status:** open
+
+(1) **The privilege ceiling.** `:81` and the machine-read anchor at `:88` say `CEILING: 759`; `:144` says `` `CEILING: 752` is UNCHANGED``. The file's own note at `:147–157` concedes a reader "meets a present-tense sentence that is false about the document in front of them" and that **nothing gates the pair** — gate 15's `PROSE_RE` is `/\*\*CEILING:/`, which the backticked form does not match. ⛔ So the gate that exists for this number is blind to one of its two copies.
+(2) **The zero-policy class size.** § Zero-policy tables (`:20–51`) is headed "seven tables" and lists seven; AE3 (`:516–518`) says the class is "now **8** tables" and leaves NO forward marker on the earlier section. The two `382` plan sizes also disagree (`plan(72)` at `:25`, `plan(83)` at `:499`).
+
+⚠ Neither was introduced by that unit and neither is fixed by it — 0196 D5 makes each an append somebody must write. The current-state block states no ceiling and no class size, and points at the query instead.
+
+### 🟠 FUP-BACKEND-STATE-CURRENT-STATE-ARCHITECTURE-MD-STALE-AGAINST-TWO-SEAMS — `ARCHITECTURE.md` §2 describes two structures that the seam files record as changed (owner: backend)
+
+**Filed:** 2026-09-09 (at unit `BACKEND-STATE-CURRENT-STATE`; found twice independently, by the drafters of two different seams) · **Owner:** backend · **Severity:** high — ARCHITECTURE.md is authoritative under CLAUDE.md §3, so a stale sentence there outranks the correct one in the map
+**Closes when:** both passages are re-derived from the live catalog and ARCHITECTURE.md is corrected, or each is ruled still-accurate with the seam file corrected instead — decided from `pg_attribute` / `pg_policies`, never from either document.
+**Status:** open
+
+(1) **Case patient-mode booleans.** ARCHITECTURE.md `:638–639` still describes "a per-template opt-in `collects_patient` (draft-only) … snapshotted to `cases.patient_enabled`", while `cases-and-ethics.md:22–24` records "**The booleans are GONE** … are **DROPPED**" and adds "⛔ **Any doc, comment or query still naming the booleans is stale**".
+(2) **`answer_references` write-inertness.** ARCHITECTURE.md `:276–286` carries the pre-discharge wording (still write-inert), while `forms-and-responses.md` § FF-5 records the targeted and correction-read arms landing "arm-for-arm".
+
+⚠ Direction matters: this is the SPEC stale against the MAP, which is the reverse of the usual failure and the reason it survived — a reader checking the map against the spec would "correct" the map.
+
+### 🟡 FUP-BACKEND-STATE-CURRENT-STATE-FROZEN-DEPLOYMENT-VERDICTS-AND-A-DANGLING-POINTER — two rot artifacts the split carried forward, now excluded from the state layer but still live in the frozen text (owner: backend)
+
+**Filed:** 2026-09-09 (at unit `BACKEND-STATE-CURRENT-STATE`, while ruling deployment status out of the state layer under ADR 0198 D5) · **Owner:** backend · **Severity:** medium — neither misleads about behaviour, both mislead about where to look
+**Closes when:** an APPENDED correction resolves the `printing.md` sentence to one verdict-free statement pointing at `conventions.md` § Remote discipline, and the `conventions.md` pointer either names the section that now holds the correction record or is retracted. ⛔ Not by editing either line in place (0196 D5).
+**Status:** open
+
+(1) `printing.md:178` says "and NOT PUSHED at the time of writing — ✅ **PUSHED 2026-08-25**" — both polarities of a deployment verdict in ONE sentence, which is precisely the rot ADR 0198 D5 removes from the state layer and cannot remove from history.
+(2) `conventions.md:76–78` points at "the correction record at the top of this file"; the split moved that content and the top of the file is now the shared preamble, so the pointer resolves nowhere — and the counts it cites (75 fns / 6 read a flag) are the ones it warns have "shipped wrong through four writers".
+
+### 🟢 FUP-BACKEND-STATE-CURRENT-STATE-SPLIT-HUB-BLOCK-NOT-REPLACED — the `BACKEND-STATE-SPLIT` hub's `## Current state` block was never replaced after sessions 2 and 3 (owner: lead)
+
+**Filed:** 2026-09-09 (at unit `BACKEND-STATE-CURRENT-STATE`, while reading that hub for the prior unit's state) · **Owner:** lead · **Severity:** low — the unit is `gated` and inert, but the block is the first thing a fresh session reads about it
+**Closes when:** the block is REPLACED (not appended to) from the record's three session-log entries, per ADR 0186 D3, and its "Next" line reflects that QA round 1 has already run.
+**Status:** open
+
+The block says "a 17-arm self-test" and "18 dangling links"; the acceptance criteria in the same file say 32-arm and 19 findings across 18 sites, and the record's third entry reports 39/39 arms and **87** links. Its "Next" reads "A read-only QA review of the split" as if none had run, while the section below it records round 1 returning CHANGES REQUESTED. ⚠ This is the exact failure mode ADR 0186 D3's "replaced every session" rule exists to prevent, in the hub of the unit that shipped the directory this register entry is about.
+
 ### 🟢 FUP-PROGRESS-INDEX-LINES-HAVE-OUTGROWN-THE-CONTRACT — the de-duplication pass ran; 23 PARTIAL lines remain (owner: lead)
 
 **Filed:** 2026-08-29 (at the Record step, from a size warning that could not be discharged by rotating concluded material — because nothing concluded was left) · **Owner:** lead · **Severity:** low — per emoji at consolidation

@@ -17,6 +17,106 @@
 
 ⚠ **The corrected pt-BR authority messages (`dispose_case_phi`, `revoke_printed_document`) are recorded in [`document-model.md`](document-model.md) § END STATE.** ⛔ That frozen text says **three** and names **two**; the third is not identified anywhere, and the discrepancy is inherited, not introduced here (QA m14). Re-derive from the catalog before relying on the count. The class matters here: every arm that moved had left its message behind, and no gate reads prose.
 
+## Current state
+
+**Updated:** 2026-09-09 — a REPLACEABLE projection of the frozen slices below. Replace this block in
+place; never append to it, and never move a line of history into it (ADR 0198). Figures live in the
+generated registries; the live catalog is the authority (ADR 0078).
+
+### Surface
+
+- **`public.audit_log`** — the Rule 11 trail. `authenticated` = `r` only; every write goes through the DEFINER
+  writer `app.audit_write`. Its read policy `audit_log_select` is legged by scope (staff_admin of the commission ·
+  tenancy admin of it · hospital-tier · org-tier · a platform leg needing all three scope keys NULL).
+- **The `authz` catalog** — `roles` · `permissions` · `role_permissions`, behind three declared interfaces: layer 3
+  domain authorizers (the permission code is a statically greppable **string literal**) · layer 2 resolvers · layer 1
+  assignment projection. **No client role reaches `authz`** — anon, authenticated *and* service_role — and the schema
+  is absent from `config.toml`'s exposed schemas.
+- **The zero-policy, door-only table class** — RLS on, **0 policies**, `authenticated` *and* `anon` hold nothing,
+  `service_role` holds all four verbs; membership is DERIVED, not hand-listed (`supabase/tests/382_…`, § A0).
+- **The quality-office plane** — `quality_reviewer`, `commissions.quality_oversight` (`visible|excluded`), its ONLY
+  writer `public.set_commission_oversight`, the raw-write trap `app.guard_commission_oversight`.
+- **The service-role DML registry** — one row per `createAdminClient()` write site in `src/`, keyed
+  `path::symbol::writeKind::target`. Door and helper signatures, `prosecdef` and EXECUTE grants:
+  [`generated-rpc-surface.md`](generated-rpc-surface.md) · [`generated-helper-surface.md`](generated-helper-surface.md).
+
+### Invariants
+
+- **A DEFINER door bypasses RLS entirely**, so cutting a table's policies does not cut its doors — the recorded failure
+  here: tables cut, DEFINER doors left open, every gate green, each blind differently (a table-visibility matrix cannot
+  see a door by construction; the door sweep neutralizes *boolean* gates and these return `SETOF`; `ARM=floor` asks
+  whether a door is **called**, not whether its gate is **right**; pgTAP asserted tables, not doors). What found it:
+  re-reading the ratified CUT list and asking the catalog item by item — a check **no harness performs**.
+- **On the door-only class the GRANT layer is what denies today, not RLS.** Postgres checks table privilege before RLS
+  is ever evaluated, so the observed 42501 is the absent grant; the 0-policy state is a **backstop**, operative only
+  the day a verb is granted without a matching policy.
+- **The privilege-budget ceiling moves only by PO ruling**, and no increment may raise the count without a **named
+  justification in its own gate record**. The ceiling has ONE home — the `BUDGET-ANCHOR` comment, machine-read by gate
+  15 against the literals in `supabase/tests/320_…` § U4; ⛔ editing it to match a changed pin inverts the authority the
+  gate enforces. **No revoke has been executed**: the proposed set is a scheduling fact, `UNCHANGED` in its partition is
+  **unexamined, not cleared**, and a revoke is not free either — it removes a function from `ARM=floor`'s domain.
+- **Every service-role write site is registered and machine-diffed** — gate 11 multiset-diffs the census against the
+  `Key` cell of every row; a missing `Key` header, an unparseable key, and a parse yielding **zero** keys are each
+  their own red, because an empty parse must never read as a clean diff. The census **under-counts by design**
+  (`callDoor` sites are invisible to it) and the gate asserts that substitution in *both* directions. ⚠ **"None found
+  in TS" is not "unaudited"** (a DB-side trigger is a `pg_trigger` question this registry does not ask), and `door: X`
+  is a door's NAME only — that its body re-derives authority rather than trusting `p_actor` is a `prosrc` question.
+- **`audit_log` is append-only and cannot be backfilled — barred twice:** `guard_audit_immutable()` rejects any UPDATE,
+  and `organization_id` feeds `app.audit_canonical` → the `row_hash`, so a forced row stops replaying its own hash.
+  `app.audit_write` **DERIVES** the organization from the hospital but does **not validate** it — an explicitly-passed
+  org still wins, even a foreign one, and no CHECK ties `audit_log.organization_id` to the hospital's org.
+- **The noun rule and the content wall.** A row that hands a `platform_admin` tenant *content* is a noun-rule breach;
+  the tenancy admin *shapes the containers, never reads what goes in them*. ⚠ `app.is_tenancy_admin_of(_for)` is
+  **NOT** the commission's own admin — it is **FALSE for `staff_admin`**, whose coordinator is admitted by the separate
+  `app.is_staff_admin_of` disjunct beside it. ⛔ `\yis_tenancy_admin_of\y` cannot match `is_tenancy_admin_of_for`, so a
+  sweep grepping the short name is silently blind to every `_for` call site.
+- **The catalog is authority-ELECT, not authority** — `authz.roles` is an *additional* role authority beside
+  `memberships_role_check`, the scope-shape CHECK, `public.platform_role` and the TypeScript manifest, **not a
+  replacement**. A policy or door calling layer 1 or 2 **directly for a permission decision** is a finding, and the
+  enforcement manifest is how it is found. A re-keyed authorizer is **not** purely permission-keyed: residual
+  non-permission arms sit inside the DEFINER body, invisible to anyone auditing `pg_policies`, so they are pinned **BY
+  NAME** — adding an arm reds the pin, *retiring* one reds it too.
+
+### Rollout
+
+- Cutovers here are **flagless by pattern**: for the private-details split, the `authz` catalog and the audit read
+  legs, the **migrations ARE the cutover**; the content wall is **subtractive by design**; quality-office oversight is
+  deny-by-default via the `'excluded'` column default plus the role grant, not a flag. ⛔ Resolve any flag's VALUE and
+  readers from [`generated-feature-flags.md`](generated-feature-flags.md), never from a sentence here. Rollback:
+  [`authz-rollback-runbook.md`](../deployment/authz-rollback-runbook.md) — ⛔ restore the **disjunct**, not the whole
+  policy body, and **both halves** of a `FOR ALL` policy.
+- ⛔ **Deployment status is not stated in this layer** (ADR 0198 D5). Whether a migration reached the remote is a claim
+  about an external system that rots silently — measure it with the recipes in
+  [`conventions.md` § Remote discipline](conventions.md#remote-discipline--standing-rules-measure-never-quote).
+
+### Open edges
+
+- **"Measured" is not "clean", and a row is not a pass.** In the write-path sweep a **BLIND** row is a real finding to
+  keystone, ⛔ **never allowlisted**; an **ERROR** row is UNVERDICTED, not COVERED. `FROMFINDINGS=1 ARM=policy` is a
+  separate, pre-existing RED, not one of CLAUDE.md § 6's arms.
+- `hardDenyClasses` is **empty on every manifest row** — honest bookkeeping, **not coverage**; the zero is a **search
+  horizon, never an absence**. **`410` proves nothing about enforcement**; the behavioural proof is `409`, on **writes**.
+  **No performance evidence exists** for the final path — measure policy → layer 3 → layer 2 → layer 1, never `holds_role`.
+- Registry rows reading `NONE` / `UNCONFIRMED` are a measured property of the platform, not a review gap:
+  `registerUser`'s shared entry gate has no found assertion that a non-admin caller is REJECTED, and that is **not
+  proven absent**. Referral doors still carry the tenancy arm at the DB while the UI 404s a bare tenancy admin
+  (BUG-QOB-004, PO ruling pending — ⛔ do not "fix" either side without it). Platform-owned TRUNCATE grants (`storage.*`,
+  `net.*`) to `anon` **and** `authenticated` are **unchanged and not revocable by us** — on Cloud the REVOKE returns
+  **no error** and changes nothing.
+- Two frozen paragraphs below state **different** privilege-ceiling values; the later PO ruling governs and gate 15's
+  `PROSE_RE` does not match the older form, so only a hand-written note stands between them. The pt-BR authority messages
+  in [`document-model.md`](document-model.md) say **three** and name **two** — inherited, not introduced; re-derive both.
+
+### Where the detail lives
+
+- The frozen slices below, in order: **§ Zero-policy tables** · **§ Privilege budget** · **§ Service-role DML
+  registry** · **§ AE3** · **§ AE4** · **§ Audit read legs** · **§ Client-role TRUNCATE grants** · **§ QO·B** ·
+  **§ QO·FUP** · **§ QO·A** · **§ RLS authorization surface**.
+- ADR [0155](../decisions/0155-post-aff4-tenancy-and-person-model-evolution-sequence.md) · [0162](../decisions/0162-authz-evolution-plan-audit-corrections.md) (authority-elect) ·
+  [0176](../decisions/0176-authz-permission-layer-made-real.md) (the three interfaces) · [0100](../decisions/0100-quality-office-oversight.md) (oversight + content wall) ·
+  [0149](../decisions/0149-org-admin-reads-hospital-tier-audit.md) + [0150](../decisions/0150-audit-org-derived-from-hospital.md) (audit read legs) ·
+  [0079](../decisions/0079-authz-door-blindness-standing-invariant.md) (the standing door audit).
+
 ## Zero-policy tables — door-only by design (AE1.6; ADR 0155 D9; measured 2026-08-27)
 
 _The security advisor's RLS-enabled / zero-policy findings, recorded here so they read as

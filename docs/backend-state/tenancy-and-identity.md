@@ -17,6 +17,96 @@
 
 ⚠ **The `app.is_commission_admin_of` → `app.is_tenancy_admin_of` rename (2026-08-09, ADR [0105](../decisions/0105-rename-is-tenancy-admin-of.md)) is recorded in [`document-model.md`](document-model.md) § END STATE.** The old name is GONE, no shim; records dated before 2026-08-09 still say the old one deliberately.
 
+## Current state
+
+**Updated:** 2026-09-09 — a REPLACEABLE projection of the frozen slices below. Replace this block in
+place; never append to it, and never move a line of history into it (ADR 0198). Figures live in the
+generated registries; the live catalog is the authority (ADR 0078).
+
+### Surface
+
+- **`organizations` → `hospitals` → `commissions`** — a commission belongs to one hospital, a hospital to one org — and
+  **`public.memberships`, the single multi-scope GRANT table keyed `principal_id`**, where org, hospital and commission
+  standing all live, one role per principal per commission; `authenticated` holds **SELECT only, no DML grant**.
+- **Two affiliation tables** — `public.hospital_affiliations` ("works at this hospital", carrying the per-hospital staff
+  data) and `public.organization_affiliations` ("belongs to this organization", the roster predicate); both carry an ended
+  tense (`ended_on`) and a voided tense (`voided_at`/`voided_by`/`void_reason`).
+- **⛔ `profiles.home_organization_id` IS DROPPED**; the replacement predicate everywhere is an `organization_affiliations`
+  row, and which *tense* is load-bearing differs per site. `app.person_known_to_org` is **NON-VOIDED, not ACTIVE** — an
+  ended row still answers TRUE; `app.person_is_anchorless` is `not exists` any non-voided org affiliation of any tense.
+- **Affiliating a person to an org is THREE doors** — *ordinary* (narrowed to `person_known_to_org`); *creation*
+  (`app.affiliate_new_person*`; `public` wrappers **`service_role` ONLY** — the anchorless disjunct **is** the widening and
+  that missing `authenticated` grant its entire bound); *recovery* (`public.recover_orphan_person_to_org`, platform admin **and** anchorless).
+- **Person identity is keyed on `profile_private_details.cpf`** — ⛔ **not** `profiles.cpf` — validated in **both**
+  `app.is_valid_cpf` and `src/lib/users/cpf.ts`. The org people directory is `public.list_org_people(uuid, text, text)`:
+  DEFINER, inline tenancy gate, returning **`[]` and never raising** for an unauthorized caller, `cpf` never in its payload.
+- **"Act as"** — enum `public.platform_role`; the session↔hat binding `app.active_role_selections` (in `app`, so PostgREST
+  offers no route to it at all); `public.assume_role`, the only way to acquire a hat; `app.active_role()`, returning
+  **`text`**; the picker route `/selecionar-perfil`.
+- **The Diretor Técnico plane** — hospital-tier `technical_director` (titular; one per hospital) + `technical_director_deputy`;
+  `public.appoint_technical_director`; `app.is_technical_director_of_for`; a referral **target sum type**.
+- Signatures, `prosecdef` and EXECUTE grants: [`generated-rpc-surface.md`](generated-rpc-surface.md) · [`generated-helper-surface.md`](generated-helper-surface.md).
+
+### Invariants
+
+- **An affiliation LOCATES; a `memberships` row GRANTS** (Architecture Rule 13). Affiliations are visibility and lifecycle
+  inputs and **NEVER** grant capabilities: no policy and no door may treat an affiliation row as a positive authorization
+  source. The two steps stay **separately visible** — `app.person_authority_orgs` locates (⛔ its body contains no caller
+  term at all, so it *cannot* grant); `app.can_administer_person_via_affiliation` grants, via `app.is_org_admin_of`.
+  ⛔ **The forbidden shape type-checks just as well** — any predicate whose truth follows from an affiliation row's
+  existence or properties alone violates it, and collapsing the two steps into one join is the failure mode. An ended row
+  answers **where**, never **whether**; and self-affiliation is ALLOWED because an affiliation confers no capability.
+- **A hospital admin's write bound is an affiliation FOOTPRINT, not a role** — `resolvePersonFootprint` unions active
+  affiliations and active memberships; the pure `personScopeAllows` decides `fields`/`credentials` by **intersection** and
+  `cpf_change`/`lifecycle` by **subset**. An empty footprint denies all four; ⚠ a commission-tier seat keeps it non-empty.
+- **"Act as" is STRICT ROLE ASSUMPTION** — a principal holding more than one role TYPE is a *stranger* until it picks a
+  hat, bound to the auth session, carried as an `active_role` JWT claim and respected by **every** authorization gate; a
+  single-role principal never sees the picker. ⚠ The caller-only condition uses `IS NOT DISTINCT FROM`, never `=`:
+  `active_role()` is NULL for a hatless caller, so `=` is a **fail-OPEN**.
+- **`public.session_context()`, its twin `getRawGrants()` and the doors enumerating *third parties* are hat-blind BY
+  DESIGN** — **fix their CONSUMERS, not them**; one user's hat must never change what is concluded about **another**.
+- **`organization_affiliations` RLS is SELECT-only with exactly TWO legs** — own row, or
+  `app.is_org_admin_of(organization_id)`; ⛔ **no hospital tier, BY DESIGN**, and every write goes through a door.
+- **End and void are different tenses, and voided wins** — *end says "was true and stopped"; void says "was never true."*
+  **No hard DELETE**; a void is refused if any membership was ever attached under that scope, and `end_affiliation` refuses
+  on an active membership of **ANY** tier under that hospital. Deactivating the *person* is a platform-wide kill switch.
+- **The affiliation read legs are EVER-HELD** — no `ended_on` and no `expires_at` conjunct, so a hospital admin keeps read
+  visibility of people who once worked at a hospital they administer. Write authority comes from the footprint, not the read.
+- **Every refusal lives in the kernel, never the wrapper**; the owner-only `app.*_impl` ACL is what makes `p_actor`
+  unforgeable, and ⛔ `authenticated` must **NEVER** hold EXECUTE on a `*_for` twin. **Asymmetries that must not be
+  "fixed"**: `p_allow_anchorless` (SESSION door `false`, SERVICE door `true`, every other twin pair behaviourally
+  identical) and the Diretor Técnico grant arm — the ONLY kernel grant arm with **no `is_admin_for` branch**.
+
+### Rollout
+
+- Flag `technical_director`. ⛔ Resolve its VALUE and its readers from [`generated-feature-flags.md`](generated-feature-flags.md),
+  never from a sentence here. The rest of this seam is structural — no flag; the migration is the cutover.
+- ⚠ **A remote cutover of "act as" needs a step `db push` does not cover:** `custom_access_token_hook` must be ENABLED on
+  Supabase Cloud, or no `active_role` claim is minted — blast radius **EVERY user, not just multi-role ones** (the hook
+  holds the implicit single-role derive too).
+- ⛔ **Deployment status is not stated in this layer** (ADR 0198 D5). Whether a migration reached the remote is a claim
+  about an external system that rots silently — measure it with the recipes in
+  [`conventions.md` § Remote discipline](conventions.md#remote-discipline--standing-rules-measure-never-quote).
+
+### Open edges
+
+- Built doors awaiting a caller, by decision — none dead code: `public.recover_orphan_person_to_org` has **no TypeScript
+  caller**; `list_org_people`'s `date_of_birth` field has **no reader**; the DT referral target ships **no UI**.
+- [`FUP-AFF2-ACTIVE-MEANS-TWO-THINGS`](../followups/follow-ups-open.md) stays open — whether the **membership** leg should
+  ADD `expires_at`; [`FUP-ACT-CAPA-ASSIGN`](../followups/follow-ups-open.md) — `profiles` RLS has no PQS-operator arm.
+
+### Where the detail lives
+
+- The frozen slices below, ⚠ **newest first, not oldest first**: **§ AE2** (anchor column gone; the three doors) · **§ AFF4**
+  (`organization_affiliations`, staff data, the voided tense) · **§ AFF2** (the footprint) · **§ ACT** ("act as") · **§ AFF**
+  (`hospital_affiliations`, CPF identity, the directory) · **§ MEM-W1..W3** · **§ MEM-W4** (DT + the referral plane).
+- `public.profile_private_details` itself — including that it grants `authenticated` and `anon` nothing, RLS on, zero
+  policies — is in [`authorization-and-audit.md`](authorization-and-audit.md); the `app.is_commission_admin_of` →
+  `app.is_tenancy_admin_of` rename is in [`document-model.md`](document-model.md).
+- Governing ADRs (all: [`../decisions/INDEX.md`](../decisions/INDEX.md)) — [0041](../decisions/0041-multi-tenancy-organizations-hospitals.md) · [0094](../decisions/0094-membership-hardening-and-technical-director.md) · [0097](../decisions/0097-hospital-affiliation-person-identity.md) ·
+  [0106](../decisions/0106-act-as-role-assumption.md) · [0133](../decisions/0133-aff2-affiliation-scoped-administration-um-redesign.md) · [0148](../decisions/0148-ever-held-affiliation-read-visibility.md) · [0151](../decisions/0151-aff4-organization-affiliation-staff-data-voided-tense.md) ·
+  [0155](../decisions/0155-post-aff4-tenancy-and-person-model-evolution-sequence.md) · [0161](../decisions/0161-person-authority-sql-twin-retires-no-twin-prohibition.md) · [0163](../decisions/0163-offboarded-person-lifecycle-authority.md) · [0168](../decisions/0168-orphan-recovery-is-its-own-door.md).
+
 ## AE2 — affiliation tenancy: the anchor column is GONE (2026-08-28; ADR **0161** / **0163** / **0164** / **0165** / **0166** / **0167** +Amdt 2 / **0168** +Amdt 1–3; migrations `20261003005400`–`…006500`, **12**; pgTAP `390`–`400`, **11**; **NO flag — the migrations ARE the cutover**; QA APPROVED r3 → [authz-ae2-review-r3.md](../reviews/authz-ae2-review-r3.md))
 
 ⛔ **`profiles.home_organization_id` IS DROPPED** (`20261003006500`). This executes AFF4 D10's named

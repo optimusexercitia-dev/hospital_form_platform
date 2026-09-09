@@ -17,6 +17,105 @@
 
 ⚠ **REFNOTE (2026-08-12) lives in [`document-model.md`](document-model.md) § END STATE**, not here: the 23 referral doors that stopped returning a table row type (`case_referral_public` / `referral_internal_note_public` / `referral_message_public`) and the `app._project_*` allowlist projection. Read it before touching any referral RPC's return value.
 
+## Current state
+
+**Updated:** 2026-09-09 — a REPLACEABLE projection of the frozen slices below. Replace this block in
+place; never append to it, and never move a line of history into it (ADR 0198). Figures live in the
+generated registries; the live catalog is the authority (ADR 0078).
+
+### Surface
+
+- **Cases and their children** — `cases` carries `organization_id` (denormalized, drift-guarded), a nullable `case_type_id`,
+  and `visibility_policy` (`commission_default` | `explicit_grants_only`) + `confidentiality_level` (the ONE shared
+  taxonomy), both snapshotted at create; `template_version_id` is **nullable, `ON DELETE RESTRICT`** and `template_id` is
+  gone. Children: `case_phases` (`assignment_role_id`), `case_narratives` (label column **`display_label`**), `case_events`
+  (`kind` + `visibility ∈ case_readers | coordinator_only`), plus the phase-result / offered-outcome / custom-field tables.
+- **Process templates are an IDENTITY with VERSIONS** — `process_templates` holds `id`, `commission_id`, `created_by`,
+  `created_at`, `updated_at` and **nothing else**; title, description, `status`, `case_type_id` and the patient-collection
+  config live on `process_template_versions`, and the child tables re-key `template_id → template_version_id`.
+- **Participants — a typed-identity registry** — `participants` **holds no payload** (a patient's `display_name` is the
+  surrogate `'Paciente'`), with subtypes `patient_participants` / `professional_participants` composite-FK-and-CHECK-pinned
+  to the type, linked by `case_participants`; vocabulary in `case_participant_roles`, `case_types`, `case_type_terminology`.
+- **PHI-bearing stores** — case patient identifiers live in **`patient_identifiers`**, keyed on `participant_id` (N per
+  case), all DML REVOKED and door-only. Referral PHI is column-REVOKED from `authenticated`
+  (`referral_resolutions.summary_md`, `referral_internal_notes.body_md`). `professional_profiles` is the **Class-2
+  professional-identity** relation — a column-list grant with **no table-level `authenticated` SELECT**, whose `cpf` is a
+  *different* column from the person key.
+- **Ethics and referral governance** — the procedure tables (`ethics_case_details`, `ethics_allegations`, `ethics_findings`,
+  `case_decisions`, `ethics_decision_details`, `case_votes`, `ethics_notifications`, `ethics_hearings`, `ethics_appeals`)
+  over the access spine (`case_conflict_declarations`, `case_recusals`, the interview trio); referrals add
+  requested-actions, resolutions, assignments, case-links, internal notes and read receipts over `case_referral`.
+- **Doors** — signatures, `prosecdef` and EXECUTE grants: [`generated-rpc-surface.md`](generated-rpc-surface.md) ·
+  [`generated-helper-surface.md`](generated-helper-surface.md). ⚠ Referral doors' RETURN VALUES are governed by the REFNOTE
+  in [`document-model.md`](document-model.md) § END STATE, not here.
+
+### Invariants
+
+- ⛔ **`case_patient` is a FLAG KEY, not a table.** It is the feature-flag key and the name of the predicate
+  `app.can_read_case_patient`; the store is `patient_identifiers(participant_id)`. The re-key changed **cardinality and key
+  only** — the flag, the gate and the posture were PRESERVED.
+- **Content reach is not PHI reach.** `app.can_read_case_patient` is a bare PHI-bit test with no lattice closure, and the
+  commission-wide `administrativo` case arm confers **`read_case_content` only** — no write bits, no PHI bits, no
+  lifecycle. Widening content reach must not widen PHI.
+- **The case module is no longer single-door on the WRITE side** — one writer body, two gates. The coordinator-gated
+  DEFINER `public.set_participant_patient` and the creation RPCs both reach
+  `app._set_participant_patient_unchecked`, so creation scope is **structural** (no other caller exists), not
+  predicate-based. ⛔ That helper is `SECURITY INVOKER` **deliberately** — the second lock behind the ACL; do not flip it to
+  satisfy a `prosecdef` assertion. **No PHI travels back**: no return type changed, and the action returns field names only.
+- **The case read predicate is reused VERBATIM.** Each ethics-procedure table's single SELECT policy is `can_read_case`,
+  and `can_read_case` / `can_read_case_patient` / `can_write_case_content` each evaluate the respondent and recusal
+  hard-denies **FIRST, before every grant arm** — so a respondent who is *also* staff_admin, grant-holder or QPS operator
+  is still denied.
+- ⚠ **A correct predicate does not make the policies consuming it correct.** The spine shipped a correct predicate and
+  still leaked three ways: an admin arm ORed **outside** the DEFINER; a `FOR ALL` write policy with a bare admin `USING`
+  and no case predicate; a table keyed only on another dimension. Assert at the **policy** layer with a real `select`
+  under `set local role authenticated`, never on the predicate.
+- **Member-facing reach ≠ `can_read_case`**, which has **no plain-member arm by design**. Use
+  `can_reach_case_on_member_surface` on the board / Meus Casos / meeting-label surfaces; gating one of them on
+  `can_read_case` silently deletes ordinary members' reach of ordinary cases.
+- **Template identity/version split.** Partial uniques allow at most one `draft` and one `published` version per template;
+  status transitions are **trigger-enforced, not door-enforced**; DELETE is refused for **published AND archived** versions
+  — deliberately stronger than the form-version guard, which blocks only `published`.
+- **`patient_mode` replaced the booleans.** `collects_patient` and `cases.patient_enabled` are DROPPED in favour of
+  `patient_mode` (`none` | `optional` | `required`) plus `patient_required_fields`; the immutability guard fires on
+  **either** changing, closing the "insert `none`, then UPDATE to `required`" hole. ⛔ Any doc, comment or query still
+  naming the booleans is stale.
+- **The MRN floor is at SEND, not at SAVE** — `send_referral` carries it, `save_referral_patient` deliberately does not, and the status guard makes `send_referral` the sole transition authority, so the floor is reachable.
+- **Assignment ≠ access; link ≠ access.** `referral_assignments` and `referral_case_links` appear in **no** read predicate.
+  `referral_internal_notes` carries **no table-level `authenticated` ACL** — every readable column needs its OWN
+  `GRANT SELECT (col)`, and the absence of one on `body_md` *is* the hardening.
+
+### Rollout
+
+- Flags over this seam: `case_patient`, `case_participants`, `case_types`, `ethics`, `case_referrals`, and the
+  delegated-capability `administrativo`. ⛔ Resolve each flag's VALUE and its readers from
+  [`generated-feature-flags.md`](generated-feature-flags.md), never from a sentence here. `case_access` is retired.
+- The commission-wide administrativo case read added **NO new flag — it rides `administrativo`**; the template identity/version split and the participant-seating work are structural with no flag; the MRN-erasure-key batch has **no flag — the migrations ARE the cutover**.
+- ⛔ **Deployment status is not stated in this layer** (ADR 0198 D5). Whether a migration reached the remote is a claim
+  about an external system that rots silently — measure it with the recipes in
+  [`conventions.md` § Remote discipline](conventions.md#remote-discipline--standing-rules-measure-never-quote).
+
+### Open edges
+
+- ⚠ **Authz-sweep coverage of the case write surface is vacuous, not clean.** The scalar non-bool command doors, the `app`
+  INVOKER writers and the `member_can*` pair sit outside every ARM's domain, so a diff-scoped sweep over them runs zero
+  cases and prints the line a clean run prints. Coverage is the targeted mutation twins; the objects are listed in
+  `supabase/tests/mutation/authz-unswept-backlog.txt`, where the `app` INVOKER writers carry a **DO NOT PRUNE** note.
+- **Class-2 audit posture is unratified** — `searchParticipants` is an invoker-rights read that cannot be audited through
+  RLS and the org-manager arm widened its population, so "case-scoped RLS + audited reads" no longer fully holds; also
+  unratified are the participant types that are mintable but have no seeded role.
+- **Two non-case reach paths, upheld as another module's design:** the `assignees_only` arm of action items, and `patient_safety_event`, whose read predicate has **no case arm by design**.
+- **Grant-layer residue.** The `TRUNCATE / TRIGGER / REFERENCES` revoke covered the audited case cluster only; the
+  platform-wide sweep is deliberately not done — enumerate residuals from `information_schema.role_table_grants`. Some
+  re-created policies bind role `public` rather than `authenticated` (enumerate from `pg_policies`); verified inert.
+- Seating-panel accessibility (`aria-describedby` never wired to error ids, no live region on the typeahead popup) is open; the register is [`../followups/follow-ups-open.md`](../followups/follow-ups-open.md).
+
+### Where the detail lives
+
+- The frozen slices below, in file order: **§ ADR 0137 batch** · **§ Case surface split — Increment 2** · **§ ETH·E4** · **§ PCI + TV** · **§ F1** · **§ E1** · **§ E2** · **§ RV2**.
+- ADR [0038](../decisions/0038-case-patient-identifiers.md) (case patient identifiers) · [0064](../decisions/0064-case-subject-generalization-participants.md) (participant generalization) · [0072](../decisions/0072-ethics-access-spine.md) (access spine) · [0073](../decisions/0073-ethics-procedure-model.md) (ethics procedure) · [0096](../decisions/0096-process-template-versioning.md) (template versioning).
+- ADR [0108](../decisions/0108-eth-e4-participant-seating.md) (seating, professional identity) · [0134](../decisions/0134-case-surface-split-and-administrativo-case-read.md) (case surface split) · [0137](../decisions/0137-mrn-erasure-key-and-case-referral-usability-batch.md) (MRN as erasure key) · [0037](../decisions/0037-inter-committee-case-referrals.md) (referrals) · [0079](../decisions/0079-authz-door-blindness-standing-invariant.md) (door blindness).
+
 ## ADR 0137 batch — MRN as erasure key; case/referral usability (2026-08-24; ADR **0137**; migrations `20261003001300`–`…001600`, **4**; pgTAP `362` `plan(58)` · `363` `plan(15)` · `364` `plan(14)`; **NO flag — the migrations ARE the cutover**; QA APPROVED r2, PO-approved) — ✅ **PUSHED 2026-08-25**
 
 **The booleans are GONE.** `process_template_versions.collects_patient` and `cases.patient_enabled` are

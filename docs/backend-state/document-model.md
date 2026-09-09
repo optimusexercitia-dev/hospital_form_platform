@@ -15,6 +15,106 @@
 > ⛔ **A new phase EXTENDS its seam file.** It never opens a phase-named file, and the fix for an
 > over-cap file is never to raise the cap nor to delete a posted section.
 
+## Current state
+
+**Updated:** 2026-09-09 — a REPLACEABLE projection of the frozen slices below. Replace this block in
+place; never append to it, and never move a line of history into it (ADR 0198). Figures live in the
+generated registries; the live catalog is the authority (ADR 0078).
+
+### Surface
+
+- **`securable_resources`** — the registry every document homes on (anchor `UNIQUE(id, resource_type)`,
+  a tenant-shape CHECK); `cases`/`meetings`/`case_interviews`/`action_items`/`case_referral` mint by
+  trigger, `rca`/`capa_action` are admitted types, and **`form_response` is minted lazily inside
+  `mint_printed_document`, deliberately with no trigger.**
+- **Core tables** — `documents` (+ the `access_policy_id` seam, referenced by nothing) ·
+  `document_versions` (immutable) · `document_version_files` · `file_objects` · `document_placements`
+  (**non-authorizing, ever**) · `upload_sessions` · `document_retention` · `document_legal_holds`.
+- **Buckets** — `documents-standard` + `documents-phi` are the core tiered pair, `form-assets` and
+  `meeting-audio` out of scope; every other historical bucket name is a **dead noun**, row and doors.
+- **Kernels and byte doors** — `app.can_read_document` / `app.can_write_document` dispatch on the home
+  `resource_type`, with a **print arm ahead of the home dispatch and below `app.is_active`**;
+  `open_document_version` is the byte boundary, `app.resolve_document_version_bytes` the shared resolver
+  it and `open_printed_document` delegate to, `open_referral_snapshot_document` the referral door.
+  Signatures/`prosecdef`/grants: [rpc](generated-rpc-surface.md) · [helpers](generated-helper-surface.md).
+- **Upload corridor** — `begin_document_upload` → client PUT → `finalize_document_upload` →
+  `complete_document_upload_verification`, plus the evidence and controlled-document finalizers;
+  **caller-supplied storage paths are gone**. Satellites: `printed_documents` (a print carries its
+  **own** `documents` row, on the **source's** securable) · `rca_evidence`/`capa_action_evidence` ·
+  controlled-document versions · `referral_shared_item.frozen_document_version_id`.
+
+### Invariants
+
+- **RLS is NOT the boundary for document bytes.** Both document buckets carry INSERT policies only — no
+  SELECT policy for any tier or principal — so every protected byte flows through the single audited
+  `open_document_version` DEFINER door, which authorizes first and then signs short-TTL service-role;
+  "no read policy" means *the door is the boundary*, not "unreadable". ⛔ The absent SELECT **and**
+  DELETE pair is the whole lock — `storage.objects` grants `arwdDxtm` to `authenticated` **and `anon`**,
+  and role-agnostic `storage.protect_delete()` guards direct SQL DML only — so a new read policy must
+  arrive with no DELETE policy beside it. Bucket choice is CHECK-pinned server-side: tier **is** bucket.
+- **The securable indirection authorizes, and it is enumerated by hand** — a new home type means EVERY
+  dispatch on `resource_type`, in **both** kernels. ⚠ **`documents.kind` is nullable, unconstrained text
+  — decorative; nothing may branch on it**: the print exclusion keys off the `printed_documents` FK.
+- **`document_version_files` is structurally 1:1 with its bytes** — disposal acts on `file_objects`, so
+  two version files sharing one object would let marking one `disposal_pending` destroy the other's
+  bytes; reversing this needs a reference count in the disposal path first.
+- **`disposal_state` means INTENT, not destruction** — nothing user-, regulator- or export-facing may
+  call it destruction, and `disposed` alone means "the metadata row is absent" (read
+  `file_objects.disposal_evidence`, never the state). ⛔ **Diff every reader of that column before
+  writing a new value**: `app.resolve_document_version_bytes` refuses on *any* non-`none` value, which
+  is what made a superseded print unservable.
+- **Evidence verification is a server attestation, never a client claim** — the evidence finalizer
+  delegates the byte check to the document verifier and mints the row in the **same transaction**;
+  ⛔ never grant it to `authenticated`, since `p_sha256`/`p_verified` would let a JWT holder self-verify.
+- **PHI posture: the tier is a bucket, and homing decides the ceiling** — an ethics letter homes on the
+  `case` securable resource, **NEVER `controlled_document`**, or `HC0D6` refuses its enforcing label.
+- **A response with a live print cannot be deleted** — a BEFORE-DELETE trigger (an RLS narrowing would
+  refuse silently, as a zero-row delete read as success) and `SECURITY DEFINER` (an invoker read would
+  fail open). ⚠ Its NAME is narrower than its predicate; the mint takes `for key share` against the discard.
+
+### Rollout
+
+- Flags `documents_foundation` · `documents_wave_a`–`documents_wave_d` · `document_printing`, beside the
+  legacy `attachments` key and `controlled_docs`. ⛔ Resolve each flag's VALUE and readers from
+  [`generated-feature-flags.md`](generated-feature-flags.md); local `seed.sql` turns them ON and `db push`
+  never applies the seed, so "ships OFF" is not containment.
+- ⚠ **Flags are an APP-LAYER gate, not a security boundary** — ZERO RLS policies consult one; the check
+  is concentrated in `assert_*` functions the byte doors call at their top, **arm-scoped** inside
+  `begin_document_upload` (gate the first residue-producing step, per corridor), deliberately absent from
+  `finalize_document_upload`, and present on `open_referral_snapshot_document` via a referrals assert.
+- ⛔ **Deployment status is not stated in this layer** (ADR 0198 D5). Whether a migration reached the
+  remote is a claim about an external system that rots silently — measure it with the recipes in
+  [`conventions.md` § Remote discipline](conventions.md#remote-discipline--standing-rules-measure-never-quote).
+
+### Open edges
+
+- **The disposal path is inflow without outflow, and unrehearsed.** Doors write the pending state;
+  `complete_document_disposal` is the outflow door, unreachable from a session and called by nothing, and
+  no scheduler exists — no `pg_cron`, no `cron` schema, no supervisor. `file_objects` holds no rows, so
+  that census is **structural**, from bodies and ACLs, never data; ⚠ the pin asserting "no scheduler
+  exists at all" turns FALSE the day one lands.
+- **`add_referral_shared_item` checks referral-source authority but never `can_read_case` /
+  `can_read_document`**, so a **recused** coordinator reaches PHI bytes. Deferred, deadline = flag-on.
+- **The `jsonb`-returning command doors sit outside every BLINDNESS-DETECTING authz arm's domain** — the
+  open, referral-snapshot and evidence-finalizer doors, plus `attach_controlled_document_version_file`.
+  `ARM=floor` contains them but asks only whether a door is **called**, never whether anything **notices
+  when it is opened**; ⛔ a green sweep does not cover them. The bucket pin is likewise name-keyed, and
+  the dead set is not enumerable from the catalog. Rest: [follow-ups-open.md](../followups/follow-ups-open.md).
+
+### Where the detail lives
+
+- The frozen slices below, in order: § END STATE · § DM follow-up triage · § DM5 follow-up batch ·
+  § DM5·S5 · § DM5·S4 · § DM5·S3 · § DM5·S2 · § DM4 · § DM3 · § DM2 · § DM1 · § DOC-REDESIGN · § F2.
+- ⚠ **§ END STATE was this file's previous "what is true now" layer; that role is now THIS block's, and
+  § END STATE stays frozen where it is.** Where it and a later slice disagree the **later slice wins**:
+  § DM5·S3 on the S3 migration range and on the `responses` securable trigger it asserts (none exists;
+  ADR 0120 D17.2 refuses one) · § DM5·S4 on "`begin_document_upload` is the only thing that names a bucket"
+  (false in both halves) and the retired "4 / 6 / 4 / 13 callers" figure · § DM5·S2 / § DM5·S3 on the
+  securable type count and the `capa_action` tenant-shape arm (org+hospital floor only).
+- ADR [0114](../decisions/0114-document-model-redesign.md) (the model) ·
+  [0120](../decisions/0120-dm5-wave-d-retirement-decisions.md) (retirement, prints) ·
+  [0121](../decisions/0121-disposal-lifecycle-inflow-outflow-and-evidence.md) (disposal lifecycle).
+
 ## END STATE — the document surface as it IS
 
 > ## ⭐ DM — END STATE (the document model), measured 2026-08-17 at DM5·S6

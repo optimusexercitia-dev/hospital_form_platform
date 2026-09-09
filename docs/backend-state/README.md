@@ -67,6 +67,93 @@ by name as the reason the generated index exists — it "had stopped in the 0070
 6. **One home per fact** (ADR 0186). What a *unit* did belongs to its hub
    (`docs/features/<code>.md`) and its record (`docs/progress/<code>.md`). What the *surface is*
    belongs here. When those two disagree, the catalog settles it and both get fixed.
+7. **A domain seam has TWO layers, and only the top one is replaceable** (ADR 0198). Above the
+   frozen slices sits a `## Current state` block — the projection a reader opens: five fixed
+   sections (**Surface · Invariants · Rollout · Open edges · Where the detail lives**), a
+   `**Updated:** YYYY-MM-DD` stamp, and a line ratchet. ⛔ You **REPLACE** that block; you never
+   append to it, and you never move a line of history up into it. Rule 1 is untouched: the slices
+   below it stay frozen, and a correction to one of them is still an APPEND with a forward marker.
+   The block carries no dates, no unit codes and no figures of its own — a figure lives in the
+   generated registry that owns it, or it names the query that produces it. **A new phase appends
+   its slice AND re-stamps the block**; gate 16 check I reds when a heading below is newer than the
+   stamp above. A file exempt from all this must declare itself `⚙ **GENERATED FILE**` (naming its
+   rebuild command and its gate) or `⛔ **ARCHIVE**` (naming its live successor) — and the gate
+   prints every exemption on every run, because an exemption nobody sees is not an exemption.
+   **How to write or refresh one: § Writing and refreshing a current-state block, below.**
+8. **Deployment status is NOT state, and does not belong in this map** (ADR 0198 D5). Whether a
+   migration reached the remote is a claim about an EXTERNAL system: it is true for an instant and
+   rots in silence, which is how `NOT PUSHED` / `LOCAL ONLY` came to be frozen into sections dated
+   months ago. Those frozen claims STAY — they are dated statements about a moment, which is what
+   history is for — but a `## Current state` block may not carry one, and gate 16 check H reds on
+   both polarities. Measure it instead, with the recipes in
+   [`conventions.md` § Remote discipline](conventions.md#remote-discipline--standing-rules-measure-never-quote).
+
+## Writing and refreshing a current-state block
+
+_The WHAT is maintenance rule 7. This is the HOW, and it is the only procedure — if it disagrees with
+anything, this section and the gate are wrong together or not at all, because both read the same
+constants._
+
+**⛔ Never hand-copy the shape from a neighbouring file.** Print it:
+
+```bash
+node scripts/check-backend-state.mjs --scaffold
+```
+
+That emits the canonical empty block from `SEAM_STATE_SECTIONS` — the same constant checks G and H
+read — with one line of guidance per section. Rename a section in the script and the scaffold renames
+itself. A markdown template file would be a second copy of the shape, and a second copy drifts: that
+is exactly what D6 says about the preamble and why the ADR index is generated. The self-test asserts
+that what `--scaffold` prints passes G, H and I, so it can never hand you a red.
+
+### When you must touch it
+
+| Trigger | What you do |
+| --- | --- |
+| A phase adds an RPC, flips a flag, changes an RLS surface, or otherwise changes this seam | **Append your slice below AND replace the block above**, re-stamping `**Updated:**`. Check I reds if a heading below is newer than the stamp. |
+| You post a `⚠ **Superseded**` correction to a frozen slice | Replace the block too — a correction means the projection above it was describing the superseded fact. |
+| You read the block and it is wrong | **Fix it in place.** This is the one layer in this directory you may edit freely. |
+| You are adding a new seam file | Scaffold a block into it, route it in the table above, and give it a digit-free noun for a name. |
+
+### The four rules a gate CANNOT enforce
+
+Gate 16 proves a block EXISTS, is SHAPED, is AXIS-FREE and is NOT STALE. ⛔ **It cannot prove the block
+is TRUE** — a wrong sentence in a well-formed block passes every check. These four are on you:
+
+1. **Never invert a qualifier.** The block is a paraphrase of frozen text, and a paraphrase can invert
+   the sentence it summarises. "NO authenticated INSERT policy" is not "INSERT is restricted"; "not
+   reachable" is not "protected"; "OFF — seed forces ON local/E2E" is not "ON". Read the SENTENCE,
+   never a summary of it.
+2. **Write from the frozen text, and know which sentence each bullet came from.** A bullet you cannot
+   point at a source sentence for is a bullet you invented — delete it. Later slices supersede earlier
+   ones; ⚠ some seam files are ordered NEWEST FIRST, so resolve conflicts **by date, never by
+   position**.
+3. **State no figures of your own.** A count belongs to the generated registry that owns it, or it
+   carries the query that produces it (rule 5). A number retyped into prose is a second copy with no
+   gate, which is the defect the four `generated-*.md` files exist to retire.
+4. **Cut paraphrase, never a bound.** If the block is over the ratchet, remove restatement and replace
+   it with a pointer — the detail is directly below in the same file. ⛔ If a bullet cannot be
+   shortened without losing a negation, an "only", an exception or a scope bound, **delete the whole
+   bullet** and leave the reader the pointer. Compressing to fit a cap selects against qualifiers, and
+   a maimed bullet reads more confident than the original.
+
+### When the gate reds
+
+| Finding | What it means, and the fix |
+| --- | --- |
+| **[G]** missing / not first / unstamped / wrong sections | Scaffold it. `## Current state` is the FIRST `##`: a reader must not scroll past history to reach the state. |
+| **[G]** over the ratchet | ⛔ Do NOT raise the ratchet — it may only be LOWERED. Apply rule 4 above. |
+| **[H]** a `⚠ **Superseded**` marker inside the block | You appended where you should have replaced. Delete the stale sentence and write the true one; markers belong to the frozen slices, which may not be edited. |
+| **[H]** a deployment verdict | Maintenance rule 8. Name the measurement, never the result. |
+| **[H]** a date | A dated line IS a slice whatever it is called. Move it below. ⚠ In § Where the detail lives a date is allowed on a line that actually CITES (carries a `§` or a link), because a frozen heading's own name may carry one. |
+| **[I]** stamp older than a heading below | A phase appended a slice and did not refresh the projection — the moment this layer starts rotting. REPLACE the block and re-stamp it. |
+| **[J]** an exemption naming no proof | Only two kinds are exempt: `⚙ **GENERATED FILE**` (name its rebuild command AND its gate) and `⛔ **ARCHIVE**` (name its live successor). Anything else owes a block. |
+
+⛔ **Where the block goes, exactly:** immediately BEFORE the first frozen `##`, after any intro prose
+the file already carries. The block ENDS at the next `##`, so putting it directly under the preamble
+in a file with intro prose silently pulls that prose into a region documented as replaceable — and the
+next person to replace the block deletes it. This happened; it was found by diffing bytes against
+`HEAD`, not by any gate, and no gate can catch it.
 
 ## The seam axis, and why it is the seam and not the phase
 
@@ -76,9 +163,18 @@ because their statements bind every seam. A file here is *meant* to answer **"wh
 answers "what changed on this date" — and that question already has two homes, the unit hub and the
 unit record. Adding a third is the drift this directory exists to retire.
 
-⚠ **The axis is the FILING, not yet the CONTENT — measured 2026-09-09, at the split:** of the 67
-`##` sections here, **57 (85%) are still date-stamped or unit-coded slices**, and **7 of the 11
-seam files carry no axis-free "what is true now" section at all**. What the split bought is that
-you now replay one seam's slices instead of all 53 interleaved. ⛔ Do not arrive here expecting a
-state document; expect a bounded log that is becoming one, as D5 corrections replace slices.
-Recorded so the router does not read as a promise the directory has not kept (QA m13).
+⚠ **The axis was the FILING, not the CONTENT — measured at the split (`e4ac95e5`):** of the 67
+`##` sections here, **57 (85%) were date-stamped or unit-coded slices**, and **7 of the 11 seam
+files carried no axis-free "what is true now" section at all**. What the split bought was that you
+replayed one seam's slices instead of all 53 interleaved — a bounded log, not a state document.
+Reproduce that figure, and the current one, with `node scripts/measure-state-layer.mjs [ref]`; ⚠ its
+classifier is a fitted heuristic that prints its own workings under `--verbose`, so audit the listing
+before quoting a new number.
+
+**ADR 0198 closed that gap by adding a layer rather than by rewriting history** (rule 7). Every domain
+seam now opens with a replaceable `## Current state` projection, and the slices below it are
+untouched. ⛔ What this does NOT do: it does not make the slices shorter, it does not resolve their
+supersessions for you, and it cannot make the projection TRUE — gate 16 checks that the block exists,
+is shaped, is axis-free and is not stale, and a wrong sentence in a well-formed block passes every
+check. Read the projection to orient; drop into the frozen sections, or into the live catalog, before
+you rely on anything.

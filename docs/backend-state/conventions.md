@@ -15,6 +15,106 @@
 > ⛔ **A new phase EXTENDS its seam file.** It never opens a phase-named file, and the fix for an
 > over-cap file is never to raise the cap nor to delete a posted section.
 
+## Current state
+
+**Updated:** 2026-09-09 — a REPLACEABLE projection of the frozen sections below. Replace this block in
+place; never append to it, and never move a line of history into it (ADR 0198). Unusually for this
+directory, several sections below are ALREADY axis-free standing rules, so every line here POINTS into
+them rather than restating them (ADR 0186). The live catalog is the authority (ADR 0078).
+
+### Surface
+
+- **The `HC0xx` SQLSTATE map** — the custom error class, plus the standard codes (`P0002`, `23505`,
+  `23514`, `42501`) it leaves unchanged, each mapped to pt-BR at the data layer. § SQLSTATE → meaning.
+- **The migration registry** — a HISTORICAL index that, by its own banner, stops partway and does not
+  grow: per-migration detail now goes to the seam file the work belongs to. § Migrations.
+- **pgTAP suite conventions** — how this backend behaves under the test harness, as distinct from what
+  any one suite asserts. § Testing the schema.
+- **Remote discipline** — the recipes by which any claim about the remote is measured, and the
+  editable-migration window those recipes define. § Remote discipline.
+- **Cross-cutting design rulings still in force** — the polymorphism dialects a new owner picks from
+  rather than minting another, the Rule-12 patient-PHI / professional-identity class taxonomy, and the
+  freeze principle (answer-DATA shapes freeze; engines and enum-widens stay additive-anytime).
+  § Pre-Pilot Foundations conventions.
+
+### Invariants
+
+- **A `DEFERRABLE INITIALLY DEFERRED` constraint trigger is INVISIBLE to every pgTAP suite in this
+  repo** — every suite ends in `rollback` and a deferred check runs at COMMIT, so the test observes the
+  forbidden write succeed and reports PASS while asserting nothing. Remedy: `set constraints all
+  immediate;` after the write, before the assertion. ⛔ The live deferred list is RE-DERIVED from
+  `pg_trigger`, never quoted — written from memory it omitted an entry the query returned.
+  § Testing the schema.
+- **Judge a mutation on the WHOLE suite, and check each suite RAN ITS FULL PLAN** — a single-file run
+  straight after a reset reds on the HARNESS, and that red is indistinguishable from a keystone
+  catching a mutant. § Testing the schema.
+- **Whatever anchors a persona is applied in the bootstrap, never per-suite** — the bootstrap mints
+  tenant users after the seed runs, and a per-suite fixture is a hand list the next suite omits itself
+  from. § Testing the schema.
+- **⛔⛔ A GIT PUSH IS NOT A `db push`** — the two heads move independently and each is measured its own
+  way. § Remote discipline.
+- **The editable window: nothing at or below the MEASURED remote head may be edited in place** —
+  editing an applied migration creates the drift that blocks every future `db push` (restore, don't
+  repair), and the head is measured, never remembered. § Remote discipline.
+- **Any claim about the remote is a measurement, not a quote** — never record a count; the recipes are
+  written out there. § Remote discipline.
+- **"Flags ship OFF" is NOT a security boundary** — it is an app-layer gate. The load-bearing half is a
+  `pg_policies` predicate written out there; state that predicate beside any count you derive from it.
+  § Remote discipline.
+- **Migrations are forward-only and additive, and neither the registry nor a migration's text is the
+  truth** — some rewrite live function bodies at runtime, so the catalog is the only authority.
+  § Migrations.
+- **`HC0O*` is deliberately SKIPPED** (`O` vs `0` in a SQLSTATE), and the "unallocated from here" row is
+  not to be trusted — it records its own repeated staleness, and `select prosrc from pg_proc` is the
+  only truth about what is allocated. § SQLSTATE → meaning.
+
+### Rollout
+
+- **A flag flip ships as its own migration**, mirroring the migration that created the flag.
+- **A flag OFF surfaces as its own SQLSTATE**, and EVERY path that can raise it must be mapped: an
+  unmapped read path renders a flag outage as a domain-shaped lie — a picker explaining it as "this
+  form has no linked case".
+- **A flag normally gates WRITES**, preserving pre-existing ungated read behaviour; a module with no
+  such behaviour to preserve gates its reads too, and says so where it is defined.
+- ⛔ Resolve a flag's VALUE and its readers from
+  [`generated-feature-flags.md`](generated-feature-flags.md), never from a sentence here.
+- ⛔ **Deployment status is not stated in this layer** (ADR 0198 D5). This seam is where the measurement
+  RECIPES live — use them (§ Remote discipline); do not quote a result.
+
+### Open edges
+
+- **§ REMOTE CENSUS's heading claim that the remote is "EMPTY" is FALSE**, and its own banner says so:
+  the remote carries the E2E seed fixture, and more than the seed alone. The *conclusion* people drew
+  from the old heading (no real customer data ⇒ safe to touch) SURVIVES; the *premise* does not — and
+  the premise is what other decisions rested on. Its data rows are kept, marked superseded, so the
+  census stays readable as a dated artifact. ⛔ Do not restate the heading. Two records asserted
+  opposite things about the remote at once and nothing could report it — which is the argument for
+  re-measuring rather than reading either.
+- **The census states its own limits**: what it measures about storage is METADATA, not bytes; whether
+  a reset orphans the bytes is CLI-version dependent, and the metadata that would say what to look for
+  is itself gone — permanently unmeasurable from SQL. It also does not establish by whom.
+- **One figure there still decides something** — `count(*) from auth.users where email not like
+  '%@test.local'`, which gates the single-shot authorization in ADR 0155 and voids it the moment it is
+  non-zero. Named here as a query, deliberately not as a value.
+- **§ Remote discipline's flag-read note points at "the correction record at the top of this file"** —
+  the seam split left that pointer with nothing to resolve to, and the function counts it cites are the
+  very ones it says shipped wrong because each writer used a different bound. Re-derive; do not quote.
+- **§ Migrations carries a correction ABOVE its own banner**: the banner's "add a section here"
+  instruction is exactly what the seam split forbids.
+
+### Where the detail lives
+
+- The frozen sections below, in order: **§ Testing the schema — standing rules** ·
+  **§ Remote discipline — standing rules** · **§ REMOTE CENSUS 2026-08-18** (with its correction banner
+  and its HOW / WHEN / does-NOT-establish sub-sections) · **§ F0 — Pre-Pilot Foundations conventions** ·
+  **§ Migrations (forward-only, additive)** · **§ SQLSTATE → meaning**.
+- ADR [0018](../decisions/0018-custom-sqlstate-class.md) (the `HC0xx` class) ·
+  ADR [0065](../decisions/0065-pre-pilot-foundations-conventions.md) (pre-pilot conventions) ·
+  ADR [0124](../decisions/0124-progress-live-state-contract.md) (why the remote rules live here) ·
+  ADR [0155](../decisions/0155-post-aff4-tenancy-and-person-model-evolution-sequence.md) (the census
+  correction) · ADR [0196](../decisions/0196-backend-state-split-on-the-module-seam-axis.md) (the seam
+  split) · ADR [0078](../decisions/0078-authorization-capability-model.md) (live catalog = sole truth).
+
 ## Testing the schema — standing rules (a property of this backend, not of one phase)
 
 _Added 2026-08-26 (AFF4 B6). Like the remote rules below, these **never conclude**: they

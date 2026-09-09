@@ -15,6 +15,106 @@
 > ⛔ **A new phase EXTENDS its seam file.** It never opens a phase-named file, and the fix for an
 > over-cap file is never to raise the cap nor to delete a posted section.
 
+## Current state
+
+**Updated:** 2026-09-09 — a REPLACEABLE projection of the frozen slices below. Replace this block in
+place; never append to it, and never move a line of history into it (ADR 0198). Figures live in the
+generated registries; the live catalog is the authority (ADR 0078).
+
+### Surface
+
+- **Three tables** — `hospital_dpos` · `dsr_requests` · `dsr_tasks`, RLS on at creation. `authenticated`
+  holds **SELECT only**: every write is a DEFINER door, and there is **no write policy on any of the three**.
+  Read policies `hospital_dpos_select` · `dsr_requests_select` · `dsr_tasks_select` carry **no
+  platform-admin arm** — ADR 0130 D2 puts it outside this plane entirely: content, not tenancy.
+- **The adjudication path** — `create_dsr_request` → `adjudicate_dsr_request` (stamping
+  `dsr_requests.{adjudicated_at,adjudicated_by}`) → `complete_dsr_task` / `attest_dsr_task` →
+  `close_dsr_request`; roster `appoint_hospital_dpo` · `revoke_hospital_dpo`; listers `list_my_dsr_hospitals`
+  · `list_my_executable_dsr_tasks` · `list_my_dsr_task_commissions` · `list_dsr_disposable_meetings`;
+  predicates `app.is_dpo_of` · `app.is_dpo_of_for` · `app.can_execute_dsr_task`. Signatures, `prosecdef`
+  and grants: [`generated-rpc-surface.md`](generated-rpc-surface.md) · [`generated-helper-surface.md`](generated-helper-surface.md).
+- **The attested tier** — `dsr_tasks.{completion_note,attested_by_name,attested_redactions}` plus the
+  `attest_review` kind. `attested_by_name` is a **STAFF reviewer's** signature, never the subject's.
+- **The erasure / disposal doors are NOT DSR doors** — `dispose_case_phi` · `dispose_event_phi` ·
+  `dispose_referral_phi` · `dispose_meeting_minutes`. The workflow only **ASSIGNS** disposal work; the
+  executor fires the door under their **own** session, so all four disposal gates apply unchanged.
+- **SQLSTATEs** `HCDS1`–`HCDS5`. App layer: `/o/[org]/titulares` · `src/lib/dsr/{actions,messages}.ts` ·
+  `src/lib/queries/dsr.ts` · `src/components/dsr/*`.
+
+### Invariants
+
+- **The retention duty and the erasure duty are reconciled by DECIDING, then RETIRING — never by leaving
+  erasure work pending.** A `refused_retention` close writes `dsr_tasks.status = 'blocked'`, and ⛔ `blocked`
+  means **RETIRED BY DECISION, not "waiting"**: demanding those tasks be done would force erasing what the
+  refusal retained. The pending-count asymmetry **stays**, and retained-vs-stalled is legible ONE JOIN AWAY,
+  in `dsr_requests.status='closed'` plus a non-granting `outcome`.
+- **A live legal hold outranks Art. 18** — the `HC0D3` legal-hold aborts on `documents`/`file_objects` are
+  the **same fail-closed shape as the child-lock defect, opposite intent**.
+- **Adjudication is REQUIRED before any erasing close.** *Close may record a decision directly only when the
+  decision erases nothing.* `granted`/`granted_partial` require a prior adjudication; the three non-erasing
+  outcomes keep the one-step path — **and stamp `adjudicated_at` anyway**. ⚠ `status` is the WORK state,
+  `adjudicated_at` the DECISION fact: execution begun before the decision stays `executing` and still carries
+  the stamp, so a predicate written against `status = 'adjudicated'` is wrong for exactly that population.
+- **"The doors actually erase" is asserted as *the Class-1 PHI is gone*, not *the free text was redacted*.**
+  On the failing path nothing is written **including the redaction**, so a redaction-only assertion goes
+  green while the patient's identifiers survive.
+- **The attested tier attests a REVIEW, not an erasure.** `dispose_meeting_minutes` erases the **whole** ata,
+  including agenda items unrelated to the subject — so intake mints only `attest_review`. A `dispose_meeting`
+  task exists **only** where a human passed that meeting's id to `adjudicate_dsr_request`, and the door bounds
+  it three ways: the outcome must GRANT, the meeting must already be enumerated on **that** request (`HCDS2`),
+  and it must not already be disposed (`HCDS5`).
+- **`app.in_disposal_rpc` is the disposal bypass, and its SETTER SET is what bounds it** — every setter is a
+  disposal door, every reader a child-lock trigger guard; a non-disposal door setting this flag voids every
+  guarantee here. Its drift pin asserts that set **by NAME, not by count** (a count reds identically for two
+  opposite causes). Re-derive both sets from `pg_proc.prosrc`, never from a map.
+- **The erasure key is not the module noun.** `patient_xref` keys the **case** module on a
+  **`patient_participants`** id while `dispose_case_phi` takes a **case** id; `create_dsr_request` resolves it
+  via `app.case_of_patient_participant`, and without that resolution the case lane fails **closed forever and
+  silently**. Events and referrals ARE keyed on the entity itself.
+- **`complete_dsr_task` verifies the EFFECT, not the gate** — it reads the module row's own `phi_disposed_at`
+  rather than mirroring four different gate expressions, because a fifth copy is a mirror nothing keeps in
+  sync. ⛔ **ZERO disposal gates changed, and that is the design.**
+- **Exactly ONE authorization gate in the whole program moved**: `public.search_patient_xref`, to
+  `app.is_pqs_operator_of(h) **or** app.is_dpo_of(h)`. ⛔ Its keystone must be a **content differential** — the
+  gate returns an EMPTY BUNDLE rather than raising, so `lives_ok` on a DPO's call is vacuous by construction.
+- **Route reachability and the dispose gate are DISJOINT by `activeRole` — in production, not just in seed.**
+  No persona holds both, so the **DSR task inbox is the only working UI path to all four erasure doors**.
+  ⚠ `public.session_context()` being hat-blind is truth about the SQL and evidence about nothing downstream.
+
+### Rollout
+
+- Flag `dsr`. ⛔ Resolve its VALUE and its readers from [`generated-feature-flags.md`](generated-feature-flags.md),
+  never from a sentence here — the go-live flip is its own migration, deliberately ordered after the
+  child-lock erasure fix the execution tier depends on.
+- ⛔ **Deployment status is not stated in this layer** (ADR 0198 D5). Whether a migration reached the
+  remote is a claim about an external system that rots silently — measure it with the recipes in
+  [`conventions.md` § Remote discipline](conventions.md#remote-discipline--standing-rules-measure-never-quote).
+
+### Open edges
+
+- A pure LGPD *Encarregado* with no commission membership **cannot reach `/o/[org]/titulares` at all** —
+  `app.is_dpo_of_for` requires a commission role in the hospital as a hard conjunct, and `organizations_select`
+  has no DPO arm. By design (ADR 0130 D2); `FUP-DSR-ENCARREGADO-MUST-BE-A-COMMISSION-MEMBER`.
+- Every DSR door is a `prosecdef` **scalar non-bool** command door, outside every official ARM's domain by
+  shape (`FUP-AUTHZ-COMMAND-DOOR-UNSWEPT`): the arms all pass and **none of them can see these doors**.
+  Coverage is a hand-run neutralization battery, one at a time, every restore hash-verified — ⛔ do not read
+  a green arm as a verdict here.
+- `notify_scrub_check` is no longer minted at intake (the scrub was withdrawn as premise-falsified), but the
+  kind **stays** in `dsr_tasks_kind_check` and stays completable for historical rows; no backfill, and the
+  `HCDS4` gate is untouched.
+- The disposal drift pin states two bounds of its own: a **dynamically composed** GUC name is invisible to it,
+  and `lint:vacuous` does not scan `supabase/tests/`.
+
+### Where the detail lives
+
+- The frozen slices below, in order: **§ DSR Slice 2** · **§ DSR Slice 3** · **§ DSR operational
+  remediation**. The guard-crossing derivation: [`disposal-guard-crossing-census.md`](../reviews/disposal-guard-crossing-census.md).
+- ADR [0130](../decisions/0130-dsr-subject-request-workflow.md) (subject-request workflow) ·
+  ADR [0129](../decisions/0129-meeting-child-lock-disposal-flag.md) (child lock, disposal flag) ·
+  ADR [0131](../decisions/0131-phi-erasure-reach-bounded-to-designated-fields.md) (erasure reach bounded to
+  designated fields) · ADR [0035](../decisions/0035-lgpd-anvisa-regulatory-posture.md) (LGPD / ANVISA posture)
+  · ADR [0079](../decisions/0079-authz-door-blindness-standing-invariant.md) (door blindness).
+
 ## DSR Slice 2 — LGPD subject requests (2026-08-20; ADR **0130** Accepted + **Amendment 2**; migrations `20261001000000`–`…000200`, **3**; pgTAP `349` `plan(53)`; E2E `dsr-subject-requests.spec.ts`; flag **`dsr` OFF** — seed forces ON local/E2E)
 
 Re-derive every row from the catalog; this table is a map, not the authority.

@@ -75,7 +75,13 @@ When a phase passes human approval, the lead:
    all — ADR [0179](./decisions/0179-follow-up-register-consolidation.md)).
 3. Archives the phase's task detail to `docs/progress/phase-N.md` (or a feature-named
    file).
-4. Updates `docs/backend-state/` (the ONE seam file its README routes you to -- never a new file) if the backend surface changed.
+4. Updates `docs/backend-state/` (the ONE seam file its README routes you to -- never a new file)
+   if the backend surface changed — **TWO edits to that one file, not one** (ADR 0198): **append**
+   the slice at the bottom, **REPLACE** the `## Current state` block at the top and re-stamp its
+   `**Updated:**` date. Gate 16 check I reds if a heading below is newer than the stamp above. How:
+   `node scripts/check-backend-state.mjs --scaffold` prints the form;
+   `docs/backend-state/README.md` § Writing and refreshing a current-state block is the procedure,
+   including the four rules no gate can enforce.
 5. **If the phase produced or amended an ADR** — runs `npm run adr:index`. That regenerates
    `docs/decisions/INDEX.md` **and** the `<!-- adr-backpointers -->` banner inside every
    amended ADR, so the row and the back-pointer both take care of themselves. The one thing
