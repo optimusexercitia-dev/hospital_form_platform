@@ -65,6 +65,13 @@
 #                contains no policy and no `prosecdef` gate. There is deliberately no
 #                `ACK=1` escape hatch: an escape hatch for the unmeasurable also
 #                silences the measured.
+#                ⚠ FOUR BANNERS SHARE THIS CODE, and one of them fires EARLY — before the
+#                catalog is ever probed: a file using the runtime-rewrite pattern that
+#                resolved NONE OF ITS OWN targets (ADR 0173's convention, §4b). That
+#                question is asked PER FILE: a declaring sibling in the same range does not
+#                answer for it, and its own name/property selections do not either.
+#                ⛔ Read the banner, not the code alone — an early rc 1 means the range's
+#                other files were never classified, so the run derived nothing at all.
 #   2  ABORT     the tool could not run (not a git repo, bad ref, the audit script's
 #                domain strings could not be lifted). Same meaning as the sibling
 #                harness's ABORT: nothing was derived and nothing may be concluded.
@@ -740,9 +747,10 @@ extract_one () {   # $1 = the per-file scratch dir, already holding content + fl
 
 # ── the loop, the aggregate union, and the case -> file(s) map ───────────────────────
 AGG_LISTS="pol_create pol_alter pol_drop fnchunks fn_sel_name fn_sel_prop fn_excl fn_held fn_rewrite fn_alter"
-for x in $AGG_LISTS marker_err prov; do : > "$TMP/$x"; done
+# ⚠ `rewrite_files` / `rewrite_unread` are NOT in AGG_LISTS: they hold FILE PATHS, not names,
+#   and they are written directly by the loop because resolvability is a per-file property.
+for x in $AGG_LISTS marker_err prov rewrite_files rewrite_unread; do : > "$TMP/$x"; done
 REWRITE_PRESENT=0
-ANY_REWRITE=0
 i=0
 while IFS= read -r f; do
   i=$((i + 1))
@@ -758,7 +766,15 @@ while IFS= read -r f; do
   sed 's/--.*$//' "$D/content" | tr '\n' ' ' | sed 's/[[:space:]][[:space:]]*/ /g' > "$D/flat"
   REWRITE_PRESENT=0
   extract_one "$D"
-  [ "$REWRITE_PRESENT" = 1 ] && ANY_REWRITE=1
+  # ⛔ RESOLVABILITY IS DECIDED HERE, PER FILE, AND IT MUST BE — this is the only point at
+  # which `$D/fn_rewrite` still holds what THIS file could name. Two lines below, the
+  # aggregate copy is unioned across files and then deduplicated against the name/property
+  # selections, and BOTH of those steps destroy the property FINDING (1) is about
+  # (see the FINDING (1) block for the two defects that cost).
+  if [ "$REWRITE_PRESENT" = 1 ]; then
+    printf '%s\n' "$f" >> "$TMP/rewrite_files"
+    [ -s "$D/fn_rewrite" ] || printf '%s\n' "$f" >> "$TMP/rewrite_unread"
+  fi
   # the aggregate union — downstream code sees exactly the lists it always saw
   for x in $AGG_LISTS; do
     [ -s "$D/$x" ] && cat "$D/$x" >> "$TMP/$x"
@@ -773,7 +789,6 @@ while IFS= read -r f; do
   printf '%s\n' "$f" >> "$TMP/flat_order"
   { cat "$D/flat"; printf ' ; '; } >> "$TMP/flat"
 done < "$TMP/files"
-REWRITE_PRESENT="$ANY_REWRITE"
 if [ -n "$UNREADABLE" ]; then
   say "  ⚠ UNREADABLE (skipped — their gates are NOT in the list below):$UNREADABLE"
 fi
@@ -808,14 +823,44 @@ fi
 # COMPLETELY DIFFERENT STATE from one the deriver reads as empty, and until now those were
 # indistinguishable. This is the detection that separates them, and it is why the convention
 # is enforceable rather than a hint that needs a human.
-if [ "$REWRITE_PRESENT" = 1 ] && [ ! -s "$TMP/fn_rewrite" ]; then
+#
+# ⛔ THE PREDICATE IS PER-FILE RESOLVABILITY, NEVER THE POST-DEDUP RESIDUE (2026-09-09,
+# CAN-MANAGE-PROFESSIONAL-SELF-CHECK). It used to be
+# `REWRITE_PRESENT=1 && ! -s $TMP/fn_rewrite` — the AGGREGATE list, read AFTER two steps that
+# destroy the property it was asking about. Both directions were measured on doctored copies:
+#
+#   FALSE FINDING. `20261003007360` DECLARES both its targets in a marker AND replaces them
+#   with a full `create or replace function` (it uses `pg_get_functiondef` only in its landing
+#   assertions). Both names are therefore also in `fn_sel_name`, so `comm -23` at :~800
+#   subtracted them and the aggregate went EMPTY — "targets cannot be read" about the one file
+#   in the range that spells them out twice, and the run exits before the catalog is probed,
+#   so the migration this gate exists to sweep derives NOTHING. Prior rewrites never hit it:
+#   `…007190` declares its target and does NOT `create or replace` it, so it survived dedup.
+#
+#   MASKED FINDING, the same bug's other polarity. The aggregate is a UNION, so ONE declaring
+#   migration anywhere in the range made the list non-empty and an undeclared catalog-query
+#   rewrite BESIDE it passed silently — the exact 25-migration class 4b admits it cannot read.
+#   ⭐ "A mutation's effect can be MASKED by a legitimately-open arm."
+#
+# So the question is asked per file, at the only point where `$D/fn_rewrite` still means "what
+# THIS file could name": a file that uses the pattern and resolved NO target of its own is a
+# finding, whatever its siblings resolved. ⚠ Name/property selections deliberately do NOT
+# count: a `create or replace` elsewhere in a rewrite migration is not evidence that anyone
+# read the bodies the rewrite touched, and treating it as such would silently loosen the
+# undeclared-rewrite cell that (b) pins. The marker is the answer, and it is cheap.
+if [ -s "$TMP/rewrite_unread" ]; then
   rule
   say "=== RESULT: FINDING (1) — a RUNTIME-REWRITE migration whose TARGETS CANNOT BE READ. ==="
+  say "    $(wc -l < "$TMP/rewrite_unread" | tr -d ' ') of $(wc -l < "$TMP/rewrite_files" | tr -d ' ') file(s) using the rewrite pattern name no target this script"
+  say "    can resolve — each one named here, in its own right:"
+  while IFS= read -r rf; do [ -n "$rf" ] && say "      - $rf"; done < "$TMP/rewrite_unread"
   say "    The diff uses pg_get_functiondef() + replace() + execute — the house pattern for"
   say "    editing a body this repo did not author — but names no target this script can"
   say "    resolve. ⛔ That is NOT the same observation as 'the migration changed no gate':"
   say "    the migration demonstrably rewrote at least one function body and the deriver"
   say "    cannot say which. Reading this as empty is how 33 migrations went unswept."
+  say "    ⚠ A DECLARING SIBLING DOES NOT ANSWER FOR THESE FILES, and cases derived from the"
+  say "      rest of the range are NOT printed — this run stops here by design."
   say
   say "    FIX IT AT THE SOURCE — declare the targets in the migration:"
   say "        -- door-sweep-targets: app.some_fn(), public.other_fn(uuid, jsonb)"

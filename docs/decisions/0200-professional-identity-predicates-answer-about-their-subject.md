@@ -3,7 +3,7 @@
 **Status:** proposed — to be accepted at unit `CAN-MANAGE-PROFESSIONAL-SELF-CHECK`'s Record step, after PO approval. ⛔ That flip is the only thing that moves it, and **no gate reds if it never happens**.
 **Date:** 2026-09-09
 **Area:** authorization / professional identity (Class-2) / the AE5 re-key template
-**Amends:** ADR [0193](./0193-the-enforcement-manifest-declares-what-it-measured.md) (D5 — the per-row `definerSurface` obligation the AE5 template inherits is extended: the template must also declare the **keying** of every arm it pairs, because 0193's representative chain `can_create_professional → can_manage_professional` differenced a `p_uid`-keyed arm against an `auth.uid()`-keyed one and the manifest's `expected: "identical"` row rested on the arm this ADR changes)
+**Amends:** ADR [0193](./0193-the-enforcement-manifest-declares-what-it-measured.md) (D5 — the per-row `definerSurface` obligation the AE5 template inherits is extended: the template must also declare the **keying** of every arm it pairs, because 0193's representative chain `can_create_professional → can_manage_professional` differenced a `p_uid`-keyed arm against an `auth.uid()`-keyed one and the manifest's `expected: "identical"` row rested on the arm this ADR changes) · ADR [0190](./0190-the-door-sweep-deriver-selects-by-property-and-a-full-run-merges.md) (FINDING (1)'s rewrite arm is decided on RESOLVABLE targets **per file**, before the dedup 0190 introduced — see § Amendment to ADR 0190; the deriver false-FOUND on this unit's own migration and, in the other polarity, let a declaring sibling mask an unreadable rewrite)
 **Related:** ADR [0078](./0078-authorization-capability-model.md) (the catalog is truth; migration text is stale by design) · ADR [0079](./0079-authz-door-blindness-standing-invariant.md) (the door-audit sweep is a standing gate — a migration owes both arms) · ADR [0106](./0106-act-as-role-assumption.md) (D11, the ACT hat, and why a third-party question must ignore it) · ADR [0155](./0155-post-aff4-tenancy-and-person-model-evolution-sequence.md) (the AE sequence this batch precedes) · ADR [0176](./0176-authz-permission-layer-made-real.md) (D2/D6, the layer-3 re-key of `org.professionals.read`) · ADR [0190](./0190-the-door-sweep-deriver-selects-by-property-and-a-full-run-merges.md) · ADR [0192](./0192-ownership-is-a-proxy-not-the-property-and-the-write-arms-crash-safety.md)
 
 ---
@@ -263,3 +263,44 @@ patched.
 `platform_admin` passed that arm before this change and passes it after. That is a distinct,
 pre-existing gap, filed as `FUP-IS-ADMIN-ARM-IGNORES-PRINCIPAL-STATE` 🟠 rather than folded in, on
 the same attributability argument that kept this follow-up out of `20261003007190`.
+
+---
+
+## Amendment to ADR 0190 — FINDING (1) is decided on RESOLVABLE targets, per file
+
+⛔ **The instrument that scopes this unit's own gate failed ON this unit's migration**, and it
+failed in the direction that looks like diligence: `bash scripts/door-sweep-cases.sh main` at
+`e351f93f` exited **1** with *"a RUNTIME-REWRITE migration whose TARGETS CANNOT BE READ"* about
+`20261003007360` — the one file in the range that names its two targets in a
+`door-sweep-targets:` declaration **and** replaces both with a full `create or replace function`.
+The run ends before the catalog is probed (`derivation: NOT REACHED`), so the migration this gate
+exists to scope derived **nothing**.
+
+**Mechanism.** ADR 0190 kept 0173's convention and added the rule that a declared target already
+selected by name/property is not listed twice (`comm -23 fn_rewrite (fn_sel_name ∪ fn_sel_prop)`).
+FINDING (1) then read the **post-dedup aggregate**. A migration that both DECLARES and REPLACES
+BY NAME has every declared target subtracted by that dedup, so the residue is empty and the
+deriver reports that it cannot read what the file spells out twice. Earlier rewrites never
+combined the two — `20261003007190` declares its target and does not `create or replace` it — so
+the cell had never been entered.
+
+**The same predicate had a masked polarity**, measured on doctored copies rather than reasoned
+about: because the aggregate is a UNION, **one** declaring migration anywhere in the range made
+the list non-empty and an undeclared catalog-query rewrite beside it passed at rc **0**, silently
+— the exact class ADR 0173 §4b admits the deriver cannot read. A false FINDING and a masked
+FINDING out of one line.
+
+**Amendment.** FINDING (1)'s rewrite arm is decided **per file, on resolvability, before the
+dedup**: a file whose text uses the rewrite pattern and that resolved **no target of its own**
+(declaration or array literal) is a finding, whatever its siblings resolved; the banner names each
+such file and prints an `N of M` count. The dedup is unchanged — a target is still never listed
+twice — and name/property selections deliberately **do not** count as resolving a rewrite: a
+`create or replace` elsewhere in a rewrite migration is no evidence that anyone read the bodies
+the rewrite touched, and counting it would loosen the undeclared-rewrite cell 0173 owns.
+
+**Evidence.** Both polarities are now committed self-test cells
+(`scripts/fixtures/door-sweep/14-declared-and-replaced-by-name.sql`,
+`15-undeclared-catalog-query-rewrite.sql`; scenarios 16–19), each carrying an assertion that
+flips on a revert alone. ⚠ ADR 0190's own closing property holds here too: the deriver's exit
+codes are about the SELECTION, so a rc-1 that fires **before** the catalog probe means the rest of
+the range was never classified — the banner, not the code, says which state a run is in.

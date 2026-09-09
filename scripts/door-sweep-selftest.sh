@@ -312,6 +312,53 @@ assert "expected the provisional banner" "$(has_err 'NO LIVE CATALOG — PROVISI
 assert "the FINDING must name the missing catalog" "$(has_err "'no door' has NOT been checked" && echo 1 || echo 0)"
 done_ok
 
+# ── 16. ⭐ THE DECLARE-AND-REPLACE CELL (2026-09-09, CAN-MANAGE-PROFESSIONAL-SELF-CHECK).
+#      A migration that DECLARES its targets and also replaces them by name, with
+#      `pg_get_functiondef` in its landing assertions. Both names land in `fn_sel_name`, so
+#      the cross-file dedup subtracted the declaration away and FINDING (1) fired on the
+#      RESIDUE — the deriver said "targets cannot be read" about the one file in the range
+#      that spells them out twice, and exited before the catalog was probed.
+#      ⛔ The banner assertion is the VACUITY PIN: it flips the moment the predicate goes
+#      back to reading `$TMP/fn_rewrite`, with nothing else touched.
+scenario "declared AND replaced by name -> CASES" 1 0 -- 14-declared-and-replaced-by-name.sql
+assert "can_manage_professional not on stdout" "$(has_out can_manage_professional && echo 1 || echo 0)"
+assert "can_read_professional_profile not on stdout" "$(has_out can_read_professional_profile && echo 1 || echo 0)"
+assert "the fixture must actually have been SCANNED" "$(has_err '14_declared_and_replaced_by_name' && echo 1 || echo 0)"
+assert "the rewrite FINDING must be ABSENT" "$(has_err 'TARGETS CANNOT BE READ' && echo 0 || echo 1)"
+done_ok
+
+# ── 17. NEGATIVE CONTROL for 16, and the reason the fix is not just a loosening: a rewrite
+#      that declares NOTHING and builds no array (the 25-migration catalog-query class) is
+#      still a FINDING, and now says WHICH file. Needs no catalog — the check fires first.
+scenario "undeclared rewrite -> FINDING, file named" 0 1 -- 15-undeclared-catalog-query-rewrite.sql
+assert "stdout should be empty" "$([ ! -s "$OUT" ] && echo 1 || echo 0)"
+assert "expected the rewrite FINDING" "$(has_err 'TARGETS CANNOT BE READ' && echo 1 || echo 0)"
+assert "expected the per-file count" "$(has_err '1 of 1 file(s) using the rewrite pattern' && echo 1 || echo 0)"
+assert "the unread file must be NAMED" "$(has_err '15_undeclared_catalog_query_rewrite' && echo 1 || echo 0)"
+done_ok
+
+# ── 18. ATTRIBUTION: one declaring migration + one undeclared rewrite in the SAME range.
+#      Exactly one of the two is unread, and the run must still stop. Pre-fix this exited 1
+#      as well — but for the wrong reason (the residue was empty because of file 14), so the
+#      `1 of 2` count, not the exit code, is what carries the property here.
+scenario "declaring sibling does not answer for it" 0 1 -- 14-declared-and-replaced-by-name.sql 15-undeclared-catalog-query-rewrite.sql
+assert "expected the per-file count 1 of 2" "$(has_err '1 of 2 file(s) using the rewrite pattern' && echo 1 || echo 0)"
+assert "the unread file must be NAMED" "$(has_err '15_undeclared_catalog_query_rewrite' && echo 1 || echo 0)"
+assert "nothing may be derived when the run stops" "$([ ! -s "$OUT" ] && echo 1 || echo 0)"
+done_ok
+
+# ── 19. ⭐ THE MASKED POLARITY, and it was a LIVE hole, not a hypothetical: the old predicate
+#      read the UNION, so a marker-only declaring migration (11) made the aggregate non-empty
+#      and the undeclared rewrite beside it passed SILENTLY. MEASURED pre-fix on a doctored
+#      copy: rc 0 with `can_manage_professional` on stdout and no finding at all.
+#      ⭐ "A mutation's effect can be MASKED by a legitimately-open arm."
+scenario "declared sibling must not MASK an unread one" 0 1 -- 11-marker-and-replacement-literal.sql 15-undeclared-catalog-query-rewrite.sql
+assert "expected the rewrite FINDING" "$(has_err 'TARGETS CANNOT BE READ' && echo 1 || echo 0)"
+assert "expected the per-file count 1 of 2" "$(has_err '1 of 2 file(s) using the rewrite pattern' && echo 1 || echo 0)"
+assert "the masked file must be NAMED" "$(has_err '15_undeclared_catalog_query_rewrite' && echo 1 || echo 0)"
+assert "the sibling's case must NOT be derived" "$(has_out can_manage_professional && echo 0 || echo 1)"
+done_ok
+
 # ═══════════════════════════════════════════════════════════════════════════════════
 # THE MERGE HELPER (QA F-MAJOR-4: "nothing tests the merge helper" — the component that
 # WRITES the committed findings baselines had no committed test at all, and F-BLOCK-1 had

@@ -427,3 +427,87 @@ is prose rot". ⚠ Distinct from ADR 0200's collateral, which touched only the
 **Closes when:** the `_comment` on rows 31/32 states the ruling that was taken and the current
 value of `401 § 19.2b`, and a fresh run of `401` is quoted beside it showing § 19.2b and § 19.2c
 green. ⛔ Not closed by deleting the comment — the ruling it half-records is worth keeping.
+
+### 2026-09-09 — deriver false FINDING (1) on the declare+replace cell (backend)
+
+The lead's tip gate hit an **instrument fault**: at `e351f93f`,
+`bash scripts/door-sweep-cases.sh main` exited **1** with *"a RUNTIME-REWRITE migration whose
+TARGETS CANNOT BE READ"* and `derivation: NOT REACHED` — about `20261003007360`, the only file in
+range, which **declares both its targets** on line 5 and replaces both with a full
+`create or replace function`. The gate that scopes this unit's sweep derived nothing, and the
+banner blamed the migration.
+
+**Mechanism, confirmed by measurement before touching anything.** The name path chunks
+`create or replace function app.<name>` and both predicates match `PRED_NAME_RE`, so both land in
+`fn_sel_name`; `pg_get_functiondef` appears in the BEFORE/AFTER landing assertions (non-comment
+text) so `REWRITE_PRESENT=1`; the cross-file dedup at `:~800`
+(`comm -23 fn_rewrite (fn_sel_name ∪ fn_sel_prop)`) then subtracts every declared target and the
+aggregate goes empty. FINDING (1) was reading that **post-dedup residue**. `…007190` never entered
+the cell because it declares its target and does **not** `create or replace` it.
+
+**A second polarity of the same line, found while building the controls and not predicted by the
+report.** The residue is a UNION across files, so one declaring migration made it non-empty and an
+**undeclared** catalog-query rewrite beside it passed at rc 0, silently — the class ADR 0173 §4b
+admits the deriver cannot read. ⭐ "A mutation's effect can be MASKED by a legitimately-open arm."
+
+**Reproduced on a doctored copy, never the tree.** A throwaway `git init` repo under `$TMPDIR`
+holding `cmp`-verified copies of the real deriver and both audit harnesses (the self-test's own
+`build_repo`), fixtures dropped in as untracked migrations. ⛔ Nothing was written to
+`supabase/migrations/` and no SQL was applied. Live catalog reachable; bare exit codes:
+
+| # | input | before | after | |
+|---|---|---|---|---|
+| a | declaration + `create or replace` + `pg_get_functiondef` (**the defect**, fixture 14) | rc **1**, list empty, FINDING (1) | rc **0**, `can_manage_professional can_read_professional_profile` | fixed |
+| b | rewrite, **no** declaration, no array (fixture 15) | rc **1** FINDING | rc **1** FINDING, file now NAMED | control holds |
+| c | rewrite **with** declaration (fixture 11) | rc **0**, `can_manage_professional` | rc **0**, unchanged | unmoved |
+| d | `create or replace`, no declaration, no `pg_get_functiondef` (fixture 01) | rc **0**, `assert_not_case_excluded` | rc **0**, unchanged | unmoved |
+| e | declaring (14) + undeclared (15) in one range | rc 1 — but for the **wrong reason** (empty residue), naming nothing | rc **1**, `1 of 2 file(s)`, names **15 only** | attributable |
+| f | marker-only declarer (11) + undeclared (15) — **the masked polarity** | rc **0**, `can_manage_professional`, no finding | rc **1**, `1 of 2 file(s)`, names 15 | hole closed |
+| g | array rewrite, no declaration (ADR 0173 per-file array pin, fixture 10) | rc **0**, two targets | rc **0**, unchanged | unmoved |
+
+**The fix.** Resolvability is decided **per file, inside the extraction loop**, at the only point
+where `$D/fn_rewrite` still means "what THIS file could name"; `$TMP/rewrite_files` and
+`$TMP/rewrite_unread` carry file paths and the FINDING is `[ -s "$TMP/rewrite_unread" ]`, printing
+an `N of M` count and naming each unread file. The dedup is untouched — a target is still never
+listed twice. `ANY_REWRITE`/`REWRITE_PRESENT="$ANY_REWRITE"` are gone with the aggregate test.
+
+⚠ **One deliberate deviation from the lead's suggested predicate, stated because it is a
+tightening the report did not ask for.** The brief said *declared **OR selected by name/property***.
+Name/property selections are **excluded**: a `create or replace` elsewhere in a rewrite migration
+is not evidence that anyone read the bodies the rewrite touched, and counting it would flip the
+unpinned cell "rewrite + unrelated name selection + no declaration" from FINDING to clean — a
+loosening in a cell nobody measured. With the exclusion, the declaration is the only thing that
+answers, which is exactly what ADR 0173's convention is for. The defect case is unaffected: the
+migration declares.
+
+**Self-test, and the cell is now exercised.** Four scenarios added (16–19) with two new committed
+fixtures, `scripts/fixtures/door-sweep/14-declared-and-replaced-by-name.sql` and
+`15-undeclared-catalog-query-rewrite.sql` (README's contiguity note updated `01`–`13` → `01`–`15`).
+Each carries an assertion that flips on a revert alone: 16 pins the FINDING banner's **absence**,
+19 pins that the sibling's case is **not** derived. `SELFTEST=1 bash scripts/door-sweep-cases.sh`,
+bare: **PASS 42 · FAIL 0 · SKIPPED 0 → PASS 46 · FAIL 0 · SKIPPED 0** (deriver group 16 → 20), a
+delta of exactly the four added. Sibling instrument unchanged, as required:
+`SELFTEST=1 bash supabase/tests/mutation/p0-authz-door-audit.sh` → rc 0,
+`--- SELFTEST TOTAL: 33/33 ok, 0 failed ---`, output byte-identical to the gate driver's
+pre-change `21-selftest-door.log`.
+
+**The real derivation, re-run on this branch after the fix** (rc read bare, each on its own line;
+the catalog was reachable — the lead's gate driver had finished):
+
+```
+UNION   rc=0   list=[can_manage_professional can_read_professional_profile]
+READ    rc=0   list=[can_manage_professional can_read_professional_profile]
+WRITE   rc=0   list=[]
+SCOPE: 1 file(s) — 1 committed (main..HEAD), 0 worktree, 0 untracked | filter: none | derivation: catalog
+```
+
+The `SCOPE:` line is byte-identical across all three modes. ⚠ `ARM=write` returning **rc 0 with an
+empty list** is not "the write arm is clean": stderr says `read arm : 2 case(s)   write arm: 0
+case(s)` — this migration touches only boolean predicates, which the split rule sends to the read
+arm. ⛔ The sweeps themselves were **not** run here; that is the lead's.
+
+**ADR.** ADR 0200 gains `**Amends:** … · ADR 0190` and a `## Amendment to ADR 0190` section (0190
+is the deriver's ADR and the source of the dedup rule this changes). The label grammar **does**
+support multiple targets — verified against `scripts/build-adr-index.mjs` and against 0190 itself,
+whose own `**Amends:**` names 0079 **and** 0173 and produces both back-pointers. `npm run adr:index`
+re-run. ⚠ ADR 0200 is still `**Status:** proposed`; the amendment rides with it to the PO.

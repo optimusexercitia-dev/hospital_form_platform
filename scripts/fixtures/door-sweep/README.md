@@ -10,7 +10,7 @@ read-only catalog queries the deriver itself makes.
 deriver classifies by the catalog, so a made-up name would only ever exercise the
 UNRESOLVED branch. The fixtures pin what each catalog fact makes the deriver do.
 
-⚠ The numbering is contiguous, `01`–`13`. It was `01`–`08`, `10`–`13` until 2026-09-05:
+⚠ The numbering is contiguous, `01`–`15`. It was `01`–`08`, `10`–`13` until 2026-09-05:
 `09` had simply never been written — `git log --diff-filter=D -- scripts/fixtures/door-sweep/`
 is empty and no fixture here has ever been deleted — but a gap "reads as a deleted fixture"
 (QA F-REC-8), so the slot was closed rather than explained.
