@@ -127,3 +127,61 @@ at Record · L7 five follow-ups to file at Record (bodies drafted by backend) ·
 is sole owner of the local stack during the build; the lead runs the tip gate · L10 a session-log
 entry in the same commit as the code it witnesses; no amend, no push · L11 out of scope: Option
 (ii), `is_active` on the admin arm, the manifest `_comment` rot (file only), anything in `src/`.
+
+### 2026-09-09 — build (backend)
+
+Executed plan §§B1/B1.0/B4 + §C1 under PO rulings R1–R3 and lead rulings L1–L11. Head pair
+**re-checked at write time** and unmoved from the plan's anchor: `(20261003007350, 524)`.
+Timestamp allocated `20261003007360`; head after the build `(20261003007360, 525)`.
+
+**RED-FIRST, WITNESSED (L3).** `supabase/tests/415_fup_can_manage_professional_subject_keying.sql`
+was written first and run at head **before the migration existed**. ⚠ Method note: the repo has no
+single-file pgTAP runner and `pgtap` is **not installed in the reset database** — `supabase test db`
+creates it per run. The file was therefore run as
+`{ create extension if not exists pgtap; <00_setup.sql>; <415>; drop extension pgtap; } | psql`.
+Observed output, trimmed to the verdict lines (captions elided at `…`):
+
+```
+1..17
+ok 1 - 0.1 FIXTURE CONTROL: all four persona ids resolved …
+ok 2 - 0.2 ⭐⭐ EXACTLY ONE of the four personas carries `profiles.is_admin = true` …
+ok 3 - 0.3 ⭐ THE AUTHORITY IS LOCATED, AND ITS ABSENCE TOO …
+ok 4 - 0.4 ⭐ THE MASK IS CLOSED for §2's subject …
+ok 5 - 0.5 ⭐⭐ DISCRIMINATION CONTROL for 0.4 …
+ok 6 - 0.6 ⭐⭐ THE SECOND MASK, MEASURED OPEN: `chefe.ccih` DOES hold `org.professionals.read` …
+ok 7 - 0.7 ⭐ ...AND THE CHOSEN SUBJECT IS OUTSIDE IT …
+not ok 8 - 1.1 ⭐⭐ ARM 1, OVER-GRANT — THE DEFECT THE FOLLOW-UP NAMES …
+# Failed test 8: "1.1 ⭐⭐ ARM 1, OVER-GRANT …"
+not ok 9 - 1.2 ⭐⭐ ARM 1, UNDER-GRANT — THE OPPOSITE POLARITY …
+# Failed test 9: "1.2 ⭐⭐ ARM 1, UNDER-GRANT …"
+not ok 10 - 1.3 ⭐⭐ ARM 2, UNDER-GRANT …
+# Failed test 10: "1.3 ⭐⭐ ARM 2, UNDER-GRANT …"
+ok 11 - 1.4 DISCRIMINATION, SELF-NEGATIVE …
+not ok 12 - 1.5 ⭐⭐ ARM 2, OVER-GRANT …
+# Failed test 12: "1.5 ⭐⭐ ARM 2, OVER-GRANT …"
+ok 13 - 1.6 DISCRIMINATION, SELF-POSITIVE …
+not ok 14 - 2.1 ⭐⭐ ARM 1, OVER-GRANT — THE SECOND SITE OF THE SAME DEFECT …
+# Failed test 14: "2.1 ⭐⭐ ARM 1, OVER-GRANT — THE SECOND SITE …"
+ok 15 - 2.2 DISCRIMINATION, SELF-POSITIVE …
+not ok 16 - 2.3 ⭐⭐ ARM 1, UNDER-GRANT — the opposite polarity AT THE SAME SITE …
+# Failed test 16: "2.3 ⭐⭐ ARM 1, UNDER-GRANT …"
+ok 17 - 2.4 DISCRIMINATION, SELF-NEGATIVE, AND THE CROSS-TENANT CONTROL …
+# Looks like you failed 6 tests of 17
+```
+
+**6 of 17 red, and they are exactly the six ⭐ cells** — both polarities of both arms of
+`can_manage_professional`, both polarities of `can_read_professional_profile`'s own arm. All 7
+fixture/mask controls and all 4 SELF-discrimination cells green, which is what says the fixture
+could REACH the failing state rather than being broken. Not green-on-first-run; L3's stop
+condition did not trigger. Values behind the reds, measured beforehand in rolled-back
+transactions: 1.1 `true`, 1.2 `false`, 1.3 `false`, 1.5 `true`, 2.1 `true`, 2.3 `false`.
+
+**⚠ A VACUOUS GREEN I PRODUCED AND CAUGHT, recorded because the next person will hit it.** My
+first post-migration run of 415 reported `1..17` with zero `not ok` and I read it as green. It was
+not: `test_helpers` is created by `00_setup.sql` and a fresh `db reset` removes it, so the file
+aborted at its first `claims_for` and **nothing ran** — `ERROR: schema "test_helpers" does not
+exist`, then 30 `current transaction is aborted`. The absence of `not ok` looked identical to a
+pass. ⛔ **Counting `ok` against the plan line is the check; grepping for `not ok` is not**
+(LEARN-015 — an assertion that never executed because its own fixture aborted the file). Every
+figure below counts `ok`.
+
