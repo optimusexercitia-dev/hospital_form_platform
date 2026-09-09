@@ -235,3 +235,75 @@ where the service-role and privilege-budget generators show the pattern; `stamp-
 one 66,557-char line) is on the active retrieval path and holds unique facts; and gate 16 still does
 not check registry completeness, duplicate facts across seams, per-section size, or the
 historical/current-state ratio.
+
+### 2026-09-09 (4) — the stamp chain leaves the retrieval path (ADR 0199)
+
+**Why this ran.** Entry (3) closed with `stamp-history.md` named as an open item: *"on the active
+retrieval path and holds unique facts"*. An external QA finding put the same thing more sharply — the
+reason it was kept (ADR 0196 D9: it holds facts appearing nowhere else) **is itself the defect**, because
+a current fact whose only home is a frozen archive is a locality failure.
+
+**Figures re-derived, not accepted.** `72,441` bytes, longest line **66,653 chars / 67,456 bytes**, 9.6%
+of the directory, 60 lines, **38 stamps**. ⚠ The finding said 72,345 B / 66,557 chars and **was right for
+`aa8eac1a`**, the split commit; `659e1bb1` (the 87-link repair) added 96 bytes to line 59 hours later. Not
+an error — a demonstration of why a figure carries its query. Prior records inherited a third figure,
+`67,360`, which is line 59's BYTE length at the split mislabelled as characters (ADR 0196 Context, and the
+review at `backend-state-split-review.md:488`).
+
+**Method — derived, never eyeballed.** The 66,653-char line cannot be read. Flattened the blockquote to
+one stream, split it on the chain's own delimiters (`Last updated:` / `Previous:` / `prior:` / `Earlier:`,
+excluding inline dates — a naive date split over-segmented at 43, the true count is 38), then tested every
+backticked identifier against all 11 seam files. **1,049 tokens, 910 distinct, 328 distinct absent from
+every seam.** Three parallel read-only agents then judged CLAIM-level presence per stamp, because a token
+can be present while its qualifier is not — `verify_audit_chain` appears in the seams three times and its
+deliberate-exception sentence appears zero.
+
+**Catalog verification.** Local stack already up; **no `db reset`** (shared local stack, two sibling P1
+branches live). Snapshotted `pg_proc`/`pg_tables`/`pg_policies`/columns/`schema_migrations` at migration
+`20261003007350` and classified all 328. ⛔ **The first snapshot omitted indexes, constraints and triggers,
+which produced two FALSE stale verdicts** — `memberships_title_idx` and
+`responses_one_successor_per_superseded` both exist as indexes. Caught by re-querying the complete catalog
+before writing anything; both verdicts withdrawn. A classifier is only sound for object classes its
+snapshot can see.
+
+**What was found.** D9's example list is wrong in both directions. `hospital_indicator_rollup`'s lost
+`is_admin` arm — one of its three named facts — is fully documented at `data-access.md:129` and was never
+chain-only. The real set is ~150 claims, of which **six contradict a posted seam section, the seam being
+wrong in all six**, verified: no `dashboard_*` carries `is_admin` (9 checked, and ⚠ the chain's own "all
+nine carry `is_staff_admin_of OR is_tenancy_admin_of`" is ALSO wrong — six do, three are staff-admin-only);
+`can_read_case_or_admin` does not exist while a posted line calls it mandatory; `allowed_result_ids`
+dropped; `submitted_form_responses` does carry the successor-exclusion; `mint_event_code` is per-hospital;
+`supersedes_id` exists.
+
+**Negative claims shipped with controls**, so an empty result is distinguishable from a dead instrument:
+`is_nsp_org_admin_of` in PHI doors 0 / 11 overall; `member_can` in `cases`/`case_phases` policies 0 / 3
+elsewhere; `title_id` in policies 0, in authz predicates 0 / 7 procedures overall.
+
+**Gate proof.** Gate 16 check C mutation-run on the new markers, **both arms** — bogus heading and bogus
+file — each red, then reverted to green. Run only after committing, since `git checkout --` would have
+taken uncommitted work with it.
+
+**Two pre-existing worktree artifacts fixed to reach a green baseline, neither caused by this work.**
+(1) **98 markdown files carried CRLF** while their blobs are LF — content-identical, `git status` clean
+because `text eol=lf` normalises on read, and it red gates 7 and 8. Exactly the failure gate 8's own
+message describes. Normalised the 97 remaining + `CLAUDE.md`; `git diff` empty afterwards. (2) `npm run
+typecheck` failed on `RouteContext` in two route files: `tsconfig.json` includes `.next/types/**/*.ts` and
+this worktree had never been built. `npx next typegen` (not a full build) fixed it.
+
+**Outcome.** Directory 734 KB → **669 KB**, 11 seams + router, largest 119.7 KB against a 160 KB warn.
+Chain → `docs/progress/backend-state-stamp-history-archive.md`, header rewritten to read as history and its
+two `README.md` links repointed; every other link is `../` and rebased to nothing. Router row and file moved
+in ONE commit (check B2). README's own arithmetic — *"Seven of these eleven … four"*, summing to 11 while
+the directory held 12 — corrected as a side effect. `npm run lint` rc=0, `npm run typecheck` rc=0, bare.
+
+**Left undone, deliberately.** The four tracks with no owning seam section (S1·SUP, S1·MEM, f-cleanup,
+nsp-per-hospital Phase B) are filed as a follow-up, not reconstructed here: their end states already reached
+the seams via later work, and the sources for *when and by what* are the migration files and
+`schema_migrations`, not a frozen archive. `conventions.md` has a bounded ledger hole — **16 of 16**
+migrations applied between `20260719000000` and `20260720000600` are absent from it.
+
+⚠ **Merge note.** The sibling `backend-state-current-state` branch (ADR 0198) adds an in-place
+`⛔ **ARCHIVE**` block to `stamp-history.md` and a gate-16 check-G exemption for it. That subject no longer
+exists in the directory; whoever merges second drops the exemption and the block rather than restoring the
+file. ADR numbering: 0197 and 0198 are taken on the two sibling branches, so this took **0199** —
+highest-on-any-branch + 1, not the index's next free.

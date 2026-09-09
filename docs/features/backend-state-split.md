@@ -9,7 +9,7 @@ branch: ~   # done directly on main 2026-09-09, at PO instruction
 plan: ~
 progress: ../progress/backend-state-split.md
 reviews: ["../reviews/backend-state-split-review.md"]
-adrs: ["0196", "0186", "0185", "0105", "0078"]
+adrs: ["0196", "0199", "0186", "0185", "0105", "0078"]
 handoff: ~
 fup: ~
 ---
@@ -27,7 +27,10 @@ Baselines and final values are in the record's session-log entry.
 
 - [x] `docs/backend-state.md` (742,255 B / 6,353 lines) becomes `docs/backend-state/`: **11 seam
       files + `README.md` router + `stamp-history.md`**, largest 114.6 KB (baseline: one file,
-      742 KB).
+      742 KB). ⚠ **As accepted on 2026-09-09; superseded the same day by ADR 0199** — `stamp-history.md`
+      left the directory for `../progress/backend-state-stamp-history-archive.md`. The directory is now
+      **11 seam files + `README.md`**, 669 KB, largest 119.7 KB. Kept as written because an acceptance
+      criterion records what was accepted.
 - [x] **Nothing lost** — proven by multiset comparison of source lines against output lines, not by
       inspection: `MISSING = 0`, with the only deletions the 47-line `## ADR index` (an ungated
       duplicate of the generated `docs/decisions/INDEX.md`) and the 13-line H1+Purpose block that
@@ -59,24 +62,34 @@ Baselines and final values are in the record's session-log entry.
 ### Objective
 
 Re-file the 742 KB single-file backend surface map onto the MODULE SEAM axis, behind an
-action-keyed router, and gate the shape so it cannot decay back (ADR 0196).
+action-keyed router, and gate the shape so it cannot decay back (ADR 0196). Extended by ADR 0199:
+take the frozen pre-split stamp chain off the retrieval path, extracting what only it held.
 
 ### Done since start
 
-The split is DONE and on `main`, losslessly (`MISSING = 0` by multiset proof). 11 seam files +
-router + frozen `stamp-history.md`, largest 114.6 KB. Gate 16 `lint:backend-state` is in the chain
-with a 17-arm self-test and a live mutation run. Gates 12 and 15 moved with their sections and
-re-run green. 18 dangling links repaired; gates 7/9/13 green. `npm run lint` and `npm run typecheck`
-both rc=0, taken bare.
+The split is DONE and on `main`, losslessly (`MISSING = 0` by multiset proof). Gate 16
+`lint:backend-state` is in the chain with a live mutation run. Gates 12 and 15 moved with their
+sections and re-run green. 18 dangling links repaired inbound, 87 outbound; gates 7/9/13 green.
+
+**Stamp-chain retirement (ADR 0199).** The directory is now **11 seam files + `README.md`**, 669 KB,
+largest `authorization-and-audit.md` at 119.7 KB — the chain moved to
+`docs/progress/backend-state-stamp-history-archive.md` and is no longer routed. Enumerating it (38
+stamps, every identifier tested against all 11 seams, each survivor checked against the live catalog
+at migration `20261003007350`) showed ADR 0196 D9's example list was wrong in both directions: one of
+its three named facts was already documented in a seam, and the real set is ~150 claims. **Six
+contradicted a posted seam section, with the seam wrong in all six** — including a posted line
+instructing every case-scoped policy to use `can_read_case_or_admin`, a function that does not exist.
+Verified facts extracted with provenance; two claims retired as stale with reasons. `npm run lint`
+and `npm run typecheck` rc=0, taken bare.
 
 ### In progress
 
-Nothing. The unit is code-complete and awaiting §6 step 3.
+Nothing. Code-complete and awaiting §6 step 3.
 
 ### Next
 
-A read-only QA review of the split. On APPROVED, this hub goes to `complete` with the block cut
-into the record, per ADR 0186 D3.
+A read-only QA review covering the split **and** the ADR 0199 retirement. On APPROVED, this hub goes
+to `complete` with the block cut into the record, per ADR 0186 D3.
 
 ### Blockers
 

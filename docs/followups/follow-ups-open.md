@@ -1802,3 +1802,23 @@ The second is the QA re-review's own row 4, now held by fixture `B16+`. The mech
 **Severity:** low
 **Status:** open
 **Body:** [FUP-BACKEND-STATE-SPLIT-GATE-12-RESOLVES-FROM-CWD.md](FUP-BACKEND-STATE-SPLIT-GATE-12-RESOLVES-FROM-CWD.md)
+
+### 🟡 FUP-BACKEND-STATE-SPLIT-FOUR-TRACKS-HAVE-NO-OWNING-SEAM — S1·SUP, S1·MEM, f-cleanup and nsp-per-hospital Phase B changed the surface and no seam file records that they did (owner: backend)
+
+**Filed:** 2026-09-09 (ADR 0199 D6 — the stamp-chain retirement; the chain was their only record) · **Owner:** backend · **Severity:** medium — no live defect, but four surface changes have no "when and by what"
+**Closes when:** each of the four has an owning section in its seam file, and the `conventions.md` migration ledger covers `20260719000000`–`20260720000600`
+**Status:** open
+
+Enumerating the pre-split stamp chain found four work tracks with **no owning section in any of the 11
+seam files**: S1·SUP (supersession correction), S1·MEM (the memberships collapse), f-cleanup (ADR
+0068/0069) and nsp-per-hospital Phase B (ADR 0052). ⚠ Their **end states did reach the seams**, carried in
+by later work that assumed them — which is exactly why an identifier-only check scores this range green and
+why it went unnoticed. What is missing is the record of *when and by what* the surface changed.
+
+Measured 2026-09-09: **16 of 16** migrations applied between `20260719000000` and `20260720000600` are
+absent from the `conventions.md` ledger, which jumps `20260718000200` → `20260720000700`.
+
+⛔ **Do not reconstruct these from the archived chain** (`../progress/backend-state-stamp-history-archive.md`).
+It is a frozen 2026-07 record and several of its authorization claims are already known stale; treating it
+as a source would repeat the error ADR 0199 exists to correct. The sources are the migration files, the
+live catalog, and `supabase_migrations.schema_migrations`.
