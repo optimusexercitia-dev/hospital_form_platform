@@ -791,3 +791,106 @@ each rollback. Plant (b) verified to contain `app.is_admin(` as a distinct subst
 
 **Fix-loop count for the unit: 0 iterations on app code**; one measurement entry (the MINOR)
 and one instrument fix (the deriver, found by the gate before QA). Next: PO approval.
+
+### 2026-09-09 — Record step (lead): the hub's `## Current state` block, cut verbatim at close
+
+
+**Updated:** 2026-09-09
+
+### Objective
+Give `FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-ARM` the reachability analysis its body says was
+never done, put the disposition to the PO with that measurement in front of them, and — if ruled
+fix — land the one-predicate migration with its red-first pgTAP cell and both-arm sweep.
+
+### Done since start
+Unit opened 2026-09-09 (branch off `main` @ `4fe0c464`, ADR **0200** reserved). Full plan
+returned and lead-spot-checked: **both** arms caller-keyed, **0 reachable third-party paths**
+(the FUP's consequence refuted at head), a second defect site in `can_read_professional_profile`,
+subject-keyed twins `is_admin_for` / `is_org_admin_of_for` already exist. PO ruled **R1 fix now ·
+R2 both sites · R3 tightening declared**; lead rulings L1–L11 written (record, same date).
+
+Built at `e351f93f`: pgTAP `415` observed RED-first (6 of 17), migration `…007360` re-keying
+both predicates with both-direction landing assertions, manifest row + regenerated projection,
+ADR 0200. Tip gate run by the lead (record, same date): `test:db` 264/8923 PASS, lint 17/17,
+four arms HOLD, door arm 2 gates COVERED / 0 BLIND, set-valued CLEAN, E2E green under the
+flaky-baseline rule (7 batched failures, all infra-signature, all 27/27 in isolation). The gate
+found a deriver false FINDING on the declare+replace cell — fixed with 7 reproductions and 4
+self-test scenarios at `ea92fbee` (ADR 0200 also amends 0190).
+
+QA (`docs/reviews/can-manage-professional-self-check-review.md`) **APPROVED** in one round at
+`e696d107`: 0 BLOCK / 0 MAJOR / 1 MINOR — the migration's AFTER landing assertions, proven able to
+fire on five planted bodies inside rolled-back transactions (`0493e249`). PO **approved** for the
+Record step, **"no push"** (2026-09-09).
+
+### In progress
+Record step (lead + backend on disjoint files): FUP closed on its rewritten clause and archived,
+five follow-ups filed, seam slice + Current state in `authorization-and-audit.md`, ADR 0200
+accepted, ledger row, LEARN-094, plan §2/§3/§6 → Batch 9.
+
+### Next
+`phase(CAN-MANAGE-PROFESSIONAL-SELF-CHECK): complete` commit → `git merge --ff-only` into `main`
+→ ancestry proven bare → branch deleted → push distance measured and stated, NOT pushed. Then the
+CLAUDE.md review queue (13 KB, unprocessed), then Batch 9.
+
+### Blockers
+None. The clause's precondition (`BUG-PROF-INACTIVE-001` green) holds.
+
+### 2026-09-09 — Record step (lead): PO approved; registers, seam, ADR, ledger, plan, lesson; merge and push
+
+**PO approval** (AskUserQuestion, built / tests / QA / open risks): *"Approve — proceed to Record
+step"*, **no push**. ⚠ Then, while the Record step ran, a second explicit instruction: *"when record
+is finished, commit all changes (including changes not made in this session), merge with main,
+delete the branch, and push to origin."* The lead stated once that the push is deploy-safe only
+while Coolify's Automatic Deployment is off and that the session cannot verify that external
+setting; the instruction stands as the ruling **for this push** — a third one-push override in the
+plan's history (Batch 4, Batch 7, now 8), spent when it runs. "All changes" was measured before
+acting: `git status --short --untracked-files=all` showed only the six Record-step files below;
+no untracked files; the ignored set (`.authz-work/`, `.claude/settings.local.json`,
+`graphify-out/…`, …) is ignored by design and stays out.
+
+**Register half (`backend`, commit `2100554b`, disjoint files):**
+- `FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-ARM` closed on its **rewritten** clause and moved to
+  `docs/followups/follow-ups-archive.md` with the superseded clause (`PO's, once
+  BUG-PROF-INACTIVE-001 is green`) quoted beside the new one, the witnesses (415 RED 6 of 17 →
+  17/17; door arm `SWEPT: 2 COVERED: 2 BLIND: 0`; write arm 0 cases by derivation), and the
+  original entry verbatim (its `Closes when` preserved — the `archiveMissingClosesWhen` ratchet).
+  ⚠ Gate-forced deviation 1: the standalone body file was **folded into the archive and deleted**
+  — gate 13's `checkFollowupBodies` + `checkArchiveNoBodyLink` make a body file with no open
+  entry an orphan red; the fold follows the precedent at the archive's Batch 7 entries.
+- Five follow-ups filed. ⚠ Gate-forced deviation 2: four ids carry the hub-id prefix that gate
+  13's `checkCodes` requires for anything filed after 2026-09-04 — `FUP-CAN-MANAGE-PROFESSIONAL-
+  SELF-CHECK-ADMIN-ARM-IGNORES-IS-ACTIVE` 🟠 and three siblings (see the open register; the
+  drafted names in the build entry above are the pre-rename forms), plus
+  `FUP-ENFORCEMENT-MANIFEST-COMMENT-DESCRIBES-A-RED-THAT-IS-GREEN` 🟡 unchanged (already
+  prefixed by the `ENFORCEMENT-MANIFEST` hub). Overlap grep over both registers before filing:
+  none covered (four near-misses inspected and ruled unrelated).
+- `docs/backend-state/authorization-and-audit.md`: `## Current state` REPLACED (re-stamped
+  2026-09-09; block at 99 of 100 lines — 1 line of headroom, ⚠ the next slice on that seam must
+  cut before it adds), a forward marker at the superseded residual-arms row, the slice APPENDED.
+- ADR 0200 → `accepted 2026-09-09`; `"0200"` removed from `proposed-review.json`;
+  `npm run adr:index`; 0190 and 0193 carry the regenerated `amended by 0200` banner.
+- Gates bare, all rc 0: `check-docs-registers` · `check-progress-doc` · `build-adr-index --check`
+  · `check-backend-state` · `check-mojibake` · `check-rules-staleness`.
+
+**Lead half (this commit):** plan `docs/plans/pre-ae5-remediation.md` — §2 heading + **row 8**,
+§3 Batch 8 **CONCLUDED banner** with the block's three wrong clauses corrected in place, §6
+**EDITED to Batch 9** (operational instruction; superseded text summarised, facts pointed at row 8)
+including the inherited ADR 0200 keying obligation and the unprocessed review queue;
+`docs/progress/phase-ledger.md` row; `docs/learning/LESSONS.md` **LEARN-094** (the post-dedup
+"cannot read" verdict and its masked polarity; Enforcement = the deriver, its self-test and the two
+fixtures — the gate's token grammar rejected two earlier phrasings, both fixed by reading a
+sibling row rather than guessing); hub → `complete`, `branch: ~`, `adrs:` widened to the ten
+cited, acceptance box ticked AT this step, `## Current state` cut verbatim into the entry above
+(python `assert` that the appended block equals the cut block; the hub is 61 lines);
+`npm run features:index`.
+
+**Not done, by decision:** `.claude/claude-md-review-queue.md` (13 KB, non-empty) — lead-playbook
+§4 step 7 names the Record step as its trigger; CLAUDE.md edits need the human, so it is handed
+to the PO and written into plan §6 item 4 rather than run unasked. No BUG row (plan §D3 argued;
+Option (i) moves no reachable answer). `PROGRESS.md` had no row for this unit — nothing to rotate.
+
+**Merge and push (measured after the phase commit, in `git log`):** `phase(…): complete` on the
+branch → `git checkout main` → `git merge --ff-only` → `git merge-base --is-ancestor <tip> main`
+run **bare** → branch deleted → `git rev-list --count origin/main..main` stated → `git push origin
+main` → distance re-measured at **0**. The shas and counts are in the next entry if the push
+produced anything worth recording beyond `git log`; otherwise `git log` is the home.

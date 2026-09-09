@@ -1,15 +1,15 @@
 ---
 id: CAN-MANAGE-PROFESSIONAL-SELF-CHECK
 title: "`app.can_manage_professional`'s self-check arm — a third-party predicate whose first arm answers about the caller, given its reachability analysis, the PO's ruling, and (if ruled) the migration that makes it answer about `p_uid` (pre-AE5 Batch 8)"
-status: in_progress
+status: complete
 kind: feature
 program: AUTHZ
 phase: "Pre-AE5 remediation — Batch 8 of the follow-up batches ruled 2026-09-04"
-branch: authz-can-manage-professional-self-check
+branch: ~   # ff-merged to main 2026-09-09 at the Record step; branch deleted. The merge state's ONE home is docs/plans/pre-ae5-remediation.md 2 -- this comment asserts nothing about it
 plan: ../plans/pre-ae5-remediation.md
 progress: ../progress/can-manage-professional-self-check.md
 reviews: ["../reviews/can-manage-professional-self-check-review.md"]
-adrs: ["0079", "0155", "0190", "0191", "0192", "0193"]
+adrs: ["0078", "0079", "0106", "0155", "0176", "0190", "0191", "0192", "0193", "0200"]
 handoff: ~
 fup: ~
 ---
@@ -32,7 +32,10 @@ follow-up's body names as **not yet done** closes it on an unexamined blast radi
 ⚠ **A checked box means the CONDITION IS MET AND PROVEN, not that the register entry is closed.**
 The entry stays `Status: open` until the Record step, after PO approval.
 
-- [ ] `FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-ARM` 🟠 — the function is parameterised on a third
+- [x] `FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-ARM` 🟠 — ✅ **ticked AT the Record step (2026-09-09,
+      after PO approval), not before.** Closed on its **rewritten** clause (the original — `PO's,
+      once BUG-PROF-INACTIVE-001 is green` — named a precondition and an owner, no observable; the
+      replacement and the witnesses are quoted in the archive entry). The function is parameterised on a third
       party (`p_uid`) but its first arm is `coalesce(app.is_admin(), false)`, which reads
       `auth.uid()`: the arm answers about the **caller**, never `p_uid`. Owed, in order:
       1. **Reachability analysis** from the **live catalog** (never migration text — ADR 0078):
@@ -56,38 +59,3 @@ read **bare** before any substitution · `git diff --name-only main... -- supaba
 supabase/seed.sql src` — ⛔ **NOT empty if the PO rules fix** (this batch is a migration), in
 which case the sweep is owed **both arms** over the derived cases and Batch 7's empty-pathspec
 assertion does not apply. ⛔ Someone other than the builder runs the arms at the tip.
-
-## Current state
-
-**Updated:** 2026-09-09
-
-### Objective
-Give `FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-ARM` the reachability analysis its body says was
-never done, put the disposition to the PO with that measurement in front of them, and — if ruled
-fix — land the one-predicate migration with its red-first pgTAP cell and both-arm sweep.
-
-### Done since start
-Unit opened 2026-09-09 (branch off `main` @ `4fe0c464`, ADR **0200** reserved). Full plan
-returned and lead-spot-checked: **both** arms caller-keyed, **0 reachable third-party paths**
-(the FUP's consequence refuted at head), a second defect site in `can_read_professional_profile`,
-subject-keyed twins `is_admin_for` / `is_org_admin_of_for` already exist. PO ruled **R1 fix now ·
-R2 both sites · R3 tightening declared**; lead rulings L1–L11 written (record, same date).
-
-Built at `e351f93f`: pgTAP `415` observed RED-first (6 of 17), migration `…007360` re-keying
-both predicates with both-direction landing assertions, manifest row + regenerated projection,
-ADR 0200. Tip gate run by the lead (record, same date): `test:db` 264/8923 PASS, lint 17/17,
-four arms HOLD, door arm 2 gates COVERED / 0 BLIND, set-valued CLEAN, E2E green under the
-flaky-baseline rule (7 batched failures, all infra-signature, all 27/27 in isolation). The gate
-found a deriver false FINDING on the declare+replace cell — fixed with 7 reproductions and 4
-self-test scenarios at `ea92fbee` (ADR 0200 also amends 0190).
-
-### In progress
-QA review of the tip `ea92fbee`.
-
-### Next
-Fix loop (≤ 5 iterations) → re-review → PO approval (AskUserQuestion: built / tests / QA / open
-risks) → Record step: seam slice + Current state, five FUPs filed, the FUP closed on its rewritten
-clause, ADR 0200 accepted, hub → complete, ff-merge, push distance measured and NOT pushed.
-
-### Blockers
-None. The clause's precondition (`BUG-PROF-INACTIVE-001` green) holds.
