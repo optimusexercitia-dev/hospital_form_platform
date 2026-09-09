@@ -14,13 +14,13 @@
 >
 > Edges are **advisory** and over-inclusive by design; the ADR text is truth.
 
-**197 ADRs** · next free number: **0200** · 70 carry an inbound supersedes/amends edge
+**198 ADRs** · next free number: **0201** · 71 carry an inbound supersedes/amends edge
 
 ## ⚠ Anomalies
 
 - **Missing numbers:** 0034, 0077 — a gap is not automatically a defect (0077 was withdrawn by the PO and its subject re-filed as 0078; 0034 was never used), but a gap nobody can explain usually means a lost file.
 - **No parseable `Status:`:** none
-- **Still proposed / draft / deferred (8):** 0022, 0031, 0033, 0058, 0094, 0108, 0115, 0160 — an ADR's status is the author's claim on the day it was written, and nothing updates it when the code ships. The last review of this list is stamped in `proposed-review.json`; gate 9 reds when that review is more than 30 days old or this set has drifted from it.
+- **Still proposed / draft / deferred (9):** 0022, 0031, 0033, 0058, 0094, 0108, 0115, 0160, 0200 — an ADR's status is the author's claim on the day it was written, and nothing updates it when the code ships. The last review of this list is stamped in `proposed-review.json`; gate 9 reds when that review is more than 30 days old or this set has drifted from it.
 
 ## Index
 
@@ -216,10 +216,11 @@
 | 0190 | [The door-sweep deriver selects doors by PROPERTY, scopes what it swept, and a full run…](0190-the-door-sweep-deriver-selects-by-property-and-a-full-run-merges.md) | accepted | 2026-09-05 | amends 0079, 0173 | – |
 | 0191 | [The door arm's domain gains a SCHEMA axis, the set-valued resolvers get a committed hom…](0191-the-door-arms-domain-gains-a-schema-axis-a-targeted-home-and-a-fourth-outcome.md) | accepted | 2026-09-05 | amends 0079, 0173 | – |
 | 0192 | [Ownership is a PROXY, not the property: the write arm keeps one connection role and gai…](0192-ownership-is-a-proxy-not-the-property-and-the-write-arms-crash-safety.md) | accepted | 2026-09-07 | amends 0153, 0189 | ⚠ amended by 0194 |
-| 0193 | [The enforcement manifest declares what it measured, and the measurement is a fixed poin…](0193-the-enforcement-manifest-declares-what-it-measured.md) | accepted | 2026-09-07 | amends 0176, 0178 | – |
+| 0193 | [The enforcement manifest declares what it measured, and the measurement is a fixed poin…](0193-the-enforcement-manifest-declares-what-it-measured.md) | accepted | 2026-09-07 | amends 0176, 0178 | ⚠ amended by 0200 |
 | 0194 | [A sweep's `CASES` has three states, and a parent asks for a full run by UNSETTING it](0194-a-sweeps-cases-has-three-states-and-a-parent-unsets-it.md) | accepted | – | amends 0192 | – |
 | 0195 | [A committed number needs ONE home and a GATED mirror, and a ratchet joins its incumbent](0195-a-committed-number-needs-one-home-and-a-gated-mirror.md) | accepted | 2026-09-08 | – | – |
 | 0196 | [The backend surface map splits on the MODULE SEAM axis, and a router replaces the readi…](0196-backend-state-split-on-the-module-seam-axis.md) | accepted | 2026-09-09 | amends 0186 | ⚠ amended by 0197, 0198, 0199 |
 | 0197 | [The data-access REGISTRIES are generated from the catalog; the prose keeps only what a…](0197-data-access-registries-are-generated-not-maintained.md) | accepted | 2026-09-09 | amends 0196 | – |
 | 0198 | [A backend seam carries two layers: a REPLACEABLE current state above its append-only hi…](0198-backend-state-seams-get-a-replaceable-current-state-layer.md) | accepted | 2026-09-09 | amends 0196 | – |
 | 0199 | [A frozen archive does not belong on the retrieval path, and "it holds unique facts" is…](0199-a-frozen-archive-does-not-belong-on-the-retrieval-path.md) | accepted | 2026-09-09 | amends 0196 | – |
+| 0200 | [A predicate parameterised on a principal must answer about that principal, and a narrow…](0200-professional-identity-predicates-answer-about-their-subject.md) | ⚠ proposed | 2026-09-09 | amends 0193 | – |

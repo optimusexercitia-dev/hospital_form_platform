@@ -247,3 +247,183 @@ with `auth.uid()` NULL both caller-keyed arms were false for *every* subject and
 could not fail. It now answers about `sa`. **The green bar is identical on both sides**, which is
 why it is written down.
 
+**ADR `docs/decisions/0200-professional-identity-predicates-answer-about-their-subject.md`** —
+`Status: proposed`, `Area: authorization / professional identity (Class-2) / the AE5 re-key
+template`, `Amends: 0193`, `Related: 0078 0079 0106 0155 0176 0190 0192`. Three link slugs were
+guessed wrong on first write and corrected against the tree (`0078-authorization-capability-model`,
+`0106-act-as-role-assumption`, `0190-the-door-sweep-deriver-…`). `npm run adr:index` rebuilt the
+index and wrote the back-pointer into 0193.
+
+**⚠ Gate 9 red I hit and resolved honestly:** adding a `proposed` ADR drifts the set in
+`docs/decisions/proposed-review.json`. I added `"0200"` to `proposed` and **left `reviewed: null`
+untouched** — the file's `_comment` invites setting a review date, and doing so would have claimed
+a re-read of eight other ADRs that did not happen. The staleness clock runs from
+`installed: 2026-08-24` (16 days), so the set fix alone greens it.
+
+**A cross-check that the change landed at exactly the intended sites.** Comment-stripped `prosrc`
+caller counts for the twins: `is_admin_for` **3 → 5**, `is_org_admin_of_for` **14 → 15** — two new
+`is_admin_for` sites (one per function) and one new `is_org_admin_of_for` site, which is precisely
+the edit. A fourth mover would have shown here.
+
+**Fixture-exposure bound for the R3 tightening, re-derived on the post-migration tree:**
+`grep -rlE "claims_for\([^,)]*, *true" supabase/tests/` → **11 files** (of 264); intersected with
+files naming either predicate → **exactly 1**,
+`387_initplan_wrap_and_profiles_arm_identity.sql`, which uses the principal whose
+`profiles.is_admin` is genuinely `true`. `select count(*) filter (where is_admin) || ' of ' ||
+count(*) from public.profiles` → **1 of 36**. Zero fixtures exposed — and the full `test:db` PASS
+is what confirms it, not the grep.
+
+**Gate chain, all bare.** `npm run lint` **exit 0**, and it REACHED every gate — `eslint` ·
+`lint:css-vars` · `memberships-door` · `client-server-imports` · `vacuous` · `set-local` ·
+`progress` · `rules` · `adr-index` · `mojibake` · `service-role-registry` · `authz-vectors` ·
+`registers` · `config-schemas` · `budget-anchor` · `backend-state` · `data-access` (the first run
+died at `adr-index`, gate 9 above, and proved nothing about the eight gates after it; the figures
+here are from the second, complete run). `npm run typecheck` **exit 0**. `npm run test` **exit 0**
+— `Test Files 151 passed (151), Tests 2056 passed (2056)`.
+
+**Divergences from the plan, all four.**
+1. **The read-gate cells are a bidirectional PAIR on the gate's OWN arm, not the plan's single
+   over-grant 2.5** (L2 ordered the pair). The under-grant cell is `caller sa → subject pa`,
+   chosen so it moves with arm 1 ALONE: the org arm is arm 1 again, `authz.has_permission(pa, …)`
+   is false (a platform_admin is role-free), and the committee arm is shut by the
+   participation-free subject.
+2. **The over-grant subject is the CROSS-ORG `xb`, not the plan's `sa`.** Measured:
+   `authz.has_permission(chefe.ccih, 'organization', <org>, 'org.professionals.read')` = **true**,
+   so a cell with `sa` as subject would have been masked by the re-keyed arm and could never have
+   gone green. Both masks are asserted in §0 (0.6 open, 0.7 shut) rather than reasoned about.
+3. **§1 carries FOUR ⭐ cells, not the plan's two** — an over-grant and an under-grant for EACH
+   arm. The plan's 2.1/2.2 pair covers arm 1 over-grant and arm 2 under-grant, which leaves arm 1's
+   under-grant and arm 2's over-grant unproven; the same lesson the ruling cites, applied per arm.
+4. **No oracle-equality cell**, deliberately: asserting the predicate equals
+   `is_admin_for(p_uid) or is_org_admin_of_for(p_org, p_uid)` compares the fixed body to itself
+   (LEARN-091). Stated in the file header so its absence reads as a decision.
+
+⛔ **NOT run by me, per L9:** the door sweep (both arms), the four authz arms, the deriver, and
+`e2e:prod`. The stack is left at head `(20261003007360, 525)` on a fresh reset + a full `test:db`
+PASS; ownership returns to the lead with this entry.
+
+---
+
+#### DRAFT (L6) — `docs/backend-state/authorization-and-audit.md` slice, for the lead to APPEND
+
+> **§ SUBJECT-KEYING OF THE PROFESSIONAL-IDENTITY PREDICATES (2026-09-09, ADR 0200, migration
+> `20261003007360`).** `app.can_manage_professional(p_org, p_uid)` and
+> `app.can_read_professional_profile(p_profile_id, p_uid)` are **subject-keyed**: every arm
+> resolves about `p_uid`. Before this migration both of `can_manage_professional`'s arms
+> (`app.is_admin` zero-argument, `app.is_org_admin_of(p_org)`) and
+> `can_read_professional_profile`'s first arm read `auth.uid()`, so a third-party-shaped signature
+> sat over a pure self-check; `p_uid` was a null guard and nothing else. Reach at head was
+> **0 reachable third-party paths** (20 call expressions in the closure, all resolving to
+> `auth.uid()`; `app` not PostgREST-exposed; 0 triggers) — a latent trap, not a live hole, which
+> is why no BUG row exists.
+>
+> ⚠ **FORWARD MARKER for § "Residual legacy authority reached with NO permission grant" (the
+> `app.can_read_professional_profile` row):** that row's `is_admin` arm is **now `is_admin_for`**.
+> The arm did not retire and its population did not change — a `platform_admin` via
+> `profiles.is_admin` — only the principal it is evaluated about. `410 § 4.6`'s five-by-name pin
+> and the manifest's `residualLegacyAuthority` were re-keyed with it.
+>
+> **The rule this seam now carries:** `app` holds a subject-keyed `_for` twin for every
+> caller-keyed authority helper (`is_admin_for`, `is_org_admin_of_for`, `is_hospital_admin_of_for`,
+> `is_staff_admin_of_for`, `is_tenancy_admin_of_for`, `is_nsp_org_admin_of_for`). **A predicate
+> that takes a principal parameter must use the `_for` twin.** ⛔ The two are NOT interchangeable
+> at SELF either: `is_admin()` trusts `request.jwt.claims ->> 'is_admin'` (a fast path minted from
+> `profiles.is_admin` by `public.custom_access_token_hook`), `is_admin_for` always reads
+> `profiles`, so swapping closes a stale-token window for a demoted admin. That is a **tightening**,
+> and it must be declared, never absorbed into a no-regression claim.
+>
+> **Enforced by:** `supabase/tests/415_fup_can_manage_professional_subject_keying.sql` (17
+> assertions; bidirectional cells per arm per site, 6 witnessed RED before the migration) ·
+> `410 § 3.7` / `§ 4.6` (the manifest composition) · the migration's own both-direction landing
+> assertions. ⛔ **Not enforced:** nothing reds if a *new* predicate pairs a caller-keyed arm with
+> a `p_uid`-keyed one — that obligation is ADR 0200's data statement on the AE5 template and is
+> `prose only` today.
+
+**Replacement `## Current state` text** (only the lines that move; the block is otherwise
+unchanged and stays ≤ 60 lines):
+
+- § Surface, append to the `authz` catalog bullet: *"Authority helpers come in caller-keyed and
+  **subject-keyed (`_for`)** twins; a predicate taking a principal parameter uses the `_for`
+  twin (ADR 0200)."*
+- § Invariants, new bullet: *"**A predicate's arms answer about the principal its signature
+  names.** `can_manage_professional` and `can_read_professional_profile` are subject-keyed on
+  `p_uid` since ADR 0200; both were wholly caller-keyed before, and AE4.7c's narrowing is what
+  removed the last arm that read the parameter. ⛔ `is_admin()` and `is_admin_for()` are not
+  interchangeable at SELF — the former trusts a JWT claim, the latter reads `profiles`."*
+- § Open edges, new bullet: *"Neither `is_admin()` nor `is_admin_for()` consults `app.is_active`,
+  so a deactivated `platform_admin` passes every admin arm — before and after ADR 0200
+  (`FUP-IS-ADMIN-ARM-IGNORES-PRINCIPAL-STATE`). And nothing reds if a NEW predicate pairs a
+  caller-keyed arm with a `p_uid`-keyed one."*
+- **Updated:** 2026-09-09.
+
+#### DRAFT (L7) — the five follow-up bodies, for the lead to FILE at the Record step
+
+⚠ `FUP-CAN-READ-PROFESSIONAL-PROFILE-SELF-CHECK-ARM` is **NOT** among them: PO ruling R2 fixed
+that site here, so filing it would assert a defect that no longer exists.
+
+**1. 🟠 `FUP-IS-ADMIN-ARM-IGNORES-PRINCIPAL-STATE`** — *Owner:* backend.
+**Mechanism:** neither `app.is_admin()` nor `app.is_admin_for()` contains an `app.is_active` term
+(verified from `pg_proc`, both bodies quoted in ADR 0200). So a `platform_admin` who is
+deactivated or suspended passes every admin arm in the tree — including the ones
+BUG-PROF-INACTIVE-001 hardened on the org side, where `is_org_admin_of_for` *does* gate on
+`is_active(p_uid)`. ADR 0200 did **not** change this in either direction: the admin arm has never
+carried an `is_active` term to bypass, before or after the re-key, so this is pre-existing and was
+kept out for attributability. The asymmetry now sits inside one expression — arm 2 follows the
+subject's state, arm 1 ignores it.
+**Closes when:** `app.is_admin_for`'s live `prosrc` contains an `app.is_active` term (verified from
+`pg_proc`, comments stripped), with a pgTAP cell that deactivates a `platform_admin` and asserts
+the admin arm denies, **reported RED before the change**; ⛔ or the PO rules explicitly that
+platform-admin authority is deliberately independent of principal state, and that ruling is
+recorded in an ADR. Not closed by "no one has deactivated an admin yet".
+
+**2. 🟠 `FUP-PLATFORM-ADMIN-WRITES-CLASS-2-PROFESSIONAL-CONTENT`** — *Owner:* PO ruling, then backend.
+**Mechanism:** `app.can_manage_professional`'s arm 1 grants on `is_admin_for(p_uid)` alone, and
+that predicate gates `public.update_professional_profile` and
+`public.redact_professional_profile` — CPF, licence number, specialty, i.e. **Class-2 professional
+identity content**. ADR 0078 A35's noun rule says a `platform_admin` is a superuser over tenancy,
+identity, vocabulary and audit and may **not** touch commission content. This is Option (ii) of
+ADR 0200, rejected there only because it moves a *currently reachable* answer and would have made
+the keying fix unattributable — not on the merits.
+**Closes when:** the PO has ruled on whether arm 1 should exist at this gate, with the door list
+(3 `public` RPCs, derived from `pg_proc` not quoted) in front of them; and either the arm is
+removed with a pgTAP cell asserting a `platform_admin` is denied `redact_professional_profile`
+(RED before, GREEN after) plus an E2E over the reachable UI path, or the exception is recorded in
+an ADR naming why professional identity is a tenancy noun.
+
+**3. 🟡 `FUP-VOCABULARY-AND-REDACTION-SERVER-ACTIONS-HAVE-ZERO-CALLERS`** — *Owner:* frontend + lead.
+**Mechanism:** `redactProfessionalProfile`, `createEthicsAllegationCategory`,
+`archiveEthicsAllegationCategory`, `createCaseAssignmentRole` and `archiveCaseAssignmentRole` are
+exported `'use server'` functions in `src/lib/participants/actions.ts` and
+`src/lib/ethics/actions.ts` with **no caller anywhere in `src/`**, yet a Server Action export is
+POST-reachable regardless of whether any component calls it. That is LEARN-018 ("a designated
+authority with zero callers is a conformance finding") in its Server-Action form: the gates
+exercise a door production never opens, so nothing would notice if its authorization drifted.
+**Closes when:** each of the five is either wired to a caller in `src/` (a UI affordance, verified
+by an E2E that reaches it) or removed from the module's exports; a repeat of the zero-caller sweep
+over the module's `'use server'` exports returns an empty set. ⛔ Not closed by "the RPC beneath it
+is gated" — the finding is about reachability of the action, not the correctness of the gate.
+
+**4. 🟡 `FUP-SMOKE-SCRIPT-SEEDS-PROFESSIONAL-LINKAGE-WITH-SERVICE-ROLE`** — *Owner:* backend.
+**Mechanism:** `scripts/smoke/pdf-mint.smoke.ts` (~lines 406-419) inserts
+`professional_profiles.user_id` and `professional_participants` rows through
+`createAdminClient()`, bypassing `public.set_professional_link_state` and therefore its
+linkage-freeze trigger. The script constructs a linkage state the production door would refuse, so
+any invariant that door enforces is unasserted for rows the smoke script created — and a service-role
+write site that skips its door is exactly what the service-role DML registry exists to make visible.
+**Closes when:** the script creates linkage through `set_professional_link_state` (or through a
+DEFINER helper that calls it), verified by the linkage-freeze trigger firing on a deliberate
+double-link in the script's own run; or the two write sites are registered in the service-role DML
+registry with a written justification for the bypass.
+
+**5. 🟡 `FUP-ENFORCEMENT-MANIFEST-COMMENT-DESCRIBES-A-RED-THAT-IS-GREEN`** — *Owner:* lead.
+**Mechanism:** rows 31/32 of `supabase/tests/vectors/authz-enforcement-manifest.json` carry a
+`_comment` stating that `401 § 19.2b` *"is RED on exactly this and must not be re-numbered to 2 …
+AWAITING A LEAD RULING"*. Measured: **§ 19.2b is GREEN** — its expected value was moved 1 → 2 and
+§ 19.2c added to pin *which* pair survives, precisely so the count could not green itself by any
+pairing. The ruling the comment awaits was taken. No gate can contradict a `_comment`, and this one
+sits on the document that is the manifest's own authority — LEARN-088 / "a register's failure mode
+is prose rot". ⚠ Distinct from ADR 0200's collateral, which touched only the
+`org.professionals.read` row's *data* fields.
+**Closes when:** the `_comment` on rows 31/32 states the ruling that was taken and the current
+value of `401 § 19.2b`, and a fresh run of `401` is quoted beside it showing § 19.2b and § 19.2c
+green. ⛔ Not closed by deleting the comment — the ruling it half-records is worth keeping.
