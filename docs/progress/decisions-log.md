@@ -1,8 +1,22 @@
 # Archive — Decisions (PROGRESS.md § Decisions register)
 
-> **What this is:** the append-only archive of PROGRESS.md § Decisions rows, moved here
-> **verbatim** at Record steps (lead-playbook §5). A row carries the decision date, the
-> operative statement as the register recorded it, and its refs — including
+> **Status: CLOSED ARCHIVE — no further rotations.** PROGRESS.md § Decisions was retired
+> 2026-09-03 under ADR [0185](../decisions/0185-documentation-restructure-feature-hubs-and-gated-registers.md)
+> D6, and the last section below *is* that retirement's own rotation. Nothing appends here
+> again; a new decision goes to its ADR, and `docs/decisions/INDEX.md` is the generated index
+> over those.
+>
+> ⛔ **Closed is not disposable — do not delete this file.** **110 of its 332 rows carry no ADR
+> at all** (rulings that never earned one, plus amendment-grain refs like "ADR 0137 Amdt 4");
+> those decisions exist nowhere else. ADR
+> [0171](../decisions/0171-c2-tier1-regrain-and-the-command-door-neutralizer.md)'s `Amends:`
+> header names *this file* as the sole home of the 2026-08-18 ruling it amends. **No lint gate
+> references this path** — deleting it would pass `npm run lint` green while orphaning that
+> pointer, so the absence of a gate is the reason for this paragraph, not a licence.
+>
+> **What this was:** the append-only archive of PROGRESS.md § Decisions rows, moved here
+> **verbatim** at Record steps (lead-playbook §5) *while that section was live*. A row carries
+> the decision date, the operative statement as the register recorded it, and its refs — including
 > amendment-grain refs ("ADR 0137 Amdt 4") and rulings that have no ADR at all. Those
 > two classes exist **only here**: [INDEX.md](../decisions/INDEX.md) is **generated**
 > navigation over the ADR corpus (one row per ADR *file*: status + supersedes/amends
