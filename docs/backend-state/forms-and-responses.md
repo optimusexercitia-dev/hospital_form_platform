@@ -117,6 +117,8 @@ generated registries; the live catalog is the authority (ADR 0078).
 
 ## F3 — Flexible-Forms Foundation (2026-07-11; ADR 0060/0065; migrations `20260718000000`–`…000200`; NO flag, structural)
 
+⚠ **Superseded** — this section's Supersession forward-note says `responses.supersedes_id` was deliberately NOT added; S1·SUP added it two days later. See forms-and-responses.md § Extracted from the pre-split stamp chain.
+
 The pre-pilot form-engine bones for the four committed field types + the one live feature (dual-evaluator
 operators). **Structural, no feature flag** (D6/§6.3 metadata-catalog CANCELLED — `item_type` stays a
 CHECK enum widened per feature, ADR 0065 §5). Reset-OK, forward-only, additive. **The FF-1…FF-5 feature
@@ -630,3 +632,27 @@ freeze) · `start_or_resume_phase` / `skip_phase` (HC019) · `app.case_phase_ans
 **Tests.** pgTAP `367_deferred_staff_signoff.sql` (**79**) — 15 neutralizations RED-proved; E2E
 `deferred-staff-signoff.spec.ts` (5), which caught the one thing pgTAP structurally cannot: the
 **wizard's own submit gate** kept the button `disabled` while the database allowed the submit.
+
+## Extracted from the pre-split stamp chain
+
+Recovered when the frozen currency-stamp chain left this directory
+(→ [`../progress/backend-state-stamp-history-archive.md`](../progress/backend-state-stamp-history-archive.md),
+ADR 0199). Re-measured **2026-09-09** against the local catalog at migration `20261003007350`.
+
+### Correction to a posted section above
+
+- **`responses.supersedes_id` EXISTS.** The § F3 forward-note says it was "deliberately NOT added … the
+  post-pilot correction ADR adds it". That was true when written (2026-07-11) and stopped being true two
+  days later, when S1·SUP landed it (`20260720000600`). Measured — `select count(*) from
+  information_schema.columns where table_name='responses' and column_name='supersedes_id'` → **1**;
+  the partial-unique index `responses_one_successor_per_superseded` is present in `pg_class`.
+  [`printing.md`](printing.md) already treats the column as live, so the two seams disagreed until now.
+
+### Chain-only facts with no other home
+
+- **⛔ `app.sync_answer_typed_values` is exception-guarded PER CAST, and must stay that way.** A bad cast
+  leaves the typed shadow column NULL and **never fails the save** — the guard exists so a malformed
+  free-text value cannot block a respondent from submitting. Verified — the live body contains **3**
+  exception blocks. ⚠ Making it strict would convert a silent, recoverable NULL into a hard save failure
+  on the fill path. The seams named the function once, in a migration row, with no hint that its
+  laxity is deliberate. Stamp 2026-07-01 (answer-model-v2).

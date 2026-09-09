@@ -328,3 +328,31 @@ Migration A's own insert (now correctly asserts the shipped `enabled=true` - see
 high-water-row note below); 280/281/284's were a REAL ongoing "doors must still deny while OFF" invariant,
 fixed by having each section explicitly FORCE the flag OFF in-transaction rather than assert a now-false
 ambient claim. `283` carries no such section - a pre-existing gap, not introduced by the flip, left as-is.
+
+## Extracted from the pre-split stamp chain
+
+Recovered when the frozen currency-stamp chain left this directory
+(→ [`../progress/backend-state-stamp-history-archive.md`](../progress/backend-state-stamp-history-archive.md),
+ADR 0199). Re-measured **2026-09-09** against the local catalog at migration `20261003007350`.
+
+- **`app.can_reach_meeting(p_meeting_id, p_uid)` is the single meeting-read gate, and it REQUIRES
+  commission membership.** Live body:
+  `app.is_member_of_for(app.commission_of_meeting(p_meeting_id), p_uid) AND (meetings.visibility_policy =
+  'commission_default' OR EXISTS(meeting_attendees a WHERE a.meeting_id = … AND a.user_id = p_uid))`.
+  ⚠ **There is no org-admin arm and no tenancy-admin arm** — one was removed at AUTHZ Gate 2 (C7 P0). A
+  tenancy admin who is not a member of the commission does not reach its meetings. The seams referenced
+  this predicate only from [`printing.md`](printing.md)'s suppression table, which uses it without
+  defining it. Stamp 2026-07-17.
+- **`public.meeting_closed_sessions`** (reserved sessions, Stage C) exists as a table; its two child
+  tables were already in the no-policy register here, but the parent was not named. Reads flow through
+  `can_reach_meeting`. Stamp 2026-07-17.
+- **`app._project_meeting_agenda_item`** is the composed-ata tiering projector — it masks
+  `title` / `description` / `discussion_notes` per capability tier. Present in `pg_proc`. Nothing else in
+  the seams names it, though [`privacy-and-dsr.md`](privacy-and-dsr.md) lists the same three columns as
+  erasure targets. Stamp 2026-07-17.
+- **⛔ The `conclude_meeting` / `HC034` false negative is NOT a SQL bug — do not "fix" the guard.** The
+  guard (≥1 attendee present AND `user_id IS NOT NULL`, guests excluded, ADR 0025) is correct as written.
+  The failure a user reports is upstream: a committee **member** reaching the database as a *guest* row
+  with `user_id` null, so quorum sees zero members. Fix the caller that created the guest row. This
+  qualifier lived only in the chain; the posted guard description states the rule without the warning,
+  which is precisely the shape that invites someone to loosen a correct predicate. Stamp 2026-06-30.

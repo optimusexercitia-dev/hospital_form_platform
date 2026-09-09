@@ -1,24 +1,29 @@
-# Backend State — the pre-split currency-stamp chain (frozen)
+# Backend State — the pre-split currency-stamp chain (HISTORICAL ARCHIVE)
 
-> Part of `docs/backend-state/`. **Start at [`README.md`](README.md)** — it routes you to the one
-> file you need, and carries the maintenance rules in full.
+> ⛔ **THIS IS HISTORY, NOT STATE. Nothing here is a claim about the backend as it is now.**
+> It is the frozen `Last updated: … / Previous: … / prior: …` chain that the single-file
+> `docs/backend-state.md` accumulated up to the seam split of **2026-09-09**, preserved verbatim.
+> Every statement in it is dated **2026-06-15 … 2026-08-09** and many have since been superseded.
 >
-> This is a **map, not the authority.** `ARCHITECTURE.md` is the spec and the **live catalog** is
-> the truth (`pg_proc` incl. **`prosecdef`**, `pg_policies`, `pg_constraint`, `pg_trigger`, the
-> ACLs). ⚠ **Not the migration files** — some rewrite live function bodies at runtime, so their
-> text is stale by design (CLAUDE.md § graphify).
+> **What is true about the backend NOW lives in
+> [`../backend-state/README.md`](../backend-state/README.md)** and the seam files it routes to.
+> Go there. Do not cite this file as a surface fact, and do not "fix" it — a record states what was
+> true when it was written (ADR 0105).
 >
-> ⛔ **A posted section is frozen.** Corrections are APPENDED, never edited into the statement they
-> correct, and a correction leaves a forward marker at the statement it supersedes: a
-> `⚠ **Superseded** — …` line directly under that heading, naming where the correction lives.
+> **Why it is here rather than in `docs/backend-state/`.** ADR 0196 D9 kept it inside the seam
+> directory on the grounds that several stamps carried facts appearing nowhere else. That was
+> true, and it is no longer the reason to keep it routed: those facts were enumerated, verified
+> against the live catalog, and moved into the seams that own them, each under an
+> **`## Extracted from the pre-split stamp chain`** heading with its provenance. ADR 0199 records
+> the extraction, what was retired as stale, and what was deliberately left behind.
 >
-> ⛔ **A new phase EXTENDS its seam file.** It never opens a phase-named file, and the fix for an
-> over-cap file is never to raise the cap nor to delete a posted section.
+> ⚠ **It also contained facts that CONTRADICTED posted seam sections** — six of them, where the
+> chain was right and the seam was wrong. Those became corrections, not extractions.
 
 ⛔ **ARCHIVE — this file carries no current state, and must not be read for any.** It is the frozen
 pre-split edit history of the single-file map (ADR 0196 D9). What is TRUE about the backend NOW lives
 in the `## Current state` block at the top of each domain seam file, routed from
-[`README.md`](README.md); the four `generated-*.md` registries hold the inventory, derived from the
+[`README.md`](../backend-state/README.md); the four `generated-*.md` registries hold the inventory, derived from the
 live catalog. This declaration is why gate 16 check G does not require a `## Current state` block
 here — an exemption granted because the file is history OF something that has a live successor, not
 because nobody got round to writing one (ADR 0198 D4).
@@ -27,7 +32,7 @@ because nobody got round to writing one (ADR 0198 D4).
 
 ⛔ **FROZEN — nothing is appended here again.** This is the `Last updated: … / Previous: … / prior: …` chain that the single-file `docs/backend-state.md` accumulated until the seam split. It is kept **verbatim** because several stamps carry facts that appear nowhere else (the two hospital-tier DEFINER doors that lost their `app.is_admin()` arm, `verify_audit_chain` KEEPING its platform branch, `earliestSessionStart()`), and cutting it would have selected against exactly those qualifiers.
 
-⚠ A stamp saying *“see the **X** section immediately below”* means the seam file for X, reached through [`README.md`](README.md). “Below” stopped being true at the split.
+⚠ A stamp saying *“see the **X** section immediately below”* means the seam file for X, reached through [`../backend-state/README.md`](../backend-state/README.md). “Below” stopped being true at the split.
 
 > Last updated: **2026-08-09 — QO·B COMPLETE (org_admin/hospital_admin CONTENT WALL; ADR 0100 D12 +
 > PO rulings Q1–Q9; migrations `20260915000000`–`…000500` **+ `20260916000000` (M7)**; NO flag —

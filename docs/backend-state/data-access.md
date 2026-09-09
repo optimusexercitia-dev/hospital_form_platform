@@ -118,6 +118,10 @@ inventory is now DERIVED from `pg_proc` on every run. ⛔ The *notes* in its thi
 ACL, not which of a door's arms is load-bearing. Read both.
 See generated-rpc-surface.md § The generated function registry.
 
+⚠ **Superseded** — the Phase 8 dashboard row's gate reads `is_staff_admin_of OR is_admin`; no `dashboard_*` function carries an `is_admin` arm. See data-access.md § Extracted from the pre-split stamp chain.
+
+⚠ **Superseded** — the `*_template_phase` row treats `allowed_result_ids` as a live column; it was dropped for three junction tables. See data-access.md § Extracted from the pre-split stamp chain.
+
 All `security invoker` unless marked **DEFINER**. Invoker RPCs rely on RLS as the
 authority; definer RPCs are narrow, internally gated exceptions (documented in an ADR).
 
@@ -257,6 +261,12 @@ authoritative**: the three-hop `commission_of_template_*` grain, `confidentialit
 out-votes the m2 deny", and every SQL↔TS mirror whose drift is phase-blocking. None of that is
 derivable, and none of it is repeated in the generated file.
 See generated-helper-surface.md § The generated function registry.
+
+⚠ **Superseded** — the `app.submitted_form_responses` predicate below omits the SUP successor-exclusion that is in the live body. See data-access.md § Extracted from the pre-split stamp chain.
+
+⚠ **Superseded** — `mint_event_code` is described as taking a global advisory lock; it is per-hospital. See data-access.md § Extracted from the pre-split stamp chain.
+
+⚠ **Superseded** — `app.can_read_case_or_admin` is presented as mandatory for case-scoped admin arms; the function no longer exists. See data-access.md § Extracted from the pre-split stamp chain.
 
 - **FF-3 validation predicates (ADR 0090)** - `app.eval_validation(rule_type, config, value, answers,
   peer_values)` **IMMUTABLE + pure** (the SQL half of the second dual evaluator; TS twin `evalValidation`
@@ -666,3 +676,56 @@ Migrations `20260713000500…001000` (on remote). New backend surface:
   the existing `update_meeting_attendee(p_attendee_id, p_role, p_attendance)` (do NOT re-`add` — unique
   `(meeting_id,user_id)` index).
 - **`openNarrativeCount`** surfaced on the cases-board read (Etapas-pendentes support).
+
+## Extracted from the pre-split stamp chain
+
+Facts recovered from the frozen pre-split currency-stamp chain when it left this directory
+(→ [`../progress/backend-state-stamp-history-archive.md`](../progress/backend-state-stamp-history-archive.md),
+ADR 0199). **Provenance is on every entry**: the stamp date it came from, and the date its subject was
+re-measured against the live catalog. ⛔ Nothing here was copied on the chain's authority — the chain is a
+2026-07/08 record, and four of the six corrections below exist because the chain disagreed with a posted
+section and the **catalog** settled it.
+
+### Corrections to posted sections above
+
+Each of these supersedes a statement that is still posted above; the forward markers sit under the owning
+headings. All six re-measured **2026-09-09** against the local catalog at migration `20261003007350`.
+
+- **Phase 8 dashboards are NOT `is_staff_admin_of OR is_admin`-gated.** No `dashboard_*` function carries
+  an `app.is_admin()` arm at all. BUG-AUTHZ-001 (`20260903000700`, stamp 2026-08-03) unified them.
+  Measured — `select p.proname, p.prosrc ~ 'is_tenancy_admin_of' from pg_proc p join pg_namespace n on
+  n.oid=p.pronamespace where n.nspname='public' and p.proname like 'dashboard%'` → **9 functions, 0 with
+  `is_admin()`**. ⚠ The chain claims all nine carry `is_staff_admin_of OR is_tenancy_admin_of`; that is
+  **not** what the catalog shows — **six** do, and three (`dashboard_completion_by_member`,
+  `dashboard_export_rows`, `dashboard_free_text`) gate on `app.is_staff_admin_of(...)` **alone**, with no
+  tenancy-admin disjunct. The narrower three are the per-member / per-response / free-text readers.
+  Uniformity is asserted by pgTAP `270_authz_dashboard_gate_uniformity.sql`; read that suite before
+  "fixing" the asymmetry — it may be deliberate.
+- **`app.can_read_case_or_admin` DOES NOT EXIST.** The posted line tells the reader every case-scoped
+  policy needing an admin arm **MUST** use it. It was retired at AUTHZ Gate 2 (stamp 2026-07-17) as
+  byte-equivalent to `can_read_case`. Measured — `select count(*) from pg_proc where
+  proname='can_read_case_or_admin'` → **0**. A policy written against the posted instruction would fail
+  to compile.
+- **`process_template_phases.allowed_result_ids` / `case_phases.allowed_result_ids` were DROPPED**
+  (f-cleanup D3, stamp 2026-07-12), replaced by the junctions
+  `process_template_phase_allowed_results` / `..._offered_results` / `case_phase_allowed_results`.
+  Measured — `select count(*) from information_schema.columns where column_name='allowed_result_ids'`
+  → **0**; the three junction tables are present in `pg_tables`.
+- **`app.submitted_form_responses` carries a successor exclusion** that the posted predicate omits. The
+  live body appends `and not exists (select 1 from public.responses succ where succ.supersedes_id = r.id
+  and succ.status = 'submitted')` — and its own comment records the discrimination that matters: *a merely
+  `in_progress` successor does NOT exclude the predecessor*, so a half-finished correction never blanks a
+  metric. From S1·SUP (stamp 2026-07-13). Read `prosrc` before restating this predicate.
+- **`mint_event_code` is PER-HOSPITAL, not global.** The live body takes
+  `app.hospital_of_commission(new.reporting_commission_id)`, takes a per-hospital advisory lock, and
+  filters the `EV-####` max to that hospital's events — its own comment gives the reason: *so a hospital
+  cannot infer another's event volume from gaps*. Re-keyed from per-org by ADR 0052 (stamp 2026-07-03).
+
+### Chain-only facts with no other home
+
+- **`earliestSessionStart()`** (`src/lib/queries/rca.ts:364`, exported, unit-pinned in `rca.test.ts`) —
+  BUG-RCA-001's PO ruling that "the interview's date" is the **earliest**
+  `interview_sessions.scheduled_start`. It is a function rather than a select because `case_interviews`
+  has **no** `scheduled_start` column, and the old select silently `42703`'d the whole read — a defect
+  that returned empty rather than erroring. ⚠ It is **not** status-filtered, unlike `toNextSession` in
+  `interviews.ts`; the two are not interchangeable. Verified present 2026-09-09. Stamp 2026-08-05.

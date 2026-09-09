@@ -890,3 +890,28 @@ hospital-tier arm is the only way they reach anything.
 
 **pgTAP** `295` (60) · **mutation** `w4-technical-director-referrals-audit.sh` 13/13
 RED-PROVEN, control 60 green.
+
+## Extracted from the pre-split stamp chain
+
+Recovered when the frozen currency-stamp chain left this directory
+(→ [`../progress/backend-state-stamp-history-archive.md`](../progress/backend-state-stamp-history-archive.md),
+ADR 0199). Re-measured **2026-09-09** against the local catalog at migration `20261003007350`.
+
+- **Committee titles carry ZERO authorization semantics, and that is verified, not asserted.**
+  `public.commission_member_titles` is display-only; `public.assign_member_title(p_member, p_title_id)`
+  (nullable, to clear) is its setter. Measured — `title_id` appears in **0** `pg_policies` rows and in
+  **0** `app.is_*` / `app.can_*` predicate bodies, while **7** procedures reference it overall, so the
+  negative is measured against a live population. ⚠ A title is not a role: granting one confers nothing.
+  Stamp 2026-07-03.
+
+### Retired as stale — do NOT extract these
+
+- **"`listTechnicalDirection` / `listTechnicalDirectionReferrals` / `SessionContext.technicalDirectionOf` /
+  `getTechnicalDirectionAccessByOrg` have no caller yet (FUP-MEM-3b)."** The four helpers exist, but the
+  *no-caller* qualifier is **false now**: `getTechnicalDirectionAccessByOrg` is called from
+  `src/app/o/[org]/direcao-tecnica/{layout,page}.tsx` and `[referralId]/page.tsx`;
+  `listTechnicalDirectionReferrals` from `direcao-tecnica/page.tsx:78`; `technicalDirectionOf` gates
+  `/direcao-tecnica` and is consumed by `src/lib/role/role-catalog.ts`.
+  **FUP-MEM-3b was BUILT 2026-08-05** ([`../followups/follow-ups-archive.md`](../followups/follow-ups-archive.md)),
+  the same day the stamp was written. ⚠ This is the trap the whole archive posed: a dead-code warning that
+  was accurate for hours, frozen into a file that read as current for a month. Retired 2026-09-09.

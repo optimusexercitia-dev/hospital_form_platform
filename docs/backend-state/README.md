@@ -37,7 +37,15 @@ reading; the section is the unit of retrieval.**
 | [`generated-feature-flags.md`](generated-feature-flags.md) | look up a feature flag's key, its `FeatureFlags` field and the readers that resolve it |
 | [`generated-query-modules.md`](generated-query-modules.md) | find the `src/lib/queries/` or action module that owns a query, and what it exports (Rule 9) |
 | [`data-access.md`](data-access.md) | need what a door is FOR — the invariants, mirrors and exceptional behaviour behind the four generated registries above |
-| [`stamp-history.md`](stamp-history.md) | need the **pre-split** edit history of the old single-file map |
+
+⛔ **The pre-split currency-stamp chain is no longer here.** It moved to
+[`../progress/backend-state-stamp-history-archive.md`](../progress/backend-state-stamp-history-archive.md)
+on 2026-09-09 (ADR 0199) because it is **history, not state** — 72 KB of dated 2026-06/08 stamps, 93% of
+it one 66,653-character line, routed as if it were a twelfth seam. The facts that genuinely lived only
+there were verified against the live catalog and moved into the seams that own them, each under an
+`## Extracted from the pre-split stamp chain` heading. Six of them turned out to **contradict** a posted
+section, and became corrections. ⚠ Do not route it again: a frozen archive on the retrieval path is
+read as current state, which is exactly how its stalest claims kept circulating.
 
 ⛔ **Looking up an ADR? Go to [`../decisions/INDEX.md`](../decisions/INDEX.md)**, which is
 GENERATED from the ADRs' own headers. The prose ADR list that used to live in this map was
@@ -157,9 +165,11 @@ next person to replace the block deletes it. This happened; it was found by diff
 
 ## The seam axis, and why it is the seam and not the phase
 
-Seven of these eleven files map to a domain a teammate is assigned to; four
-(`conventions`, `data-access`, `authorization-and-audit`, `stamp-history`) are cross-cutting
-because their statements bind every seam. A file here is *meant* to answer **"what is true about this part of the backend"**. A phase
+Eight of these eleven files map to a domain a teammate is assigned to; three
+(`conventions`, `data-access`, `authorization-and-audit`) are cross-cutting
+because their statements bind every seam. ⚠ This read *"Seven of these eleven … four"* until
+2026-09-09, counting `stamp-history` among the cross-cutting four — 7 + 4 = 11 while the directory
+actually held **12** files. Removing the archive is what made the sentence's arithmetic true. A file here is *meant* to answer **"what is true about this part of the backend"**. A phase
 answers "what changed on this date" — and that question already has two homes, the unit hub and the
 unit record. Adding a third is the drift this directory exists to retire.
 

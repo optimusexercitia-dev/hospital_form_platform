@@ -14,7 +14,7 @@
 >
 > Edges are **advisory** and over-inclusive by design; the ADR text is truth.
 
-**196 ADRs** · next free number: **0199** · 70 carry an inbound supersedes/amends edge
+**197 ADRs** · next free number: **0200** · 70 carry an inbound supersedes/amends edge
 
 ## ⚠ Anomalies
 
@@ -219,6 +219,7 @@
 | 0193 | [The enforcement manifest declares what it measured, and the measurement is a fixed poin…](0193-the-enforcement-manifest-declares-what-it-measured.md) | accepted | 2026-09-07 | amends 0176, 0178 | – |
 | 0194 | [A sweep's `CASES` has three states, and a parent asks for a full run by UNSETTING it](0194-a-sweeps-cases-has-three-states-and-a-parent-unsets-it.md) | accepted | – | amends 0192 | – |
 | 0195 | [A committed number needs ONE home and a GATED mirror, and a ratchet joins its incumbent](0195-a-committed-number-needs-one-home-and-a-gated-mirror.md) | accepted | 2026-09-08 | – | – |
-| 0196 | [The backend surface map splits on the MODULE SEAM axis, and a router replaces the readi…](0196-backend-state-split-on-the-module-seam-axis.md) | accepted | 2026-09-09 | amends 0186 | ⚠ amended by 0197, 0198 |
+| 0196 | [The backend surface map splits on the MODULE SEAM axis, and a router replaces the readi…](0196-backend-state-split-on-the-module-seam-axis.md) | accepted | 2026-09-09 | amends 0186 | ⚠ amended by 0197, 0198, 0199 |
 | 0197 | [The data-access REGISTRIES are generated from the catalog; the prose keeps only what a…](0197-data-access-registries-are-generated-not-maintained.md) | accepted | 2026-09-09 | amends 0196 | – |
 | 0198 | [A backend seam carries two layers: a REPLACEABLE current state above its append-only hi…](0198-backend-state-seams-get-a-replaceable-current-state-layer.md) | accepted | 2026-09-09 | amends 0196 | – |
+| 0199 | [A frozen archive does not belong on the retrieval path, and "it holds unique facts" is…](0199-a-frozen-archive-does-not-belong-on-the-retrieval-path.md) | accepted | 2026-09-09 | amends 0196 | – |

@@ -717,3 +717,21 @@ Extends S2·RV2·R1 (dialogue core). Full record → `progress/rv2-r2-r5-governa
 **SQLSTATEs:** `HC0A3` vocab · `HC0A4` deadline · `HC0A5` resolve/reopen state · `HC0A6` lineage · `HC0A7` assignment · `HC0A8` link · `HC0A9` redaction. **Authority = `42501`, checked FIRST** (ADR-0078 non-vacuity).
 
 **Follow-ups:** `189` pgTAP stale-fixture baseline (RV2-unrelated) · notes-SSR hardening (INFO) · pilot `case_referrals` enablement + origin push + deploy.
+
+## Extracted from the pre-split stamp chain
+
+Recovered when the frozen currency-stamp chain left this directory
+(→ [`../progress/backend-state-stamp-history-archive.md`](../progress/backend-state-stamp-history-archive.md),
+ADR 0199). Re-measured **2026-09-09** against the local catalog at migration `20261003007350`.
+
+- **⛔ `app.member_can` is OR-composed ONLY into specific guarded DEFINER doors — NEVER into the `cases`
+  or `case_phases` `FOR ALL` write policies.** This is a placement prohibition, not a description: a
+  delegated capability grant must not become a write policy, or the `administrativo` delegation silently
+  widens into case authorship. Measured — `select … from pg_policies where tablename in ('cases',
+  'case_phases') and (qual||with_check) ~ 'member_can'` → **0 rows**, while the control across all
+  policies returns **3**, so the invariant is verified against a live population rather than an empty
+  one. The seams document `member_can`'s *shape* thoroughly and its *placement* not at all.
+  Stamp 2026-07-08 (ADR 0061).
+- **`public.commission_administrativos`** — the appointment row itself (SELECT-only, DEFINER-door writes,
+  audited). Only its child `commission_administrativo_capabilities` appeared in the seams, so the parent
+  of a documented child was missing. Present in `pg_tables`. Stamp 2026-07-08.
