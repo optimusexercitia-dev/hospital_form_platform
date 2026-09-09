@@ -59,8 +59,18 @@
 
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
-import { join, relative, resolve } from 'node:path'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs'
+import { tmpdir } from 'node:os'
+import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 // ⛔ Script-relative, never `process.cwd()`. The idiom is `check-budget-anchor.mjs:125` /
@@ -359,24 +369,85 @@ export function deriveModules(root = REPO_ROOT) {
     if (r.kind === 'query' && /-actions\.ts$/.test(r.path)) r.kind = 'action'
   }
 
-  const EXPORT_DECL = /^export\s+(?:async\s+)?(?:function|const|let|var|class)\s+([A-Za-z0-9_$]+)/gm
-  const EXPORT_LIST = /^export\s*\{([^}]*)\}/gm
   const TYPE_DECL = /^export\s+(?:type|interface)\s+([A-Za-z0-9_$]+)/gm
   for (const r of rows) {
-    const text = normalise(readFileSync(join(root, r.path), 'utf8'))
-    const vals = new Set()
-    for (const m of text.matchAll(EXPORT_DECL)) vals.add(m[1])
-    for (const m of text.matchAll(EXPORT_LIST)) {
-      for (const part of m[1].split(',')) {
-        const sym = part.trim().split(/\s+as\s+/).pop().trim()
-        if (/^[A-Za-z0-9_$]+$/.test(sym) && sym !== 'type') vals.add(sym)
-      }
-    }
-    r.exports = [...vals].sort()
+    const abs = join(root, r.path)
+    const text = normalise(readFileSync(abs, 'utf8'))
+    r.exports = [...exportedValuesOf(abs, root)].sort()
     r.types = new Set([...text.matchAll(TYPE_DECL)].map((m) => m[1])).size
   }
   rows.sort((a, b) => byteOrder(a.path, b.path))
   return rows
+}
+
+const EXPORT_DECL = /^export\s+(?:async\s+)?(?:function|const|let|var|class)\s+([A-Za-z0-9_$]+)/gm
+const EXPORT_LIST = /^export\s*\{([^}]*)\}/gm
+/** `export * from '…'` and `export * as ns from '…'` — the form the declaration/list pair cannot see. */
+const EXPORT_STAR = /^export\s+\*\s+(?:as\s+([A-Za-z0-9_$]+)\s+)?from\s*['"]([^'"]+)['"]/gm
+
+/**
+ * Resolve a module specifier to a file on disk, or `null` for a BARE (package) specifier.
+ * Mirrors the ONE alias `tsconfig.json` declares (`@/*` → `./src/*`); a second alias added
+ * there and not here would under-report, which is why the mapping is asserted in the self-test.
+ */
+export function resolveLocalSpec(spec, fromFile, root = REPO_ROOT) {
+  let base
+  if (spec.startsWith('@/')) base = join(root, 'src', spec.slice(2))
+  else if (spec.startsWith('.')) base = resolve(dirname(fromFile), spec)
+  else return null
+  for (const c of [`${base}.ts`, `${base}.tsx`, join(base, 'index.ts'), join(base, 'index.tsx')]) {
+    if (existsSync(c) && statSync(c).isFile()) return c
+  }
+  return null
+}
+
+/**
+ * Every exported VALUE symbol of a module, following local `export *` barrels.
+ *
+ * ⛔ WHY THE WILDCARD ARM EXISTS: without it this deriver reported `src/lib/queries/
+ * validations.ts` as exporting ONE symbol when it re-exports ten more from
+ * `@/lib/forms/validation-rules`, and gate 17 could not see the gap because it recomputes the
+ * registry with THIS function — the detector and the check are one parser, so a blind spot is
+ * green by construction. Regexes remain the tool (a TS program for a lint gate is a heavy
+ * dependency); what makes it sound is the self-test arm that mutates a barrel fixture.
+ *
+ * ⛔ AN UNRESOLVABLE WILDCARD THROWS rather than dropping symbols. A bare `export * from
+ * 'pkg'` cannot be counted, and silently narrowing is exactly the failure this arm was added
+ * to end — `parseCensus` refuses an empty section for the same reason. In both callers a
+ * throw reports UNPROVEN or exits 2; it never reads as clean.
+ */
+export function exportedValuesOf(absPath, root = REPO_ROOT, seen = new Set()) {
+  const vals = new Set()
+  if (seen.has(absPath)) return vals // cycle guard: a ↔ b barrels must not recurse forever
+  seen.add(absPath)
+  const text = normalise(readFileSync(absPath, 'utf8'))
+  for (const m of text.matchAll(EXPORT_DECL)) vals.add(m[1])
+  for (const m of text.matchAll(EXPORT_LIST)) {
+    for (const part of m[1].split(',')) {
+      const sym = part.trim().split(/\s+as\s+/).pop().trim()
+      if (/^[A-Za-z0-9_$]+$/.test(sym) && sym !== 'type') vals.add(sym)
+    }
+  }
+  for (const m of text.matchAll(EXPORT_STAR)) {
+    const [, ns, spec] = m
+    // `export * as ns from …` binds exactly ONE name; the target's symbols are not hoisted.
+    if (ns) {
+      vals.add(ns)
+      continue
+    }
+    const target = resolveLocalSpec(spec, absPath, root)
+    if (!target) {
+      throw new Error(
+        `deriveModules: ${relative(root, absPath).replace(/\\/g, '/')} re-exports \`export * ` +
+          `from '${spec}'\`, which does not resolve to a local file. Counting its exports is ` +
+          `impossible, and reporting the module WITHOUT them would under-report the registry ` +
+          `silently — the exact defect the wildcard arm exists to prevent. Resolve the ` +
+          `specifier or name the symbols explicitly.`,
+      )
+    }
+    for (const v of exportedValuesOf(target, root, seen)) vals.add(v)
+  }
+  return vals
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════════════
@@ -475,6 +546,20 @@ export function renderFunctionSurface({ schema, title, funcs, preamble, script }
       ` \`pg_policies\`, never read alone (ADR 0078, ADR 0079).`,
   )
   out.push('')
+  out.push(
+    `⚠ **${kv.trigger} of these are TRIGGER functions** — invoked only by a \`CREATE TRIGGER\`,` +
+      ` never called by name. They are marked \`*(trigger)*\` in the Function cell and return` +
+      ` \`trigger\`. This registry is the WHOLE \`pg_proc\` population of the schema, which is` +
+      ` why a trigger's \`prosecdef\` and ACL are visible here at all; **the directly-callable` +
+      ` count is ${kv.rows} − ${kv.trigger} = ${kv.rows - kv.trigger}**.` +
+      (kv.kind === 'rpc'
+        ? ` ⛔ So this file is the \`public\` FUNCTION surface, not a list of RPCs: a` +
+          ` \`*(trigger)*\` row is not reachable over PostgREST and is not a door. The anchor` +
+          ` keeps \`kind=rpc\` as its internal key — that is the pin's join column, not a claim` +
+          ` about any row.`
+        : ` (No \`app\` function is reachable over PostgREST; the schema is not exposed.)`),
+  )
+  out.push('')
   out.push('## The generated function registry')
   out.push('')
   out.push('| Function | Args | Returns | Security | Volatility | EXECUTE |')
@@ -519,11 +604,21 @@ export function renderFeatureFlags({ flags, typed, readers, preamble, script }) 
   out.push(
     `⛔ **THE \`local\` COLUMN IS NOT PRODUCTION.** \`supabase/seed.sql\` forces flags ON for` +
       ` local + E2E, and a flip that lives only in \`seed.sql\` is OFF in production until its` +
-      ` own migration is pushed. Nothing asserts on this column — not gate 17, not the pgTAP` +
-      ` mirror — because only a human knows whether the flip migration reached the remote.` +
-      ` **The production claim stays handwritten** in [\`data-access.md\`](data-access.md)` +
-      ` § Feature flags. Resolve a VALUE in \`app.feature_flags.enabled\` on the deployment you` +
-      ` mean, never from this table and never from a comment.`,
+      ` own migration is pushed. **The production claim stays handwritten** in` +
+      ` [\`data-access.md\`](data-access.md) § Feature flags, because only a human knows whether` +
+      ` the flip migration reached the remote. Resolve a VALUE in \`app.feature_flags.enabled\`` +
+      ` on the deployment you mean, never from this table and never from a comment.`,
+  )
+  out.push('')
+  out.push(
+    `⚠ **The LOCAL value IS pinned, and deliberately so.** \`enabled\` is part of the flags` +
+      ` digest, so a flip — in \`seed.sql\` or in a migration — reds the pgTAP mirror until this` +
+      ` file is regenerated. That is the only arm covering this column: gate 17 reads the key,` +
+      ` the \`FeatureFlags\` field and the readers, **never \`local\`**, and it never opens a` +
+      ` database. Dropping \`enabled\` from the digest would leave a generated column no arm` +
+      ` can contradict. The red is the one-command kind — \`npm run data-access:surface\` — and` +
+      ` on a flip migration it is a feature: it sends you back to the handwritten production` +
+      ` claim. ⛔ What nothing asserts is the PRODUCTION value; that is a different fact.`,
   )
   out.push('')
   out.push(
@@ -640,9 +735,16 @@ export function renderPgtap({ pins, funcRowSql, flagRowSql }) {
 -- the doc are two homes for one number, and un-syncing them is exactly what gate 17 exists
 -- to catch.
 --
--- ⚠ \`app.feature_flags.enabled\` IS NOT PINNED, on purpose. It is seeded ON locally and the
--- production value is a different fact; pinning it would red on every seed change while
--- proving nothing about the deployment anybody cares about.
+-- ⚠ \`app.feature_flags.enabled\` IS PINNED, on purpose — the LOCAL value is part of the
+-- flags digest below. A deliberate flip (in seed.sql or in a migration) therefore reds this
+-- suite until the docs are regenerated, and that is the point: the generated \`local\` column
+-- is the only rendered figure no other arm covers. Gate 17 parses the flag table's key,
+-- \`FeatureFlags\` field and readers cells, NEVER \`local\`, and it never opens a database — so
+-- dropping \`enabled\` from the digest would leave a generated column nothing can contradict.
+-- On a flip MIGRATION the red is a feature: it sends a human back to the production claim.
+-- ⛔ What nothing asserts is the PRODUCTION value. That is a different fact, it lives only in
+-- the handwritten docs/backend-state/data-access.md § Feature flags, and only a human knows
+-- whether the flip migration reached the remote.
 
 begin;
 select plan(${planCount});
@@ -705,7 +807,7 @@ export function build({ census, typed, readers, modules, preamble, sqlText }) {
     'generated-rpc-surface.md',
     renderFunctionSurface({
       schema: 'public',
-      title: 'the `public` RPC surface (GENERATED)',
+      title: 'the `public` function surface (GENERATED)',
       funcs: census.funcs,
       preamble,
       script,
@@ -984,6 +1086,103 @@ export function selfTest() {
   t(
     'deriveModules records exports for at least one module',
     (modules ?? []).some((m) => m.exports.length > 0),
+  )
+
+  // ── the `export *` barrel arm ─────────────────────────────────────────────────────
+  // ⛔ WHY THESE EXIST: the declaration/list regexes silently under-reported every wildcard
+  // re-export, and gate 17 could not see it because it recomputes the registry with the SAME
+  // parser — detector and check are one function, so the blind spot was green by
+  // construction. A capability proof on a FIXTURE is the only thing that can fail here.
+  const barrelDir = mkdtempSync(join(tmpdir(), 'dac-barrel-'))
+  try {
+    const w = (rel, body) => {
+      const p = join(barrelDir, rel)
+      mkdirSync(dirname(p), { recursive: true })
+      writeFileSync(p, body, 'utf8')
+      return p
+    }
+    const BARREL_SRC =
+      `export * from '@/lib/forms/pure'\n` +
+      `export * from '../forms/rel'\n` +
+      `export async function ownFn() {}\n`
+    const barrel = w('src/lib/queries/barrel.ts', BARREL_SRC)
+    w('src/lib/forms/pure.ts', 'export const A = 1\nexport function b() {}\nexport type T = string\nexport interface I { x: number }\n')
+    w('src/lib/forms/rel.ts', 'export const relFn = () => 1\n')
+
+    const got = deriveModules(barrelDir)
+    const barrelRow = got.find((m) => m.path === 'src/lib/queries/barrel.ts')
+    t(
+      'deriveModules follows a LOCAL `export *` barrel through BOTH the @/ alias and a relative path',
+      barrelRow?.exports.join(',') === 'A,b,ownFn,relFn',
+    )
+    t(
+      'the barrel arm excludes re-exported TYPES (value symbols only)',
+      !(barrelRow?.exports ?? []).some((s) => s === 'T' || s === 'I'),
+    )
+
+    // The mutation: remove the wildcards and prove the deriver NOTICES. A fixture identical
+    // to its baseline would be counted broken, not passing.
+    const BARREL_FLAT = 'export async function ownFn() {}\n'
+    if (mutated('barrel mutation (drop both `export *` lines)', BARREL_SRC, BARREL_FLAT)) {
+      writeFileSync(barrel, BARREL_FLAT, 'utf8')
+      const flat = deriveModules(barrelDir).find((m) => m.path === 'src/lib/queries/barrel.ts')
+      t(
+        'deriveModules NOTICES the dropped barrel — the count falls to the module’s own exports',
+        flat?.exports.join(',') === 'ownFn',
+      )
+    }
+
+    // `export * as ns from …` binds exactly ONE name; the target's symbols are NOT hoisted.
+    writeFileSync(barrel, `export * as ns from '@/lib/forms/pure'\n`, 'utf8')
+    t(
+      'deriveModules treats `export * as ns` as ONE binding, not a hoist',
+      deriveModules(barrelDir).find((m) => m.path === 'src/lib/queries/barrel.ts')?.exports.join(',') === 'ns',
+    )
+
+    // A cyclic barrel pair must terminate rather than recurse forever.
+    writeFileSync(barrel, `export * from '@/lib/forms/cyc'\nexport const fromBarrel = 1\n`, 'utf8')
+    w('src/lib/forms/cyc.ts', `export * from '@/lib/queries/barrel'\nexport const fromCyc = 2\n`)
+    t(
+      'a CYCLIC barrel pair terminates and still reports both sides',
+      deriveModules(barrelDir).find((m) => m.path === 'src/lib/queries/barrel.ts')?.exports.join(',') ===
+        'fromBarrel,fromCyc',
+    )
+
+    // An unresolvable (bare) specifier must THROW, never silently under-report.
+    writeFileSync(barrel, `export * from 'some-package'\nexport const only = 1\n`, 'utf8')
+    t(
+      'an UNRESOLVABLE bare `export *` THROWS rather than dropping the symbols it cannot count',
+      (() => {
+        try {
+          deriveModules(barrelDir)
+          return false
+        } catch {
+          return true
+        }
+      })(),
+    )
+  } finally {
+    rmSync(barrelDir, { recursive: true, force: true })
+  }
+
+  t(
+    'resolveLocalSpec maps the ONE tsconfig alias `@/*` onto `src/*`',
+    resolveLocalSpec('@/lib/queries/validations', join(REPO_ROOT, 'src/lib/x.ts')) ===
+      join(REPO_ROOT, 'src', 'lib', 'queries', 'validations.ts'),
+  )
+  t('resolveLocalSpec returns null for a BARE package specifier', resolveLocalSpec('react', join(REPO_ROOT, 'src/lib/x.ts')) === null)
+  // Engagement on the REAL tree: wherever a barrel exists, it must actually be followed.
+  // Vacuous (and honestly so) if the tree ever holds none — the fixtures above carry the
+  // capability proof, this arm only proves the capability is WIRED.
+  t(
+    'every `export *` module in the real tree reports MORE than its own declarations',
+    (modules ?? [])
+      .filter((m) => /^export\s+\*\s+(?!as\b)/m.test(normalise(readFileSync(join(REPO_ROOT, m.path), 'utf8'))))
+      .every((m) => {
+        const text = normalise(readFileSync(join(REPO_ROOT, m.path), 'utf8'))
+        const own = new Set([...text.matchAll(EXPORT_DECL)].map((x) => x[1]))
+        return m.exports.length > own.size
+      }),
   )
 
   // ── The renderers, and the anchor they emit ───────────────────────────────────────

@@ -8,9 +8,7 @@
 
 ## Current state
 
-**Updated:** 2026-09-09 — a REPLACEABLE projection of the frozen slices below. Replace this block in
-place; never append to it, and never move a line of history into it (ADR 0198). Figures live in the
-generated registries; the live catalog is the authority (ADR 0078).
+**Updated:** 2026-09-09 — a REPLACEABLE projection of the frozen slices below; the rules that govern it are [`README.md` § Maintenance rules](README.md#maintenance-rules) 7–8.
 
 ### Surface
 
@@ -80,9 +78,6 @@ generated registries; the live catalog is the authority (ADR 0078).
 - Flags `audio_minutes`, `charters`, `accreditation`. ⛔ Resolve each flag's VALUE and its readers from
   [`generated-feature-flags.md`](generated-feature-flags.md), never from a sentence here.
 - `seed.sql` forces these flags ON for local/E2E — ⚠ **a flag-OFF spec must toggle the flag itself**.
-- ⛔ **Deployment status is not stated in this layer** (ADR 0198 D5). Whether a migration reached the
-  remote is a claim about an external system that rots silently — measure it with the recipes in
-  [`conventions.md` § Remote discipline](conventions.md#remote-discipline--standing-rules-measure-never-quote).
 
 ### Open edges
 

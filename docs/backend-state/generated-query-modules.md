@@ -4,7 +4,7 @@
 > one file you need and carries the maintenance rules in full. ⛔ A posted section is FROZEN:
 > correct it by APPENDING a `⚠ **Superseded** — … See <file> § <heading>.` marker, never in place.
 
-<!-- DATA-ACCESS-ANCHOR kind=modules rows=109 queries=60 actions=49 exports=904 digest=537744eebe3771a1562a395a84b4a492 -->
+<!-- DATA-ACCESS-ANCHOR kind=modules rows=109 queries=60 actions=49 exports=914 digest=0ddec54f33bb92c9bce3f928ee228524 -->
 
 ⚙ **GENERATED FILE — do not edit by hand.** Every row below is derived from the LIVE
 CATALOG and from `src/` by `scripts/gen-data-access-surface.mjs`; rebuild with `npm run data-access:surface`.
@@ -19,7 +19,7 @@ handwritten in [`data-access.md`](data-access.md), which is frozen and posted (A
 D5). A catalog knows an ACL; it does not know that re-ordering an enum would open
 legal-privileged documents.
 
-**109 modules** — 60 under `src/lib/queries/`, 49 action modules, 904 exported value symbols between them.
+**109 modules** — 60 under `src/lib/queries/`, 49 action modules, 914 exported value symbols between them.
 
 Architecture Rule 9: data access goes through these modules — no inline supabase-js in UI. ⚠ **Presence here is not a Rule-9 audit.** This table answers "which module owns this query"; it does not claim every caller obeys the rule, and a module appearing here is not evidence that nothing bypasses it. The population is a DIRECTORY WALK bound to the naming property (`src/lib/queries/*.ts`, `src/lib/*/actions.ts`, `*-actions.ts`), never a hand-list — ADR 0196 D7.
 
@@ -126,7 +126,7 @@ Architecture Rule 9: data access goes through these modules — no inline supaba
 | `src/lib/queries/signoffs.ts` | query | `getResponseForSignoff` · `getResponseSignoffs` · `listSignoffQueue` |
 | `src/lib/queries/submissions.ts` | query | `getSubmissionDetail` · `listSubmissionFilterForms` · `listSubmissionFilterMembers` · `listSubmissions` · `resolveSupersessionBadge` |
 | `src/lib/queries/triage.ts` | query | `HARM_META` · `HARM_ORDER` · `HARM_SEVERITY_LABELS` · `PSE_CLOSURE_REASON_LABELS` · `REACH_LABELS` · `REACH_META` · `REACH_ORDER` · `REVIEW_PATHWAY_LABELS` · `TRIAGE_VERDICT_LABELS` · `getEventTriage` · `getTriageDisposition` · `listEventTypes` · `listSentinelCriteria` |
-| `src/lib/queries/validations.ts` | query | `getResponseValidationErrors` |
+| `src/lib/queries/validations.ts` | query | `CLIENT_UNEVALUATED_RULE_TYPES` · `DATETIME_ORDER_OPS` · `MAX_REGEX_PATTERN_LENGTH` · `VALIDATION_RULE_COVERAGE` · `VALIDATION_RULE_TYPES` · `VALIDATION_SEVERITIES` · `evalValidation` · `getResponseValidationErrors` · `isValidationRuleAllowed` · `itemIsRequired` · `validationValueIsEmpty` |
 | `src/lib/referrals/actions.ts` | action | `acceptReferral` · `addReferralSharedItem` · `assignReferralNote` · `assignReferralReviewer` · `beginReferralReplyAttachmentUpload` · `cancelReferralAssignment` · `concludeReferral` · `concludeReferralNote` · `createReferralDraft` · `createReferralInternalNote` · `createReferralRequestedAction` · `declineReferral` · `deleteReferralDraft` · `disposeReferralPhi` · `finalizeReferralReplyAttachmentUpload` · `linkReferralCase` · `linkReferralRelatedCase` · `loadCaseSafetyPrefill` · `loadReferralDraft` · `openReferralReplyAttachment` · `openReferralSnapshotDocument` · `postReferralMessage` · `provideReferralInformation` · `receiveReferral` · `recordReferralMessageReceipt` · `redactReferralMessage` · `redactReferralNote` · `removeReferralSharedItem` · `reopenReferral` · `requestReferralInformation` · `resolveReferral` · `revealReferralPatient` · `sendReferral` · `setReferralDeadline` · `setReferralPatient` · `startReferralReview` · `unassignReferralNote` · `unlinkReferralCase` · `updateReferralAssignment` · `updateReferralDraft` · `updateReferralInternalNote` · `updateReferralRequestedAction` · `withdrawReferral` |
 | `src/lib/responses/actions.ts` | action | `addGroupInstance` · `discardResponse` · `removeGroupInstance` · `reorderGroupInstances` · `saveAndExit` · `saveSection` · `searchReferenceCandidates` · `signSection` · `startOrResumeResponse` · `submitCasePhaseResponse` · `submitResponse` · `supersedeResponseAction` |
 | `src/lib/role-selection/actions.ts` | action | `assumeRole` · `assumeRoleFormAction` |

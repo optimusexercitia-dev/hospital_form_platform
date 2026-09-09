@@ -1,4 +1,4 @@
-# Backend State — the `public` RPC surface (GENERATED)
+# Backend State — the `public` function surface (GENERATED)
 
 > Part of `docs/backend-state/` — **start at [`README.md`](README.md)**, which routes you to the
 > one file you need and carries the maintenance rules in full. ⛔ A posted section is FROZEN:
@@ -22,6 +22,8 @@ legal-privileged documents.
 **555 functions** in schema `public` — 465 `SECURITY DEFINER`, 90 invoker, 22 trigger functions, 0 with a NULL `proacl`.
 
 ⚠ **A NULL `proacl` is rendered `<NULL=PUBLIC>` and means PUBLIC MAY EXECUTE** — it is the default, not an absence of grants. Reading it as "no grants" inverts the fact (the same trap `scripts/catalog-fingerprint.sql` names). ⚠ **A `definer` row's gate REPLACES RLS**, so its EXECUTE list is the whole boundary: `prosecdef` belongs beside `pg_policies`, never read alone (ADR 0078, ADR 0079).
+
+⚠ **22 of these are TRIGGER functions** — invoked only by a `CREATE TRIGGER`, never called by name. They are marked `*(trigger)*` in the Function cell and return `trigger`. This registry is the WHOLE `pg_proc` population of the schema, which is why a trigger's `prosecdef` and ACL are visible here at all; **the directly-callable count is 555 − 22 = 533**. ⛔ So this file is the `public` FUNCTION surface, not a list of RPCs: a `*(trigger)*` row is not reachable over PostgREST and is not a door. The anchor keeps `kind=rpc` as its internal key — that is the pin's join column, not a claim about any row.
 
 ## The generated function registry
 

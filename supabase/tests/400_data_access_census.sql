@@ -18,9 +18,16 @@
 -- the doc are two homes for one number, and un-syncing them is exactly what gate 17 exists
 -- to catch.
 --
--- ⚠ `app.feature_flags.enabled` IS NOT PINNED, on purpose. It is seeded ON locally and the
--- production value is a different fact; pinning it would red on every seed change while
--- proving nothing about the deployment anybody cares about.
+-- ⚠ `app.feature_flags.enabled` IS PINNED, on purpose — the LOCAL value is part of the
+-- flags digest below. A deliberate flip (in seed.sql or in a migration) therefore reds this
+-- suite until the docs are regenerated, and that is the point: the generated `local` column
+-- is the only rendered figure no other arm covers. Gate 17 parses the flag table's key,
+-- `FeatureFlags` field and readers cells, NEVER `local`, and it never opens a database — so
+-- dropping `enabled` from the digest would leave a generated column nothing can contradict.
+-- On a flip MIGRATION the red is a feature: it sends a human back to the production claim.
+-- ⛔ What nothing asserts is the PRODUCTION value. That is a different fact, it lives only in
+-- the handwritten docs/backend-state/data-access.md § Feature flags, and only a human knows
+-- whether the flip migration reached the remote.
 
 begin;
 select plan(6);

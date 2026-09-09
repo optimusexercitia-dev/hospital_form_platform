@@ -32,7 +32,7 @@ reading; the section is the unit of retrieval.**
 | [`privacy-and-dsr.md`](privacy-and-dsr.md) | touch LGPD subject requests, erasure, or PHI disposal |
 | [`meetings-and-governance.md`](meetings-and-governance.md) | touch meetings, audio→ata, charters, cadence, or accreditation standards |
 | [`notifications.md`](notifications.md) | touch notifications or action items |
-| [`generated-rpc-surface.md`](generated-rpc-surface.md) | look up **any** `public` RPC — its arguments, return type, `prosecdef`, volatility and EXECUTE grants |
+| [`generated-rpc-surface.md`](generated-rpc-surface.md) | look up **any** `public` function — its arguments, return type, `prosecdef`, volatility and EXECUTE grants. ⚠ It is the whole `pg_proc` population, so 22 of its 555 rows are `*(trigger)*` and are NOT callable doors |
 | [`generated-helper-surface.md`](generated-helper-surface.md) | look up **any** `app` helper, predicate or trigger function, with the same six facts |
 | [`generated-feature-flags.md`](generated-feature-flags.md) | look up a feature flag's key, its `FeatureFlags` field and the readers that resolve it |
 | [`generated-query-modules.md`](generated-query-modules.md) | find the `src/lib/queries/` or action module that owns a query, and what it exports (Rule 9) |
@@ -95,6 +95,14 @@ by name as the reason the generated index exists — it "had stopped in the 0070
    history is for — but a `## Current state` block may not carry one, and gate 16 check H reds on
    both polarities. Measure it instead, with the recipes in
    [`conventions.md` § Remote discipline](conventions.md#remote-discipline--standing-rules-measure-never-quote).
+9. **An invariant of the LAYER is stated HERE, never inside a block.** Rules 7 and 8 hold for every
+   seam, so a block that restates them spends its ratchet on text that is already true and already
+   gated. ⛔ Measured 2026-09-09, before this rule existed: the rule-8 disclaimer sat verbatim in
+   **7 of 11** blocks and the maintenance stamp's prose in **10 of 11** — roughly 7 prose lines per
+   block, against a 100-line cap that 7 blocks were sitting 1 line under. That is how a cap starts
+   cutting **bounds instead of paraphrase**, which rule 4 of § The four rules a gate CANNOT enforce
+   exists to prevent. A block carries what is true of THIS seam; what is true of EVERY seam lives in
+   this file. `--scaffold` is the one home for the shape and no longer emits either copy.
 
 ## Writing and refreshing a current-state block
 

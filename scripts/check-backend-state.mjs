@@ -441,6 +441,10 @@ export const SEAM_STATE_CEILING = CURRENT_STATE_MAX_LINES * 2
 /** ⛔ RATCHET — may only be LOWERED. Four generated registries + one pre-split archive today. */
 export const MAX_STATE_EXEMPT = 5
 
+/** How close to the ratchet a block may sit before the run NAMES it. Reported, never gated —
+ *  see the headroom block in `main()` for why this is not a warning. */
+export const STATE_HEADROOM_NOTICE = 8
+
 const GENERATED_DECL = /⚙ \*\*GENERATED FILE/
 const ARCHIVE_DECL = /⛔ \*\*ARCHIVE\b/
 const DATE_RX = /\d{4}-\d{2}-\d{2}/
@@ -696,9 +700,8 @@ export function scaffold(today = new Date().toISOString().slice(0, 10)) {
     Rollout: [
       '- Flags over this seam: `flag_key`. ⛔ Resolve each flag\'s VALUE and its readers from',
       '  [`generated-feature-flags.md`](generated-feature-flags.md), never from a sentence here.',
-      '- ⛔ **Deployment status is not stated in this layer** (ADR 0198 D5). Whether a migration reached',
-      '  the remote is a claim about an external system that rots silently — measure it with the recipes',
-      '  in [`conventions.md` § Remote discipline](conventions.md#remote-discipline--standing-rules-measure-never-quote).',
+      '- (Guidance, not a line to keep: state NO deployment status here. README § Maintenance rules 8',
+      '  carries the rule and check H reds on it — restating it in every block cost 3 lines × 7 files.)',
     ],
     'Open edges': [
       '- Known gaps, deferred work, and places this map is THIN. ⚠ "Could not verify" is a legitimate',
@@ -712,9 +715,7 @@ export function scaffold(today = new Date().toISOString().slice(0, 10)) {
   const out = [
     STATE_HEADING,
     '',
-    `**Updated:** ${today} — a REPLACEABLE projection of the frozen slices below. Replace this block in`,
-    'place; never append to it, and never move a line of history into it (ADR 0198). Figures live in the',
-    'generated registries; the live catalog is the authority (ADR 0078).',
+    `**Updated:** ${today} — a REPLACEABLE projection of the frozen slices below; the rules that govern it are [\`README.md\` § Maintenance rules](README.md#maintenance-rules) 7–8.`,
   ]
   for (const s of SEAM_STATE_SECTIONS) {
     out.push('', `### ${s}`, '', ...(guidance[s] ?? ['- …']))
@@ -1091,6 +1092,24 @@ function main() {
     `backend-state gate: state layer — ${st.domains} domain seam(s), ${st.stateLines} current-state line(s) over ` +
       `${st.historyLines} frozen line(s) (ratio 1:${st.ratio.toFixed(1)}; ratchet ${SEAM_STATE_MAX_LINES} lines/block, ` +
       `${exempt.length}/${MAX_STATE_EXEMPT} exemptions). ⚠ The ratio is REPORTED, never gated — see check I.`,
+  )
+  // ⛔ HEADROOM IS PRINTED, NEVER GATED. G already fails AT the ratchet; the failure mode this
+  // reports is the one G cannot see — a block sitting one line under the cap, where the next edit
+  // must cut something, and what gets cut is a qualifier rather than a paraphrase (§ The four rules
+  // a gate CANNOT enforce, rule 4). ⚠ Deliberately not a warning: `npm run lint` runs at zero
+  // warnings, so a soft threshold here would either become a failure or be tuned out. The tightest
+  // blocks are named so the pressure is visible BEFORE it is a red.
+  const tight = files
+    .filter((f) => classifySeam(f).kind === 'domain')
+    .map((f) => ({ name: f.name, n: stateBlockOf(f.text)?.lines.length ?? 0 }))
+    .filter((x) => SEAM_STATE_MAX_LINES - x.n <= STATE_HEADROOM_NOTICE)
+    .sort((a, b) => b.n - a.n)
+  console.log(
+    tight.length
+      ? `backend-state gate: headroom — ${tight.length} block(s) within ${STATE_HEADROOM_NOTICE} lines of the ` +
+          `${SEAM_STATE_MAX_LINES}-line ratchet: ${tight.map((x) => `${x.name} (${x.n}, ${SEAM_STATE_MAX_LINES - x.n} left)`).join(', ')}. ` +
+          `⛔ When one of these next needs an edit, cut a PARAPHRASE and point at the frozen section — never a bound.`
+      : `backend-state gate: headroom — every block is more than ${STATE_HEADROOM_NOTICE} lines under the ${SEAM_STATE_MAX_LINES}-line ratchet.`,
   )
   const total = files.reduce((a, f) => a + Buffer.byteLength(f.text, 'utf8'), 0)
   const largest = files.reduce((a, f) => (Buffer.byteLength(f.text, 'utf8') > Buffer.byteLength(a.text, 'utf8') ? f : a))

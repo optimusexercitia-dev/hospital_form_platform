@@ -23,6 +23,8 @@ legal-privileged documents.
 
 ⚠ **A NULL `proacl` is rendered `<NULL=PUBLIC>` and means PUBLIC MAY EXECUTE** — it is the default, not an absence of grants. Reading it as "no grants" inverts the fact (the same trap `scripts/catalog-fingerprint.sql` names). ⚠ **A `definer` row's gate REPLACES RLS**, so its EXECUTE list is the whole boundary: `prosecdef` belongs beside `pg_policies`, never read alone (ADR 0078, ADR 0079).
 
+⚠ **176 of these are TRIGGER functions** — invoked only by a `CREATE TRIGGER`, never called by name. They are marked `*(trigger)*` in the Function cell and return `trigger`. This registry is the WHOLE `pg_proc` population of the schema, which is why a trigger's `prosecdef` and ACL are visible here at all; **the directly-callable count is 526 − 176 = 350**. (No `app` function is reachable over PostgREST; the schema is not exposed.)
+
 ## The generated function registry
 
 | Function | Args | Returns | Security | Volatility | EXECUTE |

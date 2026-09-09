@@ -21,7 +21,9 @@ legal-privileged documents.
 
 **43 keys** in `app.feature_flags` — 43 carry a `FeatureFlags` field, 0 do not, and 0 typed fields name no live key.
 
-⛔ **THE `local` COLUMN IS NOT PRODUCTION.** `supabase/seed.sql` forces flags ON for local + E2E, and a flip that lives only in `seed.sql` is OFF in production until its own migration is pushed. Nothing asserts on this column — not gate 17, not the pgTAP mirror — because only a human knows whether the flip migration reached the remote. **The production claim stays handwritten** in [`data-access.md`](data-access.md) § Feature flags. Resolve a VALUE in `app.feature_flags.enabled` on the deployment you mean, never from this table and never from a comment.
+⛔ **THE `local` COLUMN IS NOT PRODUCTION.** `supabase/seed.sql` forces flags ON for local + E2E, and a flip that lives only in `seed.sql` is OFF in production until its own migration is pushed. **The production claim stays handwritten** in [`data-access.md`](data-access.md) § Feature flags, because only a human knows whether the flip migration reached the remote. Resolve a VALUE in `app.feature_flags.enabled` on the deployment you mean, never from this table and never from a comment.
+
+⚠ **The LOCAL value IS pinned, and deliberately so.** `enabled` is part of the flags digest, so a flip — in `seed.sql` or in a migration — reds the pgTAP mirror until this file is regenerated. That is the only arm covering this column: gate 17 reads the key, the `FeatureFlags` field and the readers, **never `local`**, and it never opens a database. Dropping `enabled` from the digest would leave a generated column no arm can contradict. The red is the one-command kind — `npm run data-access:surface` — and on a flip migration it is a feature: it sends you back to the handwritten production claim. ⛔ What nothing asserts is the PRODUCTION value; that is a different fact.
 
 ⚠ **`Typed readers` is a nearest-preceding-export attribution, not a call graph.** It tells you where to look. A call inside a non-exported helper is attributed to the exported symbol above it, which over-reports reach.
 

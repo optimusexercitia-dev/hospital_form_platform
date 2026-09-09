@@ -26,9 +26,16 @@
 -- catalog-fingerprint.sql uses) so a reader can never mistake it for a closed door.
 -- 99 `app` functions are in that state today; reading them as "no grants" inverts the fact.
 --
--- ⚠ TRIGGER FUNCTIONS ARE INCLUDED, marked `trigger`. They are not reachable as RPCs, but
--- data-access.md § Helper functions documents them BY NAME (`app.guard_*`, `app.trg_*`),
--- so a census that excluded them would report a gap the prose had actually covered.
+-- ⚠ TRIGGER FUNCTIONS ARE INCLUDED, marked `trigger`, because this census is the WHOLE
+-- `pg_proc` population of both schemas -- that is what makes a trigger's `prosecdef` and ACL
+-- visible at all, and a DEFINER trigger's gate replaces RLS exactly as a door's does.
+-- ⛔ BUT THEY ARE NOT RPCs, and the generated `public` file is titled the FUNCTION surface for
+-- that reason: 22 of its 555 rows are triggers, reachable only from a `CREATE TRIGGER`.
+-- ⚠ An earlier version of this comment justified inclusion by "data-access.md § Helper
+-- functions documents them BY NAME (`app.guard_*`, `app.trg_*`)". That is an APP-SIDE
+-- rationale and it was doing duty for the public file: measured 2026-09-09, 19 of 176 `app`
+-- trigger functions are named in that prose and 1 of 22 `public` ones are. Coverage of the
+-- prose is not why they are here; completeness of the catalog is.
 --
 -- ALWAYS run with -v ON_ERROR_STOP=1. Without it psql skips a failing section and STILL
 -- EXITS 0 -- the census silently narrows and the drift gate reads clean.
@@ -73,10 +80,18 @@ order by 1;
 --    ⛔ `enabled` IS EMITTED BUT IS THE LOCAL/SEEDED VALUE, NEVER PRODUCTION'S.
 --    `supabase/seed.sql` forces flags ON for local + E2E, and a flip that lives only in
 --    seed.sql is OFF in production until its own migration is pushed. The generated table
---    labels the column `local` for that reason, and NOTHING asserts on it -- not gate 17,
---    not the pgTAP mirror. The production state of a flag stays a HANDWRITTEN claim in
---    data-access.md § Feature flags, because only a human knows whether the flip migration
---    was pushed.
+--    labels the column `local` for that reason. The production state of a flag stays a
+--    HANDWRITTEN claim in data-access.md § Feature flags, because only a human knows
+--    whether the flip migration was pushed.
+--    ⚠ `enabled` IS PART OF THE FLAGS DIGEST, and deliberately: it is the only arm covering
+--    the rendered `local` column. Gate 17 parses that table's key, `FeatureFlags` field and
+--    readers cells and NEVER `local`, and it never opens a database -- so excluding
+--    `enabled` here would leave a generated column nothing can contradict. The cost is one
+--    red per deliberate flip, cleared by `npm run data-access:surface`; on a flip MIGRATION
+--    that red is the point, because it sends a human back to the handwritten claim.
+--    ⛔ An earlier version of this comment said NOTHING asserts on it -- not gate 17, not the
+--    pgTAP mirror. That was false in both halves and is corrected here, in the pgTAP header
+--    the generator emits, and in the generated file's own preamble.
 -- >>> BEGIN FLAG_ROW <<<
 select 'FLAG|' || f.key
        || '|' || f.enabled::text

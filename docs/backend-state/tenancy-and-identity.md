@@ -8,9 +8,7 @@
 
 ## Current state
 
-**Updated:** 2026-09-09 — a REPLACEABLE projection of the frozen slices below. Replace this block in
-place; never append to it, and never move a line of history into it (ADR 0198). Figures live in the
-generated registries; the live catalog is the authority (ADR 0078).
+**Updated:** 2026-09-09 — a REPLACEABLE projection of the frozen slices below; the rules that govern it are [`README.md` § Maintenance rules](README.md#maintenance-rules) 7–8.
 
 ### Surface
 

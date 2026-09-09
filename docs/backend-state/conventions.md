@@ -6,10 +6,9 @@
 
 ## Current state
 
-**Updated:** 2026-09-09 — a REPLACEABLE projection of the frozen sections below. Replace this block in
-place; never append to it, and never move a line of history into it (ADR 0198). Unusually for this
-directory, several sections below are ALREADY axis-free standing rules, so every line here POINTS into
-them rather than restating them (ADR 0186). The live catalog is the authority (ADR 0078).
+**Updated:** 2026-09-09 — a REPLACEABLE projection of the frozen sections below; the rules that govern it are [`README.md` § Maintenance rules](README.md#maintenance-rules) 7–8.
+⚠ Unusually for this directory, several sections below are ALREADY axis-free standing rules, so every
+line here POINTS into them rather than restating them (ADR 0186).
 
 ### Surface
 
