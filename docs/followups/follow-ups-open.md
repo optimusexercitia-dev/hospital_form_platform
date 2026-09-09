@@ -1794,3 +1794,25 @@ The second is the QA re-review's own row 4, now held by fixture `B16+`. The mech
 **Closes when:** a lint gate hands `checkLinks` a corpus bound on **the property** — *every markdown file the repo keeps* — rather than on a hand-registered list, with any exclusion written as a **named, dated exclusion carrying its reason** (`docs/design/temp/`, holding the 54 known historical residuals, is the one candidate), **and** that gate uses gate 9's **case-exact** `exists` rather than `existsSync`, since on NTFS a wrong-case link is invisible to the sweep *and* to gates 7 and 13 inside their own corpora while breaking on a case-sensitive runner. ⛔ **Not closed by repairing the five sites** — that is precisely what leaves the next one unfound, and the derived audit's own miss (it reported 4 live where there are 5) is the proof. ⛔ Not closed by adding `docs/reviews/` or any other single directory to gate 7's or gate 13's list: a fourth hand-registered list is the shape this item names, and gate 7's own header records that every widening of such a list found debt the list had been hiding (41 broken links at the first widening, 130 more when it went registry-free). ⛔ Not closed by a green run over the uncovered corpus: it is green **today** at 1 finding outside `docs/design/temp/`, which is the state in which the absence of a gate is invisible. ⛔ Not closed by extending gate 9, whose corpus is `docs/decisions/` by construction — the ADR back-pointer instance found in `docs/reviews/` is the class gate 9 was extended for on 2026-09-08 and could not see.
 **Status:** open
 **Body:** [FUP-REGISTER-GATE-HYGIENE-LINK-CHECKING-HAS-NO-GATE-OUTSIDE-THREE-CORPORA.md](FUP-REGISTER-GATE-HYGIENE-LINK-CHECKING-HAS-NO-GATE-OUTSIDE-THREE-CORPORA.md)
+
+### 🟢 FUP-BACKEND-STATE-SPLIT-GATE-12-RESOLVES-FROM-CWD — gate 12 still resolves from `process.cwd()`
+
+**Filed:** 2026-09-09 (at unit `BACKEND-STATE-SPLIT`, while repointing gate 12 at its moved section) · **Owner:** backend
+**Closes when:** `scripts/check-service-role-registry.mjs` resolves `ROOT` from `fileURLToPath(import.meta.url)` the way `check-budget-anchor.mjs` does, AND a run from a subdirectory is measured to report its subject rather than to crash.
+**Severity:** low
+**Status:** open
+
+**Detail.** `check-budget-anchor.mjs` was hardened on 2026-09-08 to resolve from THIS FILE rather
+than `process.cwd()`, and its header records that the same hardening was applied to gate 14 "at the
+sibling site it was NOT applied to". ⛔ **There is a third sibling and it was missed:** gate 12 still
+opens with `const ROOT = process.cwd()`.
+
+⚠ **MEASURED 2026-09-09, not predicted, and the consequence is worse than the sibling's was.** Gate
+15 run from the wrong directory exited 1 with a *false* "does not exist" message. Gate 12 run from
+`docs/` exits **2 with a `node:internal/modules/cjs/loader` stack trace** — its `createRequire`
+lookup of `typescript` fails before any of its own checks run. A reader meeting that cannot tell a
+broken checker from a broken repo, which is the exact confusion the gate-15 hardening was for.
+
+⛔ **Not a hole.** Under `npm run lint` the cwd is always the package root, so the gate has never been silently skipped; it fails loudly in both directions. This is an ergonomics and attribution
+defect, filed because *a fix correct at two of three sibling sites reads as a fix*.
+
