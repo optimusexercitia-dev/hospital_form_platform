@@ -1190,7 +1190,7 @@
       "status": "re-keyed",
       "domainAuthorizer": {
         "function": "app.can_read_professional_profile",
-        "composedWith": ["authz.has_permission", "app.is_admin", "app.can_manage_professional", "app.can_read_case_committee"],
+        "composedWith": ["authz.has_permission", "app.is_admin_for", "app.can_manage_professional", "app.can_read_case_committee"],
         "executableByAuthenticated": true,
         "note": "Re-keyed IN PLACE, signature (p_profile_id uuid, p_uid uuid) unchanged. Client-reachable AND policy-embedded; the grant is required by the two RLS sites. MEASURED post-re-key: the former `app.can_create_professional` call was INLINED into its two arms (permission check + can_manage_professional) so this gate keys on `org.professionals.read` rather than borrowing the create code — the arm list grew by one as a result."
       },
@@ -1217,8 +1217,8 @@
       ],
       "residualLegacyAuthority": [
         {
-          "gate": "app.is_admin",
-          "population": "platform_admin, via profiles.is_admin — a role-free superuser arm",
+          "gate": "app.is_admin_for",
+          "population": "platform_admin, via profiles.is_admin — a role-free superuser arm. ⚠ SUBJECT-KEYED SINCE ADR 0200 (2026-09-09): the arm was `app.is_admin` (zero-argument, caller-keyed) until pre-AE5 Batch 8 re-keyed it onto `p_uid`. The population is unchanged; WHICH PRINCIPAL it is evaluated about is not.",
           "retiredBy": "AE5 / ADR 0176 D8 (platform_role retirement, explicitly NOT decided in 0176)"
         },
         {
@@ -1236,7 +1236,7 @@
       "legacyEquivalence": {
         "gate": "app.can_read_professional_profile",
         "expected": "identical",
-        "openArms": ["app.is_admin", "app.can_create_professional", "app.can_read_case_committee"],
+        "openArms": ["app.is_admin_for", "app.can_create_professional", "app.can_read_case_committee"],
         "qualifier": "⛔ DO NOT LEAN ON 403 § 7.2/§ 7.3's 'arms 1 and 3 cannot grant in this fixture'. That claim is true of 403's OWN FIXTURE and is NOT true of the seed — a real filter cited for a conclusion it does not bound. RE-MEASURED HERE 2026-09-02: the single seeded professional_profiles row fb00…00e1 has a professional_participants row, and the arm-3 traversal (app.can_read_case_committee) GRANTS for chefe.ccih@test.local. So arms 1 and 3 are EXERCISED BUT NOT ORACLED, and arm 3 is OPEN AND MASKING: a re-key of the permission arm can be measured green while arm 3 is what is actually answering. Any equivalence differential for this code must observe a coordinate where NO other arm is open, or it measures nothing. ⚠ THE RE-KEY MADE THIS WORSE, NOT BETTER: the authorizer now has FOUR arms, not three (can_create_professional was inlined into a permission check plus can_manage_professional), so there is one more way for a green to be somebody else's answer."
       },
       "exception": null

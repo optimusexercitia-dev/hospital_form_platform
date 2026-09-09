@@ -213,3 +213,37 @@ run and restored for the AFTER run, so the comparison is a measurement, not arit
 was **predicted in the plan (§C2, "410 §3.7 under B4 ONLY — ⛔ REDS")** and its message was the
 predicted one: `have: org.professionals.read: authorizer lost app.is_admin / want: (none)`.
 
+**Collateral (L4), and a coupling L4's one-line ruling did not name.** The manifest row
+`org.professionals.read` needed **three** identifier changes, not one, and two of them are
+*enforced*, not stylistic:
+1. `domainAuthorizer.composedWith` `app.is_admin` → `app.is_admin_for` — required by `410 § 3.7`.
+2. `residualLegacyAuthority[0].gate` — **required by the generator itself**:
+   `scripts/gen-authz-matrix-cells.mjs` cross-checks that every `composedWith` arm is either the
+   permission arm or a declared residual gate (M4), *and* that every residual gate appears in
+   `composedWith`. Changing (1) alone fails generation with two findings. The `population` string
+   gained a dated note saying the population is unchanged and only the keying moved.
+3. `legacyEquivalence.openArms` — ungated (neither the generator nor 410 asserts it), renamed
+   anyway: leaving a data field naming an arm the body no longer calls is prose rot on the
+   authority document. ⚠ **Beyond L4's literal text; flagged rather than folded in silently.**
+   ⛔ Its sibling entry `app.can_create_professional` is **already stale for an unrelated reason**
+   (the re-key inlined that call) and was NOT touched — different cause, different unit.
+
+`410 § 4.6` also had to move: it pins the residual-arm projection as a **verbatim string**, so it
+carried `org.professionals.read via app.is_admin` literally. Updated with a dated note; the
+five-entry count and the sort position are unchanged (`app.is_admin_for` still sorts last).
+Projection regenerated with `node scripts/gen-authz-matrix-cells.mjs` — **never hand-edited**;
+it also moved `authz-matrix-coverage.json`'s `manifestSha256`, which is the generator maintaining
+its own digest, not a stray edit.
+
+**410 § 3.6 and § 3.7 proven green AFTER, quoted (run in-container so `\ir vectors/…` resolves):**
+`ok 15 - 3.5 …` · `ok 16 - 3.6 CARDINALITY CONTROL for 3.5 AND 3.7: 13 (site, authority) pairs
+plus 8 (authorizer, authority) pairs …` (= **21**, unmoved — a rename is not an add) · `ok 17 -
+3.7 ⭐⭐ …` · `ok 23 - 4.6 …`; **0 `not ok` in the file.**
+
+**Dated notes, never rewrites (L4).** `406` §2.2/§2.3 and `410`'s depth-3 call-graph lines each
+carry a dated amendment beside the original. The `406` note records the finding the plan flagged
+as most worth a reviewer's eye: **§2.2 was passing VACUOUSLY** — it runs with no claims set, so
+with `auth.uid()` NULL both caller-keyed arms were false for *every* subject and the assertion
+could not fail. It now answers about `sa`. **The green bar is identical on both sides**, which is
+why it is written down.
+

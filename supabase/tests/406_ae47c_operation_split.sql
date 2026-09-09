@@ -73,6 +73,25 @@ select ok(not app.can_manage_professional((select org from f406), (select sa fro
 -- and AE4.7c SHARPENED it: with the ascent gone, `can_manage_professional`'s `p_uid` is a null
 -- guard and nothing else — a third-party-shaped signature over a pure self-check. The claims
 -- switch below is the workaround; the FUP is the thing to fix, and it is a PO item.
+--
+-- ⚠⚠ DATED NOTE 2026-09-09 — THE PARAGRAPH ABOVE IS NO LONGER TRUE OF THE LIVE PREDICATE, and it
+-- is kept because it is the RECORD of why 2.2/2.3 are shaped as they are. ADR 0200 (pre-AE5
+-- Batch 8, migration 20261003007360) re-keyed BOTH arms onto `p_uid` via `app.is_admin_for` and
+-- `app.is_org_admin_of_for`. Consequences for THIS file, each measured on the post-migration
+-- catalog rather than reasoned:
+--   * 2.2 still passes, but NO LONGER VACUOUSLY. It runs with no claims set, so before ADR 0200
+--     `auth.uid()` was NULL and both caller-keyed arms were false for EVERY subject — the
+--     assertion could not have failed. It now answers about `sa`: `is_admin_for(sa)` = false and
+--     `is_org_admin_of_for(org, sa)` = false. Same green, different reason, and the second one
+--     is the one the caption claims. ⛔ THIS UPGRADE IS INVISIBLE IN A GREEN BAR, which is why
+--     it is written down here.
+--   * 2.3's trailing clause "Asked AS the org_admin: the arm reads auth.uid(), not p_uid" is now
+--     FALSE. The `claims_for` switch above it is no longer REQUIRED for the assertion to be
+--     meaningful — it is retained so this file keeps measuring a production-shaped caller.
+-- The third-party evaluation the paragraph says is impossible is asserted directly in
+-- `supabase/tests/415_fup_can_manage_professional_subject_keying.sql` § 1, on both polarities of
+-- both arms. ⛔ Left standing, not rewritten: a comment is an assertion, and the honest repair
+-- for a stale one whose reasoning is still load-bearing is a dated amendment beside it.
 select test_helpers.claims_for((select oa from f406), false, 'org_admin');
 select ok(app.can_manage_professional((select org from f406), (select oa from f406)),
   '2.3 ⭐ AND ORG AUTHORITY KEEPS IT: an org_admin of the same org still passes row 30. This '

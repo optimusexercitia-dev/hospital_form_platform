@@ -395,7 +395,11 @@ select is(
   'org.professionals.create via app.can_manage_professional; '
   'org.professionals.read via app.can_manage_professional; '
   'org.professionals.read via app.can_read_case_committee; '
-  'org.professionals.read via app.is_admin',
+  -- ⚠ `app.is_admin` -> `app.is_admin_for` 2026-09-09 (ADR 0200, pre-AE5 Batch 8). The residual
+  -- arm did not go away and its POPULATION did not change; it was re-keyed onto `p_uid`, so the
+  -- gate it names is now the subject-keyed twin. A rename, not a retirement — 4.5's pair is
+  -- unmoved and this string still carries five entries.
+  'org.professionals.read via app.is_admin_for',
   '4.6 ⭐⭐ `re-keyed` DOES NOT MEAN `fully permission-keyed`, AND THIS IS THE ASSERTION THAT '
   'STOPS § 4.5 BEING READ THAT WAY. All three re-keyed authorizers are DISJUNCTIONS: one arm '
   'is the permission check and the rest still grant on a role/identity path with NO permission '
@@ -510,6 +514,14 @@ select is(
 --   * commission.forms.edit, preserved arm  depth 2  app.is_tenancy_admin_of_for
 --   * org.professionals.create,  "     "    depth 3  app.can_manage_professional -> is_org_admin_of
 --   * org.professionals.read,    "     "    depth 3  app.can_manage_professional -> is_org_admin_of
+-- ⚠ DATED NOTE 2026-09-09 (ADR 0200, pre-AE5 Batch 8) — the two `is_org_admin_of` hops above are
+-- now `is_org_admin_of_for`, and `app.can_read_professional_profile`'s own admin arm is now
+-- `app.is_admin_for`. The DEPTHS and the `principal_inactive` conclusion are UNCHANGED:
+-- `is_org_admin_of_for(p_org, p_uid)` is `app.is_active(p_uid) and app.has_role(...)`, the same
+-- one-hop shape as the caller-keyed twin it replaced — only the principal it resolves about
+-- moved. ⛔ The lines above are left standing rather than rewritten, because the numbers they
+-- carry were re-derived on a dated catalog and a silent edit would make that derivation
+-- unreadable; this note is the amendment.
 --   * org.professionals.read also reaches `respondent_exclusion` at depth 5, through
 --     app.can_read_case_committee -> ... -> app._case_caps -> app.is_case_respondent
 -- ⛔ "depth 2 on both arms" holds for ONE arm of ONE row. Raising the
