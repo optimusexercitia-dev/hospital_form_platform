@@ -185,3 +185,31 @@ pass. ⛔ **Counting `ok` against the plan line is the check; grepping for `not 
 (LEARN-015 — an assertion that never executed because its own fixture aborted the file). Every
 figure below counts `ok`.
 
+**Migration `20261003007360_can_manage_professional_subject_keying.sql`** — full
+`create or replace` for both functions per L1, `-- door-sweep-targets:` header naming both, and
+landing assertions BEFORE and AFTER in both directions with `(`-terminated needles. The stale
+`"Left alone deliberately"` header comment is gone; both new bodies carry the ADR 0193 D5 keying
+obligation in-body.
+
+**Landing-assertion behaviour, proven able to fire rather than assumed (LEARN-084).** Applying the
+migration twice in one transaction raised on the second pass:
+`ERROR: BATCH8: app.can_manage_professional does not carry the expected caller-keyed arms — the body changed since this migration was written.`
+So the BEFORE guard is live. The AFTER block also asserts the **preservation** half — the three
+untouched arms of `can_read_professional_profile` are still present — so a `create or replace`
+that silently narrowed the gate could not pass it. On the real `db reset` the migration applied
+with no exception.
+
+**Suite shape, measured on BOTH sides rather than inferred.** Both runs on a fresh
+`supabase db reset --local`; the new migration and 415 were moved out of the tree for the BEFORE
+run and restored for the AFTER run, so the comparison is a measurement, not arithmetic.
+
+| run | shape | result |
+| --- | --- | --- |
+| BEFORE (head `…007350`, 415 absent) | `Files=263, Tests=8906` | **PASS** |
+| AFTER, before collateral | `Files=264, Tests=8923` | **FAIL — 1 test**, `410 § 3.7` |
+| AFTER, with collateral, fresh reset | `Files=264, Tests=8923` | **PASS** |
+
+**+1 file, +17 assertions — exactly 415's cells.** No pre-existing assertion moved. The single red
+was **predicted in the plan (§C2, "410 §3.7 under B4 ONLY — ⛔ REDS")** and its message was the
+predicted one: `have: org.professionals.read: authorizer lost app.is_admin / want: (none)`.
+
