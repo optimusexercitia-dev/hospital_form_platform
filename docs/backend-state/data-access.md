@@ -17,6 +17,13 @@
 
 ## RPC inventory
 
+⚠ **Superseded** — the table below is a hand-maintained snapshot which, measured 2026-09-09
+against the live catalog, named 169 of the 533 non-trigger `public` functions that exist; the
+inventory is now DERIVED from `pg_proc` on every run. ⛔ The *notes* in its third column are
+**not** superseded and are not reproduced anywhere else — a catalog knows a signature and an
+ACL, not which of a door's arms is load-bearing. Read both.
+See generated-rpc-surface.md § The generated function registry.
+
 All `security invoker` unless marked **DEFINER**. Invoker RPCs rely on RLS as the
 authority; definer RPCs are narrow, internally gated exceptions (documented in an ADR).
 
@@ -147,6 +154,15 @@ authority; definer RPCs are narrow, internally gated exceptions (documented in a
 | `record_session_attendance(session, cp, status?, role_at_session?)` | **DEFINER** | Upsert per (session, participant). |
 
 ## Helper functions
+
+⚠ **Superseded** — for the INVENTORY only. Which `app` functions exist, with their arguments,
+return types, `prosecdef`, volatility and EXECUTE grants, is now derived from the catalog (526
+of them; this section names a fraction). ⛔ Everything else here **survives and is
+authoritative**: the three-hop `commission_of_template_*` grain, `confidentiality_rank`'s
+"do NOT re-order it", `can_read_case_or_admin`'s "ORing the admin arm OUTSIDE the DEFINER
+out-votes the m2 deny", and every SQL↔TS mirror whose drift is phase-blocking. None of that is
+derivable, and none of it is repeated in the generated file.
+See generated-helper-surface.md § The generated function registry.
 
 - **FF-3 validation predicates (ADR 0090)** - `app.eval_validation(rule_type, config, value, answers,
   peer_values)` **IMMUTABLE + pure** (the SQL half of the second dual evaluator; TS twin `evalValidation`
@@ -314,6 +330,14 @@ authority; definer RPCs are narrow, internally gated exceptions (documented in a
 
 ## Feature flags (`app.feature_flags`)
 
+⚠ **Superseded** — for the KEY SET only. 18 of the 42 typed `FeatureFlags` fields appeared
+nowhere in this table when it was measured on 2026-09-09, and two live keys had no typed field
+at all; the key set, its typed readers and both drift polarities are now derived. ⛔ The
+**State** column is NOT superseded and must stay handwritten: it is a claim about *production*,
+and only a human knows whether a flip migration was pushed — the generated table's `local`
+column is the seeded value and asserts nothing about any deployment.
+See generated-feature-flags.md § The generated flag registry.
+
 | Flag | State | Notes |
 | ---- | ----- | ----- |
 | `signoff_enforcement` | **ON** (Phase 6, migration `…090001`) | `submit_response` blocks submission until every VISIBLE `requires_signoff` section is signed → **P0012**. Was OFF in Phases 1–5 (ADR 0004). |
@@ -341,6 +365,14 @@ authority; definer RPCs are narrow, internally gated exceptions (documented in a
 | `attachments` | **OFF — VERBLESS since DM1** (D1 flip 2026-08-11; substrate dropped `20260923000100`) | The key SURVIVES but `assert_attachments_enabled` and every RPC that read it are GONE; the only remaining readers are the TS-layer `attachmentsEnabled()` stubs keeping the parked UI dark. Retired at DM2 per the program plan. Seed no longer enables it (local == prod). |
 
 ## Data-access & action modules (Rule 9 — no inline supabase-js in UI)
+
+⚠ **Superseded** — for the module INVENTORY only. 36 of the 109 query and action modules on
+disk were unnamed here when this was measured on 2026-09-09; which modules exist and what each
+exports is now derived from a directory walk. ⛔ The reasoning below **survives**: why the FF-3
+pure/server split is load-bearing, why `set_item_validations` REPLACE makes the read path the
+writer's safety, which types are a frozen contract `frontend` built against. A walk sees files,
+not why a seam is where it is.
+See generated-query-modules.md § The generated module registry.
 
 > ⛔ **The whole attachment lane is PARKED STUBS since DM1** (2026-08-12; ADR 0114 D5):
 > `src/lib/attachments/actions.ts` + `src/lib/queries/attachments.ts` keep their exported

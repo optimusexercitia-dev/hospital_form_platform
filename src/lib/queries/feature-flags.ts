@@ -20,7 +20,6 @@ import { createAdminClient } from '@/lib/supabase/admin'
  */
 export interface FeatureFlags {
   audit_trail: boolean
-  case_access: boolean
   case_narratives: boolean
   case_patient: boolean
   cases_extras: boolean
@@ -143,6 +142,17 @@ export interface FeatureFlags {
   // production flip is its own gate migration. Resolve the VALUE in
   // `app.feature_flags.enabled`, never this comment.
   dsr: boolean
+  // FF-4 (ADR 0092) — the block library + dynamic defaults. ⚠ ADDED 2026-09-09 by the
+  // data-access generation cutover: this key has been live in `app.feature_flags` since the
+  // `20260903000600` gate-flip while having NO field here, so its one reader
+  // (`manage/forms/[formId]/page.tsx`) cast a string literal past the type system with
+  // `"power_authoring" as FeatureFlagKey`. Gate 17's untyped-key arm is what surfaced it.
+  power_authoring: boolean
+  // Technical-Director office (Diretor Técnico plane). ⚠ ADDED 2026-09-09, same finding as
+  // `power_authoring` above: live key, no field, so `direcao-tecnica/page.tsx` read it off the
+  // untyped `Record<string, boolean>` that `getFeatureFlags()` returns — which typechecks and
+  // silently returns `undefined` for a key that was never there.
+  technical_director: boolean
 }
 
 /** A flag key. */

@@ -32,7 +32,11 @@ reading; the section is the unit of retrieval.**
 | [`privacy-and-dsr.md`](privacy-and-dsr.md) | touch LGPD subject requests, erasure, or PHI disposal |
 | [`meetings-and-governance.md`](meetings-and-governance.md) | touch meetings, audio→ata, charters, cadence, or accreditation standards |
 | [`notifications.md`](notifications.md) | touch notifications or action items |
-| [`data-access.md`](data-access.md) | look up an RPC, a helper function, a feature flag, or the `src/lib/queries/` module that owns a query (Rule 9) |
+| [`generated-rpc-surface.md`](generated-rpc-surface.md) | look up **any** `public` RPC — its arguments, return type, `prosecdef`, volatility and EXECUTE grants |
+| [`generated-helper-surface.md`](generated-helper-surface.md) | look up **any** `app` helper, predicate or trigger function, with the same six facts |
+| [`generated-feature-flags.md`](generated-feature-flags.md) | look up a feature flag's key, its `FeatureFlags` field and the readers that resolve it |
+| [`generated-query-modules.md`](generated-query-modules.md) | find the `src/lib/queries/` or action module that owns a query, and what it exports (Rule 9) |
+| [`data-access.md`](data-access.md) | need what a door is FOR — the invariants, mirrors and exceptional behaviour behind the four generated registries above |
 | [`stamp-history.md`](stamp-history.md) | need the **pre-split** edit history of the old single-file map |
 
 ⛔ **Looking up an ADR? Go to [`../decisions/INDEX.md`](../decisions/INDEX.md)**, which is

@@ -18,7 +18,6 @@ import {
   matrixFieldsEnabled,
   itemValidationsEnabled,
 } from "@/lib/queries/feature-flags";
-import type { FeatureFlagKey } from "@/lib/queries/feature-flags";
 import { repeatingGroupsEnabled } from "@/lib/forms/repeating-groups-flag";
 import { listApproverCandidates } from "@/lib/queries/controlled-documents";
 import { listBlockLibraryEntries } from "@/lib/queries/block-library";
@@ -97,15 +96,13 @@ export default async function BuilderPage({
     // `insert_block_from_library` refuse the write, so neither the
     // save-to-library affordance nor the library picker is offered.
     //
-    // ⚠ `power_authoring` is BE-2's flag key (`FeatureFlags`,
-    // `src/lib/queries/feature-flags.ts`, backend-owned) and is not yet a
-    // member of that hand-maintained interface as of this build — the cast is
-    // a forward-compatible stopgap; `featureEnabled` already defaults an
-    // absent key to `false`, so this fails closed either way and the cast
-    // becomes a no-op once BE-2 lands the key.
-    const powerAuthoringEnabled = await featureEnabled(
-      "power_authoring" as FeatureFlagKey,
-    );
+    // ⚠ The `as FeatureFlagKey` cast that stood here until 2026-09-09 is GONE:
+    // `power_authoring` is now a real member of `FeatureFlags`. Its own comment
+    // said the cast "becomes a no-op once BE-2 lands the key" — BE-2 never did,
+    // and the key stayed live-in-the-database / absent-from-the-interface for
+    // six days without anything noticing. Gate 17's untyped-live-key arm is
+    // what found it; the cast is exactly the symptom that arm exists to catch.
+    const powerAuthoringEnabled = await featureEnabled("power_authoring");
     const libraryEntries = powerAuthoringEnabled
       ? await listBlockLibraryEntries(access.commission.id)
       : [];

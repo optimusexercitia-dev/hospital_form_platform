@@ -1,0 +1,149 @@
+# Backend State — the Rule-9 data-access module surface (GENERATED)
+
+> Part of `docs/backend-state/`. **Start at [`README.md`](README.md)** — it routes you to the one
+> file you need, and carries the maintenance rules in full.
+>
+> This is a **map, not the authority.** `ARCHITECTURE.md` is the spec and the **live catalog** is
+> the truth (`pg_proc` incl. **`prosecdef`**, `pg_policies`, `pg_constraint`, `pg_trigger`, the
+> ACLs). ⚠ **Not the migration files** — some rewrite live function bodies at runtime, so their
+> text is stale by design (CLAUDE.md § graphify).
+>
+> ⛔ **A posted section is frozen.** Corrections are APPENDED, never edited into the statement they
+> correct, and a correction leaves a forward marker at the statement it supersedes: a
+> `⚠ **Superseded** — …` line directly under that heading, naming where the correction lives.
+>
+> ⛔ **A new phase EXTENDS its seam file.** It never opens a phase-named file, and the fix for an
+> over-cap file is never to raise the cap nor to delete a posted section.
+
+<!-- DATA-ACCESS-ANCHOR kind=modules rows=109 queries=60 actions=49 exports=904 digest=537744eebe3771a1562a395a84b4a492 -->
+
+⚙ **GENERATED FILE — do not edit by hand.** Every row below is derived from the LIVE
+CATALOG and from `src/` by `scripts/gen-data-access-surface.mjs`; rebuild with `npm run data-access:surface`.
+`npm run lint:data-access` (gate 17) reds when this file and its pgTAP pin disagree, and
+[`supabase/tests/400_data_access_census.sql`](../../supabase/tests/400_data_access_census.sql) reds when the pin and the catalog disagree.
+⛔ A correction belongs in the GENERATOR or in the catalog, never in this file: an edit
+here is erased by the next run and gated in the meantime.
+
+⛔ **This file carries facts, never judgements.** What a door is FOR, which of its arms is
+load-bearing, and whether a flag's flip migration was pushed to production all stay
+handwritten in [`data-access.md`](data-access.md), which is frozen and posted (ADR 0196
+D5). A catalog knows an ACL; it does not know that re-ordering an enum would open
+legal-privileged documents.
+
+**109 modules** — 60 under `src/lib/queries/`, 49 action modules, 904 exported value symbols between them.
+
+Architecture Rule 9: data access goes through these modules — no inline supabase-js in UI. ⚠ **Presence here is not a Rule-9 audit.** This table answers "which module owns this query"; it does not claim every caller obeys the rule, and a module appearing here is not evidence that nothing bypasses it. The population is a DIRECTORY WALK bound to the naming property (`src/lib/queries/*.ts`, `src/lib/*/actions.ts`, `*-actions.ts`), never a hand-list — ADR 0196 D7.
+
+## The generated module registry
+
+| Module | Kind | Exported value symbols |
+| --- | --- | --- |
+| `src/lib/accreditation/actions.ts` | action | `cloneFramework` · `createFramework` · `deleteStandard` · `linkEvidence` · `searchEvidenceCandidates` · `setFrameworkStatus` · `setStandardAssessment` · `setStandardOwnership` · `unlinkEvidence` · `updateFramework` · `upsertStandard` |
+| `src/lib/action-items/actions.ts` | action | `createManualActionItem` |
+| `src/lib/action-items/satellite-actions.ts` | action | `createActionItemChecklist` · `createActionItemReminder` · `createActionItemUpdate` · `deleteActionItemChecklist` · `deleteActionItemReminder` · `toggleActionItemChecklist` · `toggleActionItemReminder` · `updateActionItemChecklist` |
+| `src/lib/admin/actions.ts` | action | `assignStaffAdmin` · `createCommission` · `removeStaffAdmin` · `updateCommission` |
+| `src/lib/affiliations/actions.ts` | action | `affiliatePerson` · `endAffiliation` · `endOrgAffiliation` · `lookupOrgPeople` · `updateAffiliation` · `updateOrgAffiliation` · `voidAffiliation` · `voidOrgAffiliation` |
+| `src/lib/audit/actions.ts` | action | `verifyAuditChainAction` |
+| `src/lib/auth/actions.ts` | action | `requestPasswordReset` · `signIn` · `signOut` · `updatePassword` |
+| `src/lib/case-access/actions.ts` | action | `caseAccessEnabled` · `grantCaseAccess` · `revokeCaseAccess` |
+| `src/lib/case-narratives/actions.ts` | action | `addAdHocNarrative` · `addTemplateNarrative` · `archiveNarrativeType` · `assignNarrative` · `concludeNarrative` · `createNarrativeType` · `deleteAdHocNarrative` · `narrativesEnabled` · `removeTemplateNarrative` · `reorderCaseLayout` · `reorderNarrativeTypes` · `saveNarrativeBody` · `unassignNarrative` · `updateNarrativeType` · `updateTemplateNarrative` · `upsertNarrativeBody` |
+| `src/lib/case-recusals/actions.ts` | action | `declareConflict` · `liftRecusal` · `recordRecusal` · `setCaseConfidentiality` · `setCaseVisibility` |
+| `src/lib/case-types/actions.ts` | action | `createCaseType` · `setCaseTypeActive` · `updateCaseType` |
+| `src/lib/cases/action-items-actions.ts` | action | `advanceActionItem` · `completeActionItem` · `createActionItem` · `deleteActionItem` · `updateActionItem` |
+| `src/lib/cases/actions.ts` | action | `activatePhase` · `addAdHocPhase` · `cancelCase` · `closeCase` · `createCase` · `createCaseFromTemplate` · `deleteAdHocPhase` · `disposeCasePhi` · `loadCasePatientForNotify` · `reassignPhase` · `reopenCase` · `revealCasePatient` · `setCasePatient` · `setTemplatePatientMode` · `skipPhase` · `startOrResumePhase` · `updateCaseCustomFieldValues` · `updateCaseMeta` |
+| `src/lib/cases/bulk-actions.ts` | action | `bulkCreateCases` |
+| `src/lib/cases/documents-actions.ts` | action | `createCaseEvent` · `deleteCaseDocument` · `deleteCaseEvent` · `updateCaseEvent` · `uploadCaseDocument` |
+| `src/lib/cases/outcomes-actions.ts` | action | `archiveCaseOutcome` · `createCaseOutcome` · `reorderCaseOutcomes` · `setCaseOfferedOutcomes` · `setCaseOutcome` · `setProcessOutcomes` · `updateCaseOutcome` |
+| `src/lib/cases/result-actions.ts` | action | `archivePhaseResult` · `createPhaseResult` · `overrideCasePhaseResult` · `reorderPhaseResults` · `updatePhaseResult` |
+| `src/lib/cases/tags-actions.ts` | action | `archiveCaseTag` · `assignCaseTag` · `createCaseTag` · `renameCaseTag` · `unassignCaseTag` |
+| `src/lib/commissions/titles-actions.ts` | action | `assignMemberTitle` · `createMemberTitle` · `deleteMemberTitle` · `renameMemberTitle` · `reorderMemberTitles` |
+| `src/lib/controlled-documents/actions.ts` | action | `approveDocument` · `beginControlledVersionUpload` · `createControlledDocument` · `createDraftOnly` · `finalizeControlledVersionUpload` · `markDocumentObsolete` · `openControlledDocumentVersion` · `publishDocument` · `rejectDocument` · `remindDocumentApprover` · `submitDocumentForApproval` · `supersedeDocument` · `updateControlledDocument` |
+| `src/lib/corrections/actions.ts` | action | `approveCorrection` · `fileCorrectionRequest` · `rejectCorrection` · `resubmitCorrection` · `reviewCorrection` · `saveCorrectionDraftBody` · `startCorrectionDraft` · `withdrawCorrection` |
+| `src/lib/documents/actions.ts` | action | `beginDocumentUpload` · `documentsWaveAEnabled` · `documentsWaveBEnabled` · `finalizeDocumentUpload` · `openDocumentVersion` · `placeDocumentHold` · `reclassifyDocument` · `releaseDocumentHold` · `requestDocumentDisposition` · `setDocumentConfidentiality` · `softDeleteDocument` |
+| `src/lib/dsr/actions.ts` | action | `adjudicateDsrRequest` · `attestDsrTask` · `closeDsrRequest` · `completeDsrTask` · `createDsrRequest` · `disposeMeetingMinutesTask` · `executeDisposalTask` · `searchDsrSubjectAction` |
+| `src/lib/ethics/actions.ts` | action | `acknowledgeEthicsNotification` · `addEthicsAllegation` · `archiveCaseAssignmentRole` · `archiveEthicsAllegationCategory` · `cancelEthicsNotification` · `castCaseVote` · `completeEthicsHearing` · `createCaseAssignmentRole` · `createCaseDecision` · `createEthicsAllegationCategory` · `decideAdmissibility` · `issueDecision` · `issueEthicsNotification` · `recordEthicsFinding` · `redactProfessionalProfile` · `reviewEthicsAppeal` · `scheduleEthicsHearing` · `setCasePhaseAssignmentRole` · `setEthicsDecisionDetails` · `submitEthicsAppeal` · `submitTargetedCaseResponse` · `targetCaseResponse` · `updateEthicsAllegation` · `upsertEthicsCaseDetails` · `voidDecision` |
+| `src/lib/forms/actions.ts` | action | `addItem` · `addSection` · `createForm` · `deleteBlockLibraryEntry` · `deleteDraftVersion` · `deleteItem` · `deleteSection` · `insertBlockFromLibrary` · `moveItem` · `moveItemToSection` · `moveSection` · `publishVersion` · `saveBlockToLibrary` · `setItemValidations` · `startEditFromPublished` · `updateBlockLibraryEntry` · `updateFormMeta` · `updateItem` · `updateSection` · `uploadFormAsset` · `upsertMatrixAxes` |
+| `src/lib/hospitals/actions.ts` | action | `archiveDepartment` · `createDepartment` · `renameDepartment` · `reorderDepartments` |
+| `src/lib/indicators/actions.ts` | action | `archiveIndicator` · `computeDerivedMeasurement` · `createIndicator` · `openCapaFromIndicator` · `recordIndicatorMeasurement` · `setIndicatorTarget` · `updateIndicator` |
+| `src/lib/interviews/actions.ts` | action | `addInterviewInterviewer` · `addInterviewLink` · `addInterviewSubject` · `cancelInterview` · `cancelSession` · `completeSession` · `concludeInterview` · `createInterview` · `noShowSession` · `recordSessionAttendance` · `removeInterviewInterviewer` · `removeInterviewSubject` · `reopenInterview` · `scheduleSession` · `setInterviewConfidentiality` · `setInterviewParticipant` · `softDeleteInterviewAttachment` · `startSession` · `updateInterview` · `updateInterviewInterviewer` · `updateInterviewSubject` · `updateInterviewSummary` · `updateSession` · `uploadInterviewAttachment` |
+| `src/lib/meetings/actions.ts` | action | `addMeetingAttendee` · `addReservedItem` · `advanceMeetingActionItem` · `archiveMeetingType` · `cancelMeeting` · `completeMeetingActionItem` · `concludeMeeting` · `createAgendaItem` · `createMeeting` · `createMeetingActionItem` · `createMeetingType` · `deleteAgendaItem` · `deleteMeetingActionItem` · `deleteMeetingAttachment` · `disposeMeetingMinutes` · `distributeMeeting` · `linkMeetingCase` · `markMeetingHeld` · `meetingsEnabled` · `openReservedSession` · `removeMeetingAttendee` · `renameMeetingType` · `reopenMeeting` · `reorderMeetingAgendaItem` · `seedExpectedAttendees` · `seedSelectedAttendees` · `setMeetingHeldWindow` · `setMeetingQuorumMet` · `signMeeting` · `unlinkMeetingCase` · `updateAgendaItem` · `updateMeeting` · `updateMeetingActionItem` · `updateMeetingAttendee` · `updateMeetingMinutes` · `updateMeetingSettings` · `uploadMeetingAttachment` |
+| `src/lib/members/actions.ts` | action | `addStaff` · `appointAdministrativo` · `grantMemberCapability` · `removeStaff` · `revokeAdministrativo` · `revokeMemberCapability` |
+| `src/lib/minutes-jobs/actions.ts` | action | `applyMinutesReview` · `cancelMinutesJob` · `readMinutesTranscript` · `saveMinutesDraft` · `startMinutesJob` · `submitMinutesJob` |
+| `src/lib/notifications/actions.ts` | action | `markAllNotificationsRead` · `markNotificationRead` · `setNotificationPreference` |
+| `src/lib/org/actions.ts` | action | `appointTechnicalDirector` · `appointTechnicalDirectorDeputy` · `assignHospitalAdmin` · `assignNspCoordinator` · `assignNspOrgAdmin` · `createCommission` · `createHospital` · `revokeHospitalAdmin` · `revokeNspCoordinator` · `revokeNspOrgAdmin` · `revokeTechnicalDirector` · `revokeTechnicalDirectorDeputy` |
+| `src/lib/participants/actions.ts` | action | `addCaseParticipant` · `createExternalParticipant` · `createProfessionalProfile` · `removeCaseParticipant` · `searchParticipantCandidates` · `setCaseParticipantRole` · `setPrimarySubject` · `setProfessionalLinkState` · `updateProfessionalProfile` |
+| `src/lib/patient-index/actions.ts` | action | `loadPatientAccessAudit` · `searchPatientAction` |
+| `src/lib/pdf-mint/actions.ts` | action | `mintPrintedDocument` · `revokePrintedDocument` |
+| `src/lib/platform/actions.ts` | action | `assignOrgAdmin` · `createHospital` · `createOrganization` |
+| `src/lib/pqs/actions.ts` | action | `addPqsMember` · `removePqsMember` · `setPqsRcaDueWindow` |
+| `src/lib/process-templates/actions.ts` | action | `addTemplatePhase` · `archiveProcessTemplate` · `archiveTemplateVersions` · `beginTemplateEdit` · `cloneTemplateVersion` · `createCustomFieldDef` · `createProcessTemplate` · `deleteCustomFieldDef` · `discardTemplateDraft` · `moveTemplatePhase` · `publishProcessTemplate` · `publishTemplateVersion` · `removeTemplatePhase` · `reorderCustomFieldDefs` · `setTemplateCaseType` · `setTemplatePhaseBlocks` · `updateCustomFieldDef` · `updateTemplatePhase` |
+| `src/lib/quality/actions.ts` | action | `setCommissionOversight` |
+| `src/lib/queries/accreditation.ts` | query | `ARTIFACT_KIND_LABELS` · `ASSESSMENT_STATUS_LABELS` · `EVIDENCE_STATUS_LABELS` · `FRAMEWORK_STATUS_LABELS` · `HOSPITAL_READINESS_RESOLUTION_LABELS` · `STANDARD_LEVEL_LABELS` · `findEvidenceCandidates` · `getEvidenceCandidates` · `getHospitalReadiness` · `getReadinessEvidence` · `getReadinessReport` · `getStandardAssessmentDetail` · `getStandardTree` · `listFrameworks` · `listGlobalFrameworks` · `listStandards` |
+| `src/lib/queries/action-item-checklists.ts` | query | `listActionItemChecklist` |
+| `src/lib/queries/action-item-reminders.ts` | query | `listActionItemReminders` |
+| `src/lib/queries/action-item-updates.ts` | query | `listActionItemUpdates` |
+| `src/lib/queries/action-items.ts` | query | `actionItemsEnabled` · `getActionItem` · `listMyActionItems` |
+| `src/lib/queries/affiliations.ts` | query | `listActiveAffiliationsFor` · `listActivePrincipalIdsForHospital` · `listAffiliationsFor` · `listNonVoidedOrgAffiliationsFor` · `listOrgAffiliationTenses` · `listOrgPeople` · `listTenantOrphans` · `personHasActiveOrgAffiliation` |
+| `src/lib/queries/attachments.ts` | query | `getAttachment` · `listAttachments` |
+| `src/lib/queries/audit.ts` | query | `AUDIT_ACTION_LABELS` · `AUDIT_ENTITY_LABELS` · `auditTrailEnabled` · `listAudit` · `listAuditFilterActors` · `listAuditForHospital` · `listAuditForOrg` · `listPersonAccountHistory` · `verifyAuditChain` |
+| `src/lib/queries/block-library.ts` | query | `listBlockLibraryEntries` · `toBlockLibraryEntry` |
+| `src/lib/queries/capa.ts` | query | `CAPA_ACTION_STATUS_LABELS` · `CAPA_ACTION_STRENGTH_LABELS` · `CAPA_ACTION_STRENGTH_ORDER` · `CAPA_CLASSIFICATION_LABELS` · `CAPA_EFFECTIVENESS_VERDICT_LABELS` · `CAPA_EVIDENCE_KIND_LABELS` · `CAPA_SOURCE_LABELS` · `CAPA_STATUS_LABELS` · `getCapaEffectiveness` · `getCapaKpis` · `getCapaPlan` · `listCapaActionEvidenceViews` · `listCapaActionTasks` · `listCapaActions` · `listCapaMeasureResults` · `listCapaMeasures` · `listCapaPlansForEvent` · `listCapaPlansForRca` · `listMyAssignedCapaActions` |
+| `src/lib/queries/case-action-items.ts` | query | `getCaseActionItemKpis` · `listCaseActionItems` |
+| `src/lib/queries/case-documents.ts` | query | `getCaseDocumentDownloadUrl` · `listCaseDocuments` · `listCaseEvents` |
+| `src/lib/queries/case-narratives.ts` | query | `expectedEmptyNarratives` · `listNarrativeTypes` · `mergeCaseLayout` |
+| `src/lib/queries/case-outcomes.ts` | query | `listCaseOutcomes` · `listProcessOutcomes` |
+| `src/lib/queries/case-tags.ts` | query | `getCaseTagReport` · `listCaseTags` · `listCaseTagsForCase` |
+| `src/lib/queries/case-timeline.ts` | query | `getCaseTimeline` · `listCaseMeetings` |
+| `src/lib/queries/case-types.ts` | query | `DEFAULT_CASE_TERMINOLOGY` · `getCaseTypeTerminology` · `listCaseTypes` |
+| `src/lib/queries/cases.ts` | query | `PATIENT_REQUIRED_FIELDS` · `canOpenCaseManagement` · `casePatientEnabled` · `casesExtrasEnabled` · `countOpenCasesForBoard` · `getCaseDetail` · `getCasePatient` · `getCasePatients` · `getCasePhaseForFill` · `getCaseTypeTerminology` · `getParticipantPatient` · `listCaseAccessGrants` · `listCaseCustomFieldValues` · `listCasesBoard` · `listMyAssignedPhases` · `listMyCases` · `processlessCasesEnabled` · `toPatientMode` · `toPatientRequiredFields` |
+| `src/lib/queries/charters.ts` | query | `getCarryForwardSuggestions` · `getCharter` · `getCommissionCadenceOverview` · `getMeetingCadenceStatus` · `upsertCharter` |
+| `src/lib/queries/commissions.ts` | query | `getCommissionForAdmin` · `listCommissionsForAdmin` |
+| `src/lib/queries/conditions.ts` | query | `FLAGGED_COUNT_KEY` · `RECOMMEND_RESULT_ADVERSE_KEY` · `RECOMMEND_RESULT_KEY` · `TOTAL_SCORE_KEY` · `computeAggregateKeys` · `evalCondition` · `evalRecommendation` · `evalVisibility` · `isConditionTargetInScope` · `jsonEquals` · `overlayAnswerMap` · `walkResultRuleset` |
+| `src/lib/queries/controlled-documents.ts` | query | `APPROVAL_DECISION_LABELS` · `DOC_STATUS_LABELS` · `DOC_TYPE_LABELS` · `OBSOLETE_KIND_LABELS` · `getDocument` · `getHospitalDocumentRegister` · `listApproverCandidates` · `listDocuments` · `listDocumentsDueForReview` · `listPendingApprovalsForUser` |
+| `src/lib/queries/corrections.ts` | query | `getCorrectionRequest` · `listCaseCorrectionRequests` · `listNarrativeRevisions` |
+| `src/lib/queries/dashboard.ts` | query | `getCommissionOverview` · `getFormDashboard` · `getFormExport` · `isDashboardCountable` · `listDashboardForms` · `pivotEntityReferences` · `pivotMatrixCells` · `pivotRiskScores` |
+| `src/lib/queries/document-hashes.ts` | query | `listCaseDocumentHashes` |
+| `src/lib/queries/documents.ts` | query | `documentVersionAvailability` · `listDocumentsForResource` |
+| `src/lib/queries/dsr.ts` | query | `dsrEnabled` · `getDsrOutcomeRecord` · `listDsrDisposableMeetings` · `listDsrRequests` · `listMyDsrHospitals` · `listMyDsrTasks` · `searchDsrSubject` |
+| `src/lib/queries/ethics-dashboard.ts` | query | `getEthicsDashboard` |
+| `src/lib/queries/ethics.ts` | query | `getEthicsCaseProcedure` · `listCaseAssignmentRoles` · `listCaseRecusals` · `listEthicsAllegationCategories` · `listEthicsSanctionTypes` |
+| `src/lib/queries/feature-flags.ts` | query | `accreditationEnabled` · `audioMinutesEnabled` · `caseCorrectionsEnabled` · `caseCustomFieldsEnabled` · `caseTypesEnabled` · `casesBulkCreateEnabled` · `chartersEnabled` · `controlledDocsEnabled` · `documentPrintingEnabled` · `featureEnabled` · `featureEnabledServerOnly` · `getFeatureFlags` · `getFeatureFlagsServerOnly` · `itemValidationsEnabled` · `matrixFieldsEnabled` · `notificationsEnabled` · `qualityIndicatorsEnabled` · `repeatingGroupsEnabled` · `responseCorrectionEnabled` |
+| `src/lib/queries/forms.ts` | query | `ALL_ITEM_TYPES` · `ANSWERABLE_ITEM_TYPES` · `CASE_SCOPED_PARTICIPANT_TYPES` · `CHOICE_ITEM_TYPES` · `COLOR_TOKENS` · `CONDITION_TARGET_TYPES` · `CONTAINER_ITEM_TYPES` · `DEFAULT_SOURCE_ELIGIBLE_TYPES` · `DEFAULT_SOURCE_LABELS` · `DEFAULT_SOURCE_TOKENS` · `DISPLAY_ITEM_TYPES` · `INPUT_ITEM_TYPES` · `ITEM_TYPE_AUTHORITY` · `MATRIX_ITEM_TYPES` · `OTHER_OPTION_CODE` · `OTHER_OPTION_LABEL` · `PARTICIPANT_TYPES` · `PARTICIPANT_TYPE_LABELS` · `REFERENCE_ITEM_TYPES` · `REFERENCE_KINDS` · `REFERENCE_KIND_LABELS` · `answerableItems` · `conditionTargets` · `flattenItem` · `getEditableDraftTree` · `getSignedAssetUrl` · `getVersionTree` · `isDefaultSourceEligible` · `isReferenceItem` · `listForms` · `listVersions` · `resolveTreeImageUrls` · `toDefaultSource` · `toOptions` · `toParticipantTypes` · `toReferenceKind` |
+| `src/lib/queries/indicators.ts` | query | `DATA_SOURCE_LABELS` · `INDICATOR_DIRECTION_LABELS` · `INDICATOR_FREQUENCY_LABELS` · `INDICATOR_KIND_LABELS` · `INDICATOR_STATUS_LABELS` · `MEASUREMENT_STATUS_LABELS` · `getHospitalIndicatorRollup` · `getIndicator` · `getIndicatorKpis` · `getIndicatorSeries` · `listCapaPlansForIndicator` · `listIndicatorMeasurements` · `listIndicators` |
+| `src/lib/queries/interviews.ts` | query | `getInterviewDetail` · `interviewsEnabled` · `listCaseInterviews` · `listInterviewAttachments` · `listInterviewInterviewers` · `listInterviewSessions` · `listInterviewSubjects` |
+| `src/lib/queries/meeting-action-items.ts` | query | `listMeetingActionItems` |
+| `src/lib/queries/meetings.ts` | query | `MEETING_LIST_COLUMNS` · `getMeetingDetail` · `getMeetingSettings` · `listClosedSessions` · `listMeetingAgenda` · `listMeetingAttachments` · `listMeetingAttendees` · `listMeetingCases` · `listMeetingSignatures` · `listMeetingTypes` · `listMeetings` · `listReservedSessionItems` · `mapMeetingListItem` · `myPendingMeetingSignatures` |
+| `src/lib/queries/members.ts` | query | `activeMembers` · `listAddableMembers` · `listAdministrativos` · `listLinkableOrgUsers` · `listMemberCapabilities` · `listMembers` · `profileIsActive` · `sortMembers` |
+| `src/lib/queries/notifications.ts` | query | `getPreferences` · `getUnreadCount` · `listNotifications` |
+| `src/lib/queries/nsp-evidence.ts` | query | `EVIDENCE_DOCUMENT_EMBED_BODY` · `evidenceAvailability` |
+| `src/lib/queries/org-users.ts` | query | `getOrgUser` · `listHospitalUsers` · `listOrgUsers` · `listProfessionalCategories` |
+| `src/lib/queries/org.ts` | query | `getOrgCommissionOverview` · `listCommissionsForOrg` · `listHospitalAdmins` · `listHospitalAdminsForOrg` · `listHospitalsForOrg` · `listHospitalsForOrgDetailed` · `listManagedCommissions` · `listManagedCommissionsDetailed` · `listNspOrgAdmins` · `listOrgHospitals` · `listOrganizationsForPlatform` · `listTechnicalDirection` |
+| `src/lib/queries/overview.ts` | query | `getMemberOverview` |
+| `src/lib/queries/own-person.ts` | query | `getOwnPersonRecord` |
+| `src/lib/queries/participants.ts` | query | `getParticipantRoleVocabularyHref` · `listCaseParticipantRoles` · `listCaseParticipantRolesForAdmin` · `searchParticipants` |
+| `src/lib/queries/patient-index.ts` | query | `PATIENT_MATCH_BASIS_LABELS` · `PATIENT_XREF_MODULE_LABELS` · `PATIENT_XREF_MODULE_TOKENS` · `getPatientAccessAuditForHospital` · `getPatientTrajectoryForEntity` · `patientIndexEnabled` · `patientXrefCount` · `searchPatientForHospital` |
+| `src/lib/queries/phase-results.ts` | query | `listPhaseResults` · `phaseResultsEnabled` |
+| `src/lib/queries/pqs.ts` | query | `getPqsDepartmentForHospital` · `isNspCoordinatorOfHospital` · `isPqsMemberOfHospital` · `listHospitalEligibleUsersForPqs` · `listMyNspHospitals` · `listNspCoordinators` · `listOrgEligibleUsers` · `listPqsMembers` · `patientSafetyEnabled` · `pqsInbox` |
+| `src/lib/queries/printed-documents.ts` | query | `VERIFICATION_RATE_LIMIT_MESSAGE` · `__resetVerificationLookupRateLimit` · `getCasePrintContext` · `getMeetingPrintContext` · `getResponsePrintContext` · `getViewerDisplayName` · `listPrintedDocuments` · `lookupPrintedDocumentVerification` |
+| `src/lib/queries/process-templates.ts` | query | `getCaseTemplateProvenance` · `getDraftTemplateVersion` · `getProcessTemplateVersion` · `getProcessTemplateWithVersion` · `getPublishedTemplateVersion` · `listProcessTemplateVersions` · `listTemplateVersions` · `phaseConditionTargets` |
+| `src/lib/queries/quality.ts` | query | `getQualityBoardSummary` |
+| `src/lib/queries/rca.ts` | query | `EVIDENCE_KIND_LABELS` · `FISHBONE_CATEGORY_LABELS` · `FISHBONE_CATEGORY_ORDER` · `RCA_MEMBER_ROLE_LABELS` · `RCA_STATUS_LABELS` · `ROOT_CAUSE_CLASSIFICATION_LABELS` · `ROOT_CAUSE_TYPE_LABELS` · `earliestSessionStart` · `getRca` · `getRcaById` · `listAssignableUsers` · `listRcaCitationTargets` · `listRcaEvidenceViews` · `listRcaFactors` · `listRcaMembers` · `listRcaRootCauses` · `listRcaTimeline` · `listRcaWhyChains` · `rcaViewerCanWrite` |
+| `src/lib/queries/references.ts` | query | `listReferenceCandidates` |
+| `src/lib/queries/referrals.ts` | query | `REFERRAL_ASSIGNMENT_ROLE_LABELS` · `REFERRAL_ASSIGNMENT_STATUS_LABELS` · `REFERRAL_ASSIGNMENT_STATUS_TOKENS` · `REFERRAL_CASE_RELATIONSHIP_LABELS` · `REFERRAL_DECLINE_REASON_LABELS` · `REFERRAL_DIRECTION_LABELS` · `REFERRAL_NOTE_STATUS_LABELS` · `REFERRAL_NOTE_STATUS_TOKENS` · `REFERRAL_PATIENT_SEX_LABELS` · `REFERRAL_PRIORITY_LABELS` · `REFERRAL_PRIORITY_TOKENS` · `REFERRAL_STATUS_LABELS` · `REFERRAL_STATUS_TOKENS` · `RESOLVED_REFERRAL_STATUSES` · `SHARED_ITEM_KIND_LABELS` · `canDisposeReferralPhi` · `countCommissionReferralActionable` · `getCaseSafetyEventPatientPrefill` · `getReferralAttachmentUrl` · `getReferralCaseAccessSummary` · `getReferralDetail` · `getReferralDocumentUrl` · `getReferralPatient` · `isReferralOverdue` · `listAllReferrals` · `listCaseOutboundReferrals` · `listCommissionReferrals` · `listMyReferralAssignments` · `listReferralInternalNotes` · `listReferralReplyDocuments` · `listReferralRequestedActions` · `listReferralTargetCommissions` · `listReferralTypes` · `listReplyOutcomes` · `listTechnicalDirectionReferrals` · `referralFlowMetrics` · `referralsEnabled` |
+| `src/lib/queries/responses.ts` | query | `TOP_LEVEL_SCOPE` · `answerableItems` · `buildAnswerMaps` · `buildGroupInstances` · `buildMatrixAnswers` · `buildReferenceAnswers` · `getResponseForFill` · `listFillableForms` · `listMyResponses` |
+| `src/lib/queries/safety-events.ts` | query | `EVENT_STATUS_LABELS` · `OWNER_KIND_LABELS` · `PATIENT_SEX_LABELS` · `SUSPECTED_HARM_LABELS` · `getEventCustody` · `getEventPatient` · `getSafetyEvent` · `listCommissionEvents` |
+| `src/lib/queries/session-grants.ts` | query | `getSelectableRoles` · `partitionGrants` |
+| `src/lib/queries/session.ts` | query | `canConfigureCommission` · `canConfigureCommissionById` · `canInCommission` · `getCommissionAccessByOrg` · `getNspAccessByOrg` · `getQualidadeAccessByOrg` · `getRawGrants` · `getSessionContext` · `getTechnicalDirectionAccessByOrg` · `requireUser` |
+| `src/lib/queries/signoffs.ts` | query | `getResponseForSignoff` · `getResponseSignoffs` · `listSignoffQueue` |
+| `src/lib/queries/submissions.ts` | query | `getSubmissionDetail` · `listSubmissionFilterForms` · `listSubmissionFilterMembers` · `listSubmissions` · `resolveSupersessionBadge` |
+| `src/lib/queries/triage.ts` | query | `HARM_META` · `HARM_ORDER` · `HARM_SEVERITY_LABELS` · `PSE_CLOSURE_REASON_LABELS` · `REACH_LABELS` · `REACH_META` · `REACH_ORDER` · `REVIEW_PATHWAY_LABELS` · `TRIAGE_VERDICT_LABELS` · `getEventTriage` · `getTriageDisposition` · `listEventTypes` · `listSentinelCriteria` |
+| `src/lib/queries/validations.ts` | query | `getResponseValidationErrors` |
+| `src/lib/referrals/actions.ts` | action | `acceptReferral` · `addReferralSharedItem` · `assignReferralNote` · `assignReferralReviewer` · `beginReferralReplyAttachmentUpload` · `cancelReferralAssignment` · `concludeReferral` · `concludeReferralNote` · `createReferralDraft` · `createReferralInternalNote` · `createReferralRequestedAction` · `declineReferral` · `deleteReferralDraft` · `disposeReferralPhi` · `finalizeReferralReplyAttachmentUpload` · `linkReferralCase` · `linkReferralRelatedCase` · `loadCaseSafetyPrefill` · `loadReferralDraft` · `openReferralReplyAttachment` · `openReferralSnapshotDocument` · `postReferralMessage` · `provideReferralInformation` · `receiveReferral` · `recordReferralMessageReceipt` · `redactReferralMessage` · `redactReferralNote` · `removeReferralSharedItem` · `reopenReferral` · `requestReferralInformation` · `resolveReferral` · `revealReferralPatient` · `sendReferral` · `setReferralDeadline` · `setReferralPatient` · `startReferralReview` · `unassignReferralNote` · `unlinkReferralCase` · `updateReferralAssignment` · `updateReferralDraft` · `updateReferralInternalNote` · `updateReferralRequestedAction` · `withdrawReferral` |
+| `src/lib/responses/actions.ts` | action | `addGroupInstance` · `discardResponse` · `removeGroupInstance` · `reorderGroupInstances` · `saveAndExit` · `saveSection` · `searchReferenceCandidates` · `signSection` · `startOrResumeResponse` · `submitCasePhaseResponse` · `submitResponse` · `supersedeResponseAction` |
+| `src/lib/role-selection/actions.ts` | action | `assumeRole` · `assumeRoleFormAction` |
+| `src/lib/safety/actions.ts` | action | `acknowledgeEvent` · `cancelEvent` · `disposeEventPhi` · `notifySafetyEvent` · `setEventPatient` · `transferEventCustody` · `updateEvent` |
+| `src/lib/safety/capa-actions.ts` | action | `addCapaAction` · `addCapaActionTask` · `addCapaEvidenceLink` · `addCapaMeasure` · `advanceCapaAction` · `beginCapaEvidenceUpload` · `cancelCapaPlan` · `closeCapaPlan` · `completeCapaAction` · `deleteCapaActionEvidence` · `finalizeCapaEvidenceUpload` · `openCapaEvidence` · `openCapaPlan` · `recordCapaEffectiveness` · `recordCapaMeasureResult` · `removeCapaAction` · `removeCapaActionTask` · `removeCapaMeasure` · `reopenCapaPlan` · `setCapaActionTaskDone` · `updateCapaAction` · `updateCapaMeasure` · `updateCapaPlan` |
+| `src/lib/safety/rca-actions.ts` | action | `addRcaEvidenceCitation` · `addRcaEvidenceLink` · `addRcaFactor` · `addRcaMember` · `addRcaRootCause` · `addRcaTimelineEntry` · `beginRcaEvidenceUpload` · `completeRca` · `deleteRcaEvidence` · `finalizeRcaEvidenceUpload` · `openRcaEvidence` · `removeRcaFactor` · `removeRcaMember` · `removeRcaRootCause` · `removeRcaTimelineEntry` · `reopenRca` · `reorderRcaTimeline` · `setRcaFactorKey` · `setRcaRootCauseClassification` · `setRcaWhyRoot` · `setRcaWhyStep` · `submitRcaForReview` · `updateRca` · `updateRcaFactor` · `updateRcaMemberRole` · `updateRcaRootCause` · `updateRcaTimelineEntry` |
+| `src/lib/safety/triage-actions.ts` | action | `archiveEventType` · `archiveSentinelCriterion` · `confirmTriage` · `createEventType` · `createSentinelCriterion` · `reopenTriage` · `reorderEventTypes` · `reorderSentinelCriteria` · `saveTriage` · `updateEventType` · `updateSentinelCriterion` |
+| `src/lib/users/actions.ts` | action | `assignCommitteeRole` · `deactivateUser` · `reactivateUser` · `registerUser` · `removeCommittee` · `removeCredential` · `resendInvite` · `sendPasswordResetForUser` · `suspendUser` · `updateUserProfile` · `upsertCredential` |
+| `src/lib/vocabulary/actions.ts` | action | `clearCaseTypeTerminology` · `createCaseParticipantRole` · `setCaseParticipantRoleActive` · `updateCaseParticipantRole` · `upsertCaseTypeTerminology` |
