@@ -46,8 +46,10 @@ by name as the reason the generated index exists — it "had stopped in the 0070
    into the statement they correct — the same discipline as a published `form_version`
    (Architecture Rule 5).
 2. **A correction leaves a forward marker at the statement it supersedes**: a
-   `⚠ **Superseded** — <what changed, in one clause>. See <file> § <n>.` line directly under that
-   heading, naming where the correction lives. Gate 16 reds if the named target does not exist.
+   `⚠ **Superseded** — <what changed, in one clause>. See <file> § <heading>.` line directly under
+   that heading, naming where the correction lives. Gate 16 reds if the named FILE does not exist
+   **or if no heading in it matches** — ⚠ the form was `§ <n>` until 2026-09-09, which validated
+   nothing: `§ 9999` passed. Name the heading, because that is what a reader navigates by.
 3. **A new phase EXTENDS its seam file.** It does **not** open a new file, and never a phase-named
    one. The phase axis is what made the predecessor unreadable: 53 dated slices carrying 33
    `SUPERSEDED` and 45 `STALE` markers, because a reader asking "what is the surface *now*" had to

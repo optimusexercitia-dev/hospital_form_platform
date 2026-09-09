@@ -11,8 +11,9 @@
  * carried 33 `SUPERSEDED` and 45 `STALE` markers and a hand-maintained "END STATE" block at the
  * top whose own registry figure had gone stale. The split re-files it on the MODULE SEAM axis.
  *
- * A split does not stay split on its own. SIX checks hold it (A/B/C/D shipped 2026-09-09; B2 and E
- * were added the same day after QA found each of them missing — M1 and M2):
+ * A split does not stay split on its own. SEVEN checks hold it. A/B/C/D shipped 2026-09-09; B2 and E
+ * followed hours later when internal QA found each missing (M1, M2); F followed an EXTERNAL review
+ * that found the defect all of them had walked past — see F:
  *
  *   A. PREAMBLE IDENTICAL — every seam file opens with byte-identical maintenance boilerplate.
  *      A rule repeated in twelve files is a rule that drifts in eleven of them.
@@ -27,14 +28,26 @@
  *      find the seam inside the file that wants its own home.
  *   E. A SEAM IS A NOUN — no digit in a seam filename. This is D2's enforcer; without it a routed
  *      `phase-24-2026-09-20.md` passed green and the phase axis could grow back one file at a time.
+ *   F. LOCAL LINKS AND ANCHORS RESOLVE — via gate 13's `checkLinks`, imported, never re-implemented.
  *
- * ⚠ STATED BOUNDS, so nobody reads more coverage into this than it has (QA m1/m2):
- *   · C validates the FILE a marker names, never the `§ <n>` SECTION — `See notifications.md § 9999.`
- *     passes. Half the mandated form is unchecked.
+ * ⛔ F IS THE CHECK WHOSE ABSENCE COST THE MOST, and neither the split nor the internal QA round
+ * caught it. Moving 6,353 lines one directory deeper without rebasing their relative paths left
+ * **87 dangling links** — every `decisions/…` written from `docs/backend-state.md` resolves from
+ * `docs/`, not from `docs/backend-state/`. Gate 16 was green the whole time because it validated
+ * router destinations and marker filenames and nothing else, and this directory sits outside all
+ * three link-gated corpora. All 87 were fixed by prepending `../`. ⚠ The first mutation written to
+ * prove F fires DID NOT APPLY (it edited a link the file does not contain) and reported rc=0 — a
+ * vacuous test that read exactly like a passing one. Mutations here assert they applied.
+ *
+ * ⚠ STATED BOUNDS, so nobody reads more coverage into this than it has:
+ *   · F uses `existsSync` like gates 7 and 13 — case-INSENSITIVE on NTFS. Gate 9's case-exact
+ *     variant is not used, so a wrong-case link inside this directory still passes.
  *   · C's region cut is a real blind spot in two low-realism cases: a dangling marker replicated
  *     IDENTICALLY into all twelve preambles (A agrees, C is cut), and one placed in README.md
  *     (skipped whole). Both are the cut's price, and neither is hypothetical-only by luck.
  *   · Nothing here checks that a seam file's CONTENT belongs to its seam. Misfiling is invisible.
+ *   · Nothing checks registry COMPLETENESS, duplicate facts across seams, per-SECTION size, or the
+ *     historical/current-state ratio. Those are the open P1/P2 items, not silent gaps.
  *
  * ⛔ THE POPULATION IS THE DIRECTORY LISTING, never a list in this file. A guard that enumerates a
  * list somebody must remember to update has a hole shaped like forgetting — the failure family
@@ -48,9 +61,15 @@
  * BREAKS it and a fixture that satisfies it. A detector that finds nothing has to be proven able
  * to find something, and a detector that fires on everything is no better.
  */
-import { readdirSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+// ⛔ ONE link checker, imported — never a reimplementation. `checkLinks` is gate 13's, already
+// shared with gates 7 and 9 (FUP-ADR-CROSS-LINKS-HAVE-NO-GATE closed by giving them one checker,
+// "not a third that could disagree"). This makes `docs/backend-state/` the FOURTH corpus handed to
+// that same function, which is what FUP-REGISTER-GATE-HYGIENE-LINK-CHECKING-HAS-NO-GATE-OUTSIDE-
+// THREE-CORPORA asks for — bind the corpus to the property, not to a hand-list.
+import { checkLinks } from './check-docs-registers.mjs'
 
 const REPO_ROOT = resolve(fileURLToPath(import.meta.url), '..', '..')
 const DIR_REL = 'docs/backend-state'
@@ -222,8 +241,9 @@ export function bodyAfterPreamble(text) {
  *
  * The ROUTER is skipped whole: it carries the rules, not claims about the surface.
  */
-export function checkSupersededTargets(files, known) {
+export function checkSupersededTargets(files, known, all = files) {
   const F = []
+  const byName = new Map(all.map((f) => [f.name, f]))
   const MARKER = /⚠\s*\*\*Superseded\*\*/
   for (const f of files) {
     if (f.name === ROUTER) continue
@@ -246,6 +266,28 @@ export function checkSupersededTargets(files, known) {
       for (const n of names) {
         if (!known.has(n)) {
           F.push(`[C] ${DIR_REL}/${f.name}:${i + offset + 1} — Superseded marker points at \`${n}\`, which is not in ${DIR_REL}/`)
+          continue
+        }
+        // The SECTION half. Until 2026-09-09 only the filename was checked, so
+        // `See notifications.md § 9999.` passed — half the mandated form unverified, which is the
+        // half a reader actually navigates by. A `§` clause must name a real heading in the target.
+        const sec = window.match(new RegExp(`${n.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}\\s*§\\s*([^.]+?)\\s*(?:\\.|$)`))
+        if (!sec) continue
+        const wanted = sec[1].trim().toLowerCase()
+        const target = byName.get(n)
+        // ⛔ Cannot read the target's text (a caller passed only the name set) => UNDECIDED, not
+        // a finding. A section check that fires because it could not look is a false positive
+        // wearing a verdict. In the real run `all` is every file, so this never short-circuits.
+        if (!target) continue
+        const heads = normalise(target?.text ?? '')
+          .split('\n')
+          .filter((l) => /^#{2,4} /.test(l))
+          .map((l) => l.replace(/^#+ /, '').toLowerCase())
+        if (wanted && !heads.some((h) => h.includes(wanted))) {
+          F.push(
+            `[C] ${DIR_REL}/${f.name}:${i + offset + 1} — Superseded marker names \`${n} § ${sec[1].trim()}\`, ` +
+              `but no heading in ${n} matches. The section is the half a reader navigates by.`,
+          )
         }
       }
     }
@@ -272,7 +314,29 @@ export function checkSizes(files) {
   return { F, W }
 }
 
-export function runChecks(files) {
+/**
+ * F. Every ordinary local link and in-file anchor resolves.
+ *
+ * ⛔ THIS IS THE CHECK WHOSE ABSENCE COST THE MOST. The split moved 6,353 lines one directory
+ * DEEPER without rebasing their relative paths, so **87 links** written as `decisions/…` from
+ * `docs/backend-state.md` silently became dangling from `docs/backend-state/`. Gate 16 passed
+ * throughout — it validated router destinations and marker filenames and nothing else — and this
+ * directory sits outside all three link-gated corpora, so no other gate looked either. Found by an
+ * external review, not by anything in this repo. Every one of the 87 resolved by prepending `../`.
+ *
+ * ⚠ `exists` is `existsSync`, matching gates 7 and 13 — case-INSENSITIVE on NTFS. Gate 9's
+ * case-exact variant is not used here, so a wrong-case link inside this directory still passes.
+ * Stated rather than left to be discovered.
+ */
+export function checkLocalLinks(files, root, exists) {
+  const F = []
+  for (const f of files) {
+    F.push(...checkLinks(`${DIR_REL}/${f.name}`, normalise(f.text), exists))
+  }
+  return F
+}
+
+export function runChecks(files, root = REPO_ROOT, exists = (p) => existsSync(join(root, p))) {
   const known = new Set(files.map((f) => f.name))
   const router = files.find((f) => f.name === ROUTER)
   const { F: sizeF, W } = checkSizes(files)
@@ -284,6 +348,7 @@ export function runChecks(files) {
       ...checkRouterTargetsExist(routerText, known),
       ...checkSupersededTargets(files, known),
       ...checkSeamNaming(files),
+      ...checkLocalLinks(files, root, exists),
       ...sizeF,
     ],
     W,
@@ -373,6 +438,19 @@ unrelated prose citing b.md
 ` }], known).length === 1)
   t('C ignores ordinary prose', checkSupersededTargets([{ name: 'a.md', text: '## S\nthis was superseded by nothing\n' }], known).length === 0)
 
+  // C section half — `§ 9999` used to pass
+  const secFiles = [{ name: 'b.md', text: `## Real Heading\nbody\n` }]
+  const mk = (marker) => [{ name: 'a.md', text: `## S\n${marker}\n` }]
+  t('C catches a marker naming a NON-EXISTENT section', checkSupersededTargets(mk('⚠ **Superseded** — x. See b.md § 9999.'), known, secFiles).length === 1)
+  t('C clean when the section EXISTS', checkSupersededTargets(mk('⚠ **Superseded** — x. See b.md § Real Heading.'), known, secFiles).length === 0)
+  t('C tolerates a marker with no section clause', checkSupersededTargets(mk('⚠ **Superseded** — x. See b.md.'), known, secFiles).length === 0)
+
+  // F — link integrity, via the SHARED checker (M-P0)
+  t('F catches a dangling local link', checkLocalLinks([{ name: 'a.md', text: '[x](decisions/gone.md)' }], '', () => false).length === 1)
+  t('F clean when the link resolves', checkLocalLinks([{ name: 'a.md', text: '[x](../decisions/ok.md)' }], '', () => true).length === 0)
+  t('F treats a code span as a mention, not a link', checkLocalLinks([{ name: 'a.md', text: 'see `a[_for](org[,uid])` here' }], '', () => false).length === 0)
+  t('F ignores http', checkLocalLinks([{ name: 'a.md', text: '[x](https://example.invalid/z.md)' }], '', () => false).length === 0)
+
   // D — over cap fails, over warn warns only, under both clean
   t('D fails over the hard cap', checkSizes([{ name: 'a.md', text: 'x'.repeat(HARD_BYTES + 1) }]).F.length === 1)
   t('D warns (not fails) over the warn line', (() => {
@@ -389,7 +467,7 @@ unrelated prose citing b.md
     for (const b of bad) console.error(`  - ${b}`)
     process.exit(1)
   }
-  return 32
+  return 39
 }
 
 // ---------------------------------------------------------------------------
@@ -432,4 +510,7 @@ function main() {
   )
 }
 
-main()
+// ⛔ Run the gate only when invoked as a script. Until 2026-09-09 `main()` ran on IMPORT, so any
+// future gate importing a helper from here would silently execute the whole check — observed for
+// real while debugging check F. `check-docs-registers.mjs` is import-safe; so is this now.
+if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))) main()

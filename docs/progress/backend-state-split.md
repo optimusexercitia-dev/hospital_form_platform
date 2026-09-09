@@ -175,3 +175,63 @@ load-bearing half and stands; the added-line count carried no weight and is gone
 **rc=0**, gate 16 self-test **32/32**, `git status` clean.
 
 ⛔ **Re-review owed.** The hub stays `gated`.
+
+### 2026-09-09 (3) — EXTERNAL review: P0, the split broke 87 outbound links
+
+⛔ **The headline finding, and it is mine.** Moving 6,353 lines from `docs/backend-state.md` (which
+sits in `docs/`) into `docs/backend-state/` changed the base of every relative path inside them.
+Every `decisions/…`, `plans/…`, `progress/…`, `reviews/…` and `design/…` target was copied unchanged
+and dangled. Measured with the repo's own shared `checkLinks`, not a new instrument: **87 findings,
+68 unique (file, target) pairs, and all 87 resolve by prepending `../`.**
+
+⛔ **Three separate passes walked past it.** The split's own verification proved *content*
+losslessness (`MISSING = 0`) and never asked whether the content still *pointed* anywhere. The
+internal QA round went hunting specifically for holes in gate 16, found two real ones (M1, M2), and
+still did not look outward. And gate 16 was green the entire time, because it validated router
+destinations and marker filenames and nothing else. ⭐ **D10 — "a pointer that resolves nowhere is
+worse than none" — was in the ADR the whole time; it was read as being about INBOUND citations to
+the map and never turned around.** A move changes the base of every relative path in the moved file:
+the reviewer of a move must look *outward from* it, not only *inward at* it.
+
+**Fixed:** all 87 rebased. **Gated:** new check **F** hands this directory to gate 13's `checkLinks`
+— **imported, never re-implemented**, so `docs/backend-state/` becomes the FOURTH corpus on the one
+shared checker, which is exactly what `FUP-REGISTER-GATE-HYGIENE-LINK-CHECKING-HAS-NO-GATE-OUTSIDE-
+THREE-CORPORA` asks for.
+
+⚠ **The first mutation written to prove F fires DID NOT APPLY, and reported rc=0.** It un-rebased
+`](../decisions/` in `printing.md`, a string that file does not contain — a vacuous test that reads
+exactly like a passing one, and I nearly recorded "F does not fire" as a defect in F. Re-run against
+the link the file actually has (`../progress/pdf-p3-reconciliation.md`): fires at `printing.md:236`.
+Mutations here now assert the mutation applied before judging the result.
+
+⚠ **Also caught: `git checkout -- <file>` to revert a mutation silently reverted that file's link
+repairs too**, because the repairs were uncommitted. Baseline went red for a reason unrelated to the
+mutation. Re-ran the repair; the lesson is that a rollback to HEAD is not a rollback to *baseline*
+when baseline is uncommitted work.
+
+**Two further hardenings taken while in here.** The `§ <n>` half of the supersession form is now
+checked — `See notifications.md § 9999.` used to pass, and the mandated form in the router is now
+`§ <heading>`, because validating what you mandate is the point. ⛔ The section check returns
+UNDECIDED, not a finding, when it cannot read the target's text — a check that fires because it
+could not look is a false positive wearing a verdict. And `main()` no longer runs on IMPORT, which
+it did until a gate started importing another gate.
+
+⭐ **One external finding is NOT a defect and is recorded as refuted, with evidence.** The
+"malformed Markdown link" at `conventions.md:267` is
+`` `app.is_pqs_member_of[_for](org[,uid])` `` — **inside a code span**, and CommonMark binds code
+spans before links, so it renders as literal text. The repo's `checkLinks` blanks code spans by
+design and has a self-test for exactly this (`check-docs-registers.mjs:2205`); it returns `[]` for
+that string. The external checker did not blank code spans. That is why our count is 87 and theirs
+88.
+
+**Gate runs** — bare: `npm run lint` **rc=0**, `npm run typecheck` **rc=0**, gate 16 self-test
+**39/39**, F and the section half both mutation-proven on the real corpus with the mutation asserted
+to have applied.
+
+⛔ **Still open, and NOT addressed here** — the review's P1/P2, which are design changes rather than
+repairs: no seam has a replaceable current-state layer (57 of 67 sections are still slice-coded);
+`data-access.md` names 170 of 533 public functions and omits 15 of 42 typed flags, hand-maintained
+where the service-role and privilege-budget generators show the pattern; `stamp-history.md` (72 KB,
+one 66,557-char line) is on the active retrieval path and holds unique facts; and gate 16 still does
+not check registry completeness, duplicate facts across seams, per-section size, or the
+historical/current-state ratio.

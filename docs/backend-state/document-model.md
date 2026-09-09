@@ -99,8 +99,8 @@
 > not written up as their own sections: DM5·S2 and DM5·S3 surface detail, and S5."* All three now
 > exist as `##` sections in the chronological body below, between the **DM5 follow-up batch** and
 > **DM4** sections, every figure re-derived from the LIVE catalog with its query inline. Their
-> narrative records remain [dm5-wave-d-retirement.md](./progress/dm5-wave-d-retirement.md) and
-> [dm5-s5-operational-closure.md](./progress/dm5-s5-operational-closure.md); the sections are the
+> narrative records remain [dm5-wave-d-retirement.md](.././progress/dm5-wave-d-retirement.md) and
+> [dm5-s5-operational-closure.md](.././progress/dm5-s5-operational-closure.md); the sections are the
 > **surface delta**, the records are the story. ✅ **S4 followed on a second PO ruling the same day**
 > — `## DM5·S4` sits between the S5 and S3 sections — so **all four DM5 slices now have one**, and
 > the asymmetry this paragraph used to name is discharged. *An omission that is not listed is the
@@ -156,7 +156,7 @@
 >   bucket and the count. That is ADR 0120 D9's byte-first ordering encoded executably rather than as
 >   prose in a header — the failure mode FUP-F2-BUCKETS was filed for.
 > - ⛔ **It deletes ZERO BYTES, by design.** Byte removal is D9's manifest-first Storage-API path.
->   See the S4 entry in [dm5-wave-d-retirement.md](./progress/dm5-wave-d-retirement.md) for what that
+>   See the S4 entry in [dm5-wave-d-retirement.md](.././progress/dm5-wave-d-retirement.md) for what that
 >   did and did not achieve locally.
 > - **Dead TS surface removed:** `ATTACHMENTS_BUCKET` / `ATTACHMENTS_PHI_BUCKET` / `bucketForTier()` in
 >   `src/lib/attachments/constants.ts` (verified zero callers — ✅ re-verified 2026-08-18: only a
@@ -288,7 +288,7 @@
 > ADRs, reviews, plans and progress files still say `is_commission_admin_of`, because
 > they record what was decided when it was called that. When reading anything dated
 > before 2026-08-09, read the old name as this one. ADR
-> [0105](./decisions/0105-rename-is-tenancy-admin-of.md).
+> [0105](.././decisions/0105-rename-is-tenancy-admin-of.md).
 >
 > 🔧 **Surface changes 2026-08-12 (REFNOTE, `20260922000100`; 360 registered == 360 files).**
 > Read this before touching ANY referral RPC's return value:
@@ -312,7 +312,7 @@
 > - Withheld, and therefore served ONLY by the audited read doors: `case_referral.description_md`
 >   + `decline_note` + `phi_disposed_*` (→ `get_referral_detail`), `referral_internal_notes.body_md`
 >   (→ `list_referral_internal_notes`), `referral_messages.body`. ADR
->   [0113](./decisions/0113-referral-door-return-shape.md).
+>   [0113](.././decisions/0113-referral-door-return-shape.md).
 > - **Authz harness:** a FOURTH sweep exists — `p0-authz-invoker-audit.sh` + `ARM=wrapper`
 >   (ADR 0079 Amendment 7) — covering `public` **INVOKER** functions, which the other three
 >   exclude by construction. ARM 3's census domain widened with it: **452 → 540** live gates.
@@ -413,7 +413,7 @@ permits.* The grants mirror both sibling guards (`public.guard_submitted_respons
 
 ### `20260928000800` — `superseded` is a live page, and the mint is ordered against the discard
 
-ADR [0123](decisions/0123-discarding-a-draft-that-has-emitted-documents.md). Closes
+ADR [0123](../decisions/0123-discarding-a-draft-that-has-emitted-documents.md). Closes
 `FUP-DM5-DANGLING-PRINT-ON-DELETED-DRAFT`. Two catalog changes, no new objects:
 
 1. **`app.guard_response_active_print()` predicate widened** to
@@ -586,8 +586,8 @@ where p.prokind='f' and n.nspname in ('app','public')
   supports the runbook because no row exists.
 
 **What S5 shipped instead of surface**: the disposal-gap pin (`343`), the operational record
-[dm5-s5-operational-closure.md](./progress/dm5-s5-operational-closure.md), and
-[docs/deployment/phi-disposal-runbook.md](./deployment/phi-disposal-runbook.md). ⛔ **`disposal_state`
+[dm5-s5-operational-closure.md](.././progress/dm5-s5-operational-closure.md), and
+[docs/deployment/phi-disposal-runbook.md](.././deployment/phi-disposal-runbook.md). ⛔ **`disposal_state`
 therefore means INTENT, not destruction** (ADR 0121; inverts ADR 0099 D10) — nothing user-, regulator-
 or export-facing may describe it as destruction.
 
@@ -1115,11 +1115,11 @@ controlled-document surface.**
     green" remains no claim about these doors.
 
   Full statement: `FUP-AUTHZ-COMMAND-DOOR-UNSWEPT` + `FUP-C2-THREE-BLIND-COMMAND-DOOR-GUARDS` in
-  [follow-ups-open.md](./followups/follow-ups-open.md); sizing + harness design in
-  [authz-c2-tier1-sizing.md](./design/authz-c2-tier1-sizing.md) §8b and
-  [authz-c2-command-door-neutralizer.md](./design/authz-c2-command-door-neutralizer.md).
+  [follow-ups-open.md](.././followups/follow-ups-open.md); sizing + harness design in
+  [authz-c2-tier1-sizing.md](.././design/authz-c2-tier1-sizing.md) §8b and
+  [authz-c2-command-door-neutralizer.md](.././design/authz-c2-command-door-neutralizer.md).
 
-**Full record:** [dm3-controlled-documents.md](./progress/dm3-controlled-documents.md).
+**Full record:** [dm3-controlled-documents.md](.././progress/dm3-controlled-documents.md).
 
 ## DM2 — Document-model command layer + Wave A (2026-08-13; ADR 0114 Amdt 1 + **0117** +Amdt 1 + **0118**; migrations `20260924000100`–`…000800`; flags **all five still OFF** in production defaults; QA APPROVED r2, PO-approved)
 
@@ -1153,14 +1153,14 @@ for case / meeting / interview / action-item homes. ⛔ On branch `docs/dm1-plan
    `can_read_case_committee(case_of_interview(...))`, which skipped a level and left a
    transcript readable while its interview row was hidden.
 
-Record: [dm2-orchestration-wave-a.md](progress/dm2-orchestration-wave-a.md) · review
-[dm2-orchestration-wave-a-review.md](reviews/dm2-orchestration-wave-a-review.md).
+Record: [dm2-orchestration-wave-a.md](../progress/dm2-orchestration-wave-a.md) · review
+[dm2-orchestration-wave-a-review.md](../reviews/dm2-orchestration-wave-a-review.md).
 ⚠ **CORRECTED 2026-08-14 (lead, at the DM5 open). This line said "Still unbuilt: S2.8
 `reclassify_document_file` has no legal expression on the DM1 substrate." That was FALSE
 and it caused a bad ruling** — ADR 0120 D3/D4/D5 were drafted on it before the catalog
 was checked. **S2.8 was RULED, BUILT and ADR'd at DM2** (record
-[dm2-orchestration-wave-a.md](progress/dm2-orchestration-wave-a.md) §S2.8, "✅ RULED …
-option 1"; ADR [0118](decisions/0118-dm2-s2-command-layer-decisions.md)). It shipped under
+[dm2-orchestration-wave-a.md](../progress/dm2-orchestration-wave-a.md) §S2.8, "✅ RULED …
+option 1"; ADR [0118](../decisions/0118-dm2-s2-command-layer-decisions.md)). It shipped under
 a **different name** — `public.reclassify_document` + `complete_document_reclassification`
 — which mint a new `document_version`, bind the new `file_object`, and retire the old one
 via `file_objects.disposal_state = 'disposal_pending'` with reason `duplicate`;
@@ -1190,9 +1190,9 @@ buckets, audit verb, flags) but has **NO public RPCs, NO writers, NO UI** —
 command surface are **DM2**. Nothing user-visible changed (prod's `attachments` flag has been
 OFF since 2026-08-11/D1). Do not read anything below as usable; it is the foundation DM2
 builds on.
-Record: [dm1-substrate-cutover.md](progress/dm1-substrate-cutover.md) · plan
-[dm1-substrate-cutover-plan.md](plans/dm1-substrate-cutover-plan.md) · review
-[dm1-substrate-cutover-review.md](reviews/dm1-substrate-cutover-review.md).
+Record: [dm1-substrate-cutover.md](../progress/dm1-substrate-cutover.md) · plan
+[dm1-substrate-cutover-plan.md](../plans/dm1-substrate-cutover-plan.md) · review
+[dm1-substrate-cutover-review.md](../reviews/dm1-substrate-cutover-review.md).
 
 - **REMOVED (the F2 substrate, wholesale — ADR 0114 D5; `20260923000100`):** tables
   `attachments` / `attachment_references` / `attachment_subjects` (their policies +
@@ -1313,7 +1313,7 @@ the flag first, so the whole surface is inert in prod until the pilot flip. RLS 
 table from creation regardless (Rule 1). **Local validation:** full pgTAP green (`208_attachments.sql`
 50/50 incl. the interview-arm case-scoping keystone; full suite **1957** PASS), tsc + lint 0.
 **Remote deploy DEFERRED to the pilot reset.** QA APPROVED (0 BLOCKER/0 MAJOR · 3 MINOR · 4 INFO;
-[review](reviews/phase-F2-review.md)); MINOR/INFO fast-follow cleared at Record.
+[review](../reviews/phase-F2-review.md)); MINOR/INFO fast-follow cleared at Record.
 
 - **New tables:** `attachments` (**dialect-2 owner-dispatch** `(owner_type, owner_id)` — polymorphic,
   NO real FK [no PostgREST embeds], authorization via a SECURITY DEFINER CASE dispatcher; `owner_type`

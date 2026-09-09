@@ -17,7 +17,7 @@
 
 ⚠ **The `app.is_commission_admin_of` → `app.is_tenancy_admin_of` rename (2026-08-09, ADR [0105](../decisions/0105-rename-is-tenancy-admin-of.md)) is recorded in [`document-model.md`](document-model.md) § END STATE.** The old name is GONE, no shim; records dated before 2026-08-09 still say the old one deliberately.
 
-## AE2 — affiliation tenancy: the anchor column is GONE (2026-08-28; ADR **0161** / **0163** / **0164** / **0165** / **0166** / **0167** +Amdt 2 / **0168** +Amdt 1–3; migrations `20261003005400`–`…006500`, **12**; pgTAP `390`–`400`, **11**; **NO flag — the migrations ARE the cutover**; QA APPROVED r3 → [authz-ae2-review-r3.md](reviews/authz-ae2-review-r3.md))
+## AE2 — affiliation tenancy: the anchor column is GONE (2026-08-28; ADR **0161** / **0163** / **0164** / **0165** / **0166** / **0167** +Amdt 2 / **0168** +Amdt 1–3; migrations `20261003005400`–`…006500`, **12**; pgTAP `390`–`400`, **11**; **NO flag — the migrations ARE the cutover**; QA APPROVED r3 → [authz-ae2-review-r3.md](../reviews/authz-ae2-review-r3.md))
 
 ⛔ **`profiles.home_organization_id` IS DROPPED** (`20261003006500`). This executes AFF4 D10's named
 **Phase 2** — the paragraph in the AFF4 section below that read *"DEMOTED, NOT DROPPED … the policies

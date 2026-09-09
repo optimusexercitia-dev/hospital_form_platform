@@ -44,8 +44,11 @@ Baselines and final values are in the record's session-log entry.
 - [x] The two gates that parse the map by path + heading (12 `lint:service-role-registry`,
       15 `lint:budget-anchor`) moved in the same commit as their sections, and both re-run green at
       the new path.
-- [x] Zero dangling links: **19 gate findings across 18 unique sites** repaired (one site is reported
-      by two gates); gates 7, 9 and 13 green.
+- [x] Zero dangling links **inbound** to the map: **19 gate findings across 18 unique sites** repaired;
+      gates 7, 9 and 13 green.
+- [x] Zero dangling links **outbound FROM** the map: ⛔ **87 were broken by the move and neither the
+      split nor internal QA caught it** (an external review did). All 87 resolved by prepending `../`;
+      gate 16 check **F** now holds it, using gate 13's shared `checkLinks`.
       ⚠ ADRs needed **zero** edits — they cite by code span, not by link.
 - [x] `npm run lint` rc=0 and `npm run typecheck` rc=0, both **taken bare, not through a pipe**.
 

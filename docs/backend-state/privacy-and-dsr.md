@@ -84,7 +84,7 @@ new doors are `prosecdef` **scalar non-bool** command doors (`jsonb`/`void`/`int
 syntax filter (`^(is_|can_|has_)`) yields an **EMPTY** case list for this diff, and a `CASES=`-scoped
 row-door run swept **0**. ⛔ So "the arms hold" is true and says NOTHING about these doors.
 
-> ⚠ **2026-09-08 (pre-AE5 Batch 6, ADR [0194](decisions/0194-a-sweeps-cases-has-three-states-and-a-parent-unsets-it.md)) — the idiom in the sentence above has CHANGED MEANING; the measurement it records has not.**
+> ⚠ **2026-09-08 (pre-AE5 Batch 6, ADR [0194](../decisions/0194-a-sweeps-cases-has-three-states-and-a-parent-unsets-it.md)) — the idiom in the sentence above has CHANGED MEANING; the measurement it records has not.**
 > All four `p0-authz-*-audit.sh` sweeps now read `CASES` on **set-ness**, not value: unset = FULL run,
 > set-and-non-empty = subset, **set-and-EMPTY = selects nothing and exits 3 UNPROVEN**. ⭐ A run that
 > "swept **0**" is exactly the outcome that used to be **silent** and is now a loud, non-zero exit —

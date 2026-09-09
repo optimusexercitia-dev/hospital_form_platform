@@ -157,6 +157,15 @@ for exactly that. Both were right and neither said what it counted; they now do.
   non-existent delta causally — the explanation is what made it read as measured. Both figures are
   now bytes. ⭐ The finding the bullet exists for survives the correction and is strengthened: the
   original said volume merely failed to fall; it rose.
+- ⛔ **The split broke 87 outbound links and nothing in the repo noticed.** Relative paths written from
+  `docs/backend-state.md` (at `docs/`) were copied unchanged into `docs/backend-state/`, one level
+  deeper; every `decisions/…`, `plans/…`, `progress/…` and `reviews/…` target dangled. All 87 resolved
+  by prepending `../`. ⚠ **Gate 16 passed throughout, and so did the internal QA round that
+  specifically hunted for holes in it** — because D10 was read as being about *inbound* citations to
+  the map, and nobody turned it around to the links the moved files themselves carry. Closed by check
+  **F**, which hands this directory to gate 13's `checkLinks` rather than re-implementing it. ⭐ The
+  lesson is not "add a link check": it is that a MOVE changes the base of every relative path inside
+  the moved file, and the reviewer of a move must look outward from it, not only inward at it.
 - ⚠ **The seam axis reduces the supersession problem; it does not eliminate it.** A reader of
   `document-model.md` still replays 12 DM slices in order — but 12, not 53, and none of them
   interleaved with authz or printing. The remaining reduction has to come from D5 being used.

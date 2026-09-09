@@ -233,7 +233,7 @@ centralized: it is not.
 
 ### The 27 gates — 15 brand new + 12 same-signature body replacements
 
-Two-sided catalog diff in [`docs/progress/pdf-p3-reconciliation.md`](progress/pdf-p3-reconciliation.md)
+Two-sided catalog diff in [`docs/progress/pdf-p3-reconciliation.md`](../progress/pdf-p3-reconciliation.md)
 (two `db reset` runs, keyed on **`oid::regprocedure`** — never `proname`, which collapses overloads).
 Its correction is the methodology point worth keeping: an earlier *"17 brand new"* was wrong because
 **a `create or replace` of a pre-existing function is indistinguishable from a creation in migration
