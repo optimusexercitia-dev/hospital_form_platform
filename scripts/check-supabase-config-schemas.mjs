@@ -53,7 +53,7 @@
  * SIX IN-TREE PROSE PREMISES rest on this line. Each was read at its own site and quoted,
  * not taken from a summary (*a-paraphrase-can-invert-the-sentence-it-summarizes*):
  *   1. `supabase/tests/320_act_expiry_and_acl_hardening.sql:285-287` (+ `:186-188`) — above.
- *   2. `docs/backend-state.md:3547-3549` — *"It lives in `public`, not `app`: config.toml
+ *   2. `docs/backend-state/cases-and-ethics.md` § PCI + TV — *"It lives in `public`, not `app`: config.toml
  *      exposes only `["public","graphql_public"]`, so an `app.*` function is unreachable
  *      from `supabase.rpc()`."* (why `session_context()` is where it is)
  *   3. `docs/design/authz-ae1-revoke-partition.md:44` — the UNCHANGED partition's rationale:

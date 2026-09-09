@@ -212,7 +212,7 @@ Highest-signal members, so they are findable by name rather than only by reading
 
 ## Durable facts promoted out of this build
 
-Two facts outlive AFF4 and were written to [`docs/backend-state.md`](../backend-state.md) rather than
+Two facts outlive AFF4 and were written to [`docs/backend-state.md`](../backend-state/tenancy-and-identity.md) rather than
 left here:
 
 1. **A `DEFERRABLE INITIALLY DEFERRED` constraint is invisible to any test that rolls back** — which

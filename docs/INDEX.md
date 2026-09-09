@@ -28,7 +28,7 @@ describe why we arrived there; **git** describes what changed.
 
 | Entry | Purpose | Kind |
 |---|---|---|
-| [`backend-state.md`](backend-state.md) | the backend surface map — tables, doors, flags, per feature area; reference it instead of re-deriving the backend | reference |
+| [`backend-state/`](backend-state/README.md) | the backend surface map — tables, doors, flags — **one file per module seam**, entered through its `README.md` router, which dispatches on what you are about to touch. ⛔ Never read the directory whole; open the ONE file the router names. Split from a single 742 KB file 2026-09-09 (ADR 0196); gate 16 holds the shape | reference |
 | [`bugs/`](bugs/BUGS.md) | **the** bug register (`BUGS.md`, one row per bug, status is a column) + per-bug documents + `README.md` template + `archive.md` (the historical bodies). ADR 0185 D3 | tracker |
 | [`followups/`](followups/follow-ups-open.md) | the follow-up register: `follow-ups-open.md` (one entry per item, open or **parked** — parked ones carry **Revisit when** — ⭐⭐ Critical pinned at the top, bodies over ten lines split into `FUP-*.md` files), `follow-ups-archive.md` (resolved), `legacy-codes.md` (id-prefix legend, moved from `features/`, read by the CODES arm). ADR 0179 + 0185 D5 + 0186 D4 | tracker |
 | [`decisions/`](decisions/INDEX.md) | ADRs, `NNNN-slug.md`, bold-label headers; `INDEX.md` generated | decisions |

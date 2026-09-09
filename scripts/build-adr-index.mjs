@@ -22,7 +22,8 @@
  * Every column here is derived from the ADRs' own header blocks, so the index cannot
  * drift from them: `--check` regenerates and byte-compares. A hand-written index would be
  * the 137th record that rots with no gate — which is exactly what happened to the prose
- * ADR list inside `docs/backend-state.md`, whose own text says it "had stopped in the
+ * ADR list that used to sit inside `docs/backend-state.md` (DELETED at the 2026-09-09 seam
+ * split, for exactly this reason), whose own text said it "had stopped in the
  * 0070s" before a catch-up batch.
  *
  * DETERMINISM IS A HARD REQUIREMENT: no timestamps, no counters that depend on anything

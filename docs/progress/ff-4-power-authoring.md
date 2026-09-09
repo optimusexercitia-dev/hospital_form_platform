@@ -2,7 +2,7 @@
 
 **ADR** [0092](../decisions/0092-ff4-power-authoring.md) + Amendments 1–2 · **Flag** `power_authoring`
 **ON** via gate-flip `20260903000600` · **Migrations** `20260903000000`–`…000600` · **Backend surface**
-→ [backend-state.md § FF-4](../backend-state.md) · **QA** ✅ APPROVED
+→ [backend-state.md § FF-4](../backend-state/forms-and-responses.md) · **QA** ✅ APPROVED
 [review](../reviews/phase-FF-4-review.md) · **Human approval** 2026-08-03.
 
 The **last** of the five phases ADR [0086](../decisions/0086-flexible-forms-pre-pilot.md) ruling 2 put

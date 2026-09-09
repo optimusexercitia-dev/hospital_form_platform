@@ -499,7 +499,7 @@ Commits `6ffd92ff` `859faa18` `d964b61a` `e08cf4eb` `af9a894e` (+ `02b2218d` fro
 **below `app.is_active`** · new `app.resolve_document_version_bytes` with `open_document_version` **and**
 `open_printed_document` both delegating to it (**D12**) · the mint rebuilt onto the substrate atomically ·
 **five** write guards. Full surface delta: the currency stamp at the head of
-[backend-state.md](../backend-state.md).
+[backend-state.md](../backend-state/document-model.md).
 
 ### Gate figures (lead-verified from the catalog, not accepted from reports)
 

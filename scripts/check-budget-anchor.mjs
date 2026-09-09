@@ -14,10 +14,10 @@
  * The privilege budget's pgTAP ratchet (`320` §U4) is a different object: it RE-DERIVES
  * the population from the live catalog every run and compares it to a committed number
  * that is a **PO DECISION**, not a description. ⛔ But that defence collapses the moment
- * the decision gets TWO HOMES — `docs/backend-state.md` prose and a pgTAP literal can
+ * the decision gets TWO HOMES — `docs/backend-state/authorization-and-audit.md` prose and a pgTAP literal can
  * drift, and the drifted one is a number with no owner, i.e. the very disease.
  *
- * ⇒ THE CEILING'S ONE HOME IS `docs/backend-state.md` § Privilege budget. `320` §U4 holds
+ * ⇒ THE CEILING'S ONE HOME IS `docs/backend-state/authorization-and-audit.md` § Privilege budget. `320` §U4 holds
  * a MIRROR. This gate is what turns "two homes" into "one home plus a gated mirror".
  *
  * ⛔ NOT FOLDED INTO `lint:config-schemas` (gate 14), deliberately. One exit code for two
@@ -37,7 +37,7 @@
  * ---------------------------------------------------------------------------
  * WHAT IS PINNED, EXACTLY, AND WHERE
  * ---------------------------------------------------------------------------
- * THE HOME — `docs/backend-state.md`, two artefacts that must agree with each other:
+ * THE HOME — `docs/backend-state/authorization-and-audit.md`, two artefacts that must agree with each other:
  *   1. the machine-readable anchor, one line, all four keys required:
  *        <!-- BUDGET-ANCHOR ceiling=759 app=326 public=433 total=759 -->
  *   2. the prose the humans read:  **CEILING: 759.**
@@ -102,13 +102,18 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const DOC_REL = 'docs/backend-state.md'
+// ⚠ Moved 2026-09-09: § Privilege budget left the single-file `docs/backend-state.md` for the
+// seam file below when that map was split into `docs/backend-state/`. The gate follows the
+// SECTION, never the old path — a stale path here fails LOUD (rc 1, "does not exist"), which is
+// why the split moved gate and section in one commit.
+const DOC_REL = 'docs/backend-state/authorization-and-audit.md'
 const SQL_REL = 'supabase/tests/320_act_expiry_and_acl_hardening.sql'
 // ⛔ Resolved from THIS FILE, never from `process.cwd()` — the same hardening
 // `scripts/check-supabase-config-schemas.mjs` (gate 14) took on 2026-09-08, applied here on the
 // same day at the sibling site it was NOT applied to. Until this line it was
 // `join(process.cwd(), …)`, so running the gate from any directory but the repo root exited 1
-// with *"docs/backend-state.md does not exist. That file is the ceiling's ONE HOME…"* — a FALSE
+// with *"docs/backend-state/authorization-and-audit.md does not exist. That file is the ceiling's
+// ONE HOME…"* — a FALSE
 // RED that sends a reader hunting for a home nobody deleted. Latent under `npm run lint` (always
 // the package root) and it failed loudly rather than green, so it was never a hole; it is fixed
 // because the message misdescribed the result, and because a fix correct at one of two sibling
@@ -118,7 +123,7 @@ const SQL_REL = 'supabase/tests/320_act_expiry_and_acl_hardening.sql'
 // FLAT outside a `scripts/` directory now reports its subject absent (rc 1) instead of reading
 // whatever the cwd happened to hold. Gate 14 behaves identically on both, verified side by side.
 const REPO_ROOT = resolve(fileURLToPath(import.meta.url), '..', '..')
-const DOC_PATH = join(REPO_ROOT, 'docs', 'backend-state.md')
+const DOC_PATH = join(REPO_ROOT, 'docs', 'backend-state', 'authorization-and-audit.md')
 const SQL_PATH = join(REPO_ROOT, 'supabase', 'tests', '320_act_expiry_and_acl_hardening.sql')
 
 /** The three keys the mirror must carry. `ceiling` lives only in the home. */

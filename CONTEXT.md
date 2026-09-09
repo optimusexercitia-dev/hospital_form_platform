@@ -298,7 +298,7 @@ _Avoid_: proxy function, helper
 The count of `SECURITY DEFINER` functions in `app` + `public` that role `authenticated`
 may EXECUTE. It is a **budget**, not an inventory: it has a **CEILING** and a merge rule
 — no increment may raise it without a named justification in its own gate record, and
-the ceiling moves **only by PO ruling**. Its ONE home is `docs/backend-state.md`
+the ceiling moves **only by PO ruling**. Its ONE home is `docs/backend-state/authorization-and-audit.md`
 § Privilege budget. ⛔ Not the same population as the `app` PUBLIC floor, which is
 ACL-shaped; the two have coincided and were proven able to disagree. (ADR 0195; 0155 D9)
 _Avoid_: DEFINER count, privilege inventory
@@ -313,7 +313,7 @@ _Avoid_: threshold, limit, quota
 
 **Budget anchor**:
 The machine-read literal that lets a text gate mirror the privilege budget without a
-database — the tagged line in the pgTAP assertion and its twin in `docs/backend-state.md`,
+database — the tagged line in the pgTAP assertion and its twin in `docs/backend-state/authorization-and-audit.md`,
 compared by `lint:budget-anchor`. ⛔ It compares two committed **texts** and can never
 observe the live population; the catalog half is pgTAP under `npm run test:db`. ⭐ It
 exists so a committed number has **one home and a gated mirror**, never two homes free to

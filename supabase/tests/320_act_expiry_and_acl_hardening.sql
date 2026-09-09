@@ -377,7 +377,7 @@ select ok(
 --                     (FUP-ACL-APP-POPULATION) driving a number down, and it
 --                     already moved 237 → 236 with the removal named in a
 --                     migration. §U4's ceiling moves **ONLY BY PO RULING**
---                     (`docs/backend-state.md` § Privilege budget, MERGE RULE).
+--                     (`docs/backend-state/authorization-and-audit.md` § Privilege budget, MERGE RULE).
 --                     ⛔ An engineer may not edit §U4's CEILING (759); the same
 --                     engineer may lower §U1's with the removal measured.
 --                     ⚠ CORRECTED 2026-09-08: this read *"may not edit §U4's
@@ -434,7 +434,7 @@ select ok(
 --         a RATCHET possible at all, since a derived figure cannot ratchet
 --         against itself — but it is weaker, and the weakness is (iii)'s job.
 --   (iii) THE DECISION HAS ONE HOME, AND EVERY COPY IS GATED.
---         ⭐ ONE HOME = `docs/backend-state.md` § Privilege budget.
+--         ⭐ ONE HOME = `docs/backend-state/authorization-and-audit.md` § Privilege budget.
 --         The literals below are a MIRROR, and `npm run lint:budget-anchor`
 --         (gate 15) reds if the mirror and the home ever disagree. That is what
 --         converts R10's "two homes" objection into "one home plus a gated

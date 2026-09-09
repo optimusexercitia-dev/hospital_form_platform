@@ -19,7 +19,7 @@ retirement-bucket policies + the 8 bucket rows, behind an executable byte-first 
 5 → 8** (t6/t7 retirement pins + **t8**, the survivor positive control) · successor assertions in
 **`200`**, **`142`**, **`143`**, **`341`** · dead bucket constants removed from
 `src/lib/attachments/constants.ts`. Surface delta: the **DM5·S4** block at the head of
-[backend-state.md](../backend-state.md).
+[backend-state.md](../backend-state/document-model.md).
 
 ### ⭐ The finding that defines S4: the byte half was a NO-OP, and the records must say so
 

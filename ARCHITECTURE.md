@@ -6,7 +6,7 @@
 > `pg_trigger`, ACLs — CLAUDE.md § graphify): the schema text here is a summary that has gone
 > stale before (`case_patient`, `commission_members`). Each rule names what **enforces** it or says
 > `prose only`; a rule with no enforcer is a claim, not a guarantee. Detail that is neither a rule
-> nor the canonical list lives in `docs/backend-state.md` or an ADR.
+> nor the canonical list lives in `docs/backend-state/` or an ADR.
 
 Authoritative architecture rules and the canonical database schema. Referenced
 by `CLAUDE.md` (§3) and loaded alongside it. These rules are binding: Backend

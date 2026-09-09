@@ -2204,7 +2204,7 @@ function selfTest() {
   must('LINKS anchor does not resolve', checkLinks('docs/x.md', '# My Title\n[a](#nope)', () => true), true)
   must('LINKS code span is a mention, not a link', checkLinks('docs/x.md', 'prose `](docs/gone.md)` about links', () => false), false)
 
-  must('INDEX good', checkDocsIndex('decisions/ and backend-state.md', ['decisions', 'backend-state.md', 'INDEX.md']), false)
+  must('INDEX good', checkDocsIndex('decisions/ and backend-state/', ['decisions', 'backend-state', 'INDEX.md']), false)
   must('INDEX unmapped', checkDocsIndex('decisions/', ['decisions', 'newdir']), true)
   must('INDEX missing', checkDocsIndex(null, ['decisions']), true)
 

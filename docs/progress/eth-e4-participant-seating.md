@@ -9,7 +9,7 @@
 Closes **FUP-ETH-1** (nothing could seat a professional — "Médico denunciado" was an unfillable
 panel; scope grew to the external lane too, where 4 of 7 seeded roles were unfillable) and
 **FUP-FF5-2**. The durable backend surface is in
-[backend-state.md § ETH·E4](../backend-state.md) — read that, not this file, for what the
+[backend-state.md § ETH·E4](../backend-state/cases-and-ethics.md) — read that, not this file, for what the
 backend provides.
 
 ---

@@ -26,7 +26,7 @@ frontmatter, sorted in-progress first (ADR 0186 D1–D2).
 
 ## State — the live remote facts (measure, never quote)
 
-_Concluded measurements → [backend-state.md](docs/backend-state.md) § REMOTE CENSUS
+_Concluded measurements → [backend-state.md](docs/backend-state/conventions.md) § REMOTE CENSUS
 2026-08-18 (every figure with its deriving query); standing rules — the re-measure
 recipes, the editable window, "a git push is not a `db push`", the flags posture —
 → backend-state.md § "Remote discipline — standing rules". The block's full narrative

@@ -12,10 +12,11 @@
 > A hub's `## Current state` is its summary; its progress record's `## Session log`
 > (`docs/progress/<code>.md`) is its detail (ADR 0186 D3).
 
-**14 hubs** · in progress 0 · gated 0 · planned 2 · parked 0 · complete 12
+**15 hubs** · in progress 0 · gated 1 · planned 2 · parked 0 · complete 12
 
 | ID | Title | Status | Kind | Program | Branch | Hub |
 |---|---|---|---|---|---|---|
+| BACKEND-STATE-SPLIT | Backend surface map split onto the module-seam axis — a router replaces the 742 KB reading list (ADR 0196) | 🚧 gated | feature | DOCS | — | [backend-state-split.md](backend-state-split.md) |
 | C1B-DISPOSAL | PHI-disposal Cloud rehearsal (C1b) | 🔜 planned | feature | DM5 | — | [c1b-disposal.md](c1b-disposal.md) |
 | DLB | Deliberation & Voting Model — typed committee decisions with vote arithmetic the database owns | 🔜 planned | feature | DLB | — | [dlb.md](dlb.md) |
 | AE4 | Authz catalog cutover — staff_admin substituted, 3 of 43 permissions load-bearing | ✅ complete | feature | AUTHZ | — | [ae4.md](ae4.md) |

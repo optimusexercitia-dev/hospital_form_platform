@@ -3,7 +3,7 @@
 --       CLAIMS to clear, and clears it only for the meeting it was asked about.
 --
 -- ⚠ Numbered 351, not 350: `350_dsr_adjudication_and_attested_tier.sql` already holds
--- that number (DSR Slice 3), and "suite 350" is cited throughout backend-state.md, the
+-- that number (DSR Slice 3), and "suite 350" is cited throughout backend-state/, the
 -- Slice 3 review and the bug log meaning THAT file. Two suites sharing a number breaks
 -- nothing at run time but makes every future gate record and bug report ambiguous.
 --

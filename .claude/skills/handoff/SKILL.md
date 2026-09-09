@@ -37,7 +37,7 @@ word* (done, in progress, blocked, next) belongs in the hub; a line carrying a
 | A decision, with its rationale | an ADR in `docs/decisions/` (+ `npm run adr:index`) |
 | An open item with no resolution event yet | one entry in `docs/followups/follow-ups-open.md` |
 | A bug | one row in `docs/bugs/BUGS.md` |
-| A durable fact about the backend surface | `docs/backend-state.md` |
+| A durable fact about the backend surface | `docs/backend-state/` (the seam file its README routes you to) |
 | A standing prohibition | `.claude/rules/` (CLAUDE.md §8 admission bar) |
 | A design or audit narrative | `docs/plans/` or `docs/reviews/` |
 

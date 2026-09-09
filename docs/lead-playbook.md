@@ -75,7 +75,7 @@ When a phase passes human approval, the lead:
    all — ADR [0179](./decisions/0179-follow-up-register-consolidation.md)).
 3. Archives the phase's task detail to `docs/progress/phase-N.md` (or a feature-named
    file).
-4. Updates `docs/backend-state.md` if the backend surface changed.
+4. Updates `docs/backend-state/` (the ONE seam file its README routes you to -- never a new file) if the backend surface changed.
 5. **If the phase produced or amended an ADR** — runs `npm run adr:index`. That regenerates
    `docs/decisions/INDEX.md` **and** the `<!-- adr-backpointers -->` banner inside every
    amended ADR, so the row and the back-pointer both take care of themselves. The one thing
@@ -229,7 +229,7 @@ CLOSED?), never by markup or hand-listing.
 
 Archive files under `docs/progress/` are append-only and never loaded by spawns — detail
 goes there to stay out of every teammate's context. The durable map of what the backend
-already provides lives in **`docs/backend-state.md`** (the lead keeps it current) so
+already provides lives in **`docs/backend-state/` (the ONE seam file its README routes you to -- never a new file)** (the lead keeps it current) so
 per-phase lead notes reference it instead of re-deriving it each phase.
 
 ## 6. graphify refresh (lead-only)

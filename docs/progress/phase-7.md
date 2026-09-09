@@ -11,7 +11,7 @@ A **case** groups responses into ordered **phases**; each phase reuses the exist
 response/wizard/sign-off machinery. No patient data (case number + non-identifying label).
 Inserted before Dashboards (**Dashboards → Phase 8, Deployment → Phase 9**).
 
-> **Lead notes.** Backend surface map: [docs/backend-state.md](../backend-state.md).
+> **Lead notes.** Backend surface map: [docs/backend-state.md](../backend-state/README.md).
 > Contract-first: `backend` posted the typed query/action signatures (B5) BEFORE
 > implementing, so `frontend` built against real types in parallel. The migration (B1)
 > + RLS (B4) + the definer board/cross-member read path (B3) got a **full plan review**

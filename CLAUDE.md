@@ -43,7 +43,7 @@ and the `case_patient` flag-vs-table trap: ARCHITECTURE.md §2 and Rule 12.
   commission belongs to one hospital, a hospital to one org.
 - **Commission**: the lowest unit (e.g., Infection Control). All forms, members, and responses
   belong to exactly one commission.
-- **Roles** (definitions + RLS: ADR 0041, `docs/backend-state.md`):
+- **Roles** (definitions + RLS: ADR 0041, `docs/backend-state/`):
   - `platform_admin` — global superuser over **tenancy, identity, vocabulary and audit**; may
     **not** touch commission content or PHI (the "noun rule", ADR 0078 A35).
   - `org_admin` / `hospital_admin` — manage an org / a hospital and its commissions, users,
@@ -204,6 +204,13 @@ lessons (`docs/learning/LESSONS.md`), standing prohibitions (`.claude/rules/`) �
 [docs/INDEX.md](./docs/INDEX.md). `npm run lint:progress` (gate 7) and `lint:registers`
 (gate 13) enforce presence and shape, never truth: `PO to rule` is a legal value. ADR
 [0186](./docs/decisions/0186-documentation-consolidation-one-home-per-fact.md).
+
+The **backend surface map** is [`docs/backend-state/`](./docs/backend-state/README.md) — **ONE
+file per module seam**, entered through its `README.md` router, which dispatches on what you are
+about to touch. ⛔ Never read the directory whole; open the ONE file the router names. A new phase
+**EXTENDS** its seam file — it never opens a phase-named file, and an over-cap file is never fixed
+by raising the cap or deleting a posted section. `lint:backend-state` (gate 16) holds the shape.
+ADR [0196](./docs/decisions/0196-backend-state-split-on-the-module-seam-axis.md).
 
 ## 8. Conventions & Quality Bar
 

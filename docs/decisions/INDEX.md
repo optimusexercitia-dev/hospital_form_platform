@@ -14,7 +14,7 @@
 >
 > Edges are **advisory** and over-inclusive by design; the ADR text is truth.
 
-**193 ADRs** · next free number: **0196** · 68 carry an inbound supersedes/amends edge
+**194 ADRs** · next free number: **0197** · 69 carry an inbound supersedes/amends edge
 
 ## ⚠ Anomalies
 
@@ -101,7 +101,7 @@
 | 0074 | [Supersession correction model (contract + UX finalization)](0074-supersession-correction-model.md) | accepted | 2026-07-13 | – | – |
 | 0075 | [Memberships collapse: service-role vs RLS-scoped write-path split](0075-memberships-collapse-write-path-split.md) | accepted | 2026-07-13 | – | – |
 | 0076 | [Notifications (S1·N): pilot scope — prove one vertical deep](0076-notifications-pilot-scope.md) | accepted | 2026-07-13 | – | – |
-| 0078 | [Authorization capability model: case capabilities, granular grants, meeting boundary &…](0078-authorization-capability-model.md) | accepted | 2026-07-15 | supersedes 0033, 0037, 0072 · amends 0033, 0037, 0072 | ⛔ superseded by 0079 · ⚠ amended by 0134, 0167, 0169 |
+| 0078 | [Authorization capability model: case capabilities, granular grants, meeting boundary &…](0078-authorization-capability-model.md) | accepted | 2026-07-15 | supersedes 0033, 0037, 0072 · amends 0033, 0037, 0072 | ⛔ superseded by 0079 · ⚠ amended by 0134, 0167, 0169, 0196 |
 | 0079 | [AUTHZ door-blindness: the standing invariant + the write-policy keystone-isolation rule](0079-authz-door-blindness-standing-invariant.md) | accepted | 2026-07-18 | supersedes 0078 | ⚠ amended by 0134, 0153, 0157, 0173, 0174, 0190, 0191 |
 | 0080 | [Committee Charters & Cadence (S4·CH): delegate the regimento to the controlled-doc life…](0080-committee-charters-cadence-model.md) | accepted | 2026-07-20 | – | – |
 | 0081 | [Controlled-Document Redesign + Reviewer Notifications](0081-controlled-document-redesign.md) | accepted | 2026-07-21 | – | ⚠ amended by 0082 |
@@ -209,7 +209,7 @@
 | 0183 | [Acceptance condition P2 counts INVOCATIONS against a bound, not `loops` values](0183-p2-invocation-count-respecification.md) | accepted | 2026-09-03 | amends 0182 | – |
 | 0184 | [C2's full sweep runs against the current branch's schema, not against `main`](0184-c2-sweep-runs-against-the-current-branch-schema.md) | accepted | 2026-09-02 | amends 0162 | ⚠ amended by 0187 |
 | 0185 | [Documentation restructure: feature hubs, CURRENT.md, and gated registers for bugs, foll…](0185-documentation-restructure-feature-hubs-and-gated-registers.md) | accepted | 2026-09-03 | amends 0124, 0139, 0140, 0179 | ⚠ amended by 0186 |
-| 0186 | [Documentation consolidation: one home per fact, one summary and one log per unit](0186-documentation-consolidation-one-home-per-fact.md) | accepted | 2026-09-03 | amends 0179, 0185 | – |
+| 0186 | [Documentation consolidation: one home per fact, one summary and one log per unit](0186-documentation-consolidation-one-home-per-fact.md) | accepted | 2026-09-03 | amends 0179, 0185 | ⚠ amended by 0196 |
 | 0187 | [C2 closes on DISCLOSURE, its BLIND set is labelled by PROPERTY, and three of ADR 0184's…](0187-c2-closes-on-disclosure-and-the-blind-set-is-labelled-by-property.md) | accepted | 2026-09-04 | amends 0184 | – |
 | 0188 | [A closure tally may be COMPOSITED across suite shapes, and must be stated as one](0188-a-closure-tally-may-be-composited-across-suite-shapes.md) | accepted | 2026-09-04 | – | – |
 | 0189 | [One crash-safety protocol across the mutation harnesses: a verified restore, a bounded…](0189-one-crash-safety-protocol-across-the-mutation-harnesses.md) | accepted | 2026-09-04 | amends 0153, 0171 | ⚠ amended by 0192 |
@@ -219,3 +219,4 @@
 | 0193 | [The enforcement manifest declares what it measured, and the measurement is a fixed poin…](0193-the-enforcement-manifest-declares-what-it-measured.md) | accepted | 2026-09-07 | amends 0176, 0178 | – |
 | 0194 | [A sweep's `CASES` has three states, and a parent asks for a full run by UNSETTING it](0194-a-sweeps-cases-has-three-states-and-a-parent-unsets-it.md) | accepted | – | amends 0192 | – |
 | 0195 | [A committed number needs ONE home and a GATED mirror, and a ratchet joins its incumbent](0195-a-committed-number-needs-one-home-and-a-gated-mirror.md) | accepted | 2026-09-08 | – | – |
+| 0196 | [The backend surface map splits on the MODULE SEAM axis, and a router replaces the readi…](0196-backend-state-split-on-the-module-seam-axis.md) | accepted | 2026-09-09 | amends 0078, 0186 | – |

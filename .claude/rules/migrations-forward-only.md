@@ -6,7 +6,7 @@ broad: >-
   which is the defect — the rule must fire on whichever file someone is about to edit.
 anchors:
   - supabase/tests/364_backfill_mapping_replay.sql#forward-only rule
-  - docs/backend-state.md#Migrations (forward-only, additive)
+  - docs/backend-state/conventions.md#Migrations (forward-only, additive)
   - scripts/check-migration-set-local.mjs
 source: pgTAP 364 · CLAUDE.md review queue 2026-08-24
 ---

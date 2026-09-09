@@ -39,7 +39,7 @@ legacy gate, and the rollback runbook AE5 will run eleven times.
       the `org.professionals.read` row's `enforcementSites` OR a reviewed exclusion recorded in the
       manifest; either way the by-name pin in pgTAP `410 §8.5` deleted **in the same change**.
 - [x] `FUP-AUDIT-REGISTRY-CONSUMER-OF-READ-AUTHORIZER-UNRECORDED` 🟡 — a named note where the
-      authorizer's consumers are enumerated (the manifest row's qualifier or `backend-state.md`)
+      authorizer's consumers are enumerated (the manifest row's qualifier or `backend-state/authorization-and-audit.md`)
       saying `app._audit_access_authorized` is a consumer and deliberately not an enforcement site.
       ⛔ NOT added to `enforcementSites`.
 - [x] `FUP-AE4-ROLLBACK-RUNBOOK-SIX-SCOPED-TO-FOUR` 🟠 (Batch 5, rides along) — §6.2 re-measured at

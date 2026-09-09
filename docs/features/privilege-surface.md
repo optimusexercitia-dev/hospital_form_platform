@@ -34,7 +34,7 @@ Entries stay `Status: open` until the Record step, after PO approval. ✅ **All 
       seven by **diffing the `authenticated`-executable DEFINER set** between heads, naming each
       function and the increment that added it; then the aggregate goes to the PO: the ceiling moves
       by ruling to the justified number, **or** the unjustified grants are revoked.
-      ⛔ **Editing `docs/backend-state.md`'s `CEILING: 752` to 759 is NOT closure** — the follow-up
+      ⛔ **Editing `docs/backend-state/authorization-and-audit.md`'s `CEILING: 752` to 759 is NOT closure** — the follow-up
       names that as the thing to not mistake for a fix; the ceiling moves only by PO ruling.
       ⚠ **The clause names heads `…005300` → `…007330`. The live head is `…007350`** — two Batch 4
       re-key migrations landed after the 759 was measured. Diffing only to `…007330` satisfies the

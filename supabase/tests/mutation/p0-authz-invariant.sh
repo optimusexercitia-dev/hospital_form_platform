@@ -538,7 +538,7 @@ run_arm_census () {
   #
   # ⛔ THE FIGURES THEMSELVES ARE DELIBERATELY NOT REPEATED HERE. Read them at `320` §U4
   # and at ADR 0195 D2/D2a, which are their homes. Nothing gates this file's prose —
-  # `lint:budget-anchor` parses `docs/backend-state.md` and `320`, and this script is not
+  # `lint:budget-anchor` parses `docs/backend-state/authorization-and-audit.md` and `320`, and this script is not
   # among its subjects — so a figure copied into this comment would be precisely the thing
   # the paragraph below says does not exist: an UNGATED COPY, sitting inside the sentence
   # that argues every copy is gated.
@@ -547,7 +547,7 @@ run_arm_census () {
   #   (i)   the population is RE-DERIVED from the live catalog every run by
   #         `pg_temp.budget()` and the literal is COMPARED to it — never printed beside it,
   #         which is the whole of what went wrong here; and
-  #   (iii) the committed number has ONE HOME, `docs/backend-state.md` § Privilege budget,
+  #   (iii) the committed number has ONE HOME, `docs/backend-state/authorization-and-audit.md` § Privilege budget,
   #         with every copy gated by `npm run lint:budget-anchor`.
   #
   # ⚠ CORRECTED 2026-09-08 (QA re-review, finding M1). Superseded text, quoted so the edit

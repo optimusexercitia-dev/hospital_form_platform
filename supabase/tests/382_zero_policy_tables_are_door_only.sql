@@ -36,7 +36,7 @@
 -- red here is a real regression, not a query that can never observe an allow.
 --
 -- Doors — the ONLY access path for each table (full per-table rationale:
--- docs/backend-state.md § "Zero-policy tables -- door-only by design"; verified
+-- docs/backend-state/authorization-and-audit.md § "Zero-policy tables -- door-only by design"; verified
 -- against pg_proc/prosecdef + has_function_privilege, never against migration text):
 --   case_print_revisions                    -> app.bump_case_print_revision (write,
 --                                               DEFINER, no authenticated EXECUTE --

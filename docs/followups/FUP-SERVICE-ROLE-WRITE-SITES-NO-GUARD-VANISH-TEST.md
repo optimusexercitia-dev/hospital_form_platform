@@ -6,7 +6,7 @@ Index entry: [follow-ups-open.md](follow-ups-open.md) · filed 2026-08-27 · sta
 > "26 of 45" is retired here — it does not reproduce.** The registry is **44** rows post-AE1.3, and 26
 > is not derivable from them in either direction.
 >
-> **Re-derived from [`../backend-state.md`](../backend-state.md) § "Service-role DML registry"** by
+> **Re-derived from [`../backend-state.md`](../backend-state/authorization-and-audit.md) § "Service-role DML registry"** by
 > classifying each row's **Test** cell on its LEADING verdict token — the rule the registry's own
 > Summary states — over all 44 `Key`-bearing rows in Groups A–H:
 > **20 `YES` · 5 `PARTIAL` · 15 `NONE` · 4 `UNCONFIRMED` = 44**, which reproduces that Summary exactly.

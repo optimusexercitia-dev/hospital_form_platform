@@ -3,7 +3,7 @@
 **Status:** ✅ complete — Build ✅ · Tests ✅ 106/106 · QA ✅ APPROVED · Human ✓ 2026-06-14.
 Design: ADR [0020](../decisions/0020-dashboard-countable-responses.md). Review:
 [docs/reviews/phase-8-review.md](../reviews/phase-8-review.md). Backend surface map updated in
-[docs/backend-state.md](../backend-state.md). The cross-phase logs (Bug Log, Test Run Summary,
+[docs/backend-state.md](../backend-state/README.md). The cross-phase logs (Bug Log, Test Run Summary,
 QA Verdicts, Decisions, Follow-ups) remain in `PROGRESS.md`.
 
 Migrations `…090011`–`…090015`; query modules `src/lib/queries/{dashboard,submissions}.ts`;

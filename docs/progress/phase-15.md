@@ -11,7 +11,7 @@ New SQLSTATEs **HC084–HC088**.
   ADR [0058](../decisions/0058-derived-measurement-compute.md) (derived-compute parity)
 - **QA review:** [phase-15-review.md](../reviews/phase-15-review.md) — ✅ APPROVED
   (0 BLOCKER · 0 MAJOR · 3 MINOR · 4 INFO), all 3 MINOR fixed pre-merge.
-- **Backend surface:** [backend-state.md](../backend-state.md) § Quality Indicators.
+- **Backend surface:** [backend-state.md](../backend-state/README.md) § Quality Indicators.
 
 ## What shipped
 

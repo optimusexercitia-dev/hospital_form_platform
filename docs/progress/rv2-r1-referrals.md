@@ -79,4 +79,4 @@ regate · `d93bcfc` E2E spec · `1150ed4` M-1 guard · graphify chores · `phase
 - RV2 **pilot-enable** (`case_referrals` ON for the pilot) is a **deferred deploy-time PO decision** — the flag stays
   OFF meanwhile.
 
-Backend surface durably mapped in [backend-state.md](../backend-state.md).
+Backend surface durably mapped in [backend-state.md](../backend-state/cases-and-ethics.md).

@@ -364,7 +364,7 @@ order by a.attnum;
 -- -------------------------------------------------------------------------------------
 -- BLOCK 9 -- Data-state census. NOT a catalog figure -- kept separate on purpose.
 --   Present because AE3's G2 premise ("the pilot has not loaded data") is a DATA question,
---   and because docs/backend-state.md's REMOTE CENSUS 2026-08-18 recorded the remote as EMPTY.
+--   and because docs/backend-state/conventions.md's REMOTE CENSUS 2026-08-18 recorded the remote as EMPTY.
 --   `@test.local` is the discriminator between the E2E seed fixture and real persons.
 -- -------------------------------------------------------------------------------------
 select 'auth_users'                as figure, (select count(*)::text from auth.users) as value

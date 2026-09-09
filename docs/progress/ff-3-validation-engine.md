@@ -3,7 +3,7 @@
 Rotated out of PROGRESS.md at the §6 Record step. ADR
 [0090](../decisions/0090-ff3-validation-engine.md) (+ Amendments 1–4, O-1…O-6) ·
 review [ff-3-review.md](../reviews/ff-3-review.md) (r1 CHANGES REQUESTED → r2 APPROVED) ·
-backend surface [backend-state.md §FF-3](../backend-state.md).
+backend surface [backend-state.md §FF-3](../backend-state/forms-and-responses.md).
 
 **Commits** `59587cf`…`b993f23` on `ff/flexible-forms-program`. **8 migrations**
 `20260901000000`–`…000800` (the last is the flag flip). Flag `item_validations` **ON**.

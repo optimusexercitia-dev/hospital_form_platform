@@ -75,4 +75,4 @@ forward-only** (drops the moved columns; no back-compat; seed rewritten).
   their own t19 pgTAP assertion — add to `121` when convenient.
 - `createInterview` persists the draft if the inline first-session schedule fails (intentional; documented).
 
-Backend surface durably mapped in [backend-state.md](../backend-state.md).
+Backend surface durably mapped in [backend-state.md](../backend-state/cases-and-ethics.md).

@@ -3,7 +3,7 @@
 > ⬛ **SUPERSEDED 2026-08-11 — the phase is COMPLETE.** This was a mid-phase resume document;
 > its "PAUSED / resume from here" framing is **historical, not live**. The durable record is
 > **[eth-e4-participant-seating.md](./eth-e4-participant-seating.md)**; the backend surface is
-> [backend-state.md § ETH·E4](../backend-state.md).
+> [backend-state.md § ETH·E4](../backend-state/cases-and-ethics.md).
 >
 > Every open item below was discharged: **§3's 7 unproven specs all ran GREEN** (140 passed ·
 > 0 failed · 0 did-not-run), **§7's checklist is done**, and **QA r3 APPROVED**. Kept unedited

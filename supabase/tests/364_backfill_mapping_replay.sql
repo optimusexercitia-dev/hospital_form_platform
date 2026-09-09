@@ -36,7 +36,7 @@
 --      ⛔ CORRECTED 2026-08-24 (CLAUDE.md review queue). This said "CLAUDE.md's
 --      forward-only rule", and CLAUDE.md carried no such rule — in any wording,
 --      and neither did ARCHITECTURE.md or the lead-playbook. The only mention
---      anywhere was a section HEADING in docs/backend-state.md. So this suite's
+--      anywhere was a section HEADING in docs/backend-state/. So this suite's
 --      durability rested on a rule that existed nowhere, and the citation read as
 --      care. It now lives at `.claude/rules/migrations-forward-only.md`, which
 --      this file is an anchor of — so `lint:rules` reds if this line is renamed
