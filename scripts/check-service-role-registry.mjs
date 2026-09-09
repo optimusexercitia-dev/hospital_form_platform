@@ -462,6 +462,7 @@ if (problems.length > 0 || missing.length > 0 || extra.length > 0) {
     '  The registry is re-derived, never hand-maintained (AE1.4 [PA-F10]). Re-run\n' +
       '  `node scripts/service-role-dml-census.mjs` and bring\n' +
       '  docs/backend-state/authorization-and-audit.md > "Service-role DML registry"\n' +
+      '  back into agreement --\n' +
       '  a new site needs a row stating owner, reason, revalidation mechanism, audit\n' +
       '  event, and the test that would notice its guard vanish.',
   )

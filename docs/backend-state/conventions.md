@@ -198,6 +198,12 @@ reference these instead of re-deriving:
 
 ## Migrations (forward-only, additive)
 
+⚠ **Superseded** — the banner below says a phase documents its range "in its `##` section header
+**above**" and tells you to "add a section". Both stopped being true at the 2026-09-09 seam split:
+the phase sections that were once above this one are now distributed across the seam files, and
+adding a section here is exactly what ADR 0196 D2 forbids. Extend the seam file the work belongs to.
+See README.md § Maintenance rules.
+
 > **This table is a HISTORICAL index and stops at E1 (`20260720001070`).** From DOC-REDESIGN /
 > E2 / RV2 / CH / FF-1 / FF-2 onward each phase documents its own migration RANGE in its `##`
 > section header above, and the per-migration detail lives there. Do not add rows here for a new

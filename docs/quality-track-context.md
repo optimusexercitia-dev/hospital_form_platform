@@ -10,7 +10,7 @@ committee track's data, and the ADR / feature-flag index.
 
 - **Phase specs + acceptance criteria:** [phases/accreditation-track.md](phases/accreditation-track.md)
 - **Core-platform plan + track index:** [../PHASES.md](../PHASES.md)
-- **What the backend already provides:** [backend-state.md](backend-state.md)
+- **What the backend already provides:** [backend-state/](backend-state/README.md) — the router; open the ONE seam file it names
 
 ---
 

@@ -15,7 +15,7 @@
 > ⛔ **A new phase EXTENDS its seam file.** It never opens a phase-named file, and the fix for an
 > over-cap file is never to raise the cap nor to delete a posted section.
 
-⚠ **The three corrected pt-BR authority messages (`dispose_case_phi`, `revoke_printed_document`) are recorded in [`document-model.md`](document-model.md) § END STATE.** The class matters here: every arm that moved had left its message behind, and no gate reads prose.
+⚠ **The corrected pt-BR authority messages (`dispose_case_phi`, `revoke_printed_document`) are recorded in [`document-model.md`](document-model.md) § END STATE.** ⛔ That frozen text says **three** and names **two**; the third is not identified anywhere, and the discrepancy is inherited, not introduced here (QA m14). Re-derive from the catalog before relying on the count. The class matters here: every arm that moved had left its message behind, and no gate reads prose.
 
 ## Zero-policy tables — door-only by design (AE1.6; ADR 0155 D9; measured 2026-08-27)
 

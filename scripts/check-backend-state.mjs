@@ -11,16 +11,30 @@
  * carried 33 `SUPERSEDED` and 45 `STALE` markers and a hand-maintained "END STATE" block at the
  * top whose own registry figure had gone stale. The split re-files it on the MODULE SEAM axis.
  *
- * A split does not stay split on its own. Four checks hold it:
+ * A split does not stay split on its own. SIX checks hold it (A/B/C/D shipped 2026-09-09; B2 and E
+ * were added the same day after QA found each of them missing — M1 and M2):
  *
  *   A. PREAMBLE IDENTICAL — every seam file opens with byte-identical maintenance boilerplate.
  *      A rule repeated in twelve files is a rule that drifts in eleven of them.
- *   B. ROUTED — every seam file is reachable from README.md. An unrouted file is an unread file.
+ *   B. ROUTED — every seam file sits in a README.md table row WITH a "when to open it" clause.
+ *      An unrouted file is an unread file; a row with no clause is not a route.
+ *   B2. ROUTER TARGETS EXIST — the opposite polarity of B, and it was the hole: deleting a seam
+ *      file left the gate at rc=0 still printing "all routed".
  *   C. SUPERSEDED TARGETS RESOLVE — a forward marker that names a file which does not exist sends
  *      the reader nowhere, which is worse than no marker: it reads like care.
  *   D. SIZE — warn at 160 KB, FAIL at 200 KB, per file. ⛔ The remedy is never to raise the cap,
  *      never to open a phase-named overflow file, and never to delete a posted section. It is to
  *      find the seam inside the file that wants its own home.
+ *   E. A SEAM IS A NOUN — no digit in a seam filename. This is D2's enforcer; without it a routed
+ *      `phase-24-2026-09-20.md` passed green and the phase axis could grow back one file at a time.
+ *
+ * ⚠ STATED BOUNDS, so nobody reads more coverage into this than it has (QA m1/m2):
+ *   · C validates the FILE a marker names, never the `§ <n>` SECTION — `See notifications.md § 9999.`
+ *     passes. Half the mandated form is unchecked.
+ *   · C's region cut is a real blind spot in two low-realism cases: a dangling marker replicated
+ *     IDENTICALLY into all twelve preambles (A agrees, C is cut), and one placed in README.md
+ *     (skipped whole). Both are the cut's price, and neither is hypothetical-only by luck.
+ *   · Nothing here checks that a seam file's CONTENT belongs to its seam. Misfiling is invisible.
  *
  * ⛔ THE POPULATION IS THE DIRECTORY LISTING, never a list in this file. A guard that enumerates a
  * list somebody must remember to update has a hole shaped like forgetting — the failure family
@@ -100,14 +114,79 @@ export function checkPreambleIdentical(files) {
   return F
 }
 
-/** B. Every seam file is named by the router. ⛔ Population = the directory listing. */
+/**
+ * B. Every seam file is named by the router, **in a row that says when to open it**.
+ *
+ * ⛔ Population = the directory listing. ⚠ A bare `routerText.includes('(name.md)')` was the first
+ * version and QA (M3) was right that it enforced nothing about D3: a bare mention in prose passed.
+ * The row shape is the checkable half of "the router dispatches on the ACTION" — the file must sit
+ * in a table row whose trailing cell carries a real clause, not an empty or token cell.
+ */
+export const MIN_WHEN_CHARS = 20
+
 export function checkRouted(files, routerText) {
   if (routerText == null) return [`[B] ${DIR_REL}/${ROUTER} — missing; the directory has no entry point`]
   const F = []
+  const rows = routerText.split('\n').filter((l) => l.trim().startsWith('|'))
   for (const f of files) {
     if (f.name === ROUTER) continue
-    if (!routerText.includes(`(${f.name})`)) {
-      F.push(`[B] ${DIR_REL}/${f.name} — not linked from ${ROUTER}. An unrouted file is an unread file: add a row saying WHEN to open it.`)
+    const row = rows.find((l) => l.includes(`(${f.name})`))
+    if (!row) {
+      F.push(`[B] ${DIR_REL}/${f.name} — not in a ${ROUTER} table row. An unrouted file is an unread file: add a row saying WHEN to open it.`)
+      continue
+    }
+    const cells = row.split('|').slice(1, -1).map((c) => c.trim())
+    const when = cells[cells.length - 1] ?? ''
+    if (cells.length < 2 || when.length < MIN_WHEN_CHARS) {
+      F.push(
+        `[B] ${DIR_REL}/${f.name} — its ${ROUTER} row has no "when you are about to…" clause ` +
+          `(found ${when.length} chars; ≥ ${MIN_WHEN_CHARS} required). The router dispatches on the ACTION, not on contents.`,
+      )
+    }
+  }
+  return F
+}
+
+/**
+ * B2. Every router link INTO this directory resolves to a file that exists.
+ *
+ * ⛔ THE OPPOSITE POLARITY OF B, and it was missing. QA (M1) deleted a seam file and gate 16 stayed
+ * at rc=0 still reporting "all routed", because B only asked "is every file named?" and never "does
+ * every name exist?". `docs/backend-state/` is outside all three link-gated corpora, so nothing else
+ * in the tree would have caught it either. A one-directional check leaves the other direction
+ * unproven — and D10 is the decision that says a pointer resolving nowhere is worse than none.
+ */
+export function checkRouterTargetsExist(routerText, known) {
+  if (routerText == null) return []
+  const F = []
+  for (const m of normalise(routerText).matchAll(/\]\(([A-Za-z0-9._-]+\.md)\)/g)) {
+    if (!known.has(m[1])) {
+      F.push(`[B2] ${DIR_REL}/${ROUTER} — routes to \`${m[1]}\`, which does not exist in ${DIR_REL}/. A dangling router row is worse than no row.`)
+    }
+  }
+  return F
+}
+
+/**
+ * E. A seam is a NOUN, not a number.
+ *
+ * ⛔ D2 ("a new phase EXTENDS its seam file; it never opens a phase-named file") had NO enforcer —
+ * QA (M2) routed a `phase-24-2026-09-20.md` and the gate passed green, which is the decision the
+ * whole design rests on going unguarded. Any digit in a seam filename is the tell: every legitimate
+ * seam here is words (`document-model`, `privacy-and-dsr`), while every phase-shaped name this
+ * repo produces carries a number (`dm5-s3`, `ae4`, `phase-16`, a date). Deliberately blunt: the
+ * cost of a false positive is renaming a file, the cost of a false negative is the phase axis
+ * growing back one file at a time.
+ */
+export function checkSeamNaming(files) {
+  const F = []
+  for (const f of files) {
+    if (f.name === ROUTER) continue
+    if (/\d/.test(f.name)) {
+      F.push(
+        `[E] ${DIR_REL}/${f.name} — a seam filename may not contain a digit. A seam is a NOUN, not a ` +
+          `phase, a date or a slice number (ADR 0196 D2): EXTEND the seam file this work belongs to.`,
+      )
     }
   }
   return F
@@ -151,7 +230,14 @@ export function checkSupersededTargets(files, known) {
     const { lines, offset } = bodyAfterPreamble(f.text)
     for (let i = 0; i < lines.length; i += 1) {
       if (!MARKER.test(lines[i])) continue
-      const window = lines.slice(i, i + 3).join(' ')
+      // ⚠ The window is the marker's whole PARAGRAPH (to the next blank line), not a fixed 3 lines.
+      // A fixed window was the first version and it reported a VALID marker as "names no target"
+      // the first time one ran longer than three lines — a false positive that would have taught
+      // the next author to shorten the explanation rather than to name the target. Capped so a
+      // missing blank line cannot swallow the rest of the file.
+      let end = i
+      while (end < lines.length && lines[end].trim() !== '' && end - i < 12) end += 1
+      const window = lines.slice(i, end).join(' ')
       const names = [...window.matchAll(/([A-Za-z0-9._-]+\.md)/g)].map((m) => m[1])
       if (names.length === 0) {
         F.push(`[C] ${DIR_REL}/${f.name}:${i + offset + 1} — Superseded marker names no target file (\`See <file> § <n>.\`)`)
@@ -190,11 +276,14 @@ export function runChecks(files) {
   const known = new Set(files.map((f) => f.name))
   const router = files.find((f) => f.name === ROUTER)
   const { F: sizeF, W } = checkSizes(files)
+  const routerText = router ? normalise(router.text) : null
   return {
     F: [
       ...checkPreambleIdentical(files),
-      ...checkRouted(files, router ? normalise(router.text) : null),
+      ...checkRouted(files, routerText),
+      ...checkRouterTargetsExist(routerText, known),
       ...checkSupersededTargets(files, known),
+      ...checkSeamNaming(files),
       ...sizeF,
     ],
     W,
@@ -206,7 +295,11 @@ export function runChecks(files) {
 // ---------------------------------------------------------------------------
 const PRE = '> Part of `docs/backend-state/`. **Start at [`README.md`](README.md)**.\n> Second line.'
 const good = (name, extra = '') => ({ name, text: `# Backend State — x\n\n${PRE}\n\n## S\n\nbody\n${extra}` })
-const ROUTER_OK = { name: ROUTER, text: '# Backend State — the router\n\n| [`a.md`](a.md) | when |\n| [`b.md`](b.md) | when |\n' }
+const WHEN_A = 'touch a thing you are about to change'
+const ROUTER_OK = {
+  name: ROUTER,
+  text: `# Backend State — the router\n\n| Open this | When you are about to |\n| --- | --- |\n| [\`a.md\`](a.md) | ${WHEN_A} |\n| [\`b.md\`](b.md) | ${WHEN_A} |\n`,
+}
 
 function selfTest() {
   const bad = []
@@ -221,6 +314,21 @@ function selfTest() {
   t('B catches an unrouted file', checkRouted([ROUTER_OK, good('a.md'), good('zz.md')], ROUTER_OK.text).length === 1)
   t('B clean when all routed', checkRouted([ROUTER_OK, good('a.md'), good('b.md')], ROUTER_OK.text).length === 0)
   t('B catches a missing router', checkRouted([good('a.md')], null).length === 1)
+  // M3: a bare mention in PROSE is not a route — the row shape is what enforces D3.
+  t('B catches a prose mention with no table row', checkRouted([ROUTER_OK, good('c.md')], ROUTER_OK.text + '\nsee also [c](c.md) somewhere\n').length === 1)
+  t('B catches a row whose when-clause is empty', checkRouted([ROUTER_OK, good('c.md')], ROUTER_OK.text + '| [`c.md`](c.md) |  |\n').length === 1)
+  t('B catches a row whose when-clause is a token', checkRouted([ROUTER_OK, good('c.md')], ROUTER_OK.text + '| [`c.md`](c.md) | tbd |\n').length === 1)
+
+  // M1: the OPPOSITE polarity of B — a routed name that does not exist.
+  t('B2 catches a dangling router target', checkRouterTargetsExist(ROUTER_OK.text, new Set([ROUTER, 'a.md'])).length === 1)
+  t('B2 clean when every target exists', checkRouterTargetsExist(ROUTER_OK.text, new Set([ROUTER, 'a.md', 'b.md'])).length === 0)
+  t('B2 silent on a missing router', checkRouterTargetsExist(null, new Set()).length === 0)
+
+  // M2: D2's enforcer — a seam is a noun, not a number.
+  t('E catches a phase-named file', checkSeamNaming([good('phase-24-2026-09-20.md')]).length === 1)
+  t('E catches a slice-coded file', checkSeamNaming([good('dm5-s3.md')]).length === 1)
+  t('E clean on noun seams', checkSeamNaming([good('document-model.md'), good('privacy-and-dsr.md')]).length === 0)
+  t('E never fires on the router', checkSeamNaming([{ name: ROUTER, text: '' }]).length === 0)
 
   // C — dangling target caught, resolving target clean, targetless marker caught
   const known = new Set([ROUTER, 'a.md', 'b.md'])
@@ -247,10 +355,22 @@ body
 
 ## S
 ⚠ **Superseded** — y. See gone.md § 1.
-` }], known)[0].includes(':6'))
+` }], known).some((f) => f.includes(':6')))
   t('C skips the router whole', checkSupersededTargets([{ name: ROUTER, text: `## S
 ⚠ **Superseded** — x. See gone.md § 1.
 ` }], known).length === 0)
+  t('C sees a target on the SIXTH line of a long marker', checkSupersededTargets([{ name: 'a.md', text: `## S
+⚠ **Superseded** — one
+two
+three
+four
+five. See b.md § 2.
+` }], known).length === 0)
+  t('C stops at a BLANK line (a later file name is not this marker’s target)', checkSupersededTargets([{ name: 'a.md', text: `## S
+⚠ **Superseded** — x.
+
+unrelated prose citing b.md
+` }], known).length === 1)
   t('C ignores ordinary prose', checkSupersededTargets([{ name: 'a.md', text: '## S\nthis was superseded by nothing\n' }], known).length === 0)
 
   // D — over cap fails, over warn warns only, under both clean
@@ -269,7 +389,7 @@ body
     for (const b of bad) console.error(`  - ${b}`)
     process.exit(1)
   }
-  return 17
+  return 32
 }
 
 // ---------------------------------------------------------------------------

@@ -5,19 +5,26 @@
 **Related:** [0078](./0078-authorization-capability-model.md) · [0079](./0079-authz-door-blindness-standing-invariant.md) · [0105](./0105-rename-is-tenancy-admin-of.md) · [0127](./0127-standing-rules-home-and-staleness-gate.md) · [0185](./0185-documentation-restructure-feature-hubs-and-gated-registers.md) · [0186](./0186-documentation-consolidation-one-home-per-fact.md) · [0195](./0195-a-committed-number-needs-one-home-and-a-gated-mirror.md)
 **Amends:** [0186](./0186-documentation-consolidation-one-home-per-fact.md) — 0186 classified `backend-state.md` as an *Outbound* destination ("anything that outlives the unit, on demand") and left its internal shape unspecified. That omission is what this decision closes: an outbound destination with no axis and no cap grows without bound.
 
+## Context
+
 > ⛔ **This ADR does not change what the map is FOR, and it does not move a single fact into a
 > different authority rank.** The live catalog is still the sole truth for schema, RLS and grants
 > (CLAUDE.md § graphify, ADR 0078); the map is still a map. What changes is how the map is
 > **partitioned and entered** — and, for the first time, that the partition is enforced.
-
-## Context
+>
+> ⚠ **This blockquote sits BELOW the `## Context` heading deliberately, and must stay there.**
+> `**Amends:**` is the last label in the preamble, so its value runs to the **end of the preamble**
+> (`build-adr-index.mjs` §parseLabels). While this paragraph was above the heading its "ADR 0078"
+> was read as an amends target, and the generator planted *"amended by 0196"* on ADR 0078 — the
+> authorization capability model — telling every reader to distrust it. Gate 9 stayed green because
+> the index agreed with the wrong parse. Found by QA (B1), 2026-09-09.
 
 `docs/backend-state.md` was a single file. Measured at the split:
 
 | | |
 |---|---|
 | size | **742,255 bytes / 6,353 lines** |
-| growth | 119 KB (2026-07-01) → 314 KB (08-01) → 714 KB (09-01) → 742 KB (09-09) — **superlinear, never shrinking** |
+| growth | **112.5 → 307.0 → 697.4 → 724.9 KiB** at `9fdd1114` (07-01) · `598447e3` (08-01) · `cb66dfa9` (09-01) · `2b4fa89b` (the split) — **superlinear, never shrinking**. ⚠ CORRECTED 2026-09-09 (QA m10): read *"119 KB (2026-07-01) → 314 → 714 → 742"*, which mixed decimal kB with KiB and used an unstated day-boundary, so it did not reproduce. Rule, now stated: the last commit touching the file on or before 23:59 that day; unit KiB throughout |
 | churn | **183 commits, 84 of them in the last 30 days** (~2.8/day) |
 | structure | 1 preamble block + **66 `##` sections** |
 | of those | **53 dated work-unit slices, 4,577 lines = 72% of the body**, ordered by PHASE |
@@ -96,9 +103,12 @@ exactly those qualifiers.
 
 **D10 — Historical records are NOT rewritten, but dangling LINKS are repaired.** Following ADR 0105:
 a record states what was true when written. A moved file path, however, is not a historical claim —
-it is a pointer, and a pointer that resolves nowhere is worse than none. 18 markdown links in
-gate-covered corpora were repointed at the seam file their own text names; ADRs needed **zero**
-edits (gate 9 was already green — they cite by code span, not by link).
+it is a pointer, and a pointer that resolves nowhere is worse than none. **19 gate findings across
+18 unique sites** (the `FUP-SERVICE-ROLE-…` link is reported by gate 7 AND gate 13) were repointed at
+the seam file their own text names; ADRs needed **zero** edits (gate 9 was already green — they cite
+by code span, not by link). ⚠ CORRECTED 2026-09-09 (QA m3): this said **18** while the record and the
+commit message said **19** — two homes for one number, in the unit whose `**Related:**` cites ADR 0195
+for exactly that. Both were right and neither said what it counted; they now do.
 
 ## Considered options
 
@@ -122,17 +132,31 @@ edits (gate 9 was already green — they cite by code span, not by link).
 
 - ⭐ **A reader's entry cost drops from 742 KB to the router plus one seam file** — largest 114.6 KB,
   median ~60 KB. That is the whole point; everything else is scaffolding to keep it true.
-- **Gate 16 (`lint:backend-state`) is added to the `npm run lint` chain**, with a 17-arm self-test in
-  which every check is proven able to fire AND to stay silent, plus a live mutation run against the
-  real corpus (preamble drift, unrouting, and a dangling marker each caught; baseline green after
-  rollback).
+- **Gate 16 (`lint:backend-state`) is added to the `npm run lint` chain** — **six** checks, a **32-arm**
+  self-test in which every check is proven able to fire AND to stay silent, and a live mutation run of
+  **all six** against the real corpus (baseline green after every rollback).
+  ⚠ **It shipped with four checks and two holes, both found by QA the same day and both now closed:**
+  deleting a seam file left rc=0 printing *"all routed"* (check B asked only whether every file was
+  named, never whether every name existed — **B2** is that opposite polarity), and **D2 had no enforcer
+  whatsoever** — a routed `phase-24-2026-09-20.md` passed green, so the decision this whole design rests
+  on was prose (**E**: a seam filename may not contain a digit). ⛔ D3 remains only partly enforceable:
+  B now requires a router row with a real "when to open it" clause, which is its checkable half; that
+  the clause names an *action* is not machine-checkable and is prose.
 - **Gates 12 and 15 moved in the same commit as their sections.** Both hard-code a path plus a
   heading regex; a stale path in either fails LOUD (rc 1 / a `FATAL` at the parse site), never blind.
   ⚠ Both were re-run green after the move, at the new path with new line numbers.
-- ⚠ **Total volume did not fall** — 742 KB became 732 KB across 13 files, and the ~10 KB delta is the
-  deleted ADR index minus twelve added preambles. **The split bounds per-file size; it does not
-  reduce what must be maintained.** A reader who expects the map to have gotten smaller has
-  misunderstood what was fixed.
+- ⛔ **Total volume ROSE.** 742,255 B → **749,842 B across 13 files, +7,587 B (+1.02%)**: twelve added
+  preambles, twelve H1s, four cross-seam pointers and the `stamp-history.md` header outweigh the
+  deleted 47-line ADR index. **The split bounds per-file size; it does not reduce what must be
+  maintained, and it did not even hold total volume flat.** A reader who expects the map to have
+  gotten smaller has misunderstood what was fixed.
+  ⚠ **CORRECTED 2026-09-09 (QA B2, BLOCKING), superseded text quoted rather than overwritten:** this
+  read *"Total volume did not fall — 742 KB became 732 KB across 13 files, and the ~10 KB delta is
+  the deleted ADR index minus twelve added preambles."* That compared **742 kB decimal against gate
+  16's 732 KiB binary**, inventing a ~10 KB shrink that never existed, and then explained the
+  non-existent delta causally — the explanation is what made it read as measured. Both figures are
+  now bytes. ⭐ The finding the bullet exists for survives the correction and is strengthened: the
+  original said volume merely failed to fall; it rose.
 - ⚠ **The seam axis reduces the supersession problem; it does not eliminate it.** A reader of
   `document-model.md` still replays 12 DM slices in order — but 12, not 53, and none of them
   interleaved with authz or printing. The remaining reduction has to come from D5 being used.

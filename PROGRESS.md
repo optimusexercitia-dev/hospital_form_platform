@@ -29,7 +29,7 @@ frontmatter, sorted in-progress first (ADR 0186 D1–D2).
 _Concluded measurements → [backend-state.md](docs/backend-state/conventions.md) § REMOTE CENSUS
 2026-08-18 (every figure with its deriving query); standing rules — the re-measure
 recipes, the editable window, "a git push is not a `db push`", the flags posture —
-→ backend-state.md § "Remote discipline — standing rules". The block's full narrative
+→ backend-state/conventions.md § "Remote discipline — standing rules". The block's full narrative
 and its three-times-stale correction history →
 [dm-fup-triage-2026-08-18.md](docs/progress/dm-fup-triage-2026-08-18.md). Only facts
 still awaiting a concluding event stay here:_

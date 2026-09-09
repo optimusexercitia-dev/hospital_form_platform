@@ -66,7 +66,13 @@ by name as the reason the generated index exists — it "had stopped in the 0070
 
 Seven of these eleven files map to a domain a teammate is assigned to; four
 (`conventions`, `data-access`, `authorization-and-audit`, `stamp-history`) are cross-cutting
-because their statements bind every seam. A file here answers **"what is true about this part of
-the backend"**. A phase answers "what changed on this date" — and that question already has two
-homes, the unit hub and the unit record. Adding a third is the drift this directory exists to
-retire.
+because their statements bind every seam. A file here is *meant* to answer **"what is true about this part of the backend"**. A phase
+answers "what changed on this date" — and that question already has two homes, the unit hub and the
+unit record. Adding a third is the drift this directory exists to retire.
+
+⚠ **The axis is the FILING, not yet the CONTENT — measured 2026-09-09, at the split:** of the 67
+`##` sections here, **57 (85%) are still date-stamped or unit-coded slices**, and **7 of the 11
+seam files carry no axis-free "what is true now" section at all**. What the split bought is that
+you now replay one seam's slices instead of all 53 interleaved. ⛔ Do not arrive here expecting a
+state document; expect a bounded log that is becoming one, as D5 corrections replace slices.
+Recorded so the router does not read as a promise the directory has not kept (QA m13).

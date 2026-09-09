@@ -47,7 +47,7 @@ port = 54321
 #   supabase/tests/320_act_expiry_and_acl_hardening.sql:285-287 (and :186-188) — the
 #     severity argument of the LIVE U1 assertion pinning the `app` PUBLIC-executable set
 #     at 236: "config.toml exposes ONLY the `public` schema ... This is defence-in-depth."
-#   docs/backend-state.md:3547-3549 — why `session_context()` lives in `public`, not `app`
+#   docs/backend-state/cases-and-ethics.md § PCI + TV — why `session_context()` lives in `public`, not `app`
 #   docs/design/authz-ae1-revoke-partition.md:44 — the rationale of the UNCHANGED partition
 #   docs/design/authz-definer-classification-ae1.md:41 and :484-486 — "no `app` function
 #     is client-invocable", under 320 `app` DEFINER grants and 213 of the 233 AE1 revokes

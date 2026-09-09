@@ -6,7 +6,8 @@
     "postgres-best-practices@supabase-agent-skills": true,
     "supabase@supabase-agent-skills": true,
     "medusa-dev@medusa": false,
-    "ui-ux-pro-max@ui-ux-pro-max-skill": false
+    "ui-ux-pro-max@ui-ux-pro-max-skill": false,
+    "codex@openai-codex": true
   },
   "skillOverrides": {
     "docx": "user-invocable-only",

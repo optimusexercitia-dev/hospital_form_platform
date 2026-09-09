@@ -8,7 +8,7 @@ phase: "ADR 0196 D1–D10 — no product phase; a documentation-apparatus change
 branch: ~   # done directly on main 2026-09-09, at PO instruction
 plan: ~
 progress: ../progress/backend-state-split.md
-reviews: []
+reviews: ["../reviews/backend-state-split-review.md"]
 adrs: ["0196", "0186", "0185", "0105", "0078"]
 handoff: ~
 fup: ~
@@ -33,15 +33,19 @@ Baselines and final values are in the record's session-log entry.
       duplicate of the generated `docs/decisions/INDEX.md`) and the 13-line H1+Purpose block that
       became the router.
 - [x] Router dispatches on the ACTION ("Open this / When you are about to…"), not on contents.
-- [x] Gate 16 `lint:backend-state` added to the `npm run lint` chain: preamble byte-identity,
-      router reachability (population = the directory listing), forward-marker targets resolve,
-      160 KB warn / 200 KB fail. 17-arm self-test, each check proven able to fire AND stay silent.
-- [x] Gate 16 mutation-run against the **real** corpus: preamble drift, an unrouted file and a
-      dangling marker each caught; baseline green after rollback.
+- [x] Gate 16 `lint:backend-state` added to the `npm run lint` chain: **six** checks — preamble
+      byte-identity, router rows with a real "when to open it" clause, router targets EXIST,
+      forward-marker targets resolve, 160 KB warn / 200 KB fail, and no digit in a seam filename
+      (D2's enforcer). **32-arm** self-test, each check proven able to fire AND stay silent.
+      ⚠ Shipped with four checks; QA found two holes (M1, M2) and both are closed.
+- [x] **All six** mutation-run against the **real** corpus — preamble drift, an unrouted file, a
+      deleted seam file, a dangling marker, a phase-named file, and both size arms; baseline green
+      after every rollback.
 - [x] The two gates that parse the map by path + heading (12 `lint:service-role-registry`,
       15 `lint:budget-anchor`) moved in the same commit as their sections, and both re-run green at
       the new path.
-- [x] Zero dangling links: 18 repaired across the three link-gated corpora; gates 7, 9 and 13 green.
+- [x] Zero dangling links: **19 gate findings across 18 unique sites** repaired (one site is reported
+      by two gates); gates 7, 9 and 13 green.
       ⚠ ADRs needed **zero** edits — they cite by code span, not by link.
 - [x] `npm run lint` rc=0 and `npm run typecheck` rc=0, both **taken bare, not through a pipe**.
 
@@ -79,12 +83,12 @@ the gate behaving correctly; it is recorded here rather than worked around.
 
 ## Execution note (2026-09-09) — scope, and what was NOT run
 
-Executed on `main` in one session. ⚠ The lead advised deferring this past the Batch 7/8 boundary
-(it competes with the pre-AE5 remediation programme and touches a file with 84 commits in 30 days);
-the PO overrode that and instructed it be done now — recorded here because an approval's scope is a
-fact that must be written down.
+Executed on `main` in one session; the scope ruling and what was not run are in the record's
+session log (QA m11 — a fact whose only home was this block would be cut with it at completion).
 
-⛔ **No QA review was run** (§6 step 3), because this unit was not run as a phase. Two things are
-therefore owed and are NOT closed by this hub: a read-only review of the split, and the follow-on
-work ADR 0196 names — extending derive-and-compare to the eleven ungated registries, and the
-`process.cwd()` hardening still missing from `check-service-role-registry.mjs`.
+✅ **QA review round 1 run 2026-09-09** — verdict **CHANGES REQUESTED**
+([backend-state-split-review.md](../reviews/backend-state-split-review.md)): 2 blocking, 4 major,
+14 minor. All 20 addressed; re-review owed before this hub may go `complete`.
+⛔ Still owed and NOT closed here: extending derive-and-compare to the eleven ungated registries, and
+the `process.cwd()` hardening missing from `check-service-role-registry.mjs`
+(`FUP-BACKEND-STATE-SPLIT-GATE-12-RESOLVES-FROM-CWD`).
