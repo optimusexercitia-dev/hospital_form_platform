@@ -8,7 +8,7 @@ phase: "Pre-AE5 remediation — Batch 8 of the follow-up batches ruled 2026-09-0
 branch: authz-can-manage-professional-self-check
 plan: ../plans/pre-ae5-remediation.md
 progress: ../progress/can-manage-professional-self-check.md
-reviews: []
+reviews: ["../reviews/can-manage-professional-self-check-review.md"]
 adrs: ["0079", "0155", "0190", "0191", "0192", "0193"]
 handoff: ~
 fup: ~
