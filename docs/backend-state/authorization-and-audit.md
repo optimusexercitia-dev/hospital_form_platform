@@ -18,7 +18,7 @@
 - **The `authz` catalog** — `roles` · `permissions` · `role_permissions`, behind three declared interfaces: layer 3
   domain authorizers (the permission code is a statically greppable **string literal**) · layer 2 resolvers · layer 1
   assignment projection. **No client role reaches `authz`** — anon, authenticated *and* service_role — and the schema
-  is absent from `config.toml`'s exposed schemas.
+  is absent from `config.toml`'s exposed schemas. Authority helpers pair caller-keyed with **subject-keyed (`_for`)** twins; a predicate parameterised on a principal uses the `_for` twin (ADR 0200).
 - **The zero-policy, door-only table class** — RLS on, **0 policies**, `authenticated` *and* `anon` hold nothing,
   `service_role` holds all four verbs; membership is DERIVED, not hand-listed (`supabase/tests/382_…`, § A0).
 - **The quality-office plane** — `quality_reviewer`, `commissions.quality_oversight` (`visible|excluded`), its ONLY
@@ -63,6 +63,7 @@
   enforcement manifest is how it is found. A re-keyed authorizer is **not** purely permission-keyed: residual
   non-permission arms sit inside the DEFINER body, invisible to anyone auditing `pg_policies`, so they are pinned **BY
   NAME** — adding an arm reds the pin, *retiring* one reds it too.
+- **A predicate's arms must answer about the principal its own signature names.** `can_manage_professional` and `can_read_professional_profile` are subject-keyed on `p_uid` since ADR 0200 — both were wholly caller-keyed before, and AE4.7c's narrowing removed the last arm that read the parameter; `is_admin()` and `is_admin_for()` are **not** interchangeable at SELF (a JWT-claim fast path vs a `profiles` read).
 
 ### Rollout
 
@@ -93,6 +94,7 @@
 - Two frozen paragraphs below state **different** privilege-ceiling values; the later PO ruling governs and gate 15's
   `PROSE_RE` does not match the older form, so only a hand-written note stands between them. The pt-BR authority messages
   in [`document-model.md`](document-model.md) say **three** and name **two** — inherited, not introduced; re-derive both.
+- Neither `is_admin()` nor `is_admin_for()` consults `app.is_active`, so a deactivated `platform_admin` passes every admin arm — before and after ADR 0200 (`FUP-IS-ADMIN-ARM-IGNORES-PRINCIPAL-STATE`); nothing reds if a NEW predicate pairs a caller-keyed arm with a `p_uid`-keyed one.
 
 ### Where the detail lives
 
@@ -694,6 +696,8 @@ in both directions. Home: `supabase/tests/vectors/authz-enforcement-manifest.jso
 
 ### ⛔ Five residual legacy arms live INSIDE the three layer-3 authorizers
 
+⚠ **Superseded** — the `app.can_read_professional_profile` row's `is_admin` arm below is now `is_admin_for`; the arm did not retire, only the principal it evaluates changed (ADR 0200). See authorization-and-audit.md § Subject-keying of the professional-identity predicates.
+
 A re-keyed authorizer is **not** purely permission-keyed. Each retains the non-permission arms that
 granted before, so legacy equivalence holds for principals whose roles are still `legacy` (and
 whose `authz.role_permissions` rows are therefore **inert** — 401 §16.9b):
@@ -1255,3 +1259,34 @@ re-measured **2026-09-09** against the local catalog at migration `2026100300735
   that one is **LIVE**, on `public.hospitals`. The `trg_audit_*` prefix is not itself a legacy tell — **47**
   live triggers use it, alongside the more common `audit_<table>_trg` form. Check `pg_trigger` per name;
   the two naming conventions coexist by history, not by meaning.
+
+## Subject-keying of the professional-identity predicates (2026-09-09, ADR 0200, migration `20261003007360`)
+
+`app.can_manage_professional(p_org, p_uid)` and `app.can_read_professional_profile(p_profile_id, p_uid)` are
+**subject-keyed**: every arm resolves about `p_uid`. Before this migration both of
+`can_manage_professional`'s arms (`app.is_admin` zero-argument, `app.is_org_admin_of(p_org)`) and
+`can_read_professional_profile`'s first arm read `auth.uid()`, so a third-party-shaped signature sat over a
+pure self-check; `p_uid` was a null guard and nothing else. Reach at head was **0 reachable third-party
+paths** (20 call expressions in the closure, all resolving to `auth.uid()`; `app` not PostgREST-exposed; 0
+triggers) — a latent trap, not a live hole, which is why no BUG row exists.
+
+The arm named in § Five residual legacy arms above did not retire — only the principal it is evaluated
+about changed: a `platform_admin` via `profiles.is_admin`, same as before. `410 § 4.6`'s five-by-name pin
+and the manifest's `residualLegacyAuthority` were re-keyed with it.
+
+**The rule this seam now carries:** `app` holds a subject-keyed `_for` twin for every caller-keyed authority
+helper (`is_admin_for`, `is_org_admin_of_for`, `is_hospital_admin_of_for`, `is_staff_admin_of_for`,
+`is_tenancy_admin_of_for`, `is_nsp_org_admin_of_for`). **A predicate that takes a principal parameter must
+use the `_for` twin.** ⛔ The two are NOT interchangeable at SELF either: `is_admin()` trusts
+`request.jwt.claims ->> 'is_admin'` (a fast path minted from `profiles.is_admin` by
+`public.custom_access_token_hook`), `is_admin_for` always reads `profiles`, so swapping closes a stale-token
+window for a demoted admin. That is a **tightening**, and it must be declared, never absorbed into a
+no-regression claim.
+
+**Enforced by:** `supabase/tests/415_fup_can_manage_professional_subject_keying.sql` (17 assertions;
+bidirectional cells per arm per site, 6 witnessed RED before the migration) · `410 § 3.7` / `§ 4.6` (the
+manifest composition) · the migration's own both-direction landing assertions, proven able to fire on a
+doctored body (QA MINOR closed by measurement — `docs/progress/can-manage-professional-self-check.md`).
+⛔ **Not enforced:** nothing reds if a *new* predicate pairs a caller-keyed arm with a `p_uid`-keyed one —
+that obligation is ADR 0200's data statement on the AE5 template and is `prose only` today. Full record:
+`docs/progress/can-manage-professional-self-check.md`; ADR `docs/decisions/0200-professional-identity-predicates-answer-about-their-subject.md`.

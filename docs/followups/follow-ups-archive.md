@@ -12487,3 +12487,89 @@ default nobody wrote. A one-outlier framing invites a one-function fix that woul
 ⛔ **Do not "fix" this by adding `REVOKE` to the ADR 0134 migration.** It is outside that ruling's
 approval scope, it is unrelated to the case surface split, and a sweeping privilege change smuggled into
 a feature migration is how the next reader loses the reasoning.
+
+### 🟠 FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-ARM — both arms were caller-keyed and the reach was smaller than filed — fixed via the `_for` twins — ✅ CLOSED 2026-09-09
+
+> **RESOLVED 2026-09-09** — pre-AE5 **Batch 8**, unit `CAN-MANAGE-PROFESSIONAL-SELF-CHECK`, ADR
+> [0200](../decisions/0200-professional-identity-predicates-answer-about-their-subject.md), PO
+> rulings **R1–R3** (R1 fix now via the `_for` twins; R2 both sites, one migration; R3 the SELF
+> tightening declared, never absorbed into a no-regression claim). Record:
+> `docs/progress/can-manage-professional-self-check.md`.
+>
+> **The entry's own `Closes when` was malformed** — a precondition and an owner, no observable —
+> and is REPLACED at this step, per lead ruling L8. Superseded (quoted verbatim):
+>
+> > **Closes when:** PO's, once BUG-PROF-INACTIVE-001 is green.
+>
+> Replaced with:
+>
+> > **Closes when:** the PO has ruled on disposition with the reachability measurement in front of
+> > them, and either (a) `app.can_manage_professional`'s and `app.can_read_professional_profile`'s
+> > live `prosrc` contain no call to a zero-argument or caller-keyed authority helper — verified
+> > from `pg_proc`, comments stripped — with `supabase/tests/415` cells reported RED before the
+> > migration and GREEN after, and the diff-scoped door sweep passing both arms; or (b) a DEFER is
+> > recorded in ADR 0200 carrying a machine-checkable re-open condition.
+>
+> **(a) is what was met.** Witnesses: pgTAP `415` — **6 of 17 RED** at head (before the migration
+> existed) → **17/17 GREEN** after; the door-audit sweep, both arms — `SWEPT: 2 gate(s) COVERED: 2
+> BLIND: 0`; the write arm — **0 cases**, by the deriver's own derivation (this migration touches
+> only boolean predicates, which the split rule sends to the read arm).
+>
+> ⛔ **The entry block below is preserved VERBATIM, its `Closes when` field included; only
+> `**Status:**` is rewritten.**
+
+**Filed:** 2026-09-01 (AE4.5, alongside BUG-PROF-INACTIVE-001) · **Owner:** backend · **Severity:** high — a distinct authorization defect in the same predicate, deliberately NOT fixed
+**Closes when:** PO's, once BUG-PROF-INACTIVE-001 is green.
+**Status:** ✅ CLOSED 2026-09-09 (pre-AE5 Batch 8, unit `CAN-MANAGE-PROFESSIONAL-SELF-CHECK`)
+
+> ⛔ **BODY MOVED HERE VERBATIM 2026-09-09 and `FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-ARM.md`
+> DELETED.** The archive may not carry a `Body:` link (gate 13 reds on one; ADR 0185 D5), so a
+> closed entry keeps its body inline or loses it. The body's own `# ` title is demoted to `#### `
+> so it nests under this entry. ⚠ Deviation from a pure verbatim fold: the folded copy's own
+> "Index entry" line and a closing Resolution note are updated/added below, since leaving them
+> unchanged would misstate the file's current location and status when read on its own.
+
+#### FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-ARM
+
+Index entry: [follow-ups-archive.md](follow-ups-archive.md) · filed 2026-09-01 · status closed 2026-09-09
+
+with the `is_active` bypass.
+
+`app.can_manage_professional(p_org uuid, p_uid uuid)` is parameterised on a **third party**
+(`p_uid`), but its first arm is:
+
+```sql
+coalesce(app.is_admin(), false)
+```
+
+`app.is_admin()` **takes no argument** — it reads `auth.uid()`. So that arm answers about **the
+caller**, never about `p_uid`.
+
+**Measured caller split (lead, 2026-09-01):** **13** callers; **12 pass `auth.uid()`**, where the
+confusion is invisible because caller and subject coincide. **Exactly one passes a third party** —
+`app.can_read_professional_profile`, at `can_manage_professional(v_org, p_uid)`.
+
+⛔ **The reachable consequence:** when a `platform_admin` asks *"can user X read this professional
+profile?"*, the answer can be **TRUE because the caller is an admin**, not because X may. A
+permission check about someone else silently returns the asker's own authority.
+
+⭐ **This is § 6A's self/third-party asymmetry again — the same class derived for the AE4.4b
+resolver, now found in the legacy predicate.** Different defect, different blast radius, different
+disposition from BUG-PROF-INACTIVE-001.
+
+⛔ **Why it was not folded into that fix:** it would make a security fix unattributable — two
+changes to one predicate in one migration, where only one of them has a differential-oracle cell
+proving it landed. It also needs its own reachability analysis, which has not been done.
+
+**Disposition:** PO's, once BUG-PROF-INACTIVE-001 is green.
+
+**Resolution.** Closed 2026-09-09 at pre-AE5 Batch 8's Record step. The reachability analysis this
+entry called for was performed at migration head pair `(20261003007350, 524)` and REFUTED this
+body's own count in both directions: both arms are caller-keyed, not one, and the reach is 0
+third-party paths, not the 13-caller/1-third-party split above (which predates
+BUG-PROF-INACTIVE-001 and two later migrations). PO ruling R1 fixed `app.can_manage_professional`
+and, per R2, `app.can_read_professional_profile`'s own admin arm, in the same migration
+(`20261003007360`), via the existing `_for` subject-keyed twins. Full reachability measurement, the
+PO's rulings and the fix: ADR
+[0200](../decisions/0200-professional-identity-predicates-answer-about-their-subject.md);
+session-by-session detail: `docs/progress/can-manage-professional-self-check.md`.

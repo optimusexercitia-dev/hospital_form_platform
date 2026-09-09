@@ -1238,13 +1238,6 @@ same commit, or not at all.**
 **Status:** open
 **Body:** [FUP-SEED-PENDING-PERSONA-CANNOT-REACH-ITS-LAYER.md](FUP-SEED-PENDING-PERSONA-CANNOT-REACH-ITS-LAYER.md)
 
-### 🟠 FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-ARM
-
-**Filed:** 2026-09-01 (AE4.5, alongside BUG-PROF-INACTIVE-001) · **Owner:** backend · **Severity:** high — a distinct authorization defect in the same predicate, deliberately NOT fixed
-**Closes when:** PO's, once BUG-PROF-INACTIVE-001 is green.
-**Status:** open
-**Body:** [FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-ARM.md](FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-ARM.md)
-
 ### 🟠 FUP-ONE-SUPABASE-PROJECT-SERVES-TEST-AND-PRODUCTION — the "prod project" the archive defers to does not exist (owner: PO decision, then lead)
 
 **Filed:** 2026-09-01 (out of ADR [0175](../decisions/0175-ae4-po-batch-oracle-inputs-and-arm3-deferral.md) D4(b)) · **Owner:** lead + PO · **Severity:** high — per emoji at consolidation
@@ -1861,3 +1854,38 @@ absent from the `conventions.md` ledger, which jumps `20260718000200` → `20260
 It is a frozen 2026-07 record and several of its authorization claims are already known stale; treating it
 as a source would repeat the error ADR 0199 exists to correct. The sources are the migration files, the
 live catalog, and `supabase_migrations.schema_migrations`.
+
+### 🟠 FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-ADMIN-ARM-IGNORES-IS-ACTIVE — the admin arm never gates on `app.is_active`
+
+**Filed:** 2026-09-09 (Batch 8, unit CAN-MANAGE-PROFESSIONAL-SELF-CHECK) · **Owner:** backend · **Severity:** high — the asymmetry now sits inside one expression: `is_org_admin_of_for` follows the subject's state, the admin arm ignores it
+**Closes when:** `app.is_admin_for`'s live `prosrc` contains an `app.is_active` term (verified from `pg_proc`, comments stripped), with a pgTAP cell that deactivates a `platform_admin` and asserts the admin arm denies, **reported RED before the change**; ⛔ or the PO rules explicitly that platform-admin authority is deliberately independent of principal state, and that ruling is recorded in an ADR. Not closed by "no one has deactivated an admin yet".
+**Status:** open
+**Body:** [FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-ADMIN-ARM-IGNORES-IS-ACTIVE.md](FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-ADMIN-ARM-IGNORES-IS-ACTIVE.md)
+
+### 🟠 FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-PLATFORM-ADMIN-CLASS-2-WRITE — a noun-rule question ADR 0200 left open
+
+**Filed:** 2026-09-09 (Batch 8, unit CAN-MANAGE-PROFESSIONAL-SELF-CHECK) · **Owner:** backend + PO · **Severity:** high — arm 1 grants a `platform_admin` write access to Class-2 professional identity content, which the noun rule (ADR 0078 A35) says is not theirs to touch
+**Closes when:** the PO has ruled on whether arm 1 should exist at this gate, with the door list (3 `public` RPCs, derived from `pg_proc`, not quoted) in front of them; and either the arm is removed with a pgTAP cell asserting a `platform_admin` is denied `redact_professional_profile` (RED before, GREEN after) plus an E2E over the reachable UI path, or the exception is recorded in an ADR naming why professional identity is a tenancy noun.
+**Status:** open
+**Body:** [FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-PLATFORM-ADMIN-CLASS-2-WRITE.md](FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-PLATFORM-ADMIN-CLASS-2-WRITE.md)
+
+### 🟡 FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-VOCAB-REDACTION-ZERO-CALLERS — five `'use server'` exports have no caller in `src/`
+
+**Filed:** 2026-09-09 (Batch 8, unit CAN-MANAGE-PROFESSIONAL-SELF-CHECK) · **Owner:** lead + frontend · **Severity:** medium — a Server Action export is POST-reachable regardless of whether any component calls it (LEARN-018's Server-Action form)
+**Closes when:** each of the five is either wired to a caller in `src/` (a UI affordance, verified by an E2E that reaches it) or removed from the module's exports; a repeat of the zero-caller sweep over the module's `'use server'` exports returns an empty set. ⛔ Not closed by "the RPC beneath it is gated" — the finding is about reachability of the action, not the correctness of the gate.
+**Status:** open
+**Body:** [FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-VOCAB-REDACTION-ZERO-CALLERS.md](FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-VOCAB-REDACTION-ZERO-CALLERS.md)
+
+### 🟡 FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-SMOKE-SCRIPT-SERVICE-ROLE-LINKAGE — bypasses `set_professional_link_state`
+
+**Filed:** 2026-09-09 (Batch 8, unit CAN-MANAGE-PROFESSIONAL-SELF-CHECK) · **Owner:** backend · **Severity:** medium — a service-role write site that skips its door is exactly what the service-role DML registry exists to make visible
+**Closes when:** the script creates linkage through `set_professional_link_state` (or through a DEFINER helper that calls it), verified by the linkage-freeze trigger firing on a deliberate double-link in the script's own run; or the two write sites are registered in the service-role DML registry with a written justification for the bypass.
+**Status:** open
+**Body:** [FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-SMOKE-SCRIPT-SERVICE-ROLE-LINKAGE.md](FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-SMOKE-SCRIPT-SERVICE-ROLE-LINKAGE.md)
+
+### 🟡 FUP-ENFORCEMENT-MANIFEST-COMMENT-DESCRIBES-A-RED-THAT-IS-GREEN — rows 31/32's `_comment` is stale
+
+**Filed:** 2026-09-09 (Batch 8, unit CAN-MANAGE-PROFESSIONAL-SELF-CHECK) · **Owner:** lead · **Severity:** medium — no gate can contradict a `_comment`, and this one sits on the document that is the manifest's own authority (LEARN-088)
+**Closes when:** the `_comment` on rows 31/32 states the ruling that was taken and the current value of `401 § 19.2b`, and a fresh run of `401` is quoted beside it showing § 19.2b and § 19.2c green. ⛔ Not closed by deleting the comment — the ruling it half-records is worth keeping.
+**Status:** open
+**Body:** [FUP-ENFORCEMENT-MANIFEST-COMMENT-DESCRIBES-A-RED-THAT-IS-GREEN.md](FUP-ENFORCEMENT-MANIFEST-COMMENT-DESCRIBES-A-RED-THAT-IS-GREEN.md)

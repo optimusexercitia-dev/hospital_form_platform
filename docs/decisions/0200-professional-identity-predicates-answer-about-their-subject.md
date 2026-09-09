@@ -1,6 +1,6 @@
 # ADR 0200 — A predicate parameterised on a principal must answer about that principal, and a narrowing can remove the last reader of the parameter
 
-**Status:** proposed — to be accepted at unit `CAN-MANAGE-PROFESSIONAL-SELF-CHECK`'s Record step, after PO approval. ⛔ That flip is the only thing that moves it, and **no gate reds if it never happens**.
+**Status:** accepted 2026-09-09 (PO approval at the unit's Record step)
 **Date:** 2026-09-09
 **Area:** authorization / professional identity (Class-2) / the AE5 re-key template
 **Amends:** ADR [0193](./0193-the-enforcement-manifest-declares-what-it-measured.md) (D5 — the per-row `definerSurface` obligation the AE5 template inherits is extended: the template must also declare the **keying** of every arm it pairs, because 0193's representative chain `can_create_professional → can_manage_professional` differenced a `p_uid`-keyed arm against an `auth.uid()`-keyed one and the manifest's `expected: "identical"` row rested on the arm this ADR changes) · ADR [0190](./0190-the-door-sweep-deriver-selects-by-property-and-a-full-run-merges.md) (FINDING (1)'s rewrite arm is decided on RESOLVABLE targets **per file**, before the dedup 0190 introduced — see § Amendment to ADR 0190; the deriver false-FOUND on this unit's own migration and, in the other polarity, let a declaring sibling mask an unreadable rewrite)
