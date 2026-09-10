@@ -172,6 +172,16 @@ same control as above — `app.is_org_admin_of_for` **t**); and its only other g
 `authz.roles.session_selectable`. ⇒ the mint consults **no** account state at all, which is the
 same measurement the token-expiry premise above is refuted by, read from the third site's side.
 
+> ⚠ **Amended 2026-09-10 at Batch 10's build (PO ruling R1 of unit `ADMIN-ARM-IS-ACTIVE`) — the
+> third site's gate is DOOR-WIDE, a DECLARED WIDENING of R12.** R12's words gate `public.assume_role`
+> reasoning about the admin hat; the build put one `app.is_active(v_uid)` check before **any** seating,
+> every tier, after the `session_selectable` check. Measured before ruling: zero expected reds (no
+> pgTAP file seats a deactivated principal), and every tenant predicate already carries `is_active`,
+> so the widening removes a pointless seating and its audit row, never an ability. The alternative —
+> gating the `platform_admin` branch only — would reproduce inside one body the shape R12 was taken
+> to remove: a door that *reads* gated. Its hat-blind allowlist reason survives on re-derivation
+> (account state is not a hat/grant read) and carries a dated paragraph, not an inherited one.
+
 **D5 (PO ruling R4) — the Class-2 write arm is REMOVED and RELOCATED, not deleted.** A35's
 **"identity"** noun is the **user directory**; a tenant's **professional registry** is Class-2
 **tenant** content. `platform_admin` **reads** it (A35 ruling 3, unchanged — *"audited reads, a
@@ -205,6 +215,13 @@ whichever you pick.** Re-derived from `pg_proc`, comment-stripped, call-shaped �
 `app.can_read_professional_profile` carries its **own** `is_admin_for` short-circuit that returns
 **before** it reaches `can_manage_professional` — measured by position in the comment-stripped body,
 `is_admin_for` at **115**, `can_manage_professional` at **342**. *One set is not two questions.*
+
+> ⚠ **Measurement note, 2026-09-10 (Batch 10's plan, lead decision L1 — annotated, not edited):**
+> re-measured at head pair `(20261003007380, 527)` the positions are **111** and **338**. The
+> literals are **grain-dependent** (they move with the comment-stripping expression, which the plan
+> quotes beside its figure); the **ordering** — `is_admin_for` returns before `can_manage_professional`
+> is reached — is the only load-bearing fact and reproduces. Same discipline as the `entailed_grants`
+> numerals: a position quoted without its expression is not reproducible, and is not thereby wrong.
 
 ⛔ **The reason Option 2 (the narrowest variant) is rejected is NOT the one first stated, and the
 correction matters more than the conclusion.** `public.ensure_professional_participant` does **not**
