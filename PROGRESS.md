@@ -20,7 +20,6 @@
 | 18 | Self-Assessment & Internal Audit | 🔜 not started | – | – | – | – | – | – |
 | 19 | Surveyor Access & Evidence Export | 🔜 not started | – | – | – | – | – | – |
 | DLB | **Deliberation & Voting Model** [0115](docs/decisions/0115-deliberation-and-voting-model.md) ([plan](docs/plans/deliberations.md)) | 🔜 planned — state in its [hub](docs/features/dlb.md) | – | – | – | ⛔ **not ratified** | – | taken |
-| GPC-A1 | **Grant plane convention — Amendment 1** [0205](docs/decisions/0205-per-object-grant-plane-convention.md) § Amendment 1 ([hub](docs/features/grant-plane-convention-a1.md)) | 🔄 in progress — state in its [hub](docs/features/grant-plane-convention-a1.md) | – | – | – | ⏳ amendment ruled 2026-09-10; Fix 3 after QA | – | – |
 
 **Live feature state:** [docs/features/INDEX.md](docs/features/INDEX.md) — generated from hub
 frontmatter, sorted in-progress first (ADR 0186 D1–D2).

@@ -167,3 +167,54 @@ test 2080 · test:db 266/8982 · deriver exit 1 with the same SCOPE line · self
 the picker fix's practical reach is the coordinator arm (tenancy admins never see this UI pre-pilot); an
 untested-but-correct ordering interaction between the self-grant guard and invalid-level validation; a
 test-seam note. DB left pristine. Hub → `gated`; commit 2 (Fix 3) landed; awaiting PO for Record.
+
+### 2026-09-10 — Record step (lead; PO approved)
+
+**PO approval** given in-session on the gate presented (both commits, the gate table, the corrected
+escalation arm, the browser gap stated). **Record:** hub → `complete` with all five acceptance criteria
+ticked; the external audit dropped from the hub's `reviews:` (a complete hub may not cite a non-APPROVED
+verdict; ADR 0205's header and § Amendment 1 cite it permanently); the PROGRESS.md § Phase Status row
+moved to the ledger verbatim as `✅ complete`; no bug, no new follow-up, no handoff. **Deliberately NOT
+done:** no lesson row (the candidate — *a ruling's exploit persona must be measured inside the caller's
+session, or the hat conjunct answers for it* — is LEARN-003 + LEARN-058 already, and the `lessonsProseOnly`
+ratchet stands at 52/52); the hub's Fix 3 acceptance line still names the tenancy-admin persona because
+417 does test it (K1/K2) beside the coordinator (K3) — the correction lives under D6·5·1, one home.
+**Gates at the tip, bare:** quoted in the Record commit.
+
+**Final Current state block, cut from the hub at Record (verbatim):**
+
+**Updated:** 2026-09-10
+
+**Objective.**
+
+Amend ADR 0205 in place so the convention is implementation-ready (the audit's five findings), and
+close the one finding that is a live escalation path — a self-grant through the case grant door —
+pre-pilot, case-only, no AE5 contact.
+
+**Done since start.**
+
+Commit 1 (`18f2fc7f`): the amendment, the audit file, the corpus edits, this unit. **Fix 3 built and
+gated** (uncommitted, on `main`): migration `20261003007380` (`HC0U1`), pgTAP `417` RED-first (7/34 red
+before, green after), `235` K7 split, `actions.ts` mapping + 21 cells, the picker excludes the actor
+(+ unit test). Gate, bare rc: lint 0 · typecheck 0 · test 2080 · fresh-reset `test:db` 266/8982 PASS ·
+e2e case-access 26 passed · deriver exit 1 (door outside PRED_DOMAIN) discharged by the hand
+targeted mutation — 8 reds in exactly 417 + 235, restore identical · set-valued arm CLEAN 3/3 ·
+door-sweep self-test 46/46. ⭐ Build measurement corrected D6·5·1: the tenancy-admin self-grant was
+already closed incidentally by the ACT hat conjunct; the open arm was the coordinator's (incl.
+self-issued restricted PHI). Correction appended under the clause, ratified text kept.
+
+**In progress.**
+
+Nothing. `qa` verdict **APPROVED — 0 BLOCK · 0 MAJOR · 0 MINOR · 3 INFO**
+(`docs/reviews/grant-plane-convention-a1-review.md`); commit 2 carries Fix 3. Awaiting PO.
+
+**Next.**
+
+PO approval, then Record — commit 2 (Fix 3), this block cut into the record, the hub
+`complete` with the audit dropped from `reviews:` (a `complete` hub may not cite a non-APPROVED
+verdict; the ADR cites it permanently), the PROGRESS row moved to the ledger, commit 3.
+
+**Blockers.**
+
+None. Manual pane click-through of the panel was not possible this session (the Browser pane had no
+viewport); the browser proof is the E2E run + the unit test.
