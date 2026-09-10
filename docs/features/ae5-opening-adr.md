@@ -126,7 +126,8 @@ builder runs the arms at the tip.
 
 ## Current state
 
-**Updated:** 2026-09-10 (QA fix loop, iteration 1)
+**Updated:** 2026-09-10 (QA fix loop, iteration 2 — ⚠ this block went stale INSIDE iteration 1 and
+that was QA N-MAJOR-3; it is replaced, not amended, and it describes the tip it is committed with)
 
 ### Objective
 
@@ -137,41 +138,49 @@ named successors — together with the three follow-ups the PO added at initiati
 
 ### Done since start
 
-**Fourteen PO rulings taken (R1–R14)**, each with its measured basis in the record. **ADR 0201** and
-**ADR 0203** written, `Status: proposed`, registered in `proposed-review.json`. The manifest
-follow-up's three conditions **met and proven**. Both register clauses **corrected**, superseded
-wording quoted. Item 6's five checklist corrections added as pointers (measured at **0 of 5** first).
-Both deferred censuses written into their follow-up bodies. `AE5-MATRIX-ARM3-CELLS` hub opened.
-**R13's three-site bash-3.2 harness fix landed and was verified by the lead, not the builder** —
-`SELFTEST` **rc 0 bare, PASS 46 · FAIL 0**, all three GROUP lines clean, and the door harness's own
-total now `33/33` **under bash 3.2**, converging with the figure earlier records quoted under bash 4+.
-⭐ Gate at the tip, exit codes bare: lint **0** (17/17, 0/0) · typecheck **0** · vitest **151 files /
-2056** · `test:db` **264 files / 8923 PASS** on a fresh reset (shape unmoved) · **four arms HOLD** ·
-deriver **rc 3 = NOT-APPLICABLE** with its `SCOPE:` line quoted · ⭐ **empty-pathspec assertion
-EMPTY** — the batch's defining claim. **QA reviewed: `CHANGES REQUESTED`, 2 BLOCK · 2 MAJOR · 7
-MINOR** ([review](../reviews/ae5-opening-adr-review.md)).
+**Fourteen PO rulings (R1–R14)** taken, each with its measured basis in the record, and — after QA
+BLOCK-1/BLOCK-2 — **all of them landed in the corpus, not only the log**. **ADR 0201** (412 lines)
+and **ADR 0203** (337), `Status: proposed`, registered in `proposed-review.json`. The manifest
+follow-up's three conditions **met and proven**. All three register clauses corrected with their
+superseded wording quoted — including the follow-up **body's own** `Closes when` field, which named
+one site where the item now names three. Item 6's five checklist corrections added (measured at
+**0 of 5** first). Both deferred censuses written into their follow-up bodies.
+`AE5-MATRIX-ARM3-CELLS` hub opened. R13's three-site bash-3.2 harness fix landed and was **verified
+by the lead, not the builder**. Three lessons filed (**LEARN-095/096/097**), one new rule, and one
+prohibition promoted into the lead-playbook. `FUP-AE5-OPENING-ADR-CLASSIFICATION-COLUMNS-OWE-A-NAMED-CONSUMER`
+filed, which is what makes ADR 0203 D3's present-tense claim about the register true.
+⭐ **Gate at the tip, exit codes bare:** lint **0** (17/17, 0/0) · typecheck **0** · vitest **151
+files / 2056** · `test:db` **264 files / 8923 PASS** on a fresh reset · **four arms HOLD** · deriver
+**rc 3 = NOT-APPLICABLE** with its `SCOPE:` line quoted · `SELFTEST` **rc 0, PASS 46 · FAIL 0** on
+bash 3.2.57 · ⭐ **empty-pathspec assertion EMPTY**.
+**QA:** [review](../reviews/ae5-opening-adr-review.md) `CHANGES REQUESTED` (2 BLOCK · 2 MAJOR · 7
+MINOR) → [re-review](../reviews/ae5-opening-adr-rereview.md) `CHANGES REQUESTED`
+(**0 BLOCK** · 3 MAJOR · 2 MINOR) — both BLOCKs **FIXED**, and ⛔ **all three new MAJORs were
+defects the fix loop itself introduced, of the class it was sent to repair.**
 
 ### In progress
 
-**QA fix loop, iteration 1** — all eleven findings, in one pass. Lead half **done**: both surfaces
-that contradicted R12 corrected (the register clause and plan §3's Batch-10 routing), the
-`platform_admin`-deactivation negative **re-derived** to replace a hand-list, LEARN-097 filed and its
-prohibition promoted into the lead-playbook, LEARN-096's enforcement **bound stated**, this block
-replaced, and the ADR numbering hole recorded. `backend` half in flight: the two BLOCKs (R11 into ADR
-0203 D3, R12 + D5 into ADR 0201) plus MAJOR-2's three miscitations, MINOR-5 and MINOR-7.
+**QA fix loop, iteration 2** — all five of the re-review's findings, this entry: the routing sentence
+that was left **orphaned at the tail of a different item** (N-MAJOR-1); the derivation whose
+**filter was the wrong predicate**, asserting a false universal that one counter-example killed
+(N-MAJOR-2); this block (N-MAJOR-3); the missing register entry (N-MINOR-1); and the finding count
+(N-MINOR-2). Then a second re-review.
 
 ### Next
 
-QA **re-review** at the fixed tip → PO approval → Record step, which owes: the ADRs flipped
-`proposed` → `accepted` and removed from `proposed-review.json`, `"0201"` re-added to the
-`AE5-MATRIX-ARM3-CELLS` hub, the ledger row, and the eight named findings filed.
+QA re-review at the iteration-2 tip → PO approval → Record step. What Record owes, **named rather
+than counted** (⚠ this block previously said *"eight"* against an enumeration of five — QA
+N-MINOR-2): both ADRs `proposed` → `accepted` and removed from `proposed-review.json` · `"0201"`
+re-added to the `AE5-MATRIX-ARM3-CELLS` hub · the ledger row · and **four** follow-ups still to
+file — `0176:45`'s no-reader list stale 4→3 with no gate able to say so · `authz-matrix-coverage.json`'s
+`migrationHead` stale against the live head · R10's audit-stamp implementation, which has no register
+home · and `entailed_grants`' comment numerals that **reproduce at no grain measured**. ⚠ Four other
+named findings were **discharged inline** rather than filed (the two deferred clauses' censuses, and
+three lessons), which is why no single number describes them.
 
 ### Blockers
 
-⛔ **The two QA BLOCKs, both open until `backend` returns**: PO rulings **R11** and **R12** live only
-in the progress log, and the ADRs state the **opposite** — 0203 still reads `D3 is PO to rule` and
-0201 still reads that `public.assume_role` is *"deliberately left UNRULED here"*. ⇒ ADR 0176 D8's
-classification-column disjunction stays formally undischarged in the corpus, and each `Status:` line
-would go false the moment the Record step flipped it to `accepted`. ⚠ Not a blocker but a bound: the
-`SELFTEST` bash-3.2 defect is **fixed**, so the earlier § Blockers text claiming `PASS 40 · FAIL 6`
-was **stale when QA measured it green** — that staleness was MAJOR-1 and is corrected here.
+**None.** Both QA BLOCKs are discharged and verified by QA at `b58549fe`. ⚠ Two standing bounds, not
+blockers: the Record checklist has **no step that reconciles rulings TAKEN against rulings LANDED in
+the artefact** — the gap that produced both BLOCKs — and LEARN-096's enforcer cannot load on the
+surface where its own incident happened, which its row now states rather than hides.

@@ -409,16 +409,21 @@ through. Needs its own reachability analysis; a migration → diff-scoped sweep,
 >    those surfaces then said the third site was NOT in scope**, which was true when written and false
 >    from R12 onward. ⇒ derive Batch 10's scope from **ADR 0201 + ADR 0203 + the unit record's R11/R12
 >    entries**, and ⛔ never from R3/R4 alone.
+>    ⛔ **And this plan deliberately writes NO Batch 10 block**: a block written by a passing batch for
+>    work it is not doing is the shape §2's Batch 6 note warns about. ⚠ **CORRECTED 2026-09-10 at QA
+>    N-MAJOR-1** — the sentence that said this had been left **orphaned at the tail of item 5**, where
+>    it terminated the ADR-numbering item and re-asserted the very routing item 4 retires. Superseded
+>    tail, quoted: *"whoever opens Batch 10 derives its scope from the unit record's R3/R4 entries and
+>    the corrected register clauses, not from a placeholder."* ⭐ **A correction that leaves its own
+>    superseded sentence live, four lines lower and attached to a different subject, has corrected
+>    nothing** — and *"previously"* in item 4 was false while that tail stood.
 > 5. ⚠ **`0202` IS AN UNFILLABLE HOLE AND `0204` IS RESERVED BUT UNWRITTEN** (QA MINOR-6). R7 split
 >    four ADRs; Batch 9 wrote **0201** and **0203** only. So `docs/decisions/` has no `0202` and never
 >    will, while CLAUDE.md §8's rule (*"the highest number on ANY live branch + 1"*) now yields
 >    **0204** for the next ADR **of any subject** — which would collide with this plan's reservation of
 >    0204 for the `D`-ceiling / `search_path` document. ⛔ **Whoever numbers the next ADR reads this:**
 >    `0202` is reserved for the role-catalog decision (F7 · F8 · `platform_role`) and **`0204` for the
->    two conventions**; take **0205** for anything else, or renumber the deferred pair and say so here. ⛔ Stated
->    rather than fixed: a block written by a passing batch for work it is not doing is the shape §2's
->    Batch 6 note warns about — whoever opens Batch 10 derives its scope from the unit record's R3/R4
->    entries and the corrected register clauses, not from a placeholder.
+>    two conventions**; take **0205** for anything else, or renumber the deferred pair and say so here.
 
 The decisions the corpus explicitly bundles for AE5's first step, none of which may be *"picked off
 inside a role increment"* (ADR [0176](../decisions/0176-authz-permission-layer-made-real.md) D8):

@@ -122,3 +122,35 @@ under a deactivated admin, and ⛔ **the RED-first cell R3/R12 demand still has 
 ⚠ `231` — the omission — deactivates `st_x` / `st_x2` / `st_y` / `sa_y` and contains **zero**
 occurrences of `is_admin` or `platform`, so it never entered D2 and could not have changed the
 answer. **The evidence was wrong; the finding was not.**
+
+### ⛔ CORRECTION 2026-09-10 (QA N-MAJOR-2) — the derivation above asserts a FALSE UNIVERSAL, and its filter is the wrong predicate
+
+⛔ **Superseded, quoted: *"Not one of the 21 deactivates a `platform_admin`"*. That is FALSE.**
+`145_pqs_membership.sql:416` does `update public.profiles set is_active = false where id = (select
+admin from k)`, and `admin` is the **only** principal `supabase/tests/00_setup.sql:152` flags
+`is_admin = true`.
+
+⭐ **The cause is a WRONG PREDICATE in D2, not a missed file** — the same fault class this batch has
+now hit at every level. D2 filtered on the **string** `platform_admin`; but in this codebase a
+platform admin is a **flag on `profiles`** (`is_admin = true`), and that string only appears when a
+**hat** is named. A grep for the word cannot find a principal identified by a column.
+
+**D2′ — the corrected predicate: deactivates an *admin-flagged* principal, OR one wearing the hat.**
+Of the 21, exactly **two** qualify, and neither reaches an admin arm:
+
+| file | why it qualifies | why it still does not measure an admin arm |
+| --- | --- | --- |
+| `145_pqs_membership.sql` | deactivates `admin` — `is_admin = true` (`00_setup.sql:152`) | ⭐ it seats `test_helpers.claims_for((select admin from k), false)` at `:418` — **no third argument, so NO hat** — and `app.is_admin()`'s live body requires `app.active_role() = 'platform_admin'`. ⇒ the admin arm is **unreachable** in that cell by construction; the assertion is `list_my_nsp_hospitals()` |
+| `409_ae49_d6_rekey_differential.sql` | seats a `platform_admin` hat (§ 3.7) | its deactivation at `:711` targets `sa`, bound in-file to `m.role = 'staff_admin'` — a **different principal** from the hatted one |
+
+⇒ **The conclusion SURVIVES: no existing cell measures an admin arm under a deactivated admin, so
+the RED-first cell R3/R12 demand still has to be written.** ⛔ But it survives *per file, for stated
+reasons*, and ⛔ **not** as the universal above — a universal is what made a single counter-example
+fatal.
+
+⭐ **AND ONE PIECE OF GUIDANCE HERE WAS WRONG IN A WAY THAT COSTS BATCH 10 WORK.** The claim *"the
+RED-first cell … does not exist to be reused"* over-reached: **`145:414-425` is a reusable FIXTURE
+SHAPE** — unexpire the grant, `is_active = false`, seat claims, assert, then `is_active = true` to
+restore. What does **not** exist is a cell that seats the **`platform_admin` hat** on a deactivated
+admin and measures `app.is_admin()` / `app.is_admin_for()` / `app.can_manage_professional`. ⇒ Batch
+10 **adapts `145`'s shape and adds the hat**, rather than building from nothing.

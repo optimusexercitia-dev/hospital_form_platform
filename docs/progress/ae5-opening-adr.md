@@ -1175,3 +1175,71 @@ correcting one is not correcting the item. Recorded for the Record step.
 **Left deliberately, and the lead agrees:** 0203's H1 still reads *"…and their disposition is the
 PO's."* It names **whose** call it was, which R11 **confirms** rather than contradicts, it is the
 slug-bearing line, and it is not one of BLOCK-1's *"PO to rule / deliberately open"* formulations.
+
+### 2026-09-10 — QA re-review: `CHANGES REQUESTED` (0 BLOCK · 3 MAJOR · 2 MINOR); fix loop iteration 2 (lead)
+
+**Re-review:** [`docs/reviews/ae5-opening-adr-rereview.md`](../reviews/ae5-opening-adr-rereview.md)
+— **both BLOCKs FIXED**, MAJOR-2 and MINOR-1/2/3/5/6/7 **FIXED**, MAJOR-1 and MINOR-4 **PARTLY**.
+⭐ **And the verdict's whole content is one sentence: all three new MAJORs are defects the FIX LOOP
+INTRODUCED, of the class it was sent to repair.** ⛔ That is the finding, not the three edits.
+
+**QA also ruled on the three refutations and upheld all three, including two against itself and the
+lead** — its own BLOCK-1 anchors (`0203:198`/`:203` vs the measured `:149`/`:157`, with `:203` of
+length **0**), the *"inverted"* over-reading, and the two-hit `the fuse` count. ⚠ It named the shared
+cause without softening it: *"the identical class I filed as MAJOR-2. Mine."* And it verified all
+**12** anchors the fix loop added resolve, plus the superseded quotes byte-for-byte against
+`ed80da4c`. Gates re-run bare: `lint` **0**, `typecheck` **0**, `SELFTEST` **rc 0 / 46 pass** on bash
+3.2.57, pathspec **EMPTY**.
+
+**N-MAJOR-1 — the correction left its own superseded sentence LIVE, four lines lower.** Fixing plan
+§3's item 4 inserted a new item 5 and left item 4's **tail orphaned onto it**, so the ADR-numbering
+item terminated with *"whoever opens Batch 10 derives its scope from the unit record's R3/R4 entries
+and the corrected register clauses, not from a placeholder"* — the exact routing item 4 retires, in
+the **terminal position**, orphaned from its subject. ⇒ detached from item 5, re-homed on item 4 with
+the tail **quoted as superseded**. ⭐ **The lesson: a correction that leaves its superseded sentence
+live under a different heading has corrected nothing — and item 4's own word *"previously"* was FALSE
+while that tail stood.**
+
+**N-MAJOR-2 — the derivation's FILTER was the wrong predicate, so it asserted a false universal.**
+⛔ *"Not one of the 21 deactivates a `platform_admin`"* is **false**: `145_pqs_membership.sql:416`
+deactivates `admin`, the **only** principal `00_setup.sql:152` flags `is_admin = true`. **Cause,
+verified by the lead:** D2 filtered on the **string** `platform_admin`, while a platform admin in
+this codebase is a **flag on `profiles`** — a grep for the word cannot find a principal identified by
+a column. ⇒ D2 re-derived on the corrected predicate yields exactly **two** qualifying files, neither
+reaching an admin arm: `145` seats `claims_for(admin, false)` at `:418` with **no third argument, so
+no hat**, and `app.is_admin()` requires `active_role() = 'platform_admin'` ⇒ the arm is unreachable
+there **by construction**; `409` seats a hat at § 3.7 but deactivates `sa`, bound in-file to
+`role = 'staff_admin'` — **a different principal.** The conclusion **survives, per file and for
+stated reasons**, ⛔ never again as a universal: *a universal is what makes a single counter-example
+fatal.*
+⭐ **And one piece of Batch 10 guidance was wrong in a way that costs work:** *"the RED-first cell
+does not exist to be reused"* over-reached — **`145:414-425` IS a reusable fixture shape**
+(unexpire → `is_active = false` → seat claims → assert → restore). What does not exist is a cell
+that seats the **hat** on a deactivated admin. ⇒ Batch 10 **adapts `145` and adds the hat**, rather
+than building from nothing. ⚠ **Third wrong-predicate fault in this batch**, after the clause that
+named one predicate of two and the `prosrc` probe that could not see a result-type column — ⇒ the
+Record step's lesson is the **class**, not the third instance.
+
+**N-MAJOR-3 — the hub went stale INSIDE the fix loop.** Written in `acb11148`, stamped that day,
+never refreshed by `b58549fe` — so § In progress said the backend half was *"in flight"* and
+§ Blockers asserted ⛔ **both BLOCKs open**, all four sub-claims false at that tip. ⚠ **This is
+MAJOR-1 recurring one commit later, in the same block, from the same cause:** the hub is written
+**before** the last commit of a round instead of **with** it. ⇒ replaced (never amended), and it now
+says which tip it describes. **Recorded as a Record-step obligation: the hub's `## Current state` is
+the LAST edit of a round, not an early one — step 4 reads it.**
+
+**N-MINOR-1 — ADR 0203 D3's present-tense claim about the register is now TRUE.** Filed
+`FUP-AE5-OPENING-ADR-CLASSIFICATION-COLUMNS-OWE-A-NAMED-CONSUMER` 🟡, whose `Closes when` demands a
+**named runtime consumer inside `authz` per column, each arriving RED-first**, and ⛔ explicitly
+refuses closure by a **test** or **lint** reader — because the columns already have those (`401`
+§§ 11/13, `410:122-124`) and those pin their **values**, not their **use**. It carries the
+`resolution_scope_kind` **3-reader control** beside the `0/0/0`, and the `session_selectable`
+precedent (4 → 3, ⛔ no gate able to say so).
+
+**N-MINOR-2 — the count is replaced by the names.** The hub said *"eight"* named findings owed at
+Record against an enumeration of **five**. ⇒ it now **names four still to file** (`0176:45`'s stale
+no-reader list · `authz-matrix-coverage.json`'s `migrationHead` · R10's audit-stamp implementation,
+which has **no register home** · `entailed_grants`' numerals that reproduce at **no grain measured**)
+and states that four others were **discharged inline** rather than filed. ⛔ No single number
+describes a set whose members were dispatched two different ways — which is why the count kept
+drifting.
