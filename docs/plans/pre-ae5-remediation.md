@@ -398,9 +398,24 @@ through. Needs its own reachability analysis; a migration → diff-scoped sweep,
 >      `docs/plans/authz-evolution.md` § Per-role checklist. Measured before adding: it carried
 >      **0 of 5**.
 > 4. ⚠ **Batch 10 now EXISTS as a named consequence, and this plan has no block for it.** PO rulings
->    **R3** (the `is_active` gating of **both** admin predicates), **R4** (the Class-2 arm removed and
->    relocated) and **R10** (`active_role.assumed` stamps the **role only**, no place) all send work
->    to it. ⛔ Stated
+>    **R3 + R12** (the `is_active` gating of **THREE** sites — `app.is_admin()`, `app.is_admin_for()`
+>    **and** `public.assume_role`, each with a RED-first cell), **R4** (the Class-2 arm removed and
+>    relocated, with `app.can_manage_case_vocabulary` given an explicit `is_admin_for` arm), **R10**
+>    (`active_role.assumed` stamps the **role only**, no place — and ⛔ `315:212` needs a **REWRITE,
+>    not a tick**, because it stays green while losing all discriminating power) and **R13**'s
+>    remaining reach all send work to it.
+>    ⛔ **CORRECTED 2026-09-10 at QA BLOCK-2.** This item previously named only R3/R4/R10 and routed a
+>    reader to *"the unit record's R3/R4 entries and the corrected register clauses"* — and **both of
+>    those surfaces then said the third site was NOT in scope**, which was true when written and false
+>    from R12 onward. ⇒ derive Batch 10's scope from **ADR 0201 + ADR 0203 + the unit record's R11/R12
+>    entries**, and ⛔ never from R3/R4 alone.
+> 5. ⚠ **`0202` IS AN UNFILLABLE HOLE AND `0204` IS RESERVED BUT UNWRITTEN** (QA MINOR-6). R7 split
+>    four ADRs; Batch 9 wrote **0201** and **0203** only. So `docs/decisions/` has no `0202` and never
+>    will, while CLAUDE.md §8's rule (*"the highest number on ANY live branch + 1"*) now yields
+>    **0204** for the next ADR **of any subject** — which would collide with this plan's reservation of
+>    0204 for the `D`-ceiling / `search_path` document. ⛔ **Whoever numbers the next ADR reads this:**
+>    `0202` is reserved for the role-catalog decision (F7 · F8 · `platform_role`) and **`0204` for the
+>    two conventions**; take **0205** for anything else, or renumber the deferred pair and say so here. ⛔ Stated
 >    rather than fixed: a block written by a passing batch for work it is not doing is the shape §2's
 >    Batch 6 note warns about — whoever opens Batch 10 derives its scope from the unit record's R3/R4
 >    entries and the corrected register clauses, not from a placeholder.

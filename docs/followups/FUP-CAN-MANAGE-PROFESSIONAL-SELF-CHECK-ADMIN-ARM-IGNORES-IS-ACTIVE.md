@@ -68,5 +68,49 @@ a list to quote from here.
 
 **PO ruling R3 (2026-09-09): gate BOTH predicates.** Platform-admin authority does follow account
 state. The migration and the RED-first cell are **Batch 10**; this entry stays `Status: open`.
-⚠ **A THIRD site the clause still does not name:** `public.assume_role` itself. Whether it also
-gains the term goes to the PO with Batch 10's shape — ⛔ it is **not** silently in scope here.
+⚠ **A THIRD site the clause does not name:** `public.assume_role` itself.
+✅ **RULED 2026-09-10 (PO ruling R12) — IT IS IN SCOPE**, and this paragraph is corrected rather than
+left standing: it previously read *"Whether it also gains the term goes to the PO with Batch 10's
+shape — ⛔ it is **not** silently in scope here"*, which was true when written and false the moment
+R12 was taken. ⇒ **Batch 10 gates THREE sites**, `app.is_admin()`, `app.is_admin_for()` **and**
+`public.assume_role`, each with a RED-first cell. Rationale recorded in ADR 0201: gating the two
+checks while leaving the **seating** door ungated makes the fix *read* as complete while a
+deactivated admin can still put the hat on. ⛔ A closure that gates two of the three does not
+discharge this entry.
+
+---
+
+## ⛔ EVIDENCE CORRECTED 2026-09-10 (QA MINOR-4) — the "no pgTAP cell" negative was a HAND-LIST
+
+The paragraph above states *"Eight candidate files inspected (`229`, `293`, `318`, `397`, `398`,
+`401`, `404`, `409`, `415`)"*. ⛔ **That is NINE names described as eight, it was assembled by hand,
+and it omitted `231_authz_m5_is_active_gate.sql` — the suite named for the very predicate.** The
+claim is load-bearing (it licenses *"the RED-first cell the clause demands does not exist to be
+reused"*, which shapes Batch 10's scope), so a hand-list is not good enough: Batch 7's standing
+lesson is that **a derived sweep piped through a hand-list is a hand-list wearing a label.**
+
+⭐ **The conclusion SURVIVES. Re-derived, with the queries, not inspected:**
+
+**D1 — who is deactivated anywhere in the suite** (⛔ not "who mentions `is_active`"):
+
+```sh
+grep -lE "update +public\.profiles +set +(is_active *= *false|suspended_until *= *now\(\) *\+)" supabase/tests/*.sql
+```
+⇒ **21 files.** ⚠ Neither the superseded 9 nor a looser pattern's 28 is this set; the predicate has
+to be *a deactivating WRITE*, not a mention.
+
+**D2 — the only files where the claim could be false** are those that also name `platform_admin`
+**and** an admin predicate (`\bis_admin` or `can_manage_professional`) ⇒ **7**: `180` · `328` · `395`
+· `396` · `397` · `401` · `409`.
+
+**D3 — for each, the principal actually deactivated, read at the write site:** `180` `staff2_ccih` ·
+`328` uuid `…0002`, seated `staff_admin` by its own `claims_for` · `395` uuid `…0ae24d000006`, a
+picker *target* · `396` `p12`, one of a provisioned series · `397` `inact_oa`, an **org_admin** ·
+`401` `t401_p`'s uid = `chefe.ccih`, a **staff_admin** (§ 16.3/16.4) · `409` `sa`, bound in-file to
+`m.role = 'staff_admin'`.
+
+⇒ **Not one of the 21 deactivates a `platform_admin`**, so no existing cell measures an admin arm
+under a deactivated admin, and ⛔ **the RED-first cell R3/R12 demand still has to be written.**
+⚠ `231` — the omission — deactivates `st_x` / `st_x2` / `st_y` / `sa_y` and contains **zero**
+occurrences of `is_admin` or `platform`, so it never entered D2 and could not have changed the
+answer. **The evidence was wrong; the finding was not.**

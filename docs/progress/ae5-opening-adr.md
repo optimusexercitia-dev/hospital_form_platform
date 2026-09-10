@@ -1028,3 +1028,65 @@ against it because the only rule written faced outward.** `backend` confirms it 
 git command and verified the lead's `docs/` edits survived. ⇒ **LESSON at the Record step**, and the
 next rulings file owes a **symmetric** clause: *the lead stages by PATH while any agent holds the
 tree, never `-A`.*
+
+### 2026-09-10 — QA: `CHANGES REQUESTED` (2 BLOCK · 2 MAJOR · 7 MINOR); fix loop iteration 1, lead half (lead)
+
+**QA verdict:** [`docs/reviews/ae5-opening-adr-review.md`](../reviews/ae5-opening-adr-review.md) —
+**`CHANGES REQUESTED`**, 2 BLOCK · 2 MAJOR · 7 MINOR. ⭐ **QA was right on all eleven, and the pattern
+it found is the one plan §4 step 5 predicts: *a prose claim written beside a correct measurement that
+no gate can contradict.* This batch is almost entirely prose, so the surface was maximal.** QA
+re-derived a representative sample of the record's figures and **reproduced every one exactly** — the
+blast radii `0/6/5` and `26/32/13` with identical sets, the 14-door closure with 12 affected, the
+`0/0/0` reader census **with** the `resolution_scope_kind` 3-reader control, the `D`/`M` census, the
+five `search_path` values, the four `dispose_*` doors. It also swept **all ~45 citations in both
+ADRs** and found the ones below and no others.
+
+⛔ **BOTH BLOCKS ARE THE LEAD'S, AND THEY ARE THE SAME FAILURE: the lead ANNOUNCED an action and did
+not take it.** After the PO ruled **R11** and **R12**, the lead stated — to the PO, in writing —
+that it was sending both rulings to the drafting turn to apply. **It never did.** It recorded them in
+this log, committed, and moved on to R13. ⇒ the rulings exist in **exactly one place**, this log,
+while the ADRs assert the **opposite**:
+
+- **BLOCK-1** — ADR 0203 still reads `D3 is PO to rule` / `Decision: PO to rule` / *"⛔ Deliberately
+  open"*, **committed in `7365c2e6`, the very commit whose message is `docs(batch9): PO R11/R12`**.
+  ⛔ `grep -n "R1[1-4]"` over both ADRs returns **rc 1, no matches**. And 0203's own D3 forecloses the
+  fallback — *"No default applies while D3 is open"* — so **ADR 0176 D8's classification-column
+  disjunction, one of the two things D8 requires decided BEFORE AE5, stays formally undischarged in
+  the corpus**, and the `Status:` line goes false the instant the Record step flips it to `accepted`.
+- **BLOCK-2** — same shape for R12, and **three** surfaces state the reverse: `0201:152`
+  (*"deliberately left UNRULED here"*), `0201:344` (*"It does not rule `public.assume_role`'s
+  `is_active` term"*), and the corrected register clause's own last line (*"⛔ it is not silently in
+  scope here"*). ⚠ Worse, plan §3's amendment banner 4 **routed Batch 10's scope at two of those very
+  surfaces** — so the batch's own hand-off pointed a future reader at documents that excluded the
+  third site.
+
+⇒ **A ruling recorded in the log is not a ruling landed in the corpus.** ⭐ The Record step's
+existing checklist has no step that reconciles *rulings taken* against *rulings written into the
+artefact*, which is exactly why this survived to QA — recorded as a Record-step obligation for the
+next batch.
+
+**Lead half of iteration 1 — done this entry** (⭐ staged **by path**, per LEARN-097, with
+`git status --short` reconciled before committing):
+
+| finding | disposition |
+| --- | --- |
+| **BLOCK-2**, register half | The FUP body's *"not silently in scope here"* **corrected in place with the superseded sentence quoted**, and the open-register `Closes when` widened: Batch 10 gates **three** sites, and ⛔ a closure gating two of three does not discharge it. |
+| **BLOCK-2**, plan half | Banner 4 rewritten: R3 **+ R12** over three sites, R4, R10 (with `315:212` needing a **rewrite, not a tick**), R13; and ⛔ Batch 10's scope now derives from **ADR 0201 + 0203 + the R11/R12 entries**, never R3/R4 alone. The superseded routing is quoted. |
+| **MAJOR-1** | Hub `## Current state` **REPLACED** (never appended). It had claimed *"Twelve PO rulings (R1–R12)"* at fourteen, described a disposition already executed as pending, and asserted a live blocker — `SELFTEST` at `PASS 40 · FAIL 6` — that **QA measured green** at `rc 0, 46/46`. ⛔ A `## Current state` stamped with today's date and stale in four of six sections is the exact failure that block exists to prevent. |
+| **MINOR-1** | Hub `adrs:` gained **`0201`, `0203`** — it had listed only the ADRs *read*, not the two this unit *produced*, and gate 13 cannot see that (it reds only on a listed ADR with **no** file). |
+| **MINOR-2** | ⭐ The staging prohibition's homes were **both wrong**: a per-batch rulings file is ephemeral, and a third `prose only` lesson would be refused by the ratchet at **52/52**. Written as a `.claude/rules/` file — **and gate 8 refused it twice** (149 files vs the 40 soft cap; 2,055 bytes vs the 2,048 cap). ⇒ took gate 8's own disposition **(4) PROMOTE**: the prohibition is *behaviour*, not a path, so it is always-on. It now lives in **`docs/lead-playbook.md`**, which is **lead-only** and therefore costs nothing per teammate spawn, and the rule file was **deleted**. **LEARN-097** filed with that as its enforcer. |
+| **MINOR-3** | LEARN-096's enforcement **bound stated in the row itself**: its rule reaches the five `p0-authz-*.sh` harnesses, ⛔ **not** the ADR/decision surface where the incident actually happened (a lead catalog read while drafting). It covers the next *harness author*, not the next *drafter* — and for a drafter the row is `prose only` **in effect**. Widening to `docs/decisions/*.md` (~200 files) would fail gate 8; `broad:` was declined. ⛔ Stated rather than papered over. |
+| **MINOR-4** | ⭐ **Re-derived rather than repaired.** The claim *"Eight candidate files inspected"* listed **nine** names and omitted `231` — the suite named for the predicate. ⛔ A hand-list. Replaced with a derivation in the follow-up body: **D1** = 21 files carrying a *deactivating write* (⚠ neither the superseded 9 nor a looser pattern's 28); **D2** = the **7** that also name `platform_admin` **and** an admin predicate; **D3** = the principal at each write site — `staff2_ccih` · `…0002` (seated `staff_admin`) · a picker target · `p12` · `inact_oa` (**org_admin**) · `chefe.ccih` (**staff_admin**) · `sa` (bound to `role = 'staff_admin'`). **None is a `platform_admin`** ⇒ the conclusion **survives**; ⛔ the evidence was wrong, the finding was not. `231` deactivates `st_x`/`st_x2`/`st_y`/`sa_y` and holds **zero** occurrences of `is_admin` or `platform`, so it never entered D2 and could not have changed the answer. |
+| **MINOR-6** | The numbering hole recorded **where a numberer will read it** — plan §3, new banner item 5: `0202` can never be filled and `0204` is reserved, so CLAUDE.md §8's *highest + 1* now yields 0204 and would collide. **Take 0205**, or renumber the deferred pair and say so there. |
+
+**`backend` half in flight:** BLOCK-1 (R11 into 0203 D3), BLOCK-2's ADR half (R12 + D5 into 0201),
+MAJOR-2's three miscitations — including the *"the fuse"* quote attributed to a file that does not
+contain it **with the watching relation inverted** — plus MINOR-5 (the qualifier quotes the
+**pre**-change `401` run) and MINOR-7 (two off-by-one anchors in tables Batch 10 works from).
+
+**QA's two requested rulings, both accepted as written:** the `354fd6b0` disposition is **adequate**
+(what was owed was the *symmetric rule*, now delivered above); and **E2E is not owed** — QA agreed and
+strengthened the argument by checking the propagation path directly: `gen-authz-matrix-cells.mjs`
+writes **only** into `supabase/tests/vectors`, and ⭐ **nothing under `src/` derives from the
+manifest**, so a JSON comment cannot reach a rendered surface, and the three changed harnesses are
+pgTAP-mutation scripts Playwright never invokes. Batch 7's ledger row carries the precedent verbatim.

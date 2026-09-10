@@ -101,6 +101,25 @@ When a phase passes human approval, the lead:
    The Record step is the queue's trigger: a cadence with no trigger is the
    "standing in prose alone" failure ADR 0079 documents.
 
+⛔ **WHILE ANY AGENT HOLDS THE TREE, STAGE BY PATH — NEVER `git add -A`** (added 2026-09-10,
+LEARN-097; QA MINOR-2 at pre-AE5 Batch 9). The lead and its teammates share **one** working tree and
+the race runs **both** ways, but only one direction was ever guarded:
+
+| direction | what happens | guarded before this line? |
+| --- | --- | --- |
+| agent → lead | a build agent's `git stash` / failed pop **reverts** the lead's uncommitted docs | ✅ every rulings file forbids tree-mutating git commands |
+| ⛔ lead → agent | the lead's **`git add -A`** commits an agent's **in-flight** work — unreviewed, and undescribed by its own commit message | ❌ **no** |
+
+**Measured:** commit `354fd6b0`, message *"docs(batch9): PO R13/R14; playbook line, two lessons, one
+new rule"*, contains **seven** files — the four it describes **plus three harness files at +8 lines
+each**. The lead had written the outward-facing prohibition itself one turn earlier, then committed
+its mirror. ⇒ `git add -A`, `git add .` and `git commit -a` are **forbidden while a subagent is
+running**; stage the paths this turn wrote, and ⭐ **read `git status --short` before every commit,
+reconciling it against what you believe you changed — a line you cannot account for is someone
+else's work, not a stray.** ⚠ If an agent's work is already committed under the wrong message, ⛔ do
+**not** amend once the sha has been reported to anyone: correct it in the unit record and in the next
+commit message, the way this repo corrects everything else.
+
 **Gate step-1 note (authz sweeps):** derive the case list with
 `scripts/door-sweep-cases.sh <phase-base>` — never by hand, and never from the old prose
 one-liner (ADR 0079 § The recipe; exit 1 means *migrations touched, zero gates derived*,

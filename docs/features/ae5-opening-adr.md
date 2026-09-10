@@ -9,7 +9,7 @@ branch: authz-ae5-opening-adr
 plan: ../plans/pre-ae5-remediation.md
 progress: ../progress/ae5-opening-adr.md
 reviews: []
-adrs: ["0078", "0079", "0155", "0162", "0172", "0175", "0176", "0193", "0200"]
+adrs: ["0078", "0079", "0155", "0162", "0172", "0175", "0176", "0193", "0200", "0201", "0203"]   # 0201 + 0203 are the ADRs this unit PRODUCED (QA MINOR-1: the list held only the ADRs read)
 handoff: ~
 fup: ~
 ---
@@ -126,7 +126,7 @@ builder runs the arms at the tip.
 
 ## Current state
 
-**Updated:** 2026-09-10
+**Updated:** 2026-09-10 (QA fix loop, iteration 1)
 
 ### Objective
 
@@ -137,33 +137,41 @@ named successors — together with the three follow-ups the PO added at initiati
 
 ### Done since start
 
-**Twelve PO rulings taken** (R1–R12), each with its measured basis in the record. **ADR 0201** (353
-lines) and **ADR 0203** (253), both `Status: proposed` and registered in `proposed-review.json`.
-The manifest follow-up's three conditions **met and proven**. Both register clauses **corrected**,
-superseded wording quoted. Item 6's five checklist corrections added as pointers (measured at **0 of
-5** first). Both deferred censuses written into their follow-up bodies. `AE5-MATRIX-ARM3-CELLS` hub
-opened. ⭐ **Gate at the tip run by the lead, not the builder**: lint **rc 0** (17/17, 0/0) ·
-typecheck **0** · vitest **151 files / 2056** · `test:db` **264 files / 8923, PASS** on a fresh reset
-(shape unmoved) · all **four arms HOLD** · deriver **rc 3 = NOT-APPLICABLE**, its `SCOPE:` line
-quoted · ⭐ **empty-pathspec assertion EMPTY** — the batch's defining claim.
+**Fourteen PO rulings taken (R1–R14)**, each with its measured basis in the record. **ADR 0201** and
+**ADR 0203** written, `Status: proposed`, registered in `proposed-review.json`. The manifest
+follow-up's three conditions **met and proven**. Both register clauses **corrected**, superseded
+wording quoted. Item 6's five checklist corrections added as pointers (measured at **0 of 5** first).
+Both deferred censuses written into their follow-up bodies. `AE5-MATRIX-ARM3-CELLS` hub opened.
+**R13's three-site bash-3.2 harness fix landed and was verified by the lead, not the builder** —
+`SELFTEST` **rc 0 bare, PASS 46 · FAIL 0**, all three GROUP lines clean, and the door harness's own
+total now `33/33` **under bash 3.2**, converging with the figure earlier records quoted under bash 4+.
+⭐ Gate at the tip, exit codes bare: lint **0** (17/17, 0/0) · typecheck **0** · vitest **151 files /
+2056** · `test:db` **264 files / 8923 PASS** on a fresh reset (shape unmoved) · **four arms HOLD** ·
+deriver **rc 3 = NOT-APPLICABLE** with its `SCOPE:` line quoted · ⭐ **empty-pathspec assertion
+EMPTY** — the batch's defining claim. **QA reviewed: `CHANGES REQUESTED`, 2 BLOCK · 2 MAJOR · 7
+MINOR** ([review](../reviews/ae5-opening-adr-review.md)).
 
 ### In progress
 
-Nothing building. Awaiting the PO's disposition on the one instrument red before QA.
+**QA fix loop, iteration 1** — all eleven findings, in one pass. Lead half **done**: both surfaces
+that contradicted R12 corrected (the register clause and plan §3's Batch-10 routing), the
+`platform_admin`-deactivation negative **re-derived** to replace a hand-list, LEARN-097 filed and its
+prohibition promoted into the lead-playbook, LEARN-096's enforcement **bound stated**, this block
+replaced, and the ADR numbering hole recorded. `backend` half in flight: the two BLOCKs (R11 into ADR
+0203 D3, R12 + D5 into ADR 0201) plus MAJOR-2's three miscitations, MINOR-5 and MINOR-7.
 
 ### Next
 
-PO disposition on the `SELFTEST` red (file only, or file **and** ride the three-site fix along —
-it does not touch the pathspec the assertion guards) → QA review → PO approval → Record step, which
-owes: the ADRs flipped `proposed` → `accepted` and removed from `proposed-review.json`, `"0201"`
-re-added to the `AE5-MATRIX-ARM3-CELLS` hub, the ledger row, and **eight** findings filed plus **two
-lessons** (the `prosrc`-blind-to-`RETURNS TABLE` artefact and the bash-3.2 verdict split).
+QA **re-review** at the fixed tip → PO approval → Record step, which owes: the ADRs flipped
+`proposed` → `accepted` and removed from `proposed-review.json`, `"0201"` re-added to the
+`AE5-MATRIX-ARM3-CELLS` hub, the ledger row, and the eight named findings filed.
 
 ### Blockers
 
-⛔ **None for this batch, and one for the next.** `SELFTEST=1` exits **1** (`PASS 40 · FAIL 6`) —
-proven **not** attributable here (harness byte-identical to `main`; no sweep owed; the set-ness
-semantics green in the same run at 32/33) and traced to **`bash 3.2.57`, the macOS default**, whose
-`$( )` parser breaks a `case` pattern in three harnesses. ⚠ It **blocks Batch 10**, which runs a real
-door sweep from this machine, and the same defect means the mandated gate step **returns different
-verdicts on different machines** with nothing saying so.
+⛔ **The two QA BLOCKs, both open until `backend` returns**: PO rulings **R11** and **R12** live only
+in the progress log, and the ADRs state the **opposite** — 0203 still reads `D3 is PO to rule` and
+0201 still reads that `public.assume_role` is *"deliberately left UNRULED here"*. ⇒ ADR 0176 D8's
+classification-column disjunction stays formally undischarged in the corpus, and each `Status:` line
+would go false the moment the Record step flipped it to `accepted`. ⚠ Not a blocker but a bound: the
+`SELFTEST` bash-3.2 defect is **fixed**, so the earlier § Blockers text claiming `PASS 40 · FAIL 6`
+was **stale when QA measured it green** — that staleness was MAJOR-1 and is corrected here.
