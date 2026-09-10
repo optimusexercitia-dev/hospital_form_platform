@@ -140,3 +140,52 @@ export async function getCommissionForAdmin(
     staffAdmins: toStaffAdmins(data.memberships),
   }
 }
+
+/**
+ * The tenancy coordinates of one commission — the two denormalized, NOT NULL
+ * columns that identify which org / hospital a commission belongs to (ADR 0041).
+ */
+export interface CommissionTenancy {
+  organizationId: string
+  hospitalId: string
+}
+
+/**
+ * Resolve a commission's `organization_id` + `hospital_id`, or `null` when no row
+ * is visible (unknown id OR not readable under RLS — indistinguishable, and the
+ * caller must fail CLOSED on both).
+ *
+ * WHY THIS EXISTS (Architecture Rule 9). It is the read that the TS mirror of
+ * `app.is_tenancy_admin_of` needs: {@link isCommissionAdmin} takes the coordinates,
+ * not a commission id, because the DB predicate resolves them from `commissions`
+ * itself. Server actions that gate on the tenancy tier call this instead of
+ * writing the `commissions` select inline (`src/lib/admin/actions.ts` still does
+ * the latter — the older site, left alone deliberately by this increment rather
+ * than folded in unasked).
+ *
+ * ⚠ RLS-SCOPED, and that is the correct posture: `commissions_select_member_or_admin`
+ * admits `app.is_org_admin_of(organization_id)` and `app.is_hospital_admin_of(hospital_id)`,
+ * so exactly the principals this read exists to serve can perform it.
+ */
+export async function getCommissionTenancy(
+  commissionId: string,
+): Promise<CommissionTenancy | null> {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('commissions')
+    .select('organization_id, hospital_id')
+    .eq('id', commissionId)
+    .maybeSingle()
+
+  // A genuine query error must not masquerade as "not visible" — a swallowed error
+  // here would silently deny an authorized tenancy admin.
+  if (error) {
+    throw new Error(`Failed to resolve commission tenancy: ${error.message}`)
+  }
+  if (!data?.organization_id || !data.hospital_id) {
+    return null
+  }
+
+  return { organizationId: data.organization_id, hospitalId: data.hospital_id }
+}

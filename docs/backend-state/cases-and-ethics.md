@@ -8,7 +8,7 @@
 
 ## Current state
 
-**Updated:** 2026-09-09 — a REPLACEABLE projection of the frozen slices below; the rules that govern it are [`README.md` § Maintenance rules](README.md#maintenance-rules) 7–8.
+**Updated:** 2026-09-10 — a REPLACEABLE projection of the frozen slices below; the rules that govern it are [`README.md` § Maintenance rules](README.md#maintenance-rules) 7–8.
 
 ### Surface
 
@@ -28,13 +28,11 @@
   (`referral_resolutions.summary_md`, `referral_internal_notes.body_md`). `professional_profiles` is the **Class-2
   professional-identity** relation — a column-list grant with **no table-level `authenticated` SELECT**, whose `cpf` is a
   *different* column from the person key.
-- **Ethics and referral governance** — the procedure tables (`ethics_case_details`, `ethics_allegations`, `ethics_findings`,
-  `case_decisions`, `ethics_decision_details`, `case_votes`, `ethics_notifications`, `ethics_hearings`, `ethics_appeals`)
-  over the access spine (`case_conflict_declarations`, `case_recusals`, the interview trio); referrals add
-  requested-actions, resolutions, assignments, case-links, internal notes and read receipts over `case_referral`.
+- **Ethics and referral governance** — the ethics procedure tables over the access spine
+  (`case_conflict_declarations`, `case_recusals`, the interview trio), and the referral satellites over `case_referral`.
+  Both enumerations: § E2 and § RV2 below.
 - **Doors** — signatures, `prosecdef` and EXECUTE grants: [`generated-rpc-surface.md`](generated-rpc-surface.md) ·
-  [`generated-helper-surface.md`](generated-helper-surface.md). ⚠ Referral doors' RETURN VALUES are governed by the REFNOTE
-  in [`document-model.md`](document-model.md) § END STATE, not here.
+  [`generated-helper-surface.md`](generated-helper-surface.md). Referral RETURN VALUES: the REFNOTE above this block.
 
 ### Invariants
 
@@ -67,6 +65,12 @@
   `patient_mode` (`none` | `optional` | `required`) plus `patient_required_fields`; the immutability guard fires on
   **either** changing, closing the "insert `none`, then UPDATE to `required`" hole. ⛔ Any doc, comment or query still
   naming the booleans is stale.
+- **The grant PLANE agrees with the write plane on a terminal case.** `grant_case_access` refuses `p_level = 'write'` when
+  `app.case_is_terminal` (`HC0U0`), placed AFTER authority so a non-coordinator still gets 42501; READ grants on a closed
+  case stay LEGAL. ⛔ The refusal is in the DOOR only — no lifecycle step entered `app._case_caps` (ADR 0078 A24·3) and the
+  shared kernel `app._grant_case_access_unchecked` is untouched, so the creator self-grant path is unchanged.
+- **That door's TS pre-check mirrors it in BOTH directions.** `authorizeCommission` is `is_staff_admin_of` OR
+  `is_tenancy_admin_of` and nothing else — `context.isAdmin` is NOT an arm (ADR 0078 A35), and the tenancy arm is back.
 - **The MRN floor is at SEND, not at SAVE** — `send_referral` carries it, `save_referral_patient` deliberately does not, and the status guard makes `send_referral` the sole transition authority, so the floor is reachable.
 - **Assignment ≠ access; link ≠ access.** `referral_assignments` and `referral_case_links` appear in **no** read predicate.
   `referral_internal_notes` carries **no table-level `authenticated` ACL** — every readable column needs its OWN
@@ -77,10 +81,7 @@
 - Flags over this seam: `case_patient`, `case_participants`, `case_types`, `ethics`, `case_referrals`, and the
   delegated-capability `administrativo`. ⛔ Resolve each flag's VALUE and its readers from
   [`generated-feature-flags.md`](generated-feature-flags.md), never from a sentence here. `case_access` is retired.
-- The commission-wide administrativo case read added **NO new flag — it rides `administrativo`**; the template identity/version split and the participant-seating work are structural with no flag; the MRN-erasure-key batch has **no flag — the migrations ARE the cutover**.
-- ⛔ **Deployment status is not stated in this layer** (ADR 0198 D5). Whether a migration reached the remote is a claim
-  about an external system that rots silently — measure it with the recipes in
-  [`conventions.md` § Remote discipline](conventions.md#remote-discipline--standing-rules-measure-never-quote).
+- Structural work over this seam introduces no flag of its own; each frozen slice's HEADING states its own flag posture (and the newest, § Grant plane, is a migration-is-the-cutover door change).
 
 ### Open edges
 
@@ -88,6 +89,8 @@
   INVOKER writers and the `member_can*` pair sit outside every ARM's domain, so a diff-scoped sweep over them runs zero
   cases and prints the line a clean run prints. Coverage is the targeted mutation twins; the objects are listed in
   `supabase/tests/mutation/authz-unswept-backlog.txt`, where the `app` INVOKER writers carry a **DO NOT PRUNE** note.
+- ⚠ **The tenancy arm the grant door ACCEPTS is still unreachable from the app**, for a reason outside that fix: the action
+  reads the case under `cases_select` = `can_read_case`, and `_case_caps` S2 gives an org_admin `manage_case_access` ONLY.
 - **Class-2 audit posture is unratified** — `searchParticipants` is an invoker-rights read that cannot be audited through
   RLS and the org-manager arm widened its population, so "case-scoped RLS + audited reads" no longer fully holds; also
   unratified are the participant types that are mintable but have no seeded role.
@@ -99,9 +102,86 @@
 
 ### Where the detail lives
 
-- The frozen slices below, in file order: **§ ADR 0137 batch** · **§ Case surface split — Increment 2** · **§ ETH·E4** · **§ PCI + TV** · **§ F1** · **§ E1** · **§ E2** · **§ RV2**.
+- The frozen slices below, in file order: **§ Grant plane** · **§ ADR 0137 batch** · **§ Case surface split — Increment 2** · **§ ETH·E4** · **§ PCI + TV** · **§ F1** · **§ E1** · **§ E2** · **§ RV2**.
 - ADR [0038](../decisions/0038-case-patient-identifiers.md) (case patient identifiers) · [0064](../decisions/0064-case-subject-generalization-participants.md) (participant generalization) · [0072](../decisions/0072-ethics-access-spine.md) (access spine) · [0073](../decisions/0073-ethics-procedure-model.md) (ethics procedure) · [0096](../decisions/0096-process-template-versioning.md) (template versioning).
-- ADR [0108](../decisions/0108-eth-e4-participant-seating.md) (seating, professional identity) · [0134](../decisions/0134-case-surface-split-and-administrativo-case-read.md) (case surface split) · [0137](../decisions/0137-mrn-erasure-key-and-case-referral-usability-batch.md) (MRN as erasure key) · [0037](../decisions/0037-inter-committee-case-referrals.md) (referrals) · [0079](../decisions/0079-authz-door-blindness-standing-invariant.md) (door blindness).
+- ADR [0108](../decisions/0108-eth-e4-participant-seating.md) (seating, professional identity) · [0134](../decisions/0134-case-surface-split-and-administrativo-case-read.md) (case surface split) · [0137](../decisions/0137-mrn-erasure-key-and-case-referral-usability-batch.md) (MRN as erasure key) · [0037](../decisions/0037-inter-committee-case-referrals.md) (referrals) · [0079](../decisions/0079-authz-door-blindness-standing-invariant.md) (door blindness) · [0205](../decisions/0205-per-object-grant-plane-convention.md) (per-object grant plane; D9 + D12).
+
+## Grant plane — the case grant door refuses a WRITE grant on a terminal case (2026-09-10; ADR **0205** D9 + D12; unit GRANT-PLANE-CONVENTION; migration `20261003007370`, **1**; pgTAP `416` `plan(23)`; vitest `src/lib/case-access/actions.test.ts` (14); **NO flag — the migration IS the cutover**)
+
+**THE DEFECT, measured on the live catalog at head `20261003007360`, 2026-09-10.**
+`public.grant_case_access` validated authority → the U1 exclusion → level → grantee membership →
+future expiry, and then called the kernel. It carried **no lifecycle check at all**: the case screen
+greys out "Edição" on a closed case, and the door stored the write grant regardless — inert **only**
+because the content tables refuse writes on a terminal case. So the grant plane and the write plane
+disagreed and only the second one was enforcing. Witness, not inference: pgTAP `416` K1b read **1**
+row in `case_access_grants` after a coordinator granted `write` on a `completed` case, against the
+PRE-migration catalog.
+
+**THE FIX — a refusal in the DOOR, with its own catchable SQLSTATE.**
+
+```
+if p_level = 'write' and app.case_is_terminal(p_case) then
+  raise exception 'não é possível conceder edição em um caso encerrado' using errcode = 'HC0U0';
+end if;
+```
+
+Placed **after** all five existing validations and **before** the kernel call. The position is
+load-bearing in one direction: ahead of the authority gate it would tell a principal with no standing
+on the case that the case is closed. `416` K5/K5b pin it — a non-coordinator asking for `write` on the
+same terminal case still gets **42501**, at level `read` too.
+
+⛔ **THREE THINGS DELIBERATELY NOT TOUCHED**, each for a stated reason rather than by omission:
+- `app._case_caps` — ADR 0078 A24·3 forbids a lifecycle step in the resolver. The capability lattice
+  is unchanged; this is door validation.
+- `app._grant_case_access_unchecked` — the kernel, shared with the creator self-grant path. Narrowing
+  it would narrow paths this ruling did not judge.
+- **READ grants on a terminal case, which stay LEGAL** (ADR 0033 D6) — `e2e/case-access.spec.ts`
+  AC-3d depends on it. `416` K3 is that paired positive **with a reach witness** (K3c asserts the
+  grantee really holds `read_case_content`); without it a door that refused every grant on a closed
+  case would satisfy both negatives by construction (§7.7).
+
+**METHOD — re-emitted from the LIVE `pg_get_functiondef`, not from migration text.**
+`20260802000000`'s literal body is stale by design (ADR 0078; LEARN-057), so the migration inserts one
+block into whatever the catalog holds at apply time and asserts, from a **re-read** of the catalog:
+the anchor occurs exactly once before the replace; `HC0U0` occurs exactly once after it; the guard
+sits after `HC021` / the expiry check and before `app._grant_case_access_unchecked(`; every
+pre-existing validation and the `org_admin_deadlock_exit` stamp survived; and identity arguments,
+result, `prosecdef`, `search_path`, owner, volatility and the **full ACL** are byte-identical before
+and after. Measured after apply: `secdef=true`, `search_path=app, public, pg_catalog`,
+`acl=postgres=X/postgres service_role=X/postgres authenticated=X/postgres` — unmoved.
+
+**`HC0U0` — the new SQLSTATE, and how "next free" was derived** (the register says of itself that its
+"unallocated from here" row has gone stale three times, so the derivation is recorded rather than the
+conclusion alone). Union of three populations: the live catalog
+(`select distinct m[1] from pg_proc …, lateral regexp_matches(prosrc, 'HC0[0-9A-Z][0-9A-Z]', 'g') m`
+over `app`/`public`/`authz` — numeric high-water `HC095`, alpha high-water `HC0T7`), the repo
+(`supabase/migrations` + `src` + `supabase/tests`), and `docs/`. ⚠ Neither the catalog nor the repo
+alone is sufficient: `HC0T5` is raised only inside migration-time `do $$` assertion blocks, so it is
+**never persisted** and a catalog-only derivation cannot see it; `HC0T8`/`HC0T9` are claimed by
+`docs/plans/authz-ae1-person-doors.md` and appear in no code at all. The `HC0U` family is unallocated
+in all three. Registered in [`conventions.md`](conventions.md) § SQLSTATE → meaning.
+
+**THE APP PRE-CHECK, RE-ALIGNED IN BOTH DIRECTIONS (ADR 0205 D12·ii).**
+`authorizeCommission` in `src/lib/case-access/actions.ts` returned `true` for `context.isAdmin` — a
+platform_admin, whom the door REFUSES with 42501 (ADR 0078 A35's noun rule) — and **omitted the
+tenancy-admin arm the door ACCEPTS** (the B6 deadlock exit). One line, over-admitting and
+under-admitting at once. It is now exactly `app.is_staff_admin_of(commission)` OR
+`app.is_tenancy_admin_of(commission)`, the second arm delegated to the existing TS mirror
+`isCommissionAdmin` (`src/lib/auth/access.ts`) rather than re-derived — a third copy is how this
+repo's sibling-axis defects recur. The two tenancy coordinates come from a new
+`getCommissionTenancy` in `src/lib/queries/commissions.ts` (Rule 9). Five vitest cells were proven
+RED against the pre-D12 body before the fix was believed.
+
+⚠ **AND THE TENANCY ARM IS STILL UNREACHABLE FROM THE APP, for a reason OUTSIDE this fix — stated
+because a corrected gate reads as a working path.** `grantCaseAccess` resolves the case's commission
+with an RLS-scoped read of `cases`, whose only SELECT policy is `app.can_read_case(id, uid)` =
+`has_case_capability(…, 'read_case_content')`. `app._case_caps` **S2 · org_admin** confers
+`manage_case_access` **ONLY**. Measured at head: for `orgadmin.a@test.local` on a seeded case,
+`can_read_case=false`, `is_tenancy_admin_of_for=true`, `has_case_capability(manage_case_access)=true`.
+So a tenancy admin is refused by the read in FRONT of the gate, and returns `Caso não encontrado`. The
+gate is now correct and agrees with the door; making the arm reachable needs a read path a tenancy
+admin can perform, which is a new surface and was not ruled. **Not fixed here by choice, not by
+oversight.**
 
 ## ADR 0137 batch — MRN as erasure key; case/referral usability (2026-08-24; ADR **0137**; migrations `20261003001300`–`…001600`, **4**; pgTAP `362` `plan(58)` · `363` `plan(15)` · `364` `plan(14)`; **NO flag — the migrations ARE the cutover**; QA APPROVED r2, PO-approved) — ✅ **PUSHED 2026-08-25**
 

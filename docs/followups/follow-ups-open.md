@@ -1429,6 +1429,12 @@ Verbatim from the Now section of PROGRESS.md (retired 2026-09-03, ADR 0185): *AF
 
 **Break-glass access (logged, reasoned, time-boxed emergency access to restricted cases / PHI).** Target Phase 20 (Notifications & Escalation). A dedicated `break_glass_access_events` record + a temporary-grant path that requires a reason, is always audited, notifies privacy/security, and appears in audit reports — NOT platform-admin-sees-everything. Partner handoff §19 as the reference model; composes with `case_access` expiry (ADR 0050) and the audited-single-door PHI posture (Rule 12). Owned by lead (scheduling) + backend.
 
+### 🟡 FUP-GRANT-PLANE-CONVENTION-TENANCY-ADMIN-GRANT-PATH-UNREACHABLE — the fallback arm passes the app check, then the case read refuses it
+
+**Filed:** 2026-09-10 (unit GRANT-PLANE-CONVENTION; found by `backend` while landing ADR 0205 D12 Fix 2, measured at head for `orgadmin.a@test.local` on a seeded case: `can_read_case=false · is_tenancy_admin_of_for=true · has_case_capability(manage_case_access)=true`) · **Owner:** lead + PO · **Severity:** medium
+**Closes when:** a PO ruling on the SURFACE, then its build: (a) a DEFINER door lets a tenancy admin resolve a case's commission and open the access roster from the **commission management** page — never the case detail, which ADR 0078 D4 keeps unreadable to them — with pgTAP proving they still read no case content and an E2E over the reachable path; or (b) a ruling that the fallback arm stays SQL / service-role-only pre-pilot, recorded in ADR 0205 § Consequences. ⛔ Not closed by widening `cases_select` (that re-opens D4). ⛔ Not closed by observing that the pre-check now agrees with the door — it does, and the read in front of it is the finding.
+**Status:** open
+
 ### 🟡 FUP-GRANT-PLANE-CONVENTION-BUILD-AFTER-AE5 — the grant plane's BUILD half (scaffold, shared trigger, dialog kit, keystone, roster) after AE5-complete
 
 **Filed:** 2026-09-10 (unit GRANT-PLANE-CONVENTION, ADR 0205 D12 — PO ruled *decide now, build later*) · **Owner:** lead + backend · **Severity:** medium

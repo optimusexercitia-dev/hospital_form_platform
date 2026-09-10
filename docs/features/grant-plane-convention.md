@@ -1,14 +1,14 @@
 ---
 id: GRANT-PLANE-CONVENTION
 title: "The per-object grant plane convention (ADR 0205) — root ledgers, computed participation, catalog-named abilities; decided now, built after AE5 — plus the two pre-pilot case-access door/app fixes it ruled"
-status: in_progress
+status: gated
 kind: feature
 program: AUTHZ
 phase: "Between pre-AE5 Batch 9 and AE5 increment 2 — a PO grilling session's rulings recorded; no phase of PHASES.md"
 branch: main   # built straight on main (lead convention); nothing merges ahead of itself
 plan: ~
 progress: ../progress/grant-plane-convention.md
-reviews: []
+reviews: ["../reviews/grant-plane-convention-review.md"]
 adrs: ["0205", "0155", "0078", "0114", "0176", "0033", "0103", "0127", "0201"]   # 0205 is the ADR this unit PRODUCED; the rest were read
 handoff: ~
 fup: ~
@@ -30,13 +30,13 @@ document: the PO asked for an options analysis on the Case grant model, then a g
       participation record; the Phase 19 plane review opens on ADR 0205 and owns the C-vs-D choice).
 - [x] **The deferred build filed** as `FUP-GRANT-PLANE-CONVENTION-BUILD-AFTER-AE5`, parked, with a
       `Revisit when` that names AE5-complete AND the first consumer.
-- [ ] **Fix 1 — `grant_case_access` refuses a WRITE grant on a terminal case** (D9): migration
+- [x] **Fix 1 — `grant_case_access` refuses a WRITE grant on a terminal case** (D9): migration
       `20261003007370`, body re-emitted from the LIVE `pg_get_functiondef`, a new `HC` code registered,
       read grants still allowed; pgTAP `416` proven **RED before / GREEN after**, with the
       authority-before-status ordering pinned and `prosecdef` + ACL asserted unchanged.
-- [ ] **Fix 2 — `authorizeCommission` mirrors the door** (D12): the `platform_admin` pass removed,
+- [x] **Fix 2 — `authorizeCommission` mirrors the door** (D12): the `platform_admin` pass removed,
       the two tenancy-admin arms added through `src/lib/queries/`, the new SQLSTATE mapped to pt-BR.
-- [ ] **Seam slice** appended to `docs/backend-state/cases-and-ethics.md` with its `## Current
+- [x] **Seam slice** appended to `docs/backend-state/cases-and-ethics.md` with its `## Current
       state` block replaced.
 
 **Gate.** `npm run lint` 0/0 · `typecheck` · `npm run test` · `npm run test:db` on a **fresh**
@@ -61,17 +61,16 @@ recommendation (Q8 → keep the arm, then Q12 → practice not rule; Q8's PHI ha
 
 ### In progress
 
-`backend` is building Fix 1 + Fix 2 + pgTAP `416` + the seam slice, straight on `main`, with the
-gate commands to report bare.
+Nothing. Built, gated, QA **APPROVED** (0 MAJOR; both MINORs cleared, 17/17). One edge found and
+filed, not fixed by ruling: `FUP-GRANT-PLANE-CONVENTION-TENANCY-ADMIN-GRANT-PATH-UNREACHABLE`.
 
 ### Next
 
-Integrate the backend report into this hub and the record; run the docs gates
-(`adr:index`, `features:index`, `lint:registers`, `lint:progress`, `lint:rules`); spawn the
-read-only `qa` review of the two fixes; then `gated`, PO, `complete` with this block cut into the
-record (ADR 0186 D3). Commit straight on `main`.
+PO approval (§6 step 4). On approval: `complete`, this block cut into the record (ADR 0186 D3), the
+follow-up on the tenancy path ruled or left open on its own clause.
 
 ### Blockers
 
-None. ⚠ The build half of the convention is **deliberately not started** (ADR 0205 D12) — that is
-the ruling, not a gap.
+⛔ **Status is `gated`, not `complete`, because PO approval has not been given** — the docs slice is
+committed (`2dc220eb`), the code slice commits with this flip. ⚠ The build half of the convention is
+**deliberately not started** (ADR 0205 D12) — the ruling, not a gap.

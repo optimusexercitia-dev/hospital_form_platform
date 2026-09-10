@@ -4,14 +4,16 @@
  * Case ACCESS-CONTROL server actions (Case Access Control increment; ADR 0033;
  * Architecture Rules 1, 9 & 10).
  *
- * Two coordinator-only grant actions over the per-case ACL `public.case_access`
- * (ADR 0033 D6): grant read/write to any commission member, and revoke. Both route
- * through the SECURITY DEFINER RPCs `grant_case_access` / `revoke_case_access`,
- * which gate the `case_access` flag, re-check `staff_admin`/admin, and require the
- * target to be a current commission member (`HC021`). Read that flows from
- * ATTRIBUTION (a phase/narrative assignee) is COMPUTED in `app.can_read_case`,
- * never a stored `case_access` row — so these actions manage only the EXPLICIT
- * grants (ADR 0033 D6).
+ * Two grant actions over the per-case ACL `public.case_access_grants` (ADR 0033 D6;
+ * the `case_access` TABLE was dropped and the `case_access` FLAG retired by ADR 0078
+ * B4 — verify against the catalog, never this line): grant read/write to a commission
+ * member, and revoke. Both route through the SECURITY DEFINER RPCs
+ * `grant_case_access` / `revoke_case_access`, which re-check authority
+ * (`app.is_staff_admin_of` OR `app.is_tenancy_admin_of` — see
+ * {@link authorizeCommission}), the U1 exclusion, and the target's current
+ * commission membership (`HC021`). Read that flows from ATTRIBUTION (a
+ * phase/narrative assignee) is COMPUTED in `app._case_caps`, never a stored grant
+ * row — so these actions manage only the EXPLICIT grants (ADR 0033 D6).
  *
  * RLS is the authority; each action ALSO re-verifies commission-scoped authz
  * server-side for a clean pt-BR "forbidden" before the RPC call. All user-facing
@@ -20,11 +22,18 @@
  *
  * SQLSTATE → pt-BR:
  *   HC021 → "O responsável deve ser membro da comissão." (target not a member)
+ *   HC0U0 → "Não é possível conceder edição em um caso encerrado." (ADR 0205 D9)
  *   42501 → forbidden; 23514 → unavailable (flag off).
+ * A thrown tenancy read (`getCommissionTenancy`'s deliberate throw on a genuine
+ * query error) is caught around {@link authorizeCommission} and mapped to
+ * "unavailable", never "forbidden" — a transient failure must not read as a
+ * denial (QA MINOR-2).
  */
 
 import { revalidatePath } from 'next/cache'
 
+import { isCommissionAdmin } from '@/lib/auth/access'
+import { getCommissionTenancy } from '@/lib/queries/commissions'
 import { getSessionContext } from '@/lib/queries/session'
 import { createClient } from '@/lib/supabase/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -55,6 +64,10 @@ const MESSAGES = {
   // HC021 — the grant target must be a current member of the case's commission.
   notMember: 'O responsável deve ser membro da comissão.',
   invalidExpiry: 'A data de expiração deve ser futura.',
+  // HC0U0 (ADR 0205 D9) — the door refuses a WRITE grant on a terminal case.
+  // READ grants on a closed case stay legal, so this must never be phrased as
+  // "this case is closed" — it is about the LEVEL, not about the case.
+  terminalWrite: 'Não é possível conceder edição em um caso encerrado.',
   granted: 'Acesso concedido.',
   revoked: 'Acesso removido.',
 } as const
@@ -62,6 +75,7 @@ const MESSAGES = {
 const PG_CHECK_VIOLATION = '23514'
 const PG_FORBIDDEN = '42501'
 const HC_NOT_MEMBER = 'HC021'
+const HC_TERMINAL_WRITE = 'HC0U0'
 
 const CASE_PATH = '/o/[org]/c/[commission]/manage/cases/[caseId]'
 const STAFF_CASE_PATH = '/o/[org]/c/[commission]/casos/[caseId]'
@@ -77,6 +91,8 @@ function mapError(error: { code?: string; message?: string } | null): string {
   switch (error.code) {
     case HC_NOT_MEMBER:
       return MESSAGES.notMember
+    case HC_TERMINAL_WRITE:
+      return MESSAGES.terminalWrite
     case PG_FORBIDDEN:
       return MESSAGES.forbidden
     case PG_CHECK_VIOLATION:
@@ -103,14 +119,62 @@ export async function caseAccessEnabled(): Promise<boolean> {
   return true
 }
 
-/** Authorize a case-access action: admin, or a staff_admin of THAT commission. */
+/**
+ * Authorize a case-access action — the TS MIRROR of the door's own authority
+ * disjunction, and nothing else (ADR 0205 D12, PO ruling 2026-09-10):
+ *
+ *     app.is_staff_admin_of(commission) OR app.is_tenancy_admin_of(commission)
+ *
+ * where tenancy admin = `org_admin` of the commission's organization OR
+ * `hospital_admin` of its hospital (live body of `app.is_tenancy_admin_of_for`).
+ *
+ * ⛔ `context.isAdmin` IS DELIBERATELY NOT AN ARM, and removing it is the point of
+ * D12. A platform_admin was passed here and REFUSED by the door with 42501 — this
+ * pre-check admitted exactly the principal the DB denies, producing a rendered,
+ * clickable affordance that always failed. ADR 0078 A35's noun rule is why the door
+ * says no: a platform admin governs tenancy, identity, vocabulary and audit, never
+ * commission content. Neither `app.is_staff_admin_of` nor `app.is_tenancy_admin_of`
+ * carries an `is_admin` fallback, so neither does this.
+ *
+ * ⛔ AND THE TENANCY ARMS WERE MISSING, which is the same defect in the opposite
+ * direction: the door ACCEPTS an `org_admin` / `hospital_admin` (the B6
+ * single-coordinator deadlock exit, stamped `org_admin_deadlock_exit`), and this
+ * gate refused them. A gate that both over- and under-admits is not "close enough";
+ * it is two bugs sharing a line. The predicate is NOT re-derived here —
+ * {@link isCommissionAdmin} already IS the tenancy mirror, and a third copy is how
+ * this repo's sibling-axis defects keep recurring.
+ *
+ * ⚠ RLS is still the authority (Architecture Rule 1). This is UX only: a false
+ * negative can never grant what the DB denies, and a false positive is caught by
+ * the DEFINER door one layer down.
+ *
+ * Both DB arms open with `app.is_active(...)` (`app.is_tenancy_admin_of_for`, and
+ * the staff_admin arm's catalog path), so this mirror fails closed on an inactive
+ * account before checking either arm (QA MINOR-1).
+ */
 async function authorizeCommission(commissionId: string): Promise<boolean> {
   const context = await getSessionContext()
   if (!context) return false
-  if (context.isAdmin) return true
-  return context.memberships.some(
-    (m) => m.commission.id === commissionId && m.role === 'staff_admin',
-  )
+
+  // Both DB arms open with app.is_active(...): inactive accounts fail closed
+  // (sibling: src/lib/queries/session.ts, `if (context.isInactive) return false`).
+  if (context.isInactive) return false
+
+  // ARM 1 — app.is_staff_admin_of(commission).
+  if (
+    context.memberships.some(
+      (m) => m.commission.id === commissionId && m.role === 'staff_admin',
+    )
+  ) {
+    return true
+  }
+
+  // ARM 2 — app.is_tenancy_admin_of(commission). The DB predicate resolves the
+  // commission's org + hospital itself; the mirror needs the same two coordinates.
+  const tenancy = await getCommissionTenancy(commissionId)
+  if (!tenancy) return false
+
+  return isCommissionAdmin(context, tenancy)
 }
 
 /** Resolve a case's commission (RLS-scoped read). `null` when unreadable/absent. */
@@ -170,9 +234,16 @@ export async function grantCaseAccess(
   const supabase = await createClient()
   const commissionId = await commissionOfCase(supabase, caseId)
   if (!commissionId) return { ok: false, error: MESSAGES.missingCase }
-  if (!(await authorizeCommission(commissionId))) {
-    return { ok: false, error: MESSAGES.forbidden }
+
+  let authorized: boolean
+  try {
+    authorized = await authorizeCommission(commissionId)
+  } catch {
+    // A transient failure on the tenancy read is "unavailable", never "forbidden"
+    // and never an unhandled rejection into the error boundary (QA MINOR-2).
+    return { ok: false, error: MESSAGES.unavailable }
   }
+  if (!authorized) return { ok: false, error: MESSAGES.forbidden }
 
   const { error } = await supabase.rpc('grant_case_access', {
     p_case: caseId,
@@ -207,9 +278,16 @@ export async function revokeCaseAccess(
   const supabase = await createClient()
   const commissionId = await commissionOfCase(supabase, caseId)
   if (!commissionId) return { ok: false, error: MESSAGES.missingCase }
-  if (!(await authorizeCommission(commissionId))) {
-    return { ok: false, error: MESSAGES.forbidden }
+
+  let authorized: boolean
+  try {
+    authorized = await authorizeCommission(commissionId)
+  } catch {
+    // A transient failure on the tenancy read is "unavailable", never "forbidden"
+    // and never an unhandled rejection into the error boundary (QA MINOR-2).
+    return { ok: false, error: MESSAGES.unavailable }
   }
+  if (!authorized) return { ok: false, error: MESSAGES.forbidden }
 
   const { error } = await supabase.rpc('revoke_case_access', {
     p_case: caseId,

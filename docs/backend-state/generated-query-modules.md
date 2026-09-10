@@ -4,7 +4,7 @@
 > one file you need and carries the maintenance rules in full. ⛔ A posted section is FROZEN:
 > correct it by APPENDING a `⚠ **Superseded** — … See <file> § <heading>.` marker, never in place.
 
-<!-- DATA-ACCESS-ANCHOR kind=modules rows=109 queries=60 actions=49 exports=914 digest=0ddec54f33bb92c9bce3f928ee228524 -->
+<!-- DATA-ACCESS-ANCHOR kind=modules rows=109 queries=60 actions=49 exports=915 digest=49f66028668140b4db0678a1b9d5dfab -->
 
 ⚙ **GENERATED FILE — do not edit by hand.** Every row below is derived from the LIVE
 CATALOG and from `src/` by `scripts/gen-data-access-surface.mjs`; rebuild with `npm run data-access:surface`.
@@ -19,7 +19,7 @@ handwritten in [`data-access.md`](data-access.md), which is frozen and posted (A
 D5). A catalog knows an ACL; it does not know that re-ordering an enum would open
 legal-privileged documents.
 
-**109 modules** — 60 under `src/lib/queries/`, 49 action modules, 914 exported value symbols between them.
+**109 modules** — 60 under `src/lib/queries/`, 49 action modules, 915 exported value symbols between them.
 
 Architecture Rule 9: data access goes through these modules — no inline supabase-js in UI. ⚠ **Presence here is not a Rule-9 audit.** This table answers "which module owns this query"; it does not claim every caller obeys the rule, and a module appearing here is not evidence that nothing bypasses it. The population is a DIRECTORY WALK bound to the naming property (`src/lib/queries/*.ts`, `src/lib/*/actions.ts`, `*-actions.ts`), never a hand-list — ADR 0196 D7.
 
@@ -86,7 +86,7 @@ Architecture Rule 9: data access goes through these modules — no inline supaba
 | `src/lib/queries/case-types.ts` | query | `DEFAULT_CASE_TERMINOLOGY` · `getCaseTypeTerminology` · `listCaseTypes` |
 | `src/lib/queries/cases.ts` | query | `PATIENT_REQUIRED_FIELDS` · `canOpenCaseManagement` · `casePatientEnabled` · `casesExtrasEnabled` · `countOpenCasesForBoard` · `getCaseDetail` · `getCasePatient` · `getCasePatients` · `getCasePhaseForFill` · `getCaseTypeTerminology` · `getParticipantPatient` · `listCaseAccessGrants` · `listCaseCustomFieldValues` · `listCasesBoard` · `listMyAssignedPhases` · `listMyCases` · `processlessCasesEnabled` · `toPatientMode` · `toPatientRequiredFields` |
 | `src/lib/queries/charters.ts` | query | `getCarryForwardSuggestions` · `getCharter` · `getCommissionCadenceOverview` · `getMeetingCadenceStatus` · `upsertCharter` |
-| `src/lib/queries/commissions.ts` | query | `getCommissionForAdmin` · `listCommissionsForAdmin` |
+| `src/lib/queries/commissions.ts` | query | `getCommissionForAdmin` · `getCommissionTenancy` · `listCommissionsForAdmin` |
 | `src/lib/queries/conditions.ts` | query | `FLAGGED_COUNT_KEY` · `RECOMMEND_RESULT_ADVERSE_KEY` · `RECOMMEND_RESULT_KEY` · `TOTAL_SCORE_KEY` · `computeAggregateKeys` · `evalCondition` · `evalRecommendation` · `evalVisibility` · `isConditionTargetInScope` · `jsonEquals` · `overlayAnswerMap` · `walkResultRuleset` |
 | `src/lib/queries/controlled-documents.ts` | query | `APPROVAL_DECISION_LABELS` · `DOC_STATUS_LABELS` · `DOC_TYPE_LABELS` · `OBSOLETE_KIND_LABELS` · `getDocument` · `getHospitalDocumentRegister` · `listApproverCandidates` · `listDocuments` · `listDocumentsDueForReview` · `listPendingApprovalsForUser` |
 | `src/lib/queries/corrections.ts` | query | `getCorrectionRequest` · `listCaseCorrectionRequests` · `listNarrativeRevisions` |
