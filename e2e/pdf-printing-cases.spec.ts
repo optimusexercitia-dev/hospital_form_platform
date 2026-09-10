@@ -222,7 +222,7 @@ async function closeSpecCase(req: APIRequestContext, token: string, caseId: stri
  * masked content, and (c) refused by `app.can_read_case_patient`.
  *
  * ⛔ `write` IS load-bearing here, measured directly against the live doors —
- * this is NOT the shape BUG-GRANT-P3-FIXTURE-WRITE-ON-TERMINAL flagged.
+ * this is NOT the shape BUG-ADMIN-ARM-IS-ACTIVE-GRANT-P3-FIXTURE-WRITE-ON-TERMINAL flagged.
  * `canOpenCaseManagement` (`src/lib/queries/cases.ts`) is `staff_admin ∨
  * isAdministrativo ∨ canWriteContent`; for a plain member the whole manage
  * surface — the ONLY place the "Documentos emitidos" panel this fixture's
@@ -236,7 +236,7 @@ async function closeSpecCase(req: APIRequestContext, token: string, caseId: stri
  * BOTH cases this file seats it on.
  *
  * ⛔ **Call this BEFORE closing a case that needs it**
- * (BUG-GRANT-P3-FIXTURE-WRITE-ON-TERMINAL). ADR 0205 D9 (`grant_case_access`'s
+ * (BUG-ADMIN-ARM-IS-ACTIVE-GRANT-P3-FIXTURE-WRITE-ON-TERMINAL). ADR 0205 D9 (`grant_case_access`'s
  * live body, HC0U0) refuses a `write` grant once
  * `app.case_is_terminal(p_case)` — "não é possível conceder edição em um caso
  * encerrado" — but only checks that AT GRANT TIME; `write_case_content` is a

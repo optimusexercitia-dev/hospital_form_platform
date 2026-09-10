@@ -1,5 +1,5 @@
 ---
-id: BUG-GRANT-P3-FIXTURE-WRITE-ON-TERMINAL
+id: BUG-ADMIN-ARM-IS-ACTIVE-GRANT-P3-FIXTURE-WRITE-ON-TERMINAL
 status: fixed
 severity: high
 area: e2e

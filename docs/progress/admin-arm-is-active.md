@@ -881,9 +881,9 @@ not the audit stamp's (two TS queries).
 **Scope: the two real failures the lead's `e2e:prod` gate found (21 batches, tip `9f0909d3`) — both
 SPECS, per this unit's hard boundary (never app code). `git status --porcelain` names exactly three
 files: `e2e/pdf-printing-cases.spec.ts`, `e2e/phase13-audit.spec.ts`, `docs/bugs/BUGS.md` +
-`docs/bugs/BUG-GRANT-P3-FIXTURE-WRITE-ON-TERMINAL.md` (this entry).**
+`docs/bugs/BUG-ADMIN-ARM-IS-ACTIVE-GRANT-P3-FIXTURE-WRITE-ON-TERMINAL.md` (this entry).**
 
-**Fix 1 — `pdf-printing-cases.spec.ts`'s `beforeAll` (BUG-GRANT-P3-FIXTURE-WRITE-ON-TERMINAL,
+**Fix 1 — `pdf-printing-cases.spec.ts`'s `beforeAll` (BUG-ADMIN-ARM-IS-ACTIVE-GRANT-P3-FIXTURE-WRITE-ON-TERMINAL,
 `fixed`).** Measured what a completed case's printing corridor actually needs, against the LIVE
 catalog, before touching the fixture:
 
@@ -905,8 +905,8 @@ catalog, before touching the fixture:
 fixture seats (`caseNoPhiMinterId`, `caseOpenId`); `caseNoPhiMinterId`'s grant call moved from
 *after* the six-case `closeSpecCase` loop to *before* it (the only case in the loop this fixture
 also grants to). `caseOpenId` never closes in this file, so its call site was never at risk and is
-unchanged. Bug row `BUG-GRANT-P3-FIXTURE-WRITE-ON-TERMINAL` filed `fixed` by this commit (spec-only
-fix — see `docs/bugs/BUG-GRANT-P3-FIXTURE-WRITE-ON-TERMINAL.md` for the full root-cause writeup,
+unchanged. Bug row `BUG-ADMIN-ARM-IS-ACTIVE-GRANT-P3-FIXTURE-WRITE-ON-TERMINAL` filed `fixed` by this commit (spec-only
+fix — see `docs/bugs/BUG-ADMIN-ARM-IS-ACTIVE-GRANT-P3-FIXTURE-WRITE-ON-TERMINAL.md` for the full root-cause writeup,
 including the two live probes above, each with its exact request/response).
 
 ⚠ **A false lead, recorded so the next session does not repeat it.** A first attempt granted
@@ -962,4 +962,4 @@ result.
 changed. `docs/features/admin-arm-is-active.md` (the hub) is lead-owned and not edited here.
 
 Commit on `authz-admin-arm-is-active` (not amended, not pushed): spec fixes + `docs/bugs/BUGS.md` +
-`docs/bugs/BUG-GRANT-P3-FIXTURE-WRITE-ON-TERMINAL.md` + this entry, one commit.
+`docs/bugs/BUG-ADMIN-ARM-IS-ACTIVE-GRANT-P3-FIXTURE-WRITE-ON-TERMINAL.md` + this entry, one commit.
