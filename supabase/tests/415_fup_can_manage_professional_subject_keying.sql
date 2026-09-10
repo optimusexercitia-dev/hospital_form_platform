@@ -139,9 +139,18 @@ select ok(not authz.has_permission((select xb from f415), 'organization', (selec
   '`xb` all three non-admin arms of the read gate are shut and § 2.1 measures arm 1 alone.');
 
 -- ============================================================================
--- §1 — `app.can_manage_professional(p_org, p_uid)`. BOTH ARMS, BOTH POLARITIES.
---   arm 1: the platform-admin arm  — was `coalesce(app.is_admin(), false)`
---   arm 2: the org-authority arm   — was `app.is_org_admin_of(p_org)`
+-- §1 — `app.can_manage_professional(p_org, p_uid)`.
+--   arm 1: the platform-admin arm  — was `coalesce(app.is_admin(), false)`, re-keyed to the
+--          subject-keyed `_for` twin by ADR 0200, and ⚠ REMOVED ENTIRELY by ADR 0201 D5
+--          (pre-AE5 Batch 10, 2026-09-10). ⛔ DATED CORRECTION: this header read "BOTH ARMS,
+--          BOTH POLARITIES" and described arm 1 as a live arm with two polarities. It is no
+--          longer an arm at all, and a file describing an arm it no longer tests is exactly
+--          the staleness this correction exists to prevent. 1.1 and 1.2 now assert arm 1's
+--          ABSENCE — both are denials, and §1 keeps its bidirectionality through arm 2 alone
+--          (1.3 under-grant, 1.5 over-grant), which is why neither may be read as "the
+--          predicate denies everyone".
+--   arm 2: the org-authority arm   — was `app.is_org_admin_of(p_org)`, now the subject-keyed
+--          `app.is_org_admin_of_for(p_org, p_uid)`, and since D5 the ONLY arm.
 -- Exactly one fact changes between each ⭐ pair and its discrimination twin: WHO IS ASKING.
 -- ============================================================================
 
@@ -156,14 +165,14 @@ reset role;
 
 select test_helpers.claims_for((select sa from f415), false, 'staff_admin');
 set local role authenticated;
-select ok(app.can_manage_professional((select org from f415), (select pa from f415)),
-  '1.2 ⭐⭐ ARM 1, UNDER-GRANT — THE OPPOSITE POLARITY, AND 1.1 IS WORTH NOTHING WITHOUT IT. A '
-  'commission staff_admin asks about the PLATFORM ADMIN. The correct answer is TRUE (the subject '
-  'is an admin). Before ADR 0200 this returned FALSE, because the arm answered about the asker. '
-  '⛔ Without this cell, 1.1 is satisfied by a predicate that denies everyone. ⚠ It also pins '
-  '`is_admin_for`''s THIRD-PARTY clause: the platform_admin hat is required only when the '
-  'subject IS the caller, so `pa`''s inactive hat must not change what the system concludes '
-  'about `pa` (ADR 0106 D11).');
+select ok(not app.can_manage_professional((select org from f415), (select pa from f415)),
+  '1.2 ⭐⭐ ARM 1 IS GONE (ADR 0201 D5). The same staff_admin asks about the PLATFORM ADMIN and '
+  'is now denied: an admin subject carries no authority over a tenant''s professional registry. '
+  '⛔ THIS IS NOT A POLARITY FLIP OF THE OLD CELL — the old cell was arm 1''s UNDER-GRANT twin, '
+  'and with arm 1 removed there is no under-grant polarity left AT ARM 1. §1 stays bidirectional '
+  'through arm 2: 1.3 (under-grant, TRUE) and 1.5 (over-grant, FALSE). ⛔ Read 1.1 and 1.2 '
+  'together as "the arm is absent", never as "the predicate denies everyone" — 1.3 and 1.6 are '
+  'what forbid that reading.');
 
 select ok(app.can_manage_professional((select org from f415), (select oa from f415)),
   '1.3 ⭐⭐ ARM 2, UNDER-GRANT. The same staff_admin caller asks about the ORG_ADMIN of this org. '

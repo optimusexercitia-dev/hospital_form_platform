@@ -30,7 +30,12 @@
 -- records why the original twin was orphaned.
 
 begin;
-select plan(26);
+-- ⚠ 26 -> 28 at pre-AE5 Batch 10 (R10, ADR 0201 D2). FOUR cells were re-ruled and TWO were
+-- added. ⚠ The plan for this batch predicted 26 -> 29 ("+3 discrimination twins"); the
+-- arithmetic is +2, because the ORG-tier twin REPLACES the old `:209-212` cell rather than
+-- being added to it — that cell was a rewrite, not an addition. Recorded rather than adjusted
+-- silently: an expected count that is edited to match reality is not an assertion.
+select plan(28);
 
 -- ── TRIPWIRE (ADR 0106 D11 no-op argument): the empirical claim behind D11's
 --    hat condition being safe to ship as a no-op today is "0 platform_admins
@@ -200,16 +205,23 @@ select is(
     where action = 'active_role.assumed' and entity_id = (select v from sid)),
   1,
   'assume_role: exactly one active_role.assumed row per session — a DENIED assumption must not be audited');
-select is(
-  (select organization_id from public.audit_log
-    where action = 'active_role.assumed' and entity_id = (select v from sid)
-    order by seq limit 1),
-  (select org_b from k),
-  'assume_role audit (org-tier): scoped to org_b (the assumed org_admin''s own org), not the platform bucket');
+-- ⚠⚠ RE-RULED 2026-09-10 — R10 (ADR 0201 D2), pre-AE5 Batch 10. The ACT P0 ruling quoted in
+-- the block above is SUPERSEDED for the scope half: `assume_role` now stamps NO place for ANY
+-- tier. The two cells below used to assert `organization_id = org_b` and "hospital/commission
+-- stay NULL"; the first flips, and the second is REWRITTEN rather than ticked — under R10 it
+-- would stay green while no longer able to tell "the org and nothing below it" from "nothing
+-- at all", because its discriminating partner is precisely the cell that flipped.
 select ok(
-  (select bool_and(hospital_id is null and commission_id is null) from public.audit_log
+  (select bool_and(organization_id is null and hospital_id is null and commission_id is null)
+     from public.audit_log
     where action = 'active_role.assumed' and entity_id = (select v from sid)),
-  'assume_role audit (org-tier): hospital_id/commission_id stay NULL for an org-tier hat');
+  'assume_role audit (org-tier) ⭐ R10 (ADR 0201 D2): ALL THREE scope columns are NULL — the row logs the ROLE, never the place. ⛔ RED if the pre-R10 behaviour returns: it stamped organization_id = org_b. The reason is not tidiness — a footprint captured at assume-time is a SNAPSHOT that a mid-session grant invalidates, while hat_ok, comparing role_code only, admits the new seating.');
+select ok(
+  (select bool_and(metadata->>'role' = 'org_admin' and entity_type = 'active_role_selection'
+                   and actor_id = (select sa_x from k))
+     from public.audit_log
+    where action = 'active_role.assumed' and entity_id = (select v from sid)),
+  'assume_role audit (org-tier) ⭐⭐ THE DISCRIMINATION HALF, and it is why the cell above is not vacuous: the row still carries the ROLE and the ACTOR. ⛔ Without this, "all three scope columns are NULL" is equally satisfied by an audit row that was never written — the LEARN-001 shape arriving as a side effect of a CORRECT change rather than of a broken one. This cell reds if the row disappears; the one above reds if a place comes back. ⚠ The org-tier actor is sa_x, not a dedicated org_admin persona: :69-70 above makes sa_x genuinely multi-role by granting him org_admin@org_b, and he is who assumes the org hat here.');
 
 -- staff_admin@comm_x (bootstrap) — the COMMISSION-tier case, a different scope
 -- shape than the org-tier one just checked (proves the fix isn't org-only).
@@ -223,11 +235,17 @@ select lives_ok(
 create temp table sid2 on commit drop as
   select (nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'session_id')::uuid as v;
 reset role;
-select is(
-  (select commission_id from public.audit_log
+select ok(
+  (select bool_and(organization_id is null and hospital_id is null and commission_id is null)
+     from public.audit_log
     where action = 'active_role.assumed' and entity_id = (select v from sid2)),
-  (select comm_x from k),
-  'assume_role audit (commission-tier): scoped to comm_x (the assumed staff_admin''s own commission)');
+  'assume_role audit (commission-tier) ⭐ R10 (ADR 0201 D2): ALL THREE scope columns are NULL at the DEEPEST tier too. ⛔ RED if the pre-R10 behaviour returns: it stamped commission_id = comm_x. The org-tier pair above and this pair are separate because the two tiers reach different branches of the body, not because the rule differs between them.');
+select ok(
+  (select bool_and(metadata->>'role' = 'staff_admin' and entity_type = 'active_role_selection'
+                   and actor_id = (select sa_x from k))
+     from public.audit_log
+    where action = 'active_role.assumed' and entity_id = (select v from sid2)),
+  'assume_role audit (commission-tier) ⭐⭐ ITS OWN DISCRIMINATION HALF, for the reason the org-tier one has one: without it the NULL triple above is equally satisfied by a row that was never written at all.');
 
 -- admin — still a PURE platform_admin at THIS point in the file (the multi-role
 -- insert for the is_admin() D11 keystone below runs LATER) — the PLATFORM
@@ -243,10 +261,23 @@ select lives_ok(
 create temp table sid3 on commit drop as
   select (nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'session_id')::uuid as v;
 reset role;
+-- ⚠ RE-RULED 2026-09-10 — AND THIS ONE IS THE RE-RULING ADR 0201's OWN EXPECTED-RED TABLE
+-- DOES NOT NAME. That table says this cell "stays green; this is D2's carve-out, unchanged."
+-- The POLARITY does stay green. The STATED REASON does not survive: under R10 every tier
+-- stamps NULL, so platform_admin is no longer a carve-out but the general rule, and this cell
+-- can no longer tell "platform_admin genuinely has no tenant" from "nothing is stamped for
+-- anyone". Green with a dead reason is the vacuity ADR 0201 names elsewhere, arriving here as
+-- a consequence the ruling did not enumerate.
 select ok(
   (select organization_id is null and hospital_id is null and commission_id is null
    from public.audit_log where action = 'active_role.assumed' and entity_id = (select v from sid3)),
-  'assume_role audit (platform tier): platform_admin genuinely has no tenant — all three scope columns correctly stay NULL');
+  'assume_role audit (platform tier) ⭐ R10 made this the GENERAL RULE, not a carve-out: the platform tier stamps NULL for the same reason every tier now does. ⛔ Its former discriminating claim ("genuinely has no tenant") is no longer measurable here — what this cell now pins is that the platform branch was not collaterally broken, and its discrimination twin below carries the "the row exists and names the role" half.');
+select ok(
+  (select bool_and(metadata->>'role' = 'platform_admin' and entity_type = 'active_role_selection'
+                   and actor_id = (select admin from k))
+     from public.audit_log
+    where action = 'active_role.assumed' and entity_id = (select v from sid3)),
+  'assume_role audit (platform tier) ⭐⭐ THE TWIN THE MESSAGE ABOVE PROMISES: the row exists, names the role and names the actor. ⛔ Without it the platform tier is the ONE tier whose NULL triple has no partner, which is exactly the state the other two pairs were rewritten to leave behind.');
 
 -- THE REVERT-TWIN: temporarily neutralize has_role to the pre-Stage-3 shape
 -- (the caller-only condition removed) and prove the SAME hatless-caller case

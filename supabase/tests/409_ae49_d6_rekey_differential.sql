@@ -676,11 +676,16 @@ select lives_ok($$ select public.create_professional_profile((select oid from f4
 reset role;
 
 select test_helpers.claims_for((select pa from f409), true, 'platform_admin'); set local role authenticated;
-select lives_ok($$ select public.create_professional_profile((select oid from f409s), '409 Platform Prof') $$,
-  '3.7 ⭐ LEGACY EQUIVALENCE, second preserved principal: the PLATFORM_ADMIN arm (`app.is_admin()`, '
-  'which also requires the platform_admin hat) still passes under the same mutation. Professional '
-  'IDENTITY is inside platform_admin''s noun (ADR 0078 A35); commission CONTENT is not, which is '
-  'why §2 has no platform_admin twin — `is_tenancy_admin_of` carries no such arm and must not.');
+select throws_ok($$ select public.create_professional_profile((select oid from f409s), '409 Platform Prof') $$,
+  '42501', null,
+  '3.7 ⭐⭐ ADR 0201 D5 + D6: the platform_admin arm is GONE. Professional IDENTITY is NOT inside '
+  'platform_admin''s noun — A30''s bucket-C reading wins (ADR 0201 D6 supersedes the clause this '
+  'message used to carry). ⛔ AND the arm was never `app.is_admin()`: since ADR 0200 the chain '
+  'create_professional_profile → can_create_professional → can_manage_professional reached '
+  '`app.is_admin_for`, and create_professional_profile''s comment-stripped body contains no '
+  '`app.is_admin()` at all. The SECOND clause SURVIVES verbatim: commission CONTENT is not '
+  'inside the noun either, which is why §2 has no platform_admin twin — `is_tenancy_admin_of` '
+  'carries no such arm and must not.');
 reset role;
 
 select test_helpers.claims_for((select st from f409), false, 'staff'); set local role authenticated;

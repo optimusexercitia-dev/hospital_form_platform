@@ -27,7 +27,9 @@
 -- =============================================================================
 
 begin;
-select plan(87);
+-- ⚠ 87 -> 88 at pre-AE5 Batch 10: the M1·1 FREEZE TWIN split into 1a (freeze, org authority)
+-- and 1b (authority, the hatted platform_admin) — see the block above them.
+select plan(88);
 
 update app.feature_flags set enabled = true
   where key in ('cases_multi_phase', 'case_participants', 'audit_trail');
@@ -212,12 +214,33 @@ reset role;
 -- bound (org authority is unrestricted there), reaches the trigger, and is refused by it. The
 -- freeze is thereby shown to be independent of who is asking, which is its whole claim: it
 -- binds direct DML too.
-select test_helpers.claims_for((select admin from k), true, 'platform_admin');
+-- ⚠⚠ AND IT SPLIT A SECOND TIME, 2026-09-10 (pre-AE5 Batch 10, PO ruling R2), FOR THE SAME
+-- REASON AND WITH THE SAME REMEDY. The twin above used `admin` under the platform_admin hat
+-- because *"a platform_admin passes the AE4.7c bound"*. ADR 0201 D5 removed that arm, so the
+-- hatted admin is now refused at 42501 — the AUTHORITY check — and never reaches the freeze at
+-- all. Re-coding the expectation to 42501 and stopping there would have left `HC0F2`, the
+-- actual subject of this twin, asserted by NOTHING while the line kept its name. That is the
+-- failure mode this comment block already describes one paragraph up; it simply happened again
+-- to the fix.
+--
+-- ⭐ So the twin splits ONCE MORE, into FREEZE and AUTHORITY, and the actor for the freeze half
+-- moves to `sa_y` — whom :112-114 above already grants `org_admin` of `org_x` ("sa_y is a CLEAN
+-- org_admin of org_x: the M1·3 actor, and the over-reach control"), so no new fixture is
+-- needed and no other cell in this file sees a change.
+select test_helpers.claims_for((select sa_y from k), false, 'org_admin');
 set local role authenticated;
 select throws_ok(
   $$ select public.set_professional_link_state('00000000-0000-0000-0000-0000000f0202', 'unknown', null) $$,
   'HC0F2', null,
-  'M1·1 FREEZE TWIN ⭐⭐: org authority PASSES the AE4.7c bound and is still refused by the B7 FREEZE (HC0F2) — the linkage of a load-bearing respondent survives even a platform_admin. ⛔ This is the assertion the 42501 above no longer makes');
+  'M1·1a FREEZE ⭐⭐: ORG AUTHORITY passes the AE4.7c bound, reaches the trigger, and is refused by the B7 FREEZE. The freeze binds direct DML and is independent of who is asking — which is its whole claim.');
+reset role;
+
+select test_helpers.claims_for((select admin from k), true, 'platform_admin');
+set local role authenticated;
+select throws_ok(
+  $$ select public.set_professional_link_state('00000000-0000-0000-0000-0000000f0202', 'unknown', null) $$,
+  '42501', null,
+  'M1·1b AUTHORITY ⭐⭐ ADR 0201 D5: the platform_admin is refused ONE LAYER EARLIER, at the door''s authority check, and never reaches the freeze. ⛔ Reading this red as "the freeze broke" is the exact misread this split exists to prevent — 4a is where the freeze is asserted now.');
 reset role;
 
 select is(app.is_case_respondent('00000000-0000-0000-0000-0000000f0001', (select st_x2 from k)), true,

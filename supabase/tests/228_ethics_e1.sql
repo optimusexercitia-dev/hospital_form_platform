@@ -23,7 +23,9 @@ begin;
 -- Amendment 1, D15).
 -- 131 → 135: DM2·S2 adds the OPEN-level ceiling pins (40/40b/41/41b — S1-O1
 -- discharged on open_document_version).
-select plan(144);
+-- ⚠ 144 -> 145 at pre-AE5 Batch 10: the update_professional_profile POSITIVE TWIN flipped to
+-- a denial (ADR 0201 D5) and its JOB was RE-HOMED onto a new org_admin lives_ok cell beside it.
+select plan(145);
 
 -- cases RPCs need cases_multi_phase; case_types toggled per-test for the snapshot gate.
 update app.feature_flags set enabled = true
@@ -39,6 +41,11 @@ create temp table k on commit drop as
          (v->>'st_x')::uuid   as st_x,
          (v->>'st_x2')::uuid  as st_x2,
          (v->>'sa_y')::uuid   as sa_y,
+         -- Added by pre-AE5 Batch 10: the ORG_ADMIN of the bootstrap org. The
+         -- update_professional_profile POSITIVE TWIN below was re-homed onto it when ADR 0201
+         -- D5 removed the platform arm, so the twin's JOB (the door still opens for someone)
+         -- survives the actor change instead of disappearing with it.
+         (v->>'oa_b')::uuid   as oa_b,
          (v->>'comm_x')::uuid as comm_x,
          (v->>'comm_y')::uuid as comm_y,
          (v->>'form_u')::uuid as form_u,
@@ -624,14 +631,30 @@ select throws_ok(
   'update_professional_profile ⭐ AE4.7c: a coordinator may NOT correct a profile — a staff_admin ADDS a professional, never MODIFIES one (matrix row 30 revoked, row 43 kept)');
 reset role;
 
--- POSITIVE TWIN, and it is not optional: without it the assertion above is equally well
--- explained by a door that is broken shut, and matrix row 30 would be enforced by nothing
--- anyone can observe. A platform_admin still holds row 30, so the door must still open.
+-- ⚠ RE-RULED 2026-09-10 (pre-AE5 Batch 10, PO ruling R2). This used to be the POSITIVE TWIN,
+-- a `lives_ok` asserting *"a platform_admin still holds row 30, so the door must still open"*.
+-- ADR 0201 D5 removed that arm, so the old cell reds — and re-coding it to a denial and
+-- stopping there would have DELETED the twin's job, leaving the `throws_ok` above "equally
+-- well explained by a door that is broken shut". So the cell FLIPS and the JOB IS RE-HOMED:
+-- the denial below is the new negative twin, and the `lives_ok` after it carries the "the door
+-- still opens for someone" half, under ORG authority.
 select test_helpers.claims_for((select admin from k), true, 'platform_admin');
+set local role authenticated;
+select throws_ok(
+  format($$ select public.update_professional_profile(%L, 'Dr. Teste Corrigido') $$, (select pid from prof)),
+  '42501', null,
+  'update_professional_profile NEGATIVE TWIN ⭐⭐ ADR 0201 D5: a platform_admin may NOT correct a profile — a tenant''s professional registry is Class-2 TENANT content, not the A35 "identity" noun (which is the USER DIRECTORY). The Class-2 write arm was REMOVED from app.can_manage_professional, not narrowed.');
+reset role;
+
+-- THE RE-HOMED POSITIVE TWIN, and it is not optional for exactly the reason the old one was
+-- not: without it the two denials above are equally well explained by a door that is broken
+-- shut, and matrix row 30 would be enforced by nothing anyone can observe. The population that
+-- still holds row 30 is ORG AUTHORITY, so that is who asks.
+select test_helpers.claims_for((select oa_b from k), false, 'org_admin');
 set local role authenticated;
 select lives_ok(
   format($$ select public.update_professional_profile(%L, 'Dr. Teste Corrigido') $$, (select pid from prof)),
-  'update_professional_profile POSITIVE TWIN ⭐: org authority (platform_admin) still corrects the profile — row 30 moved to a narrower population, it was not deleted');
+  'update_professional_profile POSITIVE TWIN ⭐ (re-homed at ADR 0201 D5): the ORG_ADMIN of this organization still corrects the profile — row 30 moved to a narrower population, it was not deleted. ⛔ Read together with the two denials above: they say WHO may not, this says the door opens at all.');
 reset role;
 select test_helpers.claims_for((select st_x2 from k), false);
 set local role authenticated;
