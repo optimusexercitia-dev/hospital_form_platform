@@ -7,6 +7,7 @@
 **Related:** [0050](./0050-action-items-fold-visibility-scope-case-access-expiry.md) / [0102](./0102-extend-on-regrant-expiry-seam.md) / [0103](./0103-case-access-null-expiry-is-permanent.md) (expiry semantics) · [0061](./0061-administrativo-delegated-role.md) / [0130](./0130-dsr-subject-request-workflow.md) (the two scope-level capability planes this convention explicitly does NOT govern, D11) · [0114](./0114-document-model-redesign.md) (D6 + D16 — the document access plane lands at Phase 19 and now starts from this convention) · [0176](./0176-authz-permission-layer-made-real.md) (D8 — nothing here is picked off inside a role increment) · [0182](./0182-statement-scoped-authorized-scope-ids.md) · [0201](./0201-the-keying-asymmetry-is-the-model.md)
 ⛔ Supersedes nothing.
 ⚠ **Numbering:** 0204 is reserved by `docs/plans/pre-ae5-remediation.md` for the `D`-ceiling / `search_path` conventions and 0202 is an unfillable hole; this ADR takes 0205 as that plan instructs.
+**Amended (2026-09-10):** § **Amendment 1** below — after an external design audit of this ADR ([docs/reviews/adr-0205-design-qa-review.md](../reviews/adr-0205-design-qa-review.md), verdict *NEEDS REVISION*, five major findings re-derived by the lead on the live catalog, all holding), the PO ruled sub-clauses **D2·2, D4·2, D5·2, D6·5, D7·2, D12·2** in a second grilling session (two rounds, 16 questions). Each amended D carries a ⚠ marker; the 2026-09-10 rulings D1–D12 are unchanged in text except the two editorial corrections the amendment names. Unit: `GRANT-PLANE-CONVENTION-A1`.
 
 ---
 
@@ -105,7 +106,7 @@ interviews stays exactly where it is). A person who must see ONE child without t
 as a **root grant narrowed to that child** (`limited_to_resource_id`, a typed FK to the child's row),
 so the root's exclusion rules — recusal, respondent — stay in force by position. **The narrowing is
 read-only** until a real user asks for a write half; interviewers already write through their
-participation row (D3).
+participation row (D3). ⚠ **Amended — see Amendment 1, D2·2** (the narrowing's typed mechanism, the registry parent link, the per-root children list, the action-item root).
 
 **D3 — Participation is NEVER mirrored into a ledger.** Interviewer rows, RCA members, meeting
 attendees, phase/narrative assignees, action-item assignees are participation records, read directly
@@ -122,15 +123,15 @@ physically changed**: a projection maps its bits to codes. Four map today — `r
 code (`read_case_deliberation`, `read_restricted_phi`, `view_case_overview`) and are listed as
 **domain-only** until their codes are added with the build (D12) — ⛔ never as placeholder manifest
 rows now, which is the *"both models shipped, one inert"* state ADR 0176 D1 rejected. This is what
-ADR 0155 D7's *"adapted to the shared vocabulary"* means.
+ADR 0155 D7's *"adapted to the shared vocabulary"* means. ⚠ **Amended — D4·2** (one grant = a header + ability child rows; the ability catalog).
 
-**D5 — Five mandatory columns on every ledger:** `granted_by`, `granted_at`, `expires_at`
+**D5 — Seven mandatory columns on every ledger** (⚠ the 2026-09-10 text said *five* and listed these seven; count corrected by Amendment 1)**:** `granted_by`, `granted_at`, `expires_at`
 (nullable = permanent, the ADR 0103 semantics; enforced at READ time in the predicate and validated
 future-at-grant in the DOOR, never by a table CHECK), `revoked_at` + `revoked_by` (soft, shape
 CHECK `(revoked_at is null) = (revoked_by is null)`), and `reason` (+ a constrained
 `reason_code`). Plus the posture: RLS on, one own-row SELECT policy, **no DML privilege to
 `authenticated`**, an active partial unique `NULLS NOT DISTINCT` over the grant tuple, writes only
-through an audited DEFINER door over an INVOKER kernel.
+through an audited DEFINER door over an INVOKER kernel. ⚠ **Amended — D5·2** (the tuple, expiry and revocation live on the grant header).
 
 **D6 — Grantee and grantor.** (1) The grantee must be a **member of the resource's commission**
 (`HC021` generalized), with a documented exception per root — referrals will need one on the
@@ -142,13 +143,13 @@ a member, and no self-grant. (3) That fallback now serves **two** situations, re
 round 1 assumed only one: the sole coordinator **recused or respondent** on the case (ADR 0078's
 original reason) and the **absent** coordinator. The PO ruled coordinator presence stays a
 **practice, not a database rule** (Q12 → option b): no last-coordinator guard is added. (4) An
-**administrativo never grants** (Q22): granting is an authority act, and that plane is AE5.6's.
+**administrativo never grants** (Q22): granting is an authority act, and that plane is AE5.6's. ⚠ **Amended — D6·5** (the reference door made conforming pre-pilot — it had no self-grant check; the grantee's commission is the root adapter's answer; technical-director referrals; the management surface).
 
 **D7 — One audit convention.** `entity_type` = the plane (`case_access`, later `meeting_access`,
 …), `entity_id` = **the resource** the grant is on, the grantee always in `metadata`, exactly three
 event names `<plane>.granted` / `<plane>.updated` / `<plane>.revoked`, emitted by **one shared
 trigger function** parameterized by trigger arguments, whose tenant anchors come from
-`securable_resources`. Existing tables keep their current emission until D11's ruling reaches them.
+`securable_resources`. Existing tables keep their current emission until D11's ruling reaches them. ⚠ **Amended — D7·2** (tenant anchors come from the root's adapter, defaulting to the registry — the referral registry row is anchored on the SOURCE side).
 
 **D8 — Provenance is typed.** A non-manual `source` gets **one typed FK column per source** when
 that source ships (ADR 0065 App-A dialect 1); the case ledger's bare `source_entity_id` is corrected
@@ -196,12 +197,14 @@ two (Q16 → a), classifies participation records (D3) as *not ledgers*, and let
   missing codes (D4), and the first stamped ledger.
 - **Deferred choice:** whether ledgers converge on **one shared table anchored on
   `securable_resources`** or become a **provider inside the `authz` layer** is taken at the Phase 19
-  plane ADR, on a settled AE5 and real data. Either is a mechanical step from D4/D5-conforming
-  ledgers: a union with a type column, or a new fact source beside `authz.assignment_facts`.
+  plane ADR, on a settled AE5 and real data. C is a mechanical step from D4/D5-conforming ledgers
+  (a union with a type column); D is mechanical on the LEDGER side only (a new fact source beside
+  `authz.assignment_facts`) — its resolver side goes through the AE7 door, as Option D below states
+  (⚠ wording corrected by Amendment 1; the 2026-09-10 text called both "mechanical").
 - **Hypothetical roots, decided so the convention is not abstract:** meetings keep the attendee row
   as a computed read source on `participants_only` meetings and absorb the reserved-session reader
   list (Q14 → a); referrals grant on the **receiving side only**, so no side column (Q15 → a);
-  interviews get no ledger (D2).
+  interviews get no ledger (D2). ⚠ **Amended — D12·2** (a third pre-pilot fix; the post-AE5 build list widened).
 
 ## Considered options
 
@@ -236,3 +239,165 @@ two (Q16 → a), classifies participation records (D3) as *not ledgers*, and let
   and touches neither `app._case_caps` nor the AE5 bundle. A builder who creates a grant-shaped
   table before AE5-complete is acting against D12, and the rule file says so at the moment of
   writing the migration.
+- **Amended 2026-09-10** — § Amendment 1: the external audit's findings ruled in place; its own
+  consequences (unit, follow-ups, corpus edits) are listed there.
+
+## Amendment 1 — the external design audit's five findings ruled; the reusable shape made exact
+
+**2026-09-10 · PO rulings in a second grilling session (two rounds, 16 questions), the lead
+recommending; every clause below was measured on the live catalog before it was put to the PO.**
+Trigger: an external design QA of this ADR, committed verbatim as
+[docs/reviews/adr-0205-design-qa-review.md](../reviews/adr-0205-design-qa-review.md) (verdict
+*NEEDS REVISION*; five major findings, four additional concerns). The lead re-derived every claim on
+the live catalog rather than from the migration text the audit cites: all five held, two were
+understated, and two related defects the audit missed were found on the way (D6·5·2, D2·2·3). Unit
+of record: `GRANT-PLANE-CONVENTION-A1` (hub `docs/features/grant-plane-convention-a1.md`).
+
+**What the amendment does NOT change.** The direction (Option B), D1, D3, D8, D9, D10, D11, the
+timing rule *no ledger before AE5-complete*, and the C-vs-D deferral all stand. The audit's caution
+that centralization must not be described as decided needed no change — no document described it
+so. Its claim that a single narrowing column *"cannot be a typed FK to several child tables"* is
+true of a bare FK and false of the composite typed reference the registry already exposes
+(`action_items.securable_type` uses it today) — D2·2 names that mechanism rather than inventing one.
+
+### D2·2 — Narrowing is a typed registry reference; ownership is proven by a parent link; the children are listed per root
+
+1. **Mechanism.** `limited_to_resource_id` is written as the composite typed reference
+   `(limited_to_resource_id, limited_to_resource_type)` → `securable_resources(id, resource_type)`,
+   with a CHECK pinning the type to the root's listed children. Never a bare uuid (D8's reasoning).
+2. **Ownership invariant.** `securable_resources` gains a nullable **typed composite parent
+   reference** `(parent_id, parent_type)` → `securable_resources(id, resource_type)`, stamped by the
+   existing `ensure_securable_resource_*` triggers at registration: a root carries none, a child
+   carries its root. One generic guard on every ledger asserts *grant resource = child's parent*, so
+   the conformance keystone checks D2 without knowing the root. Lands with the first ledger (D12·2),
+   not now. Rejected: a per-root child-to-root function alone (not keystone-checkable); both
+   (two authorities for one fact).
+3. **Narrowable children, per root** — a child outside the registry's type domain is registered when
+   that root's ledger is built; an unregistered child is not narrowable. Measured: the domain today is
+   `case · meeting · interview · action_item · controlled_document · case_referral · rca ·
+   capa_action · form_response`, so agenda items, closed-session items and document versions are
+   all missing.
+
+   | root | narrowable children |
+   | --- | --- |
+   | case | interview; **case-sourced** action item |
+   | meeting | agenda item; closed-session item (absorbing `meeting_closed_session_item_readers`, D11); **meeting-sourced** action item |
+   | controlled document | document version |
+   | referral | none — whole-referral grants only |
+
+   RCA stays out: its parent is a patient-safety event, which is not a D2 root.
+4. **The action-item root is its `source_*` provenance** (`source_type ∈ {case, meeting, manual}`,
+   CHECK-bound). `linked_case_id` is a workflow pointer that grants nothing (the K-R4 class); a
+   **manual** action item has no root and cannot be narrowed to — its *"one person must see it"*
+   path is `assignees_only` participation (D3). Rejected: a linked case as a second root (breaks
+   *"exclusion rules stay in force by position"*).
+
+### D4·2 — One Grant is a header with ability child rows; abilities come from an ability catalog
+
+1. **Cardinality.** A ledger is a **grant header** — principal, resource, narrowing (D2·2),
+   provenance (D8), the seven D5 columns, the active partial unique `NULLS NOT DISTINCT` tuple —
+   plus an **ability child table** keyed `(grant_id, permission_code)`. Grant, re-grant, revoke and
+   audit act on the header; a re-grant **replaces the child set atomically**; expiry and soft
+   revocation are the header's. Rejected: an ability array (no per-element FK to the catalog); one
+   row per ability (lifecycle fragments across rows); deferring the choice (the scaffold cannot be
+   deterministic without it — the audit's finding 1).
+2. **Ability catalog.** A small table keyed `(root_type, permission_code)`, seeded by the scaffold
+   from the root's ability list, FK'd from every child table. It is what makes a PHI code
+   **physically impossible** on a non-PHI root (the property Option C wanted) and the one thing the
+   keystone asserts per ledger. Rejected: door-only validation.
+3. **The lattice lives in the door.** *write ⇒ read* and *restricted ⇒ standard* are enforced by the
+   door's D10 expansion, never by table CHECKs — the case ledger's boolean CHECKs are its own.
+4. **Audit (D7) fires on the header only**: `.granted` on insert, `.updated` when the ability set or
+   expiry changes, `.revoked` on soft revoke; the code set travels in `metadata`. Child-row changes
+   emit nothing of their own.
+5. **The case ledger is projected** into this shape (one row → one header + up to five child rows)
+   for the union roster and for Option C; it is still not physically changed (D4).
+
+### D5·2 — The count, and where the tuple lives
+
+The mandatory set is **seven** columns (the 2026-09-10 text said *five* and listed seven; corrected
+in place): `granted_by`, `granted_at`, `expires_at`, `revoked_at`, `revoked_by`, `reason`,
+`reason_code`. Under D4·2 they, the unique tuple, the RLS posture and the no-DML ACL are the
+**header's**; the child table carries the same posture and no lifecycle columns of its own.
+
+### D6·5 — The reference door made conforming; the grantee's commission is the adapter's answer; the surface
+
+1. **No self-grant, built pre-pilot (Fix 3).** Measured on the live body: `grant_case_access` checks
+   authority (42501) → actor exclusion (`HC0F1`) → level → grantee membership (`HC021`) → future
+   expiry → terminal status (`HC0U0`) → kernel, and never compares the grantee to `auth.uid()`; its
+   own comment names grantee membership as the anti-self-escalation guard. That guard is empty for
+   the one arm D6·2 says *"reads nothing"*: resolver S2 gives a tenancy admin `manage_case_access`
+   ONLY, so an `org_admin` / `hospital_admin` who also holds a plain membership in the commission
+   passes both gates and can grant themselves content and, through the SQL-only PHI parameters,
+   PHI. ⚠ The audit graded this *"not presently a privilege escalation"*; on that arm it is one.
+   **Ruling:** the public door refuses `p_user = auth.uid()` **immediately after the authority gate
+   and the exclusion check, before level, membership and expiry** — a caller with no standing still
+   gets 42501, and a self-grant is refused as an act, not as a payload — with a new `HC` SQLSTATE
+   mapped to pt-BR in `src/lib/case-access/actions.ts`; the access panel's grantee picker
+   **excludes the actor**. The INVOKER kernel and `create_case`'s creator self-grant are untouched;
+   `revoke_case_access` is unchanged (giving access up is not an authority act). RED-first pgTAP,
+   with the exploit persona — a tenancy admin who also holds a plain membership — as the keystone's
+   subject. Rejected: text-only now (leaves a live path open through the pilot).
+2. **"Member of the resource's commission" means the commission the root's adapter names (D7·2).**
+   One function answers *which commission is this resource's, for grant purposes* and serves both
+   this check and the audit anchor, so the two cannot drift apart again. For referrals that is the
+   **target** commission (D12's receiving-side ruling). Measured, and missed by the audit: a
+   **technical-director** referral (`case_referral.target_type = 'technical_director'`) carries a
+   `target_hospital_id` and **no commission** — the adapter returns nothing and the door refuses:
+   **no ledger grants on technical-director referrals** until a real user asks. Rejected: a
+   target-hospital affiliation rule (invents a grantee class no user asked for).
+3. **The management surface is a convention, built with the factory.** Every root's grant plane has
+   a **metadata-only management surface** reachable from the grantor's own area — for the
+   tenancy-admin fallback, the commission page under `/o/[org]/manage/comissoes/[commissionSlug]` —
+   through a DEFINER door that resolves the resource's commission and lists its grants **without
+   content**. Field ceiling, ruled: case **code, status, created date, commission** and the roster
+   (grantee, level, expiry, granted by/at); ⛔ never title, description or any content field (a
+   title can carry a name; a code cannot). Rejected: the title; a paste-the-id lookup (unusable in
+   the deadlock it exists for). **Pre-pilot the fallback arm stays SQL / service-role only** — the
+   ruling that archives `FUP-GRANT-PLANE-CONVENTION-TENANCY-ADMIN-GRANT-PATH-UNREACHABLE`; its
+   build moves into the build follow-up. Rejected: building the case surface pre-pilot (the deadlock
+   needs a recused sole coordinator on a commission with no second one, and a service-role exit
+   exists — if the pilot proves otherwise, this is the clause to reopen).
+
+### D7·2 — Tenant anchors come from the root's adapter
+
+Measured: `app.ensure_securable_resource_referral` stamps every referral on its **source**
+commission and that commission's org and hospital (4/4 seed rows anchored on source, 0 on target),
+while D12 puts referral grants on the receiving side; built literally, D7's *"anchors from
+`securable_resources`"* would stamp a receiving-side grant with the source-side anchors — and a
+technical-director referral with the wrong hospital. **Ruling:** the shared trigger takes its three
+anchors from a **per-root adapter function** passed as a trigger argument; the default adapter
+reads the registry row; the referral adapter returns the target commission and its hospital and
+org. The registry is untouched. Rejected: re-anchoring the registry to the target side (moves a
+DM4 tenancy decision, and every registry reader, to fix an audit stamp); registering a referral
+twice.
+
+### D12·2 — Timing, widened
+
+- **Pre-pilot, case-only, no AE5 contact** gains **(iii) Fix 3** — D6·5·1, with its RED-first
+  pgTAP keystone and the picker change.
+- **After AE5-complete, at the first consumer** gains: the ability catalog and the header-plus-child
+  scaffold shape (D4·2); the registry's typed parent link and the generic ownership guard (D2·2);
+  the missing child types registered per root as its ledger lands (D2·2·3); one adapter per root
+  serving D6·5·2 and D7·2; the metadata-only management surface and its door (D6·5·3), the case one
+  first.
+- **The C-vs-D sentence** is corrected in place (D12): C is mechanical from conforming ledgers; D is
+  mechanical on the ledger side only — measured, the `resolution_scope_kind` domain is closed to
+  `organization | hospital | commission` and `has_permission` fails closed on a mismatch — so the
+  resolver side goes through the AE7 door, as Option D always said.
+
+### Consequences of Amendment 1
+
+- **Unit of record:** `GRANT-PLANE-CONVENTION-A1` — hub `docs/features/grant-plane-convention-a1.md`,
+  record `docs/progress/grant-plane-convention-a1.md`; the original unit stays `complete` (a
+  completed hub is not reopened — the precedent is a new unit code). The audit file is cited from
+  this ADR permanently and listed on the new hub's `reviews:` while it is open.
+- **Follow-ups:** `FUP-GRANT-PLANE-CONVENTION-TENANCY-ADMIN-GRANT-PATH-UNREACHABLE` is **archived** on
+  the D6·5·3 ruling; its build half folds into `FUP-GRANT-PLANE-CONVENTION-BUILD-AFTER-AE5`, whose
+  *Closes when* now also names the ability catalog, the parent link, the adapters, the child types
+  and the surface — one home for the build (ADR 0186).
+- **Text made consistent:** the rule file's one-liners; Phase 18's pgTAP acceptance line (*"per-round
+  auditor write grant"* → the assigned-auditor participation write, D3); this ADR's D5 count and
+  D12 sentence, in place; a PROGRESS.md § Phase Status row for the unit.
+- **Accepted cost, restated:** the case ledger's projection now has two halves (booleans → codes;
+  one row → header + children). If Phase 19 chooses C, that projection is the migration.

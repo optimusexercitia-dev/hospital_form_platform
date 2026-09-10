@@ -668,7 +668,7 @@ measure → improve → re-assess loop. **No patient data.** Feature-flagged beh
   set) and **flags the standard** `nao_conforme` (Phase-16 assessment updated) → conclude snapshots the
   score and freezes findings; the assigned auditor (plain `staff`) can score their round, a non-assigned
   `staff` cannot; rounds are audited (Phase 13); a foreign-commission user gets no read; one keyboard-only
-  pass. pgTAP: status-machine + freeze-on-conclude; per-round auditor write grant; weighted-score
+  pass. pgTAP: status-machine + freeze-on-conclude; the assigned-auditor participation write (ADR 0205 D3); weighted-score
   correctness across all four results; finding→CAPA + finding→standard links.
 
 ### Phase 19 — Surveyor Access & Evidence Export (Acesso de Auditor Externo & Pacote de Evidências)

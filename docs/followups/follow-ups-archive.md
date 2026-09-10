@@ -12617,3 +12617,22 @@ green. ⛔ Not closed by deleting the comment — the ruling it half-records is 
 `CAN-MANAGE-PROFESSIONAL-SELF-CHECK`, found while re-deriving the manifest projection after the
 subject-keying migration. Full record:
 [`docs/progress/can-manage-professional-self-check.md`](../progress/can-manage-professional-self-check.md).
+
+### ✅ RESOLVED 2026-09-10 (unit GRANT-PLANE-CONVENTION-A1) — the entry below is VERBATIM as filed
+
+**Closed on its own quoted `Closes when`, arm (b), by PO ruling** — ADR 0205 Amendment 1, D6·5·3
+(grilling session 2026-09-10, Q6 → a): pre-pilot the tenancy-admin fallback arm stays **SQL /
+service-role only**, recorded in the ADR as the clause demands; and the surface arm (a) describes became a
+**convention** — every root's grant plane gets a metadata-only management surface, opened from the
+commission page under `/o/[org]/manage/comissoes/[commissionSlug]` through a DEFINER door that resolves
+the resource's commission and lists its grants without content, field ceiling ruled (case code · status ·
+created date · commission · the roster; ⛔ never title/description). Its BUILD moved verbatim into
+`FUP-GRANT-PLANE-CONVENTION-BUILD-AFTER-AE5`'s *Closes when* — one home for the build (ADR 0186).
+⛔ Neither forbidden shortcut was taken: `cases_select` and `_case_caps` S2 are unchanged (measured at
+head, 2026-09-10). The read in front of the pre-check — the finding — stands until that build, by ruling.
+
+### 🟡 FUP-GRANT-PLANE-CONVENTION-TENANCY-ADMIN-GRANT-PATH-UNREACHABLE — the fallback arm passes the app check, then the case read refuses it
+
+**Filed:** 2026-09-10 (unit GRANT-PLANE-CONVENTION; found by `backend` while landing ADR 0205 D12 Fix 2, measured at head for `orgadmin.a@test.local` on a seeded case: `can_read_case=false · is_tenancy_admin_of_for=true · has_case_capability(manage_case_access)=true`) · **Owner:** lead + PO · **Severity:** medium
+**Closes when:** a PO ruling on the SURFACE, then its build: (a) a DEFINER door lets a tenancy admin resolve a case's commission and open the access roster from the **commission management** page — never the case detail, which ADR 0078 D4 keeps unreadable to them — with pgTAP proving they still read no case content and an E2E over the reachable path; or (b) a ruling that the fallback arm stays SQL / service-role-only pre-pilot, recorded in ADR 0205 § Consequences. ⛔ Not closed by widening `cases_select` (that re-opens D4). ⛔ Not closed by observing that the pre-check now agrees with the door — it does, and the read in front of it is the finding.
+**Status:** open
