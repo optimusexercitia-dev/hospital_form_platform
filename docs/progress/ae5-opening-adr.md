@@ -1496,3 +1496,36 @@ gate calls *"worse than no bullet."*
 
 **Gate 16 rc 0**, block at **100 lines, 0 left** ⇒ ⚠ **the next slice on this seam cannot add a single
 line without cutting first**, and that is now true of eight blocks.
+
+### 2026-09-10 — documentation second pass, part 2: nine audit gaps closed across seven files (lead)
+
+**An independent read-only audit** of every surface `docs/INDEX.md`'s authority order names returned
+**9 gaps · 3 cosmetic · 11 OK**, ⛔ with the authz seam excluded (the lead was already fixing it).
+⭐ **Eleven surfaces were verified OK by measurement, not by assumption** — and two of those checks
+are worth keeping: **`CLAUDE.md` mentions the pre-AE5 batch programme NOWHERE** (`AE5`, `pre-AE5`,
+`Batch [0-9]`, `remediation` all return zero), so nothing in it *could* have gone stale; and
+**`ARCHITECTURE.md` contains no `authz`, `active_role` or `entailed_grants` text at all**, so ⛔ **no
+Architecture Rule needed amending** — Rule 11 makes no claim about scope columns on an audit row, so
+0201 D2 does not touch it. `PROGRESS.md` correctly has **no** Batch 9 row (a ledger row instead), and
+`docs/INDEX.md` lists **top-level directories only**, so the three new reviews and two hubs owe it
+nothing.
+
+**The nine, each closed:**
+
+| # | what was false | fix |
+| --- | --- | --- |
+| **G1** | ⭐ Plan §3's **Batch 9 block still opened `IN FLIGHT`** on a branch that **does not exist**, in a file that declares the programme exhausted — the **only** block under "Remaining" without a banner, and ⛔ **exactly the defect §3's own convention exists to stop** (*"a block under a 'Remaining' heading is an instruction to do the work"*) | `✅ CONCLUDED` banner in the six siblings' shape, plus a per-item routing line so the block's own items cannot read as live |
+| **G2** | `authz-evolution.md` presented **F6 and audit F5 as undecided** in three places — the AE5 bundle block (*"All four"*, *"audit scope must match whichever is chosen"*), the "Explicitly NOT decided here" list, and the **PO decision-points table**, whose own convention marks settled rows `✅ RULED` | all three annotated/edited with the ruling; ⚠ **F7, F8 and `platform_role` deliberately left OPEN** (reserved to 0202), and the *"do not pick one off inside a role increment"* prohibition **kept** for them |
+| **G3** | ⛔ A **measurably false** claim: *"`session_selectable` has zero readers"*. It has one — `public.assume_role`, gated by pgTAP `408`. And F6's conditional resolved in the **negative** (0201 ratified the role-wide hat), so AE6's record-only status **stands** | corrected in place; ⭐ **added as SITE 2 of the existing follow-up rather than filed as a new one** — precisely the two-places failure the new playbook item 9 warns about |
+| **G4** | ⭐ **`CONTEXT.md` defined the ratified model as a defect.** Its `Hat` entry made *not* conditioning on the active hat unconditionally hat-blind — so a reader looking the term up is told to "fix" what 0201 D1 ratified. ⚠ The same file already knew the qualifier one entry away (`Arm` says *caller-bound*) | `caller-keyed` inserted, with 0201 D1 cited; and the two terms the audit judged genuinely missing added — **caller-keyed vs subject-keyed** and **`hat_ok`** |
+| **G5** | **LEARN-099's enforcer named `docs/lead-playbook.md`, which did not carry the rule.** Gate 13 checks the field is **present**, ⛔ never that the named file carries it — so an unenforced lesson looked enforced | playbook **step 12** written; the ratchet stays at **52/52** rather than taking the `prose only` escape |
+| **G6** | **ADR 0185 still said "six sections"** while `CLAUDE.md` and `docs/INDEX.md` were corrected to five — and ⛔ **ADRs OUTRANK trackers**, so a reader resolving the disagreement by the authority order writes a sixth heading and gate 13 rejects it | dated appended clarification on 0185 (⛔ not a rewrite), putting the reconciliation at the **top** of the authority chain instead of only in a script docblock |
+| **G7** | The **generated** ADR index says *next free 0204* — arithmetically right, and **0204 is RESERVED**; and it listed `0202` among "missing numbers" under an explanation covering only 0034/0077, so an unfillable hole read as *"a gap nobody can explain usually means a lost file"* | ⛔ fixed in the **generator**, never the output: it now explains 0202 and prints a **RESERVED** line saying take **0205**. The `ADR-FORMAT` skill's *"read the next free number off INDEX.md"* was corrected too — G7 made that cosmetic actively wrong |
+| **G8** | Plan §6 claimed *"§3 is empty"* — false of a section holding ~350 lines the file argues **three times** are kept on purpose | reworded to *"§3's REMAINING SET is NONE"*, with the superseded phrase quoted |
+| **G9** | §6 *"Where the next session starts"* **still started Batch 9** — *"Read Batch 9's block"*, *"Say **initiate Batch 9**"*, and a **13 KB** queue figure re-measured at **1,433 bytes** twenty-five lines above | ⭐ **EDITED, not annotated** — R45's own rule for *this* checklist, which Batch 9's Record step had violated by annotating an operational instruction |
+
+⚠ **Cosmetic, reported and left:** `.claude/rules/` is at **11 of `MAX_RULES = 12`** — one slot before
+the next rule needs a different home. And CLAUDE.md §5's lessons pointer names three exemplars, not
+LEARN-095/096; ⛔ not a falsehood, recorded so it is not re-found as a gap.
+
+**`npm run lint` rc 0** across all seven changed files plus the regenerated index.

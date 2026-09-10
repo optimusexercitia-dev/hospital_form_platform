@@ -357,10 +357,20 @@ through. Needs its own reachability analysis; a migration → diff-scoped sweep,
 
 ### Batch 9 — Not a fix: the AE5 plan's opening ADR — owner lead + PO
 
-> ⚠ **IN FLIGHT since 2026-09-09 — unit `AE5-OPENING-ADR`** ([hub](../features/ae5-opening-adr.md) ·
-> [record](../progress/ae5-opening-adr.md)), branch `authz-ae5-opening-adr` off `main` @ `55e440c3`.
-> The block below is **kept, not rewritten** — it is the scope as ruled 2026-09-04, and the three
-> corrections it needs are recorded here beside it rather than folded into it.
+> ✅ **CONCLUDED 2026-09-10 — unit `AE5-OPENING-ADR`** ([hub](../features/ae5-opening-adr.md) ·
+> [record](../progress/ae5-opening-adr.md)), **ADR 0201 + ADR 0203 accepted**, QA `APPROVED` at round 3
+> after two fix iterations; PO-approved, **ff-merged after a rebase** (`main` had diverged) and
+> **pushed**. The block below is **kept, not deleted** — it carries the derivation a later batch still
+> reads — and this banner is what stops a reader acting on it twice.
+> ⛔ **SUPERSEDED BY BANNER, so ⛔ do not read the block's own items as live:** item 1a (F6) and item 2
+> (audit F5's seam) are **RULED** in ADR 0201/0203; item 1b–1d → **ADR 0202**; items 4–5 (the `D`
+> ceiling, `search_path`) → **ADR 0204**; item 3 (arm-3 cells) → unit **`AE5-MATRIX-ARM3-CELLS`**;
+> item 6 (the checklist) is **delivered** as five pointers in `authz-evolution.md`.
+> ⚠ **CORRECTED 2026-09-10:** this banner read *"⚠ IN FLIGHT since 2026-09-09 … branch
+> `authz-ae5-opening-adr` off `main` @ `55e440c3`"*, which was **false on three counts** — the unit is
+> `complete` with a ledger row, that branch **does not exist**, and this same file declares the
+> programme exhausted. ⭐ It was the **only** block under the "Remaining" heading still opening
+> `IN FLIGHT`, which is exactly the defect §3's own convention exists to stop.
 >
 > 1. ⭐ **The PO WIDENED the subject on 2026-09-09**, at initiation: *"initiate batch 9, and include
 >    `ADMIN-ARM-IGNORES-IS-ACTIVE`, `PLATFORM-ADMIN-CLASS-2-WRITE`, `ENFORCEMENT-MANIFEST-COMMENT`"*
@@ -602,7 +612,11 @@ inside a role increment"* (ADR [0176](../decisions/0176-authz-permission-layer-m
 
 ⭐ **ALL NINE BATCHES ARE CONCLUDED (§2). Batch 9 closed 2026-09-10, was ff-merged after a rebase,
 and was PUSHED** (a fourth one-push override, scoped to that push). ⛔ **The pre-AE5 remediation
-programme this plan governs is EXHAUSTED — there is no Batch 10 block here and §3 is empty.**
+programme this plan governs is EXHAUSTED — there is no Batch 10 block here, and §3's REMAINING SET is
+NONE.** ⚠ Corrected 2026-09-10: this said *"§3 is empty"*, which is false of the section itself —
+§3 still holds the Batch 3–9 blocks, **kept on purpose** under CONCLUDED banners, and the file argues
+three separate times that keeping them is deliberate. A reader told §3 is empty and finding ~350
+lines concludes those blocks are stale leftovers.
 
 ⚠ **What Batch 9 SENT FORWARD, because a concluded programme is not an empty backlog.** The steps
 below are kept as the protocol a successor reads, ⛔ **not** as an instruction to run Batch 9 again:
@@ -635,22 +649,32 @@ below are kept as the protocol a successor reads, ⛔ **not** as an instruction 
    is in progress. ⛔ **A deleted branch is not evidence of a merge** — the proof is
    `git merge-base --is-ancestor <unit tip> main`, run **bare**.
 
-2. **Read Batch 9's block in §3.** It is AE5's **opening ADR**, owner lead + PO: the 0176 D8 bundle,
-   the audit F5 seam model, the arm-3 divergent cells, the `D` ceiling, the `search_path=''`
-   convention. ⚠ It now also inherits **ADR 0200's data obligation** (0193 D5 extended): the AE5
-   per-role template must declare the **keying** of every arm it pairs and must never place a
-   caller-keyed arm beside a `p_uid`-keyed one — Batch 8 found that exact pair in the representative
-   chain 0193 differenced. ⚠ Not a migration ⇒ Batch 7's empty-pathspec assertion applies again.
+2. **Read ADR [0201](../decisions/0201-the-keying-asymmetry-is-the-model.md) and
+   [0203](../decisions/0203-the-seam-is-already-encoded-the-classification-columns-are-not.md) — the
+   opening decisions, already taken.** ⛔ Do **not** read §3's Batch 9 block as scope: F6 and the
+   audit F5 seam are **ruled**, and the rest was routed (§3 item 5 / the Batch 9 banner). What remains
+   is the **named successors**: **ADR 0202** (F7 · F8 · `platform_role`) before AE5 **increment 2** —
+   increment 1 is `staff_admin`, the only already-`authoritative` role · **ADR 0204** (the `D` ceiling ·
+   the `search_path` convention), both censuses **already in their follow-up bodies** · unit
+   **`AE5-MATRIX-ARM3-CELLS`** before increment 1 runs its **matrix**. ⛔ **ADR numbering: take 0205** —
+   0202 and 0204 are reserved and 0202 can never be filled.
+   ⚠ ADR 0201 carries forward **ADR 0200's data obligation** (0193 D5 extended): the AE5 per-role
+   template must declare the **keying** of every arm it pairs and never pair a caller-keyed arm with a
+   `p_uid`-keyed one — and ⛔ **nothing reds if it does; that clause is `prose only`.**
 
-3. Say **"initiate Batch 9"** to the lead. The lead opens the hub + record **before** the branch
-   (gate 13's branch check is live on Windows since Batch 6, and it wants the branch to exist), then
-   plans before touching anything. AE5 itself stays **post-pilot** by ADR 0155 G1 — Batch 9 writes
-   its opening decision, it does not start it.
+3. **Name the successor you are opening** — *"open `AE5-MATRIX-ARM3-CELLS`"*, *"write ADR 0202"*, or
+   *"initiate Batch 10"* (which has **no block here** by decision — derive it from ADR 0201 + 0203 and
+   the unit record's R11/R12 entries, ⛔ never from R3/R4 alone). The lead opens the hub + record
+   **before** the branch (gate 13's branch check wants the branch to exist), then plans before
+   touching anything. ⛔ **AE5 itself stays post-pilot** by ADR 0155 G1 — Batch 9 wrote its opening
+   decision; ⛔ it did not start it, and neither does any successor above.
 
-4. ⚠ **`.claude/claude-md-review-queue.md` was NON-EMPTY (13 KB) at Batch 8's Record step and was
-   NOT processed** — lead-playbook §4 step 7 says the Record step is the queue's trigger. Batch 8's
-   lead reported it to the PO rather than run `/review-claude-md` unasked (CLAUDE.md edits need the
-   human). Run it, or schedule it, before Batch 9 opens.
+4. ⚠ **`.claude/claude-md-review-queue.md` is STILL unprocessed** — lead-playbook §4 step 7 makes the
+   Record step its trigger, and **two** Record steps have now passed it over: Batch 8 reported it to
+   the PO rather than run `/review-claude-md` unasked (CLAUDE.md edits need the human), and Batch 9's
+   PO **ruled skip with the deferral recorded** (R2). ⛔ Its size is a **measurement, not a figure to
+   quote** — the *"13 KB"* this step carried until 2026-09-10 was re-measured at **1,433 bytes**;
+   `wc -c` it before deciding. Run it, or skip it **deliberately**, before the next unit opens.
 
 ### ⭐ What Batch 7 learned that the next batch should not re-learn
 

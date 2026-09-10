@@ -1077,10 +1077,19 @@ cutover" still may not appear in any gate record for what AE4.6 built (0176 Cons
 
 **Explicitly NOT decided here — bundled into the AE5 plan (§ AE5 reminder):** F6
 exact-assignment active context, F8 `administrativo` out of `authz.roles`, `platform_role`
-retirement, F7's single manifest entry. ⚠ The classification columns (`risk_class`,
-`sensitivity_ceiling`, `resource_kind`) have **no reader** [IA-F5]; ADR 0172 defers them
-explicitly and that deferral stands — layer 3 is where a consumer appears, or the column is
-removed with a named reason.
+retirement, F7's single manifest entry. ⛔ **CORRECTED 2026-09-10 — F6 and the classification
+columns are RULED and must be struck from this list** (ADR 0201 / ADR
+[0203](../decisions/0203-the-seam-is-already-encoded-the-classification-columns-are-not.md)); only F7,
+F8 and the `platform_role` retirement remain, reserved to ADR 0202. Superseded text: *"⚠ The
+classification columns (`risk_class`, `sensitivity_ceiling`, `resource_kind`) have **no reader**
+[IA-F5]; ADR 0172 defers them explicitly and that deferral stands — layer 3 is where a consumer
+appears, or the column is removed with a named reason."* ⇒ **0203 D3 (PO R11) KEPT all three, each
+owing a NAMED layer-3 consumer** — closed on the *"a consumer appears"* branch and ⛔ **not** on the
+*"removed with a named reason"* branch, so offering both is wrong. ⚠ And *"ADR 0172 defers them
+explicitly"* is the loose citation 0203 corrects: **0172 defers column CREATION**, and its own
+2026-09-01 amendment already **overturned** that for `sensitivity_ceiling`; the **consumer** deferral
+is ADR 0176's. The register's hold is
+`FUP-AE5-OPENING-ADR-CLASSIFICATION-COLUMNS-OWE-A-NAMED-CONSUMER`.
 
 **Gate AE4 [language per PA-F7/F8/F12, ADR 0162]:** ✅ **APPROVED BY THE PO 2026-09-04.** The 2026-09-03 HOLD is discharged: C2 closed at **170 COVERED · 1 BLIND · 0 ERROR = 171** with a QA verdict of APPROVED, satisfying the "C2 subset closed (pilot cutline)" clause below — the only external precondition that gated on C2. ⛔ The approval does **not** clear Tier 2: its **190 doors stay deferred by ADR 0171 and are NOT cleared**. Record: [authz-ae4.md](../progress/authz-ae4.md) and [c2-tier1.md](../progress/c2-tier1.md), 2026-09-04; ledger row `AE4`. Original text follows.
 
@@ -1151,6 +1160,21 @@ are pre-users design choices; none blocks the AE4 merge; bundling them means the
 storage, the enum and the role table break compatibly ONCE.** ⛔ Do not pick one off ad hoc
 inside a role increment.
 
+> ⛔ **F6 IS RULED — 2026-09-10, ADR [0201](../decisions/0201-the-keying-asymmetry-is-the-model.md);
+> the bundle is THREE, not four.** ⚠ *"All four"* and *"not four"* above are superseded, and so is
+> *"audit scope must match whichever is chosen"* — it is **discharged**, not open:
+> - **F6, subject axis** — the **subject-keyed asymmetry the catalog ALREADY implemented is ratified**
+>   (0201 D1, PO R8): `authz.entailed_grants` emits `hat_ok` and three resolvers enforce it, so a
+>   third-party question **ignores** the hat and a self question **requires** it. ⛔ Exact assignment
+>   was **NOT** adopted; the hat stays **role-wide** on the scope axis.
+> - **F6, audit axis** — `active_role.assumed` stamps the **role only, no place** (0201 D2, PO R10).
+>   ⭐ That, ⛔ **not** the ratification, is what discharges ADR 0176 D8's *"audit scope must match"*:
+>   ratifying a role-wide hat **ratified** the mismatch rather than fixing it.
+> - ⚠ **F7, F8 and the `platform_role` retirement remain OPEN and are reserved to ADR 0202**, due
+>   before AE5 **increment 2** (increment 1 is `staff_admin`, the only already-`authoritative` role).
+>   ⛔ The *"do not pick one off ad hoc inside a role increment"* prohibition **still stands** for those
+>   three.
+
 **Proposed order** (each its own increment with the full per-role gate; the PO may reorder):
 
 1. `staff` (simplest matrix; biggest population — flushes out fixture gaps early);
@@ -1218,9 +1242,16 @@ reviewed change, with whatever remains filed as named debt.
 G4: role-type semantics are final-for-now; the selection vocabulary references the catalog
 (landed in AE4.8/AE5); exact-scope contexts require their own ADR with token-hook, revocation
 and session-rotation design. **No build tasks.** The only standing rule: no effective permission
-list ever goes into the JWT. ⚠ **2026-09-02:** the vocabulary reference has **not** landed
-(`session_selectable` has zero readers — AE4.8 "do now"), and F6 exact-assignment context sits
-in the AE5 bundle; if adopted there, that ADR supersedes this section's record-only status.
+list ever goes into the JWT. ⛔ **CORRECTED 2026-09-10 — BOTH halves of the 2026-09-02 note are now
+false.** It read: *"the vocabulary reference has **not** landed (`session_selectable` has zero readers
+— AE4.8 'do now'), and F6 exact-assignment context sits in the AE5 bundle; if adopted there, that ADR
+supersedes this section's record-only status."* Measured from the live catalog: **`session_selectable`
+HAS a reader** — `public.assume_role` (and only it, of the resolver family) — gated by pgTAP **`408`**
+with a mutation twin, so the reference **landed**. And F6's conditional resolved in the **negative**:
+ADR 0201 ratified the **role-wide** hat, so exact assignment was **not** adopted ⇒ ⭐ **this section's
+record-only status STANDS.** ⚠ This is a **second site** of
+`FUP-AE5-OPENING-ADR-0176-NO-READER-LIST-STALE-AND-UNGATED`, whose clause named only
+`docs/decisions/0176…:45-47` — the two-places failure lead-playbook Record-step item 9 warns about.
 
 ---
 
@@ -1250,7 +1281,7 @@ Not scheduled. Entry conditions (all before a proposal is even writable):
 | AE4.3 | the `staff_admin` matrix (becomes the oracle) | lead + backend |
 | **AE4.9** | ✅ **RULED 2026-09-02** — on the [implementation audit](../reviews/authz-evolution-implementation-audit-2026-09-02.md): **Option A — make permissions real** (three layers, manifest countdown, re-key sequenced with AE5) — recorded in ADR [0176](../decisions/0176-authz-permission-layer-made-real.md) (`Amends:` 0155 D7 + 0174) | lead + PO |
 | **Gate AE4** | ✅ **RULED 2026-09-02** — the **minimum re-key scope** is the three differential representatives end-to-end (`commission.forms.edit`, `org.professionals.create`, `org.professionals.read`), everything else `pending-rekey` in the manifest — 0176 D6 | PO |
-| **AE5 plan** | the bundled four: F6 exact-assignment context · F8 `administrativo` out of roles · `platform_role` retirement · F7 single manifest entry — decided together, one compatibility migration | lead + PO |
+| **AE5 plan** | ✅ **F6 RULED 2026-09-10** (ADR 0201 D1/D2 — subject-keyed asymmetry ratified; the audit stamps the role only) · ⚠ still OPEN, reserved to **ADR 0202**: F8 `administrativo` out of roles · `platform_role` retirement · F7 single manifest entry — decided together, one compatibility migration | lead + PO |
 | AE5, per role | each role's matrix; the substitution order | lead |
 | AE5.7 | `platform_admin` noun-rule restriction review before flip | qa + PO |
 | §8 residue | inheritance-per-permission, high-risk ceilings (expiry/reason/second-approval), revocation SLA — resolved with the first role whose matrix needs each | lead |

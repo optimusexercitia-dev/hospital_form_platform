@@ -37,7 +37,7 @@ Only include these when they add genuine value. Most ADRs won't need them.
 
 ## Numbering
 
-Read the **next free number** off `docs/decisions/INDEX.md`, then run `npm run adr:index`
+⛔ **Do NOT take the index's `next free` alone.** The number is **the highest on ANY live branch + 1** (CLAUDE.md §8), and `docs/decisions/INDEX.md` § Anomalies carries a **RESERVED** list that `next free` can collide with — read both, then run `npm run adr:index`
 after writing the file. Do not scan the directory by hand — the index computes the number
 from the same corpus the gate checks, so the two cannot disagree.
 

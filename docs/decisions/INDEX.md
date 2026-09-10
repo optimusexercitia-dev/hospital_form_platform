@@ -18,7 +18,8 @@
 
 ## ⚠ Anomalies
 
-- **Missing numbers:** 0034, 0077, 0202 — a gap is not automatically a defect (0077 was withdrawn by the PO and its subject re-filed as 0078; 0034 was never used), but a gap nobody can explain usually means a lost file.
+- **Missing numbers:** 0034, 0077, 0202 — a gap is not automatically a defect (0077 was withdrawn by the PO and its subject re-filed as 0078; 0034 was never used; **0202 can NEVER be filled** — PO ruling R7 split four planned ADRs and pre-AE5 Batch 9 wrote only 0201 + 0203), but a gap nobody can explain usually means a lost file.
+- ⛔ **RESERVED numbers — do NOT take `next free` blindly:** **0202** is reserved for the role-catalog decision (F7 · F8 · `platform_role` retirement) and **0204** for the two platform-wide conventions (the `D` ceiling · the `search_path` value). ⇒ **take 0205** for any other subject, or renumber a reserved pair and amend this reservation where it is stated. ⚠ And per CLAUDE.md §8 the number is **the highest on ANY live branch + 1**, ⛔ never this index's figure alone — a branch this generator never saw can already hold it.
 - **No parseable `Status:`:** none
 - **Still proposed / draft / deferred (8):** 0022, 0031, 0033, 0058, 0094, 0108, 0115, 0160 — an ADR's status is the author's claim on the day it was written, and nothing updates it when the code ships. The last review of this list is stamped in `proposed-review.json`; gate 9 reds when that review is more than 30 days old or this set has drifted from it.
 

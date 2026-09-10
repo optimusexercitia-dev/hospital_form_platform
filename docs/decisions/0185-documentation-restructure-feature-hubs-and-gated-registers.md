@@ -107,7 +107,14 @@ Eight decisions, numbered so CLAUDE.md and later ADRs can cite them as `ADR 0185
   nothing else. Gate: exact correspondence with hubs whose `status` is `in_progress`, both ways.
 - The live working state lives **in the owning hub**, in a `## Current state` block with six
   fixed sections in fixed order: `Updated`, `Objective`, `Done since start`, `In progress`,
-  `Next`, `Blockers`. **Replace, never append.** Hard cap **60 lines** per block. When the hub's
+  `Next`, `Blockers`.
+  - ⚠ **CLARIFIED 2026-09-10 (appended, not rewritten).** *"Six"* counts `Updated`, which ships as a
+    `**Updated:**` **stamp** and not a `### ` heading, so the gate's constant holds **FIVE** heading
+    names: `CURRENT_STATE_SECTIONS = ['Objective', 'Done since start', 'In progress', 'Next',
+    'Blockers']` (`scripts/check-docs-registers.mjs`). ⛔ **A reader who writes a sixth `### Updated`
+    heading is rejected by gate 13.** `CLAUDE.md` §7 and `docs/INDEX.md` were corrected to *"five"*;
+    this note puts the reconciliation at the **top of the authority order**, since ADRs outrank
+    trackers and this was the only ADR still stating a number. **Replace, never append.** Hard cap **60 lines** per block. When the hub's
   status flips to `complete`, the block is cut into the feature's progress record and may no
   longer exist — an accreting "Done" list is what made § Now a diary.
 - **"Always maintained" is enforced, not asked for:** when the current git branch equals the

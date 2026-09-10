@@ -117,6 +117,17 @@ When a phase passes human approval, the lead:
    five — and the third **dropped a finding out of the Record list entirely**. A count is a claim a
    single counter-example kills, and a list is not. ⚠ Where a set was dispatched two different ways
    (some filed, some discharged inline), ⛔ **no single number describes it** — say both halves.
+12. ⛔ **A REVIEW FINDING YOU RELAY IS YOURS THE MOMENT YOU ACT ON IT** (added 2026-09-10, LEARN-099;
+   the enforcer that named this file did not yet carry the rule — found at the documentation second
+   pass). A claim is **not** made safer by being attributed to someone else. Batch 9 twice passed a
+   reviewer's words through as measured: *"the watching relation is INVERTED"* went into a build brief
+   (the direction actually matched the tree — only the attribution was wrong), and *"all 12 anchors
+   verified byte-for-byte"* was credited to a report containing **neither** that count nor that
+   phrase. ⭐ The symmetry is the lesson: **the reviewer's own anchors for its blocking finding were
+   also miscited** — quoted text verbatim right, pointers wrong. ⇒ **a LOCATION is a measurement, from
+   any role including the reviewer**: `sed -n` it before you repeat it, and ⚠ a `grep` is not enough
+   either — a sentence split across a SQL string concatenation is invisible to a whole-sentence search.
+
 11. ⭐ **THE HUB'S `## Current state` IS THE LAST EDIT OF A ROUND, NOT AN EARLY ONE.** Step 4 (human
    approval) reads it. Batch 9's block went stale **twice inside one fix loop** — written before the
    round's final commit, so it asserted two blockers open that were already discharged at that tip.

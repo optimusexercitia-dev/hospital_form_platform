@@ -550,7 +550,19 @@ export function render(adrs, a) {
   L.push(
     `- **Missing numbers:** ${a.missing.length ? a.missing.join(', ') : 'none'} — a gap is not ` +
       'automatically a defect (0077 was withdrawn by the PO and its subject re-filed as 0078; ' +
-      '0034 was never used), but a gap nobody can explain usually means a lost file.',
+      '0034 was never used; **0202 can NEVER be filled** — PO ruling R7 split four planned ADRs and ' +
+      'pre-AE5 Batch 9 wrote only 0201 + 0203), but a gap nobody can explain usually means a lost file.',
+  )
+  // ⛔ RESERVATIONS, not arithmetic. `nextFree` above is the highest + 1 and is correct as such, but
+  //    taking it collides with a number this project has already promised to a subject. Whoever
+  //    numbers an ADR reads THIS line, not just the figure. Source: docs/plans/pre-ae5-remediation.md §3.
+  L.push(
+    '- ⛔ **RESERVED numbers — do NOT take `next free` blindly:** **0202** is reserved for the ' +
+      'role-catalog decision (F7 · F8 · `platform_role` retirement) and **0204** for the two ' +
+      'platform-wide conventions (the `D` ceiling · the `search_path` value). ⇒ **take 0205** for any ' +
+      'other subject, or renumber a reserved pair and amend this reservation where it is stated. ' +
+      '⚠ And per CLAUDE.md §8 the number is **the highest on ANY live branch + 1**, ⛔ never this ' +
+      "index's figure alone — a branch this generator never saw can already hold it.",
   )
   L.push(
     `- **No parseable \`Status:\`:** ${a.noStatus.length ? a.noStatus.join(', ') : 'none'}` +

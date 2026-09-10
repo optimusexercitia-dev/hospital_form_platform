@@ -252,10 +252,28 @@ and every RLS policy carries a Verdict — BLIND, COVERED, ERROR, or SKIPPED —
 gate in none of those has never been swept in any direction. (ADR 0079 Amendment 3)
 _Avoid_: audit, inventory, count
 
+**Caller-keyed vs subject-keyed**:
+Whether a predicate's arm answers about `auth.uid()` (the **caller**) or about the principal its
+own signature names (the **subject**, conventionally `p_uid`). A subject-keyed helper is the `_for`
+twin. ⛔ **Never pair a caller-keyed arm with a subject-keyed one in the same expression** — a
+differential whose two sides answer about different principals is not a differential (ADR 0200,
+restated as a template obligation by 0201; ⚠ `prose only` — no gate reds on it).
+
+**`hat_ok`**:
+The boolean column `authz.entailed_grants` emits to carry the hat decision —
+`p_principal is distinct from auth.uid() or af.role_code is not distinct from app.active_role()`.
+Three resolvers filter on it (`has_permission`, `candidate_has_permission`, `explain_permission`).
+⛔ It is a **`RETURNS TABLE` column name**, so a `prosrc` regex cannot find it
+(`.claude/rules/prosrc-is-not-the-whole-function.md`).
+
 **Hat**:
-The caller's currently active Role for a session. A "hat-blind" gate reads `memberships`
-or a JWT claim without conditioning on which hat is active, so a person can act using a
-role they merely hold, not the one they are wearing. (ADR 0106 S4; `docs/progress/authz-handoff.md`
+The caller's currently active Role for a session. A "hat-blind" **caller-keyed** gate reads
+`memberships` or a JWT claim without conditioning on which hat is active, so a person can act
+using a role they merely hold, not the one they are wearing. ⛔ **The qualifier is load-bearing:
+a SUBJECT-KEYED question correctly IGNORES the hat**, and ADR 0201 D1 ratifies that as the model —
+one principal's session state must never alter what the system concludes about another. ⚠ On the
+**scope** axis the hat is role-wide (it names a role, not a seating), which is why the audit event
+stamps the role only (0201 D2). (ADR 0106 S4; `docs/progress/authz-handoff.md`
 §7.17)
 _Avoid_: active role (fine in prose), session role
 
