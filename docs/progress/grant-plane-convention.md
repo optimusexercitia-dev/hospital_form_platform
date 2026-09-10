@@ -114,3 +114,52 @@ subagent stalled on the stream watchdog at orientation with zero edits; the resp
 edits in its brief and finished in one pass. Lead corroboration at the tip: `actions.test.ts` 17/17,
 `npm run lint` rc 0, `typecheck` rc 0. No SQL moved after 416's GREEN run, so `test:db` stands.
 **State:** `gated` — awaiting PO approval (§6 step 4) to go `complete` at the Record step.
+
+## Current state
+
+**Updated:** 2026-09-10 — ⭐ CUT from the hub at the Record step, verbatim (ADR 0186 D3); it describes the `gated` tip `e79f210f` the PO approved
+
+### Objective
+
+Record, as one PO-ruled convention, how every future per-user per-object grant is shaped and when
+it is built — so Phases 18, 19 and 20 do not each invent a fifth shape — and land the two case-only
+fixes the rulings ordered pre-pilot.
+
+### Done since start
+
+ADR 0205 (237 lines) · the rule file · Phase 18/19 and quality-track amendments · the follow-up
+entry · hub + record. The grilling's 26 rulings are all in the ADR; three reversed the lead's
+recommendation (Q8 → keep the arm, then Q12 → practice not rule; Q8's PHI half → off-screen).
+
+### In progress
+
+Nothing. Built, gated, QA **APPROVED** (0 MAJOR; both MINORs cleared, 17/17). One edge found and
+filed, not fixed by ruling: `FUP-GRANT-PLANE-CONVENTION-TENANCY-ADMIN-GRANT-PATH-UNREACHABLE`.
+
+### Next
+
+PO approval (§6 step 4). On approval: `complete`, this block cut into the record (ADR 0186 D3), the
+follow-up on the tenancy path ruled or left open on its own clause.
+
+### Blockers
+
+⛔ **Status is `gated`, not `complete`, because PO approval has not been given** — the docs slice is
+committed (`2dc220eb`), the code slice commits with this flip. ⚠ The build half of the convention is
+**deliberately not started** (ADR 0205 D12) — the ruling, not a gap.
+
+### 2026-09-10 — Record step (lead): PO approved; hub → `complete`; origin current
+
+**PO approval:** *"Approved"*, given after the built / tests / QA / open-risks presentation and after
+the two commits were already on `origin/main` at the PO's earlier instruction (*"commit your changes
+and push to origin"* — a fast-forward `eb52f1c1..e79f210f`; ⚠ **a `git push` deploys nothing**:
+Coolify auto-deploy is off, and migration `20261003007370` is **NOT on the remote database** —
+`npm run db:push` + a remote-catalog check precede any manual Deploy click, per
+`.claude/rules/push-schema-before-code.md`).
+
+**What moved at the Record step:** hub `status: complete`, its `## Current state` block cut into this
+record above (verbatim); `docs/features/INDEX.md` regenerated; nothing else — the two follow-ups stay
+on their own clauses (`…-BUILD-AFTER-AE5` parked until AE5-complete + first consumer;
+`…-TENANCY-ADMIN-GRANT-PATH-UNREACHABLE` open, PO to rule the surface); no bug row was opened; no
+lesson filed (the stalled-subagent respawn is already covered by the standing watchdog memory).
+**Gates at the Record step:** `features:index`, `lint:registers`, `lint:progress` — rc quoted in the
+commit. Committed as the Record-step commit and pushed.
