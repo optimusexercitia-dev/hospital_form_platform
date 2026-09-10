@@ -963,3 +963,33 @@ changed. `docs/features/admin-arm-is-active.md` (the hub) is lead-owned and not 
 
 Commit on `authz-admin-arm-is-active` (not amended, not pushed): spec fixes + `docs/bugs/BUGS.md` +
 `docs/bugs/BUG-ADMIN-ARM-IS-ACTIVE-GRANT-P3-FIXTURE-WRITE-ON-TERMINAL.md` + this entry, one commit.
+
+### 2026-09-10 — E2E loop closed: the two fixed specs GREEN on the prod build; the gate chain at the final tip (lead)
+
+Full gate at `9f0909d3` (previous entry): `GATE SUMMARY: 1251 passed · 2 failed · 0 infra · 2 flaky ·
+10 did-not-run · 21 batches`, `COVERAGE: accounted for 1265 of 1277` (the 12 outside the line are
+`skipped`, which the gate excludes from its own count — Batch 8's note), `GATE_EXIT=1`. Both reds
+dispositioned (one pre-existing on `main`, one ruled R6); both flakies are named rows of the flaky
+baseline (`act-role-assumption` *"The switch"* · `phase2-auth-shell.spec.ts:268`, 16 prior sightings),
+each passed on retry #1.
+
+Tester's fixes (`8e8b6126`): `pdf-printing-cases` — the `write` grant is **load-bearing** (the manage
+route's `canOpenCaseManagement` needs `write_case_content`; a `read` grant measured `can_write_content:
+false` 3/3), and a `write` grant **survives a later `close_case`** (live-probed) ⇒ the grant is moved
+BEFORE the close loop, level unchanged; bug row `BUG-ADMIN-ARM-IS-ACTIVE-GRANT-P3-FIXTURE-WRITE-ON-TERMINAL`
+(`fixed`; renamed by the lead at `df5e86f0` because gate 13 requires the hub prefix — its two citations
+in the spec are comment lines, changed for the id only). `phase13-audit` AC-3f rewritten to the R6
+property — every rendered platform-feed row scope-less, checked against `audit_log` by `(occurred_at,
+seq)` (⭐ `seq` alone collides across the four per-tier unique indexes: 128 false matches for 7 rows on
+the first attempt — measured, not assumed).
+
+**Closing subset on the prod build**, detached, `SPECS="e2e/pdf-printing-cases.spec.ts
+e2e/phase13-audit.spec.ts" npm run e2e:prod` at `8e8b6126`: `GATE SUMMARY: 38 passed · 0 failed · 0
+infra · 0 flaky · 0 did-not-run · 1 batches` · `COVERAGE: accounted for 38 of 38` · `GATE_EXIT=0` ·
+`verdict=GATE GREEN`. ⇒ green under the flaky-baseline rule: the full suite ran once, the two real
+failures were fixed spec-side and re-run on the prod build, the flakies are baseline rows.
+
+**Gate chain at the final tip `df5e86f0`, rc bare:** `npm run lint` **0** (17 gates reached) ·
+`typecheck` **0** · `git diff --stat 9f0909d3..HEAD -- src supabase` **EMPTY** (the app the full E2E
+built and ran is byte-identical to the tip; only `e2e/` and docs moved since) · `test:db` last run at
+`c5a52efb`/`9f0909d3` (`Files=267, Tests=9019`) with no `supabase/` change after it.
