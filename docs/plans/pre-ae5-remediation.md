@@ -374,8 +374,33 @@ through. Needs its own reachability analysis; a migration → diff-scoped sweep,
 >    **Re-measured at Batch 9's open: 1,433 bytes, three entries** (2026-08-25, 2026-09-03,
 >    2026-09-07), each a truncated staleness snippet about a figure, none a rule. The PO ruled
 >    **skip, and record the deferral**; it is recorded in the unit's record, not discharged.
-> 3. ⚠ **Batch 10 now EXISTS as a named consequence, and this plan has no block for it.** PO ruling
->    R3 (2026-09-09) sends the `is_active` gating of **both** admin predicates to it. ⛔ Stated
+> 3. ⭐ **SIZING RULED 2026-09-09 (PO R7): this block is FOUR ADRs, not one.** Its eight subjects hold
+>    **14 distinct decisions**; one document would run ~900–1,200 lines against a corpus median of
+>    **123** (n = 198, p90 390), and the two comparable multi-decision authz ADRs cost **559**
+>    (`0190`) and **599** (`0191`) for 4–5 decisions each. One document would also defeat
+>    `Supersedes:`/`Amends:` — reversing the `D` ceiling later would mean amending the very document
+>    AE5's template cites. **Batch 9 writes 0201 + 0203.** The rest, each with the reason it may wait:
+>    - **ADR 0202** (F7 · F8 · `platform_role` retirement) → a named unit **before AE5 increment 2**.
+>      ⭐ Measured, not assumed: increment 1 is `staff_admin`, **the only role already
+>      `state = 'authoritative'`** (`select code, state from authz.roles` → 11 `legacy` + 1), so 0202
+>      gates increment **2**. Its blast radius is **3 sites** and fully measured (see the unit record).
+>    - **ADR 0204** (the `D` ceiling · the `search_path` convention) → deferred; ⭐ **both censuses are
+>      written into the two follow-up bodies at this batch**, so ⛔ neither is re-measured and neither
+>      clause may be closed on the stale figures it was filed with.
+>    - **Item 3 (arm-3 divergent cells) → OUT (PO R9)**, to a named unit
+>      **`AE5-MATRIX-ARM3-CELLS`** ([hub](../features/ae5-matrix-arm3-cells.md)), due before increment
+>      1 runs its **matrix**, ⛔ **not** before its **template** is written — that is the real
+>      dependency. ⚠ It is **WORK, not a decision**: the enumeration measurably does not exist
+>      (`authz_differential_cells.psql` holds 216 `org.professionals.read` rows, `grep -c divergent`
+>      = **0**), and ADR 0175 D3's *"the arm-3 cells **arrive** already enumerated"* is a **forward
+>      promise nothing discharges** — ⛔ not a completion claim, and not to be quoted as one.
+>    - **Item 6 (the per-role checklist) → IN**, as five **lead** pointer lines at
+>      `docs/plans/authz-evolution.md` § Per-role checklist. Measured before adding: it carried
+>      **0 of 5**.
+> 4. ⚠ **Batch 10 now EXISTS as a named consequence, and this plan has no block for it.** PO rulings
+>    **R3** (the `is_active` gating of **both** admin predicates), **R4** (the Class-2 arm removed and
+>    relocated) and **R10** (`active_role.assumed` stamps the **role only**, no place) all send work
+>    to it. ⛔ Stated
 >    rather than fixed: a block written by a passing batch for work it is not doing is the shape §2's
 >    Batch 6 note warns about — whoever opens Batch 10 derives its scope from the unit record's R3/R4
 >    entries and the corrected register clauses, not from a placeholder.

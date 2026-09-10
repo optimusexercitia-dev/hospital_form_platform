@@ -1179,6 +1179,29 @@ surface on its legacy gate, and this template is what AE5 will copy)** →
 direct-call census → arms re-pointed (G8) → legacy branch removed + rollback runbook/template
 updated ([PA-F9] — never a committed migration) → Record.
 
+> ⭐ **THE FIVE CORRECTIONS BATCHES 0–2 PAID TO LEARN, added 2026-09-09 at pre-AE5 Batch 9 (PO ruling
+> R9, item 6).** Measured before adding: this checklist carried **0 of 5** — the file held zero
+> occurrences of `SCOPE:`, `SELFTEST`, `set-valued`, `NOTICED`, `RESET_EVERY` or `CARRIED`. Three
+> already had a home in [lead-playbook.md](../lead-playbook.md) (§4) and two only in
+> [pre-ae5-remediation.md](pre-ae5-remediation.md) §4 step 4 / §5; ⛔ *a correction that lives only
+> where the batch that found it wrote it is a correction the next role increment will not read.*
+> These are **pointers, not a second home** — each item's authority is the document named beside it.
+>
+> 1. ⭐ **Quote the deriver's `SCOPE:` line verbatim** in the gate record, and read its exit **bare**
+>    before any substitution. Its exit 1/3 **IS** the "no gate changed" claim (ADR 0190; CLAUDE.md §6
+>    step 1). ⛔ Never judge the case list by eye.
+> 2. Run **`SELFTEST=1`** on the deriver **and** the door harness, and the **set-valued targeted
+>    home**, *beside* the four authz arms — the arms alone do not cover the `SETOF uuid` resolvers
+>    (ADR 0191; lead-playbook §4).
+> 3. **`NOTICED` is EVIDENCE, not a verdict** — PO-ruled disclosed and non-blocking, work-listed
+>    (ADR 0191). ⛔ A `NOTICED` row is neither a pass nor a finding.
+> 4. **`RESET_EVERY` on every FULL run.** Tail drift is real and has **no originating case** — a long
+>    sweep degrades its own DB cumulatively (ADR 0189/0192). ⚠ As of 2026-09-09 the `rowdoor` and
+>    `invoker` harnesses **still lack it**; check before any full run and **port, then prove**, never
+>    copy (pre-ae5-remediation.md §5).
+> 5. **The CARRIED ruling is a STEP**, not a tidy-up: carried rows are dispositioned against a PO
+>    ruling and the count of re-filed vs deleted is recorded (Batches 2 and 3).
+
 **AE5-complete (the ADR's re-analysis trigger 4):** retire the legacy adapter, the
 `platform_role` enum's remaining consumers (token hook included — its claim value becomes a
 catalog code; prove revocation/suspension/rotation behavior unchanged; `assume_role`'s input

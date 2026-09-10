@@ -72,3 +72,47 @@ carries the full six-shape measurement table.
 ⛔ Nor pgTAP `413`'s per-name pins (which replaced the sibling-differential on 2026-09-03): they bound
 **two** functions by name, which is still the name-keyed shape that lets the next one through. `414`
 is what sweeps the class; `413` is what pins these two.
+
+---
+
+## ⚠ FIGURES STALE IN THREE WAYS, AND THERE ARE FIVE CONVENTIONS NOT TWO — 2026-09-09, pre-AE5 Batch 9
+
+Re-measured over `prosecdef` functions in `app` / `public` / `authz` at head pair
+`(20261003007360, 525)`: **890 total, 890 declaring a `search_path`, 0 declaring none** — so `414`
+§ 0b's 890/890 still holds. ⛔ But the **distribution this item states is wrong in three ways**, and
+the shape of the population is not the two-way split the clause reasons about:
+
+| `search_path` value | count |
+| --- | --- |
+| `app, public, pg_catalog` | **825** (app 400 · public 425) |
+| `""` (the empty form) | **23** (app 7 · authz 10 · **public 6**) |
+| `public, pg_catalog` | **39** (app 6 · public 33) |
+| `app, pg_catalog` | **2** — `app.derive_patient_key`, `app.feature_enabled` |
+| ⭐ `public, app, pg_catalog` | **1** — `public.tenant_orphan_profiles` |
+
+1. ⛔ The item says *"**400** … on `app, public, pg_catalog` against **7** on `''` (all 10 in `authz`
+   use `''`)"*. That **omits `public`'s 6 empty-form functions** ⇒ the empty-form population is
+   **23, not 17**, and the dominant convention is **825, not 400** (400 is only its `app` half).
+2. ⛔ It omits the **middle 42 entirely** — the 39 + 2 + 1 above. There are **five** live conventions,
+   not two, so *"the convention"* is a choice among five, not a binary.
+3. ⭐ **`public.tenant_orphan_profiles` INVERTS the resolution order** relative to the dominant 825
+   (`public, app` instead of `app, public`). That is a **semantic** difference, not a stylistic one —
+   a name resolving in both schemas resolves differently there — and it is a **singleton**, which is
+   exactly the shape that bites and the shape a count cannot show.
+
+**Two of the item's own premises RE-VERIFIED and still true:** `has_schema_privilege(…, 'CREATE')` on
+`app` / `public` / `authz` is **false** for all of `authenticated`, `anon`, `service_role` (so the
+no-exposure premise holds); and **no gate in the `npm run lint` chain reads `proconfig`** —
+`proconfig` appears in `scripts/` only in `authz-census-ae0.sql` and
+`authz-tier1-threat-review-ae1.sql`, **neither of which is in the chain**. Self-tested: the same
+search finds 3 script hits for `pg_policies`, so the negative is real.
+
+⚠ **And the item's own gate-count numeral is stale again** — its 2026-09-08 correction says the chain
+has 14; it is now larger (`lint:backend-state` and `lint:data-access` were appended after that
+correction). ⛔ Do not quote a gate count from this file; count the chain in `package.json`.
+
+**Disposition (PO ruling R7, 2026-09-09):** **ADR 0204** material, **deferred out of Batch 9** — the
+convention is not AE5-specific and blocks no role increment. ⛔ **The clause may not be closed on the
+two-way framing it was filed with**; a closure reasons from the five-value table above, and must say
+explicitly what happens to `public.tenant_orphan_profiles`'s inversion, which is the only member of
+the population whose difference is semantic.
