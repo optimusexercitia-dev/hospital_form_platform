@@ -1412,3 +1412,36 @@ corrected — the two authz boxes are **unticked**, the manifest box **ticked**,
 items 4–5 → ADR 0204, item 3 → its own unit, all by R7/R9). ⭐ *A tick would have claimed the whole
 block; a blank would have denied what shipped* — and a blanket `replace` on a checklist is the same
 shape as a blanket `git add -A` on a tree.
+
+### 2026-09-10 — ⛔ `main` DIVERGED mid-session; rebased, gate RE-EARNED at the rebased tip, then merged (lead)
+
+⛔ **`git merge --ff-only` REFUSED**: *"Diverging branches can't be fast-forwarded."* ⭐ **This is the
+hazard plan §6 step 1 names in as many words — *a clean push state is an INSTANT, not a lease* — and
+Batch 6 proved a branch can appear mid-session.** Measured rather than assumed:
+
+- `main` had moved to **`89269016`** — *"docs(registers): the hub Current-state block has FIVE
+  sections, not six"*, authored **2026-09-09** by another session, itself **unpushed**
+  (`origin/main..main` = 1).
+- ⚠ **It touches `scripts/check-docs-registers.mjs` — gate 13, the gate this batch ran at every
+  step.** So the first question was whether any figure this unit recorded was invalidated.
+  ⭐ **Read before rebasing: it is DOCUMENTATION-ONLY** — the script diff is a docblock comment
+  (*"ADR 0185 D2 says 'six' because it counts `Updated`, which ships as a `**Updated:**` stamp, not a
+  `### ` heading — `CURRENT_STATE_SECTIONS` is the five heading names"*) plus the matching prose in
+  `CLAUDE.md` §7 and `docs/INDEX.md`. **`CURRENT_STATE_SECTIONS` is UNCHANGED** ⇒ the gate's
+  *behaviour* did not move and ⛔ **no prior gate figure in this record is invalidated.** ⚠ That
+  conclusion required reading the diff; *"a gate script changed"* alone would not have licensed it.
+  ⭐ Provenance worth noting: that off-by-one was **surfaced by this batch's own opening
+  Explore turn**, which flagged the gate's docblock disagreeing with its own constant.
+
+**Rebased, per the Batch 4 precedent** (§2 row 4: *"Merged through a rebase, so the gate was re-earned
+at the rebased tip"*): `git rebase main` — **18/18 commits, rc 0, no conflicts**, the files being
+disjoint (this unit is `docs/**` + `supabase/tests/vectors` + three harnesses; the other commit is
+`CLAUDE.md` + `docs/INDEX.md` + `scripts/`). Pre-rebase tip **`773a18d7`** → rebased tip
+**`7d1d20f2`**, and the old tip is verifiably **no longer an ancestor** — ⛔ **so `773a18d7` is a sha
+this record cites for an object that is no longer on any branch**, exactly the Batch 4 shape, and the
+ledger row's `Commit` cell is right to refuse a sha.
+
+**GATE RE-EARNED AT `7d1d20f2`, exit codes BARE:** `npm run lint` **0** (17/17, 0/0) · `typecheck`
+**0** · deriver **rc 3 = NOT-APPLICABLE** with `SCOPE: 0 file(s) — 0 committed (main..HEAD)` — ⚠ and
+that is a **re-measurement against the MOVED main**, not the old one · `SELFTEST` **rc 0,
+PASS 46 · FAIL 0** · ⭐ **empty-pathspec assertion EMPTY** against the new base.
