@@ -947,3 +947,84 @@ its twin — *the lead asserting a LOCATION rather than measuring it*; enforcer 
 
 **Gates after: `lint:rules` OK (11 rule files, anchors + globs resolve) · `lint:registers` OK, 96
 lessons, every ratchet unchanged.**
+
+### 2026-09-10 — the R13 fix landed and INDEPENDENTLY VERIFIED; ⛔ and a LEAD PROCESS ERROR, owned rather than tidied (lead)
+
+**The fix, three sites, one shape.** `backend` took the **writepath model** — a plain `case`
+**statement**, not a substitution — over the brace-test chain, on the stated ground that it keeps the
+`0|1` glob visible and matching the row's own label, and that the SELFTEST block sits at top level in
+all three files (door `:619` · rowdoor `:289` · invoker `:348`), so a plain assignment is safe under
+`set -u` (both arms assign before use) and `sel_bit` had **zero** prior occurrences in any of them:
+
+```sh
+  case "$CASES_EXPLICIT_AT_STARTUP" in 0|1) sel_bit=1 ;; *) sel_bit=0 ;; esac
+  sel_eq "0  startup capture is a set-ness bit (0|1)" 1 "$sel_bit"
+```
+
+**Per-site proof, run individually and ⛔ never inherited** (the standing rule this batch was warned
+with): door `33/33 ok, 0 failed` · rowdoor `9/9` · invoker `10/10`, each rc 0 under `/bin/bash`.
+
+**Discrimination proof with a CONTROL — and the control earned its keep.** Two independent plants
+(startup capture set to `banana`; the discriminator fed `banana`) plus an unplanted relocated-`ROOT`
+control, on throwaway copies under the scratchpad, ⛔ never in the real tree. Row 0 reported
+`NOT OK 0  startup capture is a set-ness bit (0|1) -> 0 (expected 1)` in **all six** planted runs;
+the plant delta is exactly **+1 row** under plant 2 and **+2** under plant 1, in all three harnesses
+⇒ **the row can still fail.** ⭐ **The control resolved a confound rather than letting it be
+reported as a result:** door's plant 2 first looked like 3 failures from a 1-row plant, because door
+has two rows that read an ADR from `$ROOT/docs/decisions/` and `ROOT` derives from `BASH_SOURCE`, so
+they fail in **any** relocated copy regardless of the plant. Without the control that would have been
+mis-reported.
+
+**LEAD VERIFICATION (someone other than the builder — CLAUDE.md §6/plan §4 step 4), exit code BARE:**
+
+```
+SELFTEST_RC=0
+--- GROUP deriver:               scenarios 20 (pass 20 · fail 0 · skipped 0)
+--- GROUP merge helper:          scenarios 18 (pass 18 · fail 0 · skipped 0)
+--- GROUP audit startup capture: scenarios 8 (pass 8 · fail 0 · skipped 0)
+SELF-TEST: PASS 46 · FAIL 0 · SKIPPED 0
+```
+
+⭐ **And the split is CLOSED for these three:** the door harness's own total now reads
+`33/33 ok, 0 failed` **under bash 3.2** — the identical figure the two earlier records quoted under a
+bash ≥ 4. ⇒ the three verdicts converge. ⚠ **R14's playbook line still stands**, because the class it
+guards is *a gate whose verdict depends on the operator's machine*, not this one row — and nothing
+proves the next such divergence will be in a file somebody fixed. The **empty-pathspec assertion
+re-verified EMPTY** at this state.
+
+**Sweeps for the same defect elsewhere: clean.** No other `case` inside a command substitution in any
+shell file; the `in (` sweep hit only SQL `IN (…)` predicates in `supabase/tests/*.sql` (irrelevant);
+and the new shape parses under `/bin/sh` and `/bin/zsh` as well.
+
+⭐ **`backend` found and fixed a grep trap inside its OWN added lines**, which is worth keeping: its
+first comment contained the literal defect token `` $(case … ) ``, so a repo-wide sweep for the broken
+shape then matched **all three files — via the comment, not the code.** That is the *"a `prosrc`/text
+match counts comments"* trap in its own instructions, self-inflicted and self-caught. Reworded to
+*"never a `case` wrapped in a command substitution"*; the sweep is now clean. ⚠ Flagged for a reason:
+if R14's playbook line ever grows a lint arm grepping for this pattern, **the wording of the comment
+is load-bearing.**
+
+### ⛔ THE LEAD'S PROCESS ERROR — `git add -A` swept a concurrent agent's IN-FLIGHT work into a mislabelled commit
+
+**Measured, not paraphrased.** Commit **`354fd6b0`**, whose message reads
+*"docs(batch9): PO R13/R14; playbook line, two lessons, one new rule"*, actually contains **seven**
+files: the four docs files it describes **and** `p0-authz-door-audit.sh`,
+`p0-authz-invoker-audit.sh`, `p0-authz-rowdoor-audit.sh` at **+8 lines each** — `backend`'s fix,
+committed **mid-flight**, **unreviewed**, and **undescribed by its own message**. The lead ran
+`git add -A` while a subagent held the tree.
+
+⛔ **NOT AMENDED, and that is deliberate.** The sha is unpushed (`origin/main..HEAD` = 12, no remote
+ref contains it), so amending was available — and refused on two grounds: the lead had already
+reported that sha with that description to the PO, so rewriting it would silently invalidate what the
+PO was told; and this repo's standing practice is a **dated note beside the original**, never a
+rewrite. ⇒ the misdescription is corrected **here**, in the record, and named in the following
+commit's message.
+
+⚠ **This is the MIRROR of a known hazard, and the lead wrote the guard against the other direction
+into its own rulings file.** L5 forbade the build turn any tree-mutating git command *because a build
+agent's `git stash` once reverted a lead's uncommitted work on this repo.* The lead then committed
+the agent's work with `git add -A` — **the same shared-tree race, running the other way, with no rule
+against it because the only rule written faced outward.** `backend` confirms it ran no tree-mutating
+git command and verified the lead's `docs/` edits survived. ⇒ **LESSON at the Record step**, and the
+next rulings file owes a **symmetric** clause: *the lead stages by PATH while any agent holds the
+tree, never `-A`.*
