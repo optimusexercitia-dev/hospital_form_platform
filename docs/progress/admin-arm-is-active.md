@@ -875,3 +875,91 @@ pre-existing `BUG-CAPA-AUDIT-SCOPE-1` (all-NULL CAPA rows, the spec's *"mechanis
 re-ruled again, and R10's snapshot objection back. ⭐ Lesson: a ruling that changes what a column HOLDS must
 enumerate what READS it — the plan's blast radius covered the predicates' readers (policies, functions) and
 not the audit stamp's (two TS queries).
+
+### 2026-09-10 — the two prod-gate specs fixed and re-verified green (tester)
+
+**Scope: the two real failures the lead's `e2e:prod` gate found (21 batches, tip `9f0909d3`) — both
+SPECS, per this unit's hard boundary (never app code). `git status --porcelain` names exactly three
+files: `e2e/pdf-printing-cases.spec.ts`, `e2e/phase13-audit.spec.ts`, `docs/bugs/BUGS.md` +
+`docs/bugs/BUG-GRANT-P3-FIXTURE-WRITE-ON-TERMINAL.md` (this entry).**
+
+**Fix 1 — `pdf-printing-cases.spec.ts`'s `beforeAll` (BUG-GRANT-P3-FIXTURE-WRITE-ON-TERMINAL,
+`fixed`).** Measured what a completed case's printing corridor actually needs, against the LIVE
+catalog, before touching the fixture:
+
+* `mint_printed_document`'s authority gate (`app.can_view_printed_document`, `case` arm) is
+  `app.can_read_case ∧ app.can_read_full_case_content` — both READ capabilities. A `read` grant
+  passes both; tried first on that reasoning.
+* **But** it broke the manage-detail ROUTE itself, where the "Documentos emitidos" panel lives.
+  `canOpenCaseManagement` (`src/lib/queries/cases.ts`) is `staff_admin ∨ isAdministrativo ∨
+  canWriteContent`; for the plain-member persona this fixture seats (`staff1.ccih@test.local`)
+  that collapses to `case_access_grants.write_case_content`. Live probe, `case_viewer_capabilities`
+  RPC as that persona on a fresh closed probe case with a `read` grant:
+  `{"can_write_content": false}` → the route 404s (`notFound()`), reproduced **3/3** in isolated
+  Playwright runs (`-g "a content reader WITHOUT the PHI door"`, `--retries=2`).
+* `write_case_content` is a static column, unaffected by a LATER `close_case` call — live-measured
+  by granting `write` on an open probe case, closing it, and re-probing
+  `case_viewer_capabilities` as the grantee: still `can_write_content: true`.
+
+⇒ **The fix is ORDERING, not level.** `write` is correct and load-bearing for both personas this
+fixture seats (`caseNoPhiMinterId`, `caseOpenId`); `caseNoPhiMinterId`'s grant call moved from
+*after* the six-case `closeSpecCase` loop to *before* it (the only case in the loop this fixture
+also grants to). `caseOpenId` never closes in this file, so its call site was never at risk and is
+unchanged. Bug row `BUG-GRANT-P3-FIXTURE-WRITE-ON-TERMINAL` filed `fixed` by this commit (spec-only
+fix — see `docs/bugs/BUG-GRANT-P3-FIXTURE-WRITE-ON-TERMINAL.md` for the full root-cause writeup,
+including the two live probes above, each with its exact request/response).
+
+⚠ **A false lead, recorded so the next session does not repeat it.** A first attempt granted
+`read` to BOTH `caseNoPhiMinterId` and `caseOpenId`. Re-running the FULL two-file suite
+(`--workers=1`) showed `caseOpenId`'s corridor test failing instead (`?phi=1 without PHI
+authority…`), reproduced 3/3 in isolation — a DIFFERENT symptom of the SAME root cause
+(`canWriteContent` false), not a new bug. `caseOpenId` was never touched by the ORIGINAL HC0U0
+defect (it never closes, so a `write` grant there never trips D9) — the correct fix touches only
+`caseNoPhiMinterId`'s ordering.
+
+**Fix 2 — `phase13-audit.spec.ts` AC-3f-platform, rewritten per PO ruling R6 (no bug row — a ruled
+behaviour change, this record is the citation).** Replaced the empty-state assertion with the
+precise no-leak property: every row the `/admin/audit` cross-commission feed shows scope-less
+(`organization_id IS NULL AND commission_id IS NULL`) is asserted against DATA, never the
+empty-state text. Implementation notes, since the first draft was itself wrong twice:
+
+* The feed can legitimately be non-empty now (R6: seating rows are scope-less by design), so the
+  test branches on rendered row count — 0 rows is vacuously scope-less (asserts the empty state
+  literally, so the branch is not silently skipping the check), >0 rows correlates every rendered
+  row back to its DB truth.
+* ⛔ **`seq` ALONE is not a correlation key** — measured live, `\d audit_log` carries FOUR unique
+  indexes, one PER TIER (`..._commission_seq_key`, `..._hospital_seq_key`, `..._org_seq_key`,
+  `..._platform_seq_key`); the same small `seq` repeats once per commission/org/hospital. A first
+  draft querying `seq=in.(...)` alone got **128** rows back for **7** rendered seqs — cross-tier
+  collisions, not the rendered rows, and the test correctly refused to trust that number. Fixed by
+  pairing `seq` with the row's own `occurred_at` (read from the `<time datetime>` attribute,
+  microsecond precision, never the rendered relative text) and asserting exactly one DB row
+  resolves per pair before trusting its scope columns.
+* Asserts `hospital_id IS NULL` too, stronger than R6's literal wording (org + commission) but
+  consistent with it: `audit_log_platform_seq_key` — the one index that makes `seq` globally
+  unique — is keyed on all three tiers being NULL, so a hospital-tier leak would satisfy "org NULL
+  and commission NULL" while still being a tenant-scoped row.
+* The long comment above the test gained a dated 2026-09-10 paragraph naming R6 (quoted: *"seating
+  is an IDENTITY event and the platform feed is its home"*) and recording why "empty" stopped being
+  the property.
+
+**Run, quoted verbatim (`--project=chromium --workers=1`, dev server — the gate's own server from
+the batch-10 tip run was already gone; port 3000 verified free before each run; the local stack was
+left up, freshly seeded by the gate's last batch reset — no `supabase db reset` was run by this
+session):**
+
+```
+38 passed (1.7m)
+```
+
+Run **twice** in a row to rule out the dev-server flakiness this exact file's corridor-1 test
+documents in its own comments (a cold-`next dev`-compile class of flake, not a code defect) —
+both runs green, no retries needed. Earlier intermediate runs (both grants at `read`; then
+`caseNoPhiMinterId` at `read` / `caseOpenId` at `write`) are the false-lead trail above, not this
+result.
+
+**Not touched, per the hard boundary.** No application code, migration, RLS policy, or query
+changed. `docs/features/admin-arm-is-active.md` (the hub) is lead-owned and not edited here.
+
+Commit on `authz-admin-arm-is-active` (not amended, not pushed): spec fixes + `docs/bugs/BUGS.md` +
+`docs/bugs/BUG-GRANT-P3-FIXTURE-WRITE-ON-TERMINAL.md` + this entry, one commit.

@@ -978,8 +978,28 @@ test('AC-3f: org_admin /o/rede-a/manage/audit shows the org-scoped cross-commiss
 // Whether this assertion is itself too broad to survive ANY realistic suite
 // ordering — rather than being a property of mechanism #2 alone — is a fair
 // question the tester flags but does not resolve unilaterally.
-test('AC-3f-platform: platform@ /admin/audit renders the platform-tier audit page', async ({
+//
+// 2026-09-10 — Batch 10 (ADMIN-ARM-IS-ACTIVE), PO ruling R6: mechanism #1 is
+// BACK, by ruling, and is now the EXPECTED state, not a regression. R10
+// (this same unit) NULLs the scope columns on every `active_role.assumed`
+// audit row; R6 rules WHERE that scope-less row belongs: "seating is an
+// IDENTITY event and the platform feed is its home" — `listAudit`'s
+// cross-commission stream (this page, `scopeCommissionId = null`) is the
+// reader R10 designed for, and `listAuditForOrg` (org-scoped) is designed to
+// LOSE them. So "the page is empty" stopped being the property the moment
+// R10 landed: a `platform_admin` doing ANY role hat-switch during the suite
+// run seeds this exact page with real, correctly-scoped-as-NULL rows. The
+// property this test owes is no longer "empty" — it is the NO-LEAK
+// invariant: every row this cross-commission page shows that carries no
+// commission also carries no organization; a tenant-scoped row must never
+// ride in under a NULL commission_id. That holds for mechanism #1's seating
+// rows AND for the still-open mechanism #2 (`BUG-CAPA-AUDIT-SCOPE-1`,
+// all-three-NULL CAPA rows) alike — both are scope-less, so an assertion
+// keyed on "only seating rows" would wrongly red on the CAPA rows; the
+// assertion below is keyed on scope-lessness, never on action kind.
+test('AC-3f-platform: platform@ /admin/audit shows only scope-less rows — the platform feed leaks no tenant-scoped row', async ({
   page,
+  request,
 }) => {
   await signInAs(page, 'platform@test.local')
   await page.goto('/admin/audit')
@@ -988,14 +1008,77 @@ test('AC-3f-platform: platform@ /admin/audit renders the platform-tier audit pag
     page.getByRole('heading', { name: /trilha de auditoria/i }),
   ).toBeVisible({ timeout: 15_000 })
 
-  // In the 2-org seed, all seeded audit rows have organization_id set, so the
-  // platform-tier chain (where both organization_id IS NULL AND commission_id IS NULL)
-  // is empty. The page renders AuditEmptyState rather than the feed list.
-  // We assert the route is accessible and renders the audit UI correctly — the
-  // empty-state text confirms no data-leakage and the right component is shown.
-  await expect(
-    page.getByText(/Nenhum registro de auditoria ainda\./i),
-  ).toBeVisible({ timeout: 10_000 })
+  // Either shape is a legitimate render (batch composition — see the ORDERING
+  // NOTE above — decides whether a scope-less row exists at run time); what we
+  // owe is the no-leak property, not a fixed shape. Wait for whichever settles.
+  const feed = page.getByRole('list', { name: /registros de auditoria/i })
+  const emptyState = page.getByText(/Nenhum registro de auditoria ainda\./i)
+  await expect(feed.or(emptyState).first()).toBeVisible({ timeout: 10_000 })
+
+  const rowCount = await feed.getByRole('listitem').count()
+  if (rowCount === 0) {
+    // Vacuously scope-less — nothing shown, nothing that could leak.
+    await expect(emptyState).toBeVisible()
+    return
+  }
+
+  // Correlate every RENDERED row back to its DB truth. ⛔ `seq` ALONE is NOT a
+  // global key — measured live: `\d audit_log` carries FOUR unique indexes,
+  // one PER TIER (`audit_log_commission_seq_key`, `..._hospital_seq_key`,
+  // `..._org_seq_key`, `..._platform_seq_key`), so the same small seq number
+  // repeats once per commission/org/hospital. A first draft that queried
+  // `seq=in.(...)` alone got 128 rows back for 7 rendered seqs — cross-tier
+  // collisions, not the rendered rows. Paired with the row's own
+  // `occurred_at` (the exact ISO instant in the `<time datetime>` attribute,
+  // microsecond-precision, never the rendered relative text) the pair is
+  // unique in practice, and the query below PROVES it (asserts exactly one
+  // DB row per pair before trusting its scope columns).
+  const rowLocators = feed.getByRole('listitem')
+  const pairs: { occurredAt: string; seq: number }[] = []
+  for (let i = 0; i < rowCount; i++) {
+    const row = rowLocators.nth(i)
+    const occurredAt = await row.locator('time[datetime]').first().getAttribute('datetime')
+    const text = await row.innerText()
+    const seqMatch = text.match(/seq (\d+)/)
+    expect(occurredAt, `row ${i}: prints its occurred_at as a <time datetime>`).toBeTruthy()
+    expect(seqMatch, `row ${i}: prints its own seq`).toBeTruthy()
+    pairs.push({ occurredAt: occurredAt!, seq: Number(seqMatch![1]) })
+  }
+
+  for (const { occurredAt, seq } of pairs) {
+    const matches = await restGet<{
+      organization_id: string | null
+      hospital_id: string | null
+      commission_id: string | null
+    }>(
+      request,
+      `audit_log?occurred_at=eq.${encodeURIComponent(occurredAt)}&seq=eq.${seq}` +
+        `&select=organization_id,hospital_id,commission_id`,
+      SUPABASE_SERVICE_KEY,
+    )
+    expect(
+      matches.length,
+      `occurred_at=${occurredAt} seq=${seq}: resolves to exactly one audit_log row`,
+    ).toBe(1)
+    const [row] = matches
+    expect(
+      row.organization_id,
+      `seq ${seq} @ ${occurredAt}: shown by the platform feed, must be organization-scope-less`,
+    ).toBeNull()
+    expect(
+      row.commission_id,
+      `seq ${seq} @ ${occurredAt}: shown by the platform feed, must be commission-scope-less`,
+    ).toBeNull()
+    // Stronger than the ruling's literal wording (org + commission), and
+    // consistent with it: `audit_log_platform_seq_key` — the ONLY index that
+    // makes `seq` globally unique — is keyed on all three tiers being NULL.
+    // A hospital-tier leak would satisfy "org NULL and commission NULL" while
+    // still being a tenant-scoped row, so it is checked too.
+    expect(
+      row.hospital_id,
+      `seq ${seq} @ ${occurredAt}: shown by the platform feed, must be hospital-scope-less`,
+    ).toBeNull()
+  }
 })
 
 // ===========================================================================

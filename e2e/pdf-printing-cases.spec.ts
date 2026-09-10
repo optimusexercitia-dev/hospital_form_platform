@@ -220,6 +220,32 @@ async function closeSpecCase(req: APIRequestContext, token: string, caseId: stri
  * plain member (a) able to open the manage surface (`canOpenCaseManagement`
  * arm 3), (b) able to pass `app.can_read_full_case_content` on a case with no
  * masked content, and (c) refused by `app.can_read_case_patient`.
+ *
+ * ⛔ `write` IS load-bearing here, measured directly against the live doors —
+ * this is NOT the shape BUG-GRANT-P3-FIXTURE-WRITE-ON-TERMINAL flagged.
+ * `canOpenCaseManagement` (`src/lib/queries/cases.ts`) is `staff_admin ∨
+ * isAdministrativo ∨ canWriteContent`; for a plain member the whole manage
+ * surface — the ONLY place the "Documentos emitidos" panel this fixture's
+ * callers need lives — collapses to `canWriteContent`, i.e.
+ * `case_access_grants.write_case_content`. A `read`-only grant was tried
+ * first and measured (live RPC probe, `case_viewer_capabilities` as
+ * `staff1.ccih@test.local` on a fresh closed case with a `read` grant):
+ * `{"can_write_content": false}` — `canOpenCaseManagement` then denies and
+ * the manage route 404s outright (no panel, no card, nothing to assert on),
+ * reproduced 3/3 in isolation. `write` is genuinely what the caller needs, on
+ * BOTH cases this file seats it on.
+ *
+ * ⛔ **Call this BEFORE closing a case that needs it**
+ * (BUG-GRANT-P3-FIXTURE-WRITE-ON-TERMINAL). ADR 0205 D9 (`grant_case_access`'s
+ * live body, HC0U0) refuses a `write` grant once
+ * `app.case_is_terminal(p_case)` — "não é possível conceder edição em um caso
+ * encerrado" — but only checks that AT GRANT TIME; `write_case_content` is a
+ * static column on `case_access_grants`; unaffected by the case's later
+ * `close_case` call (measured live: grant `write` on an open case, close it,
+ * re-probe `case_viewer_capabilities` as the grantee — still
+ * `can_write_content: true`). So `caseNoPhiMinterId` is granted here BEFORE
+ * `closeSpecCase` runs on it, never after; `caseOpenId` never closes at all,
+ * so its call site is unconstrained.
  */
 async function grantWriteAccessNoPhi(
   req: APIRequestContext,
@@ -585,6 +611,16 @@ test.beforeAll(async ({ request }) => {
   caseNoPatientId = await createSpecCase(request, chefe, 'sem paciente', null)
   caseOpenId = await createSpecCase(request, chefe, 'em andamento', patient(6))
 
+  // The content-reader-without-PHI persona, on the two cases that need it.
+  // ⛔ ORDER IS LOAD-BEARING for `caseNoPhiMinterId`: this WRITE grant must run
+  // BEFORE the case closes below — ADR 0205 D9 (HC0U0) refuses a `write` grant
+  // once the case is already terminal, but the grant itself is a static
+  // column unaffected by a LATER closure (measured; see
+  // {@link grantWriteAccessNoPhi}'s docblock). `caseOpenId` never closes in
+  // this file, so its call site has no such constraint.
+  await grantWriteAccessNoPhi(request, chefe, caseNoPhiMinterId, UID_STAFF_1)
+  await grantWriteAccessNoPhi(request, chefe, caseOpenId, UID_STAFF_1)
+
   // Six terminal, one deliberately left non-terminal — the prévia corridor.
   for (const id of [
     caseMintId,
@@ -596,10 +632,6 @@ test.beforeAll(async ({ request }) => {
   ]) {
     await closeSpecCase(request, chefe, id)
   }
-
-  // The content-reader-without-PHI persona, on the two cases that need them.
-  await grantWriteAccessNoPhi(request, chefe, caseNoPhiMinterId, UID_STAFF_1)
-  await grantWriteAccessNoPhi(request, chefe, caseOpenId, UID_STAFF_1)
 })
 
 test.afterAll(async () => {
