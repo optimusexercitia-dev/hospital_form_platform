@@ -1238,6 +1238,13 @@ that code, **every one of its cells becomes a denial**, and the class stops exer
 polarity at all — a real coverage loss that no arm currently names, because arm2 and arm5 are
 satisfied globally by other reps.
 
+> ⚠ **As-of-writing (AE4.3); the live `REPS` moved twice since.** AE4.7c re-pointed the rep to
+> `org.professionals.create` as the next paragraph asks, and pre-AE5 **Batch 10** (2026-09-10, PO
+> ruling R4 of unit `ADMIN-ARM-IS-ACTIVE`) added a rep of its own for **row 31**
+> (`org.participants.external.manage` → `can_manage_external_participant`), because ADR 0201 D5
+> split that door's body away from `can_manage_case_vocabulary` and row 31 had ridden on the body
+> identity. Read the generator, not this paragraph, for the current set.
+
 ⭐ **AE4.7c must re-point that rep to `org.professionals.create`**, which `staff_admin` *does* hold,
 and regenerate. ⛔ Both halves move in the same migration: 403 §4.1 asserts `legacy == catalog`, so
 the grant change and the gate change must land together or the oracle reds on its own transition.

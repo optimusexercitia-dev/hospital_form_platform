@@ -492,3 +492,60 @@ the plant needed no restore step. (3) `docker cp` the whole `supabase/tests` dir
 
 **Commit on `authz-admin-arm-is-active`** (not amended, not pushed): see the branch tip — one commit,
 `test(admin-arm-is-active): row 31 gets its own differential representative (PO ruling R4)`.
+
+### 2026-09-10 — GATE AT THE TIP `a74f2409`, run by the lead (not the builder), detached, every rc read bare (lead)
+
+Driver: a detached Git-Bash process writing one `<step>.rc` + `<step>.log` per step (scratchpad
+`tipgate-a74f2409/`); a Monitor on the driver log; ⛔ the tree FROZEN for the run — one docs edit made
+mid-run (the AE4.3 design doc's `REPS` note) was **stashed before any DB step touched the tree** and
+committed only after `DONE`. `git status --short` empty before and after. Shell: **GNU bash 5.2.37
+(x86_64-pc-msys)** — quoted because the SELFTEST verdict is shell-dependent (Batch 9 R14).
+
+| step | rc (bare) | witness |
+| --- | --- | --- |
+| `npm run lint` | **0** | 17 of 17 gates reached; eslint 0 errors / 0 warnings (the log's one "warning" match is gate 17's standing *"BOUND: this gate never opened a database"* note) |
+| `npm run typecheck` | **0** | |
+| `npm run test` | **0** | `Test Files 154 passed (154)` |
+| `supabase db reset --local` (×2, before `test:db` and before the arms) | **0 · 0** | |
+| `npm run test:db` | **0** | `Files=267, Tests=9019` · `Result: PASS` · `All tests successful.` — the builder's figure reproduces (baseline before this unit: 266 / 8982) |
+| `ARM=census` | **0** | `gates carrying a verdict: 608` · `=== INVARIANT HOLDS ===` (608 = Batch 4's figure: this unit REPLACED bodies and added no gate) |
+| `ARM=hat` | **0** | `HAT-BLIND SWEEP HOLDS: 4 finding(s), all reasoned-allowlisted` — `public.assume_role` among them, with the reason RE-DERIVED this unit (`ebb5ddd0`), not inherited |
+| `ARM=floor` | **0** | `=== INVARIANT HOLDS ===` |
+| `FROMFINDINGS=1 ARM=wrapper` | **0** | `=== INVARIANT HOLDS ===` |
+| `SELFTEST=1 door-sweep-cases` | **0** | `SELF-TEST: PASS 46 · FAIL 0 · SKIPPED 0`; third group line `--- GROUP audit startup capture: scenarios 8 (pass 8 · fail 0 · skipped 0)` (the other two group lines are in `selftest.log`) |
+| deriver `ARM=read main` | **0** | `=== RESULT: DERIVED (0) — 7 case(s). This is a SELECTION, not a verdict. ===` |
+| deriver `ARM=write main` | **0** | same RESULT line; `read arm : 7 case(s)   write arm: 0 case(s)` — stdout **EMPTY** for the write arm |
+| door sweep, READ arm, `CASES=<the 7>` | **0** | `SWEPT: 7 gate(s)   COVERED: 6   BLIND: 0   NOTICED: 1   ERROR(harness): 0` · `ARM-DOMAIN predicate=7/127 policy=0/226 out-of-domain-bool=35` · `=== RESULT: CLEAN WITH DISCLOSURE` · `preconditions: baseline GREEN at the LAST capture (shape=Files=267, Tests=9019) · resets=0 (RESET_EVERY=20 — SUPPRESSED: the DEFAULT never fires on a SUBSET run)` |
+| door sweep, WRITE arm | **3** | `SELECTION-SOURCE: CASES set and EMPTY -> selects NOTHING (UNPROVEN, exit 3)` — ⛔ **read as "0 write cases BY DERIVATION"** (all seven are `returns boolean` predicates; Batch 8's precedent): *both arms* is discharged as a CHECKED claim, not a second sweep. ⚠ The driver substituted the write arm's empty stdout because the deriver's rc was 0 for both arms — the rc is per DERIVATION, not per arm; the exit-3 is the harness refusing the empty set, which is the designed loud stop (Batch 6) |
+| set-valued targeted home | **0** | `ARM-DOMAIN setvalued=3/3 (in scope) out-of-scope=2 (named, with dispositions)` · `=== RESULT: CLEAN — 3 resolver(s) measured, all COVERED. ===` |
+| findings files | — | `git diff --stat -- docs/reviews/authz-door-audit-findings.md docs/reviews/authz-writepath-audit-findings.md` **EMPTY** (subset runs write to scratch; the committed baselines were never opened) |
+
+**The deriver's `SCOPE:` line, quoted verbatim (identical on both arms):**
+
+```
+SCOPE: 1 file(s) — 1 committed (main..HEAD), 0 worktree, 0 untracked | filter: none | derivation: catalog
+```
+
+**The seven read-arm cases, as derived:** `can_manage_case_vocabulary can_manage_professional
+is_active is_admin is_admin_for is_org_admin_of_for is_org_commission_staff_admin`. Six COVERED. The
+one **NOTICED is `app.is_active(p_user_id uuid)`** — `aborting file(s): 200_controlled_documents.sql`,
+run-shape `Files=267 Tests=8992` ≠ baseline. ⛔ Disclosed, not a verdict (ADR 0191): it **reproduces
+the committed baseline's own row** for the same gate (`docs/reviews/authz-door-audit-findings.md:481`,
+same aborting file), and `200_controlled_documents.sql` is already on
+`FUP-C2-TIER1-VALUE-ASSERTIONS-ABORT-ON-AN-INLINE-RAISE`'s work-list (its body, line 88) for exactly this
+predicate. This unit did not change `is_active`'s body — the diff merely **names** it — so nothing here
+is Batch 10's to fix; recorded so it is not re-found.
+
+**Tier 2's 190 doors stay deferred by ADR 0171 and are NOT cleared.** (ADR 0187 D1, verbatim.)
+
+⛔ **Two doors owe TARGETED cases and are NOT discharged by this run:** the deriver printed, under
+*"DOORS IDENTIFIED, NOT SWEEPABLE BY THIS ARM — each owes a TARGETED case"*: `assume_role (prosecdef,
+returns void — outside PRED_DOMAIN)` and `audit_write (prosecdef, returns void — outside PRED_DOMAIN)`.
+`public.assume_role` already has a category-(b) backlog entry (`authz-unswept-backlog.txt` ~923) whose
+keystones (`408 §§3-4`, `315`) were named for the `…007260` body — *"a standing verdict transfers silently
+to a body it was never measured against"* — and this unit changed that body again (R1, R10).
+⇒ `backend` builds CASE 2 (`assume_role`: the `is_active` gate neutralized → `418 §3` must notice; the
+scope triple restored into the audit call → the rewritten `315` must notice) and CASE 3 (`audit_write`:
+the CALL changed, the door did not — proven from the migration and `pg_get_functiondef`; the call
+deleted → `315`'s role+actor assertion must notice) in `authz-command-door-targeted-cases.sh`, and
+appends a dated paragraph to the backlog entry. Brief: scratchpad `batch10-targeted-brief.md`.
