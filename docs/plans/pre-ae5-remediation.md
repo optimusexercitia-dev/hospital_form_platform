@@ -38,7 +38,7 @@ first (Batch 1); Batch 4's re-key needs a working diff-scoped sweep (Batches 1�
 must not create sweep blindness (Batch 2's domain). Batch 6 is the inter-phase window's own work.
 Batch 9 is not a fix — it is the AE5 plan's opening ADR.
 
-## 2. Concluded — Batches 0, 1, 2, 3, 4, 6, 7, 8 (Batch 5 rode inside Batch 4)
+## 2. Concluded — Batches 0, 1, 2, 3, 4, 6, 7, 8, 9 (Batch 5 rode inside Batch 4)
 
 > ⚠ **This heading said "all QA-approved" until 2026-09-08. Batch 6 is the exception and it is
 > named rather than absorbed:** its four QA rounds were **every one `CHANGES REQUESTED`**, and the
@@ -67,6 +67,7 @@ restatement. **Re-measure anything you rely on.**
 | 8 | `CAN-MANAGE-PROFESSIONAL-SELF-CHECK` — [hub](../features/can-manage-professional-self-check.md) · [record](../progress/can-manage-professional-self-check.md) · [review](../reviews/can-manage-professional-self-check-review.md) · ADR [0200](../decisions/0200-professional-identity-predicates-answer-about-their-subject.md) (amends 0193 + 0190) | ff-merged to `main` 2026-09-09, ancestry proven **bare** before the branch was deleted; **PUSHED** — the PO first approved "no push", then instructed in the same session *"commit all changes … merge with main, delete the branch, and push to origin"*; ⚠ scoped in writing to **that push** like the Batch 4 and 7 overrides, and the Coolify Automatic-Deployment state was **not verifiable** by the session (stated to the PO before the push; the distance pushed is in the record). ⚠ **A MIGRATION** (`20261003007360`) — the first batch since 4 to owe the diff-scoped sweep: read arm `2 gate(s) COVERED: 2 BLIND: 0`, write arm **0 cases by derivation** (two `returns boolean` predicates, no raise guard — a checked claim, not a silence). QA **APPROVED** in ONE round (0 BLOCK / 0 MAJOR / 1 MINOR, closed by a measurement). ⭐ The tip gate found and fixed an instrument fault in the deriver (a false FINDING (1) on the declare+`create or replace` cell, plus a masked polarity) — record § gate at the tip. | `FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-ARM`, closed on a **rewritten** clause (the original was a precondition and an owner, no observable); the follow-up was wrong in BOTH directions — defect bigger (both arms caller-keyed, a second site), reach smaller (0 reachable third-party paths) |
 | 7 | `PRIVILEGE-SURFACE` — [hub](../features/privilege-surface.md) · [record](../progress/privilege-surface.md) · [review](../reviews/privilege-surface-review.md) · [re-review](../reviews/privilege-surface-rereview.md) · [re-review 2](../reviews/privilege-surface-rereview-2.md) · ADR [0195](../decisions/0195-a-committed-number-needs-one-home-and-a-gated-mirror.md) (**amends nothing** — stated as a claim, since every sibling batch ADR amends something) | ff-merged to `main` 2026-09-08, ancestry proven **bare** before the branch was deleted. ⚠ **PUSH: approved by PO ruling but NOT YET DONE at the time of writing** (the standing §6 instruction is *"do not push"*; overridden for this push only, as for Batch 4) — held pending a **live** check of Coolify Automatic Deployment, because the lead could not verify an external system and the PO chose to verify it rather than let the record stand in for it. ⛔ Re-measure `git rev-list --count origin/main..main`; never quote a push state | 3 closed, **5 filed** | The ceiling moved **752 → 759 by PO ruling** with all seven attributed across **three** heads (the clause named two; keyed on the **pair** `(max(version), count)` because a head alone does not identify a migration set). **Four of the seven are referenced inside live RLS policies**, so *"revoke the unjustified grants"* was largely unavailable. AE1's 233 revokes **deferred with a written re-open condition**, partition re-derived (44/5/23/161 reproduces; ⛔ all **six** arm predicates had moved). The `app` PUBLIC floor keeps its **config** bound, now gated as text. `npm run lint` gains **gates 14 and 15** and has **15**, not 13. ⛔ **`PATHSPEC_BYTES=0`** — no migration, no ACL change, no `src/` |
 
+| 9 | `AE5-OPENING-ADR` — [hub](../features/ae5-opening-adr.md) · [record](../progress/ae5-opening-adr.md) · [r1](../reviews/ae5-opening-adr-review.md) · [r2](../reviews/ae5-opening-adr-rereview.md) · [r3](../reviews/ae5-opening-adr-rereview-2.md) · ADR [0201](../decisions/0201-the-keying-asymmetry-is-the-model.md) (amends 0176 D8's F6 slot, 0193 D5, 0200) + [0203](../decisions/0203-the-seam-is-already-encoded-the-classification-columns-are-not.md) (amends 0172, 0176) | ⛔ **REBASED, then ff-merged 2026-09-10 — so the sha the record and the three reviews cite (`773a18d7`) is NOT on any branch.** `main` had diverged onto `89269016` (another session, itself unpushed); `--ff-only` refused; rebase 18/18 rc 0, no conflicts; rebased tip `7d1d20f2`, ancestry proven **bare**, branch deleted. ✅ **PUSHED** — a **FOURTH** one-push override, scoped in writing to that push, with the lead restating that Coolify's Automatic-Deployment state is **not verifiable** by the session. ⚠ The push carried **20** commits: 19 this unit's **plus `89269016`**, which was on `main` before the merge and not separable without rewriting it. ⛔ **Re-measure `origin/main..main`; never quote it** | **1 closed** — `FUP-ENFORCEMENT-MANIFEST-COMMENT-DESCRIBES-A-RED-THAT-IS-GREEN`, on its own quoted clause, archived verbatim (byte-identity asserted before the cut). **6 filed.** ⚠ The two 🟠 authz items **stay OPEN by ruling**: R3/R12 and R4 both landed on **Arm B**, so their boxes stay **unticked** and the work is Batch 10's | ⭐ **F6 was never an open question**: `authz.entailed_grants` already emitted a `hat_ok` column implementing **subject-keyed asymmetry**, and `has_permission` **enforced** it — an option **ADR 0176 D8 does not list** — so the resolver held an **unratified answer** and R8 ratified it. ⭐ **F6 has TWO axes**: R8 settles the *subject* axis, and on the *scope* axis the hat is role-wide, so ⛔ ratifying it **ratified** the audit mismatch — **R10** (stamp the role only) is what discharges D8's *"audit scope must match whichever wins"*. R11 kept all three classification columns (removal measured as an **invariant loss plus the loss of its own discrimination control**, `401` § 7 `:408`); R12 made `is_active` a **three**-site fix. `SELFTEST` was **red on arrival** and traced to **bash 3.2.57** — ⇒ **the same command returns different verdicts on different machines** (LEARN-095), fixed in three harnesses. ⛔ **Both QA BLOCKs were the LEAD'S and were ONE failure — it stated in writing that it was sending rulings R11/R12 to the ADRs and did not** — which is why the playbook gained *"reconcile rulings TAKEN against rulings LANDED"*. ⭐ And **every new MAJOR in round 2 was a defect the FIX LOOP introduced**, of the class it was repairing |
 > ⚠ **Batch 6 is named in this heading but has NO ROW in the table above** — it was concluded without one, and Batch 7 (2026-09-08) added its own rather than silently inheriting that gap. ⛔ Stated rather than fixed: reconstructing a row after the fact is the `LEDGER-COMPLETENESS` shape, and it belongs to whoever re-derives the set, not to a passing batch. Batch 6's conclusion is recorded in §3 under its CONCLUDED banner and in the phase ledger.
 
 **PO rulings taken so far** (each recorded in the ADR / record it belongs to): Batch 0 Q2 —
@@ -89,7 +90,7 @@ halves both) ·
 `FUP-AUTHZ-C2-NEUTRALIZER-CAPTURED-OIDS-SURVIVE-ITS-OWN-RESET` 🟠 · `FUP-AUTHZ-SETVALUED-HOME-DOES-NOT-EMIT-ROWS` 🟡 ·
 `FUP-AUTHZ-MERGE-HEADERS-RELOCATE-AND-MALFORMED-ARM-HAS-NO-SELFTEST` 🟡 · `FUP-AUTHZ-NOTICED-ROWS-WITHOUT-AN-AUTHZ-SHAPED-REDDENING` 🟠.
 
-## 3. Remaining — Batches 8 to 9, in dependency order
+## 3. Remaining — ⭐ NONE. Batch 9 concluded 2026-09-10; the blocks below are KEPT, each under a banner
 
 > ⚠ **EDITED 2026-09-08 (Batch 6 Record step).** The heading read *"Batches 6 to 9"*. Batch 6 is
 > concluded; its block below is **kept, not deleted** — it carries the derivation a later batch
@@ -599,7 +600,32 @@ inside a role increment"* (ADR [0176](../decisions/0176-authz-permission-layer-m
 > verify it takes the changed basis back to the PO (Batch 7's shape) rather than reading the doc and
 > calling that verification.
 
-Batches 0–8 are concluded (§2). **Batch 9 is next — and it is not a fix.**
+⭐ **ALL NINE BATCHES ARE CONCLUDED (§2). Batch 9 closed 2026-09-10, was ff-merged after a rebase,
+and was PUSHED** (a fourth one-push override, scoped to that push). ⛔ **The pre-AE5 remediation
+programme this plan governs is EXHAUSTED — there is no Batch 10 block here and §3 is empty.**
+
+⚠ **What Batch 9 SENT FORWARD, because a concluded programme is not an empty backlog.** The steps
+below are kept as the protocol a successor reads, ⛔ **not** as an instruction to run Batch 9 again:
+
+- **Batch 10 EXISTS as a named consequence and this plan deliberately holds no block for it** —
+  derive its scope from **ADR 0201 + ADR 0203 + the unit record's R11/R12 entries**, and ⛔ never from
+  R3/R4 alone (§3 item 4 carries the corrected routing and the reason). It owes: `is_active` on
+  **three** sites (`app.is_admin()`, `app.is_admin_for()`, `public.assume_role`), each with its own
+  **RED-first** cell; the Class-2 arm **removed and relocated**; R10's audit stamp, with ⛔ `315:212`
+  **rewritten, not ticked**; and the **expected reds re-ruled, never silenced** (`228:630-634` ·
+  `409` § 3.7 *polarity **and** message* · `415` § 1.2 · `229:215-220`, which **splits in two**).
+  ⭐ Two reusable fixture shapes were found and are named in the follow-up body: `145:414-425`
+  (single-principal) and `328:477-490` (**differential** — which is the one the third site needs).
+- **Named successor units:** ADR **0202** (F7 · F8 · `platform_role`) before AE5 **increment 2** —
+  increment 1 is `staff_admin`, the only already-`authoritative` role · ADR **0204** (the `D` ceiling ·
+  the `search_path` convention), both censuses **already written into their follow-up bodies** so
+  neither is re-measured · unit **`AE5-MATRIX-ARM3-CELLS`** before increment 1 runs its **matrix**.
+  ⛔ **ADR numbering: `0202` and `0204` are RESERVED and `0202` can never be filled** — take **0205**
+  for any other subject (§3 item 5).
+- ⚠ **`.claude/claude-md-review-queue.md` is STILL unprocessed**, and Batch 9 did not discharge it
+  either — the PO ruled **skip with the deferral recorded** (R2), after the *"13 KB"* figure below was
+  re-measured at **1,433 bytes**. It is the next session's to run or to skip again, deliberately.
+
 
 1. **Measure, do not assume, where the tree stands.** `git status` clean on `main`;
    `git rev-list --count origin/main..main` (⛔ re-run it — a clean push state is an **instant, not a
