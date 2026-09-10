@@ -1090,3 +1090,88 @@ strengthened the argument by checking the propagation path directly: `gen-authz-
 writes **only** into `supabase/tests/vectors`, and ⭐ **nothing under `src/` derives from the
 manifest**, so a JSON comment cannot reach a rendered surface, and the three changed harnesses are
 pgTAP-mutation scripts Playwright never invokes. Batch 7's ledger row carries the precedent verbatim.
+
+### 2026-09-10 — fix loop iteration 1, backend half; ⛔ THREE refutations, one of QA's own anchors and one of the LEAD'S relayed claims (lead)
+
+**Built.** `0201` **+76 / −17** (353 → 412) · `0203` **+113 / −29** (253 → 337) ·
+`authz-enforcement-manifest.json` **2/2**, with the two generated files' sha stamps (**1/1** each) and
+`authz_matrix_cells.psql` rewritten **byte-identical**. ⭐ `docs/decisions/INDEX.md` and
+`proposed-review.json` were **not** touched — `adr:index` reported *"back-pointer blocks already
+current"*, i.e. the 0201/0203 edges landed at their creation and re-running changed nothing. **No
+overlap with the lead's files.** Gates bare: `adr:index` **0** · `lint:adr-index` **0** ·
+`lint:authz-vectors` **0** · `lint:registers` **0** · `lint:mojibake` **0** · `npm run lint` **0**
+(17/17, 0/0) · empty pathspec **EMPTY**.
+
+**BLOCK-1 discharged in ten asserted-single-occurrence edits.** 0203's `Status:` now opens *"⭐ **All
+three Decisions are RULED**"*; the `Amends:` clause states D8 is discharged *"on the clause's **"a
+consumer appears"** branch (PO ruling R11) — ⛔ not on its *"leaves with a named reason"* branch"*; D3
+is replaced with **keep all three, each owing a NAMED layer-3 consumer**, carrying three conditions
+(each consumer arrives **RED-first**; sequenced **after** AE5 increment 1; `session_selectable` as the
+worked precedent) and the decline with `401` **§ 7**'s anchors re-measured by the builder itself.
+⭐ `⛔ No default applies while D3 is open` is **gone**, but the *reason* it existed — D8's clause is a
+disjunction with no third branch — is **kept** as why *"leave them, nobody is hurt"* was never
+available. All three options retained, marked `⛔ REJECTED (R11)` / `✅ CHOSEN (R11)`, ⛔ with an
+explicit prohibition on deleting the rejected ones: **their consequences ARE the ruling's basis.**
+§ Consequences' vague *"the register keeps a `Status: open` entry"* became the concrete discharge
+condition — each of the three columns has a **named runtime consumer inside `authz` with a gate
+asserting it** — and ⛔ the builder **did not invent a `FUP-` code**, correctly leaving the register
+row to the lead.
+
+**BLOCK-2 discharged.** D4 is now *"**ALL THREE SITES** are gated"* `(R3 + R12)`, owing **three**
+cells with ⛔ *"one cell over one site does not discharge three."* `0201:152` and `:344` are replaced
+with the draft **quoted in place** — because Batch 10 derives its scope from those very paragraphs —
+and `:344` ends ⛔ *"not from any surface still saying 'both admin predicates' or 'a third site, not
+in scope here'."* D5 records three facts: the refuted reason is **WITHDRAWN** and ⛔ never to be
+restated as live; **R4 stands on the surviving reason**; and sufficiency is **CLOSED BY
+REAFFIRMATION**, ⛔ not by a fresh ruling and ⛔ not by the drafter, with the sequence recorded.
+
+⭐ **Two additions beyond the brief, both flagged rather than slipped in, and both accepted:** an
+**ADR 0195 one-home pointer** at the end of D3's decline, because the § 7 anchors otherwise sit in
+**two** homes inside a document whose own § Consequences polices exactly that (*"an editor who moves
+one of these anchors moves both"*); and a § Consequences paragraph giving a durable home to the fact
+that the `hat` arm's allowlist entry for `public.assume_role` carries a reason **derived before R12**,
+so Batch 10 must **re-derive** it — QA had noted only the record said so, and an arm that holds rc 0
+today needs that written somewhere that is not a gate log.
+
+### ⛔ THREE REFUTATIONS FROM THE BUILDER — including one of QA's and one of the lead's
+
+1. ⭐⭐ **QA's own BLOCK-1 anchors are miscited — the same class as the MAJOR-2 it filed.** QA cites
+   `0203:198` for D3 and `:203` for the § Considered options header. Measured on the pre-edit
+   committed file: D3 was at **`:149`**, the header at **`:157`**; `:198` sits inside option **(B)**'s
+   consequences and `:203` is a **blank line**. ⚠ The **quoted text is verbatim correct in both
+   cases** — only the pointers are wrong, which is *precisely* how QA characterised the ADR's defect:
+   *"the lead asserting a LOCATION rather than measuring it."* ⇒ the pattern is not a person's habit;
+   it is what **prose review without a `sed`** produces, from any role. (The lead's own
+   `0201:152`/`:344` anchors were verified exact.)
+2. ⛔ **"The watching relation is INVERTED" was WRONG, and the LEAD relayed it unverified.** The lead
+   copied that phrase from QA's report into the build brief without measuring it. Read at
+   `410:129-131`: *"This is also the fuse that gives lint's `axes.sensitivity ==
+   catalog.sensitivityCeiling` arm real teeth"* ⇒ the **direction the ADR drafted (§ 2.3 is the fuse,
+   the lint arm gets the teeth) MATCHES THE TREE EXACTLY.** The defect is only **misattribution**:
+   the phrase lives in § 2.3's own assertion message, not in the generator's comment at
+   `gen-authz-matrix-cells.mjs:704`, whose M9 comment says something different (*sensitivity is
+   declared twice and fused*). The builder wrote the correction as a **misattribution** and said so.
+   ⚠ **Third time this batch the lead asserted something it did not measure** (after the `prosrc`
+   regex and the `§ 12` label) — and the first time it did so by **passing another role's claim
+   through as its own**. ⇒ folded into LEARN-096's twin at the Record step.
+3. **`grep -rn "the fuse"` returns TWO hits, not one** — `410:129` and
+   `supabase/migrations/20261003007200_ae46_cutover_staff_admin.sql:18` (*"with AE5 as the fuse"*). So
+   *"the phrase lives at `410:129`"* is true but **not unique**; the count is now stated in the ADR so
+   the next checker's grep matches the claim.
+
+**Two smaller corrections the builder measured:** `0172:114-119` needed an **end** — QA gave only the
+start (`:124`); the block runs to **`:136`**, and the range is written. And `0176:46-47` vs `:45-47`:
+the quoted sentence begins at `:45`, so the existing citation is right for the quote and was left.
+
+**⛔ AND THE GAP THE BUILDER FOUND THAT WAS STILL OPEN — the lead's, again.** The follow-up **body**'s
+own `**Closes when:**` field at `:14` still named `app.is_admin_for` **alone**. The lead had widened
+the **register entry** and appended a correction **section** at the bottom of the body, and never
+touched the field itself ⇒ **the artefact a reader reaches first still said one site.** Fixed this
+entry: the field now names **all three**, carries the blast radii, ⛔ *"a closure gating two of the
+three does not discharge this"*, and quotes the superseded original. ⚠ **The lesson is the shape:**
+a follow-up carries its clause in **two** places — the register entry and the body's own field — and
+correcting one is not correcting the item. Recorded for the Record step.
+
+**Left deliberately, and the lead agrees:** 0203's H1 still reads *"…and their disposition is the
+PO's."* It names **whose** call it was, which R11 **confirms** rather than contradicts, it is the
+slug-bearing line, and it is not one of BLOCK-1's *"PO to rule / deliberately open"* formulations.

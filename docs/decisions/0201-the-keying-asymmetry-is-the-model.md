@@ -1,6 +1,6 @@
 # ADR 0201 — The keying asymmetry is the model: a question about a third party ignores the hat, a question about the caller requires it — and on the scope axis the hat is role-wide while the audit row named one seating
 
-**Status:** proposed — 2026-09-09 (pre-AE5 remediation Batch 9, unit `AE5-OPENING-ADR`; the PO rulings it records were taken 2026-09-09 and are attributed inline)
+**Status:** proposed — 2026-09-09 (pre-AE5 remediation Batch 9, unit `AE5-OPENING-ADR`; the PO rulings it records were taken 2026-09-09 **and 2026-09-10 (R12, and D5's closure by reaffirmation)**, and each is attributed inline)
 **Date:** 2026-09-09
 **Area:** authorization / the ACT hat (§6A asymmetry) / the AE5 per-role template's arm keying / `platform_admin`'s noun / audit scope
 **Amends:** ADR [0176](./0176-authz-permission-layer-made-real.md) (D8's **F6** slot — D8 lists two options, *exact-assignment active context* vs *the role-wide hat*; the catalog implements a **third**, and this ADR ratifies it, splits F6 into its two axes and settles both) · ADR [0193](./0193-the-enforcement-manifest-declares-what-it-measured.md) (D5 — the per-row declaration obligation the AE5 template inherits gains a **keying** field per arm, and a **hat-required** flag beside it) · ADR [0200](./0200-professional-identity-predicates-answer-about-their-subject.md) (the keying obligation is restated as a template clause with the two axes separated, and its own § *What this ADR does not do* — the `is_active` gap — is now ruled)
@@ -128,8 +128,8 @@ requirement **conditional on (a)** — an arm's hat behaviour is not a property 
 differential whose two sides answer about different principals is not a differential, and neither
 is one whose two sides disagree on whether a hat is required.
 
-**D4 (PO ruling R3) — platform-admin authority FOLLOWS ACCOUNT STATE, and BOTH admin predicates are
-gated.** Measured, comment-stripped, with a discriminating control in the same query: `app.is_admin`
+**D4 (PO rulings R3 + R12) — platform-admin authority FOLLOWS ACCOUNT STATE, and ALL THREE SITES
+are gated: both admin predicates AND the door that mints the hat.** Measured, comment-stripped, with a discriminating control in the same query: `app.is_admin`
 **f** · `app.is_admin_for` **f** · `public.assume_role` **f** — against `app.is_org_admin_of_for`
 **t**, which resolves `app.is_active(p_user_id)`. So arm 2 of the professional predicates follows
 the subject's state and the admin arms never have.
@@ -142,16 +142,35 @@ gated the harmless one.** Blast radius re-derived at this head, counts **and** s
 | `app.is_admin_for` | **0** | **5** — `app.can_manage_professional`, `app.can_read_professional_profile`, `app.grant_role_impl`, `app.recover_orphan_person_to_org_impl`, `app.revoke_role_impl` |
 | `app.is_admin()` | **26** | **13** |
 
-⇒ Batch 10 owes the `is_active` term on **both**, plus a pgTAP cell that deactivates a
-`platform_admin` and asserts the admin arm denies, **reported RED before the change**. ⚠ The gap is
-**not** bounded by token expiry: `app.active_role()` is a bare claim read
+⇒ Batch 10 owes the `is_active` term on **all three sites** — `app.is_admin()`, `app.is_admin_for()`
+and `public.assume_role` (the third by R12, below) — each with its **own** pgTAP cell that
+deactivates a `platform_admin` and asserts that site denies, **every one reported RED before the
+change**. ⛔ One cell over one site does not discharge three.
+
+⚠ **The gap is not bounded by token expiry.** `app.active_role()` is a bare claim read
 (`request.jwt.claims ->> 'active_role'`) and `assume_role`'s `platform_admin` branch tests only
 `profiles.is_admin`, so a deactivated or suspended admin can seat a **fresh** hat. Anyone reasoning
 *"the hat expires, so the exposure is one token lifetime"* is reasoning from a refuted premise.
 
-⚠ **`public.assume_role` is a NAMED THIRD SITE and is deliberately left UNRULED here.** It has no
-`is_active` term (measured above, with the same control). Whether the door that *mints* the hat
-should also test account state is a distinct question, put with the rest of Batch 10's shape.
+⭐ **`public.assume_role` — the NAMED THIRD SITE — IS RULED IN, by PO ruling R12 (2026-09-10), and
+it travelled here as unruled.** ⛔ The superseded wording is quoted rather than overwritten, because
+Batch 10 derives its `is_active` scope from this paragraph and the draft said the opposite: *"⚠
+`public.assume_role` is a NAMED THIRD SITE and is deliberately left UNRULED here. … Whether the door
+that mints the hat should also test account state is a distinct question, put with the rest of Batch
+10's shape."* **R12 closed it in the same direction as R3 and in the SAME Batch 10 change**, with
+its own RED-first pgTAP cell.
+
+**The recorded rationale is the reason it could not stay open:** gating the two *checks* while
+leaving the *seating* door ungated would make the fix **read** as complete while a deactivated admin
+could still put the hat on. ⇒ Batch 10's `is_active` scope is **three** sites, not the two R3 named,
+and *"both admin predicates"* is no longer a complete statement of it anywhere in this corpus.
+
+Measured, so the third site is not carried on the ruling's word alone: `public.assume_role`'s
+`platform_admin` branch tests only `exists(select 1 from public.profiles where id = v_uid and
+is_admin = true)`; its comment-stripped body carries **no** `is_active` term (the same query and the
+same control as above — `app.is_org_admin_of_for` **t**); and its only other gate is
+`authz.roles.session_selectable`. ⇒ the mint consults **no** account state at all, which is the
+same measurement the token-expiry premise above is refuted by, read from the third site's side.
 
 **D5 (PO ruling R4) — the Class-2 write arm is REMOVED and RELOCATED, not deleted.** A35's
 **"identity"** noun is the **user directory**; a tenant's **professional registry** is Class-2
@@ -200,6 +219,24 @@ ground: the mint inserts a `public.participants` row carrying
 name** (ADR 0091 D1; the `participants_sensitivity_derives_type` trigger forces the class) — so
 under Option 2 a `platform_admin` could still **create Class-2 professional identity content in any
 tenant's org registry**. Org-scoped Class-2 **creation**, not commission content.
+
+⭐ **The refuted reason is WITHDRAWN, and R4 was REAFFIRMED after the refutation was disclosed — the
+provenance matters more than the verdict, so the sequence is recorded rather than summarized.** R4
+was taken 2026-09-09 on the stated reason; the lead measured that reason **false** and reported it to
+the PO in plain terms (⛔ not as a footnote); the PO **did not reverse R4** and went on to rule
+R5–R14. Under this corpus's reaffirmation rule that is a decision, not a silence. ⇒ three facts, and
+each one is load-bearing for Batch 10:
+
+1. The *"`ensure_professional_participant` … seats a professional INTO A CASE — commission
+   content"* reason is **WITHDRAWN**. ⛔ It must never be restated as live: writing a refuted reason
+   into an accepted ADR would put a false sentence at the top of the authority chain, which is
+   precisely the `409` § 3.7 failure D6 below is retiring.
+2. **R4 stands on the SURVIVING reason** — the real-name `participants` row above. The conclusion
+   never rested on the seating claim; that is why this is a correction and not a reversal.
+3. The question *"is the surviving reason **sufficient**?"* is **CLOSED** — by reaffirmation, ⛔ not
+   by a fresh ruling and ⛔ not by the drafter. This ADR is therefore not permitted to record it as
+   open anywhere, and the two places its draft did are corrected (§ Considered options, and § *What
+   this ADR does not do*).
 
 **D6 (PO ruling R5) — `409` § 3.7's first clause is SUPERSEDED; A30's bucket-C reading wins.** Two
 contradictory readings of A35 are live in the tree verbatim, and leaving both is how the next reader
@@ -254,9 +291,12 @@ on **two** counts, and the rewrite Batch 10 owes is not a polarity flip alone.
 **For the Class-2 write arm.** **1 — keep the arm, record the exception:** ⛔ rejected on the merits
 by R4 (A35's identity noun is the user directory, not a tenant's registry). **2 — remove arm 1 from
 `can_manage_professional` only:** ⛔ rejected on D5's *surviving* reason, org-scoped Class-2
-**creation** through `ensure_professional_participant`'s real-name `participants` row; ⚠ whether
-that reason is *sufficient* is the PO's call, travelled with this draft, and ⛔ is not the drafter's
-to decide. **3 — remove and RELOCATE**, vocabulary's reach re-declared as its own explicit arm:
+**creation** through `ensure_professional_participant`'s real-name `participants` row. ✅ **The
+sufficiency question is CLOSED (2026-09-10 — see D5).** Its draft read *"⚠ whether that reason is
+sufficient is the PO's call, travelled with this draft, and ⛔ is not the drafter's to decide"* —
+correct when written; the call was then made, by **reaffirmation**: the refutation of the originally
+stated reason was disclosed to the PO in plain terms, the PO did not reverse R4 and went on to rule
+R5–R14. **3 — remove and RELOCATE**, vocabulary's reach re-declared as its own explicit arm:
 ✅ **CHOSEN (R4)** — and the relocation half was *measured*, not assumed: the PO's rolled-back run
 proved the bare removal strands vocabulary and that the explicit arm restores it *while redaction
 stays denied*.
@@ -287,6 +327,14 @@ one **survives D5 untouched**, because D5 changes `can_manage_professional` and
 short-circuit is not in scope. And since no *authorizer body* changes which gates it calls, the
 generator's `composedWith` cross-check does not move either. ⇒ an optional note only.
 
+**⚠ R12 invalidates a REASON, not a finding, in the door sweep's `hat` arm.** That arm reports
+`HAT-BLIND SWEEP HOLDS: 4 finding(s), all reasoned-allowlisted`, and one of the four is
+`public.assume_role` — allowlisted with a reason **derived before R12 ruled it in scope**. ⇒ Batch 10
+must **re-derive** that reason against the post-change body rather than inherit it: an allowlist
+entry whose reason predates a change to its own subject is the *"reasoned"* half of
+*"reasoned-allowlisted"* going stale in silence. ⛔ It is **not** a finding today — the arm holds at
+this tip, rc 0 — which is exactly why it needs a home that is not a gate log.
+
 **⭐ R10 has its OWN expected reds, and the rulings that produced it did not name them.** Derived
 here: `supabase/tests/315_act_stage3_hat_condition.sql` carries **four** live assertions on the
 `active_role.assumed` row's scope columns — and it is the **only** file that does (`grep -rln` over
@@ -297,7 +345,7 @@ here: `supabase/tests/315_act_stage3_hat_condition.sql` carries **four** live as
 | `315:203-208` | `organization_id` = the assumed `org_admin`'s own org, *"not the platform bucket"* | ⛔ **FLIPS** — a non-NULL assertion |
 | `315:209-212` | `hospital_id`/`commission_id` stay NULL for an org-tier hat | stays green — **and that is the problem, see below** |
 | `315:226-230` | `commission_id` = the assumed `staff_admin`'s own commission, written *"to prove the fix isn't org-only"* | ⛔ **FLIPS** — a non-NULL assertion |
-| `315:245-249` | all three NULL for `platform_admin` | stays green; this is D2's carve-out, unchanged |
+| `315:246-249` | all three NULL for `platform_admin` | stays green; this is D2's carve-out, unchanged |
 
 ⛔ **R10 CREATES a vacuity, and it must be ruled rather than absorbed.** `:212` survives green — but
 its discriminating power was supplied entirely by `:208`, the cell that flips. Alone, `:212` can no
@@ -309,7 +357,7 @@ correct change*, which is the hardest polarity to notice.
 
 **⭐ WHAT WATCHES EACH RATIFIED FACT, stated in the sentence that states the fact** (ADR 0195).
 
-- **The subject axis IS gated.** `401`'s own § header says so at `:941` — *"§§16.1-16.7 use
+- **The subject axis IS gated.** `401`'s own § header says so at `:940-941` — *"§§16.1-16.7 use
   THIRD-PARTY checks … Gate 4 is §§16.8-16.11"* — § 16.11 being *"THE ASYMMETRY ITSELF"*, and
   `415 § 1.2` pins the `_for` half behaviourally (*"the platform_admin hat is required only when the
   subject IS the caller"*). The `act-hat-blind` mutation allowlist records that those cells *"pin
@@ -341,8 +389,14 @@ obligation, which is where increment 1 should look first.
 - It does not change one line of SQL. Batch 9 is **not a fix** by PO ruling R1: the assertion
   `git diff --name-only main... -- supabase/migrations supabase/seed.sql src` is **empty**, verified
   on this branch. Every migration named above is **Batch 10's**.
-- It does not rule `public.assume_role`'s `is_active` term (D4's named third site), nor whether D5's
-  surviving Option-2 reason is *sufficient*.
+- ⚠ **This bullet is CORRECTED, 2026-09-10 (QA finding BLOCK-2), and its draft is quoted because
+  three surfaces in this tree said the same thing.** It read: *"It does not rule
+  `public.assume_role`'s `is_active` term (D4's named third site), nor whether D5's surviving
+  Option-2 reason is **sufficient**."* **Both are now ruled** — `public.assume_role` by **PO ruling
+  R12** (D4: **three** sites, each with its own RED-first cell) and D5's sufficiency by
+  **reaffirmation** after the refutation was disclosed (D5). ⇒ whoever opens Batch 10 takes its
+  `is_active` scope from **D4 as it now stands**, and ⛔ not from any surface still saying *"both
+  admin predicates"* or *"a third site, not in scope here"*.
 - It does not discharge **ADR 0175 D3**. ⛔ Read precisely, `0175:130-131` is a **forward promise**,
   not a completion claim — *"the arm-3 cells **arrive** already enumerated and already known to
   diverge"* — and the enumeration is measurably absent:
@@ -350,4 +404,9 @@ obligation, which is where increment 1 should look first.
   and **0** occurrences of `divergent`. Routed to unit **`AE5-MATRIX-ARM3-CELLS`** (PO ruling R9),
   due before AE5 increment 1 runs its **matrix** — ⛔ not before its template is written.
 - It does not touch the classification columns, `authz.roles`' `administrativo` row, the
-  `platform_role` retirement or F7 — those are ADR 0203 and the next unit, by PO ruling R7.
+  `platform_role` retirement or F7 — and by PO ruling R7 those four split across **two** homes, ⛔
+  which this bullet's draft left un-paired: the **classification columns** are ADR
+  [0203](./0203-the-seam-is-already-encoded-the-classification-columns-are-not.md) (ruled there by
+  R11); the `administrativo` row, the `platform_role` retirement and **F7** are the **next unit's**,
+  and 0203 covers none of the three. ⚠ Do not read *"ADR 0203 and the next unit"* as though either
+  home could be the one you happened to open.

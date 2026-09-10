@@ -11,9 +11,17 @@ bypass, before or after the re-key, so this is pre-existing and was kept out of 
 attributability. The asymmetry now sits inside one expression — arm 2
 (`app.is_org_admin_of_for`) follows the subject's state, arm 1 (`app.is_admin_for`) ignores it.
 
-**Closes when:** `app.is_admin_for`'s live `prosrc` contains an `app.is_active` term (verified from
-`pg_proc`, comments stripped), with a pgTAP cell that deactivates a `platform_admin` and asserts
-the admin arm denies, **reported RED before the change**; ⛔ or the PO rules explicitly that
+**Closes when:** ⚠ **WIDENED TWICE — read this field, not the sentence below it.** The live `prosrc`
+of **ALL THREE** sites contains an `app.is_active` term (verified from `pg_proc`, comments
+stripped) — `app.is_admin_for` **and** `app.is_admin()` (PO ruling **R3**, 2026-09-09; the first
+gates **0** RLS policies and 5 callers, the second **26** and 13) **and** `public.assume_role` (PO
+ruling **R12**, 2026-09-10; the door that SEATS the hat) — each with **its own** pgTAP cell that
+deactivates a `platform_admin` and asserts denial, **every one reported RED before the change**.
+⛔ **A closure gating two of the three does not discharge this, and one cell over one site does not
+either.** Superseded original, quoted so nothing is lost: *"`app.is_admin_for`'s live `prosrc`
+contains an `app.is_active` term … with a pgTAP cell that deactivates a `platform_admin` and asserts
+the admin arm denies, reported RED before the change"* — one site where the Mechanism above already
+named two. ⛔ Or the PO rules explicitly that
 platform-admin authority is deliberately independent of principal state, and that ruling is
 recorded in an ADR. Not closed by "no one has deactivated an admin yet".
 
