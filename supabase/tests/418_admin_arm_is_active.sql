@@ -37,9 +37,19 @@
 -- `sub`/`role`/`is_admin`/`active_role` but NOT `session_id`, and `assume_role` raises `28000`
 -- without one. §3 uses the `315`/`408` idiom (`set_config` + `jsonb_build_object`) instead.
 --
--- RUN SHAPE: `Files=2, Tests=31` (30 here + 00_setup.sql's one). ⛔ Keep this line in step with
--- plan() — a stale RUN SHAPE is read as the expected shape by the next person diagnosing a
--- count mismatch.
+-- RUN SHAPE, MEASURED both ways rather than picked — it depends on whether `test_helpers`
+-- already exists in the target DB (`00_setup.sql` installs it OUTSIDE any per-file rollback,
+-- so once created it persists across separate `supabase test db` invocations):
+--   `npx supabase test db supabase/tests/00_setup.sql supabase/tests/418_admin_arm_is_active.sql`
+--     -> `Files=2, Tests=31` (30 here + 00_setup.sql's one)
+--   `npx supabase test db supabase/tests/418_admin_arm_is_active.sql` ALONE, once `test_helpers`
+--   is already installed (e.g. after `npm run test:db` or any prior `00_setup.sql` run against
+--   this DB)
+--     -> `Files=1, Tests=30`
+-- On a bare fresh `supabase db reset --local` (test_helpers not yet installed), the standalone
+-- form fails outright: `schema "test_helpers" does not exist` — both re-measured 2026-09-10
+-- (QA review + fix-loop). ⛔ Keep this line in step with plan() — a stale RUN SHAPE is read as
+-- the expected shape by the next person diagnosing a count mismatch.
 
 begin;
 select plan(30);

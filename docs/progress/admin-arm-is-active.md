@@ -729,3 +729,64 @@ the lead's job, once, before declaring green.
 
 Commit on `authz-admin-arm-is-active` (not amended, not pushed): `e2e/admin-arm-is-active.spec.ts`
 + this record entry.
+
+### 2026-09-10 — fix-loop iteration 1: QA's two MINORs discharged (backend)
+
+**Scope.** QA review (`docs/reviews/admin-arm-is-active-review.md`) APPROVED, 0 BLOCK / 0 MAJOR /
+2 MINOR. This entry discharges both. No migration, no `src/`, no RLS/RPC change — a comment
+correction plus a drafted follow-up.
+
+**MINOR-1 — `418`'s stale `RUN SHAPE` line, corrected to the MEASURED figure(s), not a guess.**
+Re-measured both shapes myself, on THIS clone, at head pair `(20261003007390, 528)` (confirmed via
+`select max(version), count(*) from supabase_migrations.schema_migrations` = unchanged — no
+migration lands in this turn):
+
+- `npx supabase test db supabase/tests/00_setup.sql supabase/tests/418_admin_arm_is_active.sql` →
+  `Files=2, Tests=31`, `Result: PASS` — the header's original claim reproduces WHEN `00_setup.sql`
+  is passed alongside.
+- `npx supabase test db supabase/tests/418_admin_arm_is_active.sql` ALONE, with `test_helpers`
+  already installed in the DB from the run above (`00_setup.sql` installs the schema OUTSIDE its
+  own per-file rollback, so it persists across separate `supabase test db` invocations) →
+  `Files=1, Tests=30`, `Result: PASS` — reproduces QA's figure exactly.
+- On a bare fresh `supabase db reset --local` (`test_helpers` not yet installed), the standalone
+  form fails outright: `schema "test_helpers" does not exist` — a third fact neither the stale
+  header nor the QA finding named, measured here so the corrected comment does not imply the
+  standalone form always works.
+
+`supabase/tests/418_admin_arm_is_active.sql:40` rewritten to state all three facts with the exact
+command beside each, rather than swapping one number for another — QA's own instruction ("if the
+2/31 came from running it beside `00_setup`, say that in the comment instead of deleting the
+fact") is honored by keeping both figures, not by replacing one with the other.
+
+**MINOR-2 — the `CASES=` empty-selects-all vs empty-selects-nothing divergence: drafted as a
+follow-up, NOT fixed.** Per the lead's fix-loop framing this is a ruling — the harness's semantics
+stay as they are this turn — so the discharge is a follow-up BODY only, drafted into the session
+scratchpad `batch10-fups.md` as `## 5 ·
+FUP-CASES-EMPTY-SEMANTICS-DIVERGE-ACROSS-MUTATION-HARNESS-FAMILIES` (NOT filed to the open
+register — the Record step does that). It names: the mechanism
+(`authz-command-door-targeted-cases.sh:69-72`'s `want()` treating `CASES=""` as "no filter" —
+i.e. run everything — against the four `p0-authz-*.sh` homes' identical
+`SELECTION_SOURCE="CASES set and EMPTY -> selects NOTHING (UNPROVEN, exit 3)"` line at
+`p0-authz-door-audit.sh:113` / `p0-authz-invoker-audit.sh:134` / `p0-authz-rowdoor-audit.sh:93` /
+`p0-authz-writepath-audit.sh:272`); the hazard (an engineer who internalized "empty is the third
+state" reflexively exports `CASES=` here expecting a loud refusal and instead silently gets a
+full run, indistinguishable in shape from a deliberate subset that happened to match everything);
+and a `Closes when` naming three observables — `CASES=""` exits 3 with a refusal message,
+`unset CASES` still runs every case, and a self-test row proves both mechanically, mirroring
+`door-sweep-selftest.sh:612`/`:618`'s own pair for the deriver side of the identical distinction.
+No harness file touched.
+
+**Gates, rc read bare.**
+
+| gate | rc | witness |
+| --- | --- | --- |
+| `npm run lint` | **0** | all 17 gates reached |
+| `supabase db reset --local` | **0** | head pair `(20261003007390, 528)` |
+| `npm run test:db` | **0** | `Files=267, Tests=9019` · `Result: PASS` · `All tests successful.` — unchanged from the tip gate, as it must be: no pgTAP file added or edited, no migration |
+
+**Not run here:** `npm run typecheck`, `npm run test` (Vitest), the four authz arms, `e2e:prod` —
+out of scope for a comment-plus-scratchpad-draft fix-loop turn; nothing here touches `src/`, a
+migration, or a pgTAP file.
+
+**Commit on `authz-admin-arm-is-active`** (not amended, not pushed):
+`supabase/tests/418_admin_arm_is_active.sql` (RUN SHAPE correction) + this record entry.
