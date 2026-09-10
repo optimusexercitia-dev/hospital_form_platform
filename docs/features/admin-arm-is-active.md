@@ -91,21 +91,25 @@ sites, the `platform_admin` Class-2 write arm is removed and relocated, and the 
 stamp exists — each half proven by a cell that was RED first.
 
 ### Done since start
-Unit opened on branch `authz-admin-arm-is-active` off `main` @ `b87eac1e`; preconditions measured
-(clean tree, `origin/main..main` = 0, no `in_progress` hub); migration head pair at open
-`(20261003007380, 527)`. The CLAUDE.md review queue on this clone processed first (12 entries; one
-playbook paragraph, PO-approved) — dispositions in the record.
+Opened off `main` @ `b87eac1e`, head pair `(20261003007380, 527)`; the review queue on this clone
+processed first. **Built:** migration `20261003007390` (three `is_active` sites, the Class-2 arm
+removed + relocated, the R10 stamp), pgTAP `418` (13 of 30 RED first, 30/30 after), 20 landing
+needles proven on plants (two vacuous assertions in the plan caught and fixed), the eleven re-rulings
+(R2; two measured deviations accepted, R5), the `session.ts` mirror (3 of 11 Vitest cells RED first),
+row 31's own differential representative (R4, live by plant). **Gate at the tip `a74f2409`, lead-run
+detached:** lint/typecheck/test/`test:db` (267 / 9019) all rc 0; four arms hold; SELFTEST 46/0/0 on
+bash 5.2.37; deriver `SCOPE: 1 committed`, read sweep 7 → 6 COVERED / 0 BLIND / 1 NOTICED (the
+baseline's own row for `is_active`); write arm 0 by derivation; set-valued home CLEAN 3/3.
 
 ### In progress
-`backend` BUILDING on the approved plan: one migration over three sites + the arm relocation + the
-R10 stamp; pgTAP `418` RED-first; eleven re-rulings across `228 · 409 · 415 · 229 · 257 · 315`; the
-`session.ts` mirror with a Vitest cell RED first. PO rulings R1 (door-wide `assume_role`, a declared
-widening) · R2 (the derived red set and texts) · R3 (TS mirror in scope) are in the record.
+`backend`: the two TARGETED cases the deriver demands for the doors outside its domain —
+`assume_role` (the `is_active` gate and the R10 stamp, each proven noticed by mutation) and
+`audit_write` (its CALL changed, not the door) — plus the dated backlog paragraph.
 
 ### Next
-Landing assertions proven to fire on plants; the gate at the tip run by someone other than the
-builder; QA review; the follow-ups the plan surfaced filed at the Record step.
+Tester (Playwright: a deactivated / suspended admin at the role picker, the service-role mirror) and
+QA review in parallel once the DB is free; then the full `npm run e2e:prod` at the final tip; PO
+approval; Record step (follow-ups from `batch10-fups.md` filed then, the authz seam slice appended).
 
 ### Blockers
-None. Two lead decisions taken, not PO: a dated note on ADR 0201 D5's numerals; `app.is_admin()`'s
-PUBLIC EXECUTE entry becomes a follow-up.
+None ruled. PO rulings R1–R5 and lead decisions L1–L3 are in the record.
