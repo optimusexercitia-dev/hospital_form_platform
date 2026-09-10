@@ -217,6 +217,77 @@ export interface SessionContext {
 }
 
 /**
+ * The `public.profiles` lifecycle columns `app.is_active()` reads. Deliberately NOT
+ * `UserStatus` — see {@link deriveIsAdmin}.
+ */
+export interface AdminAccountState {
+  is_active: boolean
+  suspended_until: string | null
+}
+
+/**
+ * The TS mirror of `app.is_admin()`, EXTRACTED so it can be driven by a test.
+ *
+ * ⛔ WHY THIS IS A FUNCTION AND NOT AN INLINE EXPRESSION. It used to be one line inside
+ * `getSessionContext`, which is `cache()`-wrapped, awaits a Supabase client and issues an
+ * RPC — so the only way to assert anything about the derivation was to hand-copy it into a
+ * spec, and a harness holding a hand-written copy of production text agrees with itself
+ * forever. The extraction is the whole reason `session-is-admin-mirror.test.ts` measures the
+ * REAL predicate.
+ *
+ * The three conjuncts mirror `app.is_admin()` at head `(20261003007390, 528)`:
+ *
+ *     v_is_admin                                            <- claims.is_admin
+ *     AND app.active_role() is not distinct from 'platform_admin'   <- activeRole
+ *     AND app.is_active(auth.uid())                         <- profile, below
+ *
+ * ⭐ THE THIRD CONJUNCT IS WHY THIS MATTERS HERE AND NOT ONLY IN SQL (pre-AE5 Batch 10, PO
+ * ruling R3). At least two consumers of `context.isAdmin` — `src/lib/admin/actions.ts` and
+ * `src/lib/users/actions.ts` — run their mutation on the SERVICE-ROLE client, which bypasses
+ * RLS entirely; for those this field is the ONLY authority. Gating the DB predicates while
+ * leaving this one at two conjuncts would have left a deactivated `platform_admin` passing
+ * every one of those doors with no RLS backstop underneath — the same shape ruling R12 closed
+ * at `public.assume_role`, and the reason the SQL fix alone would only READ complete.
+ *
+ * ⚠ KEYING: caller-keyed, like `app.is_admin()`. `profile` is the CALLER's own row (from
+ * `session_context()`), never a third party's — `app.is_admin_for(uuid)` is the subject-keyed
+ * twin and has no TS mirror because no service-role path asks it.
+ *
+ * ⛔ THIS IS NOT `deriveUserStatus`, AND SUBSTITUTING IT WOULD BE A BUG. That function folds
+ * `email_confirmed_at` in on purpose (`src/lib/users/types.ts` explains at length why the two
+ * are DESIGNED to disagree): a `pending` user is app-ACTIVE for RLS and display-`pending`.
+ * `app.is_active` ignores confirmation entirely, so this mirror reads the two lifecycle
+ * columns directly.
+ *
+ * ⛔ AND IT FAILS CLOSED ON A MISSING PROFILE, unlike `status`, which defaults to `'active'`
+ * for a documented reason (never hard-lock a valid session on a read miss). `app.is_active`'s
+ * own `coalesce(..., false)` comment says "absent profile / null uid => not active", and the
+ * admin arm is the one place where the open default would be an escalation rather than an
+ * inconvenience.
+ *
+ * @param claimIsAdmin the verified `is_admin` JWT claim (unknown-typed: it comes from a claims
+ *                     bag, and `=== true` is the fail-closed read)
+ * @param activeRole   the verified `active_role` claim, or null for a hatless session
+ * @param profile      the caller's `is_active` / `suspended_until`, or null on a read miss
+ * @param now          evaluation instant (injectable for tests, as in `deriveUserStatus`)
+ */
+export function deriveIsAdmin(
+  claimIsAdmin: unknown,
+  activeRole: string | null,
+  profile: AdminAccountState | null,
+  now: Date = new Date(),
+): boolean {
+  if (claimIsAdmin !== true) return false
+  if (activeRole !== 'platform_admin') return false
+  if (profile === null) return false
+  if (!profile.is_active) return false
+  return (
+    profile.suspended_until === null ||
+    now.getTime() >= new Date(profile.suspended_until).getTime()
+  )
+}
+
+/**
  * The authenticated user's full session context, or `null` when unauthenticated.
  * One round trip resolves the profile and memberships (joined to commissions).
  */
@@ -246,28 +317,11 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
   const activeRole =
     typeof claims.active_role === 'string' ? claims.active_role : null
 
-  // `is_admin` strictly from the verified claim (ADR 0002 / 0009) — fails closed
-  // (treated as non-admin) if the access-token hook is ever absent.
-  //
-  // ACT (ADR 0106 D11) P0 follow-up: ALSO requires the platform_admin hat to
-  // be ACTIVE — the identical condition `app.is_admin()` gained at the DB
-  // layer (migration `20260918002200`). Found auditing THIS field's ~23 TS
-  // consumers (`src/lib/{admin,platform,users,org,cases,forms,meetings,
-  // interviews,responses,case-*}/actions.ts`) while investigating
-  // BUG-ACT-HATBLIND-001: nearly every one uses the same
-  // `if (context.isAdmin) return true` short-circuit shape BEFORE a
-  // role-scoped check, and at least two (`src/lib/admin/actions.ts`,
-  // `src/lib/users/actions.ts`) run their mutation on the SERVICE-ROLE
-  // client, which bypasses RLS entirely — both say so explicitly in their own
-  // SECURITY comments. For those, this TS field is the ONLY authority; a
-  // hat-blind `isAdmin` here would have reproduced the exact same fail-open
-  // class with NO RLS backstop underneath at all (worse than the tester's
-  // original finding, where `app.is_admin()`'s own D11 gate still denied the
-  // read one layer down). Provably a no-op today by the SAME argument as
-  // `is_admin()`'s: zero platform_admins hold any membership
-  // (`315_act_stage3_hat_condition.sql`'s TRIPWIRE), so `claims.is_admin`
-  // and `activeRole === 'platform_admin'` can never actually diverge yet.
-  const isAdmin = claims.is_admin === true && activeRole === 'platform_admin'
+  // ⚠ `isAdmin` USED TO BE DERIVED HERE, from the claims alone. It moved BELOW the
+  // `session_context()` read (pre-AE5 Batch 10, PO ruling R3): its third conjunct is the
+  // caller's ACCOUNT STATE, which arrives with that RPC's `profile` block. The derivation
+  // itself now lives in `deriveIsAdmin` above — extracted so a Vitest cell can drive it —
+  // and its docblock carries the reasoning that used to sit in this comment.
 
   // ADR 0094 W2/T2.2 — ONE RLS-scoped round trip (PostgREST verifies the JWT
   // locally; no GoTrue call). `public.session_context()` replaces the former five
@@ -366,6 +420,11 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
       )
     : 'active'
   const isInactive = status === 'suspended' || status === 'deactivated'
+
+  // ACT (ADR 0106 D11) + pre-AE5 Batch 10 (ADR 0201 D4, PO ruling R3): the claim, the hat,
+  // AND the caller's account state. See `deriveIsAdmin`'s docblock for why all three, why
+  // this is not `isInactive` above, and why it fails closed where `status` fails open.
+  const isAdmin = deriveIsAdmin(claims.is_admin, activeRole, profile)
   // Default false on a profile read miss (same rationale as `status`): never trap
   // a valid session on an anomalous read. The real column defaults false anyway.
   const mustChangePassword = profile?.must_change_password ?? false
