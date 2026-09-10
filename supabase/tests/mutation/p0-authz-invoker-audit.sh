@@ -363,8 +363,12 @@ if [ "${SELFTEST:-0}" = "1" ]; then
   # ⛔ ONE PROCESS SEES ONE POLARITY. The line below is the handle scripts/door-sweep-selftest.sh
   # asserts in BOTH, by launching this file twice (CASES unset -> 0, CASES="" -> 1).
   echo "SELFTEST-STARTUP: CASES_EXPLICIT_AT_STARTUP=$CASES_EXPLICIT_AT_STARTUP"
-  sel_eq "0  startup capture is a set-ness bit (0|1)" \
-    1 "$(case "$CASES_EXPLICIT_AT_STARTUP" in 0|1) echo 1;; *) echo 0;; esac)"
+  # ⛔ A plain `case` STATEMENT, never `$(case … )`: bash 3.2 — the macOS default and the shell
+  # this file runs under — closes a command substitution at the `)` of a case PATTERN, so the
+  # substituted form is a SYNTAX ERROR there. `in (0|1)` does NOT fix it. Ported, not copied,
+  # from the same assertion in p0-authz-writepath-audit.sh.
+  case "$CASES_EXPLICIT_AT_STARTUP" in 0|1) sel_bit=1 ;; *) sel_bit=0 ;; esac
+  sel_eq "0  startup capture is a set-ness bit (0|1)" 1 "$sel_bit"
   sel_eq "0' startup capture equals the live flag" "$CASES_EXPLICIT_AT_STARTUP" "$CASES_EXPLICIT"
 
   sel_case () {  # $1 label $2 CASES_EXPLICIT $3 CASES $4 expect want yes|no $5 expect subset|committed

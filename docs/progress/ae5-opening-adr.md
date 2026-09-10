@@ -899,3 +899,51 @@ the batch owes **no sweep** (deriver rc 3, `CASELIST` 0 bytes, empty pathspec), 
 run** — rows A (`CASES` unset ⇒ full), C (`CASES=""` explicit ⇒ selects nothing, *"⭐ THE FIX"*) and
 E1/E2/E3 (`count_sel` 3 / 1 / 0) all `ok`, 32 of 33. ⛔ But it **must be filed**, and it **blocks
 Batch 10**, which runs a real door sweep on a migration from this machine.
+
+### 2026-09-10 — PO rulings R13, R14; the playbook line, two lessons, and a new rule — with THREE gates pushing back (lead)
+
+**PO ruling R13 — file AND fix the `SELFTEST` red, here.** The PO widened R1 deliberately for this,
+so the widening is **recorded, not absorbed**: Batch 9 now carries a three-line harness fix. ⚠ It
+does **not** touch the pathspec the batch's defining assertion guards — those files are under
+`supabase/tests/mutation/`, while the assertion covers `supabase/migrations`, `seed.sql` and `src`.
+Handed to `backend` with the proof obligations spelled out, ⛔ including *prove each site
+individually, never assert the fix was inherited from a sibling* (the standing rule on
+`FUP-AUTHZ-C2-NEUTRALIZER-EMPTY-CASES-NOT-PORTED`) and *prove the row can still FAIL* (ADR 0078 A33
+— a row that now passes but cannot fail is the worse defect).
+
+**PO ruling R14 — a gate record must quote the `bash --version` that produced its SELFTEST result.**
+Added to `docs/lead-playbook.md` § the SELFTEST obligation, ⛔ with the note that **the line survives
+the fix**: the class is *a gate whose verdict depends on the operator's machine*, not that one row.
+⚠ Per the ruling the two earlier records quoting `33/33 ok` are **left untouched** — they were true
+where they ran, and back-editing them is the rewrite this project forbids.
+
+**⭐ THREE GATES PUSHED BACK ON THE LEAD IN ONE SITTING, and every one was right.** Recorded because
+the *pattern* is the lesson: the lead reached for the cheap shape three times and the register
+design refused it three times.
+
+1. **`lessonsProseOnly` RATCHET: `53`, cap `52` — "may only be lowered."** LEARN-096 was drafted as
+   `prose only`, which the ratchet exists to make progressively impossible. ⇒ ⛔ **the cap was NOT
+   raised.** LEARN-096 was given a real enforcer instead — a new path-scoped rule under
+   `.claude/rules/`, which is exactly where CLAUDE.md sends a standing prohibition with no
+   resolution event. **Ratchet held at 52/52.**
+2. **Register grammar: two rejected tokens.** `checkToken` accepts `ADR NNNN` · `FUP-*` · `BUG-*` ·
+   a **backticked existing path** · a sha (origin) · `lint:*` / `ARM=*` / a rule file (enforcement).
+   So free prose and a bare date are **not** origin tokens, and ⛔ `` `prose only` `` **backticked**
+   is read as a *path* and fails. Both rows normalized to `Origin: ADR 0201`, the corpus convention.
+3. **Gate 8 refused the new rule file twice**, and both objections were fair: `paths:` matched **54**
+   files against a soft cap of **40** (*"an always-on rule in disguise"*), and the file was **3,303
+   bytes** against a cap of **2,048** (*"a rule is a pointer plus a prohibition; rationale belongs in
+   the `source:` it names"*). ⇒ glob **narrowed** from two wide globs to
+   `supabase/tests/mutation/p0-authz-*.sh` (**5** files — measured: 46 harnesses probe `prosrc`, but
+   the `p0-authz-*` five are the ones this rule is *for*), and the prose **cut to 1,546 bytes**.
+   ⛔ The gate offered "declare `broad:` and own it" as a disposition and it was **not** taken —
+   the subtree is not the subject.
+
+**Written this step:** `docs/lead-playbook.md` (R14's line) · `docs/learning/LESSONS.md`
+**LEARN-095** (a mandated gate step whose verdict depends on the operator's shell; enforcer
+`docs/lead-playbook.md`) and **LEARN-096** (`prosrc` is blind to a `RETURNS TABLE` column name, with
+its twin — *the lead asserting a LOCATION rather than measuring it*; enforcer the new rule) ·
+`.claude/rules/prosrc-is-not-the-whole-function.md`.
+
+**Gates after: `lint:rules` OK (11 rule files, anchors + globs resolve) · `lint:registers` OK, 96
+lessons, every ratchet unchanged.**

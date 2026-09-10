@@ -154,6 +154,17 @@ merge aborted and wrote nothing, which also leaves the diff empty (QA F-MAJOR-5,
   by the harness from the scenarios that actually ran; quote what it printed. It is deliberately
   **not** in `npm run lint` (it needs a fake repo and, for catalog scenarios, the stack); a
   `SKIPPED > 0` result over catalog scenarios is a stack-down run, not a pass.
+  - ⭐ **QUOTE THE `bash --version` THAT PRODUCED THE SELFTEST RESULT** (added 2026-09-10, PO ruling
+    R14 at pre-AE5 Batch 9). ⛔ **This step's verdict is SHELL-DEPENDENT and nothing else says so.**
+    Measured: `/bin/bash` on macOS is **3.2.57**, whose `$( … )` parser closes the substitution at
+    the `)` in a `case` **pattern** — which broke one assertion row in three of the four audit
+    harnesses and returned `PASS 40 · FAIL 6`, while the *same commit* returns `33/33 ok` under a
+    bash ≥ 4. Two earlier unit records quote `SELFTEST TOTAL: 33/33 ok, 0 failed` as a witness and
+    ⛔ **both were TRUE where they ran** — they are **not** back-edited. ⇒ a SELFTEST figure without
+    its shell is uninterpretable: a reader on macOS reproducing a quoted `33/33` sees a regression
+    that is not one, and a reader on Linux calls a macOS red unreproducible. ⚠ The parse defect
+    itself was fixed at Batch 9; **this line survives the fix**, because the class is *a gate whose
+    verdict depends on the operator's machine*, not that one row.
 - ⛔ **A parent script asking a sweep for a FULL run writes `unset CASES && bash <sweep>`, never
   `CASES= bash <sweep>`** (2026-09-08). `VAR= cmd` sets `VAR` to the **empty string** in the
   child, and all four sweeps now read `CASES` on **set-ness**: an empty string is the third

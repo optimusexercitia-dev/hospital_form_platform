@@ -794,8 +794,12 @@ Files=262, Tests=8876, Result: FAIL"
   # twice — once with CASES unset (expects 0) and once with CASES="" (expects 1). This row on
   # its own proves the capture SURVIVED to here unwritten; it does not prove it is CORRECT.
   echo "SELFTEST-STARTUP: CASES_EXPLICIT_AT_STARTUP=$CASES_EXPLICIT_AT_STARTUP"
-  sel_eq "0  startup capture is a set-ness bit (0|1)" \
-    1 "$(case "$CASES_EXPLICIT_AT_STARTUP" in 0|1) echo 1;; *) echo 0;; esac)"
+  # ⛔ A plain `case` STATEMENT, never `$(case … )`: bash 3.2 — the macOS default and the shell
+  # this file runs under — closes a command substitution at the `)` of a case PATTERN, so the
+  # substituted form is a SYNTAX ERROR there. `in (0|1)` does NOT fix it. Ported, not copied,
+  # from the same assertion in p0-authz-writepath-audit.sh.
+  case "$CASES_EXPLICIT_AT_STARTUP" in 0|1) sel_bit=1 ;; *) sel_bit=0 ;; esac
+  sel_eq "0  startup capture is a set-ness bit (0|1)" 1 "$sel_bit"
   sel_eq "0' startup capture UNWRITTEN by arms 1-4" \
     "$CASES_EXPLICIT_AT_STARTUP" "$CASES_EXPLICIT"
 
