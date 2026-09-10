@@ -67,3 +67,56 @@ builder declares it in the migration header and the record, and the reviewer che
 
 **What this unit does NOT do.** It takes no decision Batch 9 took; it does not write ADR 0202 or
 0204; it does not open AE5 (post-pilot by ADR 0155 G1); it does not push.
+
+### 2026-09-10 — backend plan received; PO rulings R1–R3; two lead decisions (lead)
+
+**The plan** (`backend`, Opus, plan-only turn; the stack was DOWN at `(20261003007360, 525)`, started
+and fresh-reset to `(20261003007380, 527)`) is in the session scratchpad `batch10-backend-plan.md`
+(800 lines) — its measurements are re-stated in this record only where a ruling rests on them.
+
+**Measured, with a discriminating control:** `app.is_admin()`, `app.is_admin_for(uuid)` and
+`public.assume_role` all lack `app.is_active(` comment-stripped, while `app.is_org_admin_of_for` **has**
+it (the control that proves the query can see the term). Blast radius as sets: **26 policies + 13
+functions** read `is_admin()`, **0 + 5** read `is_admin_for`; 0 triggers; 0 readers outside the four
+schemas — the Batch 9 figures reproduce. The Class-2 closure: **14 `public` doors** (all `prosecdef`,
+EXECUTE to `authenticated`), **12 behaviourally affected**, ⭐ plus **2 RLS policies** ADR 0201's door
+table does not list (both in the unaffected half). `active_role_selections` has **no scope column**
+(D2 reason 1 confirmed).
+
+**Four findings the plan surfaced, none in any ruling:**
+1. ⭐⭐ **A fifth red file:** `257_ethics_e2_retention.sql` — four `redact_professional_profile` cells
+   under the `platform_admin` hat (`:132 :141 :174 :209`) reach `HC0J7`/`HC000`/`lives_ok` only
+   through the arm D5 removes, so they red *as if the retention bar had broken*. Derived from the
+   candidate set (13 files) read cell by cell, closed over **both** hat-seating syntaxes (`claims_for`
+   and raw `set_config` — the second intersection is empty). ⚠ The builder's **first** filter was wrong
+   (`claims_for\([^)]*,\s*true` cannot span `(select admin from k)`) and silently dropped the four files
+   the rulings name — LEARN-098's shape, recorded in the plan.
+2. ⭐⭐ **A TS mirror:** `src/lib/queries/session.ts:270` mirrors `is_admin()`'s two conjuncts, and its
+   own comment says `src/lib/{admin,users}/actions.ts` run on the service-role client with no RLS
+   backstop — the SQL fix alone would *read* complete.
+3. `315:246-249` is an **eighth** re-ruling ADR 0201's table calls unchanged: green, dead reason.
+4. ADR 0201 D5's position numerals **115/342 do not reproduce** (measured 111/338, strip expression
+   quoted); ordering unaffected. Also: `app.is_admin()` carries a **PUBLIC EXECUTE** ACL entry its two
+   siblings lack (unreachable — no PUBLIC schema USAGE).
+
+**PO rulings (AskUserQuestion, plan file in front of the PO):**
+- **R1 — `assume_role` gate is DOOR-WIDE (variant A), a DECLARED WIDENING of R12.** R12's words gate
+  the seating door reasoning about the admin hat; (A) puts one `is_active` check before **any** seating.
+  Measured cost: zero expected reds (no test seats a deactivated principal); every tenant predicate
+  already carries `is_active`, so (A) removes a pointless seating and its audit row, never an ability.
+  Recorded in ADR 0201 D4 as a dated note at the docs pass. The hat-blind allowlist reason for
+  `assume_role` **survives** on re-derivation (account state is not a hat/grant read) and gets a dated
+  appended paragraph, never inherited silently.
+- **R2 — the DERIVED red set and the proposed texts are approved as written**: nine assertions across
+  five files (`228 · 409 · 415 · 229`→2 · `257`×4) plus two green-but-dead-reason rewrites (`315:212`,
+  `315:246-249`). Every one gets a message saying what it now proves; every old property is re-homed
+  (a `lives_ok` twin under org authority beside `228`'s negative twin; `257` re-actored onto `oa_b` with
+  one authority cell per pair; `229` and `257` split freeze/retention from authority). Hub box reworded.
+- **R3 — the TS mirror is IN SCOPE**: `session.ts:270` gains the same `is_active` term, keyed the same
+  way, with a Vitest cell RED first; the diff touches `src/` by ruling and the hub's gate line names
+  the two files exactly.
+
+**Lead decisions (not PO):** **L1** ADR 0201 D5's numerals get a dated note beside them (a record of a
+measurement is annotated, never edited); **L2** the PUBLIC EXECUTE entry is a follow-up filed at the
+Record step, out of Batch 10's scope. **L3** the declared-tightening sentence goes in the migration
+header, this record, and the QA brief — the recurrence the queue processing flagged, applied here.

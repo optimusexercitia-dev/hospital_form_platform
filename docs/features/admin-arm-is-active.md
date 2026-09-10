@@ -58,17 +58,28 @@ correct the clause *before* closing on it, never around it.
       `active_role.assumed` row with **no** scope columns for **every** tier, verified live; ⛔ and
       pgTAP `315:212` is **REWRITTEN, not ticked** — under R10 the old assertion stays green while
       proving the wrong thing.
-- [ ] **The expected reds re-ruled, never silenced** — `228:630-634` · `409` § 3.7 (*polarity **and**
-      message*) · `415` § 1.2 · `229:215-220`, which **splits in two**. Each gets the PO's word on
-      what it now asserts; a red that is simply flipped to green with its message untouched is the
-      failure this box exists to catch.
+- [ ] **The expected reds re-ruled, never silenced** — ⚠ **reworded 2026-09-10 (PO ruling R2)**: the
+      set was DERIVED (files seating a `platform_admin` hat × files naming an affected door, over
+      **both** hat-seating syntaxes), not inherited from the four the rulings named. It is **nine
+      assertions across five files** — `228:630-634` (+ a re-homed `lives_ok` twin under org
+      authority) · `409` § 3.7 (*polarity **and** message*) · `415` § 1.2 (+ its § 1 header) ·
+      `229:215-220`, which **splits in two** · ⭐ **`257_ethics_e2_retention.sql` :132/:141/:174/:209**,
+      named by no ruling, which red *as if the retention bar had broken* (re-actored onto `oa_b`, plus
+      one authority cell per pair) — **plus two green-but-dead-reason rewrites** in `315` (`:212` and
+      `:246-249`, the eighth site ADR 0201's table calls unchanged). Old and proposed text for each:
+      the plan file, approved as written; a red simply flipped to green with its message untouched is
+      the failure this box exists to catch. (Superseded wording: *"the four expected reds"*.)
+- [ ] **The TS mirror follows (PO ruling R3)** — `src/lib/queries/session.ts:270` mirrors `app.is_admin()`'s
+      two conjuncts for service-role paths that have **no RLS backstop**; it gains the same `is_active`
+      term, keyed the same way, with a Vitest cell RED first. Without it the SQL fix *reads* complete.
 
 **Gate.** `npm run lint` 0 errors / 0 warnings · `typecheck` · `npm run test` · `test:db` on a
 fresh reset · the four authz arms with domains quoted · `SELFTEST=1` on the deriver **and** the door
 harness · the set-valued targeted home · the diff-scoped deriver over `main...HEAD` with its
 `SCOPE:` line quoted, its exit read **bare** before any substitution · the door sweep over **both
-arms** on the derived cases · `git diff --name-only main... -- src` empty unless a ruling names a
-TS mirror. ⛔ Someone other than the builder runs the arms at the tip.
+arms** on the derived cases · `git diff --name-only main... -- src` names **exactly**
+`src/lib/queries/session.ts` and its Vitest spec (R3) and nothing else. ⛔ Someone other than the
+builder runs the arms at the tip.
 
 ## Current state
 
@@ -86,12 +97,15 @@ Unit opened on branch `authz-admin-arm-is-active` off `main` @ `b87eac1e`; preco
 playbook paragraph, PO-approved) — dispositions in the record.
 
 ### In progress
-`backend` planning from ADR 0201 + 0203, the R11/R12 entries and the three follow-up bodies —
-reachability and blast radius as sets, the RED-first cells designed before any migration text.
+`backend` BUILDING on the approved plan: one migration over three sites + the arm relocation + the
+R10 stamp; pgTAP `418` RED-first; eleven re-rulings across `228 · 409 · 415 · 229 · 257 · 315`; the
+`session.ts` mirror with a Vitest cell RED first. PO rulings R1 (door-wide `assume_role`, a declared
+widening) · R2 (the derived red set and texts) · R3 (TS mirror in scope) are in the record.
 
 ### Next
-The migration; the four re-rulings taken to the PO with the old and new assertion text side by
-side; QA review; Record step.
+Landing assertions proven to fire on plants; the gate at the tip run by someone other than the
+builder; QA review; the follow-ups the plan surfaced filed at the Record step.
 
 ### Blockers
-None ruled. The four re-rulings need the PO once the builder has the replacement text.
+None. Two lead decisions taken, not PO: a dated note on ADR 0201 D5's numerals; `app.is_admin()`'s
+PUBLIC EXECUTE entry becomes a follow-up.
