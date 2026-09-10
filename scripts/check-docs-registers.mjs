@@ -16,7 +16,9 @@
  *             name; status/kind enums; links + ADR numbers resolve; `in_progress` needs a
  *             branch that exists; the `## Current state` block (required for in_progress /
  *             gated, FORBIDDEN for complete and planned — a planned unit has a plan, not a
- *             state) has the six sections in order, an `Updated` date, and ≤ 60 lines;
+ *             state) has the five sections in order, an `Updated` date, and ≤ 60 lines (ADR 0185 D2
+ *             says "six" because it counts `Updated`, which ships as a `**Updated:**` stamp,
+ *             not a `### ` heading — CURRENT_STATE_SECTIONS is the five heading names);
  *             `parked` carries `Revisit when`; `complete` has a phase-ledger row or an
  *             APPROVED review. When the current git branch IS the hub's branch, `Updated`
  *             may not be older than the newest commit touching src/ supabase/ e2e/ —

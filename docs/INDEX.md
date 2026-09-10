@@ -55,7 +55,7 @@ The one table (ADR 0186 D5; the mechanical checks are gates 7 and 13, not this t
 | A line that is… | goes to |
 |---|---|
 | a phase's status | PROGRESS.md § Phase Status — nothing else lives in that file but § State and pointers |
-| a unit's **state** (done, in progress, next, blocked) | its hub `docs/features/<code>.md` § Current state: six sections, replaced never appended, ≤ 60 lines |
+| a unit's **state** (done, in progress, next, blocked) | its hub `docs/features/<code>.md` § Current state: five sections, replaced never appended, ≤ 60 lines |
 | a unit's **witness** (a command, a SHA, a file:line, an exit code, a dead end) | its record `docs/progress/<code>.md` § Session log, one dated entry per session, appended |
 | a bug | one row in `docs/bugs/BUGS.md`; status is a cell, there is no rotation; a `docs/bugs/<ID>.md` file when severity ≥ high |
 | a follow-up | one entry in `docs/followups/follow-ups-open.md` with Filed · Owner · Severity · Closes when · Status; parked = `Status: parked` + Revisit when; a body over ten lines in `docs/followups/<FUP-ID>.md`; resolved → `follow-ups-archive.md`. `PO to rule` is the honest value; an invented one is not |

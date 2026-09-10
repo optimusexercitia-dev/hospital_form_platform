@@ -193,7 +193,7 @@ making changes to `CLAUDE.md`.**
 
 ## 7. Progress Tracking
 
-A unit's **summary** is its hub's `## Current state` (`docs/features/<code>.md`; six fixed
+A unit's **summary** is its hub's `## Current state` (`docs/features/<code>.md`; five fixed
 sections, replace never append, ≤ 60 lines, gated); its **log** is its record's `## Session log`
 (`docs/progress/<code>.md`; one dated entry per session, appended: witnesses, gate runs, dead
 ends). A state word goes to the hub; a witness goes to the record. **Never report status
