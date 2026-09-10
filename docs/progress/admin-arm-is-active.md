@@ -841,3 +841,37 @@ or dev-server command was permitted this turn. No `src/`, `e2e/` or `supabase/` 
 
 **Commit on `authz-admin-arm-is-active`** (not amended, not pushed): the seam-file slice + Current
 state replacement + this record entry.
+
+### 2026-09-10 — the prod E2E gate at `9f0909d3`: two reds, one pre-existing on `main`, one a consequence of R10 that needed a ruling (R6) (lead)
+
+Run detached (`REBUILD=1 npm run e2e:prod`, artifacts under the session scratchpad `e2eprod-9f0909d3/`),
+monitored per batch. Batches 1–11 and 14: every test accounted, 0 failed; batch 1 had **one flaky**
+(`act-role-assumption.spec.ts` *"The switch"*, passed on retry #1 — the flaky baseline's known recurring
+row for that spec, timed out waiting for an account-menu item, not on the door). Two reds:
+
+1. **Batch 12 — `pdf-printing-cases.spec.ts:618` (+10 did-not-run behind it, serial):** the fixture
+   `grantWriteAccessNoPhi` calls `grant_case_access(p_level => 'write')` on a **completed** case and the
+   door now refuses with `HC0U0` *"não é possível conceder edição em um caso encerrado"*. ⛔ **Not Batch
+   10's**: `HC0U0` is raised by migration `20261003007370` (ADR 0205 Fix 2, unit `GRANT-PLANE-CONVENTION`,
+   merged to `main` before this unit), and neither grant-plane unit's record mentions `e2e:prod` — the red
+   was on `main` and this run is the first full gate to reach it. Spec-side fix (tester): the completed
+   case needs a `read` grant for printing, or the grant precedes closure; bug row names the origin.
+2. **Batch 13 — `phase13-audit.spec.ts:981` AC-3f-platform:** asserts the platform-tier feed (`org NULL
+   AND commission NULL`) is EMPTY as a no-leak check. Under R10 every `active_role.assumed` row is
+   scope-less, so hat seatings from earlier tests in the batch land in the platform feed. ⭐ **A
+   consequence of R10 the ruling did not name**: the stamp has two READERS — `listAudit` (platform feed,
+   `commission_id IS NULL` rows) now shows tenant seatings; `listAuditForOrg` (`organization_id = org`)
+   loses them — and the spec's own history (its *"mechanism #1"* comment) records that ACT stage 3 stamped
+   the assumed role's tenant precisely to keep seatings out of the platform feed. Taken to the PO with
+   three options.
+
+**PO ruling R6 — option (d): seating is an IDENTITY event; the platform feed is its home; R10 stands.**
+Role seating is identity/session, inside `platform_admin`'s noun (A35: identity + audit); tenant admins
+see role GRANTS and every later action row with its place and `acting_as`. ⇒ no code change; ADR 0201 D2
+carries a dated note naming both readers; AC-3f is REWRITTEN by the tester to assert the precise no-leak
+property (every platform-feed row scope-less, never a tenant-scoped row) — ⚠ robust also to the
+pre-existing `BUG-CAPA-AUDIT-SCOPE-1` (all-NULL CAPA rows, the spec's *"mechanism #2"*, still open).
+(b) re-stamp the tenant and (c) one row per org were rejected: a second `assume_role` migration, `315`/`418`
+re-ruled again, and R10's snapshot objection back. ⭐ Lesson: a ruling that changes what a column HOLDS must
+enumerate what READS it — the plan's blast radius covered the predicates' readers (policies, functions) and
+not the audit stamp's (two TS queries).

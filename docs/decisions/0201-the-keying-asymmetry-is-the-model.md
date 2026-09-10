@@ -112,6 +112,20 @@ says *"No tenant to stamp — v_org/v_hospital/v_commission stay NULL (the rulin
 so a fix that assumes every branch has a scope is wrong. Implementation ⇒ **Batch 10**; its expected
 reds are enumerated in § Consequences, and two of them assert a **non-NULL** scope today.
 
+> ⚠ **Amended 2026-09-10 at Batch 10's E2E gate (PO ruling R6 of unit `ADMIN-ARM-IS-ACTIVE`) — the
+> stamp has TWO READERS this decision did not name, and both moved.** `listAudit` (the `/admin/audit`
+> platform feed, rows with `commission_id IS NULL`) now shows every tenant hat seating, and
+> `listAuditForOrg` (filtered on `organization_id`) loses them — witnessed by `phase13-audit` AC-3f
+> going red on the prod E2E gate: it asserted the platform feed EMPTY as a no-leak check, and ACT
+> stage 3 had stamped the assumed role's tenant precisely to keep seatings out of that feed. **Ruled:
+> seating is an IDENTITY event and the platform feed is its home; D2 stands.** Role seating is
+> identity/session, inside `platform_admin`'s noun (ADR 0078 A35 names identity *and* audit); tenant
+> admins see role GRANTS (membership audit rows) and every later action row with its own place and its
+> `acting_as` key — they do not see seatings. AC-3f is rewritten to assert the precise no-leak property
+> (every row the platform feed shows is scope-less; never a tenant-scoped row). ⛔ The lesson is the
+> shape, not the row: a ruling that changes what a column HOLDS must enumerate what READS it
+> (LEARN: *a change that flattens a curve invalidates every control reading it*).
+
 **D3 — ADR 0200's keying obligation becomes a TEMPLATE CLAUSE with the two axes separated.** ADR
 0193 D5 required a DEFINER/policy split be *"declared as data … not described in prose — and the
 AE5 template inherits that obligation"*; ADR 0200 extended it to **keying**. This ADR states the
