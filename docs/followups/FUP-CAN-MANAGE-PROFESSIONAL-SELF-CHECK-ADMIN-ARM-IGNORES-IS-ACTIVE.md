@@ -136,11 +136,17 @@ platform admin is a **flag on `profiles`** (`is_admin = true`), and that string 
 **hat** is named. A grep for the word cannot find a principal identified by a column.
 
 **D2′ — the corrected predicate: deactivates an *admin-flagged* principal, OR one wearing the hat.**
-Of the 21, exactly **two** qualify, and neither reaches an admin arm:
+⛔ **Stated as a set with its reading, not as a count** (QA R2-MINOR-1: *"exactly two"* was itself a
+figure a counter-example could kill). On the **strict** reading — *the deactivated principal is
+itself admin-flagged or hatted* — exactly **one** file qualifies, `145`. On the **loose** reading —
+*the file deactivates someone and hats an admin somewhere* — `409` joins it, and so do **`328`**
+(`:461` seats `claims_for('…0000b0', true)`, `:478` deactivates `…0002`), `395` and `397`. ⚠ Under
+**either** reading no cell reaches an admin arm, which is why the conclusion does not depend on which
+one is taken:
 
 | file | why it qualifies | why it still does not measure an admin arm |
 | --- | --- | --- |
-| `145_pqs_membership.sql` | deactivates `admin` — `is_admin = true` (`00_setup.sql:152`) | ⭐ it seats `test_helpers.claims_for((select admin from k), false)` at `:418` — **no third argument, so NO hat** — and `app.is_admin()`'s live body requires `app.active_role() = 'platform_admin'`. ⇒ the admin arm is **unreachable** in that cell by construction; the assertion is `list_my_nsp_hospitals()` |
+| `145_pqs_membership.sql` | deactivates `admin` — `is_admin = true` (`00_setup.sql:152`, the only such flag **in the pgTAP bootstrap**; ⚠ `supabase/seed.sql` also flags `platform@test.local`, and what makes the clause airtight is that **no deactivation site targets either**) | ⭐ it seats `test_helpers.claims_for((select admin from k), false)` at `:418` — **no third argument, so NO hat** — and `app.is_admin()`'s live body requires `app.active_role() = 'platform_admin'`. ⇒ the admin arm is **unreachable** in that cell by construction; the assertion is `list_my_nsp_hospitals()` |
 | `409_ae49_d6_rekey_differential.sql` | seats a `platform_admin` hat (§ 3.7) | its deactivation at `:711` targets `sa`, bound in-file to `m.role = 'staff_admin'` — a **different principal** from the hatted one |
 
 ⇒ **The conclusion SURVIVES: no existing cell measures an admin arm under a deactivated admin, so
@@ -153,4 +159,4 @@ RED-first cell … does not exist to be reused"* over-reached: **`145:414-425` i
 SHAPE** — unexpire the grant, `is_active = false`, seat claims, assert, then `is_active = true` to
 restore. What does **not** exist is a cell that seats the **`platform_admin` hat** on a deactivated
 admin and measures `app.is_admin()` / `app.is_admin_for()` / `app.can_manage_professional`. ⇒ Batch
-10 **adapts `145`'s shape and adds the hat**, rather than building from nothing.
+10 **adapts `145`'s shape and adds the hat**, rather than building from nothing. ⭐ **And a SECOND reusable shape, disclosed at QA R2-MINOR-1 rather than left undiscovered:** `328:477-490` seats an admin-flagged hat and deactivates a *different* principal — a **differential** shape, where `145`'s is a **single-principal** one. Batch 10 needs the differential for the third site (`assume_role` must deny a deactivated admin *seating* the hat while a live admin still can).

@@ -138,45 +138,44 @@ named successors — together with the three follow-ups the PO added at initiati
 
 ### Done since start
 
-**Fourteen PO rulings (R1–R14)** taken, each with its measured basis in the record, and — after QA
-BLOCK-1/BLOCK-2 — **all of them landed in the corpus, not only the log**. **ADR 0201** (412 lines)
-and **ADR 0203** (337), `Status: proposed`, registered in `proposed-review.json`. The manifest
-follow-up's three conditions **met and proven**. All three register clauses corrected with their
-superseded wording quoted — including the follow-up **body's own** `Closes when` field, which named
-one site where the item now names three. Item 6's five checklist corrections added (measured at
-**0 of 5** first). Both deferred censuses written into their follow-up bodies.
-`AE5-MATRIX-ARM3-CELLS` hub opened. R13's three-site bash-3.2 harness fix landed and was **verified
-by the lead, not the builder**. Three lessons filed (**LEARN-095/096/097**), one new rule, and one
-prohibition promoted into the lead-playbook. `FUP-AE5-OPENING-ADR-CLASSIFICATION-COLUMNS-OWE-A-NAMED-CONSUMER`
-filed, which is what makes ADR 0203 D3's present-tense claim about the register true.
-⭐ **Gate at the tip, exit codes bare:** lint **0** (17/17, 0/0) · typecheck **0** · vitest **151
-files / 2056** · `test:db` **264 files / 8923 PASS** on a fresh reset · **four arms HOLD** · deriver
-**rc 3 = NOT-APPLICABLE** with its `SCOPE:` line quoted · `SELFTEST` **rc 0, PASS 46 · FAIL 0** on
-bash 3.2.57 · ⭐ **empty-pathspec assertion EMPTY**.
-**QA:** [review](../reviews/ae5-opening-adr-review.md) `CHANGES REQUESTED` (2 BLOCK · 2 MAJOR · 7
-MINOR) → [re-review](../reviews/ae5-opening-adr-rereview.md) `CHANGES REQUESTED`
-(**0 BLOCK** · 3 MAJOR · 2 MINOR) — both BLOCKs **FIXED**, and ⛔ **all three new MAJORs were
-defects the fix loop itself introduced, of the class it was sent to repair.**
+**Fourteen PO rulings (R1–R14)**, each with its measured basis in the record and — after QA
+BLOCK-1/2 — **each landed in the corpus, not only the log**. **ADR 0201** (412 lines) + **ADR 0203**
+(337), `proposed`, in `proposed-review.json`. The manifest follow-up's three conditions **met and
+proven**. All three register clauses corrected with superseded wording quoted, including the
+follow-up **body's own** field, which named one site where the item names three. R13's three-site
+bash-3.2 harness fix landed, **verified by the lead, not the builder**. Three lessons, one new rule,
+one prohibition promoted to the lead-playbook, `AE5-MATRIX-ARM3-CELLS` opened, and the
+classification-columns follow-up filed — which is what makes ADR 0203 D3's claim about the register
+true. ⭐ **Gate at the tip, bare:** lint **0** (17/17, 0/0) · typecheck **0** · vitest **151/2056** ·
+`test:db` **264 files / 8923 PASS** on a fresh reset · **four arms HOLD** · deriver **rc 3
+NOT-APPLICABLE**, `SCOPE:` quoted · `SELFTEST` **rc 0, 46/46** on bash 3.2.57 · ⭐ **empty-pathspec
+EMPTY**. **QA:** [r1](../reviews/ae5-opening-adr-review.md) `CHANGES REQUESTED` (2 BLOCK · 2 MAJOR ·
+7 MINOR) → [r2](../reviews/ae5-opening-adr-rereview.md) `CHANGES REQUESTED` (0 BLOCK · 3 MAJOR · 2
+MINOR — ⛔ **all three new MAJORs were defects the fix loop itself introduced**) →
+[r3](../reviews/ae5-opening-adr-rereview-2.md) ⭐ **`APPROVED`** (0/0/3, all three cleared here, not
+carried). Per-finding detail: the record, ⛔ not restated here.
 
 ### In progress
 
-**QA fix loop, iteration 2** — all five of the re-review's findings, this entry: the routing sentence
-that was left **orphaned at the tail of a different item** (N-MAJOR-1); the derivation whose
-**filter was the wrong predicate**, asserting a false universal that one counter-example killed
-(N-MAJOR-2); this block (N-MAJOR-3); the missing register entry (N-MINOR-1); and the finding count
-(N-MINOR-2). Then a second re-review.
+Nothing building. **QA fix loop closed at round 3 (`APPROVED`)**, with round 3's three MINORs cleared
+in the same round rather than carried. Awaiting **PO approval — Phase Gate step 4.**
 
 ### Next
 
 QA re-review at the iteration-2 tip → PO approval → Record step. What Record owes, **named rather
 than counted** (⚠ this block previously said *"eight"* against an enumeration of five — QA
 N-MINOR-2): both ADRs `proposed` → `accepted` and removed from `proposed-review.json` · `"0201"`
-re-added to the `AE5-MATRIX-ARM3-CELLS` hub · the ledger row · and **four** follow-ups still to
-file — `0176:45`'s no-reader list stale 4→3 with no gate able to say so · `authz-matrix-coverage.json`'s
-`migrationHead` stale against the live head · R10's audit-stamp implementation, which has no register
-home · and `entailed_grants`' comment numerals that **reproduce at no grain measured**. ⚠ Four other
-named findings were **discharged inline** rather than filed (the two deferred clauses' censuses, and
-three lessons), which is why no single number describes them.
+re-added to the `AE5-MATRIX-ARM3-CELLS` hub · the ledger row · and the follow-ups still to file,
+⛔ **listed, not counted** (QA R2-MINOR-2 killed two counts here already):
+`0176:45`'s no-reader list stale 4→3 with no gate able to say so · `authz-matrix-coverage.json`'s
+`migrationHead` stale against the live head · R10's audit-stamp implementation, which has **no
+register home** · `entailed_grants`' comment numerals that **reproduce at no grain measured** ·
+⭐ **and ADR 0175 D3's undischarged forward promise**, which R2-MINOR-2 caught this list **dropping**:
+the record names it owed twice, and its only home is an **unchecked box** in
+`ae5-matrix-arm3-cells.md`, which is a *unit's* acceptance criterion and ⛔ not a register entry.
+⚠ Separately, these were **discharged inline** rather than filed and so are **not** in the list
+above: the two deferred clauses' censuses (written into their follow-up bodies) and LEARN-095/096/097.
+⛔ No count describes this set, because its members were dispatched two different ways.
 
 ### Blockers
 

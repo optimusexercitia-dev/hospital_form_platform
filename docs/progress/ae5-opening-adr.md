@@ -1186,9 +1186,13 @@ INTRODUCED, of the class it was sent to repair.** ⛔ That is the finding, not t
 **QA also ruled on the three refutations and upheld all three, including two against itself and the
 lead** — its own BLOCK-1 anchors (`0203:198`/`:203` vs the measured `:149`/`:157`, with `:203` of
 length **0**), the *"inverted"* over-reading, and the two-hit `the fuse` count. ⚠ It named the shared
-cause without softening it: *"the identical class I filed as MAJOR-2. Mine."* And it verified all
-**12** anchors the fix loop added resolve, plus the superseded quotes byte-for-byte against
-`ed80da4c`. Gates re-run bare: `lint` **0**, `typecheck` **0**, `SELFTEST` **rc 0 / 46 pass** on bash
+cause without softening it: *"the identical class I filed as MAJOR-2. Mine."* ⛔ **CORRECTED 2026-09-10 at QA R2-MINOR-3:** this sentence read *"it verified all **12** anchors the
+fix loop added resolve, plus the superseded quotes byte-for-byte against `ed80da4c`"* — ⛔ **round 2's
+report contains neither that count nor that phrase.** The lead attributed to the reviewer a figure the
+reviewer never wrote. What round 2 *did* state is that the fix loop's added anchors resolve and that
+the superseded draft at `0201:154-161` was verified verbatim against `ed80da4c`. ⚠ **A claim is not
+made safer by being attributed to someone else** — and this is the second time in two rounds the lead
+passed another role's words through as measured (after *"inverted"*). Gates re-run bare: `lint` **0**, `typecheck` **0**, `SELFTEST` **rc 0 / 46 pass** on bash
 3.2.57, pathspec **EMPTY**.
 
 **N-MAJOR-1 — the correction left its own superseded sentence LIVE, four lines lower.** Fixing plan
@@ -1243,3 +1247,54 @@ which has **no register home** · `entailed_grants`' numerals that reproduce at 
 and states that four others were **discharged inline** rather than filed. ⛔ No single number
 describes a set whose members were dispatched two different ways — which is why the count kept
 drifting.
+
+### 2026-09-10 — QA round 3: **APPROVED** (0 BLOCK · 0 MAJOR · 3 MINOR); the three MINORs cleared, not carried (lead)
+
+**Verdict:** [`docs/reviews/ae5-opening-adr-rereview-2.md`](../reviews/ae5-opening-adr-rereview-2.md)
+— **`APPROVED`**, 0 BLOCK · 0 MAJOR · 3 MINOR. ⭐ **Iteration 2 did not repeat iteration 1's
+pattern**: all five of round 2's findings **FIXED**, every anchor it added **resolves**, and the
+superseded quotes match what they claim to supersede. QA verified `N-MAJOR-1`'s tail has **no third
+copy** anywhere (`grep "not from a placeholder"` → 4 hits, all accounted for), and re-derived
+`N-MAJOR-2` on a **stronger** predicate than the lead's: exactly one live profile carries
+`is_admin = true`, it is never a deactivation target across 29 references, and `403:551-554` — the
+only file substituting an `is_admin` arm while deactivating — **measures** that no fixture principal
+is a platform admin. Gates bare: `lint` **0** · `typecheck` **0** · pathspec **EMPTY**.
+
+⚠ **QA also tried to kill the new universal this batch had just written into the hub** (*"all fourteen
+rulings landed in the corpus"*) and could not — every ruling R1–R14 has a non-log home. ⭐ That is the
+right way to read an approval: the reviewer went looking for the counter-example and reported that
+there wasn't one.
+
+**All three MINORs cleared in this entry rather than carried into the Record step** (the PO's standing
+preference), and one of them was materially more than cosmetic:
+
+1. **R2-MINOR-1 — another count killed, and a second fixture disclosed.** *"Of the 21, exactly **two**
+   qualify"* was itself a figure a counter-example could kill: on the **strict** reading only `145`
+   qualifies; on the **loose** one `409`, **`328`**, `395` and `397` all do. ⇒ restated as a **set
+   with its reading**, and ⚠ *no cell reaches an admin arm under **either** reading*, which is why
+   the conclusion never depended on the count. ⭐ **And `328:477-490` is a SECOND reusable fixture
+   shape** — it seats an admin-flagged hat and deactivates a **different** principal, i.e. a
+   **differential** shape where `145`'s is single-principal. **Batch 10 needs the differential** for
+   the third site: `assume_role` must deny a deactivated admin *seating* the hat **while a live admin
+   still can**. That was undisclosed and is now written down.
+   Also scoped per QA's carried observation: `00_setup.sql:152` is the only `is_admin` flag **in the
+   pgTAP bootstrap**, but `supabase/seed.sql` flags `platform@test.local` too — ⇒ what makes the
+   clause airtight is that **no deactivation site targets either**, and the body now says so.
+2. **R2-MINOR-2 — the count drifted a third time, and this one DROPPED a finding.** The hub said
+   *"four discharged inline"* while enumerating **five**, and its *"four still to file"* list had
+   **lost ADR 0175 D3's forward promise** — which the record names owed **twice**, and whose only
+   other home is an **unchecked box in a unit hub**, i.e. an acceptance criterion and ⛔ not a
+   register entry. ⇒ the list is now **listed, not counted**, with the promise restored and the
+   inline-discharged set named separately. ⛔ **Three counts in one batch have now been wrong in the
+   same way; the Record step's lesson is to name sets, not size them.**
+3. **R2-MINOR-3 — the lead attributed to QA a count QA never wrote.** The record claimed the reviewer
+   *"verified all **12** anchors … byte-for-byte"*; round 2's report contains **neither that figure
+   nor that phrase**. Corrected in place with the false sentence quoted. ⚠ **Second time in two
+   rounds the lead passed another role's words through as measured** (after *"inverted"*) — and ⭐ **a
+   claim is not made safer by being attributed to someone else.** Folded into the Record step's lesson
+   with the *"inverted"* instance, as one class.
+
+**Phase Gate status:** step 1 build **complete** · step 2 test pass — **`e2e:prod` not owed**, ruled
+by the lead and independently agreed by QA on the stronger ground that **nothing under `src/` derives
+from the manifest**, with `test:db` 264/8923 PASS and `SELFTEST` 46/46 standing as the test evidence ·
+step 3 QA **APPROVED** at round 3 · **step 4 — the PO's, next.**
