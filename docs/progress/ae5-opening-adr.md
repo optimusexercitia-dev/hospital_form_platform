@@ -637,3 +637,58 @@ is a distinct question, put to the PO before the build rather than drafted aroun
 ⚠ Note for whoever drafts it: for the `platform_admin` branch there is **no scope to stamp** —
 `v_org`/`v_hospital`/`v_commission` stay NULL by the ruling's own carve-out — so the mismatch is a
 **tenant-role** phenomenon only, and a fix that assumes every branch has a scope is wrong.
+
+### 2026-09-09 — PO ruling R10; lead half built (item 6, plan sizing, two censuses, the arm-3 unit) (lead)
+
+**PO ruling R10 — the audit stamp: LOG THE ROLE ONLY, no place.** `active_role.assumed` carries no
+scope columns; implementation ⇒ **Batch 10**. Rationale to record in ADR 0201: it matches the storage
+(`app.active_role_selections` has **no scope column**), each later action audit row already carries
+its own place, and it avoids the trap the alternative walks into — a footprint recorded at
+assume-time is a **snapshot** that a mid-session grant invalidates while `hat_ok` admits the new
+seating. ⚠ The `platform_admin` branch already stamps NULL by its own carve-out ⇒ a **tenant-role**
+change only, and a fix assuming every branch has a scope would be wrong.
+⇒ **D8's *"audit scope must match whichever wins"* is discharged by R10, not by R8.**
+
+**Lead half built, on files disjoint from the concurrent ADR-drafting turn** (`docs/decisions/**` is
+backend's; `docs/plans/**`, `docs/progress/**`, `docs/features/**`, `docs/followups/**` are the
+lead's — the rulings file states the split, and forbids the build turn any git command that mutates
+the working tree, because a build agent's `git stash` silently reverted a lead's uncommitted work on
+this repo once already):
+
+1. **Item 6 — the five corrections, added as POINTERS** to `docs/plans/authz-evolution.md` § Per-role
+   checklist. ⛔ Measured **before** adding, so the claim is a finding and not an impression: the file
+   held **zero** occurrences of `SCOPE:`, `SELFTEST`, `set-valued`, `NOTICED`, `RESET_EVERY` and
+   `CARRIED` ⇒ **0 of 5**. Each is a pointer naming its authority (ADR 0189/0190/0191, lead-playbook
+   §4, `pre-ae5-remediation.md` §4/§5), ⛔ **not a second home** — *a correction that lives only where
+   the batch that found it wrote it is a correction the next role increment will not read.*
+   ⚠ Correction 4 carries its own live caveat: `rowdoor` and `invoker` **still lack `RESET_EVERY`**.
+2. **Plan §3 — the sizing ruling and every deferral in writing**, with the corpus figures and, for
+   each deferral, the reason it may wait. ⭐ The `0202`-gates-increment-2 claim is stated **with its
+   measurement** (`staff_admin` is the only `authoritative` role), not as a judgement.
+3. **Both deferred follow-ups now carry their censuses**, per R7, so ADR 0204 never re-measures them —
+   and each body says ⛔ **the clause may not be closed on the figures it was filed with**:
+   - `FUP-AE4-CANDIDATE-SCOPE-FANOUT-IS-UNBOUNDED`: its *"nothing in the schema bounds either"* is
+     **refuted** — `D ≤ M` structurally, `M` bounded by the tenant tree from three `memberships`
+     constraints — plus the product-seed census (all **33** seated principals in **exactly 1** org)
+     **and** the perf-fixture figures beside it, because they are different populations and a
+     closure needs both. The no-instrument negative carries its self-test.
+   - `FUP-NO-GATE-CATCHES-A-COLLAPSED-SEARCH-PATH`: **five** live conventions, not two; empty-form
+     **23** not 17; dominant **825** not 400 (400 is only its `app` half); and
+     `public.tenant_orphan_profiles` **inverts** the resolution order — ⭐ a **semantic singleton**,
+     which is exactly the shape a count cannot show. Its two surviving premises re-verified; its own
+     gate-count numeral flagged stale **again**.
+4. **`AE5-MATRIX-ARM3-CELLS` hub created** (`status: planned`) per R9, stating why it is **work and
+   not a decision**, that the dependency is the **matrix** and not the template, and that the open QA
+   finding at `docs/reviews/authz-ae4-review.md:99-101` is a live home not to be duplicated. ⚠ It also
+   notes that this unit **writes generated vectors**, so ⛔ Batch 7's empty-pathspec assertion does
+   **not** carry over to it.
+   ⚠ **Gate 13 caught a real thing here:** the hub's `adrs:` listed `"0201"`, which **has no file yet**
+   — `[HUBS] ADR 0201 has no file`. Dropped with an inline note; ⛔ **the Record step must re-add it**
+   once `docs/decisions/0201-*.md` exists. A forward ADR reference in frontmatter is gated; in prose
+   it is not.
+
+**Still owed in this batch:** ADR 0201 + ADR 0203 (drafting turn in flight) · the classification-column
+PO question (0203 leaves it `PO to rule` by instruction) · the `public.assume_role` `is_active`
+question (R3's named third site) · the Record step's filings — the five named findings, the
+`prosrc`-blind-to-`RETURNS TABLE` lesson, and R10's Batch 10 implementation, which has **no register
+home yet**.
