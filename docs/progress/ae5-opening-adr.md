@@ -1543,3 +1543,55 @@ the next rule needs a different home. And CLAUDE.md §5's lessons pointer names 
 LEARN-095/096; ⛔ not a falsehood, recorded so it is not re-found as a gap.
 
 **`npm run lint` rc 0** across all seven changed files plus the regenerated index.
+
+### 2026-09-10 — the CLAUDE.md review queue PROCESSED (all five entries) and cleared (lead)
+
+⭐ **Processed at PO instruction — the first time this queue has been discharged rather than deferred.**
+Plan §6 item 4 had recorded it deferred **twice** (Batch 8 reported it to the PO rather than run
+`/review-claude-md` unasked; Batch 9's R2 ruled skip-and-record). Five entries; the two big transcripts
+(8.8 MB / 1.4 MB / 1.1 MB) were read by subagent with windowed extraction, ⛔ never whole.
+
+**Verdict: FOUR of five need NO documentation edit — each already recorded in its proper home** under
+ADR 0186's one-home-per-fact rule. ⛔ The skill's own bar is that an already-recorded lesson needs no
+edit, and ⛔ *"do not invent review work"*.
+
+| entry | signal | classification | why no edit |
+| --- | --- | --- | --- |
+| `e88fac4e` 2026-08-25 | staleness | **not a doc problem** — ⭐ a **keyword false positive**: the hook matched *"stale"* in a sentence saying the staleness **did not exist**. A CPF docblock queued for escalation had already been fixed by the other teammate mid-flight, cross-column | LEARN-050 is the exact class, and its enforcer (`lint:adr-index`'s back-pointer) is **live in ADR 0133's header today** |
+| `e41ed9b2` 2026-09-03 | staleness | **not a doc problem** — the *baseline* was stale, not the figure: a subagent resolved *"main"* to the **local** ref (475) where the lead meant `origin/main` (501). ⛔ A **prompt-wording** ambiguity between two git refs, caught in the same turn; **no file asserted 475** | ADR 0184 D3 already institutionalised the fix structurally — the AE domain qualifier gained a **third required field: the schema the figures were measured on**. Class = LEARN-053 |
+| `a2705714` 2026-09-07 | staleness | **not a doc problem** — the doc *was* stale and **this session is the event that fixed it**: the runbook's `EXPECT` arithmetic (the **middle** term was wrong, not the total) and a carrier census of 3/1 that is truly **4/2**, moved by a migration the revert procedure never mentions | the archived closure of `FUP-AE4-ROLLBACK-RUNBOOK-SIX-SCOPED-TO-FOUR` enumerates all six figures clause by clause, and `410` § 8.5 now **pins where a fifth carrier would red** — a pgTAP assertion, which CLAUDE.md says beats a rule |
+| `50584f97` 2026-09-10 | staleness | **not a doc problem** — this session; the signal fired on **its own QA report text** | already recorded: LEARN-095…099, six follow-ups, five playbook steps |
+
+⭐ **Entries 2 and 3 are NOT the same lesson, and the grain is the point:** entry 2 is *the baseline
+was stale, the figure was fine* (both 519 and 501 were correct — the error was which ref *"main"*
+named) and its durable fix is **naming what you measured against**; entry 3 is *the figures were
+stale, the baseline was fine* and its durable fix is **enumerating the readers of a count you
+change**. ⛔ Collapsing them into one "stale numbers" lesson would have lost both fixes. Their common
+ancestor is already in the register **three times** (LEARN-003, LEARN-033, LEARN-054), all reachable
+from CLAUDE.md §5's mandated lessons read — which is the work both sessions were doing.
+
+**The fifth entry (`b2dcb519`, signal `claude-md`) produced the only edit, and one self-correction.**
+The session had audited session-start context load; the PO asked whether CLAUDE.md forces reading
+other files. Its conclusion **holds, re-verified**: CLAUDE.md is **21,650 B** against the 21,649 that
+session measured — **+1 byte**, so ⛔ nothing crept during this batch — and **all 11 project rules are
+path-scoped**, including the one added here, so none costs anything at session start.
+
+⛔ **PO RULING — playbook step 4 WIDENED.** Two documents stated the seam obligation differently:
+step 4 was **conditional** (*"if the backend surface changed"*) while CLAUDE.md §7 is
+**unconditional**. Batch 9 changed **no** surface, so by the playbook its slice may not have been
+owed. ⇒ ruled: the trigger now also fires when **a phase RULED on that seam's subject without
+changing it**, because *a decision-only phase changes what the projection should SAY even with zero
+DDL*. ⭐ Justified by measurement, not theory — this batch's refresh is what **caught the two false
+statements** in that block. ⚠ Applied to `docs/lead-playbook.md` **only**: it is **lead-only**, so the
+fix costs **nothing per teammate spawn**, and ⛔ **CLAUDE.md was not touched.**
+
+⚠ **One figure from the audit was WRONG and is corrected here:** it reported `.claude/rules/` at
+*"exactly 12 files"* against `MAX_RULES = 12`, i.e. **no slot left**. Measured three ways: **11**, and
+the gate itself prints `11 rule file(s)` ⇒ **one slot remains.** Its *conclusion* (⛔ do not widen
+`live-facts-measure-dont-quote.md` to cover runbooks) **survives on its other grounds** — both
+instances were caught without the rule, and entry 3 got the better instrument — but its headroom
+premise did not. ⭐ **A count from a reviewer ages exactly like a count from an author** (LEARN-054),
+and this is the fourth killable count this batch has had to re-measure.
+
+**Queue cleared to empty**, all five processed. ⚠ The declines are recorded **here**, ⛔ not in the
+queue file — a processed entry whose lesson was declined is still processed.

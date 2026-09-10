@@ -76,7 +76,16 @@ When a phase passes human approval, the lead:
 3. Archives the phase's task detail to `docs/progress/phase-N.md` (or a feature-named
    file).
 4. Updates `docs/backend-state/` (the ONE seam file its README routes you to -- never a new file)
-   if the backend surface changed — **TWO edits to that one file, not one** (ADR 0198): **append**
+   **if the backend surface changed — OR if the phase RULED on that seam's subject without changing
+   it** (widened 2026-09-10, PO ruling at the CLAUDE.md review-queue pass; ⚠ this step read *"if the
+   backend surface changed"* alone, which `CLAUDE.md` §7's unconditional *"a new phase APPENDS its
+   slice"* contradicted). ⭐ **A decision-only phase changes what the projection should SAY even with
+   zero DDL** — and the justification is measured, not theoretical: pre-AE5 Batch 9 changed **no**
+   surface (empty pathspec, no migration) and refreshing this layer is what surfaced **two false
+   statements** already sitting in it — a `hardDenyClasses` claim contradicted at **3 of 43** rows,
+   and a follow-up id present in **neither** register. ⛔ Neither had any gate: gate 13's
+   retired-citation scan covers retired **files**, not follow-up **ids** inside seam files.
+   — **TWO edits to that one file, not one** (ADR 0198): **append**
    the slice at the bottom, **REPLACE** the `## Current state` block at the top and re-stamp its
    `**Updated:**` date. Gate 16 check I reds if a heading below is newer than the stamp above. How:
    `node scripts/check-backend-state.mjs --scaffold` prints the form;
