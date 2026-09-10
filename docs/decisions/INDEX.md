@@ -14,13 +14,13 @@
 >
 > Edges are **advisory** and over-inclusive by design; the ADR text is truth.
 
-**198 ADRs** · next free number: **0201** · 72 carry an inbound supersedes/amends edge
+**200 ADRs** · next free number: **0204** · 74 carry an inbound supersedes/amends edge
 
 ## ⚠ Anomalies
 
-- **Missing numbers:** 0034, 0077 — a gap is not automatically a defect (0077 was withdrawn by the PO and its subject re-filed as 0078; 0034 was never used), but a gap nobody can explain usually means a lost file.
+- **Missing numbers:** 0034, 0077, 0202 — a gap is not automatically a defect (0077 was withdrawn by the PO and its subject re-filed as 0078; 0034 was never used), but a gap nobody can explain usually means a lost file.
 - **No parseable `Status:`:** none
-- **Still proposed / draft / deferred (8):** 0022, 0031, 0033, 0058, 0094, 0108, 0115, 0160 — an ADR's status is the author's claim on the day it was written, and nothing updates it when the code ships. The last review of this list is stamped in `proposed-review.json`; gate 9 reds when that review is more than 30 days old or this set has drifted from it.
+- **Still proposed / draft / deferred (10):** 0022, 0031, 0033, 0058, 0094, 0108, 0115, 0160, 0201, 0203 — an ADR's status is the author's claim on the day it was written, and nothing updates it when the code ships. The last review of this list is stamped in `proposed-review.json`; gate 9 reds when that review is more than 30 days old or this set has drifted from it.
 
 ## Index
 
@@ -195,11 +195,11 @@
 | 0169 | [the meeting-content recusal divergence is a time-boxed EXCEPTION, not a new rule](0169-meeting-content-recusal-divergence-is-a-time-boxed-exception.md) | accepted | 2026-08-31 | amends 0078 | – |
 | 0170 | [case deletion is not a client capability: DELETE on `public.cases` is revoked from `aut…](0170-case-deletion-is-not-a-client-capability.md) | accepted | 2026-08-31 | amends 0132 | – |
 | 0171 | [C2's Tier-1 predicate is re-grained, the tenancy disjunct is dropped, and the command-d…](0171-c2-tier1-regrain-and-the-command-door-neutralizer.md) | accepted | 2026-08-31 | – | ⚠ amended by 0189 |
-| 0172 | [AE4's catalog substrate: MATCH FULL is the assignment binding, unreachable scope kinds…](0172-ae4-catalog-substrate-match-full-binding-and-deferred-classification-columns.md) | accepted | 2026-09-01 | amends 0162 | – |
+| 0172 | [AE4's catalog substrate: MATCH FULL is the assignment binding, unreachable scope kinds…](0172-ae4-catalog-substrate-match-full-binding-and-deferred-classification-columns.md) | accepted | 2026-09-01 | amends 0162 | ⚠ amended by 0203 |
 | 0173 | [the door-sweep deriver is blind to runtime-rewrite migrations; a target-declaration con…](0173-door-sweep-deriver-blind-to-runtime-rewrite-migrations.md) | accepted | 2026-09-01 | amends 0079 | ⚠ amended by 0190, 0191 |
 | 0174 | [`authz.holds_role`: one chokepoint for the hat, and `authz.roles.state` made load-beari…](0174-authz-holds-role-chokepoint-and-authoritative-state-gate.md) | accepted | 2026-09-01 | amends 0079, 0106 | ⚠ amended by 0176 |
 | 0175 | [The AE4 PO batch: what the differential oracle asserts, and what it deliberately does n…](0175-ae4-po-batch-oracle-inputs-and-arm3-deferral.md) | accepted | 2026-09-01 | amends 0155 | ⚠ amended by 0178 |
-| 0176 | [The permission layer made real: three interfaces, a manifest countdown, and the re-key…](0176-authz-permission-layer-made-real.md) | accepted | 2026-09-02 | amends 0155, 0174 | ⚠ amended by 0193 |
+| 0176 | [The permission layer made real: three interfaces, a manifest countdown, and the re-key…](0176-authz-permission-layer-made-real.md) | accepted | 2026-09-02 | amends 0155, 0174 | ⚠ amended by 0193, 0201, 0203 |
 | 0177 | [AE4.9 D4/D7 as built: the candidate's state set, the denial precedence, and the state g…](0177-ae49-resolver-contract-implementation-choices.md) | accepted | 2026-09-02 | – | – |
 | 0178 | [AE4.9 D6 as built: the narrow authorizer, where the preserved legacy arm lives, and the…](0178-ae49-d6-rekey-as-built.md) | accepted | 2026-09-02 | amends 0175 | ⚠ amended by 0193 |
 | 0179 | [One open follow-up register: the PROGRESS.md index is folded into the bodies](0179-follow-up-register-consolidation.md) | accepted | 2026-09-02 | amends 0124, 0140 | ⚠ amended by 0185, 0186 |
@@ -216,11 +216,13 @@
 | 0190 | [The door-sweep deriver selects doors by PROPERTY, scopes what it swept, and a full run…](0190-the-door-sweep-deriver-selects-by-property-and-a-full-run-merges.md) | accepted | 2026-09-05 | amends 0079, 0173 | ⚠ amended by 0200 |
 | 0191 | [The door arm's domain gains a SCHEMA axis, the set-valued resolvers get a committed hom…](0191-the-door-arms-domain-gains-a-schema-axis-a-targeted-home-and-a-fourth-outcome.md) | accepted | 2026-09-05 | amends 0079, 0173 | – |
 | 0192 | [Ownership is a PROXY, not the property: the write arm keeps one connection role and gai…](0192-ownership-is-a-proxy-not-the-property-and-the-write-arms-crash-safety.md) | accepted | 2026-09-07 | amends 0153, 0189 | ⚠ amended by 0194 |
-| 0193 | [The enforcement manifest declares what it measured, and the measurement is a fixed poin…](0193-the-enforcement-manifest-declares-what-it-measured.md) | accepted | 2026-09-07 | amends 0176, 0178 | ⚠ amended by 0200 |
+| 0193 | [The enforcement manifest declares what it measured, and the measurement is a fixed poin…](0193-the-enforcement-manifest-declares-what-it-measured.md) | accepted | 2026-09-07 | amends 0176, 0178 | ⚠ amended by 0200, 0201 |
 | 0194 | [A sweep's `CASES` has three states, and a parent asks for a full run by UNSETTING it](0194-a-sweeps-cases-has-three-states-and-a-parent-unsets-it.md) | accepted | – | amends 0192 | – |
 | 0195 | [A committed number needs ONE home and a GATED mirror, and a ratchet joins its incumbent](0195-a-committed-number-needs-one-home-and-a-gated-mirror.md) | accepted | 2026-09-08 | – | – |
 | 0196 | [The backend surface map splits on the MODULE SEAM axis, and a router replaces the readi…](0196-backend-state-split-on-the-module-seam-axis.md) | accepted | 2026-09-09 | amends 0186 | ⚠ amended by 0197, 0198, 0199 |
 | 0197 | [The data-access REGISTRIES are generated from the catalog; the prose keeps only what a…](0197-data-access-registries-are-generated-not-maintained.md) | accepted | 2026-09-09 | amends 0196 | – |
 | 0198 | [A backend seam carries two layers: a REPLACEABLE current state above its append-only hi…](0198-backend-state-seams-get-a-replaceable-current-state-layer.md) | accepted | 2026-09-09 | amends 0196 | – |
 | 0199 | [A frozen archive does not belong on the retrieval path, and "it holds unique facts" is…](0199-a-frozen-archive-does-not-belong-on-the-retrieval-path.md) | accepted | 2026-09-09 | amends 0196 | – |
-| 0200 | [A predicate parameterised on a principal must answer about that principal, and a narrow…](0200-professional-identity-predicates-answer-about-their-subject.md) | accepted | 2026-09-09 | amends 0190, 0193 | – |
+| 0200 | [A predicate parameterised on a principal must answer about that principal, and a narrow…](0200-professional-identity-predicates-answer-about-their-subject.md) | accepted | 2026-09-09 | amends 0190, 0193 | ⚠ amended by 0201 |
+| 0201 | [The keying asymmetry is the model: a question about a third party ignores the hat, a qu…](0201-the-keying-asymmetry-is-the-model.md) | ⚠ proposed | 2026-09-09 | amends 0176, 0193, 0200 | – |
+| 0203 | [Audit F5's seam is already encoded as data in the enforcement manifest; the three class…](0203-the-seam-is-already-encoded-the-classification-columns-are-not.md) | ⚠ proposed | 2026-09-09 | amends 0172, 0176 | – |

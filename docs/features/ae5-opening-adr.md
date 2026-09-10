@@ -126,45 +126,44 @@ builder runs the arms at the tip.
 
 ## Current state
 
-**Updated:** 2026-09-09
+**Updated:** 2026-09-10
 
 ### Objective
 
-Take, and record in ADR 0201, the authorization decisions the corpus forbids AE5's first role
-increment from picking off inside itself — the ADR 0176 D8 bundle, audit F5's seam model, the
-arm-3 divergent cells, the `D` ceiling, the `search_path = ''` convention, the Batch 0–2 checklist
-corrections, and ADR 0200's inherited keying obligation — together with the three follow-ups the PO
-added to this batch: the admin arm's `is_active` blindness, its Class-2 write reach, and the
-enforcement manifest's `_comment` that describes a red which is green.
+Take, and record, the authorization decisions the corpus forbids AE5's first role increment from
+picking off inside itself — ratified per PO ruling R7 as **ADR 0201** (the keying asymmetry) and
+**ADR 0203** (the enforcement seam and the classification columns), with 0202 and 0204 deferred to
+named successors — together with the three follow-ups the PO added at initiation.
 
 ### Done since start
 
-**All six PO rulings taken** (R1 scope · R2 review queue · R3 `is_active` gate **both** predicates ·
-R4 Class-2 arm **removed, relocated** · R5 retire `409` § 3.7's contrary A35 reading · R6 correct both
-clauses now). **Both register clauses corrected**, superseded wording quoted in place: the `is_active`
-clause widened from one predicate to both (0 policies vs **26**), the Class-2 clause's door list from
-3 to the **closure of 14, 12 behaviourally affected**, and its unwritable *"E2E over the reachable UI
-path"* rewritten to the **PostgREST** path. ⭐ **The manifest follow-up's three conditions are MET AND
-PROVEN** — both `_comment`s rewritten with the superseded text quoted in full, `401` § 19.2b measures
-2 / § 19.2c measures 1 on a fresh reset, and `00_setup + 401 + 403 + 410` = `Tests=189 · PASS · 0 not
-ok · exit 0`; gate 12's DRIFT resolved by regenerating, and the whole diff is **4 lines, every one
-accounted for** (two qualifiers + two sha stamps). `npm run lint` **rc 0 bare** after.
+**Twelve PO rulings taken** (R1–R12), each with its measured basis in the record. **ADR 0201** (353
+lines) and **ADR 0203** (253), both `Status: proposed` and registered in `proposed-review.json`.
+The manifest follow-up's three conditions **met and proven**. Both register clauses **corrected**,
+superseded wording quoted. Item 6's five checklist corrections added as pointers (measured at **0 of
+5** first). Both deferred censuses written into their follow-up bodies. `AE5-MATRIX-ARM3-CELLS` hub
+opened. ⭐ **Gate at the tip run by the lead, not the builder**: lint **rc 0** (17/17, 0/0) ·
+typecheck **0** · vitest **151 files / 2056** · `test:db` **264 files / 8923, PASS** on a fresh reset
+(shape unmoved) · all **four arms HOLD** · deriver **rc 3 = NOT-APPLICABLE**, its `SCOPE:` line
+quoted · ⭐ **empty-pathspec assertion EMPTY** — the batch's defining claim.
 
 ### In progress
 
-Nothing building. The batch's remaining deliverable is **ADR 0201 itself**, not yet drafted.
+Nothing building. Awaiting the PO's disposition on the one instrument red before QA.
 
 ### Next
 
-Size ADR 0201 against its eight required subjects and put the *one ADR vs. a small set* question to
-the PO — the D8 bundle alone is four decisions and the F5 seam model is a fifth. Then `backend`
-(Opus) returns a FULL plan; the lead approves with rulings in ONE scratch file; ADR 0201 drafted
-carrying both authz rulings **with the refuted `ensure_professional_participant` reason excluded and
-the surviving one recorded**; gate at the tip run by someone other than the builder; QA; PO approval;
-Record.
+PO disposition on the `SELFTEST` red (file only, or file **and** ride the three-site fix along —
+it does not touch the pathspec the assertion guards) → QA review → PO approval → Record step, which
+owes: the ADRs flipped `proposed` → `accepted` and removed from `proposed-review.json`, `"0201"`
+re-added to the `AE5-MATRIX-ARM3-CELLS` hub, the ledger row, and **eight** findings filed plus **two
+lessons** (the `prosrc`-blind-to-`RETURNS TABLE` artefact and the bash-3.2 verdict split).
 
 ### Blockers
 
-None. ⚠ One bound: `409` § 3.7's marker rides with Batch 10 because R4 flips that cell anyway, so
-Batch 9's share of R5 is that **ADR 0201 names the winning reading and the superseded sentence** —
-if that is not written, R5 delivers nothing.
+⛔ **None for this batch, and one for the next.** `SELFTEST=1` exits **1** (`PASS 40 · FAIL 6`) —
+proven **not** attributable here (harness byte-identical to `main`; no sweep owed; the set-ness
+semantics green in the same run at 32/33) and traced to **`bash 3.2.57`, the macOS default**, whose
+`$( )` parser breaks a `case` pattern in three harnesses. ⚠ It **blocks Batch 10**, which runs a real
+door sweep from this machine, and the same defect means the mandated gate step **returns different
+verdicts on different machines** with nothing saying so.

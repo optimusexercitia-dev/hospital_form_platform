@@ -692,3 +692,210 @@ PO question (0203 leaves it `PO to rule` by instruction) · the `public.assume_r
 question (R3's named third site) · the Record step's filings — the five named findings, the
 `prosrc`-blind-to-`RETURNS TABLE` lesson, and R10's Batch 10 implementation, which has **no register
 home yet**.
+
+### 2026-09-09 — build turn: ADR 0201 + ADR 0203 written; SEVEN re-measurement findings, one of them against the LEAD (backend, then lead spot-check)
+
+**Built.** `docs/decisions/0201-the-keying-asymmetry-is-the-model.md` (**353** lines) and
+`docs/decisions/0203-the-seam-is-already-encoded-the-classification-columns-are-not.md` (**253**),
+both `Status: proposed`, both added to `docs/decisions/proposed-review.json` (`proposed` now 10 —
+gate 9 reds when that set drifts from the live corpus; the **lead** flips them to `accepted` and
+removes them at the Record step, per L2). `npm run adr:index` run **once**.
+**Headers:** 0201 `Amends:` 0176 (D8's F6 slot), 0193 (D5), 0200; `Supersedes:` — ⭐ deliberately
+phrased to begin *"nothing in the ADR corpus"* so the generator's `NOTHING_RX` suppresses a bogus
+back-pointer edge, with `409` § 3.7's first clause named **in prose** at D6, because the header
+vocabulary takes ADR numbers only. 0203 `Amends:` 0172, 0176; ⭐ its `Status:` line itself carries
+`D3 is PO to rule`, so the open sub-question cannot be missed by a reader who stops at the header.
+
+⚠ **Four files outside the build turn's permitted list changed, disclosed rather than absorbed:** the
+**generated** `adr-backpointers` blocks in `0172`, `0176`, `0193`, `0200` (+10/−0, +1/−1, +1/−1,
++10/−0). Verified line-by-line as machine-owned only, and the edges are exactly L15's
+(`0176 ← 0201, 0203` · `0193 ← 0201` · `0200 ← 0201` · `0172 ← 0203`). ⛔ **Any new `Amends:` header
+forces this** — so L4's file-ownership list was under-specified, not violated. Recorded so the next
+batch's rulings file names the generated blocks explicitly.
+
+**Overruns flagged, not hidden:** 353 against ~280 and 253 against ~170. Both grew on **content** —
+0201 carries finding 4's two tables and finding 5's mechanism; 0203 carries the four-row seam table
+and three options each with measured consequences. Corpus context: median **123**, p90 **390**,
+`0200` itself **306** ⇒ both sit inside p90. **Lead ruling: accepted, no cut.** ⛔ Compressing here
+would cut qualifiers first, which is this project's measured failure mode.
+
+**Gates run by the builder, bare:** `adr:index` **0** · `lint:adr-index` **0** · `lint:registers`
+**0** · `lint:progress` **0** · `lint:mojibake` **0**.
+
+**THE SEVEN FINDINGS FROM RE-MEASUREMENT.** ⭐ Three change what the ADRs say, one is against the
+lead, and one is a Batch 10 obligation nobody had named.
+
+1. ⛔ **THE LEAD'S L13 WAS WRONG, AND THE BUILDER CAUGHT IT.** L13 attributed `401`'s
+   implication-monotonicity assertions to **§ 12**. **Verified by the lead against the source:**
+   `401:369` is `-- §7 — THE PHI / WRITE SEPARATION INVARIANTS, as data tests.` and the cells are
+   **7.1–7.5** at `:397 / :406 / :408 / :414 / :416`; `:627` is the AE4.5 generator section. Line
+   numbers right, **label wrong**. ⭐ And the correction makes the finding **stronger**: `:408` is
+   *"7.3 DISCRIMINATION CONTROL … the two invariants are independent, not one predicate counted
+   twice"* ⇒ removing either column also destroys **the control that proves they are two
+   invariants**, not just the invariants. ⚠ **Second lead error this batch** (after the
+   `prosrc`-blind-to-`RETURNS TABLE` check) — the pattern is the lead asserting a *location* from
+   memory of a file it read once. ⇒ **LESSON at the Record step.**
+2. **The plan's *"151 → 150"* delta is NOT REPRODUCIBLE.** Eleven grains tried against
+   `entailed_grants`' comment; **none** yields 27, 150 or 151 (`_for` functions 18/37 · bodies 104/69
+   · policies 2 · occurrences 141/178 · `auth.uid()` bodies 43/244/2/289 · `(select auth.uid())` 57 ·
+   policies 184 · occurrences 53). ⇒ written into the ADR as *"reproduces at no grain measured"*,
+   ⛔ **not as a delta** — a corrected literal would be the same defect with a newer number.
+3. **The plan UNDERSTATED F5's encoding.** Sensitivity is encoded **twice**, not missing: `axes.sensitivity`
+   on **43 of 43** rows, gated by `410 § 2.3` (*"THE FOUR-COLUMN MIRROR"*) **and** the lint arm at
+   `gen-authz-matrix-cells.mjs:704`, *plus* the `gate: null` hard-deny class at `:250`. ⇒ 0203's D2
+   is reframed: the corner is that entry's **`note`** — the only one pointing at a **deferral**
+   rather than a mechanism — ⛔ not a missing gate.
+4. ⭐⭐ **R10 HAS EXPECTED REDS NOBODY NAMED, AND IT CREATES A VACUITY.** `supabase/tests/315_act_stage3_hat_condition.sql`
+   is the **only** file pinning the `active_role.assumed` scope, and it holds **four** live cells.
+   **Verified by the lead:** `:208` asserts the audit row's `organization_id` **=** `org_b` and
+   `:230` asserts `commission_id` **=** `comm_x` — both non-NULL, both **FLIP** under R10; `:249`
+   (platform tier, all three NULL) is R10's own carve-out and stands. ⛔ **And `:212` — *"hospital_id
+   /commission_id stay NULL for an org-tier hat"* — STAYS GREEN WHILE LOSING ALL DISCRIMINATING
+   POWER**, because the cell that made it discriminating is `:208`, the one that flips: once every
+   scope column is NULL, *"these two are NULL"* distinguishes nothing. ⇒ **Batch 10 owes `:212` a
+   REWRITE, not a tick** — ADR 0078 A33's *"a test that cannot fail is not evidence"*, arriving as a
+   **consequence of a ruling** rather than of a code change. ⛔ This is the finding most likely to be
+   lost; it goes in R10's follow-up.
+5. **The *"`401`/`410` are not dependencies"* claim is RIGHT, but not for the stated reason.**
+   `pendingRekey.layer1Gate = app.can_manage_professional` sits on **one** row
+   (`org.professionals.manage`, `enforcementSites: []` **and** `domainAuthorizer: null`), and the two
+   `residualLegacyAuthority` entries naming that gate do say *"the org-manager arm"* ✅ — but
+   `org.professionals.read` **separately** declares a residual entry whose gate **is
+   `app.is_admin_for`**, and that one survives R4 untouched. ⇒ stated precisely so a later checker
+   does not find arm 1's predicate in the manifest and reopen a closed question.
+6. **A30's bucket-C table — R5's WINNING reading — carries a stale name.** It lists
+   `dispose_attachment_phi` among five disposal doors; the live catalog has **4**. ⇒ 0201 cites A30
+   **for its classification**, ⛔ not wholesale. ⚠ The same stale name reached this batch through the
+   PO-supplied document (its *"5 `dispose_*`"*), i.e. **one stale row propagated into two documents**.
+7. **`409` § 3.7's message is stale on TWO counts, not one.** Besides the A35 clause R5 supersedes,
+   `:680` names the arm `app.is_admin()` — but since ADR 0200 the chain reaches **`app.is_admin_for`**,
+   and `create_professional_profile`'s comment-stripped body contains **no** `app.is_admin()` (control:
+   `can_create_professional(` **present**). ⇒ **Batch 10's rewrite is not a polarity flip alone.**
+   ⚠ Related stale text deliberately **not** edited: `app.can_create_professional`'s own comment still
+   says *"platform_admin via is_admin()"*.
+
+**Left undecided on purpose, each with its reason:** 0203 **D3** (the three classification columns) —
+`PO to rule`, three options with measured consequences, plus an explicit *"no default applies while D3
+is open"* because ADR 0176 D8's clause is a **disjunction with no third branch** · 0201 **D4** —
+`public.assume_role`'s `is_active` term (measured absent; control `is_org_admin_of_for` **present**),
+R3's named third site, unruled · 0201 **D5** — whether Option 2's *surviving* reason is **sufficient**
+is the PO's call, ⛔ not the drafter's.
+
+**⭐ The batch's defining claim, measured at the tip:** `git diff --name-only main... -- supabase/migrations
+supabase/seed.sql src` is **EMPTY**. Full diff scope is `docs/features` · `docs/followups` ·
+`docs/plans` · `docs/progress` · `supabase/tests/vectors` — no migration, no seed, no `src`.
+
+### 2026-09-10 — PO rulings R11, R12; GATE AT THE TIP (run by the lead, not the builder) — and one instrument red isolated to bash 3.2 (lead)
+
+**PO ruling R11 — ADR 0203 D3: KEEP ALL THREE classification columns**, each owing a **named
+layer-3 consumer**, with `session_selectable` cited as the precedent that a consumer does eventually
+appear. The removal options were declined on the measured cost: `401` § 7's cells 7.1–7.5 use
+`resource_kind` and `risk_class` as an **ordering** to assert PHI/write monotonicity, and `:408` is a
+**DISCRIMINATION CONTROL** proving the two are independent invariants rather than one predicate
+counted twice ⇒ removal is an **invariant loss plus the loss of its control**, not a test edit.
+
+**PO ruling R12 — ADR 0201 D4: gate `public.assume_role` TOO, in the same Batch 10 change**, with its
+own RED-first pgTAP cell. Rationale recorded: gating the two checks while leaving the **seating**
+door ungated would make the fix *read* as complete while a deactivated admin could still put the hat
+on. ⇒ Batch 10's `is_active` scope is now **three** sites, not the two R3 named.
+
+**0201 D5 closed without a fresh question.** The lead reported the refutation of R4's stated reason to
+the PO in plain terms; the PO did not reverse R4 and went on to rule R5–R12. ⇒ per the reaffirmation
+rule that is their decision: **R4 stands on the SURVIVING reason**, the refuted one is **withdrawn**,
+and ADR 0201 records both facts with their provenance visible. ⛔ The lead did not decide sufficiency;
+it recorded that the ruling was reaffirmed after the refutation was disclosed.
+
+---
+
+## GATE AT THE TIP — `HEAD` = `2c58bde6` + the two ADRs. Exit codes read **BARE**, no pipes.
+
+⚠ **A shell fact that voided one capture and is worth the line:** the first attempt wrote
+`echo "LINT_RC=${PIPESTATUS[0]}"`. This session's shell is **zsh**, where the array is
+`pipestatus` (lower-case) — so the capture printed **empty**, not a code. ⛔ An exit code read
+through the wrong array name is not a bare read; `npm run lint` was re-run on its own.
+
+| step | result |
+| --- | --- |
+| `npm run lint` | ⭐ **rc 0 bare**, 17 of 17 gates, eslint **0 errors / 0 warnings** |
+| `npm run typecheck` | **rc 0** |
+| `npm run test` (vitest) | **rc 0** — `151` files, `2056` tests, all passed ⇒ **identical to Batch 8**, no drift |
+| `supabase db reset --local` | **rc 0** (fresh, immediately before `test:db`) |
+| `npm run test:db` (pgTAP) | ⭐ **rc 0** — `Files=264, Tests=8923`, `Result: PASS`, `All tests successful.` ⇒ **shape did not move** (Batch 8: 264 / 8923) |
+| `ARM=census` | **rc 0** — `=== INVARIANT HOLDS ===` |
+| `ARM=hat` | **rc 0** — `HAT-BLIND SWEEP HOLDS: 4 finding(s), all reasoned-allowlisted` (`authz.assignment_facts` · `public.assume_role` · `public.session_context` · policy `public.memberships.memberships_select`) · `=== INVARIANT HOLDS ===`. ⚠ **`public.assume_role` is on that allowlist and is now an R12 subject** — Batch 10 must re-derive the allowlist reason, not inherit it. |
+| `ARM=floor` | **rc 0** — `=== INVARIANT HOLDS ===` |
+| `FROMFINDINGS=1 ARM=wrapper` | **rc 0** — `mode: FROMFINDINGS (comparing COMMITTED findings md, no sweep)` · `=== INVARIANT HOLDS ===` |
+| diff-scoped door deriver, `main...HEAD` | ⭐ **rc 3 bare = NOT-APPLICABLE**, and **that exit IS the "no gate changed" claim** (CLAUDE.md §6 step 1). `CASELIST` **0 bytes**, correctly — a no-migration batch derives nothing. |
+| empty-pathspec assertion | ⭐ `git diff --name-only main... -- supabase/migrations supabase/seed.sql src` → **EMPTY**. Full diff scope: `docs/features` · `docs/followups` · `docs/plans` · `docs/progress` · `supabase/tests/vectors` |
+| `SELFTEST=1 door-sweep-cases` | ⛔ **rc 1 — `PASS 40 · FAIL 6 · SKIPPED 0`** (see below) |
+
+**The deriver's `SCOPE:` line, quoted verbatim** (owed on every exit, 0/1/2/3):
+
+```
+=== RESULT: NOT-APPLICABLE (3) — no migration file in the diff. ===
+SCOPE: 0 file(s) — 0 committed (main..HEAD), 0 worktree, 0 untracked | filter: none | derivation: NOT REACHED (this run ended before the catalog was probed)
+```
+
+⚠ `derivation: NOT REACHED` is the correct value here and ⛔ **not** a `PROVISIONAL` heuristic — the
+run ended before probing the catalog because there was nothing to probe.
+
+**The three `--- GROUP …` lines, quoted rather than restated:**
+
+```
+--- GROUP deriver:               scenarios 20 (pass 20 · fail 0 · skipped 0)
+--- GROUP merge helper:          scenarios 18 (pass 18 · fail 0 · skipped 0)
+--- GROUP audit startup capture: scenarios 8 (pass 2 · fail 6 · skipped 0)
+```
+
+### ⛔ THE SELFTEST RED, ISOLATED TO A CAUSE — and it is a bash-VERSION landmine, not a semantic defect
+
+**Attribution first.** `git diff --name-only main... -- scripts/ supabase/tests/mutation/` is
+**EMPTY** ⇒ every harness and the self-test are **byte-identical to `main`**, and the self-test reads
+none of this batch's changed paths. ⇒ ⛔ **not attributable to Batch 9.**
+
+**The failing set is exactly 3 harnesses × 2 polarities**, all in the `audit startup capture` group:
+`p0-authz-door-audit`, `p0-authz-rowdoor-audit`, `p0-authz-invoker-audit` — and
+`p0-authz-writepath-audit` **PASSES both**. Reproduced by hand; the harness's own output names it:
+
+```
+p0-authz-door-audit.sh: command substitution: line 797: `case "$CASES_EXPLICIT_AT_STARTUP" in 0|1'
+  NOT OK 0  startup capture is a set-ness bit (0|1)  ->  echo 1;; *) echo 0;; esac) (expected 1)
+--- SELFTEST TOTAL: 32/33 ok, 1 failed ---
+```
+
+⭐ **The cause is `bash 3.2.57`, the macOS default** (`/bin/bash`; no bash ≥ 4 on this machine). Its
+`$( … )` parser closes the substitution at the `)` in the `case` pattern `0|1)`. Minimal repro,
+same shell: `V=1; echo "result=$(case "$V" in 0|1) echo 1;; *) echo 0;; esac)"` →
+`result= echo 1;; *) echo 0;; esac)`.
+
+**The three unportable sites**, one line each: `p0-authz-door-audit.sh:798` ·
+`p0-authz-rowdoor-audit.sh:308` · `p0-authz-invoker-audit.sh:367`. ⭐ **The writepath harness carries
+the SAME assertion in a portable shape** — a plain `case` **statement**, not a substitution
+(`p0-authz-writepath-audit.sh:1313-1315`) — and it was the one **ported, not copied**, in Batch 3
+(ADR 0192). ⇒ **this is the copy-not-port class, arriving in the instrument rather than the subject.**
+
+⛔ **THE LEAD'S FIRST PROPOSED FIX WAS WRONG, AND ITS OWN CONTROL CAUGHT IT.** The lead proposed the
+POSIX optional leading paren — `in (0|1)` — and measured it under the failing shell: **still broken**
+(`result= echo 0;; esac)`). ⇒ had that gone into a `Closes when`, the clause would have named a fix
+that does not work — Batch 7's *"a `Closes when` can name a wrong predicate"*, avoided only by
+running the control. **Three forms were then measured to work under bash 3.2, each with a V=1/V=9
+discrimination pair** (`1`/`0` in all three): a **backtick** substitution around the same `case`; a
+brace-grouped `test` chain; and an `if … then … else … fi` inside `$( )`. ⇒ the clause names the
+**property** — *parses and discriminates under bash 3.2* — with those three as measured witnesses,
+⛔ not one mandated form.
+
+⚠⚠ **The second-order finding, and it is the one that matters most.** Two earlier unit records quote
+`SELFTEST TOTAL: 33/33 ok, 0 failed` as a gate witness. **Both were TRUE where they ran** — those
+batches ran under a bash ≥ 4 (the plan's own §4 step 3 describes launching sweeps via `bash.exe`) —
+and **this run's 32/33 is TRUE here.** ⇒ ⛔ **the mandated `SELFTEST=1` gate step returns a DIFFERENT
+VERDICT on different machines, and neither the harness, the playbook, nor any record says so.** A
+reader on macOS reproducing a quoted `33/33` gets `32/33` and would read a **regression** that is not
+one; a reader on Linux/Windows would call this batch's red **unreproducible**. That is worse than a
+plain red, and it is the same class as the two cross-OS gate landmines already on record.
+
+**Lead disposition — recommended to the PO, ⛔ not decided here.** It does **not** block Batch 9:
+the batch owes **no sweep** (deriver rc 3, `CASELIST` 0 bytes, empty pathspec), the failing row is a
+**type check on a bit**, and the set-ness **semantics** it sits beside are proven **green in the same
+run** — rows A (`CASES` unset ⇒ full), C (`CASES=""` explicit ⇒ selects nothing, *"⭐ THE FIX"*) and
+E1/E2/E3 (`count_sel` 3 / 1 / 0) all `ok`, 32 of 33. ⛔ But it **must be filed**, and it **blocks
+Batch 10**, which runs a real door sweep on a migration from this machine.
