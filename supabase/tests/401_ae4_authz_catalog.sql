@@ -43,6 +43,13 @@
 --     move 1 -> 2 when the D6 re-key split can_create_professional's body away from rows 31/32,
 --     and a bare count of 2 over three functions cannot say WHICH pair still agrees. 19.2c pins
 --     the pair, which is the reach 19.2b lost.
+--
+-- ⚠ 2026-09-10, pre-AE5 Batch 10 (PO ruling R4): plan() DOES NOT MOVE. § 19.2b is re-ruled
+-- 2 -> 3 and § 19.2c is RE-PREDICATED — same two assertions, different subjects, and the reason
+-- each moved is in its own message. ⭐ 19.2c HAD TO CHANGE SUBJECT, not just expected value: with
+-- three distinct bodies over three functions the old pair-count of 2 is ENTAILED by 19.2b's 3, so
+-- re-coding it would have left a tautology wearing the label of a control. It now names the
+-- gate -> representative map, which no body count can express.
 -- ⛔ THE REST OF § 19 IS UNTOUCHED — 19.3 (row 33's signature) and 19.4/19.5/19.6 (the 43-code
 -- grant probe with its cardinality and discrimination controls). Those assert the resolver's
 -- answers and the gates' signatures; the manifest asserts the enforcement MAPPING, and removing
@@ -1292,9 +1299,13 @@ select is(
   'app.is_staff_admin_of_for (38 commission codes), app.can_manage_professional (row 30), '
   'app.can_create_professional (row 43), app.can_manage_external_participant (row 31), '
   'app.can_manage_case_vocabulary (row 32), app.can_read_professional_profile (row 33). ⚠ It '
-  'was THREE until AE4.7c split the org gate; the AE4.5 sweep still runs THREE '
-  'representatives, and 19.2b is the assertion that makes that reduction legitimate rather '
-  'than a shortfall. ⚠ INNER JOIN here ON PURPOSE and it is safe only because 19.1 ran '
+  'was THREE until AE4.7c split the org gate. ⚠ THE REP COUNT IN THIS MESSAGE WAS STALE TWICE '
+  'AND IS NOW STATED AS A DATE-STAMPED MEASUREMENT: it read "the AE4.5 sweep still runs THREE '
+  'representatives" through AE4.9''s fourth rep and into pre-AE5 Batch 10''s FIFTH. Measured '
+  '2026-09-10: FIVE representatives over these SIX classes, the one uncovered class being '
+  'app.can_manage_professional (row 30), which staff_admin does not hold. 19.2b and 19.2c are '
+  'what make that reduction legitimate rather than a shortfall. ⚠ INNER JOIN here ON PURPOSE '
+  'and it is safe only because 19.1 ran '
   'first: 19.1 proves the two sides are in bijection, so this join drops nothing. Its job is '
   'the DISTINCT COUNT, and a manifest row for a code the catalog dropped must not inflate it.');
 
@@ -1304,37 +1315,70 @@ select is(
     where n.nspname = 'app'
       and p.proname in ('can_create_professional', 'can_manage_external_participant',
                         'can_manage_case_vocabulary')),
-  2,
-  '19.2b ⭐⭐ THE THREE ORG GATES NOW HOLD **TWO** DISTINCT BODIES, AND THE 2 IS A CONSEQUENCE '
-  'OF A RESTORED REDUCTION — NOT AN EDIT TO MATCH REALITY. ⚠ 3 -> 2 classes-per-rep, 1 -> 2 '
-  'bodies, at AE4.9. THE HISTORY MATTERS: rows 31, 32 and 43 used to share ONE comment-stripped '
-  'body, which is what licensed the AE4.5 sweep running THREE representatives for SIX classes '
-  '— org.professionals.create spoke for all three. The ADR 0176 D6 re-key gave row 43''s gate a '
-  'permission arm and SPLIT that body. ⛔ THE SPLIT SILENTLY REMOVED DIFFERENTIAL COVERAGE FROM '
-  'ROWS 31 AND 32, and nothing else in any suite said so. '
-  '⭐ WHAT REPLACED THE REACH THIS ASSERTION LOST: 403 gained a FOURTH representative '
-  '(org.case_vocabulary.manage, on the can_manage_case_vocabulary class) and a new § 2.3b that '
-  'asserts rows 31 and 32 STILL share a body — the co-sharing being the entire basis for one '
-  'rep covering both. So 2 here means "two body-classes among these three functions, therefore '
-  'two representatives". '
-  '⛔ IF A FOURTH SPLIT HAPPENS THIS MUST RED AGAIN. Do not raise it to 3 to match a new '
-  'reality — raise it only after a representative exists for whatever split off. An expected '
-  'value that tracks reality by being edited is not an assertion.');
+  3,
+  '19.2b ⭐⭐ THE THREE ORG GATES NOW HOLD **THREE** DISTINCT BODIES, AND THE 3 IS A CONSEQUENCE '
+  'OF A REPRESENTATIVE EXISTING — NOT AN EDIT TO MATCH REALITY. ⚠ 1 -> 2 bodies at AE4.9, '
+  '2 -> 3 at pre-AE5 Batch 10 (PO ruling R4, 2026-09-10). THE HISTORY MATTERS, and it has '
+  'repeated once: rows 31, 32 and 43 used to share ONE comment-stripped body, which is what '
+  'licensed the AE4.5 sweep running THREE representatives for SIX classes — org.professionals.create '
+  'spoke for all three. The ADR 0176 D6 re-key gave row 43''s gate a permission arm and SPLIT '
+  'that body, and rows 31/32 silently lost their coverage. AE4.9 repaired that with a fourth '
+  'rep on the pair. Then ADR 0201 D5 armed app.can_manage_case_vocabulary with the relocated '
+  'platform arm and app.can_manage_external_participant deliberately NOT (D5''s declared loss '
+  'list — a platform_admin must not mint participants in a tenant''s org; pinned RED-first by '
+  '418 §4.7), the pair''s shared body split, and ROW 31 LOST ITS COVERAGE THE SAME WAY. '
+  '⛔ THIS ASSERTION AND 403 §2.3b BOTH RED, WHICH IS THE SYSTEM WORKING. Neither was re-coded '
+  'to a matching number. '
+  '⭐ WHAT LICENSES THE 3: a FIFTH representative was added to the differential sweep '
+  '(org.participants.external.manage, on the can_manage_external_participant class), so each of '
+  'these three bodies now has a rep OF ITS OWN and the body-identity reduction is RETIRED for '
+  'them. So 3 here means "three body-classes among these three functions, therefore three '
+  'representatives" — and §19.2c asserts that second half, which this count cannot. '
+  '⛔ IF A FOURTH FUNCTION JOINS THIS SET, OR ONE OF THESE THREE SPLITS INTO TWO GATES, THIS '
+  'MUST RED AGAIN. Do not raise it to match a new reality — raise it only after a representative '
+  'exists for whatever split off. An expected value that tracks reality by being edited is not '
+  'an assertion.');
+
+-- ⭐⭐ § 19.2c READS THE DIFFERENTIAL SWEEP'S OWN VECTOR, AND THAT IS THE POINT (pre-AE5 Batch
+-- 10, PO ruling R4). Twice now — the AE4.9 re-key and ADR 0201 D5 — a body split removed a
+-- representative and the only arms that noticed were counting BODIES. A body count cannot see
+-- whether a rep exists; it can only see that the premise a rep was resting on has gone. So the
+-- assertion below is keyed on REPRESENTATION, read from the generated cell set that 403 sweeps.
+-- ⛔ It is generated: `npm run lint:authz-vectors` (gate 12) refuses a vector that has drifted
+-- from scripts/gen-authz-differential-cells.py, so this reads a checked artifact, not a copy.
+\ir vectors/authz_differential_cells.psql
 
 select is(
-  (select count(distinct regexp_replace(p.prosrc, '--[^' || chr(10) || ']*', '', 'g'))::int
-     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'app'
-      and p.proname in ('can_manage_external_participant', 'can_manage_case_vocabulary')),
-  1,
-  '19.2c ⭐ ...AND THE SURVIVING PAIR IS NAMED, WHICH THE COUNT IN 19.2b CANNOT DO. A distinct-'
-  'body count of 2 over three functions is satisfied by ANY of the three pairings — it would '
-  'stay green if can_create_professional re-merged with row 31 while row 32 split off instead. '
-  'This pins WHICH two still agree, and they are exactly the two the fourth representative '
-  'covers between them. ⛔ THIS IS THE HALF THAT WOULD HAVE CAUGHT THE AE4.9 REGRESSION EARLY: '
-  '19.2b''s old expected value of 1 did red on the re-key, but it could not say that rows 31 '
-  'and 32 were the ones left without a rep. Mirrors 403 § 2.3b deliberately — that one guards '
-  'the sweep, this one guards the partition, and a reader of either suite alone still sees it.');
+  (select coalesce(string_agg(g.gate || ' -> ' || coalesce(r.reps, '(NO REPRESENTATIVE)'),
+                              ', ' order by g.gate), '(none)')
+     from (values ('can_create_professional'), ('can_manage_external_participant'),
+                  ('can_manage_case_vocabulary')) g(gate)
+     left join lateral (select string_agg(distinct c.permission_code, '+' order by c.permission_code) as reps
+                          from authz_differential_cells c
+                         where c.legacy_class = g.gate) r on true),
+  'can_create_professional -> org.professionals.create, '
+  'can_manage_case_vocabulary -> org.case_vocabulary.manage, '
+  'can_manage_external_participant -> org.participants.external.manage',
+  '19.2c ⭐ ...AND EVERY ONE OF THE THREE BODIES HAS A REPRESENTATIVE, NAMED, WHICH THE COUNT IN '
+  '19.2b CANNOT DO. ⚠ RE-PREDICATED 2026-09-10 (pre-AE5 Batch 10, PO ruling R4) — the subject '
+  'changed, not just the expected value, and the reason is that re-coding it would have made it '
+  'VACUOUS. It used to assert `count(distinct comment-stripped prosrc) = 1` over rows 31 and 32, '
+  'pinning WHICH two of the three still agreed — real work while 19.2b''s 2 was satisfied by any '
+  'of three pairings. With 19.2b now at 3 over three functions, ALL pairings are distinct: a '
+  'pair-count of 2 is ENTAILED by the 3 and could not fail on its own. An assertion that cannot '
+  'fail independently of its neighbour is not a control. '
+  '⭐ WHAT IT PROVES INSTEAD, and it is the reach both regressions actually removed: each of the '
+  'three org-gate bodies is the legacy class of a NAMED representative in the differential cell '
+  'vector 403 sweeps. ⛔ THIS IS THE HALF THAT WOULD HAVE CAUGHT BOTH REGRESSIONS DIRECTLY. In '
+  'AE4.9 and again at ADR 0201 D5, a rep vanished and the suites could only say "a body count '
+  'moved" — the coverage loss had to be REASONED from that, and the second time the build plan '
+  'reasoned wrongly and declared this file not an expected red. This reds by NAME instead: it '
+  'says which gate is unrepresented, or which rep was renamed out from under it. '
+  '⚠ A rep may cover exactly one class here (`string_agg` would show `a+b` if two codes shared a '
+  'class, and the expected value forbids it). ⛔ If a FOURTH function joins these three, add it '
+  'to the values list AND give it a rep — never widen the expected string alone. '
+  'Mirrors 403 § 2.3b deliberately — that one guards the sweep from inside it, this one guards '
+  'the partition, and a reader of either suite alone still sees it.');
 
 select is((select (p.proargnames)[1] from pg_proc p join pg_namespace n on n.oid = p.pronamespace
             where n.nspname = 'app' and p.proname = 'can_read_professional_profile'),

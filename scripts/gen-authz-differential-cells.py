@@ -65,9 +65,41 @@ REPS = [
     # catalog property: `resource_kind`. The other three reps cover `commission_content` and
     # `identity` twice over; org.case_vocabulary.manage is the only `vocabulary` permission
     # among the candidates, so choosing it adds a resource_kind the sweep otherwise never sees.
-    # ⚠ 403 § 2.3b asserts rows 31 and 32 STILL share one body — that co-sharing is the entire
-    # basis for one rep covering both, and if a later change splits THEM it is what catches it.
+    # ⚠ 403 § 2.3b asserted rows 31 and 32 STILL share one body — that co-sharing was the entire
+    # basis for one rep covering both, and if a later change split THEM it was what caught it.
+    # ⭐ IT DID CATCH IT, ON 2026-09-10 — see the FIFTH rep immediately below.
     ('org.case_vocabulary.manage',  'can_manage_case_vocabulary',   'organization'),
+    # ⭐⭐ A FIFTH REP, ADDED AT pre-AE5 BATCH 10 (PO ruling R4, 2026-09-10), FOR THE SECOND
+    # OCCURRENCE OF EXACTLY THE FAILURE THE FOURTH REP REPAIRED. The two occurrences are worth
+    # reading together, because the mechanism is identical and the trigger is not.
+    #
+    # WHAT BROKE, MEASURED. ADR 0201 D5 (pre-AE5 Batch 10) relocates the platform arm: it is
+    # REMOVED from app.can_manage_professional and added EXPLICITLY to app.can_manage_case_vocabulary
+    # — and to that gate ONLY, because A35's noun list makes case vocabulary a MAY-noun while a
+    # tenant's professional registry is not. `can_manage_external_participant` did not get it, ON
+    # PURPOSE: D5's declared loss list includes external-participant minting, pinned RED-first by
+    # pgTAP 418 § 4.7. So the two bodies that 403 § 2.3b asserted were IDENTICAL diverged, exactly
+    # as that assertion said they one day would, and rows 31/32's single shared rep stopped
+    # speaking for row 31. Measured at head (20261003007390, 528): `count(distinct` comment-stripped
+    # `prosrc)` over the three org gates went 2 -> 3, and over the 31/32 pair 1 -> 2.
+    #
+    # ⛔ THE FIX IS A TEST FIX AGAIN, AND FOR A STRONGER REASON THAN LAST TIME. The alternative —
+    # arming can_manage_external_participant with the same relocated arm to restore body identity —
+    # was PUT TO THE PO AND REJECTED: it contradicts ADR 0201 D5 and would let a platform_admin mint
+    # `public.participants` rows in any tenant's organization. The gap is in COVERAGE, not in
+    # enforcement, so it is closed here.
+    #
+    # ⭐ WHAT CHANGES BEYOND ONE LINE: the body-identity REDUCTION IS RETIRED for these three org
+    # gates. Each of them now has a representative of its own, so no cell's coverage rides on two
+    # functions continuing to agree. 401 § 19.2c is re-ruled to name that map (gate -> rep) rather
+    # than to name a surviving pair, and 403 § 2.3b is re-ruled onto the rep's EXISTENCE AND
+    # POLARITY rather than onto the identity that is gone.
+    #
+    # ⚠ THE TIE-BREAK THAT PICKED THE FOURTH REP DOES NOT APPLY HERE and is not being re-used:
+    # `resource_kind` for org.participants.external.manage is `identity`, which the sweep already
+    # sees twice. This rep is not chosen among candidates — the ruling is that ROW 31 ITSELF needs
+    # one, so the code is determined, not selected.
+    ('org.participants.external.manage', 'can_manage_external_participant', 'organization'),
 ]
 
 # ── Axis disposition. EVERY axis the JSON declares must appear here, or arm7 refuses. ──
@@ -156,8 +188,11 @@ SUBJECT_ROLE = subject_roles[0]
 
 def expected(persona, ctx, scope, state, selfcheck, res_scope):
     """EXPECTED VALUES COME FROM EXACTLY TWO HAND-ENCODED SOURCES — never resolver logic.
-       (1) the approved matrix row: staff_admin holds all three representatives — after AE4.7c
-           that is org.professionals.create, NOT .manage, which staff_admin lost;
+       (1) the approved matrix row: staff_admin holds EVERY code in REPS — after AE4.7c that is
+           org.professionals.create, NOT .manage, which staff_admin lost; and the Batch 10 fifth
+           rep org.participants.external.manage is held too (measured in authz.role_permissions,
+           and asserted independently by 401 §19.4, whose expected value names the ONE code
+           staff_admin does not hold);
        (2) the approved deny-class effect table, transcribed in its stated precedence.
        No scope-reaching join, no closure lookup, no role_permissions read."""
     # ⛔ DEAD BY EXCLUSION, KEPT AS A LOUD GUARD (ADR 0175 D2). This used to return
@@ -270,10 +305,13 @@ def coverage(cells, skipped, reps, disposition=None, exclusions=None, axes=None)
     # fourth — it refused a CORRECT cell set. ⛔ It is not a tautology against arm1b: arm1b
     # keys on the permission CODE (c[4]) and this keys on the legacy CLASS (c[5]), and two reps
     # may legitimately share a class, so neither implies the other.
-    # ⚠ THE SWEEP COVERS 4 OF THE 6 CLASSES 401 §19.2 counts. can_manage_professional (row 30)
-    # has no rep because staff_admin does not hold that code, and can_manage_external_participant
-    # (row 31) is covered BY BODY IDENTITY with org.case_vocabulary.manage — 403 §2.3b asserts
-    # that identity rather than assuming it.
+    # ⚠ THE SWEEP COVERS 5 OF THE 6 CLASSES 401 §19.2 counts (4 -> 5 at pre-AE5 Batch 10, PO
+    # ruling R4). The ONE uncovered class is can_manage_professional (row 30), and the reason is
+    # unchanged: staff_admin does not hold that code, so a rep on it would make every cell of the
+    # class a denial — the single-polarity trap AE4.7c already hit once.
+    # ⛔ can_manage_external_participant (row 31) is NO LONGER covered by body identity — it has
+    # its own rep. That reduction is retired, and 403 §2.3b now asserts the rep instead of the
+    # identity.
     _declared_classes = {r[1] for r in reps}
     _emitted_classes = {c[5] for c in cells}
     if _declared_classes != _emitted_classes:
@@ -393,11 +431,14 @@ body = """-- GENERATED FILE — DO NOT EDIT BY HAND.
 -- Generator: scripts/gen-authz-differential-cells.py   (--check is chained into lint gate 12)
 -- sourceSha256: %s
 --
--- AE4.5 differential cells. %d cells over the THREE legacy-equivalence classes
--- (pgTAP 401 §19.2 asserts the partition), %d skipped by named rule.
+-- AE4.5 differential cells. %d cells over %d legacy-equivalence classes, %d representative(s)
+-- (pgTAP 401 §19.2 asserts the partition; 403 §2.3 asserts this class count), %d skipped by
+-- named rule. ⚠ THE TWO COUNTS ARE DERIVED FROM `REPS`, NOT TYPED: they read "THREE" for as
+-- long as there were three reps and stayed at THREE through AE4.9's fourth, so this header
+-- asserted a stale partition in the very file that carries the oracle's expected values.
 --
 -- ⛔ EXPECTED VALUES COME FROM EXACTLY TWO HAND-ENCODED SOURCES, never from resolver logic:
---   (1) the approved matrix row  — staff_admin holds all three representatives;
+--   (1) the approved matrix row  — staff_admin holds every representative;
 --   (2) the approved deny-class effect table (docs/design/authz-ae45-deny-class-effects.md).
 -- The generator TRANSCRIBES that 9-row table in its stated precedence. It performs no
 -- scope-reaching join, no closure lookup and no role_permissions read — it is deliberately
@@ -414,7 +455,8 @@ create temp table authz_differential_cells on commit drop as
 %s
   ) as t(cell_id, persona, active_context, scope, permission_code, legacy_class,
          resolution_scope_kind, principal_state, self_check, expected_granted, expected_source);
-""" % (sha, len(cells), sum(skipped.values()), excl, ', '.join(srcs), rows)
+""" % (sha, len(cells), len({r[1] for r in REPS}), len(REPS), sum(skipped.values()),
+       excl, ', '.join(srcs), rows)
 
 if '--check' in sys.argv:
     try:

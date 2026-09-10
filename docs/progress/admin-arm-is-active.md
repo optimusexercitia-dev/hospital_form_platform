@@ -389,3 +389,106 @@ let a `platform_admin` mint participants in any tenant's organization.
 **PO ruling R5 — two measured deviations from R2's texts ACCEPTED:** `257` is +3 not +4 (`:209`'s
 feature-flag guard precedes authority, so an authority twin there would assert guard **ordering** under
 an authority label); `315` is +2 not +3 (the org-authority twin **replaces** `:209-212`).
+
+### 2026-09-10 — R4 built: row 31's own differential representative, the three re-rulings, the rep proven LIVE (backend)
+
+**Scope: R4 and nothing else.** No migration, no `src/`, no ADR. `git status --porcelain` names exactly
+four files: `scripts/gen-authz-differential-cells.py`,
+`supabase/tests/vectors/authz_differential_cells.psql` (generated),
+`supabase/tests/401_ae4_authz_catalog.sql`, `supabase/tests/403_ae45_differential_oracle.sql`.
+Head pair unchanged at `(20261003007390, 528)`, read from `supabase_migrations.schema_migrations`.
+
+**A · the blocking red RE-MEASURED at this head before anything was touched** (never inherited from
+the build entry): `401` test **113** `19.2b` *have 3, want 2* · `401` test **114** `19.2c` *have 2,
+want 1* · `403` test **5** `2.3b` *have 2, want 1*. `Files=3, Tests=145, Failed 3` — the same three,
+so the finding reproduces on a catalog nobody re-derived it from.
+
+**B · the representative, added through the GENERATOR'S INPUT.** `scripts/gen-authz-differential-cells.py:102`
+— a fifth `REPS` entry `('org.participants.external.manage', 'can_manage_external_participant',
+'organization')`, carrying the same reasoning shape the AE4.9 fourth rep carries directly above it.
+⛔ The `.psql` was never hand-edited: it is regenerated, and gate 12's `--check` is what proves the
+two agree. Measured against the catalog before the rep was written, so the choice rests on facts and
+not on the generator's prose: `authz.permissions` gives `org.participants.external.manage` →
+`resolution_scope_kind = organization`, `resource_kind = identity`; `authz.role_permissions` shows
+`staff_admin` **holds** it (⭐ the single-polarity trap AE4.7c hit is a rep on a code the subject role
+does NOT hold — checked, not assumed); the three org gates' comment-stripped bodies are pairwise
+distinct (`md5` `f17a0c42` / `f63b7b72` / `3a86b023`), so `19.2b`'s 3 is a measurement.
+
+⚠ **The generated file's `sourceSha256` DID NOT MOVE**, and that is worth stating: it is the sha of
+the **axes JSON**, which this change does not touch. A drift check keyed on that stamp alone would
+have seen nothing. Gate 12 compares the whole emitted text, which is why it does.
+
+**Cells: 864 → 1080** (5 reps × 216), 1920 skipped by named rule, census sums (the generator asserts
+it). The new rep contributes **216 cells, 30 granted / 186 denied** — both polarities, which is the
+half `2.3b` now asserts.
+
+**C · the three re-rulings, each saying what it now proves and WHY the count moved.**
+
+| assertion | was | is | what moved |
+| --- | --- | --- | --- |
+| `401:1319` `19.2b` | `= 2` distinct bodies over the three org gates | **`= 3`** | ⭐ **the count moved because a REPRESENTATIVE now exists, not because a body diverged.** The divergence is the CAUSE of the loss; the 3 records the REPAIR. Message carries both occurrences (AE4.9's re-key, then ADR 0201 D5) so the next reader sees a repeat, not an incident. |
+| `401:1362` `19.2c` | `= 1` body over the 31/32 pair | **RE-PREDICATED** onto the gate → representative map, read from the differential vector (`\ir` at `401:1349`) | ⛔ **re-coding it to 2 would have made it VACUOUS**: with 19.2b at 3 over three functions, a pair-count of 2 is ENTAILED and could not fail on its own. It now names what no body count can express — that each body-class HAS a rep, which is the reach both regressions actually removed. |
+| `403:217` `2.3b` | `= 1` body over the 31/32 pair | **RE-RULED** onto the rep's existence, wiring, scope and BOTH polarities | the identity it pinned is gone by design (D5's declared loss list, pinned RED-first by `418 §4.7`). `classes=1` forbids a rep straddling two classes; the fallback string is `(NO CELLS — row 31 has NO REPRESENTATIVE)`, so a deleted rep reds by NAME. |
+
+Consequential, and named rather than folded in: **`403:191` `2.3` moved `4 → 5`** (it counts distinct
+`legacy_class` in the cell set, so a fifth rep moves it mechanically) and **`403:368` gained the driver's
+fifth dispatch branch**. ⛔ Without that branch the suite does not go quietly wrong — `pg_temp.unknown_legacy_class`
+RAISES, because ADR 0176 D5 retired the `else` catch-all. The branch calls
+`app.can_manage_external_participant` **directly**; substituting the sibling that agreed with it
+yesterday would have reproduced the whole defect one layer down.
+
+**D · the rep proven LIVE — a plant, bracketed, in a rolled-back transaction.** A rep that exists in a
+vector is not yet a rep that reaches a door.
+
+| run | result |
+| --- | --- |
+| **P00** control, real body | `403` **23/23 ok**, zero `not ok` — the baseline without which a red proves nothing |
+| **P01** `app.can_manage_external_participant` planted BROKEN OPEN (`select true`), plant asserted APPLIED in both directions before the suite ran | exactly **one** red: **`4.1` LEGACY == CATALOG**, naming **186 disagreeing cells, ALL 186 `org.participants.external.manage`**, every one `legacy=true catalog=false` |
+| rollback | body `md5` back to `3a86b023…`, `$plant$` absent — proven by reading the catalog after, not assumed |
+
+⭐ **The 186 is the parts-sum check, not a vibe:** the generator measured the new rep at 30 granted /
+**186 denied**, and breaking the door open flips exactly the denials. A number that matched nothing in
+particular would have meant the red came from somewhere else.
+
+**E · gates, each rc read BARE (no pipe).**
+
+| gate | rc | witness |
+| --- | --- | --- |
+| `npm run lint` | **0** | all **17** gates reached; gate 12: `gen-authz-differential-cells: in sync (1080 cells, 1920 skipped, sha 2ddda77978bb)` + both `--self-test` discrimination controls (`clean on the real spec`) |
+| `npm run typecheck` | **0** | `tsc --noEmit` |
+| `npm run test` | **0** | `Test Files 154 passed (154) · Tests 2091 passed (2091)` |
+| `npm run test:db` (fresh `supabase db reset --local` rc 0, head pair re-read `(20261003007390, 528)`) | **0** | `All tests successful. Files=267, Tests=9019` |
+
+**Suite delta vs the builder's `267 / 9019`: ZERO tests, rc 1 → 0.** ⭐ That is the shape R4 asks for
+and it is worth naming: three assertions were **re-ruled and re-predicated**, none added, and 216 new
+**cells** are folded into `§§4-5`'s existing aggregates. A rep is not an assertion, so a differential
+extension can be invisible in a test count — which is exactly why `403`'s RUN SHAPE line now says so
+in words instead of leaving the absence to be read as an oversight.
+
+**F · two stale figures corrected while re-deriving, and the correction is larger than the rep.**
+`403`'s header limitation paragraphs read `108` third-party-cells-with-caller==principal and `26`
+`wrong_active_context:third-party` cells. Re-measured against the vector **as it stood at HEAD before
+this batch** (4 reps, 864 cells) they were already **144** and **36** — i.e. they were the THREE-rep
+values and AE4.9 moved the reps without moving them. Now measured off the generated file at 5 reps:
+**180** and **46**. Same discipline for the cell-count paragraph: `1080 / 432 distinct coordinates /
+648 re-runs`, **re-derived, and the file records that scaling by 5/4 would have produced a plausible,
+wrong 540**. The generated header's own class/rep counts are now `%d`-derived from `REPS`, because
+they read "THREE" through AE4.9's fourth rep — a stale partition asserted in the very file that
+carries the oracle's expected values.
+
+**Not edited, reported instead.** `docs/design/authz-ae43-staff-admin-permission-matrix.md:1235` still
+says the generator's `REPS` uses **`org.professionals.manage`** — stale since AE4.7c re-pointed it to
+`org.professionals.create`, and now two reps further out of date. It is a design doc, not a gate, and
+the docs pass is the lead's.
+
+**Dead ends, so the next session does not repeat them.** (1) **pgTAP is not resident in the local DB** —
+`supabase test db` creates and drops the extension around its run, so a raw-`psql` plant harness gets
+`function plan(integer) does not exist` until it issues `create extension if not exists pgtap with
+schema extensions` itself. (2) That extension statement belongs **inside the harness's own
+transaction**: `\i`-ing `403` from an already-open transaction works because the suite's closing
+`rollback` unwinds the OUTER transaction too — which is what makes the plant self-cleaning and is why
+the plant needed no restore step. (3) `docker cp` the whole `supabase/tests` directory, not one file:
+`403`'s `\ir vectors/…` resolves relative to the file being executed.
+
+**Commit on `authz-admin-arm-is-active`** (not amended, not pushed): see the branch tip — one commit,
+`test(admin-arm-is-active): row 31 gets its own differential representative (PO ruling R4)`.

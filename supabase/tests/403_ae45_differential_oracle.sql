@@ -35,18 +35,19 @@
 --
 -- ⚠ TWO MORE LIMITATIONS, MEASURED 2026-09-01 (a third was RESOLVED — see below). Each is a place
 -- where the CELL COUNT overstates what was measured, and both read as coverage if not stated:
---   * `864 cells` is 432 DISTINCT DRIVER-OBSERVABLE COORDINATES. The driver's answer depends on
+--   * `1080 cells` is 432 DISTINCT DRIVER-OBSERVABLE COORDINATES. The driver's answer depends on
 --     (persona, context, scope, RESOLUTION-SCOPE-KIND, state, self_check) — not on the permission
---     code — and THREE of the four representatives are org-scoped, so 432 of the cells re-run a
---     coordinate an earlier rep already measured. That re-run is not worthless (it shows the three
---     org-scoped codes agree) but it is not 864 independent measurements, and citing 864 as the
+--     code — and FOUR of the five representatives are org-scoped, so 648 of the cells re-run a
+--     coordinate an earlier rep already measured. That re-run is not worthless (it shows the four
+--     org-scoped codes agree) but it is not 1080 independent measurements, and citing 1080 as the
 --     measurement count is the inflation the axes file itself warns against.
---     ⛔ RE-DERIVED, NOT SCALED, TWICE NOW. This read `657 / 438 / 219` until ADR 0175 D2 deleted
---     the nine anonymous cells, then `648 / 432 / 216` until AE4.9 added a fourth representative.
---     Note what did and did NOT move: the cell count went 648 -> 864 (4 reps x 216) and the RE-RUN
---     count went 216 -> 432, but DISTINCT COORDINATES STAYED AT 432 — it is bounded by the number
---     of distinct resolution-scope KINDS (2), not by the number of reps. Scaling all three numbers
---     by 4/3 would have produced a plausible, wrong 576.
+--     ⛔ RE-DERIVED, NOT SCALED, THREE TIMES NOW. This read `657 / 438 / 219` until ADR 0175 D2
+--     deleted the nine anonymous cells, then `648 / 432 / 216` until AE4.9 added a fourth
+--     representative, then `864 / 432 / 432` until pre-AE5 Batch 10 added a fifth (PO ruling R4).
+--     Note what did and did NOT move: the cell count went 864 -> 1080 (5 reps x 216) and the
+--     RE-RUN count went 432 -> 648, but DISTINCT COORDINATES STAYED AT 432 — it is bounded by the
+--     number of distinct resolution-scope KINDS (2), not by the number of reps. Scaling all three
+--     numbers by 5/4 would have produced a plausible, wrong 540.
 --   * ✅ RESOLVED 2026-09-01 (ADR 0175 D2) — THE 9 `deny-class:unauthenticated` CELLS ARE DELETED.
 --     They never ran unauthenticated: the driver maps `anonymous` to f.nobody, the same
 --     AUTHENTICATED principal as `unprivileged`, so they proved exactly what
@@ -57,29 +58,41 @@
 --     STRICTLY STRONGER than the nine cells, which is the only reason deleting them is honest.
 --     ⛔ The generator now refuses the persona by name, and `expected()` RAISES if it is ever
 --     re-enabled without a JWT-less driver — see the exclusion's reason there.
---   * 108 CELLS LABELLED `third_party` HAVE CALLER == PRINCIPAL. The driver deliberately uses
+--   * 180 CELLS LABELLED `third_party` HAVE CALLER == PRINCIPAL. The driver deliberately uses
 --     f.nobody as the third-party caller (see its comment — using f.uid made the subject_holder
 --     cells self-checks in disguise), but `unprivileged`'s principal IS f.nobody, so for that
---     persona the same substitution recreates the very defect it was written to avoid. Those 108
+--     persona the same substitution recreates the very defect it was written to avoid. Those 180
 --     cells are self-checks wearing a third-party label. They are not WRONG — a non-holder is
 --     denied either way — but they do not exercise the §6A asymmetry, and the asymmetry's real
---     evidence is the 26 `wrong_active_context:third-party` cells, not the 108.
+--     evidence is the 46 `wrong_active_context:third-party` cells, not the 180.
+--     ⛔ CORRECTED 2026-09-10 (pre-AE5 Batch 10), AND THE CORRECTION IS BIGGER THAN THE FIFTH REP.
+--     These read `108` and `26`. Re-measured against the vector AS IT STOOD AT HEAD BEFORE this
+--     batch (4 reps, 864 cells) they were already `144` and `36` — i.e. the literals were the
+--     THREE-rep values and AE4.9 moved the reps without moving them. A cited figure rots when its
+--     artifact is regenerated, and it rots in the direction that reads as care (a smaller caveat).
+--     Both are now MEASURED off the generated file, at 5 reps: 180 and 46.
 --
 -- ⚠ PER-PERMISSION GRAIN: the axis sweep runs one representative per legacy-equivalence class it
--- can cover — FOUR reps over the SIX classes 401 §19.2 counts. The two uncovered classes are named
--- rather than left to inference: `can_manage_professional` (row 30) has no rep because staff_admin
--- does NOT hold that code, so every cell would be a denial (the single-polarity trap AE4.7c already
--- hit once); `can_manage_external_participant` (row 31) is covered BY BODY IDENTITY with the fourth
--- rep, and §2.3b ASSERTS that identity rather than assuming it. Per-permission GRANT is covered by
--- 401 §19.4's 43 cheap probes. Per-permission AXES are not observable until AE5 gives a role a
--- partial map.
+-- can cover — FIVE reps over the SIX classes 401 §19.2 counts (FOUR until pre-AE5 Batch 10, PO
+-- ruling R4). ⭐ THE BODY-IDENTITY REDUCTION IS RETIRED: no class is covered any longer by two
+-- functions continuing to agree. The ONE uncovered class is named rather than left to inference:
+-- `can_manage_professional` (row 30) has no rep because staff_admin does NOT hold that code, so
+-- every cell would be a denial (the single-polarity trap AE4.7c already hit once).
+-- `can_manage_external_participant` (row 31) now has a rep OF ITS OWN — `org.participants.external.manage`
+-- — because ADR 0201 D5 armed the vocabulary gate ALONE and the two bodies diverged, exactly as
+-- the old §2.3b said they one day would. §2.3b is re-ruled onto that rep's existence and polarity.
+-- Per-permission GRANT is covered by 401 §19.4's 43 cheap probes. Per-permission AXES are not
+-- observable until AE5 gives a role a partial map.
 --
 -- RUN SHAPE: `Files=2, Tests=24` (23 here + 00_setup.sql's one). ⚠ 18 -> 21: ADR 0175 D3's § 7,
 -- the three assertions that BOUND F3's discharge. ⚠ 21 -> 22: AE4.9's § 3.2b, the bound on
 -- pointing this suite at the CANDIDATE evaluator. ⚠ 22 -> 23: AE4.9's § 2.3b, the body-identity
--- assertion that licenses ONE rep covering rows 31 and 32. ⛔ Keep this line in step with plan() — the QA
--- review caught it already claiming 12 against plan(15), and a stale RUN SHAPE is read as the
--- expected shape by the next person diagnosing a count mismatch.
+-- assertion that licensed ONE rep covering rows 31 and 32. ⭐ pre-AE5 Batch 10 moves NOTHING here,
+-- and that is worth saying rather than leaving as an absence: a fifth representative adds 216
+-- CELLS (864 -> 1080), which §§4-5 fold into their existing aggregate assertions, and §2.3/§2.3b
+-- are RE-RULED rather than added to. A rep is not an assertion. ⛔ Keep this line in step with
+-- plan() — the QA review caught it already claiming 12 against plan(15), and a stale RUN SHAPE is
+-- read as the expected shape by the next person diagnosing a count mismatch.
 
 begin;
 select plan(23);
@@ -174,31 +187,58 @@ select ok(
   'satisfied by a resolver stuck at false, which is the single most likely way this suite could '
   'pass while proving nothing.');
 
-select is((select count(distinct legacy_class)::int from authz_differential_cells), 4,
-  '2.3 FOUR legacy-equivalence classes are swept. ⭐⭐ THE 4 IS A CONSEQUENCE, NOT AN ADJUSTMENT, '
-  'and the difference matters: 401 §19.2 counts SIX classes, and the sweep covers the four it '
-  'CAN. `can_manage_professional` (row 30) has no rep because staff_admin does not hold that '
-  'code — a rep on it would make every cell a denial. `can_manage_external_participant` (row 31) '
-  'is covered by BODY IDENTITY with row 32, which §2.3b asserts. ⚠ 3 -> 4 at AE4.9: the D6 '
-  're-key split can_create_professional''s body away from rows 31/32, so the create rep stopped '
-  'speaking for them and a fourth rep was added (lead ruling, option (b)). ⛔ IF THIS REDS, THE '
-  'QUESTION IS WHICH CLASS LOST OR GAINED A REP — never "what number matches today". An expected '
-  'value edited to track reality is not an assertion.');
+select is((select count(distinct legacy_class)::int from authz_differential_cells), 5,
+  '2.3 FIVE legacy-equivalence classes are swept. ⭐⭐ THE 5 IS A CONSEQUENCE, NOT AN ADJUSTMENT, '
+  'and the difference matters: 401 §19.2 counts SIX classes, and the sweep covers the five it '
+  'CAN. The ONE it cannot is `can_manage_professional` (row 30): staff_admin does not hold that '
+  'code, so a rep on it would make every cell a denial. ⚠ 3 -> 4 at AE4.9: the D6 re-key split '
+  'can_create_professional''s body away from rows 31/32, so the create rep stopped speaking for '
+  'them and a fourth rep was added (lead ruling, option (b)). ⚠ 4 -> 5 at pre-AE5 Batch 10 (PO '
+  'ruling R4, 2026-09-10): ADR 0201 D5 armed app.can_manage_case_vocabulary with the relocated '
+  'platform arm and app.can_manage_external_participant DELIBERATELY NOT (D5''s declared loss '
+  'list, pinned RED-first by 418 §4.7), so the two bodies diverged and row 31 lost the rep it '
+  'shared. ⭐⭐ WHY THE COUNT MOVED IS THAT A REPRESENTATIVE NOW EXISTS — NOT THAT A BODY '
+  'DIVERGED. The divergence is the CAUSE of the loss; the 5 records the REPAIR. Re-coding this '
+  'to a number that matched the divergence would have recorded the loss as if it were the fix. '
+  '⛔ IF THIS REDS, THE QUESTION IS WHICH CLASS LOST OR GAINED A REP — never "what number '
+  'matches today". An expected value edited to track reality is not an assertion.');
 
 select is(
-  (select count(distinct regexp_replace(p.prosrc, '--[^' || chr(10) || ']*', '', 'g'))::int
-     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'app'
-      and p.proname in ('can_manage_external_participant', 'can_manage_case_vocabulary')),
-  1,
-  '2.3b ⭐⭐ ROWS 31 AND 32 STILL SHARE ONE BODY, AND THAT CO-SHARING IS THE WHOLE BASIS FOR ONE '
-  'REP COVERING BOTH. org.case_vocabulary.manage is the rep; org.participants.external.manage '
-  'has none, and is covered only because its gate''s comment-stripped body is IDENTICAL. ⛔ THIS '
-  'IS THE ASSERTION THAT CATCHES THE NEXT SPLIT. 401 §19.2b made exactly this argument over '
-  'THREE functions and it held until the AE4.9 re-key split one of them off — at which point '
-  'rows 31 and 32 silently lost their representative and no arm said so. If these two diverge, '
-  'the same thing happens again, and this reds. ⚠ Do not "fix" a red here by raising the count: '
-  'the count is 1 because the reduction requires it, so a 2 means row 31 needs its own rep.');
+  coalesce(
+    (select 'class=' || min(c.legacy_class) || ' scope=' || min(c.resolution_scope_kind)
+            || ' classes=' || count(distinct c.legacy_class)::int::text
+            || ' granted=' || (count(*) filter (where c.expected_granted) > 0)::text
+            || ' denied='  || (count(*) filter (where not c.expected_granted) > 0)::text
+       from authz_differential_cells c
+      where c.permission_code = 'org.participants.external.manage'
+     having count(*) > 0),
+    '(NO CELLS — row 31 has NO REPRESENTATIVE)'),
+  'class=can_manage_external_participant scope=organization classes=1 granted=true denied=true',
+  '2.3b ⭐⭐ ROW 31 HAS A REPRESENTATIVE OF ITS OWN, AND THAT REPLACES THE BODY IDENTITY THIS '
+  'ASSERTION USED TO PIN. ⚠ RE-RULED 2026-09-10 (pre-AE5 Batch 10, PO ruling R4) — READ WHAT '
+  'MOVED AND WHY. Until today this asserted `count(distinct comment-stripped prosrc) = 1` over '
+  'app.can_manage_external_participant and app.can_manage_case_vocabulary, because ONE rep '
+  '(org.case_vocabulary.manage) covered rows 31 AND 32 and the ONLY thing licensing that '
+  'reduction was the two gates'' bodies being identical. ADR 0201 D5 armed the vocabulary gate '
+  'with the relocated platform arm and the participant gate DELIBERATELY NOT (D5''s declared '
+  'loss list — a platform_admin must not mint participants in a tenant''s org; pinned RED-first '
+  'by 418 §4.7). The bodies diverged and this assertion RED, doing precisely the job it was '
+  'written for. ⛔ THE RED WAS NOT RE-CODED TO 2. The count is gone entirely, because a body '
+  'count can no longer say anything about coverage here: row 31 now carries '
+  'org.participants.external.manage as its OWN rep, so nothing rides on the two gates agreeing '
+  'and a re-merge would cost redundancy, not coverage. ⭐ WHAT THIS NOW PROVES, and it is '
+  'strictly what the reduction used to buy: the rep EXISTS in the generated cell set, is wired '
+  'to the can_manage_external_participant class (`classes=1` forbids a rep straddling two), '
+  'resolves at ORGANIZATION scope, and carries BOTH expected polarities — the last clause is the '
+  'single-polarity trap AE4.7c hit, where a rep on a code staff_admin does not hold makes every '
+  'cell of its class a denial while arm2 stays satisfied globally by the other reps. ⛔ A rep '
+  'that is merely PRESENT is not yet LIVE: liveness is what the driver''s '
+  'pg_temp.unknown_legacy_class raise and §§3.0-3.1 enforce (an emitted class with no dispatch '
+  'branch ERRORS the suite; a cell that produced no row or a NULL answer reds there). It was '
+  'also demonstrated by planting a broken-open body on the door and watching §4.1 red on these '
+  'cells alone — recorded in docs/progress/admin-arm-is-active.md. ⚠ The partition half lives in '
+  '401 §19.2b/c, deliberately mirrored: that suite guards WHICH BODIES exist and that each has a '
+  'rep; this one guards THE SWEEP.');
 
 select ok(
   (select count(*) from authz_differential_cells where self_check) > 0
@@ -316,6 +356,16 @@ begin
     -- ⭐ AE4.9: the FOURTH class (lead ruling 2026-09-02, option (b)). Rows 31 and 32 lost their
     -- representative when the D6 re-key split can_create_professional's body away from theirs.
     when 'can_manage_case_vocabulary'    then app.can_manage_case_vocabulary(v_scope_id, v_principal)
+    -- ⭐⭐ pre-AE5 BATCH 10 (PO ruling R4, 2026-09-10): the FIFTH class. ADR 0201 D5 armed the
+    -- vocabulary gate above with the relocated platform arm and left THIS one alone on purpose, so
+    -- the shared body that let one rep speak for rows 31 and 32 is gone. The branch is what makes
+    -- the new rep LIVE rather than merely present: the `else` below RAISES, so an emitted class
+    -- with no branch here errors the suite instead of being answered by a default arm — which is
+    -- how the fourth class would have been silently routed to the professional-profile door.
+    -- ⛔ THE DOOR IS CALLED DIRECTLY, not through a sibling that happens to agree with it today.
+    -- Agreeing-by-body was the whole defect; substituting can_manage_case_vocabulary here would
+    -- have reproduced it one layer down, where no assertion in this file could see it.
+    when 'can_manage_external_participant' then app.can_manage_external_participant(v_scope_id, v_principal)
     -- ⛔ The profile is chosen by the SAME scope rule as v_scope_id above. Choosing it any other
     -- way (or using one profile) decouples the door's org from the cell's scope, and the scope
     -- axis stops being swept while the cell ids still claim it is.
