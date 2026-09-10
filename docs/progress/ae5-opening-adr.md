@@ -436,3 +436,64 @@ Owed in this batch: the `is_active` entry's `Closes when` widened from `app.is_a
 the reachable UI path"* rewritten to the **PostgREST** path (there is no UI path — V4), and its door
 list stated as the **closure of 14 with 12 behaviourally affected**. ⛔ Superseded wording quoted in
 place, never overwritten. Both entries **stay `Status: open`**.
+
+### 2026-09-09 — `FUP-ENFORCEMENT-MANIFEST-COMMENT-DESCRIBES-A-RED-THAT-IS-GREEN`: condition met and proven (lead)
+
+**⚠ First, a correction to the follow-up's own address.** It says *"rows 31/32 of
+`supabase/tests/vectors/authz-enforcement-manifest.json`"*, which reads as JSON positions. It is
+**not** — those are the **AE4 permission-matrix** row numbers, and `401` § 19.2's message is what
+maps them: row 31 = `org.participants.external.manage`, row 32 = `org.case_vocabulary.manage`
+(row 30 = `…manage`, 33 = `…read`, 43 = `…create`). By **JSON insertion order** the same two rows sit
+at positions **40 and 39**. ⛔ Nobody should have to re-derive that twice; both numberings are
+recorded here. The two stale `_comment`s were found at their `legacyEquivalence.qualifier` fields,
+which is the field the follow-up means.
+
+**Measured before touching anything, on a FRESH `supabase db reset --local` (rc 0):**
+
+- `401` § 19.2b's own expression — `count(distinct` comment-stripped `prosrc)` over
+  `app.{can_create_professional, can_manage_external_participant, can_manage_case_vocabulary}` —
+  **measures 2, expects 2** ⇒ green.
+- `401` § 19.2c's expression, over the two-function pair — **measures 1, expects 1** ⇒ green.
+- ⭐ **The md5s the stale comment cites are STILL CURRENT** (re-measured, ⛔ not quoted):
+  `can_manage_case_vocabulary` and `can_manage_external_participant` both `3a86b023`,
+  `can_create_professional` `f17a0c42`. So the *history* in that comment is accurate; only its
+  *verdict* had rotted. ⇒ the fix is a resolution appended to a true record, not a correction of a
+  false one — which is exactly why the follow-up forbids closing it by **deletion**.
+- `403` § 2.3b exists and carries the co-sharing assertion the reduction rests on.
+
+⚠ **A run-mechanics fact worth writing down:** `401` **cannot run alone**. In isolation it dies at
+line 1056 with `ERROR: schema "test_helpers" does not exist` — 95 of 121 planned, `Bad plan`, exit
+**3**, and ⛔ **0 `not ok`**, i.e. it fails without a single failing assertion. `test_helpers` is
+created by `supabase/tests/00_setup.sql`. ⇒ any single-file `401` debug loop must pass `00_setup.sql`
+first, and ⛔ an exit-3 `Bad plan` with 0 `not ok` is a **harness** result, never a finding.
+
+**The change.** Both `legacyEquivalence.qualifier` fields rewritten to open with `✅ RESOLVED
+2026-09-09`, stating (a) the current values of § 19.2b and § 19.2c, (b) **what was ruled** — 19.2b's
+expected value *was* moved 1 → 2, and the objection the comment raised against that move (*a bare
+count of 2 over three functions is satisfied by ANY of the three pairings*) was answered **not** by
+editing 19.2b alone but by **adding § 19.2c**, which pins *which* pair survives, with `403`'s fourth
+representative and its § 2.3b carrying the co-sharing — (c) the standing prohibition **kept**: ⛔
+19.2b must still red on a fourth split, and an expected value that tracks reality by being edited is
+not an assertion, and (d) the **entire superseded text quoted verbatim** under
+`--- HISTORY, THE SUPERSEDED TEXT QUOTED IN FULL:`. Recorded on **both** rows, not once — the same
+reason the gap was recorded on both.
+
+**Witnesses, exit codes read BARE:**
+
+- ⭐ `npx supabase test db --local supabase/tests/00_setup.sql 401 403 410` **AFTER** the change:
+  `All tests successful. Files=4, Tests=189`, `Result: PASS`, **0 `not ok`**, **exit 0**. (`401`
+  alone, before the change, on the same fresh reset: `Files=2, Tests=122`, `PASS`, exit 0.)
+- `npm run lint:authz-vectors` (gate 12) first reported **DRIFT** — the generated fixture is derived
+  from this JSON — and is **green** after `node scripts/gen-authz-matrix-cells.mjs`.
+- ⭐ **The diff is 4 lines across 3 files and every one is accounted for**: 2 in the manifest JSON
+  (the two qualifiers), 1 in `authz-matrix-coverage.json` (**`manifestSha256` only** — `expected`
+  117000 / `executed` 2002 / `skipped` 114998 all unchanged), 1 in
+  `authz_enforcement_manifest.psql` (**`sourceSha256` only**). ⇒ the generated fixture carries **no
+  qualifier text at all**, so a comment propagates as a sha stamp and nothing else — which is the
+  correct shape and is why gate 12's DRIFT was a stamp, not a data change. ⛔ Gate 12 was green in
+  this unit's baseline, so no pre-existing drift was absorbed.
+
+⇒ **The clause's three conditions are met**: the comment states the ruling that was taken ✅, states
+the current value of § 19.2b ✅, and a fresh run of `401` is quoted beside it showing § 19.2b and
+§ 19.2c green ✅. ⚠ The register entry still **stays `Status: open`** until the Record step, after PO
+approval — a met condition is not a closed entry.

@@ -139,33 +139,32 @@ enforcement manifest's `_comment` that describes a red which is green.
 
 ### Done since start
 
-Unit opened (`99571f1b`), preconditions measured. Live-catalog evidence derived for both authz
-clauses at the open head pair — ⭐ and it moved both of them: the `is_active` clause **names the
-wrong predicate** (it gates the one with 0 policies and leaves `app.is_admin()`'s 26 blind), the ACT
-hat is a bare JWT claim read so the gap is **not** bounded by token expiry, and no pgTAP cell
-anywhere deactivates a `platform_admin`; the Class-2 door count of 3 is **confirmed**, while the
-clause's *premise* is contested by ADR 0078 A35's own text (its MAY list contains "identity" and its
-ruling 3 excludes Class-2 explicitly — but for **reads**, and these are writes, one destructive).
-**PO ruling R3 taken:** gate `is_active` on **both** admin predicates ⇒ Batch 10.
+**All six PO rulings taken** (R1 scope · R2 review queue · R3 `is_active` gate **both** predicates ·
+R4 Class-2 arm **removed, relocated** · R5 retire `409` § 3.7's contrary A35 reading · R6 correct both
+clauses now). **Both register clauses corrected**, superseded wording quoted in place: the `is_active`
+clause widened from one predicate to both (0 policies vs **26**), the Class-2 clause's door list from
+3 to the **closure of 14, 12 behaviourally affected**, and its unwritable *"E2E over the reachable UI
+path"* rewritten to the **PostgREST** path. ⭐ **The manifest follow-up's three conditions are MET AND
+PROVEN** — both `_comment`s rewritten with the superseded text quoted in full, `401` § 19.2b measures
+2 / § 19.2c measures 1 on a fresh reset, and `00_setup + 401 + 403 + 410` = `Tests=189 · PASS · 0 not
+ok · exit 0`; gate 12's DRIFT resolved by regenerating, and the whole diff is **4 lines, every one
+accounted for** (two qualifiers + two sha stamps). `npm run lint` **rc 0 bare** after.
 
 ### In progress
 
-Independently verifying the eleven load-bearing claims in the PO-supplied Class-2 evidence document
-(scratchpad `batch9-po-input-class2.md`) — above all its widening of the door list from 3 direct
-readers to a claimed **12-door transitive closure**, its two corrections to the lead's premises (no
-UI caller reaches the arm; a `platform_admin` cannot reach the tenant route at all), and the two
-contradictory readings of A35 it says are live in the tree. ⛔ Nothing from it reaches ADR 0201
-unverified.
+Nothing building. The batch's remaining deliverable is **ADR 0201 itself**, not yet drafted.
 
 ### Next
 
-R4 (the Class-2 ruling) asked again once verification returns → the two register clauses corrected
-in writing, superseded wording quoted → `backend` returns a FULL plan → ADR 0201 drafted (both
-rulings + the D8 bundle + F5) → the manifest `_comment` rewrite with a fresh `401` run quoted → gate
-at the tip, run by someone other than the builder → QA → PO approval → Record.
+Size ADR 0201 against its eight required subjects and put the *one ADR vs. a small set* question to
+the PO — the D8 bundle alone is four decisions and the F5 seam model is a fifth. Then `backend`
+(Opus) returns a FULL plan; the lead approves with rulings in ONE scratch file; ADR 0201 drafted
+carrying both authz rulings **with the refuted `ensure_professional_participant` reason excluded and
+the surviving one recorded**; gate at the tip run by someone other than the builder; QA; PO approval;
+Record.
 
 ### Blockers
 
-None. ⚠ Two bounds, not blockers: R4 is owed by the PO, and plan §3 owes an amendment recording
-that the PO widened Batch 9's *subject* beyond the three plan-assigned items — a widening in scope,
-not in kind, since the empty-pathspec assertion still holds.
+None. ⚠ One bound: `409` § 3.7's marker rides with Batch 10 because R4 flips that cell anyway, so
+Batch 9's share of R5 is that **ADR 0201 names the winning reading and the superseded sentence** —
+if that is not written, R5 delivers nothing.
