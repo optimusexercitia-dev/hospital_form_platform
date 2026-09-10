@@ -920,6 +920,38 @@ authz.entailed_grants(p_principal uuid, p_resolution_kind text, p_scope_id uuid,
 # half: a broken query satisfies the denial alone), the restore is proven, and deleting a
 # role's catalog row proves the fail-closed branch. 315 keeps the pre-existing
 # holds-the-role assertions.
+#
+# ── APPENDED 2026-09-10 · pre-AE5 Batch 10 (ADMIN-ARM-IS-ACTIVE) ─────────────────────
+# THE BODY CHANGED AGAIN, at 20261003007390, and the paragraph above is exactly the reason
+# that matters: *a standing verdict transfers silently to a body it was never measured
+# against*. The `408 §§3-4` keystone named above was measured against the …007260 body and
+# says NOTHING about either line …007390 added. Two lines were added, so TWO keystones are
+# named, and each was PROVEN by its own mutation in
+# `supabase/tests/mutation/authz-command-door-targeted-cases.sh` CASE 2 (the discharge the
+# diff-scoped deriver demanded when it printed this door under "DOORS IDENTIFIED, NOT
+# SWEEPABLE BY THIS ARM — each owes a TARGETED case"; ⛔ it may never be hand-added to
+# `CASES=`, ADR 0079 hazard 4):
+#
+#   · `418 §3` — the DOOR-WIDE account-state gate (PO ruling R1). Mutation 2a neutralizes
+#     `if not app.is_active(v_uid) then` to `if false then` and 418 reds on EXACTLY five
+#     cells: 3.1/3.2 (deactivated and suspended principal refused, both polarities), 3.4/3.5
+#     (a refusal leaves neither a seating row nor an audit row) and 3.8 (the TENANT-tier cell
+#     the widening owes). Discrimination: 408 stays GREEN, so the mutation removed ONE line
+#     and did not break the door — a door that refuses everyone satisfies a denial cell too.
+#   · `315` — the R10 role-only audit stamp (ADR 0201 D2). Mutation 2b puts the pre-R10
+#     membership scope triple BACK into the `app.audit_write` call and 315 reds on exactly
+#     the two rewritten NULL-triple cells (org tier and commission tier; the platform tier
+#     stamps NULL either way and is deliberately NOT pinned). Discrimination: 418 stays GREEN,
+#     so 2b moved the stamp and not the seating decision.
+#   · `408 §§3-4` SURVIVES UNCHANGED for the session_selectable gate — it is not superseded,
+#     it simply never covered the two new lines. All three verdicts stand together.
+#
+# ⚠ `app.audit_write` is NOT a second unswept door. The same deriver named it only because
+# THIS body's CALL to it changed; the sink itself is unchanged (measured, CASE 3: the
+# migration defines it zero times while mentioning it six, and its live
+# `md5(pg_get_functiondef)` is pinned at 3b069ecb1a1c51b340a127f7a7dcd105). CASE 3 mutates
+# the CALL — deleting it reds eight `315` cells across all three tiers, including the
+# "the row still carries role + actor" twins that a never-written row cannot satisfy.
 public.assume_role(p_role platform_role)
 
 # ── CATEGORY (b) · 2026-09-03 · AE4/IA-F9 statement-scoped increment ──────

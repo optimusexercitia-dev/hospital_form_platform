@@ -549,3 +549,94 @@ scope triple restored into the audit call → the rewritten `315` must notice) a
 the CALL changed, the door did not — proven from the migration and `pg_get_functiondef`; the call
 deleted → `315`'s role+actor assertion must notice) in `authz-command-door-targeted-cases.sh`, and
 appends a dated paragraph to the backlog entry. Brief: scratchpad `batch10-targeted-brief.md`.
+
+### 2026-09-10 — the two TARGETED cases the deriver demanded, built and MEASURED (backend)
+
+The discharge for the two doors the tip gate printed under *"DOORS IDENTIFIED, NOT SWEEPABLE BY THIS
+ARM — each owes a TARGETED case"*. Both landed in the existing home
+`supabase/tests/mutation/authz-command-door-targeted-cases.sh` (CASE 1's shape copied: `SUBJ=` token,
+the mutation applied to the **LIVE body** inside a mutate/restore bracket, the pgTAP file(s) named that
+must NOTICE, a discrimination half, the restore proven against the catalog). ⛔ Neither door was
+hand-added to `CASES=` (ADR 0079 hazard 4). No pgTAP file was added or edited.
+
+**CASE 2 — `public.assume_role(platform_role)`.** Subject fingerprint before/after every bracket:
+`c721f45a459cc73c1e3c0db97f00ff8f`. Anchor uniqueness measured on the live body first (each anchor
+occurs exactly once; `is_active` occurs exactly **once in the whole definition**, so the post-mutation
+`!~ 'is_active'` check is a claim about the CALL and not a `prosrc` regex a comment could satisfy).
+
+| half | mutation (live body) | fingerprint | pgTAP that NOTICED | discrimination |
+| --- | --- | --- | --- | --- |
+| 2a | `if not app.is_active(v_uid) then` → `if false then` (R1's door-wide gate) | `5e7ef84e…` | **418 RED on exactly 5 cells**: `418:248` 3.1 deactivated · `:265` 3.2 suspended · `:285` 3.4 no seating for the denied session · `:291` 3.5 no audit row for it · `:315` 3.8 the tenant-tier cell the widening owes | **408 GREEN** (`Result: PASS`, `Files=1, Tests=17`) — the sibling `session_selectable` gate in the same body still decides, so 2a removed ONE line rather than breaking the door. Without it, 3.1/3.2/3.8 are equally satisfied by a door that refuses everyone |
+| 2b | the pre-R10 scope triple put BACK: `v_session_id, null::uuid,` → `v_session_id, v_commission,` and `null::uuid, null::uuid` → `v_org, v_hospital` | `fecf257f…` | **315 RED on exactly 2 cells**: `315:218` org-tier NULL triple · `315:242` commission-tier NULL triple. ⚠ The platform tier is deliberately NOT pinned — it stamps NULL either way, so a pin there would be a cell that cannot move | **418 GREEN** (`Files=1, Tests=30`) — the cross-check: 2a reds 418 and leaves 408 green; 2b reds 315 and leaves 418 green, so 2b moved the STAMP and not the seating decision |
+
+Restore proven twice against the catalog (`md5(pg_get_functiondef)` back to `c721f45a…` after each
+half), and residue enumerated rather than inferred: the state gate, the `null::uuid` pair and
+`perform app.audit_write(` are all back. 418 and 315 re-run GREEN after their restores.
+
+**CASE 3 — `app.audit_write(text,text,uuid,uuid,text,jsonb,uuid,uuid)`: the CALL changed, the door did
+not.** The ruling the case CARRIES (never written as a bare allowlist line): *`app.audit_write` is an
+append-only audit SINK (Architecture Rule 11), not an authorization decision; the deriver lifted it out
+of the diff by NAME because `assume_role`'s CALL to it changed (R10's three `null::uuid`); the CALL is
+what CASE 3 mutates.* "The migration did not touch it" is itself an assertion, so it is measured twice:
+
+- **proof 1** — `20261003007390_admin_arm_follows_account_state.sql` defines `app.audit_write`
+  **0 time(s)** and *mentions* it **6 time(s)**. ⛔ The mention count is the discrimination half: a zero
+  from a grep that can find nothing is not a finding.
+- **proof 2** — the live `md5(pg_get_functiondef(...))` is **`3b069ecb1a1c51b340a127f7a7dcd105`**, PINNED
+  in the case and re-checked after the mutation (unmoved). When a future migration moves that body the
+  case ERRORs and the ruling must be re-taken against the new body — which is precisely the failure the
+  backlog entry names in its own words.
+- **the mutation** — `perform app.audit_write(...);` deleted from `assume_role`'s live body (replaced by
+  the plpgsql no-op), caller fingerprint `2a458150…`, the seating upsert asserted still present so this
+  is a targeted mutation and not a stub. **315 RED on exactly 8 cells**: `315:186` D8 "the switch itself
+  is audited" · `:207` cardinality · `:218`/`:224` org tier · `:242`/`:248` commission tier ·
+  `:274`/`:280` platform tier — the `:224`/`:248`/`:280` twins ("the row still carries role + actor")
+  being exactly the ones a never-written row cannot satisfy. Discrimination: **408 GREEN**
+  (`Files=1, Tests=17`) — deleting the SINK CALL moved no decision the door makes. Restore proven
+  (`c721f45a…`), no plant residue.
+
+**⭐ TWO BUILDER ERRORS, both caught by the case's own pins rather than by review — recorded because a
+green on the first run would have hidden each.** (1) The expected red set for CASE 3 was DERIVED as 7 and
+MEASURED as 8: the derivation omitted `315:186`, the D8 existence cell. The exact-count pin (`pin_failures`
+asserts the failure set is *exactly* the pinned one, count first, then each description by TEXT) is what
+turned that into a loud ERROR instead of a silent "the suite went red, good enough" — the QA N-REC-1
+shape, generalized from CASE 1. (2) The first residue check for CASE 3 was `!~ 'null;'`, which **can never
+pass**: the body already contains `v_holds := v_org is not null or … is not null;`. A check that cannot
+succeed is as blind as one that cannot fail. Replaced by the exact plant signature
+`chr(10) || '  null;' || chr(10)`, and the detector is now PROVEN able to fire — the mutated body is
+asserted to CARRY that signature before the restored body is asserted not to.
+
+**Harness changes beside the two cases** (all mechanical, CASE 1's behaviour byte-identical): `run_suite`
+now delegates to `run_suite_log` so each of the seven suite runs gets its OWN log — with one shared path
+the post-restore run overwrites the evidence the pin was computed from, and a witness quoted from a
+clobbered file is a witness about the wrong run. Case counts stay DERIVED (`SELECTED`/`COVERED`
+increments), never typed; nothing outside the file asserts a count (grep: the harness is referenced by no
+script, gate or package.json entry).
+
+**Witnesses — every rc read BARE, never through a pipe.**
+
+| run | rc | RESULT line |
+| --- | --- | --- |
+| `CASES="public.assume_role" bash …/authz-command-door-targeted-cases.sh` | **0** | `=== RESULT: 1 of 1 case(s) COVERED. ===` · `CASE 2 VERDICT: COVERED` |
+| `CASES="app.audit_write" bash …` (first run) | **1** | ⛔ the two builder errors above — `failure set is 8 assertion(s), not the 7 pinned` then `RESIDUE`. Restore had already been PROVEN before the stop, catalog re-checked at `c721f45a…` by hand |
+| `CASES="app.audit_write" bash …` (after the fix) | **0** | `=== RESULT: 1 of 1 case(s) COVERED. ===` · `CASE 3 VERDICT: COVERED` |
+| `unset CASES; bash …` (the whole home) | **0** | `=== RESULT: 3 of 3 case(s) COVERED. ===` — CASE 1 `COVERED` beside the two new ones, its pin still verified at `# Failed test 32` |
+| `supabase db reset --local` | **0** | |
+| `npm run test:db` | **0** | `Files=267, Tests=9019` · `Result: PASS` · `All tests successful.` — **unchanged**, and it must be: no pgTAP file was added or edited |
+| `npm run lint` | **0** | 17 of 17 gates reached; the trailing gates' own `⚠ BOUND` notes are standing text, not warnings |
+
+⚠ **Observed, NOT fixed (it is approved text and not this task's subject):** `418`'s header RUN SHAPE line
+reads `Files=2, Tests=31` (30 + 00_setup.sql's one), but a single-file `npx supabase test db
+supabase/tests/418_admin_arm_is_active.sql` measures `Files=1, Tests=30` — `00_setup.sql` is not counted
+as a second file on this CLI (v2.115.0). The header's own warning ("a stale RUN SHAPE is read as the
+expected shape by the next person diagnosing a count mismatch") is what makes this worth naming. For the
+lead to rule.
+
+⚠ `CASES=` semantics differ between this home and the deriver, and the header now says so: HERE an
+empty/unset `CASES` selects EVERY case (`want` returns 0 on `-z`), whereas `scripts/door-sweep-cases.sh`
+treats an empty `CASES` as the third state that selects NOTHING and exits 3. `unset CASES` is unambiguous
+in both, and is what the full run above used.
+
+**Commit on `authz-admin-arm-is-active`** (not amended, not pushed): one commit touching
+`supabase/tests/mutation/authz-command-door-targeted-cases.sh`,
+`supabase/tests/mutation/authz-unswept-backlog.txt` and this record.
