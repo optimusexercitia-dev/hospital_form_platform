@@ -1862,20 +1862,6 @@ It is a frozen 2026-07 record and several of its authorization claims are alread
 as a source would repeat the error ADR 0199 exists to correct. The sources are the migration files, the
 live catalog, and `supabase_migrations.schema_migrations`.
 
-### 🟠 FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-ADMIN-ARM-IGNORES-IS-ACTIVE — the admin arm never gates on `app.is_active`
-
-**Filed:** 2026-09-09 (Batch 8, unit CAN-MANAGE-PROFESSIONAL-SELF-CHECK) · **Owner:** backend · **Severity:** high — the asymmetry now sits inside one expression: `is_org_admin_of_for` follows the subject's state, the admin arm ignores it
-**Closes when:** the live `prosrc` of **BOTH** `app.is_admin_for` **and** `app.is_admin` contains an `app.is_active` term (verified from `pg_proc`, comments stripped), with a pgTAP cell that deactivates a `platform_admin` and asserts the admin arm denies, **reported RED before the change**; ⛔ or the PO rules explicitly that platform-admin authority is deliberately independent of principal state, and that ruling is recorded in an ADR. ⚠ **WIDENED 2026-09-09 at Batch 9 (PO ruling R3), superseded wording quoted:** *"`app.is_admin_for`'s live `prosrc` contains an `app.is_active` term"* — measured, that predicate gates **0** RLS policies and 5 functions while `app.is_admin()` gates **26** and 13, so the clause as filed gated the narrow one and left the wide one blind. Not closed by "no one has deactivated an admin yet", ⛔ and not closed on `is_admin_for` alone. ✅ **PO RULED R3: gate both**, and **R12 (2026-09-10) added a THIRD site — `public.assume_role`** (the door that SEATS the hat; it tests `profiles.is_admin` only, so a deactivated admin can seat a FRESH hat, which is why the gap is not bounded by token lifetime). ⇒ the migration is **Batch 10** over **three** sites, each with a RED-first cell; ⛔ a closure that gates two of the three does not discharge this. This stays open.
-**Status:** open
-**Body:** [FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-ADMIN-ARM-IGNORES-IS-ACTIVE.md](FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-ADMIN-ARM-IGNORES-IS-ACTIVE.md)
-
-### 🟠 FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-PLATFORM-ADMIN-CLASS-2-WRITE — a noun-rule question ADR 0200 left open
-
-**Filed:** 2026-09-09 (Batch 8, unit CAN-MANAGE-PROFESSIONAL-SELF-CHECK) · **Owner:** backend + PO · **Severity:** high — arm 1 grants a `platform_admin` write access to Class-2 professional identity content, which the noun rule (ADR 0078 A35) says is not theirs to touch
-**Closes when:** the PO has ruled on whether arm 1 should exist at this gate, with the door list in front of them — ⚠ **CORRECTED 2026-09-09 at Batch 9 to the closure of 14 `public` RPCs of which 12 are behaviourally affected**, from the superseded *"3 `public` RPCs"*, which is the direct-reader count only (derived from `pg_proc`, not quoted; the 2 unaffected sit behind `app.can_read_professional_profile`'s own `is_admin_for` short-circuit); and either the arm is removed with a pgTAP cell asserting a `platform_admin` is denied `redact_professional_profile` (RED before, GREEN after) plus **an assertion over the PostgREST path** — ⚠ **REWRITTEN 2026-09-09 (PO ruling R6)** from *"plus an E2E over the reachable UI path"*, which cannot be written because there is no such path (zero component callers for either server action; `src/app/o/[org]/c/[commission]/layout.tsx` returns `notFound()` for a non-member `platform_admin`, BUG-MT-005) — or the exception is recorded in an ADR naming why professional identity is a tenancy noun. ✅ **PO RULED R4: remove, RELOCATED** — the arm goes and `app.can_manage_case_vocabulary` gains an explicit `is_admin_for` arm; the migration is **Batch 10**, so this stays open.
-**Status:** open
-**Body:** [FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-PLATFORM-ADMIN-CLASS-2-WRITE.md](FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-PLATFORM-ADMIN-CLASS-2-WRITE.md)
-
 ### 🟡 FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-VOCAB-REDACTION-ZERO-CALLERS — five `'use server'` exports have no caller in `src/`
 
 **Filed:** 2026-09-09 (Batch 8, unit CAN-MANAGE-PROFESSIONAL-SELF-CHECK) · **Owner:** lead + frontend · **Severity:** medium — a Server Action export is POST-reachable regardless of whether any component calls it (LEARN-018's Server-Action form)
@@ -1916,14 +1902,6 @@ live catalog, and `supabase_migrations.schema_migrations`.
 
 **Measured 2026-09-10:** the file records `"migrationHead": "20261003007260"`; the live pair is `(20261003007360, 525)` — **two versions behind**. ⚠ Its sibling fields ARE gated and did move correctly this batch (`manifestSha256` and `sourceSha256` both re-stamped, twice), so ⛔ the file is not stale as a whole and a reader can reasonably assume every field in it is current. That asymmetry is the finding.
 
-### 🟠 FUP-AE5-OPENING-ADR-R10-AUDIT-STAMP-HAS-NO-REGISTER-HOME — R10 lives only in an ADR and a log (owner: backend + PO)
-
-**Filed:** 2026-09-10 (Batch 9, unit AE5-OPENING-ADR, PO ruling R10 at Batch 9's Record step) · **Owner:** backend + PO · **Severity:** high — the batch that ruled it does not implement it, and until this entry existed no register row would have made Batch 10 notice
-**Closes when:** `public.assume_role` writes its `active_role.assumed` audit row with **no** scope columns (`organization_id`, `hospital_id`, `commission_id` all NULL) for **every** tier, verified from the live catalog; ⛔ **and `315:212` is REWRITTEN, not ticked** — measured 2026-09-09, that cell asserts *"hospital_id/commission_id stay NULL for an org-tier hat"* and under R10 it **stays green while losing all discriminating power**, because the cell that made it discriminating (`315:208`, asserting `organization_id` **=** the org) is the one that flips. ⚠ `315:246-249` (platform tier, all three NULL) is R10's own carve-out and must stay green throughout.
-**Status:** open
-
-**Mechanism.** Measured from the live body: for a non-`platform_admin` role `assume_role` selects the matching membership `order by m.granted_at desc nulls last, m.id limit 1` and stamps **that one** scope triple, while `app.active_role_selections` stores **no scope column at all** and `hat_ok` compares `role_code` only. ⇒ authority spans **every** seating of the role while the audit row names **one**. PO ruling R10 (2026-09-10) chose *log the role only* over recording the footprint, because a footprint captured at assume-time is a **snapshot** a mid-session grant invalidates while `hat_ok` admits the new seating. ⚠ This discharges ADR 0176 D8's *"audit scope must match whichever wins"* — ⛔ R8 does not; ratifying the asymmetry ratified the mismatch.
-
 ### 🟡 FUP-AE5-OPENING-ADR-ENTAILED-GRANTS-COMMENT-NUMERALS-UNREPRODUCIBLE — two figures, no grain (owner: backend)
 
 **Filed:** 2026-09-10 (Batch 9, unit AE5-OPENING-ADR, while re-deriving the §6A asymmetry for ADR 0201) · **Owner:** backend · **Severity:** medium — an ungated figure inside the function body that ADR 0201 ratifies, so a reader checking the ratification meets two numbers that do not resolve
@@ -1939,3 +1917,24 @@ live catalog, and `supabase_migrations.schema_migrations`.
 **Status:** open
 
 **Measured 2026-09-09/10:** `supabase/tests/vectors/authz_differential_cells.psql` holds **216** `org.professionals.read` rows and `grep -c divergent` over it returns **0**; the enforcement manifest only *narrates* the hazard (`authz-enforcement-manifest.json:1240` — *"arms 1 and 3 are EXERCISED BUT NOT ORACLED, and arm 3 is OPEN AND MASKING"*). ⚠ D3's wording is **forward-looking**, so this is an **undischarged promise, not a false claim** — ⛔ and it must not be quoted as an assertion of completion. A live home already exists and must not be duplicated: the open QA finding at `docs/reviews/authz-ae4-review.md:99-101`.
+
+### 🟡 FUP-ADMIN-ARM-IS-ACTIVE-IS-ADMIN-CARRIES-A-PUBLIC-EXECUTE-ACL-ENTRY — `app.is_admin()`'s ACL grants EXECUTE to PUBLIC (owner: backend)
+
+**Filed:** 2026-09-10 (pre-AE5 Batch 10, unit ADMIN-ARM-IS-ACTIVE, lead decision L2) · **Owner:** backend · **Severity:** medium — a second object's ACL, in a different catalog, is the only thing keeping an otherwise-reachable predicate inert, and nothing ties that fact to this one
+**Closes when:** either (a) the entry is REVOKED in a migration and a pgTAP cell pins `has_function_privilege('public', 'app.is_admin()', 'EXECUTE') = false` alongside a DISCRIMINATING control on a sibling that legitimately grants `authenticated`; or (b) the entry is shown to be REQUIRED by a named caller, and a cell pins the schema-level absence of PUBLIC USAGE instead, so the argument the exemption rests on is asserted rather than recalled. ⛔ Not closed by "it is not reachable today" alone — that reproduces the shape this row is about: an unasserted premise doing the protecting.
+**Status:** open
+**Body:** [FUP-ADMIN-ARM-IS-ACTIVE-IS-ADMIN-CARRIES-A-PUBLIC-EXECUTE-ACL-ENTRY.md](FUP-ADMIN-ARM-IS-ACTIVE-IS-ADMIN-CARRIES-A-PUBLIC-EXECUTE-ACL-ENTRY.md)
+
+### 🟡 FUP-ADMIN-ARM-IS-ACTIVE-CAN-CREATE-PROFESSIONAL-COMMENT-NAMES-A-REMOVED-ARM — a stale comment describes an authority path Batch 10 removed (owner: backend)
+
+**Filed:** 2026-09-10 (pre-AE5 Batch 10, unit ADMIN-ARM-IS-ACTIVE, while landing migration `20261003007390`) · **Owner:** backend · **Severity:** medium — a comment inside a live gate now asserts a reach that no longer exists, at the one place a reader goes to check the authority model
+**Closes when:** the next migration that legitimately touches `app.can_create_professional` re-emits the body with the parenthetical corrected (`org authority (org_admin)`), per the `migrations-forward-only` rule's own guidance to prefer correcting a wrong header in the next migration that touches the same object. ⛔ Not a standalone comment-only migration — that rule also says a comment-only edit is not free.
+**Status:** open
+**Body:** [FUP-ADMIN-ARM-IS-ACTIVE-CAN-CREATE-PROFESSIONAL-COMMENT-NAMES-A-REMOVED-ARM.md](FUP-ADMIN-ARM-IS-ACTIVE-CAN-CREATE-PROFESSIONAL-COMMENT-NAMES-A-REMOVED-ARM.md)
+
+### 🟡 FUP-ADMIN-ARM-IS-ACTIVE-CASES-EMPTY-SEMANTICS-DIVERGE-ACROSS-HARNESS-FAMILIES — `CASES=` means opposite things in two harness families (owner: lead + PO)
+
+**Filed:** 2026-09-10 (pre-AE5 Batch 10, unit ADMIN-ARM-IS-ACTIVE, QA MINOR-2 at the review) · **Owner:** lead + PO · **Severity:** medium — the same shell convention gets the opposite meaning in two sibling homes, and only one of the two refuses when it can't tell which the caller meant
+**Closes when:** `CASES="" bash supabase/tests/mutation/authz-command-door-targeted-cases.sh` exits **3** with a refusal message distinguishing "unset" from "set and empty" (matching the deriver family's shape); `unset CASES` there still runs every case; and a self-test row asserts both mechanically, mirroring `door-sweep-selftest.sh:612`/`:618`'s own pair. ⛔ Not closed by only strengthening the header comment — the gap is behavioral, not documentary.
+**Status:** open
+**Body:** [FUP-ADMIN-ARM-IS-ACTIVE-CASES-EMPTY-SEMANTICS-DIVERGE-ACROSS-HARNESS-FAMILIES.md](FUP-ADMIN-ARM-IS-ACTIVE-CASES-EMPTY-SEMANTICS-DIVERGE-ACROSS-HARNESS-FAMILIES.md)

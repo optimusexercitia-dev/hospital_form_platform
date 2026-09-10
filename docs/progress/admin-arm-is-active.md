@@ -993,3 +993,32 @@ failures were fixed spec-side and re-run on the prod build, the flakies are base
 `typecheck` **0** · `git diff --stat 9f0909d3..HEAD -- src supabase` **EMPTY** (the app the full E2E
 built and ran is byte-identical to the tip; only `e2e/` and docs moved since) · `test:db` last run at
 `c5a52efb`/`9f0909d3` (`Files=267, Tests=9019`) with no `supabase/` change after it.
+
+## Current state at close — cut from the hub at the Record step (2026-09-10), the hub's last block
+
+**Updated:** 2026-09-10
+
+### Objective
+Build what Batch 9 decided: the admin arm follows the subject's `is_active` state at all three
+sites, the `platform_admin` Class-2 write arm is removed and relocated, and the role-only audit
+stamp exists — each half proven by a cell that was RED first.
+
+### Done since start
+Everything the acceptance criteria name, each box ticked with its witness in the hub: migration
+`20261003007390`; pgTAP `418` (13 of 30 RED first); 20 landing needles proven on plants; eleven
+re-rulings across five files (+ R5's two measured deviations); row 31's own differential rep (R4);
+the `session.ts` mirror (R3); two targeted door cases; the Playwright spec (3 pass, 1 skip by
+measured reason); the authz seam slice. Gate at the tip `a74f2409` (four arms hold, read sweep
+6 COVERED / 0 BLIND / 1 NOTICED = the baseline's own, set-valued CLEAN, SELFTEST 46/0/0); full prod
+E2E 1251 passed with its two reds fixed spec-side and GREEN 38/38 on re-run; QA APPROVED in one
+round (0/0/2, both fixed). Six PO rulings R1–R6; three lead decisions L1–L3.
+
+### In progress
+Nothing — the unit is complete; the merge state's one home is plan §2 row 10.
+
+### Next
+Successors named by Batch 9 and untouched here: ADR 0202 · ADR 0204 · `AE5-MATRIX-ARM3-CELLS` (the
+PO names which). Three follow-ups filed at this Record step; AE5 itself stays post-pilot.
+
+### Blockers
+None.

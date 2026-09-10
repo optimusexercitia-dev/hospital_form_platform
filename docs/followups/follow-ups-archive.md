@@ -12636,3 +12636,316 @@ head, 2026-09-10). The read in front of the pre-check — the finding — stands
 **Filed:** 2026-09-10 (unit GRANT-PLANE-CONVENTION; found by `backend` while landing ADR 0205 D12 Fix 2, measured at head for `orgadmin.a@test.local` on a seeded case: `can_read_case=false · is_tenancy_admin_of_for=true · has_case_capability(manage_case_access)=true`) · **Owner:** lead + PO · **Severity:** medium
 **Closes when:** a PO ruling on the SURFACE, then its build: (a) a DEFINER door lets a tenancy admin resolve a case's commission and open the access roster from the **commission management** page — never the case detail, which ADR 0078 D4 keeps unreadable to them — with pgTAP proving they still read no case content and an E2E over the reachable path; or (b) a ruling that the fallback arm stays SQL / service-role-only pre-pilot, recorded in ADR 0205 § Consequences. ⛔ Not closed by widening `cases_select` (that re-opens D4). ⛔ Not closed by observing that the pre-check now agrees with the door — it does, and the read in front of it is the finding.
 **Status:** open
+
+### ✅ RESOLVED 2026-09-10 (unit ADMIN-ARM-IS-ACTIVE) — the entry below is VERBATIM as filed
+
+**Closed on its own quoted `Closes when`, the "fix" arm (not the PO-independence arm), across all three widened sites.** Quoted: *"the live `prosrc` of **BOTH** `app.is_admin_for` **and** `app.is_admin` contains an `app.is_active` term (verified from `pg_proc`, comments stripped), with a pgTAP cell that deactivates a `platform_admin` and asserts the admin arm denies, **reported RED before the change**"* — plus the R12 widening naming **`public.assume_role`** as the third site. Witnesses: `pg_proc`, comments stripped, shows `app.is_admin()` and `app.is_admin_for(uuid)` both carrying `app.is_active(` (QA independently re-derived it, `docs/reviews/admin-arm-is-active-review.md` § Verified-facts list item 1); pgTAP `418` cells 1.x/2.x/3.x — **13 of 30 red** at the pre-migration head `(20261003007380, 527)` (`docs/progress/admin-arm-is-active.md`, "the BUILD" entry) — **30/30 green** after migration `20261003007390` (commit `a0002067`). The third site's own gate is proven **NOTICED**, not merely present: targeted **CASE 2a** (`supabase/tests/mutation/authz-command-door-targeted-cases.sh`) neutralizes `assume_role`'s `is_active` check and reds exactly `418:248`/`:265`/`:285`/`:291`/`:315` (cells 3.1/3.2/3.4/3.5/3.8) while `408` stays green — the discrimination that shows the gate is load-bearing, not cosmetic. A closure gating two of the three would not have discharged this; all three are proven.
+
+### 🟠 FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-ADMIN-ARM-IGNORES-IS-ACTIVE — the admin arm never gates on `app.is_active`
+
+**Filed:** 2026-09-09 (Batch 8, unit CAN-MANAGE-PROFESSIONAL-SELF-CHECK) · **Owner:** backend · **Severity:** high — the asymmetry now sits inside one expression: `is_org_admin_of_for` follows the subject's state, the admin arm ignores it
+**Closes when:** the live `prosrc` of **BOTH** `app.is_admin_for` **and** `app.is_admin` contains an `app.is_active` term (verified from `pg_proc`, comments stripped), with a pgTAP cell that deactivates a `platform_admin` and asserts the admin arm denies, **reported RED before the change**; ⛔ or the PO rules explicitly that platform-admin authority is deliberately independent of principal state, and that ruling is recorded in an ADR. ⚠ **WIDENED 2026-09-09 at Batch 9 (PO ruling R3), superseded wording quoted:** *"`app.is_admin_for`'s live `prosrc` contains an `app.is_active` term"* — measured, that predicate gates **0** RLS policies and 5 functions while `app.is_admin()` gates **26** and 13, so the clause as filed gated the narrow one and left the wide one blind. Not closed by "no one has deactivated an admin yet", ⛔ and not closed on `is_admin_for` alone. ✅ **PO RULED R3: gate both**, and **R12 (2026-09-10) added a THIRD site — `public.assume_role`** (the door that SEATS the hat; it tests `profiles.is_admin` only, so a deactivated admin can seat a FRESH hat, which is why the gap is not bounded by token lifetime). ⇒ the migration is **Batch 10** over **three** sites, each with a RED-first cell; ⛔ a closure that gates two of the three does not discharge this. This stays open.
+**Status:** open
+
+> ⛔ **BODY MOVED HERE VERBATIM 2026-09-10 and `FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-ADMIN-ARM-IGNORES-IS-ACTIVE.md`
+> DELETED.** The archive may not carry a `Body:` link (gate 13 reds on one; ADR 0185 D5), so a
+> closed entry keeps its body inline or loses it — the entry's own `Body:` field line is dropped
+> here, the one deviation from a pure verbatim fold. The body's own `# ` title is demoted to `#### `
+> so it nests under this entry, and its "Index entry" line is updated below, since leaving it
+> unchanged would misstate the file's current location and status when read on its own.
+
+#### FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-ADMIN-ARM-IGNORES-IS-ACTIVE
+
+Index entry: [follow-ups-archive.md](follow-ups-archive.md) · filed 2026-09-09 · status closed 2026-09-10
+
+**Mechanism.** Neither `app.is_admin()` nor `app.is_admin_for()` contains an `app.is_active` term
+(verified from `pg_proc`, both bodies quoted in ADR 0200). So a `platform_admin` who is deactivated
+or suspended passes every admin arm in the tree — including the ones BUG-PROF-INACTIVE-001
+hardened on the org side, where `is_org_admin_of_for` *does* gate on `is_active(p_uid)`. ADR 0200
+did **not** change this in either direction: the admin arm has never carried an `is_active` term to
+bypass, before or after the re-key, so this is pre-existing and was kept out of that unit for
+attributability. The asymmetry now sits inside one expression: arm 2
+(`app.is_org_admin_of_for`) follows the subject's state, arm 1 (`app.is_admin_for`) ignores it.
+
+**Closes when:** ⚠ **WIDENED TWICE — read this field, not the sentence below it.** The live `prosrc`
+of **ALL THREE** sites contains an `app.is_active` term (verified from `pg_proc`, comments
+stripped) — `app.is_admin_for` **and** `app.is_admin()` (PO ruling **R3**, 2026-09-09; the first
+gates **0** RLS policies and 5 callers, the second **26** and 13) **and** `public.assume_role` (PO
+ruling **R12**, 2026-09-10; the door that SEATS the hat) — each with **its own** pgTAP cell that
+deactivates a `platform_admin` and asserts denial, **every one reported RED before the change**.
+⛔ **A closure gating two of the three does not discharge this, and one cell over one site does not
+either.** Superseded original, quoted so nothing is lost: *"`app.is_admin_for`'s live `prosrc`
+contains an `app.is_active` term … with a pgTAP cell that deactivates a `platform_admin` and asserts
+the admin arm denies, reported RED before the change"* — one site where the Mechanism above already
+named two. ⛔ Or the PO rules explicitly that
+platform-admin authority is deliberately independent of principal state, and that ruling is
+recorded in an ADR. Not closed by "no one has deactivated an admin yet".
+
+**Origin:** filed at the Record step of pre-AE5 remediation Batch 8, unit
+`CAN-MANAGE-PROFESSIONAL-SELF-CHECK` — drafted while re-keying `app.can_manage_professional` and
+`app.can_read_professional_profile` onto their `_for` twins (ADR
+[0200](../decisions/0200-professional-identity-predicates-answer-about-their-subject.md)). Full
+record: [`docs/progress/can-manage-professional-self-check.md`](../progress/can-manage-professional-self-check.md).
+
+---
+
+## ⚠ CLAUSE WIDENED 2026-09-09 — pre-AE5 Batch 9, unit `AE5-OPENING-ADR`, PO ruling R3
+
+⛔ **The clause as filed named the WRONG predicate.** Superseded wording, quoted so nothing is lost:
+*"`app.is_admin_for`'s live `prosrc` contains an `app.is_active` term (verified from `pg_proc`,
+comments stripped)"*. The **Mechanism** above already named *both* `app.is_admin()` and
+`app.is_admin_for()`, so the clause was narrower than the defect it was filed for — Batch 7's *"a
+`Closes when` can name a wrong predicate"* fault, arriving one batch later.
+
+**Blast radius, measured from the live catalog at head pair `(20261003007360, 525)`** — counts
+**and** sets, because *a count is not a set*. `--`/`/* */` comments stripped and a call-shape suffix
+required, since `profiles.is_admin` is also a **column name** and a bare word match counts comments
+and column references (`is_admin_for` never matches `\yis_admin\y`, `_` being a word character):
+
+| predicate | RLS policies (`qual`/`with_check`) | raw text mention | **real call** |
+| --- | --- | --- | --- |
+| `app.is_admin_for` | **0** | 6 | **5** |
+| `app.is_admin()` | **26** | 32 | **13** |
+
+The 5 real `is_admin_for` callers: `app.can_manage_professional`,
+`app.can_read_professional_profile`, `app.grant_role_impl`, `app.recover_orphan_person_to_org_impl`,
+`app.revoke_role_impl` (the 6th mention is comment-only, in `app.affiliate_person_impl`).
+⛔ The 26 policies and 13 functions are a **set to re-derive at the fixing batch's own head**, never
+a list to quote from here.
+
+**Two facts the Mechanism above does not contain, both measured 2026-09-09:**
+
+1. ⛔ **The gap is NOT bounded by token lifetime.** `app.active_role()` is
+   `current_setting('request.jwt.claims')::jsonb ->> 'active_role'` — a bare claim read. And
+   `public.assume_role`, the door that seats the hat, tests only
+   `exists(select 1 from profiles where id = v_uid and is_admin = true)` on its `platform_admin`
+   branch — **no `is_active`**. So a deactivated or suspended admin can seat a **fresh** hat.
+   ⛔ Anyone reasoning *"the hat expires, so exposure is one session"* is reasoning from an
+   assumption this refutes.
+2. **No pgTAP cell anywhere deactivates a `platform_admin` and measures an admin arm.** Eight
+   candidate files inspected (`229`, `293`, `318`, `397`, `398`, `401`, `404`, `409`, `415`): every
+   existing "deactivated principal" cell targets a **different** role — `404` a `staff_admin`, and
+   its own § 1.5 comment says it stopped there deliberately, naming this item's predecessor as why;
+   `409` § 3.10/3.11 a `staff_admin`; `397` § 2.6 an `org_admin`; `401` § 16.3/16.4 a `staff_admin`.
+   `415` contains **zero** occurrences of `is_active`. ⇒ the RED-first cell the clause demands does
+   not exist to be reused.
+
+**PO ruling R3 (2026-09-09): gate BOTH predicates.** Platform-admin authority does follow account
+state. The migration and the RED-first cell are **Batch 10**; this entry stays `Status: open`.
+⚠ **A THIRD site the clause does not name:** `public.assume_role` itself.
+✅ **RULED 2026-09-10 (PO ruling R12) — IT IS IN SCOPE**, and this paragraph is corrected rather than
+left standing: it previously read *"Whether it also gains the term goes to the PO with Batch 10's
+shape — ⛔ it is **not** silently in scope here"*, which was true when written and false the moment
+R12 was taken. ⇒ **Batch 10 gates THREE sites**, `app.is_admin()`, `app.is_admin_for()` **and**
+`public.assume_role`, each with a RED-first cell. Rationale recorded in ADR 0201: gating the two
+checks while leaving the **seating** door ungated makes the fix *read* as complete while a
+deactivated admin can still put the hat on. ⛔ A closure that gates two of the three does not
+discharge this entry.
+
+---
+
+## ⛔ EVIDENCE CORRECTED 2026-09-10 (QA MINOR-4) — the "no pgTAP cell" negative was a HAND-LIST
+
+The paragraph above states *"Eight candidate files inspected (`229`, `293`, `318`, `397`, `398`,
+`401`, `404`, `409`, `415`)"*. ⛔ **That is NINE names described as eight, it was assembled by hand,
+and it omitted `231_authz_m5_is_active_gate.sql` — the suite named for the very predicate.** The
+claim is load-bearing (it licenses *"the RED-first cell the clause demands does not exist to be
+reused"*, which shapes Batch 10's scope), so a hand-list is not good enough: Batch 7's standing
+lesson is that **a derived sweep piped through a hand-list is a hand-list wearing a label.**
+
+⭐ **The conclusion SURVIVES. Re-derived, with the queries, not inspected:**
+
+**D1 — who is deactivated anywhere in the suite** (⛔ not "who mentions `is_active`"):
+
+```sh
+grep -lE "update +public\.profiles +set +(is_active *= *false|suspended_until *= *now\(\) *\+)" supabase/tests/*.sql
+```
+⇒ **21 files.** ⚠ Neither the superseded 9 nor a looser pattern's 28 is this set; the predicate has
+to be *a deactivating WRITE*, not a mention.
+
+**D2 — the only files where the claim could be false** are those that also name `platform_admin`
+**and** an admin predicate (`\bis_admin` or `can_manage_professional`) ⇒ **7**: `180` · `328` · `395`
+· `396` · `397` · `401` · `409`.
+
+**D3 — for each, the principal actually deactivated, read at the write site:** `180` `staff2_ccih` ·
+`328` uuid `…0002`, seated `staff_admin` by its own `claims_for` · `395` uuid `…0ae24d000006`, a
+picker *target* · `396` `p12`, one of a provisioned series · `397` `inact_oa`, an **org_admin** ·
+`401` `t401_p`'s uid = `chefe.ccih`, a **staff_admin** (§ 16.3/16.4) · `409` `sa`, bound in-file to
+`m.role = 'staff_admin'`.
+
+⇒ **Not one of the 21 deactivates a `platform_admin`**, so no existing cell measures an admin arm
+under a deactivated admin, and ⛔ **the RED-first cell R3/R12 demand still has to be written.**
+⚠ `231` — the omission — deactivates `st_x` / `st_x2` / `st_y` / `sa_y` and contains **zero**
+occurrences of `is_admin` or `platform`, so it never entered D2 and could not have changed the
+answer. **The evidence was wrong; the finding was not.**
+
+### ⛔ CORRECTION 2026-09-10 (QA N-MAJOR-2) — the derivation above asserts a FALSE UNIVERSAL, and its filter is the wrong predicate
+
+⛔ **Superseded, quoted: *"Not one of the 21 deactivates a `platform_admin`"*. That is FALSE.**
+`145_pqs_membership.sql:416` does `update public.profiles set is_active = false where id = (select
+admin from k)`, and `admin` is the **only** principal `supabase/tests/00_setup.sql:152` flags
+`is_admin = true`.
+
+⭐ **The cause is a WRONG PREDICATE in D2, not a missed file** — the same fault class this batch has
+now hit at every level. D2 filtered on the **string** `platform_admin`; but in this codebase a
+platform admin is a **flag on `profiles`** (`is_admin = true`), and that string only appears when a
+**hat** is named. A grep for the word cannot find a principal identified by a column.
+
+**D2′ — the corrected predicate: deactivates an *admin-flagged* principal, OR one wearing the hat.**
+⛔ **Stated as a set with its reading, not as a count** (QA R2-MINOR-1: *"exactly two"* was itself a
+figure a counter-example could kill). On the **strict** reading — *the deactivated principal is
+itself admin-flagged or hatted* — exactly **one** file qualifies, `145`. On the **loose** reading —
+*the file deactivates someone and hats an admin somewhere* — `409` joins it, and so do **`328`**
+(`:461` seats `claims_for('…0000b0', true)`, `:478` deactivates `…0002`), `395` and `397`. ⚠ Under
+**either** reading no cell reaches an admin arm, which is why the conclusion does not depend on which
+one is taken:
+
+| file | why it qualifies | why it still does not measure an admin arm |
+| --- | --- | --- |
+| `145_pqs_membership.sql` | deactivates `admin` — `is_admin = true` (`00_setup.sql:152`, the only such flag **in the pgTAP bootstrap**; ⚠ `supabase/seed.sql` also flags `platform@test.local`, and what makes the clause airtight is that **no deactivation site targets either**) | ⭐ it seats `test_helpers.claims_for((select admin from k), false)` at `:418` — **no third argument, so NO hat** — and `app.is_admin()`'s live body requires `app.active_role() = 'platform_admin'`. ⇒ the admin arm is **unreachable** in that cell by construction; the assertion is `list_my_nsp_hospitals()` |
+| `409_ae49_d6_rekey_differential.sql` | seats a `platform_admin` hat (§ 3.7) | its deactivation at `:711` targets `sa`, bound in-file to `m.role = 'staff_admin'` — a **different principal** from the hatted one |
+
+⇒ **The conclusion SURVIVES: no existing cell measures an admin arm under a deactivated admin, so
+the RED-first cell R3/R12 demand still has to be written.** ⛔ But it survives *per file, for stated
+reasons*, and ⛔ **not** as the universal above — a universal is what made a single counter-example
+fatal.
+
+⭐ **AND ONE PIECE OF GUIDANCE HERE WAS WRONG IN A WAY THAT COSTS BATCH 10 WORK.** The claim *"the
+RED-first cell … does not exist to be reused"* over-reached: **`145:414-425` is a reusable FIXTURE
+SHAPE** — unexpire the grant, `is_active = false`, seat claims, assert, then `is_active = true` to
+restore. What does **not** exist is a cell that seats the **`platform_admin` hat** on a deactivated
+admin and measures `app.is_admin()` / `app.is_admin_for()` / `app.can_manage_professional`. ⇒ Batch
+10 **adapts `145`'s shape and adds the hat**, rather than building from nothing. ⭐ **And a SECOND reusable shape, disclosed at QA R2-MINOR-1 rather than left undiscovered:** `328:477-490` seats an admin-flagged hat and deactivates a *different* principal — a **differential** shape, where `145`'s is a **single-principal** one. Batch 10 needs the differential for the third site (`assume_role` must deny a deactivated admin *seating* the hat while a live admin still can).
+
+### ✅ RESOLVED 2026-09-10 (unit ADMIN-ARM-IS-ACTIVE) — the entry below is VERBATIM as filed
+
+**Closed on its own quoted `Closes when`, the "removed" arm.** Quoted: *"either the arm is removed with a pgTAP cell asserting a `platform_admin` is denied `redact_professional_profile` (RED before, GREEN after) plus **an assertion over the PostgREST path**"* — met by **PO ruling R4** (Batch 10, `docs/progress/admin-arm-is-active.md`, "the plan received" entry): arm 1 stripped from `app.can_manage_professional`, an explicit `app.is_admin_for` arm added to `app.can_manage_case_vocabulary`, and `app.can_manage_external_participant` deliberately left unarmed (option (b) rejected — it would contradict ADR 0201 D5's declared external-participant-minting loss, pinned RED-first by `418 §4.7`). Witnesses: pgTAP `418` site-4 cells `4.1` (`redact_professional_profile`), `4.6` (`create_professional_profile`), `4.7` (`create_external_participant`) — RED at the pre-migration head `(20261003007380, 527)` (the 13-of-30 builder run), **30/30 green** after migration `20261003007390` (commit `a0002067`). The PostgREST-path assertion the clause demands (in place of the E2E the earlier rewrite ruled unwritable) is composed, not single: `public.professional_profiles`'s ACL `{postgres, service_role}`, `prosecdef` on all 14 closure doors, and the 42501 the door itself now raises, with `has_table_privilege('authenticated', …)` **false** for SELECT/INSERT/UPDATE/DELETE — so no table grant could reopen the door under the predicate. ⚠ **Stated, not glossed over: the HTTP hop itself — an actual PostgREST request hitting the RPC — stays UNPROVEN by pgTAP**, per the plan's own words; this closure rests on the catalog-level composition above, not on an HTTP-level rerun.
+
+### 🟠 FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-PLATFORM-ADMIN-CLASS-2-WRITE — a noun-rule question ADR 0200 left open
+
+**Filed:** 2026-09-09 (Batch 8, unit CAN-MANAGE-PROFESSIONAL-SELF-CHECK) · **Owner:** backend + PO · **Severity:** high — arm 1 grants a `platform_admin` write access to Class-2 professional identity content, which the noun rule (ADR 0078 A35) says is not theirs to touch
+**Closes when:** the PO has ruled on whether arm 1 should exist at this gate, with the door list in front of them — ⚠ **CORRECTED 2026-09-09 at Batch 9 to the closure of 14 `public` RPCs of which 12 are behaviourally affected**, from the superseded *"3 `public` RPCs"*, which is the direct-reader count only (derived from `pg_proc`, not quoted; the 2 unaffected sit behind `app.can_read_professional_profile`'s own `is_admin_for` short-circuit); and either the arm is removed with a pgTAP cell asserting a `platform_admin` is denied `redact_professional_profile` (RED before, GREEN after) plus **an assertion over the PostgREST path** — ⚠ **REWRITTEN 2026-09-09 (PO ruling R6)** from *"plus an E2E over the reachable UI path"*, which cannot be written because there is no such path (zero component callers for either server action; `src/app/o/[org]/c/[commission]/layout.tsx` returns `notFound()` for a non-member `platform_admin`, BUG-MT-005) — or the exception is recorded in an ADR naming why professional identity is a tenancy noun. ✅ **PO RULED R4: remove, RELOCATED** — the arm goes and `app.can_manage_case_vocabulary` gains an explicit `is_admin_for` arm; the migration is **Batch 10**, so this stays open.
+**Status:** open
+
+> ⛔ **BODY MOVED HERE VERBATIM 2026-09-10 and `FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-PLATFORM-ADMIN-CLASS-2-WRITE.md`
+> DELETED.** The archive may not carry a `Body:` link (gate 13 reds on one; ADR 0185 D5), so a
+> closed entry keeps its body inline or loses it — the entry's own `Body:` field line is dropped
+> here, the one deviation from a pure verbatim fold. The body's own `# ` title is demoted to `#### `
+> so it nests under this entry, and its "Index entry" line is updated below, since leaving it
+> unchanged would misstate the file's current location and status when read on its own.
+
+#### FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-PLATFORM-ADMIN-CLASS-2-WRITE
+
+Index entry: [follow-ups-archive.md](follow-ups-archive.md) · filed 2026-09-09 · status closed 2026-09-10
+
+**Mechanism.** `app.can_manage_professional`'s arm 1 grants on `is_admin_for(p_uid)` alone, and that
+predicate gates `public.update_professional_profile` and `public.redact_professional_profile` —
+CPF, licence number, specialty, i.e. **Class-2 professional identity content**. ADR 0078 A35's noun
+rule says a `platform_admin` is a superuser over tenancy, identity, vocabulary and audit and may
+**not** touch commission content. This is Option (ii) of ADR 0200, rejected there only because it
+moves a *currently reachable* answer and would have made the keying fix unattributable — not on
+the merits.
+
+**Closes when:** the PO has ruled on whether arm 1 should exist at this gate, with the door list (3
+`public` RPCs, derived from `pg_proc`, not quoted) in front of them; and either the arm is removed
+with a pgTAP cell asserting a `platform_admin` is denied `redact_professional_profile` (RED before,
+GREEN after) plus an E2E over the reachable UI path, or the exception is recorded in an ADR naming
+why professional identity is a tenancy noun.
+
+**Origin:** filed at the Record step of pre-AE5 remediation Batch 8, unit
+`CAN-MANAGE-PROFESSIONAL-SELF-CHECK`, out of ADR
+[0200](../decisions/0200-professional-identity-predicates-answer-about-their-subject.md) § Considered
+options (ii). Full record:
+[`docs/progress/can-manage-professional-self-check.md`](../progress/can-manage-professional-self-check.md).
+
+---
+
+## ⚠ CLAUSE CORRECTED, AND RULED, 2026-09-09 — pre-AE5 Batch 9, unit `AE5-OPENING-ADR`
+
+### Two faults in the clause as filed
+
+1. ⛔ **The door count was the DIRECT-READER count, not the closure.** Superseded wording:
+   *"the door list (3 `public` RPCs, derived from `pg_proc`, not quoted)"*. The 3 are right as far as
+   they go — and `320:129–134` already asserts by comment-stripped regex that exactly 3 `public`
+   RPCs name `can_manage_professional` — but the arm's **closure** is **14**, through four `app`
+   helpers: `can_create_professional` (+`create_professional_profile`,
+   `ensure_professional_participant`), `can_manage_case_vocabulary` (+6 create/archive vocabulary
+   doors), `can_manage_external_participant` (+`create_external_participant`), and
+   `can_read_professional_profile` (+`get_case_professional`, `log_audit_access`).
+   ⭐ **Behaviourally affected: 12, not 14** — `can_read_professional_profile` carries its **own**
+   `app.is_admin_for` short-circuit that returns *before* it reaches `can_manage_professional`, so
+   removing arm 1 changes nothing for those two. ⛔ **Cite both numbers; one alone is wrong whichever
+   is chosen.**
+2. ⛔ **The E2E it demanded CANNOT BE WRITTEN.** Superseded wording: *"plus an E2E over the reachable
+   UI path"*. Measured: `updateProfessionalProfile` has 2 references in `src/` (its definition plus
+   one doc comment) and `redactProfessionalProfile` has **1** (its own definition) — **zero**
+   component or client callers for either; and `src/app/o/[org]/c/[commission]/layout.tsx:108–113`
+   returns `notFound()` for a `platform_admin` who is neither member nor org admin, its comment
+   naming **BUG-MT-005** (status `fixed`). ⇒ **there is no reachable UI path**; the arm's only live
+   reach is **PostgREST**, and the assertion is rewritten to that path. ⚠ Zero UI callers is a
+   *reachability* fact, not a *harmlessness* one — a `'use server'` export is POST-reachable whether
+   or not a component calls it (LEARN-018).
+
+### What the measurement did NOT overturn — the merits, verified in four independent pieces
+
+Of all **7** destruction doors (**4** `dispose_*` — ⛔ `dispose_attachment_phi` does **not exist** in
+the live catalog, the 5 comes from the stale A30 doc — plus `redact_referral_message`,
+`redact_referral_note`, `redact_professional_profile`), **only `redact_professional_profile` reaches
+`app.is_admin`/`is_admin_for`**, and only through this arm. `redact_professional_profile`'s HC0J7 bar
+fires only when `retention_pinned_at` is set **or** the profile is a non-removed `respondent_doctor`
+on a case whose decision `status = 'issued'` ⇒ **it does not bar redacting the respondent of an
+UNDECIDED case** (the open sibling `FUP-ETHICS-RESPONDENT-PIN-FIRES-TOO-LATE`, 🟠, `PO to rule`). And
+the sibling `…-ADMIN-ARM-IGNORES-IS-ACTIVE` means the principal need not even be active.
+⇒ **A `platform_admin`, including a deactivated one, can erase the accused doctor's name, CPF,
+licence and specialty in an undecided ethics case, in any tenant, over PostgREST, with no UI path,
+no retention bar and no tenant-side actor in the trail. PROVEN BY EXECUTION** by the PO at head
+`20261003007360` (*"Dra. Denunciada"* erased; rolled back), not inferred.
+
+`public.professional_profiles` posture: RLS enabled; **one** policy (`professional_profiles_select`,
+SELECT, `authenticated`); ACL `{postgres, service_role}` and `has_table_privilege('authenticated', …)`
+**false for all four** of SELECT/INSERT/UPDATE/DELETE ⇒ removing the arm at the predicate is not
+theatre. `authz.roles.platform_admin` has `allowed_scope_kind = none`, `state = legacy`, and
+`authz.role_permissions` holds **0** grants of `org.professionals.manage` with no implication closure
+reaching it ⇒ *held by nobody*, so "keep the arm" obliges AE5 to invent a carrier for it.
+
+### PO ruling R4 (2026-09-09): REMOVE, RELOCATED NOT DELETED
+
+*A35's "identity" noun is the **user directory**; a tenant's professional registry is **Class-2
+tenant content**. `platform_admin` **reads** it (A35 ruling 3, unchanged) and never **writes** it.*
+Batch 10 owes: arm 1 stripped from `app.can_manage_professional`; an **explicit** `app.is_admin_for`
+arm added to `app.can_manage_case_vocabulary` (⚠ **not tidying** — a bare removal was measured to
+strand vocabulary with `42501 "sem autorização para gerenciar o catálogo"`, and vocabulary is an A35
+**MAY**-noun); **no** platform arm on `can_create_professional` / `can_manage_external_participant`,
+so `platform_admin` also loses professional create and external mint — a change **beyond this
+clause**, stated rather than absorbed. Expected reds to **re-rule, never silence**: `228:630–634` ·
+`409` § 3.7 (polarity **and** message text) · `415` § 1.2 (§ 1.1 and the arm-2 cells stay) ·
+`229:215–220` M1·1 FREEZE TWIN, which **flips at the door's FIRST gate** (`can_create_professional`)
+and therefore **splits in two** — `org_admin` proves the freeze reaching `HC0F2`, `platform_admin`
+proves the authority deny. ⛔ `401` and `410` are **NOT** expected reds: their fields are name-based
+and their `residualLegacyAuthority` entries name **arm 2**. Over-grant twins per ADR 0078 A33, each
+mutation-tested. This entry stays `Status: open` until Batch 10 lands.
+
+⛔ **One reason offered for rejecting the narrow variant is REFUTED and must not enter the ADR.** The
+claim was that `ensure_professional_participant` *"seats a professional INTO A CASE — commission
+content"*. Measured: its only occurrence of `case_participants` is the feature-flag assertion
+`app.assert_case_participants_enabled`; a `(insert|update|delete) … case_participants` regex over the
+comment-stripped body is **false**; its own comment reads *"this door is org-scoped, not case-scoped
+— it mints a registry identity, **it does not seat anyone**"*; and the seating door
+`public.add_case_participant` is gated by `app.is_staff_admin_of(commission_id)`, in which
+`can_create_professional` does not appear. ⚠ **The conclusion survives on a different fact:** the
+mint inserts a `public.participants` row with `sensitivity_class = 'professional_identity'` and
+`display_name = full_name` — **the real name** — so the narrow variant would still let a
+`platform_admin` **create** Class-2 identity content in any tenant's org registry. **That** is the
+reason to record; whether it suffices is the PO's call at the ADR draft.
+
+### ✅ RESOLVED 2026-09-10 (unit ADMIN-ARM-IS-ACTIVE) — the entry below is VERBATIM as filed
+
+**Closed on its own quoted `Closes when`, both conditions met.** Quoted: *"`public.assume_role` writes its `active_role.assumed` audit row with **no** scope columns (`organization_id`, `hospital_id`, `commission_id` all NULL) for **every** tier, verified from the live catalog; ⛔ **and `315:212` is REWRITTEN, not ticked**"*. Witnesses: the NULL scope triple was verified live for every tier — QA independently re-derived it (`docs/reviews/admin-arm-is-active-review.md` § Verified-facts list item 3: *"`p_commission`, `p_organization`, `p_hospital` all `null::uuid` for every tier"*), and item 7 of that same list confirms targeted mutation **CASE 2b** and **CASE 3** each notice the stamp moving or vanishing: CASE 2b (restoring the pre-R10 scope triple into the live `assume_role` body) reds `315:218`/`315:242` — exactly the org-tier and commission-tier NULL-triple cells — while leaving `418` green; CASE 3 (deleting the `app.audit_write` call entirely) reds eight `315` cells including the D8 existence cell (`:186`) and the role/actor-preserved twins (`:224`/`:248`/`:280`), both re-run `COVERED` per `docs/progress/admin-arm-is-active.md` ("the two TARGETED cases" entry). `315:212` was **REWRITTEN**, not ticked, as the clause demands: the org-tier twin at `:209-212` was replaced (not added to) by the migration's eleven re-rulings, commit `3b54bf11`; `315:246-249` (the platform-tier carve-out) stayed **green throughout** with its now-dead reason rewritten in the same commit (record, "the BUILD" entry, item 3 of the four plan-surfaced findings). ⭐ **The R10 consequence the ruling itself did not name, added here per the plan:** R10's stamp has **two readers** — the platform feed (`listAudit`) and the org feed (`listAuditForOrg`) — and making seatings scope-less moved which feed shows them; found only when the prod E2E gate (tip `9f0909d3`) reproduced it as `phase13-audit.spec.ts` AC-3f-platform going red (record, "the prod E2E gate" entry). **PO ruling R6** settled it: *seating is an IDENTITY event, the platform feed is its home, R10 stands* — ADR 0201 D2 carries a dated note naming both readers, and the spec was rewritten to the precise no-leak property rather than the stale empty-state check.
+
+### 🟠 FUP-AE5-OPENING-ADR-R10-AUDIT-STAMP-HAS-NO-REGISTER-HOME — R10 lives only in an ADR and a log (owner: backend + PO)
+
+**Filed:** 2026-09-10 (Batch 9, unit AE5-OPENING-ADR, PO ruling R10 at Batch 9's Record step) · **Owner:** backend + PO · **Severity:** high — the batch that ruled it does not implement it, and until this entry existed no register row would have made Batch 10 notice
+**Closes when:** `public.assume_role` writes its `active_role.assumed` audit row with **no** scope columns (`organization_id`, `hospital_id`, `commission_id` all NULL) for **every** tier, verified from the live catalog; ⛔ **and `315:212` is REWRITTEN, not ticked** — measured 2026-09-09, that cell asserts *"hospital_id/commission_id stay NULL for an org-tier hat"* and under R10 it **stays green while losing all discriminating power**, because the cell that made it discriminating (`315:208`, asserting `organization_id` **=** the org) is the one that flips. ⚠ `315:246-249` (platform tier, all three NULL) is R10's own carve-out and must stay green throughout.
+**Status:** open
+
+**Mechanism.** Measured from the live body: for a non-`platform_admin` role `assume_role` selects the matching membership `order by m.granted_at desc nulls last, m.id limit 1` and stamps **that one** scope triple, while `app.active_role_selections` stores **no scope column at all** and `hat_ok` compares `role_code` only. ⇒ authority spans **every** seating of the role while the audit row names **one**. PO ruling R10 (2026-09-10) chose *log the role only* over recording the footprint, because a footprint captured at assume-time is a **snapshot** a mid-session grant invalidates while `hat_ok` admits the new seating. ⚠ This discharges ADR 0176 D8's *"audit scope must match whichever wins"* — ⛔ R8 does not; ratifying the asymmetry ratified the mismatch.
