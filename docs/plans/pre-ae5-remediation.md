@@ -356,6 +356,30 @@ through. Needs its own reachability analysis; a migration → diff-scoped sweep,
 
 ### Batch 9 — Not a fix: the AE5 plan's opening ADR — owner lead + PO
 
+> ⚠ **IN FLIGHT since 2026-09-09 — unit `AE5-OPENING-ADR`** ([hub](../features/ae5-opening-adr.md) ·
+> [record](../progress/ae5-opening-adr.md)), branch `authz-ae5-opening-adr` off `main` @ `55e440c3`.
+> The block below is **kept, not rewritten** — it is the scope as ruled 2026-09-04, and the three
+> corrections it needs are recorded here beside it rather than folded into it.
+>
+> 1. ⭐ **The PO WIDENED the subject on 2026-09-09**, at initiation: *"initiate batch 9, and include
+>    `ADMIN-ARM-IGNORES-IS-ACTIVE`, `PLATFORM-ADMIN-CLASS-2-WRITE`, `ENFORCEMENT-MANIFEST-COMMENT`"*
+>    — three follow-ups this block does not assign to Batch 9, all filed at Batch 8's Record step.
+>    ⛔ **A widening in SUBJECT, not in KIND:** the PO ruled in the same round that the batch stays
+>    *"not a fix"* (**decide now, build later**), so where a ruling orders a database change the
+>    change is deferred to a **named Batch 10** and the follow-up stays `Status: open` with a decided
+>    path. ⇒ *"Not a migration ⇒ Batch 7's empty-pathspec assertion applies again"* **still holds**,
+>    and that is what makes the widening safe to record here rather than re-derive the plan.
+> 2. ⛔ **Item 4's 13 KB figure is STALE.** §6 step 4 says `.claude/claude-md-review-queue.md` was
+>    *"NON-EMPTY (13 KB)"* and unprocessed at Batch 8's Record step — true when written.
+>    **Re-measured at Batch 9's open: 1,433 bytes, three entries** (2026-08-25, 2026-09-03,
+>    2026-09-07), each a truncated staleness snippet about a figure, none a rule. The PO ruled
+>    **skip, and record the deferral**; it is recorded in the unit's record, not discharged.
+> 3. ⚠ **Batch 10 now EXISTS as a named consequence, and this plan has no block for it.** PO ruling
+>    R3 (2026-09-09) sends the `is_active` gating of **both** admin predicates to it. ⛔ Stated
+>    rather than fixed: a block written by a passing batch for work it is not doing is the shape §2's
+>    Batch 6 note warns about — whoever opens Batch 10 derives its scope from the unit record's R3/R4
+>    entries and the corrected register clauses, not from a placeholder.
+
 The decisions the corpus explicitly bundles for AE5's first step, none of which may be *"picked off
 inside a role increment"* (ADR [0176](../decisions/0176-authz-permission-layer-made-real.md) D8):
 
