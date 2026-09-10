@@ -790,3 +790,54 @@ migration, or a pgTAP file.
 
 **Commit on `authz-admin-arm-is-active`** (not amended, not pushed):
 `supabase/tests/418_admin_arm_is_active.sql` (RUN SHAPE correction) + this record entry.
+
+### 2026-09-10 — authz seam slice appended, Current state replaced (backend)
+
+**Scope: docs only** (the full `npm run e2e:prod` gate was running detached against the built app;
+`src/`, `e2e/`, `supabase/` and any DB command were off-limits this turn). Read, in order: CLAUDE.md
+§7 · `docs/backend-state/README.md` · `authorization-and-audit.md`'s prior `## Current state` block
+and its last two slices (`§ AE5's opening decision`, `§ Per-object grant plane`) for the slice shape ·
+this record in full · ADR 0201 D4/D5 with its two dated notes · the migration
+`20261003007390_admin_arm_follows_account_state.sql` header (lines 1–137, comments only).
+
+**Appended** a new frozen slice, `## Admin arm follows account state; the Class-2 write arm
+relocated; the audit stamp logs role only` (`docs/backend-state/authorization-and-audit.md:1399`),
+covering: the three `is_active` sites with their keying (table) and `assume_role`'s door-wide gate as
+R1's declared widening of R12; the Class-2 arm removed from `can_manage_professional` and relocated
+to an explicit `is_admin_for` arm on `can_manage_case_vocabulary`, `can_manage_external_participant`
+deliberately unarmed; R10's role-only audit stamp and `315:212`'s rewrite; the TS mirror in
+`session.ts`; row 31's own differential representative (the `gen-authz-differential-cells.py` REPS
+entry, the `401`/`403` re-rulings, the live plant); the two TARGETED cases (`assume_role`,
+`audit_write`) and the backlog paragraph; the derived expected-red set across five files (`228 · 409 ·
+415 · 229 · 257`) plus `315`'s two rewrites. Every fact carries a witness — a record entry, a commit
+sha (`a0002067` migration · `f2a0da8b` 418 · `3b54bf11` re-rulings · `fa68436c` TS mirror ·
+`c5a52efb` targeted cases · `a74f2409` row 31 rep), or a pgTAP file:line/§ — none typed from memory.
+
+**REPLACED** the `## Current state` block (never appended): folded the now-resolved "neither
+`is_admin()`/`is_admin_for()`/`assume_role` consults `is_active`" Open-edge bullet into two Invariants
+bullets stating the built/true state; trimmed the subject-keyed-asymmetry bullet (its R10-not-R8
+tail is now the new bullet's own subject); replaced the stale "Arm-1 removal is Batch 10's, not done"
+clause; added an Open-edges bullet naming the three follow-ups this unit files (the stale
+`can_create_professional` comment, `is_admin()`'s unreachable PUBLIC EXECUTE grant, the `CASES=`
+empty-semantics divergence across mutation-harness families); added the new slice to § Where the
+detail lives. Line count measured, not assumed: `awk` over the block (heading exclusive, next `##`
+exclusive) gave **111** after the first pass (over the 100-line ratchet) — three new/edited bullets
+were carrying manual mid-sentence line breaks that added lines without adding content — consolidated
+each to fewer physical lines (no prose cut) and re-measured: **96/100**. File size **153.1 KB**
+(gate's own report), under the 160 KB warn and 200 KB cap.
+
+**Gates, rc read bare.**
+
+| gate | rc | witness |
+| --- | --- | --- |
+| `npm run lint:backend-state` | **0** | `OK — 15 seam file(s) + README.md, all routed, preamble identical, 1052 KB total, largest authorization-and-audit.md at 153.1 KB (warn 160 KB / cap 200 KB)`; headroom line lists `authorization-and-audit.md (96, 4 left)` |
+| `npm run lint` | **0** | all 17 gates reached (chain ends at `lint:data-access`, itself rc 0) |
+
+**Not run here, by instruction:** `typecheck`, `test`, `test:db`, `supabase db reset`, the four authz
+arms, `next build`/`npm run dev` — the E2E gate was running detached against the built app and no DB
+or dev-server command was permitted this turn. No `src/`, `e2e/` or `supabase/` file touched;
+`git status --porcelain` before this turn's commit names exactly two files:
+`docs/backend-state/authorization-and-audit.md` and this record.
+
+**Commit on `authz-admin-arm-is-active`** (not amended, not pushed): the seam-file slice + Current
+state replacement + this record entry.
