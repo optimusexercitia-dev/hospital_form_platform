@@ -76,6 +76,26 @@ fn: public.session_context()
 # validating the requested role (e.g. listing roles — that is session_context's
 # job), or stops writing the audit row: then its full-list read is no longer
 # the minimal acquisition check this entry reasons from.
+#
+# 2026-09-10 — RE-DERIVED, NOT INHERITED (pre-AE5 Batch 10, migration
+# 20261003007390; PO rulings R1 + R10). The body changed twice, so this entry was
+# re-argued from scratch against the NEW body rather than carried forward. ⛔ An
+# entry whose "reasoned" half goes stale in silence is the failure ADR 0201
+# § Consequences names, and the two changes touch both halves of the trigger above.
+#  (a) The door gained `app.is_active(v_uid)`, DOOR-WIDE, before any seating. That
+#      reads `public.profiles` ACCOUNT STATE — not grant data, and emphatically not
+#      the active hat: the door still consults no `active_role`, so the
+#      hat-blindness class is untouched and the "you could only ever re-assume the
+#      hat you wear" argument stands unchanged. It is also not "grant data beyond
+#      validating the requested role": account state is a precondition of holding
+#      ANY role, evaluated for the caller alone.
+#  (b) R10 NULLs the audit row's three scope columns. The trigger says *stops
+#      writing* the audit row — the row is STILL WRITTEN, and it still carries the
+#      role, the actor and the entity. Asserted, not assumed: 315's "exactly one
+#      active_role.assumed row per session" plus its three new discrimination twins
+#      (org / commission / platform tiers), and 418 § 3.7.
+# ⇒ THE ENTRY SURVIVES and the finding stays reasoned-allowlisted. What would move
+# it is unchanged: a grant-data read, or the audit row disappearing.
 fn: public.assume_role(p_role platform_role)
 
 # public.memberships.memberships_select (SELECT), self arm — the caller reads
