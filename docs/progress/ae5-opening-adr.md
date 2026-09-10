@@ -497,3 +497,98 @@ reason the gap was recorded on both.
 the current value of § 19.2b ✅, and a fresh run of `401` is quoted beside it showing § 19.2b and
 § 19.2c green ✅. ⚠ The register entry still **stays `Status: open`** until the Record step, after PO
 approval — a met condition is not a closed entry.
+
+### 2026-09-09 — plan received (backend/Opus, plan-only turn); lead spot-check; three PO questions framed (lead)
+
+**Plan.** `backend` (Opus) returned a FULL plan in text, no files written, on the fresh-reset state
+this session handed it (head pair `(20261003007360, 525)`, unchanged). Preserved at session
+scratchpad `batch9-backend-plan.md`. Its verdict, and ⛔ it is a **sizing refusal**, not a schedule:
+
+⭐ **The eight subjects contain 14 distinct decisions, and one ADR would be ~900–1,200 lines.**
+Corpus calibration, measured over the live `docs/decisions/` corpus: **n = 198, median 123 lines,
+p90 390, max 2119**; the two comparable multi-decision authz ADRs cost **559** (`0190`) and **599**
+(`0191`) for 4–5 decisions each. ⇒ one document is *"four ADRs in a trench coat"*, and it also
+defeats `Supersedes:`/`Amends:` — reversing the `D` ceiling later would mean amending the very
+document AE5's template cites.
+
+**Proposed split, with the opening one named:** **0201** *the keying asymmetry is the model* (F6 +
+ADR 0200's template obligation + R3 + R4 + R5, ~280 lines) · **0202** *the role catalog is one
+manifest, and `platform_role` retires with it* (F7, F8, the retirement, ~180) · **0203** *the seam is
+already encoded; the classification columns are not* (F5 + the three columns, ~170) · **0204** *two
+platform-wide conventions with a census and no gate* (the `D` ceiling + `search_path`, ~150).
+⭐ **0201 alone is the true opening ADR**, and the reason is measured, not asserted: AE5's increment
+1 is `staff_admin`, which is **the only role already `state = 'authoritative'`** (`select code,
+allowed_scope_kind, state from authz.roles` → 11 `legacy` + `staff_admin authoritative`), so 0202
+gates increment **2**, not 1. ⭐ And the arithmetic closes: **AE5's eleven increments = 12 catalog
+roles − `staff_admin`.**
+
+⭐ **Its sharpest finding: F6 is not an open design question — the catalog already implements an
+answer nobody ratified.** `authz.entailed_grants` emits a `hat_ok` column computed as
+`(p_principal is distinct from (select auth.uid()) or af.role_code is not distinct from
+app.active_role())`, carrying the comment *"The §6A ASYMMETRY … a THIRD-PARTY question ignores the
+hat …, a SELF question requires it …. Neither uniform choice is correct."* And `authz.has_permission`
+**enforces** it (`and eg.hat_ok`). ⇒ the **live third option is subject-keyed asymmetry**; the
+implementation audit **recommends** the exact-assignment hat; ADR 0176 D8 names only the
+exact-assignment and role-wide options. ⛔ **The code implements an option the binding decision does
+not list.** And `app.is_admin_for`'s ACT clause is that same predicate with the role hardcoded ⇒ F6,
+ADR 0200's keying obligation and R3/R4 are **one decision**, which is why they share 0201.
+
+**Two subjects are not ADRs at all, and the plan says so with measurements:**
+
+- **Item 3 (arm-3 divergent cells) is WORK, not a decision.** The enumeration **does not exist**:
+  `supabase/tests/vectors/authz_differential_cells.psql` holds 216 `org.professionals.read` rows and
+  `grep -c divergent` = **0**. The manifest only narrates the hazard
+  (`authz-enforcement-manifest.json:1240`: *"arms 1 and 3 are EXERCISED BUT NOT ORACLED, and arm 3 is
+  OPEN AND MASKING"*). ⇒ recommend **deferring to a named unit `AE5-MATRIX-ARM3-CELLS`**, due before
+  increment 1 runs its matrix, not before its template is written.
+- **Item 6 (per-role checklist) is one lead doc edit.** `docs/plans/authz-evolution.md:1172–1180`
+  carries **0 of the 5** corrections (zero occurrences of `SCOPE:`, `SELFTEST`, `set-valued`,
+  `NOTICED`, `RESET_EVERY`, `CARRIED`); three of the five already have a home in
+  `docs/lead-playbook.md`. ⇒ five pointer lines at the Record step. ⛔ Not backend's file.
+
+**Plan's recommendation: 0201 + 0203 in Batch 9 · 0202 next · 0204 and items 3 and 6 out.**
+*"Three ADRs at ~280/~170 and one lead doc edit is one honest session. Four ADRs plus 216-row triage
+is four."*
+
+**LEAD SPOT-CHECK — three claims re-measured; ⛔ two hold verbatim and the third exposed a fault in
+the LEAD'S OWN instrument, not in the plan.**
+
+1. ✅ `docs/decisions/0176-…:45–47` confirmed verbatim: *"Readers of `session_selectable`,
+   `risk_class`, `sensitivity_ceiling`, `resource_kind`: **none**."* ⇒ the plan's *"the no-reader list
+   is FOUR columns and one of them now HAS a reader"* rests on real text. (`session_selectable` is
+   read by `public.assume_role` and gated by pgTAP `408` — so the set shrank **4 → 3** and no gate
+   could say so.)
+2. ⚠ **Grain correction to the plan, not a refutation.** It says ADR 0175 *"already **asserts** it as
+   done"*. The actual sentence (`0175:130–131`) is *"D3 leaves AE5 a named inheritance: the arm-3
+   cells **arrive** already enumerated and already known to diverge, so AE5 rules them rather than
+   discovering them."* That is **forward-looking** — a promise about the hand-off, not a claim of
+   present completion. The plan's substance survives (**nothing discharges it, and the enumeration
+   is measurably absent**); its verb does not. ⛔ ADR 0201 must not quote it as an assertion of
+   completion.
+3. ⛔ **THE LEAD'S CHECK WAS THE WRONG INSTRUMENT.** A `prosrc ~ 'hat_ok'` regex over `authz`
+   returned **false for `entailed_grants`** and true for `has_permission` /
+   `candidate_has_permission`, which read as *"the plan attributed the term to the wrong function."*
+   It did not. `hat_ok` is a **`RETURNS TABLE` column name** — it lives in the function's **result
+   type** (`pg_get_function_result` → `… hat_ok boolean)`), so `prosrc` cannot contain it, while the
+   predicate **and** the `§6A ASYMMETRY` comment are in the body **exactly as the plan quoted them**.
+   ⭐ **LESSON (Record step): a `prosrc` regex is BLIND to a `RETURNS TABLE` column name** — a
+   `hat_ok`-shaped negative from `prosrc` alone is an instrument artefact, and the whole F6 finding
+   would have been "refuted" by it. ⭐ Also corrected upward: the consumers are **three**, not one —
+   `has_permission`, `candidate_has_permission` **and** `explain_permission`.
+
+**Findings the plan surfaced that this batch will FILE, not fix** (Record step; ⛔ named now so they
+are not re-discovered): ADR 0175 D3's undischarged forward promise · `0176:45`'s no-reader list
+stale 4 → 3 with no gate able to say so · `FUP-AE4-CANDIDATE-SCOPE-FANOUT-IS-UNBOUNDED`'s *"nothing
+in the schema bounds either"* refuted — **`D ≤ M` structurally**, from
+`authz.authorized_scope_ids`' one-candidate-per-assignment-fact shape, with
+`M ≤ |commissions| + 6·|hospitals| + 2·|orgs| + 1` derived from three `memberships` constraints ·
+`FUP-NO-GATE-CATCHES-A-COLLAPSED-SEARCH-PATH`'s figures stale in three ways (**5** live
+`search_path` values, not 2; **23** empty-form not 17; and `public.tenant_orphan_profiles`
+**inverts** the resolution order relative to the dominant 825 — a semantic singleton, not a style
+one) · `authz-matrix-coverage.json`'s `migrationHead: "20261003007260"` against a live
+`20261003007360`.
+
+**Next: three PO questions, all *changes scope*, so all before the build** — the sizing verdict, F6's
+disposition, and whether items 3 and 6 are in or out. A fourth (does `public.assume_role` also gain
+the `is_active` term?) and the three measurement-backed ones (the classification columns, the `D`
+ceiling, the `search_path` value) follow, and their measurements are already in hand.
