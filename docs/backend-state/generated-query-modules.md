@@ -4,7 +4,7 @@
 > one file you need and carries the maintenance rules in full. ⛔ A posted section is FROZEN:
 > correct it by APPENDING a `⚠ **Superseded** — … See <file> § <heading>.` marker, never in place.
 
-<!-- DATA-ACCESS-ANCHOR kind=modules rows=109 queries=60 actions=49 exports=915 digest=49f66028668140b4db0678a1b9d5dfab -->
+<!-- DATA-ACCESS-ANCHOR kind=modules rows=109 queries=60 actions=49 exports=916 digest=b318357ee041bd84f82abdc8f0960bcf -->
 
 ⚙ **GENERATED FILE — do not edit by hand.** Every row below is derived from the LIVE
 CATALOG and from `src/` by `scripts/gen-data-access-surface.mjs`; rebuild with `npm run data-access:surface`.
@@ -19,7 +19,7 @@ handwritten in [`data-access.md`](data-access.md), which is frozen and posted (A
 D5). A catalog knows an ACL; it does not know that re-ordering an enum would open
 legal-privileged documents.
 
-**109 modules** — 60 under `src/lib/queries/`, 49 action modules, 915 exported value symbols between them.
+**109 modules** — 60 under `src/lib/queries/`, 49 action modules, 916 exported value symbols between them.
 
 Architecture Rule 9: data access goes through these modules — no inline supabase-js in UI. ⚠ **Presence here is not a Rule-9 audit.** This table answers "which module owns this query"; it does not claim every caller obeys the rule, and a module appearing here is not evidence that nothing bypasses it. The population is a DIRECTORY WALK bound to the naming property (`src/lib/queries/*.ts`, `src/lib/*/actions.ts`, `*-actions.ts`), never a hand-list — ADR 0196 D7.
 
@@ -122,7 +122,7 @@ Architecture Rule 9: data access goes through these modules — no inline supaba
 | `src/lib/queries/responses.ts` | query | `TOP_LEVEL_SCOPE` · `answerableItems` · `buildAnswerMaps` · `buildGroupInstances` · `buildMatrixAnswers` · `buildReferenceAnswers` · `getResponseForFill` · `listFillableForms` · `listMyResponses` |
 | `src/lib/queries/safety-events.ts` | query | `EVENT_STATUS_LABELS` · `OWNER_KIND_LABELS` · `PATIENT_SEX_LABELS` · `SUSPECTED_HARM_LABELS` · `getEventCustody` · `getEventPatient` · `getSafetyEvent` · `listCommissionEvents` |
 | `src/lib/queries/session-grants.ts` | query | `getSelectableRoles` · `partitionGrants` |
-| `src/lib/queries/session.ts` | query | `canConfigureCommission` · `canConfigureCommissionById` · `canInCommission` · `getCommissionAccessByOrg` · `getNspAccessByOrg` · `getQualidadeAccessByOrg` · `getRawGrants` · `getSessionContext` · `getTechnicalDirectionAccessByOrg` · `requireUser` |
+| `src/lib/queries/session.ts` | query | `canConfigureCommission` · `canConfigureCommissionById` · `canInCommission` · `deriveIsAdmin` · `getCommissionAccessByOrg` · `getNspAccessByOrg` · `getQualidadeAccessByOrg` · `getRawGrants` · `getSessionContext` · `getTechnicalDirectionAccessByOrg` · `requireUser` |
 | `src/lib/queries/signoffs.ts` | query | `getResponseForSignoff` · `getResponseSignoffs` · `listSignoffQueue` |
 | `src/lib/queries/submissions.ts` | query | `getSubmissionDetail` · `listSubmissionFilterForms` · `listSubmissionFilterMembers` · `listSubmissions` · `resolveSupersessionBadge` |
 | `src/lib/queries/triage.ts` | query | `HARM_META` · `HARM_ORDER` · `HARM_SEVERITY_LABELS` · `PSE_CLOSURE_REASON_LABELS` · `REACH_LABELS` · `REACH_META` · `REACH_ORDER` · `REVIEW_PATHWAY_LABELS` · `TRIAGE_VERDICT_LABELS` · `getEventTriage` · `getTriageDisposition` · `listEventTypes` · `listSentinelCriteria` |
