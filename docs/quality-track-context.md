@@ -121,7 +121,8 @@ reads or extends committee-track data:
   hospital-wide register rollup. **Built pre-pilot, before Phase 16** (ADR 0057).
 - **Internal audit (18)** — a `nao_conforme` finding **opens a CAPA**
   (`source_audit_finding_id`) *and* writes a Phase-16 `standard_assessment`; per-round
-  auditor write-grant mirrors the **interview participant-write** shape.
+  auditor write-grant mirrors the **interview participant-write** shape — a participation
+  record under ADR 0205 D3, never a grant ledger.
 - **Surveyor access (19)** — read-only, scope-checked `SECURITY DEFINER` reads over
   the Phase-16 readiness data; **no table write path**; every view/export audited.
   Most security-sensitive phase → **full plan review + dedicated security/RLS review**.

@@ -1429,6 +1429,13 @@ Verbatim from the Now section of PROGRESS.md (retired 2026-09-03, ADR 0185): *AF
 
 **Break-glass access (logged, reasoned, time-boxed emergency access to restricted cases / PHI).** Target Phase 20 (Notifications & Escalation). A dedicated `break_glass_access_events` record + a temporary-grant path that requires a reason, is always audited, notifies privacy/security, and appears in audit reports — NOT platform-admin-sees-everything. Partner handoff §19 as the reference model; composes with `case_access` expiry (ADR 0050) and the audited-single-door PHI posture (Rule 12). Owned by lead (scheduling) + backend.
 
+### 🟡 FUP-GRANT-PLANE-CONVENTION-BUILD-AFTER-AE5 — the grant plane's BUILD half (scaffold, shared trigger, dialog kit, keystone, roster) after AE5-complete
+
+**Filed:** 2026-09-10 (unit GRANT-PLANE-CONVENTION, ADR 0205 D12 — PO ruled *decide now, build later*) · **Owner:** lead + backend · **Severity:** medium
+**Closes when:** the first stamped ledger lands with: the scaffold **script** that prints table + doors + trigger attachment + test skeleton from a name and an ability list; the ONE shared audit trigger (ADR 0205 D7, tenant anchors from `securable_resources`); the shared grant dialog + action factory lifted from `case-access-panel.tsx` / `src/lib/case-access/actions.ts`; the catalog-driven conformance keystone discovering grant-shaped tables by property, with an allow-list (owner + expiry per entry) covering `commission_administrativo_capabilities` and `hospital_dpos` only; the read-only union roster; the three code-less case abilities (`read_case_deliberation`, `read_restricted_phi`, `view_case_overview`) given `authz.permissions` codes WITH their manifest rows — and the C-vs-D choice (one ledger on `securable_resources` vs an `authz` provider) recorded in the Phase 19 plane ADR. ⛔ Not closed by building a ledger without the keystone; ⛔ not started inside an AE5 role increment (ADR 0176 D8).
+**Status:** parked
+**Revisit when:** AE5-complete (ADR 0155 re-analysis trigger 4) AND the first consumer opens — the Phase 19 plane ADR (ADR 0114 D16) or Phase 20 break-glass, whichever is first. Then retire `.claude/rules/grant-plane-convention.md` into `docs/progress/rules-archive.md`.
+
 ### ⚪ FUP-BACKLOG-USER-REGISTRATION-PHASE9-EMAILTEMPLATE-DEPLOY — User Registration — Phase-9 email-template deploy dependency (feature COMPLETE; deploy-time task)
 
 **Filed:** 2026-09-03 · **Owner:** backend · **Severity:** unrated

@@ -659,7 +659,7 @@ measure → improve → re-assess loop. **No patient data.** Feature-flagged beh
   (creates/links a CAPA with `source_audit_finding_id`), `sync_finding_to_standard(finding)`
   (writes the Phase-16 `standard_assessment`). `audit_round_score(round)` is computed.
 - **RLS**: rounds + findings member-READ; WRITE = staff_admin **OR** the round's assigned `auditor_id`
-  (a narrow per-round grant, mirror the interview participant-write shape via a definer predicate).
+  (a narrow per-round grant, mirror the interview participant-write shape via a definer predicate — ⭐ **under ADR 0205 D3 the assigned auditor is a PARTICIPATION record, read directly by that predicate and never mirrored into a grant ledger**; Phase 18 builds no ledger).
 - **UI**: `manage/audits/**` — schedule rounds, **conduct** a round (a checklist of items, each scored
   conforme/parcial/não-conforme/N.A. with weight + evidence note; a standard picker per item), a live
   **score rollup**, and "abrir CAPA" on a non-conforme finding. A mock-tracer is a `round_type`.
@@ -709,6 +709,13 @@ behind `surveyor_access`.
   `document_placements` non-authorizing *"ever; an authorizing placement requires a new ADR"* —
   **this phase's ADR is that ADR.** Whether `surveyor_grants` survives as its own table or becomes a
   policy shape on the plane is the first question the plan review must answer.
+  ⭐ **ADDED 2026-09-10 — the plan review starts from [ADR 0205](../decisions/0205-per-object-grant-plane-convention.md),
+  the per-object grant plane convention** (PO-ruled): a grant to a platform principal is a ROOT ledger under
+  its D2/D5–D9 shape; the token-based external path lies outside D6's grantee rule and must say so;
+  and the deferred choice between **one shared ledger anchored on `securable_resources`** and a
+  **provider inside the `authz` layer** is taken HERE, on a settled AE5 (D12) — ⛔ never inside a role
+  increment. Its follow-up `FUP-GRANT-PLANE-CONVENTION-BUILD-AFTER-AE5` names the scaffold, shared trigger,
+  dialog kit, conformance keystone and roster this phase would be the first consumer of.
 - **UI**: `manage/accreditation/survey` (staff_admin) + `/admin/accreditation/survey` (admin) — create /
   list / revoke grants, copy the access link; the minimal, branded, read-only **surveyor portal**; the
   evidence-export action.

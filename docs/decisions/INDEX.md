@@ -14,11 +14,11 @@
 >
 > Edges are **advisory** and over-inclusive by design; the ADR text is truth.
 
-**200 ADRs** · next free number: **0204** · 74 carry an inbound supersedes/amends edge
+**201 ADRs** · next free number: **0206** · 74 carry an inbound supersedes/amends edge
 
 ## ⚠ Anomalies
 
-- **Missing numbers:** 0034, 0077, 0202 — a gap is not automatically a defect (0077 was withdrawn by the PO and its subject re-filed as 0078; 0034 was never used; **0202 can NEVER be filled** — PO ruling R7 split four planned ADRs and pre-AE5 Batch 9 wrote only 0201 + 0203), but a gap nobody can explain usually means a lost file.
+- **Missing numbers:** 0034, 0077, 0202, 0204 — a gap is not automatically a defect (0077 was withdrawn by the PO and its subject re-filed as 0078; 0034 was never used; **0202 can NEVER be filled** — PO ruling R7 split four planned ADRs and pre-AE5 Batch 9 wrote only 0201 + 0203), but a gap nobody can explain usually means a lost file.
 - ⛔ **RESERVED numbers — do NOT take `next free` blindly:** **0202** is reserved for the role-catalog decision (F7 · F8 · `platform_role` retirement) and **0204** for the two platform-wide conventions (the `D` ceiling · the `search_path` value). ⇒ **take 0205** for any other subject, or renumber a reserved pair and amend this reservation where it is stated. ⚠ And per CLAUDE.md §8 the number is **the highest on ANY live branch + 1**, ⛔ never this index's figure alone — a branch this generator never saw can already hold it.
 - **No parseable `Status:`:** none
 - **Still proposed / draft / deferred (8):** 0022, 0031, 0033, 0058, 0094, 0108, 0115, 0160 — an ADR's status is the author's claim on the day it was written, and nothing updates it when the code ships. The last review of this list is stamped in `proposed-review.json`; gate 9 reds when that review is more than 30 days old or this set has drifted from it.
@@ -102,7 +102,7 @@
 | 0074 | [Supersession correction model (contract + UX finalization)](0074-supersession-correction-model.md) | accepted | 2026-07-13 | – | – |
 | 0075 | [Memberships collapse: service-role vs RLS-scoped write-path split](0075-memberships-collapse-write-path-split.md) | accepted | 2026-07-13 | – | – |
 | 0076 | [Notifications (S1·N): pilot scope — prove one vertical deep](0076-notifications-pilot-scope.md) | accepted | 2026-07-13 | – | – |
-| 0078 | [Authorization capability model: case capabilities, granular grants, meeting boundary &…](0078-authorization-capability-model.md) | accepted | 2026-07-15 | supersedes 0033, 0037, 0072 · amends 0033, 0037, 0072 | ⛔ superseded by 0079 · ⚠ amended by 0134, 0167, 0169 |
+| 0078 | [Authorization capability model: case capabilities, granular grants, meeting boundary &…](0078-authorization-capability-model.md) | accepted | 2026-07-15 | supersedes 0033, 0037, 0072 · amends 0033, 0037, 0072 | ⛔ superseded by 0079 · ⚠ amended by 0134, 0167, 0169, 0205 |
 | 0079 | [AUTHZ door-blindness: the standing invariant + the write-policy keystone-isolation rule](0079-authz-door-blindness-standing-invariant.md) | accepted | 2026-07-18 | supersedes 0078 | ⚠ amended by 0134, 0153, 0157, 0173, 0174, 0190, 0191 |
 | 0080 | [Committee Charters & Cadence (S4·CH): delegate the regimento to the controlled-doc life…](0080-committee-charters-cadence-model.md) | accepted | 2026-07-20 | – | – |
 | 0081 | [Controlled-Document Redesign + Reviewer Notifications](0081-controlled-document-redesign.md) | accepted | 2026-07-21 | – | ⚠ amended by 0082 |
@@ -179,7 +179,7 @@
 | 0152 | [PostgREST maps the `P0*` SQLSTATE class to HTTP 500; the document-corridor 500 is a 73-…](0152-postgrest-p-class-sqlstate-maps-to-500.md) | accepted | 2026-08-26 | amends 0151 | – |
 | 0153 | [A subset door-sweep writes to scratch; the committed baseline is never opened for write](0153-subset-sweeps-write-to-scratch-not-the-committed-baseline.md) | accepted | 2026-08-26 | amends 0079 | ⚠ amended by 0189, 0192 |
 | 0154 | [the roster predicate is the query filter, not `list_org_people`](0154-roster-predicate-is-the-query-filter-not-list-org-people.md) | accepted | 2026-08-26 | amends 0151 | ⚠ amended by 0158 |
-| 0155 | [Post-AFF4 tenancy and person-model evolution: a staged sequence, not a redesign](0155-post-aff4-tenancy-and-person-model-evolution-sequence.md) | accepted | 2026-08-26 | amends 0151 | ⚠ amended by 0160, 0162, 0175, 0176 |
+| 0155 | [Post-AFF4 tenancy and person-model evolution: a staged sequence, not a redesign](0155-post-aff4-tenancy-and-person-model-evolution-sequence.md) | accepted | 2026-08-26 | amends 0151 | ⚠ amended by 0160, 0162, 0175, 0176, 0205 |
 | 0156 | [the door-SQLSTATE gate's domain is a structural property, not a list of names](0156-door-sqlstate-gate-domain-is-structural.md) | accepted | 2026-08-26 | amends 0098 | – |
 | 0157 | [The dominance grid's population was bounded by SCHEMA, not by the property](0157-dominance-grid-population-bounded-by-schema.md) | accepted | 2026-08-26 | amends 0079, 0097 | – |
 | 0158 | [the hospital directory keeps its predicate: no org-affiliation filter at the hospital t…](0158-hospital-directory-keeps-its-predicate.md) | accepted | 2026-08-26 | amends 0154 | – |
@@ -227,3 +227,4 @@
 | 0200 | [A predicate parameterised on a principal must answer about that principal, and a narrow…](0200-professional-identity-predicates-answer-about-their-subject.md) | accepted | 2026-09-09 | amends 0190, 0193 | ⚠ amended by 0201 |
 | 0201 | [The keying asymmetry is the model: a question about a third party ignores the hat, a qu…](0201-the-keying-asymmetry-is-the-model.md) | accepted | 2026-09-09 | amends 0176, 0193, 0200 | – |
 | 0203 | [Audit F5's seam is already encoded as data in the enforcement manifest; the three class…](0203-the-seam-is-already-encoded-the-classification-columns-are-not.md) | accepted | 2026-09-09 | amends 0172, 0176 | – |
+| 0205 | [The per-object grant plane convention: root ledgers, computed participation, catalog-na…](0205-per-object-grant-plane-convention.md) | accepted | 2026-09-10 | amends 0078, 0155 | – |
