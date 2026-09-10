@@ -26,6 +26,15 @@ never execute this protocol. See CLAUDE.md §4 (Agent Team), §6 (Phase Gate), �
 tokens by accumulation of small reads and loop chatter, with no single big read. The floor is
 cheap; the alternative is not.
 
+**Where the lead's own context actually goes** (asked 2026-09-07, answered 2026-09-10 from the
+CLAUDE.md review queue): not one big read but three repeat offenders — a long gate (`e2e:prod`,
+`test:db`, a door sweep) run with its output in the conversation instead of redirected to a file
+with only its tail and exit code read; a teammate's final report pasted back whole instead of
+summarized; and a grep/sed sweep the lead re-runs itself instead of delegating. A teammate's
+report **to the lead** stays ≤ 20 lines — the detail belongs in the unit record's `## Session
+log` (CLAUDE.md §7), which the teammate already owns. The floor in CLAUDE.md §4 was not missing;
+it was being paid around.
+
 ## 2. Sequencing & task breakdown
 
 - **Contract-first.** At phase start, have `backend` post the typed query/action

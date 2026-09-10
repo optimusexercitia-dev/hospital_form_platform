@@ -634,11 +634,17 @@ below are kept as the protocol a successor reads, ⛔ **not** as an instruction 
   increment 1 is `staff_admin`, the only already-`authoritative` role · ADR **0204** (the `D` ceiling ·
   the `search_path` convention), both censuses **already written into their follow-up bodies** so
   neither is re-measured · unit **`AE5-MATRIX-ARM3-CELLS`** before increment 1 runs its **matrix**.
-  ⛔ **ADR numbering: `0202` and `0204` are RESERVED and `0202` can never be filled** — take **0205**
-  for any other subject (§3 item 5).
-- ⚠ **`.claude/claude-md-review-queue.md` is STILL unprocessed**, and Batch 9 did not discharge it
-  either — the PO ruled **skip with the deferral recorded** (R2), after the *"13 KB"* figure below was
-  re-measured at **1,433 bytes**. It is the next session's to run or to skip again, deliberately.
+  ⛔ **ADR numbering: `0202` and `0204` are RESERVED and `0202` can never be filled** — ⚠ *"take
+  0205 for any other subject"* is **SPENT**: 0205 became the grant-plane convention the same day
+  (2026-09-10); the next free number for any other subject is *highest on any live branch + 1*,
+  re-measured at the moment of reserving, never quoted from here (§3 item 5).
+- ⚠ **`.claude/claude-md-review-queue.md` is GITIGNORED, so it is PER-CLONE** — ⭐ found 2026-09-10 when
+  the clone that opened Batch 10 still held **12 entries (13,875 bytes)** after Batch 9's own record said
+  the queue was *"cleared to empty"*: that clearing happened on the **other** clone (five entries, 1,433
+  bytes). Both figures were true, of different clones. ⇒ a record's *"processed"* is a claim about one
+  clone; `wc -c` the file **here** before believing either. (This bullet read *"is STILL unprocessed …
+  the PO ruled skip with the deferral recorded (R2)"* until 2026-09-10; processed on this clone at
+  Batch 10's open — Batch 10's record § Session log holds the dispositions.)
 
 
 1. **Measure, do not assume, where the tree stands.** `git status` clean on `main`;
@@ -669,12 +675,13 @@ below are kept as the protocol a successor reads, ⛔ **not** as an instruction 
    touching anything. ⛔ **AE5 itself stays post-pilot** by ADR 0155 G1 — Batch 9 wrote its opening
    decision; ⛔ it did not start it, and neither does any successor above.
 
-4. ⚠ **`.claude/claude-md-review-queue.md` is STILL unprocessed** — lead-playbook §4 step 7 makes the
-   Record step its trigger, and **two** Record steps have now passed it over: Batch 8 reported it to
-   the PO rather than run `/review-claude-md` unasked (CLAUDE.md edits need the human), and Batch 9's
-   PO **ruled skip with the deferral recorded** (R2). ⛔ Its size is a **measurement, not a figure to
-   quote** — the *"13 KB"* this step carried until 2026-09-10 was re-measured at **1,433 bytes**;
-   `wc -c` it before deciding. Run it, or skip it **deliberately**, before the next unit opens.
+4. ⚠ **`.claude/claude-md-review-queue.md` is PER-CLONE (gitignored)** — lead-playbook §4 step 7 makes the
+   Record step its trigger. ⛔ Its size is a **measurement, not a figure to quote**, and ⛔ **a
+   "processed" claim is a claim about ONE clone**: on 2026-09-10 one clone was cleared (5 entries,
+   1,433 bytes) while the other still held 12 entries (13,875 bytes) — the *"13 KB"* and the *"1,433"*
+   this step once argued about were **both** correct. `wc -c` it on the clone you stand in. Run it, or
+   skip it **deliberately**, before the next unit opens. (Superseded text: *"is STILL unprocessed —
+   … two Record steps have now passed it over … re-measured at 1,433 bytes"*.)
 
 ### ⭐ What Batch 7 learned that the next batch should not re-learn
 
