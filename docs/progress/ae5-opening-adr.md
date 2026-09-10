@@ -1458,8 +1458,22 @@ top of it**"* — and Batch 8 did exactly that. ⚠ **This unit's own record pre
 the obligation** (*"a slice APPENDED there and its `## Current state` block REPLACED at the Record
 step"*) **and even warned the block stood at 99 of 100 lines** so the next slice must *cut before it
 adds*. ⇒ **the obligation was written down by this unit, in this unit's own record, and still missed.**
-⭐ A named obligation inside a document nobody re-reads at the step it governs is not a safeguard —
-which is why it is now **lead-playbook step 8's sibling**, not a note.
+⛔ **CORRECTED 2026-09-10 at the CLAUDE.md review-queue pass — the sentence that stood here was
+WRONG, and in the lead's own favour.** It read: *"⭐ A named obligation inside a document nobody
+re-reads at the step it governs is not a safeguard — which is why it is now **lead-playbook step 8's
+sibling**, not a note."* ⇒ That implies the playbook lacked the step and that this batch added it.
+**Neither is true.** `docs/lead-playbook.md` **Record step 4** already said it in full — *"**TWO
+edits** to that one file, not one (ADR 0198): **append** the slice at the bottom, **REPLACE** the
+`## Current state` block at the top and re-stamp its `**Updated:**` date"* — and it even **names gate
+16 check I**, the exact check that caught the omission. The four steps this batch added (8–11) are
+about **rulings, clauses, counts and the hub**; ⛔ **none of them is the seam.** ⇒ **The doc was not
+silent, not stale and not wrong: the lead skipped a numbered step that named its own enforcer.**
+⚠ And a second, genuinely open question fell out of reading it: step 4 is **conditional** —
+*"if the backend surface changed"* — while CLAUDE.md §7 is **unconditional** (*"A new phase APPENDS
+its slice"*). Batch 9 changed **no** backend surface, so by the playbook the slice may not have been
+owed at all. ⭐ That conflict is now a proposal to the PO, and the evidence for widening the
+condition is this batch's own: refreshing the projection is what **surfaced two false statements** in
+it (the `hardDenyClasses` claim and the phantom follow-up id).
 
 **Gate 16 caught it in three escalating checks, and each was right:**
 1. **[I]** — *"`## Current state` is stamped 2026-09-09, but a frozen heading below it is dated
