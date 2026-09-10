@@ -139,26 +139,33 @@ enforcement manifest's `_comment` that describes a red which is green.
 
 ### Done since start
 
-Unit opened. Preconditions measured (record, this date). Branch cut off `main` @ `55e440c3`.
-Evidence derivation for the two authz rulings dispatched against the **live catalog**.
+Unit opened (`99571f1b`), preconditions measured. Live-catalog evidence derived for both authz
+clauses at the open head pair — ⭐ and it moved both of them: the `is_active` clause **names the
+wrong predicate** (it gates the one with 0 policies and leaves `app.is_admin()`'s 26 blind), the ACT
+hat is a bare JWT claim read so the gap is **not** bounded by token expiry, and no pgTAP cell
+anywhere deactivates a `platform_admin`; the Class-2 door count of 3 is **confirmed**, while the
+clause's *premise* is contested by ADR 0078 A35's own text (its MAY list contains "identity" and its
+ruling 3 excludes Class-2 explicitly — but for **reads**, and these are writes, one destructive).
+**PO ruling R3 taken:** gate `is_active` on **both** admin predicates ⇒ Batch 10.
 
 ### In progress
 
-Deriving, from `pg_proc`/`pg_policies` at the recorded migration head pair: whether both admin
-predicates still lack an `app.is_active` term, the blast radius of adding one (policies + functions,
-counts **and** sets), and the Class-2 door list (the follow-up's *3 `public` RPCs* re-derived, with
-`prosecdef`, the `authenticated` EXECUTE fact, and reachability from `src/`). The two PO rulings are
-put **before** the build, because each changes this batch's scope.
+Independently verifying the eleven load-bearing claims in the PO-supplied Class-2 evidence document
+(scratchpad `batch9-po-input-class2.md`) — above all its widening of the door list from 3 direct
+readers to a claimed **12-door transitive closure**, its two corrections to the lead's premises (no
+UI caller reaches the arm; a `platform_admin` cannot reach the tenant route at all), and the two
+contradictory readings of A35 it says are live in the tree. ⛔ Nothing from it reaches ADR 0201
+unverified.
 
 ### Next
 
-PO rulings on the two disjunctive clauses → `backend` returns a FULL plan → lead approves with
-rulings in ONE scratch file → build (ADR 0201 + the manifest `_comment` rewrite + a fresh `401` run
-quoted) → gate at the tip, run by someone other than the builder → QA → PO approval → Record.
+R4 (the Class-2 ruling) asked again once verification returns → the two register clauses corrected
+in writing, superseded wording quoted → `backend` returns a FULL plan → ADR 0201 drafted (both
+rulings + the D8 bundle + F5) → the manifest `_comment` rewrite with a fresh `401` run quoted → gate
+at the tip, run by someone other than the builder → QA → PO approval → Record.
 
 ### Blockers
 
-None. ⚠ Two dependencies that are **not** blockers but bound the schedule: the PO owns both authz
-rulings, and `docs/plans/pre-ae5-remediation.md` §3 must be amended in writing to record that Batch
-9's scope was widened by the PO beyond *"not a fix"* — a widening in scope, not in kind, since the
-empty-pathspec assertion still holds.
+None. ⚠ Two bounds, not blockers: R4 is owed by the PO, and plan §3 owes an amendment recording
+that the PO widened Batch 9's *subject* beyond the three plan-assigned items — a widening in scope,
+not in kind, since the empty-pathspec assertion still holds.
