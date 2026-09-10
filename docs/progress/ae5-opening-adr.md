@@ -592,3 +592,48 @@ one) · `authz-matrix-coverage.json`'s `migrationHead: "20261003007260"` against
 disposition, and whether items 3 and 6 are in or out. A fourth (does `public.assume_role` also gain
 the `is_active` term?) and the three measurement-backed ones (the classification columns, the `D`
 ceiling, the `search_path` value) follow, and their measurements are already in hand.
+
+### 2026-09-09 — PO rulings R7, R8, R9; and R8's audit-scope obligation measured, not quoted (lead)
+
+**PO ruling R7 — sizing: ADR 0201 + ADR 0203 in Batch 9.** `0202` (the role catalog, `platform_role`
+retirement) becomes the next unit, due before AE5 **increment 2**; `0204` (the `D` ceiling, the
+`search_path` convention) is deferred **with both censuses written into the follow-up bodies now**, so
+neither is re-measured. Plan §3 owes the deferrals in writing.
+
+**PO ruling R8 — F6: RATIFY THE SUBJECT-KEYED ASYMMETRY THE CATALOG ALREADY IMPLEMENTS.** A question
+about a third party ignores the hat; a question about the caller requires it. This is ratification of
+enforced behaviour — the other two options change a live resolver whose blast radius is
+`authz.has_permission`, `authz.candidate_has_permission` **and** `authz.explain_permission` (three
+consumers of `entailed_grants.hat_ok`, not one).
+
+**PO ruling R9 — item 3 OUT, item 6 IN.** Item 3 → a named unit **`AE5-MATRIX-ARM3-CELLS`**, due
+before AE5 increment 1 runs its **matrix**, ⛔ not before its **template** is written — that is the
+real dependency, and it keeps ~216 rows of per-cell triage out of this batch. Item 6 → five pointer
+lines the **lead** adds to `docs/plans/authz-evolution.md:1172–1180` at the Record step. The
+undischarged ADR 0175 D3 promise is filed as a follow-up so it cannot go missing.
+
+**⭐ R8's owed verification, now done — and it does NOT come out where the audit's text left it.**
+The lead told the PO that the audit-scope consequence rested on the audit's prose rather than a
+catalog read, and owed the read before ADR 0201 could state it as fact. Measured from
+`public.assume_role`'s live body:
+
+- For a **non-`platform_admin`** role it selects the matching membership
+  `order by m.granted_at desc nulls last, m.id limit 1` — deterministic, but **semantically
+  arbitrary**: the most recently granted seating, tie-broken by id — and stamps that ONE scope triple
+  (`v_org`, `v_hospital`, `v_commission`) into `app.audit_write('active_role.assumed', …)`.
+- `app.active_role_selections` stores `(session_id, user_id, role, chosen_at)` — ⭐ **no scope column
+  at all.** The selection is role-wide by storage, not by interpretation.
+- And `hat_ok` compares **`af.role_code is not distinct from app.active_role()`** — **role only, no
+  scope term.**
+
+⇒ **F6 has TWO axes and the ruling settles only one.** On the **subject** axis the hat is
+asymmetric (R8 ratifies that). On the **scope** axis the hat is **role-wide**, so effective authority
+spans **every** seating of the role while the audit row names **one**. ⛔ **Ratifying option (i) does
+not fix the audit-scope mismatch — it ratifies it**, and ADR 0176 D8's own words make settling that
+mandatory rather than optional: *"F6 exact-assignment active context vs the role-wide hat (**audit
+scope must match whichever wins**)"*. So ADR 0201 cannot be complete on R8 alone; the matching half
+is a distinct question, put to the PO before the build rather than drafted around.
+
+⚠ Note for whoever drafts it: for the `platform_admin` branch there is **no scope to stamp** —
+`v_org`/`v_hospital`/`v_commission` stay NULL by the ruling's own carve-out — so the mismatch is a
+**tenant-role** phenomenon only, and a fix that assumes every branch has a scope is wrong.
