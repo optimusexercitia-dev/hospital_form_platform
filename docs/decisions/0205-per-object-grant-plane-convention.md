@@ -338,6 +338,22 @@ in place): `granted_by`, `granted_at`, `expires_at`, `revoked_at`, `revoked_by`,
    `revoke_case_access` is unchanged (giving access up is not an authority act). RED-first pgTAP,
    with the exploit persona — a tenancy admin who also holds a plain membership — as the keystone's
    subject. Rejected: text-only now (leaves a live path open through the pilot).
+
+   ⚠ **Corrected by measurement during the build (2026-09-10, `backend`, pgTAP `417`; the ratified
+   paragraph above is kept verbatim — read both).** The tenancy-admin self-grant was **not** reachable:
+   `app.has_role` carries the ACT hat conjunct `(p_user_id is distinct from auth.uid() or p_role is not
+   distinct from app.active_role())` (BUG-ACT-NULLHAT-1), so for the *self* grantee the membership check
+   collapses onto the caller's own hat — under the `org_admin` hat the door answered `HC021`, under the
+   `staff` hat `42501`; the two gates could not both pass in one session. That closure was *incidental*
+   (a hat conjunct at a later gate, asserted by nothing — LEARN-058), which is why the ruled *position*
+   of the refusal still matters. The arm that **was open** is the **coordinator's**: under the
+   `staff_admin` hat a self-grant **succeeded** pre-migration, and D5·6 lets a coordinator *issue*
+   `read_restricted_phi` without holding it — so she could issue it to herself through the SQL-only
+   PHI parameters. The remedy is unchanged and closes strictly more than the paragraph claimed; `417`
+   keeps the tenancy-admin persona (K1, K2) beside the coordinator (K3, K3c) and the ordering twin.
+   Also measured: `create_case` **skips** the creator self-grant for a coordinator (ADR 0061 revised);
+   only the non-coordinator capability arm reaches the kernel — the kernel path is proven with that
+   persona, and the kernel writes `source = 'manual_grant'` with `reason_code = 'creator_self_grant'`.
 2. **"Member of the resource's commission" means the commission the root's adapter names (D7·2).**
    One function answers *which commission is this resource's, for grant purposes* and serves both
    this check and the audit anchor, so the two cannot drift apart again. For referrals that is the

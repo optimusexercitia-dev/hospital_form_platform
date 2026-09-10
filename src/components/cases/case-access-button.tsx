@@ -34,6 +34,7 @@ export function CaseAccessButton({
   detail,
   grants,
   caseOpen,
+  actorId,
 }: {
   caseId: string;
   /** The commission roster (already sorted by the layout). */
@@ -43,6 +44,12 @@ export function CaseAccessButton({
   grants: CaseAccessGrant[];
   /** Whether the case is non-terminal (gates WRITE grants in the roster). */
   caseOpen: boolean;
+  /**
+   * The acting user's id (the viewer), threaded down to {@link CaseAccessPanel}
+   * so its grantee picker can exclude the actor (ADR 0205 Amendment 1 D6·5·1 —
+   * the door refuses a self-grant, and the picker must never offer one).
+   */
+  actorId: string;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -71,6 +78,7 @@ export function CaseAccessButton({
           detail={detail}
           grants={grants}
           caseOpen={caseOpen}
+          actorId={actorId}
         />
       </DialogContent>
     </Dialog>

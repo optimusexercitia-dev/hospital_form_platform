@@ -24,6 +24,7 @@
  * SQLSTATE → pt-BR:
  *   HC021 → "O responsável deve ser membro da comissão." (target not a member)
  *   HC0U0 → "Não é possível conceder edição em um caso encerrado." (ADR 0205 D9)
+ *   HC0U1 → "Não é possível conceder acesso a si mesmo." (ADR 0205 § Amendment 1, D6·5·1)
  *   42501 → forbidden; 23514 → unavailable (flag off).
  * A thrown tenancy read (`getCommissionTenancy`'s deliberate throw on a genuine
  * query error) is caught around {@link authorizeCommission} and mapped to
@@ -72,6 +73,12 @@ const MESSAGES = {
   // READ grants on a closed case stay legal, so this must never be phrased as
   // "this case is closed" — it is about the LEVEL, not about the case.
   terminalWrite: 'Não é possível conceder edição em um caso encerrado.',
+  // HC0U1 (ADR 0205 § Amendment 1, D6·5·1) — the door refuses a SELF-grant, as an
+  // ACT: every level and both PHI parameters alike. So this must never be phrased
+  // as being about the level or the case — it is about WHO the grantee is. The
+  // picker excludes the actor, so a user should never see this; it is the honest
+  // message for the API caller and for a stale page.
+  selfGrant: 'Não é possível conceder acesso a si mesmo.',
   granted: 'Acesso concedido.',
   revoked: 'Acesso removido.',
 } as const
@@ -80,6 +87,7 @@ const PG_CHECK_VIOLATION = '23514'
 const PG_FORBIDDEN = '42501'
 const HC_NOT_MEMBER = 'HC021'
 const HC_TERMINAL_WRITE = 'HC0U0'
+const HC_SELF_GRANT = 'HC0U1'
 
 const CASE_PATH = '/o/[org]/c/[commission]/manage/cases/[caseId]'
 const STAFF_CASE_PATH = '/o/[org]/c/[commission]/casos/[caseId]'
@@ -97,6 +105,8 @@ function mapError(error: { code?: string; message?: string } | null): string {
       return MESSAGES.notMember
     case HC_TERMINAL_WRITE:
       return MESSAGES.terminalWrite
+    case HC_SELF_GRANT:
+      return MESSAGES.selfGrant
     case PG_FORBIDDEN:
       return MESSAGES.forbidden
     case PG_CHECK_VIOLATION:

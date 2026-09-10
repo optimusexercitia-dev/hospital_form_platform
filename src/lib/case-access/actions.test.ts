@@ -85,6 +85,7 @@ import { grantCaseAccess, revokeCaseAccess } from './actions'
 
 const FORBIDDEN = 'Você não tem permissão para esta ação.'
 const TERMINAL_WRITE = 'Não é possível conceder edição em um caso encerrado.'
+const SELF_GRANT = 'Não é possível conceder acesso a si mesmo.'
 
 function orgRef(id: string) {
   return { id, slug: id, name: id }
@@ -335,5 +336,62 @@ describe('HC0U0 — the terminal-case write refusal reaches the UI in pt-BR', ()
     const result = await grantCaseAccess(CASE_ID, TARGET, 'write')
 
     expect(result.error).not.toBe('Não foi possível concluir. Tente novamente.')
+  })
+})
+
+describe('HC0U1 — the self-grant refusal reaches the UI in pt-BR', () => {
+  it('maps the door’s self-grant SQLSTATE to its own message', async () => {
+    // ADR 0205 § Amendment 1, D6·5·1. The door refuses `p_user = auth.uid()` before
+    // level, membership and expiry. The picker excludes the actor, so this path is
+    // reached by a stale page or a direct API caller — and an unmapped code would
+    // render it as "Não foi possível concluir.", a domain refusal disguised as a
+    // transient failure (the same FF-5 HC0Q3 lesson as HC0U0 above).
+    getSessionContext.mockResolvedValue(
+      contextWith({ memberships: [[COMMISSION, 'staff_admin']] }),
+    )
+    rpc.mockResolvedValue({ error: { code: 'HC0U1' } })
+
+    const result = await grantCaseAccess(CASE_ID, TARGET, 'write')
+
+    expect(result).toEqual({ ok: false, error: SELF_GRANT })
+  })
+
+  it('does NOT swallow it into the generic message', async () => {
+    getSessionContext.mockResolvedValue(
+      contextWith({ memberships: [[COMMISSION, 'staff_admin']] }),
+    )
+    rpc.mockResolvedValue({ error: { code: 'HC0U1' } })
+
+    const result = await grantCaseAccess(CASE_ID, TARGET, 'write')
+
+    expect(result.error).not.toBe('Não foi possível concluir. Tente novamente.')
+  })
+
+  it('does NOT reuse the TERMINAL-CASE message — the two refusals are different acts', async () => {
+    // ⭐ THE DISCRIMINATION CELL. HC0U0 and HC0U1 are adjacent codes on the same door
+    // and their messages are one word apart in shape; a switch arm that fell through
+    // would pass both cells above and only fail here. HC0U0 is about the LEVEL on a
+    // closed case; HC0U1 is about WHO the grantee is, at every level.
+    getSessionContext.mockResolvedValue(
+      contextWith({ memberships: [[COMMISSION, 'staff_admin']] }),
+    )
+    rpc.mockResolvedValue({ error: { code: 'HC0U1' } })
+
+    const result = await grantCaseAccess(CASE_ID, TARGET, 'write')
+
+    expect(result.error).not.toBe(TERMINAL_WRITE)
+  })
+
+  it('is refused at level READ too — the door refuses the ACT, not the payload', async () => {
+    // The level-scoped misreading of D6·5·1 would map only a `write` attempt. The
+    // door raises HC0U1 for `read` as well, so the mapping must not be level-keyed.
+    getSessionContext.mockResolvedValue(
+      contextWith({ memberships: [[COMMISSION, 'staff_admin']] }),
+    )
+    rpc.mockResolvedValue({ error: { code: 'HC0U1' } })
+
+    const result = await grantCaseAccess(CASE_ID, TARGET, 'read')
+
+    expect(result).toEqual({ ok: false, error: SELF_GRANT })
   })
 })

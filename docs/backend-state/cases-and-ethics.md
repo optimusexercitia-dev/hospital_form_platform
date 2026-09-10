@@ -65,10 +65,10 @@
   `patient_mode` (`none` | `optional` | `required`) plus `patient_required_fields`; the immutability guard fires on
   **either** changing, closing the "insert `none`, then UPDATE to `required`" hole. ⛔ Any doc, comment or query still
   naming the booleans is stale.
-- **The grant PLANE agrees with the write plane on a terminal case.** `grant_case_access` refuses `p_level = 'write'` when
-  `app.case_is_terminal` (`HC0U0`), placed AFTER authority so a non-coordinator still gets 42501; READ grants on a closed
-  case stay LEGAL. ⛔ The refusal is in the DOOR only — no lifecycle step entered `app._case_caps` (ADR 0078 A24·3) and the
-  shared kernel `app._grant_case_access_unchecked` is untouched, so the creator self-grant path is unchanged.
+- **The grant door refuses two ACTS, at two POSITIONS, and both are DOOR-only.** A **self-grant** (`p_user = auth.uid()`,
+  `HC0U1`) is refused right after authority + the U1 exclusion and BEFORE level / membership / expiry — as an act, so every
+  level and both PHI parameters alike; a **WRITE grant on a TERMINAL case** (`HC0U0`) after them all. A principal with no
+  standing still gets 42501; READ on a closed case stays LEGAL. ⛔ `app._case_caps` (ADR 0078 A24·3), the kernel and `revoke_case_access` are untouched.
 - **That door's TS pre-check mirrors it in BOTH directions.** `authorizeCommission` is `is_staff_admin_of` OR
   `is_tenancy_admin_of` and nothing else — `context.isAdmin` is NOT an arm (ADR 0078 A35), and the tenancy arm is back.
 - **The MRN floor is at SEND, not at SAVE** — `send_referral` carries it, `save_referral_patient` deliberately does not, and the status guard makes `send_referral` the sole transition authority, so the floor is reachable.
@@ -81,7 +81,7 @@
 - Flags over this seam: `case_patient`, `case_participants`, `case_types`, `ethics`, `case_referrals`, and the
   delegated-capability `administrativo`. ⛔ Resolve each flag's VALUE and its readers from
   [`generated-feature-flags.md`](generated-feature-flags.md), never from a sentence here. `case_access` is retired.
-- Structural work over this seam introduces no flag of its own; each frozen slice's HEADING states its own flag posture (and the newest, § Grant plane, is a migration-is-the-cutover door change).
+- Structural work over this seam introduces no flag of its own; each frozen slice's HEADING states its own flag posture (and the newest, § Grant plane · A1, is a migration-is-the-cutover door change).
 
 ### Open edges
 
@@ -89,8 +89,8 @@
   INVOKER writers and the `member_can*` pair sit outside every ARM's domain, so a diff-scoped sweep over them runs zero
   cases and prints the line a clean run prints. Coverage is the targeted mutation twins; the objects are listed in
   `supabase/tests/mutation/authz-unswept-backlog.txt`, where the `app` INVOKER writers carry a **DO NOT PRUNE** note.
-- ⚠ **The tenancy arm the grant door ACCEPTS is still unreachable from the app**, for a reason outside that fix: the action
-  reads the case under `cases_select` = `can_read_case`, and `_case_caps` S2 gives an org_admin `manage_case_access` ONLY.
+- **The tenancy-admin fallback arm is SQL / service-role only pre-pilot, BY RULING** (ADR 0205 § Amendment 1 D6·5·3) — the
+  action reads the case under `cases_select` = `can_read_case`, and `_case_caps` S2 gives an org_admin `manage_case_access` ONLY.
 - **Class-2 audit posture is unratified** — `searchParticipants` is an invoker-rights read that cannot be audited through
   RLS and the org-manager arm widened its population, so "case-scoped RLS + audited reads" no longer fully holds; also
   unratified are the participant types that are mintable but have no seeded role.
@@ -102,11 +102,125 @@
 
 ### Where the detail lives
 
-- The frozen slices below, in file order: **§ Grant plane** · **§ ADR 0137 batch** · **§ Case surface split — Increment 2** · **§ ETH·E4** · **§ PCI + TV** · **§ F1** · **§ E1** · **§ E2** · **§ RV2**.
+- The frozen slices below, in file order: **§ Grant plane · A1** · **§ Grant plane** · **§ ADR 0137 batch** · **§ Case surface split — Increment 2** · **§ ETH·E4** · **§ PCI + TV** · **§ F1** · **§ E1** · **§ E2** · **§ RV2**.
 - ADR [0038](../decisions/0038-case-patient-identifiers.md) (case patient identifiers) · [0064](../decisions/0064-case-subject-generalization-participants.md) (participant generalization) · [0072](../decisions/0072-ethics-access-spine.md) (access spine) · [0073](../decisions/0073-ethics-procedure-model.md) (ethics procedure) · [0096](../decisions/0096-process-template-versioning.md) (template versioning).
-- ADR [0108](../decisions/0108-eth-e4-participant-seating.md) (seating, professional identity) · [0134](../decisions/0134-case-surface-split-and-administrativo-case-read.md) (case surface split) · [0137](../decisions/0137-mrn-erasure-key-and-case-referral-usability-batch.md) (MRN as erasure key) · [0037](../decisions/0037-inter-committee-case-referrals.md) (referrals) · [0079](../decisions/0079-authz-door-blindness-standing-invariant.md) (door blindness) · [0205](../decisions/0205-per-object-grant-plane-convention.md) (per-object grant plane; D9 + D12).
+- ADR [0108](../decisions/0108-eth-e4-participant-seating.md) (seating, professional identity) · [0134](../decisions/0134-case-surface-split-and-administrativo-case-read.md) (case surface split) · [0137](../decisions/0137-mrn-erasure-key-and-case-referral-usability-batch.md) (MRN as erasure key) · [0037](../decisions/0037-inter-committee-case-referrals.md) (referrals) · [0079](../decisions/0079-authz-door-blindness-standing-invariant.md) (door blindness) · [0205](../decisions/0205-per-object-grant-plane-convention.md) (per-object grant plane; D9, D12, § Amendment 1 D6·5·1/D6·5·3).
+
+## Grant plane · A1 — the case grant door refuses a SELF-GRANT (2026-09-10; ADR **0205** § Amendment 1 D6·5·1; unit GRANT-PLANE-CONVENTION-A1; migration `20261003007380`, **1**; pgTAP `417` `plan(34)` + `235` amended to `plan(44)`; vitest `src/lib/case-access/actions.test.ts` (21 cells); **NO flag — the migration IS the cutover**)
+
+**THE DEFECT, measured on the live catalog at head `20261003007370`, 2026-09-10.**
+`public.grant_case_access` validated authority (42501) → the U1 exclusion (`HC0F1`) → level →
+grantee membership (`HC021`) → future expiry → terminal case (`HC0U0`) → kernel, and **never compared
+the grantee to `auth.uid()`**. Its own comment named grantee membership as the anti-self-escalation
+guard: *"safe because the door also requires grantee membership below, so an Organization User (not a
+member) can never self-escalate."*
+
+⚠⚠ **THE CLAUSE'S PREMISE WAS WRONG ABOUT WHICH ARM WAS OPEN, AND THE MEASUREMENT IS THE POINT.**
+D6·5·1 names the **tenancy admin who also holds a plain membership**. Probed pre-migration through
+`test_helpers.claims_for`, one arm per ACT hat, on an `org_admin` of the org given a `staff` row in the
+commission:
+
+| hat | `is_tenancy_admin_of` | self is member | door answered |
+| --- | --- | --- | --- |
+| `org_admin` | **t** | **f** | `HC021` |
+| `staff` | **f** | **t** | `42501` |
+| (none) | f | f | — |
+| `staff_admin` (the COORDINATOR) | **t** (`is_staff_admin_of`) | **t** | ⭐ **SELF-GRANT SUCCEEDED** |
+
+⇒ the tenancy-admin escalation was **not reachable**, for a reason the clause does not mention:
+`app.has_role` / `app.has_role_any` carry the ACT hat conjunct `p_user_id is distinct from auth.uid()
+or m.role is not distinct from app.active_role()` (BUG-ACT-NULLHAT-1). For the **self** grantee that
+conjunct collapses onto the caller's own hat, so her plain membership is invisible in the very session
+that opens the authority arm — the two gates cannot both pass at once. ⛔ That closure is
+**INCIDENTAL** (LEARN-058): a hat conjunct in a membership helper, at a **later** gate, for an
+unrelated reason, asserted by nothing as a self-grant property.
+⇒ ⭐ **the arm that WAS open is the COORDINATOR's**, and it is the sharper one: D5·6 explicitly lets a
+coordinator **ISSUE** `read_restricted_phi` without holding it, so through the door's two SQL-only PHI
+parameters (D10 keeps them off the screen) she could issue that **to herself**, stamped
+`coordinator_grant`. The ruling's REMEDY is right and closes strictly more than the clause claims;
+only its account of the live arm was wrong. ⛔ Recorded rather than adapted-to silently.
+
+**THE FIX — a refusal in the DOOR, with its own catchable SQLSTATE.**
+
+```
+if p_user = auth.uid() then
+  raise exception 'não é possível conceder acesso a si mesmo' using errcode = 'HC0U1';
+end if;
+```
+
+Placed **immediately after** authority + the U1 exclusion and **before** level, membership, expiry and
+the terminal check. **The position IS the ruling**, and it is load-bearing in BOTH directions —
+`417` §E pins the first, `417` §A P3 / §C P7 the second:
+- **not earlier than authority** — a principal with no standing on the case must still be told 42501
+  and learn nothing further about it;
+- **not later than membership** — that gate is empty for the self grantee (above), so a refusal behind
+  it would be the incidental closure again, now written down as if it were a rule.
+Because the refusal is on the **act**, `read`, `write` and both PHI parameters are refused alike; a
+level-scoped reading of D6·5·1 would pass `417` K1 and fail K1c.
+
+⛔ **THREE THINGS DELIBERATELY NOT TOUCHED**, each for a stated reason rather than by omission:
+- `app._grant_case_access_unchecked` — the INVOKER kernel, shared with `create_case`'s creator
+  self-grant. That is the **one legitimate self-grant on the platform** and it must keep working;
+  `417` §F is the twin. ⚠ Measured while writing it, and it corrects a common reading: the creator
+  self-grant fires **only for the NON-coordinator capability arm** (`if not
+  (app.is_staff_admin_of(p_commission_id))` — ADR 0061 revised skips coordinators, who already see the
+  whole board), and the kernel stores `source = 'manual_grant'` with `reason_code =
+  'creator_self_grant'` — the string names the REASON column, not the SOURCE column.
+- `public.revoke_case_access` — unchanged. Giving access up is not an authority act (D6·5·1); a
+  grantor-class principal may still self-revoke (`417` §G, with the soft-revoke witness).
+- `app._case_caps` — ADR 0078 A24·3. Door validation only; the capability lattice is untouched.
+
+**METHOD — re-emitted from the LIVE `pg_get_functiondef`, not from migration text** (ADR 0078;
+LEARN-057). The migration inserts one block into whatever the catalog holds at apply time and asserts,
+from a **re-read** of the catalog: the level-check anchor occurs exactly once *and sits behind both
+gates the refusal must follow*, before the replace; `HC0U1` occurs exactly once after it; the guard
+sits **after** 42501 and `assert_not_case_excluded` and **before** the level check, `HC021`, the expiry
+check, `HC0U0` and `app._grant_case_access_unchecked(`; every pre-existing validation, the
+`case_is_terminal` guard and the `org_admin_deadlock_exit` stamp survived; and identity arguments,
+result, `prosecdef`, `search_path`, owner, volatility and the **full ACL** are byte-identical before
+and after. `417` §H re-measures `prosecdef`, `proconfig`, both EXECUTE grants and the
+REVOKE-FROM-PUBLIC posture from the catalog after apply. The signature did not move, so
+`npm run gen:types` produced **no diff** — proven by `git diff --stat src/lib/types/`, not assumed.
+
+**`HC0U1` — the new SQLSTATE, and how "next free" was derived** (the register says of itself that its
+"unallocated from here" row has gone stale repeatedly, so the derivation is recorded, not the
+conclusion alone). Union of three populations: the live catalog
+(`select distinct m[1] from pg_proc …, lateral regexp_matches(prosrc, 'HC0[0-9A-Z][0-9A-Z]', 'g') m`
+over `app`/`public`/`authz`) = **243** codes, alpha high-water `HC0T7` plus `HC0U0`; the repo
+(`supabase/migrations` + `src` + `supabase/tests`) = **265**; `docs/` = **271**. ⚠ `HC0U1` appears in
+`docs/` in exactly two places and **both are the sentence "next free = HC0U1"** — a CLAIM about the
+next code, never an allocation of it. Free in all three. Registered in
+[`conventions.md`](conventions.md) § SQLSTATE → meaning; **next free = `HC0U2`**.
+
+**THE APP MAPPING.** `src/lib/case-access/actions.ts` maps `HC0U1` → *"Não é possível conceder acesso a
+si mesmo."* — a message about **who the grantee is**, never about the level or the case, because the
+door refuses every level. An unmapped code would render it as *"Não foi possível concluir."*, a domain
+refusal disguised as a transient failure (the FF-5 `HC0Q3` lesson). `actions.test.ts` carries four new
+cells, including the **discrimination** half: `HC0U0` and `HC0U1` are adjacent codes on the same door
+whose messages are one clause apart in shape, so a fallen-through switch arm passes every other cell
+and fails only there.
+
+⚠ **ONE SIBLING SUITE WAS AMENDED, NOT RE-CODED (LEARN-023).** `235_authz_a4_org_admin_not_case_source`
+K7 asserted the org_admin self-grant raised **`HC021`**, captioned *"the grantee must be a commission
+member, and the org_admin is not one"* — i.e. it was the A18 membership bound and the anti-self
+property carried by ONE assertion, and the new guard fires earlier and would have consumed both.
+⛔ Re-coding its expected error would have left the membership bound asserted by nothing. The **caller
+was changed instead**: the membership bound keeps its own `HC021` assertion against a NON-member who is
+not the caller (`sa_y`, with a pre-flight proving he is not a member), and the self-refusal gets its
+own `HC0U1` assertion beside it. `plan(42)` → `plan(44)`.
+
+**RED-FIRST WITNESS.** `417` was run against the pre-migration catalog on a fresh reset: **7 of 34
+red**, and every red is a keystone — K1/K1c/K1d and K2 catching `HC021`, K3/K3c catching *no exception*,
+K3b reading **1** stored row for the coordinator. Nothing else was red: the pre-flights, both positive
+twins, the ordering control, the kernel twin, the revoke twin and the shape arm were green before and
+after, and are labelled CONTROLS rather than keystones. ⭐ The FIRST draft of `417` measured its
+pre-flights as `postgres` and read `is_tenancy_admin_of_for = true` for the exploit persona — the hat
+conjunct is short-circuited when `auth.uid()` is NULL, so the fixture claimed a reachability the door
+never sees (LEARN-003). Every pre-flight now runs **inside the caller's own session**.
 
 ## Grant plane — the case grant door refuses a WRITE grant on a terminal case (2026-09-10; ADR **0205** D9 + D12; unit GRANT-PLANE-CONVENTION; migration `20261003007370`, **1**; pgTAP `416` `plan(23)`; vitest `src/lib/case-access/actions.test.ts` (14); **NO flag — the migration IS the cutover**)
+
+⚠ **Superseded** — the door gained an EARLIER refusal (`HC0U1`, a self-grant), so the validation order stated below is no longer complete. See cases-and-ethics.md § Grant plane · A1 — the case grant door refuses a SELF-GRANT.
 
 **THE DEFECT, measured on the live catalog at head `20261003007360`, 2026-09-10.**
 `public.grant_case_access` validated authority → the U1 exclusion → level → grantee membership →

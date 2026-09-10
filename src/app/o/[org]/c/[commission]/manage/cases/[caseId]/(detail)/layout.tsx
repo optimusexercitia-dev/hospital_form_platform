@@ -323,6 +323,7 @@ export default async function CaseDetailLayout({
                   detail={detail}
                   grants={accessGrants}
                   caseOpen={isOpen}
+                  actorId={access.context.userId}
                 />
               )}
               {/* Edit META (label + department) — the single audited edit door

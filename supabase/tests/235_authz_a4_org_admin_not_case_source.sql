@@ -30,7 +30,7 @@ begin;
 -- 33 → 42: Gate-2 wave fixes a GATE-1 ESCAPE. K1 was policy-shaped (base tables only)
 -- and its title claimed more than it proved — `list_cases_board`'s DEFINER fast-path
 -- falsified it. +2 K1·DOOR, +7 K1·DENY (the coordinator/hard-deny arm).
-select plan(42);
+select plan(44);
 
 update app.feature_flags set enabled = true
   where key in ('case_access', 'case_referrals', 'case_patient', 'case_participants',
@@ -309,11 +309,27 @@ select lives_ok(
   $$ select public.grant_case_access('00000000-0000-0000-0000-0000000a4001',
        (select st_x from k), 'read', null, 'A4 K7') $$,
   'K7 ⭐ POSITIVE (keystone 23): the org_admin STILL administers the grant door — granting to a MEMBER succeeds');
+-- ⚠ AMENDED 2026-09-10 (ADR 0205 § Amendment 1, D6·5·1 — unit GRANT-PLANE-CONVENTION-A1).
+-- This arm USED to be one assertion: the org_admin self-granting, expected `HC021`,
+-- captioned "the grantee must be a commission member, and the org_admin is not one".
+-- The door now refuses `p_user = auth.uid()` with `HC0U1` BEFORE the membership check,
+-- so that single assertion would have caught the new code. ⛔ Re-coding its expected
+-- error would have left the A18 membership bound asserted by NOTHING (LEARN-023) —
+-- one persona was carrying two distinct claims, and the new guard consumed both. So
+-- the CALLER is changed instead: the membership bound keeps its own assertion against
+-- a NON-member who is not the caller, and the self-refusal gets its own beside it.
+select is(app.is_member_of_for((select comm_x from k), (select sa_y from k)), false,
+  'K7 PRE ⭐: sa_y is NOT a member of comm_x — so the HC021 below is the membership bound, not a coincidence');
+select throws_ok(
+  $$ select public.grant_case_access('00000000-0000-0000-0000-0000000a4001',
+       (select sa_y from k), 'read', null, 'A4 K7 non-member') $$,
+  'HC021', null,
+  'K7 ⭐ A18 BOUND (membership): …and CANNOT grant to a NON-member of the commission (HC021) — the original claim, on a grantee who is not the caller');
 select throws_ok(
   $$ select public.grant_case_access('00000000-0000-0000-0000-0000000a4001',
        (select st_y from k), 'read', null, 'A4 K7 self') $$,
-  'HC021', null,
-  'K7 ⭐ A18 BOUND: …and CANNOT grant to itself — the grantee must be a commission member (HC021), and the org_admin is not one');
+  'HC0U1', null,
+  'K7 ⭐ A18 BOUND (self): …and CANNOT grant to ITSELF — refused as an ACT before membership (HC0U1; ADR 0205 D6·5·1). Pre-2026-09-10 this raised HC021, i.e. it was closed INCIDENTALLY by a later gate');
 reset role;
 
 -- ===========================================================================

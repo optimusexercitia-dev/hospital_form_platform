@@ -73,3 +73,97 @@ mapping + unit test) ∥ `frontend` (picker excludes the actor) — disjoint fil
 follow; witnesses appended here.
 
 **Gate witness, commit 1 (docs only):** `npm run lint` **rc=0**, taken bare after one red — `check-rules-staleness` refused the rule file at 2407 bytes (cap 2048); the one-liners were tightened to 1998 bytes and the chain re-run. Registers gate: 22 hubs · 19 records · 227 open + 156 archived follow-ups (one moved); `adr:index` 201 ADRs, next free 0206, back-pointers current; `features:index` 22 hubs. `typecheck` / `test` / `test:db` not run: no code changed in this commit.
+
+**`frontend` report landed (same session).** `src/components/cases/case-access-panel.tsx` gains an
+`actorId` prop and `grantableMembers` now excludes `m.userId === actorId` beside the existing
+`role !== "staff_admin"` filter; `case-access-button.tsx` threads it; the case-detail `(detail)/layout.tsx`
+passes `access.context.userId` from the session context already fetched there (no new query). New
+`case-access-panel.test.tsx` (3 cells: actor excluded, coordinator excluded, plain member kept).
+`e2e/case-access.spec.ts` read, not edited: every grant is by `chefe.ccih` to another member — no flow
+grants to self. `lint` 0 · `typecheck` 0 · `test` 0. Browser not exercised (no server was up; code-only).
+
+**`backend` report landed (same session).** Migration `20261003007380_grant_door_refuses_self_grant.sql`,
+SQLSTATE **`HC0U1`**, body re-emitted from the live `pg_get_functiondef` (head was `20261003007370`);
+`prosecdef` / `proconfig` / owner / volatility / identity args / ACL asserted byte-identical by the
+migration and by pgTAP; `door-sweep-targets:` line identical to 7370's; kernel, `create_case`,
+`revoke_case_access` untouched. pgTAP **`417_grant_door_refuses_self_grant.sql`** `plan(34)` —
+**RED-first witness** on a fresh reset with the migration absent, 7/34 red, every red a keystone:
+`# Failed test 6: K1 tenancy admin cannot grant HERSELF write — caught: HC021 wanted: HC0U1` · 7 K1c
+(read) · 8 K1d (PHI params) · 12 K2 (hospital_admin) · `16: K3 the COORDINATOR self-granting is refused —
+caught: no exception wanted: HC0U1` · 17 K3c (self-issued `read_restricted_phi`) · `18: K3b the ledger
+holds NO row — have: 1 want: 0`. **GREEN:** `417 ok · All tests successful. Files=2, Tests=35 · PASS`.
+Sibling `235_authz_a4_org_admin_not_case_source.sql` K7 split rather than re-coded (LEARN-023): `HC021`
+keeps its own cell against a non-member non-caller, `HC0U1` gets its own — `plan(42)` → `plan(44)`.
+`src/lib/case-access/actions.ts` maps `HC0U1` → *Não é possível conceder acesso a si mesmo.* exactly as
+`HC0U0`; `actions.test.ts` 17 → 21 cells incl. the `HC0U0`/`HC0U1` discrimination cell. Seam slice
+`§ Grant plane · A1` appended to `cases-and-ethics.md`, its Current state replaced (99/100 lines);
+`HC0U1` registered in `conventions.md`, next free `HC0U2` (union of catalog/repo/docs re-derived).
+`npm run gen:types` → no diff. Backend's own rcs: `lint` 0 (17 gates) · `typecheck` 0 · `test` 0
+(153 / 2080) · `test:db` 0 on a fresh reset — **Files=266, Tests=8982, PASS**.
+⭐ **Two measurements contradict the ruling text — stated by `backend`, not adapted to:** (1) the
+tenancy-admin self-grant was **not reachable**: `app.has_role` carries the ACT hat conjunct
+`(p_user_id is distinct from auth.uid() or p_role is not distinct from app.active_role())`, so for the
+self grantee the membership check collapses onto the caller's hat — `org_admin` hat → `HC021`,
+`staff` hat → `42501`; the arm that WAS open is the **coordinator's** (`staff_admin` hat → self-grant
+SUCCEEDED pre-migration, incl. self-issued `read_restricted_phi` under D5·6). The remedy closes strictly
+more than D6·5·1 claimed; the tenancy arm's prior closure was incidental (LEARN-058). (2) `create_case`
+skips the creator self-grant for a coordinator (ADR 0061 revised); the kernel path is proven with the
+administrativo persona; the kernel writes `source='manual_grant'`, `reason_code='creator_self_grant'`.
+Dead end recorded: a first draft measured pre-flights as `postgres` and read
+`is_tenancy_admin_of_for = true` for the exploit persona — the hat conjunct short-circuits when
+`auth.uid()` is NULL (LEARN-003); every pre-flight now runs inside the caller's session.
+**Lead corroboration of (1):** live `app.has_role` body re-read, conjunct present verbatim;
+`is_member_of_for` = `is_active ∧ has_role_any`; the correction appended **under** D6·5·1 in ADR 0205
+(ratified paragraph kept verbatim, ADR 0061 Amendment 1's form).
+
+**Lead gate over the COMBINED tree, bare rc:** `lint` 0 · `typecheck` 0 · `test` 0 (153 files / 2080) ·
+`e2e/case-access.spec.ts` 0 (**26 passed, 1 skipped**, `--workers=1`, dev server via `.claude/launch.json`)
+· `SELFTEST=1 bash scripts/door-sweep-cases.sh` 0 — `SELF-TEST: PASS 46 · FAIL 0 · SKIPPED 0`;
+`--- GROUP deriver: scenarios 20 (pass 20 · fail 0 · skipped 0)` · `--- GROUP merge helper: scenarios 18
+(pass 18 · fail 0 · skipped 0)` · `--- GROUP audit startup capture: scenarios 8 (pass 8 · fail 0 ·
+skipped 0)`; produced by `GNU bash, version 3.2.57(1)-release (arm64-apple-darwin25)`.
+**Door sweep, deriver arm over `18f2fc7f`:** exit **1** read BARE (two steps, stdout never
+substituted into `CASES`); `SCOPE: 1 file(s) — 0 committed (18f2fc7f..HEAD), 0 worktree, 1 untracked
+| filter: none | derivation: catalog`; `DOORS IDENTIFIED: 1. SWEEPABLE BY THIS ARM: 0 —
+grant_case_access (prosecdef, returns void — outside PRED_DOMAIN)`. **RULED** exactly as Fix 1's
+identical finding: the owed **targeted** mutation runs by hand with the harness owning the DB —
+witness below. Lead live re-read: `HC0U1` sits after `assert_not_case_excluded` and before the level
+check (position asserted by SQL, `before_level=t · after_exclusion=t`), `prosecdef=t`.
+
+**Targeted mutation of `grant_case_access` (lead, harness owning the DB, detached — the scripted
+sequence and its log are in the session scratchpad; every step's rc read bare):** (1) fresh
+`npx supabase db reset --local` rc 0. (2) Capture: live `pg_get_functiondef` → 4702 bytes, md5
+`ab9754df…`. (3) **Restore channel proven first**: the capture re-applied, catalog re-read byte-identical.
+(4) **Neutralize the predicate only**: `if p_user = auth.uid() then` → `if false and p_user = auth.uid()
+then` — one guard line in the body, the `HC0U1` text KEPT so a text checker stays blind; re-read
+`mutated=true · text_kept=true · prosecdef=true`. (5) Full `npm run test:db` under the mutant: **rc 1,
+`Result: FAIL`, Files=266, Tests=8982 — exactly 8 red, attributable to two files and nothing else:**
+`417_grant_door_refuses_self_grant.sql` `Failed 7/34` (tests 6-8, 12, 16-18 = K1 · K1c · K1d · K2 · K3 ·
+K3c · K3b) and `235_authz_a4_org_admin_not_case_source.sql` `Failed 1/44` (test 31 = the split K7
+`HC0U1` cell). (6) Restore from capture rc 0; catalog re-read **identical to capture**. (7) Fresh reset
+rc 0 + full `test:db` **rc 0 — Files=266, Tests=8982, `Result: PASS`** (the gate's test:db witness, in
+the lead's own hands). Findings baseline never opened (subset/targeted runs write nothing there).
+**Set-valued targeted home** (`authz-setvalued-targeted-cases.sh`, detached per its own rule, exit read
+bare): **rc 0 — `RESULT: CLEAN — 3 resolver(s) measured, all COVERED`** (`authz.authorized_scope_ids`,
+`authz.candidate_authorized_scope_ids`, `app.current_professional_read_organizations`), every restore
+verified by the harness.
+**Browser check of the picker (lead):** logged in as `chefe.ccih@test.local` on the dev server, opened
+`Caso 0001` — the `Acesso ao caso` button renders; the pane could not open the dialog (the Browser
+pane had a 0×0 viewport this session, clicks unattributable, HMR socket failing), so the browser proof
+stays the headless run: `e2e/case-access.spec.ts` 26 passed + `case-access-panel.test.tsx` 3 cells.
+Not a defect of the change; recorded so nobody reads "verified in the browser" into this entry.
+
+**Next:** the read-only `qa` review (spawned, owning the DB), then `gated` → PO → Record.
+
+**`qa` verdict (same session): APPROVED — 0 BLOCK · 0 MAJOR · 0 MINOR · 3 INFO**
+([grant-plane-convention-a1-review.md](../reviews/grant-plane-convention-a1-review.md)). QA re-derived
+every load-bearing claim from the live catalog: guard position (after 42501 + exclusion, before level /
+`HC021` / expiry / `HC0U0` / kernel), `prosecdef` / ACL / `search_path` / owner unchanged, exactly one
+function mentions `HC0U1`; the build-time correction holds exactly (`has_role` / `has_role_any` carry
+the hat conjunct verbatim, `is_member_of_for` collapses as claimed, `create_case` skips the coordinator's
+creator self-grant); its OWN targeted mutation reproduced **the same 8 reds at the same test numbers**
+(417 6-8, 12, 16-18 · 235 31) across 8,982 and nothing else; gates re-run bare (lint 0 · typecheck 0 ·
+test 2080 · test:db 266/8982 · deriver exit 1 with the same SCOPE line · self-test 46/46). INFO only:
+the picker fix's practical reach is the coordinator arm (tenancy admins never see this UI pre-pilot); an
+untested-but-correct ordering interaction between the self-grant guard and invalid-level validation; a
+test-seam note. DB left pristine. Hub → `gated`; commit 2 (Fix 3) landed; awaiting PO for Record.

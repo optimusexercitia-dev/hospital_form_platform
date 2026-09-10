@@ -41,8 +41,12 @@ import { cn } from "@/lib/utils";
  * narrative card ({@link import('./case-narrative-card').CaseNarrativeCard}).
  *
  * Only NON-coordinator members are listed: a `staff_admin` already holds full-case
- * access by role, so a grant/revoke control on them (including the viewing coordinator
- * on themselves) is meaningless/misleading. This inherently removes the current viewer.
+ * access by role, so a grant/revoke control on them is meaningless/misleading. The
+ * ACTING user is excluded explicitly too (`actorId`, independent of role) — ADR 0205
+ * Amendment 1 D6·5·1: `grant_case_access` now refuses `p_user = auth.uid()` at the
+ * door (a tenancy admin who also holds a plain commission membership could otherwise
+ * self-grant through the one arm that reads no content-authority), and the picker
+ * must never offer an act the door refuses.
  *
  * Each row shows the member's STORED grant level — `Leitura` (read) or `Edição`
  * (write) — its expiry (`Expira em dd/mm/aaaa`, or an `Expirada` badge once past),
@@ -61,6 +65,7 @@ export function CaseAccessPanel({
   detail,
   grants,
   caseOpen,
+  actorId,
 }: {
   caseId: string;
   /** The commission roster (already sorted by the parent). */
@@ -74,6 +79,12 @@ export function CaseAccessPanel({
    * write option is disabled (the server enforces this regardless).
    */
   caseOpen: boolean;
+  /**
+   * The acting user's id (the viewer opening this dialog). Excluded from the
+   * grantee picker (ADR 0205 Amendment 1 D6·5·1) — the door refuses a self-grant,
+   * so the picker must never list the actor as a candidate.
+   */
+  actorId: string;
 }) {
   const { run, isPending, error } = useCaseAction();
 
@@ -97,8 +108,12 @@ export function CaseAccessPanel({
 
   // Coordinators (`staff_admin`) already hold full-case access by role, so a
   // grant/revoke control on them is meaningless — and revoking your OWN access is
-  // misleading. List only non-coordinator members (this also drops the viewer).
-  const grantableMembers = members.filter((m) => m.role !== "staff_admin");
+  // misleading. The acting user is excluded explicitly too, independent of role
+  // (ADR 0205 Amendment 1 D6·5·1) — the door now refuses `p_user = auth.uid()`,
+  // and the picker must never offer a self-grant the door will reject.
+  const grantableMembers = members.filter(
+    (m) => m.role !== "staff_admin" && m.userId !== actorId,
+  );
 
   const activeGrant = dialogMember
     ? grantByUser.get(dialogMember.userId)
