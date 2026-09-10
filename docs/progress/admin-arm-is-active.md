@@ -357,3 +357,35 @@ every reset.
 **Commits on `authz-admin-arm-is-active`** (none amended, none pushed): `f2a0da8b` 418 RED-first ·
 `a0002067` the migration · `3b54bf11` the eleven re-rulings · `fa68436c` the TS mirror ·
 `ebb5ddd0` the allowlist re-derivation · `95b178ca` the regenerated query-module surface.
+
+### 2026-09-10 — build reported; the blocking red ruled (R4) and two deviations accepted (R5) (lead)
+
+**The builder's report, in its own numbers:** pgTAP `418` **13 of 30 red** at `(20261003007380, 527)`,
+**30/30 green** after the migration (17 controls green on both sides); Vitest mirror **3 of 11 red**
+before, 11/11 after; **20 landing needles** each proven on a planted body — and the plants found
+**two assertion defects in the plan's own design** (a comment quoting a `(`-terminated needle aborted
+the migration; the `p_uid is not null` check did not fire when planted away because a comment answered
+for it), both fixed by matching a **comment-stripped** body. Suite **266/8982 → 267/9019** (+1 file,
++37 = 30+1+1+3+2, parts sum); `lint` rc 0 with all 17 gates reached; `typecheck` 0; `test` 0;
+`gen:types` diff 0 lines. ⛔ **`test:db` rc 1**: `401 §19.2b/c` and `403 §2.3b` red — the builder
+STOPPED rather than edit a count, as both cells' messages demand. Detail: the builder's own entry above.
+
+**The mechanism (measured, not the plan's claim):** before D5, `app.can_manage_case_vocabulary` and
+`app.can_manage_external_participant` had identical comment-stripped bodies, and matrix row 31
+(`org.participants.external.manage`) had **no representative of its own** — its differential coverage
+rode on that body identity, which `403 §2.3b` asserts in words. D5 arms the vocabulary gate only, the
+bodies diverge, and row 31 silently loses coverage: exactly the regression both cells exist to catch.
+⛔ Plan §6 said *"`401` is NOT an expected red — re-verified"*; refuted by measurement, and `403` was
+never considered. ⭐ A red the plan ruled out is the one worth the most — the plan's re-verification
+had looked at the manifest rows, not at what shares a body.
+
+**PO ruling R4 — option (a): row 31 gets its OWN representative** in `403`'s differential cells; then
+`401 §19.2b` (→ 3), `§19.2c` (naming the new partition) and `403 §2.3b` are re-ruled as a
+**consequence** of that representative existing, each message saying what it now proves — never
+re-coded to a number that matches. Option (b), arming `can_manage_external_participant` too, was
+rejected: it contradicts ADR 0201 D5's declared loss list, pinned RED-first by `418 §4.7`, and would
+let a `platform_admin` mint participants in any tenant's organization.
+
+**PO ruling R5 — two measured deviations from R2's texts ACCEPTED:** `257` is +3 not +4 (`:209`'s
+feature-flag guard precedes authority, so an authority twin there would assert guard **ordering** under
+an authority label); `315` is +2 not +3 (the org-authority twin **replaces** `:209-212`).
