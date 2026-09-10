@@ -20,6 +20,10 @@ The decision is ADR [0205](../decisions/0205-per-object-grant-plane-convention.m
 document: the PO asked for an options analysis on the Case grant model, then a grilling session
 (three rounds, 26 questions) settled the convention and its timing in one sitting.
 
+**Amended 2026-09-10 → [GRANT-PLANE-CONVENTION-A1](./grant-plane-convention-a1.md):** an external design
+audit led to ADR 0205 § Amendment 1 (append-only) and a **third** pre-pilot fix — the door refuses a
+self-grant (`HC0U1`). The two fixes and the criteria below are this unit's as ruled; the total is now three.
+
 ## Acceptance criteria
 
 - [x] **ADR 0205 written and indexed** — D1–D12 as ruled, the classification table of every existing

@@ -16,7 +16,8 @@
 --     refused everyone would pass K1/K2 by construction.
 --
 -- ⭐ THE FIXTURE IS THE TRAP. Every precondition the door checks BEFORE the new one
--- (authority → exclusion → level → grantee membership → future expiry) is asserted
+-- (authority → exclusion → self-grant `HC0U1` [since 20261003007380, pgTAP 417] → level →
+-- grantee membership → future expiry) is asserted
 -- to hold before the arm runs, so a red is the STATUS refusal and never a coincidence:
 -- the coordinator really is a coordinator, the grantee really is a member, and the
 -- coordinator really is not recused. Without P4–P7 a wrong-arm fixture would raise

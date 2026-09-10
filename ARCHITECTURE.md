@@ -315,7 +315,7 @@ may extend the schema but never contradict it. Cross-references elsewhere to
    catalog** (`pg_attribute`), not from migration text — per CLAUDE.md's binding exception,
    migration files are stale by design for anything schema-shaped.
    - `securable_resources(id, resource_type, organization_id, hospital_id, commission_id,`
-     `created_at)` — the **polymorphic home** (⭐ also the tenant-anchor source for ADR 0205 D7's shared grant-audit trigger, and the candidate anchor for one shared ledger — 0205 D12, deferred to the Phase 19 plane ADR). Every document hangs off one of these rather
+     `created_at)` — the **polymorphic home** (⭐ also the DEFAULT tenant-anchor source for ADR 0205 D7's shared grant-audit trigger — since Amendment 1 D7·2 the trigger reads its anchors from a per-root ADAPTER that defaults to this row, because a referral's row is anchored on the SOURCE side while referral grants live on the receiving side — and the candidate anchor for one shared ledger — 0205 D12, deferred to the Phase 19 plane ADR). Every document hangs off one of these rather
      than off a per-feature FK, which is what lets one substrate serve cases, meetings,
      referrals, NSP evidence and controlled documents without eight parallel tables.
    - `documents(id, home_resource_id → securable_resources, title, description, kind, status,`

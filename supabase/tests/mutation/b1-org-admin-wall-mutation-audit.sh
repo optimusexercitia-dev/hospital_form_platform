@@ -399,9 +399,9 @@ begin
     end;
 
   elsif p_what = 'overcut_keep_door' then
-    -- PO ruling Q8: grant_case_access stays. It is safe because self-escalation is
-    -- independently blocked (org_admin is not a commission member), NOT because the
-    -- arm is absent. Cutting it is the plausible over-zealous sweep.
+    -- PO ruling Q8: grant_case_access stays. It is safe because a self-grant is refused
+    -- as an ACT (HC0U1 — ADR 0205 Amendment 1; the older "org_admin is not a member"
+    -- reading was an incidental hat-conjunct guard), NOT because the arm is absent. Cutting it is the plausible over-zealous sweep.
     d := pg_get_functiondef('public.grant_case_access(uuid,uuid,text,timestamptz,text,boolean,boolean)'::regprocedure);
     d := app._mut_b1_sub(d, ' or app.is_tenancy_admin_of(v_commission)', '');
     execute d;

@@ -83,7 +83,7 @@
 - Registry rows reading `NONE` / `UNCONFIRMED` are a measured property, not a review gap — `registerUser`'s entry gate
   has no found assertion that a non-admin caller is REJECTED, and that is ⛔ **not proven absent**. Referral doors keep
   the tenancy arm at the DB while the UI 404s a bare tenancy admin (BUG-QOB-004, PO ruling pending — ⛔ do not "fix"
-  either side without it); the case-grant door has the SAME shape — its tenancy arm is admitted by the app check yet refused by the RLS read of `cases` in front of it (`FUP-GRANT-PLANE-CONVENTION-TENANCY-ADMIN-GRANT-PATH-UNREACHABLE`, PO to rule the surface). Platform TRUNCATE grants to `anon` **and** `authenticated` are **unchanged and not revocable
+  either side without it); the case-grant door has the SAME shape — its tenancy arm is admitted by the app check yet refused by the RLS read of `cases` in front of it (`FUP-GRANT-PLANE-CONVENTION-TENANCY-ADMIN-GRANT-PATH-UNREACHABLE`, **archived** — the PO ruled the surface: ADR 0205 § Amendment 1 D6·5·3, the arm stays SQL / service-role only pre-pilot, its metadata-only surface is built with the factory under `FUP-GRANT-PLANE-CONVENTION-BUILD-AFTER-AE5`). Platform TRUNCATE grants to `anon` **and** `authenticated` are **unchanged and not revocable
   by us**: on Cloud the REVOKE returns **no error** and changes nothing.
 - Two frozen paragraphs below state **different** privilege-ceiling values and gate 15's `PROSE_RE` is blind to the
   older form; `document-model.md`'s pt-BR messages say **three** and name **two**. Both are FILED, ⛔ neither is fixed:
@@ -922,9 +922,11 @@ blind to every `_for` call site. This produced a 10-vs-12 undercount inside QO·
   `270` asserts the two classes BY NAME, not only by count.
 - **Case access + classification** (Q8/Q9): `grant_case_access`, `revoke_case_access`,
   `list_case_access`, `set_case_visibility`, `set_case_confidentiality`.
-  `grant_case_access` is safe because **self-escalation is independently blocked** —
-  MEASURED: an org_admin's self-grant raises *"o responsável deve ser membro da comissão"*
-  since it holds no membership row, while granting a real member succeeds.
+  `grant_case_access` is safe because **a self-grant is refused as an ACT** — `HC0U1`, the door's own line
+  since migration `20261003007380` (ADR 0205 § Amendment 1 D6·5·1; pgTAP `417`). ⚠ The earlier reading here
+  (*"independently blocked — an org_admin's self-grant raises HC021 since it holds no membership row"*) was
+  MEASURED true only because the ACT hat conjunct collapses a self-membership check onto the caller's hat — an
+  incidental guard, asserted by nothing; the arm that WAS open pre-`HC0U1` was the **coordinator's**.
 - **`revoke_printed_document`** — keeps its tenancy arm by the OLDER, more specific ruling
   **ADR 0104 D11**: revocation is a *governance* act that reveals no content (the admin
   chain may revoke an ata print it cannot download). QO·B's own §4.3 draft listed it as
@@ -1357,6 +1359,10 @@ expected reds — their fields are name-based and their `residualLegacyAuthority
 
 ## Per-object grant plane — the convention ratified, two case-door fixes landed (2026-09-10, ADR 0205, migration `20261003007370`)
 
+> ⚠ **Amended the same day** — ADR 0205 § Amendment 1 (unit GRANT-PLANE-CONVENTION-A1, [hub](../features/grant-plane-convention-a1.md))
+> added a **third** case-door fix, migration `20261003007380` (`HC0U1`, no self-grant); the count below is this slice's as written.
+> The A1 slice is in [`cases-and-ethics.md`](cases-and-ethics.md) § Grant plane · A1.
+
 **What this slice records.** Unit GRANT-PLANE-CONVENTION ([hub](../features/grant-plane-convention.md) ·
 [record](../progress/grant-plane-convention.md) · [review](../reviews/grant-plane-convention-review.md), APPROVED).
 The case seam carries the door detail ([`cases-and-ethics.md`](cases-and-ethics.md) § same date); this slice carries the
@@ -1367,10 +1373,11 @@ The case seam carries the door detail ([`cases-and-ethics.md`](cases-and-ethics.
   `org_admin` of the org ∨ `hospital_admin` of the hospital, `is_active` first). The tenancy arm **manages access and
   reads nothing** — kept by PO ruling for the **recused/respondent sole coordinator** (ADR 0078's reason) AND the
   **absent** coordinator (⚠ nothing enforces coordinator presence; two seeded commissions have none; PO ruled it a
-  practice, not a guard). Two safeguards travel with the arm: grantee must be a commission member (`HC021`), no self-grant.
+  practice, not a guard). Two safeguards travel with the arm: grantee must be a commission member (`HC021`), no self-grant (`HC0U1`, built
+  2026-09-10 under Amendment 1 D6·5·1 — before it only the hat conjunct closed the self path, incidentally).
   ⛔ An administrativo never grants (D6·4); PHI abilities are never on the screen (D10).
 - **The door, not the resolver, refuses a WRITE grant on a terminal case** — `HC0U0`, positioned after `42501` →
-  `HC0F1` → level → `HC021` → future-expiry and before `app._grant_case_access_unchecked(`; read grants on terminal cases
+  `HC0F1` → `HC0U1` (self-grant, since `20261003007380`) → level → `HC021` → future-expiry and before `app._grant_case_access_unchecked(`; read grants on terminal cases
   stay allowed (ADR 0033 D6). `app._case_caps` carries **no** lifecycle term (ADR 0078 A24·3) — measured, not assumed.
   Keystone `416` (plan 23) RED-first on the pre-migration catalog; the door sweep identified the door (tier-2, exit 1)
   and its owed **targeted behavioural mutation** (predicate neutralized, `HC0U0` text kept) was COVERED by 416 § K1/K1b/K2
@@ -1380,7 +1387,9 @@ The case seam carries the door detail ([`cases-and-ethics.md`](cases-and-ethics.
   a rejected tenancy read maps to the pt-BR "unavailable" error, never a silent `false`. ⚠ **Open edge, not a defect of
   the unit:** the tenancy arm is still unreachable end-to-end — the action resolves the commission through an RLS read of
   `cases` whose only SELECT policy is `can_read_case`, FALSE for a tenancy admin (D4; S2 confers `manage_case_access`
-  only). Filed `FUP-GRANT-PLANE-CONVENTION-TENANCY-ADMIN-GRANT-PATH-UNREACHABLE`; ⛔ neither shortcut (widen
+  only). Filed `FUP-GRANT-PLANE-CONVENTION-TENANCY-ADMIN-GRANT-PATH-UNREACHABLE` — **archived 2026-09-10** on the
+  ruling (ADR 0205 § Amendment 1 D6·5·3: SQL / service-role only pre-pilot; the metadata-only surface is built with
+  the factory, owned by `FUP-GRANT-PLANE-CONVENTION-BUILD-AFTER-AE5`); ⛔ neither shortcut (widen
   `cases_select`; a content arm on S2) is admissible — both re-open ADR 0078 D4.
 - **Classification the convention fixes for this seam:** `case_access_grants` is the reference **ledger**;
   `commission_administrativo_capabilities` and `hospital_dpos` are **scope-level capability planes OUTSIDE ADR 0205**

@@ -116,8 +116,10 @@ _Avoid_: object, entity, record
 **Grant ledger**:
 The table that holds per-object Grants for one root resource: who granted, when, to whom, which
 abilities (named by Permission code), expiry, soft revocation, reason. Only a **root** resource
-(Case, Meeting, Referral, Controlled Document) has one; a child (Interview, action item, agenda
-item, document version) inherits from its root. (ADR 0205 D2, D5)
+(Case, Meeting, Referral, Controlled Document) has one; a child inherits from its root, and the
+narrowable children are listed per root — Case: interview, case-sourced action item · Meeting: agenda
+item, closed-session item, meeting-sourced action item · Controlled Document: document version ·
+Referral: none. One Grant is a header plus ability child rows. (ADR 0205 D2, D5; Amendment 1 D2·2, D4·2)
 _Avoid_: ACL, permissions table, access table
 
 **Participation record**:

@@ -406,7 +406,7 @@ select is(
       and regexp_replace(regexp_replace(p.prosrc,'/\*.*?\*/',' ','gs'),'--[^'||chr(10)||']*',' ','g')
           ~ '\yis_tenancy_admin_of\y'),
   5,
-  '5.5 ⭐ OVER-CUT GUARD (Q8/Q9): all FIVE ratified KEEP doors must STILL admit the tenancy admin. grant_case_access is safe because self-escalation is independently blocked — org_admin is not a commission member — not because nobody checked');
+  '5.5 ⭐ OVER-CUT GUARD (Q8/Q9): all FIVE ratified KEEP doors must STILL admit the tenancy admin. grant_case_access is safe because a self-grant is refused as an ACT (HC0U1, ADR 0205 Amendment 1 — the older "org_admin is not a member" reading was an incidental hat-conjunct guard) — not because nobody checked');
 
 select isnt(
   (select coalesce(qual,'') from pg_policies

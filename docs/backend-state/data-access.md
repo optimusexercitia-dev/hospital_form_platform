@@ -722,8 +722,8 @@ headings. All six re-measured **2026-09-09** against the local catalog at migrat
 
 `grant_case_access` / `revoke_case_access` / `list_case_access` were absent from § RPC inventory above (only the
 generated surface listed them). What a reader needs that the generated registries cannot hold: the grant door's
-validation ORDER is `42501` (coordinator ∨ tenancy admin) → `HC0F1` (actor excluded) → level → `HC021` (grantee must be
-a commission member) → future-expiry → **`HC0U0` (a WRITE grant on a terminal case is refused; read grants pass)** →
+validation ORDER is `42501` (coordinator ∨ tenancy admin) → `HC0F1` (actor excluded) → `HC0U1` (grantee = actor, refused as an act — ADR 0205
+§ Amendment 1 D6·5·1, pgTAP `417`) → level → `HC021` (grantee must be a commission member) → future-expiry → **`HC0U0` (a WRITE grant on a terminal case is refused; read grants pass)** →
 the INVOKER kernel `app._grant_case_access_unchecked`. The refusal lives in the **door, not the resolver** — `_case_caps`
 carries no lifecycle term (ADR 0078 A24·3). Keystone `416` § K1/K1b/K2, RED-first; ordering pinned by § K5/K5b as
 controls. Detail: [`cases-and-ethics.md`](cases-and-ethics.md) § 2026-09-10 · [`authorization-and-audit.md`](authorization-and-audit.md)

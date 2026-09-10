@@ -218,3 +218,22 @@ verdict; the ADR cites it permanently), the PROGRESS row moved to the ledger, co
 
 None. Manual pane click-through of the panel was not possible this session (the Browser pane had no
 viewport); the browser proof is the E2E run + the unit test.
+
+### 2026-09-10 — documentation second pass (lead; after Record)
+
+Two Explore sweeps (docs corpus; source/test/seam comments) compared the corpus against twelve facts this
+unit settled. **Thirteen stale spots, all corrected in place** (none in append-only logs, reviews, the archive,
+or ADR 0205): the door's validation-order lists gained the `HC0U1` step (`416` header, `authorization-and-audit.md`
+§ terminal-write bullet, `data-access.md` § grant door); the *"safe because org_admin is not a member"* premise —
+measured this session to be an incidental hat-conjunct guard, not the live protection — re-stated as *"refused as an
+ACT, `HC0U1`"* in `authorization-and-audit.md` § Q8/Q9, `314` § 5.5's description string and the `b1` harness's
+comment; the tenancy-admin follow-up shown as **archived on the ruling** at both `authorization-and-audit.md` mentions;
+the seam's 2026-09-10 slice heading gained an amended-the-same-day banner (heading text untouched — router anchors);
+ARCHITECTURE.md's registry line now says the trigger's anchors come from a per-root adapter defaulting to the row
+(D7·2); CONTEXT.md's Grant Ledger entry lists children per root and the header + child-rows shape (D2·2, D4·2); the
+original hub gained a forward pointer to this unit (its title and criteria left as ruled). Confirmed current and
+untouched: `cases-and-ethics.md`, `conventions.md`, the rule file, `follow-ups-open.md`, the 0033/0078/0114/0155
+forward notes, Phase 18/19 text, the plans. ⚠ Comment-only edits in tester/backend-owned files (`416`, `314`, `b1`)
+change no assertion; re-run bare: `npx supabase test db --local supabase/tests/{00_setup,314_…,416_…,417_…}.sql` →
+`Files=4, Tests=180, PASS` (⛔ bare numbers/filenames give `NOTESTS` under npx 2.115 — paths only); `bash -n` on the
+harness OK; `lint:backend-state` OK (largest seam 141.8 KB). Gates at the tip quoted in the commit.
