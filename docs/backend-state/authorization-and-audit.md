@@ -52,7 +52,7 @@
   one**, and ⛔ no CHECK ties `audit_log.organization_id` to the hospital's org.
 - **The noun rule and the content wall.** Handing a `platform_admin` tenant *content* is a breach; the tenancy admin
   *shapes containers, never reads what goes in them*. ⚠ `app.is_tenancy_admin_of(_for)` is **NOT** the commission's own
-  admin — **FALSE for `staff_admin`**, admitted by the separate `app.is_staff_admin_of` disjunct. ⛔ `\yis_tenancy_admin_of\y`
+  admin — **FALSE for `staff_admin`**, admitted by the separate `app.is_staff_admin_of` disjunct; on the case-grant doors that tenancy arm **manages access and reads nothing**, kept by ADR 0205 D6 for the recused AND the absent coordinator, and the door refuses a WRITE grant on a terminal case (`HC0U0`, D9). ⛔ `\yis_tenancy_admin_of\y`
   cannot match `is_tenancy_admin_of_for`: a sweep on the short name is **silently blind** to every `_for` site.
 - **The catalog is authority-ELECT, not authority** — an *additional* authority beside `memberships_role_check`, the
   scope-shape CHECK, `public.platform_role` and the TS manifest, ⛔ **not a replacement**; a policy or door calling layer
@@ -83,7 +83,7 @@
 - Registry rows reading `NONE` / `UNCONFIRMED` are a measured property, not a review gap — `registerUser`'s entry gate
   has no found assertion that a non-admin caller is REJECTED, and that is ⛔ **not proven absent**. Referral doors keep
   the tenancy arm at the DB while the UI 404s a bare tenancy admin (BUG-QOB-004, PO ruling pending — ⛔ do not "fix"
-  either side without it). Platform TRUNCATE grants to `anon` **and** `authenticated` are **unchanged and not revocable
+  either side without it); the case-grant door has the SAME shape — its tenancy arm is admitted by the app check yet refused by the RLS read of `cases` in front of it (`FUP-GRANT-PLANE-CONVENTION-TENANCY-ADMIN-GRANT-PATH-UNREACHABLE`, PO to rule the surface). Platform TRUNCATE grants to `anon` **and** `authenticated` are **unchanged and not revocable
   by us**: on Cloud the REVOKE returns **no error** and changes nothing.
 - Two frozen paragraphs below state **different** privilege-ceiling values and gate 15's `PROSE_RE` is blind to the
   older form; `document-model.md`'s pt-BR messages say **three** and name **two**. Both are FILED, ⛔ neither is fixed:
@@ -101,11 +101,11 @@
 
 - The frozen slices below, in order: **§ Zero-policy tables** · **§ Privilege budget** · **§ Service-role DML
   registry** · **§ AE3** · **§ AE4** · **§ Audit read legs** · **§ Client-role TRUNCATE grants** · **§ QO·B** ·
-  **§ QO·FUP** · **§ QO·A** · **§ RLS authorization surface** · **§ AE5's opening decision**.
+  **§ QO·FUP** · **§ QO·A** · **§ RLS authorization surface** · **§ AE5's opening decision** · **§ Per-object grant plane (ADR 0205)**.
 - ADR [0155](../decisions/0155-post-aff4-tenancy-and-person-model-evolution-sequence.md) · [0162](../decisions/0162-authz-evolution-plan-audit-corrections.md) (authority-elect) ·
   [0176](../decisions/0176-authz-permission-layer-made-real.md) (the three interfaces) · [0100](../decisions/0100-quality-office-oversight.md) (oversight + content wall) ·
   [0149](../decisions/0149-org-admin-reads-hospital-tier-audit.md) + [0150](../decisions/0150-audit-org-derived-from-hospital.md) (audit read legs) ·
-  [0079](../decisions/0079-authz-door-blindness-standing-invariant.md) (the standing door audit) · [0200](../decisions/0200-professional-identity-predicates-answer-about-their-subject.md) + [0201](../decisions/0201-the-keying-asymmetry-is-the-model.md) (keying) · [0203](../decisions/0203-the-seam-is-already-encoded-the-classification-columns-are-not.md) (the seam).
+  [0079](../decisions/0079-authz-door-blindness-standing-invariant.md) (the standing door audit) · [0205](../decisions/0205-per-object-grant-plane-convention.md) (per-object grants: root ledgers, no build before AE5-complete) · [0200](../decisions/0200-professional-identity-predicates-answer-about-their-subject.md) + [0201](../decisions/0201-the-keying-asymmetry-is-the-model.md) (keying) · [0203](../decisions/0203-the-seam-is-already-encoded-the-classification-columns-are-not.md) (the seam).
 
 ## Zero-policy tables — door-only by design (AE1.6; ADR 0155 D9; measured 2026-08-27)
 
@@ -1354,3 +1354,39 @@ it discriminating, is the one that flips. Expected reds to **re-rule, never sile
 `409` § 3.7 (**polarity AND message** — `:680` still names `app.is_admin()` where the chain now reaches
 `is_admin_for`) · `415` § 1.2 · `229:215-220`, which **splits in two**. ⛔ `401` and `410` are **NOT**
 expected reds — their fields are name-based and their `residualLegacyAuthority` entries name **arm 2**.
+
+## Per-object grant plane — the convention ratified, two case-door fixes landed (2026-09-10, ADR 0205, migration `20261003007370`)
+
+**What this slice records.** Unit GRANT-PLANE-CONVENTION ([hub](../features/grant-plane-convention.md) ·
+[record](../progress/grant-plane-convention.md) · [review](../reviews/grant-plane-convention-review.md), APPROVED).
+The case seam carries the door detail ([`cases-and-ethics.md`](cases-and-ethics.md) § same date); this slice carries the
+**authorization semantics** the convention fixes, because the previous Record step that skipped this seam is the one the
+2026-09-10 second pass had to repair.
+
+- **Grantor authority on every future grant door = coordinator ∨ tenancy admin** (`app.is_tenancy_admin_of(_for)`:
+  `org_admin` of the org ∨ `hospital_admin` of the hospital, `is_active` first). The tenancy arm **manages access and
+  reads nothing** — kept by PO ruling for the **recused/respondent sole coordinator** (ADR 0078's reason) AND the
+  **absent** coordinator (⚠ nothing enforces coordinator presence; two seeded commissions have none; PO ruled it a
+  practice, not a guard). Two safeguards travel with the arm: grantee must be a commission member (`HC021`), no self-grant.
+  ⛔ An administrativo never grants (D6·4); PHI abilities are never on the screen (D10).
+- **The door, not the resolver, refuses a WRITE grant on a terminal case** — `HC0U0`, positioned after `42501` →
+  `HC0F1` → level → `HC021` → future-expiry and before `app._grant_case_access_unchecked(`; read grants on terminal cases
+  stay allowed (ADR 0033 D6). `app._case_caps` carries **no** lifecycle term (ADR 0078 A24·3) — measured, not assumed.
+  Keystone `416` (plan 23) RED-first on the pre-migration catalog; the door sweep identified the door (tier-2, exit 1)
+  and its owed **targeted behavioural mutation** (predicate neutralized, `HC0U0` text kept) was COVERED by 416 § K1/K1b/K2
+  alone across 8,946 tests, restore verified by catalog re-read — run by `backend`, **reproduced by `qa`**.
+- **The app pre-check mirrors the door** (`src/lib/case-access/actions.ts` `authorizeCommission`): the `platform_admin`
+  pass is GONE (ADR 0078 A35 — the door refused it with 42501 anyway), the tenancy arm and the `is_active` conjunct are IN,
+  a rejected tenancy read maps to the pt-BR "unavailable" error, never a silent `false`. ⚠ **Open edge, not a defect of
+  the unit:** the tenancy arm is still unreachable end-to-end — the action resolves the commission through an RLS read of
+  `cases` whose only SELECT policy is `can_read_case`, FALSE for a tenancy admin (D4; S2 confers `manage_case_access`
+  only). Filed `FUP-GRANT-PLANE-CONVENTION-TENANCY-ADMIN-GRANT-PATH-UNREACHABLE`; ⛔ neither shortcut (widen
+  `cases_select`; a content arm on S2) is admissible — both re-open ADR 0078 D4.
+- **Classification the convention fixes for this seam:** `case_access_grants` is the reference **ledger**;
+  `commission_administrativo_capabilities` and `hospital_dpos` are **scope-level capability planes OUTSIDE ADR 0205**
+  (their retrofit waits for the AE5 opening bundle — ADR 0176 D8, F8 / AE5.6); interviewer, RCA-member, attendee and
+  assignee rows are **participation records** never mirrored into a ledger (D3); `referral_assignments` grants nothing.
+  ⛔ **No new ledger before AE5-complete** (D12; `.claude/rules/grant-plane-convention.md` is the keystone placeholder) —
+  and no permission code was added: the three code-less case abilities stay domain-only until then (D4).
+- **Audit:** `case_access.granted|updated|revoked` keep `entity_id = case_id`; D7 makes that the convention (entity = the
+  resource, grantee in metadata, one shared trigger) for every FUTURE ledger — existing planes' emission is untouched.

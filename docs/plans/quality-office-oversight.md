@@ -237,7 +237,7 @@ only the intended cells, GAINED = 0) · ⑤ mutation audits + sibling pgTAP relo
   delete.
 - **Break-glass (D14):** `break_glass_requests` table (requester, org scope, reason,
   approval, expiry, status) + notifications; the access itself is a customer-granted
-  membership/case-grant with `expires_at` via the M3 seam. No new predicate arms.
+  membership/case-grant with `expires_at` via the M3 seam. No new predicate arms. (ADR 0205: the case-grant half is D2/D5-shaped with a typed `break_glass` FK, D8; the door refuses a write grant on a terminal case, D9; `break_glass_requests` is a request record, not a ledger.)
 
 ## Process
 

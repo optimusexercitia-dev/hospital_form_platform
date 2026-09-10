@@ -246,7 +246,7 @@ survives because the RLS **wrapper names stay stable** while their implementatio
   require their own ADR. No effective permission list ever goes in the JWT.
 - **Domain adapters, not a universal interpreter:** the case capability lattice, recusals and
   respondent denies, clinical qualification validators, `case_access_grants`, and the
-  Administrativo appointment tables all stay where they are, adapted to the shared vocabulary.
+  Administrativo appointment tables all stay where they are, adapted to the shared vocabulary (⭐ the adaptation is ADR [0205](./0205-per-object-grant-plane-convention.md) D4 — abilities named by `authz.permissions.code`, the case ledger mapped by projection; the Administrativo plane is explicitly OUTSIDE it, 0205 D11).
   Never query an arbitrary table from a caller-provided resource type.
 
 ### D8 — NEW: 0151 D10's Phase 2 is scheduled pre-pilot (the clause this ADR amends)

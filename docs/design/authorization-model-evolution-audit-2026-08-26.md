@@ -400,6 +400,7 @@ the static names that existing tests and policies depend on.
   appointment tables into memberships.
 - Keep `case_access_grants` until a second compatible resource-grant use case or new grantable case
   permission makes normalization pay for itself.
+  ⭐ ANSWERED 2026-09-10 — ADR 0205 chose option B (per-root ledgers under one convention); the C-vs-D storage choice is deferred to the Phase 19 plane ADR (D12), not to \"a second use case\".
 - Never query an arbitrary table based on a caller-provided resource type.
 
 ### 6.4 Future scope registry

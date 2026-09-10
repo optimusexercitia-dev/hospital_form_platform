@@ -1185,7 +1185,7 @@ inside a role increment.
    a **domain office constraint** — the partial unique index does not move into the catalog;
    the catalog only carries the permission bundle);
 5. `quality_reviewer`, `pqs_member`;
-6. `administrativo` capability plane — **mapped, not merged**: `commission_administrativo_capabilities`
+6. `administrativo` capability plane — **mapped, not merged** (⚠ OUTSIDE the per-object convention — ADR 0205 D11, allow-listed with owner + expiry in its conformance keystone; ⛔ an administrativo never grants, 0205 D6·4): `commission_administrativo_capabilities`
    rows adapt to permission codes; the appointment tables stay (audit §6.3) — ⚠ shaped by the
    F8 decision in the bundle above;
 7. `platform_admin` **last**: `profiles.is_admin` remains the assignment fact via the adapter;
@@ -1226,7 +1226,7 @@ updated ([PA-F9] — never a committed migration) → Record.
 > 5. **The CARRIED ruling is a STEP**, not a tidy-up: carried rows are dispositioned against a PO
 >    ruling and the count of re-filed vs deleted is recorded (Batches 2 and 3).
 
-**AE5-complete (the ADR's re-analysis trigger 4):** retire the legacy adapter, the
+**AE5-complete (the ADR's re-analysis trigger 4):** ⭐ also releases `FUP-GRANT-PLANE-CONVENTION-BUILD-AFTER-AE5` (ADR 0205 D12 — scaffold, shared trigger, dialog kit, conformance keystone, roster); retire the legacy adapter, the
 `platform_role` enum's remaining consumers (token hook included — its claim value becomes a
 catalog code; prove revocation/suspension/rotation behavior unchanged; `assume_role`'s input
 becomes a validated catalog code at the same moment [PA-F1]), the legacy
@@ -1265,6 +1265,14 @@ Not scheduled. Entry conditions (all before a proposal is even writable):
    proposable;
 4. the caller enumeration D5 would have produced (the demoted step's residue);
 5. the `**Amends:** 0041` label.
+
+> ⭐ **ADDED 2026-09-10 — ADR [0205](../decisions/0205-per-object-grant-plane-convention.md) D12 names this door.**
+> An **object-level standing scope** (a grant ledger becoming a provider beside `authz.assignment_facts`, with
+> object resolution kinds) is a forcing function of D6's *broadened* kind — but it is proposable ONLY through
+> the five conditions above, post-AE5-complete, and the choice between that provider and one shared ledger on
+> `securable_resources` is taken at the **Phase 19 plane ADR** (ADR 0114 D16), never inside a role increment.
+> Until then per-object grants stay domain adapters (0155 D7) under ADR 0205's convention; ⛔ no new ledger
+> before AE5-complete.
 
 ---
 

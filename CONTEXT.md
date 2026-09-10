@@ -76,7 +76,7 @@ _Avoid_: safety team, patient safety committee
 The fact that a person holds a Role at one exact place — an Organization, a Hospital, or a
 Commission — for as long as that seat is live. It says who someone is there, not what they
 may do.
-_Avoid_: grant, seat, hat
+_Avoid_: grant (⚠ a **Grant** is the per-object thing — see below; an Assignment is a Role at a scope), seat, hat
 
 **Permission**:
 A stable, action-oriented name for one thing the platform lets someone do, such as editing a
@@ -99,6 +99,44 @@ _Avoid_: resolver, permission check, guard
 The generated record of which Domain authorizer enforces each Permission, and where. A
 Permission with no named enforcement point is a defect, never a default.
 _Avoid_: mapping, allowlist
+
+**Grant** (per-object):
+A person given an ability on ONE resource — this Case, this Meeting — by someone with authority
+over it, for a stated reason, optionally until a date, and revocable. Distinct from an Assignment,
+which is a Role at a scope. Recorded in a Grant ledger. (ADR 0205)
+_Avoid_: share, access rule, ACL entry
+
+**Securable** (root / child):
+The resource a Grant is written against, registered in `securable_resources` with its tenant
+anchors. A **root** securable (Case, Meeting, Referral, Controlled Document) may carry a Grant
+ledger; a **child** (Interview, action item, agenda item, document version) inherits from its
+root. (ADR 0114 D4; ADR 0205 D2)
+_Avoid_: object, entity, record
+
+**Grant ledger**:
+The table that holds per-object Grants for one root resource: who granted, when, to whom, which
+abilities (named by Permission code), expiry, soft revocation, reason. Only a **root** resource
+(Case, Meeting, Referral, Controlled Document) has one; a child (Interview, action item, agenda
+item, document version) inherits from its root. (ADR 0205 D2, D5)
+_Avoid_: ACL, permissions table, access table
+
+**Participation record**:
+A row that says someone takes part in an activity — an interviewer, an RCA member, a Meeting
+attendee, a phase assignee — and that its own predicate reads directly. It is never copied into a
+Grant ledger, so revoking a Grant does not remove access held through participation. (ADR 0205 D3)
+_Avoid_: implicit grant, derived grant, membership (of an activity)
+
+**Narrowing**:
+A root Grant limited to one child of the root, so a person sees one Interview without the whole
+Case; read-only by ruling. The root's exclusions (recusal, respondent) still apply. (ADR 0205 D2)
+_Avoid_: child grant, sub-grant, scoped grant
+
+**Tenancy admin**:
+An Organization admin of a Commission's Organization or a Hospital admin of its Hospital, as
+`app.is_tenancy_admin_of(_for)` resolves it. On a grant door the tenancy admin **manages access
+and reads nothing** — the fallback when the Commission's only coordinator is recused or absent.
+⚠ Not the Commission's own Staff Admin. (ADR 0078 D4; ADR 0205 D6)
+_Avoid_: org admin (when the hospital tier is meant too), admin, superuser
 
 ### Forms and responses
 

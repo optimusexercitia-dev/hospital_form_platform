@@ -365,7 +365,7 @@ route** (server-only, provider-abstracted — **not** GoTrue auth templates, whi
 own** · the batch is **idempotent** · one keyboard pass · pgTAP: own-row RLS + `compute_due_notifications`
 selects exactly the due set + idempotency + escalation threshold.
 **Note (§9.3):** the ADR-0071 "break-glass access" consumer does not exist yet — substitute a
-`case_access.expires_at` **expiring-grant** reminder.
+`case_access.expires_at` **expiring-grant** reminder (⚠ 2026-09-10: the table is `case_access_grants`; expiry is enforced at READ time in the predicate and validated future-at-grant in the door — ADR 0205 D5).
 
 ### MEM — §6.1 · single `memberships` collapse  *(structural, no flag; SQLSTATE HC0G·)*
 **Scope:** finish WS-1 by collapsing the role stack into one audited table + one door + one predicate family.
@@ -590,10 +590,10 @@ review-due date · charter edits audited · foreign-commission no read · one ke
    to fast-follow (R1 is the pilot-critical piece; R2–R5 already scoped to slip). Same question for R3's
    terminal-lifecycle change vs keeping `completed`-for-all.
 3. **⚠ Break-glass is a phantom Ph20 consumer.** ADR 0071 names "break-glass access" among N's consumers, but
-   break-glass is **deferred/not built**. **Substitute** a `case_access.expires_at` expiring-grant reminder;
+   break-glass is **deferred/not built**. **Substitute** a `case_access_grants.expires_at` expiring-grant reminder (⚠ ADR 0205 D5 — read-time expiry; ⛔ break-glass is a CASE-root grant with a typed provenance FK, D8, never a new ledger);
    a true break-glass alert waits on break-glass being designed (post-pilot).
 4. **MEM `case_access` fold-or-keep.** Audit §6.1 lists `case_access` to fold, but it carries `level`/
-   `expires_at`/`reason` (a richer ACL than a role). **Recommend keep** `case_access` as the per-case
+   `expires_at`/`reason` (a richer ACL than a role). **Recommend keep** `case_access` (⚠ 2026-09-10: now `case_access_grants`, a GRANT LEDGER — participation is never a ledger row, ADR 0205 D2/D3) as the per-case
    involvement plane and collapse only the three role tables — decided in the §6.1 scoped plan.
 5. **RV2·R5 trim + QPS scope.** R5 is the softest tier (trim to notes-only if the window compresses); whether
    QPS oversight reads `referral_internal_notes` (default **no** — a deliberative scratchpad ≠ official record).

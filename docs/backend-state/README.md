@@ -28,6 +28,7 @@ reading; the section is the unit of retrieval.**
 | [`forms-and-responses.md`](forms-and-responses.md) | touch forms, versions, sections, items, answers, validations, matrices, entity references, or sign-off |
 | [`document-model.md`](document-model.md) | touch documents, file objects, securables, upload sessions, controlled documents, or evidence |
 | [`cases-and-ethics.md`](cases-and-ethics.md) | touch cases, case phases, participants, referrals, ethics, or process templates |
+| [`cases-and-ethics.md`](cases-and-ethics.md) (primary; the authz semantics in [`authorization-and-audit.md`](authorization-and-audit.md) § Per-object grant plane) | touch a per-user, per-object **grant** table — `case_access_grants` today, or any future ledger (⛔ none before AE5-complete: ADR [0205](../decisions/0205-per-object-grant-plane-convention.md) D12; shape D2–D9; `.claude/rules/grant-plane-convention.md` fires as the migration is written) |
 | [`printing.md`](printing.md) | touch PDF printing, print series, prévia vs emission, or the case dossier |
 | [`privacy-and-dsr.md`](privacy-and-dsr.md) | touch LGPD subject requests, erasure, or PHI disposal |
 | [`meetings-and-governance.md`](meetings-and-governance.md) | touch meetings, audio→ata, charters, cadence, or accreditation standards |

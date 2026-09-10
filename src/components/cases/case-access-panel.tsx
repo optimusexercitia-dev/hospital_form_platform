@@ -52,8 +52,8 @@ import { cn } from "@/lib/utils";
  * is the DB's (coordinator/admin; `HC021` member check); each action surfaces a
  * pt-BR error inline. A grant/revoke refreshes the server layout (via `useCaseAction`
  * → `router.refresh()`), re-loading the grants so the row updates live. Rendered
- * only when the viewer holds `canManageLifecycle` and the `case_access` flag is on
- * (the parent gates this).
+ * only when the viewer holds `canManageLifecycle` and the parent mounts it
+ * (the `case_access` flag was RETIRED at Stage B — ADR 0078 D9; there is no flag to check).
  */
 export function CaseAccessPanel({
   caseId,

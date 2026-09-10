@@ -10,6 +10,7 @@ import { cachedSignIn } from "./helpers/auth"
  *  AC-2  Restrictive boundary (notFound() for staff4 / absent from Meus Casos).
  *  AC-3  Grant read / write (viewer vs collaborator); revoke removes access.
  *  AC-3d Terminal-case dialog (ADR 0033 D6): button on concluido case; write disabled; coordinator absent from roster.
+ *        Since ADR 0205 D9 the DOOR refuses the write grant (HC0U0 — pgTAP 416 K1/K1b/K2); the disabled control is UX only.
  *  AC-4  Q14 ownership (write-grantee cannot edit/conclude an attributed narrative).
  *  AC-5  Meus Casos list (unified; card; Preencher/Abrir/Concluir/Ver caso completo).
  *  AC-6  Narrative lifecycle (fill focused editor → Concluir → the coordinator
@@ -580,7 +581,8 @@ test('AC-3c revoke: coordinator revokes multi via the roster X button; multi get
 
 // ---------------------------------------------------------------------------
 // AC-3d — Terminal case: "Acesso ao caso" button visible; write grant disabled
-// (ADR 0033 D6 — read grants allowed on terminal cases; write grants are not)
+// (ADR 0033 D6 — read grants allowed on terminal cases; write grants are not — refused by the
+// DOOR since ADR 0205 D9 (HC0U0, pgTAP 416); the disabled radio is UX only)
 // ---------------------------------------------------------------------------
 
 test('AC-3d terminal case: "Acesso ao caso" button present; grant dialog "Edição" disabled, "Leitura" enabled', async ({

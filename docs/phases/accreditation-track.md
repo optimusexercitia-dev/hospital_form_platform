@@ -565,7 +565,7 @@ dates, a **scheduled review cycle**, and a controlled-document register — the 
 JCI `MOI` document control. Reuses the immutable-storage pattern (Rule 6) and the
 meetings e-signature primitive. **Commission-owned with a hospital-wide register
 rollup**; approvers may be **any active user of the document's hospital** (a pending
-approval row grants read — the `case_access`-style arm), so institutional signers
+approval row grants read — the `case_access`-style arm; ⚠ a participation record under ADR 0205 D11, `document_approvals` is not a grant ledger), so institutional signers
 (technical director, quality office) sign without joining the committee. Form publishing
 gains the same approver + review-due **metadata** (capture-only — no e-sign workflow on
 the form lifecycle). **No patient data.** Feature-flagged behind `controlled_docs`.
@@ -609,7 +609,7 @@ from day one.)*
   publish gains optional approver + review-due capture.
 - **RLS**: documents + versions member-READ / staff_admin-WRITE (`is_staff_admin_of OR
   is_commission_admin_of`) **plus an approver read arm** (holding an approval row on a
-  version grants read of that document/version — precedented by `case_access`);
+  version grants read of that document/version — precedented by `case_access`, now `case_access_grants`; ⚠ a participation record under ADR 0205 D11, not a grant ledger);
   approvals **sign-own-row** (no broad write); new immutable **`controlled-documents`**
   Storage bucket (members + entitled approvers read via a DEFINER predicate, staff_admin
   INSERT, NO update/delete; path `{commission_id}/{document_id}/{uuid}.{ext}`;

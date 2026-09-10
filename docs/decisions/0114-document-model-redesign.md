@@ -263,6 +263,8 @@ not a permanent second access dimension. The plane must cover **both directions*
 widening (Phase 19's surveyors) and narrowing (D15's ceiling) — and when it lands,
 D15's column migrates into it over a handful of labelled documents.
 
+> ⭐ **Forward pointer (2026-09-10):** the plane review starts from ADR [0205](./0205-per-object-grant-plane-convention.md) (root ledgers, D2–D9) and owns its deferred choice between one shared ledger on `securable_resources` and an `authz`-layer provider (0205 D12) — ⛔ never inside an AE5 role increment.
+
 *Why Phase 19 and not sooner or later.* The platform has now answered "a non-member
 needs to see specific things" **three times, bespoke**: `referral_shared_item` +
 frozen snapshots (Phase 22), `case_access_grants` + `max_confidentiality` (ETH·E1),

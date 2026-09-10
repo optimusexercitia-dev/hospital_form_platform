@@ -163,7 +163,7 @@ mixed resolver arms with `case_access_grants.source` values):
 | `case_assignment` | computed | `read_case_content` + `read_case_deliberation` — **never PHI** (Context·1), **never write** (D10) |
 | **`nsp_referral_touched`** | computed | **`read_case_content` ONLY** (D8). **Required** — without it Stage A silently revokes all NSP content reach (A24·1). Retires at Stage D. |
 | `manual_grant` | **`source` column value** | per-column, as granted |
-| `nsp_investigation` · `referral` · `break_glass` | **`source` column values — RESERVED, unreachable** (D5·5) | — |
+| `nsp_investigation` · `referral` · `break_glass` | **`source` column values — RESERVED, unreachable** (D5·5) | ⭐ when a reserved source first ships it gets its OWN typed FK column and `source_entity_id` is corrected with it (ADR 0205 D8) |
 
 **The member arm (A15 — corrected):** `active member AND cases.visibility_policy =
 'commission_default' AND NOT excluded ⇒ read_case_deliberation` — **never `read_case_content`**, never
@@ -243,7 +243,7 @@ creation · explicit privileges in the same migration.
 
 CHECKs: `write ⇒ read` · `restricted ⇒ standard` · non-empty · time · revoke-shape ·
 `source in ('manual_grant','nsp_investigation','referral','break_glass')` (**only `manual_grant`
-reachable**; pgTAP asserts the rest unreachable).
+reachable**; pgTAP asserts the rest unreachable — ⭐ ADR 0205 D8: each reserved source ships with its own typed FK column).
 
 ### B2 · Re-cut the doors
 

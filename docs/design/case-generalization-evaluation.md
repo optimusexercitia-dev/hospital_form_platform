@@ -1,5 +1,7 @@
 # Case Generalization — Platform Evaluation & Ethics-Committee Gap Analysis
 
+> ⚠ **Historical (2026-09-10 banner).** `case_access` — the table AND the feature flag named below — is **retired** (ADR 0078 Stage B, hard-cut); the live store is `case_access_grants`, and the per-object grant convention is ADR [0205](../decisions/0205-per-object-grant-plane-convention.md). ⛔ The DDL and flag text below are the record of what was planned, not of what exists.
+
 **Purpose.** Evaluate the external team's data model
 (`docs/design/temp/case_generalization_chatgpt.md`) against **what our platform already
 is**, then derive the concrete feature set we'd need to support the **Ethics Committee**

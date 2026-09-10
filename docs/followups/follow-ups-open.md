@@ -1427,7 +1427,7 @@ Verbatim from the Now section of PROGRESS.md (retired 2026-09-03, ADR 0185): *AF
 **Status:** parked
 **Revisit when:** Target Phase 20 (Notifications & Escalation).
 
-**Break-glass access (logged, reasoned, time-boxed emergency access to restricted cases / PHI).** Target Phase 20 (Notifications & Escalation). A dedicated `break_glass_access_events` record + a temporary-grant path that requires a reason, is always audited, notifies privacy/security, and appears in audit reports — NOT platform-admin-sees-everything. Partner handoff §19 as the reference model; composes with `case_access` expiry (ADR 0050) and the audited-single-door PHI posture (Rule 12). Owned by lead (scheduling) + backend.
+**Break-glass access (logged, reasoned, time-boxed emergency access to restricted cases / PHI).** Target Phase 20 (Notifications & Escalation). A dedicated `break_glass_access_events` record + a temporary-grant path that requires a reason, is always audited, notifies privacy/security, and appears in audit reports — NOT platform-admin-sees-everything. Partner handoff §19 as the reference model; composes with `case_access_grants` expiry (ADR 0050) ⇒ under ADR 0205 the grant half is a CASE-root grant with a typed `break_glass` provenance FK (D2/D8) — ⛔ not a new ledger, and not before AE5-complete (D12) and the audited-single-door PHI posture (Rule 12). Owned by lead (scheduling) + backend.
 
 ### 🟡 FUP-GRANT-PLANE-CONVENTION-TENANCY-ADMIN-GRANT-PATH-UNREACHABLE — the fallback arm passes the app check, then the case read refuses it
 

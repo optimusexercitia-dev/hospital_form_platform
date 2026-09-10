@@ -18,7 +18,8 @@
  * RLS is the authority; each action ALSO re-verifies commission-scoped authz
  * server-side for a clean pt-BR "forbidden" before the RPC call. All user-facing
  * strings are pt-BR; raw Supabase/Postgres errors NEVER reach the UI (CLAUDE.md
- * §8). The feature is flag-gated via {@link caseAccessEnabled}.
+ * §8). The `case_access` flag was RETIRED at Stage B (ADR 0078 D9); {@link caseAccessEnabled}
+ * is a constant kept as the removal seam.
  *
  * SQLSTATE → pt-BR:
  *   HC021 → "O responsável deve ser membro da comissão." (target not a member)
@@ -51,7 +52,10 @@ export interface ActionState {
   fieldErrors?: Record<string, string>
 }
 
-/** The two grant levels (write implies read). Mirrors the `case_access.level` check. */
+/**
+ * The two grant levels (write implies read). Mirrors `grant_case_access`'s `p_level`
+ * parameter; the ledger stores boolean capability columns (write ⇒ read), not a level.
+ */
 export type CaseAccessLevel = 'read' | 'write'
 
 const MESSAGES = {

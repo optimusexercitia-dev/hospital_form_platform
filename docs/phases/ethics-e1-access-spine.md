@@ -1,5 +1,7 @@
 # Build Plan — Ethics E1 · Access spine (m2 gate release)
 
+> ⚠ **Historical (2026-09-10 banner).** `case_access` — the table AND the feature flag named below — is **retired** (ADR 0078 Stage B, hard-cut); the live store is `case_access_grants`, and the per-object grant convention is ADR [0205](../decisions/0205-per-object-grant-plane-convention.md). ⛔ The DDL and flag text below are the record of what was planned, not of what exists.
+
 **Status:** 📝 Design (S0 gate — DESIGN ONLY, no code) · **Date:** 2026-07-13
 · **Track:** ETH·E1 of the [Pre-Pilot Release Scope Expansion](../plans/pre-pilot-release-scope-expansion.md)
 (ADR [0071](../decisions/0071-pre-pilot-release-scope-expansion.md)), stage **S3**.

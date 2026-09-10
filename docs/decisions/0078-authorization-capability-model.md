@@ -1362,6 +1362,13 @@ auth.uid())`**.
 
 > **PO decision: the Organization User keeps its arm on the grant/revoke doors — and ONLY there.**
 > Never on reading case content, PHI, meetings, or action items.
+>
+> ⭐ **Re-affirmed 2026-09-10 — ADR [0205](./0205-per-object-grant-plane-convention.md) D6·3.** The PO first moved to
+> REMOVE this arm on the premise *"a commission always has a coordinator"*, then, shown this paragraph's actual reason,
+> KEPT it — and gave it a **second** justification: the **absent** coordinator (nothing enforces presence; two seeded
+> commissions have none; presence is ruled a practice, not a guard). Same ADR: the door's two PHI parameters stay
+> **unreachable from the screen** (D10), and the door — never `_case_caps` — refuses a WRITE grant on a terminal case
+> (D9, `HC0U0`).
 
 **Safe by construction, not by policy:** the door already requires
 `app.is_member_of_for(v_commission, p_user)` — the **grantee must be a member of the commission**, and

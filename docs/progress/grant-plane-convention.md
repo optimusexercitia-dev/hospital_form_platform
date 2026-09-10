@@ -163,3 +163,50 @@ on their own clauses (`…-BUILD-AFTER-AE5` parked until AE5-complete + first co
 lesson filed (the stalled-subagent respawn is already covered by the standing watchdog memory).
 **Gates at the Record step:** `features:index`, `lint:registers`, `lint:progress` — rc quoted in the
 commit. Committed as the Record-step commit and pushed.
+
+### 2026-09-10 — documentation second pass (lead): the corpus made to say what ADR 0205 decided
+
+**Method.** One Explore sweep over the canon, the seams, the plans, the phase specs, the design
+docs, the registers and the three source headers, asked for four things — contradictions, missing
+pointers, stale names, register hygiene — against D1–D12 stated one line each; plus the lead's own
+targeted checks (router, glossary, AE7, lessons shape). Sweep yield: **5 contradictions · 16 missing
+pointers · 7 stale-name sites · 3 hygiene nits · 2 glossary gaps**. ⚠ Three of the sweep's
+"missing" items were already closed by the lead's edits made *while it ran* (authz seam, router
+row, glossary block) — recorded so the count is not read as 16 defects found by the sweep alone.
+
+**Closed (36 edits, 21 files).** ⭐ The **authz seam** gets the slice the Record step had skipped —
+the very failure the AE5-opening Record step was corrected for — appended as `§ Per-object grant
+plane` with three line-neutral Current-state edits (block at **100/100**, 0 left). `ARCHITECTURE.md`:
+the grant-ledger posture bound to D5/D12, the closed-session reader list classified a FRAGMENT (D11),
+the lattice split four-codes/three-domain-only (D4), `securable_resources` named the shared-trigger
+anchor (D7), PHI-off-screen (D10), and *"OR admin"* corrected to **tenancy admin, never
+platform_admin** (A2 — the one real contradiction in the canon). `CONTEXT.md`: **Grant**, **Securable**,
+**Grant ledger**, **Participation record**, **Narrowing**, **Tenancy admin** defined, and the
+`Assignment` avoid-list de-collided. Backend-state: router row (primary seam named, the rule file
+named), `data-access.md` § Case-access doors appended **with its Current state re-stamped** (gate [I]
+reded on the first attempt — history appended, projection not refreshed — and was obeyed, not
+argued with). ADRs: 0205 now **Amends 0033** (D6 → D3/D9; back-pointer regenerated), inline forward
+notes in 0078 (the arm re-affirmed with its second justification), 0114 D16, 0155 D7. Plans: AE5
+item 6 and AE5-complete (release of the build follow-up), AE7 (the D6 door named), the capability-model
+plan's reserved-`source` rows (D8), quality-office D14 break-glass, and four stale `case_access`
+references in the pre-pilot scope plan dated and corrected. Phase specs: `accreditation-track.md`
+:568/:612 mirror the D11 clause; dated banners on `case-generalization-evaluation.md` and
+`ethics-e1-access-spine.md` (⛔ DDL untouched — it is the record). Registers: the break-glass follow-up
+now names the case-root grant + typed FK (D2/D8) and the D12 bar. Source: three **comment-only**
+corrections — `actions.ts` header (flag retired; `p_level` not `case_access.level`),
+`case-access-panel.tsx` header (no flag), `e2e/case-access.spec.ts` :12/:583 (the DOOR refuses since
+D9; the disabled control is UX only). ⚠ The spec and the panel are tester- and frontend-owned; the
+edits change no behaviour and no assertion, and are declared here rather than smuggled.
+
+**Deliberately NOT done, with reasons.** (a) No lesson row: the honest `Enforcement` would be `prose
+only` and the `lessonsProseOnly` ratchet stands at 52/52 — a new prose-only row reds the gate, and
+lowering nothing to admit it would be the inversion ADR 0186 D6 forbids; the candidate ("mirroring a
+gate is not mirroring the path in front of it") lives in the tenancy-path follow-up's own text.
+(b) No `[0205]` tag on PROGRESS.md's Phase 18/19 rows — cell-capped, low value, the phase specs carry it.
+(c) No rule-file register in `docs/INDEX.md` — none exists for any rule; the router row names the file
+where a builder stands.
+
+**Gates at the tip, bare:** `npm run lint` **0** (17 gates; eslint 0/0 incl. the three touched TS/e2e
+files) · `typecheck` **0** · `lint:backend-state` **0** (largest seam 141.3 KB, warn 160) · `adr:index`
+**0** (back-pointers: 0033 updated) · `lint:adr-index` **0** · `features:index` **0** · `lint:registers`
++ `lint:progress` **0** (quoted in the commit). Committed as the second-pass commit and pushed.

@@ -59,7 +59,7 @@
 | 0030 | [Patient-Safety PHI Posture Reversal & PQS/NSP Module Architecture (Phase 14)](0030-patient-safety-phi-and-pqs-architecture.md) | accepted | 2026-06-18 | supersedes 0028 | ⚠ amended by 0037, 0038 |
 | 0031 | [Event Custody Ledger, Access-Follows-Custody RLS & PHI Isolation (Phase 14a)](0031-event-custody-ledger-and-phi-isolation.md) | ⚠ draft | 2026-06-18 | – | – |
 | 0032 | [Case Narratives (per-case prose interleaved with phases)](0032-case-narratives.md) | accepted | 2026-06-19 | – | ⚠ amended by 0047 |
-| 0033 | [Case Access Control (per-case read/write grants, attribution-driven access & "Meus Caso…](0033-case-access-control.md) | ⚠ proposed | 2026-06-19 | – | ⚠ amended by 0038, 0072, 0078, 0134 · ⛔ superseded by 0072, 0078 |
+| 0033 | [Case Access Control (per-case read/write grants, attribution-driven access & "Meus Caso…](0033-case-access-control.md) | ⚠ proposed | 2026-06-19 | – | ⚠ amended by 0038, 0072, 0078, 0134, 0205 · ⛔ superseded by 0072, 0078 |
 | 0035 | [Regulatory Posture (LGPD / ANVISA / CFM) & Column-Encryption Decision](0035-lgpd-anvisa-regulatory-posture.md) | accepted | 2026-06-20 | – | – |
 | 0036 | [PHI Access Hardening: PQS Membership, Single-Door Identifier Read, Free-Text Classifica…](0036-phi-access-hardening.md) | accepted | 2026-06-20 | – | ⚠ amended by 0037, 0038 |
 | 0037 | [Inter-Committee Case Referrals & the referral PHI posture](0037-inter-committee-case-referrals.md) | accepted | 2026-06-21 | supersedes 0022 · amends 0030, 0036 | ⛔ superseded by 0078 · ⚠ amended by 0078, 0137 |
@@ -227,4 +227,4 @@
 | 0200 | [A predicate parameterised on a principal must answer about that principal, and a narrow…](0200-professional-identity-predicates-answer-about-their-subject.md) | accepted | 2026-09-09 | amends 0190, 0193 | ⚠ amended by 0201 |
 | 0201 | [The keying asymmetry is the model: a question about a third party ignores the hat, a qu…](0201-the-keying-asymmetry-is-the-model.md) | accepted | 2026-09-09 | amends 0176, 0193, 0200 | – |
 | 0203 | [Audit F5's seam is already encoded as data in the enforcement manifest; the three class…](0203-the-seam-is-already-encoded-the-classification-columns-are-not.md) | accepted | 2026-09-09 | amends 0172, 0176 | – |
-| 0205 | [The per-object grant plane convention: root ledgers, computed participation, catalog-na…](0205-per-object-grant-plane-convention.md) | accepted | 2026-09-10 | amends 0078, 0155 | – |
+| 0205 | [The per-object grant plane convention: root ledgers, computed participation, catalog-na…](0205-per-object-grant-plane-convention.md) | accepted | 2026-09-10 | amends 0033, 0078, 0155 | – |

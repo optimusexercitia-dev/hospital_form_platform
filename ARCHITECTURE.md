@@ -37,7 +37,7 @@ may extend the schema but never contradict it. Cross-references elsewhere to
    alongside it — a `SECURITY DEFINER` body's gate REPLACES RLS for its callers:**
    - **DEFINER write doors.** A growing set of tables (`memberships`,
      `case_access_grants`, `audit_log`, the K9 answer tables, …) grant `authenticated`
-     **SELECT only** and take every write through an audited DEFINER RPC. "No write
+     **SELECT only** and take every write through an audited DEFINER RPC. For a per-object grant ledger this posture is binding (ADR 0205 D5); ⛔ no new ledger before AE5-complete (0205 D12). "No write
      policy" on these means writes are *impossible*, not *unguarded*.
    - **Audited single doors with ZERO policies.** These have RLS on, **no `authenticated`
      ACL, and 0 policies** — a policy there would be unreachable code. Their predicates look
@@ -47,7 +47,7 @@ may extend the schema but never contradict it. Cross-references elsewhere to
      and `referral_patient` (Class-1 PHI, Rule 12); **`public.profile_private_details`** —
      professional `cpf`/`date_of_birth`/`phone`, AE3/ADR 0155 D4 — the first
      **restricted-personal-data** member; and `case_print_revisions`,
-     `meeting_closed_session_items`, `meeting_closed_session_item_readers`,
+     `meeting_closed_session_items`, `meeting_closed_session_item_readers` (⚠ ADR 0205 D11: a ledger FRAGMENT that folds into a meeting ledger as an item-narrowed grant — ⛔ never extended as a bespoke reader list),
      `verification_lookups`.
      ⛔ **`event_patient` is NOT in this class, though it is a PHI store** — it carries a live
      `event_patient_select` policy, so it is not a zero-policy table. ⚠ **Nor does it belong to
@@ -64,7 +64,7 @@ may extend the schema but never contradict it. Cross-references elsewhere to
      inline per policy; policies delegate to the DEFINER resolver
      `app._case_caps` → `app.case_capabilities` → `app.has_case_capability` over a
      capability lattice (`view_case_overview · read_case_content · write_case_content ·
-     read_standard_phi · read_restricted_phi · manage_case_access`). The binding
+     read_standard_phi · read_restricted_phi · manage_case_access`). Four of the six project onto `authz.permissions` codes; three stay domain-only until the post-AE5 build (ADR 0205 D4). The binding
      implication rules: **content-read never implies PHI, and PHI never implies
      content-write.** `app.is_active` is the universal outer gate.
      `app.can_read_case_or_admin` is **retired** — do not reintroduce it.
@@ -315,7 +315,7 @@ may extend the schema but never contradict it. Cross-references elsewhere to
    catalog** (`pg_attribute`), not from migration text — per CLAUDE.md's binding exception,
    migration files are stale by design for anything schema-shaped.
    - `securable_resources(id, resource_type, organization_id, hospital_id, commission_id,`
-     `created_at)` — the **polymorphic home**. Every document hangs off one of these rather
+     `created_at)` — the **polymorphic home** (⭐ also the tenant-anchor source for ADR 0205 D7's shared grant-audit trigger, and the candidate anchor for one shared ledger — 0205 D12, deferred to the Phase 19 plane ADR). Every document hangs off one of these rather
      than off a per-feature FK, which is what lets one substrate serve cases, meetings,
      referrals, NSP evidence and controlled documents without eight parallel tables.
    - `documents(id, home_resource_id → securable_resources, title, description, kind, status,`
@@ -645,10 +645,10 @@ may extend the schema but never contradict it. Cross-references elsewhere to
       assignment **do not imply PHI** — the previous shape, in which any case-worker or
       a read-only grantee opened patient identifiers, was ADR 0078's single most
       consequential finding and was closed on 2026-07-16. PHI now comes only from an
-      explicit `case_access_grants` capability column or coordinator delegation.
+      explicit `case_access_grants` capability column or coordinator delegation. ⚠ PHI abilities are never on the grant screen — the door's two PHI parameters are reachable only from SQL, by ruling (ADR 0205 D10).
       ⚠ The table this paragraph used to name, `case_access`, was **dropped**; the live
       store is **`case_access_grants`** (capability-per-column). **Writes** stay
-      coordinators-only (staff_admin-of-commission OR admin).
+      coordinators-only (staff_admin-of-commission OR **tenancy admin** — org_admin / hospital_admin, who manages access and reads nothing: ADR 0205 D6; ⛔ never platform_admin, ADR 0078 A35).
       `dispose_case_phi` provides LGPD Art. 18 erasure (identifiers + the case
       free-text PHI `case_narratives.body_md` / `case_events.body`), mirroring
       `dispose_event_phi`. Reverses the Cases module's former "strictly PHI-free"

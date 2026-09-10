@@ -115,7 +115,8 @@ reads or extends committee-track data:
   (`form-assets` / `case-documents`, Rule 6) and the **meetings e-signature
   primitive** (`meeting_signatures.content_hash` → `document_approvals.signature_hash`,
   `app.can_sign_meeting` → sign-own-approval). Approvers = any active same-hospital
-  user via a `case_access`-style **approval-row read arm**; ALL named approvers must
+  user via a `case_access`-style **approval-row read arm** (⚠ a **participation record** under
+  ADR 0205 D11 — `document_approvals` is not a grant ledger); ALL named approvers must
   sign before publish. Form publish (`form_versions`) gains approver + review-due
   **metadata** (capture-only inside `publish_form_version`). Commission-owned + a
   hospital-wide register rollup. **Built pre-pilot, before Phase 16** (ADR 0057).
@@ -123,7 +124,8 @@ reads or extends committee-track data:
   (`source_audit_finding_id`) *and* writes a Phase-16 `standard_assessment`; per-round
   auditor write-grant mirrors the **interview participant-write** shape — a participation
   record under ADR 0205 D3, never a grant ledger.
-- **Surveyor access (19)** — read-only, scope-checked `SECURITY DEFINER` reads over
+- **Surveyor access (19)** — starts from ADR 0205 (the per-object grant plane convention; the
+  Phase-19 plane ADR owns the one-ledger-vs-`authz`-provider choice) — read-only, scope-checked `SECURITY DEFINER` reads over
   the Phase-16 readiness data; **no table write path**; every view/export audited.
   Most security-sensitive phase → **full plan review + dedicated security/RLS review**.
 - **Notifications (20)** — `compute_due_notifications()` scans due/overdue signals

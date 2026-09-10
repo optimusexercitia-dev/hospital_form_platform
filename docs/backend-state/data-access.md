@@ -6,7 +6,7 @@
 
 ## Current state
 
-**Updated:** 2026-09-09 — a REPLACEABLE projection of the frozen slices below; the rules that govern it are [`README.md` § Maintenance rules](README.md#maintenance-rules) 7–8.
+**Updated:** 2026-09-10 — a REPLACEABLE projection of the frozen slices below; the rules that govern it are [`README.md` § Maintenance rules](README.md#maintenance-rules) 7–8.
 
 ### Surface
 
@@ -33,6 +33,9 @@
   (§ Helper functions); each flag's **production** claim (§ Feature flags); why a module seam is
   where it is (§ Data-access & action modules). Each of the four frozen headings carries a forward
   marker naming its generated file and stating what is superseded (the inventory) and what is not.
+- **The case-access doors' load-bearing arm** — `grant_case_access` refuses a WRITE grant on a terminal
+  case (`HC0U0`) in the DOOR, after authority/exclusion/membership and before the kernel; the resolver
+  carries no lifecycle term (§ Case-access doors; ADR 0205 D9).
 
 ### Invariants
 
@@ -80,7 +83,8 @@
 ### Where the detail lives
 
 - The frozen slices below, in order: **§ RPC inventory** · **§ Helper functions** · **§ Feature
-  flags** · **§ Data-access & action modules** (carrying **§ Form-Builder Enhancements batch**).
+  flags** · **§ Data-access & action modules** (carrying **§ Form-Builder Enhancements batch**) ·
+  **§ Case-access doors** (2026-09-10, ADR 0205 D9).
 - The generated registries: [`generated-rpc-surface.md`](generated-rpc-surface.md) ·
   [`generated-helper-surface.md`](generated-helper-surface.md) ·
   [`generated-feature-flags.md`](generated-feature-flags.md) ·
@@ -713,3 +717,14 @@ headings. All six re-measured **2026-09-09** against the local catalog at migrat
   has **no** `scheduled_start` column, and the old select silently `42703`'d the whole read — a defect
   that returned empty rather than erroring. ⚠ It is **not** status-filtered, unlike `toNextSession` in
   `interviews.ts`; the two are not interchangeable. Verified present 2026-09-09. Stamp 2026-08-05.
+
+## Case-access doors — the terminal-write refusal is a load-bearing arm (2026-09-10, ADR 0205 D9)
+
+`grant_case_access` / `revoke_case_access` / `list_case_access` were absent from § RPC inventory above (only the
+generated surface listed them). What a reader needs that the generated registries cannot hold: the grant door's
+validation ORDER is `42501` (coordinator ∨ tenancy admin) → `HC0F1` (actor excluded) → level → `HC021` (grantee must be
+a commission member) → future-expiry → **`HC0U0` (a WRITE grant on a terminal case is refused; read grants pass)** →
+the INVOKER kernel `app._grant_case_access_unchecked`. The refusal lives in the **door, not the resolver** — `_case_caps`
+carries no lifecycle term (ADR 0078 A24·3). Keystone `416` § K1/K1b/K2, RED-first; ordering pinned by § K5/K5b as
+controls. Detail: [`cases-and-ethics.md`](cases-and-ethics.md) § 2026-09-10 · [`authorization-and-audit.md`](authorization-and-audit.md)
+§ Per-object grant plane. Stamp 2026-09-10.
