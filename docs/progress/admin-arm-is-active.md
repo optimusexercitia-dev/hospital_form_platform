@@ -640,3 +640,92 @@ in both, and is what the full run above used.
 **Commit on `authz-admin-arm-is-active`** (not amended, not pushed): one commit touching
 `supabase/tests/mutation/authz-command-door-targeted-cases.sh`,
 `supabase/tests/mutation/authz-unswept-backlog.txt` and this record.
+
+### 2026-09-10 — E2E: `e2e/admin-arm-is-active.spec.ts` written, run, GREEN (tester)
+
+**Fixture idiom reused, never invented.** `e2e/helpers/service-role.ts`'s `svcSelect`/`svcUpdate`
+(the same REST-over-service-role idiom `ethics-e2-procedure.spec.ts`, `user-registration.spec.ts`
+and `form-name-attribute-invariant.spec.ts` already use to read/mutate `profiles`), plus
+`e2e/helpers/auth.ts`'s `loginFresh`/`accessToken` (the same raw-grant pattern
+`act-role-assumption.spec.ts`'s D5 case and `case-patient.spec.ts`'s RPC-denial cases use). All
+four tests that mutate `platform@test.local` (`00000000-0000-0000-0000-0000000000b0`) read the
+row's original `is_active`/`suspended_until` FIRST, mutate inside `try`, restore in `finally` —
+proven restored by re-reading the row via `curl` after the run: `{"is_active":true,
+"suspended_until":null}`, matching the seeded baseline. `test.describe.configure({ mode: 'serial'
+})` wraps the whole file (the same idiom ~10 other lifecycle-mutating spec files already use) so
+no two of these tests race the same profile row across workers.
+
+**Two of the brief's own framing claims were WRONG, measured before writing assertions on them
+(CLAUDE.md: verify against the live app, never the plan's prose) — both corrected in the spec's
+header comment, not silently worked around:**
+
+1. **S1/S2 "open the role picker".** `platform@test.local` holds ZERO memberships (seed.sql) and
+   is single-role-TYPE; `session.ts`'s `needsRoleSelection` is `activeRole === null &&
+   distinctRoleTypes.size > 1` over `memberships ∪ grants`, a set the bare `is_admin` flag never
+   joins — so this persona never sees `/selecionar-perfil` (self-guard bounces it, verified by
+   reading `selecionar-perfil/page.tsx`) and never calls `assume_role` from any ordinary login
+   path. **First draft asserted a `/conta-inativa` redirect on fresh login — RAN RED**
+   (`page.waitForURL` timed out; the actual page snapshot showed the account stayed on `/login`
+   with an inline banner). Root cause read from `src/lib/auth/actions.ts:165-185`: the sign-in
+   Server Action itself reads `is_active`/`suspended_until` right after
+   `signInWithPassword` succeeds and, for suspended/deactivated, calls `supabase.auth.signOut()`
+   **before ever returning** — no session is ever established, and `MESSAGES.accountInactive`
+   ("Sua conta está suspensa/desativada. Contate o administrador da sua organização.") renders
+   inline on `/login`. `/conta-inativa` (`context.isInactive`, `src/app/page.tsx`) is the sibling
+   gate for a session that WAS valid and went stale mid-session, re-checked on the next
+   navigation — not what fires on a fresh login attempt. Fixed: S1/S2 now assert the actual
+   observed mechanism (stay on `/login`, the inline banner, `getByRole('status')`), and separately
+   exercise `public.assume_role` directly via a raw RPC call (`accessToken` + `request.post` to
+   `rest/v1/rpc/assume_role`, `p_role: 'platform_admin'`) since no UI path reaches that door for
+   this persona — asserting only the login banner would leave R1's own widening completely
+   unproven (a UI-only pass, DB-door blind). Verified `platform_admin` is `session_selectable =
+   true` in `authz.roles` (migration `20261003007110`) before relying on that RPC path reaching
+   the `is_active` gate rather than the earlier `session_selectable` check.
+2. **S3 "src/lib/admin/actions.ts or src/lib/users/actions.ts"`.** Grepped every `.tsx` under
+   `src/app`/`src/components` importing each file: `src/lib/users/actions.ts` never checks
+   `context.isAdmin` anywhere (its own header: "the platform_admin isAdmin short-circuit is
+   DELIBERATELY ABSENT"); `src/lib/admin/actions.ts`'s `requireAdmin()`-gated `createCommission`
+   has ZERO UI callers (confirmed further: `/admin/comissoes/**`, its own redirect target, does
+   not exist as a route — `find src/app/admin` lists only `audit/`, `error.tsx`, `layout.tsx`,
+   `loading.tsx`, `page.tsx`), and `updateCommission`/`assignStaffAdmin` are wired only into
+   `/o/[org]/manage/comissoes/[commissionSlug]`, the org-admin surface a walled-off
+   `platform_admin` cannot reach. The one action platform_admin ACTUALLY reaches, gated by the
+   identical `requireAdmin()` → `context.isAdmin` predicate (same shape, `src/lib/platform/
+   actions.ts:50-53`), is `createOrganization` — wired to `OrganizationCreateForm` on `/admin`
+   itself. Used that instead; the file-path deviation is called out in the spec's own comment.
+
+**S4 verified by looking, not trusted from the plan** (Batch 9 R6's claim, brief's own
+instruction): grepped every `.tsx` for `createProfessionalProfile`/`updateProfessionalProfile`
+(the `src/lib/participants/actions.ts` wrappers around `create_professional_profile`/
+`update_professional_profile`) — exactly ONE caller, `src/components/cases/
+add-participant-dialog.tsx`, mounted only inside commission/case-scoped pages under
+`/o/[org]/c/[commission]/casos/**`. `platform@test.local` holds zero memberships anywhere
+(architectural "noun rule"), so no navigation reaches a page that renders that dialog. Written as
+`test.skip` with the measured reason in the spec body and header, confirming Batch 9 R6
+independently rather than inheriting it.
+
+**Run.** `npx playwright test e2e/admin-arm-is-active.spec.ts --project=chromium` (quick loop,
+dev server via Playwright's own `webServer`, none pre-existing on :3000):
+
+```
+Running 4 tests using 1 worker
+  4 tests: 1 skipped (S4), 3 passed (9.1s)
+```
+
+**Keyboard-only flow (CLAUDE.md §8):** S1's sign-in is driven entirely via
+`pressSequentially`/`keyboard.press('Tab'|'Enter')`, tab order re-verified against
+`act-role-assumption.spec.ts`'s own keyboard-only case (email autofocus → forgot-password link →
+password → show-password toggle → Entrar) rather than assumed identical.
+
+**Bugs filed:** none — every failure encountered while drafting (the `/conta-inativa` timeout) was
+a wrong assertion in this spec, not an app defect; fixed in the spec, not worked around.
+
+**Dev server:** none left running — `netstat -ano | findstr :3000` after the run showed only
+`TIME_WAIT` sockets, no `LISTENING` entry; Playwright's own `webServer` tore itself down at the
+end of the run.
+
+**Not run here, by the brief's own instruction:** the full-suite `npm run e2e:prod` gate — that is
+the lead's job, once, before declaring green.
+
+Commit on `authz-admin-arm-is-active` (not amended, not pushed): `e2e/admin-arm-is-active.spec.ts`
++ this record entry.
