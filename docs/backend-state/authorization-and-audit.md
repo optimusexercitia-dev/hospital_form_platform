@@ -8,103 +8,104 @@
 
 ## Current state
 
-**Updated:** 2026-09-09 — a REPLACEABLE projection of the frozen slices below; the rules that govern it are [`README.md` § Maintenance rules](README.md#maintenance-rules) 7–8.
+**Updated:** 2026-09-10 — a REPLACEABLE projection of the frozen slices below; the rules that govern it are [`README.md` § Maintenance rules](README.md#maintenance-rules) 7–8.
 
 ### Surface
 
-- **`public.audit_log`** — the Rule 11 trail. `authenticated` = `r` only; every write goes through the DEFINER
-  writer `app.audit_write`. Its read policy `audit_log_select` is legged by scope (staff_admin of the commission ·
-  tenancy admin of it · hospital-tier · org-tier · a platform leg needing all three scope keys NULL).
+- **`public.audit_log`** — the Rule 11 trail. `authenticated` = **`r` only**; every write goes through the DEFINER
+  writer `app.audit_write`. `audit_log_select`'s five scope legs (incl. a platform leg needing all three keys NULL) are
+  enumerated in the frozen § Audit read legs.
 - **The `authz` catalog** — `roles` · `permissions` · `role_permissions`, behind three declared interfaces: layer 3
   domain authorizers (the permission code is a statically greppable **string literal**) · layer 2 resolvers · layer 1
   assignment projection. **No client role reaches `authz`** — anon, authenticated *and* service_role — and the schema
   is absent from `config.toml`'s exposed schemas. Authority helpers pair caller-keyed with **subject-keyed (`_for`)** twins; a predicate parameterised on a principal uses the `_for` twin (ADR 0200).
 - **The zero-policy, door-only table class** — RLS on, **0 policies**, `authenticated` *and* `anon` hold nothing,
   `service_role` holds all four verbs; membership is DERIVED, not hand-listed (`supabase/tests/382_…`, § A0).
-- **The quality-office plane** — `quality_reviewer`, `commissions.quality_oversight` (`visible|excluded`), its ONLY
+- **The quality-office plane** — `quality_reviewer`, `commissions.quality_oversight` (`visible|excluded`), its **ONLY**
   writer `public.set_commission_oversight`, the raw-write trap `app.guard_commission_oversight`.
 - **The service-role DML registry** — one row per `createAdminClient()` write site in `src/`, keyed
-  `path::symbol::writeKind::target`. Door and helper signatures, `prosecdef` and EXECUTE grants:
-  [`generated-rpc-surface.md`](generated-rpc-surface.md) · [`generated-helper-surface.md`](generated-helper-surface.md).
+  `path::symbol::writeKind::target`. Signatures, `prosecdef` and grants: [`generated-rpc-surface.md`](generated-rpc-surface.md)
+  · [`generated-helper-surface.md`](generated-helper-surface.md).
 
 ### Invariants
 
-- **A DEFINER door bypasses RLS entirely**, so cutting a table's policies does not cut its doors — the recorded failure
-  here: tables cut, DEFINER doors left open, every gate green, each blind differently (a table-visibility matrix cannot
-  see a door by construction; the door sweep neutralizes *boolean* gates and these return `SETOF`; `ARM=floor` asks
-  whether a door is **called**, not whether its gate is **right**; pgTAP asserted tables, not doors). What found it:
-  re-reading the ratified CUT list and asking the catalog item by item — a check **no harness performs**.
-- **On the door-only class the GRANT layer is what denies today, not RLS.** Postgres checks table privilege before RLS
-  is ever evaluated, so the observed 42501 is the absent grant; the 0-policy state is a **backstop**, operative only
-  the day a verb is granted without a matching policy.
-- **The privilege-budget ceiling moves only by PO ruling**, and no increment may raise the count without a **named
-  justification in its own gate record**. The ceiling has ONE home — the `BUDGET-ANCHOR` comment, machine-read by gate
-  15 against the literals in `supabase/tests/320_…` § U4; ⛔ editing it to match a changed pin inverts the authority the
-  gate enforces. **No revoke has been executed**: the proposed set is a scheduling fact, `UNCHANGED` in its partition is
-  **unexamined, not cleared**, and a revoke is not free either — it removes a function from `ARM=floor`'s domain.
-- **Every service-role write site is registered and machine-diffed** — gate 11 multiset-diffs the census against the
-  `Key` cell of every row; a missing `Key` header, an unparseable key, and a parse yielding **zero** keys are each
-  their own red, because an empty parse must never read as a clean diff. The census **under-counts by design**
-  (`callDoor` sites are invisible to it) and the gate asserts that substitution in *both* directions. ⚠ **"None found
-  in TS" is not "unaudited"** (a DB-side trigger is a `pg_trigger` question this registry does not ask), and `door: X`
-  is a door's NAME only — that its body re-derives authority rather than trusting `p_actor` is a `prosrc` question.
-- **`audit_log` is append-only and cannot be backfilled — barred twice:** `guard_audit_immutable()` rejects any UPDATE,
-  and `organization_id` feeds `app.audit_canonical` → the `row_hash`, so a forced row stops replaying its own hash.
-  `app.audit_write` **DERIVES** the organization from the hospital but does **not validate** it — an explicitly-passed
-  org still wins, even a foreign one, and no CHECK ties `audit_log.organization_id` to the hospital's org.
-- **The noun rule and the content wall.** A row that hands a `platform_admin` tenant *content* is a noun-rule breach;
-  the tenancy admin *shapes the containers, never reads what goes in them*. ⚠ `app.is_tenancy_admin_of(_for)` is
-  **NOT** the commission's own admin — it is **FALSE for `staff_admin`**, whose coordinator is admitted by the separate
-  `app.is_staff_admin_of` disjunct beside it. ⛔ `\yis_tenancy_admin_of\y` cannot match `is_tenancy_admin_of_for`, so a
-  sweep grepping the short name is silently blind to every `_for` call site.
-- **The catalog is authority-ELECT, not authority** — `authz.roles` is an *additional* role authority beside
-  `memberships_role_check`, the scope-shape CHECK, `public.platform_role` and the TypeScript manifest, **not a
-  replacement**. A policy or door calling layer 1 or 2 **directly for a permission decision** is a finding, and the
-  enforcement manifest is how it is found. A re-keyed authorizer is **not** purely permission-keyed: residual
-  non-permission arms sit inside the DEFINER body, invisible to anyone auditing `pg_policies`, so they are pinned **BY
-  NAME** — adding an arm reds the pin, *retiring* one reds it too.
-- **A predicate's arms must answer about the principal its own signature names.** `can_manage_professional` and `can_read_professional_profile` are subject-keyed on `p_uid` since ADR 0200 — both were wholly caller-keyed before, and AE4.7c's narrowing removed the last arm that read the parameter; `is_admin()` and `is_admin_for()` are **not** interchangeable at SELF (a JWT-claim fast path vs a `profiles` read).
+- **A DEFINER door bypasses RLS entirely**, so cutting a table's policies does not cut its doors — recorded failure:
+  tables cut, doors left open, **every gate green, each blind differently** (the four ways are enumerated in the frozen
+  slices below). What found it: re-reading the ratified CUT list and asking the catalog item by item — ⛔ a check **no
+  harness performs**.
+- **On the door-only class the GRANT layer is what denies today, not RLS** — privilege is checked before RLS, so the
+  observed 42501 is the **absent grant**; the 0-policy state is a **backstop**, operative only the day a verb is granted
+  without a matching policy.
+- **The privilege-budget ceiling moves only by PO ruling**, with a **named justification in the raising increment's own
+  gate record**; it has **ONE home** (`BUDGET-ANCHOR`, gate 15) and ⛔ editing it to match a changed pin **inverts** the
+  authority the gate enforces. **No revoke has been executed** — `UNCHANGED` is **unexamined, not cleared**, and a revoke
+  removes a function from `ARM=floor`'s domain. Mechanism: frozen § Privilege budget.
+- **Every service-role write site is registered and machine-diffed** by gate 11 (its three own reds — missing `Key`
+  header, unparseable key, **zero**-key parse — are in the frozen § below; an empty parse must never read as a clean
+  diff). The census **under-counts by design** (`callDoor` sites are invisible) and the gate asserts that substitution
+  **both** ways. ⚠ **"None found in TS" is not "unaudited"** (a DB-side trigger is a `pg_trigger` question this registry
+  does not ask), and `door: X` is a door's **NAME only** — whether its body re-derives authority rather than trusting
+  `p_actor` is a `prosrc` question.
+- **`audit_log` is append-only, barred TWICE:** `guard_audit_immutable()` rejects any UPDATE, and `organization_id`
+  feeds `app.audit_canonical` → `row_hash`, so a forced row stops replaying its own hash. ⚠ `app.audit_write`
+  **DERIVES** the org from the hospital but does ⛔ **not validate** it — an explicitly-passed org wins, **even a foreign
+  one**, and ⛔ no CHECK ties `audit_log.organization_id` to the hospital's org.
+- **The noun rule and the content wall.** Handing a `platform_admin` tenant *content* is a breach; the tenancy admin
+  *shapes containers, never reads what goes in them*. ⚠ `app.is_tenancy_admin_of(_for)` is **NOT** the commission's own
+  admin — **FALSE for `staff_admin`**, admitted by the separate `app.is_staff_admin_of` disjunct. ⛔ `\yis_tenancy_admin_of\y`
+  cannot match `is_tenancy_admin_of_for`: a sweep on the short name is **silently blind** to every `_for` site.
+- **The catalog is authority-ELECT, not authority** — an *additional* authority beside `memberships_role_check`, the
+  scope-shape CHECK, `public.platform_role` and the TS manifest, ⛔ **not a replacement**; a policy or door calling layer
+  1 or 2 **directly for a permission decision** is a finding. A re-keyed authorizer is ⛔ **not** purely
+  permission-keyed — residual arms sit in the DEFINER body, invisible in `pg_policies`, so they are pinned **BY NAME**:
+  adding an arm reds the pin, **retiring** one reds it too. Frozen § AE4 carries the enumeration.
+- **A predicate's arms must answer about the principal its own signature names.** `can_manage_professional` and `can_read_professional_profile` are subject-keyed on `p_uid` since ADR 0200 — both were wholly caller-keyed before, and AE4.7c's narrowing removed the last arm that read the parameter; `is_admin()` and `is_admin_for()` are **not** interchangeable at SELF (a JWT-claim fast path vs a `profiles` read). ⭐ **The model is RATIFIED as subject-keyed asymmetry** (ADR 0201, § AE5's opening decision below): third-party ignores
+  the ACT hat, self requires it. ⚠ On the **SCOPE** axis the hat is role-wide, so ratifying it **ratified** the
+  audit-scope mismatch — ⛔ R10 discharges D8's *"audit scope must match"*, not R8.
 
 ### Rollout
 
-- Cutovers here are **flagless by pattern**: for the private-details split, the `authz` catalog and the audit read
-  legs, the **migrations ARE the cutover**; the content wall is **subtractive by design**; quality-office oversight is
-  deny-by-default via the `'excluded'` column default plus the role grant, not a flag. ⛔ Resolve any flag's VALUE and
-  readers from [`generated-feature-flags.md`](generated-feature-flags.md), never from a sentence here. Rollback:
-  [`authz-rollback-runbook.md`](../deployment/authz-rollback-runbook.md) — ⛔ restore the **disjunct**, not the whole
-  policy body, and **both halves** of a `FOR ALL` policy.
-- ⛔ **Deployment status is not stated in this layer** (ADR 0198 D5). Whether a migration reached the remote is a claim
-  about an external system that rots silently — measure it with the recipes in
-  [`conventions.md` § Remote discipline](conventions.md#remote-discipline--standing-rules-measure-never-quote).
+- Cutovers here are **flagless by pattern** — the **migrations ARE the cutover**; the content wall is **subtractive by
+  design**; quality-office oversight is **deny-by-default** (the `'excluded'` default plus the role grant, not a flag).
+  ⛔ Resolve any flag's VALUE from [`generated-feature-flags.md`](generated-feature-flags.md), never a sentence here.
+  Rollback [`authz-rollback-runbook.md`](../deployment/authz-rollback-runbook.md): ⛔ restore the **disjunct**, not the
+  whole policy body, and **both halves** of a `FOR ALL` policy.
 
 ### Open edges
 
 - **"Measured" is not "clean", and a row is not a pass.** In the write-path sweep a **BLIND** row is a real finding to
   keystone, ⛔ **never allowlisted**; an **ERROR** row is UNVERDICTED, not COVERED. `FROMFINDINGS=1 ARM=policy` is a
   separate, pre-existing RED, not one of CLAUDE.md § 6's arms.
-- `hardDenyClasses` is **empty on every manifest row** — honest bookkeeping, **not coverage**; the zero is a **search
-  horizon, never an absence**. **`410` proves nothing about enforcement**; the behavioural proof is `409`, on **writes**.
-  **No performance evidence exists** for the final path — measure policy → layer 3 → layer 2 → layer 1, never `holds_role`.
-- Registry rows reading `NONE` / `UNCONFIRMED` are a measured property of the platform, not a review gap:
-  `registerUser`'s shared entry gate has no found assertion that a non-admin caller is REJECTED, and that is **not
-  proven absent**. Referral doors still carry the tenancy arm at the DB while the UI 404s a bare tenancy admin
-  (BUG-QOB-004, PO ruling pending — ⛔ do not "fix" either side without it). Platform-owned TRUNCATE grants (`storage.*`,
-  `net.*`) to `anon` **and** `authenticated` are **unchanged and not revocable by us** — on Cloud the REVOKE returns
-  **no error** and changes nothing.
-- Two frozen paragraphs below state **different** privilege-ceiling values; the later PO ruling governs and gate 15's
-  `PROSE_RE` does not match the older form, so only a hand-written note stands between them. The pt-BR authority messages
-  in [`document-model.md`](document-model.md) say **three** and name **two** — inherited, not introduced; re-derive both.
-- Neither `is_admin()` nor `is_admin_for()` consults `app.is_active`, so a deactivated `platform_admin` passes every admin arm — before and after ADR 0200 (`FUP-IS-ADMIN-ARM-IGNORES-PRINCIPAL-STATE`); nothing reds if a NEW predicate pairs a caller-keyed arm with a `p_uid`-keyed one.
+- ⛔ **CORRECTED: `hardDenyClasses` is NOT empty on every row** — a committed claim (ADR 0193), non-empty on **3 of 43**;
+  ⛔ the 40 zeros are a **search horizon, never an absence**. **`410` proves nothing about enforcement** — the behavioural
+  proof is `409`, on **writes**. ⛔ **No performance evidence** for the final path: measure policy → 3 → 2 → 1, never
+  `holds_role`.
+- Registry rows reading `NONE` / `UNCONFIRMED` are a measured property, not a review gap — `registerUser`'s entry gate
+  has no found assertion that a non-admin caller is REJECTED, and that is ⛔ **not proven absent**. Referral doors keep
+  the tenancy arm at the DB while the UI 404s a bare tenancy admin (BUG-QOB-004, PO ruling pending — ⛔ do not "fix"
+  either side without it). Platform TRUNCATE grants to `anon` **and** `authenticated` are **unchanged and not revocable
+  by us**: on Cloud the REVOKE returns **no error** and changes nothing.
+- Two frozen paragraphs below state **different** privilege-ceiling values and gate 15's `PROSE_RE` is blind to the
+  older form; `document-model.md`'s pt-BR messages say **three** and name **two**. Both are FILED, ⛔ neither is fixed:
+  `FUP-BACKEND-STATE-CURRENT-STATE-AUTHZ-FILE-CONTRADICTS-ITSELF-TWICE-UNGATED` — re-derive, never quote.
+- Neither `is_admin()` nor `is_admin_for()` consults `app.is_active`, and ⛔ **neither does `public.assume_role`, the door
+  that SEATS the hat**, so a deactivated `platform_admin` can seat a **FRESH** hat — ⛔ the gap is **not** bounded by token
+  lifetime. RULED: **all THREE** sites gain the term, each with a RED-first cell, and ⛔ a closure gating two of three does
+  not discharge `FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-ADMIN-ARM-IGNORES-IS-ACTIVE`. ⚠ The id formerly cited here,
+  `FUP-IS-ADMIN-ARM-IGNORES-PRINCIPAL-STATE`, **exists in NEITHER register** — a phantom no gate catches.
+- ⛔ `prose only`: nothing reds if a NEW predicate pairs a caller-keyed arm with a `p_uid`-keyed one, nor if the three
+  classification columns stay unread (`FUP-AE5-OPENING-ADR-CLASSIFICATION-COLUMNS-OWE-A-NAMED-CONSUMER`, ⛔ **not**
+  closable by a test or lint reader — those pin their values, not their use). Arm-1 removal is Batch 10's, not done.
 
 ### Where the detail lives
 
 - The frozen slices below, in order: **§ Zero-policy tables** · **§ Privilege budget** · **§ Service-role DML
   registry** · **§ AE3** · **§ AE4** · **§ Audit read legs** · **§ Client-role TRUNCATE grants** · **§ QO·B** ·
-  **§ QO·FUP** · **§ QO·A** · **§ RLS authorization surface**.
+  **§ QO·FUP** · **§ QO·A** · **§ RLS authorization surface** · **§ AE5's opening decision**.
 - ADR [0155](../decisions/0155-post-aff4-tenancy-and-person-model-evolution-sequence.md) · [0162](../decisions/0162-authz-evolution-plan-audit-corrections.md) (authority-elect) ·
   [0176](../decisions/0176-authz-permission-layer-made-real.md) (the three interfaces) · [0100](../decisions/0100-quality-office-oversight.md) (oversight + content wall) ·
   [0149](../decisions/0149-org-admin-reads-hospital-tier-audit.md) + [0150](../decisions/0150-audit-org-derived-from-hospital.md) (audit read legs) ·
-  [0079](../decisions/0079-authz-door-blindness-standing-invariant.md) (the standing door audit).
+  [0079](../decisions/0079-authz-door-blindness-standing-invariant.md) (the standing door audit) · [0200](../decisions/0200-professional-identity-predicates-answer-about-their-subject.md) + [0201](../decisions/0201-the-keying-asymmetry-is-the-model.md) (keying) · [0203](../decisions/0203-the-seam-is-already-encoded-the-classification-columns-are-not.md) (the seam).
 
 ## Zero-policy tables — door-only by design (AE1.6; ADR 0155 D9; measured 2026-08-27)
 
@@ -1290,3 +1291,66 @@ doctored body (QA MINOR closed by measurement — `docs/progress/can-manage-prof
 ⛔ **Not enforced:** nothing reds if a *new* predicate pairs a caller-keyed arm with a `p_uid`-keyed one —
 that obligation is ADR 0200's data statement on the AE5 template and is `prose only` today. Full record:
 `docs/progress/can-manage-professional-self-check.md`; ADR `docs/decisions/0200-professional-identity-predicates-answer-about-their-subject.md`.
+
+## AE5's opening decision — the keying asymmetry ratified as the model (2026-09-10, ADR 0201 + 0203, ⛔ NO migration)
+
+⛔ **This slice changes no schema, no policy and no function.** Pre-AE5 **Batch 9** (unit
+`AE5-OPENING-ADR`) was ruled *not a fix* (PO R1) and its defining claim is that
+`git diff --name-only main... -- supabase/migrations supabase/seed.sql src` was **EMPTY**. What
+changed is **what the corpus DECIDES about this seam**, and every consequence below is **Batch 10's
+work, not this slice's**. Full record: `docs/progress/ae5-opening-adr.md`.
+
+**What was ratified, and why it was not a free choice.** ⭐ **F6 was never an open question.**
+`authz.entailed_grants` already emits a `hat_ok` column computed as
+`(p_principal is distinct from (select auth.uid()) or af.role_code is not distinct from
+app.active_role())`, under its own `§6A ASYMMETRY` comment, and **`authz.has_permission` enforces it**
+(`and eg.hat_ok`) — as do `authz.candidate_has_permission` and `authz.explain_permission`, **three**
+consumers, not one. That is **subject-keyed asymmetry**: a third-party question ignores the hat, a
+self question requires it. ⛔ **ADR 0176 D8 does not list that option** (it names only the
+exact-assignment hat and the role-wide hat), so the resolver held an **unratified answer**. ADR 0201
+ratifies it (PO R8) rather than change a working resolver.
+
+⭐ **F6 HAS TWO AXES, and the ruling settles only one.** On the **subject** axis the hat is
+asymmetric. On the **scope** axis it is **role-wide** — `hat_ok` compares `af.role_code` alone, with
+**no scope term**, and `app.active_role_selections` has **no scope column at all**. Meanwhile
+`public.assume_role` stamps **one** scope triple into its `active_role.assumed` audit row, chosen
+`order by m.granted_at desc nulls last, m.id limit 1`. ⇒ **effective authority spans every seating of
+the role while the audit row names one**, and ⛔ **ratifying the asymmetry RATIFIED that mismatch**.
+ADR 0176 D8's *"audit scope must match whichever wins"* is therefore discharged by **PO R10** — stamp
+the **role only**, no place — ⛔ **not** by R8. ⚠ The `platform_admin` branch already stamps NULL by
+its own carve-out, so this is a **tenant-role** phenomenon; a fix assuming every branch has a scope
+is wrong.
+
+**The seam model (ADR 0203, PO R11).** Audit F5's four-way seam is ratified as **already encoded** in
+`supabase/tests/vectors/authz-enforcement-manifest.json`: `permissions`/`domainAuthorizer`/
+`enforcementSites` = entitlement · `hardDenyVocabulary` (7 classes) = hard-deny · `lifecycleDerivation`
++ per-row `axes.resourceLifecycle` = lifecycle · sensitivity **twice** (`axes.sensitivity` on 43 of 43
+rows, gated by `410 § 2.3` and the lint arm, **plus** the `gate: null` hard-deny class). ⇒ the residual
+is that entry's **`note`**, the only one pointing at a deferral rather than a mechanism — ⛔ **not** a
+missing gate. And the three classification columns (`risk_class`, `sensitivity_ceiling`,
+`resource_kind`) are **KEPT, each owing a NAMED layer-3 consumer** — measured **0/0/0** runtime readers
+across six catalog surfaces, credible only beside its control (`resolution_scope_kind` → **3**
+functions) and the fact that `authz.permissions` is RLS-on / **zero-policy** / no `authenticated`
+SELECT, so a consumer must be one of the ten `authz` DEFINER functions. ⛔ Removal was declined as an
+**invariant loss plus the loss of its own discrimination control**: `401` **§ 7** uses two of them as
+an **ordering** and `:408` proves they are two invariants, not one predicate counted twice.
+
+**Enforcement of this slice: `prose only`, and that is the point.** ⛔ Nothing reds if a new predicate
+pairs a caller-keyed arm with a `p_uid`-keyed one — ADR 0200's data statement on the AE5 template,
+restated by 0201, is unenforced. ⛔ Nothing reds if the three classification columns stay unread:
+`FUP-AE5-OPENING-ADR-CLASSIFICATION-COLUMNS-OWE-A-NAMED-CONSUMER` is the register's hold on it, and
+⛔ it may **not** be closed by a **test** or **lint** reader — `401` §§ 11/13 and `410:122-124` pin the
+columns' **values**, not their **use**.
+
+**What Batch 10 owes, from this seam** (⛔ none of it is done here): `app.is_active` on **THREE** sites
+— `app.is_admin()`, `app.is_admin_for()` **and** `public.assume_role` (R3 + R12), each with its own
+**RED-first** cell, because the seating door tests `profiles.is_admin` only, so a deactivated admin can
+seat a **fresh** hat and ⛔ the gap is **not** bounded by token lifetime · arm 1 **removed** from
+`app.can_manage_professional` with `app.can_manage_case_vocabulary` given an **explicit**
+`is_admin_for` arm, since a bare removal was measured to **strand vocabulary** (`42501`) and vocabulary
+is an ADR 0078 A35 **MAY**-noun (R4) · R10's audit stamp, with ⛔ `315:212` **REWRITTEN, not ticked** —
+under R10 it stays green while losing all discriminating power, because `315:208`, the cell that made
+it discriminating, is the one that flips. Expected reds to **re-rule, never silence**: `228:630-634` ·
+`409` § 3.7 (**polarity AND message** — `:680` still names `app.is_admin()` where the chain now reaches
+`is_admin_for`) · `415` § 1.2 · `229:215-220`, which **splits in two**. ⛔ `401` and `410` are **NOT**
+expected reds — their fields are name-based and their `residualLegacyAuthority` entries name **arm 2**.

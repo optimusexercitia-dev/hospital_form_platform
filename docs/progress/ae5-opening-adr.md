@@ -1445,3 +1445,54 @@ ledger row's `Commit` cell is right to refuse a sha.
 **0** · deriver **rc 3 = NOT-APPLICABLE** with `SCOPE: 0 file(s) — 0 committed (main..HEAD)` — ⚠ and
 that is a **re-measurement against the MOVED main**, not the old one · `SELFTEST` **rc 0,
 PASS 46 · FAIL 0** · ⭐ **empty-pathspec assertion EMPTY** against the new base.
+
+### 2026-09-10 — documentation second pass: ⛔ the Record step MISSED the authz seam entirely (lead)
+
+**The PO asked for a second pass over documentation. It found a gap the Record step should have
+closed, and gate 16 proved it rather than the lead noticing.**
+
+⛔ **`docs/backend-state/authorization-and-audit.md` had ZERO mentions of Batch 9, `AE5-OPENING-ADR`,
+0201 or 0203**, and its `## Current state` was still stamped **2026-09-09**. CLAUDE.md §7 is explicit
+— *"A new phase **APPENDS** its slice to that seam file **and REPLACES the `## Current state` block on
+top of it**"* — and Batch 8 did exactly that. ⚠ **This unit's own record preamble NAMED the file and
+the obligation** (*"a slice APPENDED there and its `## Current state` block REPLACED at the Record
+step"*) **and even warned the block stood at 99 of 100 lines** so the next slice must *cut before it
+adds*. ⇒ **the obligation was written down by this unit, in this unit's own record, and still missed.**
+⭐ A named obligation inside a document nobody re-reads at the step it governs is not a safeguard —
+which is why it is now **lead-playbook step 8's sibling**, not a note.
+
+**Gate 16 caught it in three escalating checks, and each was right:**
+1. **[I]** — *"`## Current state` is stamped 2026-09-09, but a frozen heading below it is dated
+   2026-09-10. History was appended and the projection was not refreshed — which is exactly how this
+   layer rots back into a log."* ⭐ Fired the moment the slice landed. **This is ADR 0198's whole
+   purpose working.**
+2. **[H]** — a date inside the block other than `**Updated:**`: the lead had written *"RULED
+   2026-09-10"* into the projection. ⛔ **A dated line IS a slice**, whatever it is called.
+3. **[G]** — the block hit **113 lines against a ratchet of 100** (ceiling 120), *"⛔ Do NOT raise the
+   ratchet — it may only be LOWERED."* ⛔ **It was not raised.** Nine successive cuts brought it to
+   exactly **100 (0 left)**, and ⚠ the first several were **rewraps, not removals** — reflowing prose
+   changes no line count, and the lead needed three failed attempts to see it.
+
+**What was cut, and the rule that governed each cut** (*"cut a PARAPHRASE and point at the frozen
+section — never a bound"*): the deployment-status bullet, which `--scaffold` **explicitly says not to
+restate** (README rule 8 + check H carry it) · the privilege-ceiling contradiction, compressed onto
+its **filed** follow-up · the DEFINER four-way blindness **enumeration**, the privilege-budget and
+authority-ELECT **mechanisms**, and gate 11's three own reds — each replaced by *bound + pointer to
+the frozen §*. ⭐ **The lead cut its OWN additions first** (10 lines → 4) before touching anyone
+else's invariants, because dropping a pre-existing bound to make room for new prose is the trade the
+gate calls *"worse than no bullet."*
+
+**⭐ TWO PRE-EXISTING DEFECTS FOUND IN THAT BLOCK WHILE DOING THE REQUIRED WORK, both corrected:**
+1. ⛔ **A FALSE PRESENT-TENSE CLAIM:** *"`hardDenyClasses` is **empty on every manifest row**"*.
+   Measured: it is a **committed claim** since ADR 0193 and is **non-empty on 3 of 43** —
+   `commission.forms.edit` and `org.professionals.create` carry `principal_inactive`,
+   `org.professionals.read` carries `principal_inactive` **+** `respondent_exclusion`. ⚠ Batch 4's
+   entire point was making that field a claim instead of `[]`, and the projection above it still said
+   the opposite. The *"40 zeros are a search horizon, never an absence"* bound is **kept**.
+2. ⛔ **A PHANTOM FOLLOW-UP ID:** the block cited `FUP-IS-ADMIN-ARM-IGNORES-PRINCIPAL-STATE`, which
+   **exists in NEITHER register** (0 hits in open and archive). ⭐ **No gate catches this** — gate
+   13's retired-citation scan is about retired **files**, not follow-up **ids** inside seam files.
+   Corrected to the real id and the phantom named in place.
+
+**Gate 16 rc 0**, block at **100 lines, 0 left** ⇒ ⚠ **the next slice on this seam cannot add a single
+line without cutting first**, and that is now true of eight blocks.
