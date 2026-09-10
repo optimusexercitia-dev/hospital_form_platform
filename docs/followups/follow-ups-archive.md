@@ -12573,3 +12573,47 @@ and, per R2, `app.can_read_professional_profile`'s own admin arm, in the same mi
 PO's rulings and the fix: ADR
 [0200](../decisions/0200-professional-identity-predicates-answer-about-their-subject.md);
 session-by-session detail: `docs/progress/can-manage-professional-self-check.md`.
+
+### ✅ RESOLVED 2026-09-10 (Batch 9, unit AE5-OPENING-ADR) — the entry below is VERBATIM as filed
+
+**Closed on its own quoted `Closes when`, all three conditions met and proven:** (1) both
+`legacyEquivalence.qualifier` fields on matrix rows **31/32** — ⚠ JSON positions **40/39**; the
+follow-up's *"rows 31/32"* is the **AE4 matrix numbering**, mapped by `401` § 19.2's own message —
+now open `✅ RESOLVED 2026-09-10` and state the ruling that was taken: 19.2b's expected value **was**
+moved 1 → 2, and the objection this comment raised (*a bare count of 2 over three functions is
+satisfied by any of the three pairings*) was answered **not** by editing 19.2b alone but by **adding
+§ 19.2c**, which pins *which* pair survives, with `403`'s fourth representative and its § 2.3b
+carrying the co-sharing. (2) The current value of `401 § 19.2b` is stated. (3) A **fresh run** is
+quoted beside it: `npx supabase test db --local 00_setup 401 403 410` → `All tests successful.
+Files=4, Tests=189`, `Result: PASS`, **0 `not ok`**, **exit 0** read bare, on a fresh
+`supabase db reset --local`; plus the two expressions re-measured directly — **19.2b = 2, 19.2c = 1**.
+⚠ The witness was **substituted at QA MINOR-5**: the first version quoted the run that **pre-dated**
+the comment. ⛔ **Not closed by deletion** — the standing prohibition (*19.2b must still red on a
+fourth split*) and the **entire superseded text** are quoted in both qualifiers, as the clause
+demanded. ⭐ Measured before touching anything: the md5s the stale comment cited were **still
+current** (`3a86b023` shared by rows 31/32, `f17a0c42` for `can_create_professional`) ⇒ the *history*
+was accurate and only the *verdict* had rotted.
+
+### 🟡 FUP-ENFORCEMENT-MANIFEST-COMMENT-DESCRIBES-A-RED-THAT-IS-GREEN — rows 31/32's `_comment` is stale
+
+**Filed:** 2026-09-09 (Batch 8, unit CAN-MANAGE-PROFESSIONAL-SELF-CHECK) · **Owner:** lead · **Severity:** medium — no gate can contradict a `_comment`, and this one sits on the document that is the manifest's own authority (LEARN-088)
+**Closes when:** the `_comment` on rows 31/32 states the ruling that was taken and the current value of `401 § 19.2b`, and a fresh run of `401` is quoted beside it showing § 19.2b and § 19.2c green. ⛔ Not closed by deleting the comment — the ruling it half-records is worth keeping.
+**Status:** open
+**Mechanism and closure detail, FOLDED INLINE at close** (⚠ gate-forced: gate 13 makes a body file with no open entry an *orphan*, and a body **link** in the archive a finding — the check keys on the literal field name, so even naming it here reds — the Batch 8 precedent; the standalone file is deleted and its substance is preserved here verbatim):
+**Mechanism.** Rows 31/32 of `supabase/tests/vectors/authz-enforcement-manifest.json` carry a
+`_comment` stating that `401 § 19.2b` *"is RED on exactly this and must not be re-numbered to 2 …
+AWAITING A LEAD RULING"*. Measured: **§ 19.2b is GREEN** — its expected value was moved 1 → 2 and
+§ 19.2c added to pin *which* pair survives, precisely so the count could not green itself by any
+pairing. The ruling the comment awaits was taken. No gate can contradict a `_comment`, and this one
+sits on the document that is the manifest's own authority — LEARN-088 / "a register's failure mode
+is prose rot". ⚠ Distinct from ADR 0200's collateral, which touched only the
+`org.professionals.read` row's *data* fields.
+
+**Closes when:** the `_comment` on rows 31/32 states the ruling that was taken and the current
+value of `401 § 19.2b`, and a fresh run of `401` is quoted beside it showing § 19.2b and § 19.2c
+green. ⛔ Not closed by deleting the comment — the ruling it half-records is worth keeping.
+
+**Origin:** filed at the Record step of pre-AE5 remediation Batch 8, unit
+`CAN-MANAGE-PROFESSIONAL-SELF-CHECK`, found while re-deriving the manifest projection after the
+subject-keying migration. Full record:
+[`docs/progress/can-manage-professional-self-check.md`](../progress/can-manage-professional-self-check.md).

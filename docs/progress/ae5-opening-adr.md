@@ -1298,3 +1298,117 @@ preference), and one of them was materially more than cosmetic:
 by the lead and independently agreed by QA on the stronger ground that **nothing under `src/` derives
 from the manifest**, with `test:db` 264/8923 PASS and `SELFTEST` 46/46 standing as the test evidence ·
 step 3 QA **APPROVED** at round 3 · **step 4 — the PO's, next.**
+
+### 2026-09-10 — Record step (lead): the hub's `## Current state` block, cut VERBATIM at close
+
+## Current state
+
+**Updated:** 2026-09-10 (QA fix loop, iteration 2 — ⚠ this block went stale INSIDE iteration 1 and
+that was QA N-MAJOR-3; it is replaced, not amended, and it describes the tip it is committed with)
+
+### Objective
+
+Take, and record, the authorization decisions the corpus forbids AE5's first role increment from
+picking off inside itself — ratified per PO ruling R7 as **ADR 0201** (the keying asymmetry) and
+**ADR 0203** (the enforcement seam and the classification columns), with 0202 and 0204 deferred to
+named successors — together with the three follow-ups the PO added at initiation.
+
+### Done since start
+
+**Fourteen PO rulings (R1–R14)**, each with its measured basis in the record and — after QA
+BLOCK-1/2 — **each landed in the corpus, not only the log**. **ADR 0201** (412 lines) + **ADR 0203**
+(337), `proposed`, in `proposed-review.json`. The manifest follow-up's three conditions **met and
+proven**. All three register clauses corrected with superseded wording quoted, including the
+follow-up **body's own** field, which named one site where the item names three. R13's three-site
+bash-3.2 harness fix landed, **verified by the lead, not the builder**. Three lessons, one new rule,
+one prohibition promoted to the lead-playbook, `AE5-MATRIX-ARM3-CELLS` opened, and the
+classification-columns follow-up filed — which is what makes ADR 0203 D3's claim about the register
+true. ⭐ **Gate at the tip, bare:** lint **0** (17/17, 0/0) · typecheck **0** · vitest **151/2056** ·
+`test:db` **264 files / 8923 PASS** on a fresh reset · **four arms HOLD** · deriver **rc 3
+NOT-APPLICABLE**, `SCOPE:` quoted · `SELFTEST` **rc 0, 46/46** on bash 3.2.57 · ⭐ **empty-pathspec
+EMPTY**. **QA:** [r1](../reviews/ae5-opening-adr-review.md) `CHANGES REQUESTED` (2 BLOCK · 2 MAJOR ·
+7 MINOR) → [r2](../reviews/ae5-opening-adr-rereview.md) `CHANGES REQUESTED` (0 BLOCK · 3 MAJOR · 2
+MINOR — ⛔ **all three new MAJORs were defects the fix loop itself introduced**) →
+[r3](../reviews/ae5-opening-adr-rereview-2.md) ⭐ **`APPROVED`** (0/0/3, all three cleared here, not
+carried). Per-finding detail: the record, ⛔ not restated here.
+
+### In progress
+
+Nothing building. **QA fix loop closed at round 3 (`APPROVED`)**, with round 3's three MINORs cleared
+in the same round rather than carried. Awaiting **PO approval — Phase Gate step 4.**
+
+### Next
+
+QA re-review at the iteration-2 tip → PO approval → Record step. What Record owes, **named rather
+than counted** (⚠ this block previously said *"eight"* against an enumeration of five — QA
+N-MINOR-2): both ADRs `proposed` → `accepted` and removed from `proposed-review.json` · `"0201"`
+re-added to the `AE5-MATRIX-ARM3-CELLS` hub · the ledger row · and the follow-ups still to file,
+⛔ **listed, not counted** (QA R2-MINOR-2 killed two counts here already):
+`0176:45`'s no-reader list stale 4→3 with no gate able to say so · `authz-matrix-coverage.json`'s
+`migrationHead` stale against the live head · R10's audit-stamp implementation, which has **no
+register home** · `entailed_grants`' comment numerals that **reproduce at no grain measured** ·
+⭐ **and ADR 0175 D3's undischarged forward promise**, which R2-MINOR-2 caught this list **dropping**:
+the record names it owed twice, and its only home is an **unchecked box** in
+`ae5-matrix-arm3-cells.md`, which is a *unit's* acceptance criterion and ⛔ not a register entry.
+⚠ Separately, these were **discharged inline** rather than filed and so are **not** in the list
+above: the two deferred clauses' censuses (written into their follow-up bodies) and LEARN-095/096/097.
+⛔ No count describes this set, because its members were dispatched two different ways.
+
+### Blockers
+
+**None.** Both QA BLOCKs are discharged and verified by QA at `b58549fe`. ⚠ Two standing bounds, not
+blockers: the Record checklist has **no step that reconciles rulings TAKEN against rulings LANDED in
+the artefact** — the gap that produced both BLOCKs — and LEARN-096's enforcer cannot load on the
+surface where its own incident happened, which its row now states rather than hides.
+
+### 2026-09-10 — Record step (lead): PO approved with a push; registers, ADRs, ledger, playbook, lessons
+
+**PO approval** (`AskUserQuestion`, built / tests / QA / open risks): **approve, and push after the
+merge.** ⚠ **A FOURTH one-push override**, scoped in writing to **this push** like the Batch 4, 7 and
+8 overrides, and ⛔ **not a standing licence.** The lead stated **before** the ask — inside the option
+the PO chose — that pushing `main` is deploy-safe only while Coolify's **Automatic Deployment** is
+off, that `docs/deployment/coolify.md` **records but cannot check** that external setting, and that
+this session cannot verify it. The PO chose it anyway; that is their ruling for this push. ⭐ This
+batch touches **no migration, no seed and no `src/`**, so a deploy would ship **documentation only**.
+
+**Done at this step:**
+
+- **Five follow-ups filed** — `…0176-NO-READER-LIST-STALE-AND-UNGATED` 🟠 ·
+  `…COVERAGE-JSON-MIGRATION-HEAD-STALE` 🟡 · `…R10-AUDIT-STAMP-HAS-NO-REGISTER-HOME` 🟠 ·
+  `…ENTAILED-GRANTS-COMMENT-NUMERALS-UNREPRODUCIBLE` 🟡 · `…0175-D3-FORWARD-PROMISE-UNDISCHARGED` 🟠
+  (the one QA caught the Record list **dropping**). Plus `…CLASSIFICATION-COLUMNS-OWE-A-NAMED-CONSUMER` 🟡
+  at iteration 2. ⚠ **Gate-forced deviation:** the `longHeadings` ratchet went **97 → 99** and *"may
+  only be lowered"*, so **six** headings were cut under the 160-char threshold; ⛔ **the cap was not
+  raised**, and it is back at **97/97**.
+- **`FUP-ENFORCEMENT-MANIFEST-COMMENT-DESCRIBES-A-RED-THAT-IS-GREEN` CLOSED** on its own quoted
+  clause and moved to the archive **verbatim** (python `assert` that the archived text is
+  byte-identical before the source was removed). ⚠ **Two gate-forced deviations, the Batch 8
+  precedent exactly:** its standalone body file became an **orphan** once no open entry linked it, so
+  the body was **folded inline and the file deleted**; and the inline marker then **still red**,
+  because `checkArchiveNoBodyLink` keys on the literal `**Body:**` token and my own explanatory
+  sentence **contained it** — ⭐ *a gate can fire on the prose that describes the gate.* Renamed off
+  the token.
+- **Both ADRs `proposed` → `accepted 2026-09-10`** and removed from `proposed-review.json` (10 → 8);
+  `npm run adr:index` reports **200 ADRs, next free 0204**, back-pointer blocks already current.
+- **`"0201"` re-added to the `AE5-MATRIX-ARM3-CELLS` hub**, as promised when it was dropped at unit
+  open (gate 13 had reded on the forward reference).
+- **Ledger row appended** — 9 cells, with the `Commit` cell stating that the sha is ⛔ **not** written
+  here because a sha inside the commit that carries the row is off by one by construction.
+- **Hub closed**: `## Current state` **cut verbatim** into this record (60 lines, python `assert` of
+  byte-identity **before** the cut), `status: complete`, `branch: ~`, the three review reports listed.
+- **Playbook: four new Record-step obligations** (§ steps 8–11) — reconcile **rulings taken against
+  rulings landed**; a follow-up's clause lives in **two** places; **name sets, do not size them**; and
+  the hub's `## Current state` is the **last** edit of a round.
+- **Lessons: LEARN-098** (a derivation is only as good as its filter; a grep for a **word** cannot
+  find a subject identified by a **column**) and **LEARN-099** (a claim is not made safer by being
+  attributed to someone else), joining LEARN-095/096/097. ⚠ `lessonsProseOnly` held at **52/52** —
+  every one carries a real enforcer.
+
+⛔ **AND ONE ERROR THE LEAD MADE AND CAUGHT AT THIS STEP.** Closing the hub, it ticked **all four**
+acceptance boxes with a blanket replace. The hub's own text forbids exactly that: rulings R3/R4 both
+landed on **Arm B**, and each box says *"the entry **stays open** and this box stays unticked."* ⇒
+corrected — the two authz boxes are **unticked**, the manifest box **ticked**, and box 1 marked
+`- [~]` **PARTIAL BY RULING, not by shortfall** (0201 + 0203 delivered; items 1b–1d → ADR 0202,
+items 4–5 → ADR 0204, item 3 → its own unit, all by R7/R9). ⭐ *A tick would have claimed the whole
+block; a blank would have denied what shipped* — and a blanket `replace` on a checklist is the same
+shape as a blanket `git add -A` on a tree.

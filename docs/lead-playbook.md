@@ -98,6 +98,30 @@ When a phase passes human approval, the lead:
    with `phase(N): complete — <summary>`. The team stays warm for the next phase.
 7. Checks `.claude/claude-md-review-queue.md` — if it is non-empty, run
    `/review-claude-md` (or schedule it with the human) before the next phase opens.
+8. ⭐ **RECONCILES RULINGS TAKEN AGAINST RULINGS LANDED IN THE ARTEFACT** (added 2026-09-10 at
+   pre-AE5 Batch 9, which had no such step and paid **two QA BLOCKs** for it). For every PO ruling
+   the phase took, name the **non-log artefact** that now carries it — an ADR decision, a register
+   clause, a gate, a migration. ⛔ **A ruling recorded in the progress log is NOT a ruling landed in
+   the corpus.** Batch 9 recorded rulings R11 and R12, the lead stated in writing that it was
+   sending them to the drafting turn, and did not; the ADRs then asserted the **opposite** — 0203
+   still read *"D3 is `PO to rule`"* inside the very commit whose message named R11 — and one of the
+   documents still denying a ruling was the batch's own **hand-off routing** for the next batch.
+   ⚠ Cheap check: `grep -n "R[0-9]\+" docs/decisions/<the phase's ADRs>` returning **no matches**
+   is the smell.
+9. ⚠ **A follow-up carries its clause in TWO places** — the register entry **and** the body file's
+   own `**Closes when:**` field. Correcting one is **not** correcting the item, and the body is what
+   a reader reaches from a citation. Batch 9 widened the entry and appended a correction *section*
+   to the body while leaving the body's **field** naming one site of three.
+10. ⛔ **NAME SETS; DO NOT SIZE THEM.** Three counts went wrong in Batch 9 the same way — *"eight
+   candidate files"* over nine names, *"exactly two qualify"*, and *"four discharged inline"* over
+   five — and the third **dropped a finding out of the Record list entirely**. A count is a claim a
+   single counter-example kills, and a list is not. ⚠ Where a set was dispatched two different ways
+   (some filed, some discharged inline), ⛔ **no single number describes it** — say both halves.
+11. ⭐ **THE HUB'S `## Current state` IS THE LAST EDIT OF A ROUND, NOT AN EARLY ONE.** Step 4 (human
+   approval) reads it. Batch 9's block went stale **twice inside one fix loop** — written before the
+   round's final commit, so it asserted two blockers open that were already discharged at that tip.
+   ⚠ It is `replace, never append`, capped at **60 lines**, and gate 13 reds on both — cut a
+   **paraphrase** and point at the record, ⛔ never a bound.
    The Record step is the queue's trigger: a cadence with no trigger is the
    "standing in prose alone" failure ADR 0079 documents.
 

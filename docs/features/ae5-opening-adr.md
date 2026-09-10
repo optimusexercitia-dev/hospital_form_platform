@@ -1,14 +1,14 @@
 ---
 id: AE5-OPENING-ADR
 title: "AE5's opening decision — the ADR 0176 D8 bundle, the F5 seam model and the per-role template's arm keying, taken together with the admin arm's `is_active` blindness, its Class-2 write reach and the manifest comment that describes a red which is green, so the template is decided before AE5 copies it eleven times (pre-AE5 Batch 9)"
-status: in_progress
+status: complete
 kind: feature
 program: AUTHZ
 phase: "Pre-AE5 remediation — Batch 9 of the follow-up batches ruled 2026-09-04; the last block under plan §3 § Remaining"
-branch: authz-ae5-opening-adr
+branch: ~   # ff-merged to main 2026-09-10 at the Record step; branch deleted. The merge state's ONE home is docs/plans/pre-ae5-remediation.md §2 -- this comment asserts nothing about it
 plan: ../plans/pre-ae5-remediation.md
 progress: ../progress/ae5-opening-adr.md
-reviews: []
+reviews: ["../reviews/ae5-opening-adr-review.md", "../reviews/ae5-opening-adr-rereview.md", "../reviews/ae5-opening-adr-rereview-2.md"]
 adrs: ["0078", "0079", "0155", "0162", "0172", "0175", "0176", "0193", "0200", "0201", "0203"]   # 0201 + 0203 are the ADRs this unit PRODUCED (QA MINOR-1: the list held only the ADRs read)
 handoff: ~
 fup: ~
@@ -41,7 +41,7 @@ wrong predicate, or a case that cannot fail.* Read each **body**, re-measure wha
 **live catalog** (⛔ never migration text — ADR 0078), and correct the clause *before* closing on
 it, never around it.
 
-- [ ] **AE5's opening ADR itself** — the decisions ADR [0176](../decisions/0176-authz-permission-layer-made-real.md)
+- [~] **AE5's opening ADR itself** ⚠ **PARTIAL BY RULING, not by shortfall** — ADR 0201 + 0203 delivered (items 1a, 2, 7 and R3–R12); items 1b–1d → ADR **0202**, items 4–5 → ADR **0204**, item 3 → unit `AE5-MATRIX-ARM3-CELLS`, all by PO rulings **R7/R9**; item 6 delivered as five lead pointers. ⛔ A tick here would claim the whole block; a blank would deny what shipped. — the decisions ADR [0176](../decisions/0176-authz-permission-layer-made-real.md)
       D8 forbids being *"picked off inside a role increment"*, plus the seam model audit F5 orders
       decided *"before AE5"*. Owed, from plan §3 § Batch 9:
       1. The **D8 bundle**, as one compatibility decision: F6 exact-assignment active context vs the
@@ -102,7 +102,7 @@ it, never around it.
          `platform_admin` is denied `redact_professional_profile` (RED before / GREEN after), **and**
          an E2E over the reachable UI path; the entry **stays open** and this box stays unticked.
 
-- [ ] `FUP-ENFORCEMENT-MANIFEST-COMMENT-DESCRIBES-A-RED-THAT-IS-GREEN` 🟡 — rows 31/32 of
+- [x] `FUP-ENFORCEMENT-MANIFEST-COMMENT-DESCRIBES-A-RED-THAT-IS-GREEN` 🟡 — rows 31/32 of
       `supabase/tests/vectors/authz-enforcement-manifest.json` carry a `_comment` saying `401
       § 19.2b` *"is RED on exactly this and must not be re-numbered to 2 … AWAITING A LEAD RULING"*.
       The ruling was taken: 19.2b's expected value moved 1 → 2 **and** § 19.2c was added to pin
@@ -123,63 +123,3 @@ door harness · the set-valued targeted home · the diff-scoped deriver over `ma
 main... -- supabase/migrations supabase/seed.sql src` **EMPTY** — Batch 7's empty-pathspec
 assertion, live again because the PO ruled this batch is not a fix. ⛔ Someone other than the
 builder runs the arms at the tip.
-
-## Current state
-
-**Updated:** 2026-09-10 (QA fix loop, iteration 2 — ⚠ this block went stale INSIDE iteration 1 and
-that was QA N-MAJOR-3; it is replaced, not amended, and it describes the tip it is committed with)
-
-### Objective
-
-Take, and record, the authorization decisions the corpus forbids AE5's first role increment from
-picking off inside itself — ratified per PO ruling R7 as **ADR 0201** (the keying asymmetry) and
-**ADR 0203** (the enforcement seam and the classification columns), with 0202 and 0204 deferred to
-named successors — together with the three follow-ups the PO added at initiation.
-
-### Done since start
-
-**Fourteen PO rulings (R1–R14)**, each with its measured basis in the record and — after QA
-BLOCK-1/2 — **each landed in the corpus, not only the log**. **ADR 0201** (412 lines) + **ADR 0203**
-(337), `proposed`, in `proposed-review.json`. The manifest follow-up's three conditions **met and
-proven**. All three register clauses corrected with superseded wording quoted, including the
-follow-up **body's own** field, which named one site where the item names three. R13's three-site
-bash-3.2 harness fix landed, **verified by the lead, not the builder**. Three lessons, one new rule,
-one prohibition promoted to the lead-playbook, `AE5-MATRIX-ARM3-CELLS` opened, and the
-classification-columns follow-up filed — which is what makes ADR 0203 D3's claim about the register
-true. ⭐ **Gate at the tip, bare:** lint **0** (17/17, 0/0) · typecheck **0** · vitest **151/2056** ·
-`test:db` **264 files / 8923 PASS** on a fresh reset · **four arms HOLD** · deriver **rc 3
-NOT-APPLICABLE**, `SCOPE:` quoted · `SELFTEST` **rc 0, 46/46** on bash 3.2.57 · ⭐ **empty-pathspec
-EMPTY**. **QA:** [r1](../reviews/ae5-opening-adr-review.md) `CHANGES REQUESTED` (2 BLOCK · 2 MAJOR ·
-7 MINOR) → [r2](../reviews/ae5-opening-adr-rereview.md) `CHANGES REQUESTED` (0 BLOCK · 3 MAJOR · 2
-MINOR — ⛔ **all three new MAJORs were defects the fix loop itself introduced**) →
-[r3](../reviews/ae5-opening-adr-rereview-2.md) ⭐ **`APPROVED`** (0/0/3, all three cleared here, not
-carried). Per-finding detail: the record, ⛔ not restated here.
-
-### In progress
-
-Nothing building. **QA fix loop closed at round 3 (`APPROVED`)**, with round 3's three MINORs cleared
-in the same round rather than carried. Awaiting **PO approval — Phase Gate step 4.**
-
-### Next
-
-QA re-review at the iteration-2 tip → PO approval → Record step. What Record owes, **named rather
-than counted** (⚠ this block previously said *"eight"* against an enumeration of five — QA
-N-MINOR-2): both ADRs `proposed` → `accepted` and removed from `proposed-review.json` · `"0201"`
-re-added to the `AE5-MATRIX-ARM3-CELLS` hub · the ledger row · and the follow-ups still to file,
-⛔ **listed, not counted** (QA R2-MINOR-2 killed two counts here already):
-`0176:45`'s no-reader list stale 4→3 with no gate able to say so · `authz-matrix-coverage.json`'s
-`migrationHead` stale against the live head · R10's audit-stamp implementation, which has **no
-register home** · `entailed_grants`' comment numerals that **reproduce at no grain measured** ·
-⭐ **and ADR 0175 D3's undischarged forward promise**, which R2-MINOR-2 caught this list **dropping**:
-the record names it owed twice, and its only home is an **unchecked box** in
-`ae5-matrix-arm3-cells.md`, which is a *unit's* acceptance criterion and ⛔ not a register entry.
-⚠ Separately, these were **discharged inline** rather than filed and so are **not** in the list
-above: the two deferred clauses' censuses (written into their follow-up bodies) and LEARN-095/096/097.
-⛔ No count describes this set, because its members were dispatched two different ways.
-
-### Blockers
-
-**None.** Both QA BLOCKs are discharged and verified by QA at `b58549fe`. ⚠ Two standing bounds, not
-blockers: the Record checklist has **no step that reconciles rulings TAKEN against rulings LANDED in
-the artefact** — the gap that produced both BLOCKs — and LEARN-096's enforcer cannot load on the
-surface where its own incident happened, which its row now states rather than hides.

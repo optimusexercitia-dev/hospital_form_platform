@@ -1883,14 +1883,7 @@ live catalog, and `supabase_migrations.schema_migrations`.
 **Status:** open
 **Body:** [FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-SMOKE-SCRIPT-SERVICE-ROLE-LINKAGE.md](FUP-CAN-MANAGE-PROFESSIONAL-SELF-CHECK-SMOKE-SCRIPT-SERVICE-ROLE-LINKAGE.md)
 
-### 🟡 FUP-ENFORCEMENT-MANIFEST-COMMENT-DESCRIBES-A-RED-THAT-IS-GREEN — rows 31/32's `_comment` is stale
-
-**Filed:** 2026-09-09 (Batch 8, unit CAN-MANAGE-PROFESSIONAL-SELF-CHECK) · **Owner:** lead · **Severity:** medium — no gate can contradict a `_comment`, and this one sits on the document that is the manifest's own authority (LEARN-088)
-**Closes when:** the `_comment` on rows 31/32 states the ruling that was taken and the current value of `401 § 19.2b`, and a fresh run of `401` is quoted beside it showing § 19.2b and § 19.2c green. ⛔ Not closed by deleting the comment — the ruling it half-records is worth keeping.
-**Status:** open
-**Body:** [FUP-ENFORCEMENT-MANIFEST-COMMENT-DESCRIBES-A-RED-THAT-IS-GREEN.md](FUP-ENFORCEMENT-MANIFEST-COMMENT-DESCRIBES-A-RED-THAT-IS-GREEN.md)
-
-### 🟡 FUP-AE5-OPENING-ADR-CLASSIFICATION-COLUMNS-OWE-A-NAMED-CONSUMER — ADR 0203 D3 kept all three columns on a promise; nothing yet keeps it (owner: backend + PO)
+### 🟡 FUP-AE5-OPENING-ADR-CLASSIFICATION-COLUMNS-OWE-A-NAMED-CONSUMER — kept on a promise nothing keeps (owner: backend + PO)
 
 **Filed:** 2026-09-10 (Batch 9, unit AE5-OPENING-ADR, at ADR 0203 D3 / PO ruling R11) · **Owner:** backend + PO · **Severity:** medium — three NOT NULL columns on `authz.permissions` with **zero** runtime readers, kept by a ruling whose condition no gate can check
 **Closes when:** each of `risk_class`, `resource_kind` and `sensitivity_ceiling` has a **named runtime consumer inside the `authz` schema** — a function whose comment-stripped `prosrc` reads it — **and** a gate asserting that consumer still reads it, each arriving **RED before** the consumer lands. ⛔ Not closed by a **test** or a **lint** reader (the columns already have those: `401` §§ 11/13 and `410:122-124` pin their *values*, not their *use*); ⛔ not closed by a later batch ruling the columns are fine; ⛔ and ⛔ not closed by removing them, which ADR 0203 D3 measured as an **invariant loss plus the loss of its own discrimination control** (`401` § 7, `:408`). ⚠ Sequenced **after** AE5 increment 1 per D3's own condition 2.
@@ -1899,3 +1892,43 @@ live catalog, and `supabase_migrations.schema_migrations`.
 **Measured at filing** (live catalog, head pair `(20261003007360, 525)`): runtime readers of the three across six surfaces — `pg_proc`, `pg_views`, `pg_policies`, `pg_constraint`, `pg_indexes`, `pg_attrdef` — are **0/0/0**, and `src/` holds none (`src/lib/types/database.ts` carries no `authz` schema at all). ⭐ **The zero is a finding and not a dead census because of its control:** the identical query family for `resolution_scope_kind` returns **3** functions (`authz.has_permission`, `authz.candidate_has_permission`, `authz.explain_permission`) ⇒ **2 of the 5 columns are runtime-read, 3 are not.** And `authz.permissions` has RLS enabled with **zero** policies and no `SELECT` for `authenticated`, so a consumer **must** be one of the ten `authz` DEFINER functions — none of which reads them.
 
 ⭐ **The precedent that makes the promise credible rather than a hope:** `authz.roles.session_selectable` was the **fourth** column on ADR 0176 `:45-47`'s no-reader list and **now has a reader** — `public.assume_role` — gated by pgTAP `408` including a mutation twin. ⇒ the *"a consumer appears"* branch of ADR 0176 D8 has been exercised once already; that set shrank **4 → 3** and ⛔ **no gate could say so**, which is the whole reason this entry exists rather than a note in an ADR.
+
+### 🟠 FUP-AE5-OPENING-ADR-0176-NO-READER-LIST-STALE-AND-UNGATED — the four-column list is now three, ungated (owner: backend)
+
+**Filed:** 2026-09-10 (Batch 9, unit AE5-OPENING-ADR, while deriving ADR 0203 D3's evidence) · **Owner:** backend · **Severity:** high — a present-tense sentence that is false, inside the ADR that AE5's opening decisions amend, and the *"a consumer appears"* branch it governs has already been taken once without it noticing
+**Closes when:** `docs/decisions/0176-authz-permission-layer-made-real.md:45-47`'s clause carries an **appended** dated correction (⛔ never an in-place rewrite) naming `authz.roles.session_selectable` as having gained a reader — `public.assume_role`, gated by pgTAP `408` including its mutation twin — and stating the remaining set as **three**; **and** either a gate asserts the list against the catalog, or the ADR states in the same sentence that nothing can. ⛔ Not closed by deleting the list.
+**Status:** open
+
+**Measured 2026-09-10**, head pair `(20261003007360, 525)`. `0176:45-47` reads *"Readers of `session_selectable`, `risk_class`, `sensitivity_ceiling`, `resource_kind`: **none**."* — **four** columns. `session_selectable` now has a runtime reader (`public.assume_role`'s `platform_admin` branch), so the true set is **three**. ⭐ The stale half is the load-bearing half: it is the **precedent** that the *"a consumer appears"* branch of D8 is reachable, which is exactly what PO ruling R11 rested on when it kept the other three columns. ⚠ A reader who trusts the sentence concludes the branch has **never** fired.
+
+### 🟡 FUP-AE5-OPENING-ADR-COVERAGE-JSON-MIGRATION-HEAD-STALE — a generated file's head is two versions behind (owner: backend)
+
+**Filed:** 2026-09-10 (Batch 9, unit AE5-OPENING-ADR, found while accounting for a generated-file diff) · **Owner:** backend · **Severity:** medium — a committed figure describing the catalog it was generated from, with no gate comparing the two
+**Closes when:** `supabase/tests/vectors/authz-matrix-coverage.json`'s `migrationHead` either **tracks** the head its generator ran against (written by `scripts/gen-authz-matrix-cells.mjs`, so the generator sets it and a stale value becomes impossible) or is **removed** with a stated reason, because a head recorded once and never re-derived is the *"measure, never quote"* failure in a machine-written file. ⛔ Not closed by hand-editing the value to today's head — that reproduces the defect with a newer number.
+**Status:** open
+
+**Measured 2026-09-10:** the file records `"migrationHead": "20261003007260"`; the live pair is `(20261003007360, 525)` — **two versions behind**. ⚠ Its sibling fields ARE gated and did move correctly this batch (`manifestSha256` and `sourceSha256` both re-stamped, twice), so ⛔ the file is not stale as a whole and a reader can reasonably assume every field in it is current. That asymmetry is the finding.
+
+### 🟠 FUP-AE5-OPENING-ADR-R10-AUDIT-STAMP-HAS-NO-REGISTER-HOME — R10 lives only in an ADR and a log (owner: backend + PO)
+
+**Filed:** 2026-09-10 (Batch 9, unit AE5-OPENING-ADR, PO ruling R10 at Batch 9's Record step) · **Owner:** backend + PO · **Severity:** high — the batch that ruled it does not implement it, and until this entry existed no register row would have made Batch 10 notice
+**Closes when:** `public.assume_role` writes its `active_role.assumed` audit row with **no** scope columns (`organization_id`, `hospital_id`, `commission_id` all NULL) for **every** tier, verified from the live catalog; ⛔ **and `315:212` is REWRITTEN, not ticked** — measured 2026-09-09, that cell asserts *"hospital_id/commission_id stay NULL for an org-tier hat"* and under R10 it **stays green while losing all discriminating power**, because the cell that made it discriminating (`315:208`, asserting `organization_id` **=** the org) is the one that flips. ⚠ `315:246-249` (platform tier, all three NULL) is R10's own carve-out and must stay green throughout.
+**Status:** open
+
+**Mechanism.** Measured from the live body: for a non-`platform_admin` role `assume_role` selects the matching membership `order by m.granted_at desc nulls last, m.id limit 1` and stamps **that one** scope triple, while `app.active_role_selections` stores **no scope column at all** and `hat_ok` compares `role_code` only. ⇒ authority spans **every** seating of the role while the audit row names **one**. PO ruling R10 (2026-09-10) chose *log the role only* over recording the footprint, because a footprint captured at assume-time is a **snapshot** a mid-session grant invalidates while `hat_ok` admits the new seating. ⚠ This discharges ADR 0176 D8's *"audit scope must match whichever wins"* — ⛔ R8 does not; ratifying the asymmetry ratified the mismatch.
+
+### 🟡 FUP-AE5-OPENING-ADR-ENTAILED-GRANTS-COMMENT-NUMERALS-UNREPRODUCIBLE — two figures, no grain (owner: backend)
+
+**Filed:** 2026-09-10 (Batch 9, unit AE5-OPENING-ADR, while re-deriving the §6A asymmetry for ADR 0201) · **Owner:** backend · **Severity:** medium — an ungated figure inside the function body that ADR 0201 ratifies, so a reader checking the ratification meets two numbers that do not resolve
+**Closes when:** `authz.entailed_grants`' comment either states its two figures **with the grain that reproduces them** (a query a reader can re-run) or **drops the numerals** and names the property instead. ⛔ Not closed by substituting freshly measured numbers without a grain — that is the same defect with newer values.
+**Status:** open
+
+**Measured 2026-09-10.** The comment reads *"a THIRD-PARTY question ignores the hat (the **27** `_for` sites), a SELF question requires it (the **151** self-check sites)"*. **Eleven grains** were tried against the live catalog and **none** yields 27, 150 or 151: `_for` functions 18 / 37 · bodies 104 / 69 · policies 2 · occurrences 141 / 178 · `auth.uid()` bodies 43 / 244 / 2 / 289 · `(select auth.uid())` 57 · policies 184 · occurrences 53. ⇒ ⛔ **stated as *"reproduces at no grain measured"*, never as a delta** — an earlier plan turn proposed *"151 → 150"*, which would have committed a correction to a figure whose subject is unknown.
+
+### 🟠 FUP-AE5-OPENING-ADR-0175-D3-FORWARD-PROMISE-UNDISCHARGED — 0175 promises an enumeration that does not exist (owner: backend + PO)
+
+**Filed:** 2026-09-10 (Batch 9, unit AE5-OPENING-ADR; ⚠ QA R2-MINOR-2 caught the Record list DROPPING this) · **Owner:** backend + PO · **Severity:** high — an accepted ADR tells AE5 it inherits work nobody has done, and the promise is the kind a reader acts on rather than checks
+**Closes when:** ADR [0175](../decisions/0175-ae4-po-batch-oracle-inputs-and-arm3-deferral.md) D3's sentence — *"the arm-3 cells **arrive** already enumerated and already known to diverge, so AE5 rules them rather than discovering them"* — is either **discharged** (the enumeration exists, per unit `AE5-MATRIX-ARM3-CELLS`) or **withdrawn** by a dated appended marker on 0175 saying the inheritance was not delivered and why. ⛔ Not closed by the unit's hub existing: a hub is a plan, and ⛔ **an unchecked acceptance box is not a register entry** — which is exactly how this nearly went missing.
+**Status:** open
+
+**Measured 2026-09-09/10:** `supabase/tests/vectors/authz_differential_cells.psql` holds **216** `org.professionals.read` rows and `grep -c divergent` over it returns **0**; the enforcement manifest only *narrates* the hazard (`authz-enforcement-manifest.json:1240` — *"arms 1 and 3 are EXERCISED BUT NOT ORACLED, and arm 3 is OPEN AND MASKING"*). ⚠ D3's wording is **forward-looking**, so this is an **undischarged promise, not a false claim** — ⛔ and it must not be quoted as an assertion of completion. A live home already exists and must not be duplicated: the open QA finding at `docs/reviews/authz-ae4-review.md:99-101`.

@@ -9,7 +9,7 @@ branch: ~
 plan: ../plans/authz-evolution.md
 progress: ~
 reviews: []
-adrs: ["0175", "0176", "0191"]   # 0201 added at Batch 9's Record step, once that file exists (gate 13 reds on an ADR with no file)
+adrs: ["0175", "0176", "0191", "0201"]   # 0201 added at Batch 9's Record step, as promised when it was dropped at unit open
 handoff: ~
 fup: ~
 ---
