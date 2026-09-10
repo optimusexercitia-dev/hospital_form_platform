@@ -242,3 +242,114 @@ its own explicit `is_admin_for` arm so it survives.
 verification** before any of it reaches ADR 0201 — *text is not truth*, and a document is not a
 measurement no matter who hands it over. The ruling is asked again, crisply, once that verification
 returns.
+
+### 2026-09-09 — the PO-supplied Class-2 document verified claim by claim; corrected in BOTH directions (lead)
+
+**Why this step exists.** The document arrived from the PO, and *text is not truth* applies to a
+document no matter who hands it over (LEARN's founding finding, bitten three times per ADR 0078
+A35's own preamble). Eleven load-bearing claims were put to an independent subagent against the
+same live catalog. ⭐ **Nine survive, two are corrected, and one omission is material** — and ⛔ the
+corrections run in **both** directions: one figure was too small, one expected-red list was wrong
+about what would red *and* missed something that would.
+
+**CONFIRMED, quoted from the tree (V2, V3, V4, V5, V7, V9, V11):**
+
+- **No UI affordance reaches the arm.** `updateProfessionalProfile` has 2 references in `src/`
+  (its definition at `src/lib/participants/actions.ts:460` and one doc comment);
+  `redactProfessionalProfile` has **1** (its own definition, `src/lib/ethics/actions.ts:638`). Zero
+  component or client callers for either. ⇒ the arm's only live reach is **PostgREST**. ⚠ This is
+  the same population as the open sibling `…-VOCAB-REDACTION-ZERO-CALLERS`, which is why it is a
+  *reachability* fact and not a *harmlessness* one: a `'use server'` export is POST-reachable
+  whether or not a component calls it (LEARN-018's Server-Action form).
+- **Neither link dialog can reach the `can_manage_professional` branch.**
+  `add-participant-dialog.tsx:982` fires only under `needsLinkage && … && !linkageDecidedAtCreation`,
+  and `resolve-linkage-dialog.tsx:85` renders only when `participant.linkState === "unknown"`. The
+  live RPC re-reads `link_state` from the row and applies `can_manage_professional` **only** when it
+  `is distinct from 'unknown'` ⇒ both dialogs land on `can_create_professional`'s arm. The RPC's
+  server-side re-read means a forged id falls **into** the org-authority check, not past it.
+- **A `platform_admin` cannot reach the tenant route at all.**
+  `src/app/o/[org]/c/[commission]/layout.tsx:108–113` returns `notFound()` when
+  `access.role === null && !isQualityViewer && !isTenancyAdmin`, and its own comment names this case
+  and cites **BUG-MT-005** (`docs/bugs/BUGS.md:168`, status **fixed**). ⇒ Arm B's *"E2E over the
+  reachable UI path"* is **unwritable as the clause words it** — there is no such path. It must be
+  rewritten as: platform JWT gets 404 on the case route **and** 42501 on a PostgREST call.
+- **Both contradictory readings of A35 are live in the tree, verbatim.** `409` § 3.7's message says
+  *"Professional IDENTITY is inside platform_admin's noun (ADR 0078 A35)"*; A30's inventory
+  (`docs/progress/authz-a30-platform-admin-inventory.md:165–172`) puts **this same predicate** in
+  **bucket C** — *"writes Class-2 professional records cross-tenant"* — and defers it as *"a product
+  decision, not a safety necessity"*. ⇒ ADR 0201 must pick one **and retire the other in writing**;
+  leaving both is how the next reader gets an all-clear from whichever they open.
+- **AE5 structure holds.** `authz.roles` `platform_admin`: `allowed_scope_kind = none`,
+  `state = legacy`. `org.professionals.manage` exists in `authz.permissions`
+  (`risk_class = authority`, `sensitivity_ceiling = class2_professional_identity`,
+  `resolution_scope_kind = organization`) and `authz.role_permissions` holds **0** grants of it, with
+  no implication closure reaching it ⇒ **held by nobody**. A scope-less role cannot hold an
+  org-scoped code, so *"keep the arm"* obliges AE5 to invent a carrier for it.
+- **`FUP-ETHICS-RESPONDENT-PIN-FIRES-TOO-LATE`** is open, 🟠 high, `Closes when: PO to rule`.
+- **HC0J7 does not cover the case that matters.** `redact_professional_profile` raises HC0J7 only
+  when `retention_pinned_at` is set **or** the profile is a non-removed `respondent_doctor` on a case
+  whose decision `status = 'issued'`. ⇒ it does **not** bar redacting the respondent of an
+  **undecided** case — exactly the gap the ethics follow-up names.
+
+⭐ **Those four facts compose into one concrete, currently-live scenario, and it is the sharpest
+thing in this entry:** a `platform_admin` — **including a deactivated or suspended one**, per this
+unit's own E1 — can erase the identity (name, CPF, licence, specialty) of the accused doctor in an
+**undecided** ethics case, in **any** tenant, over PostgREST, with **no UI path**, **no retention
+bar**, and **no tenant-side actor in the trail. ⛔ Verified in four independent pieces, not inferred
+from one.**
+
+**CORRECTED — the door closure is 14, not 12 (V1).** The document's set omits a **fourth** `app`
+helper, `app.can_read_professional_profile`, and the two `authenticated`-executable RPCs it reaches:
+`public.get_case_professional` (direct) and `public.log_audit_access` (via
+`app._audit_access_authorized`'s `'professional_profile.read'` arm). Full closure: 3 direct
+(`update_professional_profile`, `redact_professional_profile`, `set_professional_link_state`) + 2 via
+`can_create_professional` (`create_professional_profile`, `ensure_professional_participant`) + 6 via
+`can_manage_case_vocabulary` (create/archive × {`case_assignment_role`,
+`ethics_allegation_category`, `ethics_sanction_type`}) + 1 via `can_manage_external_participant`
+(`create_external_participant`) + **2 via `can_read_professional_profile`** = **14**.
+⭐ **But the behaviourally affected set is 12, not 14, and the difference is load-bearing:**
+`can_read_professional_profile` carries its **own** `app.is_admin_for` short-circuit that returns
+before it ever calls `can_manage_professional`, so removing arm 1 changes **nothing** for those two
+doors. ⇒ ADR 0201 must cite **14 in the closure and 12 as affected**; ⛔ a single number here is
+wrong whichever one is chosen, and this is the *count-is-not-a-set* trap arriving as *one set is not
+two questions*. ✅ Independent corroboration of the 3-direct sub-claim: `320:129–134` already asserts
+by comment-stripped regex that **exactly 3** `public` RPCs name `can_manage_professional`.
+
+**CORRECTED — the expected-red list is wrong in both directions (V10).** Of the four named:
+
+| named | verdict |
+| --- | --- |
+| `228` update positive twin (`228_ethics_e1.sql:630–634`) | ✅ real — `lives_ok(update_professional_profile)` under a `platform_admin` hat, labelled a POSITIVE TWIN; flips to `throws_ok 42501` |
+| `409` § 3.7 | ✅ real — same shape, and its **message text** must be rewritten, not just its polarity |
+| `415` § 1.x arm-1 keying cells | ✅ real — the file's header pins *"BOTH ARMS, BOTH POLARITIES"* |
+| `401` / `410` manifest fields | ⛔ **NOT a behavioural dependency.** The fields exist, but `pendingRekey.layer1Gate` is **AE-layer** terminology, not arm 1 of this predicate's own `OR`, and both `residualLegacyAuthority` entries citing it explicitly label it *"the org-manager arm"* — i.e. **arm 2**. `org.professionals.manage` has `enforcementSites: []`. **Removing arm 1 would not red `401` or `410`.** |
+
+⛔ **And the list MISSED a real one:** `229_authz_m1_exclusion_durability.sql:215–220`, the
+**"M1·1 FREEZE TWIN ⭐⭐"** — it calls `set_professional_link_state` on an **already-linked** profile
+under a `platform_admin` hat and expects `HC0F2` (the B7 freeze). That path needs
+`can_manage_professional` precisely because `v_current_link <> 'unknown'`, i.e. it reaches the door
+**through arm 1**. Remove arm 1 and its error flips to `42501` at the authority check *before* the
+trigger fires ⇒ **red**, and ⛔ red in a way that would read like the freeze had broken. ⚠ 13 test
+files name `can_manage_professional`; the other 9 were inspected and carry no arm-1 behavioural
+dependency (they test the AE4.7c split, arm 2, or structure).
+
+**CORRECTED — two smaller figures (V6, V8).**
+- ⛔ `dispose_attachment_phi` **does not exist in the live catalog, in any schema.** There are **4**
+  `dispose_*` doors, not 5 — the 5 comes from the stale A30 doc. The document's own breakdown
+  (5+2+1) sums to **8** while its headline says 7; the true total **is** 7 (4 + 3), so the headline
+  was right by coincidence and the breakdown was not. ✅ The **outlier finding survives intact**:
+  of all 7 destruction doors, only `redact_professional_profile` reaches `app.is_admin`/
+  `app.is_admin_for`, and only transitively through `can_manage_professional`.
+- `public.professional_profiles`: RLS enabled; **exactly one** policy (`professional_profiles_select`,
+  SELECT, `authenticated`); ACL `{postgres,service_role}` and `has_table_privilege('authenticated', …)`
+  **false for all of** SELECT/INSERT/UPDATE/DELETE ⇒ removing the arm at the predicate is not
+  theatre. `organization_id` **NOT NULL** ✅. ⛔ *"UNIQUE per org"* is **REFUTED as worded**: the only
+  org-scoped uniqueness is the **partial** index `professional_profiles_license_uniq` on
+  `(organization_id, license_number, license_region) WHERE license_number IS NOT NULL`.
+
+**What this changes for the ruling.** Nothing in the corrections weakens the merits — the destruction
+outlier, the zero-UI reach, the nobody-holds-the-permission fact and the undecided-case gap all
+survive. What the corrections change is **what ADR 0201 may write down** and **what Batch 10 must
+expect**: the closure figure (14 / 12 affected), the E2E rewritten to the PostgREST path, `229`
+added to the expected reds and `401`/`410` removed from them. R4 goes back to the PO with these
+figures rather than the document's.
