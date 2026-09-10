@@ -353,3 +353,86 @@ survive. What the corrections change is **what ADR 0201 may write down** and **w
 expect**: the closure figure (14 / 12 affected), the E2E rewritten to the PostgREST path, `229`
 added to the expected reds and `401`/`410` removed from them. R4 goes back to the PO with these
 figures rather than the document's.
+
+### 2026-09-09 — PO rulings R4, R5, R6; and ⛔ R4's stated rejection reason for Option 2 is REFUTED (lead)
+
+**PO ruling R4 — the Class-2 write arm: ARM B, RELOCATED NOT DELETED.** The PO answered with an
+execution-verified addendum (`AskUserQuestion`, 2026-09-09; PO's own run at head
+`20261003007360`, rolled back) adopting the relocation and **rejecting the narrowest variant by
+name**. The ruling to record in ADR 0201: *A35's "identity" noun is the **user directory**; a
+tenant's professional registry is **Class-2 tenant content**. `platform_admin` **reads** it (A35
+ruling 3, unchanged) and never **writes** it.* Batch 10 owes:
+
+1. `app.can_manage_professional` → `select p_uid is not null and app.is_org_admin_of_for(p_org, p_uid)`.
+2. `app.can_manage_case_vocabulary` gains an **explicit** `app.is_admin_for(p_uid)` arm — declared,
+   answer-preserving. ⚠ **This is not optional tidying: the PO's run proved a bare removal STRANDS
+   VOCABULARY** (`42501 "sem autorização para gerenciar o catálogo"`), and vocabulary is an A35
+   MAY-noun. The explicit arm restores it *while redaction stays denied* — measured, both halves.
+3. **No** platform arm on `can_create_professional` / `can_manage_external_participant` ⇒
+   `platform_admin` loses professional create and external-participant mint. ⛔ A behaviour change
+   **beyond the clause**, so ADR 0201 states it in its own sentence rather than letting it arrive as
+   a surprise red.
+4. **Expected reds to RE-RULE, never silence** — the corrected list (this unit's verification entry
+   supplies it, ⛔ not the document's): `228:630–634` positive twin · `409` § 3.7 (**polarity *and*
+   message text**) · `415` § 1.2 flips while § 1.1 and the arm-2 cells stay · `229:215–220` M1·1
+   FREEZE TWIN. ⛔ `401` and `410` are **NOT** on this list — their fields are name-based and their
+   `residualLegacyAuthority` entries name **arm 2**; an optional note only.
+5. **Over-grant twins (ADR 0078 A33, ⛔ mandatory, each mutation-tested):** `org_admin` STILL
+   updates / redacts / re-links; `platform_admin` STILL manages vocabulary; `platform_admin` DENIED
+   `redact_professional_profile` RED-before / GREEN-after. ✅ The PO's run reports `org_admin`
+   update/redact LIVE throughout, i.e. the twins already hold at head.
+
+**PO-measured facts recorded as the PO's own (⛔ attributed, not adopted as this lead's
+measurements).** Each is a claim this session did **not** re-run, and two of them are destructive:
+
+- ⭐ **The harm is PROVEN, not argued:** at head, a `platform_admin` calling
+  `redact_professional_profile` on the seeded **undecided** ethics case **LIVES** — it erased
+  *"Dra. Denunciada"*. Rolled back.
+- Bare removal ⇒ `42501` on redact / update / create / re-link **and** strands vocabulary.
+- ⭐ **`229`'s flip is at the door's FIRST gate**, `can_create_professional` — **not** at
+  `can_manage_professional` as the earlier verification assumed. `org_admin` (`sa_y`, seated at
+  `229:112`) reaches `HC0F2` **before and after** ⇒ the cell **splits in two** per A33's ordering:
+  `org_admin` proves the freeze, `platform_admin` proves the authority deny.
+- Fixture ordering for Batch 10: `228:634`'s positive twin **precedes** the `org_admin` grants at
+  `228:1119` ⇒ reorder, or seat the principal first.
+
+⛔ **R4's STATED REASON FOR REJECTING OPTION 2 IS REFUTED — measured, and it is the lead's job to
+say so.** The addendum rejects the narrow variant on the ground that *"`ensure_professional_participant`
+is gated by `can_create_professional` and **seats a professional INTO A CASE — commission content**"*.
+Both halves fail against the live catalog:
+
+- **It does not seat anyone into a case.** Its only occurrence of the string `case_participants` is
+  `app.assert_case_participants_enabled` — a **feature-flag assertion**; a regex for
+  `(insert|update|delete) … case_participants` over the comment-stripped body returns **false**. Its
+  writes are `public.participants` + `public.professional_participants`. ⭐ **The function's own
+  comment says so in as many words:** *"this door is org-scoped, not case-scoped — it mints a
+  registry identity, **it does not seat anyone**."*
+- **It is not the seating gate.** `public.add_case_participant` is the seating door and it is gated
+  by `app.is_staff_admin_of(v_case.commission_id)` — a **commission** predicate. `can_create_professional`
+  does not appear in it. ⇒ a `platform_admin` holding `can_create_professional` could **not** seat a
+  participant into a case.
+
+⚠ **The CONCLUSION survives on a DIFFERENT fact, and that is why this is a correction and not a
+reversal.** `ensure_professional_participant` inserts a `public.participants` row carrying
+`sensitivity_class = 'professional_identity'` and `display_name = v_prof.full_name` — **the real
+name** (ADR 0091 D1; `participants_sensitivity_derives_type` forces the class). So under Option 2 a
+`platform_admin` could still **create Class-2 professional identity content in any tenant's org
+registry** — an objection on exactly the same noun-rule ground the ruling rests on, just **org-scoped
+Class-2 creation**, not commission content. ⇒ **ADR 0201 must record the surviving reason and ⛔ must
+not repeat the refuted one**; writing *"seats into a case"* into an accepted ADR would put a false
+sentence at the top of the authority chain, which is the `409` § 3.7 failure this very batch is
+retiring. ⚠ Whether the surviving reason is *sufficient* to reject Option 2 is the PO's call and is
+put to them with the ADR draft, not decided here.
+
+**PO ruling R5 — retire `409` § 3.7's contrary reading of A35.** Adopted. ⚠ Under R4 the sentence's
+host cell **flips anyway** (its `create_professional_profile` call is denied), so the marker work
+**rides with Batch 10's rewrite** of that cell rather than being a Batch 9 text edit. Batch 9's share
+is that **ADR 0201 names `409` § 3.7's message as superseded text and names A30's bucket-C reading as
+the one that wins** — so the ruling is durable even if Batch 10 slips.
+
+**PO ruling R6 — correct both register clauses now, before Batch 10 opens against them.** Adopted.
+Owed in this batch: the `is_active` entry's `Closes when` widened from `app.is_admin_for` alone to
+**both** admin predicates, with the measured blast radius beside it; the Class-2 entry's *"E2E over
+the reachable UI path"* rewritten to the **PostgREST** path (there is no UI path — V4), and its door
+list stated as the **closure of 14 with 12 behaviourally affected**. ⛔ Superseded wording quoted in
+place, never overwritten. Both entries **stay `Status: open`**.

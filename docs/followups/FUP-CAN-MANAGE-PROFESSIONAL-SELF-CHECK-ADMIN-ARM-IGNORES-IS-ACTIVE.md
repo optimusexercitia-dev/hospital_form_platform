@@ -22,3 +22,51 @@ recorded in an ADR. Not closed by "no one has deactivated an admin yet".
 `app.can_read_professional_profile` onto their `_for` twins (ADR
 [0200](../decisions/0200-professional-identity-predicates-answer-about-their-subject.md)). Full
 record: [`docs/progress/can-manage-professional-self-check.md`](../progress/can-manage-professional-self-check.md).
+
+---
+
+## ⚠ CLAUSE WIDENED 2026-09-09 — pre-AE5 Batch 9, unit `AE5-OPENING-ADR`, PO ruling R3
+
+⛔ **The clause as filed named the WRONG predicate.** Superseded wording, quoted so nothing is lost:
+*"`app.is_admin_for`'s live `prosrc` contains an `app.is_active` term (verified from `pg_proc`,
+comments stripped)"*. The **Mechanism** above already named *both* `app.is_admin()` and
+`app.is_admin_for()`, so the clause was narrower than the defect it was filed for — Batch 7's *"a
+`Closes when` can name a wrong predicate"* fault, arriving one batch later.
+
+**Blast radius, measured from the live catalog at head pair `(20261003007360, 525)`** — counts
+**and** sets, because *a count is not a set*. `--`/`/* */` comments stripped and a call-shape suffix
+required, since `profiles.is_admin` is also a **column name** and a bare word match counts comments
+and column references (`is_admin_for` never matches `\yis_admin\y`, `_` being a word character):
+
+| predicate | RLS policies (`qual`/`with_check`) | raw text mention | **real call** |
+| --- | --- | --- | --- |
+| `app.is_admin_for` | **0** | 6 | **5** |
+| `app.is_admin()` | **26** | 32 | **13** |
+
+The 5 real `is_admin_for` callers: `app.can_manage_professional`,
+`app.can_read_professional_profile`, `app.grant_role_impl`, `app.recover_orphan_person_to_org_impl`,
+`app.revoke_role_impl` (the 6th mention is comment-only, in `app.affiliate_person_impl`).
+⛔ The 26 policies and 13 functions are a **set to re-derive at the fixing batch's own head**, never
+a list to quote from here.
+
+**Two facts the Mechanism above does not contain, both measured 2026-09-09:**
+
+1. ⛔ **The gap is NOT bounded by token lifetime.** `app.active_role()` is
+   `current_setting('request.jwt.claims')::jsonb ->> 'active_role'` — a bare claim read. And
+   `public.assume_role`, the door that seats the hat, tests only
+   `exists(select 1 from profiles where id = v_uid and is_admin = true)` on its `platform_admin`
+   branch — **no `is_active`**. So a deactivated or suspended admin can seat a **fresh** hat.
+   ⛔ Anyone reasoning *"the hat expires, so exposure is one session"* is reasoning from an
+   assumption this refutes.
+2. **No pgTAP cell anywhere deactivates a `platform_admin` and measures an admin arm.** Eight
+   candidate files inspected (`229`, `293`, `318`, `397`, `398`, `401`, `404`, `409`, `415`): every
+   existing "deactivated principal" cell targets a **different** role — `404` a `staff_admin`, and
+   its own § 1.5 comment says it stopped there deliberately, naming this item's predecessor as why;
+   `409` § 3.10/3.11 a `staff_admin`; `397` § 2.6 an `org_admin`; `401` § 16.3/16.4 a `staff_admin`.
+   `415` contains **zero** occurrences of `is_active`. ⇒ the RED-first cell the clause demands does
+   not exist to be reused.
+
+**PO ruling R3 (2026-09-09): gate BOTH predicates.** Platform-admin authority does follow account
+state. The migration and the RED-first cell are **Batch 10**; this entry stays `Status: open`.
+⚠ **A THIRD site the clause still does not name:** `public.assume_role` itself. Whether it also
+gains the term goes to the PO with Batch 10's shape — ⛔ it is **not** silently in scope here.
