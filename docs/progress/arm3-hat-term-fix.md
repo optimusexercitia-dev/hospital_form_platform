@@ -388,3 +388,49 @@ sides), `docs/decisions/INDEX.md` (count line + table tail, both sides), and
 sides; both append a new `##` on the same trailing line). The two indexes are regenerated, the seam file is
 hand-merged keeping both sides. Main's new open-edge bullet says its 0207/0208 are *RULED, NOT BUILT*;
 after the renumber that sentence and our *built, migration 20261003007400* slice name different ADRs.
+
+### 2026-09-11 — rebased onto `main` (`dd3629be`); lead gate at the rebased tip `9057829a`, every rc bare (lead)
+
+**Rebase.** Two commits replayed onto `main` `dd3629be` (unit `AE5-SUCCESSOR-ADRS` landed between our
+branch point and now). Stops exactly as the conflict check predicted: (1) `docs/features/INDEX.md` —
+resolved by taking main's copy and regenerating (`build-features-index --check` rc **0**, 26 hubs);
+(2) `docs/decisions/INDEX.md` — regenerated over both sides (`adr:index`: 205 ADRs, next free 0210,
+back-pointers current) and `docs/backend-state/authorization-and-audit.md` — hand-merged keeping BOTH
+sides: the *Where the detail lives* bullet now names main's `§ The two pre-AE5 successor decisions
+taken (ADR 0207 + 0208)` AND our `§ The ACT hat becomes a door-level term (ADR 0209)`; main's frozen
+slice precedes ours at the tail. Gate 16 rc **0** after the merge. `main` is an ancestor of the tip;
+`git status` clean.
+
+**Gate at `9057829a`, base `dd3629be` — readings bare, never through a pipe.**
+
+```
+npx supabase db reset --local                      rc 0   (fresh)
+npm run test:db                                    rc 0   Files=267, Tests=9025, Result: PASS, 0 not ok
+npm run lint                                       rc 0   (0 errors, 0 warnings; gates 12/13/16 inside)
+npm run typecheck                                  rc 0
+ARM=census                                         rc 0
+ARM=hat                                            rc 0   (this door not on the allowlist — passes on merit)
+ARM=floor                                          rc 0   every never-called door on the floor allowlist
+FROMFINDINGS=1 ARM=wrapper                         rc 0   BLIND set size: 41 (all allowlisted, unchanged)
+bash --version                                     GNU bash, version 5.2.37(1)-release (x86_64-pc-msys)
+SELFTEST=1 bash scripts/door-sweep-cases.sh        rc 0   SELF-TEST: PASS 46 · FAIL 0 · SKIPPED 0
+   --- GROUP deriver:               scenarios 20 (pass 20 · fail 0 · skipped 0)
+   --- GROUP merge helper:          scenarios 18 (pass 18 · fail 0 · skipped 0)
+   --- GROUP audit startup capture: scenarios 8 (pass 8 · fail 0 · skipped 0)
+bash scripts/door-sweep-cases.sh dd3629be          rc 0   (read bare, then CASES set in a second step)
+   SCOPE: 1 file(s) — 1 committed (dd3629be..HEAD), 0 worktree, 0 untracked | filter: none | derivation: catalog
+   case list: can_read_professional_profile
+door sweep arm 1 (CASES=…)                         rc 0   SWEPT 1 · COVERED 1 · BLIND 0 · NOTICED 0 · ERROR 0 — RESULT: CLEAN
+door sweep arm 2 (FROMFINDINGS=1 CASES=…)          rc 0   SWEPT 1 · COVERED 1 · BLIND 0 · NOTICED 0 · ERROR 0 — RESULT: CLEAN
+   ARM-DOMAIN predicate=1/127 policy=0/226 out-of-domain-bool=35   (both arms)
+git diff --stat -- docs/reviews/authz-door-audit-findings.md      0 bytes (subset run, baseline untouched)
+authz-setvalued-targeted-cases.sh                  rc 0   ARM-DOMAIN setvalued=3/3 (in scope) out-of-scope=2 (named, with dispositions)
+npm run gen:types ; git diff --stat database.ts    rc 0 · 0 bytes (signature unchanged; app schema not exposed)
+```
+
+⚠ The deriver's `SCOPE:` says **1 committed, 0 worktree, 0 untracked** because the migration is now
+committed; the build session's line read `0 committed … 1 untracked` for the same one file. Same
+increment, two provenances — quoted rather than reconciled.
+
+**Not yet run at this tip:** `npm run e2e:prod` (started after this entry, result in the next entry) and
+the QA review.
