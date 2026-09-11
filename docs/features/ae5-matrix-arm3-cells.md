@@ -58,17 +58,17 @@ this — ADR 0201 is what the template needs. This unit is due before **incremen
 ⚠ **A live home already exists and must not be duplicated:** the open QA finding at
 `docs/reviews/authz-ae4-review.md:99-101`. Read it before deriving scope.
 
-- [ ] **The divergence enumerated, derived not eyeballed.** ADR 0175 D3's divergence is that *arm 3
+- [x] **The divergence enumerated, derived not eyeballed.** ADR 0175 D3's divergence is that *arm 3
       grants with **no org term at all***. Owed: every cell in the candidate population labelled with
       whether arm 3 diverges from the oracled arms, the label **derived** from the live catalog and
       the generator, and the population stated as a **set, not a count** (⛔ Batch 7: *a count is not
       a set*; ⛔ Batch 7 again: *a derived sweep piped through `head` is a hand-list wearing a label*).
-- [ ] **A PO expected value per cell CLASS**, not per row — with the classes themselves derived, and
+- [x] **A PO expected value per cell CLASS**, not per row — with the classes themselves derived, and
       the class count reported before the rulings are sought.
-- [ ] **Arm 3 stops being "OPEN AND MASKING"** — the manifest's own words at `:1240` are the
+- [x] **Arm 3 stops being "OPEN AND MASKING"** — the manifest's own words at `:1240` are the
       condition to retire, and retiring them means the oracle covers arm 3, not that the sentence was
       deleted.
-- [ ] **The forward promise closed at its source.** ADR 0175 D3's sentence gets a dated marker saying
+- [x] **The forward promise closed at its source.** ADR 0175 D3's sentence gets a dated marker saying
       the inheritance was delivered (or, if the PO rules the cells need not be enumerated, why the
       promise is withdrawn). ⛔ Not closed by the cells existing while 0175 still reads as a promise
       nobody kept — that is the `409` § 3.7 failure shape pre-AE5 Batch 9 exists to retire.
@@ -83,7 +83,7 @@ migration. ⛔ Someone other than the builder runs the arms at the tip.
 
 ## Current state
 
-**Updated:** 2026-09-11
+**Updated:** 2026-09-11 (post-gate)
 
 ### Objective
 Discharge ADR 0175 D3's forward promise as WORK: label every cell of the arm-3 candidate population
@@ -91,38 +91,33 @@ with whether arm 3 diverges, **derived**; a PO expected value per derived **CLAS
 actually oracle arm 3 (what retires the manifest's *"OPEN AND MASKING"*); close 0175 D3 at its source.
 
 ### Done since start
-Hub's own figures re-derived (**216** and **0** unmoved; ⛔ anchor `:456` → **`:459`**). ⛔ The local
-stack was **one migration behind the tree** on this door's own arm 1; reset to `(20261003007390, 528)`.
-**Arm 3 derived from the live catalog**: ⛔ no org term (ADR 0175 D3 **CONFIRMED**); `_case_caps` STEP 2
-gates on `app.is_active`, so suspended/deactivated close it — ⚠ but `pending` is **not** an `is_active`
-state, so 54 pending cells stay reachable; S3/S4 carry **no role lookup**, so arm 3 survives an
-**absent hat**. ⭐ A **live, unmasked arm-3 grant reproduced on the untouched seed**. Population = a
-**partition of 216**: 108 blocked · 30 masking · **36 + 32 + 10 divergent**.
-**PO rulings:** **R1** generator-side, axis-driven seam; **R2** classes 3 + 4 **approved** as designed
-reach, class 5 a **BUG** (filed; the PO's caveat binds its fix **and its test**).
-**Built, each verified by the lead at the tip — ⛔ never by the builder:**
-**inc. 1** `case_reach` axis + `arm3_divergence` label; **inc. 2** gate-scoped by a named rule bound to
-the manifest by new coverage `arm9` — 1728 cells, per-cell **byte-identity** proven (0 altered);
-**inc. 3** ⭐ **`403` now ORACLES arm 3** — §7.3 **REPLACED not renumbered** (old sentinel text count =
-**0**), §7.3b measures all four reaches where `unreachable` and `grant_keyed` are **one grant row
-apart**, §7.4 pins the defect, §7.5 is the class-4 guard, §4.1b pays for the carve-out. R2's GRANT
-landed in a **new 14th column** `expected_legacy_granted` (320 true; **92 flips, all on approved
-labels**) — ⛔ `expected_granted` **unmoved at 228**, proven by stripping col 14 and diffing: **0 of
-1728 rows differ**. **Mutation-proven**, and it **widened the PO's caveat**: a role-keyed hat check
-also kills class 3's 36 approved cells, because S3 is role-free by design.
-`403` run by the lead: **EXIT=0, Files=2, Tests=28, 0 `not ok`**. `npm run lint` **17/17 exit 0**.
-**Found in passing:** manifest `openArms` **fixed**; the register header's per-bug-doc figure
-re-derived (**3** → **5**, stale before this unit); two follow-ups; **LEARN-103**.
+All four acceptance criteria met (ticked above), each with its witness in the record. **Arm 3 derived
+from the live catalog** (no org term — D3 CONFIRMED; no role lookup; `pending` reachable); a **live,
+unmasked arm-3 grant reproduced on the untouched seed**. Population = a **partition of 216** at the rep:
+108 blocked · 30 masking · 36 + 32 + 10 divergent. **PO rulings R1** (generator-side axis) and **R2**
+(classes 3 + 4 approved reach; class 5 a **BUG**, filed, not fixed). **Built and lead-verified at the
+tip**: `case_reach` axis + `arm3_divergence` label (inc. 1); gate-scoped by a named rule bound to the
+manifest via coverage `arm9`, 1728 cells, byte-identity proven (inc. 2); ⭐ **`403` ORACLES arm 3** —
+§7.3 replaced, §7.3b/§7.4/§7.5/§4.1b added, R2 in a 14th column, `expected_granted` unmoved,
+mutation-proven and the PO's caveat **widened** (neither an org term nor a role-keyed hat check) (inc. 3).
+**This session (resumed from origin):** rebased onto `main` (one docs conflict, resolved to `main`);
+**manifest qualifier RETIRED FOR ARM 3**, history verbatim, scope stated (arm 1 still owed); **ADR 0175
+D3 closed by dated markers**; **authz seam slice + `## Current state` replaced** (97/100 lines; the
+file crossed the 160 KB warn line → `FUP-…-AUTHZ-SEAM-CROSSED-ITS-WARN-LINE`).
+**Gate at tip `29422327`, run by the lead, every rc bare:** typecheck 0 · unit 154/154 · `test:db` on a
+fresh reset `Files=267, Tests=9023, PASS` · **census 608 HOLDS · hat HOLDS (4 allowlisted) · floor
+HOLDS · wrapper HOLDS** · SELFTEST deriver `46/0/0` + door harness 0 · deriver **NOT-APPLICABLE (3)**
+both arms (no migration; `SCOPE:` quoted in the record) · set-valued **CLEAN 3/3** · tree clean before
+and after. ⛔ `lint` was **1** at that tip — gate 13 on the record's own handoff citation, reworded;
+re-run bare at the tip that carries this block (record, next entry).
 
 ### In progress
-Second documentation pass — auditing every home this unit touched (backend-state seam, PROGRESS.md,
-the plan, QA finding F3, the declared ADRs, the registers) for what is owed **before** the gate.
+Phase Gate step 3 — the QA review (`docs/reviews/ae5-matrix-arm3-cells-review.md`), not yet written.
 
 ### Next
-Retire the manifest qualifier **because `403` oracles arm 3**, ⛔ never by editing the sentence; close
-ADR 0175 D3 at its source with a dated marker; append the authz seam's slice and **replace** its
-`## Current state`. Then the gate: `test:db` on a **fresh** reset, the four authz arms with domains
-quoted, `SELFTEST=1` on deriver **and** door harness, the diff-scoped sweep read **bare**.
+QA review → human approval (step 4) → Record step (lead-playbook §4: ledger row, plan §2 row, hub
+`complete`, ff-merge to `main`; ⛔ **no push** — standing instruction). E2E `e2e:prod` ruled **not
+owed** (no `src`/migration/seed/`e2e` in the diff) — for QA to confirm.
 
 ### Blockers
 None. ⚠ Standing: *"do not push"*. ⛔ Class 5's fix is a filed bug and deliberately **not** this unit.
