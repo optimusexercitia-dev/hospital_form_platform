@@ -12,14 +12,13 @@
 > A hub's `## Current state` is its summary; its progress record's `## Session log`
 > (`docs/progress/<code>.md`) is its detail (ADR 0186 D3).
 
-**27 hubs** · in progress 0 · gated 4 · planned 2 · parked 0 · complete 21
+**27 hubs** · in progress 0 · gated 3 · planned 2 · parked 0 · complete 22
 
 | ID | Title | Status | Kind | Program | Branch | Hub |
 |---|---|---|---|---|---|---|
 | BACKEND-STATE-CURRENT-STATE | Backend seams get a replaceable current-state layer — a projection above the frozen history, gated in four checks (ADR 0198) | 🚧 gated | feature | DOCS | `backend-state-current-state` | [backend-state-current-state.md](backend-state-current-state.md) |
 | BACKEND-STATE-SPLIT | Backend surface map split onto the module-seam axis — a router replaces the 742 KB reading list (ADR 0196) | 🚧 gated | feature | DOCS | — | [backend-state-split.md](backend-state-split.md) |
 | DATA-ACCESS-GENERATION | Data-access registries generated from the catalog — four hand-maintained tables replaced by a derive-and-compare pair, gated in two halves (ADR 0197) | 🚧 gated | feature | DOCS | `data-access-generation` | [data-access-generation.md](data-access-generation.md) |
-| DEFINER-SEARCH-PATH-NARROW-FIX | The 419 ratchet freezes the non-empty DEFINER search_path population, and the narrow ALTER FUNCTION migrations converge the two named members | 🚧 gated | fup-fix | AUTHZ | `definer-search-path-narrow-fix` | [definer-search-path-narrow-fix.md](definer-search-path-narrow-fix.md) |
 | C1B-DISPOSAL | PHI-disposal Cloud rehearsal (C1b) | 🔜 planned | feature | DM5 | — | [c1b-disposal.md](c1b-disposal.md) |
 | DLB | Deliberation & Voting Model — typed committee decisions with vote arithmetic the database owns | 🔜 planned | feature | DLB | — | [dlb.md](dlb.md) |
 | ADMIN-ARM-IS-ACTIVE | The admin arm follows the subject's state — `app.is_active` on `app.is_admin()`, `app.is_admin_for()` and `public.assume_role`, each RED-first; the `platform_admin` Class-2 write arm removed and relocated; R10's role-only audit stamp built with `315:212` rewritten; the four expected reds re-ruled, never silenced (pre-AE5 Batch 10 — the fix Batch 9 decided and deferred) | ✅ complete | feature | AUTHZ | — | [admin-arm-is-active.md](admin-arm-is-active.md) |
@@ -31,6 +30,7 @@
 | BACKEND-STATE-SERVICE-ROLE-SEAM | The service-role DML registry gets its own seam — the first application of ADR 0196 D4's remedy, ruled by the PO on 2026-09-11 when authorization-and-audit.md crossed gate 16's warn line | ✅ complete | feature | DOCS | `backend-state-service-role-seam` | [backend-state-service-role-seam.md](backend-state-service-role-seam.md) |
 | C2-TIER1 | Command-door Tier 1 sweep — PHI-touching command doors, gate-aware closure | ✅ complete | feature | AUTHZ | — | [c2-tier1.md](c2-tier1.md) |
 | CAN-MANAGE-PROFESSIONAL-SELF-CHECK | `app.can_manage_professional`'s self-check arm — a third-party predicate whose first arm answers about the caller, given its reachability analysis, the PO's ruling, and (if ruled) the migration that makes it answer about `p_uid` (pre-AE5 Batch 8) | ✅ complete | feature | AUTHZ | — | [can-manage-professional-self-check.md](can-manage-professional-self-check.md) |
+| DEFINER-SEARCH-PATH-NARROW-FIX | The 419 ratchet freezes the non-empty DEFINER search_path population, and the narrow ALTER FUNCTION migrations converge the two named members | ✅ complete | fup-fix | AUTHZ | `definer-search-path-narrow-fix` | [definer-search-path-narrow-fix.md](definer-search-path-narrow-fix.md) |
 | DOCS-CONSOLIDATION | Documentation consolidation — one home per fact, one summary and one log per unit (ADR 0186) | ✅ complete | feature | DOCS | `docs-consolidation` | [docs-consolidation.md](docs-consolidation.md) |
 | DOCS-RESTRUCTURE | Documentation restructure — feature hubs, CURRENT.md, gated registers (ADR 0185) | ✅ complete | feature | DOCS | `docs-restructure` | [docs-restructure.md](docs-restructure.md) |
 | DOOR-SWEEP-DERIVER | Door-sweep case deriver — select gates by PROPERTY, read the whole declaration, scope the increment, and let a full run keep the hand-authored baseline (pre-AE5 Batch 1) | ✅ complete | feature | AUTHZ | — | [door-sweep-deriver.md](door-sweep-deriver.md) |

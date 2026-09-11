@@ -381,3 +381,22 @@ deriver's exit 1 ruled by the lead (option (a), predicate arm by hand) — to ra
 follow-ups this unit filed that name the PO as owner (four temp-table DEFINERs free to converge; the
 D5 rule file deferred on the 12-file cap; D4's qualified-body clause ungated). The CLAUDE.md review
 queue is non-empty (88 lines, per-clone) — Record-step item 7.
+
+### 2026-09-11 — PO approval; Record step (lead)
+
+**Approval and its SCOPE, written down:** the PO replied *"Approved"* to the step-4 presentation that
+named four rulings. Read as: the unit approved; the door-sweep deriver exit-1 ruling (option (a),
+predicate arm by hand) **ratified**; the AC-5 disposition **accepted as proposed** (an undeclared
+`search_path` is a defect to converge, never a frozen-set member — landed in the FUP body's ✅ section,
+the archive note and the seam's `## Current state`, not only here); ⛔ the two follow-ups that name
+the PO as owner (four-DEFINER convergence; the D5 rule file on the 12-file cap) are **NOT** ruled by
+that word and stay open. If the PO meant otherwise, the correction is one line in each.
+
+**Record step, what moved where:** ledger row appended (Commit cell filled at the merge record) ·
+`FUP-NO-GATE-CATCHES-A-COLLAPSED-SEARCH-PATH` entry moved VERBATIM open → archive with the closure
+note; its body file given a ✅ section then FOLDED into the archive and deleted (gate 13 requires the body inline; two historical backtick citations of the old path stay as written, named in the ✅ section) · hub → `complete`, ACs
+ticked (AC-5 ticked on the ruling), `## Current state` removed · seam `## Current state` sentence for
+AC-5 replaced by `backend` at `d683a79a` (gate 16 refuses a date inside the block, so the PO date is
+here and in the FUP, not there; 9 seam blocks sit within 8 lines of the 100-line ratchet) · no ADR
+produced (ADR 0207 carries the appended ordering note) · review queue non-empty (88 lines) —
+surfaced to the PO, not run. NOTE-r2-2 (a historical `867` in generator prose) left as history.

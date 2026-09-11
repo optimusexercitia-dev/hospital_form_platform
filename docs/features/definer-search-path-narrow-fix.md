@@ -1,7 +1,7 @@
 ---
 id: DEFINER-SEARCH-PATH-NARROW-FIX
 title: "The 419 ratchet freezes the non-empty DEFINER search_path population, and the narrow ALTER FUNCTION migrations converge the two named members"
-status: gated
+status: complete
 kind: fup-fix
 program: AUTHZ
 phase: "pre-AE5 remediation — ADR 0208 D5 + D6; ordered BEFORE AE5-ROLE-CATALOG-COMPAT (ruled 2026-09-11)"
@@ -25,55 +25,26 @@ hint, and the four targeted tests"*), widened by one door under
 
 ## Acceptance criteria
 
-- [ ] **AC-1 — the 419 ratchet.** `supabase/tests/419_*.sql` holds the `prosecdef` functions in
+- [x] **AC-1 — the 419 ratchet.** `supabase/tests/419_*.sql` holds the `prosecdef` functions in
       `app`/`public`/`authz` carrying a NON-empty `search_path` as a **frozen name set that may only
       shrink**: a function not in the set carrying a non-empty path reds; a member converging to `''`
       is a shrink and stays green. The set is a **generated, committed artifact** with a `--check`
       (ADR 0197's pattern), never a hand-typed list. Red-first: a planted new non-empty DEFINER is
       seen; a dead-instrument control distinguishes VOID from PASS. `414` is kept unchanged.
-- [ ] **AC-2 — the narrow migration, two members.** `ALTER FUNCTION public.tenant_orphan_profiles()
+- [x] **AC-2 — the narrow migration, two members.** `ALTER FUNCTION public.tenant_orphan_profiles()
       SET search_path = ''` (0208 D6) and `ALTER FUNCTION app.can_read_professional_profile(uuid,
       uuid) SET search_path = ''` (FUP § Scope added), no body re-emission; the `413` pin on the
       second moves in the SAME change. `app.tenant_orphan_profiles` is NOT touched.
-- [ ] **AC-3 — the four temp-table DEFINERs measured, not assumed.** Targeted pgTAP for
+- [x] **AC-3 — the four temp-table DEFINERs measured, not assumed.** Targeted pgTAP for
       `app.copy_response_answers` · `app.copy_template_version_children` · `app.copy_version_children`
       · `public.clone_framework`: each proves its behaviour today AND measures, in a rolled-back
       savepoint, whether it still works under `search_path = ''` — so "not a free change" becomes a
       per-function verdict. ⛔ No catalog-wide sweep.
-- [ ] **AC-4 — the `.claude/rules/` hint**, path-scoped to `supabase/migrations/**`, naming the
+- [x] **AC-4 — the `.claude/rules/` hint**, path-scoped to `supabase/migrations/**`, naming the
       419 ratchet as the enforcer (CLAUDE.md §8: a rule is a hint, never a substitute).
-- [ ] **AC-5 — open half 1 ruled**: what happens when `414 § 0b`'s 890/890 moves (a DEFINER with no
+- [x] **AC-5 — open half 1 ruled**: what happens when `414 § 0b`'s 890/890 moves (a DEFINER with no
       `search_path` at all) — stated in the record and the FUP, not left pinned.
-- [ ] **AC-6 — gates**: fresh `db reset` + `test:db`, `npm run lint`, diff-scoped door sweep both
-      arms, backend-state seam slice appended + `## Current state` replaced.
+- [x] **AC-6 — gates**: fresh `db reset` + `test:db`, `npm run lint`, diff-scoped door sweep both
+      arms, backend-state seam slice appended + `
 
-## Current state
-
-### Objective
-Land ADR 0208 D5 + D6 so the follow-up closes, before `AE5-ROLE-CATALOG-COMPAT` writes a new DEFINER.
-
-### Done since start
-- Branch cut from `main @ 6d7dd589`; ordering ruled in the handoff and ADR 0207 (2026-09-11).
-- AC-1..AC-4, AC-6 BUILT red-first (`backend`): migration `20261003007410` (two `ALTER FUNCTION`),
-  pgTAP `419` + generated freeze artifact (867 → 865, pure deletion) + gate 18 `lint:definer-freeze`,
-  pgTAP `420` (four temp-table DEFINERs all measured **free**), the `413` pin flipped, `409 § 6.1`
-  reshaped (an unenumerated third reader of the constant), one-line D5 hint (rules dir at 12/12).
-- Gates on the built tree: fresh `test:db` 269/9048 rc 0 · `lint` rc 0 · typecheck rc 0 · vitest rc 0 · `gen:types` no diff.
-- Two follow-ups filed (four-DEFINER convergence unruled; D5 rule file deferred on the cap); AC-5
-  disposition PROPOSED in the FUP body, PO to rule.
-
-- Build committed `68ffb591`; door sweep (deriver exit 1 RULED, option (a)) predicate arm CLEAN 1/1 COVERED, policy arm 0 of 226 selected; SELFTEST 46·0·0; freeze `--check` in sync 865.
-- Third follow-up filed: the door sweep's "arm 2 (FROMFINDINGS=1)" label is arm 1 repeated — `FROMFINDINGS` is the wrapper arm's knob; this unit's rows say predicate / policy.
-
-- QA round 1 on `68ffb591`: **CHANGES REQUESTED** — 0 BLOCK · 2 MAJOR (text: the rule line names 419 + gate 18 as enforcer of BOTH D4 clauses, only the path clause is gated; `lint-gates.md` states gate 18's baseline order backwards) · 4 MINOR · 6 NOTE. Fourth follow-up filed (D4's qualified-body clause ungated, PO to rule).
-
-### In progress
-- Step 4, human approval: PO reads this block, the QA verdict and the four open rulings named in the record's last entry.
-
-### Next
-- On approval: Record step (ledger row, FUP `NO-GATE-CATCHES-A-COLLAPSED-SEARCH-PATH` closed in both homes on the two deliverables, hub → complete, review queue) → merge to `main` → then `AE5-ROLE-CATALOG-COMPAT`.
-
-### Blockers
-- None — gated: fresh `test:db` 269/9050 rc 0 · lint 0/0 (18 gates) · typecheck · vitest · authz arms census/hat/floor/wrapper rc 0 · door sweep predicate CLEAN 1/1, policy 0 of 226 · SELFTEST 46·0·0 · `e2e:prod` 1263/0/0 · QA r2 APPROVED at `3cb82f1b`.
-
-**Updated:** 2026-09-11
+**Complete 2026-09-11** — PO approved; ledger row in `docs/progress/phase-ledger.md`; detail in the [record](../progress/definer-search-path-narrow-fix.md).

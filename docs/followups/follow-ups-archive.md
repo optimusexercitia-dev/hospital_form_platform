@@ -13292,3 +13292,303 @@ correction and this closes there instead.
 
 **Origin.** Filed at unit `AE5-MATRIX-ARM3-CELLS`'s QA review (finding 2, MAJOR); full record:
 [`docs/progress/ae5-matrix-arm3-cells.md`](../progress/ae5-matrix-arm3-cells.md).
+
+### 🟡 FUP-NO-GATE-CATCHES-A-COLLAPSED-SEARCH-PATH — a `SET search_path` that silently resolves to nothing passes every gate in the chain — ✅ RESOLVED 2026-09-11
+
+> **RESOLVED 2026-09-11** — unit DEFINER-SEARCH-PATH-NARROW-FIX, ADR 0208 (D4–D6) + ADR 0209 § Considered and held.
+> Record: docs/progress/definer-search-path-narrow-fix.md. Closing commit(s): `68ffb591` (migration
+> `20261003007410`, pgTAP 419 + 420, gate 18) · `a6c4c83e` / `3cb82f1b` (QA rounds).
+> Closed ON the re-claused clause below exactly as written: BOTH deliverables of ADR 0208 landed in the
+> named unit — (1) the prospective gate as pgTAP `419` over a generated frozen name set (865 rows;
+> shrink-only) in `test:db`, with gate 18 as its no-Docker half and a one-line rule hint; (2) the narrow
+> forward migration `ALTER FUNCTION public.tenant_orphan_profiles() SET search_path = ''`, plus the
+> § Scope-added door `app.can_read_professional_profile(uuid, uuid)` in the same migration, no body
+> re-emission, the `413` pin moved with it. `414` byte-unchanged. Open half 1 RULED by the PO
+> 2026-09-11 (an undeclared search_path is a defect to converge, never a set member). Bounds the
+> closure does NOT reach, each with its own open entry: the four temp-table DEFINERs measured free but
+> not converged; D4's qualified-body clause ungated; the dedicated rule file deferred on the 12-file cap.
+> QA APPROVED r2 (docs/reviews/definer-search-path-narrow-fix-review.md); PO approval 2026-09-11.
+> ⚠ The body file is folded in below and deleted; two historical backtick path citations of it are named in its ✅ section.
+>
+> ⛔ **The entry block below is VERBATIM, its `Closes when` included.**
+
+
+**Filed:** 2026-09-03 (QA review of the AE4/IA-F9 statement-scoped increment — ADR [0182](../decisions/0182-statement-scoped-authorized-scope-ids.md) · **Owner:** lead + backend · **Severity:** medium — the whole known population is
+**Closes when:** ⚠ **RE-CLAUSED 2026-09-11 — this field named a gate that now EXISTS** (superseded text, kept so the change is visible: *"A `lint:*` gate (or a pgTAP catalog assertion, which is cheaper — it needs no new script and the DB is already the authority) asserting that for every `prosecdef` function in `app`/`public`/`authz`, `proconfig`'s `search_path` either is the empty form or splits into schemas that all exist in `pg_namespace`. ⛔ Text-matching for a quote is the *symptom*; the property is 'every named schema resolves'."* — `supabase/tests/414_definer_search_path_resolves.sql` asserts exactly that over 890 functions, § 0b at `:119` and § 1 at `:131`, and the entry's own *"two halves"* section already said so). It now closes when **both** deliverables of ADR [0208](../decisions/0208-the-candidate-fanout-is-structurally-dominated-and-empty-search-path-is-the-sole-forward-convention.md) land in the named unit `DEFINER-SEARCH-PATH-NARROW-FIX`: (1) the **prospective gate** against NEW non-empty DEFINER paths — a pgTAP ratchet (next free number 419) holding the non-empty-path population as a frozen name set that may only shrink, in `npm run test:db` because `npm run lint` may not require Docker, so it buys *"the next Phase Gate noticed"* and never *"the next commit noticed"* (ADR 0195); a `.claude/rules/` file may accompany it as a **hint**, ⛔ never as the enforcer; and (2) the **narrow forward migration** `ALTER FUNCTION public.tenant_orphan_profiles() SET search_path = ''` — its live `prosrc` already qualifies its only reference, so no body re-emission. ⛔ Not closed by `414` (it proves schemas **resolve**, which is not the safety property — the file makes no safety claim, verified as an absence), ⛔ not by admitting the dominant string as a second convention (a gate written to admit it accepts all five present forms **and any future path built from existing schemas**), ⛔ not by a catalog-wide `ALTER FUNCTION` sweep before the four temp-table DEFINERs get targeted tests, and ⛔ not by this ADR, which changes no catalog.
+**Ruling:** 2026-09-11 (PO, unit `AE5-SUCCESSOR-ADRS`) — ADR 0208 D4: *"`SET search_path = ''` with schema-qualified object references is the sole forward convention for new or touched SECURITY DEFINER functions. Existing nonempty paths are frozen compatibility debt, not an alternative convention; they may not grow and converge to the empty form on touch. No mass body re-emission is required."* ⭐ The *"two coequal admitted forms"* option is **rejected**, and so is *"schema exists"* as the whole security property: `anon`/`authenticated`/`service_role`/`authenticator` all hold database `TEMP` (4/4, re-measured), so unless `pg_temp` is explicitly last a temporary object can shadow an unqualified relation inside a DEFINER — denying CREATE on `app`/`public`/`authz` does not close that. ⚠ Converting the **middle 42** (39 + 2 + 1) to the dominant path would **broaden** resolution, not improve it. Any second compatibility form must be **property-based** (trusted resolvable schemas, `pg_temp` explicitly last), never the dominant string.
+**Scope added:** 2026-09-11 (unit `ARM3-HAT-TERM-FIX`, QA finding M1) — `app.can_read_professional_profile(uuid, uuid)` joins the population this item owes a convergence. Migration `20261003007400` **re-emitted** that SECURITY DEFINER body and **kept** `search_path=app, public, pg_catalog`, so under ADR 0208 D4 it is a *touched* function that did not converge. The disposition is declared, not silent — ADR [0209](../decisions/0209-the-act-hat-is-a-door-level-term-on-the-professional-profile-read-door.md) § *Considered and held* and the migration's own header: `413` pins this door's `proconfig` independently, and 0208 D6 prefers a narrow `alter function` over a re-emit. ⚠ Measured the same day, so the narrow migration is not planned on a false premise: this body needs **no** qualification change — every relation and function it names is already schema-qualified and its only unqualified references are the pg_catalog builtins `coalesce`/`now`, which resolve under `search_path = ''` because pg_catalog is searched implicitly (rolled-back read-only check). ⛔ That makes the convergence cheap, **not** optional.
+**Status:** open
+Body — folded in below as the `####` section (the pointer line the open register carried named the body file, now deleted).
+
+#### FUP-NO-GATE-CATCHES-A-COLLAPSED-SEARCH-PATH
+
+Index entry: [follow-ups-archive.md](follow-ups-archive.md) · filed 2026-09-03 · ✅ RESOLVED 2026-09-11 (was: follow-ups-open.md, status open)
+
+**one** function and it is fixed, measured below, so this is a missing gate rather than a live
+exposure. Above 🔵 because the class is silent by construction on the authorization path and the
+one instance survived pgTAP, the whole `npm run lint` chain, four authz arms and a door sweep.
+
+**What is wrong.** `set search_path to 'app, public, pg_catalog'` — single-quoted — is accepted by
+Postgres as **ONE identifier** naming a schema that does not exist, not a three-element list, and a
+non-existent schema in `search_path` is skipped rather than erroring. A `SECURITY DEFINER` function
+written that way declares a schema resolution order it does not have. **Nothing in this repo
+notices.** **No** gate in `package.json`'s `lint` script reads `proconfig`; pgTAP only checks the
+functions someone thought to assert, and the assertion that *should* have caught this instead
+**pinned it**, because its expected value was hand-typed by copying the broken catalog output.
+
+⛔ **DATED CORRECTION 2026-09-08 — two numerals in this body were stale, and the claim was not.** Both
+sites above read *"twelve lint gates"*; two gates were appended to `npm run lint` on 2026-09-08
+(`lint:config-schemas`, `lint:budget-anchor`) and **neither reads `proconfig`**, verified by reading
+both scripts rather than by counting. ⇒ The clause is restated on the **property** — *no gate in the
+chain reads `proconfig`* — because a live count in ungated prose is precisely what rotted here, twice,
+in a body whose whole subject is a check bound on a property rather than a symptom. ⚠ Nothing
+positional moved: both gates were **appended**, so every by-number reference elsewhere in the tree is
+still correct.
+
+**How it was MEASURED.** 2026-09-03, live catalog: `current_schemas(true)` inside
+`app.current_professional_read_organizations` returned `{pg_temp_N, pg_catalog}` against its sibling
+`app.can_read_professional_profile`'s `{pg_temp_N, app, public, pg_catalog}`. ⭐ **The whole
+population was then swept**: `prosecdef` functions in `app`/`public`/`authz` whose `proconfig`
+contains a quote, excluding the legitimate empty form `search_path=""` — **0 rows**. So the class is
+currently clean and **a gate added today would start green**, which is the cheapest moment to add
+one.
+
+**What would close it.** A `lint:*` gate (or a pgTAP catalog assertion, which is cheaper — it needs
+no new script and the DB is already the authority) asserting that for every `prosecdef` function
+in `app`/`public`/`authz`, `proconfig`'s `search_path` either is the empty form or splits into
+schemas that **all exist in `pg_namespace`**. ⛔ Text-matching for a quote is the *symptom*; the
+property is *"every named schema resolves"*.
+
+⭐ **THE SWEEP HALF IS DONE — 2026-09-03, pgTAP `414_definer_search_path_resolves.sql`.** It asserts
+exactly the property above over **890** `prosecdef` functions in `app`/`public`/`authz` (**0**
+offenders; the gate starts green as predicted), tokenizing by *matching* quoted-or-unquoted runs
+rather than splitting on `,`, and it carries three proofs it can bite — a planted collapsed DEFINER,
+a dead-instrument control (`§1` stays green while `§2a` reds, the VOID-not-PASS reading), and a
+naive-comma-split control. This entry stays OPEN for the two halves below.
+
+⛔ **CORRECTION — this entry's own example was mis-measured, and it argued the case backwards.** It
+read: *"only the second survives someone writing `set search_path to 'app'` (one identifier, quoted,
+and it happens to exist)"*. Measured on the live catalog 2026-09-03, in a rolled-back transaction:
+`set search_path to 'app'` stores as `{search_path=app}` — **the quotes are NOT stored**, so a
+quote-matcher would never have flagged it, and the case is harmless anyway. The conclusion was right
+and its evidence was not. The shape that actually defeats a quote-matcher is the opposite one:
+`set search_path to no_such_schema` stores as `{search_path=no_such_schema}` — **no quote, genuinely
+broken**, and a quote-matcher misses it entirely. (For completeness, the historical bug shape does
+store one: `set search_path to 'app, public, pg_catalog'` → `{search_path="app, public, pg_catalog"}`.)
+So the false NEGATIVE, not the false positive, is why the property beats the symptom. `414`'s header
+carries the full six-shape measurement table.
+
+**What is still open — two halves.**
+1. ⭐ **A DEFINER carrying NO `search_path` at all** is the same hijack shape one step earlier, and it
+   leaves the sweep's domain silently rather than failing inside it. `414 §0b` pins the population at
+   **890/890 declaring one** today, so this is currently green — but it is a second class this entry
+   never named, and it is pinned rather than ruled. Disposition owed.
+2. **The value convention.** Supabase guidance is `search_path = ''` with fully-qualified bodies;
+   this tree runs **400** `prosecdef` functions in `app` on `app, public, pg_catalog` against **7** on
+   `''` (all 10 in `authz` use `''`). Raised by the 2026-09-03 external audit and **deliberately
+   deferred** — flipping one function buys no risk reduction, and no application role holds CREATE on
+   `app`/`public`/`authz`, so there is no live exposure. It is a platform-wide decision owing an ADR,
+   not a one-line fix.
+
+⛔ **What must NOT be mistaken for closing it.** The `20261003007330` fix — that is one function.
+⛔ Nor pgTAP `413`'s per-name pins (which replaced the sibling-differential on 2026-09-03): they bound
+**two** functions by name, which is still the name-keyed shape that lets the next one through. `414`
+is what sweeps the class; `413` is what pins these two.
+
+---
+
+## ⚠ FIGURES STALE IN THREE WAYS, AND THERE ARE FIVE CONVENTIONS NOT TWO — 2026-09-09, pre-AE5 Batch 9
+
+Re-measured over `prosecdef` functions in `app` / `public` / `authz` at head pair
+`(20261003007360, 525)`: **890 total, 890 declaring a `search_path`, 0 declaring none** — so `414`
+§ 0b's 890/890 still holds. ⛔ But the **distribution this item states is wrong in three ways**, and
+the shape of the population is not the two-way split the clause reasons about:
+
+| `search_path` value | count |
+| --- | --- |
+| `app, public, pg_catalog` | **825** (app 400 · public 425) |
+| `""` (the empty form) | **23** (app 7 · authz 10 · **public 6**) |
+| `public, pg_catalog` | **39** (app 6 · public 33) |
+| `app, pg_catalog` | **2** — `app.derive_patient_key`, `app.feature_enabled` |
+| ⭐ `public, app, pg_catalog` | **1** — `public.tenant_orphan_profiles` |
+
+1. ⛔ The item says *"**400** … on `app, public, pg_catalog` against **7** on `''` (all 10 in `authz`
+   use `''`)"*. That **omits `public`'s 6 empty-form functions** ⇒ the empty-form population is
+   **23, not 17**, and the dominant convention is **825, not 400** (400 is only its `app` half).
+2. ⛔ It omits the **middle 42 entirely** — the 39 + 2 + 1 above. There are **five** live conventions,
+   not two, so *"the convention"* is a choice among five, not a binary.
+3. ⭐ **`public.tenant_orphan_profiles` INVERTS the resolution order** relative to the dominant 825
+   (`public, app` instead of `app, public`). That is a **semantic** difference, not a stylistic one —
+   a name resolving in both schemas resolves differently there — and it is a **singleton**, which is
+   exactly the shape that bites and the shape a count cannot show.
+
+**Two of the item's own premises RE-VERIFIED and still true:** `has_schema_privilege(…, 'CREATE')` on
+`app` / `public` / `authz` is **false** for all of `authenticated`, `anon`, `service_role` (so the
+no-exposure premise holds); and **no gate in the `npm run lint` chain reads `proconfig`** —
+`proconfig` appears in `scripts/` only in `authz-census-ae0.sql` and
+`authz-tier1-threat-review-ae1.sql`, **neither of which is in the chain**. Self-tested: the same
+search finds 3 script hits for `pg_policies`, so the negative is real.
+
+⚠ **And the item's own gate-count numeral is stale again** — its 2026-09-08 correction says the chain
+has 14; it is now larger (`lint:backend-state` and `lint:data-access` were appended after that
+correction). ⛔ Do not quote a gate count from this file; count the chain in `package.json`.
+
+**Disposition (PO ruling R7, 2026-09-09):** **ADR 0204** material, **deferred out of Batch 9** — the
+convention is not AE5-specific and blocks no role increment. ⛔ **The clause may not be closed on the
+two-way framing it was filed with**; a closure reasons from the five-value table above, and must say
+explicitly what happens to `public.tenant_orphan_profiles`'s inversion, which is the only member of
+the population whose difference is semantic.
+
+---
+
+## ⚠ RE-CLAUSED, NOT CLOSED — 2026-09-11 (PO ruling, unit `AE5-SUCCESSOR-ADRS`, ADR 0208)
+
+**Ruling:** written as **ADR [0208](../decisions/0208-the-candidate-fanout-is-structurally-dominated-and-empty-search-path-is-the-sole-forward-convention.md) D4–D6**, verbatim on the convention:
+
+> SET search_path = '' with schema-qualified object references is the sole forward convention for
+> new or touched SECURITY DEFINER functions. Existing nonempty paths are frozen compatibility debt,
+> not an alternative convention; they may not grow and converge to the empty form on touch. No mass
+> body re-emission is required.
+
+⛔ **The *"What would close it"* paragraph above names a gate that now EXISTS**, and this entry's own
+⭐ *"THE SWEEP HALF IS DONE"* section says so: `supabase/tests/414_definer_search_path_resolves.sql`
+asserts the property over **890** `prosecdef` functions. ⚠ Two properties, and their lines, measured
+2026-09-11: **§ 0b at `:119`** — every such function declares a `search_path` **at all**; **§ 1 at
+`:131`** — every schema named in every such path resolves in `pg_namespace`. (`:109` is § 0a's
+message string, the domain statement, one assertion earlier.) ⛔ And `414` makes **no** safety claim
+to quote: a search of the file for *"does not prove" / "not the security property" / "safety"*
+returns **0 rows**; all seven assertions are resolvability and discrimination only. So the honest
+sentence is *what `414` asserts*, never a disclaimer attributed to it. The paragraph is kept above as
+filed — what changed is which **deliverable** remains, not what the item observed.
+
+**THE NEW CLOSE CONDITION — two deliverables, both in the named unit `DEFINER-SEARCH-PATH-NARROW-FIX`:**
+
+1. **The prospective rule against NEW non-empty DEFINER paths, with a gate behind it.** ⛔ A
+   `.claude/rules/` file is a **hint** to the writer, never the enforcer (CLAUDE.md §8). The gate is
+   a pgTAP ratchet — next free number **419** — holding the non-empty-path population as a **frozen
+   name set that may only shrink**: a `prosecdef` function in `app`/`public`/`authz` not in the set
+   and carrying a non-empty path reds. It lives in `npm run test:db`, because `npm run lint` may not
+   require Docker — so it buys *"the next Phase Gate noticed"*, never *"the next commit noticed"*
+   (ADR 0195, and this body's own 2026-09-09 disposition demanded the ADR say which). `414` is kept
+   **unchanged** as the collapsed/nonexistent-schema property gate; neither is the other's verdict.
+2. **The narrow forward migration** `ALTER FUNCTION public.tenant_orphan_profiles() SET search_path =
+   ''`. ⭐ This body's § 3 called that function's inverted order (`public, app` against the dominant
+   `app, public`) the one **semantic** singleton in the population, and demanded a closure say what
+   happens to it — this is the answer. Verified from `pg_proc`, not migration text: its live `prosrc`
+   is `select t.profile_id, t.reason from app.tenant_orphan_profiles() t;`, whose only
+   relation/function reference is schema-qualified, so `ALTER FUNCTION` needs **no** body change.
+   ⚠ The ruling names only the `public` wrapper; `app.tenant_orphan_profiles` sits in the 825-bucket
+   and is a **separate subject** the migration does not touch. ⛔ *"Fixing the live catalog cannot
+   honestly be described as 'no migration.'*"
+
+**Re-measured 2026-09-11 and reproducing this body's five-value table** (890 total; `<none>` absent):
+`app, public, pg_catalog` **825** · `public, pg_catalog` **39** · `""` **23** · `app, pg_catalog`
+**2** · `public, app, pg_catalog` **1**. ⭐ Converting the **middle 42** (39 + 2 + 1) to the dominant
+path would **broaden** resolution, not improve it — they are often the narrower paths.
+
+⚠ **"Schema exists" is rejected as the whole security property, and the mechanism is named.**
+`anon`, `authenticated`, `service_role` and `authenticator` all hold database `TEMP` (4 of 4,
+re-measured). Unless `pg_temp` is explicitly placed **last**, a temporary object can precede the
+declared schemas and shadow an unqualified relation inside a DEFINER — so this body's re-verified
+*"no role holds CREATE on `app`/`public`/`authz`"* premise, true as it is, **does not close the
+complete threat**. If a second compatibility form is ever admitted it must be **property-based**
+(only trusted, resolvable schemas, `pg_temp` explicitly last), ⛔ never the current dominant string.
+
+**Ordered before any catalog-wide sweep:** targeted tests for the **four** DEFINER functions that
+intentionally use temporary tables — `app.copy_response_answers(uuid,uuid)` ·
+`app.copy_template_version_children(uuid,uuid)` · `app.copy_version_children(uuid,uuid)` ·
+`public.clone_framework(uuid,uuid)`. They are the population for which an empty path is not a free
+change.
+
+⛔ **This entry's open half 1** — a DEFINER carrying **no** `search_path` at all, pinned at 890/890 by
+`414 § 0b` rather than ruled — is **still owed a disposition**. D4's *"sole forward convention"*
+implies it (a new DEFINER must carry `search_path = ''`), and the 419 ratchet observes the population,
+but neither states what happens if the count moves. ⛔ Not closed by this ruling.
+
+---
+
+## ⚠ SCOPE ADDED — a SECOND door joins the population, 2026-09-11 (unit `ARM3-HAT-TERM-FIX`, QA finding M1)
+
+`app.can_read_professional_profile(uuid, uuid)` was **re-emitted** by migration
+`20261003007400` (ADR [0209](../decisions/0209-the-act-hat-is-a-door-level-term-on-the-professional-profile-read-door.md))
+and **kept** `search_path=app, public, pg_catalog`. Under ADR 0208 D4 a *touched* SECURITY DEFINER
+function must converge to the empty form, so this is a second named member of the convergence debt
+beside `public.tenant_orphan_profiles` — ⛔ and it is a DIFFERENT member, not the same one: it sits
+in the dominant 825-bucket rather than in the inverted `public, app` singleton.
+
+**Measured live 2026-09-11** (read-only, on the door as this unit landed it): `prosecdef = t`,
+`proconfig = {"search_path=app, public, pg_catalog"}`, `provolatile = s`.
+
+**Why it was not converged in that unit — the declared disposition, kept here so the debt is
+registered rather than remembered:**
+1. `supabase/tests/413_ae4_authorized_scope_ids.sql` pins this door's `proconfig` INDEPENDENTLY, and
+   says why it does: *"app.can_read_professional_profile pins the SAME constant INDEPENDENTLY — it is
+   §5's subset oracle and the policy's fallback arm, so its resolution order is load-bearing for this
+   suite; pinning the two separately is the thing a sibling-equality differential could not do"*. So
+   converging moves a pin carrying another suite's argument, and it belongs with the unit that owns
+   the convention.
+2. ADR 0208 D6 prefers a narrow `alter function … set search_path = ''` over a body re-emit for
+   exactly this class, and the same D6 (not D5, the `414`/`419` ratchet) orders the four temp-table DEFINERs tested first.
+
+⚠ **The cheap-or-not question was MEASURED, not assumed, so the narrow migration is not planned on a
+false premise.** The obvious objection — *"the empty form would force `pg_catalog.now()` into the
+body"* — is **false for this body**: every relation and function it names is already
+schema-qualified, and its only unqualified references are the pg_catalog builtins `coalesce` and
+`now`, which resolve under `search_path = ''` because pg_catalog is searched implicitly even when it
+is not named (verified in a rolled-back read-only transaction: `set local search_path = ''` then
+`select now()` resolves). ⇒ `alter function app.can_read_professional_profile(uuid, uuid) set
+search_path = ''` looks like a no-body-change conversion — ⛔ which is a reason it is CHEAP, never a
+reason the divergence is harmless.
+
+⛔ **What must NOT be mistaken for closing this half.** Converging this one door. The item is about
+the CLASS and its prospective gate (the `419` ratchet); a second name-keyed conversion is the
+name-keyed shape this body already refuses at its own ⛔ *"What must NOT be mistaken"* paragraph.
+⚠ And converging it while `413`'s pin still expects the three-schema string would RED that suite —
+the pin and the migration move together or not at all.
+
+---
+
+## ⚠ OPEN HALF 1 — a PROPOSED disposition, PO to rule — 2026-09-11 (unit `DEFINER-SEARCH-PATH-NARROW-FIX`, AC-5)
+
+**The question:** what happens when `414 § 0b`'s **890/890** moves — a `prosecdef` function in
+`app`/`public`/`authz` with **no** `search_path` at all. It is invisible to BOTH instruments: `414 § 1`
+cannot tokenize a NULL, and `419`'s frozen set is keyed on NON-empty paths, so an undeclared DEFINER is
+neither a member nor an offender there.
+
+**Proposed (backend, carried by the lead; ⛔ not a ruling):** the count does not move by ruling, it
+moves by a gate, and the gate already exists — `414 § 0b` reds the moment it does. So the
+disposition is a statement of what a red there MEANS: an undeclared DEFINER is a **defect to
+converge to `''`** (ADR 0208 D4's sole forward convention applies a fortiori — it is a strictly
+worse member of the same class than a non-empty path), **never** a member to add to any frozen
+set, and it may not be admitted by widening either gate. ⛔ Specifically NOT proposed: an
+undeclared-DEFINER row in the `419` artifact — a set admitting NULL paths would make the ratchet's
+own subset arm ambiguous. No code. If the PO accepts, this half closes on the dated ruling here and
+in the register line; if the PO wants a distinct cell, it is one assertion in `419`, not a new file.
+
+---
+
+## ✅ RESOLVED 2026-09-11 — both deliverables landed; open half 1 RULED (unit `DEFINER-SEARCH-PATH-NARROW-FIX`, PO approval 2026-09-11)
+
+**Closed ON the re-claused *Closes when* exactly as written — both deliverables of ADR 0208 in the
+named unit:** (1) the prospective gate — pgTAP `419_definer_search_path_freeze.sql` holds the
+non-empty-path `prosecdef` population of `app`/`public`/`authz` as a frozen, generated name set
+(`supabase/tests/vectors/definer_search_path_freeze.psql`, **865** rows after the migration, 867
+before) that may only shrink, in `npm run test:db`; lint gate 18 (`lint:definer-freeze`) is the
+no-Docker half (artifact well-formed, shrink-only against the git baseline); the `.claude/rules/`
+hint is ONE LINE in `migrations-forward-only.md` (directory at its 12-file cap — its own follow-up);
+(2) the narrow forward migration `20261003007410`: `ALTER FUNCTION public.tenant_orphan_profiles()
+SET search_path = ''` **and**, per § Scope added, `ALTER FUNCTION app.can_read_professional_profile
+(uuid, uuid) SET search_path = ''`, no body re-emission, the `413` pin moved in the same change, a
+third reader (`409 § 6.1`) found by the suite and reshaped. `414` byte-unchanged. Record:
+`docs/progress/definer-search-path-narrow-fix.md`; QA r2 APPROVED.
+
+**Open half 1 — RULED (PO 2026-09-11, accepting the proposal above):** a `prosecdef` function with
+**no** `search_path` is a **defect to converge to `''`**, never a member to add to any frozen set; a
+red on `414 § 0b` means exactly that, and neither `414` nor `419` may be widened to admit it. No new
+cell. Open half 2 (the value convention) was ruled by ADR 0208 D4 on 2026-09-11 and is BUILT here.
+
+**Bounds this closure does NOT reach, each with its own register entry:** the four temp-table
+DEFINERs measured free but NOT converged (`FUP-DEFINER-SEARCH-PATH-NARROW-FIX-FOUR-TEMP-TABLE-DEFINERS-MEASURED-FREE-TO-CONVERGE`);
+D4's schema-qualified-body clause UNGATED (`FUP-DEFINER-SEARCH-PATH-NARROW-FIX-QUALIFIED-BODY-CLAUSE-OF-D4-IS-UNGATED`);
+the dedicated rule file deferred on the cap (`FUP-DEFINER-SEARCH-PATH-NARROW-FIX-RULES-CAP-DEFERS-THE-D5-HINT-FILE`).
+⚠ Folded into the archive per gate 13; two historical backtick citations of the former path (`docs/progress/privilege-surface.md:1871`, `docs/reviews/arm3-hat-term-fix-review.md:455`) now resolve to this `####` section.
