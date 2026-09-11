@@ -359,3 +359,25 @@ dismissal"* half exists to prevent. Replaced with the measured statement (`419` 
 emits `planned 15 tests but ran 13` and is still reported `ok`); the ⛔ "Bad plan" half is kept
 verbatim. Comment-only: `git diff` shows **7 insertions / 4 deletions, every changed line a `--`
 comment**, 0 non-comment lines — no test re-run, and ⛔ the DB was not touched (`e2e:prod` holds the stack).
+
+### 2026-09-11 — `e2e:prod` GREEN at `3cb82f1b`; QA r2 APPROVED; the unit is gated, awaiting human approval (lead)
+
+**`npm run e2e:prod`** (lead, primary tree, stack released by `backend` after its fix-pass reset;
+output in the git-excluded `.dsp-gate-evidence/e2e-prod.txt`, exit code captured into the file as
+`E2E_RC=`): **`E2E_RC=0`** — `GATE SUMMARY: 1263 passed · 0 failed · 0 infra · 2 flaky · 0 did-not-run
+· 21 batches`. Started at `a6c4c83e`; `3cb82f1b` landed mid-run and is comment-only in one pgTAP
+file (`git diff -U0` non-comment changed lines = 0), so the bound is stated: no `src/`, policy, grant
+or expected value moved between the run's start and the tip. ⚠ QA's vitest saw two catalog-reading
+guards fail with "container not running" while this gate cycled the stack; re-read green — environmental.
+
+**QA:** round 1 CHANGES REQUESTED (0 BLOCK · 2 MAJOR · 4 MINOR · 6 NOTE) → fixed at `a6c4c83e` →
+round 2 **APPROVED** (0 · 0 · 1 MINOR carried · 4 NOTE); the carried MINOR-r2-1 applied at `3cb82f1b`.
+NOTE-r2-2 (a third historical `867` in the generator's prose about the hand-list it replaces) is left
+as history, named here rather than silently.
+
+**Presented to the PO for step 4 (human approval):** the build, the gate rows above, the QA verdict,
+and FOUR open rulings — AC-5's proposed disposition (FUP body, "PO to rule"); the door-sweep
+deriver's exit 1 ruled by the lead (option (a), predicate arm by hand) — to ratify; the three
+follow-ups this unit filed that name the PO as owner (four temp-table DEFINERs free to converge; the
+D5 rule file deferred on the 12-file cap; D4's qualified-body clause ungated). The CLAUDE.md review
+queue is non-empty (88 lines, per-clone) — Record-step item 7.

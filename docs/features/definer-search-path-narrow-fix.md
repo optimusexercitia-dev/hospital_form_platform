@@ -1,7 +1,7 @@
 ---
 id: DEFINER-SEARCH-PATH-NARROW-FIX
 title: "The 419 ratchet freezes the non-empty DEFINER search_path population, and the narrow ALTER FUNCTION migrations converge the two named members"
-status: in_progress
+status: gated
 kind: fup-fix
 program: AUTHZ
 phase: "pre-AE5 remediation — ADR 0208 D5 + D6; ordered BEFORE AE5-ROLE-CATALOG-COMPAT (ruled 2026-09-11)"
@@ -68,12 +68,12 @@ Land ADR 0208 D5 + D6 so the follow-up closes, before `AE5-ROLE-CATALOG-COMPAT` 
 - QA round 1 on `68ffb591`: **CHANGES REQUESTED** — 0 BLOCK · 2 MAJOR (text: the rule line names 419 + gate 18 as enforcer of BOTH D4 clauses, only the path clause is gated; `lint-gates.md` states gate 18's baseline order backwards) · 4 MINOR · 6 NOTE. Fourth follow-up filed (D4's qualified-body clause ungated, PO to rule).
 
 ### In progress
-- `backend`: authz arms (census rc 0 · hat rc 0 · floor running · wrapper + setvalued queued), then the QA fix pass; then lead runs `e2e:prod`.
+- Step 4, human approval: PO reads this block, the QA verdict and the four open rulings named in the record's last entry.
 
 ### Next
-- QA review (`qa`) → PO approval (AC-5 ruling + the two follow-ups + the door-sweep ruling presented together) → Record step → merge → then `AE5-ROLE-CATALOG-COMPAT`.
+- On approval: Record step (ledger row, FUP `NO-GATE-CATCHES-A-COLLAPSED-SEARCH-PATH` closed in both homes on the two deliverables, hub → complete, review queue) → merge to `main` → then `AE5-ROLE-CATALOG-COMPAT`.
 
 ### Blockers
-- None.
+- None — gated: fresh `test:db` 269/9050 rc 0 · lint 0/0 (18 gates) · typecheck · vitest · authz arms census/hat/floor/wrapper rc 0 · door sweep predicate CLEAN 1/1, policy 0 of 226 · SELFTEST 46·0·0 · `e2e:prod` 1263/0/0 · QA r2 APPROVED at `3cb82f1b`.
 
 **Updated:** 2026-09-11
