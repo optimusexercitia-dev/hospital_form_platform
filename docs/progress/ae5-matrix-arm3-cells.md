@@ -531,3 +531,19 @@ text was edited in place, and ⛔ none of them closes ADR 0175 D3:
 `Files=2, Tests=28`. That is the **run** figure across `00_setup.sql` + `403`. `403` itself declares
 `plan(27)` and carries **27** assertions — 27 + 1 = 28. ⛔ Both are true at different grains; the
 figure to quote for the suite is **27**, and for the two-file invocation **28**.
+
+**Pushed — the BRANCH, ⛔ never `main`, on explicit PO instruction (2026-09-11).** `git push -u origin
+authz-ae5-matrix-arm3-cells` created the branch on `origin` at **`2e6a17bd`** (18 commits); measured
+after: `origin/authz-ae5-matrix-arm3-cells..HEAD` = **0**.
+
+⛔ **`main` was NOT touched and is NOT merged into**: `main` = `origin/main` = **`44f69ff6`** before and
+after, and this unit is **mid-flight** — no QA review, no Phase Gate, ADR 0175 D3 still open, the authz
+seam's slice still owed. ⇒ nothing about this push advances the unit's state.
+
+⚠ **Why this is NOT one of the one-push overrides, stated rather than assumed.** The standing *"do not
+push"* (plan §6) is argued from **deploy safety on `main`**: Coolify builds a **configured deploy
+branch**, and `docs/deployment/coolify.md` RECORDS Automatic Deployment as off (2026-09-07) but ⛔
+cannot CHECK it. This push is **deploy-neutral by construction** — a feature branch is not the deploy
+branch, and `main` did not move — so it does **not** rest on the unverifiable fact, and ⛔ it spends no
+override and creates no precedent for pushing `main`. ⚠ The lead still could not verify Coolify's live
+state and did not claim to; the argument is about which ref moved, not about the external system.
