@@ -87,37 +87,39 @@ migration. ⛔ Someone other than the builder runs the arms at the tip.
 
 ### Objective
 Discharge ADR 0175 D3's forward promise as WORK: label every cell in the arm-3 candidate
-population with whether arm 3 diverges from the oracled arms, **derived** from the live catalog
-and the generator; get a PO expected value per derived cell **CLASS**; retire the manifest's
-*"arm 3 is OPEN AND MASKING"* by making the oracle cover arm 3; and close 0175 D3 at its source.
+population with whether arm 3 diverges from the oracled arms, **derived**; get a PO expected value
+per derived cell **CLASS**; make `403` actually oracle arm 3 (which is what retires the manifest's
+*"OPEN AND MASKING"*); and close 0175 D3 at its source.
 
 ### Done since start
-Unit opened on the PO's naming (plan §6 hands the successor choice to the PO; `AE5` resolved to
-this unit — the two docs-only successors, ADR 0202 and ADR 0204, stay unopened). Preconditions
-measured, not assumed: `git status` porcelain empty on `main` @ `44f69ff6`; `git rev-list --count
-origin/main..main` = **0** *after* `git fetch` — ⚠ the handoff recorded *"~26, NOT pushed"* at
-Batch 10's close, so `main` **was pushed** between that close and this open; the handoff told its
-successor to re-measure rather than quote, and this is the divergence that instruction anticipated.
-No worktrees. `docs/features/INDEX.md` showed `in progress 0` before this edit. Branch
-`authz-ae5-matrix-arm3-cells` cut off `main` **before** the hub was flipped (gate 13 resolves an
-`in_progress` hub's `branch:` against local branches).
+Unit opened on the PO's naming; preconditions measured (clean `main` @ `44f69ff6`, `origin/main..main`
+= 0 after fetch, no worktrees). ⚠ The hub's three headline figures re-derived at today's head pair:
+**216** and `grep -c diverg` **0** unmoved, ⛔ the anchor **`:456` STALE → `:459`** (corrected above).
+⛔ **The local stack was one migration BEHIND the tree** — `(…7380, 527)` vs **528** — and the missing
+one is Batch 10's rewrite of `is_admin_for`, i.e. **arm 1 of this very door**; fresh
+`npx supabase db reset --local` (exit 0) put it at `(20261003007390, 528)`. The door read from the
+**live catalog**: four grant terms in three arms, and its own body comment says arm 3 *"grants with NO
+org term at all"*. Population stated as a **set**: persona 4 × context 3 × scope 3 × state 4 × self 2,
+minus `absent`-only-for-`unprivileged` ⇒ 3×48 + 72 = **216** ✓ (30 grant / 186 deny, 8
+`expected_source` values). ⭐ **Defect found and FIXED**: the manifest's `openArms` named the
+re-key-removed `app.can_create_professional` and listed three arms while the emitted, gated
+`authorizer_composed_with` carried the correct four — corrected against the live catalog, gate 12
+**exit 0**. Full `npm run lint` **exit 0**. Two follow-ups filed (increment-1 ambiguity; ADR 0202's
+borrowed census).
 
 ### In progress
-Scope derivation, not building. Two read-only Explore agents are out: one over the AE5 programme
-(what increment 1 and its *matrix* are, ADR 0155 G1's exact post-pilot bar, the live QA finding at
-`docs/reviews/authz-ae4-review.md:99-101`, and a **re-measurement** of the hub's own 216 / 0 /
-`:1240` figures at today's head pair); one over `scripts/gen-authz-differential-cells.py`,
-`scripts/gen-authz-matrix-cells.mjs`, the arms' concrete SQL definitions, and which pgTAP tests
-consume the vectors. ⚠ The hub's three headline figures were measured **2026-09-09 at head pair
-`(20261003007360, 525)`**; the tree is now at **`(20261003007390, 528)`**, so they are re-derived
-before any of them is used, never quoted forward.
+`backend` is deriving, from the live catalog, which of the five swept axes arm 3 actually depends on
+— ⚠ sharply, whether it depends on **account state**, since Batch 10 just made the admin arms follow
+`app.is_active` and arm 3 may not — plus the minimal new axis that makes arm 3 expressible, and the
+divergence **classes** with their counts.
 
 ### Next
-Report the re-measured population as a **set**, derive the cell classes, state the class count,
-and put the classes to the PO for an expected value each — before any generated vector changes.
-Gate 12 (`lint:authz-vectors`) already `--check`s both generators, so the labels must land
-**through** the generator, never as a hand-edit of `authz_differential_cells.psql`.
+Two PO decisions, in this order, **before** anything is generated: (1) **the seam** — the generator is
+catalog-free **by design** (gate 12 must run without Docker), so *"derived from the live catalog and
+the generator"* names two derivations that cannot happen in one place; (2) **an expected value per
+derived class**, with the class count reported first. Then the build, whose shape `403` §7.3 already
+fixes: approved values **first**, then a participation fixture that **breaks** its `0` sentinel —
+⛔ which that assertion forbids renumbering.
 
 ### Blockers
-None. ⚠ Standing, not a blocker: *"do not push"* is the standing instruction (plan §6); the four
-one-push overrides on record are each spent.
+None. ⚠ Standing, not a blocker: *"do not push"* (plan §6); the four one-push overrides are spent.
