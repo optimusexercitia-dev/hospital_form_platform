@@ -26,8 +26,10 @@ is 200 KB — but three facts made this the moment to act rather than the moment
   so, and both name the same remedy: find the seam inside the file that wants its own home.
 
 The PO ruled the noun on 2026-09-11 (register entry
-[`FUP-AE5-MATRIX-ARM3-CELLS-AUTHZ-SEAM-CROSSED-ITS-WARN-LINE`](../followups/FUP-AE5-MATRIX-ARM3-CELLS-AUTHZ-SEAM-CROSSED-ITS-WARN-LINE.md)
-§ Ruling): **the service-role DML registry leaves.** Measured at the ruling by `awk` byte sum per
+[`FUP-AE5-MATRIX-ARM3-CELLS-AUTHZ-SEAM-CROSSED-ITS-WARN-LINE`](../followups/follow-ups-archive.md)
+§ Ruling — the entry and its body were archived verbatim on 2026-09-11 when this unit closed them,
+so the link points at the archive, not at the body file that no longer exists): **the service-role
+DML registry leaves.** Measured at the ruling by `awk` byte sum per
 `##` heading, it was the largest single candidate at roughly 40 KB against 22 KB for quality-office
 oversight (spread over three headings), 18 KB for the privilege budget, 13 KB for the `authz`
 catalog and 5 KB for the audit trail. It is also the only candidate that is ONE self-contained

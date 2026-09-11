@@ -262,3 +262,18 @@ regained.
 
 #### Blockers
 None.
+
+### 2026-09-11 — ⚠ the phase commit landed with gate 9 RED; found one command later, fixed in the next commit (lead)
+
+**What happened.** The phase commit `5fb5c055` was gated on `lint:registers` and `lint:progress`
+(both rc 0) — and `lint:adr-index` (gate 9) was RUN in the same command, printed **rc 1**, and was
+**not consumed by the guard**: the `if` keyed on two of the three codes. That is the shape memory
+already names — *reading a gate is not gating on it*. The finding was real and this unit's own:
+ADR 0206 line 29 linked the follow-up's **body file**, which the Record step had just deleted after
+folding it into the archive. A pointer, not a historical claim (ADR 0196 D10) — re-pointed at
+`docs/followups/follow-ups-archive.md` with a clause saying why. A grep for the deleted filename
+across `*.md`/`*.mjs` found no other LINK (the QA review mentions it in a code span, which is a
+mention, not a link). ⛔ Not amended: the sha was already written into this record.
+
+**Re-run after the fix**, full chain, bare: `npm run lint` rc and `lint:adr-index` rc are in the fix
+commit's message.
