@@ -365,3 +365,50 @@ defect and not a quirk. ⭐ `unreachable` earns its mandate: it separates *"no p
    skipped**.
 3. **The reach loop sits OUTSIDE the skip rules**, not as an inner fan-out — otherwise `skipped`
    counts pre-reach coordinates while `cells` counts post-reach ones: a census that cannot sum.
+
+**Increment 2 — `caseReach` gate-scoped by a named rule, bound to the manifest by a new coverage arm
+(`7aed31ea`).** Lead ruling, measured before it was taken: of the 4320 cells, **3456** belonged to the
+four reps whose gates have **no case arm**, all carrying `arm3:not-in-gate`, over only **864 distinct
+payloads** ⇒ **2592 exact redundant copies** that cannot discriminate anything. ⛔ The extra cells
+bought no safety either: the `not-in-gate` label is itself computed from a static list, so **neither**
+design would have noticed a new case arm. Same risk, 2592 rows cheaper, ~4× `403` runtime saved.
+
+**Verified by the lead, independently, at the tip:** `lint:authz-vectors` **EXIT 0** bare; `in sync
+(1728 cells, 10272 skipped)`; 1728 rows / **1728 distinct `cell_id`**; arm-3 rep **864**, its census
+**sums to 864**, and its `grant_keyed` column is **108 / 30 / 32 / 36 / 10 = 216** — ⛔ byte-for-byte
+the same partition as increment 1, so **zero arm-3 coverage was deleted**; the other four reps hold
+864 cells, **all at `none`**.
+
+⭐⭐ **Per-cell identity PROVEN, not argued** — the lead diffed the emitted row sets against `9ad8258b`:
+of 1728 rows now emitted, **0** are not byte-identical to a HEAD row; exactly **2592** HEAD rows were
+deleted and **none altered**. That is a stronger guarantee than the count the lead asked for.
+
+⛔ **A LEAD CONSTRAINT WAS ARITHMETICALLY IMPOSSIBLE, AND THE TEAMMATE REPORTED IT RATHER THAN
+ADJUSTING IT.** The brief demanded *"`expected_granted` true must stay **552**"*. ⛔ It cannot: 552 was
+`138 × 4`, i.e. four copies of every rep's granted cells, and the ruling deletes three of those copies
+for the four inert reps ⇒ `552 − 3 × (138 − 30) = 552 − 324 = **228**`. The lead re-derived it from the
+other direction and got the same: arm-3 rep `30 × 4 = 120`, plus the four inert reps at `none` = 108
+⇒ **228**, measured. ⇒ the constraint was the **lead's error**, carried over from increment 1 where it
+was true; the teammate was explicitly told *"if your arithmetic disagrees, stop and tell me rather than
+adjusting a number to fit"* and did exactly that. ⭐ The invariant the constraint was **protecting**
+— *no existing expected value was edited* — holds, and is now witnessed by the byte-identity check
+above rather than by a count that happened to be stable.
+
+⭐ **`arm9` makes the standing condition a GATE, not a sentence.** It does not merely count `REPS`: on
+**every run** it resolves the premise against the enforcement manifest's
+`permissions[<code>].legacyEquivalence.openArms` — the field this unit corrected at open — so *"if any
+other permission's `openArms` gains `app.can_read_case_committee`, revisit this exclusion"* is
+enforced rather than hoped. It fires in **both** directions (a second armed rep; zero armed reps) plus
+absent-rep and unreadable-manifest branches. Red-first on a **real invocation** in an isolated copy of
+the tree (⛔ the real manifest never written — `git diff --quiet` CLEAN): arming
+`org.case_vocabulary.manage` printed `COVERAGE FAILURE … arm9 … assumes exactly
+{can_read_professional_profile}`, exit 1; untouched control exit 0.
+
+⭐⭐ **A PRE-EXISTING HARNESS DEFECT SURFACED BY ADDING arm9, and it is the general case worth keeping.**
+arm9 **silently took over the `arm1b` self-test fixture** — arm1b's fake rep code was absent from the
+manifest, so arm9 fired first and the runner printed **arm9's** message under **arm1b's** name. The
+old criterion was `if not got`, i.e. *"did something catch?"* — which calls a **wrong-arm** catch a
+pass. ⇒ the runner now asserts **which** arm fired and prints the fired list, the fixture was
+re-pointed at a real permission, and **two further pre-existing contaminations became visible** that
+nothing could see before. Controls caught: **19** (was 14), zero `NOT CAUGHT`, zero `WRONG ARM`,
+discrimination control clean; `--self-test` exit 0.
