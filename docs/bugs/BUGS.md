@@ -5,8 +5,13 @@ column, not a section** (edit `Status`, never cut/paste the row — the
 open→closed rotation this replaces was chronically skipped). The **Doc**
 column links to [docs/bugs/archive.md](archive.md) for the **48** ids below
 that have a heading of their own there (anchor computed from the heading
-text); **3** more have a per-bug `docs/bugs/<ID>.md` — ⛔ do not trust that
-figure, derive it: `git ls-files 'docs/bugs/BUG-*.md'`. The other **111** carry
+text); **5** more have a per-bug `docs/bugs/<ID>.md` — ⛔ do not trust that
+figure, derive it: `git ls-files 'docs/bugs/BUG-*.md'`. ⚠ **Re-derived
+2026-09-11** (unit AE5-MATRIX-ARM3-CELLS, documentation pass): it read **3**
+and was stale by **two** — only one of which this unit added, so it was
+already wrong before. ⭐ The three Doc-cell classes now **sum exactly**:
+48 + 5 + 111 = **164** rows, which is the check the prose below never made and
+the reason the drift survived. The other **111** carry
 no Doc link because no body is reachable by anchor: a measured **10**,
 checked against the archive's full text, have no trace of any kind; most of
 the rest do have detail somewhere in the archive — a bare table row or an
