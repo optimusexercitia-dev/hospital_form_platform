@@ -119,7 +119,10 @@ The PO's clauses, verbatim:
 
 **The instrument is the existing one.** `scripts/authz-ae4-p2-invocation-count.sql` (ADR 0183 D4)
 counts with `pg_stat_get_function_calls(<regprocedure>)` under a per-session `track_functions='all'`,
-keyed by OID over nine functions including `authz.assignment_facts(uuid)`,
+keyed by OID over **eleven** functions (⚠ this read *"nine"* until QA round 1, 2026-09-11 — the
+figure had travelled unmeasured from the unit record; re-counted by the lead as the distinct
+`::regprocedure` arguments at `scripts/authz-ae4-p2-invocation-count.sql:176-186`) including
+`authz.assignment_facts(uuid)`,
 `authz.has_permission(uuid,text,uuid,text)`, `authz.authorized_scope_ids(uuid,text,text)` and
 `authz.candidate_has_permission(…)`. Confirmations are measured **as `authz.has_permission`
 invocations** — exactly the `U` clause 4 needs — so clause 4 extends the instrument rather than
@@ -135,11 +138,17 @@ rejects exactly that:
 ⚠ **Correction carried as a measured fact — clause 5 is true today by DUPLICATION, not by
 construction, so it must be asserted against the live bodies.**
 `pg_get_functiondef('authz.candidate_authorized_scope_ids(uuid,text,text)'::regprocedure)` carries a
-**byte-identical** candidate CTE to `authz.authorized_scope_ids(uuid,text,text)`, differing only in
-its confirmer (`authz.candidate_has_permission` vs `authz.has_permission`). There is **no shared
-producer function**: there are two copies. ⇒ clause 5's assertion **compares the two live bodies**
-(extract each candidate CTE from `pg_get_functiondef` and require equality), or the producer is
-factored out into one function first and the assertion binds to that. ⛔ An assertion that merely
+candidate CTE **identical in every non-comment token** to `authz.authorized_scope_ids(uuid,text,text)`,
+differing only in its confirmer (`authz.candidate_has_permission` vs `authz.has_permission`). ⚠ It
+is **not byte-identical** — this said so until QA round 1 (2026-09-11): measured by the lead, a raw
+`diff` of the two `pg_get_functiondef` outputs exits **1** on the signature line, **three `--`
+comment lines** present only in the runtime resolver, and the confirmer line; the same diff with
+`--` comments and blank lines stripped exits **0** on everything but the signature and the
+confirmer. There is **no shared producer function**: there are two copies. ⇒ clause 5's assertion
+**compares the two live bodies after normalisation** (extract each candidate CTE from
+`pg_get_functiondef`, strip comments and whitespace, require equality — ⛔ a raw-text equality would
+red on the comments alone and prove nothing about the logic), or the producer is factored out into
+one function first and the assertion binds to that. ⛔ An assertion that merely
 re-states the clause in its own words would be the hand-written copy LEARN-024 names.
 
 **Ordered to a named backend unit, `AE4-D-SHAPE-ASSERTION`** — not built here. ⚠ `npm run lint`

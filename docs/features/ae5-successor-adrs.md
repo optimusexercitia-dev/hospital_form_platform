@@ -8,8 +8,8 @@ phase: "pre-AE5 remediation — the last two successors of Batch 9 (plan §3 ite
 branch: authz-ae5-successor-adrs   # cut from main @ adbde005
 plan: ../plans/pre-ae5-remediation.md
 progress: ../progress/ae5-successor-adrs.md
-reviews: []
-adrs: ["0176", "0201", "0203", "0155", "0183", "0197", "0205"]
+reviews: ["../reviews/ae5-successor-adrs-review.md"]
+adrs: ["0207", "0208", "0176", "0201", "0203", "0155", "0183", "0197", "0205"]   # 0207/0208 = the ADRs this unit produced (QA r1 MINOR)
 handoff: ~
 fup: ~
 ---

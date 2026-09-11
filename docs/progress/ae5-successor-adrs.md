@@ -615,3 +615,29 @@ Unbolded per the tool's own guidance (live precedent 0133/0125).
 arms (`census`, `hat`, `floor`, `FROMFINDINGS=1 wrapper`) plus the diff-scoped door sweep are **not
 owed** — `git diff --stat main -- supabase src` is **empty**, nothing executable changed, and no DB
 state was modified (every catalog read above is a `select`).
+
+### 2026-09-11 — lead gate at the tip; QA round 1 CHANGES REQUESTED (2 MAJOR · 1 MINOR · 2 NOTE), every finding re-measured by the lead, then fixed (lead)
+
+**Gate at `37835021`, run by the lead, every rc bare:** `npm run lint` **0** · `npm run typecheck` **0**
+· `build-adr-index --check` **0** · `git diff --stat main -- supabase src` printed nothing · every
+changed file 0 CR bytes (`tr -cd '\r' | wc -c`; ⛔ `grep -c $'\r'` is dead on this machine, per the
+verification entry) · ADR 0201 carries no back-pointer (`grep adr-backpointers` empty).
+
+**QA round 1** (`qa`, `docs/reviews/ae5-successor-adrs-review.md`): **CHANGES REQUESTED**. ⛔ A
+finding relayed is the lead's the moment it is acted on, so each was re-measured before the fix:
+
+| # | finding | lead's re-measurement | fix |
+|---|---|---|---|
+| MAJOR 1 | ADR 0208 D2: P2 instrument "keyed by OID over **nine** functions" | distinct `::regprocedure` arguments at `scripts/authz-ae4-p2-invocation-count.sql:176-186` = **11** (QA right; the record's `:346` said nine unmeasured — a figure that travelled from the record into the ADR) | ADR corrected to eleven with the count's location and a dated note |
+| MAJOR 2 | ADR 0208 D2: the two resolvers' candidate CTEs "**byte-identical**" | raw `diff` of the two `pg_get_functiondef` outputs: rc **1** — signature line, **3** `--` comment lines only in the runtime resolver, confirmer line; comment-and-blank-stripped diff: rc **0** except signature + confirmer ⇒ identical in every non-comment token, NOT byte-identical (QA right; the record's `:226` overstated it) | ADR corrected; clause 5's ordered assertion now compares **normalised** bodies, with the warning that raw equality would red on comments alone |
+| MINOR | hub `adrs:` omits 0207/0208 | true | added, with a comment naming the finding |
+| NOTE 1 | one marker (`pre-ae5-remediation.md` §6 step 3) sits before rather than beside its original | original preserved in full | left as filed; noted |
+| NOTE 2 | ADR lengths 322 / 310 vs the ~180 convention | QA judged the overrun verbatim rulings, SQL and tables, not padding | no trim |
+
+⚠ Both MAJORs are the same shape: a measured-looking claim in the **record** re-quoted into the
+**ADR** without re-measurement — the record's verification entry got 10/14 right and these two
+figures were not on its list. ⇒ the record's `:226` and `:346` sentences stand as written (a log is
+not rewritten); this entry is their correction.
+
+**After the fixes:** gates re-run bare and QA round 2 commissioned on the three edits; rcs in the
+commit.
