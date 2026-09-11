@@ -516,7 +516,7 @@ header (`sed -n '26,52p'`) and as § *Considered and held* in ADR 0209 (`:193`).
 are the lead's two: `413` pins this door's `proconfig` INDEPENDENTLY (its own message quoted verbatim
 in both homes — *"… it is §5's subset oracle and the policy's fallback arm, so its resolution order
 is load-bearing for this suite"*), and ADR 0208 D6 prefers a narrow `alter function` over a re-emit
-(D5 also orders the four temp-table DEFINERs tested first).
+(the same D6 also orders the four temp-table DEFINERs tested first — ⚠ this line and three sibling homes cited **D5** for that clause until QA round 2 R2-1; D5 is the `414`/`419` ratchet).
 ⭐ **The obvious THIRD reason was drafted, then measured, then REFUSED** — *"the empty form would
 force `pg_catalog.now()` into the body"* is **false here**: every relation and function the body names
 is already schema-qualified, and its only unqualified references are the pg_catalog builtins
@@ -655,3 +655,27 @@ npm run lint                         rc 0
 ```
 
 Committed by path (the review file included as QA's deliverable); QA round 2 requested at that tip.
+
+### 2026-09-11 — QA round 2 CHANGES REQUESTED on four text edits (R2-1…R2-4); applied and re-gated (lead)
+
+**Round 2** (`docs/reviews/arm3-hat-term-fix-review.md` § Round 2, at `f3edc375`): all six round-1
+items **discharged**; QA's own runs `lint` 0 · `registers` 0 · `backend-state` 0 · `test:db`
+267/9025 PASS (§7.4b line 4 executed and matched there too). Four text findings, no code:
+
+| finding | what was wrong | fix (all re-`sed` before editing) |
+|---|---|---|
+| **R2-1** MAJOR | the M1 disposition cited ADR 0208 **D5** for the "four temp-table DEFINERs tested first" clause, which is **D6**'s (D5 is the `414`/`419` ratchet) — in the migration header, ADR 0209 § Considered and held (two words from 0209's OWN D5), the search-path FUP body and this record | D5 → D6 at all four sites, each naming what D5 actually is |
+| **R2-2** MAJOR | the PO-to-ratify block priced the *alternative* as "not free" where `migrations-forward-only` prices the in-place edit; the rule's own preferred remedy (correct in the NEXT migration touching the object) was not among the alternatives | block rewritten: the rule prices THIS edit; two alternatives named and each refused with its reason — (a) next-touching migration leaves a false claim in live `prosrc` unbounded; (b) a standalone comment-only migration is what this unit's follow-up ruled out. ⛔ Still PO to ratify |
+| **R2-3** MINOR | `403` §7.4b message still said *"All three lines are the SAME reach"* while the same message discloses line 4's `arm2b=true` | → *"Lines 1-3 …"* (message text; expected string unmoved) |
+| **R2-4** MINOR | hub block stale (`e2e:prod` "in progress" though GREEN) and naming only one PO item | block replaced, anchored on the heading; both PO-to-ratify items named |
+
+QA NOTE, accepted and recorded: the previous entry's *"changes no SQL statement"* is true of the
+migration and false of `403` (~80 new SQL lines); the e2e bound holds because `403` is a pgTAP spec
+Playwright never invokes and the diffstat touches no `src/` file.
+
+**Re-gate over the four edits, bare:** `npm run lint` rc **0** · `check-backend-state` rc **0** ·
+`check-docs-registers` rc **0** · fresh `db reset` rc **0** → `npm run test:db` rc **0** —
+`Files=267, Tests=9025, Result: PASS`, `not ok` 0. Migration diff filtered to non-`--` lines: **0**
+(comment-only, again). `ARM=hat` was re-run after the round-1 fix pass (rc 0, previous entry); the
+round-2 header edit is above the body and cannot move a chunk. Committed by path; QA targeted re-check
+requested at that tip.

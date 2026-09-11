@@ -71,20 +71,22 @@ Fix the hat-unenforceable case-grant arm on the ratified shape and carry the arm
 correction in the same migration; pass the full Phase Gate; close bug and follow-up at Record.
 
 ### Done since start
-Migration `20261003007400` built and reviewed (hat term before the arms; no org term; role-less caller
-exempt; hatless holder denied), ADR 0209 (amends 0201; D5 marked PO to ratify), `403` §7.4 deleted and
-§7.4b written, 18 cells relabelled, six mutations measured, three blinded pins re-aimed (one measured
-not blinded), two stale vector narratives corrected, ADR renumbered 0207→0209 after `main` landed its
-own 0207, rebased onto `main` `dd3629be`. Lead gate at `9057829a`: `test:db` 267/9025 PASS, lint 0/0,
+Migration `20261003007400` (hat term before the arms; no org term; role-less caller exempt; hatless
+holder denied), ADR 0209 (amends 0201), `403` §7.4 deleted and §7.4b written (four lines), 18 cells
+relabelled, six mutations measured, blinded pins re-aimed, vector narratives corrected, ADR renumbered
+0207→0209, rebased onto `main` `dd3629be`. Full gate green at the tip: `test:db` 267/9025, lint 0/0,
 typecheck, four authz arms, self-test 46/0/0, deriver + sweep both arms CLEAN, set-valued 3/3, types
-diff empty — all rc 0, witnesses in the record.
+diff empty, `e2e:prod` GREEN (1261 passed · 0 failed · 4 flaky). QA round 1 CHANGES REQUESTED →
+all items discharged; round 2 CHANGES REQUESTED on four text edits → applied (record § Session log).
 
 ### In progress
-`npm run e2e:prod` at the tip; QA review.
+QA targeted re-check of the four round-2 edits.
 
 ### Next
-PO approval (incl. ratifying ADR 0209 D5, the 8 re-ruled cross-org cells) → Record step: bug status
-cell flipped, follow-up archived in both homes, hub → complete, merge to `main` (no push).
+PO approval → Record step: bug status cell flipped, follow-up archived in both homes, hub → complete,
+merge to `main` (no push).
 
 ### Blockers
-None. Open risk for the PO: D5 is a re-ruling of 8 cells R2 had labelled approved by precedence.
+None. **Two items the PO must ratify at approval:** (1) ADR 0209 D5 — 8 cross-org `other_role` self
+cells re-ruled DENY (R2 had them approved by generator precedence); (2) the pre-merge comment-only
+edit to the unmerged migration `20261003007400` (migration header § DATED EDIT names the alternatives).

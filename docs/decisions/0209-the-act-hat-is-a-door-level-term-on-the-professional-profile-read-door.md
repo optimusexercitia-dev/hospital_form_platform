@@ -206,8 +206,8 @@ that is named and **refused**:
    differential could not do"*. Converging the path here moves a pin that carries another suite's
    argument, inside a unit whose subject is the hat term.
 2. 0208 **D6** prefers a narrow `alter function … set search_path = ''` convergence migration over a
-   body re-emit for exactly this class, and **D5** orders targeted tests for the four temp-table
-   DEFINERs before any sweep. That sequencing belongs to the unit that owns the convention.
+   body re-emit for exactly this class, and the same **D6** (⚠ not 0208 D5, the `414`/`419` ratchet — and
+   not this ADR's own D5) orders targeted tests for the four temp-table DEFINERs before any sweep. That sequencing belongs to the unit that owns the convention.
 3. ⚠ **Refused, and measured rather than assumed.** The obvious third reason — *"the empty form
    would force `pg_catalog.now()` into the body"* — does **not** hold here. Every relation and
    function the body names is already schema-qualified; its only unqualified references are the

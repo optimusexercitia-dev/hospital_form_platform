@@ -14,13 +14,17 @@
 -- After QA finding B1 two comment blocks in this file (the header's HELD-ROLE SET block below
 -- and the in-body `-- HOLDS ANY LIVE ROLE?` line) were CORRECTED IN THIS FILE rather than in a
 -- new forward migration. ⛔ `.claude/rules/migrations-forward-only.md` says an applied
--- migration is never edited, and that a comment-only edit is NOT free. The lead ruled the edit
--- allowed here because this file has been applied to EXACTLY ONE database — this worktree's
--- local stack, which `supabase db reset` rebuilds from the file on every run — and to no
--- remote, so repo and catalog cannot disagree. The alternative considered was a forward
--- comment-only migration, which that rule explicitly prices as not free; it was refused for
--- that reason, not for convenience. ⛔ NOT A PRECEDENT: after merge the same correction
--- costs a forward migration. ⛔ NO SQL TOKEN MOVED — verified with `git diff`: every changed
+-- migration is never edited, and prices THIS KIND OF EDIT — an in-place comment-only edit —
+-- as NOT free, because pgTAP 364's durability argument draws no comment/statement line. The
+-- lead ruled the edit allowed here anyway, because this file has been applied to EXACTLY ONE
+-- database — this worktree's local stack, which `supabase db reset` rebuilds from the file on
+-- every run — and to no remote, so repo and catalog cannot disagree. Two alternatives were
+-- weighed and refused: (a) the rule's own preferred remedy, correcting the wrong text in the
+-- NEXT migration that touches this object — refused because that leaves a known-false claim
+-- in a live gate's `prosrc` for an unbounded time, the exact defect the follow-up this
+-- migration discharges is about; (b) a standalone forward comment-only migration — refused
+-- because this unit's own follow-up ruled that shape out. ⛔ NOT A PRECEDENT: after merge the
+-- same correction costs a forward migration, taken under remedy (a). ⛔ NO SQL TOKEN MOVED — verified with `git diff`: every changed
 -- line in this edit is a `--` comment line.
 --
 -- ⚠ DATED DISPOSITION, 2026-09-11 — ADR 0208 D4 WAS CONSIDERED AND THE NON-EMPTY
@@ -35,8 +39,8 @@
 --       a sibling-equality differential could not do"*. Converging here moves a pin that carries
 --       another suite's argument, inside a unit whose subject is the hat term.
 --   (2) ADR 0208 D6 prefers a NARROW `alter function …` convergence migration over a body
---       re-emit for exactly this class, and 0208 D5 ORDERS targeted tests for the four
---       temp-table DEFINERs before any sweep. That sequencing belongs to
+--       re-emit for exactly this class, and the SAME decision (0208 D6, not D5 — D5 is the
+--       414/419 ratchet) ORDERS targeted tests for the four temp-table DEFINERs before any sweep. That sequencing belongs to
 --       `DEFINER-SEARCH-PATH-NARROW-FIX`, which owns the convention.
 --   ⚠ (3) REFUSED, AND MEASURED RATHER THAN ASSUMED. The obvious third reason — *"the empty
 --       form would force `pg_catalog.now()` into the body"* — does NOT hold here. Every relation

@@ -1085,7 +1085,7 @@ select is(
   'arm1=false arm2a=false arm2b=true door=true',
   '7.4b ⭐⭐ THE DOOR-LEVEL ACT HAT TERM, PINNED HEAD-ON IN BOTH POLARITIES (ADR 0209). This is '
   '§ 7.4''s successor: the same coordinate, measured on the LIVE door instead of restated from the '
-  'vector. All three lines are the SAME reach — one `case_access_grants` row, arms 1/2a/2b false '
+  'vector. Lines 1-3 are the SAME reach — one `case_access_grants` row, arms 1/2a/2b false '
   'in the string rather than assumed — so the door''s answer IS the term''s answer. '
   '⭐ LINE 1 IS THE FIX: a principal who HOLDS staff_admin, asking about THEMSELVES while wearing '
   '`quality_reviewer`, is DENIED. Before ADR 0209 this line read door=true, and that was '

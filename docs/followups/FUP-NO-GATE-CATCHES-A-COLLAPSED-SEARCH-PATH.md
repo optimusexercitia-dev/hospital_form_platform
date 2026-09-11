@@ -206,7 +206,7 @@ registered rather than remembered:**
    converging moves a pin carrying another suite's argument, and it belongs with the unit that owns
    the convention.
 2. ADR 0208 D6 prefers a narrow `alter function … set search_path = ''` over a body re-emit for
-   exactly this class, and D5 orders the four temp-table DEFINERs tested first.
+   exactly this class, and the same D6 (not D5, the `414`/`419` ratchet) orders the four temp-table DEFINERs tested first.
 
 ⚠ **The cheap-or-not question was MEASURED, not assumed, so the narrow migration is not planned on a
 false premise.** The obvious objection — *"the empty form would force `pg_catalog.now()` into the

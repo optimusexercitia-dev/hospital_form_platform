@@ -378,3 +378,258 @@ to a detector whose subject was just fixed, and the three blinded pins were re-a
 
 The PO still owes a ruling on **ADR 0209 D5** (the 8 re-ruled cross-org `other_role` self cells),
 which is correctly marked *PO to ratify* in seven places.
+
+---
+
+# Round 2 (tip `f3edc375`)
+
+**Tip:** `f3edc375` · **Round-1 tip:** `3d85c403` · **Fix pass:** `git diff 3d85c403..f3edc375`
+(10 files, +1004/−26) · **Date:** 2026-09-11 · **Reviewer:** qa
+
+**Verdict: CHANGES REQUESTED**
+
+⛔ **Nothing found in round 2 is a security finding, and the door's behaviour did not move.** Every
+round-1 item (B1, M1, m1, m2, m3, n1) is **discharged**, several of them better than asked: B1's
+correction landed in all three homes including the **live `prosrc`**, the migration diff filtered to
+non-`--` lines is **0**, and M1's disposition names a third reason and **refuses it after measuring
+it false** — which I re-measured and confirm.
+
+What blocks is one class, and it is the class this unit exists to close: **a comment in the
+migration file citing the wrong clause of the ADR it relies on.** The unit's second duty is
+discharging `FUP-AE5-MATRIX-ARM3-CELLS-READ-DOOR-COMMENT-CITES-THE-REPLACED-403-SECTION` — *a
+comment that cites the wrong section*. The M1 disposition block introduced a new one: ADR 0208
+**D5** where the clause is **D6**, in four homes, one of them the migration header. Like B1, it is
+one token before merge and priced by `.claude/rules/migrations-forward-only.md` after it.
+
+⚠ If the lead/PO rules the header citation correctable later (it is a header, not `prosrc`, and the
+rule's own preference — *"correct a wrong header in the next migration that touches the same
+object"* — is available), then **R2-1 through R2-4 are Record-step items and this verdict flips on a
+targeted re-check, not a full round 3.** I am not asking for another full review.
+
+---
+
+## Round-1 items — verified at the tip
+
+| # | Round-1 item | Status | Witness measured in round 2 |
+|---|---|---|---|
+| **B1** | held-set claim narrowed in all three homes, every absolute gone | ✅ **discharged** | Migration header `sed -n '114,143p'` and in-body `sed -n '220,225p'`; **read from LIVE `prosrc`**, not the file — a grep for `IMPLICITLY` / `active_role_selections` / `B1` on `pg_proc.prosrc` hits body lines 39–44. ADR 0209 D2 (`:66,94`). Seam `:1278`. Absolutes sweep over all six homes + `prosrc`: **0 hits**; the only survivors are the record's quoted-as-superseded copies (`:454`, `:624`) |
+| **B1** | migration diff comment-only | ✅ **verified independently** | The fix-pass diff on the migration, restricted to changed lines and filtered to those not starting with `--`, counts **0** |
+| **B1** | in-place edit disclosed as PO-to-ratify with the alternative named | ⚠ **present, but see R2-2** | Header `sed -n '13,24p'` — dated, ⛔ NOT A PRECEDENT, PO TO RATIFY. The *alternatives* clause misreads the rule (R2-2) |
+| **B1** | follow-up entry + body, mechanism from the catalog, `Closes when` names a mechanism | ✅ **discharged, and it exceeds the ask** | `follow-ups-open.md:1952` + body file. `Closes when` = an invalidation trigger on `memberships` **or** a liveness re-check in the hook's first branch, **plus** a pgTAP cell constructing the transition; explicitly ⛔ not a doc edit, ⛔ not a cell asserting the door denies (*"green on first run"*). ⭐ The body found a **second** direction I did not: the hook's implicit branch mints only at role-type cardinality **1** (`prosrc`, re-read by me), so *"exactly"* failed both ways |
+| **M1** | disposition in migration header + ADR 0209 § Considered and held | ✅ **discharged** (citation defect R2-1) | Migration `sed -n '26,52p'`; ADR `:193` ff. |
+| **M1** | the `pg_catalog.now()` reason recorded as **refused**, measured false | ✅ **discharged — and I re-measured it** | `begin; set local search_path=''; select now() is not null; rollback;` → **t**. And the claim *"every relation and function the body names is already schema-qualified, only `coalesce`/`now` unqualified"* is **true**: the comment-stripped live body names `public.memberships`, `public.profiles`, `public.professional_profiles`, `public.professional_participants`, `public.case_participants`, `auth.uid()`, `app.active_role()`, `app.is_admin_for()`, `app.can_manage_professional()`, `authz.has_permission()`, `app.can_read_case_committee()` — every one qualified |
+| **M1** | `FUP-NO-GATE-CATCHES-A-COLLAPSED-SEARCH-PATH` dated scope line in entry **and** body, naming this door | ✅ **discharged** | Entry `:1288` `**Scope added:** 2026-09-11`; body `:186` ff. `## ⚠ SCOPE ADDED`. Both name the door, its measured `proconfig`, and ⚠ that converging it while `413`'s pin expects the three-schema string reds that suite |
+| **m1** | record discloses `8a9eeb39` gate-13 red + repair | ✅ **discharged** | Record `:600` ff. — names the anchor-on-a-phrase truncation, `check-docs-registers` rc **1** committed past (*"reading a gate is not gating on it"*), and the forward correction at `3d85c403` |
+| **m2** | §7.4b fourth line with a role-HOLDING third-party caller; `plan(27)` unmoved; over-determination explained | ✅ **discharged, and strongly** | `403:1005` `pg_temp.arm3_probe_third_party` — a **separate** function (so `arm3_probe_at_hat`'s call sites stay byte-identical), which **RAISES** if caller and subject collapse to one principal and **RAISES** on a NULL hat, and builds the reach for the **subject**. `plan(27)` unmoved — the fourth line extends one existing `select is`. The `arm2b=true` over-determination is stated in the message, and I verified its mechanism live: `authz.entailed_grants`' conjunct is `(p_principal is distinct from (select auth.uid()) or af.role_code is not distinct from app.active_role())` — vacuous for a third party ✅ |
+| **m2** | the record says it executed and matched | ✅ **and I re-ran it myself** | `npm run test:db` → **Files=267, Tests=9025, Result: PASS**, `All tests successful.`, `not ok` count **0**. ⚠ Bound: run on the lead's already-reset stack, not on my own fresh `db reset` (pgTAP rolls back, so this re-reads the same catalog state) |
+| **m3** | hub `adrs:` includes 0209 | ✅ **discharged** | `docs/features/arm3-hat-term-fix.md:12` → `["0175","0176","0200","0201","0209"]` |
+| **n1** | *"only"* restored in the seam Current-state bullet | ✅ **discharged, without spending the headroom** | Seam `:51` reads *"role-free at its S3/S4 case-grant sources **only**"*; gate 16 still reports `authorization-and-audit.md (97, 3 left)` |
+
+**Gates I ran myself at this tip, rc bare:**
+
+```
+npm run lint                           rc 0
+node scripts/check-docs-registers.mjs  rc 0   26 hubs, 229 follow-ups, 157 bodies; every ratchet unmoved
+                                              (archiveMissingClosesWhen=121/121, longHeadings=97/97)
+node scripts/check-backend-state.mjs   rc 0   authorization-and-audit.md (97, 3 left), 16 seams
+npm run test:db                        PASS   Files=267, Tests=9025, 0 not ok
+```
+
+---
+
+## Round-2 findings
+
+### MAJOR
+
+**R2-1 — The M1 disposition cites ADR 0208 `D5` for a clause that is `D6`, in four homes, one of
+them the migration file; and inside ADR 0209 the bare label `D5` already means something else.**
+
+The sentence, materially identical in all four:
+
+> *"0208 **D6** prefers a narrow `alter function …` convergence migration over a body re-emit for
+> exactly this class, and **D5** orders targeted tests for the four temp-table DEFINERs before any
+> sweep."*
+
+- `supabase/migrations/20261003007400_professional_profile_read_door_hat_term.sql:37-39`
+- `docs/decisions/0209-…-read-door.md:208-209`
+- `docs/followups/FUP-NO-GATE-CATCHES-A-COLLAPSED-SEARCH-PATH.md:208-209`
+- `docs/progress/arm3-hat-term-fix.md:519`
+
+Measured against `docs/decisions/0208-…-forward-convention.md` (`sed -n '188,243p'`):
+
+- **D6** (`:243`) is titled *"`public.tenant_orphan_profiles` is fixed by a NARROW forward migration;
+  **the four temp-table DEFINERs are tested first**"*, and its body carries the PO quote *"The four
+  DEFINER functions intentionally using temporary tables should receive targeted testing before any
+  catalog-wide ALTER FUNCTION hardening sweep"* plus *"Their targeted tests precede any sweep"*.
+- **D5** (`:188`) is *"`414` is the resolvability gate and is NOT the security property; a
+  prospective rule is ORDERED"* — the `TEMP` census, the five-value `search_path` table, and the
+  `419` ratchet. It says **nothing** about the four temp-table DEFINERs.
+
+So the *substance* is true and the *label* is wrong: both halves of the sentence are D6.
+
+⚠ **A second edge, specific to the ADR home.** ADR 0209 has **its own D5** — the eight re-ruled
+cross-org cells, the one item marked *PO to ratify* (`0209:3`, `:119`). At `0209:209` the bare
+`**D5**` sits two words after `0208 **D6**`, so the reader must carry a prefix across a conjunction
+to avoid reading the search-path sentence as a claim about 0209 D5.
+
+**Why this is the round-2 blocking item and not a MINOR.** One of the four homes is the migration
+file. Before merge it is one token in a `--` line inside the block the lead already ruled editable;
+after merge `.claude/rules/migrations-forward-only.md` prices the same correction as *not free* —
+the identical asymmetry that made B1 blocking in round 1. And the defect class — *a comment citing
+the wrong clause* — is the very follow-up this migration exists to discharge.
+
+**Ask:** `D5` → `D6` in all four, and in ADR 0209 write `0208 D6` rather than a bare `D5`.
+
+---
+
+**R2-2 — The PO-to-ratify disclosure applies the rule's *"comment-only edit is NOT free"* clause to
+the wrong option, and omits the alternative the rule itself prefers.**
+
+`…007400_…sql` `sed -n '13,24p'`:
+
+> *"The alternative considered was a forward comment-only migration, which **that rule** explicitly
+> prices as not free; it was refused for that reason, not for convenience."*
+
+`.claude/rules/migrations-forward-only.md`, read whole:
+
+> ⚠ **A comment-only edit is NOT free.** `364`'s argument is that *the file cannot legitimately
+> change*, and draws no comment/statement line. **Prefer correcting a wrong header in the next
+> migration that touches the same object.**
+
+That clause prices the **in-place edit** — the thing that was done — **not** a forward comment-only
+migration, which the rule never mentions. (The ⛔ *Forbidden* clause above it is statement-scoped:
+*"changing any **statement**"*, so the in-place comment edit deviates from a ⚠ hint, not from the ⛔.
+The header's **first** sentence states that correctly; the defect is the **second** use of the same
+clause.)
+
+⚠ And the rule's own preferred remedy — *leave the header and correct it in the next migration that
+touches this door* — is **not among the alternatives the block names**. It is materially different
+from *"a forward comment-only migration"*, which is what
+`FUP-AE5-MATRIX-ARM3-CELLS-READ-DOOR-COMMENT-CITES-THE-REPLACED-403-SECTION` forbids — and that
+follow-up, not the rule, is the right authority for that refusal. A PO ratifying a disclosed rule
+deviation ratifies **the alternatives as stated**; two of the three here are misdescribed or absent.
+
+**Ask:** attribute the *"not free"* clause to the in-place edit (where the rule puts it), cite the
+follow-up — not the rule — for refusing a standalone comment-only migration, and name the third
+option (defer to the next migration touching this door) with the reason it was not taken.
+
+---
+
+### MINOR
+
+**R2-3 — The numeral retype missed a sixth site, and at that site it is not only stale: it now
+contradicts the same message four paragraphs down.**
+`supabase/tests/403_ae45_differential_oracle.sql:1088`:
+
+> *"**All three lines** are the SAME reach — one `case_access_grants` row, **arms 1/2a/2b false** in
+> the string rather than assumed — so the door's answer IS the term's answer."*
+
+The assertion has **four** lines at this tip, and line 4's expected string is
+`… arm1=false arm2a=false arm2b=true door=true`. The same message says so explicitly at `:1118`:
+*"⚠ THE GRANT ON LINE 4 IS OVER-DETERMINED … arm2b reads TRUE here where lines 1-3 read false"*, and
+*"⛔ SO LINE 4 PINS THE DOOR-LEVEL CALLER-KEYED TERM AND IS NOT A SECOND PIN ON ARM 3"*. So the
+opening sentence, read over the assertion it heads, asserts of line 4 exactly what `:1118` denies —
+that its `door=true` isolates the hat term.
+
+The fix pass corrected this numeral at **five** sites (`403:108`, `403:945`, ADR `:166`, seam `:1281`
+and `:1286`) and the record says so (`:632`); this is the sixth. Repo text only, no migration cost.
+
+**Ask:** `All three lines` → `Lines 1-3` — the scoped form keeps the sentence true and lets line 4's
+own paragraph carry the exception.
+
+---
+
+**R2-4 — The hub's `## Current state` is stale at this tip, and the PO-facing risk line names only
+one of the two things the PO is now asked to ratify.** `docs/features/arm3-hat-term-fix.md:65-90`:
+
+- *"### In progress — `npm run e2e:prod` at the tip; QA review"* — `e2e:prod` is **GREEN** and recorded
+  (`1261 passed · 0 failed · 4 flaky`, record `:650` ff.), and round 1 is answered.
+- *"### Done since start"* stops at the `9057829a` gate; it carries no QA round 1, no fix pass, and not
+  the re-gate at `test:db` 267/9025 that I independently reproduced.
+- *"### Blockers — Open risk for the PO: **D5** …"* names ADR 0209 D5 alone. The fix pass created a
+  **second** PO-to-ratify item — the in-place comment edit of an applied migration, a disclosed
+  deviation from `.claude/rules/migrations-forward-only.md` — and the hub is where the PO reads the
+  unit's state (CLAUDE.md §7). It currently appears in the migration header and the record's ruling
+  table only.
+
+`lint:registers` is green either way — the gate sees shape, never currency. The block is well under
+its 60-line cap, so there is headroom.
+
+**Ask:** refresh the sections and add the second ratification item to the risk line.
+
+---
+
+### NOTE
+
+**R2-5 — The record's `e2e:prod` bound is honest in effect but one clause wider than what was
+measured.** Record `:653`: *"the fix pass changes no SQL statement (the migration diff filtered to
+non-`--` lines is 0) and no `src/`, so the reading stands for the tip below"*.
+
+Measured: `git diff 3d85c403..f3edc375 --stat` = 10 files — 8 docs, the migration (**comment-only**,
+verified 0 non-comment changed lines), and **`supabase/tests/403_ae45_differential_oracle.sql`, which
+gained ~80 lines of real SQL** (a new `pg_temp` function and a rewritten `select is`). So *"changes no
+SQL statement"* is true of the **migration** and false of the **fix pass**. ⛔ The conclusion still
+holds, on a ground the sentence does not state: `403` is a pgTAP spec Playwright never invokes, and
+the runtime surface (`src/`, the door's `prosrc`) is byte-unchanged. ✅ Confirmed: **no `src/` file**
+in the diffstat. One clause fixes it.
+
+**R2-6 — The narrowed sentences are true in the direction B1 measured; the *other* direction the fix
+pass discovered lives only in the follow-up body and the record.** The hook's implicit branch (live
+`prosrc`, re-read by me) computes `v_live_roles` from exactly the quoted union and then mints **only
+when `array_length(v_live_roles,1) = 1`** — *"D11 break-glass … Zero or multiple role types → NO claim
+at all (D5: fail closed)"*. So the door's held set is also **wider** than what the implicit branch will
+mint. ⛔ This does **not** make the new sentences false: they say *"the set the hook **derives**
+`active_role` from implicitly"*, and that set **is** the union — the cardinality test governs whether
+it mints, not what it derives from. Recorded because the follow-up body states the asymmetry runs both
+ways (*"neither direction is exactly"*), and a future reader comparing the two texts will ask.
+
+**R2-7 — §7.4b line 4 executed and matched in my own run, not only the lead's.** The expected string
+`caller=other_commission_holder@quality_reviewer subject=subject_holder: arm1=false arm2a=false
+arm2b=true door=true` is green inside my `test:db` (267 files / 9025 tests, 0 `not ok`).
+
+---
+
+## Could not verify (⛔ a work item, never an implied pass)
+
+1. **`npm run e2e:prod`.** Not re-run by me; I read the record's `GATE GREEN · 1261 passed · 0 failed ·
+   0 infra · 4 flaky · 0 did-not-run · 21 batches` at `3d85c403`. I **did** verify the bound it rides
+   on — no `src/` in `3d85c403..f3edc375`, migration comment-only — with the correction at R2-5.
+2. **The four authz arms and the diff-scoped door sweep at this tip.** The lead's `ARM=hat rc 0, this
+   door not reported` is the record's reading, not mine. ⚠ The record itself flags the live hazard —
+   the in-body comment grew **inside the chunk that carries the hat evidence** — and states *"no `;`
+   introduced"* as *an argument, not a run*. That re-run is the lead's, and it is the one reading I
+   would not substitute an argument for.
+3. **`typecheck`, `gen:types`, the deriver self-test.** Not re-run; no TS file is in the fix-pass
+   diffstat.
+4. **My `test:db` ran on the lead's existing reset, not my own fresh `supabase db reset`.** pgTAP rolls
+   back, so it re-reads the same catalog state the lead gated on; corroboration, not an independent
+   reset. (The spawn prompt forbids me resetting.)
+5. **"This file has been applied to EXACTLY ONE database … and to no remote."** The local half is
+   checkable; the remote half is a claim about an external system (Supabase Cloud) that no reading from
+   here can contradict. It is the load-bearing premise of the ruled in-place edit, and it rests on the
+   branch never having been pushed and `db:push` never having been run.
+6. **The FUP body's *"it sits in the dominant 825-bucket"*.** Taken from ADR 0208 D5's census, not
+   re-derived; I verified only this door's own `proconfig` (`{"search_path=app, public, pg_catalog"}`).
+7. **The stale-selection window end to end.** Unchanged from round 1: the *mechanism* is measured (and
+   the fix pass re-measured it, adding the cardinality-1 finding); the *frequency* is not.
+
+---
+
+## Summary for the lead
+
+The fix pass is **good work**: B1 landed in all three homes including `prosrc` with a comment-only
+diff proven at 0 non-comment lines, the follow-up's `Closes when` names a mechanism and refuses three
+false closes by name, M1's disposition **measured a reason it had drafted and then refused it**, and
+§7.4b's fourth line is a real one-variable differential whose over-determination the message discloses
+rather than hides. I re-ran `lint` (rc 0), `check-docs-registers` (rc 0), `check-backend-state` (rc 0)
+and `test:db` (**267 files / 9025 tests PASS, 0 `not ok`**) myself.
+
+What is owed is **four text edits and no code**: `D5` → `D6` in four homes (**R2-1**, the one whose
+price changes at merge), the rule-citation and the missing third alternative in the PO-to-ratify block
+(**R2-2**), `All three lines` → `Lines 1-3` at `403:1088` (**R2-3**), and a hub `## Current state`
+refresh that names the **second** PO-to-ratify item (**R2-4**). None touches the door, the vector, or
+any assertion's expected value.
+
+⚠ **The PO now owes two ratifications, not one:** ADR 0209 **D5** (the 8 re-ruled cross-org cells) and
+the **in-place comment edit of an applied migration** disclosed in the migration header. Only the first
+is currently on the hub.
