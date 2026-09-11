@@ -25,7 +25,7 @@ inside the ADR that orders it.
 
 ## Acceptance criteria
 
-- [ ] **Every fact the rulings cite is RE-VERIFIED before it is written** (LEARN: a location is a
+- [x] **Every fact the rulings cite is RE-VERIFIED before it is written** (LEARN: a location is a
       measurement, from any role including the PO): the resolver's role-shaped contract, the
       candidate CTE that yields ≤ 1 scope per fact and dedups before confirmation, `414`'s property
       (declares a path; every schema exists — NOT safety), the `TEMP` privilege of the four client
@@ -37,7 +37,7 @@ inside the ADR that orders it.
       the P2 instrumentation, and the D census (33 principals; M max 3 / avg 1.30; D max 1·2·2;
       formula bound 37; scaled fixture M=20, D=5). ⚠ A ruling sentence whose cited fact does NOT
       reproduce is reported to the lead BEFORE drafting, never silently corrected.
-- [ ] **ADR 0207 — the role catalog** (`**Amends:** 0176` D8 — the bundle decided; `**Related:**`
+- [x] **ADR 0207 — the role catalog** (`**Amends:** 0176` D8 — the bundle decided; `**Related:**`
       0201, 0203, 0205): F8 `administrativo` leaves `authz.roles` as a capability-provider
       NAMESPACE whose entitlement source is each individual capability, never one bundle; the
       provider-neutral entitlement seam sits ABOVE the role-shaped resolver, preserving
@@ -52,16 +52,16 @@ inside the ADR that orders it.
       and the binding test a generated-artifact `--check` gate (ADR 0197's pattern); the six-step
       build ordered to a named backend unit **`AE5-ROLE-CATALOG-COMPAT`** before the first AE5
       increment; `member_can` untouched until Proposed-order item 6.
-- [ ] **The sequencing ruled in 0207**: `staff_admin` is the already-authoritative BASELINE, not
+- [x] **The sequencing ruled in 0207**: `staff_admin` is the already-authoritative BASELINE, not
       increment 1; after the compat unit the remaining work is ten role cutovers + one
       capability-plane cutover; item 1 is `staff`. ⇒ `FUP-AE5-MATRIX-ARM3-CELLS-INCREMENT-ONE-NAMES-TWO-DIFFERENT-ROLES`
       closes on this ruling, and the three disagreeing sentences get dated correction markers
       beside them (ADR 0105: never rewritten).
-- [ ] **The 0202 blast-radius census landed in 0207** with its queries (the reach table: 11 enum
+- [x] **The 0202 blast-radius census landed in 0207** with its queries (the reach table: 11 enum
       labels · 1 column · 1 routine · 0 policies · 7 TS files; the 12 catalog rows) ⇒
       `FUP-AE5-MATRIX-ARM3-CELLS-ADR-0202-BLAST-RADIUS-CITES-ANOTHER-ADRS-CENSUS` closes, and plan
       `:398`'s *"3 sites and fully measured"* gets a dated correction beside it.
-- [ ] **ADR 0208 — the two conventions** (`**Related:**` 0155, 0183, 0191): (a) the `D` fan-out is
+- [x] **ADR 0208 — the two conventions** (`**Related:**` 0155, 0183, 0191): (a) the `D` fan-out is
       a **parametric structural invariant plus accepted operational risk** — *structurally
       dominated, residual risk explicitly accepted*, ⛔ never *"large D is unreachable"*: D ≤ F over
       a provider-neutral fact set, Dₖ ≤ min(F, |scopesₖ|), for the role provider F = M ≤ C + R_H·H +
@@ -78,17 +78,17 @@ inside the ADR that orders it.
       `public.tenant_orphan_profiles` fixed by a NARROW forward migration preferring
       `ALTER FUNCTION … SET search_path = ''` — ordered to a named unit, ⛔ this unit claims no
       catalog change.
-- [ ] **The two conventions' follow-ups re-claused in BOTH homes, not closed**:
+- [x] **The two conventions' follow-ups re-claused in BOTH homes, not closed**:
       `FUP-AE4-CANDIDATE-SCOPE-FANOUT-IS-UNBOUNDED` (its *"unreachable"* option is REJECTED by
       the ruling — the clause is rewritten to the shape assertion landing) and
       `FUP-NO-GATE-CATCHES-A-COLLAPSED-SEARCH-PATH` (its clause is `414`'s property, which exists —
       rewritten to the prospective rule + the narrow migration landing). Each carries a dated
       `**Ruling:**`.
-- [ ] **The reservations retired**: every sentence naming *"ADR 0202"* / *"ADR 0204"* as reserved
+- [x] **The reservations retired**: every sentence naming *"ADR 0202"* / *"ADR 0204"* as reserved
       (plan §3 items 3 and 5, §6; `authz-evolution.md`; the handoff; ADR 0176 D8's own text is
       left, it is history) gets a dated note *"written as 0207 / 0208"*; the handoff's RESUME block
       re-routed to `AE5-ROLE-CATALOG-COMPAT`.
-- [ ] `npm run adr:index`; **gate** bare: `npm run lint` 0/0 · `typecheck` · `git diff --stat
+- [x] `npm run adr:index`; **gate** bare: `npm run lint` 0/0 · `typecheck` · `git diff --stat
       main -- supabase src` **empty** · `e2e:prod`, `test:db`, the arms **not owed** (stated).
 - [ ] QA review (read-only; verifies every ADR sentence against the ruling text in the record and
       against the tree) → human approval → Record step.
@@ -106,16 +106,40 @@ they touch closed or re-claused in both homes.
 ### Done since start
 
 Unit opened on `authz-ae5-successor-adrs` from `main` at `adbde005`; rulings captured verbatim in
-the record; numbers 0207/0208 reserved by re-measurement. Nothing drafted.
+the record; **facts verified — 10 of 14 reproduce, 4 differ** (record entry 2), the lead ruling
+draft-now carrying the four corrections as FACTS at the PO's unchanged intent. **Both ADRs written**
+— `0207` the role catalog (`**Amends:** 0176`; D1 F8 · D2 the mapping + the FIVE-capabilities/one-DOOR
+correction · D3 `platform_role` retired · D4 F7 · D5 unit `AE5-ROLE-CATALOG-COMPAT` + the `ALTER
+DOMAIN` correction · D6 `staff_admin` = baseline · D7 the blast-radius census with its queries) and
+`0208` the two conventions (no Amends label, and why is stated; D1 the parametric invariant + the
+`F`-vs-`M` grain · D2 six clauses → `AE4-D-SHAPE-ASSERTION`, live-body comparison · D3 five triggers ·
+D4 `search_path = ''` sole forward convention · D5 `414` §0b/§1 + the owed ratchet gate · D6 the
+narrow `ALTER FUNCTION` → `DEFINER-SEARCH-PATH-NARROW-FIX`). **Registers done in both homes each**:
+two `AE5-MATRIX-ARM3-CELLS` follow-ups carry a dated PO ruling naming 0207 D6/D7 (⛔ not moved — the
+lead closes them at the Record step); the two conventions' follow-ups **re-claused, not closed**.
+**Five dated correction markers** placed beside the refuted *"increment 1 is `staff_admin`"* sites
+(three named + `pre-ae5-remediation.md:640`/`:670`), `:398`'s *"3 sites"* corrected, and
+`authz-evolution.md:1215`'s existing note **updated** rather than doubled. **Reservations retired**
+across the plan (§3 banner, items 3 + 5, §6 bullet, steps 2–3), `authz-evolution.md` (3 sites) and
+the handoff, whose RESUME block is **re-routed to `AE5-ROLE-CATALOG-COMPAT`**. Gates bare: `lint`
+**0** (17/17, eslint 0/0) · `typecheck` **0** · `adr:index --check` **0** · `git diff --stat main --
+supabase src` **empty**. `test:db` / `e2e:prod` / the four authz arms **not owed**, stated in the
+record. ⭐ Two findings recorded there: a **false generated back-pointer** into ADR 0201 (the index
+parse is over-inclusive; fixed by dropping the number from 0207's Amends label), and `414`'s cited
+lines re-read at source.
 
 ### In progress
 
-Verification pass over the rulings' cited facts, then drafting.
+Nothing. The drafts are complete and committed on `authz-ae5-successor-adrs`.
 
 ### Next
 
-Drafts to the lead; QA review; human approval; Record step.
+Lead reviews the two ADRs against the ruling text; QA review; human approval; Record step (where the
+lead closes the two `AE5-MATRIX-ARM3-CELLS` follow-ups).
 
 ### Blockers
 
-None.
+None. ⚠ One decision for the lead: **both ADRs overrun the task's 180–260-line target** (322 / 310)
+because ~90 lines of 0207's Decision section is mandated transcription — four verbatim ruling blocks,
+six SQL blocks, two census tables. ⛔ Nothing was cut to hit the number; the record states what is
+uncompressible and the corpus context (median 123, p90 390, comparable authz ADRs 559/599).

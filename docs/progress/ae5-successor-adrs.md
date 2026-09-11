@@ -491,3 +491,127 @@ that reports the same value on both arms cannot discriminate):
 are not owed — nothing in `supabase/` or `src/` was touched and nothing will be (`git status
 --porcelain` clean at the time of measurement). No DB state was modified: every read above is a
 `select`, and no `begin`/`rollback` probe was needed.
+
+### 2026-09-11 — both ADRs drafted, the four registers re-claused, the reservations retired (backend)
+
+Hub criteria 2–7. **Docs-only**: nothing in `supabase/` or `src/` was touched, no migration, no
+pgTAP, no reset. Every fact written is either re-measured here or carried from the verification entry
+above; the four corrections the lead ruled to carry are written as FACTS, each marked ⚠ beside the
+clause it changes, with the PO's intent unchanged.
+
+**Numbering re-measured before writing anything** (task step 1, ⛔ not quoted from the entry above).
+Per-ref `git ls-tree --name-only <ref> docs/decisions/` over 3 local + 4 remote refs →
+`authz-ae5-successor-adrs` **0206** · `claude/distracted-kapitsa-0d82de` 0206 · `main` 0206 ·
+`origin/authz-ae5-matrix-arm3-cells` 0205 · `origin/main` 0205 · `origin/authz-enforcement-manifest`
+0193 · `origin/authz-c2-tier1` 0180. A sweep for `docs/decisions/(0202|0204|0207|0208)-*` across every
+ref → **0 rows** (`rc=1`). ⇒ **0207 / 0208 stand**, as expected.
+
+**Written.**
+
+- `docs/decisions/0207-the-role-catalog-holds-roles-administrativo-is-a-capability-provider.md` —
+  **322 lines**, `**Amends:**` 0176. D1 F8 (the PO's diagram verbatim) · D2 the mapping constraints
+  verbatim **+ the (7) correction as a measured fact: FIVE capabilities in the
+  `commission_administrativo_capabilities` CHECK and `bulk_create_cases` as a DOOR-level invariant,
+  `member_can` as two functions** · D3 `platform_role` retired · D4 F7 · D5 the compat unit with the
+  six steps verbatim **+ the (8) correction: `authz.scope_kind` is a DOMAIN, step 4 is an
+  `ALTER DOMAIN` CHECK tightening, and it touches `public.memberships.scope_kind` too** · D6 the
+  sequencing (`staff_admin` baseline; five correction sites, not three) · D7 the blast-radius census
+  with its queries.
+- `docs/decisions/0208-the-candidate-fanout-is-structurally-dominated-and-empty-search-path-is-the-sole-forward-convention.md`
+  — **310 lines**, **no Amends label**. Checked before omitting it: 0183's Decisions are *extended* by
+  D2 not changed; 0191 decides the door arm's domain and says nothing about DEFINER paths; **0182's
+  Decision section decides no `search_path` convention** — the one endorsement-shaped sentence in the
+  corpus (*"which is the house pattern"*) sits in 0182's **Corrections** section at `:200`, is named
+  in Context, and is re-framed without disturbing what `413` pins. D1 the formula block verbatim
+  **+ the (10) grain statement** · D2 the six clauses verbatim, ordered to `AE4-D-SHAPE-ASSERTION` on
+  the P2 instrument, citing **0183 `:114-115`** and requiring a **live-body comparison** per
+  correction (2) · D3 the five triggers verbatim · D4 the sole forward convention · D5 `414` at
+  **§0b `:119` / §1 `:131`** with the owed gate named · D6 the narrow `ALTER FUNCTION`, ordered to
+  `DEFINER-SEARCH-PATH-NARROW-FIX`.
+
+⚠ **BOTH ADRs OVERRUN the task's 180–260-line target** (322 / 310) and are reported rather than cut
+to fit. Three drafts were written; the third saved 68 lines on 0207 and the next saving would have had
+to come out of mandated content. **What is uncompressible:** four verbatim ruling blocks (~50 lines),
+six SQL blocks and the census tables (~30), the header's Amends/Related/Numbering (~11) — about 90 of
+0207's 202-line Decision section is transcription, not prose. ⛔ **Compressing to a cap selects
+against qualifiers**, and the qualifiers here are the four corrections. Corpus context, from this
+plan's own §3 item 5: median 123 lines (n = 198), **p90 390**, and the two comparable multi-decision
+authz ADRs cost **559** (0190) and **599** (0191) for 4–5 decisions each. 0207 carries **seven**.
+⇒ the lead rules whether to cut; ⛔ nothing was silently dropped to hit a number.
+
+**Measured live this pass** (`docker exec … psql -Atc`, reads only; no `begin`/`rollback` needed):
+`authz.roles` per `allowed_scope_kind` → `capability_plane 1 · commission 2 · hospital 6 · none 1 ·
+organization 2` — **the source of `R_H = 6` and `R_O = 2` as catalog facts**. ⭐ **`C`'s coefficient is
+1, not 2, despite TWO commission-scoped roles**, and the reason is a constraint, not the role count:
+`memberships_one_commission_role_uq` = `UNIQUE (principal_id, commission_id) WHERE commission_id IS
+NOT NULL`. Both ADRs say so; a reader deriving the coefficient from the role census alone would get
+`2C` and a bound of 43, not 37. · `select count(*) from public.memberships where scope_kind =
+'capability_plane'` → **0**, and `memberships_role_check` admits only **ten** role codes
+(`administrativo` and `platform_admin` are not among them) ⇒ the `ALTER DOMAIN` is structurally safe
+today — ⛔ written into 0207 D5 as a **red-first cell the unit owes**, never as an inherited
+assumption, because a CHECK can be altered. · `authz.permissions` = 43 rows and all four codes the PO
+names exist (`commission.cases.read`, `commission.signoffs.read`, `commission.meetings.manage`,
+`commission.cases.manage`); `authz.role_permissions` has rows for **one** `role_code`, `staff_admin`
+(42). · `to_regclass('authz.capability_permissions')` → **NULL** — the PO's diagram names a table that
+does not exist; 0207 § Consequences says so rather than letting the diagram read as as-built. ·
+Re-confirmed unchanged: the five-value `search_path` table (825/39/23/2/1, total 890, `<none>`
+absent), `TEMP` true on all four client roles, `public.tenant_orphan_profiles`' one-line qualified
+`prosrc` with `proconfig = search_path=public, app, pg_catalog`, the four temp-table DEFINERs,
+`assume_role(platform_role)` `prosecdef` and not overloaded.
+
+**Two checks that changed what was written, recorded because both were nearly missed:**
+
+1. ⭐ **`414`'s line numbers verified by READING the file, not by trusting entry 3.** `sed -n
+   '109p;119p;131p'` → `:109` is §0a's domain-statement message, `:119` §0b (*"declares a search_path
+   at all"*), `:131` §1 (*"every schema … resolves in pg_namespace"*). Both ADR citations point at the
+   asserted properties, not one assertion early.
+2. ⛔ **A FALSE BACK-POINTER was generated into ADR 0201 and had to be removed.** `adr:index`'s parse
+   is *deliberately over-inclusive*: 0207's Amends label mentioned ADR 0201 inside its prose (*"F6 was
+   already decided by ADR 0201"*), so the generator recorded an `0207 amends 0201` edge and wrote
+   *"A later ADR changes this one — it is amended by 0207"* into **0201's** header. 0207 amends
+   **0176 only**. Fixed by removing the number and the link from the label body (*"its F6 slot was
+   already decided elsewhere (see Related)"*); the re-run confirms the back-pointer block is gone from
+   0201 and that 0176's correctly reads `0193, 0201, 0203, 0207`. ⚠ **A generated back-pointer is a
+   claim written into someone else's ADR** — an over-inclusive parse makes a false one silently, and
+   only a re-read of the target catches it.
+
+⛔ Also caught by the same gate run: 0208's bolded `⛔ Supersedes nothing, and amends no decision.`
+was **BLOCKING** — the parser reads a bolded verb near an ADR number as a label missing its colon.
+Unbolded per the tool's own guidance (live precedent 0133/0125).
+
+**Registers — both homes each, nothing compressed, no qualifier dropped.**
+
+- `FUP-AE5-MATRIX-ARM3-CELLS-INCREMENT-ONE-NAMES-TWO-DIFFERENT-ROLES` and
+  `…-ADR-0202-BLAST-RADIUS-CITES-ANOTHER-ADRS-CENSUS`: a dated `**Ruling (PO, 2026-09-11):**` line in
+  the index entry naming **0207 D6 / D7**, and a `## ✅ RULED` block in each body. ⛔ **Neither is
+  moved or marked closed** — each says the lead closes it at the Record step.
+- `FUP-AE4-CANDIDATE-SCOPE-FANOUT-IS-UNBOUNDED` and `FUP-NO-GATE-CATCHES-A-COLLAPSED-SEARCH-PATH`:
+  the `**Closes when:**` field **rewritten in the index** to the ruling's deliverable, with the
+  superseded text quoted inline inside the field so the change is visible rather than silent, plus a
+  dated `**Ruling:**` line; and a `## ⚠ RE-CLAUSED, NOT CLOSED` block in each body. ⭐ The first
+  entry's two offered options are **both rejected** by the ruling, so the field could not be ticked —
+  that is why it is rewritten, not closed. ⭐ The second entry's still-open **half 1** (a DEFINER
+  carrying **no** `search_path`, pinned 890/890 rather than ruled) is **explicitly left owed** in its
+  body: D4 implies it and the 419 ratchet observes the population, but neither states what happens if
+  the count moves.
+- **Correction markers, five sites plus the `:398` sentence** (⛔ beside, never rewriting — ADR
+  0105:24): `docs/progress/ae5-opening-adr.md:519-522` · `docs/plans/authz-evolution.md:1174`
+  (bullet) · `docs/plans/pre-ae5-remediation.md:396-398`, whose marker also carries the **`:398`
+  *"3 sites and fully measured"*** correction · `:640` · `:670`.
+  `docs/plans/authz-evolution.md:1215`'s **existing** ⛔ note got a dated **UPDATE** (*"the
+  disagreement is RULED, so this note no longer says 'do not resolve it'"*) rather than a second
+  marker beside it.
+- **Reservations retired** — a dated note on every sentence naming 0202/0204 as reserved:
+  `pre-ae5-remediation.md` §3 banner (`:367-369`), §3 item 3's two bullets, §3 item 5 (whose own
+  *"or renumber the deferred pair and say so here"* is answered in place), §6's successor bullet, §6
+  step 2 and step 3; `authz-evolution.md`'s `:1083` residue, its `:1173` bullet and its `:1335`
+  status-table row; and the handoff's RESUME block, **re-routed to `AE5-ROLE-CATALOG-COMPAT` as the
+  next unit**. ⛔ ADR 0176 D8's own text is untouched — it is history.
+
+**Line endings:** every file touched measured **0** CR with `tr -cd '\r' < f | wc -c` (⛔ not
+`grep -c $'\r'`, the dead instrument this record's previous entry self-tested).
+
+**Not owed, stated rather than inferred:** `npm run test:db`, `npm run e2e:prod` and the four authz
+arms (`census`, `hat`, `floor`, `FROMFINDINGS=1 wrapper`) plus the diff-scoped door sweep are **not
+owed** — `git diff --stat main -- supabase src` is **empty**, nothing executable changed, and no DB
+state was modified (every catalog read above is a `select`).
