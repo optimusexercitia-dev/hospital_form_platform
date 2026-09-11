@@ -8,7 +8,7 @@ phase: "Named at pre-AE5 Batch 9 by PO ruling R9 — due before AE5 increment 1 
 branch: authz-ae5-matrix-arm3-cells
 plan: ../plans/authz-evolution.md
 progress: ../progress/ae5-matrix-arm3-cells.md
-reviews: []
+reviews: ["../reviews/ae5-matrix-arm3-cells-review.md", "../reviews/ae5-matrix-arm3-cells-rereview.md"]
 adrs: ["0175", "0176", "0191", "0201"]   # 0201 added at Batch 9's Record step, as promised when it was dropped at unit open
 handoff: ~
 fup: ~
@@ -83,7 +83,7 @@ migration. ⛔ Someone other than the builder runs the arms at the tip.
 
 ## Current state
 
-**Updated:** 2026-09-11 (post-gate)
+**Updated:** 2026-09-11 (post-QA, awaiting human approval)
 
 ### Objective
 Discharge ADR 0175 D3's forward promise as WORK: label every cell of the arm-3 candidate population
@@ -113,12 +113,14 @@ and after. ⛔ `lint` was **1** at that tip — gate 13 on the record's own hand
 re-run bare at `eaf1757a`: **17/17, rc 0** (record entry *lint re-run BARE*).
 
 ### In progress
-Phase Gate step 3 — the QA review (`docs/reviews/ae5-matrix-arm3-cells-review.md`), not yet written.
+Phase Gate step 4 — **human approval, WAITING**. QA round 1 CHANGES REQUESTED (6 docs-only findings,
+all fixed at `00846736`, one follow-up filed for the live door comment); round 2 **APPROVED** (two
+MINORs discharged in the same commit as this block). `lint` bare rc 0 at `eaf1757a` and `00846736`.
 
 ### Next
-QA review → human approval (step 4) → Record step (lead-playbook §4: ledger row, plan §2 row, hub
-`complete`, ff-merge to `main`; ⛔ **no push** — standing instruction). E2E `e2e:prod` ruled **not
-owed** (no `src`/migration/seed/`e2e` in the diff) — for QA to confirm.
+On approval: the Record step (lead-playbook §4 — ledger row, plan §2 row, hub `complete`, review-queue
+check, ff-merge to `main`; ⛔ **no push** — standing instruction). E2E `e2e:prod` **not owed** (no
+`src`/migration/seed/`e2e` in the diff) — ruled by the lead, **confirmed by QA** in both rounds.
 
 ### Blockers
 None. ⚠ Standing: *"do not push"*. ⛔ Class 5's fix is a filed bug and deliberately **not** this unit.

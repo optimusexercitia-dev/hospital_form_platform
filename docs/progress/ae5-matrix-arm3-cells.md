@@ -716,3 +716,35 @@ baseline is Batch 10's gate row (`docs/progress/admin-arm-is-active.md`, gate ta
 unmasked grant reproduction is the 2026-09-10 *arm 3 derived* entry's probe (no artifact beyond the
 record); `is_pqs_operator_of_for` at depth 3 was not probed by this unit either — ⚠ **left open**, it
 does not bear on the four criteria.
+
+### 2026-09-11 — `lint` re-run BARE at `00846736`: rc 0 · QA round 2: **APPROVED** (two MINORs, discharged here) (lead)
+
+`npm run lint` at `00846736` (the fix commit), exit read bare from a background log: **0**; **17 of 17**
+gates reached; eslint 0/0; the only `WARN` is gate 16's filed `[D]` 160.3 KB line.
+
+**QA round 2** — `docs/reviews/ae5-matrix-arm3-cells-rereview.md` (qa, at `00846736`): **APPROVED**. All
+six round-1 findings verified discharged **at their locations**, and the S3/S4 bound verified **TRUE
+against the live `prosrc` of `app._case_caps`** (S3 keys on `principal_id`, S4 on `assigned_to`; the
+others terminate in `has_role`/`has_role_any`/`holds_role`). QA reproduced `lint:authz-vectors` 0, the
+three-file pgTAP run `Files=3, Tests=72, PASS` bare 0, gates 13/16/adr-index 0, the one-sha-line
+regeneration, `cdb6fae3` as an ancestor carrying the 400-line `403` change, and the vector grain (rep
+864 · `grant_keyed` 216 = 108+30+36+32+10 · 92 approved-divergent · 10 defective). Round 1's open
+"could not verify" item (`is_pqs_operator_of_for` at depth 3) closed by QA: S6 → `is_nsp_coordinator_of_for`
+/ `is_pqs_member_of_for` → `app.has_role`; the whole arm-3 chain `prosecdef = t`, pinned `search_path`,
+no PUBLIC grant.
+
+**Two MINORs, both discharged in this commit, each measured first:**
+- **A** — the slice said *"the other **five** `_case_caps` sources"*; the live body carries **eight**
+  S-labelled sources (`grep -nE "S[1-8] ·"` over `prosrc`: S1, S2, S5, S6, S7, S8, S3, S4), so six
+  besides S3/S4. Corrected to *six*, naming them. ⭐ The record NAMED the set and the slice COUNTED it —
+  lead-playbook §4 step 10 (*name sets; do not size them*) in miniature; the count errs toward
+  role-keyed, so nothing dangerous followed.
+- **B** — the hub's § In progress said the review was *not yet written* in the commit that added it,
+  `reviews: []` carried no link, § Next still said *for QA to confirm*. Hub block replaced (last edit of
+  the round), both reviews linked in the frontmatter.
+
+**Phase Gate status at this tip:** step 1 build **complete** (gate at `29422327`; lint green bare at
+`eaf1757a` and `00846736`; nothing gate-relevant moved since — docs, the manifest's narrative fields and
+their two sha lines, `410` re-run green) · step 2 test pass — **`e2e:prod` not owed**, ruled and **QA
+confirmed** · step 3 QA **APPROVED** (round 2) · step 4 **human approval — WAITING** · step 5 Record —
+not started. ⛔ Not merged, not pushed.
