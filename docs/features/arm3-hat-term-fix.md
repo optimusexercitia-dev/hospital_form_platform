@@ -57,7 +57,12 @@ comment-only migration):
       exit read bare · `npm run e2e:prod` once to declare green. ⛔ Local only — never
       `db:reset:linked`.
 - [ ] **Homes:** `docs/backend-state/authorization-and-audit.md` — slice appended AND the
-      `## Current state
+      `## Current state` block replaced (its open edge for this bug rewritten as fixed); an ADR if the
+      plan review rules one owed (number = highest on any live branch + 1, re-measured at creation;
+      0206 is the highest at open); bug status cell flipped in place and the follow-up archived in
+      both homes at the Record step, after QA review and human approval.
+
+## Current state
 
 **Updated:** 2026-09-11
 
