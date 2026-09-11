@@ -1090,6 +1090,14 @@ explicitly"* is the loose citation 0203 corrects: **0172 defers column CREATION*
 2026-09-01 amendment already **overturned** that for `sensitivity_ceiling`; the **consumer** deferral
 is ADR 0176's. The register's hold is
 `FUP-AE5-OPENING-ADR-CLASSIFICATION-COLUMNS-OWE-A-NAMED-CONSUMER`.
+⛔ **CORRECTED AGAIN 2026-09-11 (unit `AE5-SUCCESSOR-ADRS`) — the residue *"only F7, F8 and the
+`platform_role` retirement remain, reserved to ADR 0202"* is now SPENT too.** All three are **RULED
+and written as ADR
+[0207](../decisions/0207-the-role-catalog-holds-roles-administrativo-is-a-capability-provider.md)**
+(the reserved number 0202 renumbered by PO ruling on `pre-ae5-remediation.md` §3 item 5's own offered
+remedy; ⛔ no `0202` exists). ⇒ **nothing in ADR 0176 D8's bundle is open**: F6 by 0201, the
+classification columns by 0203, F7 · F8 · `platform_role` by 0207. The build 0207 orders is the named
+unit `AE5-ROLE-CATALOG-COMPAT`, due before AE5 **increment 1**.
 
 **Gate AE4 [language per PA-F7/F8/F12, ADR 0162]:** ✅ **APPROVED BY THE PO 2026-09-04.** The 2026-09-03 HOLD is discharged: C2 closed at **170 COVERED · 1 BLIND · 0 ERROR = 171** with a QA verdict of APPROVED, satisfying the "C2 subset closed (pilot cutline)" clause below — the only external precondition that gated on C2. ⛔ The approval does **not** clear Tier 2: its **190 doors stay deferred by ADR 0171 and are NOT cleared**. Record: [authz-ae4.md](../progress/authz-ae4.md) and [c2-tier1.md](../progress/c2-tier1.md), 2026-09-04; ledger row `AE4`. Original text follows.
 
@@ -1174,6 +1182,17 @@ inside a role increment.
 >   before AE5 **increment 2** (increment 1 is `staff_admin`, the only already-`authoritative` role).
 >   ⛔ The *"do not pick one off ad hoc inside a role increment"* prohibition **still stands** for those
 >   three.
+>   - ⛔ **DATED CORRECTION 2026-09-11 (unit `AE5-SUCCESSOR-ADRS`) — this bullet is superseded in
+>     BOTH halves and left standing as history (ADR 0105).** (i) F7, F8 and the retirement are
+>     **RULED and written** as ADR **0207** — the reserved number 0202 was renumbered by PO ruling
+>     (plan `pre-ae5-remediation.md` §3 item 5's own offered remedy), so read
+>     [0207](../decisions/0207-the-role-catalog-holds-roles-administrativo-is-a-capability-provider.md),
+>     not a 0202 that does not exist. (ii) *"due before increment 2 (increment 1 is `staff_admin`)"*
+>     is **REFUTED**: 0207 D6 rules `staff_admin` the already-authoritative **baseline**, not an
+>     increment — item 1 is `staff`, exactly as the Proposed order below already numbered it — so
+>     0207 and its unit `AE5-ROLE-CATALOG-COMPAT` are due before **increment 1**. ⭐ The *"do not pick
+>     one off inside a role increment"* prohibition is **preserved**: 0207 D5 gives it a carrier (one
+>     named unit before the first increment) rather than relaxing it.
 
 **Proposed order** (each its own increment with the full per-role gate; the PO may reorder):
 
@@ -1216,6 +1235,14 @@ derive the arm, give it a coordinate, label the cells, and take a PO expected va
 Proposed order, which numbers from `staff` —
 `FUP-AE5-MATRIX-ARM3-CELLS-INCREMENT-ONE-NAMES-TWO-DIFFERENT-ROLES` holds it; ⛔ do not resolve it by
 picking whichever reading suits the increment you are opening.
+⭐ **UPDATED 2026-09-11 (PO ruling, unit `AE5-SUCCESSOR-ADRS`) — the disagreement is RULED, so this
+note no longer says "do not resolve it".** ADR
+[0207](../decisions/0207-the-role-catalog-holds-roles-administrativo-is-a-capability-provider.md) D6:
+`staff_admin` is the already-authoritative **baseline**, not an increment; **this Proposed order's
+numbering is the surviving reading** — item 1 is `staff`, item 6 remains the `administrativo`
+provider mapping — and the remaining work after the compat unit is **ten** role cutovers plus **one**
+capability-plane cutover. ⇒ quote **this** order; the *"increment 1 is `staff_admin`"* sentences
+elsewhere carry dated correction markers. The follow-up closes at the unit's Record step.
 
 **Per-role checklist (the AE4 template, abbreviated):** matrix derived from all planes (both
 helper-name forms swept) → PO approves → seed → generated-cell differential under the
@@ -1313,7 +1340,7 @@ Not scheduled. Entry conditions (all before a proposal is even writable):
 | AE4.3 | the `staff_admin` matrix (becomes the oracle) | lead + backend |
 | **AE4.9** | ✅ **RULED 2026-09-02** — on the [implementation audit](../reviews/authz-evolution-implementation-audit-2026-09-02.md): **Option A — make permissions real** (three layers, manifest countdown, re-key sequenced with AE5) — recorded in ADR [0176](../decisions/0176-authz-permission-layer-made-real.md) (`Amends:` 0155 D7 + 0174) | lead + PO |
 | **Gate AE4** | ✅ **RULED 2026-09-02** — the **minimum re-key scope** is the three differential representatives end-to-end (`commission.forms.edit`, `org.professionals.create`, `org.professionals.read`), everything else `pending-rekey` in the manifest — 0176 D6 | PO |
-| **AE5 plan** | ✅ **F6 RULED 2026-09-10** (ADR 0201 D1/D2 — subject-keyed asymmetry ratified; the audit stamps the role only) · ⚠ still OPEN, reserved to **ADR 0202**: F8 `administrativo` out of roles · `platform_role` retirement · F7 single manifest entry — decided together, one compatibility migration | lead + PO |
+| **AE5 plan** | ✅ **F6 RULED 2026-09-10** (ADR 0201 D1/D2 — subject-keyed asymmetry ratified; the audit stamps the role only) · ✅ **F8 · `platform_role` · F7 RULED 2026-09-11** — written as **ADR [0207](../decisions/0207-the-role-catalog-holds-roles-administrativo-is-a-capability-provider.md)** (the reserved *"ADR 0202"* renumbered; ⛔ no `0202` exists). ⚠ The cell read *"still OPEN, reserved to **ADR 0202** … decided together, one compatibility migration"* — decided together it was, but the PO **sequenced** the build rather than taking one migration: six ordered steps in the named unit **`AE5-ROLE-CATALOG-COMPAT`**, before increment 1 | lead + PO |
 | AE5, per role | each role's matrix; the substitution order | lead |
 | AE5.7 | `platform_admin` noun-rule restriction review before flip | qa + PO |
 | §8 residue | inheritance-per-permission, high-risk ceilings (expiry/reason/second-approval), revocation SLA — resolved with the first role whose matrix needs each | lead |

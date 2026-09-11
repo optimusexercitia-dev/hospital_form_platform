@@ -522,6 +522,19 @@ allowed_scope_kind, state from authz.roles` → 11 `legacy` + `staff_admin autho
 gates increment **2**, not 1. ⭐ And the arithmetic closes: **AE5's eleven increments = 12 catalog
 roles − `staff_admin`.**
 
+> ⛔ **DATED CORRECTION 2026-09-11 (PO ruling, unit `AE5-SUCCESSOR-ADRS`) — the ordinal above is
+> REFUTED; the sentence is left standing as history (ADR 0105: historical documents are not
+> rewritten).** `staff_admin` is the already-authoritative **BASELINE, not increment 1** (ADR
+> [0207](../decisions/0207-the-role-catalog-holds-roles-administrativo-is-a-capability-provider.md)
+> D6): *"Item 1 is therefore staff"*. ⭐ The two sentences above contradict each other — the second
+> **subtracts** `staff_admin` out of the increments while the first makes it increment 1 — and the
+> ruling keeps the second: after the compat unit the work is **ten** role cutovers plus **one**
+> capability-plane cutover. ⚠ Consequently *"0202 gates increment 2"* is retired, not re-ordinalled:
+> the role-catalog decision (renumbered **0207**) and its unit `AE5-ROLE-CATALOG-COMPAT` are due
+> before **increment 1**. Holder:
+> `FUP-AE5-MATRIX-ARM3-CELLS-INCREMENT-ONE-NAMES-TWO-DIFFERENT-ROLES`, closing at that unit's Record
+> step.
+
 ⭐ **Its sharpest finding: F6 is not an open design question — the catalog already implements an
 answer nobody ratified.** `authz.entailed_grants` emits a `hat_ok` column computed as
 `(p_principal is distinct from (select auth.uid()) or af.role_code is not distinct from

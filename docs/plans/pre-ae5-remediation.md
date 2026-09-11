@@ -367,6 +367,13 @@ through. Needs its own reachability analysis; a migration → diff-scoped sweep,
 > (audit F5's seam) are **RULED** in ADR 0201/0203; item 1b–1d → **ADR 0202**; items 4–5 (the `D`
 > ceiling, `search_path`) → **ADR 0204**; item 3 (arm-3 cells) → unit **`AE5-MATRIX-ARM3-CELLS`**;
 > item 6 (the checklist) is **delivered** as five pointers in `authz-evolution.md`.
+> ⛔ **DATED NOTE 2026-09-11 (unit `AE5-SUCCESSOR-ADRS`):** the two reserved numbers in this banner
+> were **written as 0207 and 0208** — item 1b–1d as ADR
+> [0207](../decisions/0207-the-role-catalog-holds-roles-administrativo-is-a-capability-provider.md),
+> items 4–5 as ADR
+> [0208](../decisions/0208-the-candidate-fanout-is-structurally-dominated-and-empty-search-path-is-the-sole-forward-convention.md),
+> per §3 item 5's own *"renumber the deferred pair and say so here"*. ⛔ `0202` and `0204` exist
+> nowhere in the corpus and never will.
 > ⚠ **CORRECTED 2026-09-10:** this banner read *"⚠ IN FLIGHT since 2026-09-09 … branch
 > `authz-ae5-opening-adr` off `main` @ `55e440c3`"*, which was **false on three counts** — the unit is
 > `complete` with a ledger row, that branch **does not exist**, and this same file declares the
@@ -396,9 +403,32 @@ through. Needs its own reachability analysis; a migration → diff-scoped sweep,
 >      ⭐ Measured, not assumed: increment 1 is `staff_admin`, **the only role already
 >      `state = 'authoritative'`** (`select code, state from authz.roles` → 11 `legacy` + 1), so 0202
 >      gates increment **2**. Its blast radius is **3 sites** and fully measured (see the unit record).
+>      - ⛔ **DATED CORRECTION 2026-09-11 (unit `AE5-SUCCESSOR-ADRS`) — three claims in the bullet
+>        above are superseded; it is left standing as history (ADR 0105).** (i) **Written as ADR
+>        [0207](../decisions/0207-the-role-catalog-holds-roles-administrativo-is-a-capability-provider.md)**,
+>        the reserved 0202 renumbered by PO ruling on item 5's own offered remedy. (ii) *"increment 1
+>        is `staff_admin` … so 0202 gates increment 2"* is **REFUTED** — 0207 D6 rules `staff_admin`
+>        the already-authoritative **baseline**, not an increment; item 1 is `staff`, and 0207 plus its
+>        unit `AE5-ROLE-CATALOG-COMPAT` are due before **increment 1**. (iii) ⛔ *"Its blast radius is
+>        **3 sites** and fully measured (see the unit record)"* was **FALSE when written**: no such
+>        census existed in `docs/progress/ae5-opening-adr.md` (that file's only three-site census is
+>        R8's `hat_ok` resolver trio — F6's radius, i.e. ADR 0201's subject), which is what
+>        `FUP-AE5-MATRIX-ARM3-CELLS-ADR-0202-BLAST-RADIUS-CITES-ANOTHER-ADRS-CENSUS` holds. The census
+>        now exists, with the query beside every figure, in **ADR 0207 D7** — `platform_role` reaches
+>        **11** enum labels · **1** column · **1** routine · **0** policies · **7** first-party TS
+>        files, and F7's and F8's limbs are counted in D4 and D2/D7. ⇒ read D7, never *"3 sites"*.
 >    - **ADR 0204** (the `D` ceiling · the `search_path` convention) → deferred; ⭐ **both censuses are
 >      written into the two follow-up bodies at this batch**, so ⛔ neither is re-measured and neither
 >      clause may be closed on the stale figures it was filed with.
+>      - ⛔ **DATED CORRECTION 2026-09-11 (unit `AE5-SUCCESSOR-ADRS`) — written as ADR
+>        [0208](../decisions/0208-the-candidate-fanout-is-structurally-dominated-and-empty-search-path-is-the-sole-forward-convention.md)**,
+>        the reserved 0204 renumbered by the same ruling. ⭐ Both censuses were re-measured before
+>        drafting and reproduce; ⚠ two grains were corrected in the writing — the `D` census's `M`
+>        counts **membership rows** (1 / 3 / 1.30) while the invariant's provider-neutral `F` is
+>        counted from `authz.assignment_facts` (0 / 3 / 1.27, the `is_active` gate) — and the
+>        follow-up clauses are **RE-CLAUSED, not closed**, because 0208 ORDERS builds: a six-clause
+>        shape assertion (`AE4-D-SHAPE-ASSERTION`), a prospective gate and a narrow `ALTER FUNCTION`
+>        migration (`DEFINER-SEARCH-PATH-NARROW-FIX`).
 >    - **Item 3 (arm-3 divergent cells) → OUT (PO R9)**, to a named unit
 >      **`AE5-MATRIX-ARM3-CELLS`** ([hub](../features/ae5-matrix-arm3-cells.md)), due before increment
 >      1 runs its **matrix**, ⛔ **not** before its **template** is written — that is the real
@@ -440,6 +470,16 @@ through. Needs its own reachability analysis; a migration → diff-scoped sweep,
 >    0204 for the `D`-ceiling / `search_path` document. ⛔ **Whoever numbers the next ADR reads this:**
 >    `0202` is reserved for the role-catalog decision (F7 · F8 · `platform_role`) and **`0204` for the
 >    two conventions**; take **0205** for anything else, or renumber the deferred pair and say so here.
+>    - ✅ **SAID HERE, 2026-09-11 (PO ruling, unit `AE5-SUCCESSOR-ADRS`) — the second branch was
+>      taken: the deferred pair is RENUMBERED and both are WRITTEN.** The role-catalog decision is
+>      ADR [0207](../decisions/0207-the-role-catalog-holds-roles-administrativo-is-a-capability-provider.md)
+>      and the two conventions are ADR
+>      [0208](../decisions/0208-the-candidate-fanout-is-structurally-dominated-and-empty-search-path-is-the-sole-forward-convention.md).
+>      ⛔ **`0202` and `0204` are no longer reserved, and neither exists**; `0205` is spent (the
+>      grant-plane convention, 2026-09-10) and `0206` is spent (the service-role DML seam). Numbers
+>      were re-measured at reservation across every live ref — highest **0206**, with a sweep for
+>      `0202|0204|0207|0208` returning 0 rows — and ⛔ the next number is measured that way again,
+>      never quoted from this line.
 
 The decisions the corpus explicitly bundles for AE5's first step, none of which may be *"picked off
 inside a role increment"* (ADR [0176](../decisions/0176-authz-permission-layer-made-real.md) D8):
@@ -645,6 +685,20 @@ below are kept as the protocol a successor reads, ⛔ **not** as an instruction 
   0205 for any other subject"* is **SPENT**: 0205 became the grant-plane convention the same day
   (2026-09-10); the next free number for any other subject is *highest on any live branch + 1*,
   re-measured at the moment of reserving, never quoted from here (§3 item 5).
+  - ✅ **DATED NOTE 2026-09-11 (unit `AE5-SUCCESSOR-ADRS`) — the whole bullet above is SPENT; left
+    standing as history (ADR 0105).** Both remaining successors are **written**: the role-catalog
+    decision as ADR
+    [0207](../decisions/0207-the-role-catalog-holds-roles-administrativo-is-a-capability-provider.md)
+    and the two conventions as ADR
+    [0208](../decisions/0208-the-candidate-fanout-is-structurally-dominated-and-empty-search-path-is-the-sole-forward-convention.md)
+    — the reserved numbers `0202`/`0204` were renumbered by PO ruling on §3 item 5's own offered
+    remedy and are no longer reserved. ⚠ *"increment 1 is `staff_admin`, the only
+    already-`authoritative` role"* is **REFUTED** by 0207 D6: `staff_admin` is the **baseline**, item
+    1 is `staff`, and 0207's unit `AE5-ROLE-CATALOG-COMPAT` is due before **increment 1**. ⚠ *"both
+    censuses already written into their follow-up bodies so neither is re-measured"* did **not**
+    survive contact: every cited fact was re-measured before drafting (10 of 14 reproduced, 4
+    differed), and the two clauses are **RE-CLAUSED, not closed**, because 0208 orders builds. ⇒ **the
+    next unit is `AE5-ROLE-CATALOG-COMPAT`**, not another ADR.
 - ⚠ **`.claude/claude-md-review-queue.md` is GITIGNORED, so it is PER-CLONE** — ⭐ found 2026-09-10 when
   the clone that opened Batch 10 still held **12 entries (13,875 bytes)** after Batch 9's own record said
   the queue was *"cleared to empty"*: that clearing happened on the **other** clone (five entries, 1,433
@@ -671,11 +725,22 @@ below are kept as the protocol a successor reads, ⛔ **not** as an instruction 
    the `search_path` convention), both censuses **already in their follow-up bodies** · unit
    **`AE5-MATRIX-ARM3-CELLS`** before increment 1 runs its **matrix** — ✅ **CONCLUDED 2026-09-11**, see the bullet in §3 above; only the two ADRs remain. ⛔ **ADR numbering: take 0205** —
    0202 and 0204 are reserved and 0202 can never be filled.
+   ⛔ **DATED NOTE 2026-09-11 (unit `AE5-SUCCESSOR-ADRS`) — this step's whole successor list is SPENT
+   and its numbering sentence is wrong twice over.** Both ADRs are **written as 0207 and 0208** (the
+   reserved pair renumbered by PO ruling); 0205 and 0206 are spent; the next number is *highest on
+   any live ref + 1*, re-measured. ⚠ *"increment 1 is `staff_admin`"* is **REFUTED** (ADR 0207 D6 —
+   baseline, not an increment; item 1 is `staff`). ⇒ **What remains is not an ADR but a build: the
+   named backend unit `AE5-ROLE-CATALOG-COMPAT`** (ADR 0207 D5, six ordered steps, before AE5
+   increment 1), with `AE4-D-SHAPE-ASSERTION` and `DEFINER-SEARCH-PATH-NARROW-FIX` (ADR 0208 D2/D5/D6)
+   unordered relative to it.
    ⚠ ADR 0201 carries forward **ADR 0200's data obligation** (0193 D5 extended): the AE5 per-role
    template must declare the **keying** of every arm it pairs and never pair a caller-keyed arm with a
    `p_uid`-keyed one — and ⛔ **nothing reds if it does; that clause is `prose only`.**
 
-3. **Name the successor you are opening** — *"write ADR 0202"* or *"write ADR 0204"* (⚠ *"open `AE5-MATRIX-ARM3-CELLS`"* is SPENT — concluded 2026-09-11), or
+3. **Name the successor you are opening** — ⛔ **DATED NOTE 2026-09-11 (unit `AE5-SUCCESSOR-ADRS`):
+   *"write ADR 0202"* and *"write ADR 0204"* are BOTH SPENT** — written as **0207** and **0208**; the
+   next successor is the build unit **`AE5-ROLE-CATALOG-COMPAT`** (ADR 0207 D5). Superseded options,
+   kept as history: *"write ADR 0202"* or *"write ADR 0204"* (⚠ *"open `AE5-MATRIX-ARM3-CELLS`"* is SPENT — concluded 2026-09-11), or
    *"initiate Batch 10"* (which has **no block here** by decision — derive it from ADR 0201 + 0203 and
    the unit record's R11/R12 entries, ⛔ never from R3/R4 alone). The lead opens the hub + record
    **before** the branch (gate 13's branch check wants the branch to exist), then plans before

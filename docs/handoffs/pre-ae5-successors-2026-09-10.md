@@ -19,6 +19,27 @@ stale on `origin`). Two successors remain, both docs-only ADRs, and the PO names
 constraint). Measure the tree (command below), then read `docs/plans/pre-ae5-remediation.md` §6
 *Where the next session starts*. ⛔ AE5 itself stays post-pilot (ADR 0155 G1). ⛔ ADR numbers 0202 and
 0204 are reserved; for any other subject take *highest on any live branch + 1*, re-measured.
+
+> ⛔ **RE-ROUTED 2026-09-11 (unit `AE5-SUCCESSOR-ADRS`) — the paragraph above is SPENT; it is kept as
+> history and ⛔ must not be acted on.** **Both remaining successors are WRITTEN**, and the reserved
+> numbers were renumbered by PO ruling (on `pre-ae5-remediation.md` §3 item 5's own offered remedy),
+> so ⛔ **`0202` and `0204` do not exist and are no longer reserved**:
+> - ADR [0207](../decisions/0207-the-role-catalog-holds-roles-administrativo-is-a-capability-provider.md)
+>   — the role catalog (F7 · F8 · `platform_role`). ⚠ *"before AE5 increment 2"* is refuted: D6 rules
+>   `staff_admin` the already-authoritative **baseline**, item 1 is `staff`, so it is due before
+>   **increment 1**.
+> - ADR [0208](../decisions/0208-the-candidate-fanout-is-structurally-dominated-and-empty-search-path-is-the-sole-forward-convention.md)
+>   — the two conventions. ⚠ *"both censuses already in the two follow-up bodies"* held only as a
+>   starting point: every cited fact was re-measured before drafting (10 of 14 reproduced, 4
+>   differed), and both follow-up clauses are **RE-CLAUSED, not closed**.
+>
+> **▶ THE NEXT UNIT IS `AE5-ROLE-CATALOG-COMPAT`** — a backend build unit, not an ADR (ADR 0207 D5:
+> six ordered steps, before AE5 increment 1; the `authz.scope_kind` step is an `ALTER DOMAIN` and
+> needs a red-first `memberships` proof first). Two further named units are owed and are **not**
+> ordered against it: `AE4-D-SHAPE-ASSERTION` and `DEFINER-SEARCH-PATH-NARROW-FIX` (ADR 0208
+> D2 / D5 / D6). ⛔ AE5 itself still stays post-pilot (ADR 0155 G1) — the compat unit is pre-AE5
+> remediation, not increment 1. For any other subject's ADR number, take *highest on any live ref +
+> 1*, re-measured (highest was **0208** at this writing; ⛔ do not quote that either).
 ⚠ Two follow-ups filed by the concluded unit need a PO ruling before the next backend unit touches
 their subjects: `FUP-AE5-MATRIX-ARM3-CELLS-AUTHZ-SEAM-CROSSED-ITS-WARN-LINE` (which noun leaves the
 authz seam file) and `FUP-AE5-MATRIX-ARM3-CELLS-READ-DOOR-COMMENT-CITES-THE-REPLACED-403-SECTION`
