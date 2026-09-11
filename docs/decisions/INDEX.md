@@ -14,7 +14,7 @@
 >
 > Edges are **advisory** and over-inclusive by design; the ADR text is truth.
 
-**202 ADRs** · next free number: **0207** · 74 carry an inbound supersedes/amends edge
+**204 ADRs** · next free number: **0209** · 74 carry an inbound supersedes/amends edge
 
 ## ⚠ Anomalies
 
@@ -200,7 +200,7 @@
 | 0173 | [the door-sweep deriver is blind to runtime-rewrite migrations; a target-declaration con…](0173-door-sweep-deriver-blind-to-runtime-rewrite-migrations.md) | accepted | 2026-09-01 | amends 0079 | ⚠ amended by 0190, 0191 |
 | 0174 | [`authz.holds_role`: one chokepoint for the hat, and `authz.roles.state` made load-beari…](0174-authz-holds-role-chokepoint-and-authoritative-state-gate.md) | accepted | 2026-09-01 | amends 0079, 0106 | ⚠ amended by 0176 |
 | 0175 | [The AE4 PO batch: what the differential oracle asserts, and what it deliberately does n…](0175-ae4-po-batch-oracle-inputs-and-arm3-deferral.md) | accepted | 2026-09-01 | amends 0155 | ⚠ amended by 0178 |
-| 0176 | [The permission layer made real: three interfaces, a manifest countdown, and the re-key…](0176-authz-permission-layer-made-real.md) | accepted | 2026-09-02 | amends 0155, 0174 | ⚠ amended by 0193, 0201, 0203 |
+| 0176 | [The permission layer made real: three interfaces, a manifest countdown, and the re-key…](0176-authz-permission-layer-made-real.md) | accepted | 2026-09-02 | amends 0155, 0174 | ⚠ amended by 0193, 0201, 0203, 0207 |
 | 0177 | [AE4.9 D4/D7 as built: the candidate's state set, the denial precedence, and the state g…](0177-ae49-resolver-contract-implementation-choices.md) | accepted | 2026-09-02 | – | – |
 | 0178 | [AE4.9 D6 as built: the narrow authorizer, where the preserved legacy arm lives, and the…](0178-ae49-d6-rekey-as-built.md) | accepted | 2026-09-02 | amends 0175 | ⚠ amended by 0193 |
 | 0179 | [One open follow-up register: the PROGRESS.md index is folded into the bodies](0179-follow-up-register-consolidation.md) | accepted | 2026-09-02 | amends 0124, 0140 | ⚠ amended by 0185, 0186 |
@@ -229,3 +229,5 @@
 | 0203 | [Audit F5's seam is already encoded as data in the enforcement manifest; the three class…](0203-the-seam-is-already-encoded-the-classification-columns-are-not.md) | accepted | 2026-09-09 | amends 0172, 0176 | – |
 | 0205 | [The per-object grant plane convention: root ledgers, computed participation, catalog-na…](0205-per-object-grant-plane-convention.md) | accepted | 2026-09-10 | amends 0033, 0078, 0155 | – |
 | 0206 | [The service-role DML registry gets its own seam, and the gate that reads it moves in th…](0206-the-service-role-dml-registry-gets-its-own-seam.md) | accepted | 2026-09-11 | amends 0196 | – |
+| 0207 | [The role catalog holds roles: `administrativo` becomes a capability-provider namespace…](0207-the-role-catalog-holds-roles-administrativo-is-a-capability-provider.md) | accepted | 2026-09-11 | amends 0176 | – |
+| 0208 | [Two conventions: the candidate fan-out `D` is a parametric structural invariant plus ac…](0208-the-candidate-fanout-is-structurally-dominated-and-empty-search-path-is-the-sole-forward-convention.md) | accepted | 2026-09-11 | – | – |
