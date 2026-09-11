@@ -669,3 +669,12 @@ byte-identical to the one Batch 10 gated green (38/38 on the prod build, 2026-09
 
 **`lint` re-run bare at the tip that carries this entry and the reworded line:** see the next entry's
 first line — a figure typed here before the run would be the defect the record exists to avoid.
+
+### 2026-09-11 — `lint` re-run BARE at tip `eaf1757a` (record entry + hub block after the gate): **rc 0** (lead)
+
+`npm run lint` at `eaf1757a`, exit read bare from a background log: **0**; **17 of 17** gates reached;
+eslint 0 errors / 0 warnings; the only `WARN` match is gate 16's `[D] … 160.0 KB is over the 160 KB
+warn line` (filed, non-fatal) plus gate 17's standing BOUND note. The gate-13 red at `29422327` is
+therefore discharged by the reworded line (`a6765c0f`); the two commits between the gate tip and this
+one touch only `docs/progress/ae5-matrix-arm3-cells.md` and `docs/features/ae5-matrix-arm3-cells.md`
+(`git diff --name-only 29422327..eaf1757a`). QA review (`qa` teammate) commissioned at this tip.
