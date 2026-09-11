@@ -12,7 +12,7 @@
 # read from the file, and any value this generator does not emit must be named in EXCLUSIONS with
 # a reason. arm7 is what enforces that, and arm7 itself is exercised by --self-test.
 
-import io, os, json, sys, hashlib
+import io, os, json, sys, hashlib, textwrap
 
 # ⛔ EVERY DIAGNOSTIC THIS FILE PRINTS CONTAINS NON-ASCII, AND THE GATE PIPE IS cp1252 ON WINDOWS.
 # Without this, --check's DRIFT message died with a UnicodeEncodeError traceback — exit code still
@@ -31,6 +31,22 @@ OUT = ROOT + '/supabase/tests/vectors/authz_differential_cells.psql'
 raw = io.open(SRC, 'rb').read()
 sha = hashlib.sha256(raw).hexdigest()
 spec = json.loads(raw.decode('utf-8'))
+
+# ⭐ A SECOND INPUT, READ BUT NEVER WRITTEN, AND IT IS AN AUTHORITY RATHER THAN A CONVENIENCE.
+# The gate-scoped `caseReach` skip rule below rests on ONE claim — exactly one representative's
+# gate carries a case arm. That claim is not this file's to make: it is stated in the enforcement
+# manifest as `permissions[<code>].legacyEquivalence.openArms`. arm9 reads it on EVERY run and
+# refuses to emit when the manifest and the skip rule's premise disagree, which is what turns
+# "revisit this if another permission gains the case arm" from a hope into a gate.
+# ⛔ NOT sha-stamped into the output on purpose: the manifest does not change a single generated
+# byte. Stamping it would make an unrelated manifest edit look like oracle drift in --check, which
+# is the one signal in this file that must stay unambiguous. arm9 is the detector, not the sha.
+MANIFEST_SRC = ROOT + '/supabase/tests/vectors/authz-enforcement-manifest.json'
+_MANIFEST_ERR = None
+try:
+    MANIFEST_PERMISSIONS = json.loads(io.open(MANIFEST_SRC, 'rb').read().decode('utf-8'))['permissions']
+except Exception as _e:                       # noqa: BLE001 — any failure here is arm9's business
+    MANIFEST_PERMISSIONS, _MANIFEST_ERR = None, '%s: %s' % (type(_e).__name__, _e)
 
 # ── The legacy-equivalence classes swept here, asserted in pgTAP 401 §19.2 ─────────────────
 REPS = [
@@ -163,6 +179,55 @@ EXCLUSIONS = {
         'asserts a state the schema cannot produce.',
 }
 
+# ── THE ARM-3 GATE, NAMED IN THREE VOCABULARIES, AND arm9 BINDS ALL THREE ─────────────────
+# ⚠ Defined HERE, above the exclusion dicts, because the gate-scoped exclusion's reason quotes
+# them; the arm-3 label machinery further down uses the same constants rather than re-typing them.
+ARM3_GATE = 'can_read_professional_profile'   # the legacy CLASS this generator dispatches on
+ARM3_REP_CODE = 'org.professionals.read'      # the same gate as the ENFORCEMENT MANIFEST keys it
+ARM3_CASE_ARM_FN = 'app.can_read_case_committee'   # the open arm whose presence IS the case arm
+# The one reach every representative gets, case-armed or not. `none` and not another value because
+# it is the state 403's driver actually constructs today (it has no case_reach branch), so a cell
+# kept at this reach is the cell that already existed before the axis — byte-identical, not a
+# newly-invented coordinate standing in for four.
+ARM3_INERT_REACH = 'none'
+
+# ── CONDITIONAL (GATE-SCOPED) EXCLUSIONS — the same reasoned-exclusion idiom, one grain finer. ──
+# EXCLUSIONS above deletes an axis value from the WHOLE population; an entry here deletes it only
+# where it is INERT, and it is held to the same bar: arm7 refuses an unreasoned one, because an
+# unreasoned exclusion is a default in disguise. ⛔ These are NOT axis-value keys — the second
+# element is a RULE NAME, and `build()` implements the condition. The rule name is what the skip
+# census counts, so the deletion is always attributable to a sentence someone wrote.
+CONDITIONAL_EXCLUSIONS = {
+    ('caseReach', 'inert_outside_the_arm3_gate'):
+        'GATE-SCOPED, AND THE AXIS IS GATE-SPECIFIC BY CONSTRUCTION. `caseReach` coordinates ONE '
+        'arm of ONE gate body: the case arm of app.can_read_professional_profile. A gate whose '
+        'body has no case arm cannot answer differently at any reach, so sweeping the reach there '
+        'produces cells that differ only in a column their door never reads. MEASURED at the '
+        'unconditional sweep (2026-09-10): the four non-arm-3 representatives held 3456 cells '
+        'carrying 864 DISTINCT PAYLOADS — 2592 were exact copies differing solely in a '
+        '`case_reach` value with no arm to consume it. ⛔ Duplicate cells that cannot discriminate '
+        'anything INFLATE APPARENT COVERAGE, which is the vacuous-assertion family this tree '
+        'gates against (docs/learning/LESSONS.md); they are not a cheap insurance policy. ⚠ AND '
+        'THEY PRE-PAY NOTHING: the staleness risk is IDENTICAL under both designs, because the '
+        '`arm3:not-in-gate` label those 3456 cells carried was itself computed from ARM3_GATE, a '
+        'static name in this file — it would no more auto-notice a newly-grown case arm than this '
+        'skip rule would. The unconditional sweep bought four times the 403 runtime and not one '
+        'detector. ⭐ THE AUTHORITY FOR *WHICH* GATE HAS THE CASE ARM IS NOT THIS FILE: it is the '
+        'enforcement manifest, supabase/tests/vectors/authz-enforcement-manifest.json, at '
+        '`permissions["org.professionals.read"].legacyEquivalence.openArms`, which names '
+        '`app.can_read_case_committee` — the arm that reduces to C ∧ D over app._case_caps. At the '
+        'head measured here that is the ONLY permission in all 43 carrying an openArms list at '
+        'all. ⛔⛔ STANDING CONDITION, NOT A HOPE: IF ANY OTHER PERMISSION\'S `openArms` GAINS '
+        '`app.can_read_case_committee`, THIS EXCLUSION MUST BE REVISITED — a second case-armed '
+        'gate makes the reach live for a representative this rule is deleting it from, and the '
+        'deletion becomes a silent coverage loss of exactly the shape AE4.9 and ADR 0201 D5 each '
+        'produced once. That condition is ENFORCED, not merely written down: arm9 reads the '
+        'manifest on every run and refuses to emit the moment the case-armed representative set '
+        'stops being {%s}. ⚠ Enforced AT REP GRAIN, which is the exact grain of the rule — a '
+        'non-representative permission growing the arm changes no emitted cell, and would red '
+        'arm9 the instant it became a representative.' % ARM3_GATE,
+}
+
 # ── Axis values, READ FROM THE JSON. ⛔ Never re-list them here. ────────────────────────
 def axis_values(name):
     return list(spec['axes'][name]['values'].keys())
@@ -255,7 +320,9 @@ def expected(persona, ctx, scope, state, selfcheck, res_scope):
 # Computed by TRANSCRIPTION, exactly as `expected()` transcribes the deny-class table — from the
 # arm-3 derivation measured on the live catalog at head (20261003007390, 528). pgTAP 403 binds it
 # to the catalog later; ⛔ this file never queries anything.
-ARM3_GATE = 'can_read_professional_profile'   # the ONLY rep whose gate body carries a case arm
+# ⚠ ARM3_GATE / ARM3_REP_CODE / ARM3_CASE_ARM_FN / ARM3_INERT_REACH are defined ABOVE, beside the
+# exclusion dicts whose reason quotes them. `ARM3_GATE` is the ONLY rep whose gate body carries a
+# case arm — a claim arm9 re-reads from the enforcement manifest on every run rather than trusting.
 
 # Two properties of each reach value, and they are the only two the label consults.
 #   fires       — can arm 3 return true at this reach at all?
@@ -377,9 +444,11 @@ def build(personas, contexts, scopes, states, reaches, reps, exclusions):
     # ⛔ `reach` IS A LOOP LEVEL OUTSIDE THE SKIP RULES, NOT AN INNER FAN-OUT, AND THE SHAPE IS
     # THE POINT. An inner fan-out would have `skipped` counting PRE-REACH coordinates while
     # `cells` counted post-reach ones — the exact census-that-cannot-sum this docstring warns
-    # about, one axis later. Every skip rule is reach-independent, so each fires four times and
-    # the grid below multiplies by four; `len(cells) + sum(skipped.values()) == _GRID` is what
-    # proves it rather than the reasoning.
+    # about, one axis later. Every skip rule EXCEPT the gate-scoped one is reach-independent, so
+    # each of those fires four times and the grid below multiplies by four; the gate-scoped rule is
+    # reach-DEPENDENT by definition and fires three times per surviving coordinate of the four
+    # inert reps. ⛔ NEITHER PROPERTY IS ASSERTED BY THIS COMMENT — `len(cells) +
+    # sum(skipped.values()) == _GRID` is what proves the census, and it is the only thing that does.
     for code, klass, res in reps:
         for persona in personas:
             for ctx in contexts:
@@ -412,6 +481,21 @@ def build(personas, contexts, scopes, states, reaches, reps, exclusions):
                                 skip('anonymous_holds_no_role_state'); continue
                             if persona == 'anonymous' and not selfcheck:
                                 skip('anonymous_cannot_be_a_third_party_subject'); continue
+                            # ⭐ THE GATE-SCOPED caseReach RULE (CONDITIONAL_EXCLUSIONS). Its reason
+                            # is the dict entry; the mechanics are these three lines.
+                            # ⛔ KEYED ON `klass`, THE SAME DISCRIMINANT `arm3_divergence` DISPATCHES
+                            # ON, so the rule and the label can never disagree about which gate is
+                            # case-armed: every cell this deletes is one that would have been
+                            # labelled `arm3:not-in-gate`, and nothing else can be deleted by it.
+                            # ⚠ PLACED LAST, AFTER EVERY UNCONSTRUCTIBLE-COORDINATE RULE, ON PURPOSE.
+                            # Placed first it would ABSORB their counts — the four inert reps' other
+                            # counters would silently drop to a quarter, and a bug in one of them
+                            # would get four times quieter. Last, this counter equals EXACTLY the
+                            # redundancy the rule deletes (emitted-at-HEAD minus emitted-now) and
+                            # every pre-existing counter keeps the value it had, so the census diff
+                            # is one new line instead of six moved ones.
+                            if klass != ARM3_GATE and reach != ARM3_INERT_REACH:
+                                skip('caseReach_inert_outside_the_arm3_gate'); continue
                             exp, src = expected(persona, ctx, scope, state, selfcheck, res)
                             # ⛔ `reach` IS IN THE CELL ID, AND IT HAS TO BE. Without it the four
                             # reach values collapse onto ONE id, 403 reports on cell_id, and three
@@ -436,12 +520,19 @@ assert len(cells) + sum(skipped.values()) == _GRID, (
     % (len(cells), sum(skipped.values()), _GRID))
 
 
-def coverage(cells, skipped, reps, disposition=None, exclusions=None, axes=None):
-    """NINE ARMS. ⛔ An arm that has never refused anything is a detector nobody has shown finds
+_UNSET = object()   # `None` is a LEGITIMATE value for `permissions` (an unreadable manifest), so
+                    # the "use the real one" sentinel cannot be None — the self-test exercises both.
+
+
+def coverage(cells, skipped, reps, disposition=None, exclusions=None, axes=None,
+             permissions=_UNSET, conditional=None):
+    """TEN ARMS. ⛔ An arm that has never refused anything is a detector nobody has shown finds
        something — every one is exercised by --self-test below."""
     disposition = AXIS_DISPOSITION if disposition is None else disposition
     exclusions = EXCLUSIONS if exclusions is None else exclusions
     axes = spec['axes'] if axes is None else axes
+    permissions = MANIFEST_PERMISSIONS if permissions is _UNSET else permissions
+    conditional = CONDITIONAL_EXCLUSIONS if conditional is None else conditional
     f = []
     if not cells:
         f.append('arm1: the cell set is EMPTY — pgTAP would iterate nothing and pass')
@@ -485,6 +576,12 @@ def coverage(cells, skipped, reps, disposition=None, exclusions=None, axes=None)
     # axis someone just added. `role` is the ONE tolerable case: subjectRoles is asserted to hold
     # exactly one value at the top of this file, so there is nothing for the arm to find.
     # ⭐ `caseReach` -> 11 is why the reach had to become a COLUMN and not merely a cell-id suffix.
+    # ⭐⭐ IT IS ALSO THE STOP ON THE GATE-SCOPED RULE, AND THE PAIRING IS DELIBERATE. That rule
+    # keeps all four reaches for the arm-3 rep and one for everyone else, so `emitted` is still the
+    # full declared set and arm7 stays quiet. Widen the rule by one character — drop the `klass !=
+    # ARM3_GATE` guard, or point it at the wrong class — and three values appear in NO cell and in
+    # NO named exclusion, which is exactly what arm7 refuses. So the saving cannot grow into a
+    # silent axis deletion without this arm saying so.
     CELL_AXIS_COL = {'persona': 1, 'activeContext': 2, 'scope': 3, 'principalState': 7,
                      'caseReach': 11}
     for axis in sorted(axes):
@@ -503,7 +600,10 @@ def coverage(cells, skipped, reps, disposition=None, exclusions=None, axes=None)
             f.append('arm7: axis `%s` declares value(s) %s that appear in NO cell and in NO named '
                      'exclusion — a silently dropped coordinate is invisible to every other arm'
                      % (axis, ', '.join(sorted(missing))))
-    for (axis, value), reason in sorted(exclusions.items()):
+    # ⛔ BOTH EXCLUSION DICTS, ONE BAR. The conditional (gate-scoped) rules shrink the population
+    # exactly as the value exclusions do — they just shrink it on a condition — so an unreasoned
+    # one is the same default in disguise, and arm7 refuses it on the same line.
+    for (axis, value), reason in sorted(list(exclusions.items()) + list(conditional.items())):
         if not reason:
             f.append('arm7: exclusion %s.%s carries no reason — an unattributed exclusion is a '
                      'silent population shrink wearing a rule\'s clothes' % (axis, value))
@@ -541,6 +641,42 @@ def coverage(cells, skipped, reps, disposition=None, exclusions=None, axes=None)
                  'caseReach axis then labels every cell `arm3:not-in-gate` and multiplies the '
                  'population by %d for nothing' % (ARM3_GATE, len(REACH_PROPERTIES)))
 
+    # ⭐⭐ arm9 — THE PREMISE OF THE GATE-SCOPED caseReach RULE, READ FROM THE ENFORCEMENT MANIFEST
+    # RATHER THAN BELIEVED. The rule deletes three of every four cells for every representative
+    # except one, on the claim that only that one's gate has a case arm. ⛔ A claim a generator
+    # makes about itself is not a detector: ARM3_GATE is a static name in this file, and the
+    # `arm3:not-in-gate` label the deleted cells used to carry was computed from that SAME static
+    # name — which is precisely why the unconditional sweep pre-paid nothing. This arm is the
+    # difference: it resolves the claim against `permissions[<code>].legacyEquivalence.openArms`,
+    # the manifest field that states which gates have which arms, on EVERY run.
+    # ⚠ IT FIRES IN BOTH DIRECTIONS, and both are real. A SECOND case-armed rep means the rule is
+    # now deleting live coordinates (the AE4.9 / ADR 0201 D5 rep-loss shape, one layer over);
+    # ZERO means the axis is sweeping a gate that no longer has the arm it exists to measure.
+    if permissions is None:
+        f.append('arm9: the enforcement manifest could not be read (%s) — the gate-scoped '
+                 'caseReach rule\'s premise is then UNVERIFIED, and an unverified premise deleting '
+                 '3 of every 4 cells for 4 of 5 reps is an unreasoned exclusion with a reason '
+                 'attached' % (_MANIFEST_ERR or 'not supplied'))
+    else:
+        _absent_reps = sorted({r[0] for r in reps} - set(permissions))
+        if _absent_reps:
+            f.append('arm9: representative(s) %s are absent from the enforcement manifest — their '
+                     '`openArms` cannot be read, so there is no authority for deleting the '
+                     'caseReach coordinate from them' % ', '.join(_absent_reps))
+        else:
+            _armed = {klass for code, klass, _res in reps
+                      if ARM3_CASE_ARM_FN in
+                      ((permissions[code].get('legacyEquivalence') or {}).get('openArms') or [])}
+            if _armed != {ARM3_GATE}:
+                f.append('arm9: the enforcement manifest says the case-armed representative gate(s) '
+                         'are %s — the gate-scoped caseReach rule assumes exactly {%s}. If the arm '
+                         'MOVED OR SPREAD, the rule is deleting a live coordinate; if it VANISHED, '
+                         'the axis measures nothing. Re-rule CONDITIONAL_EXCLUSIONS[(\'caseReach\', '
+                         '\'inert_outside_the_arm3_gate\')] — its STANDING CONDITION names exactly '
+                         'this event — before regenerating.'
+                         % (sorted(_armed) or ['(none — no rep\'s openArms names %s)' % ARM3_CASE_ARM_FN],
+                            ARM3_GATE))
+
     declared = {r[0] for r in reps}
     emitted = {c[4] for c in cells}
     if declared - emitted:
@@ -562,6 +698,24 @@ if '--self-test' in sys.argv:
     _repointed_reps = [(r[0], _RENAMED if r[1] == ARM3_GATE else r[1], r[2]) for r in REPS]
     _repointed_cells = [(c[:5] + (_RENAMED,) + c[6:]) if c[5] == ARM3_GATE else c
                         for c in base_cells]
+    # ⛔ arm9's FIXTURES PERTURB THE MANIFEST AND NOTHING ELSE — not the cells, not the reps. That
+    # is what isolates the arm: no other arm in this file reads `permissions`, so a fixture here
+    # cannot be caught by a neighbour and reported under the wrong name (the lesson arm1b's
+    # isolation note records). ⚠ `_repointed_reps` above is the MIRROR of these and must NOT be
+    # reused for them: it renames the class, which arm8c sees; these leave REPS alone and move the
+    # AUTHORITY, which is the event the standing condition is actually about.
+    _pm = MANIFEST_PERMISSIONS or {}
+
+    def _pm_with_arms(code, arms):
+        d = json.loads(json.dumps(_pm))
+        d.setdefault(code, {}).setdefault('legacyEquivalence', {})['openArms'] = arms
+        return d
+    # A SECOND rep grows the case arm — the event the standing condition names in terms.
+    _pm_two_armed = _pm_with_arms('org.case_vocabulary.manage', [ARM3_CASE_ARM_FN])
+    # The arm-3 rep LOSES it — the axis would then sweep a gate with nothing to measure.
+    _pm_disarmed = _pm_with_arms(ARM3_REP_CODE, ['app.is_admin_for', 'authz.has_permission'])
+    # The rep is not in the manifest at all — no authority either way, which is not a pass.
+    _pm_rep_absent = {k: v for k, v in _pm.items() if k != ARM3_REP_CODE}
     checks = [
         ('arm1 empty cell set',          [],                                                      base_skipped, REPS, None, None, None),
         ('arm2 single polarity',         [c[:9] + (True,) + c[10:] for c in base_cells],          base_skipped, REPS, None, None, None),
@@ -592,8 +746,15 @@ if '--self-test' in sys.argv:
         # which also drops the only member of its legacy class — so arm3 fired and arm1b was
         # never exercised. An arm caught by ANOTHER arm's message is not proof that arm works.
         # Declaring a rep that is simply never emitted isolates arm1b.
+        # ⛔ THE CODE MUST BE A REAL MANIFEST KEY, AND arm9 IS WHY. A made-up code
+        # (`never.emitted.code`, as this fixture read for one revision) is absent from the
+        # enforcement manifest, so arm9's absent-rep branch fired FIRST and the runner printed
+        # arm9's message under arm1b's name — the very "caught by another arm" contamination the
+        # note above warns about, re-created by the arm added to guard the caseReach rule. Caught
+        # by the WRONG ARM check in the runner below, not by reading. `org.professionals.manage` is
+        # a real permission with no case arm, and its class is already declared so arm3 stays clean.
         ('arm1b rep never emitted',      base_cells, base_skipped,
-         REPS + [('never.emitted.code', 'is_staff_admin_of_for', 'commission')], None, None, None),
+         REPS + [('org.professionals.manage', 'is_staff_admin_of_for', 'commission')], None, None, None),
         # ⛔ arm7's THREE shapes. The first is the live defect it was resurrected for: a value the
         # axes file declares that the loop never reaches. Note the cells are the REAL ones — that
         # is the point, arm7 must fire on a cell set every other arm calls clean.
@@ -601,14 +762,49 @@ if '--self-test' in sys.argv:
         ('arm7 axis with no disposition',    base_cells, base_skipped, REPS, None, EXCLUSIONS, ax_extra_axis),
         ('arm7 exclusion with no reason',    base_cells, base_skipped, REPS, None,
          {**EXCLUSIONS, ('principalState', 'offboarded'): ''}, None),
+        # ⛔ THE SAME BAR, ON THE GATE-SCOPED DICT. Without this fixture arm7's reason check would
+        # be exercised only on the value exclusions, and the conditional rules — the ones that
+        # delete 2592 cells — would be held to a bar nobody had ever seen refuse anything.
+        ('arm7 conditional exclusion with no reason', base_cells, base_skipped, REPS, None, None, None,
+         _UNSET, {('caseReach', 'inert_outside_the_arm3_gate'): ''}),
+        # ⭐ arm9's FOUR SHAPES. Cells and REPS are the REAL ones in all four — that is the point:
+        # the arm must fire on a population every other arm calls clean, because the defect it
+        # detects lives in the AUTHORITY for the population, not in the population.
+        ('arm9 a second rep grows the case arm',   base_cells, base_skipped, REPS, None, None, None, _pm_two_armed),
+        ('arm9 the arm-3 rep loses the case arm',  base_cells, base_skipped, REPS, None, None, None, _pm_disarmed),
+        ('arm9 the arm-3 rep left the manifest',   base_cells, base_skipped, REPS, None, None, None, _pm_rep_absent),
+        ('arm9 the manifest is unreadable',        base_cells, base_skipped, REPS, None, None, None, None),
     ]
     bad = 0
-    for name, cs, sk, rp, dp, ex, axs in checks:
-        got = coverage(cs, sk, rp, dp, ex, axs)
+    # ⚠ THE TAIL IS PADDED, NOT TYPED OUT. Every arm added since has widened `coverage()`, and
+    # widening it used to mean editing all fourteen tuples to append a `None` — a diff in which a
+    # genuine fixture change is invisible. `*rest` keeps old fixtures byte-identical and makes a
+    # new one additive. ⛔ `_UNSET`, not None, is the "use the real manifest" default: None is
+    # itself a fixture value (the unreadable-manifest shape above).
+    for name, cs, sk, rp, dp, ex, axs, *rest in checks:
+        pm = rest[0] if len(rest) > 0 else _UNSET
+        cond = rest[1] if len(rest) > 1 else None
+        got = coverage(cs, sk, rp, dp, ex, axs, pm, cond)
+        # ⭐⭐ THE FIXTURE NAMES THE ARM IT IS FOR, AND THE RUNNER NOW CHECKS THAT. Until this
+        # revision the criterion was `if not got` — ANY failure counted as proof, so a fixture
+        # caught by a NEIGHBOURING arm printed "caught" under this arm's name while this arm sat
+        # unexercised. That is not a hypothetical: adding arm9 silently took over the arm1b
+        # fixture, and only this check found it. ⛔ Do not weaken it back to a non-empty test.
+        # ⚠ `want in fired`, NOT `len(got) == 1`: arm1's empty-cell-set and arm2's single-polarity
+        # fixtures legitimately trip neighbours (an empty population is empty for every arm), so an
+        # exactly-one rule would be false for them. The fired list is printed so contamination on a
+        # fixture documented as isolated stays visible instead of being averaged away.
+        want = name.split()[0]
+        fired = sorted({g.split(':', 1)[0] for g in got})
         if not got:
             print('gen-authz-differential-cells --self-test: NOT CAUGHT — %s' % name); bad += 1
+        elif want not in fired:
+            print('gen-authz-differential-cells --self-test: WRONG ARM — %s: expected `%s`, but '
+                  'the failure(s) came from %s' % (name, want, ', '.join(fired))); bad += 1
         else:
-            print('gen-authz-differential-cells --self-test: caught — %s (%s)' % (name, got[0][:70]))
+            msg = next(g for g in got if g.startswith(want + ':'))
+            print('gen-authz-differential-cells --self-test: caught — %s [fired: %s] (%s)'
+                  % (name, '+'.join(fired), msg[:70]))
     real = coverage(base_cells, base_skipped, REPS)
     if real:
         print('gen-authz-differential-cells --self-test: the REAL spec trips an arm — %s' % real[0]); bad += 1
@@ -640,6 +836,15 @@ divcensus = '\n'.join('--   %-44s %6d   %s' % (k, _div_census[k], ARM3_DIVERGENC
                        for k in sorted(_div_census))
 notcov = sum(_div_census.get(k, 0) for k in NOT_ARM3_COVERAGE)
 excl = '; '.join('%s.%s' % (a, v) for (a, v) in sorted(EXCLUSIONS))
+# ⛔ THE CONDITIONAL RULES' REASONS ARE PRINTED IN FULL, not summarised to a name. A rule that
+# deletes 2592 cells is read by whoever opens THIS file when a count looks wrong; a name alone
+# would send them to the generator to find out why, and the standing condition — the sentence that
+# says when the rule stops being true — is exactly the part a summary drops.
+condexcl = '\n--\n'.join(
+    '--   %s.%s — skip counter `%s_%s`\n%s' % (a, n, a, n,
+        textwrap.fill(CONDITIONAL_EXCLUSIONS[(a, n)], width=94,
+                      initial_indent='--     ', subsequent_indent='--     '))
+    for (a, n) in sorted(CONDITIONAL_EXCLUSIONS))
 
 body = """-- GENERATED FILE — DO NOT EDIT BY HAND.
 -- Source:    supabase/tests/vectors/authz-matrix-axes.json
@@ -691,14 +896,22 @@ body = """-- GENERATED FILE — DO NOT EDIT BY HAND.
 -- counting either as arm-3 coverage inflates the report with cells that cannot fail for an
 -- arm-3 reason. They remain perfectly good cells for the deny-class table they do measure.
 --
--- ⚠⚠ THE COST OF SWEEPING caseReach UNCONDITIONALLY, STATED SO IT CANNOT BE DISCOVERED LATER AS
--- A SURPRISE. Only ONE of the five representatives has a gate with a case arm, so the other four
--- are swept on an axis that cannot change their answer: their `not-in-gate` cells are FOUR
--- IDENTICAL COPIES of one cell in every coordinate that can affect it, and three copies in four
--- are redundant. 403 sweeps the whole table, so that redundancy is paid in suite runtime.
--- ⛔ IT IS NOT A DEFECT AND MUST NOT BE "FIXED" SILENTLY: the population size is a PO/lead
--- ruling, and the alternative — a named skip rule restricting caseReach to the arm-3 gate, which
--- would land at 1728 instead — changes a number the unit brief fixes. Raise it, do not adjust it.
+-- ⚠⚠ caseReach IS GATE-SCOPED, BY A NAMED RULE — the population is 1728, not 4320, and the
+-- 2592-cell difference is the point rather than a saving. Only ONE of the five representatives has
+-- a gate with a case arm, so on the other four the reach cannot change the answer: measured at the
+-- unconditional sweep, their 3456 cells carried 864 DISTINCT PAYLOADS and 2592 exact copies
+-- differing only in a `case_reach` value no door reads. ⛔ Those copies inflate apparent coverage
+-- — the vacuous-assertion family this tree gates against — and they pre-pay NOTHING, because the
+-- `arm3:not-in-gate` label they carried was itself computed from a static name in the generator
+-- and would no more auto-notice a new case arm than the skip rule would. The full reason, and the
+-- STANDING CONDITION under which it must be revisited, is the CONDITIONAL_EXCLUSIONS entry printed
+-- below. ⭐ IT IS NOT AN UNREASONED SAVING AND CANNOT BECOME ONE: arm7 refuses the rule if its
+-- reason is ever blanked, arm7 ALSO refuses the moment the rule widens far enough to drop a reach
+-- value from the whole population, and arm9 re-reads the enforcement manifest on every run and
+-- refuses to emit if the case-armed representative set stops being exactly {%s}.
+--
+-- ══ CONDITIONAL (GATE-SCOPED) EXCLUSIONS — the rule, in full, so it cannot be lost ═══════════
+%s
 --
 %s
 create temp table authz_differential_cells on commit drop as
@@ -708,7 +921,7 @@ create temp table authz_differential_cells on commit drop as
          resolution_scope_kind, principal_state, self_check, expected_granted, expected_source,
          case_reach, arm3_divergence);
 """ % (sha, len(cells), len({r[1] for r in REPS}), len(REPS), sum(skipped.values()),
-       excl, ', '.join(srcs), len(cells) - notcov, notcov, divcensus, rows)
+       excl, ', '.join(srcs), len(cells) - notcov, notcov, ARM3_GATE, condexcl, divcensus, rows)
 
 if '--check' in sys.argv:
     try:
