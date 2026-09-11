@@ -350,3 +350,12 @@ gate block's test:db row carries the new figure. ⛔ The `preflight, both runs` 
 still reads 9048 and is deliberately NOT updated: it quotes what the door sweep's own preflight
 CAPTURED at the time it ran, and rewriting a captured witness to match a later run would falsify it.
 Two different numbers, two different moments, both labelled.
+
+**2026-09-11 — QA r2 MINOR-r2-1 (pre-merge, comment-only).** `419`'s plan-mismatch note gave
+`planned 10 tests but ran 7` as an EXPECTED example. ⛔ Measured over the full 269-file suite: `419`
+emits **no** such diagnostic in any run, so the `7` was invented and the sentence pre-authorised
+dismissing a signal this file never prints — the inversion the r1 fix's own *"do not generalise that
+dismissal"* half exists to prevent. Replaced with the measured statement (`419` emits none; `420`
+emits `planned 15 tests but ran 13` and is still reported `ok`); the ⛔ "Bad plan" half is kept
+verbatim. Comment-only: `git diff` shows **7 insertions / 4 deletions, every changed line a `--`
+comment**, 0 non-comment lines — no test re-run, and ⛔ the DB was not touched (`e2e:prod` holds the stack).

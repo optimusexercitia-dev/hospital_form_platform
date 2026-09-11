@@ -40,10 +40,13 @@
 -- ⚠ NO `test_helpers.bootstrap()`, no fixture, no tenancy — pg_proc and pg_namespace only, so
 -- this suite is invariant to seed scale and to the AE4 perf fixture. Same posture as `414`.
 --
--- ⚠ `# Looks like you planned 10 tests but ran 7` is EXPECTED and is not a failure: pgTAP's
--- internal counter unwinds with each `rollback to savepoint` while the TAP stream, which
--- pg_prove actually parses, is already emitted. Assertions live outside the savepoints too, so
--- the degenerate `# No tests run!` shape does not arise.
+-- ⚠ A `# Looks like you planned N tests but ran M` line from pgTAP's own `finish()` is noise, not a
+-- failure: its internal counter unwinds on `rollback to savepoint` while the TAP stream pg_prove
+-- parses is already emitted. Measured 2026-09-11 over the full 269-file suite: THIS file emits
+-- none, and `420` emits `planned 15 tests but ran 13` and is still reported `ok`. ⛔ The earlier
+-- wording here gave `planned 10 tests but ran 7` as an EXPECTED example — a figure neither run
+-- produces, which pre-authorised dismissing a diagnostic this file never prints (QA r2 MINOR-r2-1).
+-- Assertions live outside the savepoints here too, so `# No tests run!` does not arise.
 -- ⛔ BUT DO NOT GENERALISE THAT DISMISSAL. pg_prove's own **"Bad plan"** — `1..10` against nine
 -- emitted `ok` lines — IS a failure and is the detector for the one defect this file actually hit
 -- while being written: an assertion inside a savepoint that RAISED, with the following

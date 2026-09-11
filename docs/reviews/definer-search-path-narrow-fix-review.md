@@ -2,6 +2,10 @@
 
 **Verdict: CHANGES REQUESTED**
 
+> ⚠ **This is ROUND 1's verdict, kept as filed. The unit's OPERATIVE verdict is round 2's** —
+> `**Verdict: APPROVED**` against fix commit `a6c4c83e`, in § *Round 2* at the foot of this file.
+> ⛔ Do not read the line above as the unit's standing verdict.
+
 **Subject:** build commit `68ffb591` on branch `definer-search-path-narrow-fix` (base `main @ 6d7dd589`;
 `c044c06f` is the unit-opening docs commit).
 **Reviewer:** `qa` · **Date:** 2026-09-11 · **Round:** 1
@@ -518,3 +522,199 @@ baseline order. Fix those four homes plus the four MINORs and this is an approva
 **Next round:** re-check MAJOR-1's four homes, MAJOR-2's row, the two `867`s, the `420` wrapper and
 `cfg420` cells — and quote the completed gate block (the four authz arms + `test:db` on a fresh reset)
 so the could-not-verify list shrinks rather than carrying forward.
+
+---
+
+# Round 2 — re-check against fix commit `a6c4c83e`
+
+**Verdict: APPROVED**
+
+**Subject:** `a6c4c83e` (arms docs commit `0a9201a8` between; base for this round `68ffb591`).
+**Date:** 2026-09-11 · **Constraints:** unchanged — no `db reset`, no `test:db`, no authz/door
+scripts; the lead is running `npm run e2e:prod` on the stack. New this round: I was cleared to read
+`.dsp-gate-evidence/` (git-excluded), which retires most of r1's could-not-verify list.
+
+**Round-2 counts:** BLOCK 0 · MAJOR 0 · MINOR 1 (carried, one-line, pre-merge) · NOTE 4.
+**Round-1 disposition:** 2 MAJOR **fixed** · 4 MINOR **fixed** · 6 NOTE — 3 fixed, 3 answered.
+
+---
+
+## r1 findings, re-checked one by one
+
+| r1 | status | where I checked it |
+| --- | --- | --- |
+| **MAJOR-1** D4's qualified-body clause ungated, enforcer misattributed | **FIXED in all four homes, and better than asked** | `.claude/rules/migrations-forward-only.md:38-39` now reads *"419 + gate 18 gate the PATH ONLY; the qualified half is UNGATED — `pg_temp` still resolves first under `''`"* · `gen-definer-search-path-freeze.mjs:57-65` (a third bound beside the two that existed) · `419:31-37` · the seam bullet. All four name the mechanism (`pg_temp` first, TEMP 4 of 4) rather than just the gap, and all four cite the new follow-up |
+| **MAJOR-2** `lint-gates.md` baseline order backwards | **FIXED** | The row now reads *"local `main` FIRST, `origin/main` second … `origin/main`'s merge-base is often many commits behind and yields an older, LARGER frozen set"* — matching `resolveBaseline`'s `['main','origin/main']` and carrying the reason, not just the order |
+| **MINOR-1** branch-point ratchet / "re-running cannot help" overclaim | **FIXED** | `gen-definer-search-path-freeze.mjs:34-41` and the gate-18 row both now state the vacuous case (a growth committed directly on `main`) **and** name `419` as the arm that still catches it. That second half is the right answer — it converts a bound into a partition |
+| **MINOR-2** two stale `867`s | **FIXED** (a third, rhetorical one survives — NOTE-r2-2) | `gen-…:15-17` and `docs/lint-gates.md:38` both restated in `419:8`'s form (865, with 867 as dated history naming the migration) |
+| **MINOR-3** `420 §§ 1/2` route through wrappers unpinned | **FIXED** — `420 § 5c` (new) | Reads each wrapper's LIVE `pg_get_functiondef` and requires `routes`. ⭐ I measured its strength rather than assuming: each wrapper names its subject **exactly once**, and that occurrence **survives `--` comment stripping** (`total=1 stripped=1` for both), so the match is on the call, not on a comment |
+| **MINOR-4** `cfg420` overload-blind | **FIXED, both halves** | `cfg420` re-keyed on `p_sig::regprocedure` (resolves one oid or **raises**), all **6** call sites converted (0 two-argument calls remain), plus `420 § 5d` (new) pinning exactly one overload per name, so the still-name-keyed `§ 5` / `§ 5b` rest on an asserted fact |
+| **NOTE-3** plan-mismatch note could teach the wrong dismissal; `420` had none | **FIXED, and now empirically grounded** | Both files carry the caveat: *"a mismatch in pgTAP's diagnostic is noise; a mismatch in the PLAN is the finding"*, naming pg_prove's **"Bad plan"** as the live detector for the `§ 1e` defect shape. See MINOR-r2-1 for the one figure that is still wrong |
+| **NOTE-4** AC-5 must not be ticked | **HELD** | The hub has **zero** `- [x]` checkboxes; AC-5 is still `- [ ]` at `:45`, and the *Done since start* line still says *PROPOSED … PO to rule* |
+| **NOTE-6** gate block incomplete | **CLOSED** | The four authz arms + the set-valued arm are now rows in the gate block, each traced below |
+| **NOTE-1 / NOTE-2 / NOTE-5** | answered / unchanged by design | NOTE-1 (out-of-domain schemas) and NOTE-2 (GENESIS) are bounds, not defects; NOTE-5's mechanism claim I re-verified *empirically* this round (below) |
+
+`plan(15)` in `420` matches **15** `select is(...)` assertions, counted; the `RUN SHAPE` line moved to
+`Tests=16` in the same edit. `419` is unchanged at `plan(10)` / `Tests=11`. ✓
+
+---
+
+## Evidence traced to `.dsp-gate-evidence/` — which rows, and which remain untraceable
+
+⚠ **Stated plainly: reading these files confirms the record quotes them FAITHFULLY. It is not an
+independent re-run** — they were produced by `backend`, and I was barred from re-running any of them.
+Two different claims, and only the first is now discharged.
+
+**Traced to a file:**
+
+| gate-block row | file | what it says |
+| --- | --- | --- |
+| `ARM=census … 581 / 608` | `arm-census.txt:8-9` + tail | `live authz gates (catalog): 581` · `gates carrying a verdict: 608` · `=== INVARIANT HOLDS ===` · `RC_census=0` |
+| `ARM=hat … 4 finding(s)` | `arm-hat.txt` | the four named (`authz.assignment_facts`, `public.assume_role`, `public.session_context`, `memberships_select`), all reasoned-allowlisted · `RC_hat=0` |
+| `ARM=floor … 63` | `arm-floor.txt` | `authenticated-reachable prosecdef doors with 0 calls: 63`, every one allowlisted, **and** every allowlist entry resolves to a live door (the two-directional form) · `RC_floor=0` |
+| `FROMFINDINGS=1 ARM=wrapper … BLIND 41` | `arm-wrapper.txt` | `mode: FROMFINDINGS (comparing COMMITTED findings md, no sweep)` · `BLIND set size: 41` · `RC_wrapper=0` |
+| `authz-setvalued-targeted-cases.sh rc 0` | `setvalued.txt` | `ARM-DOMAIN setvalued=3/3 (in scope) out-of-scope=2` · three COVERED by name · `RESULT: CLEAN` · `RC_setvalued=0` |
+| `test:db … Files=269, Tests=9050, PASS` | `testdb-qa.txt` | `Files=269, Tests=9050` · `Result: PASS` · `TESTDB_RC=0` · **0** `^not ok` lines in 4.1 MB · `419_…sql … ok` and `420_…sql … ok` both present |
+| `supabase db reset --local` | `reset-qa.txt` | `RESET_RC=0` |
+| `npm run lint` rc 0 | `lint-qa.txt` | `LINT_RC=0`, gate 18's summary line present |
+| targeted re-run `419` 10/10, `420` 15/15 | `fix-419-420.txt` | `ok 1`…`ok 10` for 419; `1..15` then `ok 1`…`ok 15` for 420; **0** `not ok` |
+| ⛔ the discarded-pair / "one arm twice" finding | `arm1.mine.txt` vs `arm2.mine.txt` | **`diff` is exactly one changed line** — `ARM1_RC=0` → `ARM2_RC=0`. In r1 I could only prove this from the script (`grep -cE '\$\{?FROMFINDINGS'` = 0); it is now proven from the outputs themselves |
+
+**Still untraceable, and why:** the door-sweep rows themselves — `SELFTEST … 46 · 0 · 0`,
+`door-sweep-cases.sh 6d7dd589` rc 1, `SWEPT 1 · COVERED 1 · BLIND 0 · NOTICED 0 · ERROR 0`,
+`0 selected of 226`, `ARM-DOMAIN predicate=1/127 policy=0/226 out-of-domain-bool=35`, `resets=0`, the
+committed-findings cksum, the three deriver `GROUP` lines, `bash --version`, and the quoted `SCOPE:`
+line. `arm1.mine.txt` / `arm2.mine.txt` are those runs' outputs and I read them for the identity check
+above, but I was barred from re-running the sweep, so the *verdicts* remain quoted-not-reproduced.
+Likewise `npm run gen:types` → no diff (needs the stack and writes a tracked file; the clean
+`git status` is consistent with it). The **discarded arm pair's mechanism** is still unresolved —
+`discard.md` records the observation, not a cause, which is the honest state.
+
+---
+
+## The `9048` / `9050` labelling — correct, and the distinction is the right one
+
+The gate block now carries **two different numbers at two different moments, each labelled**:
+
+- `preflight, both runs … Files=269, Tests=9048  [⛔ NOT updated: this is what the sweep CAPTURED then]`
+- `npm run test:db … Files=269, Tests=9050  [re-run after the QA r1 fix pass; TESTDB_RC=0 read from the file]`
+
+`9048 → 9050` is exactly `§ 5c` + `§ 5d`, and the arithmetic closes end to end: `9025` (main's tip)
+`+ 10` (`419`) `+ 13` (`420` at r1) `= 9048`; `+ 2` (r2) `= 9050`. ⭐ **Refusing to rewrite the
+captured preflight witness to match the later run is correct** — a captured witness rewritten to agree
+with a newer measurement is a falsified artifact, and this is the second time this unit has taken that
+branch (the first was renaming the sweep artifacts before anything could re-run over them). Both
+numbers are traced to files above.
+
+---
+
+# Round-2 findings
+
+## MINOR-r2-1 (carried, one line, pre-merge) — `419`'s plan-mismatch example is a figure its own runs do not produce
+
+**Where:** `supabase/tests/419_definer_search_path_freeze.sql:34-37` —
+
+> ⚠ `# Looks like you planned 10 tests but ran 7` is EXPECTED and is not a failure…
+
+**Measured, over the whole 269-file suite** (`testdb-qa.txt`, and the targeted run in
+`fix-419-420.txt`):
+
+```
+grep -oE "planned [0-9]+ tests but ran [0-9]+" testdb-qa.txt | sort | uniq -c
+      1 planned 15 tests but ran 13          <- 420, and the file is still reported "ok"
+grep -c "planned 10 tests" testdb-qa.txt fix-419-420.txt   ->  0   0
+```
+
+⇒ **`419` emits no plan-mismatch diagnostic at all**, in either run. The `7` is an invented figure, and
+the sentence pre-authorises dismissal of a diagnostic for the one of the two files that never prints
+one. If `419` ever *does* print `planned 10 … but ran N`, its own header says to ignore it — which is
+precisely the inversion the r2 fix added the *"do not generalise that dismissal"* half to prevent.
+(`420`'s note is correct and now has a measured example.)
+
+**Not a blocker:** it is a comment; the live detector (pg_prove's "Bad plan") is intact, and `420`'s
+behaviour in the final suite — diagnostic printed, file reported `ok` — is the empirical proof that
+r1's NOTE-3 mechanism claim was right.
+
+**To clear (no re-review needed):** replace the invented example with the measured one, e.g.
+*"⚠ A `# Looks like you planned N tests but ran M` line from pgTAP's own `finish()` is noise, not a
+failure: its internal counter unwinds on `rollback to savepoint` while the TAP stream pg_prove parses
+is already emitted. Measured 2026-09-11 over the full suite: this file emits none; `420` emits
+`planned 15 tests but ran 13` and is still reported `ok`."* Keep the existing ⛔ "Bad plan" half
+verbatim.
+
+## NOTE-r2-1 — the new follow-up's shape is right; its wording is the PO's to confirm
+
+`FUP-DEFINER-SEARCH-PATH-NARROW-FIX-QUALIFIED-BODY-CLAUSE-OF-D4-IS-UNGATED` exists at
+`docs/followups/follow-ups-open.md:1976` with no separate body file; `lint:registers` rc 0 accepts that
+shape. Its `Closes when` is `PO to rule`, which is right — a body-qualification check is *feasible but
+not trivially decidable*, so whether it becomes a gate or a standing review obligation is a PO call,
+exactly as the entry says.
+
+## NOTE-r2-2 — a third `867` survives four lines below its own correction
+
+`scripts/gen-definer-search-path-freeze.mjs:19` still reads *"the list this tree would have to
+hand-type is **867** signatures long"*, immediately under the corrected `:15-17`. Harmless (the
+sentence is rhetorical), but it now disagrees with its own paragraph — sweep it with MINOR-r2-1 if the
+file is touched again. ⚠ The `867` at `docs/backend-state/authorization-and-audit.md:1257` is **not** a
+finding: it sits inside the frozen ADR-0207/0208 slice, is correct as of that slice, and history is
+append-only under ADR 0196 D5.
+
+## NOTE-r2-3 — `420 § 5c`'s matcher does not strip comments, and today that costs nothing
+
+`§ 5c` matches on raw `pg_get_functiondef`, so a wrapper that inlined the copy but kept a comment
+naming the subject would still read `routes`. Measured rather than speculated: each wrapper names its
+subject **exactly once**, and the occurrence survives `regexp_replace(…, '--[^\n]*', '', 'g')`
+(`total=1 stripped=1`, both). So the guard is exact today. If it is ever hardened, `311 § 5.2`'s
+comment-stripping idiom is the precedent already in this tree.
+
+## NOTE-r2-4 — the generator's two-container guard is not hypothetical on this machine
+
+While reviewing, `docker ps` showed **two** healthy `supabase_db_*` containers (this project's and
+`supabase_db_escalume` from a sibling repo). `dbContainer()` resolves the exact one from
+`supabase/config.toml`'s `project_id` and otherwise **refuses to freeze an ambiguous stack** — a guard
+I would have called defensive in r1 and can now report as load-bearing in practice.
+
+---
+
+## What I re-ran myself on `a6c4c83e`
+
+```
+npm run lint                                                rc 0   18 gates; gate 18 summary present
+npm run typecheck                                           rc 0
+gen-definer-search-path-freeze.mjs --self-test              rc 0   17 cases
+gen-definer-search-path-freeze.mjs --check                  rc 0   in sync (865); GENESIS [baseline main (6d7dd589ae24)]
+.claude/rules/ population + bytes                                  12 files; migrations-forward-only.md 2040 B / cap 2048 (record says 1997 -> 2040 ✓)
+hub AC checkboxes                                                  0 ticked; AC-5 still `- [ ]`
+420 assertions counted vs plan(15)                                 15 / 15; residual two-argument cfg420 call sites: 0
+live catalog (read-only SELECT)                                    wrapper -> subject match total=1 stripped=1 (both wrappers)
+npx vitest run                                              rc 1 -> TRANSIENT, re-read once (below)
+```
+
+⚠ **The one transient, declared.** `npx vitest run` first returned **rc 1**: `2 failed | 152 passed`,
+`Tests 2056 passed`. Both failures are the catalog-reading guards
+`src/components/shell/nav-scope-exclusivity.test.ts` and `src/lib/queries/session-grants.test.ts`, each
+failing with *"container … is not running"* / *"No such container"* — the lead's `e2e:prod` was cycling
+the stack mid-run, and these two guards **deliberately fail loudly rather than skip** when the catalog
+is unreachable. Re-read once per instruction: `docker ps` then showed the container `Up 22 seconds`,
+and re-running exactly those two files gave **2 passed / 35 tests passed** — precisely the
+`2091 − 2056 = 35` gap. ⇒ **the suite is green and the red was environmental, not a regression**, and I
+am recording it rather than quietly re-running the whole suite until it agreed with me.
+
+---
+
+## Round-2 summary
+
+Both MAJORs are fixed in every home I named, and in three of them the fix says more than I asked for —
+it names the *mechanism* (`pg_temp` searched first under `''`, with TEMP held 4 of 4) instead of merely
+recording a gap, and it converts MINOR-1's bound into a partition by naming `419` as the arm that
+covers the case gate 18 cannot. The two new `420` cells are real assertions with real failure modes,
+not restatements, and both passed in the final suite. The `9048` / `9050` pair is labelled correctly,
+and refusing to rewrite the captured witness is the right instinct. Reading `.dsp-gate-evidence/`
+retired ten of r1's eleven could-not-verify rows; what is left is the door sweep itself, which I was
+barred from re-running, and the discarded pair's mechanism, which nobody has resolved and which the
+record says so.
+
+**Approved.** MINOR-r2-1 is a one-line correction with the replacement text supplied; land it before
+the Record step — no further review round needed. ⛔ AC-5 remains **PO to rule** and must not be ticked
+by the unit; the PO also owes rulings on the four open follow-ups and on the door-sweep derivation's
+exit 1.
