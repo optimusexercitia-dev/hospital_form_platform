@@ -3,7 +3,7 @@
 -- Domain:    scripts/definer-search-path-census.sql, block `definer_nonempty_domain`
 -- Generator: scripts/gen-definer-search-path-freeze.mjs  (--write / --check / --self-test)
 -- Consumer:  supabase/tests/419_definer_search_path_freeze.sql
--- anchor: definer-search-path-freeze rows=865 sha256=8ee59a194cbee6a352ad5348ac7ed66907d5de5f190dcfb8322ff176caac7f72 md5=915172dda6da2a51d69d22c3b6cbc276
+-- anchor: definer-search-path-freeze rows=861 sha256=7553e105e58f7156fef19165dcc6a1b444d552a4c1fbf2d510c9bec45ebb1a7b md5=b87831f83db14d97b695e4b10f6cb05f
 --
 -- The NON-EMPTY `search_path` population of SECURITY DEFINER functions in app/public/authz,
 -- frozen as a name set that may only SHRINK (ADR 0208 D4/D5).
@@ -141,9 +141,6 @@ create temp table definer_search_path_freeze on commit drop as
     ('app.compute_due_ethics_notifications()'),
     ('app.confidentiality_clearance_ok(p_case_id uuid, p_label text, p_uid uuid)'),
     ('app.controlled_version_source_path(p_version_id uuid)'),
-    ('app.copy_response_answers(p_src_response_id uuid, p_dst_response_id uuid)'),
-    ('app.copy_template_version_children(p_source_version_id uuid, p_target_version_id uuid)'),
-    ('app.copy_version_children(p_source_version_id uuid, p_target_version_id uuid)'),
     ('app.current_professional_read_organizations()'),
     ('app.decide_document_approval_core(p_version_id uuid, p_decision text, p_note text)'),
     ('app.delete_credential_impl(p_actor uuid, p_credential uuid)'),
@@ -507,7 +504,6 @@ create temp table definer_search_path_freeze on commit drop as
     ('public.case_viewer_capabilities(p_case_id uuid)'),
     ('public.cases_extras_enabled()'),
     ('public.cast_case_vote(p_decision_id uuid, p_vote text, p_rationale_md text)'),
-    ('public.clone_framework(p_framework uuid, p_commission uuid)'),
     ('public.close_capa_plan(p_capa_id uuid, p_lessons_learned_md text)'),
     ('public.close_dsr_request(p_request_id uuid, p_outcome text, p_outcome_basis text, p_legal_consultation_ref text)'),
     ('public.commission_cadence_overview()'),

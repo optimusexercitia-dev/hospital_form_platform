@@ -5,8 +5,10 @@
 --
 -- ⭐ WHAT THIS ASSERTS, AND WHY IT IS NOT `414`. ADR 0208 D4 rules `set search_path = ''` with a
 -- schema-qualified body the SOLE forward convention for a new or touched SECURITY DEFINER; the
--- 865 remaining non-empty paths are frozen compatibility debt that **may not grow** (867 before
--- migration `20261003007410` converged two of them). `414` proves
+-- 861 remaining non-empty paths are frozen compatibility debt that **may not grow**. The lineage,
+-- because a bare figure here rots into a claim nobody can date: 867 before migration
+-- `20261003007410` converged two of them -> 865; 861 after `20261003007420` converged the four
+-- temp-table DEFINERs. `414` proves
 -- every schema NAMED in such a path RESOLVES — a different claim, and neither is the other's
 -- verdict. `414` is kept byte-unchanged; this file is the prospective half.
 --
@@ -43,7 +45,9 @@
 -- ⚠ A `# Looks like you planned N tests but ran M` line from pgTAP's own `finish()` is noise, not a
 -- failure: its internal counter unwinds on `rollback to savepoint` while the TAP stream pg_prove
 -- parses is already emitted. Measured 2026-09-11 over the full 269-file suite: THIS file emits
--- none, and `420` emits `planned 15 tests but ran 13` and is still reported `ok`. ⛔ The earlier
+-- none, and `420` emits `planned 11 tests but ran 9` and is still reported `ok` (it emitted
+-- `planned 15 tests but ran 13` until migration `20261003007420` re-cast it — a figure about
+-- ANOTHER file goes stale when that file changes, and nothing reds when it does). ⛔ The earlier
 -- wording here gave `planned 10 tests but ran 7` as an EXPECTED example — a figure neither run
 -- produces, which pre-authorised dismissing a diagnostic this file never prints (QA r2 MINOR-r2-1).
 -- Assertions live outside the savepoints here too, so `# No tests run!` does not arise.
@@ -114,13 +118,13 @@ select is(
 --    orderings differ on `_`, and the md5 would disagree for a set that is byte-identical.
 select is(
   (select count(*)::int from definer_search_path_freeze),
-  865,
-  '§ 0c ROWS PIN: the frozen artifact holds exactly the 865 rows its anchor declares. ⛔ A shrink updates BOTH the artifact (via --write) and this literal; updating only one is the drift this pin exists to catch'
+  861,
+  '§ 0c ROWS PIN: the frozen artifact holds exactly the 861 rows its anchor declares. ⛔ A shrink updates BOTH the artifact (via --write) and this literal; updating only one is the drift this pin exists to catch'
 );
 
 select is(
   (select md5(string_agg(sig, '|' order by sig collate "C")) from definer_search_path_freeze),
-  '915172dda6da2a51d69d22c3b6cbc276',
+  'b87831f83db14d97b695e4b10f6cb05f',
   '§ 0d CONTENT PIN: the frozen NAMES, not merely their count. A row swapped for another row keeps § 0c green and moves this'
 );
 

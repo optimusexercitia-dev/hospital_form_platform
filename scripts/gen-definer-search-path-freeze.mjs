@@ -12,9 +12,10 @@
  * WHY THIS EXISTS
  *
  * ADR 0208 D4 rules `set search_path = ''` with a schema-qualified body the SOLE forward
- * convention for a new or touched SECURITY DEFINER. The 865 remaining non-empty paths (867
- * before migration `20261003007410` converged two of them) are frozen compatibility debt:
- * they may not GROW, and they converge on touch. D5 orders the
+ * convention for a new or touched SECURITY DEFINER. The 861 remaining non-empty paths are
+ * frozen compatibility debt: they may not GROW, and they converge on touch. The lineage, so
+ * the figure is dateable rather than bare: 867 -> 865 at migration `20261003007410` (two
+ * members) -> 861 at `20261003007420` (the four temp-table DEFINERs). D5 orders the
  * enforcer to be a pgTAP ratchet (419) over a frozen NAME SET — ⛔ never a hand-typed list,
  * because the list this tree would have to hand-type is 867 signatures long and the one
  * time a `search_path` expectation was hand-typed in this repo it was copied out of a
