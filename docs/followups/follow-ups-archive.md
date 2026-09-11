@@ -13028,3 +13028,202 @@ commit `f101d17e` (sha filled by the lead at the Record step, 2026-09-11; the ph
 in the ledger row). Gate 16 prints no `[D]` line on `authorization-and-audit.md`; the moved slice's
 links were checked by a run and the check proven able to fail. QA APPROVED (0 findings), human
 approval 2026-09-11 — closed by the lead at the Record step.
+
+### 🟡 FUP-AE5-MATRIX-ARM3-CELLS-INCREMENT-ONE-NAMES-TWO-DIFFERENT-ROLES — three homes disagree on the ordinal (owner: lead + PO) — ✅ RESOLVED 2026-09-11
+
+> **RESOLVED 2026-09-11** — unit AE5-SUCCESSOR-ADRS, ADR 0207 D6 (the sequencing ruling). Record:
+> docs/progress/ae5-successor-adrs.md. Closing commit(s): `8f43e662` (ADR 0207) · `23badb33` (the
+> five markers). Closed ON the clause below: the PO ruled that `staff_admin` does NOT occupy an
+> increment slot — it is the already-authoritative baseline; item 1 is `staff`; ten role cutovers
+> plus one capability-plane cutover remain — and the ruling is written beside every disagreeing
+> sentence, ⚠ FIVE sites not the three the clause names (`pre-ae5-remediation.md:640` and `:670`
+> repeat the refuted reading; the body's ruling section lists all five). *"ADR 0202 due before
+> increment 2"* is retired, not restated: the role-catalog decision (written as 0207) and its unit
+> `AE5-ROLE-CATALOG-COMPAT` are due before increment 1. Bound the closure does NOT reach: no
+> increment has run; the ordinal is ruled, not exercised.
+> QA APPROVED r2 (docs/reviews/ae5-successor-adrs-rereview.md); PO approval 2026-09-11.
+>
+> ⛔ **The entry block below is VERBATIM, its `Closes when` included.**
+
+**Filed:** 2026-09-10 (unit AE5-MATRIX-ARM3-CELLS, at open, while checking this unit's own `phase:` anchor) · **Owner:** lead + PO · **Severity:** medium — two live sequencing clauses (ADR 0202 "due before increment 2", this unit "due before increment 1 runs its matrix") are keyed on a phrase whose three homes disagree; `docs/progress/ae5-opening-adr.md:519-520` and `:522` contradict each other inside one paragraph, and `docs/plans/authz-evolution.md:1178-1180` numbers its Proposed order from `staff`. Latent, not live: 0 of 11 increments exist, so nothing is blocked or late under either reading — it bites the first session that quotes the phrase to justify an ordering.
+**Closes when:** the PO rules whether `staff_admin` occupies an AE5 increment slot at all, and the ruling is written into **all three** homes so no two disagree — `docs/progress/ae5-opening-adr.md:519-522` (the self-contradicting paragraph), `docs/plans/authz-evolution.md:1174` + its Proposed order numbering, and `docs/plans/pre-ae5-remediation.md:396-398` — with ADR 0202's "due before increment 2" restated against whichever ordinal survives. ⛔ Not closed by correcting one home; the defect IS the disagreement.
+**Ruling (PO, 2026-09-11):** RULED and written — **ADR [0207](../decisions/0207-the-role-catalog-holds-roles-administrativo-is-a-capability-provider.md) D6**: `staff_admin` is the already-authoritative **baseline**, NOT increment 1; after the compat unit the work is ten role cutovers plus one capability-plane cutover, and item 1 is `staff` (the Proposed order's numbering was the correct half). ⚠ The refuted reading has **five** live sites, not the three named above — `docs/plans/pre-ae5-remediation.md:640` and `:670` repeat it too — and all five carry dated correction markers beside them (unit `AE5-SUCCESSOR-ADRS`, 2026-09-11); `docs/plans/authz-evolution.md:1215`'s existing ⛔ note received a dated update rather than a second marker. ⇒ the lead closes this entry at that unit's **Record step**; it is not moved here.
+**Status:** open
+Body — folded in below as the `####` section (the pointer line the open register carried named the body file, now deleted).
+
+#### FUP-AE5-MATRIX-ARM3-CELLS-INCREMENT-ONE-NAMES-TWO-DIFFERENT-ROLES
+
+Index entry: [follow-ups-open.md](follow-ups-open.md) · filed 2026-09-10 · status open
+
+**The observation, measured at three heads that disagree.** *"AE5 increment 1"* is used as an
+ordering anchor by at least three live sentences, and it does **not** name the same role in all of
+them:
+
+- `docs/progress/ae5-opening-adr.md:519-520` — *"AE5's increment **1** is `staff_admin`, which is the
+  only role already `state = 'authoritative'` … so 0202 gates increment **2**, not 1."*
+- `docs/progress/ae5-opening-adr.md:522`, **two lines later** — *"AE5's **eleven** increments = 12
+  catalog roles − `staff_admin`."* ⇒ if `staff_admin` is **subtracted out** of the increments, it
+  cannot also **be** increment 1. The same paragraph asserts both.
+- `docs/plans/authz-evolution.md:1178-1180` — the **Proposed order** is numbered from 1 and its
+  item **1 is `staff`**, not `staff_admin`.
+- `docs/plans/authz-evolution.md:1174` and `docs/plans/pre-ae5-remediation.md:396-398` repeat the
+  first reading verbatim (*"increment 1 is `staff_admin`, the only already-`authoritative` role"*).
+
+**Why it is a finding and not a quibble.** Two live sequencing clauses are keyed on the phrase:
+ADR **0202** is *"due before increment **2**"* and unit **`AE5-MATRIX-ARM3-CELLS`** is *"due before
+increment **1** runs its matrix"*. Under reading A (increment 1 = `staff_admin`) increment 1 is a
+role that is **already `authoritative`**, so its matrix either already ran or never will — and a
+prerequisite due *"before"* it is, on its face, **already late**. Under reading B (increment 1 =
+`staff`, per the Proposed order) both clauses are unambiguous and neither is late. ⇒ the ambiguity
+does not change what to build; it changes whether a reader believes a gate was **missed**, and it
+shifts ADR 0202's own due point by one role.
+
+**Reach, stated rather than left to alarm.** ⛔ **Nothing is blocked and nothing is late today.**
+Measured 2026-09-10: **0 of 11** AE5 role increments exist — `docs/progress/phase-ledger.md` carries
+no AE5.x role row, `docs/features/INDEX.md` carries exactly one AE5-prefixed forward row (this
+unit), and no branch exists for any increment. So both readings agree on the only thing that
+currently matters: nothing has started, and this unit precedes all of it. The defect is latent and
+will bite the first session that quotes the phrase to justify an ordering.
+
+**Why no gate catches it.** The phrase is prose in three files; no gate parses increment numbering,
+and `lint:registers` checks a register's *shape*, never the agreement of two sentences about the
+same ordinal. This is the `409` § 3.7 shape — a sentence that reads as settled while two of its
+homes disagree.
+
+**Not fixed in this unit, deliberately.** Choosing which reading is correct is a **PO sequencing
+ruling**, not a measurement: it decides whether `staff_admin` occupies an increment slot at all, and
+that answer moves ADR 0202's due point. This unit's own scope (arm-3 divergence enumeration) is
+unaffected under either reading, so ⛔ it does not get widened to absorb a decision it does not own.
+
+---
+
+## ✅ RULED — 2026-09-11 (PO, unit `AE5-SUCCESSOR-ADRS`); the lead closes this at the Record step
+
+**Ruling (PO, 2026-09-11):** written as **ADR [0207](../decisions/0207-the-role-catalog-holds-roles-administrativo-is-a-capability-provider.md) D6**, verbatim from the ruling:
+
+> This also cleans up the sequencing language: staff_admin is the already-authoritative baseline,
+> not AE5 increment 1. After the compatibility unit, the remaining work is ten real role cutovers
+> plus one capability-plane cutover. Item 1 is therefore staff; item 6 remains the administrativo
+> provider mapping.
+
+⇒ **Reading B wins.** `docs/plans/authz-evolution.md:1178-1180`'s Proposed order was the correct
+half; the *"increment 1 is `staff_admin`"* sentences were the disagreeing half. Arithmetic from the
+catalog: 12 `authz.roles` rows − `administrativo` (the capability plane) − `staff_admin` (already
+`authoritative`) = **10** role cutovers + **1** capability-plane cutover.
+
+⚠ **The correction list is FIVE sites, not three.** This entry's close condition names three homes;
+`grep -n "increment 1" docs/progress/ae5-opening-adr.md docs/plans/authz-evolution.md
+docs/plans/pre-ae5-remediation.md` (run 2026-09-11) also finds
+**`docs/plans/pre-ae5-remediation.md:640`** and **`:670`**, which repeat the refuted reading
+verbatim. Closing on three homes would have left two live sentences asserting it. All five carry a
+dated correction marker beside them (ADR 0105: historical documents are not rewritten), and
+`docs/plans/authz-evolution.md:1215`'s **existing** ⛔ note — which held this disagreement open and
+pointed here — received a dated **update** rather than a second marker beside it.
+
+⚠ **ADR 0202's *"due before increment 2"* is retired, not restated against a surviving ordinal.**
+With `staff_admin` a baseline rather than an increment, the role-catalog decision and its unit
+`AE5-ROLE-CATALOG-COMPAT` are due before **increment 1**. The reserved number 0202 was itself
+renumbered to **0207** in the same session (plan §3 item 5's own offered remedy).
+
+⛔ **Not closed by this note.** The entry stays `open` until the lead's Record step for
+`AE5-SUCCESSOR-ADRS`; a writer moves it to the archive there, not here.
+
+### 🟠 FUP-AE5-MATRIX-ARM3-CELLS-ADR-0202-BLAST-RADIUS-CITES-ANOTHER-ADRS-CENSUS — "fully measured" points at a silent home (owner: lead + PO) — ✅ RESOLVED 2026-09-11
+
+> **RESOLVED 2026-09-11** — unit AE5-SUCCESSOR-ADRS, ADR 0207 D7 (the blast-radius census). Record:
+> docs/progress/ae5-successor-adrs.md. Closing commit(s): `8f43e662` (ADR 0207) · `23badb33` (the
+> `:398` correction). Closed ON branch (a) of the clause below: the F7 · F8 · `platform_role` census
+> was run and lands in ADR 0207 D7 with the query beside each figure (11 enum labels · 1 column ·
+> 1 routine · 0 policies · 7 TS files; the 12 `authz.roles` rows; F8's five-capability CHECK + one
+> door; F7's five live declarations), and `pre-ae5-remediation.md:398` carries a dated correction
+> beside its *"3 sites and fully measured"* naming that home; R8's `hat_ok` trio stays attributed to
+> F6 / ADR 0201. Bound the closure does NOT reach: the census is a reach probe at head pair
+> `(20261003007390, 528)`-era catalog re-measured 2026-09-11; the compat unit re-measures before it
+> alters anything.
+> QA APPROVED r2 (docs/reviews/ae5-successor-adrs-rereview.md); PO approval 2026-09-11.
+>
+> ⛔ **The entry block below is VERBATIM, its `Closes when` included.**
+
+**Filed:** 2026-09-10 (unit AE5-MATRIX-ARM3-CELLS, at open, while sizing the unopened successors) · **Owner:** lead + PO · **Severity:** high — `docs/plans/pre-ae5-remediation.md:398` tells the next session that ADR 0202's blast radius is "**3 sites** and fully measured (see the unit record)", but `docs/progress/ae5-opening-adr.md` carries no such census: `platform_role` occurs 4 times, none a measurement, and the file's only three-site census (`:604-606`) is R8's `hat_ok` resolver trio — **F6's** radius, i.e. ADR **0201's** subject. ADR 0202 is one of the two still-unopened successors, so a session will act on this.
+**Closes when:** either (a) the F7 · F8 · `platform_role` census is actually run and lands in a durable home, and `:398` cites **that** home by path, or (b) `:398` is corrected to say the census is **owing**, with the borrowed "3 sites" removed and R8's trio left attributed to F6/ADR 0201 where it belongs. ⛔ Not closed by re-measuring `platform_role` alone — F7 and F8 are two further limbs with no census in any home, so a `platform_role`-only count would re-commit the same understatement.
+**Ruling (PO, 2026-09-11):** RULED and written on branch **(a)** — **ADR [0207](../decisions/0207-the-role-catalog-holds-roles-administrativo-is-a-capability-provider.md) D7** carries the census with the query that produced each row: `platform_role` = **11** enum labels · **1** column (`app.active_role_selections.role`) · **1** routine (`public.assume_role`, `prosecdef`, not overloaded) · **0** RLS policies · **7** first-party TS files (6 hand-written + the generated `src/lib/types/database.ts`), cross-checked against `pg_depend` (exactly two dependents, no third limb); **F8**'s limb is the 12 `authz.roles` rows and the five-value `commission_administrativo_capabilities` CHECK (D2), **F7**'s is the five live declarations in `src/lib/role/role-catalog.ts` (D4) — so no limb is left uncounted. `docs/plans/pre-ae5-remediation.md:398`'s *"3 sites and fully measured"* carries a dated correction beside it naming D7 (unit `AE5-SUCCESSOR-ADRS`, 2026-09-11). ⇒ the lead closes this entry at that unit's **Record step**; it is not moved here.
+**Status:** open
+Body — folded in below as the `####` section (the pointer line the open register carried named the body file, now deleted).
+
+#### FUP-AE5-MATRIX-ARM3-CELLS-ADR-0202-BLAST-RADIUS-CITES-ANOTHER-ADRS-CENSUS
+
+Index entry: [follow-ups-open.md](follow-ups-open.md) · filed 2026-09-10 · status open
+
+**The observation.** `docs/plans/pre-ae5-remediation.md:398` tells whoever opens ADR **0202**
+(F7 · F8 · the `platform_role` retirement) that *"Its blast radius is **3 sites** and fully measured
+(see the unit record)."* ⛔ **That census is not in the unit record.** Measured 2026-09-10 over
+`docs/progress/ae5-opening-adr.md`: `platform_role` occurs **4** times, none of them a census; the
+only *"three sites"* measurement in the file is **PO ruling R8's** resolver trio at `:604-606` —
+`authz.has_permission`, `authz.candidate_has_permission`, `authz.explain_permission`, the three
+consumers of `entailed_grants.hat_ok` — which is **F6's** blast radius and therefore **ADR 0201's**
+subject, not 0202's. The plan borrowed a number that belongs to a different decision.
+
+**Why it matters now rather than later.** ADR 0202 is one of the **two** successors still unopened
+(plan §6). A session opening it reads *"fully measured"*, skips the census, and writes a decision on
+a blast radius nobody established. That is the shape the pre-AE5 programme exists to retire — a
+sentence that reads settled while its cited home is silent.
+
+**What the reach actually looks like, stated as a MEASUREMENT and explicitly NOT as the census.**
+At head pair `(20261003007390, 528)`, live catalog: the `platform_role` enum carries **11** labels;
+**1** routine in `app`/`public`/`authz` (`prokind='f'`) mentions the type in its
+`pg_get_functiondef`; **1** column anywhere is of type `platform_role`. First-party TypeScript:
+**7** files under `src/`, **13** occurrences. ⛔ This is a reach probe, not 0202's census — it counts
+only the `platform_role` limb and says **nothing** about **F7** (one manifest entry per role in
+`role-catalog.ts`, today spread across `ROLE_LABELS` + `ROLE_SCOPE_KIND` + `ROLE_ORDER` +
+`ROLE_BRANCH` + a `scopeSummary` switch) or **F8** (`administrativo` seeded as a 12th `authz.roles`
+row under a `capability_plane` sentinel while its own comment says NOT A ROLE). Those two limbs have
+**no census at all**, in any home. ⇒ under any reading that includes F7 and F8, *"3 sites"*
+understates the subject; under the narrowest reading it is unverifiable.
+
+**Why no gate catches it.** `lint:registers` resolves ADR **link targets**, never the claim that a
+cited document *contains* a particular measurement. A citation to a live file that simply does not
+carry the fact is invisible to every gate in the chain — the `409` § 3.7 shape again, and the second
+instance of it found at this unit's open (the first was the manifest's self-contradicting
+`openArms`).
+
+**Not fixed in this unit, deliberately.** Running 0202's census is **0202's work**, and this unit's
+scope is arm-3 divergence enumeration. ⛔ Widening it to absorb a neighbouring ADR's measurement is
+exactly the drift the phase discipline forbids. What is owed here is the **warning**, so the next
+session starts from *"census owing"* rather than *"census complete"*.
+
+---
+
+## ✅ RULED — 2026-09-11 (PO, unit `AE5-SUCCESSOR-ADRS`); the lead closes this at the Record step
+
+**Ruling (PO, 2026-09-11):** closed on **branch (a)** of this entry's own close condition — the
+census was run and lands in a durable home, **ADR
+[0207](../decisions/0207-the-role-catalog-holds-roles-administrativo-is-a-capability-provider.md)
+D7**, which carries the query beside every figure (ADR 0195: a count in ungated prose rots).
+
+| limb | reach |
+| --- | --- |
+| `platform_role` enum labels | **11** |
+| columns typed by it | **1** — `app.active_role_selections.role` |
+| routines naming it | **1** — `public.assume_role(p_role platform_role)`, `prosecdef`, not overloaded |
+| RLS policies naming it | **0** |
+| first-party TS files | **7** — 6 hand-written + the generated `src/lib/types/database.ts` |
+
+Cross-checked independently of the three catalog queries: `select distinct d.classid::regclass,
+d.objid from pg_depend d where d.refobjid = 'public.platform_role'::regtype and d.deptype <> 'i'` →
+exactly two dependents (`pg_class` + `pg_proc`), consistent with 1 column + 1 routine and **no third
+limb**. ⚠ `prokind in ('f','p')` is required in the routine query — without it `pg_get_functiondef`
+errors on aggregates and the census returns **nothing at all**, a silently-empty sweep.
+
+⭐ **The understatement this entry warned about is addressed on all three limbs, not one.** F7 and
+F8 were the two limbs with no census in any home: **F8**'s is ADR 0207 D7's 12-row `authz.roles`
+table plus D2's five-value `commission_administrativo_capabilities` CHECK (⚠ five capabilities and
+one **door**, `bulk_create_cases` — not six capabilities); **F7**'s is D4's five live declarations in
+`src/lib/role/role-catalog.ts`, each shifted +10 lines since the audit, with the note that F7's
+*second* complaint (the Docker shell-out in Vitest) is **already remediated**.
+
+`docs/plans/pre-ae5-remediation.md:398`'s *"3 sites and fully measured (see the unit record)"*
+carries a dated correction beside it naming ADR 0207 D7 as the home; R8's `hat_ok` resolver trio
+stays attributed to F6 / ADR 0201 where it belongs.
+
+⛔ **Not closed by this note.** The entry stays `open` until the lead's Record step for
+`AE5-SUCCESSOR-ADRS`.

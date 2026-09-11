@@ -12,11 +12,10 @@
 > A hub's `## Current state` is its summary; its progress record's `## Session log`
 > (`docs/progress/<code>.md`) is its detail (ADR 0186 D3).
 
-**25 hubs** · in progress 0 · gated 4 · planned 2 · parked 0 · complete 19
+**25 hubs** · in progress 0 · gated 3 · planned 2 · parked 0 · complete 20
 
 | ID | Title | Status | Kind | Program | Branch | Hub |
 |---|---|---|---|---|---|---|
-| AE5-SUCCESSOR-ADRS | The two pre-AE5 successor ADRs written — the role-catalog decision (F7 · F8 · platform_role, reserved as 0202) and the two conventions (the D fan-out · search_path, reserved as 0204) — renumbered to highest-on-any-live-branch + 1 by PO ruling, each decision ruled by the PO on 2026-09-11 and every cited fact re-verified before it is written | 🚧 gated | feature | AUTHZ | `authz-ae5-successor-adrs` | [ae5-successor-adrs.md](ae5-successor-adrs.md) |
 | BACKEND-STATE-CURRENT-STATE | Backend seams get a replaceable current-state layer — a projection above the frozen history, gated in four checks (ADR 0198) | 🚧 gated | feature | DOCS | `backend-state-current-state` | [backend-state-current-state.md](backend-state-current-state.md) |
 | BACKEND-STATE-SPLIT | Backend surface map split onto the module-seam axis — a router replaces the 742 KB reading list (ADR 0196) | 🚧 gated | feature | DOCS | — | [backend-state-split.md](backend-state-split.md) |
 | DATA-ACCESS-GENERATION | Data-access registries generated from the catalog — four hand-maintained tables replaced by a derive-and-compare pair, gated in two halves (ADR 0197) | 🚧 gated | feature | DOCS | `data-access-generation` | [data-access-generation.md](data-access-generation.md) |
@@ -26,6 +25,7 @@
 | AE4 | Authz catalog cutover — staff_admin substituted, 3 of 43 permissions load-bearing | ✅ complete | feature | AUTHZ | — | [ae4.md](ae4.md) |
 | AE5-MATRIX-ARM3-CELLS | Arm-3 divergent cells enumerated — discharging ADR 0175 D3's forward promise, which is WORK and not a decision: 216 candidate rows carry zero divergence labels | ✅ complete | feature | AUTHZ | `authz-ae5-matrix-arm3-cells` | [ae5-matrix-arm3-cells.md](ae5-matrix-arm3-cells.md) |
 | AE5-OPENING-ADR | AE5's opening decision — the ADR 0176 D8 bundle, the F5 seam model and the per-role template's arm keying, taken together with the admin arm's `is_active` blindness, its Class-2 write reach and the manifest comment that describes a red which is green, so the template is decided before AE5 copies it eleven times (pre-AE5 Batch 9) | ✅ complete | feature | AUTHZ | — | [ae5-opening-adr.md](ae5-opening-adr.md) |
+| AE5-SUCCESSOR-ADRS | The two pre-AE5 successor ADRs written — the role-catalog decision (F7 · F8 · platform_role, reserved as 0202) and the two conventions (the D fan-out · search_path, reserved as 0204) — renumbered to highest-on-any-live-branch + 1 by PO ruling, each decision ruled by the PO on 2026-09-11 and every cited fact re-verified before it is written | ✅ complete | feature | AUTHZ | `authz-ae5-successor-adrs` | [ae5-successor-adrs.md](ae5-successor-adrs.md) |
 | BACKEND-STATE-SERVICE-ROLE-SEAM | The service-role DML registry gets its own seam — the first application of ADR 0196 D4's remedy, ruled by the PO on 2026-09-11 when authorization-and-audit.md crossed gate 16's warn line | ✅ complete | feature | DOCS | `backend-state-service-role-seam` | [backend-state-service-role-seam.md](backend-state-service-role-seam.md) |
 | C2-TIER1 | Command-door Tier 1 sweep — PHI-touching command doors, gate-aware closure | ✅ complete | feature | AUTHZ | — | [c2-tier1.md](c2-tier1.md) |
 | CAN-MANAGE-PROFESSIONAL-SELF-CHECK | `app.can_manage_professional`'s self-check arm — a third-party predicate whose first arm answers about the caller, given its reachability analysis, the PO's ruling, and (if ruled) the migration that makes it answer about `p_uid` (pre-AE5 Batch 8) | ✅ complete | feature | AUTHZ | — | [can-manage-professional-self-check.md](can-manage-professional-self-check.md) |

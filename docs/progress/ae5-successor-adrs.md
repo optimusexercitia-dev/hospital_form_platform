@@ -658,3 +658,69 @@ at the Record step: ledger row; the two `FUP-AE5-MATRIX-ARM3-CELLS-…` follow-u
 ADR-0202-BLAST-RADIUS) closed in both homes — archived verbatim with bodies folded in; the two
 re-claused conventions' follow-ups stay OPEN; hub → `complete` with the block cut here; ff-merge to
 `main`; ⛔ no push; the handoff's next unit is `AE5-ROLE-CATALOG-COMPAT`.
+
+### 2026-09-11 — RECORD STEP on the PO's approval (*"approved — run the Record step, merge to main, no push"*) (lead)
+
+**Approval scope, written down:** the unit as gated at `a121690a` — ten commits above `main` at
+`adbde005`; the Record step, a merge to `main`, no push. ⚠ A second local session (the task chip
+for the arm-3 bug fix) holds a worktree under `.claude/worktrees/` on its own branch; nothing here
+touches it, and every grep below was filtered to exclude it.
+
+**Playbook §4, step by step.** (1) Ledger row appended; Commit cell filled after the fast-forward.
+(2) The two follow-ups the ADRs close — `FUP-AE5-MATRIX-ARM3-CELLS-INCREMENT-ONE-NAMES-TWO-DIFFERENT-ROLES`
+(closed on ADR 0207 D6) and `FUP-AE5-MATRIX-ARM3-CELLS-ADR-0202-BLAST-RADIUS-CITES-ANOTHER-ADRS-CENSUS`
+(closed on 0207 D7) — moved VERBATIM to `follow-ups-archive.md`, each under a `✅ RESOLVED
+2026-09-11` heading with a `>` note quoting the clause it closed on, body folded in under a `####`
+heading naming the same id; the entries and bodies then deleted, the unique field lines verified at
+the destination first; ⭐ a grep for links to the two body files outside the register found none
+(the previous unit's gate-9 red was exactly that shape — checked before deleting this time). The two
+conventions' follow-ups (`FUP-AE4-CANDIDATE-SCOPE-FANOUT-IS-UNBOUNDED`,
+`FUP-NO-GATE-CATCHES-A-COLLAPSED-SEARCH-PATH`) stay OPEN on their re-written clauses. No bug to flip.
+(3) No task detail beyond this record. (4) **A seam slice IS owed** under the widened rule — the unit
+RULED on the authz seam's subjects without changing them (the role catalog, the resolver's candidate
+invariant, the DEFINER `search_path` convention): a dated slice appended to
+`docs/backend-state/authorization-and-audit.md` and its `## Current state` block re-cut (Open edges)
+and re-stamped; gate 16 rc read bare. (5) `adr:index` run at the ADR commits; `**Amends:** 0176` on
+0207; 0208 carries no label, with the reason in its header; the false back-pointer into 0201 was
+caught and removed by the drafter. (6) `lint:progress`, `lint:registers`, `lint:backend-state` bare;
+phase commit follows. (7) Review queue: re-read at this step (count in the merge entry). (8)
+**Rulings reconciled against artefacts:** numbering → ADR headers 0207/0208 + the plan §3 item 5
+note; F8 + mapping constraints + compat unit + sequencing → 0207 D1/D2/D5/D6; `platform_role` → 0207
+D3; F7 → 0207 D4; the D invariant, assertion, triggers → 0208 D1/D2/D3; `search_path` → 0208
+D4/D5/D6; each also in the register clauses (archived or re-written) and the handoff's RESUME block.
+None lives only in this log. (9) Both homes edited for all four follow-ups. (10) Sets named: the
+five ordinal-marker sites are listed in the INCREMENT-ONE body's ruling section; the reservation
+sites in the build entry. (11) The hub's block is cut here as the last edit.
+
+### Current state at close (cut from the hub on completion, 2026-09-11)
+
+#### Objective
+Write the two remaining pre-AE5 successor ADRs from the PO's rulings of 2026-09-11, with every
+cited fact re-verified, the builds they order named to follow-on units, and the four follow-ups
+they touch closed or re-claused in both homes.
+
+#### Done since start
+ADR **0207** (`**Amends:** 0176` D8): F8 — `administrativo` leaves `authz.roles` as a
+capability-provider namespace, entitlement = each capability, the seam above the role-shaped
+resolver; the eight mapping constraints verbatim (five capabilities + one door); `platform_role`
+retired; F7 one manifest entry + generated `--check` gate; six-step build → `AE5-ROLE-CATALOG-COMPAT`
+before increment 1; `staff_admin` = baseline, item 1 = `staff`; the blast-radius census with queries.
+ADR **0208**: `D ≤ F` parametric invariant with accepted residual risk, six-clause assertion
+(normalised live-body comparison) → `AE4-D-SHAPE-ASSERTION`, five triggers; `search_path = ''` sole
+forward convention, non-empty paths frozen debt, `414` resolvability-only, narrow `ALTER FUNCTION` →
+`DEFINER-SEARCH-PATH-NARROW-FIX`. 14 cited facts verified (10 reproduce, 4 differ, carried as facts).
+Registers in both homes; five ordinal markers; reservations retired; handoff re-routed. Lead gate
+at the tip green; QA r1 CHANGES REQUESTED (2 MAJOR re-measured and fixed), r2 APPROVED. PO approved
+2026-09-11; two follow-ups closed; seam slice + block; ff-merged to `main`; ⛔ **not pushed**.
+
+#### In progress
+Nothing — the unit is closed.
+
+#### Next
+Owned by others: **`AE5-ROLE-CATALOG-COMPAT`** (the handoff's next unit; backend; migration);
+`AE4-D-SHAPE-ASSERTION` and `DEFINER-SEARCH-PATH-NARROW-FIX` (unordered against it); the three
+permission codes owed for `schedule_meetings` / `create_cases` / `assign_case_phases`; the arm-3
+bug fix running in the task-chip session.
+
+#### Blockers
+None.

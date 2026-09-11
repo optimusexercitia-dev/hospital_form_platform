@@ -1,7 +1,7 @@
 ---
 id: AE5-SUCCESSOR-ADRS
 title: "The two pre-AE5 successor ADRs written — the role-catalog decision (F7 · F8 · platform_role, reserved as 0202) and the two conventions (the D fan-out · search_path, reserved as 0204) — renumbered to highest-on-any-live-branch + 1 by PO ruling, each decision ruled by the PO on 2026-09-11 and every cited fact re-verified before it is written"
-status: gated
+status: complete
 kind: feature
 program: AUTHZ
 phase: "pre-AE5 remediation — the last two successors of Batch 9 (plan §3 item 3 / §6); docs-only: ADRs + register clauses; ⛔ no migration, no src/, no pgTAP — the builds they order go to named follow-on units"
@@ -90,61 +90,8 @@ inside the ADR that orders it.
       re-routed to `AE5-ROLE-CATALOG-COMPAT`.
 - [x] `npm run adr:index`; **gate** bare: `npm run lint` 0/0 · `typecheck` · `git diff --stat
       main -- supabase src` **empty** · `e2e:prod`, `test:db`, the arms **not owed** (stated).
-- [ ] QA review (read-only; verifies every ADR sentence against the ruling text in the record and
-      against the tree) → human approval → Record step.
+- [x] QA review (read-only; verifies every ADR sentence against the ruling text in the record and
+      against the tree) → human approval → Record step. QA r1 CHANGES REQUESTED (2 MAJOR, both
+      re-measured by the lead and fixed), r2 APPROVED; PO approved 2026-09-11; Record step run, the
+      block cut into the record.
 
-## Current state
-
-**Updated:** 2026-09-11
-
-### Objective
-
-Write the two remaining pre-AE5 successor ADRs from the PO's rulings of 2026-09-11, with every
-cited fact re-verified, the builds they order named to follow-on units, and the four follow-ups
-they touch closed or re-claused in both homes.
-
-### Done since start
-
-Unit opened on `authz-ae5-successor-adrs` from `main` at `adbde005`; rulings captured verbatim in
-the record; **facts verified — 10 of 14 reproduce, 4 differ** (record entry 2), the lead ruling
-draft-now carrying the four corrections as FACTS at the PO's unchanged intent. **Both ADRs written**
-— `0207` the role catalog (`**Amends:** 0176`; D1 F8 · D2 the mapping + the FIVE-capabilities/one-DOOR
-correction · D3 `platform_role` retired · D4 F7 · D5 unit `AE5-ROLE-CATALOG-COMPAT` + the `ALTER
-DOMAIN` correction · D6 `staff_admin` = baseline · D7 the blast-radius census with its queries) and
-`0208` the two conventions (no Amends label, and why is stated; D1 the parametric invariant + the
-`F`-vs-`M` grain · D2 six clauses → `AE4-D-SHAPE-ASSERTION`, live-body comparison · D3 five triggers ·
-D4 `search_path = ''` sole forward convention · D5 `414` §0b/§1 + the owed ratchet gate · D6 the
-narrow `ALTER FUNCTION` → `DEFINER-SEARCH-PATH-NARROW-FIX`). **Registers done in both homes each**:
-two `AE5-MATRIX-ARM3-CELLS` follow-ups carry a dated PO ruling naming 0207 D6/D7 (⛔ not moved — the
-lead closes them at the Record step); the two conventions' follow-ups **re-claused, not closed**.
-**Five dated correction markers** placed beside the refuted *"increment 1 is `staff_admin`"* sites
-(three named + `pre-ae5-remediation.md:640`/`:670`), `:398`'s *"3 sites"* corrected, and
-`authz-evolution.md:1215`'s existing note **updated** rather than doubled. **Reservations retired**
-across the plan (§3 banner, items 3 + 5, §6 bullet, steps 2–3), `authz-evolution.md` (3 sites) and
-the handoff, whose RESUME block is **re-routed to `AE5-ROLE-CATALOG-COMPAT`**. Gates bare: `lint`
-**0** (17/17, eslint 0/0) · `typecheck` **0** · `adr:index --check` **0** · `git diff --stat main --
-supabase src` **empty**. `test:db` / `e2e:prod` / the four authz arms **not owed**, stated in the
-record. ⭐ Two findings recorded there: a **false generated back-pointer** into ADR 0201 (the index
-parse is over-inclusive; fixed by dropping the number from 0207's Amends label), and `414`'s cited
-lines re-read at source.
-
-### In progress
-
-Nothing. Lead gate at the tip green (lint, typecheck, adr-index, empty pathspec, 0 CR bytes). QA
-round 1 **CHANGES REQUESTED** (2 MAJOR — two figures in ADR 0208 D2 re-quoted from the record
-without measurement: *nine* tracked functions (eleven) and *byte-identical* CTEs (identical modulo
-three comment lines); 1 MINOR; 2 NOTE), every finding re-measured by the lead and fixed at
-`b2119b0a`; QA round 2 **APPROVED**, no new findings. The length overrun (322 / 310) is ruled by the
-lead: no trim — the excess is verbatim rulings, SQL and tables, and the comparable authz ADRs run
-longer.
-
-### Next
-
-Human approval (Phase Gate step 4); then the Record step: ledger row, the two
-`AE5-MATRIX-ARM3-CELLS` follow-ups closed in both homes, hub → `complete` with the block cut into
-the record, ff-merge to `main`, no push. The handoff already routes the next unit to
-`AE5-ROLE-CATALOG-COMPAT`.
-
-### Blockers
-
-None.

@@ -65,6 +65,11 @@
 
 ### Open edges
 
+- **RULED, NOT BUILT** (ADR [0207](../decisions/0207-the-role-catalog-holds-roles-administrativo-is-a-capability-provider.md) + [0208](../decisions/0208-the-candidate-fanout-is-structurally-dominated-and-empty-search-path-is-the-sole-forward-convention.md)):
+  `administrativo` leaves `authz.roles` and `platform_role` retires — unit `AE5-ROLE-CATALOG-COMPAT`; `D ≤ F` is a
+  parametric invariant with accepted residual risk, ⛔ never "unreachable" — `AE4-D-SHAPE-ASSERTION`; `search_path = ''`
+  is the sole forward DEFINER convention, non-empty paths frozen debt, `414` NOT the security property —
+  `DEFINER-SEARCH-PATH-NARROW-FIX`. ⛔ Until those land the catalog still holds the 12th role row, the enum and the 867 paths.
 - **"Measured" is not "clean", and a row is not a pass.** In the write-path sweep a **BLIND** row is a real finding to
   keystone, ⛔ **never allowlisted**; an **ERROR** row is UNVERDICTED, not COVERED. `FROMFINDINGS=1 ARM=policy` is a
   separate, pre-existing RED, not one of CLAUDE.md § 6's arms.
@@ -91,7 +96,8 @@
   registry** (a stub + forward marker; the slice is in [`service-role-dml.md`](service-role-dml.md)) ·
   **§ AE3** · **§ AE4** · **§ Audit read legs** · **§ Client-role TRUNCATE grants** · **§ QO·B** ·
   **§ QO·FUP** · **§ QO·A** · **§ RLS authorization surface** · **§ AE5's opening decision** · **§ Per-object grant
-  plane (ADR 0205)** · **§ Admin arm follows account state (ADR 0201 D4/D5 + R10)** · **§ Arm 3 oracled (ADR 0175 D3 delivered)**.
+  plane (ADR 0205)** · **§ Admin arm follows account state (ADR 0201 D4/D5 + R10)** · **§ Arm 3 oracled (ADR 0175 D3 delivered)** ·
+  **§ The two pre-AE5 successor decisions taken (ADR 0207 + 0208)** — ruled there, built nowhere yet.
 - ADR [0155](../decisions/0155-post-aff4-tenancy-and-person-model-evolution-sequence.md) · [0162](../decisions/0162-authz-evolution-plan-audit-corrections.md) (authority-elect) ·
   [0176](../decisions/0176-authz-permission-layer-made-real.md) (the three interfaces) · [0100](../decisions/0100-quality-office-oversight.md) (oversight + content wall) ·
   [0149](../decisions/0149-org-admin-reads-hospital-tier-audit.md) + [0150](../decisions/0150-audit-org-derived-from-hospital.md) (audit read legs) ·
@@ -1218,3 +1224,43 @@ Pre-AE5 successor unit `AE5-MATRIX-ARM3-CELLS` ([hub](../features/ae5-matrix-arm
 - **The enforcement manifest's `org.professionals.read` qualifier is retired FOR ARM 3**, its superseded text kept verbatim, and the residual-arm `population` field carries the same dated note; **ADR 0175 D3** carries a dated delivery marker. ⛔ The Gate-AE4 qualifier ADR 0175 demands is **still owed for arm 1**.
 
 **What this seam should say from here:** the read door has three arms and four grant terms; the case-committee arm is oracled with PO values and a pinned bug; the admin arm is exercised, not oracled. ⛔ A future fix of the pinned bug is measured against `403` §7.5 **and** §4.1b together, never against §7.4 alone.
+
+## The two pre-AE5 successor decisions taken — the role catalog and the two conventions (2026-09-11, unit `AE5-SUCCESSOR-ADRS`; ADR **0207** *amends 0176 D8* + ADR **0208**; ⛔ **NO migration** — decisions only, builds ordered to named units)
+
+**What changed in the surface: nothing.** What changed is what this seam should SAY about three
+of its subjects, each now RULED (PO, 2026-09-11) where it was OPEN:
+
+- **The role catalog** ([ADR 0207](../decisions/0207-the-role-catalog-holds-roles-administrativo-is-a-capability-provider.md)):
+  `administrativo` **leaves `authz.roles`** as a capability-provider namespace whose entitlement
+  source is **each individual capability**, never one bundle, and never a fake `role_code` inside
+  `authz.assignment_facts`; the provider-neutral seam sits ABOVE the role-shaped resolver
+  (`role_code · role_state · hat_ok`) and `authz.has_permission`'s interface is preserved.
+  `platform_role` **retires**: `app.active_role_selections.role` → catalog-validated text + FK to
+  `authz.roles(code)`, `public.assume_role` one non-overloaded text signature validating
+  `session_selectable` and the real assignment, the enum dropped last, `capability_plane` removed
+  from the `authz.scope_kind` DOMAIN (⚠ which also types `public.memberships.scope_kind` — a
+  red-first `memberships` proof precedes the `ALTER DOMAIN`). Blast radius, measured with its
+  queries in 0207 D7: 11 enum labels · 1 column · 1 routine · 0 RLS policies · 7 TS files.
+  Sequencing: `staff_admin` is the already-authoritative **baseline**, not increment 1; item 1 is
+  `staff`. ⛔ Nothing above is in the catalog yet — the build is unit **`AE5-ROLE-CATALOG-COMPAT`**,
+  before AE5 increment 1.
+- **The candidate fan-out `D`** ([ADR 0208](../decisions/0208-the-candidate-fanout-is-structurally-dominated-and-empty-search-path-is-the-sole-forward-convention.md) D1–D3):
+  a **parametric structural invariant plus accepted operational risk** — `D ≤ F` over a
+  provider-neutral fact set, `Dₖ ≤ min(F, |scopesₖ|)`; for today's role provider `F = M ≤ C + R_H·H +
+  R_O·O + S` (coefficients are catalog facts); ⛔ **never** *"large D is unreachable"*; **no numeric
+  ceiling**. A six-clause shape assertion on the P2 instrument (comparing the two resolvers'
+  candidate CTEs after normalisation — they are identical modulo three comment lines, not
+  byte-identical) is ordered to **`AE4-D-SHAPE-ASSERTION`**; five re-measurement triggers named.
+- **DEFINER `search_path`** (0208 D4–D6): `search_path = ''` with schema-qualified references is
+  the **sole forward convention** for new or touched DEFINER functions; the 867 non-empty paths
+  (825 `app, public, pg_catalog` · 39 · 2 · 1 inverted — query in 0208 D5) are **frozen
+  compatibility debt**, may not grow, converge on touch; **no mass re-emit**. `414` remains the
+  resolvability gate and is **NOT** the security property (the four client roles hold `TEMP` on the
+  database; `pg_temp` ordering). `public.tenant_orphan_profiles`'s inverted path is fixed by a
+  narrow forward `ALTER FUNCTION … SET search_path = ''` in **`DEFINER-SEARCH-PATH-NARROW-FIX`**;
+  the four temp-table DEFINERs get targeted tests before any catalog-wide sweep.
+
+Register: `FUP-AE5-MATRIX-ARM3-CELLS-INCREMENT-ONE-NAMES-TWO-DIFFERENT-ROLES` and
+`…-ADR-0202-BLAST-RADIUS-CITES-ANOTHER-ADRS-CENSUS` **closed**; `FUP-AE4-CANDIDATE-SCOPE-FANOUT-IS-UNBOUNDED`
+and `FUP-NO-GATE-CATCHES-A-COLLAPSED-SEARCH-PATH` **re-claused** to the builds above, still open.
+Record: [`docs/progress/ae5-successor-adrs.md`](../progress/ae5-successor-adrs.md).
