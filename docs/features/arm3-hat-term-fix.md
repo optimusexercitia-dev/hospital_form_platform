@@ -1,14 +1,14 @@
 ---
 id: ARM3-HAT-TERM-FIX
 title: "The professional-profile read door evaluates the ACT hat before its arms — fixing the case-grant arm that made the hat rule unenforceable, and carrying the arm-3 comment correction in the same body"
-status: in_progress
+status: gated
 kind: feature
 program: AUTHZ
 phase: "Between AE5-MATRIX-ARM3-CELLS and AE5 increment 1 — the bug that unit filed and pinned (403 §7.4), fixed on the PO's ratified shape (bug body § PO ruling 2026-09-11)"
 branch: claude/distracted-kapitsa-0d82de   # worktree branch, cut from main @ adbde005
 plan: ../plans/authz-evolution.md
 progress: ../progress/arm3-hat-term-fix.md
-reviews: []
+reviews: ["../reviews/arm3-hat-term-fix-review.md"]
 adrs: ["0175", "0176", "0200", "0201", "0209"]
 handoff: ~
 fup: ~
@@ -80,7 +80,7 @@ diff empty, `e2e:prod` GREEN (1261 passed · 0 failed · 4 flaky). QA round 1 CH
 all items discharged; round 2 CHANGES REQUESTED on four text edits → applied (record § Session log).
 
 ### In progress
-QA targeted re-check of the four round-2 edits.
+Nothing — QA APPROVED (round 3, targeted re-check at `9fcd6edc`); awaiting human approval.
 
 ### Next
 PO approval → Record step: bug status cell flipped, follow-up archived in both homes, hub → complete,

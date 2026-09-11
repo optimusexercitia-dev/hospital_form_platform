@@ -679,3 +679,7 @@ Playwright never invokes and the diffstat touches no `src/` file.
 (comment-only, again). `ARM=hat` was re-run after the round-1 fix pass (rc 0, previous entry); the
 round-2 header edit is above the body and cannot move a chunk. Committed by path; QA targeted re-check
 requested at that tip.
+
+### 2026-09-11 — QA round 3 (targeted re-check) APPROVED at `9fcd6edc`; hub gated, awaiting human approval (lead)
+
+QA verified R2-1…R2-4 at their moved anchors, ran `lint` rc **0** and `check-docs-registers` rc **0** itself, and did not re-run `test:db`/`e2e:prod`/the arms (the record carries them; the round-2 diff touches no `src/`, policy, grant or expected value). Hub `status: gated`, `reviews:` set. Two PO ratifications outstanding, named on the hub. ⛔ Record step and merge wait for the human.

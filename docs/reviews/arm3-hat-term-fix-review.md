@@ -633,3 +633,60 @@ any assertion's expected value.
 ⚠ **The PO now owes two ratifications, not one:** ADR 0209 **D5** (the 8 re-ruled cross-org cells) and
 the **in-place comment edit of an applied migration** disclosed in the migration header. Only the first
 is currently on the hub.
+
+---
+
+# Round 3 — targeted re-check (tip `9fcd6edc`)
+
+**Tip:** `9fcd6edc` · **Round-2 tip:** `f3edc375` · **Edits:** `git diff f3edc375..9fcd6edc`
+(7 files, +309/−24) · **Date:** 2026-09-11 · **Reviewer:** qa
+
+**Verdict: APPROVED**
+
+All four round-2 findings verified fixed at the tip, each re-`sed` at its (moved) anchor:
+
+| # | Finding | Verified fix |
+|---|---|---|
+| **R2-1** | `0208 D5` → `D6` in all four homes | `grep -n "0208 \*\*D5\|D5 orders\|0208 \*\*D6\|D6 prefers"` over the migration, ADR 0209, the FUP body and the record: all four now read **D6** for the "four temp-table DEFINERs tested first" clause. Confirmed against ADR 0208 `sed -n '243p'` — D6's own title is *"… the four temp-table DEFINERs are tested first"*; D5 (`:188`) is the `414`/`419` resolvability ratchet and says nothing about the four DEFINERs. ADR 0209 additionally disambiguates its own bare `D5` (*"⚠ not 0208 D5 … and not this ADR's own D5"*, `:209`) — better than asked. |
+| **R2-2** | PO-to-ratify block re-attributes "not free" to the in-place edit, names both alternatives with refusal reasons | Migration header `sed -n '13,27p'`: sentence 1 now prices *"an in-place comment-only edit"* as not free (correct attribution); two alternatives named — (a) the rule's own preferred remedy (correct in the next migration touching the object), refused because it leaves a known-false claim live in `prosrc` unbounded; (b) a standalone comment-only migration, refused by citing *this unit's own follow-up* rather than the rule. Matches what the rule and the follow-up each actually say. |
+| **R2-3** | `403` §7.4b message: "All three lines" → "Lines 1-3" | `grep -n "All three lines\|Lines 1-3"` on `403_ae45_differential_oracle.sql` → only "Lines 1-3" remains (line 1088). `git diff f3edc375..9fcd6edc` on the file shows exactly one changed line-pair, confined to the message string; the `is()` expected literal (the `arm1=…/door=…` pipe-joined value, 2nd argument) is byte-unchanged — confirmed by isolating the diff to that file, which contains no other hunk. |
+| **R2-4** | Hub `## Current state` refreshed, both PO items on Blockers | `docs/features/arm3-hat-term-fix.md:65-93`: `Updated: 2026-09-11`; Done-since-start now names QA round 1 and round 2 and `e2e:prod` GREEN (1261/0/4 flaky); In-progress correctly reads "QA targeted re-check of the four round-2 edits"; Blockers lists **both** PO-to-ratify items — ADR 0209 D5 and the pre-merge comment-only edit. Block is 29 lines, well under the 60-line cap. |
+
+**Record.** `docs/progress/arm3-hat-term-fix.md:659-682` carries the round-2 entry: a table of all
+four findings with what-was-wrong/fix, and a re-gate block reading `lint` rc 0 · `check-backend-state`
+rc 0 · `check-docs-registers` rc 0 · **fresh** `db reset` rc 0 → `test:db` **267/9025 PASS**, `not ok`
+0, migration diff still comment-only (0 non-`--` lines). This entry explicitly notes the fresh reset
+(round 2's own re-gate had been flagged as running on an already-reset stack; this one is not).
+
+**Gates I ran myself at this tip, rc bare:**
+
+```
+npm run lint                           rc 0
+node scripts/check-docs-registers.mjs  rc 0   26 hubs, 229 follow-ups, 157 bodies; ratchets unmoved
+                                              (archiveMissingClosesWhen=121/121, longHeadings=97/97)
+```
+
+(`lint` internally also runs `check-backend-state`, `data-access`, `budget-anchor`, `config-schemas`,
+`gen-authz-differential-cells --check`, and `build-features-index --check` — all reported clean in the
+same run: 16 seams routed, `authorization-and-audit.md` still 97/100 lines, vector `in sync (1728
+cells … sha ac475f3d65d3)`.)
+
+**Scope discipline.** `git diff --stat f3edc375..9fcd6edc` = 7 files: the ADR, the hub, the follow-up
+body, the record, this review, the migration, and `403`. No `src/` file, no new SQL statement, no
+assertion's expected value moved (only its message text, in R2-3).
+
+**Could not verify (unchanged from round 2, not re-litigated):** `npm run e2e:prod` and the four authz
+arms / diff-scoped door sweep at this exact tip were not re-run by me — the spawn prompt forbids DB
+writes/resets, and none of the round-3 edits touch `src/`, a policy, a grant, or the assertion values
+that those arms exercise, so the round-2 bound (no runtime surface moved) still holds. I did **not**
+independently re-run `test:db`, relying on the record's fresh-reset reading; the two gates I did run
+myself (`lint`, `registers`) are clean and corroborate no drift since round 2's own independent
+`test:db` run.
+
+## Summary for the lead
+
+All four round-2 items are fixed, one of them (R2-1) better than asked (0209 disambiguates its own
+bare D5 too). Nothing outstanding is a code, schema, or assertion change — everything left is the two
+PO ratifications already correctly surfaced on the hub: ADR 0209 D5 (8 re-ruled cross-org cells) and
+the pre-merge in-place comment edit to the unmerged migration. **APPROVED** — clear for PO/human
+approval and the Record step.
