@@ -192,3 +192,22 @@ the arm just became reachable and its cells need approved expected values first.
 already states the asymmetry this unit inherits: *"a widening of arm 1 would be caught (catalog would
 not move) and a defect INSIDE arm 1 would not."* ⛔ Recorded, not acted on: arm 1 is out of this
 unit's scope, but the same reasoning applies to it and no row says so.
+
+**Disposition of the stale-catalog finding — this record IS its home, decided against the bars
+rather than by preference.** The finding ("the local stack can sit BEHIND the tree, so a catalog read
+answers about the wrong head") was tested against the three candidate homes and rejected by two:
+- ⛔ **Not `.claude/rules/`.** ADR [0127](../decisions/0127-standing-rules-home-and-staleness-gate.md)
+  admits a rule only if it *"(a) declares machine-checkable `anchors:` and (b) is not already enforced
+  by a gate or by code."* This prohibition is about a **method**, not a file class — there is no tight
+  glob that would make it fire where it matters and nowhere else, which is the exact ground on which
+  0127 rejected the supersession candidate (*"spans 8+ files, so the rule would fire everywhere or
+  nowhere"*). It fails (a).
+- ⛔ **Not `docs/learning/LESSONS.md`.** The table's `Enforcement` column feeds the
+  `lessonsProseOnly` ratchet, which stands at **52/52** and *"may only be lowered"*. A new entry needs
+  a real enforcer, and none is available: the lint chain is **Docker-free by design** (the reason gate
+  12 is catalog-free in the first place), so no lint gate can compare `schema_migrations` against the
+  tree; and a pgTAP mirror would have to pin a migration **count**, i.e. an expected value maintained
+  by editing it every migration — which this tree already names as the anti-pattern (*"an expected
+  value that tracks reality by being edited is not an assertion"*).
+⇒ recorded here, in full, with the measurement that produced it. ⛔ A future session finding this
+should not re-file it as a lesson or a rule without first supplying the enforcer that both bars want.
