@@ -724,3 +724,14 @@ bug fix running in the task-chip session.
 
 #### Blockers
 None.
+
+### 2026-09-11 — merged: `main` fast-forwarded to the phase commit `0c2bdeaa` (written on `main`) (lead)
+
+`git merge --ff-only authz-ae5-successor-adrs` on `main` (was `adbde005`): fast-forward, **no merge
+commit** — `main` = the phase commit **`0c2bdeaa`**; `git merge-base --is-ancestor 0c2bdeaa main`
+**rc 0**, read bare. Working tree empty before and after. Local branch deleted with `-d` (rc 0).
+Measured at the time of writing: `origin/main..main` = **48** commits, ⛔ **not pushed** (the PO's
+instruction). The task-chip session's worktree (`.claude/worktrees/…`, branch
+`claude/distracted-kapitsa-0d82de`) is untouched and still listed. Review queue at this step: the
+four entries processed at the previous unit's open, none new. Ledger row's Commit cell filled with
+`0c2bdeaa` in this same docs commit. **Next unit per the handoff: `AE5-ROLE-CATALOG-COMPAT`.**
