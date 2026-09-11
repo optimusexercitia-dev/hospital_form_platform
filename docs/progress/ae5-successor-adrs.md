@@ -641,3 +641,20 @@ not rewritten); this entry is their correction.
 
 **After the fixes:** gates re-run bare and QA round 2 commissioned on the three edits; rcs in the
 commit.
+
+### 2026-09-11 — QA round 2 APPROVED (no new findings); hub → `gated`, awaiting human approval (lead)
+
+**QA round 2** (`qa`, `docs/reviews/ae5-successor-adrs-rereview.md`) verified the three fixes at
+`b2119b0a` by reproduction: 11 distinct `::regprocedure` arguments in the P2 script; the live
+`pg_get_functiondef` diff of the two resolvers (raw rc 1 — signature, three comment lines,
+confirmer; comment-stripped — signature and confirmer only) matching ADR 0208 D2's corrected
+description; hub `adrs:`/`reviews:` and gate 13 / features-index `--check` rc 0; the residual
+"nine" / "byte-identical" hits judged one by one (correction notes, an unrelated 0207 census, and the
+round-1 log entries standing as history beside an accurate correction). Gates read bare by QA: lint
+0, adr-index 0, empty pathspec. **Verdict: APPROVED.**
+
+**State:** hub → `gated`, both reviews linked. Awaiting **human approval** (Phase Gate step 4). Owed
+at the Record step: ledger row; the two `FUP-AE5-MATRIX-ARM3-CELLS-…` follow-ups (INCREMENT-ONE,
+ADR-0202-BLAST-RADIUS) closed in both homes — archived verbatim with bodies folded in; the two
+re-claused conventions' follow-ups stay OPEN; hub → `complete` with the block cut here; ff-merge to
+`main`; ⛔ no push; the handoff's next unit is `AE5-ROLE-CATALOG-COMPAT`.

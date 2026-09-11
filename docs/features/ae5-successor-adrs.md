@@ -1,14 +1,14 @@
 ---
 id: AE5-SUCCESSOR-ADRS
 title: "The two pre-AE5 successor ADRs written — the role-catalog decision (F7 · F8 · platform_role, reserved as 0202) and the two conventions (the D fan-out · search_path, reserved as 0204) — renumbered to highest-on-any-live-branch + 1 by PO ruling, each decision ruled by the PO on 2026-09-11 and every cited fact re-verified before it is written"
-status: in_progress
+status: gated
 kind: feature
 program: AUTHZ
 phase: "pre-AE5 remediation — the last two successors of Batch 9 (plan §3 item 3 / §6); docs-only: ADRs + register clauses; ⛔ no migration, no src/, no pgTAP — the builds they order go to named follow-on units"
 branch: authz-ae5-successor-adrs   # cut from main @ adbde005
 plan: ../plans/pre-ae5-remediation.md
 progress: ../progress/ae5-successor-adrs.md
-reviews: ["../reviews/ae5-successor-adrs-review.md"]
+reviews: ["../reviews/ae5-successor-adrs-review.md", "../reviews/ae5-successor-adrs-rereview.md"]
 adrs: ["0207", "0208", "0176", "0201", "0203", "0155", "0183", "0197", "0205"]   # 0207/0208 = the ADRs this unit produced (QA r1 MINOR)
 handoff: ~
 fup: ~
@@ -130,16 +130,21 @@ lines re-read at source.
 
 ### In progress
 
-Nothing. The drafts are complete and committed on `authz-ae5-successor-adrs`.
+Nothing. Lead gate at the tip green (lint, typecheck, adr-index, empty pathspec, 0 CR bytes). QA
+round 1 **CHANGES REQUESTED** (2 MAJOR — two figures in ADR 0208 D2 re-quoted from the record
+without measurement: *nine* tracked functions (eleven) and *byte-identical* CTEs (identical modulo
+three comment lines); 1 MINOR; 2 NOTE), every finding re-measured by the lead and fixed at
+`b2119b0a`; QA round 2 **APPROVED**, no new findings. The length overrun (322 / 310) is ruled by the
+lead: no trim — the excess is verbatim rulings, SQL and tables, and the comparable authz ADRs run
+longer.
 
 ### Next
 
-Lead reviews the two ADRs against the ruling text; QA review; human approval; Record step (where the
-lead closes the two `AE5-MATRIX-ARM3-CELLS` follow-ups).
+Human approval (Phase Gate step 4); then the Record step: ledger row, the two
+`AE5-MATRIX-ARM3-CELLS` follow-ups closed in both homes, hub → `complete` with the block cut into
+the record, ff-merge to `main`, no push. The handoff already routes the next unit to
+`AE5-ROLE-CATALOG-COMPAT`.
 
 ### Blockers
 
-None. ⚠ One decision for the lead: **both ADRs overrun the task's 180–260-line target** (322 / 310)
-because ~90 lines of 0207's Decision section is mandated transcription — four verbatim ruling blocks,
-six SQL blocks, two census tables. ⛔ Nothing was cut to hit the number; the record states what is
-uncompressible and the corpus context (median 123, p90 390, comparable authz ADRs 559/599).
+None.
