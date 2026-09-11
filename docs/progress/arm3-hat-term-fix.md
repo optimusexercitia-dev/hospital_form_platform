@@ -756,3 +756,7 @@ merge to `main` (no push).
 None. **Two items the PO must ratify at approval:** (1) ADR 0209 D5 — 8 cross-org `other_role` self
 cells re-ruled DENY (R2 had them approved by generator precedence); (2) the pre-merge comment-only
 edit to the unmerged migration `20261003007400` (migration header § DATED EDIT names the alternatives).
+
+### 2026-09-11 — merged: `main` fast-forwarded to `df1d4934` (lead)
+
+Primary checkout verified clean at `dd3629be` (`git status --short` empty), then `git -C <primary> merge --ff-only claude/distracted-kapitsa-0d82de` rc **0** — `main` = `df1d4934`, no merge commit, ⛔ not pushed. Ledger Commit cell filled in this commit, which `main` then fast-forwards to as well. The branch stays checked out in this worktree; it is deleted when the worktree is removed. The unit is closed.
