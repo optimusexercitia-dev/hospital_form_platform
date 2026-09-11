@@ -12,10 +12,11 @@
 > A hub's `## Current state` is its summary; its progress record's `## Session log`
 > (`docs/progress/<code>.md`) is its detail (ADR 0186 D3).
 
-**25 hubs** · in progress 0 · gated 3 · planned 2 · parked 0 · complete 20
+**26 hubs** · in progress 1 · gated 3 · planned 2 · parked 0 · complete 20
 
 | ID | Title | Status | Kind | Program | Branch | Hub |
 |---|---|---|---|---|---|---|
+| ARM3-HAT-TERM-FIX | The professional-profile read door evaluates the ACT hat before its arms — fixing the case-grant arm that made the hat rule unenforceable, and carrying the arm-3 comment correction in the same body | 🟢 in progress | feature | AUTHZ | `claude/distracted-kapitsa-0d82de` | [arm3-hat-term-fix.md](arm3-hat-term-fix.md) |
 | BACKEND-STATE-CURRENT-STATE | Backend seams get a replaceable current-state layer — a projection above the frozen history, gated in four checks (ADR 0198) | 🚧 gated | feature | DOCS | `backend-state-current-state` | [backend-state-current-state.md](backend-state-current-state.md) |
 | BACKEND-STATE-SPLIT | Backend surface map split onto the module-seam axis — a router replaces the 742 KB reading list (ADR 0196) | 🚧 gated | feature | DOCS | — | [backend-state-split.md](backend-state-split.md) |
 | DATA-ACCESS-GENERATION | Data-access registries generated from the catalog — four hand-maintained tables replaced by a derive-and-compare pair, gated in two halves (ADR 0197) | 🚧 gated | feature | DOCS | `data-access-generation` | [data-access-generation.md](data-access-generation.md) |
