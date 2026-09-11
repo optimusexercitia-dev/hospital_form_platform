@@ -615,7 +615,7 @@ inside a role increment"* (ADR [0176](../decisions/0176-authz-permission-layer-m
 > verify it takes the changed basis back to the PO (Batch 7's shape) rather than reading the doc and
 > calling that verification.
 
-⭐ **ALL NINE BATCHES ARE CONCLUDED (§2), AND SO IS BATCH 10 (§2 row 10, unit `ADMIN-ARM-IS-ACTIVE`, ff-merged 2026-09-10 @ `ef2625f2`, ⛔ NOT pushed — the standing instruction). Batch 9 closed 2026-09-10, was ff-merged after a rebase,
+⭐ **ALL NINE BATCHES ARE CONCLUDED (§2), AND SO IS BATCH 10 (§2 row 10, unit `ADMIN-ARM-IS-ACTIVE`, ff-merged 2026-09-10 @ `ef2625f2`, ⛔ NOT pushed — the standing instruction — ✅ superseded: PUSHED 2026-09-10 on the PO's instruction, the fifth one-push override, §2 row 10; found contradicting that row by QA at `AE5-MATRIX-ARM3-CELLS`, 2026-09-11). Batch 9 closed 2026-09-10, was ff-merged after a rebase,
 and was PUSHED** (a fourth one-push override, scoped to that push). ⛔ **The pre-AE5 remediation
 programme this plan governs is EXHAUSTED — there is no Batch 10 block here, and §3's REMAINING SET is
 NONE.** ⚠ Corrected 2026-09-10: this said *"§3 is empty"*, which is false of the section itself —

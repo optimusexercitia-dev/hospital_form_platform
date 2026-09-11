@@ -92,9 +92,10 @@ actually oracle arm 3 (what retires the manifest's *"OPEN AND MASKING"*); close 
 
 ### Done since start
 All four acceptance criteria met (ticked above), each with its witness in the record. **Arm 3 derived
-from the live catalog** (no org term — D3 CONFIRMED; no role lookup; `pending` reachable); a **live,
-unmasked arm-3 grant reproduced on the untouched seed**. Population = a **partition of 216** at the rep:
-108 blocked · 30 masking · 36 + 32 + 10 divergent. **PO rulings R1** (generator-side axis) and **R2**
+from the live catalog** (no org term — D3 CONFIRMED; role-free at S3/S4 only, so it survives an absent hat; `pending` reachable); a **live,
+unmasked arm-3 grant reproduced on the untouched seed**. Population = a **partition of the 216
+`grant_keyed` cells** at the rep (the rep holds 864): 108 blocked · 30 masking · 36 + 32 + 10 divergent
+(over the rep's 864: 92 approved-divergent, 10 defective). **PO rulings R1** (generator-side axis) and **R2**
 (classes 3 + 4 approved reach; class 5 a **BUG**, filed, not fixed). **Built and lead-verified at the
 tip**: `case_reach` axis + `arm3_divergence` label (inc. 1); gate-scoped by a named rule bound to the
 manifest via coverage `arm9`, 1728 cells, byte-identity proven (inc. 2); ⭐ **`403` ORACLES arm 3** —
@@ -109,7 +110,7 @@ fresh reset `Files=267, Tests=9023, PASS` · **census 608 HOLDS · hat HOLDS (4 
 HOLDS · wrapper HOLDS** · SELFTEST deriver `46/0/0` + door harness 0 · deriver **NOT-APPLICABLE (3)**
 both arms (no migration; `SCOPE:` quoted in the record) · set-valued **CLEAN 3/3** · tree clean before
 and after. ⛔ `lint` was **1** at that tip — gate 13 on the record's own handoff citation, reworded;
-re-run bare at the tip that carries this block (record, next entry).
+re-run bare at `eaf1757a`: **17/17, rc 0** (record entry *lint re-run BARE*).
 
 ### In progress
 Phase Gate step 3 — the QA review (`docs/reviews/ae5-matrix-arm3-cells-review.md`), not yet written.

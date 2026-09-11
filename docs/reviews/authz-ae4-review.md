@@ -99,7 +99,7 @@ entirely; §2.3 asserts the *label* column, not the door. Fix: call the real doo
 class 3. Where arm 3 legitimately grants beyond `org.professionals.read`, that is a
 FINDING for the AE5 matrix — record the divergent cells with their own expected
 values, never substitute the subject.
-⚠ **DISCHARGED FOR ARM 3 ON 2026-09-11 — unit `AE5-MATRIX-ARM3-CELLS` (`81fa1770`).**
+⚠ **DISCHARGED FOR ARM 3 ON 2026-09-11 — unit `AE5-MATRIX-ARM3-CELLS` (`cdb6fae3`, post-rebase; `81fa1770` pre-rebase, no longer on any local branch).**
 The divergent cells now have their own expected values, in a 14th vector column
 `expected_legacy_granted`, asserted by `403` §§4.1b/7.3b/7.4/7.5; the subject was
 never substituted. PO ruling **R2**: 36 (reach via explicit grant) + 32 (cross-org)

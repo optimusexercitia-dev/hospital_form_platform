@@ -645,7 +645,7 @@ this session); `git diff --name-only main..HEAD` touches **no** `supabase/migrat
 | `ARM=floor` | **0** | `=== INVARIANT HOLDS ===` |
 | `FROMFINDINGS=1 ARM=wrapper` | **0** | `=== INVARIANT HOLDS ===` |
 | `SELFTEST=1 door-sweep-cases` | **0** | `SELF-TEST: PASS 46 · FAIL 0 · SKIPPED 0` · `--- GROUP deriver: scenarios 20 (pass 20 · fail 0 · skipped 0)` · `--- GROUP merge helper: scenarios 18 (pass 18 · fail 0 · skipped 0)` · `--- GROUP audit startup capture: scenarios 8 (pass 8 · fail 0 · skipped 0)` |
-| `SELFTEST=1` door harness (`p0-authz-door-audit.sh`) | **0** | its own control table all `ok`, last rows `shape MOVED + FAIL -> NOTICED` · `shape MOVED + PASS -> ERROR` · `Dubious only + FAIL -> NOTICED` |
+| `SELFTEST=1` door harness (`p0-authz-door-audit.sh`) | **0** | its own control table all `ok` — e.g. the classify() rows at `selftest-door.log:13-15`: `shape MOVED + FAIL -> NOTICED` · `shape MOVED + PASS -> ERROR` · `Dubious only + FAIL -> NOTICED` (⚠ locator corrected by QA: these are not the log's last rows) |
 | deriver `ARM=read main` | **3** | `=== RESULT: NOT-APPLICABLE (3) — no migration file in the diff. ===` — stdout EMPTY (0 bytes) |
 | deriver `ARM=write main` | **3** | same RESULT line, stdout EMPTY |
 | door sweep, both arms | — | ⛔ **NOT RUN, by the deriver's exit 3** — the diff carries no migration, so there is no case list to sweep; the driver refuses to sweep on any rc but 0 with a non-empty list. This is the *no gate changed* claim, ruled from the deriver's own exit, never judged by eye. |
@@ -678,3 +678,41 @@ warn line` (filed, non-fatal) plus gate 17's standing BOUND note. The gate-13 re
 therefore discharged by the reworded line (`a6765c0f`); the two commits between the gate tip and this
 one touch only `docs/progress/ae5-matrix-arm3-cells.md` and `docs/features/ae5-matrix-arm3-cells.md`
 (`git diff --name-only 29422327..eaf1757a`). QA review (`qa` teammate) commissioned at this tip.
+
+### 2026-09-11 — QA review round 1: CHANGES REQUESTED (6 findings, docs-only, no security finding); every finding re-measured by the lead, then fixed (lead)
+
+Review: `docs/reviews/ae5-matrix-arm3-cells-review.md` (qa, at tip `eaf1757a`; the lint re-run entry
+`0d06ec80` landed while it ran). QA **confirmed the E2E ruling** (24 files in `main..HEAD`, none under
+`src/`, `supabase/migrations/`, `e2e/`, no seed) and reproduced `403` (`Files=2, Tests=28, PASS`, bare
+0), the generator self-test/check, gate 16 and gate 13. ⛔ Each finding below was `sed -n`'d / queried by
+the lead before it was acted on (LEARN-099: a relayed finding is mine the moment I act on it).
+
+| # | sev | what was wrong (measured) | fix |
+| --- | --- | --- | --- |
+| 1 | MAJOR | *"no role lookup"* bare, in the seam's `## Current state` (`:61`), the new slice, the hub and the manifest qualifier. The record (`:238`) bounds it to **S3/S4** — the other five `_case_caps` sources DO route through `holds_role`/`has_role_any`/`has_role`. ⭐ The qualifier survived three compressions and not the fourth. | All four homes now carry the S3/S4 bound; the slice's sentence carries a dated QA-corrected note (⛔ corrected in place: the slice is this unit's own, unmerged). |
+| 2 | MAJOR | The live `prosrc` of `app.can_read_professional_profile` still says *"exercised-but-not-oracled (ADR 0175 D3 / 403 §7.3)"* — the section this unit replaced; the record **quoted it as evidence** (2026-09-10 entry) and never returned. | ⛔ No migration (the unit is ruled none). Filed `FUP-AE5-MATRIX-ARM3-CELLS-READ-DOOR-COMMENT-CITES-THE-REPLACED-403-SECTION` (entry + body), Batch 10's precedent; the bug's fix is the natural carrier. |
+| 3 | MAJOR | ADR 0175 `:145` and `authz-ae4-review.md:102` cite `81fa1770` — `git merge-base --is-ancestor 81fa1770 HEAD` **rc 1**; the rebase re-hashed it to **`cdb6fae3`**. The same shape plan §2 row 9 records for `773a18d7`. | Both now cite `cdb6fae3` with the pre-rebase sha beside it. |
+| 4 | MINOR | *"36 + 32 approved"* / *"partition of 216"* are the `grant_keyed` column at the rep; the rep holds **864**, approved-divergent over it is **92**. | Grain stated in ADR 0175's Consequence note and the hub. |
+| 5 | MINOR | Record and hub pointed at *"the next entry"* for the re-run lint rc — it did not exist when QA read. | The entry exists (`0d06ec80`); the hub now states **17/17, rc 0 at `eaf1757a`** directly. |
+| 6 | MINOR | The door-harness gate row called three control rows *"last rows"*; they are `selftest-door.log:13-15`. | Locator corrected in the gate entry, with a note that QA corrected it. |
+| obs | — | `docs/plans/pre-ae5-remediation.md:618` still says Batch 10 *"NOT pushed"* against §2 row 10's *"PUSHED"* — pre-existing on `main`, not this unit's edit. | Dated superseded marker appended in the sentence, crediting QA. |
+
+**Re-checks after the fixes, every exit bare:** `gen-authz-matrix-cells` regen rc 0 — the manifest's
+narrative field moved, so **exactly one sha line each** in `authz-matrix-coverage.json` and
+`authz_enforcement_manifest.psql` again; `lint:authz-vectors` **0**; gate 13 **0** — ⚠ after one red,
+`[RATCHET] longHeadings is 98, cap 97`, on my new follow-up's heading, shortened; gate 16 **0**;
+`lint:adr-index` **0**; `features:index --check` **0**. pgTAP on the three files that consume the
+regenerated fixture, on the stack the gate left fresh: `00_setup.sql` + `403` + `410` →
+`Files=3, Tests=72` · `Result: PASS` · `All tests successful.` · 0 `not ok` · **rc 0**. ⛔ The full gate is
+**not** re-run: no `src`, migration, seed, vector CELL or `403` body changed — the diff since the gate tip
+`29422327` is docs plus the manifest's narrative fields and their two sha lines, and `410` is the file
+that pins the emitted manifest. The full `npm run lint` is re-run bare at the commit that carries this
+entry (next entry).
+
+**QA's "could not verify" list, answered:** the full lint at `eaf1757a` is in the entry above (rc 0); the
+three scratch-copy mutation proofs have **no artifact** by design (scratch copies, the committed `403`
+untouched — the record's increment-3 entry is the only witness, stated as such); the pre-unit `9019`
+baseline is Batch 10's gate row (`docs/progress/admin-arm-is-active.md`, gate table); the seed-side
+unmasked grant reproduction is the 2026-09-10 *arm 3 derived* entry's probe (no artifact beyond the
+record); `is_pqs_operator_of_for` at depth 3 was not probed by this unit either — ⚠ **left open**, it
+does not bear on the four criteria.

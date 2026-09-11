@@ -142,10 +142,10 @@ The disposition is therefore **DOWNGRADE, not close**.
 ⛔ **The load-bearing one, owed to the Gate AE4 record:** after D3, arms 1 and 3 are *exercised*
 but their divergent cells are **not oracled**. Exercised ≠ oracled.
 ⚠ **NARROWED 2026-09-11 — this now applies to ARM 1 ONLY** (unit `AE5-MATRIX-ARM3-CELLS`,
-`81fa1770`). **Arm 3 IS oracled**: `403` §7.3 was replaced by the whole `grant_keyed` column with an
+`cdb6fae3` — the post-rebase sha; `81fa1770` before the branch was rebased onto `main`, no longer on any local branch). **Arm 3 IS oracled**: `403` §7.3 was replaced by the whole `grant_keyed` column with an
 approved value per partition, §7.3b measures all four reaches, §7.4 pins a filed defect and §7.5
-guards it — and PO ruling **R2** supplied the expected values (36 + 32 approved as designed reach,
-10 ruled a bug). ⛔ **Arm 1 remains exercised-but-not-oracled** and `403` §7.2 still bounds it by
+guards it — and PO ruling **R2** supplied the expected values (of the 216 `grant_keyed` cells at the representative: 36 + 32 approved as designed reach,
+10 ruled a bug — over the representative's 864 cells that is 92 approved-divergent). ⛔ **Arm 1 remains exercised-but-not-oracled** and `403` §7.2 still bounds it by
 fixture, so the qualifier this sentence demands at Gate AE4 is **still owed — for arm 1.** The sentence *"the
 differential is green"* may not be written at Gate AE4 without that qualifier beside it, in the
 same way the C2 and `PRED_DOMAIN` qualifiers already ride with "all arms HOLD".

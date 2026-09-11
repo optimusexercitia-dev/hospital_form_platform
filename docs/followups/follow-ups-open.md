@@ -1959,3 +1959,10 @@ live catalog, and `supabase_migrations.schema_migrations`.
 **Closes when:** the PO names the noun that leaves this file and a docs-only unit (or the next backend unit touching the seam) lands the split — a new routed seam file with a scaffolded `## Current state`, the README router updated, gate 16 exit 0 with no `[D]` warning on `authorization-and-audit.md`, and the moved slices' relative links checked by a run. ⛔ Neither the cap nor the ratchet may be raised.
 **Status:** open
 **Body:** [FUP-AE5-MATRIX-ARM3-CELLS-AUTHZ-SEAM-CROSSED-ITS-WARN-LINE.md](FUP-AE5-MATRIX-ARM3-CELLS-AUTHZ-SEAM-CROSSED-ITS-WARN-LINE.md)
+
+### 🟡 FUP-AE5-MATRIX-ARM3-CELLS-READ-DOOR-COMMENT-CITES-THE-REPLACED-403-SECTION — a live door comment cites the replaced §7.3 (owner: backend)
+
+**Filed:** 2026-09-11 (unit AE5-MATRIX-ARM3-CELLS, QA review finding 2) · **Owner:** backend · **Severity:** medium — a comment inside a live gate asserts a coverage state the unit retired, citing `403 §7.3` by number; behaviour unaffected; the unit's own record quoted the comment as evidence and then falsified it.
+**Closes when:** the next migration that legitimately touches `app.can_read_professional_profile` re-emits the body with the parenthetical corrected (arm 3's `grant_keyed` cells oracled by `403` §7.3/§7.3b with a PO value per class, the hat-substitution class a filed bug pinned by §7.4) — ⛔ never a standalone comment-only migration; the fix of `BUG-AE5-MATRIX-ARM3-CELLS-CASE-GRANT-ARM-MAKES-THE-HAT-TERM-UNENFORCEABLE` is the natural carrier.
+**Status:** open
+**Body:** [FUP-AE5-MATRIX-ARM3-CELLS-READ-DOOR-COMMENT-CITES-THE-REPLACED-403-SECTION.md](FUP-AE5-MATRIX-ARM3-CELLS-READ-DOOR-COMMENT-CITES-THE-REPLACED-403-SECTION.md)
