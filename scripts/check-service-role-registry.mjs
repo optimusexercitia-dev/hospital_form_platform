@@ -3,7 +3,7 @@
  * check-service-role-registry.mjs -- gate 11.
  *
  * The service-role DML registry in
- * `docs/backend-state/authorization-and-audit.md` must be RE-DERIVED, never
+ * `docs/backend-state/service-role-dml.md` must be RE-DERIVED, never
  * hand-maintained: plan `docs/plans/authz-evolution.md` AE1.4 step 1 `[PA-F10]` states
  * that "a diff between derivation and registry is a red". Until this script existed that
  * comparison was a human reading two lists side by side, and the doc said so in its own
@@ -55,11 +55,13 @@ const ts = require('typescript')
 
 const ROOT = process.cwd()
 const SCAN_DIR = join(ROOT, 'src')
-// ⚠ Moved 2026-09-09 with the seam split: the registry section left the single-file
-// `docs/backend-state.md` for this seam file. SECTION_RE below is what LOCATES it -- a stale
-// path here fails LOUD (the FATAL at the parse site), which is why gate and section moved
-// in one commit.
-const DOC = join(ROOT, 'docs', 'backend-state', 'authorization-and-audit.md')
+// ⚠ Moved TWICE, and both times the gate constant travelled in the same commit as the section.
+// 2026-09-09 (ADR 0196): out of the single-file `docs/backend-state.md` into the
+// `authorization-and-audit.md` seam. 2026-09-11 (ADR 0206): out of that seam into its OWN one,
+// because the registry was 40 KB of a file that had crossed gate 16's 160 KB warn line.
+// SECTION_RE below is what LOCATES it -- a stale path here fails LOUD (the FATAL at the parse
+// site), which is why gate and section move together.
+const DOC = join(ROOT, 'docs', 'backend-state', 'service-role-dml.md')
 const CENSUS = join(ROOT, 'scripts', 'service-role-dml-census.mjs')
 const SECTION_RE = /^## Service-role DML registry\b/
 const KEY_CELL_RE = /^`([^`]+)`$/
@@ -461,7 +463,7 @@ if (problems.length > 0 || missing.length > 0 || extra.length > 0) {
   console.error(
     '  The registry is re-derived, never hand-maintained (AE1.4 [PA-F10]). Re-run\n' +
       '  `node scripts/service-role-dml-census.mjs` and bring\n' +
-      '  docs/backend-state/authorization-and-audit.md > "Service-role DML registry"\n' +
+      '  docs/backend-state/service-role-dml.md > "Service-role DML registry"\n' +
       '  back into agreement --\n' +
       '  a new site needs a row stating owner, reason, revalidation mechanism, audit\n' +
       '  event, and the test that would notice its guard vanish.',

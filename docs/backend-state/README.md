@@ -24,7 +24,8 @@ reading; the section is the unit of retrieval.**
 | --- | --- |
 | [`conventions.md`](conventions.md) | rely on an `HC0xx` SQLSTATE, write or run a pgTAP suite, touch the migration registry, or take **any** action against the REMOTE |
 | [`tenancy-and-identity.md`](tenancy-and-identity.md) | touch organizations, hospitals, affiliations, `memberships`, CPF/person identity, "act as", or the Diretor Técnico plane |
-| [`authorization-and-audit.md`](authorization-and-audit.md) | touch an RLS policy, a `SECURITY DEFINER` door, the privilege budget, a service-role write, the audit trail, or quality-office oversight |
+| [`authorization-and-audit.md`](authorization-and-audit.md) | touch an RLS policy, a `SECURITY DEFINER` door, the privilege budget, the audit trail, or quality-office oversight |
+| [`service-role-dml.md`](service-role-dml.md) | touch a service-role write — a `createAdminClient()` call site, the `callDoor()` wrapper, or any row gate 11 (`npm run lint:service-role-registry`) diffs |
 | [`forms-and-responses.md`](forms-and-responses.md) | touch forms, versions, sections, items, answers, validations, matrices, entity references, or sign-off |
 | [`document-model.md`](document-model.md) | touch documents, file objects, securables, upload sessions, controlled documents, or evidence |
 | [`cases-and-ethics.md`](cases-and-ethics.md) | touch cases, case phases, participants, referrals, ethics, or process templates |
@@ -174,11 +175,18 @@ next person to replace the block deletes it. This happened; it was found by diff
 
 ## The seam axis, and why it is the seam and not the phase
 
-Eight of these eleven files map to a domain a teammate is assigned to; three
-(`conventions`, `data-access`, `authorization-and-audit`) are cross-cutting
-because their statements bind every seam. ⚠ This read *"Seven of these eleven … four"* until
+Eight of these twelve files map to a domain a teammate is assigned to; four
+(`conventions`, `data-access`, `authorization-and-audit`, `service-role-dml`) are cross-cutting —
+the first three because their statements bind every seam, `service-role-dml` because it enumerates
+one property (a service-role write) ACROSS the domains rather than owning one. ⚠ This read *"Seven of these eleven … four"* until
 2026-09-09, counting `stamp-history` among the cross-cutting four — 7 + 4 = 11 while the directory
-actually held **12** files. Removing the archive is what made the sentence's arithmetic true. A file here is *meant* to answer **"what is true about this part of the backend"**. A phase
+actually held **12** files. Removing the archive is what made the sentence's arithmetic true. ⚠ It
+read *"Eight … eleven … three"* until 2026-09-11, when `service-role-dml.md` split off
+(ADR [0206](../decisions/0206-the-service-role-dml-registry-gets-its-own-seam.md)). **What is counted
+here** is the seam files that OWE a `## Current state` block: the directory listing minus `README.md`
+and minus the four `generated-*.md` files, which are exempt and which gate 16 prints on every run.
+⛔ Re-count from the listing when a seam is added or retired; the arithmetic is the only thing in
+this sentence a gate does not check. A file here is *meant* to answer **"what is true about this part of the backend"**. A phase
 answers "what changed on this date" — and that question already has two homes, the unit hub and the
 unit record. Adding a third is the drift this directory exists to retire.
 
