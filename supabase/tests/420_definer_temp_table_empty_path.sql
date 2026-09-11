@@ -53,11 +53,20 @@
 -- references a PERSISTENT relation unqualified, ALTERs it the same way, and REQUIRES it to fail
 -- with 42P01. ⛔ If § 6 goes green-by-not-failing, read §§ 1b/2b/3b/4b as VOID, not as passes.
 --
--- RUN SHAPE: `Files=2, Tests=14` (13 here + 00_setup.sql's one). ⛔ Keep this line in step with
+-- ⚠ `# Looks like you planned N tests but ran M` is EXPECTED here and is not a failure: this file
+-- carries SIX savepoints with assertions inside them, and pgTAP's internal counter unwinds on each
+-- `rollback to savepoint` while the TAP stream pg_prove actually parses is already emitted.
+-- ⛔ DO NOT GENERALISE THAT DISMISSAL. pg_prove's own **"Bad plan"** — the plan line against the
+-- number of `ok` lines actually emitted — IS a failure, and it is the detector for the defect
+-- `419` hit while being written: an assertion inside a savepoint that RAISED, with the following
+-- `rollback to savepoint` recovering the error, so the test silently never ran at all. A mismatch
+-- in pgTAP's diagnostic is noise; a mismatch in the PLAN is the finding.
+--
+-- RUN SHAPE: `Files=2, Tests=16` (15 here + 00_setup.sql's one). ⛔ Keep this line in step with
 -- plan().
 
 begin;
-select plan(13);
+select plan(15);
 
 -- Flags are forced ON in-transaction: `clone_framework` raises HC0Q9 and the process-template
 -- doors raise their own gate while their flag is off, which would deny before the temp-table code
@@ -105,9 +114,15 @@ values ('f4200000-0000-0000-0000-0000000000a1', 'f4200000-0000-0000-0000-0000000
        ('f4200000-0000-0000-0000-0000000000a2', 'f4200000-0000-0000-0000-000000000001', 'P1.1', 'child',
         'f4200000-0000-0000-0000-0000000000a1');
 
-create or replace function pg_temp.cfg420(p_schema text, p_name text) returns text language sql stable as $$
-  select coalesce(array_to_string(p.proconfig, ','), '<none>') from pg_proc p
-   join pg_namespace n on n.oid = p.pronamespace where n.nspname = p_schema and p.proname = p_name $$;
+-- ⚠ KEYED ON THE FULL SIGNATURE VIA `regprocedure`, NOT ON A BARE `proname` (QA MINOR-4). The
+-- earlier form matched `nspname + proname` with no argument types; a SQL function returning a
+-- scalar over a multi-row query silently yields the FIRST row, so the moment any of these four
+-- gains an overload the `[cfg …]` witness — the very thing proving each ALTER applied — could read
+-- a DIFFERENT function's proconfig and still report green. `::regprocedure` resolves one oid or
+-- RAISES, so the guard no longer rests on a catalog fact nothing asserts. (§ 5c asserts it anyway.)
+create or replace function pg_temp.cfg420(p_sig text) returns text language sql stable as $$
+  select coalesce(array_to_string(p.proconfig, ','), '<none>')
+    from pg_proc p where p.oid = p_sig::regprocedure $$;
 
 -- Each runner returns `OK | <effect>` or `<sqlstate> :: <message>`, so an UNEXPECTED FAILURE is
 -- reported as the error text rather than collapsing into a bare false.
@@ -195,7 +210,7 @@ rollback to savepoint s420_a1;
 savepoint s420_a2;
 alter function app.copy_version_children(uuid, uuid) set search_path = '';
 select is(
-  pg_temp.run420_a() || '  [cfg ' || pg_temp.cfg420('app', 'copy_version_children') || ']',
+  pg_temp.run420_a() || '  [cfg ' || pg_temp.cfg420('app.copy_version_children(uuid,uuid)') || ']',
   'OK | items=' || (select count(*) from public.form_items where form_version_id = (select fv from fx420))
               || ' sections=' || (select count(*) from public.form_sections where form_version_id = (select fv from fx420))
               || '  [cfg search_path=""]',
@@ -219,7 +234,7 @@ rollback to savepoint s420_b1;
 savepoint s420_b2;
 alter function app.copy_template_version_children(uuid, uuid) set search_path = '';
 select is(
-  pg_temp.run420_b() || '  [cfg ' || pg_temp.cfg420('app', 'copy_template_version_children') || ']',
+  pg_temp.run420_b() || '  [cfg ' || pg_temp.cfg420('app.copy_template_version_children(uuid,uuid)') || ']',
   'OK | phases=' || (select count(*) from public.process_template_phases where template_version_id = (select ptv from fx420))
               || '  [cfg search_path=""]',
   '§ 2b UNDER `search_path = ''''`: identical, ALTER proven applied. ⇒ VERDICT: a FREE change. ⚠ It also CALLS app.copy_version_children, which is NOT altered here — one function per savepoint, or the two verdicts contaminate each other'
@@ -242,7 +257,7 @@ rollback to savepoint s420_c1;
 savepoint s420_c2;
 alter function app.copy_response_answers(uuid, uuid) set search_path = '';
 select is(
-  pg_temp.run420_c() || '  [cfg ' || pg_temp.cfg420('app', 'copy_response_answers') || ']',
+  pg_temp.run420_c() || '  [cfg ' || pg_temp.cfg420('app.copy_response_answers(uuid,uuid)') || ']',
   'OK | answers=' || (select count(*) from public.answers where response_id = (select src_resp from fx420))
               || ' selopts=' || (select count(*) from public.answer_selected_options so
                                    join public.answers a on a.id = so.answer_id where a.response_id = (select src_resp from fx420))
@@ -265,7 +280,7 @@ rollback to savepoint s420_d1;
 savepoint s420_d2;
 alter function public.clone_framework(uuid, uuid) set search_path = '';
 select is(
-  pg_temp.run420_d() || '  [cfg ' || pg_temp.cfg420('public', 'clone_framework') || ']',
+  pg_temp.run420_d() || '  [cfg ' || pg_temp.cfg420('public.clone_framework(uuid,uuid)') || ']',
   'OK | standards=2 rewired=1  [cfg search_path=""]',
   '§ 4b UNDER `search_path = ''''`: identical, ALTER proven applied. ⇒ VERDICT: a FREE change'
 );
@@ -277,9 +292,9 @@ rollback to savepoint s420_d2;
 -- which runs after this file, would then shrink for a reason nobody migrated.
 -- ============================================================================
 select is(
-  (select string_agg(pg_temp.cfg420(s, n), ' | ' order by s, n)
-     from (values ('app','copy_response_answers'), ('app','copy_template_version_children'),
-                  ('app','copy_version_children'), ('public','clone_framework')) t(s, n)),
+  (select string_agg(pg_temp.cfg420(sig), ' | ' order by sig)
+     from (values ('app.copy_response_answers(uuid,uuid)'), ('app.copy_template_version_children(uuid,uuid)'),
+                  ('app.copy_version_children(uuid,uuid)'), ('public.clone_framework(uuid,uuid)')) t(sig)),
   'search_path=app, public, pg_catalog | search_path=app, public, pg_catalog | ' ||
   'search_path=app, public, pg_catalog | search_path=app, public, pg_catalog',
   '§ 5 RESTORE: all four are back on their original three-schema path — every ALTER was confined to its savepoint'
@@ -296,6 +311,33 @@ select is(
                      where c like 'search\_path=%' limit 1), '""') <> '""'),
   4,
   '§ 5b ...and all four are still SECURITY DEFINER on a NON-EMPTY path, so they remain members of 419''s frozen set. ⛔ The verdict "free" is a finding for a FUTURE convergence, not a convergence this unit performed'
+);
+
+-- ⭐ § 5c — THE WRAPPERS STILL ROUTE THEIR SUBJECTS (QA MINOR-3). §§ 1 and 2 reach their subjects
+-- only THROUGH `public.clone_form_version` / `public.clone_template_version`. The `[cfg …]` witness
+-- proves the ALTER applied; nothing proved the altered function was still ON THE CALL PATH. If a
+-- future change inlined the copy into the wrapper, §§ 1b/2b would stay green while measuring
+-- NOTHING — a silent VOID of exactly the kind this file guards against everywhere else. Verified
+-- from the LIVE definition, never from migration text.
+select is(
+  (select string_agg(w || ' -> ' ||
+            (case when pg_get_functiondef(w::regprocedure) like '%' || sub || '%'
+                  then 'routes' else 'DOES NOT ROUTE' end), ' | ' order by w)
+     from (values ('public.clone_form_version(uuid)', 'app.copy_version_children'),
+                  ('public.clone_template_version(uuid)', 'app.copy_template_version_children')) t(w, sub)),
+  'public.clone_form_version(uuid) -> routes | public.clone_template_version(uuid) -> routes',
+  '§ 5c THE CALL PATH ITSELF: each wrapper''s LIVE body still names the subject §§ 1/2 ALTER. ⛔ A `DOES NOT ROUTE` here means those sections measured the wrapper and not the function they claim to be about'
+);
+
+-- ⭐ § 5d — EXACTLY ONE OVERLOAD PER NAME (QA MINOR-4's second half). `cfg420` is now signature-keyed
+-- so an overload cannot silently redirect it, but §§ 5/5b still select the four BY NAME. This pins
+-- the catalog fact both rely on instead of leaving it as an accident that happens to hold today.
+select is(
+  (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where (n.nspname, p.proname) in (('app','copy_response_answers'), ('app','copy_template_version_children'),
+                                     ('app','copy_version_children'), ('public','clone_framework'))),
+  4,
+  '§ 5d ONE OVERLOAD EACH: the four names resolve to exactly four functions. ⛔ A 5 here means a name-keyed assertion above is reading an arbitrary one of two'
 );
 
 -- ============================================================================
@@ -331,7 +373,7 @@ select is(
 alter function public.z420_ctl_unqualified() set search_path = '';
 
 select is(
-  (select pg_temp.run420_ctl() || '  [cfg ' || pg_temp.cfg420('public', 'z420_ctl_unqualified') || ']'),
+  (select pg_temp.run420_ctl() || '  [cfg ' || pg_temp.cfg420('public.z420_ctl_unqualified()') || ']'),
   '42P01  [cfg search_path=""]',
   '§ 6b ...AND THE SAME ALTER BREAKS IT (42P01, undefined_table): the empty path DOES remove `public` from relation resolution, so the four OK verdicts above are measurements of those bodies and not an instrument that cannot fail. ⛔ An `OK` here reads as VOID for §§ 1b/2b/3b/4b'
 );

@@ -28,6 +28,15 @@
 -- artifact whose bytes are in git. Deriving the "expected" side live in the same instant would
 -- compare the catalog to itself and pass under every mutation (LEARN-084).
 --
+-- ⛔⛔ AND D4 IS A TWO-CLAUSE CONVENTION OF WHICH THIS ASSERTS ONE. D4 is `set search_path = ''`
+-- **with schema-qualified object references**. This file reads `proconfig` and never a function
+-- BODY, and neither does gate 18 — the qualified half is UNGATED. That is not cosmetic: under
+-- `search_path = ''` `pg_temp` is still searched FIRST for relation names, and `anon`,
+-- `authenticated`, `service_role` and `authenticator` all hold database TEMP (4 of 4, ADR 0208 D5),
+-- so an unqualified relation inside an empty-path DEFINER stays shadowable by a temp object. The
+-- empty path NARROWS that exposure; it does not close it. `420 § 6` demonstrates the same mechanism
+-- from the other side. Tracked: FUP-DEFINER-SEARCH-PATH-NARROW-FIX-QUALIFIED-BODY-CLAUSE-OF-D4-IS-UNGATED.
+--
 -- ⚠ NO `test_helpers.bootstrap()`, no fixture, no tenancy — pg_proc and pg_namespace only, so
 -- this suite is invariant to seed scale and to the AE4 perf fixture. Same posture as `414`.
 --
@@ -35,6 +44,11 @@
 -- internal counter unwinds with each `rollback to savepoint` while the TAP stream, which
 -- pg_prove actually parses, is already emitted. Assertions live outside the savepoints too, so
 -- the degenerate `# No tests run!` shape does not arise.
+-- ⛔ BUT DO NOT GENERALISE THAT DISMISSAL. pg_prove's own **"Bad plan"** — `1..10` against nine
+-- emitted `ok` lines — IS a failure and is the detector for the one defect this file actually hit
+-- while being written: an assertion inside a savepoint that RAISED, with the following
+-- `rollback to savepoint` recovering the error, so the test silently never ran. A count mismatch
+-- in pgTAP's diagnostic is noise; a count mismatch in the PLAN is the finding.
 --
 -- RUN SHAPE: `Files=2, Tests=11` (10 here + 00_setup.sql's one). ⛔ Keep this line in step with
 -- plan() — a stale RUN SHAPE is read as the expected shape by the next person diagnosing a

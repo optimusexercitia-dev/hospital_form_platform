@@ -208,14 +208,14 @@ bash scripts/door-sweep-cases.sh 6d7dd589           rc 1   FINDING (1) — 0 doo
 door sweep · PREDICATE arm  (CASES=…)               rc 0   SWEPT 1 · COVERED 1 · BLIND 0 · NOTICED 0 · ERROR 0 — RESULT: CLEAN
 door sweep · POLICY arm     (same invocation)       rc 0   0 selected of 226 — this migration creates and alters no policy
   ⛔ second invocation, FROMFINDINGS=1 CASES=…       rc 0   NOT a second arm — byte-identical to the first; see the finding below
-  preflight, both runs                                     baseline OK: Result: PASS, Files=269, Tests=9048
+  preflight, both runs                                     baseline OK: Result: PASS, Files=269, Tests=9048  [⛔ NOT updated: this is what the sweep CAPTURED then]
   ARM-DOMAIN                                               predicate=1/127 policy=0/226 out-of-domain-bool=35
   resets                                                   resets=0 (RESET_EVERY=20 — SUPPRESSED on a SUBSET run)
   committed findings md                                    VERIFIED unchanged (cksum) — the subset run wrote only to scratch
 npm run lint (18 gates, incl. the new lint:definer-freeze)  rc 0
 npm run typecheck                                   rc 0
 npm run test (vitest)                               rc 0   2091 passed
-npm run test:db (on a fresh supabase db reset --local)      rc 0   Files=269, Tests=9048, Result: PASS
+npm run test:db (on a fresh supabase db reset --local)      rc 0   Files=269, Tests=9050, Result: PASS  [re-run after the QA r1 fix pass; TESTDB_RC=0 read from the file]
 node scripts/gen-definer-search-path-freeze.mjs --check     rc 0   in sync (865 frozen non-empty DEFINER paths)
 npm run gen:types                                   rc 0   no diff
 ```
@@ -282,3 +282,71 @@ as wrong rather than quietly dropped.
 explicitly given how many suites ran before it: `run_arm_floor` issues `pg_stat_reset()` and sets
 `track_functions='all'` BEFORE its own full-suite pass, so its 63 is measured from zeroed counters,
 not from residue.
+
+### 2026-09-11 — QA round 1 addressed: 2 MAJOR, 4 MINOR, 1 NOTE (backend)
+
+Review: [`definer-search-path-narrow-fix-review.md`](../reviews/definer-search-path-narrow-fix-review.md).
+⭐ **Every finding is accepted as correct.** Two of them contradict sentences this unit committed, and
+both contradictions were real.
+
+**MAJOR-1 — D4 is a TWO-clause convention and only one clause is gated; four committed homes said
+otherwise.** D4 is `set search_path = ''` **with schema-qualified object references**. Neither `419`
+nor gate 18 reads a function BODY, so the qualified half is **UNGATED** — and the bound is not
+cosmetic: under `''` `pg_temp` is still searched FIRST for relation names, and `anon`,
+`authenticated`, `service_role` and `authenticator` all hold database TEMP (4 of 4, ADR 0208 D5's
+census), so an unqualified relation inside an empty-path DEFINER stays shadowable by a temp object.
+⛔ The empty path NARROWS that exposure; it does not close it. ⚠ **This unit had already MEASURED the
+mechanism** — it is exactly why `420`'s four verdicts came back "free", and `420 § 6` reds a planted
+unqualified-persistent DEFINER with 42P01 — and then wrote "enforcer = 419 + gate 18" anyway, which
+claims the whole of D4. Corrected in all four homes (`.claude/rules/migrations-forward-only.md`, the
+generator's *WHAT THIS GATE DOES NOT PROVE* block, `419`'s header beside its two existing bounds, and
+the seam bullet), citing `FUP-DEFINER-SEARCH-PATH-NARROW-FIX-QUALIFIED-BODY-CLAUSE-OF-D4-IS-UNGATED`.
+The rule file went **1997 → 2040 bytes** against the 2048 cap: the line was SHORTENED to fit, ⛔ never
+the truth, and gate 8 is green.
+
+**MAJOR-2 — `docs/lint-gates.md` stated the baseline preference BACKWARDS**, in the document whose
+job is explaining the gate: it read *"`merge-base HEAD origin/main`, then `main`"* while the code
+reads `['main', 'origin/main']`. ⚠ The cause is traceable: the row was written BEFORE the order was
+flipped in the code, and the flip was recorded in this record but not carried back to the doc — the
+one-way half of a two-home change. Corrected, with the reason (this repo leaves `main` unpushed, so
+`origin/main`'s merge-base is the looser baseline).
+
+**MINOR-1 — the shrink arm is a BRANCH-POINT ratchet, and the header overclaimed.** The baseline is
+`merge-base HEAD <ref>`, so for a growth committed **directly on `main`** the merge-base IS HEAD and
+the artifact compares equal to itself: the arm is VACUOUS for that case. It holds on a unit branch
+(the normal path, where the pre-merge gate runs) and for an uncommitted growth on `main`. ⭐ `419` is
+the arm that catches the committed-on-`main` case, because it compares against the LIVE CATALOG and
+does not consult git. Stated in the generator header and the gate-18 row.
+
+**MINOR-2 — `867` was committed in two ungated homes by the same commit that made it `865`.** ⚠ The
+subject follow-up carries a dated correction saying *"a live count in ungated prose is precisely what
+rotted here, twice"*, and this unit reproduced it a third time. Both restated in `419:8`'s form:
+865, with 867 as dated history naming the migration.
+
+**MINOR-3 / MINOR-4 / NOTE-3 — three durability fixes in `420`, plan 13 → 15.**
+- `§ 5c` (new) pins that each WRAPPER still routes its subject, read from `pg_get_functiondef`. §§ 1
+  and 2 reach their subjects only through `clone_form_version` / `clone_template_version`; the
+  `[cfg …]` witness proved the ALTER applied but not that the altered function was still **on the
+  call path**, so an inlining would have left both arms green while measuring nothing.
+- `§ 5d` (new) pins exactly one overload per name, and `pg_temp.cfg420` is re-keyed on the full
+  signature via `::regprocedure` instead of a bare `proname`. ⛔ A scalar SQL function over a
+  multi-row query silently returns the FIRST row, so an overload could have made the `[cfg …]`
+  witness — the very thing proving each ALTER applied — read a DIFFERENT function and still report
+  green.
+- `420` gained the plan-mismatch note it lacked, and **both** files now carry the caveat NOTE-3 asked
+  for: pgTAP's unwound internal counter is noise, but pg_prove's own **"Bad plan"** IS a failure and
+  is the detector for the `§ 1e` defect shape (an assertion inside a savepoint that raised, with the
+  rollback recovering the error). ⛔ Without that half, this note would teach a future reader to
+  dismiss a genuine red.
+
+Targeted re-run after the edits: `419` **10/10**, `420` **15/15**, 0 failures, and each file's plan
+line matches the `ok` lines it emitted — the Bad-plan detector NOTE-3 names is itself green.
+
+**Re-gate after the fix pass, every figure read from a file:** `npm run lint` **rc 0** ·
+`lint:backend-state` **OK** · `--self-test` **rc 0** · `--check` **rc 0** ·
+`supabase db reset --local` **RESET_RC=0** · `npm run test:db` **TESTDB_RC=0**, `Files=269,
+Tests=9050, Result: PASS`. ⚠ **9048 → 9050 is the two assertions `§ 5c` and `§ 5d` add**, and the
+gate block's test:db row carries the new figure. ⛔ The `preflight, both runs` row in that block
+still reads 9048 and is deliberately NOT updated: it quotes what the door sweep's own preflight
+CAPTURED at the time it ran, and rewriting a captured witness to match a later run would falsify it.
+Two different numbers, two different moments, both labelled.

@@ -12,8 +12,9 @@
  * WHY THIS EXISTS
  *
  * ADR 0208 D4 rules `set search_path = ''` with a schema-qualified body the SOLE forward
- * convention for a new or touched SECURITY DEFINER. The 867 existing non-empty paths are
- * frozen compatibility debt: they may not GROW, and they converge on touch. D5 orders the
+ * convention for a new or touched SECURITY DEFINER. The 865 remaining non-empty paths (867
+ * before migration `20261003007410` converged two of them) are frozen compatibility debt:
+ * they may not GROW, and they converge on touch. D5 orders the
  * enforcer to be a pgTAP ratchet (419) over a frozen NAME SET — ⛔ never a hand-typed list,
  * because the list this tree would have to hand-type is 867 signatures long and the one
  * time a `search_path` expectation was hand-typed in this repo it was copied out of a
@@ -30,6 +31,14 @@
  * shrink-only property is checked HERE, against the artifact's own git baseline, where
  * re-running the generator cannot help.
  *
+ * ⛔ BUT IT IS A BRANCH-POINT RATCHET, AND THAT BOUND IS REAL. The baseline is
+ * `merge-base HEAD <ref>`, so when HEAD IS the baseline ref's tip — a growth committed
+ * DIRECTLY on `main`, which this repo does do — the merge-base is HEAD and the artifact
+ * compares equal to ITSELF: the arm returns clean and is VACUOUS for that case. It holds for
+ * any growth on a unit branch (the normal path, and where the pre-merge gate runs) and for an
+ * UNCOMMITTED growth on `main`. ⭐ 419 is the arm that catches the committed-on-`main` case,
+ * because it compares the artifact against the LIVE CATALOG and does not care about git.
+ *
  * ─────────────────────────────────────────────────────────────────────────────────────
  * ⛔ WHAT THIS GATE DOES **NOT** PROVE, STATED SO A GREEN IS NOT OVER-READ
  *
@@ -44,6 +53,15 @@
  * ⛔ A green here means the committed bytes are self-consistent and did not grow. It says
  * NOTHING about whether they still match the catalog — that verdict is 419's, and its
  * ABSENCE is not this gate's coverage. The summary line prints that bound on every run.
+ *
+ * ⛔⛔ AND D4 IS A TWO-CLAUSE CONVENTION OF WHICH THIS GATES ONE. D4 is `set search_path = ''`
+ * **with schema-qualified object references**. Nothing here, and nothing in 419, reads a single
+ * function BODY: the qualified half is UNGATED. That is not cosmetic — under `search_path = ''`
+ * `pg_temp` is still searched FIRST for relation names, and `anon`/`authenticated`/`service_role`/
+ * `authenticator` all hold database TEMP (4 of 4, ADR 0208 D5's census), so an unqualified
+ * relation reference inside an empty-path DEFINER remains shadowable by a temp object. The empty
+ * path narrows the exposure; it does not close it without the body half.
+ * Tracked: FUP-DEFINER-SEARCH-PATH-NARROW-FIX-QUALIFIED-BODY-CLAUSE-OF-D4-IS-UNGATED.
  *
  * ⛔ And the frozen set is a set of NAMES. A member that changes from one non-empty path to
  * a DIFFERENT non-empty path keeps its name and moves nothing here. That is the AC-1 shape
