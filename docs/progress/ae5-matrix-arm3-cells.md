@@ -827,3 +827,15 @@ unit opens (Record step 7).
 
 #### Blockers
 None.
+
+### 2026-09-11 — merged: `main` fast-forwarded to the phase commit `5ffeed2c` (written on `main`) (lead)
+
+`git merge --ff-only authz-ae5-matrix-arm3-cells` on `main` (was `ad9ffb21`): fast-forward, **no merge
+commit** — `main` = the phase commit **`5ffeed2c`**; `git merge-base --is-ancestor 5ffeed2c main` **rc 0**,
+read bare. Working tree empty before and after. Local branch deleted (`-d` refused because its
+upstream `origin/authz-ae5-matrix-arm3-cells` does not contain the rebased commits — expected after the
+rebase — so `-D` was used after the ancestry proof, never before it). Measured at the time of
+writing: `origin/main..main` = **27** commits, ⛔ **not pushed** (the standing instruction; the PO's
+approval said *no push*). `origin/authz-ae5-matrix-arm3-cells` is left as it was pushed mid-flight
+(pre-rebase shas; stale; deleting a remote branch is a push and was not instructed). Ledger row's
+Commit cell filled with `5ffeed2c` in this same docs commit.
