@@ -202,3 +202,63 @@ checks that found no discrepancy.
 Record step: close `FUP-AE5-MATRIX-ARM3-CELLS-AUTHZ-SEAM-CROSSED-ITS-WARN-LINE` in both homes and fill
 the sha into its `**Landed**` line; ledger row; hub → `complete` with the block cut here; ff-merge to
 `main`; ⛔ no push.
+
+### 2026-09-11 — RECORD STEP on the PO's approval (*"approved — run the Record step, merge to main, no push"*) (lead)
+
+**Approval scope, written down:** the PO approved the unit as gated at `83d05708` — the five commits
+above `main` at `3c66efb6` — and instructed the Record step, a merge to `main`, and no push.
+
+**Playbook §4, step by step.** (1) Ledger row appended to `docs/progress/phase-ledger.md`; its Commit
+cell is filled after the fast-forward, in the docs commit that records the merge. (2) The follow-up
+`FUP-AE5-MATRIX-ARM3-CELLS-AUTHZ-SEAM-CROSSED-ITS-WARN-LINE` **closed in both homes**: the register
+entry moved VERBATIM to `docs/followups/follow-ups-archive.md` under a `✅ RESOLVED 2026-09-11`
+heading with a `>` note quoting the clause it closed on, its body file folded in beneath a `####`
+heading naming the same id (rule 7) after the lead filled the closing sha (`f101d17e`, the move
+commit) into its `**Landed**` line; the register entry and the body file then deleted, the three
+field lines `cmp`-verified at the destination first (gate 7's order). No bug to flip. (3) No task
+detail to archive beyond this record. (4) **No seam slice owed**: the unit changed the map's
+STRUCTURE, not the backend surface — the change is carried by the seam files themselves (the stub
+marker in `authorization-and-audit.md`, the new file's block, the router row) and by ADR 0206; a
+dated slice saying "this file moved" would be a phase-named statement in a seam file, which D2
+forbids. (5) `npm run adr:index` was run at the ADR commit; `**Amends:** 0196` present in the
+header and 0196's generated back-pointer landed in `3ccf6ffe`. (6) `lint:progress` and
+`lint:registers` run bare after these edits; the phase commit follows. (7) Review queue: the four
+entries were processed at open; no entry has been added since (count re-read at this step). (8)
+**Rulings reconciled against artefacts:** the PO's single ruling — *the service-role DML registry
+leaves* — is landed in ADR 0206 § Decision, in the README router row, in the register clause
+(archived verbatim), and in gate 11's `DOC` constant; none of those is a log. (9) Both homes of
+the follow-up edited (register + body), then both archived. (10) Sets named, not sized: the
+re-pointed citations are `docs/lint-gates.md` and
+`docs/followups/FUP-SERVICE-ROLE-WRITE-SITES-NO-GUARD-VANISH-TEST.md`; the historical claims left
+alone are listed in the build entry above. (11) The hub's block is cut here as the last edit.
+
+### Current state at close (cut from the hub on completion, 2026-09-11)
+
+#### Objective
+Move the service-role DML registry out of `authorization-and-audit.md` into its own routed seam
+file, take gate 11 with it, leave a forward pointer behind, and prove the move by gates run bare
+rather than by eye.
+
+#### Done since start
+The frozen slice moved to `docs/backend-state/service-role-dml.md` **verbatim** (region diff rc 0);
+preamble byte-identical by construction; `## Current state` scaffolded and filled from the slice's
+own sentences. The old file keeps the heading as a stub with a rule-2 forward marker naming file
+**and** heading; its block re-cut shorter with the registry bounds relocated, not compressed. Gate
+11 moved in the same commit at all three sites and parses the same row count. Router row added,
+seam-axis arithmetic re-measured from the listing. Two pointers re-pointed, historical claims left,
+`CONTEXT.md`'s privilege-budget citations untouched. ADR 0206 (`**Amends:** 0196`), index rebuilt.
+Gate re-run at the tip by the lead: lint rc 0, typecheck rc 0, empty pathspec diff, gate 16 with no
+`[D]` line at 120.3 KB, gate 11 `45 == 45`. QA **APPROVED, 0 findings**. PO approved 2026-09-11;
+the follow-up closed in both homes; ff-merged to `main`; ⛔ **not pushed**.
+
+#### In progress
+Nothing — the unit is closed.
+
+#### Next
+Owned by others: the frozen 44-vs-45 tally inside the moved slice stays frozen (ADR 0196 D5) and is
+read through gate 11's output, never quoted; the remaining seam-size headroom is gate 16's to
+report. The next AE5 increment appends to `authorization-and-audit.md` with ~40 KB of headroom
+regained.
+
+#### Blockers
+None.

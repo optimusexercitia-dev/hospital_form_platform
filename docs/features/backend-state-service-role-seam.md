@@ -1,7 +1,7 @@
 ---
 id: BACKEND-STATE-SERVICE-ROLE-SEAM
 title: "The service-role DML registry gets its own seam — the first application of ADR 0196 D4's remedy, ruled by the PO on 2026-09-11 when authorization-and-audit.md crossed gate 16's warn line"
-status: gated
+status: complete
 kind: feature
 program: DOCS
 phase: "ADR 0196 D4 applied once — no product phase; discharges FUP-AE5-MATRIX-ARM3-CELLS-AUTHZ-SEAM-CROSSED-ITS-WARN-LINE"
@@ -69,48 +69,8 @@ own line, the `awk` byte sum, and gate 11's parsed-key count are the baselines, 
       printing **no `[D]` warning** on `authorization-and-audit.md`; `npm run typecheck`;
       `git diff --stat main -- supabase/migrations src` **empty**. `test:db` and `e2e:prod` are not owed
       (no SQL, no UI) — stated, not skipped silently.
-- [ ] **The follow-up closed in both homes** per docs/INDEX.md, then QA review (read-only,
-      docs-and-gate scope) → human approval → Record step.
+- [x] **The follow-up closed in both homes** per docs/INDEX.md, then QA review (read-only,
+      docs-and-gate scope) → human approval → Record step. Closed 2026-09-11 at the Record step:
+      entry + body archived verbatim in `follow-ups-archive.md`; QA APPROVED (0 findings); PO
+      approved; the block cut into the record.
 
-## Current state
-
-**Updated:** 2026-09-11
-
-### Objective
-
-Move the service-role DML registry out of `authorization-and-audit.md` into its own routed seam
-file, take gate 11 with it, leave a forward pointer behind, and prove the move by gates run bare
-rather than by eye.
-
-### Done since start
-
-**Built and gated; nine of ten boxes ticked.** The frozen slice moved to
-`docs/backend-state/service-role-dml.md` **verbatim** — the region cut from `main` diffs byte-empty
-against the region in the new file, rc 0. The new file's preamble is byte-identical by
-CONSTRUCTION (extracted, not retyped); its `## Current state` block was printed by `--scaffold` and
-filled from the slice's own sentences. The old file keeps the heading as a stub with a rule-2
-forward marker naming file **and** heading, its block re-cut **shorter** with the registry bounds
-relocated (deleted whole, restated in the new seam) rather than compressed. Gate 11 moved in the
-same commit at all three sites and parses the **same** row count as the baseline. Router row added,
-*a service-role write* removed from the authorization row, the seam-axis arithmetic re-measured from
-the directory listing with the counted population now stated. Two pointers re-pointed, historical
-claims left alone, `CONTEXT.md`'s privilege-budget citations untouched. ADR 0206 written
-(`**Amends:** 0196`) and the index rebuilt. Figures, queries and the ⚠ frozen 44-vs-45 inconsistency
-that travelled with the slice: record § Session log.
-
-### In progress
-
-Nothing. Gate re-run at the tip by the lead (not the builder): lint rc 0, typecheck rc 0, empty
-pathspec diff, verbatim diff rc 0, gate 16 with no `[D]` line, gate 11 unchanged. QA review
-**APPROVED, zero findings** (`docs/reviews/backend-state-service-role-seam-review.md`).
-
-### Next
-
-Human approval (Phase Gate step 4); then the Record step, where the lead closes
-`FUP-AE5-MATRIX-ARM3-CELLS-AUTHZ-SEAM-CROSSED-ITS-WARN-LINE` in both homes and fills the commit sha
-into the `**Landed (pending QA)**` line already in its body.
-
-### Blockers
-
-None. ⛔ `test:db` and `e2e:prod` are **not owed** — no migration, no RLS, no `src/`, no UI; the
-empty `git diff --stat main -- supabase/migrations src` is that claim's evidence, and it was run.

@@ -12949,3 +12949,82 @@ reason to record; whether it suffices is the PO's call at the ADR draft.
 **Status:** open
 
 **Mechanism.** Measured from the live body: for a non-`platform_admin` role `assume_role` selects the matching membership `order by m.granted_at desc nulls last, m.id limit 1` and stamps **that one** scope triple, while `app.active_role_selections` stores **no scope column at all** and `hat_ok` compares `role_code` only. ⇒ authority spans **every** seating of the role while the audit row names **one**. PO ruling R10 (2026-09-10) chose *log the role only* over recording the footprint, because a footprint captured at assume-time is a **snapshot** a mid-session grant invalidates while `hat_ok` admits the new seating. ⚠ This discharges ADR 0176 D8's *"audit scope must match whichever wins"* — ⛔ R8 does not; ratifying the asymmetry ratified the mismatch.
+
+### 🟡 FUP-AE5-MATRIX-ARM3-CELLS-AUTHZ-SEAM-CROSSED-ITS-WARN-LINE — the authz seam file passed gate 16's 160 KB warn line at this unit's slice (owner: lead + PO) — ✅ RESOLVED 2026-09-11
+
+> **RESOLVED 2026-09-11** — unit BACKEND-STATE-SERVICE-ROLE-SEAM, ADR 0206 (amends 0196 D1/D4). Record:
+> docs/progress/backend-state-service-role-seam.md. Closing commit(s): `f101d17e` (the move; the phase
+> commit is named in the ledger row).
+> Closed ON the clause below: *"a docs-only unit … lands the split the PO ruled on 2026-09-11 — the
+> service-role DML registry leaves … into its own routed seam file with a scaffolded `## Current
+> state`, the README router row … re-pointed, the block on `authorization-and-audit.md` re-cut, gate 16
+> exit 0 with no `[D]` warning …, and the moved slice's relative links checked by a run"*. Measured at
+> the lead's gate re-run at the tip (`83d05708`): gate 16 `largest authorization-and-audit.md at
+> 120.3 KB (warn 160 KB / cap 200 KB)` with no `[D]` line (was 160.4 KB); region diff of the moved
+> slice rc 0; gate 11 `45 == 45` before and after; the link check mutated inside the moved slice — rc
+> 1 on the mutant, rc 0 restored; `npm run lint` rc 0, `typecheck` rc 0. The unit was docs plus ONE
+> gate constant (gate 11's `DOC`), not docs-only — a widening the clause's parenthetical admits.
+> ⚠ Bounds the closure does NOT reach: the cap and the ratchet were not raised (and may not be); the
+> frozen 44-vs-45 tally inside the moved slice stays frozen (ADR 0196 D5), read through gate 11's
+> output; the old file's own `## Current state` block is at 90/100, not at a comfortable margin.
+> QA APPROVED (0 findings) — docs/reviews/backend-state-service-role-seam-review.md; PO approval
+> 2026-09-11.
+>
+> ⛔ **The entry block below is VERBATIM, its `Closes when` included.**
+
+**Filed:** 2026-09-11 (unit AE5-MATRIX-ARM3-CELLS, while appending the arm-3 oracle slice to `docs/backend-state/authorization-and-audit.md`) · **Owner:** lead + PO · **Severity:** medium — the gate still exits 0, but the file is the largest seam, its `## Current state` block has 3 lines of ratchet headroom, and every pre-AE5 unit since Batch 9 has appended to it; the README's own instruction at the warn line is *plan the next seam*, which is a seam-axis decision (ADR 0196) no passing unit may take.
+**Closes when:** a docs-only unit (or the next backend unit touching the seam) lands the split the PO ruled on 2026-09-11 — **the service-role DML registry leaves** (the `## Service-role DML registry (AE1.4 …)` slice, ~40 KB measured at the ruling) into its own routed seam file with a scaffolded `## Current state`, the README router row for *a service-role write* re-pointed, the block on `authorization-and-audit.md` re-cut, gate 16 exit 0 with no `[D]` warning on `authorization-and-audit.md`, and the moved slice's relative links checked by a run (LEARN-090). ⛔ Neither the cap nor the ratchet may be raised.
+**Status:** open
+Body — folded in below as the `####` section (the pointer line the open register carried named the body file, now deleted).
+
+#### FUP-AE5-MATRIX-ARM3-CELLS-AUTHZ-SEAM-CROSSED-ITS-WARN-LINE
+
+Index entry: [follow-ups-open.md](follow-ups-open.md) · filed 2026-09-11 · status open
+
+**The finding.** Appending this unit's slice to `docs/backend-state/authorization-and-audit.md`
+moved the file from **155.1 KB** to **160.0 KB**, and gate 16 (`npm run lint:backend-state`) now
+prints `WARN — [D] … is over the 160 KB warn line (cap 200 KB). Plan the next seam.` The gate
+still exits **0** — the warn line is a warning by design and the cap is 200 KB — but the file is
+also the largest of the fifteen seams, its `## Current state` block sits at **97 of the 100-line
+ratchet** (3 left; the two edits this unit made cost 1 line net after paraphrase), and every
+pre-AE5 unit since Batch 9 has appended to it. ⛔ Re-derive both figures from the gate's own
+output line before acting; do not quote these.
+
+**Why it is a follow-up and not a fix here.** The README's rule for an over-warn file is *"plan the
+next seam"* — a split along the seam axis (ADR 0196), which is a lead + PO decision about WHICH
+noun leaves this file (the audit trail? the privilege budget? the `authz` catalog?), not a
+mechanical move. ⛔ A move rebases every relative path in the moved text and a `MISSING = 0` link
+check is silent on whether content still POINTS anywhere (LEARN-090); doing that inside a unit
+whose scope is oracle vectors would be the same silent widening Batch 10 refused for a comment.
+⛔ The cap and the ratchet may only be LOWERED — raising either is not an option.
+
+**Ruling (PO, 2026-09-11).** **The service-role DML registry leaves.** Measured at the ruling
+(`awk` byte sum per `##` heading; gate 16 read the file at **160.4 KB**, exit 0): the single frozen
+slice `## Service-role DML registry (AE1.4 …)` is **40,694 bytes**, the largest of the candidates
+(quality-office oversight 22,071 across three headings; privilege budget 18,091; the `authz` catalog
+13,492; the audit trail 5,341), it is one self-contained heading, and the README router already
+names *a service-role write* as its own trigger clause. Moving it takes the file to roughly
+**123 KB**, the most headroom for the AE5 increments that will keep appending here. The `authz`
+catalog and the audit trail stay: they are the seam's core. ⛔ Re-measure before the split; do not
+quote these figures.
+
+**Closes when:** a docs-only unit (or the next backend unit that touches this seam) lands that
+split: a new routed seam file for the service-role DML registry with its own scaffolded
+`## Current state`, the README router row for *a service-role write* re-pointed, the
+`## Current state` block on `authorization-and-audit.md` re-cut so it no longer paraphrases the moved
+slice, gate 16 exit 0 with **no** `[D]` warning on `authorization-and-audit.md`, and the moved
+slice's relative links checked by a run, not by eye (LEARN-090 — review the move OUTWARD from the
+moved text). ⚠ Until then, every further append to this file owes a paraphrase cut, never a bound
+(README § The four rules a gate CANNOT enforce, rule 4).
+
+**Origin.** Filed at unit `AE5-MATRIX-ARM3-CELLS`'s Record-step preparation (the authz seam slice
+for the arm-3 oracle); full record:
+[`docs/progress/ae5-matrix-arm3-cells.md`](../progress/ae5-matrix-arm3-cells.md).
+
+**Landed (pending QA):** 2026-09-11, unit `BACKEND-STATE-SERVICE-ROLE-SEAM`, branch
+`backend-state-service-role-seam`, ADR
+[0206](../decisions/0206-the-service-role-dml-registry-gets-its-own-seam.md) — the move landed in
+commit `f101d17e` (sha filled by the lead at the Record step, 2026-09-11; the phase commit is named
+in the ledger row). Gate 16 prints no `[D]` line on `authorization-and-audit.md`; the moved slice's
+links were checked by a run and the check proven able to fail. QA APPROVED (0 findings), human
+approval 2026-09-11 — closed by the lead at the Record step.

@@ -1953,13 +1953,6 @@ live catalog, and `supabase_migrations.schema_migrations`.
 **Status:** open
 **Body:** [FUP-AE5-MATRIX-ARM3-CELLS-ADR-0202-BLAST-RADIUS-CITES-ANOTHER-ADRS-CENSUS.md](FUP-AE5-MATRIX-ARM3-CELLS-ADR-0202-BLAST-RADIUS-CITES-ANOTHER-ADRS-CENSUS.md)
 
-### 🟡 FUP-AE5-MATRIX-ARM3-CELLS-AUTHZ-SEAM-CROSSED-ITS-WARN-LINE — the authz seam file passed gate 16's 160 KB warn line at this unit's slice (owner: lead + PO)
-
-**Filed:** 2026-09-11 (unit AE5-MATRIX-ARM3-CELLS, while appending the arm-3 oracle slice to `docs/backend-state/authorization-and-audit.md`) · **Owner:** lead + PO · **Severity:** medium — the gate still exits 0, but the file is the largest seam, its `## Current state` block has 3 lines of ratchet headroom, and every pre-AE5 unit since Batch 9 has appended to it; the README's own instruction at the warn line is *plan the next seam*, which is a seam-axis decision (ADR 0196) no passing unit may take.
-**Closes when:** a docs-only unit (or the next backend unit touching the seam) lands the split the PO ruled on 2026-09-11 — **the service-role DML registry leaves** (the `## Service-role DML registry (AE1.4 …)` slice, ~40 KB measured at the ruling) into its own routed seam file with a scaffolded `## Current state`, the README router row for *a service-role write* re-pointed, the block on `authorization-and-audit.md` re-cut, gate 16 exit 0 with no `[D]` warning on `authorization-and-audit.md`, and the moved slice's relative links checked by a run (LEARN-090). ⛔ Neither the cap nor the ratchet may be raised.
-**Status:** open
-**Body:** [FUP-AE5-MATRIX-ARM3-CELLS-AUTHZ-SEAM-CROSSED-ITS-WARN-LINE.md](FUP-AE5-MATRIX-ARM3-CELLS-AUTHZ-SEAM-CROSSED-ITS-WARN-LINE.md)
-
 ### 🟡 FUP-AE5-MATRIX-ARM3-CELLS-READ-DOOR-COMMENT-CITES-THE-REPLACED-403-SECTION — a live door comment cites the replaced §7.3 (owner: backend)
 
 **Filed:** 2026-09-11 (unit AE5-MATRIX-ARM3-CELLS, QA review finding 2) · **Owner:** backend · **Severity:** medium — a comment inside a live gate asserts a coverage state the unit retired, citing `403 §7.3` by number; behaviour unaffected; the unit's own record quoted the comment as evidence and then falsified it.
