@@ -7,8 +7,11 @@
 -- measured all four as a FREE change. Closes
 -- `FUP-DEFINER-SEARCH-PATH-NARROW-FIX-FOUR-TEMP-TABLE-DEFINERS-MEASURED-FREE-TO-CONVERGE`,
 -- whose *Closes when* was `PO to rule`; the PO ruled CONVERGE on 2026-09-11. Unit
--- DEFINER-TEMP-TABLE-CONVERGENCE. ⛔ No new ADR: 0208 D5 requires one only to admit a SECOND
--- compatibility form, and this admits none.
+-- DEFINER-TEMP-TABLE-CONVERGENCE. ⛔ No new ADR, and the ground is D4's VERBATIM ruling, not a
+-- reading of D5 (QA r1 MINOR-3 corrected an earlier comment here that claimed D5 "requires one
+-- only to admit a second compatibility form" — D5 says no such thing; it constrains the SHAPE
+-- such a form would have to take). D4 already ORDERS this convergence, so there is no decision
+-- left to take: *"…they may not grow and converge to the empty form on touch."*
 --
 -- ⭐ `ALTER FUNCTION`, NOT A RE-EMITTED BODY, and D6 says why: re-emitting a body to change one
 -- attribute puts the whole body into the diff, where a reviewer has to re-read it to find out

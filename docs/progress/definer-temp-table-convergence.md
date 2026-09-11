@@ -153,6 +153,23 @@ while the diff touches four `prosecdef=t` functions, because its name extractor 
 resolved 0 doors (`20261003007410` did the same). No open follow-up names it. ⛔ Not filed here —
 the register is outside this role's scope; reported to the lead instead.
 
+⚠ **CORRECTION 2026-09-11 (QA r1 MAJOR-1) — the paragraph immediately above names the WRONG
+MECHANISM, and is left standing under ADR 0105 rather than rewritten.** *"its name extractor does
+not see `alter function`"* is false. VERIFIED at `scripts/door-sweep-cases.sh:743` (branch 4d,
+added to close `FUP-DOOR-SWEEP-DERIVER-BLIND-TO-ALTER-FUNCTION`): the deriver **does** have an
+`alter function` branch. Its regex is
+`alter function ((app|public|authz)\.)?"?[a-z0-9_]+"?[[:space:]]*\([^)]*\)[^;]{0,200}security[[:space:]]+definer`
+— the `security definer` clause is **mandatory in the match, and deliberately so**: the file's own
+comment records the measurement that `20260620000000_baseline.sql` carries **449**
+`ALTER FUNCTION … OWNER TO "postgres";` lines, which a naive `alter function` grep would put whole
+into the candidate set. So the branch exists and is correctly bounded; the residual gap is narrower
+than I wrote — `alter function … set <attribute>` on a function that is **already** `SECURITY
+DEFINER`, whose statement text therefore never contains the clause the match requires. ⛔ My
+sentence would have sent a reader to re-add a branch that is already there. The verdicts above are
+unaffected: tier 1 = 0 is still the observed value and the ruling still rests on the catalog-measured
+return types, not on this mechanism. The follow-up is the LEAD's to file, with the mechanism as
+corrected here — ⛔ not re-filed from this entry.
+
 **AC-5 — gates, in order, on a FRESH `supabase db reset --local`.** Arm scripts live under
 `supabase/tests/mutation/`, not `scripts/` (the brief's paths were shorthand).
 
@@ -199,3 +216,65 @@ npm run lint:backend-state                                   rc 0   block 97 lin
    exist` — which reads exactly like a § 4 defect rather than a missing harness.
 4. Both sweep runs and all four arms left `docs/reviews/authz-door-audit-findings.md` byte-unchanged
    (subset runs write to scratch only); verified after, not assumed.
+
+### 2026-09-11 — QA r1 fix pass (backend)
+
+QA r1 APPROVED (0 BLOCK / 1 MAJOR / 3 MINOR / 3 NOTE),
+[definer-temp-table-convergence-review.md](../reviews/definer-temp-table-convergence-review.md). Three
+items actioned. ⛔ **NO DB ACCESS during this pass** — `e2e:prod` held the local stack, so nothing
+below is re-verified against a catalog yet; the fresh `supabase db reset --local` + `npm run test:db`
+that AC-5 owes is still OUTSTANDING and its totals are not in this entry.
+
+**MAJOR-1 — my door-sweep observation named the wrong mechanism.** VERIFIED myself at
+`scripts/door-sweep-cases.sh:743` before writing a word, per the review: branch **4d** exists and was
+added to close `FUP-DOOR-SWEEP-DERIVER-BLIND-TO-ALTER-FUNCTION`, so *"its name extractor does not see
+`alter function`"* is false. The match requires `security definer` in the matched text, deliberately
+— the branch's own comment carries the measurement that `20260620000000_baseline.sql` holds **449**
+`ALTER FUNCTION … OWNER TO "postgres";` lines a naive grep would swallow whole. The residual gap is
+narrower than I wrote: `alter function … set <attribute>` on a function that is **already** DEFINER,
+whose statement text therefore never contains the required clause. ⭐ **The wrong sentence was NOT
+rewritten** (ADR 0105, append-only): a dated `⚠ CORRECTION` marker sits directly beneath it, carrying
+the regex, the 449 measurement and the corrected gap. ⛔ The follow-up is the LEAD's to file with that
+mechanism — not re-filed from here. The door-sweep VERDICTS are unaffected: tier 1 = 0 is still the
+observed value, and the ruling still rests on the catalog-measured return types.
+
+**MINOR-2 — `420`'s fixture pairing was not a total order.** `supabase/tests/420_…:~134`. Both the
+`sa` and `comm` subqueries ordered on `m.principal_id` alone, which is not a total order over
+`memberships`: a principal holding `staff_admin` in TWO commissions leaves the second subquery's row
+arbitrary among that principal's rows, so `(sa, comm)` stops being provably ONE row. It holds on
+today's seed only because the selected principal has exactly one commission — ⛔ a property of the
+FIXTURE, not of the query, which is precisely the shape that reds later as a 42501 from
+`clone_framework`'s cross-commission guard and gets read as a § 4 defect in the function. **The
+change, exactly:** both subqueries now read `order by m.principal_id, m.commission_id limit 1`, so
+each picks the SAME first row and § 4 always seats a hat over the commission it clones INTO. A
+comment above them records the non-cosmetic reason. ⚠ **This is a non-comment change to a pgTAP file
+and is UNVERIFIED** until the stack is released and `test:db` re-runs.
+
+**MINOR-3 — a paraphrase ADR 0208 D5 does not carry.** I had written *"0208 D5 requires [a new ADR]
+only to admit a SECOND compatibility form"*. Read at the source (`0208:239-241`): D5's sentence
+constrains the SHAPE such a form would take — *"If a second compatibility form is ever admitted, it
+is property-based … ⛔ never the current dominant string"* — and says nothing about when an ADR is
+required. The airtight ground is **D4's verbatim ruling**, which already ORDERS this convergence and
+so leaves no decision to take: *"…they may not grow and converge to the empty form on touch."*
+Corrected in **two** homes:
+- `docs/backend-state/authorization-and-audit.md` — the frozen slice's clause is corrected by an
+  APPENDED `⚠ **Superseded**` line under its own heading, never in place; `npm run lint:backend-state`
+  rc 0, block still 97/100. ⛔ The `## Current state` block does NOT repeat the paraphrase (its
+  DEFINER bullet names no ADR clause), so it needed no refresh on this ground.
+- `supabase/migrations/20261003007420_…sql:10` — ⚠ **a home the review did not name, corrected
+  anyway and flagged to the lead.** Leaving a sentence QA has just ruled false in a second home is
+  the "a partial fix reads as a complete one" shape. It is **comment-only**, changes no statement,
+  and is covered by the reset + `test:db` still owed. ⛔ Permitted because this migration was applied
+  in THIS unit on an unmerged branch, never in a prior phase (CLAUDE.md §8).
+
+⛔ **Two homes deliberately left alone**, both named to the lead rather than edited: the lead's own
+opening entry at `:20` of this record (the lead appends its own marker) and the HUB at
+`docs/features/definer-temp-table-convergence.md:24`, which the lead owns.
+
+```
+npm run lint (full chain, no database)                       rc 0
+npm run lint:backend-state                                   rc 0   block 97/100; largest seam 148.9 KB
+npm run lint:progress                                        rc 0
+npm run lint:registers                                       rc 0
+supabase db reset --local + npm run test:db                  ⛔ OUTSTANDING — stack held by e2e:prod
+```

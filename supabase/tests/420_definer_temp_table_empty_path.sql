@@ -131,12 +131,22 @@ select (select fv.id from public.form_versions fv
            and exists (select 1 from public.answer_selected_options so
                         join public.answers a on a.id = so.answer_id where a.response_id = r.id)
          order by r.id limit 1) as src_resp,
+       -- ⚠ ORDERED ON BOTH KEYS, AND THAT IS NOT COSMETIC (QA r1 MINOR-2). `order by
+       -- m.principal_id` ALONE is not a total order over `memberships`: a principal holding
+       -- `staff_admin` in TWO commissions leaves the second subquery's row arbitrary among that
+       -- principal's rows, so the pair `(sa, comm)` stops being provably ONE row. It happens to
+       -- hold on today's seed because the selected principal has exactly one commission — ⛔ a
+       -- property of the fixture, not of the query. Ordering BOTH on `(principal_id,
+       -- commission_id)` makes each subquery pick the SAME first row, so § 4 always seats a hat
+       -- over the commission it clones INTO; the alternative is a 42501 from `clone_framework`'s
+       -- own cross-commission guard, which § 4's own ⛔ note would then be read as a defect in
+       -- the function rather than in this fixture.
        (select m.principal_id from public.memberships m
          where m.role = 'staff_admin' and m.commission_id is not null
-         order by m.principal_id limit 1) as sa,
+         order by m.principal_id, m.commission_id limit 1) as sa,
        (select m.commission_id from public.memberships m
          where m.role = 'staff_admin' and m.commission_id is not null
-         order by m.principal_id limit 1) as comm;
+         order by m.principal_id, m.commission_id limit 1) as comm;
 
 -- The destination response: a DIFFERENT creator from the source's, because
 -- `responses_one_draft_per_user_idx` allows one in_progress draft per (version, user).
