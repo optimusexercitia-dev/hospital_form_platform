@@ -547,3 +547,78 @@ cannot CHECK it. This push is **deploy-neutral by construction** — a feature b
 branch, and `main` did not move — so it does **not** rest on the unverifiable fact, and ⛔ it spends no
 override and creates no precedent for pushing `main`. ⚠ The lead still could not verify Coolify's live
 state and did not claim to; the argument is about which ref moved, not about the external system.
+
+### 2026-09-11 — resumed from origin; rebased onto `main`; the three Record-step homes written before the gate (lead)
+
+**Resume.** A fresh session pulled `origin/authz-ae5-matrix-arm3-cells` (18 commits over `44f69ff6`) and
+read the hub's *Next* as the work list: retire the manifest qualifier **because** `403` oracles arm 3,
+close ADR 0175 D3 at its source, append the authz seam's slice and replace its `## Current state`, then
+the gate. ⚠ The live handoff (`docs/handoffs/pre-ae5-successors-2026-09-10.md`) predates this unit's
+open and still says *"nothing is mid-flight"*; the hub, not the handoff, was the resume point.
+
+**Rebased onto `main` first** — `main` had moved one commit (`ad9ffb21`, Batch 10's push record) past
+the branch base. 19 commits replayed; **one conflict**, `docs/plans/pre-ae5-remediation.md` §2 row 10:
+`main`'s cell says Batch 10 was **PUSHED** (the fifth one-push override), this branch's cell said *NOT
+pushed* plus a 2026-09-10 re-measurement noting `origin/main` had since moved. ⛔ Resolved to `main`'s
+cell whole — it is the later fact and its author is the session that pushed; the branch's note was a
+measurement of the same event from outside. Nothing else conflicted; `git status` clean after.
+
+**1. The manifest qualifier RETIRED FOR ARM 3, history kept verbatim** (`supabase/tests/vectors/
+authz-enforcement-manifest.json`, `org.professionals.read`). The new text leads with *"✅ RETIRED FOR
+ARM 3"*, names the checked consumer section by section (`403` §7.3 replaced · §7.3b · §7.4 · §7.5 ·
+§4.1b), where the values live (`case_reach` axis, `arm3_divergence` label, the 14th column, `arm9`
+bound to `openArms`), the derivation, the three mutants, and ⛔ **the scope: arm 3 ONLY — arm 1 remains
+exercised-but-not-oracled and the Gate-AE4 qualifier is still owed for it**. The superseded text is
+quoted in full after `HISTORY:` (its inner quotes escaped), exactly the shape the two 2026-09-09
+resolutions on rows 31/32 use. The residual-arm `population` field two entries above got the same
+dated note — *the arm is not retired, its blindness is* — because a reader of `residualArms` never
+reaches `legacyEquivalence.qualifier`. ⛔ Both fields are narrative-only (not emitted to
+`authz_enforcement_manifest.psql`), so the witness that the named sections exist and pass is the gate
+run below, not this edit.
+
+**Regenerated, and the movement is exactly two sha lines:** `node scripts/gen-authz-matrix-cells.mjs`
+rewrote `authz-matrix-coverage.json` (`manifestSha256` a2f9fe85… → 09cc7a8a…) and
+`authz_enforcement_manifest.psql` (its `-- sourceSha256` comment); `git diff --stat` = **1 line each**,
+no cell moved (the differential vectors are keyed on the axes file, not the manifest).
+
+⛔⛔ **A red I caused, hidden by a pipe, then found by reading the exit BARE.** The first
+`npm run lint:authz-vectors | tail` read green; the same command with its exit read bare returned
+**1**. Link by link: `gen-authz-matrix-cells --self-test` **rc 1**, fixture *"a DUPLICATE key inside a
+permission row is caught"* → **NOT CAUGHT**. Cause: my Python write of the manifest used the platform's
+default newline translation and turned the file **CRLF**; that fixture mutates the *raw text* with an
+LF-anchored `replace`, found nothing to mutate, and so caught nothing — a fixture that cannot reach the
+failing state, reporting exactly as it should. Re-checked at the untouched tip via `git stash` of the
+vectors directory: **rc 0** there. The same write had put **166** CRLFs into ADR 0175. Both restored to
+LF by byte replacement, regenerated, and the chain re-run bare: self-test **0**, `--check` **0**
+(`in sync (2002 cells, 114998 skipped; manifest 43 rows, sha 09cc7a8ae50e)`), Python deriver
+`--self-test` **0** / `--check` **0** (`in sync (1728 cells, 10272 skipped)`), `lint:authz-vectors`
+**0**. ⭐ The memory that a pipe erases the exit code (`gate-summary-can-hide-unrun-tests`) is what
+made me re-read it; the memory that shell round-trips corrupt endings named the cause.
+
+**2. ADR 0175 D3 closed at its source, by dated markers, ⛔ no decision text edited.** Under D3, after
+*"deferred to the AE5 matrix"*: *"✅ DELIVERED 2026-09-11 — the deferral above is discharged, as WORK"*,
+naming the derivation, the partition, R1/R2 by class, the bug id, the `403` sections, the manifest
+retirement, and *"AE5 inherits ruled cells, not a promise"* — with an explicit *"this marker says
+nothing about arm 1"*. Under § Consequences the D3 bullet gets a two-line *Delivered* note pointing at
+the marker. The header gains an **`**Amended:**`** line (the recording voice, deliberately **not** an
+edge — lead-playbook §4 step 5); `npm run adr:index` rc 0, `lint:adr-index` bare rc 0, INDEX unchanged.
+
+**3. The authz seam — TWO edits, one change** (`docs/backend-state/authorization-and-audit.md`): a new
+frozen slice at the bottom, *"Arm 3 of the professional-profile read door is ORACLED, not merely
+exercised"*, six bullets each pointing at its home and ⛔ restating no witness; and the `## Current
+state` block **replaced** — stamp `2026-09-10 → 2026-09-11`, one sentence appended to the
+authority-elect invariant (arm 3 oracled, arm 1 exercised-not-oracled, pointer to the slice), one new
+Open-edges bullet (the pinned bug and the two-way constraint on its fix), the slice and ADR 0175 added
+to *Where the detail lives*. Block **96 → 97 lines** (3 left of the 100 ratchet). Gate 16 bare **rc 0**
+— ⚠ with a **new `[D]` WARN: the file crossed the 160 KB warn line (155.1 → 160.0 KB, cap 200)**. The
+README's instruction at that line is *plan the next seam*, a seam-axis decision this unit may not take
+⇒ filed **`FUP-AE5-MATRIX-ARM3-CELLS-AUTHZ-SEAM-CROSSED-ITS-WARN-LINE`** (entry + body), owner lead +
+PO. `lint:registers` bare rc 0.
+
+**Pre-gate `npm run lint` at this working tree (before the follow-up was filed): 17 of 17 gates
+reached, bare rc 0**; the only *warning* match is gate 16's `[D]` above and gate 17's standing BOUND
+note. The follow-up was checked by gate 13 alone afterwards; the full chain re-runs in the gate.
+
+**Not done here, on purpose:** the hub's `## Current state` (last edit of the round, after the gate);
+the PROGRESS.md line (none owed — see the second documentation pass); any edit to `403`, the vectors'
+cells, `src/**`, migrations or the seed.

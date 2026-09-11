@@ -15,6 +15,9 @@
 differential oracle. This adds the oracle's **third and fourth** hand-encoded inputs (the
 `offboarded` expected values; the arm-3 exclusion) and names one class the oracle exercises
 but does **not** oracle, which D7 did not anticipate.
+**Amended:** 2026-09-11 — dated markers only (the enumeration correction and the delivery marker under
+D3; the narrowing and the delivery note under § Consequences), by unit `AE5-MATRIX-ARM3-CELLS`; ⛔ no
+decision text edited in place, and this line is a record, not an edge.
 **Relates:** 0163 / 0164 (offboarded-person lifecycle authority — the rule this ratifies) ·
 0169 (the named-divergence pattern this deliberately does **not** use) · 0172 / 0174 (the AE4
 catalog) · CLAUDE.md Rule 13 · `docs/reviews/authz-ae4-review.md` findings F3, F4, F8
@@ -86,6 +89,19 @@ function, so arms 1 and 3 were never exercised (F3). Arm 3 grants with **no org 
 a professional participating in a readable case is readable regardless of their organization.
 403 is fixed to call the real door immediately; the **expected values for the divergent cells
 are deferred to the AE5 matrix**, which owns the cross-role picture that makes them rulable.
+✅ **DELIVERED 2026-09-11 — the deferral above is discharged, as WORK, by unit `AE5-MATRIX-ARM3-CELLS`**
+([hub](../features/ae5-matrix-arm3-cells.md) · [record](../progress/ae5-matrix-arm3-cells.md)). The
+divergent cells were **derived** from the live four-term door (see the enumeration correction above),
+⛔ not inherited from this paragraph's three-arm picture: the generator labels every
+`org.professionals.read` cell (`case_reach` axis + `arm3_divergence` label in
+`supabase/tests/vectors/authz_differential_cells.psql`, PO ruling R1); the population is a **partition**
+— blocked · masking · three divergent classes — and the PO ruled a value per **class** (R2): cross-org and
+not-a-holder reach through a case grant **approved** as designed reach; a case grant standing in for the
+missing ACT hat a **bug**, filed as `BUG-AE5-MATRIX-ARM3-CELLS-CASE-GRANT-ARM-MAKES-THE-HAT-TERM-UNENFORCEABLE`
+and pinned, never approved. `403` §7.3 (replaced) · §7.3b · §7.4 · §7.5 · §4.1b assert those values, and the
+enforcement manifest's `org.professionals.read` qualifier is retired **for arm 3** with its history kept.
+⇒ AE5 inherits **ruled** cells, not a promise. ⛔ This marker says nothing about arm 1 — see the
+narrowed Consequence below, which is still owed.
 
 ⛔ The PO considered and **rejected** the lead's recommendation to approve arm 3 as a named
 divergence this phase (the 0169 `meeting_cases` pattern). Recorded because a gate record that
@@ -142,6 +158,8 @@ same way the C2 and `PRED_DOMAIN` qualifiers already ride with "all arms HOLD".
 - D2 shrinks it by nine and removes a passing-but-vacuous class from the coverage report.
 - D3 leaves AE5 a named inheritance: the arm-3 cells arrive already enumerated and already
   known to diverge, so AE5 rules them rather than discovering them.
+  ✅ **Delivered 2026-09-11** (unit `AE5-MATRIX-ARM3-CELLS`): the cells arrive enumerated, labelled **and
+  ruled** — see the dated marker under D3. ⛔ The promise was kept as work, not by re-reading it as done.
 - D4(b) converts a seed defect into a **measurement** that may close it outright: if production
   also has confirmations off, the local oracle is describing the shipped system and nothing is
   owed. If it has them on, `pending` denies at the auth layer in production only, and the

@@ -1952,3 +1952,10 @@ live catalog, and `supabase_migrations.schema_migrations`.
 **Closes when:** either (a) the F7 · F8 · `platform_role` census is actually run and lands in a durable home, and `:398` cites **that** home by path, or (b) `:398` is corrected to say the census is **owing**, with the borrowed "3 sites" removed and R8's trio left attributed to F6/ADR 0201 where it belongs. ⛔ Not closed by re-measuring `platform_role` alone — F7 and F8 are two further limbs with no census in any home, so a `platform_role`-only count would re-commit the same understatement.
 **Status:** open
 **Body:** [FUP-AE5-MATRIX-ARM3-CELLS-ADR-0202-BLAST-RADIUS-CITES-ANOTHER-ADRS-CENSUS.md](FUP-AE5-MATRIX-ARM3-CELLS-ADR-0202-BLAST-RADIUS-CITES-ANOTHER-ADRS-CENSUS.md)
+
+### 🟡 FUP-AE5-MATRIX-ARM3-CELLS-AUTHZ-SEAM-CROSSED-ITS-WARN-LINE — the authz seam file passed gate 16's 160 KB warn line at this unit's slice (owner: lead + PO)
+
+**Filed:** 2026-09-11 (unit AE5-MATRIX-ARM3-CELLS, while appending the arm-3 oracle slice to `docs/backend-state/authorization-and-audit.md`) · **Owner:** lead + PO · **Severity:** medium — the gate still exits 0, but the file is the largest seam, its `## Current state` block has 3 lines of ratchet headroom, and every pre-AE5 unit since Batch 9 has appended to it; the README's own instruction at the warn line is *plan the next seam*, which is a seam-axis decision (ADR 0196) no passing unit may take.
+**Closes when:** the PO names the noun that leaves this file and a docs-only unit (or the next backend unit touching the seam) lands the split — a new routed seam file with a scaffolded `## Current state`, the README router updated, gate 16 exit 0 with no `[D]` warning on `authorization-and-audit.md`, and the moved slices' relative links checked by a run. ⛔ Neither the cap nor the ratchet may be raised.
+**Status:** open
+**Body:** [FUP-AE5-MATRIX-ARM3-CELLS-AUTHZ-SEAM-CROSSED-ITS-WARN-LINE.md](FUP-AE5-MATRIX-ARM3-CELLS-AUTHZ-SEAM-CROSSED-ITS-WARN-LINE.md)
