@@ -37,7 +37,7 @@ reserved; for any other subject take *highest on any live branch + 1*, re-measur
 - **Per-clone trap:** `.claude/claude-md-review-queue.md` is gitignored. It was processed and
   cleared on THIS clone at Batch 10's open; the Stop hook will have appended this session's own
   entries by the time you read this. `wc -c` it; another clone's state says nothing about it.
-- **Unpushed distance** was ~26 commits at close — re-measure, never quote.
+- **Pushed** on the PO's explicit instruction after the Record step (`b87eac1e..44f69ff6`, 27 commits; a fifth one-push override, spent). ⛔ "do not push" is the standing instruction again; re-measure `origin/main..main`, never quote.
 
 ## Tree
 Branch `main`, HEAD at or after `37f3b3bd` (`ef2625f2` = the phase commit; `37f3b3bd` = the merge

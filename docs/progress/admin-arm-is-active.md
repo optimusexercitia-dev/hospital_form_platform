@@ -1022,3 +1022,13 @@ PO names which). Three follow-ups filed at this Record step; AE5 itself stays po
 
 ### Blockers
 None.
+
+### 2026-09-10 — pushed on the PO's explicit instruction, after the Record step (lead)
+
+The PO approved the unit as *Record step + ff-merge, no push*; after the merge and the handoff the PO
+said *"push main"*. The lead restated once that Coolify's Automatic-Deployment state is **not
+verifiable by the session** (`docs/deployment/coolify.md` RECORDS it as off), then pushed: measured
+`ahead=27 behind=0` after `git fetch`, tree clean, `git push origin main` → `b87eac1e..44f69ff6`,
+`origin/main..main` = **0** after. A **fifth** one-push override, scoped in writing to that push and
+spent the moment it ran; *"do not push"* is the standing instruction again. Plan §2 row 10 EDITED
+(merge-state home) with the superseded text quoted.
