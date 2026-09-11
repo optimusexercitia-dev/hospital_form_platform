@@ -38,7 +38,7 @@ first (Batch 1); Batch 4's re-key needs a working diff-scoped sweep (Batches 1�
 must not create sweep blindness (Batch 2's domain). Batch 6 is the inter-phase window's own work.
 Batch 9 is not a fix — it is the AE5 plan's opening ADR.
 
-## 2. Concluded — Batches 0, 1, 2, 3, 4, 6, 7, 8, 9 (Batch 5 rode inside Batch 4)
+## 2. Concluded — Batches 0, 1, 2, 3, 4, 6, 7, 8, 9, 10 (Batch 5 rode inside Batch 4; Batch 10 = the named consequence, row 10)
 
 > ⚠ **This heading said "all QA-approved" until 2026-09-08. Batch 6 is the exception and it is
 > named rather than absorbed:** its four QA rounds were **every one `CHANGES REQUESTED`**, and the
@@ -611,7 +611,7 @@ inside a role increment"* (ADR [0176](../decisions/0176-authz-permission-layer-m
 > verify it takes the changed basis back to the PO (Batch 7's shape) rather than reading the doc and
 > calling that verification.
 
-⭐ **ALL NINE BATCHES ARE CONCLUDED (§2). Batch 9 closed 2026-09-10, was ff-merged after a rebase,
+⭐ **ALL NINE BATCHES ARE CONCLUDED (§2), AND SO IS BATCH 10 (§2 row 10, unit `ADMIN-ARM-IS-ACTIVE`, ff-merged 2026-09-10 @ `ef2625f2`, ⛔ NOT pushed — the standing instruction). Batch 9 closed 2026-09-10, was ff-merged after a rebase,
 and was PUSHED** (a fourth one-push override, scoped to that push). ⛔ **The pre-AE5 remediation
 programme this plan governs is EXHAUSTED — there is no Batch 10 block here, and §3's REMAINING SET is
 NONE.** ⚠ Corrected 2026-09-10: this said *"§3 is empty"*, which is false of the section itself —
