@@ -1942,13 +1942,6 @@ live catalog, and `supabase_migrations.schema_migrations`.
 **Status:** open
 **Body:** [FUP-ADMIN-ARM-IS-ACTIVE-CASES-EMPTY-SEMANTICS-DIVERGE-ACROSS-HARNESS-FAMILIES.md](FUP-ADMIN-ARM-IS-ACTIVE-CASES-EMPTY-SEMANTICS-DIVERGE-ACROSS-HARNESS-FAMILIES.md)
 
-### 🟡 FUP-AE5-MATRIX-ARM3-CELLS-READ-DOOR-COMMENT-CITES-THE-REPLACED-403-SECTION — a live door comment cites the replaced §7.3 (owner: backend)
-
-**Filed:** 2026-09-11 (unit AE5-MATRIX-ARM3-CELLS, QA review finding 2) · **Owner:** backend · **Severity:** medium — a comment inside a live gate asserts a coverage state the unit retired, citing `403 §7.3` by number; behaviour unaffected; the unit's own record quoted the comment as evidence and then falsified it.
-**Closes when:** the migration that fixes `BUG-AE5-MATRIX-ARM3-CELLS-CASE-GRANT-ARM-MAKES-THE-HAT-TERM-UNENFORCEABLE` — **the carrier the PO confirmed 2026-09-11** — re-emits `app.can_read_professional_profile` with the parenthetical corrected (arm 3's `grant_keyed` cells oracled by `403` §7.3/§7.3b with a PO value per class, the hat-substitution class a filed bug pinned by §7.4); ⛔ never a standalone comment-only migration. If an earlier migration legitimately re-emits the body first, it carries the correction and this closes there instead. The fix's ratified constraint lives in the bug body.
-**Status:** open
-**Body:** [FUP-AE5-MATRIX-ARM3-CELLS-READ-DOOR-COMMENT-CITES-THE-REPLACED-403-SECTION.md](FUP-AE5-MATRIX-ARM3-CELLS-READ-DOOR-COMMENT-CITES-THE-REPLACED-403-SECTION.md)
-
 ### 🟡 FUP-ARM3-HAT-TERM-FIX-STALE-ACTIVE-ROLE-SELECTION-OUTLIVES-ITS-MEMBERSHIP — a stale selection row keeps minting a revoked hat (owner: backend)
 
 **Filed:** 2026-09-11 (unit `ARM3-HAT-TERM-FIX`, QA review finding B1) · **Owner:** backend · **Severity:** medium — fail-closed today, so it is a missing invalidation and an untested window rather than a live exposure; raised above low because `app.active_role_selections` is now a coordinate a DOOR reads through (`ADR 0209`'s held-role set is defined against the hook that reads it) and nothing anywhere asserts what happens when the row outlives its membership.

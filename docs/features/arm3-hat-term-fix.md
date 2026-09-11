@@ -1,7 +1,7 @@
 ---
 id: ARM3-HAT-TERM-FIX
 title: "The professional-profile read door evaluates the ACT hat before its arms — fixing the case-grant arm that made the hat rule unenforceable, and carrying the arm-3 comment correction in the same body"
-status: gated
+status: complete
 kind: feature
 program: AUTHZ
 phase: "Between AE5-MATRIX-ARM3-CELLS and AE5 increment 1 — the bug that unit filed and pinned (403 §7.4), fixed on the PO's ratified shape (bug body § PO ruling 2026-09-11)"
@@ -31,62 +31,33 @@ comment-only migration):
 
 ## Acceptance criteria
 
-- [ ] **The fix takes the PO's ratified shape.** Neither an **org** check nor a **role-keyed hat**
+- [x] **The fix takes the PO's ratified shape.** Neither an **org** check nor a **role-keyed hat**
       check inside arm 3 (bug body § PO ruling on the fix shape, 2026-09-11): `403` **§7.5** reds on
       the first (class 4, cross-org reach, 32 cells) and **§4.1b** on the second (class 3, the
       role-free `unprivileged` reach, 36 cells — ⚠ those include `other_role` self-checks, which must
       still GRANT). The likely shape is the hat term evaluated **before** the arms, and the plan
       states the predicate as a sentence before it is written as SQL, naming what it does for a
       holder whose hat is **absent** at a self-check — a coordinate the vector does not carry.
-- [ ] **§7.4 moves red→green deliberately, by the route its own message names:** the section is
+- [x] **§7.4 moves red→green deliberately, by the route its own message names:** the section is
       deleted and the `arm3:divergent-defective:hat-unenforceable` carve-out dropped from §4.1/§4.1b
       (⛔ never "granted on 10" edited to "granted on 0"); the generator's label for those 10 cells
       and `expected_legacy_granted` (already DENY) follow, and `403` §7.3's partition string is
       re-derived, not hand-edited. §7.5, §7.3b and §4.1b stay green **unchanged**.
-- [ ] **Proven by mutation, both polarities:** on a scratch copy the fix reverted and §7.4 (or its
+- [x] **Proven by mutation, both polarities:** on a scratch copy the fix reverted and §7.4 (or its
       successor cell assertion) observed RED again; the fix present and §7.5 + §4.1b observed GREEN;
       readings quoted bare in the record. Green on first run is a finding, not a pass.
-- [ ] **The comment corrected in the same body**, read back from `pg_proc` after the migration
+- [x] **The comment corrected in the same body**, read back from `pg_proc` after the migration
       applies (never from the migration text), matching the follow-up's `Closes when` wording.
-- [ ] **Signature unchanged** (`(p_profile_id uuid, p_uid uuid)`, `prosecdef` true, same ACLs) —
+- [x] **Signature unchanged** (`(p_profile_id uuid, p_uid uuid)`, `prosecdef` true, same ACLs) —
       measured from the catalog; `npm run gen:types` shows no diff.
-- [ ] **Gate** (CLAUDE.md §6 step 1, every rc bare): `npm run lint` 0/0 · `typecheck` · `npm run
+- [x] **Gate** (CLAUDE.md §6 step 1, every rc bare): `npm run lint` 0/0 · `typecheck` · `npm run
       test:db` on a **fresh** `supabase db reset --local` · the four authz arms · `SELFTEST=1` on the
       deriver with its `bash --version` · the set-valued targeted home · the diff-scoped door sweep,
       both arms, over `scripts/door-sweep-cases.sh adbde005` with the `SCOPE:` line quoted and the
       exit read bare · `npm run e2e:prod` once to declare green. ⛔ Local only — never
       `db:reset:linked`.
-- [ ] **Homes:** `docs/backend-state/authorization-and-audit.md` — slice appended AND the
+- [x] **Homes:** `docs/backend-state/authorization-and-audit.md` — slice appended AND the
       `## Current state` block replaced (its open edge for this bug rewritten as fixed); an ADR if the
       plan review rules one owed (number = highest on any live branch + 1, re-measured at creation;
       0206 is the highest at open); bug status cell flipped in place and the follow-up archived in
       both homes at the Record step, after QA review and human approval.
-
-## Current state
-
-**Updated:** 2026-09-11
-
-### Objective
-Fix the hat-unenforceable case-grant arm on the ratified shape and carry the arm-3 comment
-correction in the same migration; pass the full Phase Gate; close bug and follow-up at Record.
-
-### Done since start
-Migration `20261003007400` (hat term before the arms; no org term; role-less caller exempt; hatless
-holder denied), ADR 0209 (amends 0201), `403` §7.4 deleted and §7.4b written (four lines), 18 cells
-relabelled, six mutations measured, blinded pins re-aimed, vector narratives corrected, ADR renumbered
-0207→0209, rebased onto `main` `dd3629be`. Full gate green at the tip: `test:db` 267/9025, lint 0/0,
-typecheck, four authz arms, self-test 46/0/0, deriver + sweep both arms CLEAN, set-valued 3/3, types
-diff empty, `e2e:prod` GREEN (1261 passed · 0 failed · 4 flaky). QA round 1 CHANGES REQUESTED →
-all items discharged; round 2 CHANGES REQUESTED on four text edits → applied (record § Session log).
-
-### In progress
-Nothing — QA APPROVED (round 3, targeted re-check at `9fcd6edc`); awaiting human approval.
-
-### Next
-PO approval → Record step: bug status cell flipped, follow-up archived in both homes, hub → complete,
-merge to `main` (no push).
-
-### Blockers
-None. **Two items the PO must ratify at approval:** (1) ADR 0209 D5 — 8 cross-org `other_role` self
-cells re-ruled DENY (R2 had them approved by generator precedence); (2) the pre-merge comment-only
-edit to the unmerged migration `20261003007400` (migration header § DATED EDIT names the alternatives).

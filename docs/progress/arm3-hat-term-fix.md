@@ -683,3 +683,76 @@ requested at that tip.
 ### 2026-09-11 — QA round 3 (targeted re-check) APPROVED at `9fcd6edc`; hub gated, awaiting human approval (lead)
 
 QA verified R2-1…R2-4 at their moved anchors, ran `lint` rc **0** and `check-docs-registers` rc **0** itself, and did not re-run `test:db`/`e2e:prod`/the arms (the record carries them; the round-2 diff touches no `src/`, policy, grant or expected value). Hub `status: gated`, `reviews:` set. Two PO ratifications outstanding, named on the hub. ⛔ Record step and merge wait for the human.
+
+### 2026-09-11 — RECORD STEP on the PO's approval (*"Approved. Proceed"*) (lead)
+
+**What the approval ratified, and where each ruling now LIVES (playbook §4 step 8 — a ruling in this
+log is not a ruling landed):**
+
+| ruling taken this unit | landed in (non-log artefact) |
+|---|---|
+| R-L1 / ADR 0209 **D5** — the 8 cross-org `other_role` self cells re-ruled DENY | ADR 0209 D5 + its status line (*ratified 2026-09-11*); vector label `arm3:pre-empted:door-hat-term`; `403` §7.3 partition string; seam `## Current state` open-edge bullet (*Ratified*) |
+| R-L2 — a hatless holder self-check DENIES | ADR 0209 D4; `403` §7.4b line 3; migration header (declared tightening) |
+| R-L3 — keep the defective-family detector armed | generator arm10(b) re-keyed on `arm3:divergent-defective:*` + synthesised `--self-test` cell; seam slice bullet |
+| R-L5 — third comment correction taken, declared outside the follow-up | migration header ⚠ ALSO DECLARED block; ADR 0209 Consequences; follow-up archive entry's bound |
+| R-Q1 — pre-merge comment-only edit to the unmerged migration, PO to ratify | migration header § DATED EDIT (alternatives named); ADR 0209 status line (*ratified*); ⛔ NOT A PRECEDENT — written there |
+| R-Q3 — `search_path` HELD under 0208 D4, convergence owed elsewhere | migration header dated block; ADR 0209 § Considered and held; `FUP-NO-GATE-CATCHES-A-COLLAPSED-SEARCH-PATH` scope line (entry + body) |
+| QA B1 — held set ≠ hook's mint set | migration comments (header + `prosrc`), ADR 0209 D2, seam slice; `FUP-ARM3-HAT-TERM-FIX-STALE-ACTIVE-ROLE-SELECTION-OUTLIVES-ITS-MEMBERSHIP` (entry + body) |
+
+**Homes rotated (playbook §4 steps 1–5):**
+- **Ledger row** appended to `docs/progress/phase-ledger.md` (Commit cell filled at the merge record).
+- **Bug** `BUG-AE5-MATRIX-ARM3-CELLS-CASE-GRANT-ARM-MAKES-THE-HAT-TERM-UNENFORCEABLE`: status cell `open → fixed`
+  in place, Closed `2026-09-11`, Related gains the fix pointer; body frontmatter `status: fixed`,
+  `closed: 2026-09-11`, `related_adrs` + 0209, a dated ✅ FIXED section appended. No rotation, no archive
+  file (ADR 0185 D3).
+- **Follow-up** `FUP-AE5-MATRIX-ARM3-CELLS-READ-DOOR-COMMENT-CITES-THE-REPLACED-403-SECTION`: entry moved
+  `follow-ups-open.md → follow-ups-archive.md` in the standard shape (heading + `✅ RESOLVED 2026-09-11`,
+  closure blockquote naming the clause closed ON and the bound the closure does NOT reach, the entry
+  block **verbatim** with its `Closes when`, the body folded in as the `####` section); body file deleted.
+  ⚠ Its `Closes when` named the wording; the live `prosrc` carries it (build entry readback).
+- **Hub** → `status: complete`, seven acceptance boxes ticked, `## Current state` **cut** into this record
+  (§ Current state at close, below); `docs/features/INDEX.md` regenerated.
+- **Backend-state**: slice + block were written in-unit (build entry); the block's open-edge bullet now
+  reads *Ratified*; gate 16 re-run at this tip.
+- **ADR index**: 0209's header carries `**Amends:** 0201`; `adr:index` regenerated at the renumber and
+  re-checked here (0201's back-pointer names 0209).
+- **CLAUDE.md review queue** (per-clone, gitignored): no entry newer than the 2026-09-11 processed marker
+  at open; re-read at this step — unchanged.
+
+**Two corrections this unit made to its OWN process, kept as lessons rather than hidden:** the gate-13
+red committed at `8a9eeb39` (fixed `3d85c403`, disclosed in the QA-round entry) and the nested-worktree
+toolchain borrow (lint/typecheck valid only because the lockfiles were byte-identical — measured).
+
+**Gate at the Record tip, bare:** `npm run lint` · `lint:progress` · `check-docs-registers` ·
+`check-backend-state` · `build-features-index --check` — readings in the phase commit's subject.
+
+**Merge:** `main` fast-forwarded from the primary checkout (`git -C <primary> merge --ff-only`), no merge
+commit, ⛔ not pushed; the branch stays checked out in this worktree (deleted when the worktree is
+removed). Sha recorded in the ledger's Commit cell in the merge-record commit.
+
+### Current state at close (cut from the hub on completion, 2026-09-11)
+
+#### Objective
+Fix the hat-unenforceable case-grant arm on the ratified shape and carry the arm-3 comment
+correction in the same migration; pass the full Phase Gate; close bug and follow-up at Record.
+
+#### Done since start
+Migration `20261003007400` (hat term before the arms; no org term; role-less caller exempt; hatless
+holder denied), ADR 0209 (amends 0201), `403` §7.4 deleted and §7.4b written (four lines), 18 cells
+relabelled, six mutations measured, blinded pins re-aimed, vector narratives corrected, ADR renumbered
+0207→0209, rebased onto `main` `dd3629be`. Full gate green at the tip: `test:db` 267/9025, lint 0/0,
+typecheck, four authz arms, self-test 46/0/0, deriver + sweep both arms CLEAN, set-valued 3/3, types
+diff empty, `e2e:prod` GREEN (1261 passed · 0 failed · 4 flaky). QA round 1 CHANGES REQUESTED →
+all items discharged; round 2 CHANGES REQUESTED on four text edits → applied (record § Session log).
+
+#### In progress
+Nothing — QA APPROVED (round 3, targeted re-check at `9fcd6edc`); awaiting human approval.
+
+#### Next
+PO approval → Record step: bug status cell flipped, follow-up archived in both homes, hub → complete,
+merge to `main` (no push).
+
+#### Blockers
+None. **Two items the PO must ratify at approval:** (1) ADR 0209 D5 — 8 cross-org `other_role` self
+cells re-ruled DENY (R2 had them approved by generator precedence); (2) the pre-merge comment-only
+edit to the unmerged migration `20261003007400` (migration header § DATED EDIT names the alternatives).

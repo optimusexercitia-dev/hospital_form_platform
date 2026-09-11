@@ -1,12 +1,12 @@
 ---
 id: BUG-AE5-MATRIX-ARM3-CELLS-CASE-GRANT-ARM-MAKES-THE-HAT-TERM-UNENFORCEABLE
-status: open
+status: fixed
 severity: high
 area: authz
 opened: 2026-09-10
-closed: null
+closed: 2026-09-11
 feature: AE5-MATRIX-ARM3-CELLS
-related_adrs: [0175, 0176, 0201]
+related_adrs: [0175, 0176, 0201, 0209]
 ---
 
 # Arm 3's case-grant reach makes the active-hat rule unenforceable
@@ -132,3 +132,43 @@ defect head-on and **§7.5** is the class-4 guard on its fix; **§4.1b** is the 
 taken out of. ⚠ The anchor this line previously carried — `403_ae45_differential_oracle.sql:612-618`,
 the old `= 0` sentinel — was stale **the day it was written**: the same unit replaced §7.3 by ~400
 lines, and that range now lands inside §4.1b's prose. ⇒ sections are named, not numbered by line.
+
+## ✅ FIXED — 2026-09-11 (unit `ARM3-HAT-TERM-FIX`, migration `20261003007400`, ADR 0209)
+
+The door evaluates the ACT hat **before** the arms (R2's second shape): at a self-check, a caller who
+holds at least one live role and whose `app.active_role()` is none of them is denied whatever arm would
+have answered; a role-less caller keeps the case-grant reach (class 3, 36 cells — §4.1b green); no org
+term was added (class 4 at the matching hat — §7.5 green). `403` §7.4 was **deleted** by the route its
+own message named and §7.4b pins the term head-on in both polarities plus the hatless-holder value.
+⚠ The door denies **18** grant-keyed cells, not this bug's 10: the extra **8** are `other_role`
+self-checks at a cross-org coordinate that class 4 held by generator precedence — re-ruled DENY as
+ADR 0209 D5, **ratified by the PO 2026-09-11**. Mutation table, gate readings and the QA rounds:
+[docs/progress/arm3-hat-term-fix.md](../progress/arm3-hat-term-fix.md).
+
+## Root cause
+
+The ACT hat rule lived only as the trailing conjunct of the role-keyed predicates (`app.has_role`,
+`app.has_role_any`, `authz.holds_role`, `app.is_admin_for`): *"p_user_id is distinct from auth.uid()
+or p_role is not distinct from app.active_role()"*. Arm 3 of `app.can_read_professional_profile`
+grants through `app._case_caps` sources S3 (`case_access_grants`) and S4 (case assignment), which are
+keyed on `principal_id` alone and call none of those predicates — so no hat term was ever evaluated on
+that path. Measured comment-stripped from `pg_proc` at head pair `(20261003007390, 528)`: `active_role`
+and `auth.uid` ABSENT from the door, `_case_caps`, `can_read_case`, `can_read_case_committee` and
+`can_manage_professional`, PRESENT in the two controls `has_role` / `is_admin_for`. A rule enforced by
+every arm but one is a rule the door does not enforce.
+
+## Regression protection
+
+- `supabase/tests/403_ae45_differential_oracle.sql` **§7.4b** — a live four-line pin on the door: the
+  fix's DENY (holder self-check at `quality_reviewer`), the GRANT it must not break (`f.nobody` at the
+  same hat and reach), the hatless-holder value (NULL hat ⇒ deny), and a role-holding third-party caller
+  (unchanged GRANT). Each line's failure mode is named in its message.
+- `403` **§7.3** — the `grant_keyed` partition string re-derived, with the 18 cells under
+  `arm3:pre-empted:door-hat-term`; **§4.1/§4.1b** now compare those cells BY VALUE (carve-out dropped);
+  **§7.5** stays the org-check guard.
+- Generator `scripts/gen-authz-differential-cells.py` arm10(b), re-keyed on the
+  `arm3:divergent-defective:` family with a synthesised `--self-test` cell (gate 12).
+- `ARM=hat` (`act-hat-blind-sweep.sh`): the door carries its hat evidence in the same chunk as its
+  caller-bound `memberships` read and is not allowlisted — it passes on merit.
+- Mutation witnesses (record § Session log, build entry): an org check inside arm 3 reds §7.5; a
+  hat-alone check reds §4.1b on 36 cells; reverting the relabel reds §4.1b on 8 and §7.3.
