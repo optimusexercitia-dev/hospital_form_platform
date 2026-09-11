@@ -190,11 +190,21 @@ select is(
   'app.current_professional_read_organizations pins search_path=app, public, pg_catalog — an identifier LIST of three schemas that all exist. ⛔ A RED here means the value DRIFTED; do NOT re-copy whatever the catalog now holds, because copying the catalog is what pinned the collapsed single-quoted form as expected the first time'
 );
 
+-- ⚠ DATED 2026-09-11 — THIS VALUE MOVED, AND IT WAS NOT COPIED FROM THE CATALOG. The comment
+-- above forbids re-copying whatever the catalog now holds, because copying the catalog is what
+-- pinned the collapsed single-quoted form the first time. This expectation is the value migration
+-- `20261003007410` is REQUIRED to emit — `alter function app.can_read_professional_profile(uuid,
+-- uuid) set search_path = ''`, under ADR 0208 D4 ("a TOUCHED SECURITY DEFINER converges to the
+-- empty form"; the door was re-emitted by `20261003007400` and kept its non-empty path, which is
+-- the debt `FUP-NO-GATE-CATCHES-A-COLLAPSED-SEARCH-PATH` § *Scope added* registered). The pin and
+-- the migration move together or this suite reds — which is exactly what it is for.
+-- ⛔ The sibling above is NOT converged and keeps the three-schema string: a reader "repairing"
+-- the two back into agreement would undo a decision, not fix a drift.
 select is(
   (select array_to_string(p.proconfig, ',') from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'app' and p.proname = 'can_read_professional_profile'),
-  'search_path=app, public, pg_catalog',
-  'app.can_read_professional_profile pins the SAME constant INDEPENDENTLY — it is §5''s subset oracle and the policy''s fallback arm, so its resolution order is load-bearing for this suite; pinning the two separately is the thing a sibling-equality differential could not do'
+  'search_path=""',
+  'app.can_read_professional_profile pins the EMPTY FORM INDEPENDENTLY — it is §5''s subset oracle and the policy''s fallback arm, so its resolution order is load-bearing for this suite; pinning the two separately is the thing a sibling-equality differential could not do. ⛔ The two siblings now pin DIFFERENT values, which is the state a sibling-equality differential could not even express'
 );
 
 -- 5. The door takes NO principal argument. If it ever gains one, a caller could ask about

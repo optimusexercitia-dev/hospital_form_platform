@@ -990,15 +990,35 @@ select test_helpers.reset_role_and_claims();
 -- door sweep's policy arm vacuously (ADR 0079 Amendment 3) — its shape has to be asserted here.
 -- ============================================================================
 
-select is((select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+-- ⚠ RE-SHAPED 2026-09-11 (unit `DEFINER-SEARCH-PATH-NARROW-FIX`), and the shape is the point.
+-- This was a COUNT: "3 of these authorizers carry `search_path=app, public, pg_catalog`". Migration
+-- `20261003007410` converged `app.can_read_professional_profile` to the empty form under ADR 0208
+-- D4 (a TOUCHED SECURITY DEFINER converges), so the count went 3 -> 2 and this assertion reds.
+-- ⛔ THE OBVIOUS FIX — changing the 3 to a 2 — WAS REFUSED. It keeps the assertion green by
+-- DROPPING the third door out of the measurement entirely: the count would then be satisfied by
+-- two doors while saying nothing at all about the one that moved, and nothing would notice if it
+-- later lost `prosecdef` altogether. That is §5.5's own argument, eleven lines up: ⛔ *"The expected
+-- value is a NAMED LIST, not a count: it reds on a lost grant ... and on a swap that a count could
+-- not see."* So the count becomes a named per-function value list, which is strictly stronger —
+-- every door is named, `prosecdef` is carried IN the value rather than filtered in the WHERE (a
+-- door losing DEFINER now reds with a visible `false` instead of silently leaving the set), and
+-- the two legitimately different `search_path` values are asserted as the two different values
+-- they are. ⛔ The property was never "all three share one string"; it is "each door's security
+-- attributes are pinned, and pinned to the value its migration is REQUIRED to emit".
+select is((select string_agg(p.proname || ':' || p.prosecdef::text || ':' ||
+                             coalesce(array_to_string(p.proconfig, ','), '<NO search_path>'),
+                             ' | ' order by p.proname)
+             from pg_proc p join pg_namespace n on n.oid = p.pronamespace
             where n.nspname = 'app'
-              and p.proname in ('can_edit_commission_forms','can_create_professional','can_read_professional_profile')
-              and p.prosecdef
-              and p.proconfig is not null
-              and 'search_path=app, public, pg_catalog' = any (p.proconfig)), 3,
-  '6.1 ALL THREE authorizers are SECURITY DEFINER with the pinned house `search_path`. '
-  '⛔ `prosecdef` belongs beside `pg_policies`: a DEFINER function''s gate REPLACES RLS, so its '
-  'security attributes are part of the door, not metadata.');
+              and p.proname in ('can_edit_commission_forms','can_create_professional','can_read_professional_profile')),
+  'can_create_professional:true:search_path=app, public, pg_catalog | ' ||
+  'can_edit_commission_forms:true:search_path=app, public, pg_catalog | ' ||
+  'can_read_professional_profile:true:search_path=""',
+  '6.1 ALL THREE authorizers are SECURITY DEFINER with a PINNED `search_path`, each named with its '
+  'own value. ⛔ `prosecdef` belongs beside `pg_policies`: a DEFINER function''s gate REPLACES RLS, '
+  'so its security attributes are part of the door, not metadata. ⚠ The third value is the EMPTY '
+  'form since ADR 0208 D4 — do NOT "repair" the three back into agreement, and do NOT reduce this '
+  'to a count of whichever ones happen to match.');
 
 select is((select count(*)::int
              from unnest(array['anon','authenticated','service_role']) r

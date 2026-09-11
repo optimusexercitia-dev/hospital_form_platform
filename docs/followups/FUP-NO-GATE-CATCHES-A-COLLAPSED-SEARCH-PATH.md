@@ -223,3 +223,22 @@ the CLASS and its prospective gate (the `419` ratchet); a second name-keyed conv
 name-keyed shape this body already refuses at its own ⛔ *"What must NOT be mistaken"* paragraph.
 ⚠ And converging it while `413`'s pin still expects the three-schema string would RED that suite —
 the pin and the migration move together or not at all.
+
+---
+
+## ⚠ OPEN HALF 1 — a PROPOSED disposition, PO to rule — 2026-09-11 (unit `DEFINER-SEARCH-PATH-NARROW-FIX`, AC-5)
+
+**The question:** what happens when `414 § 0b`'s **890/890** moves — a `prosecdef` function in
+`app`/`public`/`authz` with **no** `search_path` at all. It is invisible to BOTH instruments: `414 § 1`
+cannot tokenize a NULL, and `419`'s frozen set is keyed on NON-empty paths, so an undeclared DEFINER is
+neither a member nor an offender there.
+
+**Proposed (backend, carried by the lead; ⛔ not a ruling):** the count does not move by ruling, it
+moves by a gate, and the gate already exists — `414 § 0b` reds the moment it does. So the
+disposition is a statement of what a red there MEANS: an undeclared DEFINER is a **defect to
+converge to `''`** (ADR 0208 D4's sole forward convention applies a fortiori — it is a strictly
+worse member of the same class than a non-empty path), **never** a member to add to any frozen
+set, and it may not be admitted by widening either gate. ⛔ Specifically NOT proposed: an
+undeclared-DEFINER row in the `419` artifact — a set admitting NULL paths would make the ratchet's
+own subset arm ambiguous. No code. If the PO accepts, this half closes on the dated ruling here and
+in the register line; if the PO wants a distinct cell, it is one assertion in `419`, not a new file.

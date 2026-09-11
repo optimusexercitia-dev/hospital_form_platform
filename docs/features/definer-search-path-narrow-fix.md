@@ -54,12 +54,19 @@ Land ADR 0208 D5 + D6 so the follow-up closes, before `AE5-ROLE-CATALOG-COMPAT` 
 
 ### Done since start
 - Branch cut from `main @ 6d7dd589`; ordering ruled in the handoff and ADR 0207 (2026-09-11).
+- AC-1..AC-4, AC-6 BUILT red-first (`backend`): migration `20261003007410` (two `ALTER FUNCTION`),
+  pgTAP `419` + generated freeze artifact (867 → 865, pure deletion) + gate 18 `lint:definer-freeze`,
+  pgTAP `420` (four temp-table DEFINERs all measured **free**), the `413` pin flipped, `409 § 6.1`
+  reshaped (an unenumerated third reader of the constant), one-line D5 hint (rules dir at 12/12).
+- Gates on the built tree: fresh `test:db` 269/9048 rc 0 · `lint` rc 0 · typecheck rc 0 · vitest rc 0 · `gen:types` no diff.
+- Two follow-ups filed (four-DEFINER convergence unruled; D5 rule file deferred on the cap); AC-5
+  disposition PROPOSED in the FUP body, PO to rule.
 
 ### In progress
-- `backend` plan review (SECURITY DEFINER work ⇒ full plan review, lead-playbook §3).
+- Door sweep both arms on `app.can_read_professional_profile` (exit 1 ruled: option (a), by hand); then the build commit.
 
 ### Next
-- AC-1 → AC-4 built red-first; AC-5 ruled; gate; QA; PO approval.
+- QA review (`qa`) → PO approval (AC-5 ruling + the two follow-ups + the door-sweep ruling presented together) → Record step → merge → then `AE5-ROLE-CATALOG-COMPAT`.
 
 ### Blockers
 - None.

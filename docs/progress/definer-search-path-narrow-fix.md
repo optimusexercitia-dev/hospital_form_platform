@@ -40,3 +40,220 @@ D5 hint does not exist yet.
 
 Doc gates after the two ruling edits: `lint:progress` rc 0 · `lint:registers` rc 0 ·
 `lint:adr-index` rc 0 (next free ADR **0210**) · `lint:mojibake` rc 0.
+
+### 2026-09-11 — AC-1…AC-6 built red-first; the four verdicts MEASURED; one unenumerated control found (backend)
+
+**Red-first, witnessed.** `419` was written and run against a deliberately EMPTY artifact stub before
+the generator existed: **§ 0c, § 0d, § 1a, § 1b, § 1c, § 1d all RED** (`§ 1a` naming 867 offenders
+starting `app._audit_access_authorized(...)`), `§ 0a` and `§ 0b` green — ⚠ **green on their first run,
+declared**: they are instrument guards (the domain covers all three schemas; `authz` is `0 of 10`),
+not ratchet cells, and green is their correct state today exactly as `414 § 0a` is. The `413` pin was
+flipped and observed **RED alone** (`ok=28 notok=1`, `have: search_path=app, public, pg_catalog`)
+BEFORE the migration, then green after.
+
+⭐ **A real defect found by the red-first run itself:** `419 § 1e` used
+`string_agg(distinct sig order by sig collate "C")`, which Postgres rejects outright — and because
+the assertion sat inside a savepoint, the following `rollback to savepoint` **RECOVERED** the error:
+the file reported 9 tests against a plan of 10 with every other verdict green. It was visible only by
+counting emitted TAP lines. `distinct` removed (signatures are unique: 890 of 890).
+
+⚠ **And the first full-suite run was read wrong before it was read right.** `npm run test:db` printed
+`Result: FAIL` / `error running container: exit 1` while the background task reported **exit code 0** —
+the `;` chain after the redirect made `tail` the last command, so the code surfaced was `tail`'s. The
+verdict was taken from the printed summary, not the status; the re-run writes `TESTDB_RC=` into the
+output file instead.
+
+**AC-2 — the convergence, measured not read.** Both bodies re-verified fully qualified from the live
+catalog, then ALTERed to the empty form and CALLED inside a ROLLED-BACK transaction:
+
+| | before | after |
+| --- | --- | --- |
+| `public.tenant_orphan_profiles()` | rows=1 | rows=1, symmetric diff **0** |
+| `app.can_read_professional_profile(uuid,uuid)` | 36 pairs, 6 true | 6 true, **0 disagreements** |
+
+⭐ The wrapper's fixture was CONSTRUCTED to reach a non-empty result (one affiliation voided in the
+same transaction) — a 0-rows/0-rows comparison would have been satisfied by a function that had
+stopped working. The door's 36 pairs carry BOTH polarities (6 true / 30 false). Applied as
+`20261003007410`; catalog after: the two converged, `app.tenant_orphan_profiles` and
+`app.current_professional_read_organizations` untouched on the three-schema string. Freeze
+regenerated **867 → 865**, `removed 2, added 0` — the two converged names, a pure deletion.
+
+⛔ **AC-2's scope was INCOMPLETE as briefed, and the suite found it.** The plan and the handoff named
+`413` as "the pin that moves". It is not the only control reading that constant:
+`409_ae49_d6_rekey_differential.sql § 6.1` counted **3** `app` authorizers carrying
+`search_path=app, public, pg_catalog`, and `app.can_read_professional_profile` is one of them — so the
+convergence took it to 2 and reded the suite. ⛔ **The obvious fix (3 → 2) was REFUSED**: it keeps the
+assertion green by dropping the third door out of the measurement entirely, saying nothing about the
+one that moved and noticing nothing if it later lost `prosecdef`. Re-shaped into a NAMED PER-FUNCTION
+VALUE LIST carrying `prosecdef` IN the value — which is the idiom **§ 5.5 eleven lines above it
+already argues for** (*"a NAMED LIST, not a count … a swap that a count could not see"*). Lesson
+applied after the fact: *a change that flattens a curve invalidates every control READING it —
+enumerate the controls, never recall them.* The enumeration was then run: `grep` over all of
+`supabase/tests` plus `scripts/`, `src/`, `e2e/` and `docs/backend-state/`; `409` was the only
+affected reader (the `like '%search_path%'` forms still match the empty string, and the other
+value-pins name other doors).
+
+**AC-3 — the four temp-table DEFINERs, per-function verdicts (pgTAP `420`).**
+
+| function | today | under the empty path | verdict |
+| --- | --- | --- | --- |
+| `app.copy_version_children(uuid,uuid)` | OK, items=6 sections=1 | OK, items=6 sections=1 | **free** |
+| `app.copy_template_version_children(uuid,uuid)` | OK, phases=2 | OK, phases=2 | **free** |
+| `app.copy_response_answers(uuid,uuid)` | OK, answers=4 selopts=5 | OK, answers=4 selopts=5 | **free** |
+| `public.clone_framework(uuid,uuid)` | OK, standards=2 rewired=1 | OK, standards=2 rewired=1 | **free** |
+
+⭐ **The prediction going in was the opposite, and the MECHANISM is the finding.** Each body creates a
+temp table and then references it UNQUALIFIED. Postgres searches `pg_temp` **implicitly and FIRST**
+for relation names whenever it is not listed explicitly, so the empty path does not remove the
+temp schema from relation resolution — it removes `app` and `public`. That is the SAME mechanism ADR
+0208 D5 quotes as the reason to prefer the empty form (a temp object can precede the declared schemas
+and shadow an unqualified relation): here it is what makes these four survive; in a body naming a
+PERSISTENT relation unqualified it is the hijack. ⛔ So "free" is a statement about these four bodies,
+never a general one.
+
+⚠ **Four "OK"s are also what an instrument that cannot fail returns**, so `420 § 6` plants a DEFINER
+whose body reads `from profiles` unqualified: it works on the three-schema path (§ 6a) and reds with
+**42P01** under the identical ALTER (§ 6b). ⛔ An `OK` at § 6b reads the four verdicts as VOID.
+Every under-empty-path expectation also carries the function's live `proconfig`, so a mutation that
+did not apply cannot report green. `420 § 5` proves all four restored; `§ 5b` pins that all four are
+still `prosecdef` on a non-empty path and therefore still members of `419`'s frozen set.
+
+⛔ **THREE HARNESS DEFECTS were found by insisting on effects rather than "it did not throw"**, each
+of which would have produced a confident false verdict: (1) the TODAY call contaminated the
+under-empty-path call — the second hit a unique violation the first had created, so every probe now
+sits in its OWN savepoint; (2) `public.clone_framework` denied **42501 before reaching its temp
+table** (no null-actor tolerance, unlike its three siblings) — the CALLER was fixed with a seated
+`staff_admin` hat via `test_helpers.claims_for`, never the expectation, because an earlier guard
+firing leaves the later code untested; (3) the clone collided with its own source on
+`(key, owner_commission_id)` — the fixture source is now a GLOBAL framework, which is also the only
+shape `clone_framework`'s own cross-commission guard admits. ⚠ A bare JWT `sub` was NOT enough to seat
+the actor: `active_role` must be in the claims, which is why `test_helpers.claims_for(uuid, boolean,
+text)` is used and not a hand-built claims object.
+
+⭐ **FOLLOW-UP CANDIDATE (lead to register).** All four being free means a convergence of the four is
+now a *cheap* change that nobody has ruled. ⛔ It is explicitly NOT performed here: it would move the
+`419` artifact by more than the two AC-2 names, and D6 ordered the testing, not the conversion.
+`app.copy_template_version_children` also gained its FIRST direct test of any kind in `420 § 2a` —
+it had zero pgTAP and zero TS/E2E coverage before this unit.
+
+**AC-4 — the D5 hint, per the lead's ruling (exit c).** ONE line appended to
+`.claude/rules/migrations-forward-only.md`, already `supabase/migrations/**`-scoped and `broad:`-
+declared. File **1843 → 1997 bytes** against `MAX_RULE_BYTES = 2048`; gate 8 green, still 12 files.
+⛔ **The dedicated file is DEFERRED to a PO ruling on the cap, registered here rather than
+remembered:** `.claude/rules/` holds **12 of a `MAX_RULES = 12` cap**, so a 13th file is a hard red on
+gate 8; `migrations-forward-only.md` had **205 bytes** of headroom, which is why the hint is one line
+and not a section. ⛔ Retiring a rule and raising the cap were both refused as separate subjects.
+
+**AC-5 — open half 1, PROPOSED, PO to rule.** *A DEFINER carrying no `search_path` at all
+(`414 § 0b`'s 890/890) is a strictly worse member of the same class than a non-empty one, and it is
+invisible to both instruments: `414 § 1` cannot tokenize a NULL and `419`'s frozen set is keyed on
+non-empty paths. The proposed disposition is therefore not a new gate but a statement of what happens
+when the existing one reds: an undeclared DEFINER is a **defect to converge to the empty form**, never
+a member to admit into any frozen set, and neither `414` nor `419` may be widened to accept it.
+`414 § 0b` already reds the day the count moves; `419` adds nothing there by design, because a frozen
+set that admitted NULL paths would make its own subset arm ambiguous about which half moved.* ⛔ No
+code. The follow-up register line is the lead's to write.
+
+**AC-6.** `npm run gen:types` → **no diff**, as predicted: `ALTER FUNCTION … SET search_path` changes
+neither signature nor return type. Backend-state slice appended to
+`docs/backend-state/authorization-and-audit.md` (§ The non-empty DEFINER `search_path` population is
+FROZEN) and its `## Current state` REPLACED — ⚠ the first replacement ran the block to **113 lines**
+against a ratchet of 100; compressed to fit by pointing at the frozen slice, ⛔ not by raising the
+ratchet and ⛔ not by cutting a bound (the two-arm partition, "gate 18 never opens a database",
+"measured free and NOT converged" and both PO-to-rule items all survive in the block).
+
+**Gate 18 is new** (`npm run lint:definer-freeze`, appended to the chain — positions are append-only,
+so no by-number reference moves) with its row in `docs/lint-gates.md`. Its `--check` opens no
+database, by gate 15/17's doctrine; the shrink-only arm resolves the artifact's git baseline and
+currently reports **GENESIS — `[baseline main (6d7dd589ae24)]`** (the artifact does not exist at the
+branch point yet), which is printed, not silent — the checker itself is proven able to fail by a
+17-case `--self-test` including `shrink-grew` and a baseline that parsed to zero rows. ⛔ Exit 2 =
+UNPROVEN is a red in the chain, never a pass. ⚠ The baseline preference is **local `main` first,
+`origin/main` second**, and that order is deliberate: this repo routinely leaves `main` unpushed
+(the phase-ledger commits say so), so `origin/main`'s merge-base is many commits behind and yields an
+older, LARGER frozen set — against which a set that had grown since could still pass as a subset.
+`origin/main` remains the fallback for a fresh clone with no local branch.
+
+### 2026-09-11 — gate block (backend)
+
+⛔ **AN EARLIER arm1/arm2 PAIR WAS OBSERVED, THEN FOUND UNTRACEABLE, AND IS DISCARDED.** A watcher
+armed on the two arms' output files fired with `ARM1_RC=0 / SWEPT: 1 COVERED: 1 BLIND: 0 ERROR: 0`
+and an identical pair for arm 2. ⚠ **Those four numbers are not the rows below and were not used.**
+When the files were re-read minutes later to quote them, `arm2.txt` **did not exist** and `arm1.txt`
+ended mid-run at `--- preflight: capturing GREEN baseline ---` with no `ARM._RC=` line and no
+verdict, while `/tmp/authz-audit/_mut.sql` carried a timestamp one minute later than that read and
+`pg_stat_activity` showed the harness still holding an ACTIVE backend — i.e. the run those numbers
+claimed to summarise had **not finished**. The session scratchpad is shared between the lead and this
+teammate, which explains foreign files in it but ⛔ **not** a verdict for a run still in flight; the
+lead confirmed it ran neither arm and touched no database. ⛔ **The mechanism was NOT resolved**, and
+that is stated rather than guessed at. The completed run later produced the same verdicts, which is
+agreement and ⛔ **not** retroactive provenance for the discarded pair.
+
+⭐ **The rule applied: a verdict is quoted from an artifact you can still read, or it is not quoted.**
+Both runs were re-read to completion and COPIED, at the moment they landed, into a repo-local
+directory excluded through `.git/info/exclude` (⛔ never committed, and never `.gitignore`, which
+would itself be a tracked change) — artifacts renamed BEFORE anything could re-run over them. Every
+row below is read from that copy.
+
+```
+SELFTEST=1 bash scripts/door-sweep-cases.sh         rc 0   PASS 46 · FAIL 0 · SKIPPED 0
+bash --version                                      GNU bash, version 5.2.37(1)-release (x86_64-pc-msys)
+bash scripts/door-sweep-cases.sh 6d7dd589           rc 1   FINDING (1) — 0 doors resolved; RULED below, case list set by hand
+door sweep · PREDICATE arm  (CASES=…)               rc 0   SWEPT 1 · COVERED 1 · BLIND 0 · NOTICED 0 · ERROR 0 — RESULT: CLEAN
+door sweep · POLICY arm     (same invocation)       rc 0   0 selected of 226 — this migration creates and alters no policy
+  ⛔ second invocation, FROMFINDINGS=1 CASES=…       rc 0   NOT a second arm — byte-identical to the first; see the finding below
+  preflight, both runs                                     baseline OK: Result: PASS, Files=269, Tests=9048
+  ARM-DOMAIN                                               predicate=1/127 policy=0/226 out-of-domain-bool=35
+  resets                                                   resets=0 (RESET_EVERY=20 — SUPPRESSED on a SUBSET run)
+  committed findings md                                    VERIFIED unchanged (cksum) — the subset run wrote only to scratch
+npm run lint (18 gates, incl. the new lint:definer-freeze)  rc 0
+npm run typecheck                                   rc 0
+npm run test (vitest)                               rc 0   2091 passed
+npm run test:db (on a fresh supabase db reset --local)      rc 0   Files=269, Tests=9048, Result: PASS
+node scripts/gen-definer-search-path-freeze.mjs --check     rc 0   in sync (865 frozen non-empty DEFINER paths)
+npm run gen:types                                   rc 0   no diff
+```
+
+The deriver's three self-test GROUP lines: `deriver: scenarios 20 (pass 20 · fail 0 · skipped 0)` ·
+`merge helper: scenarios 18 (pass 18 · fail 0 · skipped 0)` ·
+`audit startup capture: scenarios 8 (pass 8 · fail 0 · skipped 0)`.
+
+The freeze artifact's count, from the gate's own line rather than a hand count:
+`gen-definer-search-path-freeze: in sync (865 frozen non-empty DEFINER paths; GENESIS — the artifact
+does not exist at the baseline; nothing to ratchet against yet. [baseline main (6d7dd589ae24)])`.
+Its anchor reads `rows=865 sha256=8ee59a19… md5=915172dd…`, and the file holds 865 data rows.
+
+**The derivation's exit 1, RULED (PO ruling, quoted verbatim):**
+
+> exit 1 = the migration touches two EXISTING prosecdef doors' security attributes and the
+> derivation found no new gate; option (b)'s wording ('no prosecdef gate') does not describe this
+> migration, so the case list is set by hand: `app.can_read_professional_profile` (predicate arm,
+> 1/127 resolved). `public.tenant_orphan_profiles` is outside the predicate arm's catalog domain — a
+> report helper, not an authorization predicate — which is a catalog-resolved fact, not a filter's
+> silence.
+
+`SCOPE:` line, quoted verbatim:
+
+```
+SCOPE: 1 file(s) — 0 committed (6d7dd589..HEAD), 0 worktree, 1 untracked | filter: none | derivation: catalog
+```
+
+⛔ **FINDING — "BOTH ARMS" WAS ONE ARM RUN TWICE, AND THE LABEL IS WHAT CONCEALED IT.** The two
+invocations `CASES=…` and `FROMFINDINGS=1 CASES=…` produced outputs differing in **exactly one
+line** — `ARM1_RC=0` against `ARM2_RC=0` — with identical `SELECTION-SOURCE`, identical
+`ARM-DOMAIN`, identical verdicts. Measured cause: **`p0-authz-door-audit.sh` never reads
+`FROMFINDINGS`** — `grep -cE '\$\{?FROMFINDINGS' ` over it returns **0**; the variable is consumed by
+`p0-authz-invariant.sh` (`:107`, `:323`, `:800`), a different script, and the door audit only
+mentions it in prose warning that *"a FROMFINDINGS arm does NOT cover this run"*. So the env var is
+inert there and the second invocation re-ran the first.
+
+⭐ **The door sweep's two arms are the PREDICATE arm and the POLICY arm, and ONE invocation runs
+both** — which is why the run prints `ARM-DOMAIN predicate=1/127 policy=0/226`. The rows above are
+labelled that way. ⚠ The policy arm selecting **0 of 226** is a correct verdict for this migration
+(it creates and alters no policy), ⛔ not a skipped arm — and it is NOT evidence about the write
+half, which belongs to `p0-authz-writepath-audit.sh`.
+
+⚠ **This is not local to this unit.** `docs/progress/arm3-hat-term-fix.md:136-137` and `:423-424`
+carry the same two rows with identical verdicts, which is the signature this finding predicts; that
+record's "both arms" was, on this evidence, also one arm twice. ⛔ Not repaired here — a prior unit's
+gate record is not this unit's to edit — and handed to the lead as a follow-up candidate.

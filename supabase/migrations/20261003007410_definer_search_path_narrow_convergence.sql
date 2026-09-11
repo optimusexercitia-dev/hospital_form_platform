@@ -1,0 +1,51 @@
+-- Converge TWO named SECURITY DEFINER functions to the empty search_path.
+--
+-- ADR 0208 D6 (public.tenant_orphan_profiles) + `FUP-NO-GATE-CATCHES-A-COLLAPSED-SEARCH-PATH`
+-- § *Scope added* / ADR 0209 (app.can_read_professional_profile). Unit
+-- DEFINER-SEARCH-PATH-NARROW-FIX.
+--
+-- ⭐ `ALTER FUNCTION`, NOT A RE-EMITTED BODY, and D6 says why: re-emitting 7.5 KB of door body
+-- to change one attribute puts the whole body into the diff, where a reviewer has to re-read it
+-- to find out that nothing in it changed. Neither body is touched here.
+--
+-- ⛔ `app.tenant_orphan_profiles()` IS NOT TOUCHED. It is a SEPARATE SUBJECT: it sits in the
+-- dominant 825-bucket (`app, public, pg_catalog`), while the `public` wrapper below is the sole
+-- member of the inverted `public, app, pg_catalog` bucket — the one member of the population
+-- whose difference from the dominant string is SEMANTIC rather than stylistic. D6 names only
+-- the wrapper, and converging the `app` function here would be a third convergence nobody ruled.
+--
+-- ─────────────────────────────────────────────────────────────────────────────────────────
+-- MEASURED BEFORE WRITING THIS, ON THE LIVE CATALOG — not read off the migration text, which
+-- is stale by design (ADR 0078), and not inferred from `prosrc`, which does not carry a
+-- function's result type (`.claude/rules/prosrc-is-not-the-whole-function.md`).
+--
+--   `public.tenant_orphan_profiles()`   prosecdef=t  proconfig={"search_path=public, app, pg_catalog"}
+--   `app.can_read_professional_profile(uuid,uuid)`  prosecdef=t  proconfig={"search_path=app, public, pg_catalog"}
+--
+-- ⚠ THE CHEAP-OR-NOT QUESTION WAS MEASURED, NOT ASSUMED. Both were ALTERed to the empty path
+-- inside a ROLLED-BACK transaction on 2026-09-11 and then CALLED:
+--
+--   wrapper  rows_before=1  rows_after=1  symmetric_diff=0
+--   door     pairs=36  true_before=6  true_after=6  disagreements=0
+--
+-- ⭐ The wrapper's fixture was CONSTRUCTED to reach a non-empty result (one affiliation voided
+-- in the same rolled-back transaction) — a 0-rows-before/0-rows-after comparison would have
+-- been satisfied by a function that had stopped working altogether. The door's 36 pairs carry
+-- BOTH polarities (6 true, 30 false), so the differential is not satisfied by an arm that
+-- denied everything. Every relation and function either body names is schema-qualified; their
+-- only unqualified references are `pg_catalog` builtins (`coalesce`, `now`), which resolve
+-- under `search_path = ''` because pg_catalog is searched implicitly even when unnamed.
+--
+-- ⛔ WHAT THIS MIGRATION DOES NOT DO. It does not close the CLASS. 865 non-empty paths remain
+-- and are frozen compatibility debt under D4; the prospective gate is pgTAP
+-- `419_definer_search_path_freeze.sql` plus `npm run lint:definer-freeze`. Converging two
+-- doors is not closing the follow-up, which is its own ⛔ paragraph in the register.
+
+alter function public.tenant_orphan_profiles() set search_path = '';
+
+alter function app.can_read_professional_profile(uuid, uuid) set search_path = '';
+
+-- The pin in `supabase/tests/413_ae4_authorized_scope_ids.sql` on the SECOND function moves in
+-- the same change — the pin and the ALTER move together or that suite reds. Its sibling pin on
+-- `app.current_professional_read_organizations` stays on the three-schema string: that function
+-- is NOT converged here, and 413's comment explains why the two are pinned independently.

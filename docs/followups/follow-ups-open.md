@@ -1948,3 +1948,19 @@ live catalog, and `supabase_migrations.schema_migrations`.
 **Closes when:** a mechanism INVALIDATES or REVALIDATES the selection when the membership behind it stops being live — either a trigger on `public.memberships` (revoke/expiry/delete) that deletes the matching `app.active_role_selections` rows, or a liveness re-check inside `public.custom_access_token_hook`'s first branch before it honours the selection — **and** a pgTAP cell pins the chosen mechanism at the transition: a principal holding one role, a selection row seated for it, the membership then revoked (and, separately, expired), and the next token mint / the next `app.has_role` answer measured. ⛔ Not closed by documenting the window, ⛔ not by making `app.can_read_professional_profile` read `app.active_role_selections` (that re-opens `BUG-AE5-MATRIX-ARM3-CELLS-CASE-GRANT-ARM-MAKES-THE-HAT-TERM-UNENFORCEABLE`), and ⛔ not by a cell that only asserts the door denies — the door already denies; what is untested is the MINT.
 **Status:** open
 **Body:** [FUP-ARM3-HAT-TERM-FIX-STALE-ACTIVE-ROLE-SELECTION-OUTLIVES-ITS-MEMBERSHIP.md](FUP-ARM3-HAT-TERM-FIX-STALE-ACTIVE-ROLE-SELECTION-OUTLIVES-ITS-MEMBERSHIP.md)
+
+### 🟡 FUP-DEFINER-SEARCH-PATH-NARROW-FIX-FOUR-TEMP-TABLE-DEFINERS-MEASURED-FREE-TO-CONVERGE — 420 measured all four FREE; converging them is unruled
+
+**Filed:** 2026-09-11 (unit `DEFINER-SEARCH-PATH-NARROW-FIX`, AC-3, pgTAP `420_definer_temp_table_empty_path.sql`) · **Owner:** backend + PO · **Severity:** medium — four members of the frozen non-empty-path set (ADR 0208 D5) whose only stated reason to stay non-empty was "temp tables make the empty form not a free change", and that reason is now measured false
+**Closes when:** PO to rule
+**Status:** open
+
+ADR 0208 D6 ordered the four (`app.copy_response_answers` · `app.copy_template_version_children` · `app.copy_version_children` · `public.clone_framework`) TESTED before any sweep; `420` did so with the ALTER applied to ONE function per rolled-back savepoint and each call's effects asserted (items/sections/phases/answers/standards counts), identical today and under `''`. ⭐ Mechanism: `pg_temp` is searched implicitly and FIRST for relation names even when the path is empty — the empty form removes `app`/`public`, not the temp schema. `420 § 6` proves the instrument can fail (a planted DEFINER reading `from profiles` unqualified reds with 42P01 under the identical ALTER). ⛔ The convergence was NOT performed in the unit — it would have moved the `419` artifact by more than the two AC-2 names, and D6 ordered testing, not conversion. ⛔ "Free" is a statement about these four BODIES, never a general one; the closing migration re-runs `420`'s effect assertions, not "did not throw", and regenerates the freeze as a pure four-row deletion.
+
+### 🟢 FUP-DEFINER-SEARCH-PATH-NARROW-FIX-RULES-CAP-DEFERS-THE-D5-HINT-FILE — the D5 rule file became one line because `.claude/rules/` is at its 12-file cap
+
+**Filed:** 2026-09-11 (unit `DEFINER-SEARCH-PATH-NARROW-FIX`, AC-4, lead ruling "exit (c)") · **Owner:** lead + PO · **Severity:** low — the enforcer is pgTAP `419` + gate 18, not the rule; only the hint's prominence is reduced
+**Closes when:** PO to rule
+**Status:** open
+
+Measured: `scripts/check-rules-staleness.mjs` `MAX_RULES = 12` and `.claude/rules/` holds **12/12**; `migrations-forward-only.md` had **1843/2048** bytes of headroom (205) before the line, **1997** after; gate 8 rc 0. The three exits, none taken unilaterally: (a) retire a rule whose lesson a gate now carries (ADR 0127's intended exit — a separate subject); (b) raise the cap (⛔ the "directory that only grows" 0127 escaped); (c) the one-line append, taken. ⛔ Not closed by the line itself — it closes when the PO either accepts (c) as final (then this entry archives with that ruling) or names the rule to retire under (a).
