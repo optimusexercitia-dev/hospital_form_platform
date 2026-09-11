@@ -277,3 +277,12 @@ mention, not a link). ⛔ Not amended: the sha was already written into this rec
 
 **Re-run after the fix**, full chain, bare: `npm run lint` rc and `lint:adr-index` rc are in the fix
 commit's message.
+
+### 2026-09-11 — merged: `main` fast-forwarded to `94d52cb5` (written on `main`) (lead)
+
+`git merge --ff-only backend-state-service-role-seam` on `main` (was `3c66efb6`): fast-forward, **no
+merge commit** — `main` = `94d52cb5`, the ADR re-point fix, one above the phase commit **`5fb5c055`**;
+`git merge-base --is-ancestor 5fb5c055 main` **rc 0**, read bare. Working tree empty before and
+after. Local branch deleted with `-d` (rc 0 — never pushed, so nothing upstream to disagree).
+Measured at the time of writing: `origin/main..main` = **36** commits, ⛔ **not pushed** (the PO's
+instruction). Ledger row's Commit cell filled with `5fb5c055` in this same docs commit.
