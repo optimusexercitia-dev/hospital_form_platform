@@ -21,7 +21,7 @@ Closes `FUP-DEFINER-SEARCH-PATH-NARROW-FIX-FOUR-TEMP-TABLE-DEFINERS-MEASURED-FRE
 [0208](../decisions/0208-the-candidate-fanout-is-structurally-dominated-and-empty-search-path-is-the-sole-forward-convention.md)
 D4 is the standing convention (*"converge to the empty form on touch"*); D6's precondition —
 targeted tests before any ALTER — was discharged by pgTAP `420` in `DEFINER-SEARCH-PATH-NARROW-FIX`.
-No new ADR: this admits no second compatibility form (0208 D5).
+No new ADR: D4's verbatim ruling (*"they may not grow and converge to the empty form on touch"*) already orders this; nothing here is a new convention.
 
 ## Acceptance criteria
 

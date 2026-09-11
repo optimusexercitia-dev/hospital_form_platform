@@ -21,6 +21,8 @@ was discharged by `420`; D5 requires a new ADR only to admit a SECOND compatibil
 is not. ADR 0209 § *Considered and held* explicitly defers the four's sequencing to the convention's
 unit. Highest ADR on any branch: 0209.
 
+> ⚠ **CORRECTION 2026-09-11 (lead, QA r1 MINOR-3):** the clause *"D5 requires a new ADR only to admit a SECOND compatibility form"* above is a paraphrase 0208 D5 (`:239-241`) does not carry — a subagent's summary I repeated without reading the sentence. The ground for "no new ADR" is D4's verbatim ruling (*"they may not grow and converge to the empty form on touch"*), which is sufficient on its own. The sentence stands as written (ADR 0105); the hub line was replaced.
+
 **Scope mapped (Explore, conclusions only):** nothing pins the four's `search_path` except `420` and
 the freeze artifact — `271/274/276/277/280` are behavioural only, `413` names none of them, the
 enforcement manifest and both generated surfaces carry no `search_path` column. The complete moving
