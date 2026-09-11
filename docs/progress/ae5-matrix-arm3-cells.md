@@ -211,3 +211,82 @@ answers about the wrong head") was tested against the three candidate homes and 
   value that tracks reality by being edited is not an assertion"*).
 ⇒ recorded here, in full, with the measurement that produced it. ⛔ A future session finding this
 should not re-file it as a lesson or a rule without first supplying the enforcer that both bars want.
+
+### 2026-09-10 — arm 3 derived against the live catalog; a live unmasked grant found (lead + backend)
+
+`backend` derived the arm; ⛔ the two load-bearing measurements were **re-run by the lead with its own
+SQL** rather than accepted — the teammate's numbers are cited only where the lead reproduced them.
+
+**Arm 3 reduces to `content ∧ deliberation`.** `app.can_read_case_committee(c,u)` =
+`can_read_case ∧ ¬is_oversight_only_reader`, which collapses to `C ∧ ¬(C ∧ ¬D) = C ∧ D`; both bits
+come from `app._case_caps`, so `_case_caps` **is** arm 3's whole gate.
+
+**Axis dependence, from the live bodies:**
+- **(a) organization — NO term. ADR 0175 D3 CONFIRMED, not assumed.** Every tenancy term in
+  `_case_caps` anchors on the CASE (`cases.commission_id`); `trg_assert_participant_same_org_as_case`
+  binds `cases.organization_id = participants.organization_id`, and ⛔ **nothing** binds
+  `professional_profiles.organization_id` to either. Proven by rolled-back probe with the trigger
+  ACTIVE: an org-B profile on an org-A case gives `ARM1=f ARM2a=f ARM2b=f ARM3=t WHOLE=t`.
+- **(b) account state — YES. ⭐ The lead's sharp worry is REFUTED.** `_case_caps` **STEP 2** is
+  `if not app.is_active(p_uid) then return 0`, verified in `pg_get_functiondef` at `:23-24`.
+  ⇒ suspended and deactivated principals close arm 3 outright. ⚠ **But `pending` is not an
+  `is_active` state**: `app.is_active` reads only `profiles.is_active` and `suspended_until` — ⛔ no
+  `email_confirmed_at` — while `403` models `pending` as `email_confirmed_at is null`. ⇒ arm 3 is
+  **fully reachable on all 54 `pending` cells**.
+- **(c) active_context — PARTIAL, and this is the finding.** S1/S5/S6/S7/S8 route through
+  `has_role`/`has_role_any`/`holds_role`, each ending `… or <role> is not distinct from
+  app.active_role()`. ⛔ **S3 (`case_access_grants`) and S4 (case assignment) contain no role lookup
+  at all** ⇒ arm 3 survives **any** hat, including an absent one.
+- **(d) self_check — no syntactic term**; one data-conditional correlation through
+  `app.is_case_respondent` (role key `respondent_doctor`, joined on `prof.user_id = p_uid`).
+
+**⛔ Two corrections to the lead's own brief, from the teammate, both accepted.** (1) In `403`
+`self_check` is **not** *"subject == caller"* — it is *"the `p_uid` argument == `auth.uid()`"*; the
+gate is always called as `can_read_professional_profile(<prof>, v_principal)`, and under `not p_self`
+the hat term is **vacuously satisfied**, which is exactly why `other_role|third_party` expects GRANT
+while `other_role|self` expects DENY. Under `not p_self` a cell's `active_context` label is
+**decorative** (the caller's hat is hardcoded `quality_reviewer`). (2) Both live call sites pass
+`auth.uid()`, so the hat does bind in production.
+
+**⭐⭐ A LIVE, UNMASKED ARM-3 GRANT ON THE UNTOUCHED SEED — reproduced by the lead, own SQL, in a
+rolled-back transaction, claims set so `auth.uid()` and `app.active_role()` bind.** Subject profile
+`fb000000-…-00e1` (org `0c00…000a`), caller `chefe.ccih@test.local` (`…0002`):
+
+| hat | whole_fn | arm1 | arm2a | arm2b | arm3 |
+|---|---|---|---|---|---|
+| `staff_admin` | **t** | f | f | **t** | t |
+| `staff` | **t** | f | f | **f** | **t** |
+| *absent* | **t** | f | f | **f** | **t** |
+
+⇒ with no hat at all, three arms deny and **arm 3 alone answers `true`**. The reach is **S3**, not
+S1: case `ca00…e1` is `explicit_grants_only` and chefe holds one live `case_access_grants` row; at
+hat `staff` caps drop 111 → 6 while arm 3 stays true. ⚠ At `staff_admin`, **arm 2b also grants**, so
+arm 3 is **masked** there — a differential written at that coordinate passes with arm 3 broken, which
+is precisely what the manifest's `:1240` warned and what makes *"exercised, not oracled"* concrete.
+⛔ Method stated: measured as `postgres` against the **function's answer**, not over the PostgREST
+hop; the door is DEFINER and traverses base tables by design, so the hop is not what is in question.
+
+**The classes, DERIVED — count first: FIVE, of which THREE diverge; 78 of 216 cells.**
+`108 + 30 + 36 + 32 + 10 = 216` ✓ — a partition, not a sample.
+
+| # | Class | Predicate | Cells | Diverges |
+|---|---|---|---|---|
+| 1 | Structurally blocked | `state ∈ {suspended, deactivated}` ⇒ STEP 2 returns 0 | 108 | no — ⛔ *and unreachable by any fixture* |
+| 2 | Agrees but masks | `state ∈ {active, pending}` ∧ `expected_granted = true` | 30 | no — but arm 3 keeps them green for an arm they do not name |
+| 3 | **DIVERGENT · not-a-holder** | `state ∈ {active, pending}` ∧ `persona = unprivileged` | **36** | **yes** — S3/S4 need no role and no hat; the only class that diverges at `active_context = absent` |
+| 4 | **DIVERGENT · cross-org** | `state ∈ {active, pending}` ∧ (`cross_org_actor` at own/sibling [16] ∨ holder at `foreign_org_commission` [16]) | **32** | **yes** — proven live |
+| 5 | **DIVERGENT · wrong-hat self** | `state ∈ {active, pending}` ∧ `self_check` ∧ `active_context = other_role` ∧ holder persona | **10** | **yes** — denied *only* by the hat term, which S3 ignores |
+
+⚠ Class 1's 108 cells are **unreachable by any fixture**, so a participation fixture can never make
+them speak — ⛔ they must not be counted as coverage.
+
+**The proposed axis:** `case_reach ∈ {none, role_keyed, grant_keyed, unreachable}`, predicate *"the
+subject profile is a live participant on some case, and the caller holds both `read_case_content` and
+`read_case_deliberation` on that case"* — neither conjunct is a function of any swept axis except
+`is_active`. `grant_keyed` (S3, hat- and role-free) is the divergence generator. ⭐ `unreachable` is
+**mandatory**: without it every deny cell is satisfied by an **empty join** rather than by
+`_case_caps`, which is the *"keystone that could not fail"* shape LESSONS opens with. 216 × 4 = **864**.
+⇒ existing `scope` already selects the cross-org profile, so no second axis is needed.
+
+⭐ **Classes 3 and 5 are demonstrable TODAY on the untouched seed** (the table above is class 5's
+shape); only class 3's `unprivileged` persona and class 4's cross-org coordinate need new data.
