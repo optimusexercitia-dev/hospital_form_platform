@@ -553,8 +553,9 @@ state and did not claim to; the argument is about which ref moved, not about the
 **Resume.** A fresh session pulled `origin/authz-ae5-matrix-arm3-cells` (18 commits over `44f69ff6`) and
 read the hub's *Next* as the work list: retire the manifest qualifier **because** `403` oracles arm 3,
 close ADR 0175 D3 at its source, append the authz seam's slice and replace its `## Current state`, then
-the gate. ⚠ The live handoff (`docs/handoffs/pre-ae5-successors-2026-09-10.md`) predates this unit's
-open and still says *"nothing is mid-flight"*; the hub, not the handoff, was the resume point.
+the gate. ⚠ The live handoff in `docs/handoffs/` (the Batch-10 successor handoff, dated 2026-09-10)
+predates this unit's open and still says *"nothing is mid-flight"*; the hub, not the handoff, was the
+resume point. ⛔ Its path is deliberately not cited: gate 13 reds on a handoff citation from a record.
 
 **Rebased onto `main` first** — `main` had moved one commit (`ad9ffb21`, Batch 10's push record) past
 the branch base. 19 commits replayed; **one conflict**, `docs/plans/pre-ae5-remediation.md` §2 row 10:
@@ -622,3 +623,49 @@ note. The follow-up was checked by gate 13 alone afterwards; the full chain re-r
 **Not done here, on purpose:** the hub's `## Current state` (last edit of the round, after the gate);
 the PROGRESS.md line (none owed — see the second documentation pass); any edit to `403`, the vectors'
 cells, `src/**`, migrations or the seed.
+
+### 2026-09-11 — GATE AT THE TIP `29422327`, run by the lead (not the builder), detached, every rc read bare (lead)
+
+Driver: a detached Git-Bash process writing one `<step>.rc` + `<step>.log` per step (scratchpad
+`tipgate-29422327/`), a Monitor on the driver log; ⛔ the tree FROZEN for the run — `git status
+--porcelain` **empty before and after**. Shell: **GNU bash 5.2.37(1)-release (x86_64-pc-msys)** — quoted
+because the SELFTEST verdict is shell-dependent (Batch 9 R14). `main` = `ad9ffb21` (rebased onto it
+this session); `git diff --name-only main..HEAD` touches **no** `supabase/migrations`, **no** `src/**`,
+**no** seed.
+
+| step | rc (bare) | witness |
+| --- | --- | --- |
+| `npm run lint` | ⛔ **1** | 17 gates reached, eslint 0/0; **gate 13 (`lint:registers`) RED on my own record entry** — `[HANDOFFS] … cited from docs/progress/ae5-matrix-arm3-cells.md:556 — a handoff may not be cited`. Docs-shape only; fixed in the commit after this entry and lint re-run bare at that tip — see below. Gate 16's `[D]` 160 KB WARN printed, non-fatal, already filed. |
+| `npm run typecheck` | **0** | |
+| `npm run test` | **0** | `Test Files 154 passed (154)` |
+| `supabase db reset --local` (×2, before `test:db` and before the arms) | **0 · 0** | |
+| `npm run test:db` | **0** | `Files=267, Tests=9023` · `Result: PASS` · `All tests successful.` · 0 `not ok` (baseline before this unit 267 / 9019; the increase is `403`'s four added assertions, `plan(23)` → `plan(27)`) |
+| `ARM=census` | **0** | `gates carrying a verdict: 608` · `=== INVARIANT HOLDS ===` (608 unmoved — this unit adds no gate) |
+| `ARM=hat` | **0** | `HAT-BLIND SWEEP HOLDS: 4 finding(s), all reasoned-allowlisted` |
+| `ARM=floor` | **0** | `=== INVARIANT HOLDS ===` |
+| `FROMFINDINGS=1 ARM=wrapper` | **0** | `=== INVARIANT HOLDS ===` |
+| `SELFTEST=1 door-sweep-cases` | **0** | `SELF-TEST: PASS 46 · FAIL 0 · SKIPPED 0` · `--- GROUP deriver: scenarios 20 (pass 20 · fail 0 · skipped 0)` · `--- GROUP merge helper: scenarios 18 (pass 18 · fail 0 · skipped 0)` · `--- GROUP audit startup capture: scenarios 8 (pass 8 · fail 0 · skipped 0)` |
+| `SELFTEST=1` door harness (`p0-authz-door-audit.sh`) | **0** | its own control table all `ok`, last rows `shape MOVED + FAIL -> NOTICED` · `shape MOVED + PASS -> ERROR` · `Dubious only + FAIL -> NOTICED` |
+| deriver `ARM=read main` | **3** | `=== RESULT: NOT-APPLICABLE (3) — no migration file in the diff. ===` — stdout EMPTY (0 bytes) |
+| deriver `ARM=write main` | **3** | same RESULT line, stdout EMPTY |
+| door sweep, both arms | — | ⛔ **NOT RUN, by the deriver's exit 3** — the diff carries no migration, so there is no case list to sweep; the driver refuses to sweep on any rc but 0 with a non-empty list. This is the *no gate changed* claim, ruled from the deriver's own exit, never judged by eye. |
+| set-valued targeted home | **0** | `ARM-DOMAIN setvalued=3/3 (in scope) out-of-scope=2 (named, with dispositions)` · `=== RESULT: CLEAN — 3 resolver(s) measured, all COVERED. ===` |
+| findings files | — | `git diff --stat -- docs/reviews/authz-door-audit-findings.md docs/reviews/authz-writepath-audit-findings.md` **EMPTY** |
+
+**The deriver's `SCOPE:` line, quoted verbatim (identical on both arms):**
+
+```
+SCOPE: 0 file(s) — 0 committed (main..HEAD), 0 worktree, 0 untracked | filter: none | derivation: NOT REACHED (this run ended before the catalog was probed)
+```
+
+⚠ `derivation: NOT REACHED` is the exit-3 form — the catalog was never probed because there was
+nothing to derive from — ⛔ not a `PROVISIONAL` derivation and not a stack-down run (the four arms and
+the set-valued home ran against the same fresh stack seconds earlier).
+
+**E2E (`npm run e2e:prod`) — ruled NOT OWED, stated for QA to confirm or refuse:** the diff over `main`
+touches no `src/**`, no migration, no seed and no `e2e/**`; the app the prod build would exercise is
+byte-identical to the one Batch 10 gated green (38/38 on the prod build, 2026-09-10). Precedent:
+`AE5-OPENING-ADR` (docs + vectors, same shape) ruled the same with QA's agreement.
+
+**`lint` re-run bare at the tip that carries this entry and the reworded line:** see the next entry's
+first line — a figure typed here before the run would be the defect the record exists to avoid.
