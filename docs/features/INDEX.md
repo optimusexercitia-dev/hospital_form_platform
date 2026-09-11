@@ -12,10 +12,11 @@
 > A hub's `## Current state` is its summary; its progress record's `## Session log`
 > (`docs/progress/<code>.md`) is its detail (ADR 0186 D3).
 
-**24 hubs** · in progress 0 · gated 3 · planned 2 · parked 0 · complete 19
+**25 hubs** · in progress 1 · gated 3 · planned 2 · parked 0 · complete 19
 
 | ID | Title | Status | Kind | Program | Branch | Hub |
 |---|---|---|---|---|---|---|
+| AE5-SUCCESSOR-ADRS | The two pre-AE5 successor ADRs written — the role-catalog decision (F7 · F8 · platform_role, reserved as 0202) and the two conventions (the D fan-out · search_path, reserved as 0204) — renumbered to highest-on-any-live-branch + 1 by PO ruling, each decision ruled by the PO on 2026-09-11 and every cited fact re-verified before it is written | 🟢 in progress | feature | AUTHZ | `authz-ae5-successor-adrs` | [ae5-successor-adrs.md](ae5-successor-adrs.md) |
 | BACKEND-STATE-CURRENT-STATE | Backend seams get a replaceable current-state layer — a projection above the frozen history, gated in four checks (ADR 0198) | 🚧 gated | feature | DOCS | `backend-state-current-state` | [backend-state-current-state.md](backend-state-current-state.md) |
 | BACKEND-STATE-SPLIT | Backend surface map split onto the module-seam axis — a router replaces the 742 KB reading list (ADR 0196) | 🚧 gated | feature | DOCS | — | [backend-state-split.md](backend-state-split.md) |
 | DATA-ACCESS-GENERATION | Data-access registries generated from the catalog — four hand-maintained tables replaced by a derive-and-compare pair, gated in two halves (ADR 0197) | 🚧 gated | feature | DOCS | `data-access-generation` | [data-access-generation.md](data-access-generation.md) |
