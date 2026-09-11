@@ -29,43 +29,43 @@ one commit, exactly as they did at the 2026-09-09 split.
 Figures below were measured at the ruling and are **re-measured at the first session** — the gate's
 own line, the `awk` byte sum, and gate 11's parsed-key count are the baselines, never these numbers.
 
-- [ ] **Baselines taken before anything moves.** Gate 16's `[D]` line for `authorization-and-audit.md`
+- [x] **Baselines taken before anything moves.** Gate 16's `[D]` line for `authorization-and-audit.md`
       (160.4 KB at the ruling); the byte sum of the frozen slice `## Service-role DML registry (AE1.4 …)`
       (40,694 at the ruling; groups A–H + Summary, 13 outbound links, all to
       `../design/authz-ae1-rpc-rulings.md`); gate 11's parsed identity-key count, read from its own output.
-- [ ] **The new seam file** `docs/backend-state/service-role-dml.md` — a digit-free noun (README
+- [x] **The new seam file** `docs/backend-state/service-role-dml.md` — a digit-free noun (README
       § When you must touch it, row 4). It carries the shared preamble **byte-identical** to its
       siblings (gate 16 check A/C), a `## Current state` block printed by
       `node scripts/check-backend-state.mjs --scaffold` and filled **from the moved slice's own
       sentences** (README § The four rules a gate CANNOT enforce), then the frozen slice **verbatim**:
       the moved region diffs byte-empty against the region cut from the old file.
-- [ ] **The old file keeps a forward pointer, not a hole.** In `authorization-and-audit.md` the slice's
+- [x] **The old file keeps a forward pointer, not a hole.** In `authorization-and-audit.md` the slice's
       heading stays as a stub carrying the rule-2 marker form
       `⚠ **Superseded** — moved to its own seam. See service-role-dml.md § Service-role DML registry …`
       (gate 16 reds if the named file or heading does not exist), so a reader who navigates by that
       heading is sent on, not stranded. Its `## Current state` block is **re-cut**: the registry bullets
       become one pointer, `**Updated:**` re-stamped, and the block **shorter** than before (97 lines at
       the ruling) — a cut of paraphrase, never of a bound.
-- [ ] **The router re-pointed.** `README.md` gains a row for `service-role-dml.md` ("touch a
+- [x] **The router re-pointed.** `README.md` gains a row for `service-role-dml.md` ("touch a
       service-role write, `createAdminClient()`, or a row gate 11 diffs"), the authorization row loses
       *a service-role write*, and § The seam axis's file-count sentence is re-measured (it is
       arithmetic the split itself once corrected).
-- [ ] **Gate 11 follows the section.** `DOC`, the header comment and the help text in
+- [x] **Gate 11 follows the section.** `DOC`, the header comment and the help text in
       `scripts/check-service-role-registry.mjs` name the new file; gate 11 then parses the **same**
       key count as the baseline (zero keys is its own FATAL — the detector cannot pass on nothing).
       ⛔ `FUP-BACKEND-STATE-SPLIT-GATE-12-RESOLVES-FROM-CWD` stays untouched.
-- [ ] **Every citation of the section re-pointed** (ADR 0196 D10: a pointer is not a historical
+- [x] **Every citation of the section re-pointed** (ADR 0196 D10: a pointer is not a historical
       claim): `docs/lint-gates.md` gate-11 line; `docs/followups/FUP-SERVICE-ROLE-WRITE-SITES-NO-GUARD-VANISH-TEST.md:9`;
       and whatever a run of `grep -rn "authorization-and-audit.md" --include=*.md` finds that names
       the **registry** (the privilege-budget citations in `CONTEXT.md` stay — that noun does not move).
-- [ ] **The link check is RUN and PROVEN ABLE TO FAIL** (LEARN-090; a detector that finds nothing
+- [x] **The link check is RUN and PROVEN ABLE TO FAIL** (LEARN-090; a detector that finds nothing
       must be shown able to find something): gate 16 check F and gate 13's shared checker green on the
       tree, then one link inside the moved slice mutated on a scratch copy and F observed red, then
       restored and green — both readings bare, recorded in the record.
-- [ ] **The decision written down**: an ADR **Amends 0196 D1** (a twelfth domain seam) and applies
+- [x] **The decision written down**: an ADR **Amends 0196 D1** (a twelfth domain seam) and applies
       D4's remedy for the first time, numbered *highest on any live branch + 1* re-measured at
       reservation — 0206 at open; ⛔ never 0202 or 0204 (reserved); `npm run adr:index`.
-- [ ] **Gate**, every rc read **bare**: `npm run lint` 0/0 (gates 11, 13, 16 inside it) with gate 16
+- [x] **Gate**, every rc read **bare**: `npm run lint` 0/0 (gates 11, 13, 16 inside it) with gate 16
       printing **no `[D]` warning** on `authorization-and-audit.md`; `npm run typecheck`;
       `git diff --stat main -- supabase/migrations src` **empty**. `test:db` and `e2e:prod` are not owed
       (no SQL, no UI) — stated, not skipped silently.
@@ -84,19 +84,32 @@ rather than by eye.
 
 ### Done since start
 
-Unit opened on branch `backend-state-service-role-seam` from `main` at `3c66efb6`; the CLAUDE.md
-review queue on this clone processed at open (four entries, zero doc fixes — record § Session log).
-Nothing moved yet.
+**Built and gated; nine of ten boxes ticked.** The frozen slice moved to
+`docs/backend-state/service-role-dml.md` **verbatim** — the region cut from `main` diffs byte-empty
+against the region in the new file, rc 0. The new file's preamble is byte-identical by
+CONSTRUCTION (extracted, not retyped); its `## Current state` block was printed by `--scaffold` and
+filled from the slice's own sentences. The old file keeps the heading as a stub with a rule-2
+forward marker naming file **and** heading, its block re-cut **shorter** with the registry bounds
+relocated (deleted whole, restated in the new seam) rather than compressed. Gate 11 moved in the
+same commit at all three sites and parses the **same** row count as the baseline. Router row added,
+*a service-role write* removed from the authorization row, the seam-axis arithmetic re-measured from
+the directory listing with the counted population now stated. Two pointers re-pointed, historical
+claims left alone, `CONTEXT.md`'s privilege-budget citations untouched. ADR 0206 written
+(`**Amends:** 0196`) and the index rebuilt. Figures, queries and the ⚠ frozen 44-vs-45 inconsistency
+that travelled with the slice: record § Session log.
 
 ### In progress
 
-The first build session: baselines, the move, gate 11, the router, the ADR.
+Nothing. Awaiting review.
 
 ### Next
 
-Gate at the tip run by someone other than the builder; QA review; human approval; Record step and
-the follow-up's close.
+Gate at the tip run by someone other than the builder; QA review (read-only, docs-and-gate scope);
+human approval; Record step, where the lead closes
+`FUP-AE5-MATRIX-ARM3-CELLS-AUTHZ-SEAM-CROSSED-ITS-WARN-LINE` in both homes and fills the commit sha
+into the `**Landed (pending QA)**` line already in its body.
 
 ### Blockers
 
-None.
+None. ⛔ `test:db` and `e2e:prod` are **not owed** — no migration, no RLS, no `src/`, no UI; the
+empty `git diff --stat main -- supabase/migrations src` is that claim's evidence, and it was run.

@@ -41,3 +41,10 @@ moved text). ⚠ Until then, every further append to this file owes a paraphrase
 **Origin.** Filed at unit `AE5-MATRIX-ARM3-CELLS`'s Record-step preparation (the authz seam slice
 for the arm-3 oracle); full record:
 [`docs/progress/ae5-matrix-arm3-cells.md`](../progress/ae5-matrix-arm3-cells.md).
+
+**Landed (pending QA):** 2026-09-11, unit `BACKEND-STATE-SERVICE-ROLE-SEAM`, branch
+`backend-state-service-role-seam`, ADR
+[0206](../decisions/0206-the-service-role-dml-registry-gets-its-own-seam.md) — commit sha to be
+filled by the lead at the Record step (a commit cannot cite its own sha). Gate 16 prints no `[D]`
+line on `authorization-and-audit.md`; the moved slice's links were checked by a run and the check
+proven able to fail. ⛔ **This entry stays OPEN** until QA and human approval; the lead closes it.
