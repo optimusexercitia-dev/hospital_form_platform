@@ -74,7 +74,14 @@ deleting an assertion is the honest move rather than the convenient one.
 
 **D3 — 403 calls the real door now; arm 3's org-scope divergence is ruled in AE5, not AE4.**
 `app.can_read_professional_profile` is a three-arm disjunction: `is_admin()` ·
-`can_create_professional` · a case-committee traversal. 403's driver substituted a simpler
+`can_create_professional` · a case-committee traversal.
+⚠ **CORRECTED 2026-09-11 (unit `AE5-MATRIX-ARM3-CELLS`, read from the LIVE catalog at head pair
+`(20261003007390, 528)`): TWO OF THOSE THREE NAMES ARE DEAD.** The live door is **four grant terms in
+three arms** — `app.is_admin_for` · `app.can_manage_professional` · `authz.has_permission` ·
+`app.can_read_case_committee`. `is_admin()` became subject-keyed `is_admin_for` (ADR 0200), and
+`can_create_professional` was **inlined away** by the AE4.9 re-key into the two middle terms. ⛔ The
+arm-3 claim below is untouched by this and was re-confirmed by probe. ⛔ This marker corrects the
+enumeration only; it does **not** close D3. 403's driver substituted a simpler
 function, so arms 1 and 3 were never exercised (F3). Arm 3 grants with **no org term at all** —
 a professional participating in a readable case is readable regardless of their organization.
 403 is fixed to call the real door immediately; the **expected values for the divergent cells
@@ -117,7 +124,13 @@ The disposition is therefore **DOWNGRADE, not close**.
 ## Consequences
 
 ⛔ **The load-bearing one, owed to the Gate AE4 record:** after D3, arms 1 and 3 are *exercised*
-but their divergent cells are **not oracled**. Exercised ≠ oracled. The sentence *"the
+but their divergent cells are **not oracled**. Exercised ≠ oracled.
+⚠ **NARROWED 2026-09-11 — this now applies to ARM 1 ONLY** (unit `AE5-MATRIX-ARM3-CELLS`,
+`81fa1770`). **Arm 3 IS oracled**: `403` §7.3 was replaced by the whole `grant_keyed` column with an
+approved value per partition, §7.3b measures all four reaches, §7.4 pins a filed defect and §7.5
+guards it — and PO ruling **R2** supplied the expected values (36 + 32 approved as designed reach,
+10 ruled a bug). ⛔ **Arm 1 remains exercised-but-not-oracled** and `403` §7.2 still bounds it by
+fixture, so the qualifier this sentence demands at Gate AE4 is **still owed — for arm 1.** The sentence *"the
 differential is green"* may not be written at Gate AE4 without that qualifier beside it, in the
 same way the C2 and `PRED_DOMAIN` qualifiers already ride with "all arms HOLD".
 

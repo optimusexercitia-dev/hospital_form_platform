@@ -1193,6 +1193,30 @@ inside a role increment.
    is encoded as *hard restrictions* in the resolver, mutation-proven, before the role flips
    `authoritative`.
 
+⚠⚠ **BEFORE INCREMENT 1 COPIES THIS TEMPLATE — read what unit `AE5-MATRIX-ARM3-CELLS` changed
+underneath it (2026-09-11).** That unit was named here as due *"before increment 1 runs its matrix"*
+and it has run; ⛔ the checklist below still describes the **pre-unit** differential shape, and a
+session that copies it verbatim will build a matrix that cannot see a whole class of divergence.
+What moved, in the generated-cell differential step specifically:
+- the vector gained a `case_reach` axis (`none · role_keyed · grant_keyed · unreachable`) — ⭐
+  `unreachable` is **mandatory**: without it a deny is satisfied by an EMPTY JOIN rather than by the
+  predicate, the *"keystone that could not fail"* shape;
+- it gained an `arm3_divergence` **label** column and a **14th** `expected_legacy_granted` column —
+  ⛔ approved legacy-door divergence goes in the **latter**, never in `expected_granted`, which is
+  compared against `authz.candidate_has_permission` and is **right** to deny where a legacy arm
+  grants for a reason the catalog has no mechanism for;
+- coverage arms **`arm9`** (binds the swept gate set to the manifest's `openArms` on every run) and
+  **`arm10`** were added, and the self-test runner now asserts **which** arm fired — a wrong-arm
+  catch used to score as a pass (LEARN-103);
+- the vector is **1728** cells, not 1080; a named skip rule holds `caseReach` to the one gate whose
+  door has a case arm.
+⇒ a role whose door carries a **non-permission arm that no axis varies** owes the same treatment:
+derive the arm, give it a coordinate, label the cells, and take a PO expected value **per class**.
+⛔ The ordinal in the line above (*"increment 1 is `staff_admin`"*) disagrees with this section's own
+Proposed order, which numbers from `staff` —
+`FUP-AE5-MATRIX-ARM3-CELLS-INCREMENT-ONE-NAMES-TWO-DIFFERENT-ROLES` holds it; ⛔ do not resolve it by
+picking whichever reading suits the increment you are opening.
+
 **Per-role checklist (the AE4 template, abbreviated):** matrix derived from all planes (both
 helper-name forms swept) → PO approves → seed → generated-cell differential under the
 [PA-F8] diff rule → atomic wrapper cutover (to `holds_role`, layer 1) → **re-key the

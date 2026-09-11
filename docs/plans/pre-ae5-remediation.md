@@ -404,7 +404,11 @@ through. Needs its own reachability analysis; a migration → diff-scoped sweep,
 >      1 runs its **matrix**, ⛔ **not** before its **template** is written — that is the real
 >      dependency. ⚠ It is **WORK, not a decision**: the enumeration measurably does not exist
 >      (`authz_differential_cells.psql` holds 216 `org.professionals.read` rows, `grep -c divergent`
->      = **0**), and ADR 0175 D3's *"the arm-3 cells **arrive** already enumerated"* is a **forward
+>      = **0**) — ⚠ **SPENT 2026-09-11: the unit ran.** The vector holds **1728** cells, the rep
+>      **864**, every cell labelled, and `403` oracles arm 3; ⛔ the *"WORK, not a decision"* ruling and
+>      the forward-promise reading below are **unaffected** — and ⛔ this file was edited on that unit's
+>      branch (§2 row 10) while this line was left stale, which is how a measurement outlives its
+>      subject. ADR 0175 D3's *"the arm-3 cells **arrive** already enumerated"* is a **forward
 >      promise nothing discharges** — ⛔ not a completion claim, and not to be quoted as one.
 >    - **Item 6 (the per-role checklist) → IN**, as five **lead** pointer lines at
 >      `docs/plans/authz-evolution.md` § Per-role checklist. Measured before adding: it carried

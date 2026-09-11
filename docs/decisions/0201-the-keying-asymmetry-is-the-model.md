@@ -432,7 +432,12 @@ obligation, which is where increment 1 should look first.
   not a completion claim — *"the arm-3 cells **arrive** already enumerated and already known to
   diverge"* — and the enumeration is measurably absent:
   `supabase/tests/vectors/authz_differential_cells.psql` holds **216** `org.professionals.read` rows
-  and **0** occurrences of `divergent`. Routed to unit **`AE5-MATRIX-ARM3-CELLS`** (PO ruling R9),
+  and **0** occurrences of `divergent`. ⚠ **RE-MEASURED 2026-09-11 — the measurement above is SPENT,
+  the clause it supports is NOT.** That unit ran: the vector now holds **1728** cells, the
+  `org.professionals.read` rep **864** (216 × the new `case_reach` axis), and every one carries an
+  `arm3_divergence` label; `403` §§4.1b/7.3b/7.4/7.5 oracle arm 3. ⛔ *"Routed to a unit"* and *"it
+  does not discharge ADR 0175 D3"* both still stand — D3's own closure is deliberately still open.
+  Routed to unit **`AE5-MATRIX-ARM3-CELLS`** (PO ruling R9),
   due before AE5 increment 1 runs its **matrix** — ⛔ not before its template is written.
 - It does not touch the classification columns, `authz.roles`' `administrativo` row, the
   `platform_role` retirement or F7 — and by PO ruling R7 those four split across **two** homes, ⛔

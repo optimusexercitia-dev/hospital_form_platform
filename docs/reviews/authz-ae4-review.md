@@ -99,6 +99,16 @@ entirely; §2.3 asserts the *label* column, not the door. Fix: call the real doo
 class 3. Where arm 3 legitimately grants beyond `org.professionals.read`, that is a
 FINDING for the AE5 matrix — record the divergent cells with their own expected
 values, never substitute the subject.
+⚠ **DISCHARGED FOR ARM 3 ON 2026-09-11 — unit `AE5-MATRIX-ARM3-CELLS` (`81fa1770`).**
+The divergent cells now have their own expected values, in a 14th vector column
+`expected_legacy_granted`, asserted by `403` §§4.1b/7.3b/7.4/7.5; the subject was
+never substituted. PO ruling **R2**: 36 (reach via explicit grant) + 32 (cross-org)
+**approved as designed reach**, 10 ruled a **defect** and filed as
+`docs/bugs/BUG-AE5-MATRIX-ARM3-CELLS-CASE-GRANT-ARM-MAKES-THE-HAT-TERM-UNENFORCEABLE.md`.
+⛔ **ARM 1 IS STILL OUTSIDE** — §7.2 bounds it by fixture, not by oracle, so this
+finding stays open on arm 1. ⚠ The 3-arm enumeration above is also stale on the same
+ground as ADR 0175 D3: the live door is **four** grant terms — `app.is_admin_for` ·
+`app.can_manage_professional` · `authz.has_permission` · `app.can_read_case_committee`.
 
 **F4 🔴 An approved axis value is silently dropped — and the arm built to catch it
 cannot fire.** `gen-authz-differential-cells.py:22` hardcodes 4 principal states;
@@ -258,7 +268,9 @@ authorise a historical-snapshot audit from this phase.
    already-specced catalog-completeness and wrapper-coverage arms. Fold the
    PUBLIC-EXECUTE revoke in here.
 3. **PO batch, one sitting:** F2 (the split-before-cutover conflict — the blocking
-   one), F4's offboarded expected values, F3's arm-3 divergence disposition, the two
+   one), F4's offboarded expected values, ~~F3's arm-3 divergence disposition~~ (⚠ **TAKEN
+   2026-09-11 — PO ruling R2**, unit `AE5-MATRIX-ARM3-CELLS`; ⛔ arm **1**'s disposition is
+   untouched and still owed), the two
    remaining FUPs.
 4. **AE4.8** unchanged, then Gate AE4 = §6 + e2e:prod re-run to an actual green +
    QA review + PO approval.

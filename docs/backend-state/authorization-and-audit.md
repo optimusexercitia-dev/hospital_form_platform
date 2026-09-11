@@ -695,6 +695,8 @@ in both directions. Home: `supabase/tests/vectors/authz-enforcement-manifest.jso
 
 ⚠ **Superseded** — the `app.can_read_professional_profile` row's `is_admin` arm below is now `is_admin_for`; the arm did not retire, only the principal it evaluates changed (ADR 0200). See authorization-and-audit.md § Subject-keying of the professional-identity predicates.
 
+⚠ **ALSO SUPERSEDED, AND THE MARKER ABOVE DOES NOT COVER IT (appended 2026-09-11, unit `AE5-MATRIX-ARM3-CELLS`)** — the same row below lists **THREE** residual arms and the live door has **FOUR grant terms**. Read from the live catalog at head pair `(20261003007390, 528)`: `app.is_admin_for` · `app.can_manage_professional` · **`authz.has_permission`** · `app.can_read_case_committee`. The AE4.9 re-key inlined `can_create_professional` into the two middle terms; the marker above moved only the FIRST name and left the missing FOURTH unremarked, so the row has understated the door's reach since that re-key. ⭐ The same omission was found and fixed the same day in the enforcement manifest's `openArms` — ⇒ it was a **two-home** drift and only the emitted, gated half was ever right. ⛔ Appended, never edited in place (README § Maintenance rule 1); this unit's own slice is a **Record-step** obligation and is NOT written yet.
+
 A re-keyed authorizer is **not** purely permission-keyed. Each retains the non-permission arms that
 granted before, so legacy equivalence holds for principals whose roles are still `legacy` (and
 whose `authz.role_permissions` rows are therefore **inert** — 401 §16.9b):

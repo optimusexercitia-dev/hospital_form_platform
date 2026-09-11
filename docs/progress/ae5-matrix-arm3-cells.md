@@ -457,3 +457,77 @@ JSON (it still claimed the fixture had no participation), moving the axes sha �
 regenerated, **exactly one line each** (`sourceSha256`). Generator gained **arm10**; its first fixture
 reported `NOT CAUGHT` because it rewrote a cell to the value it already had — ⭐ caught and fixed,
 the same wrong-fixture family as LEARN-103.
+
+### 2026-09-11 — second documentation pass: eleven homes audited, nine corrected (lead)
+
+**Why.** The PO asked for a pass over every home this unit touched. ⛔ The instrument was a
+**diff-driven** audit, not memory: `git diff --name-only main..HEAD` lists 18 paths, and the useful
+half is what is **absent** from it — the authz seam, the unit's own `plan:` target, the QA finding the
+hub calls its *"live home"*, and `PROGRESS.md`. Every claim below was **re-verified by the lead** at
+the cited line before it was patched.
+
+**Found by the lead before the sweep returned, both mine:**
+- ⛔ **The hub's `## Current state` still read "through increment 2"** while increment 3 had landed.
+  Replaced (45 lines, cap 60).
+- ⛔ **`docs/bugs/BUGS.md`'s header claimed 3 per-bug docs; derived = 5** — and it was **already wrong
+  at 4** before this unit added one. ⭐ The header's own text says *"do not trust that figure, derive
+  it"*, and the drift still survived, because nothing summed the three Doc-cell classes. Corrected
+  **with** that check: 48 + 5 + 111 = **164** rows.
+
+**Corrected — statements this unit made FALSE.** Each is an **appended dated marker**; ⛔ no decision
+text was edited in place, and ⛔ none of them closes ADR 0175 D3:
+1. `docs/decisions/0201-…:432-435` — *"the enumeration is measurably absent … **216** rows … **0**
+   occurrences of `divergent`"*. Spent: 1728 cells, the rep 864, every cell labelled.
+2. `docs/plans/pre-ae5-remediation.md:405-407` — the same measurement. ⚠ **This file was edited on
+   this very branch** (§2 row 10) while this line was left stale — which is how a measurement
+   outlives its subject, and is worth more than the fix.
+3. `docs/decisions/0175-…:76` — D3's *"three-arm disjunction: `is_admin()` · `can_create_professional`
+   · a case-committee traversal"*. ⛔ **Two of those three names are dead.**
+4. `docs/decisions/0175-…:119-121` — the **load-bearing** *"arms 1 and 3 are exercised but not
+   oracled"*, owed to the Gate AE4 record. **Narrowed to arm 1 only**; ⛔ arm 1's half is still owed.
+5. `docs/reviews/authz-ae4-review.md:93-101` (**F3**, the hub's declared live home) — had **no**
+   pointer to the unit, the bug, or `403`'s new sections. Appended, and marked that ⛔ **arm 1 is
+   still outside**. Its own 3-arm enumeration corrected on the same ground as item 3.
+6. `…authz-ae4-review.md:261` — still listed *"F3's arm-3 divergence disposition"* as unassigned PO
+   work. **R2 took it**; struck, with arm 1's disposition explicitly left open.
+7. `docs/bugs/BUG-…-UNENFORCEABLE.md` — its Related anchor `403…:612-618` was ⛔ **stale the day it
+   was written**: this same unit replaced §7.3 by ~400 lines and that range now lands inside §4.1b.
+   ⇒ sections are now named, never line-numbered.
+8. `docs/bugs/BUGS.md:201` — Related did not cite the two pgTAP homes built **for this bug**
+   (§7.4 pin, §7.5 guard), so a register reader could not find the pin; and the Scope grain
+   (*"10 of 216"*) was ambiguous beside a 1728-cell vector. Both stated.
+9. `supabase/tests/403_…sql:92` — the RUN SHAPE narrative still read *"864 → 1080"* five lines above
+   a correctly-updated `23 → 27`, under the file's own instruction to keep it in step. ⭐ The rep
+   count (**five**) never moved; what moved is the **axis** count. Marked 1080 → **1728**.
+10. `docs/backend-state/authorization-and-audit.md:706` — the frozen row lists **three** residual arms
+    against the live door's **four**, and the existing superseded marker at `:696` corrects only
+    `is_admin` → `is_admin_for`, ⛔ saying nothing about the missing `authz.has_permission`.
+    ⭐ **The same omission was the manifest `openArms` defect this unit fixed at open** ⇒ it was a
+    **two-home** drift and only the emitted, gated half was ever right. Appended with its own forward
+    marker (README § Maintenance rule 1), ⛔ never edited in place.
+11. `docs/plans/authz-evolution.md` — ⛔ **the unit's own declared `plan:` target had ZERO mention of
+    it**; the defect was the **absence**, not staleness. Its § Per-role checklist still described the
+    **pre-unit** differential shape, so AE5 increment 1 would have copied a template that cannot see
+    this class of divergence. A forward note now names the axis, the label, the 14th column, `arm9`
+    /`arm10`, the 1728 count, and the generalisation: *a role whose door carries a non-permission arm
+    that no axis varies owes the same treatment.*
+
+**⛔ Deliberately NOT done, each with its reason** — ⛔ absence of a diff is not absence of a decision:
+- **`PROGRESS.md`: nothing owed, and adding a line would BE the defect.** It holds only § Phase Status
+  and § State; its own header routes units to `docs/features/INDEX.md`, and gates 7/13 red on a
+  retired section returning. `INDEX.md` already carries the row.
+- **The authz seam's SLICE + `## Current state` replacement stays a RECORD-STEP obligation** (CLAUDE.md
+  §7). ⚠⚠ **A trap for the successor, measured here:** gate 16's check I couples them — a slice headed
+  `2026-09-11` against a `2026-09-10` stamp **reds**, so the slice and the re-stamp must land as **ONE**
+  change. ⚠ And headroom is thin: that block is **96 lines against a 100-line ratchet (4 left)** and the
+  file is **155.1 KB against a 160 KB warn / 200 KB cap** ⇒ the slice will need a **paraphrase pointing
+  at the frozen section**, ⛔ not a bound. Gate 16 at this tip: **exit 0**.
+- **ADR 0175 D3 stays open** — its closure is acceptance criterion 4 and is owed at the gate, not here.
+- **The manifest `qualifier` stays** — it retires *because* `403` oracles arm 3, ⛔ never by editing it.
+- `docs/design/authz-ae43-…:332,:996` describe the door as *"two arms"* — ⛔ **not this unit's home**;
+  already flagged as drifting by a prior unit at `:1235`, and noted only so it is not mistaken for one.
+
+**⚠ A grain correction on this unit's own witness.** The record's increment-3 entry cites
+`Files=2, Tests=28`. That is the **run** figure across `00_setup.sql` + `403`. `403` itself declares
+`plan(27)` and carries **27** assertions — 27 + 1 = 28. ⛔ Both are true at different grains; the
+figure to quote for the suite is **27**, and for the two-file invocation **28**.

@@ -111,5 +111,10 @@ than inside the case-grant arm, which is the first.
 ## Related
 
 Unit [AE5-MATRIX-ARM3-CELLS](../progress/ae5-matrix-arm3-cells.md) · ADR 0175 D3 · the open QA
-finding F3 at `docs/reviews/authz-ae4-review.md:93-101` · `403_ae45_differential_oracle.sql:612-618`
-(§7.3, whose `0` sentinel this unit breaks by design).
+finding F3 at `docs/reviews/authz-ae4-review.md:93-101` (now carrying this bug's pointer).
+
+**Where this bug is PINNED, by section name — ⛔ never by line anchor.** `403` **§7.4** asserts the
+defect head-on and **§7.5** is the class-4 guard on its fix; **§4.1b** is the oracle the carve-out is
+taken out of. ⚠ The anchor this line previously carried — `403_ae45_differential_oracle.sql:612-618`,
+the old `= 0` sentinel — was stale **the day it was written**: the same unit replaced §7.3 by ~400
+lines, and that range now lands inside §4.1b's prose. ⇒ sections are named, not numbered by line.

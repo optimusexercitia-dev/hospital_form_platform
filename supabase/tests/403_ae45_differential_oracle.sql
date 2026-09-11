@@ -90,6 +90,11 @@
 -- assertion that licensed ONE rep covering rows 31 and 32. ⭐ pre-AE5 Batch 10 moves NOTHING here,
 -- and that is worth saying rather than leaving as an absence: a fifth representative adds 216
 -- CELLS (864 -> 1080), which §§4-5 fold into their existing aggregate assertions, and §2.3/§2.3b
+-- ⚠ THE CELL COUNT ABOVE IS SPENT: 1080 -> 1728 at AE5-MATRIX-ARM3-CELLS increment 2. The rep count
+-- is still FIVE and that half stands; what moved is the AXIS COUNT — `caseReach` multiplies the
+-- arm-3 rep alone by 4 (216 -> 864) and a named skip rule holds the other four reps at 216 each,
+-- so 864 + 4x216 = 1728. ⛔ A reader diagnosing a count mismatch against "1080" is reading a shape
+-- two increments old, which is the exact failure the line below warns about.
 -- are RE-RULED rather than added to. A rep is not an assertion. ⛔ Keep this line in step with
 -- plan() — the QA review caught it already claiming 12 against plan(15), and a stale RUN SHAPE is
 -- read as the expected shape by the next person diagnosing a count mismatch.
