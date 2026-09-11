@@ -196,8 +196,12 @@ bare; rc in the commit.
 
 Hub criterion 1. Every fact the PO's rulings cite by location was re-measured before any drafting.
 ⛔ Nothing was drafted in this pass. Live catalog reads only (`docker exec supabase_db_… psql -At`);
-no migration, no `src/`, no reset. **11 of 14 reproduce exactly; 3 differ and are reported to the
-lead before drafting, never silently corrected.**
+no migration, no `src/`, no reset. **10 of 14 reproduce exactly (1 · 2 · 4 · 5 · 6 · 10 · 11 · 12 ·
+13 · 14); 4 DIFFER (3 · 7 · 8 · 9) and are reported to the lead before drafting, never silently
+corrected.**
+⚠ **Correction, same session, 2026-09-11:** the first write of this line said *"11 … ; 3 differ"* —
+a miscount whose parts did not sum (10 + 4 = 14). **Commit `d6659eb4`'s subject carries the wrong
+figure** (*"11/14 reproduce, 3 differ"*) and is left standing as history; this line is the figure.
 
 **1 · The resolver is role-shaped — REPRODUCES, file AND catalog.**
 `sed -n '195,225p' supabase/migrations/20261003007250_ae49_d4_resolver_contract.sql` → `:208` is
