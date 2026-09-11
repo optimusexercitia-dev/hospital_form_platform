@@ -55,12 +55,15 @@ Converge the four temp-table DEFINERs to `search_path = ''` and shrink the 419 f
 
 ### Done since start
 - Branch cut from `main @ b1e9b924`; PO ruling (converge) and scope recorded in the record.
+- AC-1…AC-4 built (`df1976bf`, `cf5856d7`): migration `20261003007420`, freeze 865 → 861 (pure deletion), `420` re-cast red-first, seam slice + Current state.
+- AC-5 step-1 gates green on a fresh reset (`test:db` 269/9046, lint 18 gates, typecheck, vitest, four authz arms, door sweep ruled — record).
+- QA r1 APPROVED (0 BLOCK / 1 MAJOR / 3 MINOR / 3 NOTE), conditioned on `e2e:prod`.
 
 ### In progress
-- `backend` building AC-1…AC-4.
+- `e2e:prod` running; `backend` on the QA r1 fix pass (MAJOR-1 record mechanism, MINOR-2 `420` ordering, MINOR-3 seam paraphrase).
 
 ### Next
-- AC-5 gates, QA review, PO approval, Record step (register entry → archive).
+- `test:db` re-run after the fix pass, PO approval, Record step (register entry → archive; deriver `set <attribute>` follow-up filed).
 
 ### Blockers
 - None.
