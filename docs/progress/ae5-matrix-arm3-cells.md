@@ -169,3 +169,26 @@ their text, yet no edit to them can pass unnoticed either. That matters for crit
 directions — deleting the qualifier is **not** silent (it reds until regenerated), but regenerating
 greens it, so ⛔ the gate still cannot tell a retirement that earned itself from one that did not.
 Gate 12 re-run after regeneration: **exit 0**, `in sync (1080 cells … / 2002 cells … manifest 43 rows)`.
+
+**⭐ The build shape was written into `403` §7.3 by the batch that deferred this work — it is an
+instruction to this unit, and it was found by reading the test rather than the plan.**
+`supabase/tests/403_ae45_differential_oracle.sql:612-618` asserts *"ARM 3 CANNOT GRANT IN THIS
+FIXTURE"* as `count(professional_participants for the two subject profiles) = 0`, and its own message
+says why that number exists: *"⛔ THIS IS THE PO-DEFERRED DIVERGENCE (ADR 0175 D3) … measuring THAT
+needs **a participation fixture plus expected values the AE5 matrix owns**. Until then: exercised,
+not oracled. ⛔ **If this reds because someone added a participation row, do not adjust the number** —
+the arm just became reachable and its cells need approved expected values first."*
+
+⇒ three consequences, none of them optional:
+- The sentinel is a **`0` that this unit is expected to break**, and breaking it is progress, not a
+  regression. ⛔ It may not be renumbered to match a new fixture; §7.3 is **replaced** by assertions
+  that say where arm 3 grants and what the approved answer is.
+- **The order is fixed by the message**: approved expected values come **before** the participation
+  fixture lands, not after. That is the same ordering the hub's criterion 2 states independently.
+- ⭐ This is the **checked consumer** fact 2 said the qualifier retirement needs. The manifest
+  sentence retires because `403` starts oracling arm 3 — not because the sentence was edited.
+
+⚠ §7.2 is the sibling bound for arm 1 (*"no fixture principal is a platform admin"*), and its message
+already states the asymmetry this unit inherits: *"a widening of arm 1 would be caught (catalog would
+not move) and a defect INSIDE arm 1 would not."* ⛔ Recorded, not acted on: arm 1 is out of this
+unit's scope, but the same reasoning applies to it and no row says so.
