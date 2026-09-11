@@ -99,3 +99,71 @@ figures it was filed with**; the census above is what a closure reasons from, an
 is stated, note that `npm run lint` **cannot** host a live-catalog count (no Docker), so a pgTAP
 mirror buys *"the next Phase Gate noticed"*, never *"the next commit noticed"* (ADR 0195) — the ADR
 must say which it delivered.
+
+---
+
+## ⚠ RE-CLAUSED, NOT CLOSED — 2026-09-11 (PO ruling, unit `AE5-SUCCESSOR-ADRS`, ADR 0208)
+
+**Ruling:** written as **ADR [0208](../decisions/0208-the-candidate-fanout-is-structurally-dominated-and-empty-search-path-is-the-sole-forward-convention.md) D1–D3**. The PO's own words on the framing:
+
+> I mostly agree, but I would change "structurally bounded" to "structurally dominated, with the
+> residual risk explicitly accepted."
+> […] But M ≤ |commissions| + 6|hospitals| + 2|orgs| + 1 is not a constant bound. A principal can
+> still be assigned across an arbitrarily growing tenant tree. Therefore "large D is structurally
+> unreachable" would overclaim. What has been proven is that D is not an independent fan-out
+> dimension.
+
+⛔ **BOTH options this entry's *"What would close it"* paragraph offered are REJECTED.** The
+paragraph reads *"Either a stated ceiling on `D` per principal with something that reds when it is
+exceeded, **or** a ruling that the org→hospital→commission tenancy model makes a large `D`
+unreachable in practice"*. A fixture-derived numeric ceiling is the wrong control (a fixture's
+maximum is a description, not a bound), and the *"unreachable"* option overclaims. ⭐ The paragraph
+is kept above exactly as filed, because what changed is which **answer** is admissible, not what the
+item observed — and the superseded option is the one a later reader would otherwise reach for.
+
+**THE NEW CLOSE CONDITION.** This item closes when the **six-clause shape assertion (0208 D2)** lands
+in its named unit **`AE4-D-SHAPE-ASSERTION`** — verbatim from the ruling:
+
+> - Every candidate originates from an entitlement-provider fact.
+> - One fact yields at most one candidate for a fixed resolution kind.
+> - Deduplication occurs before permission confirmation.
+> - The measured confirmation count satisfies U = D ≤ F.
+> - Runtime and candidate resolvers use the same candidate producer and differ only in their
+>   confirmer.
+> - Adding a new provider adapter makes the assertion fail until that provider is included.
+
+⚠ **Clause 5 is true today by DUPLICATION, not by construction.** Measured 2026-09-11:
+`pg_get_functiondef('authz.candidate_authorized_scope_ids(uuid,text,text)'::regprocedure)` carries a
+**byte-identical** candidate CTE to `authz.authorized_scope_ids(uuid,text,text)`, differing only in
+its confirmer. There is **no shared producer function** — there are two copies. ⇒ the assertion must
+**compare the two live bodies**, or the producer must be factored out first; an assertion that merely
+re-states clause 5 in its own words is the hand-written copy of production text LEARN-024 names, and
+ADR 0183 `:114-115` rejects copying the resolver's `CASE` into a harness for exactly that reason.
+The instrument is the existing `scripts/authz-ae4-p2-invocation-count.sql` (0183 D4), which already
+measures confirmations as `authz.has_permission` invocations — the `U` clause 4 needs. ⚠ Its counter
+returns **NULL, not 0**, before a function's first call.
+
+⚠ **THE CENSUS FIGURES ABOVE STAND, AT THE GRAIN THEY WERE TAKEN.** The `M` table in § 3 counts
+**`memberships` rows**: min 1 · max 3 · avg **1.30** over 33 seated principals (43/33 = 1.303),
+re-run verbatim 2026-09-11 and reproducing, including the single-bucket org distribution `(1, 33)`.
+⛔ The invariant is **not** stated over that number: 0208 expresses it over a provider-neutral fact
+set `F` counted from the **producer** — `select count(*) from authz.assignment_facts(p)` → min **0** ·
+max 3 · avg **1.27**, because `assignment_facts` gates on `app.is_active(p_principal)` and one seeded
+principal is inactive. Two grains, two numbers, both true; the ADR says which it means. The formula
+bound `C + 6H + 2O + 1 = 6 + 24 + 6 + 1 = 37` and the maxima `D_org 1 · D_hospital 2 · D_commission 2`
+also reproduce. ⭐ `C`'s coefficient is **1**, not 2, despite two commission-scoped roles, because
+`memberships_one_commission_role_uq` is `UNIQUE (principal_id, commission_id) WHERE commission_id IS
+NOT NULL` — whatever the role.
+
+**Five mandatory re-measurement triggers** (0208 D3) now attach to this item: `administrativo`
+becoming a permission provider · another provider adapter · `scope_reaches` gaining one-to-many or
+descendant expansion · membership uniqueness constraints relaxed · production exceeding the tested
+`M = 20, D = 5` envelope (⛔ that envelope is the AE4 **perf fixture**, 12,036 principals over 13
+orgs — a different population from the product seed, as this body already states). ⚠ Nothing reds
+when a trigger fires: they are `prose only` until clause 6 exists, which is the one clause that
+fires automatically on a new provider. Trigger 1 fires **by construction** at ADR 0207's
+proposed-order item 6.
+
+⛔ **What must still NOT be mistaken for closing it:** everything the paragraph above already lists
+(P2's slope, the `⚠ SHAPE BOUND` migration comment, a green P5), **plus** ADR 0208 itself — it states
+the invariant and builds nothing.

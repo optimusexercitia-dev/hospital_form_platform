@@ -38,3 +38,40 @@ instance of it found at this unit's open (the first was the manifest's self-cont
 scope is arm-3 divergence enumeration. ⛔ Widening it to absorb a neighbouring ADR's measurement is
 exactly the drift the phase discipline forbids. What is owed here is the **warning**, so the next
 session starts from *"census owing"* rather than *"census complete"*.
+
+---
+
+## ✅ RULED — 2026-09-11 (PO, unit `AE5-SUCCESSOR-ADRS`); the lead closes this at the Record step
+
+**Ruling (PO, 2026-09-11):** closed on **branch (a)** of this entry's own close condition — the
+census was run and lands in a durable home, **ADR
+[0207](../decisions/0207-the-role-catalog-holds-roles-administrativo-is-a-capability-provider.md)
+D7**, which carries the query beside every figure (ADR 0195: a count in ungated prose rots).
+
+| limb | reach |
+| --- | --- |
+| `platform_role` enum labels | **11** |
+| columns typed by it | **1** — `app.active_role_selections.role` |
+| routines naming it | **1** — `public.assume_role(p_role platform_role)`, `prosecdef`, not overloaded |
+| RLS policies naming it | **0** |
+| first-party TS files | **7** — 6 hand-written + the generated `src/lib/types/database.ts` |
+
+Cross-checked independently of the three catalog queries: `select distinct d.classid::regclass,
+d.objid from pg_depend d where d.refobjid = 'public.platform_role'::regtype and d.deptype <> 'i'` →
+exactly two dependents (`pg_class` + `pg_proc`), consistent with 1 column + 1 routine and **no third
+limb**. ⚠ `prokind in ('f','p')` is required in the routine query — without it `pg_get_functiondef`
+errors on aggregates and the census returns **nothing at all**, a silently-empty sweep.
+
+⭐ **The understatement this entry warned about is addressed on all three limbs, not one.** F7 and
+F8 were the two limbs with no census in any home: **F8**'s is ADR 0207 D7's 12-row `authz.roles`
+table plus D2's five-value `commission_administrativo_capabilities` CHECK (⚠ five capabilities and
+one **door**, `bulk_create_cases` — not six capabilities); **F7**'s is D4's five live declarations in
+`src/lib/role/role-catalog.ts`, each shifted +10 lines since the audit, with the note that F7's
+*second* complaint (the Docker shell-out in Vitest) is **already remediated**.
+
+`docs/plans/pre-ae5-remediation.md:398`'s *"3 sites and fully measured (see the unit record)"*
+carries a dated correction beside it naming ADR 0207 D7 as the home; R8's `hat_ok` resolver trio
+stays attributed to F6 / ADR 0201 where it belongs.
+
+⛔ **Not closed by this note.** The entry stays `open` until the lead's Record step for
+`AE5-SUCCESSOR-ADRS`.

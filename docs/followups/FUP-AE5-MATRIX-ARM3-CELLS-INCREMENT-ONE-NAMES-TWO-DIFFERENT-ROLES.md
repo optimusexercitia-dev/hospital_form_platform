@@ -41,3 +41,36 @@ homes disagree.
 ruling**, not a measurement: it decides whether `staff_admin` occupies an increment slot at all, and
 that answer moves ADR 0202's due point. This unit's own scope (arm-3 divergence enumeration) is
 unaffected under either reading, so ⛔ it does not get widened to absorb a decision it does not own.
+
+---
+
+## ✅ RULED — 2026-09-11 (PO, unit `AE5-SUCCESSOR-ADRS`); the lead closes this at the Record step
+
+**Ruling (PO, 2026-09-11):** written as **ADR [0207](../decisions/0207-the-role-catalog-holds-roles-administrativo-is-a-capability-provider.md) D6**, verbatim from the ruling:
+
+> This also cleans up the sequencing language: staff_admin is the already-authoritative baseline,
+> not AE5 increment 1. After the compatibility unit, the remaining work is ten real role cutovers
+> plus one capability-plane cutover. Item 1 is therefore staff; item 6 remains the administrativo
+> provider mapping.
+
+⇒ **Reading B wins.** `docs/plans/authz-evolution.md:1178-1180`'s Proposed order was the correct
+half; the *"increment 1 is `staff_admin`"* sentences were the disagreeing half. Arithmetic from the
+catalog: 12 `authz.roles` rows − `administrativo` (the capability plane) − `staff_admin` (already
+`authoritative`) = **10** role cutovers + **1** capability-plane cutover.
+
+⚠ **The correction list is FIVE sites, not three.** This entry's close condition names three homes;
+`grep -n "increment 1" docs/progress/ae5-opening-adr.md docs/plans/authz-evolution.md
+docs/plans/pre-ae5-remediation.md` (run 2026-09-11) also finds
+**`docs/plans/pre-ae5-remediation.md:640`** and **`:670`**, which repeat the refuted reading
+verbatim. Closing on three homes would have left two live sentences asserting it. All five carry a
+dated correction marker beside them (ADR 0105: historical documents are not rewritten), and
+`docs/plans/authz-evolution.md:1215`'s **existing** ⛔ note — which held this disagreement open and
+pointed here — received a dated **update** rather than a second marker beside it.
+
+⚠ **ADR 0202's *"due before increment 2"* is retired, not restated against a surviving ordinal.**
+With `staff_admin` a baseline rather than an increment, the role-catalog decision and its unit
+`AE5-ROLE-CATALOG-COMPAT` are due before **increment 1**. The reserved number 0202 was itself
+renumbered to **0207** in the same session (plan §3 item 5's own offered remedy).
+
+⛔ **Not closed by this note.** The entry stays `open` until the lead's Record step for
+`AE5-SUCCESSOR-ADRS`; a writer moves it to the archive there, not here.
