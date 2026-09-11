@@ -8,7 +8,7 @@ phase: "pre-AE5 remediation — ADR 0208 D5 + D6; ordered BEFORE AE5-ROLE-CATALO
 branch: definer-search-path-narrow-fix   # cut from main @ 6d7dd589
 plan: ../plans/authz-evolution.md
 progress: ../progress/definer-search-path-narrow-fix.md
-reviews: []
+reviews: ["../reviews/definer-search-path-narrow-fix-review.md"]
 adrs: ["0195", "0208", "0209"]
 handoff: ~
 fup: FUP-NO-GATE-CATCHES-A-COLLAPSED-SEARCH-PATH
@@ -62,8 +62,13 @@ Land ADR 0208 D5 + D6 so the follow-up closes, before `AE5-ROLE-CATALOG-COMPAT` 
 - Two follow-ups filed (four-DEFINER convergence unruled; D5 rule file deferred on the cap); AC-5
   disposition PROPOSED in the FUP body, PO to rule.
 
+- Build committed `68ffb591`; door sweep (deriver exit 1 RULED, option (a)) predicate arm CLEAN 1/1 COVERED, policy arm 0 of 226 selected; SELFTEST 46·0·0; freeze `--check` in sync 865.
+- Third follow-up filed: the door sweep's "arm 2 (FROMFINDINGS=1)" label is arm 1 repeated — `FROMFINDINGS` is the wrapper arm's knob; this unit's rows say predicate / policy.
+
+- QA round 1 on `68ffb591`: **CHANGES REQUESTED** — 0 BLOCK · 2 MAJOR (text: the rule line names 419 + gate 18 as enforcer of BOTH D4 clauses, only the path clause is gated; `lint-gates.md` states gate 18's baseline order backwards) · 4 MINOR · 6 NOTE. Fourth follow-up filed (D4's qualified-body clause ungated, PO to rule).
+
 ### In progress
-- Door sweep both arms on `app.can_read_professional_profile` (exit 1 ruled: option (a), by hand); then the build commit.
+- `backend`: authz arms (census rc 0 · hat rc 0 · floor running · wrapper + setvalued queued), then the QA fix pass; then lead runs `e2e:prod`.
 
 ### Next
 - QA review (`qa`) → PO approval (AC-5 ruling + the two follow-ups + the door-sweep ruling presented together) → Record step → merge → then `AE5-ROLE-CATALOG-COMPAT`.

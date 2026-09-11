@@ -196,6 +196,12 @@ would itself be a tracked change) — artifacts renamed BEFORE anything could re
 row below is read from that copy.
 
 ```
+ARM=census                                          rc 0   INVARIANT HOLDS — live authz gates 581 / gates carrying a verdict 608
+ARM=hat                                             rc 0   INVARIANT HOLDS — 4 finding(s), all reasoned-allowlisted
+ARM=floor                                           rc 0   INVARIANT HOLDS — 63 never-called doors, every one on the floor allowlist
+FROMFINDINGS=1 ARM=wrapper                          rc 0   INVARIANT HOLDS — BLIND set 41, every BLIND wrapper on the allowlist
+authz-setvalued-targeted-cases.sh                   rc 0
+git diff --stat -- docs/reviews/authz-door-audit-findings.md   EMPTY (after all four arms)
 SELFTEST=1 bash scripts/door-sweep-cases.sh         rc 0   PASS 46 · FAIL 0 · SKIPPED 0
 bash --version                                      GNU bash, version 5.2.37(1)-release (x86_64-pc-msys)
 bash scripts/door-sweep-cases.sh 6d7dd589           rc 1   FINDING (1) — 0 doors resolved; RULED below, case list set by hand
@@ -257,3 +263,22 @@ half, which belongs to `p0-authz-writepath-audit.sh`.
 carry the same two rows with identical verdicts, which is the signature this finding predicts; that
 record's "both arms" was, on this evidence, also one arm twice. ⛔ Not repaired here — a prior unit's
 gate record is not this unit's to edit — and handed to the lead as a follow-up candidate.
+
+⚠ **The four authz arms are `p0-authz-invariant.sh`'s, and `FROMFINDINGS` is ITS knob** — which is
+the distinction the door-sweep finding above turns on: the same variable that is inert for
+`p0-authz-door-audit.sh` is read at `p0-authz-invariant.sh:107`, `:323`, `:800`. ⛔ The wrapper row
+above is therefore a REAL fourth arm; the discarded door-sweep "arm 2" was not.
+
+⚠ **All four figures reproduce the prior unit's exactly** (581/608 · 4 · 63 · 41), which is the
+expected result: none of them depends on anything this unit changed. ⭐ One comparison was made
+rather than assumed — `420` now directly calls four DEFINERs, one of which
+(`app.copy_template_version_children`) had NO coverage of any kind before, so the never-called floor
+could legitimately have DROPPED. It did not, and the reason is that the floor counts
+*authenticated-reachable* `prosecdef` doors: three of the four are `app` helpers outside that set and
+`public.clone_framework` was already exercised by `280`. ⛔ The prediction was wrong and is recorded
+as wrong rather than quietly dropped.
+
+⚠ **The floor arm is NOT primed by this session's earlier runs**, a hazard worth discharging
+explicitly given how many suites ran before it: `run_arm_floor` issues `pg_stat_reset()` and sets
+`track_functions='all'` BEFORE its own full-suite pass, so its 63 is measured from zeroed counters,
+not from residue.
