@@ -412,3 +412,48 @@ pass. ⇒ the runner now asserts **which** arm fired and prints the fired list, 
 re-pointed at a real permission, and **two further pre-existing contaminations became visible** that
 nothing could see before. Controls caught: **19** (was 14), zero `NOT CAUGHT`, zero `WRONG ARM`,
 discrimination control clean; `--self-test` exit 0.
+
+**Increment 3 — `403` now ORACLES arm 3. ⛔⛔ AND THE LEAD'S BRIEF WAS WRONG ON ITS CENTRAL ITEM.**
+The brief said *"give `expected()` its `reach` argument so R2's GRANT values land"*. ⛔ That would have
+**RED** `403`, not greened it, and the teammate **measured it instead of building it**:
+`expected_granted` is what §5.1 compares against **`authz.candidate_has_permission`** — a
+role/permission resolver with **no case arm at all**. Measured live at the class-4 `grant_keyed`
+coordinate: door `t` (arm1 f · arm2a f · arm2b f · caps 6) versus catalog `f`. ⇒ arm 3's divergence is
+**legacy-vs-catalog (§4)**, ⛔ **not** catalog-vs-matrix (§5), and the catalog resolver is **RIGHT to
+deny** — the lead's brief would have written an arm-3 grant into the expectation for a resolver that
+correctly has no arm 3. ⭐ R2's GRANT therefore landed in a **new 14th column
+`expected_legacy_granted`**, and `expected()` is **unchanged**.
+
+**Lead's own verification at the tip** (⛔ the lead, not the builder, ran the arms — the hub requires
+it): `git status --porcelain` shows only the six permitted files — no migration, no `src/**`, no
+seed, no manifest, no tracker. `lint:authz-vectors` **EXIT 0** bare, `in sync (1728 cells, 10272
+skipped)`. ⭐ **Per-cell proof, re-run by the lead**: strip the appended 14th column from all 1728
+rows and **0** differ from `63b46a06` ⇒ the first 13 columns are **byte-identical** and the entire
+change is the new column. `expected_granted` **228 / 1500 → 228 / 1500 — zero movement**;
+`expected_legacy_granted` = **320** true; **flips = 92**, and they fall on
+`cross-org@role_keyed 24 + cross-org@grant_keyed 32 + not-a-holder@grant_keyed 36` — ⛔ **only**
+approved labels. `grant_keyed` partition unmoved at **108 / 30 / 32 / 36 / 10**. Class 5: **10** cells,
+approved legacy answer true on **0** ⇒ the filed defect is **not** encoded as approved reach.
+`403` run by the lead: **EXIT=0, Files=2, Tests=28, 0 `not ok`, Result: PASS**.
+
+**§7.3 REPLACED, not renumbered** — `grep -c "ARM 3 CANNOT GRANT IN THIS FIXTURE"` = **0**. What now
+stands: **§7.3** the whole `grant_keyed` column with each partition's approved legacy answer;
+**§7.3b** the four reaches measured live at a coordinate where arms 1 and 2 are false — ⭐
+`unreachable` and `grant_keyed` differ by **one `case_access_grants` row and nothing else**, which is
+what makes a deny mean `_case_caps` denied rather than an empty join; **§7.4** the filed defect pinned
+by shape; **§7.5** the class-4 guard; **§4.1b** paying for §4.1's carve-out with a value.
+
+⭐⭐ **Mutation-proven, and it WIDENS the PO's caveat — recorded into the bug body.** Three mutants on
+scratch copies, real `403` untouched: **A** (org check inside arm 3) reds §4.1b/§7.3b/§7.4/**§7.5**;
+**B** (grant row removed) reds the same four; **C** (a **hat** check inside arm 3 — *the intended
+fix*) reds §7.4 and leaves **§7.5 GREEN** ⇒ the PO's caveat demonstrated. ⚠⚠ But **C also reds §4.1b,
+correctly**: a **role-keyed** hat check kills **class 3's** 36 approved cells too, because **S3 is
+role-free by design**. ⇒ the real constraint is **wider than the PO's wording**: the fix may add
+neither an **org** check nor a **naive role-keyed hat** check, which points at R2's *second* named
+shape — evaluate the hat **before** the arms — rather than its first.
+
+⚠ Costs, stated: `403` **20s → 40s**. The teammate also de-staled `caseReach.values.none` in the axes
+JSON (it still claimed the fixture had no participation), moving the axes sha ⇒ both `.mjs` artifacts
+regenerated, **exactly one line each** (`sourceSha256`). Generator gained **arm10**; its first fixture
+reported `NOT CAUGHT` because it rewrote a cell to the value it already had — ⭐ caught and fixed,
+the same wrong-fixture family as LEARN-103.

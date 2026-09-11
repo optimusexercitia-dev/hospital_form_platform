@@ -75,6 +75,39 @@ referral module exists for."*
 only by class 5 going red-to-green would silently revoke an approved reach, and no arm in any suite
 would say so.
 
+## ⭐ The guard now EXISTS, and mutation testing extends the caveat (2026-09-10, increment 3)
+
+`403` was taught to oracle arm 3 before this bug is fixed, so the constraints above are **assertions
+in the tree**, not instructions in a document:
+
+- **§7.4** pins this defect head-on — *"this is what it does, and it is wrong"*: the 10 cells are the
+  only cells carved out of §4.1/§4.1b **by label**, and §7.4 asserts the carve-out's exact shape
+  (10 cells · legacy grants on 10 · all `grant_keyed` · all `other_role` · all `self_check` · the
+  **approved answer denies on 10**). ⛔ The approved value stays **DENY**, so the defect is never
+  encoded as approved reach and the carve-out cannot widen quietly.
+- **§7.5** is the class-4 guard the PO's caveat demanded, asserting **both directions** of the
+  cross-org edge at `grant_keyed` under the matching hat.
+
+**Mutation-proven, on scratch copies with the real `403` untouched** (green-on-first-run was treated
+as a finding, not a pass):
+
+| mutant | result |
+|---|---|
+| **A** — an **org** check added inside arm 3 | §4.1b · §7.3b · §7.4 · **§7.5 RED** — the caveat's failure mode is caught |
+| **B** — the `case_access_grants` row removed | the same four RED |
+| **C** — a **hat** check added inside arm 3 (*the intended fix*) | §7.4 RED, **§7.5 GREEN** — the fix fixes this bug **without** breaking class 4 |
+
+⇒ mutant C is the PO's caveat demonstrated: the intended fix moves §7.4 and leaves §7.5 standing.
+
+⚠⚠ **AND MUTANT C EXTENDS THE CAVEAT — read this before attempting the fix.** Mutant C also reds
+**§4.1b**, and it is **correct to**: a **role-keyed** hat check kills **class 3's** approved reach too
+(36 cells — the unprivileged caller reaching through an explicit case grant), because **S3 is
+role-free by design**. ⇒ the binding constraint is **wider than the PO's original wording**: a fix
+must add neither an **org** check (class 4 breaks) **nor a naive role-keyed hat check** (class 3
+breaks). Whoever fixes this must handle **S3's role-free case** explicitly — most likely by
+evaluating the hat term **before** the arms, which is the second of the two shapes R2 named, rather
+than inside the case-grant arm, which is the first.
+
 ## Related
 
 Unit [AE5-MATRIX-ARM3-CELLS](../progress/ae5-matrix-arm3-cells.md) · ADR 0175 D3 · the open QA

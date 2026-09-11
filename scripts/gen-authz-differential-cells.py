@@ -364,6 +364,57 @@ ARM3_DIVERGENCE_VALUES = {
         'TERM-UNENFORCEABLE. Awaiting a fix; ⛔ never read as an approved expected value',
 }
 
+# ── THE SECOND EXPECTED VALUE (AE5-MATRIX-ARM3-CELLS increment 3) ────────────────────────
+# ⛔⛔ INCREMENT 1 PREDICTED THE WRONG HOME FOR R2's GRANT, AND THE FIXTURE MEASURED IT.
+# Its note said "R2's GRANT values land when `expected()` gains a `reach` parameter". They
+# cannot, and the reason is a fact about the two subjects 403 compares — not a preference:
+#   `expected_granted` is the value 403 §5.1 compares against `authz.candidate_has_permission`,
+#   a pure role/permission resolver (assignment_facts x role_permissions x closure x
+#   scope_reaches) with NO case arm. MEASURED LIVE at head (20261003007390, 528), at the
+#   class-4 grant_keyed coordinate — an org-B staff_admin, an org-A professional profile, a
+#   case_access_grants row on an org-A case:
+#       app.can_read_professional_profile  = TRUE   (arm1 f | arm2a f | arm2b f | caps 6)
+#       authz.candidate_has_permission     = FALSE
+#   Flipping `expected_granted` to GRANT would therefore have RED §5.1 on every divergent cell,
+#   and it would have been WRONG to do so: the resolver correctly denies an org permission the
+#   caller does not hold. What arm 3 reaches is NOT the permission — it is a case-grant reach the
+#   permission model deliberately does not express, which is precisely why this is a legacy-vs-
+#   catalog DIVERGENCE (403 §4) and not a matrix disagreement (403 §5).
+# ⇒ R2's approved GRANT lands HERE, in a second column carrying the LEGACY DOOR's approved
+#   answer. `expected_granted` moves by exactly ZERO cells.
+ARM3_PINNED_DEFECT = 'arm3:divergent-defective:hat-unenforceable'
+ARM3_DIVERGENT_APPROVED = ('arm3:divergent-approved:not-a-holder',
+                           'arm3:divergent-approved:cross-org')
+
+
+def expected_legacy(exp, div):
+    """The approved answer for the LEGACY DOOR, transcribed from PO ruling R2.
+
+       ⛔ NOT a copy of `expected_granted` with a fudge, and ⛔ not resolver logic: it is
+       `expected_granted` plus exactly the divergences R2 RULED APPROVED — "the case-grant path
+       deliberately anchors on the case, not on the caller's org or role. That is the whole point
+       of an explicit grant." Every other cell keeps the matrix answer, so the two columns are
+       identical wherever no approved divergence was ruled, and 403 §4.1 keeps comparing
+       legacy against catalog on exactly those cells.
+
+       ⛔⛔ THE FILED DEFECT IS NOT LISTED HERE, AND THAT OMISSION IS THE RULING. Class 5
+       (`ARM3_PINNED_DEFECT`) keeps the matrix answer FALSE — the hat rule SHOULD deny — while
+       the door returns TRUE today. Encoding today's behaviour as the approved value is the one
+       thing R2 forbids, so the defect is carried as a CARVE-OUT plus a head-on assertion in
+       403 §7.4 ("this is what it does, and it is wrong"), never as an expected value. When the
+       bug is fixed, §7.4 reds and the assertion moves deliberately.
+
+       ⚠ A `divergent-approved` cell always has `exp is False` BY CONSTRUCTION — arm3_divergence
+       returns `arm3:masking` before it reaches the divergent branches whenever `exp` is true. So
+       arm10(a) below, which requires those cells to expect a legacy GRANT, subsumes the
+       "this column is just a copy of expected_granted" shape entirely, and no separate
+       copy-detector is written: an arm that cannot fire on its own is the vacuity this file
+       exists to refuse."""
+    if div in ARM3_DIVERGENT_APPROVED:
+        return True
+    return exp
+
+
 # ⛔ CELLS CARRYING THESE LABELS ARE NOT ARM-3 COVERAGE, and the header counts them separately so
 # the number cannot be quoted as one. `blocked:principal-state` is class 1's 108 base cells: no
 # fixture can make arm 3 fire there, so they measure the deny-class table and say NOTHING about
@@ -504,8 +555,14 @@ def build(personas, contexts, scopes, states, reaches, reps, exclusions):
                                             'self' if selfcheck else 'third_party', reach])
                             div = arm3_divergence(klass, persona, ctx, scope, state,
                                                   selfcheck, exp, src, reach)
+                            # ⛔ APPENDED AS THE LAST COLUMN, NOT INSERTED BESIDE `exp`. Every
+                            # arm above and every --self-test fixture below addresses cells BY
+                            # INDEX (c[9] is the expected value, c[12] the label); inserting a
+                            # column mid-tuple would silently re-point all of them at their
+                            # neighbours, which is a whole-file mutation wearing a one-line diff.
+                            exp_legacy = expected_legacy(exp, div)
                             cells.append((cid, persona, ctx, scope, code, klass, res, state,
-                                          selfcheck, exp, src, reach, div))
+                                          selfcheck, exp, src, reach, div, exp_legacy))
     return cells, skipped
 
 
@@ -526,7 +583,7 @@ _UNSET = object()   # `None` is a LEGITIMATE value for `permissions` (an unreada
 
 def coverage(cells, skipped, reps, disposition=None, exclusions=None, axes=None,
              permissions=_UNSET, conditional=None):
-    """TEN ARMS. ⛔ An arm that has never refused anything is a detector nobody has shown finds
+    """ELEVEN ARMS. ⛔ An arm that has never refused anything is a detector nobody has shown finds
        something — every one is exercised by --self-test below."""
     disposition = AXIS_DISPOSITION if disposition is None else disposition
     exclusions = EXCLUSIONS if exclusions is None else exclusions
@@ -677,6 +734,40 @@ def coverage(cells, skipped, reps, disposition=None, exclusions=None, axes=None,
                          % (sorted(_armed) or ['(none — no rep\'s openArms names %s)' % ARM3_CASE_ARM_FN],
                             ARM3_GATE))
 
+    # ⭐⭐ arm10 — THE SECOND EXPECTED VALUE, HELD TO THE SAME BAR AS THE FIRST.
+    # `expected_legacy_granted` carries PO ruling R2 into the vector, and the ruling has two
+    # halves that a single careless edit can merge: classes 3 and 4 are APPROVED reach, class 5
+    # is a FILED DEFECT. Three sub-checks, each independently firable (the --self-test fixtures
+    # below exercise them one at a time), and NONE of them re-derives the value — they assert
+    # the ruling against the label the derivation already transcribed.
+    # ⚠ There is deliberately NO "this column is a copy of expected_granted" check: a
+    # divergent-approved cell always has expected_granted = False (arm3_divergence returns
+    # `arm3:masking` first whenever it is True), so (a) refuses the copy shape already, and a
+    # fourth sub-check that could never fire alone would be a detector nobody has shown finds
+    # anything — the shape this whole file exists to refuse.
+    _demoted = [c for c in cells if c[12] in ARM3_DIVERGENT_APPROVED and not c[13]]
+    if _demoted:
+        f.append('arm10: %d cell(s) labelled PO-APPROVED divergent reach expect the legacy door '
+                 'to DENY — R2 ruled the case-grant path approved designed reach ("that is the '
+                 'whole point of an explicit grant"), so a deny expectation here silently revokes '
+                 'it and 403 would pin the narrowing as correct (first: %s)'
+                 % (len(_demoted), _demoted[0][0]))
+    _approved_defect = [c for c in cells if c[12] == ARM3_PINNED_DEFECT and c[13]]
+    if _approved_defect:
+        f.append('arm10: %d cell(s) labelled `%s` expect the legacy door to GRANT — that encodes a '
+                 'FILED DEFECT\'s current behaviour as the approved answer, which is the ONE thing '
+                 'R2 forbids. The defect is carried as a carve-out plus 403 §7.4\'s head-on '
+                 'assertion, never as an expected value (first: %s)'
+                 % (len(_approved_defect), ARM3_PINNED_DEFECT, _approved_defect[0][0]))
+    _unattributed = [c for c in cells
+                     if c[13] != c[9] and c[12] not in ARM3_DIVERGENT_APPROVED
+                     and c[12] != ARM3_PINNED_DEFECT]
+    if _unattributed:
+        f.append('arm10: %d cell(s) expect the legacy door to disagree with the matrix WITHOUT a '
+                 'divergent label to attribute it to — 403 §4.1 excuses legacy-vs-catalog '
+                 'disagreement on exactly these cells, so an unattributed flip is an exemption '
+                 'nobody ruled (first: %s)' % (len(_unattributed), _unattributed[0][0]))
+
     declared = {r[0] for r in reps}
     emitted = {c[4] for c in cells}
     if declared - emitted:
@@ -716,6 +807,21 @@ if '--self-test' in sys.argv:
     _pm_disarmed = _pm_with_arms(ARM3_REP_CODE, ['app.is_admin_for', 'authz.has_permission'])
     # The rep is not in the manifest at all — no authority either way, which is not a pass.
     _pm_rep_absent = {k: v for k, v in _pm.items() if k != ARM3_REP_CODE}
+    def _one(labels, value):
+        """base_cells with expected_legacy_granted set to `value` on the first cell whose
+           arm3_divergence is in `labels` AND whose current value DIFFERS from `value`.
+           ⛔ THE SECOND CONJUNCT IS NOT TIDINESS — it is the whole fixture. Written as "the first
+           cell carrying the label", this picked a `caps-deny` cell that already expected a legacy
+           GRANT, rewrote it to the value it already had, and reported NOT CAUGHT: a fixture that
+           perturbs nothing reads as a broken ARM. Asserts a candidate exists, so the day no cell
+           can be perturbed the --self-test dies loudly instead of passing an empty mutation."""
+        out = list(base_cells)
+        i = next((j for j, c in enumerate(out) if c[12] in labels and c[13] != value), None)
+        assert i is not None, ('no cell carries any of %s with expected_legacy_granted != %s — '
+                               'the arm10 fixture would perturb nothing' % (labels, value))
+        out[i] = out[i][:13] + (value,)
+        return out
+
     checks = [
         ('arm1 empty cell set',          [],                                                      base_skipped, REPS, None, None, None),
         ('arm2 single polarity',         [c[:9] + (True,) + c[10:] for c in base_cells],          base_skipped, REPS, None, None, None),
@@ -732,12 +838,14 @@ if '--self-test' in sys.argv:
         # ⚠ ONE CELL, NOT ALL OF THEM, and that is the stronger control twice over: a wholesale
         # wipe is a shape no real edit produces, AND it makes the column single-valued, so the
         # single-valued sub-check fires too and the fixture stops isolating what it names.
-        ('arm8 divergence label blanked',  [base_cells[0][:12] + ('',)] + base_cells[1:],        base_skipped, REPS, None, None, None),
-        ('arm8 divergence label unknown',  [base_cells[0][:12] + ('arm3:a-label-nobody-declared',)] + base_cells[1:],
+        ('arm8 divergence label blanked',  [base_cells[0][:12] + ('',) + base_cells[0][13:]] + base_cells[1:],        base_skipped, REPS, None, None, None),
+        ('arm8 divergence label unknown',  [base_cells[0][:12] + ('arm3:a-label-nobody-declared',) + base_cells[0][13:]] + base_cells[1:],
                                                                                                  base_skipped, REPS, None, None, None),
         # A VALID vocabulary value applied to every cell: blank and unknown both pass, only the
-        # single-valued check can fire.
-        ('arm8 divergence column collapsed', [c[:12] + ('arm3:not-in-gate',) for c in base_cells], base_skipped, REPS, None, None, None),
+        # single-valued check can fire. ⚠ It also trips arm10 since increment 3, and correctly:
+        # wiping the labels strands every approved legacy GRANT with nothing to attribute it to,
+        # which is exactly arm10(e). Named here rather than silenced.
+        ('arm8 divergence column collapsed', [c[:12] + ('arm3:not-in-gate',) + c[13:] for c in base_cells], base_skipped, REPS, None, None, None),
         # ⛔ REPS AND CELLS RE-POINTED TOGETHER so arm3 (classes) and arm1b (codes) both stay
         # clean and arm8c fires alone. Re-pointing only one side would trip arm3 instead, and the
         # printed message would name the wrong detector.
@@ -774,6 +882,16 @@ if '--self-test' in sys.argv:
         ('arm9 the arm-3 rep loses the case arm',  base_cells, base_skipped, REPS, None, None, None, _pm_disarmed),
         ('arm9 the arm-3 rep left the manifest',   base_cells, base_skipped, REPS, None, None, None, _pm_rep_absent),
         ('arm9 the manifest is unreadable',        base_cells, base_skipped, REPS, None, None, None, None),
+        # ⭐ arm10's THREE SHAPES, EACH PERTURBING ONE CELL so the sub-check under test is the only
+        # one that can fire. ⛔ `_one` rewrites the FIRST cell carrying the label the fixture is
+        # about — never a positional index into base_cells, which would silently stop selecting a
+        # labelled cell the moment the emission order changed and report NOT CAUGHT for a reason
+        # that has nothing to do with the arm.
+        ('arm10 approved divergence demoted', _one(ARM3_DIVERGENT_APPROVED, False), base_skipped, REPS, None, None, None),
+        ('arm10 filed defect approved',       _one((ARM3_PINNED_DEFECT,), True),     base_skipped, REPS, None, None, None),
+        # A flip with no divergent label at all: the `caps-deny` cells are the honest non-vacuous
+        # denials, so promoting one is exactly the unattributed exemption (e) exists to refuse.
+        ('arm10 unattributed legacy flip',    _one(('arm3:silent:caps-deny',), True), base_skipped, REPS, None, None, None),
     ]
     bad = 0
     # ⚠ THE TAIL IS PADDED, NOT TYPED OUT. Every arm added since has widened `coverage()`, and
@@ -792,7 +910,12 @@ if '--self-test' in sys.argv:
         # fixture, and only this check found it. ⛔ Do not weaken it back to a non-empty test.
         # ⚠ `want in fired`, NOT `len(got) == 1`: arm1's empty-cell-set and arm2's single-polarity
         # fixtures legitimately trip neighbours (an empty population is empty for every arm), so an
-        # exactly-one rule would be false for them. The fired list is printed so contamination on a
+        # exactly-one rule would be false for them. ⚠ arm2's fixture also trips arm10 since
+        # increment 3, and correctly so: forcing every expected_granted to true makes the blocked
+        # cells disagree with their legacy expectation without a divergent label, which is exactly
+        # the unattributed flip arm10 refuses. Making the fixture set BOTH columns would silence
+        # arm10(e) and trip arm10(b) instead — a swap, not an isolation — so it is left alone and
+        # the contamination is named here rather than averaged away. The fired list is printed so contamination on a
         # fixture documented as isolated stays visible instead of being averaged away.
         want = name.split()[0]
         fired = sorted({g.split(':', 1)[0] for g in got})
@@ -821,10 +944,11 @@ if _fail:
 assert cells, 'refusing to emit an empty differential'
 srcs = sorted({c[10] for c in cells})
 q = lambda x: "'" + str(x).replace("'", "''") + "'"
+b = lambda x: 'true' if x else 'false'
 rows = ',\n'.join(
-    '    (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)' % (
+    '    (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)' % (
         q(c[0]), q(c[1]), q(c[2]), q(c[3]), q(c[4]), q(c[5]), q(c[6]), q(c[7]),
-        'true' if c[8] else 'false', 'true' if c[9] else 'false', q(c[10]), q(c[11]), q(c[12]))
+        b(c[8]), b(c[9]), q(c[10]), q(c[11]), q(c[12]), b(c[13]))
     for c in cells)
 
 # The per-label census, printed in the header so the NOT-COVERAGE count cannot be quoted as
@@ -835,6 +959,17 @@ for c in cells:
 divcensus = '\n'.join('--   %-44s %6d   %s' % (k, _div_census[k], ARM3_DIVERGENCE_VALUES[k])
                        for k in sorted(_div_census))
 notcov = sum(_div_census.get(k, 0) for k in NOT_ARM3_COVERAGE)
+# ⭐ THE FLIP CENSUS. `expected_legacy_granted` differs from `expected_granted` on exactly the
+# cells PO ruling R2 declared approved divergent reach, and printing the breakdown here is what
+# stops the second column from being read as a second copy of the first.
+_flip_census = {}
+for c in cells:
+    if c[13] != c[9]:
+        _flip_census[(c[12], c[11])] = _flip_census.get((c[12], c[11]), 0) + 1
+flips = '\n'.join('--   %-44s at case_reach=%-12s %4d' % (k[0], k[1], v)
+                  for k, v in sorted(_flip_census.items()))
+nflip = sum(_flip_census.values())
+npin = _div_census.get(ARM3_PINNED_DEFECT, 0)
 excl = '; '.join('%s.%s' % (a, v) for (a, v) in sorted(EXCLUSIONS))
 # ⛔ THE CONDITIONAL RULES' REASONS ARE PRINTED IN FULL, not summarised to a name. A rule that
 # deletes 2592 cells is read by whoever opens THIS file when a count looks wrong; a name alone
@@ -877,13 +1012,36 @@ body = """-- GENERATED FILE — DO NOT EDIT BY HAND.
 -- `unreachable` is mandatory); `arm3_divergence` is the DISPOSITION the generator transcribes
 -- from the arm-3 derivation, exactly as the expected values transcribe the deny-class table.
 --
--- ⛔⛔ `arm3_divergence` IS NOT A SECOND EXPECTED VALUE. `expected_granted` is UNCHANGED by this
--- axis — a cell labelled `divergent-approved` still expects what the deny-class table says. PO
--- ruling R2 ("classes 3 and 4 take GRANT as their approved expected value") lands WITH the
--- participation fixture, because 403's driver has no case_reach branch yet and constructs `none`
--- for all four values: the door genuinely denies for want of a participation row, so a GRANT
--- expectation today would red 403 for a FIXTURE reason wearing a defect's label. The reviewable
--- event when that changes is `expected()` gaining a `reach` parameter — it has none on purpose.
+-- ⛔⛔ `arm3_divergence` IS STILL NOT AN EXPECTED VALUE — IT IS THE ATTRIBUTION FOR ONE, AND
+-- INCREMENT 3 CORRECTED WHERE THAT ONE LIVES. Increment 1 wrote that R2's GRANT would land in
+-- `expected_granted` once `expected()` gained a `reach` parameter. The participation fixture
+-- MEASURED that it cannot, and the reason is a fact about the two subjects 403 compares:
+--   `expected_granted` is what §5.1 compares against `authz.candidate_has_permission`, a pure
+--   role/permission resolver with NO case arm. Live at head (20261003007390, 528), at the
+--   class-4 grant_keyed coordinate (an org-B staff_admin, an org-A professional profile, one
+--   case_access_grants row on an org-A case):
+--       app.can_read_professional_profile = TRUE   (arm1 f | arm2a f | arm2b f | caps 6)
+--       authz.candidate_has_permission    = FALSE
+--   Flipping `expected_granted` would have RED §5.1 on every divergent cell, and it would have
+--   been wrong: the resolver correctly denies an org permission the caller does not hold. What
+--   arm 3 reaches is NOT the permission — it is a case-grant reach the permission model
+--   deliberately does not express. That makes this a legacy-vs-catalog DIVERGENCE (§4), not a
+--   matrix disagreement (§5).
+-- ⇒ R2's approved GRANT lands in `expected_legacy_granted`, the LAST column, carrying the legacy
+--   DOOR's approved answer. `expected_granted` moved by EXACTLY ZERO cells. 403 §4.1 compares
+--   legacy against catalog only where the two expectations agree, and §4.1b asserts
+--   `legacy == expected_legacy_granted` on every cell — so the carve-out from §4.1 is paid for
+--   by a VALUE, never by an exemption.
+--
+-- ⛔ THE FILED DEFECT IS PINNED, NOT APPROVED. `%s` keeps
+-- `expected_legacy_granted = false` — the approved answer, because the hat rule SHOULD deny —
+-- while the door returns TRUE today. Those %d cells are the ONLY cells excused from §4.1/§4.1b,
+-- by that label alone, and 403 §7.4 asserts head-on that every one of them GRANTS and that
+-- granting is WRONG. The day the bug is fixed, §7.4 reds: the assertion moves DELIBERATELY
+-- instead of tracking reality. arm10 refuses any attempt to launder it into an expected value.
+--
+-- ══ WHERE THE TWO EXPECTED VALUES DIVERGE (%d cell(s)) ═══════════════════════════════════════
+%s
 --
 -- ⛔ `divergent-approved` (R2: an explicit case grant needs no role and anchors on the CASE, not
 -- the caller's org) and `divergent-defective` (BUG-AE5-MATRIX-ARM3-CELLS-CASE-GRANT-ARM-MAKES-
@@ -919,9 +1077,10 @@ create temp table authz_differential_cells on commit drop as
 %s
   ) as t(cell_id, persona, active_context, scope, permission_code, legacy_class,
          resolution_scope_kind, principal_state, self_check, expected_granted, expected_source,
-         case_reach, arm3_divergence);
+         case_reach, arm3_divergence, expected_legacy_granted);
 """ % (sha, len(cells), len({r[1] for r in REPS}), len(REPS), sum(skipped.values()),
-       excl, ', '.join(srcs), len(cells) - notcov, notcov, ARM3_GATE, condexcl, divcensus, rows)
+       excl, ', '.join(srcs), ARM3_PINNED_DEFECT, npin, nflip, flips,
+       len(cells) - notcov, notcov, ARM3_GATE, condexcl, divcensus, rows)
 
 if '--check' in sys.argv:
     try:
@@ -947,3 +1106,5 @@ io.open(OUT, 'w', encoding='utf-8', newline='\n').write(body)
 print('cells=%d skipped=%d (%s)' % (len(cells), sum(skipped.values()), skipped))
 print('expectedSource:', srcs)
 print('granted=%d denied=%d' % (sum(1 for c in cells if c[9]), sum(1 for c in cells if not c[9])))
+print('legacy_granted=%d denied=%d  (flips vs expected_granted: %d, pinned defect: %d)'
+      % (sum(1 for c in cells if c[13]), sum(1 for c in cells if not c[13]), nflip, npin))

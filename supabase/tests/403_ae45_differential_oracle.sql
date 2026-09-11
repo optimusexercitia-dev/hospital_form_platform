@@ -84,7 +84,7 @@
 -- Per-permission GRANT is covered by 401 §19.4's 43 cheap probes. Per-permission AXES are not
 -- observable until AE5 gives a role a partial map.
 --
--- RUN SHAPE: `Files=2, Tests=24` (23 here + 00_setup.sql's one). ⚠ 18 -> 21: ADR 0175 D3's § 7,
+-- RUN SHAPE: `Files=2, Tests=28` (27 here + 00_setup.sql's one). ⚠ 18 -> 21: ADR 0175 D3's § 7,
 -- the three assertions that BOUND F3's discharge. ⚠ 21 -> 22: AE4.9's § 3.2b, the bound on
 -- pointing this suite at the CANDIDATE evaluator. ⚠ 22 -> 23: AE4.9's § 2.3b, the body-identity
 -- assertion that licensed ONE rep covering rows 31 and 32. ⭐ pre-AE5 Batch 10 moves NOTHING here,
@@ -93,9 +93,13 @@
 -- are RE-RULED rather than added to. A rep is not an assertion. ⛔ Keep this line in step with
 -- plan() — the QA review caught it already claiming 12 against plan(15), and a stale RUN SHAPE is
 -- read as the expected shape by the next person diagnosing a count mismatch.
+-- ⚠ 23 -> 27 at AE5-MATRIX-ARM3-CELLS increment 3, and each of the four is a CONSEQUENCE of arm 3
+-- becoming REACHABLE in this fixture: § 4.1b (the LEGACY door's own oracle, which PAYS FOR the
+-- carve-out § 4.1 now takes), § 7.3b (the four reaches measured at one coordinate), § 7.4 (the
+-- filed defect PINNED, never approved) and § 7.5 (the guard PO ruling R2 requires on the fix).
 
 begin;
-select plan(23);
+select plan(27);
 
 \ir vectors/authz_differential_cells.psql
 
@@ -164,6 +168,59 @@ update f403 set own_prof  = '00000000-0000-4403-8000-000000000011'::uuid,
 insert into public.professional_profiles (id, organization_id, full_name)
 select own_prof,  own_oid,  'ZZ403 Prof OwnOrg'   from f403 union all
 select xorg_prof, xorg_oid, 'ZZ403 Prof CrossOrg' from f403;
+
+-- ⭐⭐ AE5-MATRIX-ARM3-CELLS INCREMENT 3 — THE PARTICIPATION FIXTURE ARM 3 NEEDS.
+-- ⛔ IT LIVES HERE AND NOT IN seed.sql, deliberately: a seed change ripples into ~900 tests, every
+-- one of which would silently start carrying a professional_participants row it never asked for —
+-- and `professional_participants_select`'s USING clause IS app.can_read_professional_profile, so
+-- the blast radius would be precisely the door under test. Fixture-owned, FIXED ids (⛔ never a
+-- seed gen_random_uuid() captured at authoring time: ids pinned that way are green only on the
+-- reset that produced them), identified precisely, cleaned up last.
+--
+-- THREE CASES, ONE PER HOLDING COMMISSION, because arm 3's ROLE-KEYED reach is `_case_caps` S1,
+-- `app.is_staff_admin_of_for(cases.commission_id, caller)`: the case must be where the CALLER
+-- holds, and the three holder personas hold in three DIFFERENT commissions. One case would make
+-- `role_keyed` constructible for exactly one persona and silently inert for the other two.
+--
+-- TWO PARTICIPANTS, ONE PER ORGANIZATION, because `trg_assert_participant_same_org_as_case` binds
+-- participants.organization_id to cases.organization_id. ⛔ NOTHING binds the professional
+-- PROFILE's organization to either — no trigger, no constraint — and that MISSING EDGE IS the
+-- cross-org divergence ADR 0175 D3 predicted: an org-B participant may carry an org-A profile and
+-- the same-org trigger ACCEPTS the row. § 7.3b measures that rather than asserting it in prose.
+-- ⚠ `professional_participants` is UNIQUE on professional_profile_id, so a profile has at most ONE
+-- participant at a time. That is why the link is built PER CELL by pg_temp.set_case_reach below
+-- and not once here: a cell's reach decides which organization the subject profile participates in.
+alter table f403 add column case_own  uuid;
+alter table f403 add column case_sib  uuid;
+alter table f403 add column case_xorg uuid;
+alter table f403 add column part_own  uuid;
+alter table f403 add column part_xorg uuid;
+alter table f403 add column role_own  uuid;
+alter table f403 add column role_xorg uuid;
+update f403 set case_own  = '00000000-0000-4403-8000-0000000000a1'::uuid,
+                case_sib  = '00000000-0000-4403-8000-0000000000b1'::uuid,
+                case_xorg = '00000000-0000-4403-8000-0000000000c1'::uuid,
+                part_own  = '00000000-0000-4403-8000-000000000021'::uuid,
+                part_xorg = '00000000-0000-4403-8000-000000000022'::uuid,
+                role_own  = '00000000-0000-4403-8000-000000000031'::uuid,
+                role_xorg = '00000000-0000-4403-8000-000000000032'::uuid;
+
+-- ⚠ A PARTICIPANT ROLE PER ORG, FIXTURE-OWNED. The seed ships case_participant_roles for Rede A
+-- only, so a cross-org case cannot borrow one; and the seed's `respondent_doctor` must be avoided
+-- outright — `_case_caps` STEP 4 hard-denies a respondent BEFORE every positive arm, which would
+-- turn an arm-3 GRANT cell into a silent deny for a reason the cell never names.
+insert into public.case_participant_roles (id, organization_id, key, display_name, allowed_participant_types)
+select role_own,  own_oid,  'zz403_participant', 'ZZ403 Participante', array['professional'] from f403 union all
+select role_xorg, xorg_oid, 'zz403_participant', 'ZZ403 Participante', array['professional'] from f403;
+
+insert into public.cases (id, commission_id, organization_id, label, status)
+select case_own,  own_cid,  own_oid,  'ZZ403 caso own',  'not_started' from f403 union all
+select case_sib,  sib_cid,  own_oid,  'ZZ403 caso sib',  'not_started' from f403 union all
+select case_xorg, xorg_cid, xorg_oid, 'ZZ403 caso xorg', 'not_started' from f403;
+
+insert into public.participants (id, organization_id, participant_type, sensitivity_class, display_name)
+select part_own,  own_oid,  'professional', 'professional_identity', 'ZZ403 Part OwnOrg'   from f403 union all
+select part_xorg, xorg_oid, 'professional', 'professional_identity', 'ZZ403 Part CrossOrg' from f403;
 
 select ok((select xorg_cid from f403) is not null and (select sib_cid from f403) is not null
           and (select xorg_oid from f403) <> (select own_oid from f403),
@@ -271,8 +328,94 @@ begin
 end;
 $u$;
 
+-- ⭐⭐ THE caseReach AXIS, CONSTRUCTED. One function, called by the driver AND by §§7.3b/7.5, so
+-- the reach the sweep measures and the reach the witnesses measure can never drift apart.
+--
+-- ⛔ IT RESETS BEFORE IT BUILDS, EVERY CELL, exactly as the principal-state block below does and
+-- for the same reason: leaving a previous cell's participation in place makes the answers
+-- ORDER-DEPENDENT, and §3.3 would catch it as non-determinism without saying why.
+--
+-- The four values, and what each one is FOR (axes JSON `caseReach._source` carries the predicate):
+--   none        — NO participation. arm 3 denies through an EMPTY JOIN. This is the state the
+--                 fixture was in before increment 3, and it is kept as a VALUE rather than simply
+--                 replaced, because every arm-3 deny satisfied by an absent row is the
+--                 keystone-that-could-not-fail shape (docs/learning/LESSONS.md).
+--   unreachable — participation EXISTS, on a case the caller provably holds NOTHING on, so
+--                 `_case_caps` returns 0 and arm 3 denies for the RIGHT REASON. This is the
+--                 non-vacuous deny, and it is the CONTROL for grant_keyed below.
+--   role_keyed  — participation on a case in the commission where the caller HOLDS staff_admin,
+--                 so the reach is S1. S1 runs through authz.holds_role, whose trailing conjunct
+--                 binds the active hat on a self-check — which is why this value can be SILENCED
+--                 by the wrong hat and grant_keyed cannot.
+--   grant_keyed — ⭐ IDENTICAL PARTICIPATION TO `unreachable`, PLUS ONE case_access_grants ROW.
+--                 The pair is a one-row differential: anything that separates them is the grant,
+--                 and nothing else. That is what makes §7.3b evidence rather than observation.
+--
+-- ⚠ The case for `unreachable`/`grant_keyed` is chosen PER PERSONA as one the caller holds no role
+-- in (chefe and the sibling holder get the cross-org case; the cross-org holder and the
+-- unprivileged principal get the own-org one), which is checkable against §1's memberships: each
+-- fixture principal has exactly ONE, and chefe's single seeded membership is asserted by the
+-- unit's derivation. ⛔ Do not "simplify" this to one fixed case — for one persona it would then
+-- be a case they coordinate, S1 would co-fire, and grant_keyed would stop isolating S3.
+create or replace function pg_temp.set_case_reach(p_persona text, p_scope text, p_reach text)
+returns void language plpgsql volatile as $r$
+declare
+  f record; v_principal uuid; v_prof uuid; v_case uuid; v_part uuid; v_role uuid;
+begin
+  select * into f from f403;
+  v_principal := case p_persona
+      when 'subject_holder' then f.uid
+      when 'other_commission_holder' then f.sib_holder
+      when 'cross_org_actor' then f.xorg_holder
+      else f.nobody end;
+
+  -- ⛔ FULL RESET FIRST. Identified by the fixture's own ids, never positionally.
+  delete from public.case_access_grants
+   where case_id in (f.case_own, f.case_sib, f.case_xorg);
+  delete from public.case_participants
+   where participant_id in (f.part_own, f.part_xorg);
+  delete from public.professional_participants
+   where participant_id in (f.part_own, f.part_xorg);
+  if p_reach = 'none' then
+    return;
+  end if;
+
+  -- ⛔ THE PROFILE IS CHOSEN BY THE SAME SCOPE RULE THE DRIVER USES FOR v_scope_id AND FOR THE
+  -- DOOR'S FIRST ARGUMENT. Choosing it any other way would let the reach be built for a profile
+  -- the cell never reads, and every arm-3 cell would go silent while still claiming a reach.
+  v_prof := case p_scope when 'foreign_org_commission' then f.xorg_prof else f.own_prof end;
+
+  if p_reach = 'role_keyed' then
+    v_case := case p_persona
+        when 'other_commission_holder' then f.case_sib
+        when 'cross_org_actor'         then f.case_xorg
+        else                                f.case_own end;
+  else
+    v_case := case p_persona
+        when 'cross_org_actor' then f.case_own
+        when 'unprivileged'    then f.case_own
+        else                        f.case_xorg end;
+  end if;
+  -- The participant must live in the CASE's organization (trg_assert_participant_same_org_as_case);
+  -- the PROFILE it carries is unconstrained, which is the whole cross-org divergence.
+  if v_case = f.case_xorg then v_part := f.part_xorg; v_role := f.role_xorg;
+  else                         v_part := f.part_own;  v_role := f.role_own;  end if;
+
+  insert into public.professional_participants (participant_id, professional_profile_id)
+    values (v_part, v_prof);
+  insert into public.case_participants (case_id, participant_id, role_id)
+    values (v_case, v_part, v_role);
+
+  if p_reach = 'grant_keyed' then
+    insert into public.case_access_grants
+      (case_id, principal_id, read_case_content, read_case_deliberation)
+      values (v_case, v_principal, true, true);
+  end if;
+end $r$;
+
 create or replace function pg_temp.cell_answers(
-  p_persona text, p_ctx text, p_scope text, p_code text, p_class text, p_state text, p_self boolean
+  p_persona text, p_ctx text, p_scope text, p_code text, p_class text, p_state text, p_self boolean,
+  p_reach text
 ) returns table (legacy boolean, catalog boolean)
 language plpgsql volatile as $d$
 declare
@@ -313,6 +456,13 @@ begin
   elsif p_state = 'suspended' then update public.profiles set suspended_until = now() + interval '7 days' where id = v_principal;
   elsif p_state = 'pending' then update public.profiles set email_confirmed_at = null where id = v_principal;
   end if;
+
+  -- ⭐ THE REACH, BUILT BEFORE THE CLAIMS ARE SET. Still running as the suite's own role here, so
+  -- the fixture DML is not subject to the RLS the claims below would impose. ⛔ Called for EVERY
+  -- cell, not only the arm-3 ones: for the other four representatives the reach is always `none`
+  -- and this collapses to three deletes that remove nothing — which is exactly the guarantee the
+  -- determinism control needs, because it means no cell can inherit a neighbour's participation.
+  perform pg_temp.set_case_reach(p_persona, p_scope, p_reach);
 
   -- active-role context; only meaningful for a self-check (§6A).
   if p_self then
@@ -388,7 +538,7 @@ select c.*, a.legacy, a.catalog
   from authz_differential_cells c
   cross join lateral pg_temp.cell_answers(c.persona, c.active_context, c.scope,
                                           c.permission_code, c.legacy_class,
-                                          c.principal_state, c.self_check) a;
+                                          c.principal_state, c.self_check, c.case_reach) a;
 
 select test_helpers.reset_role_and_claims();
 
@@ -425,7 +575,8 @@ select is(
      from authz_differential_cells c
      join r403 b on b.cell_id = c.cell_id
      cross join lateral pg_temp.cell_answers(c.persona, c.active_context, c.scope, c.permission_code,
-                                             c.legacy_class, c.principal_state, c.self_check) a
+                                             c.legacy_class, c.principal_state, c.self_check,
+                                             c.case_reach) a
     where a.catalog is distinct from b.catalog),
   0,
   '3.3 ⭐ DETERMINISM CONTROL: a SECOND sweep over the same cells, with nothing changed in '
@@ -441,11 +592,47 @@ select is(
 select is(
   (select coalesce(string_agg(cell_id || ' legacy=' || legacy::text || ' catalog=' || catalog::text,
                               ' | ' order by cell_id), '(none)')
-     from r403 where legacy is distinct from catalog),
+     from r403
+    where legacy is distinct from catalog
+      and expected_legacy_granted is not distinct from expected_granted
+      and arm3_divergence <> 'arm3:divergent-defective:hat-unenforceable'),
   '(none)',
-  '4.1 ⭐ LEGACY == CATALOG on every cell. ⛔ Because the matrix is ALREADY APPROVED, a difference '
-  'here means legacy is wrong or the resolver is wrong — it is never a licence to record "the '
-  'catalog matches legacy" and move on (PA-F8). The message names the disagreeing cells.');
+  '4.1 ⭐ LEGACY == CATALOG on every cell WHERE THE VECTOR DECLARES NO DIVERGENCE. ⛔ Because the '
+  'matrix is ALREADY APPROVED, a difference here means legacy is wrong or the resolver is wrong — '
+  'it is never a licence to record "the catalog matches legacy" and move on (PA-F8). The message '
+  'names the disagreeing cells. '
+  '⚠⚠ THE TWO CARVE-OUTS ARE NOT EXEMPTIONS, AND NEITHER IS A WEAKENING — read what pays for '
+  'each. (1) Cells where `expected_legacy_granted <> expected_granted` are the 92 the AE5 arm-3 '
+  'derivation DECLARES divergent under PO ruling R2, and § 4.1b asserts the legacy answer on them '
+  'BY VALUE, so nothing is merely skipped. They diverge for a structural reason rather than a '
+  'defect: `authz.candidate_has_permission` is a role/permission resolver with NO case arm, and '
+  'arm 3 reaches through a CASE GRANT, which is not a permission and is not meant to become one. '
+  'MEASURED live at head, class-4 grant_keyed coordinate — door TRUE (arm1 f, arm2a f, arm2b f, '
+  'caps 6) against resolver FALSE. (2) The ten `arm3:divergent-defective:hat-unenforceable` cells '
+  'are the FILED BUG, excused from both § 4.1 and § 4.1b and asserted HEAD-ON in § 7.4 instead — '
+  'an expected value that said GRANT there would launder a defect into the oracle, which is the '
+  'one thing R2 forbids.');
+
+select is(
+  (select coalesce(string_agg(cell_id || ' legacy=' || legacy::text || ' expected_legacy=' ||
+                              expected_legacy_granted::text || ' div=' || arm3_divergence,
+                              ' | ' order by cell_id), '(none)')
+     from r403
+    where legacy is distinct from expected_legacy_granted
+      and arm3_divergence <> 'arm3:divergent-defective:hat-unenforceable'),
+  '(none)',
+  '4.1b ⭐⭐ THE LEGACY DOOR HAS ITS OWN APPROVED VALUE, AND THIS IS WHERE ARM 3 STOPS BEING '
+  '"EXERCISED, NOT ORACLED" (ADR 0175 D3''s forward promise, discharged). § 4.1 above can only '
+  'ever say the two implementations agree; on the 92 cells where they are RULED to disagree it '
+  'has nothing to compare, and without this assertion the carve-out would be pure subtraction. '
+  '`expected_legacy_granted` is transcribed by the generator from the arm-3 derivation exactly as '
+  '`expected_granted` is transcribed from the deny-class table — no resolver logic, no case-caps '
+  'reimplementation — and generator arm10 refuses a divergence with no label to attribute it to. '
+  '⛔ IF THIS REDS, THE QUESTION IS WHICH WAY THE DOOR MOVED, never "what value matches today". A '
+  'cell that now DENIES where the vector expects a legacy GRANT means a narrowing revoked reach '
+  'PO ruling R2 approved ("the case-grant path deliberately anchors on the case, not on the '
+  'caller''s org or role"); a cell that now GRANTS where the vector expects a DENY means arm 3 '
+  'grew reach nobody ruled. Both are findings; neither is an expected value to edit.');
 
 -- ============================================================================
 -- §5 — is(catalog, approved matrix value). THE ORACLE HALF.
@@ -490,7 +677,7 @@ language sql volatile as $x$
     from authz_differential_cells c
     cross join lateral pg_temp.cell_answers(c.persona, c.active_context, c.scope,
                                             c.permission_code, c.legacy_class,
-                                            c.principal_state, c.self_check) a
+                                            c.principal_state, c.self_check, c.case_reach) a
    where a.catalog is distinct from c.expected_granted;
 $x$;
 
@@ -521,7 +708,8 @@ select ok(
   (select a.catalog
      from authz_differential_cells c
      cross join lateral pg_temp.cell_answers(c.persona, c.active_context, c.scope, c.permission_code,
-                                             c.legacy_class, c.principal_state, c.self_check) a
+                                             c.legacy_class, c.principal_state, c.self_check,
+                                             c.case_reach) a
     where c.permission_code = 'commission.forms.edit' and c.persona = 'subject_holder'
       and c.scope = 'own_commission' and c.principal_state = 'active'
       and c.active_context = 'matching' and c.self_check
@@ -605,18 +793,163 @@ select is(
   'says the arm is evaluated and structurally silent, which is exactly why a widening of arm 1 '
   'would be caught (catalog would not move) and a defect INSIDE arm 1 would not.');
 
+-- ⭐⭐ § 7.3 WAS REPLACED, NOT RENUMBERED, AT AE5-MATRIX-ARM3-CELLS INCREMENT 3.
+-- It used to assert `count(professional_participants for the two subject profiles) = 0` and said:
+-- "⛔ If this reds because someone added a participation row, do not adjust the number — the arm
+-- just became reachable and its cells need approved expected values first." That is exactly what
+-- happened, in that order: the reach was built (pg_temp.set_case_reach), the approved expected
+-- values arrived (PO ruling R2, carried by `expected_legacy_granted`), and only then did the `0`
+-- go. ⛔ NOTHING HERE MAY BE "FIXED" BY EDITING A COUNT TO MATCH A NEW FIXTURE — what replaced the
+-- sentinel says WHERE arm 3 grants and WHAT THE APPROVED ANSWER IS, which is the debt the old
+-- sentinel was holding open.
 select is(
-  (select count(*)::int from public.professional_participants pp
-    where pp.professional_profile_id in ((select own_prof from f403), (select xorg_prof from f403))),
-  0,
-  '7.3 ARM 3 CANNOT GRANT IN THIS FIXTURE: neither subject profile has a single '
-  '`professional_participants` row, so the case-committee traversal has nothing to walk and '
-  'returns false for every cell. ⛔ THIS IS THE PO-DEFERRED DIVERGENCE (ADR 0175 D3): arm 3 '
-  'grants with NO org term at all — a professional in a readable case is readable whatever their '
-  'organization — and measuring THAT needs a participation fixture plus expected values the AE5 '
-  'matrix owns. Until then: exercised, not oracled. ⛔ If this reds because someone added a '
-  'participation row, do not adjust the number — the arm just became reachable and its cells '
-  'need approved expected values first.');
+  (select string_agg(x, ' ' order by x) from (
+     select arm3_divergence || '=' || count(*)::int::text || '/' ||
+            (case when bool_and(expected_legacy_granted)     then 'GRANT'
+                  when bool_and(not expected_legacy_granted) then 'DENY'
+                  else 'MIXED' end) as x
+       from authz_differential_cells
+      where case_reach = 'grant_keyed'
+      group by arm3_divergence) g),
+  'arm3:blocked:principal-state=108/DENY '
+  'arm3:divergent-approved:cross-org=32/GRANT '
+  'arm3:divergent-approved:not-a-holder=36/GRANT '
+  'arm3:divergent-defective:hat-unenforceable=10/DENY '
+  'arm3:masking=30/GRANT',
+  '7.3 ⭐⭐ WHERE ARM 3 GRANTS, AND WHAT THE APPROVED ANSWER IS — the whole grant_keyed column, '
+  'partitioned, with each partition''s approved LEGACY answer beside it. Read it as five rulings: '
+  '(108) `_case_caps` STEP 2 shuts arm 3 for a suspended or deactivated principal, so no fixture '
+  'can make it fire and DENY is structural, not approved; (30) arm 3 agrees with a grant the cell '
+  'already expected and MASKS the arm the cell names — which is why `none` had to survive as an '
+  'axis value instead of the fixture simply gaining participation; (32 + 36) PO ruling R2 — an '
+  'explicit case grant needs NO role and anchors on the CASE, never on the caller''s org, so both '
+  'are APPROVED designed reach and their approved legacy answer is GRANT; (10) the FILED BUG, '
+  'whose approved answer stays DENY because the hat rule SHOULD deny. '
+  '⛔ THE 32/36 GRANT AND THE 10 DENY ARE THE SAME MEASUREMENT WEARING TWO RULINGS. Merging them '
+  '— by giving the defect a GRANT to "match reality", or by demoting the approved pair to DENY to '
+  '"tighten" the door — is the single thing R2 forbids, in either direction. Generator arm10 '
+  'refuses both edits at generation time; this asserts the result reached the vector. '
+  '⚠ THE PARTITION IS THE ORACLE, NOT THE TOTAL: if a count moves, the question is which cells '
+  'changed class, never which number matches today.');
+
+-- ⭐⭐ THE LIVE HALF. § 7.3 asserts what the vector RULES; this measures what the door DOES, at
+-- one coordinate, across all four reaches. ⛔ The coordinate is chosen so the door's answer IS
+-- arm 3's answer: a cross-org actor reading an own-org profile has arm 1, arm 2a and arm 2b all
+-- false at EVERY reach (asserted in the string, not assumed), so nothing else can move it.
+create or replace function pg_temp.arm3_probe(p_persona text, p_scope text, p_reach text)
+returns text language plpgsql volatile as $p$
+declare
+  f record; v_principal uuid; v_prof uuid; v_org uuid; v_live int;
+begin
+  perform test_helpers.reset_role_and_claims();
+  select * into f from f403;
+  v_principal := case p_persona
+      when 'subject_holder' then f.uid
+      when 'other_commission_holder' then f.sib_holder
+      when 'cross_org_actor' then f.xorg_holder
+      else f.nobody end;
+  v_prof := case p_scope when 'foreign_org_commission' then f.xorg_prof else f.own_prof end;
+  select organization_id into v_org from public.professional_profiles where id = v_prof;
+  perform pg_temp.set_case_reach(p_persona, p_scope, p_reach);
+  -- ⭐ THE JOIN ARM 3 WALKS, COUNTED SEPARATELY. Without it `none` and `unreachable` would both
+  -- read "door=false" and the non-vacuous deny would be indistinguishable from the empty one —
+  -- which is the whole reason `unreachable` exists as an axis value.
+  select count(*)::int into v_live
+    from public.professional_participants pp
+    join public.case_participants cp
+      on cp.participant_id = pp.participant_id and cp.removed_at is null
+   where pp.professional_profile_id = v_prof;
+  -- The MATCHING hat, deliberately: every holder persona holds staff_admin, so a future hat check
+  -- inside arm 3 (the shape BUG-...-HAT-TERM-UNENFORCEABLE's fix takes) must leave this alone.
+  perform test_helpers.claims_for(v_principal, false, 'staff_admin');
+  return p_reach || ': participation=' || v_live::text
+    || ' arm1=' || coalesce(app.is_admin_for(v_principal), false)::text
+    || ' arm2a=' || app.can_manage_professional(v_org, v_principal)::text
+    || ' arm2b=' || authz.has_permission(v_principal, 'organization', v_org,
+                                         'org.professionals.read')::text
+    || ' door=' || app.can_read_professional_profile(v_prof, v_principal)::text;
+end $p$;
+
+select is(
+  pg_temp.arm3_probe('cross_org_actor', 'own_commission', 'none')        || ' | ' ||
+  pg_temp.arm3_probe('cross_org_actor', 'own_commission', 'unreachable') || ' | ' ||
+  pg_temp.arm3_probe('cross_org_actor', 'own_commission', 'role_keyed')  || ' | ' ||
+  pg_temp.arm3_probe('cross_org_actor', 'own_commission', 'grant_keyed'),
+  'none: participation=0 arm1=false arm2a=false arm2b=false door=false | '
+  'unreachable: participation=1 arm1=false arm2a=false arm2b=false door=false | '
+  'role_keyed: participation=1 arm1=false arm2a=false arm2b=false door=true | '
+  'grant_keyed: participation=1 arm1=false arm2a=false arm2b=false door=true',
+  '7.3b ⭐⭐ THE FOUR REACHES, MEASURED — and the two DENY lines are the load-bearing half. '
+  '`none` denies through an EMPTY JOIN (participation=0): that is the state this fixture was in '
+  'until increment 3, and an arm-3 deny produced by an absent row is a keystone that could not '
+  'fail (docs/learning/LESSONS.md). `unreachable` denies with participation=1 — the join is '
+  'non-empty and `_case_caps` withheld the capabilities — which is the SAME answer for a '
+  'completely different reason, and the only reason the deny polarity here is worth anything. '
+  '⭐ `unreachable` AND `grant_keyed` ARE ONE `case_access_grants` ROW APART AND NOTHING ELSE: '
+  'same case, same participant, same profile, same hat. So the true on the fourth line is '
+  'ATTRIBUTABLE to the grant, not merely coincident with it — a differential, not an observation. '
+  '`role_keyed` reaches the same true through `_case_caps` S1 instead, on a case in the commission '
+  'this caller coordinates, and its participant is in ORG B carrying an ORG A profile — the edge '
+  'no trigger binds (trg_assert_participant_same_org_as_case binds participant to CASE only), '
+  'which is ADR 0175 D3''s "grants with NO org term at all" measured rather than asserted. '
+  '⛔ If a line moves, do not adjust the string: participation=0 on a reach that should build one '
+  'means set_case_reach stopped constructing, and door=false at grant_keyed means the reach '
+  'stopped working — either way §§4.1b/5.1 are then reporting on a coordinate that no longer '
+  'exists, and they would still be GREEN.');
+
+select is(
+  (select count(*)::int::text || ' cells, legacy granted on '
+       || (count(*) filter (where a.legacy))::int::text
+       || ', reaches=' || string_agg(distinct c.case_reach, '+')
+       || ', contexts=' || string_agg(distinct c.active_context, '+')
+       || ', all self-checks=' || bool_and(c.self_check)::text
+       || ', approved answer denies on '
+       || (count(*) filter (where not c.expected_legacy_granted))::int::text
+     from authz_differential_cells c
+     cross join lateral pg_temp.cell_answers(c.persona, c.active_context, c.scope,
+                                             c.permission_code, c.legacy_class,
+                                             c.principal_state, c.self_check, c.case_reach) a
+    where c.arm3_divergence = 'arm3:divergent-defective:hat-unenforceable'),
+  '10 cells, legacy granted on 10, reaches=grant_keyed, contexts=other_role, all self-checks=true,'
+  ' approved answer denies on 10',
+  '7.4 ⭐⭐ THE FILED DEFECT, PINNED — "THIS IS WHAT IT DOES, AND IT IS WRONG". These ten cells are '
+  'the ONLY cells § 4.1/§ 4.1b excuse, and this is the price of that carve-out: rather than an '
+  'expected value quietly tracking the door, the defect is stated as a FACT (all ten GRANT today) '
+  'beside the APPROVED answer (all ten should DENY — `expected_legacy_granted` stays false). '
+  'BUG-AE5-MATRIX-ARM3-CELLS-CASE-GRANT-ARM-MAKES-THE-HAT-TERM-UNENFORCEABLE: arm 3 reaches '
+  'through `_case_caps` S3/S4, neither of which contains a role lookup, so the active-hat rule — '
+  '"you cannot read your own profile while acting as another role" — is rendered INOPERATIVE for '
+  'anyone holding a case grant. ⛔⛔ THE DAY THE BUG IS FIXED THIS REDS, AND THAT IS THE POINT: '
+  'the assertion then moves DELIBERATELY, in a diff someone reviews, instead of a green suite '
+  'silently absorbing the change. Move it by deleting this section and dropping the carve-out '
+  'from § 4.1/§ 4.1b — never by editing "granted on 10" to "granted on 0". '
+  '⚠ THE SHAPE IS PINNED TOO, NOT JUST THE COUNT. `reaches=grant_keyed` proves the defect exists '
+  'ONLY where the reach is role-free — at role_keyed the same ten coordinates carry '
+  '`arm3:silent:reach-follows-the-hat`, i.e. the hat rule WORKS there — and that contrast is the '
+  'whole return on the caseReach axis. Without these clauses the carve-out could widen to swallow '
+  'unrelated cells while the count still read plausibly.');
+
+select is(
+  pg_temp.arm3_probe('cross_org_actor', 'own_commission',         'grant_keyed') || ' | ' ||
+  pg_temp.arm3_probe('subject_holder',  'foreign_org_commission', 'grant_keyed'),
+  'grant_keyed: participation=1 arm1=false arm2a=false arm2b=false door=true | '
+  'grant_keyed: participation=1 arm1=false arm2a=false arm2b=false door=true',
+  '7.5 ⭐⭐ THE CLASS-4 GUARD — IT EXISTS TO CONSTRAIN THE FIX FOR § 7.4''s BUG, AND THE PO RULED '
+  'IT MANDATORY. Classes 4 and 5 overlap conceptually, so "a fix that adds a hat check inside '
+  'arm 3 MUST NOT accidentally add an ORG check" — narrowing by org "would silently break '
+  'cross-org case collaboration that the referral module exists for". A fix verified only by '
+  '§ 7.4 going red-to-green would revoke that approved reach and NO arm in ANY suite would say '
+  'so. This is that arm. '
+  '⭐ BOTH DIRECTIONS OF THE CROSS-ORG EDGE, because a one-sided guard is half a guard: line 1 is '
+  'an ORG-B caller reading an ORG-A profile on an ORG-A case; line 2 is an ORG-A caller reading '
+  'an ORG-B profile on an ORG-B case. In each the caller''s organization is the ODD ONE OUT, '
+  'which is precisely R2''s point — the grant anchors on the CASE. '
+  '⭐ THE HAT IS THE *MATCHING* ONE (arm3_probe sets active_role = staff_admin, the role each '
+  'persona actually holds), deliberately: a correct class-5 fix adds a hat check, and a hat check '
+  'leaves a matching hat alone. So this assertion SURVIVES the intended fix and REDS on the '
+  'accidental org check — which is the only way it could be a guard rather than a second copy of '
+  '§ 7.4. ⚠ Line 1 repeats § 7.3b''s last measurement ON PURPOSE: § 7.3b proves the reach '
+  'MECHANISM and may one day be re-cut, and the guard must not leave with it.');
 
 -- ⚠ CLEANUP RUNS LAST, AND THE ORDER IS LOAD-BEARING. It was originally placed before §6,
 -- which deactivated the fixture principals and made EVERY cell deny — so §6.1 passed for the
@@ -642,6 +975,29 @@ delete from public.memberships where principal_id in
 update public.profiles set is_active = false
  where id in (select sib_holder from f403 union all select xorg_holder from f403
               union all select nobody from f403);
+
+-- ⛔ THE PARTICIPATION FIXTURE, TORN DOWN BY IDENTITY AND LAST. Every one of these rows is
+-- fixture-minted with a fixed `…-4403-…` id, so unlike the profiles above they CAN be deleted and
+-- are — the suite should leave a hypothetical out-of-transaction run with no live
+-- professional_participants row for its subject profiles, which is the state § 7.3's predecessor
+-- asserted and the state ~900 other tests were written against.
+-- ⚠ ORDER IS LOAD-BEARING, TWICE OVER. It runs AFTER § 7 (every assertion up to § 7.5 needs the
+-- reach constructible; §§ 6.0-6.3 re-sweep every cell and each sweep rebuilds participation), and
+-- child-before-parent within itself. ⛔ Moving it above § 6 would make BOTH fail-proofs there fire
+-- for the teardown instead of their own mutations — the F1 shape the memberships cleanup was
+-- moved down here to escape.
+delete from public.case_access_grants where case_id in
+  (select case_own from f403 union all select case_sib from f403 union all select case_xorg from f403);
+delete from public.case_participants where participant_id in
+  (select part_own from f403 union all select part_xorg from f403);
+delete from public.professional_participants where participant_id in
+  (select part_own from f403 union all select part_xorg from f403);
+delete from public.participants where id in
+  (select part_own from f403 union all select part_xorg from f403);
+delete from public.cases where id in
+  (select case_own from f403 union all select case_sib from f403 union all select case_xorg from f403);
+delete from public.case_participant_roles where id in
+  (select role_own from f403 union all select role_xorg from f403);
 
 
 select * from finish();
