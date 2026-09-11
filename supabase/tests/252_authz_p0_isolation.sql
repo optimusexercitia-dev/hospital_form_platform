@@ -261,7 +261,22 @@ select ok((select count(*)::int from public.capa_action where id='caa00000-0000-
   'capa_action_select POS: a capa reader reads capa_action (can_read_capa)');
 reset role;
 -- professional_profiles_select (can_read_professional_profile) — reps participants.
-select test_helpers.claims_for((select foreign_uid from k), false); set local role authenticated;
+-- ⛔⛔ THE HAT IS SEATED EXPLICITLY ON THIS DENY, AND ONLY ON THIS ONE. `foreign_uid` (..b3)
+-- holds TWO live role codes (`staff` @ Comissão de Qualidade B, `staff_admin` @ Farmácia B), so
+-- `test_helpers.claims_for`'s omitted third argument cannot DERIVE a single code and the session
+-- carries NO `active_role` claim at all. Since ADR 0209 `app.can_read_professional_profile`
+-- opens with a DOOR-LEVEL hat term that denies a SELF-check by a principal holding >= 1 live role
+-- whose presented hat is none of them — an ABSENT hat included — and the RLS path always asks the
+-- door about `auth.uid()`, i.e. always as a self-check. ⇒ hatless, this assertion was answered by
+-- the HAT TERM and the isolation predicate it names was never consulted.
+-- MEASURED 2026-09-11, not reasoned: with the isolation neutralized (a `case_access_grants`
+-- read row for ..b3 on `ca..e1`, the case seating this professional) the HATLESS form stayed
+-- GREEN; with `'staff'` seated the same neutralization REDS it. ⛔ Do not drop the third
+-- argument back to the derived form — that silently un-tests tenant isolation here.
+-- ⚠ `'staff'` is a hat ..b3 genuinely HOLDS, so the door term falls through on merit; it entails
+-- no `org.professionals.read`, so the policy's short-circuit arm stays empty and the ELSE arm
+-- (the door, and its org/case isolation) is what answers.
+select test_helpers.claims_for((select foreign_uid from k), false, 'staff'); set local role authenticated;
 select is((select count(*)::int from public.professional_profiles where id='fb000000-0000-0000-0000-0000000000e1'),0,
   'professional_profiles_select DENY: foreign principal reads 0 professional_profiles rows');
 reset role;

@@ -350,8 +350,11 @@ ARM3_DIVERGENCE_VALUES = {
     'arm3:silent:reach-needs-a-role':
         'a role-keyed reach cannot fire for a persona that holds no role',
     'arm3:silent:reach-follows-the-hat':
-        '⭐ THE CONTROL FOR THE CLASS-5 BUG: at a role-keyed reach the same wrong/absent hat that '
-        'the deny-class table denies on ALSO shuts arm 3 — which is what grant_keyed does not do',
+        '⭐ THE HAT SHUTS THE REACH FROM THE INSIDE: at a role-keyed reach the same wrong/absent '
+        'hat the deny-class table denies on ALSO shuts arm 3, in holds_role\'s trailing conjunct. '
+        '⚠ This read "— which is what grant_keyed does not do" until ADR 0209. grant_keyed is now '
+        'shut too, but ONE LAYER UP: by the door-level term, never by the reach, which stays '
+        'role-free. What this label names is WHERE the hat binds, not whether it binds',
     'arm3:masking':
         '⚠ arm 3 AGREES with an expected GRANT and masks the arm the cell names',
     'arm3:divergent-approved:not-a-holder':
@@ -359,9 +362,18 @@ ARM3_DIVERGENCE_VALUES = {
     'arm3:divergent-approved:cross-org':
         'arm 3 grants where the table denies — PO-APPROVED (R2): an explicit case grant anchors on '
         'the CASE, never on the caller\'s org',
+    'arm3:pre-empted:door-hat-term':
+        '⛔ THE DOOR DENIES BEFORE ARM 3 IS EVALUATED (ADR 0209 D1) — a SELF-check by a principal '
+        'who HOLDS at least one live role, presenting a hat that is none of them. The reach is '
+        'still built and still role-free; it is PRE-EMPTED, which is why this is not a `silent:` '
+        'label: nothing about the reach changed, the door stopped asking',
     'arm3:divergent-defective:hat-unenforceable':
-        '⛔ DEFECT, NOT APPROVED REACH — BUG-AE5-MATRIX-ARM3-CELLS-CASE-GRANT-ARM-MAKES-THE-HAT-'
-        'TERM-UNENFORCEABLE. Awaiting a fix; ⛔ never read as an approved expected value',
+        '⛔ RETIRED 2026-09-11 — FIXED by ADR 0209 / migration 20261003007400, and NO cell carries '
+        'it today (its ten coordinates now carry `arm3:pre-empted:door-hat-term`). ⛔ KEPT '
+        'DECLARED ON PURPOSE: arm10(b) keys on the `arm3:divergent-defective:` FAMILY rather than '
+        'on this one name, and --self-test SYNTHESISES a cell carrying it, so the arm that refuses '
+        'a filed defect laundered into an approved legacy GRANT stays exercised against a defect '
+        'nobody has filed yet. Deleting this entry disarms that detector',
 }
 
 # ── THE SECOND EXPECTED VALUE (AE5-MATRIX-ARM3-CELLS increment 3) ────────────────────────
@@ -383,6 +395,15 @@ ARM3_DIVERGENCE_VALUES = {
 # ⇒ R2's approved GRANT lands HERE, in a second column carrying the LEGACY DOOR's approved
 #   answer. `expected_granted` moves by exactly ZERO cells.
 ARM3_PINNED_DEFECT = 'arm3:divergent-defective:hat-unenforceable'
+# ⭐⭐ ARM10(b) KEYS ON THE FAMILY, NOT ON THE NAME (ADR 0209). The one concrete member above is
+# FIXED and labels zero cells today, so an arm keyed on that string alone would be a detector with
+# nothing to detect and the next hand would delete it. Keyed on the prefix it still refuses the
+# NEXT filed arm-3 defect the moment one is labelled, and --self-test synthesises a member so the
+# arm is exercised in the meantime. ⛔ A future defect label MUST use this prefix, or arm10(b)
+# cannot see it.
+ARM3_DEFECT_PREFIX = 'arm3:divergent-defective:'
+# The label the door-level hat term puts on the 18 cells it pre-empts (ADR 0209 D1/D5).
+ARM3_PREEMPTED = 'arm3:pre-empted:door-hat-term'
 ARM3_DIVERGENT_APPROVED = ('arm3:divergent-approved:not-a-holder',
                            'arm3:divergent-approved:cross-org')
 
@@ -397,12 +418,15 @@ def expected_legacy(exp, div):
        identical wherever no approved divergence was ruled, and 403 §4.1 keeps comparing
        legacy against catalog on exactly those cells.
 
-       ⛔⛔ THE FILED DEFECT IS NOT LISTED HERE, AND THAT OMISSION IS THE RULING. Class 5
-       (`ARM3_PINNED_DEFECT`) keeps the matrix answer FALSE — the hat rule SHOULD deny — while
-       the door returns TRUE today. Encoding today's behaviour as the approved value is the one
-       thing R2 forbids, so the defect is carried as a CARVE-OUT plus a head-on assertion in
-       403 §7.4 ("this is what it does, and it is wrong"), never as an expected value. When the
-       bug is fixed, §7.4 reds and the assertion moves deliberately.
+       ⛔⛔ NEITHER THE FILED DEFECT NOR THE PRE-EMPTED CELLS ARE LISTED HERE, AND THAT OMISSION
+       IS THE RULING. The old class 5 (`ARM3_PINNED_DEFECT`) kept the matrix answer FALSE — the
+       hat rule SHOULD deny — while the door returned TRUE; encoding today's behaviour as the
+       approved value is the one thing R2 forbids, so it was carried as a CARVE-OUT plus 403
+       §7.4's head-on assertion, never as an expected value. ⭐ ADR 0209 FIXED THE DOOR, so those
+       cells (and eight re-ruled cross-org siblings) now carry `ARM3_PREEMPTED`, keep the matrix
+       answer FALSE, and are no longer excused from anything: §7.4 is deleted and §4.1/§4.1b
+       compare them BY VALUE like every other cell. The route was the one §7.4's own message
+       named — delete the section and drop the carve-out — never editing "granted on 10".
 
        ⚠ A `divergent-approved` cell always has `exp is False` BY CONSTRUCTION — arm3_divergence
        returns `arm3:masking` before it reaches the divergent branches whenever `exp` is true. So
@@ -464,6 +488,39 @@ def arm3_divergence(klass, persona, ctx, scope, state, selfcheck, exp, src, reac
     if exp:
         return 'arm3:masking'
 
+    # (5b) ⭐⭐ THE DOOR-LEVEL HAT TERM (ADR 0209 D1), TRANSCRIBED. Since migration
+    # 20261003007400 `app.can_read_professional_profile` evaluates the ACT hat BEFORE any arm: a
+    # SELF-check by a principal who HOLDS at least one live role, under a hat that is none of
+    # them, returns false whatever arm would have answered. Arm 3's reach is still built and
+    # still role-free — it is PRE-EMPTED, not silenced, which is why the label is not a `silent:`
+    # one: nothing about the reach changed, the door stopped asking.
+    #
+    # ⛔ THE THREE CONJUNCTS ARE THE DOOR'S, ONE FOR ONE, and each carries a ruling:
+    #   selfcheck             — the term mirrors has_role/is_admin_for and never touches a
+    #                           THIRD-PARTY question; §6A's asymmetry (403 §5.2) is untouched.
+    #   HOLDS_AT is not None  — D3. A principal with NO live role has no hat to be wrong, so the
+    #                           36 `not-a-holder` cells keep the reach PO ruling R2 approved. A
+    #                           hat check keyed on the HAT ALONE reds 403 §4.1b on exactly those,
+    #                           which is mutant C′ and is why this conjunct is written out.
+    #   ctx in (other_role,   — `matching` is a hat the persona holds, so the door falls through
+    #           absent)         and 403 §7.5 SURVIVES the fix, which is what makes it a guard
+    #                           rather than a second copy of the retired §7.4.
+    #
+    # ⚠ `absent` NEVER REACHES HERE FOR A HOLDER, and the conjunct is written anyway. build()
+    # skips the coordinate (`absent_unreachable_for_single_role_principal`): the token hook mints
+    # a hat implicitly for a principal holding exactly ONE role type, and every holder persona
+    # holds exactly one. So D4's value — a hatless holder self-checking is DENIED — is pinned by
+    # 403 directly rather than by a cell, and this clause states the door's predicate in full
+    # instead of encoding the fixture's inability to build one of its coordinates.
+    #
+    # ⚠ PLACED AFTER `masking`, AND THAT IS SAFE ONLY BECAUSE `expected()` CANNOT PRODUCE THE
+    # OVERLAP: its step 5 returns False for EVERY self-check at a wrong or absent hat, so no cell
+    # can be both `exp` and hat-denied. ⛔ If `expected()` is ever changed to grant one, this
+    # branch must move ABOVE masking — a hat-denied cell labelled `arm3:masking` keeps
+    # expected_legacy = GRANT, and 403 §4.1b would then red with the wrong attribution.
+    if selfcheck and HOLDS_AT[persona] is not None and ctx in ('other_role', 'absent'):
+        return ARM3_PREEMPTED
+
     # (6) THE THREE DIVERGENT CLASSES. ⛔ EXHAUSTIVE BY RAISE, NOT BY `else`. A new deny class
     # arriving in `expected()` must be dispositioned here deliberately; absorbing it into a
     # default would silently label an unexamined divergence as approved — the default-arm shape
@@ -472,8 +529,20 @@ def arm3_divergence(klass, persona, ctx, scope, state, selfcheck, exp, src, reac
         return 'arm3:divergent-approved:not-a-holder'          # class 3
     if src == 'deny-class:cross_org':
         return 'arm3:divergent-approved:cross-org'             # class 4
+    # ⛔ WHAT USED TO BE CLASS 5 IS NOW UNREACHABLE, AND IT RAISES RATHER THAN BEING DELETED.
+    # `deny-class:wrong_active_context:self` arises only for a HOLDER (expected() returns
+    # `matrix-row:not-a-holder` first otherwise) on a SELF-check at `other_role`/`absent` — which
+    # is exactly branch (5b)'s predicate, so (5b) claims every such cell before this line. If one
+    # ever gets here the two have stopped agreeing, and the vector would silently regain a
+    # divergent-approved GRANT on a wrong-hat self-check: the defect ADR 0209 fixed, re-entering
+    # through the label. ⛔ Do NOT restore a return here — make (5b) match the door.
     if src == 'deny-class:wrong_active_context:self':
-        return 'arm3:divergent-defective:hat-unenforceable'    # class 5 — the filed bug
+        raise AssertionError(
+            'a wrong-hat SELF-check reached the divergent branches (persona=%s ctx=%s scope=%s '
+            'state=%s reach=%s). Branch (5b) — the door-level hat term, ADR 0209 D1 — must have '
+            'claimed it. Either `expected()`\'s precedence moved or (5b)\'s conjuncts no longer '
+            'mirror the door; fix the mirror, do not re-add a label here.'
+            % (persona, ctx, scope, state, reach))
     raise AssertionError(
         'arm3_divergence has no disposition for expectedSource `%s` at reach `%s` (persona=%s '
         'ctx=%s scope=%s state=%s self=%s). A deny class reached arm 3 without a PO ruling on '
@@ -752,16 +821,20 @@ def coverage(cells, skipped, reps, disposition=None, exclusions=None, axes=None,
                  'whole point of an explicit grant"), so a deny expectation here silently revokes '
                  'it and 403 would pin the narrowing as correct (first: %s)'
                  % (len(_demoted), _demoted[0][0]))
-    _approved_defect = [c for c in cells if c[12] == ARM3_PINNED_DEFECT and c[13]]
+    # ⭐ KEYED ON THE `arm3:divergent-defective:` FAMILY SINCE ADR 0209, not on one label. The one
+    # member is FIXED and labels ZERO cells, so a name-keyed arm would be a detector with nothing
+    # to detect — and the next hand would delete it as dead. The family keeps it live for the NEXT
+    # filed defect, and --self-test synthesises a member so the arm is still exercised today.
+    _approved_defect = [c for c in cells if c[12].startswith(ARM3_DEFECT_PREFIX) and c[13]]
     if _approved_defect:
-        f.append('arm10: %d cell(s) labelled `%s` expect the legacy door to GRANT — that encodes a '
-                 'FILED DEFECT\'s current behaviour as the approved answer, which is the ONE thing '
-                 'R2 forbids. The defect is carried as a carve-out plus 403 §7.4\'s head-on '
-                 'assertion, never as an expected value (first: %s)'
-                 % (len(_approved_defect), ARM3_PINNED_DEFECT, _approved_defect[0][0]))
+        f.append('arm10: %d cell(s) carrying a `%s` label expect the legacy door to GRANT — that '
+                 'encodes a FILED DEFECT\'s current behaviour as the approved answer, which is the '
+                 'ONE thing R2 forbids. A defect is carried as a head-on assertion in 403 § 7 '
+                 'plus, while it stands, a carve-out — never as an expected value (first: %s)'
+                 % (len(_approved_defect), ARM3_DEFECT_PREFIX, _approved_defect[0][0]))
     _unattributed = [c for c in cells
                      if c[13] != c[9] and c[12] not in ARM3_DIVERGENT_APPROVED
-                     and c[12] != ARM3_PINNED_DEFECT]
+                     and not c[12].startswith(ARM3_DEFECT_PREFIX)]
     if _unattributed:
         f.append('arm10: %d cell(s) expect the legacy door to disagree with the matrix WITHOUT a '
                  'divergent label to attribute it to — 403 §4.1 excuses legacy-vs-catalog '
@@ -820,6 +893,27 @@ if '--self-test' in sys.argv:
         assert i is not None, ('no cell carries any of %s with expected_legacy_granted != %s — '
                                'the arm10 fixture would perturb nothing' % (labels, value))
         out[i] = out[i][:13] + (value,)
+        return out
+
+    def _synth_defect():
+        """base_cells with ONE cell RE-LABELLED into the `arm3:divergent-defective:` family AND
+           given an approved legacy GRANT — the exact shape arm10(b) exists to refuse.
+
+           ⛔⛔ SYNTHESISED, NOT SELECTED, AND THAT IS THE POINT SINCE ADR 0209 (lead ruling R-L3).
+           The family is EMPTY in the real vector now that the filed defect is fixed, so the
+           `_one((ARM3_PINNED_DEFECT,), True)` fixture this replaces would raise its "no candidate"
+           assertion and the obvious repair would be to DELETE the fixture — disarming the only arm
+           that refuses a future filed defect laundered into an approved legacy GRANT, on the very
+           day the last one was fixed. Synthesising keeps the detector armed against a defect
+           nobody has filed yet.
+           ⭐ THE DISCRIMINATION HALF IS THE REAL-SPEC RUN AT THE END OF --self-test: this fixture
+           proves arm10(b) is LOUD on a defective-labelled GRANT, and that run proves it is QUIET
+           on the real cell set. One without the other is half a control."""
+        out = list(base_cells)
+        i = next((j for j, c in enumerate(out) if not c[12].startswith(ARM3_DEFECT_PREFIX)), None)
+        assert i is not None, ('every cell already carries a defective label — the synthesised '
+                               'arm10(b) fixture would perturb nothing')
+        out[i] = out[i][:12] + (ARM3_PINNED_DEFECT, True)
         return out
 
     checks = [
@@ -888,7 +982,10 @@ if '--self-test' in sys.argv:
         # labelled cell the moment the emission order changed and report NOT CAUGHT for a reason
         # that has nothing to do with the arm.
         ('arm10 approved divergence demoted', _one(ARM3_DIVERGENT_APPROVED, False), base_skipped, REPS, None, None, None),
-        ('arm10 filed defect approved',       _one((ARM3_PINNED_DEFECT,), True),     base_skipped, REPS, None, None, None),
+        # ⛔ SYNTHESISED, NOT SELECTED — see _synth_defect. The defective family is EMPTY since
+        # ADR 0209 fixed its one member, and a fixture that can no longer FIND its subject is the
+        # shape that gets deleted, taking the arm with it.
+        ('arm10 filed defect approved',       _synth_defect(),                       base_skipped, REPS, None, None, None),
         # A flip with no divergent label at all: the `caps-deny` cells are the honest non-vacuous
         # denials, so promoting one is exactly the unattributed exemption (e) exists to refuse.
         ('arm10 unattributed legacy flip',    _one(('arm3:silent:caps-deny',), True), base_skipped, REPS, None, None, None),
@@ -969,7 +1066,7 @@ for c in cells:
 flips = '\n'.join('--   %-44s at case_reach=%-12s %4d' % (k[0], k[1], v)
                   for k, v in sorted(_flip_census.items()))
 nflip = sum(_flip_census.values())
-npin = _div_census.get(ARM3_PINNED_DEFECT, 0)
+npre = _div_census.get(ARM3_PREEMPTED, 0)
 excl = '; '.join('%s.%s' % (a, v) for (a, v) in sorted(EXCLUSIONS))
 # ⛔ THE CONDITIONAL RULES' REASONS ARE PRINTED IN FULL, not summarised to a name. A rule that
 # deletes 2592 cells is read by whoever opens THIS file when a count looks wrong; a name alone
@@ -1033,20 +1130,29 @@ body = """-- GENERATED FILE — DO NOT EDIT BY HAND.
 --   `legacy == expected_legacy_granted` on every cell — so the carve-out from §4.1 is paid for
 --   by a VALUE, never by an exemption.
 --
--- ⛔ THE FILED DEFECT IS PINNED, NOT APPROVED. `%s` keeps
--- `expected_legacy_granted = false` — the approved answer, because the hat rule SHOULD deny —
--- while the door returns TRUE today. Those %d cells are the ONLY cells excused from §4.1/§4.1b,
--- by that label alone, and 403 §7.4 asserts head-on that every one of them GRANTS and that
--- granting is WRONG. The day the bug is fixed, §7.4 reds: the assertion moves DELIBERATELY
--- instead of tracking reality. arm10 refuses any attempt to launder it into an expected value.
+-- ⭐⭐ THE FILED DEFECT IS FIXED, AND THE CARVE-OUT IT PAID FOR IS GONE (ADR 0209, migration
+-- 20261003007400). `%s` labels the %d cells the door now denies
+-- BEFORE any arm is evaluated: a SELF-check by a principal who HOLDS a live role, under a hat
+-- that is none of the roles they hold. They are 10 + 8 — the ten cells of the filed bug
+-- (`arm3:divergent-defective:hat-unenforceable`, which labels nothing now), PLUS EIGHT that this
+-- generator's own precedence had labelled `arm3:divergent-approved:cross-org` because
+-- `expected()` resolves scope (`deny-class:cross_org`) BEFORE the hat.
+-- ⭐ THOSE EIGHT ARE A RE-RULING (ADR 0209 D5, **PO to ratify**): PO ruling R2 approved CROSS-ORG
+-- reach and never spoke to the WRONG HAT, and a hat term conditioned on org would BE the org
+-- check R2 forbids. ⛔ NO CELL IS EXCUSED FROM §4.1/§4.1b ANY MORE — the carve-out by label is
+-- deleted and every cell is compared BY VALUE. arm10 still refuses a defect laundered into an
+-- expected value: it keys on the `arm3:divergent-defective:` FAMILY, which is empty today, and
+-- --self-test SYNTHESISES a member so the detector stays exercised rather than quietly retired.
 --
 -- ══ WHERE THE TWO EXPECTED VALUES DIVERGE (%d cell(s)) ═══════════════════════════════════════
 %s
 --
 -- ⛔ `divergent-approved` (R2: an explicit case grant needs no role and anchors on the CASE, not
--- the caller's org) and `divergent-defective` (BUG-AE5-MATRIX-ARM3-CELLS-CASE-GRANT-ARM-MAKES-
--- THE-HAT-TERM-UNENFORCEABLE) ARE DIFFERENT VALUES ON PURPOSE. Merging them would encode a filed
--- defect's current behaviour as approved, which is the one thing R2 forbids.
+-- the caller's org), `divergent-defective` (a filed bug — the family is EMPTY since ADR 0209) and
+-- `pre-empted` (the door's own hat term, DENY by ruling) ARE DIFFERENT VALUES ON PURPOSE. Merging
+-- any two of them encodes one class's behaviour as another's approved answer, which is the one
+-- thing R2 forbids — and it stays forbidden now that the first defect is fixed, because the next
+-- one will arrive wearing the same shape.
 --
 --   arm-3 coverage: %d      ⛔ NOT arm-3 coverage: %d
 -- ⚠ THE SECOND NUMBER IS NOT A FOOTNOTE. `blocked:principal-state` cells cannot be made to fire
@@ -1079,7 +1185,7 @@ create temp table authz_differential_cells on commit drop as
          resolution_scope_kind, principal_state, self_check, expected_granted, expected_source,
          case_reach, arm3_divergence, expected_legacy_granted);
 """ % (sha, len(cells), len({r[1] for r in REPS}), len(REPS), sum(skipped.values()),
-       excl, ', '.join(srcs), ARM3_PINNED_DEFECT, npin, nflip, flips,
+       excl, ', '.join(srcs), ARM3_PREEMPTED, npre, nflip, flips,
        len(cells) - notcov, notcov, ARM3_GATE, condexcl, divcensus, rows)
 
 if '--check' in sys.argv:
@@ -1106,5 +1212,7 @@ io.open(OUT, 'w', encoding='utf-8', newline='\n').write(body)
 print('cells=%d skipped=%d (%s)' % (len(cells), sum(skipped.values()), skipped))
 print('expectedSource:', srcs)
 print('granted=%d denied=%d' % (sum(1 for c in cells if c[9]), sum(1 for c in cells if not c[9])))
-print('legacy_granted=%d denied=%d  (flips vs expected_granted: %d, pinned defect: %d)'
-      % (sum(1 for c in cells if c[13]), sum(1 for c in cells if not c[13]), nflip, npin))
+print('legacy_granted=%d denied=%d  (flips vs expected_granted: %d, pre-empted by the door hat '
+      'term: %d, defective-family: %d)'
+      % (sum(1 for c in cells if c[13]), sum(1 for c in cells if not c[13]), nflip, npre,
+         sum(1 for c in cells if c[12].startswith(ARM3_DEFECT_PREFIX))))

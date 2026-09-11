@@ -102,6 +102,13 @@
 -- becoming REACHABLE in this fixture: § 4.1b (the LEGACY door's own oracle, which PAYS FOR the
 -- carve-out § 4.1 now takes), § 7.3b (the four reaches measured at one coordinate), § 7.4 (the
 -- filed defect PINNED, never approved) and § 7.5 (the guard PO ruling R2 requires on the fix).
+-- ⭐ 27 -> 27 AT ARM3-HAT-TERM-FIX, AND THE UNMOVED TOTAL IS WORTH STATING RATHER THAN LEAVING AS
+-- AN ABSENCE: § 7.4 was DELETED (its bug is fixed by ADR 0209 / migration 20261003007400, and
+-- deletion is the route its own message named) and § 7.4b ADDED in its place — a LIVE head-on pin
+-- of the door-level ACT hat term, in three lines: the DENY the fix creates, the GRANT it must not
+-- break (PO ruling R2's role-less reach), and the hatless-holder value no cell can carry. ⛔ A
+-- reader diagnosing plan(27) against a diff that deletes an assertion is looking at a SWAP, not at
+-- a silently dropped test.
 
 begin;
 select plan(27);
@@ -599,40 +606,52 @@ select is(
                               ' | ' order by cell_id), '(none)')
      from r403
     where legacy is distinct from catalog
-      and expected_legacy_granted is not distinct from expected_granted
-      and arm3_divergence <> 'arm3:divergent-defective:hat-unenforceable'),
+      and expected_legacy_granted is not distinct from expected_granted),
   '(none)',
   '4.1 ⭐ LEGACY == CATALOG on every cell WHERE THE VECTOR DECLARES NO DIVERGENCE. ⛔ Because the '
   'matrix is ALREADY APPROVED, a difference here means legacy is wrong or the resolver is wrong — '
   'it is never a licence to record "the catalog matches legacy" and move on (PA-F8). The message '
   'names the disagreeing cells. '
-  '⚠⚠ THE TWO CARVE-OUTS ARE NOT EXEMPTIONS, AND NEITHER IS A WEAKENING — read what pays for '
-  'each. (1) Cells where `expected_legacy_granted <> expected_granted` are the 92 the AE5 arm-3 '
-  'derivation DECLARES divergent under PO ruling R2, and § 4.1b asserts the legacy answer on them '
-  'BY VALUE, so nothing is merely skipped. They diverge for a structural reason rather than a '
-  'defect: `authz.candidate_has_permission` is a role/permission resolver with NO case arm, and '
-  'arm 3 reaches through a CASE GRANT, which is not a permission and is not meant to become one. '
+  '⚠⚠ THERE IS NOW EXACTLY ONE CARVE-OUT, AND IT IS NOT AN EXEMPTION — read what pays for it. '
+  'Cells where `expected_legacy_granted <> expected_granted` are the 84 the AE5 arm-3 derivation '
+  'DECLARES divergent under PO ruling R2, and § 4.1b asserts the legacy answer on them BY VALUE, '
+  'so nothing is merely skipped. They diverge for a structural reason rather than a defect: '
+  '`authz.candidate_has_permission` is a role/permission resolver with NO case arm, and arm 3 '
+  'reaches through a CASE GRANT, which is not a permission and is not meant to become one. '
   'MEASURED live at head, class-4 grant_keyed coordinate — door TRUE (arm1 f, arm2a f, arm2b f, '
-  'caps 6) against resolver FALSE. (2) The ten `arm3:divergent-defective:hat-unenforceable` cells '
-  'are the FILED BUG, excused from both § 4.1 and § 4.1b and asserted HEAD-ON in § 7.4 instead — '
-  'an expected value that said GRANT there would launder a defect into the oracle, which is the '
-  'one thing R2 forbids.');
+  'caps 6) against resolver FALSE. '
+  '⭐⭐ THE SECOND CARVE-OUT IS GONE, BY THE ROUTE ITS OWN MESSAGE NAMED. It excused ten '
+  '`arm3:divergent-defective:hat-unenforceable` cells BY LABEL, because a case grant could stand '
+  'in for a missing ACT hat and no expected value may launder a defect into the oracle. ADR 0209 '
+  '(migration 20261003007400) fixed the door — the hat is now a term evaluated BEFORE the arms — '
+  'so those cells (with eight re-ruled cross-org siblings) carry `arm3:pre-empted:door-hat-term`, '
+  'expect DENY, and are compared here BY VALUE like everything else. § 7.4 was DELETED with the '
+  'carve-out, never edited from "granted on 10" to "granted on 0"; its successor is § 7.4b, which '
+  'pins the term head-on in both polarities. ⚠ The flip count moved 92 -> 84 for the same reason: '
+  'the eight cross-org cells stopped expecting a legacy GRANT.');
 
 select is(
   (select coalesce(string_agg(cell_id || ' legacy=' || legacy::text || ' expected_legacy=' ||
                               expected_legacy_granted::text || ' div=' || arm3_divergence,
                               ' | ' order by cell_id), '(none)')
      from r403
-    where legacy is distinct from expected_legacy_granted
-      and arm3_divergence <> 'arm3:divergent-defective:hat-unenforceable'),
+    where legacy is distinct from expected_legacy_granted),
   '(none)',
   '4.1b ⭐⭐ THE LEGACY DOOR HAS ITS OWN APPROVED VALUE, AND THIS IS WHERE ARM 3 STOPS BEING '
   '"EXERCISED, NOT ORACLED" (ADR 0175 D3''s forward promise, discharged). § 4.1 above can only '
-  'ever say the two implementations agree; on the 92 cells where they are RULED to disagree it '
+  'ever say the two implementations agree; on the 84 cells where they are RULED to disagree it '
   'has nothing to compare, and without this assertion the carve-out would be pure subtraction. '
   '`expected_legacy_granted` is transcribed by the generator from the arm-3 derivation exactly as '
   '`expected_granted` is transcribed from the deny-class table — no resolver logic, no case-caps '
   'reimplementation — and generator arm10 refuses a divergence with no label to attribute it to. '
+  '⭐⭐ THIS ASSERTION NOW COVERS EVERY CELL. The ten-cell label carve-out is gone: ADR 0209 made '
+  'the ACT hat a term the door evaluates BEFORE its arms, so the cells that used to be excused '
+  'DENY here BY VALUE, under `arm3:pre-empted:door-hat-term`, and § 7.4 was deleted with the '
+  'exemption it paid for. ⛔ THAT IS ALSO WHAT MAKES THIS THE MUTATION ORACLE FOR THE FIX ITSELF: '
+  'a hat check keyed on the HAT ALONE — one that forgets to ask whether the caller holds any role '
+  '— reds here on the 36 `arm3:divergent-approved:not-a-holder` cells, because S3 is role-free by '
+  'design and an unprivileged principal reaching through an explicit grant is reach PO ruling R2 '
+  'APPROVED. Measured as mutant C, and again as mutant C′ on the door-level term. '
   '⛔ IF THIS REDS, THE QUESTION IS WHICH WAY THE DOOR MOVED, never "what value matches today". A '
   'cell that now DENIES where the vector expects a legacy GRANT means a narrowing revoked reach '
   'PO ruling R2 approved ("the case-grant path deliberately anchors on the case, not on the '
@@ -817,23 +836,33 @@ select is(
       where case_reach = 'grant_keyed'
       group by arm3_divergence) g),
   'arm3:blocked:principal-state=108/DENY '
-  'arm3:divergent-approved:cross-org=32/GRANT '
+  'arm3:divergent-approved:cross-org=24/GRANT '
   'arm3:divergent-approved:not-a-holder=36/GRANT '
-  'arm3:divergent-defective:hat-unenforceable=10/DENY '
-  'arm3:masking=30/GRANT',
+  'arm3:masking=30/GRANT '
+  'arm3:pre-empted:door-hat-term=18/DENY',
   '7.3 ⭐⭐ WHERE ARM 3 GRANTS, AND WHAT THE APPROVED ANSWER IS — the whole grant_keyed column, '
   'partitioned, with each partition''s approved LEGACY answer beside it. Read it as five rulings: '
   '(108) `_case_caps` STEP 2 shuts arm 3 for a suspended or deactivated principal, so no fixture '
   'can make it fire and DENY is structural, not approved; (30) arm 3 agrees with a grant the cell '
   'already expected and MASKS the arm the cell names — which is why `none` had to survive as an '
-  'axis value instead of the fixture simply gaining participation; (32 + 36) PO ruling R2 — an '
+  'axis value instead of the fixture simply gaining participation; (24 + 36) PO ruling R2 — an '
   'explicit case grant needs NO role and anchors on the CASE, never on the caller''s org, so both '
-  'are APPROVED designed reach and their approved legacy answer is GRANT; (10) the FILED BUG, '
-  'whose approved answer stays DENY because the hat rule SHOULD deny. '
-  '⛔ THE 32/36 GRANT AND THE 10 DENY ARE THE SAME MEASUREMENT WEARING TWO RULINGS. Merging them '
-  '— by giving the defect a GRANT to "match reality", or by demoting the approved pair to DENY to '
-  '"tighten" the door — is the single thing R2 forbids, in either direction. Generator arm10 '
-  'refuses both edits at generation time; this asserts the result reached the vector. '
+  'are APPROVED designed reach and their approved legacy answer is GRANT; (18) the DOOR''s own ACT '
+  'hat term (ADR 0209 D1), evaluated BEFORE the arms, whose approved answer is DENY because the '
+  'hat rule SHOULD deny a holder self-checking under a role they do not hold. '
+  '⭐⭐ THE STRING WAS RE-DERIVED BY RUNNING THIS QUERY, NEVER HAND-EDITED. It read '
+  '`cross-org=32/GRANT` and `divergent-defective:hat-unenforceable=10/DENY` until 2026-09-11. The '
+  'ten were the filed bug (a case grant standing in for a missing hat); the door now denies them '
+  '— AND EIGHT MORE. ⛔ THOSE EIGHT ARE A RE-RULING, NOT A COUNT CORRECTION (ADR 0209 D5, PO to '
+  'ratify): they are `other_role` SELF-checks at a cross-org coordinate, and they sat in class 4 '
+  'only because the generator''s `expected()` resolves scope (`deny-class:cross_org`) BEFORE the '
+  'hat (`wrong_active_context:self`). R2 approved CROSS-ORG reach and never spoke to the WRONG '
+  'HAT — and a hat term that spared them would have to be conditioned on org, which is precisely '
+  'the org check R2 forbids. '
+  '⛔ THE 24/36 GRANT AND THE 18 DENY ARE THE SAME MEASUREMENT WEARING TWO RULINGS. Merging them '
+  '— by giving the pre-empted cells a GRANT to "match reality", or by demoting the approved pair '
+  'to DENY to "tighten" the door — is the single thing R2 forbids, in either direction. Generator '
+  'arm10 refuses both edits at generation time; this asserts the result reached the vector. '
   '⚠ THE PARTITION IS THE ORACLE, NOT THE TOTAL: if a count moves, the question is which cells '
   'changed class, never which number matches today.');
 
@@ -902,37 +931,108 @@ select is(
   'stopped working — either way §§4.1b/5.1 are then reporting on a coordinate that no longer '
   'exists, and they would still be GREEN.');
 
+-- ⭐⭐ § 7.4 WAS DELETED AT ARM3-HAT-TERM-FIX, BY THE ROUTE ITS OWN MESSAGE NAMED.
+-- It pinned BUG-AE5-MATRIX-ARM3-CELLS-CASE-GRANT-ARM-MAKES-THE-HAT-TERM-UNENFORCEABLE head-on —
+-- "10 cells, legacy granted on 10, … approved answer denies on 10" — and instructed: "Move it by
+-- deleting this section and dropping the carve-out from § 4.1/§ 4.1b — never by editing 'granted
+-- on 10' to 'granted on 0'." ADR 0209 (migration 20261003007400) fixed the door, the carve-out is
+-- gone from both sections, and those cells are now compared BY VALUE under
+-- `arm3:pre-empted:door-hat-term`. ⛔ THE GRAIN IT HELD IS NOT LOST: § 7.4b below replaces it with
+-- a LIVE head-on pin of the term that fixed it — which is a stronger assertion, because § 7.4
+-- could only ever restate what the vector already said about ten cells, while this measures the
+-- door at three coordinates the vector cannot carry all of.
+
+-- ⭐⭐ THE HAT-PARAMETERISED PROBE. ⛔ A SEPARATE FUNCTION, NOT A DEFAULT PARAMETER ON
+-- pg_temp.arm3_probe, and that is deliberate: § 7.3b's and § 7.5's calls stay BYTE-IDENTICAL, so
+-- neither guard can be said to have moved with the fix it was written to constrain. A default
+-- argument would have re-pointed both at a new body while their call sites read unchanged.
+--
+-- ⛔ THE HAT IS SET WITHOUT test_helpers.claims_for WHEN IT IS ABSENT, AND THIS IS THE WHOLE
+-- REASON THE THIRD LINE MEANS ANYTHING. `claims_for(uid, false, null)` DERIVES the hat for a
+-- principal holding exactly one live role type — which every holder persona here is — so a
+-- "hatless" line written through it would silently seat `staff_admin`, measure the MATCHING hat
+-- and read door=true. That is the fixture-cannot-reach-the-failing-state shape
+-- (docs/learning/LESSONS.md), and it would have inverted the pin's verdict rather than weakened
+-- it. The claims object below is byte-for-byte claims_for's, minus the `active_role` key.
+-- ⚠ WHAT THE ABSENT-HAT LINE IS AND IS NOT: it pins the DOOR'S PREDICATE at an absent hat
+-- (ADR 0209 D4). It is NOT a claim that the token hook can issue that state to THIS principal —
+-- it cannot, for exactly the reason above, which is why the generator excludes the coordinate
+-- (`absent_unreachable_for_single_role_principal`) and why no cell carries it. The hook DOES
+-- issue it to a principal holding ZERO or 2+ role types, and D4 is the ruling for those.
+create or replace function pg_temp.arm3_probe_at_hat(p_persona text, p_scope text, p_reach text,
+                                                     p_hat text)
+returns text language plpgsql volatile as $p$
+declare
+  f record; v_principal uuid; v_prof uuid; v_org uuid;
+begin
+  perform test_helpers.reset_role_and_claims();
+  select * into f from f403;
+  -- ⛔⛔ ACCOUNT STATE RESET, AND WITHOUT IT LINE 2 OF § 7.4b IS A DEAD HALF. Unlike § 7.3b/§ 7.5,
+  -- which probe holder personas, this pin also probes `unprivileged` = f.nobody — and the LAST
+  -- cell of the sweep is `unprivileged | … | deactivated | third_party | none` (read off the tail
+  -- of the generated vector), so §§ 3/6 leave f.nobody DEACTIVATED. `_case_caps` STEP 2 would then
+  -- shut arm 3 and the GRANT half would read door=false for a reason that has nothing to do with
+  -- the hat: a keystone satisfied by a deactivation, which is the § 6.0/F1 shape one section over.
+  -- This is exactly what pg_temp.cell_answers does per cell, and for the same reason — it must be
+  -- ALL FOUR principals, not just this call's, or the answer depends on which cell ran last.
+  update public.profiles set is_active = true, suspended_until = null, email_confirmed_at = now()
+   where id in (f.uid, f.sib_holder, f.xorg_holder, f.nobody);
+  v_principal := case p_persona
+      when 'subject_holder' then f.uid
+      when 'other_commission_holder' then f.sib_holder
+      when 'cross_org_actor' then f.xorg_holder
+      else f.nobody end;
+  v_prof := case p_scope when 'foreign_org_commission' then f.xorg_prof else f.own_prof end;
+  select organization_id into v_org from public.professional_profiles where id = v_prof;
+  perform pg_temp.set_case_reach(p_persona, p_scope, p_reach);
+  if p_hat is null then
+    perform set_config('request.jwt.claims',
+      jsonb_build_object('sub', v_principal, 'role', 'authenticated', 'is_admin', false)::text,
+      true);
+  else
+    perform test_helpers.claims_for(v_principal, false, p_hat);
+  end if;
+  return coalesce(p_hat, '(no hat)')
+    || ': arm1=' || coalesce(app.is_admin_for(v_principal), false)::text
+    || ' arm2a=' || app.can_manage_professional(v_org, v_principal)::text
+    || ' arm2b=' || authz.has_permission(v_principal, 'organization', v_org,
+                                         'org.professionals.read')::text
+    || ' door=' || app.can_read_professional_profile(v_prof, v_principal)::text;
+end $p$;
+
 select is(
-  (select count(*)::int::text || ' cells, legacy granted on '
-       || (count(*) filter (where a.legacy))::int::text
-       || ', reaches=' || string_agg(distinct c.case_reach, '+')
-       || ', contexts=' || string_agg(distinct c.active_context, '+')
-       || ', all self-checks=' || bool_and(c.self_check)::text
-       || ', approved answer denies on '
-       || (count(*) filter (where not c.expected_legacy_granted))::int::text
-     from authz_differential_cells c
-     cross join lateral pg_temp.cell_answers(c.persona, c.active_context, c.scope,
-                                             c.permission_code, c.legacy_class,
-                                             c.principal_state, c.self_check, c.case_reach) a
-    where c.arm3_divergence = 'arm3:divergent-defective:hat-unenforceable'),
-  '10 cells, legacy granted on 10, reaches=grant_keyed, contexts=other_role, all self-checks=true,'
-  ' approved answer denies on 10',
-  '7.4 ⭐⭐ THE FILED DEFECT, PINNED — "THIS IS WHAT IT DOES, AND IT IS WRONG". These ten cells are '
-  'the ONLY cells § 4.1/§ 4.1b excuse, and this is the price of that carve-out: rather than an '
-  'expected value quietly tracking the door, the defect is stated as a FACT (all ten GRANT today) '
-  'beside the APPROVED answer (all ten should DENY — `expected_legacy_granted` stays false). '
-  'BUG-AE5-MATRIX-ARM3-CELLS-CASE-GRANT-ARM-MAKES-THE-HAT-TERM-UNENFORCEABLE: arm 3 reaches '
-  'through `_case_caps` S3/S4, neither of which contains a role lookup, so the active-hat rule — '
-  '"you cannot read your own profile while acting as another role" — is rendered INOPERATIVE for '
-  'anyone holding a case grant. ⛔⛔ THE DAY THE BUG IS FIXED THIS REDS, AND THAT IS THE POINT: '
-  'the assertion then moves DELIBERATELY, in a diff someone reviews, instead of a green suite '
-  'silently absorbing the change. Move it by deleting this section and dropping the carve-out '
-  'from § 4.1/§ 4.1b — never by editing "granted on 10" to "granted on 0". '
-  '⚠ THE SHAPE IS PINNED TOO, NOT JUST THE COUNT. `reaches=grant_keyed` proves the defect exists '
-  'ONLY where the reach is role-free — at role_keyed the same ten coordinates carry '
-  '`arm3:silent:reach-follows-the-hat`, i.e. the hat rule WORKS there — and that contrast is the '
-  'whole return on the caseReach axis. Without these clauses the carve-out could widen to swallow '
-  'unrelated cells while the count still read plausibly.');
+  pg_temp.arm3_probe_at_hat('subject_holder', 'own_commission', 'grant_keyed', 'quality_reviewer')
+    || ' | ' ||
+  pg_temp.arm3_probe_at_hat('unprivileged',   'own_commission', 'grant_keyed', 'quality_reviewer')
+    || ' | ' ||
+  pg_temp.arm3_probe_at_hat('subject_holder', 'own_commission', 'grant_keyed', NULL),
+  'quality_reviewer: arm1=false arm2a=false arm2b=false door=false | '
+  'quality_reviewer: arm1=false arm2a=false arm2b=false door=true | '
+  '(no hat): arm1=false arm2a=false arm2b=false door=false',
+  '7.4b ⭐⭐ THE DOOR-LEVEL ACT HAT TERM, PINNED HEAD-ON IN BOTH POLARITIES (ADR 0209). This is '
+  '§ 7.4''s successor: the same coordinate, measured on the LIVE door instead of restated from the '
+  'vector. All three lines are the SAME reach — one `case_access_grants` row, arms 1/2a/2b false '
+  'in the string rather than assumed — so the door''s answer IS the term''s answer. '
+  '⭐ LINE 1 IS THE FIX: a principal who HOLDS staff_admin, asking about THEMSELVES while wearing '
+  '`quality_reviewer`, is DENIED. Before ADR 0209 this line read door=true, and that was '
+  'BUG-AE5-MATRIX-ARM3-CELLS-CASE-GRANT-ARM-MAKES-THE-HAT-TERM-UNENFORCEABLE: `_case_caps` S3/S4 '
+  'carry no role lookup at all, so a case grant stood in for the hat and the rule "you cannot read '
+  'your own profile while acting as another role" was rendered INOPERATIVE for anyone holding one. '
+  '⭐⭐ LINE 2 IS WHY THIS PIN CANNOT PASS BY OVER-DENYING, and it is the half a red-to-green fix '
+  'would otherwise be free to break. SAME hat, SAME reach, SAME scope — only the caller changes, '
+  'to a principal who holds NO role at all — and the door still GRANTS. PO ruling R2: an explicit '
+  'case grant needs no role and is approved designed reach, so a hat check keyed on the HAT ALONE '
+  '(mutant C/C′) turns this line false and reds § 4.1b''s 36 class-3 cells with it. A pin carrying '
+  'only line 1 is satisfied by a door that denies everybody. '
+  '⭐ LINE 3 IS THE ONLY PIN ON THE HATLESS-HOLDER VALUE (D4) — a coordinate the vector CANNOT '
+  'carry, because the token hook mints a hat implicitly for a single-role-type principal, so the '
+  'generator skips it by a named rule and no cell exists at it. Read the probe''s comment for why '
+  'it is constructed with set_config rather than claims_for: through claims_for this line would '
+  'have measured the MATCHING hat and read TRUE. '
+  '⛔ IF A LINE MOVES, DO NOT ADJUST THE STRING. door=true on line 1 means the door-level term was '
+  'removed or stopped firing on a self-check; door=false on line 2 means the fix grew a role or '
+  'hat condition R2 forbids; door=true on line 3 means the NULL-safety went (`=` instead of `is '
+  'not distinct from`, the BUG-ACT-NULLHAT-1 shape). Each is a finding about the door.');
 
 select is(
   pg_temp.arm3_probe('cross_org_actor', 'own_commission',         'grant_keyed') || ' | ' ||

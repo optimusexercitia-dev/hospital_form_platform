@@ -39,7 +39,7 @@
 -- `authz` (401 §18), so layer-2 probes run at the suite's default role and door probes run under
 -- `set local role authenticated`. Deleting a grant likewise needs `reset role` first.
 --
--- RUN SHAPE: `Files=2, Tests=76` (75 here + 00_setup.sql's one). ⛔ Keep this line in step with
+-- RUN SHAPE: `Files=2, Tests=78` (77 here + 00_setup.sql's one). ⛔ Keep this line in step with
 -- plan() — a stale RUN SHAPE is read as the expected shape by the next person diagnosing a
 -- count mismatch.
 -- ⚠ 63 -> 72 at 20261003007340: § 2's mutated half now covers `form_item_options` and
@@ -51,9 +51,17 @@
 -- ⚠ 73 -> 75 at 20261003007350 (pre-AE5 Batch 4, ADR 0193 D5): § 2.6f / § 2.10e, the BEHAVIOURAL
 -- differential for the DEFINER door `public.set_item_validations`, on both polarities. § 2.10c
 -- changed its EXPECTED VALUE in the same change and is not a count movement.
+-- ⚠ 75 -> 77 at 20261003007400 (ARM3-HAT-TERM-FIX, ADR 0209): § 4.13b / § 4.14a. The migration
+-- puts a DOOR-LEVEL hat term on `app.can_read_professional_profile`, which fires BEFORE every
+-- arm — so § 4.14's door probe, whose stated subject is `authz.entailed_grants`, stopped being
+-- able to see that layer at all. MEASURED, not predicted: with the §6A conjunct replaced by
+-- `true` in `entailed_grants`, § 4.14 stayed GREEN, and went RED again only once the door term
+-- was neutralized too. § 4.14a asks the layer HEAD-ON (it carries its own hat conjunct and no
+-- door shields it) and § 4.13b is its discrimination half. § 4.14 keeps its predicate and now
+-- says what it actually measures.
 
 begin;
-select plan(75);
+select plan(77);
 
 -- ============================================================================
 -- §0 — FIXTURE + PRECONDITIONS. Every precondition is ASSERTED, never claimed: a reading is not
@@ -851,13 +859,46 @@ select is((select count(*)::int from public.professional_profiles
 reset role;
 
 -- ---------- the §6A hat asymmetry must SURVIVE the re-key ----------
+-- ⛔⛔ READ THIS BEFORE MOVING ANY OF THE THREE ASSERTIONS BELOW.
+-- Since 20261003007400 (ADR 0209) `app.can_read_professional_profile` opens with a DOOR-LEVEL
+-- hat term that denies a SELF-check by a principal who holds >= 1 live role under a hat that is
+-- none of them, BEFORE any arm is evaluated. `sa` holds exactly `staff_admin`, so under the
+-- `staff` hat the DOOR now answers first and `authz.entailed_grants` — the layer 4.14's caption
+-- named — is never reached through it.
+-- MEASURED 2026-09-11, not reasoned: with the §6A conjunct in `entailed_grants` replaced by
+-- `true`, 4.14 stayed GREEN; with that same mutant live AND the door term neutralized, 4.14 went
+-- RED. ⇒ the door probe alone can no longer fail on its stated subject.
+-- ⛔ The fix is the CALLER, never the expectation (LEARN-023): 4.14a asks the named layer
+-- HEAD-ON — `authz.has_permission` carries its own §6A conjunct and no door shields it — and
+-- 4.13b is its discrimination half, so 4.14a's FALSE is a hat denial and not a dead instrument
+-- (a wrong org, a missing grant and a broken fixture all read FALSE too).
+select test_helpers.claims_for((select sa from f409), false, 'staff_admin');
+select ok(authz.has_permission((select sa from f409), 'organization', (select oid from f409s),
+                               'org.professionals.read'),
+  '4.13b ⭐⭐ DISCRIMINATION HALF for 4.14a, and the reason 4.14a is evidence rather than a '
+  'constant: the SAME principal, the SAME organization, the SAME restored grant and the SAME '
+  'layer call resolve TRUE while the hat MATCHES. Exactly one fact changes between this line '
+  'and 4.14a — the `active_role` claim.');
+
 select test_helpers.claims_for((select sa from f409), false, 'staff');
+select ok(not authz.has_permission((select sa from f409), 'organization', (select oid from f409s),
+                                   'org.professionals.read'),
+  '4.14a ⭐⭐ THE §6A ASYMMETRY, ASKED OF THE LAYER ITSELF: `authz.entailed_grants` carries the '
+  'clause verbatim from `holds_role`, so a SELF question under a hat the principal is not '
+  'wearing resolves FALSE at layer 2 — an implementation that dropped it passes every other '
+  'assertion in this suite. ⛔ THIS IS THE ASSERTION THAT PINS THE RE-KEY NOW. 4.14 below no '
+  'longer shares its caption''s old subject: since ADR 0209 the DOOR denies this coordinate on '
+  'its own term, before any arm, so the door probe cannot red on `entailed_grants` any more '
+  '(measured both ways 2026-09-11 — see the block comment above).');
+
 select ok(not app.can_read_professional_profile('fb000000-0000-0000-0000-00000000f409', (select sa from f409)),
-  '4.14 ⭐ THE SELF-CHECK HAT STILL APPLIES: same principal, same grant, but the ACTIVE role is '
-  '`staff`, so the `staff_admin` assignment that carries the code is not wearing its hat and the '
-  'answer is FALSE. `authz.entailed_grants` carries the §6A asymmetry clause verbatim from '
-  '`holds_role`, so the re-key preserved it — an implementation that dropped it passes every '
-  'other assertion in this suite.');
+  '4.14 ⭐ THE SELF-CHECK HAT STILL APPLIES AT THE DOOR: same principal, same grant, but the '
+  'ACTIVE role is `staff`, so the answer is FALSE. ⚠ DATED NOTE, 2026-09-11 — this caption used '
+  'to read "`authz.entailed_grants` carries the §6A asymmetry clause verbatim ... so the re-key '
+  'preserved it". That is still TRUE and is now asserted head-on by 4.14a; it is no longer what '
+  'THIS line measures, because 20261003007400 puts the hat term at the DOOR, above every arm. '
+  'Kept rather than deleted: it is the end-to-end value of the coordinate, and paired with 4.15 '
+  'it is still the door-level asymmetry''s only bidirectional pin in this suite.');
 
 select test_helpers.claims_for((select st from f409), false, 'staff');
 select ok(app.can_read_professional_profile('fb000000-0000-0000-0000-00000000f409', (select sa from f409)),

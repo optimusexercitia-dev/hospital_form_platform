@@ -14,7 +14,7 @@
 >
 > Edges are **advisory** and over-inclusive by design; the ADR text is truth.
 
-**204 ADRs** · next free number: **0209** · 74 carry an inbound supersedes/amends edge
+**205 ADRs** · next free number: **0210** · 75 carry an inbound supersedes/amends edge
 
 ## ⚠ Anomalies
 
@@ -225,9 +225,10 @@
 | 0198 | [A backend seam carries two layers: a REPLACEABLE current state above its append-only hi…](0198-backend-state-seams-get-a-replaceable-current-state-layer.md) | accepted | 2026-09-09 | amends 0196 | – |
 | 0199 | [A frozen archive does not belong on the retrieval path, and "it holds unique facts" is…](0199-a-frozen-archive-does-not-belong-on-the-retrieval-path.md) | accepted | 2026-09-09 | amends 0196 | – |
 | 0200 | [A predicate parameterised on a principal must answer about that principal, and a narrow…](0200-professional-identity-predicates-answer-about-their-subject.md) | accepted | 2026-09-09 | amends 0190, 0193 | ⚠ amended by 0201 |
-| 0201 | [The keying asymmetry is the model: a question about a third party ignores the hat, a qu…](0201-the-keying-asymmetry-is-the-model.md) | accepted | 2026-09-09 | amends 0176, 0193, 0200 | – |
+| 0201 | [The keying asymmetry is the model: a question about a third party ignores the hat, a qu…](0201-the-keying-asymmetry-is-the-model.md) | accepted | 2026-09-09 | amends 0176, 0193, 0200 | ⚠ amended by 0209 |
 | 0203 | [Audit F5's seam is already encoded as data in the enforcement manifest; the three class…](0203-the-seam-is-already-encoded-the-classification-columns-are-not.md) | accepted | 2026-09-09 | amends 0172, 0176 | – |
 | 0205 | [The per-object grant plane convention: root ledgers, computed participation, catalog-na…](0205-per-object-grant-plane-convention.md) | accepted | 2026-09-10 | amends 0033, 0078, 0155 | – |
 | 0206 | [The service-role DML registry gets its own seam, and the gate that reads it moves in th…](0206-the-service-role-dml-registry-gets-its-own-seam.md) | accepted | 2026-09-11 | amends 0196 | – |
 | 0207 | [The role catalog holds roles: `administrativo` becomes a capability-provider namespace…](0207-the-role-catalog-holds-roles-administrativo-is-a-capability-provider.md) | accepted | 2026-09-11 | amends 0176 | – |
 | 0208 | [Two conventions: the candidate fan-out `D` is a parametric structural invariant plus ac…](0208-the-candidate-fanout-is-structurally-dominated-and-empty-search-path-is-the-sole-forward-convention.md) | accepted | 2026-09-11 | – | – |
+| 0209 | [The ACT hat is a DOOR-level term on the professional-profile read door, evaluated befor…](0209-the-act-hat-is-a-door-level-term-on-the-professional-profile-read-door.md) | accepted | 2026-09-11 | amends 0201 | – |

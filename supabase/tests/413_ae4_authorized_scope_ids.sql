@@ -389,6 +389,21 @@ select is(
 );
 select test_helpers.reset_role_and_claims();
 
+-- ⚠ DATED MEASUREMENT, 2026-09-11 (ARM3-HAT-TERM-FIX / ADR 0209) — read before "repairing"
+-- this cell. 20261003007400 puts a DOOR-LEVEL hat term on `app.can_read_professional_profile`
+-- that denies a SELF-check by a principal holding >= 1 live role under a hat that is none of
+-- them; `pid` holds only `staff_admin`, so under the `staff` hat the door now denies on its own
+-- term. ⛔ THAT DOES NOT PRE-EMPT THIS ASSERTION, and the reason is the POLICY'S SHAPE, read
+-- off the live catalog rather than assumed: `professional_profiles_select` is
+--   CASE WHEN organization_id IN (SELECT app.current_professional_read_organizations())
+--        THEN true ELSE app.can_read_professional_profile(id, (SELECT auth.uid())) END
+-- — the short-circuit is the WHEN arm and the door is only the ELSE, so a WHEN arm that
+-- answered `true` would be VISIBLE whatever the door concluded. A ZERO here still requires the
+-- short-circuit itself to deny, i.e. it is still the named subject that is on the hook.
+-- PROVEN BY MUTATION, not by reading the CASE: with the §6A hat conjunct in
+-- `authz.entailed_grants` replaced by `true` and the door term LEFT IN PLACE, this assertion
+-- went RED (`have: 1`), alongside §3b/§3c. ⛔ Do not seat a held hat here — the WRONG hat is
+-- this cell's subject.
 select test_helpers.claims_for((select pid from f413), false, 'staff');
 set local role authenticated;
 select is(
