@@ -1,14 +1,14 @@
 ---
 id: BACKEND-STATE-SERVICE-ROLE-SEAM
 title: "The service-role DML registry gets its own seam — the first application of ADR 0196 D4's remedy, ruled by the PO on 2026-09-11 when authorization-and-audit.md crossed gate 16's warn line"
-status: in_progress
+status: gated
 kind: feature
 program: DOCS
 phase: "ADR 0196 D4 applied once — no product phase; discharges FUP-AE5-MATRIX-ARM3-CELLS-AUTHZ-SEAM-CROSSED-ITS-WARN-LINE"
 branch: backend-state-service-role-seam   # cut from main @ 3c66efb6
 plan: ~
 progress: ../progress/backend-state-service-role-seam.md
-reviews: []
+reviews: ["../reviews/backend-state-service-role-seam-review.md"]
 adrs: ["0196", "0198", "0199", "0186", "0105"]
 handoff: ~
 fup: ~
@@ -100,12 +100,13 @@ that travelled with the slice: record § Session log.
 
 ### In progress
 
-Nothing. Awaiting review.
+Nothing. Gate re-run at the tip by the lead (not the builder): lint rc 0, typecheck rc 0, empty
+pathspec diff, verbatim diff rc 0, gate 16 with no `[D]` line, gate 11 unchanged. QA review
+**APPROVED, zero findings** (`docs/reviews/backend-state-service-role-seam-review.md`).
 
 ### Next
 
-Gate at the tip run by someone other than the builder; QA review (read-only, docs-and-gate scope);
-human approval; Record step, where the lead closes
+Human approval (Phase Gate step 4); then the Record step, where the lead closes
 `FUP-AE5-MATRIX-ARM3-CELLS-AUTHZ-SEAM-CROSSED-ITS-WARN-LINE` in both homes and fills the commit sha
 into the `**Landed (pending QA)**` line already in its body.
 

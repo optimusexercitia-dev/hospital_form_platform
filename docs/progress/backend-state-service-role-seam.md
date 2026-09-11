@@ -176,3 +176,29 @@ the two whole-file rewrites went through `head`/`tail`/`cat` with the diff as th
 targeted change through the Edit tool. (iii) The follow-up is **not closed here** — the lead closes
 it at the Record step after QA; a `**Landed (pending QA)**` line naming the branch and the unit was
 added to its body, with the sha left for the lead (a commit cannot cite its own sha).
+
+### 2026-09-11 — gate re-run at the tip by the lead; QA review APPROVED, zero findings (lead)
+
+**Gate at `f2af1940`, run by the lead, not the builder, every rc bare on its own line.** `git status`
+clean; `main..HEAD` = 4 commits (`e7c34683` open · `3ccf6ffe` ADR · `f101d17e` move · `f2af1940`
+record). `npm run lint` **rc 0** (output redirected to the scratchpad, only the gate lines read):
+gate 11 `OK -- 45 derived site(s) == 45 registry row(s)`; gate 16 `OK — 16 seam file(s) + README.md,
+all routed, preamble identical, … largest authorization-and-audit.md at 120.3 KB` with **no `[D]`
+line**. `npm run typecheck` **rc 0**. `git diff --stat main -- supabase/migrations src` printed
+nothing. Verbatim move re-proved independently: `main` lines 362–584 vs the new file's 94–316,
+`diff` **rc 0**; `wc -c` 123,224 / 47,349. Every changed file `grep -c $'\r'` = 0. The stub marker
+sits directly under the retained heading and names file **and** heading (read at `:355-360`).
+
+**QA review** (`qa`, read-only): `docs/reviews/backend-state-service-role-seam-review.md` —
+**APPROVED, 0 findings** (no MAJOR / MINOR / NOTE survived). Each hub claim reproduced by command:
+slice boundaries exact, 20 frozen headings preserved, six block bullets traced to source sentences,
+gate 11 diff confined to path / comment / help text with `ROOT` untouched, seam-axis arithmetic
+re-derived from the listing (17 − 1 − 4 = 12), citation sweep judged hit by hit, ADR 0206 numbered
+against all five live refs, the 44-vs-45 tally confirmed pre-existing on `main`. Its could-not-verify
+list: the 2026-09-09 vacuous-mutation anecdote and a few exact byte counts, superseded by coarser
+checks that found no discrepancy.
+
+**State:** hub → `gated`, review linked. Awaiting **human approval** (Phase Gate step 4). Owed at the
+Record step: close `FUP-AE5-MATRIX-ARM3-CELLS-AUTHZ-SEAM-CROSSED-ITS-WARN-LINE` in both homes and fill
+the sha into its `**Landed**` line; ledger row; hub → `complete` with the block cut here; ff-merge to
+`main`; ⛔ no push.
