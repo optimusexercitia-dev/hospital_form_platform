@@ -434,3 +434,224 @@ increment, two provenances — quoted rather than reconciled.
 
 **Not yet run at this tip:** `npm run e2e:prod` (started after this entry, result in the next entry) and
 the QA review.
+
+### 2026-09-11 — QA fix pass: B1 narrowed in three homes, M1 disposition declared, m2 fourth line, two follow-ups (backend)
+
+**Tree.** Same worktree `claude/distracted-kapitsa-0d82de`, committed tip `3d85c403`, clean at start.
+⛔ Nothing committed, staged or stashed by this session; ⛔ the local stack was NOT touched — the
+lead's `npm run e2e:prod` owns it, and every catalog reading below is a read-only `SELECT` through
+`docker exec … psql -Atc`, several of them inside `begin; set transaction read only; … rollback;`.
+
+**⚠ A BOUND ON EVERY LIVE READING TAKEN HERE, STATED RATHER THAN IMPLIED.** The e2e gate resets the
+stack repeatedly, so the catalog MOVED UNDER ME during this session — measured, not suspected: one
+query returned only `app.is_admin_for` out of ten expected functions, a later one returned all ten,
+and a still later read of `app.can_read_professional_profile`'s `prosrc` returned the PRE-ADR-0200
+body (`app.is_admin()`, `app.can_read_case(`). ⇒ the readings below are corroborated internally
+rather than trusted: each one that mattered was paired with a discriminating control, and the arm
+values in § 7.4b's new line were validated by REPRODUCING an already-committed expected value (see
+"the fourth line" below). ⛔ None of them substitutes for the lead's `npm run test:db`.
+
+**R-Q1 (B1) — the absolute dropped in all three homes.** QA measured the claim *"exactly the set
+`custom_access_token_hook` can mint from … the door can never refuse a hat the hook is able to
+issue"* FALSE, and the lead ruled the sentence narrowed rather than defended.
+
+| home | anchor BEFORE (QA's) | anchor AFTER | what it now says |
+| --- | --- | --- | --- |
+| migration header | `sed -n '73,85p'` | `sed -n '114,143p'` | the set the hook derives `active_role` from **implicitly** (its no-selection branch); a stale selection can present a hat the set no longer contains and is DENIED, deliberately |
+| migration body | `sed -n '162p'` | `sed -n '220,225p'` | same, in six comment lines — this one lands in `pg_proc.prosrc` |
+| ADR 0209 D2 | `sed -n '66,81p'` | `sed -n '66,94p'` | D2's title itself re-worded to "… derives `active_role` from IMPLICITLY", plus a measured ⚠ paragraph |
+| seam slice | `:1278` | `:1278` | bullet re-headed "defined by what its MINTER derives from IMPLICITLY", absolute gone |
+
+⛔ The `## Current state` block did **not** repeat the absolute — checked before editing, not assumed:
+its ⭐ clause at `:51` says only that the door no longer survives an absent or wrong hat. So the block
+is untouched and gate 16 still reports `authorization-and-audit.md (97, 3 left)`.
+⚠ Two further true-but-now-stale numerals were corrected in the same pass rather than left to rot:
+§ 7.4b is a **four**-line pin, not three (`403:108`, `403:945`, ADR `:166`, seam `:1281` and `:1286`).
+
+**⛔ THE MIGRATION EDIT IS COMMENT-ONLY, AND THAT IS ASSERTED, NOT ASSERTED-ABOUT.**
+`git diff --unified=0 -- supabase/migrations/20261003007400_…sql | grep -vE '^[+-]\s*--'` over the
+changed lines returns **0** non-comment lines (63 insertions, 8 deletions, all `--`). The file carries
+a dated header block saying the edit was made in place, why (applied to exactly ONE database — this
+worktree's, which `db reset` rebuilds from the file), that the alternative was a forward comment-only
+migration which `.claude/rules/migrations-forward-only.md` prices as *not free*, that it is ⛔ NOT a
+precedent, and that it is disclosed **PO to ratify**.
+⚠ Two traps avoided deliberately in the in-body comment, both of them this file's own recorded
+lessons: **no `;`** (the `ARM=hat` sweep splits a body into statement CHUNKS on `;`, and a semicolon
+would have separated the caller-bound `memberships` read from its `active_role` evidence), and **no
+`(`-terminated needle** (`app.active_role(`, `app.is_admin_for(` … — the AFTER landing block asserts
+those are PRESENT, so a comment quoting one would satisfy it vacuously; the header already records
+the mirror-image abort that found this class).
+
+**R-Q2 — the stale-selection window filed, with its mechanism read from the catalog.**
+`FUP-ARM3-HAT-TERM-FIX-STALE-ACTIVE-ROLE-SELECTION-OUTLIVES-ITS-MEMBERSHIP` (owner backend,
+🟡 medium): entry at `docs/followups/follow-ups-open.md:1952`, body file beside it. Readings,
+each with the query in the body file:
+
+- `select prosrc from pg_proc … proname='custom_access_token_hook'` → **two** branches. The FIRST
+  reads `app.active_role_selections` for `session_id` and *"an explicit selection for THIS session
+  wins"*; the SECOND (implicit) is the union query the door copies — and it mints **only when the
+  live role-type set has cardinality 1**, so the hook's implicit branch is also NARROWER than the
+  door's set. ⇒ *"exactly"* was wrong in both directions.
+- `select … from pg_proc where prosrc like '%active_role_selections%'` → exactly `public.assume_role`
+  and the hook. `assume_role` gates on `authz.roles.session_selectable`, `app.is_active`, and a LIVE
+  membership — **at selection time only** — then `insert … on conflict (session_id) do update`.
+  There is **no deleter**. ⚠ Bound: that sweep is keyed on the table name in `prosrc`, so a dynamic-SQL
+  writer would be invisible to it.
+- `pg_trigger` on `public.memberships`, non-internal → **`trg_audit_memberships` only**.
+- `pg_constraint` on `app.active_role_selections` → PK `(session_id)` and ONE FK
+  `user_id → profiles(id) ON DELETE CASCADE`. Columns: `session_id, user_id, role, chosen_at` — **no
+  `session_id` FK, no expiry column**; no non-internal trigger on the table either.
+
+⇒ a revoked or expired membership leaves the selection row standing and the hook keeps minting that
+hat. **Fail-closed today** (`app.has_role`, `app.is_admin_for` and this door all re-derive from live
+memberships and deny), which is why it is medium. `Closes when` names a MECHANISM — an invalidation
+trigger on `memberships` **or** a liveness re-check in the hook's first branch, plus a pgTAP cell that
+constructs the transition — ⛔ explicitly not a doc edit, ⛔ not a cell asserting the door denies (it
+already denies: green on first run), and ⛔ not "read the selection table in the door", which would
+re-open the bug this unit fixed.
+
+**R-Q3 (M1) — the `search_path` disposition declared in three places, and one of its reasons REFUSED
+after measurement.** The non-empty path is HELD this unit. Written as a dated block in the migration
+header (`sed -n '26,52p'`) and as § *Considered and held* in ADR 0209 (`:193`). The holding reasons
+are the lead's two: `413` pins this door's `proconfig` INDEPENDENTLY (its own message quoted verbatim
+in both homes — *"… it is §5's subset oracle and the policy's fallback arm, so its resolution order
+is load-bearing for this suite"*), and ADR 0208 D6 prefers a narrow `alter function` over a re-emit
+(D5 also orders the four temp-table DEFINERs tested first).
+⭐ **The obvious THIRD reason was drafted, then measured, then REFUSED** — *"the empty form would
+force `pg_catalog.now()` into the body"* is **false here**: every relation and function the body names
+is already schema-qualified, and its only unqualified references are the pg_catalog builtins
+`coalesce`/`now`, which resolve under an empty path because pg_catalog is searched implicitly.
+Measured in a rolled-back read-only transaction: `set local search_path = ''` then `select now()`
+resolves. ⛔ Recorded as a refused reason rather than deleted, because it makes the convergence CHEAP,
+not optional — the opposite of what an unexamined "it would be invasive" would have implied.
+**(c)** the follow-up 0208 already ordered **exists** — `FUP-NO-GATE-CATCHES-A-COLLAPSED-SEARCH-PATH`
+(`follow-ups-open.md:1283`, re-claused at `AE5-SUCCESSOR-ADRS`). ⇒ no new FUP was filed; this door was
+added to its scope by a dated `**Scope added:**` line in the entry (`:1288`) AND a dated
+`## ⚠ SCOPE ADDED` section in its body file, both naming the door, its measured `proconfig`, the
+disposition, and ⚠ that converging it while `413`'s pin expects the three-schema string would RED
+that suite — the pin and the migration move together or not at all.
+
+**R-Q4 (m2) — § 7.4b gains a fourth line, and a probe that can seat a caller ≠ `p_uid`.**
+`pg_temp.arm3_probe_third_party(p_caller_persona, p_subject_persona, p_scope, p_reach, p_hat)` is a
+**separate** function (`403:1023`), for the reason the file already gives for `arm3_probe_at_hat`:
+the three existing call sites stay byte-identical, so no guard can be said to have moved with the fix
+it constrains. `plan(27)` is unmoved — same assertion, longer string. Two refusals are built into the
+probe rather than assumed: it RAISES if caller and subject resolve to the same principal (a collapsed
+self-check would read `door=false` and be indistinguishable from a correct deny), and it RAISES on a
+NULL hat (line 3's absent-hat value is built with `set_config`; routing it through `claims_for` would
+silently seat a derived hat). It builds the reach for the **subject**, never the caller.
+
+The fourth call and the expected fourth line:
+
+```
+pg_temp.arm3_probe_third_party('other_commission_holder', 'subject_holder',
+                               'own_commission', 'grant_keyed', 'quality_reviewer')
+```
+```
+caller=other_commission_holder@quality_reviewer subject=subject_holder: arm1=false arm2a=false arm2b=true door=true
+```
+
+⭐ **It is a ONE-VARIABLE DIFFERENTIAL AGAINST LINE 1**: same subject, same profile, same org, same
+reach, same hat string — only the CALLER changes, to another role-HOLDER who does not hold
+`quality_reviewer` either. Line 1 DENIES, line 4 GRANTS ⇒ the answer turns on WHO IS ASKING. The
+mutation it refuses is the one QA named: a body asking *"does the CALLER's hat match one of the
+CALLER's roles"* for EVERY question would over-deny here and pass everything else, because
+`pg_temp.cell_answers` seats the role-LESS `f.nobody` for every third-party cell and 409 § 4.15's
+caller wears a hat it holds.
+
+⚠ **`arm2b=true` — the grant on line 4 is OVER-DETERMINED, and the string says so instead of hiding
+it.** `authz.has_permission` carries the same § 6A asymmetry: its hat conjunct binds on a self-check
+and passes vacuously for a third party, so the subject's own commission `staff_admin` answers the
+org-scoped permission question. ⇒ line 4 pins the DOOR-LEVEL caller-keyed term, ⛔ **not** arm 3;
+arm 3's attribution stays in § 7.3b, where the four reaches are one `case_access_grants` row apart.
+That is written into the message so a later reader cannot mistake it for a second arm-3 pin.
+
+**How the four expected values were derived without running the suite** (the DB is the lead's):
+
+| value | how |
+| --- | --- |
+| `arm1=false` | `app.is_admin_for(chefe.ccih)` — not `is_admin`; the hat conjunct is vacuous for a third party either way. Measured false. |
+| `arm2a=false` | live `prosrc`: `can_manage_professional(p_org,p_uid)` = `p_uid is not null and app.is_org_admin_of_for(p_org,p_uid)` = `is_active and has_role('organization',…,'org_admin',…)`. `chefe.ccih` holds exactly ONE membership — commission `staff_admin` — so the org_admin arm is false at any hat. Measured false. |
+| `arm2b=**true**` | ⭐ the one that had to be measured. `authz.role_permissions` gives `org.professionals.read` to `staff_admin` (`allowed_scope_kind = commission`), and the org-scoped question resolves TRUE for `chefe.ccih` once the hat conjunct goes vacuous. **Three controls in the same window:** SELF@`quality_reviewer` → **false** (this REPRODUCES § 7.4b line 1's already-committed expected value — the instrument is not dead), SELF@`staff_admin` → true, and the same third-party question at the other two organizations → **false**, so it is not answering "true for everything". |
+| `door=true` | the guard is skipped (`p_uid` ≠ `auth.uid()`), and both arm 2b and arm 3 then answer — arm 3 because `set_case_reach('subject_holder','own_commission','grant_keyed')` grants `f.uid` on `f.case_xorg`, which is the reach lines 1 and 3 already use. |
+
+**Gate readings, every rc BARE (never through a pipe).**
+
+```
+npm run lint                          rc 0   (eslint 0/0; vacuous 277 spec files / 0 findings;
+                                              adr-index 205 ADRs, next free 0210; mojibake 3487 files clean;
+                                              authz-vectors in sync, sha ac475f3d65d3)
+node scripts/check-docs-registers.mjs rc 0   26 hubs, 229 follow-ups, 157 follow-up bodies, index in sync
+node scripts/check-backend-state.mjs  rc 0   authorization-and-audit.md (97, 3 left), 12 seams
+```
+
+⛔ **NOT RUN, AND NOT IMPLIED:** `npm run test:db` — so **§ 7.4b's fourth line has never executed**.
+Its expected string is derived and control-checked above, not observed. Also unrun here: `typecheck`
+(no TS file moved), the four authz arms, the door sweep, and `e2e:prod`. ⚠ The `ARM=hat` sweep in
+particular has NOT re-read the new `prosrc` — the in-body comment grew by five lines inside the chunk
+that carries the hat evidence, and although no `;` was introduced (checked in the edit script's own
+assertion), *"no semicolon"* is an argument, not a run. Both are the lead's to re-run after e2e.
+
+### 2026-09-11 — QA round 1 CHANGES REQUESTED (B1 · M1 · m1–m3 · n1–n5); lead rulings; two E2E false starts disclosed (lead)
+
+**Disclosed first, because only a commit subject said it so far (QA m1).** Commit `8a9eeb39` landed with
+**gate 13 RED**: the hub's `## Current state` refresh was applied by a script anchored on the FIRST
+occurrence of the phrase, which was the backticked mention inside the *Homes* acceptance bullet, so the
+hub was truncated from that bullet onward and the heading destroyed. `check-docs-registers` printed
+rc **1** in the same command chain and I committed past it — the "reading a gate is not gating on it"
+shape. Found one command later; `3d85c403` restored the hub from `9057829a` and re-applied the block
+anchored on the heading line, registers rc **0**. ⛔ Not amended — corrected forward, here and in that
+commit's subject.
+
+**Two `e2e:prod` false starts, both the nested-worktree trap, neither a product red.** (1) `FATAL:
+.env.local not found` — gitignored, absent from the worktree; copied from the primary checkout after
+confirming its `NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321` (local stack, not Cloud). (2)
+`FATAL: node_modules/next () != package.json's declared next (16.3.2) — toolchain drift`: the worktree
+had **no** `node_modules`, so every earlier gate here (lint, typecheck, the generators) resolved UP into
+the primary checkout's install. ⚠ Those readings stand because `package.json` and `package-lock.json`
+are **byte-identical** to the primary's (`cmp`, both) — stated as the reason they stand, not assumed.
+`npm ci` rc **0** (local `next` 16.3.2); third launch building at 13:41, batches running.
+
+**QA round 1** (`docs/reviews/arm3-hat-term-fix-review.md`, at `3d85c403`): **CHANGES REQUESTED** —
+BLOCKING B1, MAJOR M1, MINOR m1–m3, NOTE n1–n5; the door's behaviour, the vector and every assertion
+verified clean (partition re-derived independently `108+24+36+30+18 = 216`, flip census 84, mutant D's
+8-vs-18 explanation re-derived and sound, LEARN-023 holding in all four suites).
+
+**Lead rulings, each with its landing artefact (playbook §4 step 8):**
+
+| finding | ruling | landed in |
+|---|---|---|
+| **B1** the held set is not "exactly what the hook can mint" — `active_role_selections` (written by `assume_role`, never revalidated) can outlive a revoked membership | TRUE; narrow the sentence in all three homes, drop every absolute; ⛔ never read the selections table in the door. **The migration's comment edit pre-merge is RULED allowed and marked PO to ratify:** the file has never left this worktree and the only DB that ran it is rebuilt by `db reset`; the alternative (a forward comment-only migration) is what `migrations-forward-only` and this unit's own follow-up call not free. `git diff` on the migration filtered to non-`--` lines: **0** — comment-only | migration header + body, ADR 0209 D2, seam slice; `FUP-ARM3-HAT-TERM-FIX-STALE-ACTIVE-ROLE-SELECTION-OUTLIVES-ITS-MEMBERSHIP` filed (entry + body) |
+| **M1** re-emitted DEFINER kept `app, public, pg_catalog` against ADR 0208 D4 | path HELD this unit: `413` §1 pins this door's `proconfig` independently, 0208 D6 prefers a narrow `ALTER FUNCTION` convergence; the "would need `pg_catalog.now()`" reason was MEASURED FALSE by backend and refused — convergence is cheap, owed under 0208 | migration header (dated block), ADR 0209 § Considered and held, `FUP-NO-GATE-CATCHES-A-COLLAPSED-SEARCH-PATH` scope line (entry + body) |
+| **m2** no role-HOLDING caller in a third-party seat | fourth line added to `403` §7.4b (`caller=other_commission_holder@quality_reviewer subject=subject_holder … arm2b=true door=true`); ⚠ `arm2b` TRUE is measured, so line 4 pins the caller-keyed door term and is over-determined for arm 3 — said in its message. `plan(27)` unmoved. **Unrun at this writing** (DB held by e2e) | `403` §7.4b |
+| **m3** hub `adrs:` omits 0209 | added now, not at Record | hub frontmatter |
+| **n1** "only" dropped from the block bullet | restored (one word, no new line; block 97/100) | seam `## Current state` |
+| n2–n5 | notes, no change owed; n5 (guard skipped when `auth.uid()` is NULL) is the existing null-guard's semantics — service-role callers pass `p_uid` and are third-party by construction | — |
+
+**Backend's fix-pass gate, DB-free (bare):** `npm run lint` rc 0 · `check-docs-registers` rc 0 ·
+`check-backend-state` rc 0. ⚠ Backend also corrected five "three-line pin" sites to "four-line"
+(`403` header ×2, ADR, seam ×2) — a fresh false clause of B1's family had they stayed.
+
+**Owed before QA round 2:** `e2e:prod` result; then a fresh reset + `test:db` (§7.4b line 4 has never
+executed) + `ARM=hat` (the in-body comment grew inside the chunk carrying the hat evidence; no `;`
+introduced — an argument, not a run) + `lint` at the new tip; then commit by path.
+
+### 2026-09-11 — `e2e:prod` GREEN at `3d85c403`; the QA fix pass re-gated on a fresh reset (lead)
+
+**`npm run e2e:prod`** (third launch, own toolchain, local `.env.local`): rc **0** — `GATE SUMMARY: 1261
+passed · 0 failed · 0 infra · 4 flaky · 0 did-not-run · 21 batches` — `GATE GREEN`. ⚠ It ran against
+tip `3d85c403`, BEFORE the QA fix pass; the fix pass changes no SQL statement (the migration diff
+filtered to non-`--` lines is 0) and no `src/`, so the reading stands for the tip below — stated as a
+bound, not re-run.
+
+**Re-gate over the fix pass (working tree, then committed as the next sha), bare:**
+
+```
+npx supabase db reset --local        rc 0   (fresh)
+npm run test:db                      rc 0   Files=267, Tests=9025, Result: PASS, 0 not ok
+                                            — §7.4b's FOURTH line executed for the first time and matched its predicted string
+ARM=hat                              rc 0   this door not reported; the grown in-body comment stayed inside its chunk
+npm run lint                         rc 0
+```
+
+Committed by path (the review file included as QA's deliverable); QA round 2 requested at that tip.

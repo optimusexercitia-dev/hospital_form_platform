@@ -9,7 +9,7 @@ branch: claude/distracted-kapitsa-0d82de   # worktree branch, cut from main @ ad
 plan: ../plans/authz-evolution.md
 progress: ../progress/arm3-hat-term-fix.md
 reviews: []
-adrs: ["0175", "0176", "0200", "0201"]
+adrs: ["0175", "0176", "0200", "0201", "0209"]
 handoff: ~
 fup: ~
 ---

@@ -182,3 +182,44 @@ change.
 `414 § 0b` rather than ruled — is **still owed a disposition**. D4's *"sole forward convention"*
 implies it (a new DEFINER must carry `search_path = ''`), and the 419 ratchet observes the population,
 but neither states what happens if the count moves. ⛔ Not closed by this ruling.
+
+---
+
+## ⚠ SCOPE ADDED — a SECOND door joins the population, 2026-09-11 (unit `ARM3-HAT-TERM-FIX`, QA finding M1)
+
+`app.can_read_professional_profile(uuid, uuid)` was **re-emitted** by migration
+`20261003007400` (ADR [0209](../decisions/0209-the-act-hat-is-a-door-level-term-on-the-professional-profile-read-door.md))
+and **kept** `search_path=app, public, pg_catalog`. Under ADR 0208 D4 a *touched* SECURITY DEFINER
+function must converge to the empty form, so this is a second named member of the convergence debt
+beside `public.tenant_orphan_profiles` — ⛔ and it is a DIFFERENT member, not the same one: it sits
+in the dominant 825-bucket rather than in the inverted `public, app` singleton.
+
+**Measured live 2026-09-11** (read-only, on the door as this unit landed it): `prosecdef = t`,
+`proconfig = {"search_path=app, public, pg_catalog"}`, `provolatile = s`.
+
+**Why it was not converged in that unit — the declared disposition, kept here so the debt is
+registered rather than remembered:**
+1. `supabase/tests/413_ae4_authorized_scope_ids.sql` pins this door's `proconfig` INDEPENDENTLY, and
+   says why it does: *"app.can_read_professional_profile pins the SAME constant INDEPENDENTLY — it is
+   §5's subset oracle and the policy's fallback arm, so its resolution order is load-bearing for this
+   suite; pinning the two separately is the thing a sibling-equality differential could not do"*. So
+   converging moves a pin carrying another suite's argument, and it belongs with the unit that owns
+   the convention.
+2. ADR 0208 D6 prefers a narrow `alter function … set search_path = ''` over a body re-emit for
+   exactly this class, and D5 orders the four temp-table DEFINERs tested first.
+
+⚠ **The cheap-or-not question was MEASURED, not assumed, so the narrow migration is not planned on a
+false premise.** The obvious objection — *"the empty form would force `pg_catalog.now()` into the
+body"* — is **false for this body**: every relation and function it names is already
+schema-qualified, and its only unqualified references are the pg_catalog builtins `coalesce` and
+`now`, which resolve under `search_path = ''` because pg_catalog is searched implicitly even when it
+is not named (verified in a rolled-back read-only transaction: `set local search_path = ''` then
+`select now()` resolves). ⇒ `alter function app.can_read_professional_profile(uuid, uuid) set
+search_path = ''` looks like a no-body-change conversion — ⛔ which is a reason it is CHEAP, never a
+reason the divergence is harmless.
+
+⛔ **What must NOT be mistaken for closing this half.** Converging this one door. The item is about
+the CLASS and its prospective gate (the `419` ratchet); a second name-keyed conversion is the
+name-keyed shape this body already refuses at its own ⛔ *"What must NOT be mistaken"* paragraph.
+⚠ And converging it while `413`'s pin still expects the three-schema string would RED that suite —
+the pin and the migration move together or not at all.

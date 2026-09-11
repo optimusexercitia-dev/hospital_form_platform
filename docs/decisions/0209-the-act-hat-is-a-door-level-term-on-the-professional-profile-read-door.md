@@ -63,7 +63,8 @@ and **arm 3's SQL is unchanged** — no org term, no role lookup, still anchored
 that already carry their own hat conjunct keep it: belt and braces, and removing one would be a
 separate decision about a predicate other doors share.
 
-**D2 — "Holds a live role" is defined as the set the TOKEN HOOK can mint from**, not as a hand-list:
+**D2 — "Holds a live role" is defined as the set the TOKEN HOOK derives `active_role` from
+IMPLICITLY**, not as a hand-list:
 
 ```
 select 'platform_admin' where profiles.is_admin
@@ -72,10 +73,27 @@ select distinct role from public.memberships
  where principal_id = <uid> and (expires_at is null or expires_at > now())
 ```
 
-— the exact query `public.custom_access_token_hook` uses to derive `active_role`, with a liveness
-predicate byte-identical to `app.has_role`'s. ⛔ Defined this way so the door can never refuse a hat
-the system itself issued: a live session denied for presenting a claim the platform minted for it
-would be a lockout, not a tightening. ⛔ No `app.is_active` term is added (account state is
+— the query in `public.custom_access_token_hook`'s **second** branch, the one reached when the
+session carries no explicit selection row, with a liveness predicate byte-identical to
+`app.has_role`'s. ⛔ Defined this way rather than hand-listed so the door tracks the role model
+instead of a copy of it.
+
+⚠ **It is NOT "every hat the hook can issue", and the correction is measured rather than argued**
+(QA review 2026-09-11, finding B1; read from `pg_proc`, `pg_trigger`, `pg_constraint`). The hook has
+**two** branches, and its FIRST reads `app.active_role_selections` for the session — *"an explicit
+selection for THIS session wins"*. The only writer of that table is `public.assume_role`, which
+validates holding at **selection time only** and then upserts on `session_id`; nothing revalidates or
+removes the row afterwards — `public.memberships` carries no trigger but `trg_audit_memberships`,
+and the selection table has a single FK (`user_id → profiles`, `ON DELETE CASCADE`), no `session_id`
+FK and no expiry column. ⇒ a session holding a **stale** selection — its membership revoked or
+expired mid-session — can present a hat this set no longer contains, and **this door denies it**.
+⛔ That deny is **deliberate, not a lockout**: at that moment `app.has_role` and `app.is_admin_for`
+deny the same principal too, because the membership behind the hat is gone. ⛔ The repair is
+**not** to read `app.active_role_selections` here — that would make the door accept a hat the
+principal no longer holds, which is the defect this decision exists to close. The window itself is
+filed as `FUP-ARM3-HAT-TERM-FIX-STALE-ACTIVE-ROLE-SELECTION-OUTLIVES-ITS-MEMBERSHIP`.
+
+⛔ No `app.is_active` term is added (account state is
 `_case_caps` STEP 2's job on this path and `app.is_admin_for`'s on arm 1; a third copy would put one
 predicate at three sites with no arm able to say which answered), and no call into layer 1 or 2 (a
 legacy door that consults the candidate resolver stops being a differential subject).
@@ -145,8 +163,13 @@ option (b) wearing a narrower scope.
 - **`403` moves by deletion, not by edit.** §7.4 — which pinned the defect head-on ("10 cells, legacy
   granted on 10 … approved answer denies on 10") and whose own message named deletion as the route —
   is DELETED, the by-label carve-out is dropped from §4.1 and §4.1b, and §7.3's partition string is
-  RE-DERIVED by running its query. §7.4b replaces it with a live three-line pin: the DENY the fix
-  creates, the GRANT it must not break, and the hatless-holder value. `plan(27)` is unmoved, which is
+  RE-DERIVED by running its query. §7.4b replaces it with a live **four-line** pin: the DENY the fix
+  creates, the GRANT it must not break, the hatless-holder value, and — added at the QA fix pass
+  2026-09-11 (finding m2) — a THIRD-PARTY question asked by a role-HOLDING caller under a hat it
+  does not hold, which must GRANT. That fourth line is a one-variable differential against the first:
+  only the CALLER changes. ⚠ Its grant is **over-determined** and the assertion says so — `arm2b`
+  reads true there, because `authz.has_permission` carries the same §6A asymmetry — so it pins the
+  door-level caller-keyed term, ⛔ not arm 3. `plan(27)` is unmoved throughout, which is
   stated in the header so the swap is not read as a dropped test.
 - **A detector outlived the defect it was written for.** Generator coverage `arm10(b)` refused a
   filed defect laundered into an approved legacy GRANT; its subject label now marks zero cells. It is
@@ -166,3 +189,36 @@ option (b) wearing a narrower scope.
   everywhere"; it is enforced at ONE door, by ONE term, asserted by `403` §7.4b.
 - **Arm 1 is still exercised, not oracled** (ADR 0175's surviving obligation, narrowed by
   `AE5-MATRIX-ARM3-CELLS` to arm 1 alone). This decision does not touch it.
+
+### Considered and held: ADR 0208 D4's empty `search_path` (2026-09-11, QA finding M1)
+
+The migration re-emits a `SECURITY DEFINER` body and **keeps** `search_path = app, public,
+pg_catalog`, against ADR [0208](./0208-the-candidate-fanout-is-structurally-dominated-and-empty-search-path-is-the-sole-forward-convention.md)
+D4's *"sole forward convention for **new or touched** SECURITY DEFINER functions"*. 0208 landed on
+`main` at the commit this branch rebased onto, so it governs; the path is held anyway, and the
+disposition is written here rather than left silent. **Two** reasons, both checkable — and a third
+that is named and **refused**:
+
+1. `supabase/tests/413_ae4_authorized_scope_ids.sql` pins **this door's** `proconfig`
+   independently, and says why: *"app.can_read_professional_profile pins the SAME constant
+   INDEPENDENTLY — it is §5's subset oracle and the policy's fallback arm, so its resolution order
+   is load-bearing for this suite; pinning the two separately is the thing a sibling-equality
+   differential could not do"*. Converging the path here moves a pin that carries another suite's
+   argument, inside a unit whose subject is the hat term.
+2. 0208 **D6** prefers a narrow `alter function … set search_path = ''` convergence migration over a
+   body re-emit for exactly this class, and **D5** orders targeted tests for the four temp-table
+   DEFINERs before any sweep. That sequencing belongs to the unit that owns the convention.
+3. ⚠ **Refused, and measured rather than assumed.** The obvious third reason — *"the empty form
+   would force `pg_catalog.now()` into the body"* — does **not** hold here. Every relation and
+   function the body names is already schema-qualified; its only unqualified references are the
+   pg_catalog builtins `coalesce` and `now`, and pg_catalog is searched implicitly even when the
+   declared path is empty (verified 2026-09-11 in a rolled-back read-only transaction:
+   `set local search_path = ''` then `select now()` resolves). ⇒ converging this door may need
+   **no body change at all** — a reason it fits the narrow `alter function` migration, ⛔ never a
+   reason to call the divergence harmless.
+
+⇒ the convergence is **owed**, and owed to 0208's own named unit `DEFINER-SEARCH-PATH-NARROW-FIX`,
+⛔ not to this one. This door was added to the scope of
+`FUP-NO-GATE-CATCHES-A-COLLAPSED-SEARCH-PATH` on the same date, so the debt is registered rather than
+remembered. ⛔ Nothing detects the divergence today: `414` asserts *resolvability*, not the empty
+form, and 0208's prospective ratchet (pgTAP `419`) is ruled but not built.

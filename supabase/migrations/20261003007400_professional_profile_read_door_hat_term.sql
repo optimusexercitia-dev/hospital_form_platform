@@ -10,6 +10,47 @@
 -- door-sweep-targets: app.can_read_professional_profile(uuid, uuid)
 --
 -- ============================================================================
+-- ⚠ DATED EDIT, 2026-09-11, BEFORE MERGE — COMMENT-ONLY, AND DISCLOSED AS **PO TO RATIFY**.
+-- After QA finding B1 two comment blocks in this file (the header's HELD-ROLE SET block below
+-- and the in-body `-- HOLDS ANY LIVE ROLE?` line) were CORRECTED IN THIS FILE rather than in a
+-- new forward migration. ⛔ `.claude/rules/migrations-forward-only.md` says an applied
+-- migration is never edited, and that a comment-only edit is NOT free. The lead ruled the edit
+-- allowed here because this file has been applied to EXACTLY ONE database — this worktree's
+-- local stack, which `supabase db reset` rebuilds from the file on every run — and to no
+-- remote, so repo and catalog cannot disagree. The alternative considered was a forward
+-- comment-only migration, which that rule explicitly prices as not free; it was refused for
+-- that reason, not for convenience. ⛔ NOT A PRECEDENT: after merge the same correction
+-- costs a forward migration. ⛔ NO SQL TOKEN MOVED — verified with `git diff`: every changed
+-- line in this edit is a `--` comment line.
+--
+-- ⚠ DATED DISPOSITION, 2026-09-11 — ADR 0208 D4 WAS CONSIDERED AND THE NON-EMPTY
+-- `search_path` IS HELD (QA finding M1). This migration re-emits a SECURITY DEFINER body and
+-- keeps the three-schema path, against 0208 D4's *"sole forward convention for new or touched
+-- SECURITY DEFINER functions"*. Held for TWO reasons, both checkable — and a THIRD reason is
+-- named and REFUSED, because it is false:
+--   (1) `supabase/tests/413_ae4_authorized_scope_ids.sql` pins THIS door's `proconfig`
+--       INDEPENDENTLY — its own message: *"app.can_read_professional_profile pins the SAME
+--       constant INDEPENDENTLY — it is §5's subset oracle and the policy's fallback arm, so its
+--       resolution order is load-bearing for this suite; pinning the two separately is the thing
+--       a sibling-equality differential could not do"*. Converging here moves a pin that carries
+--       another suite's argument, inside a unit whose subject is the hat term.
+--   (2) ADR 0208 D6 prefers a NARROW `alter function …` convergence migration over a body
+--       re-emit for exactly this class, and 0208 D5 ORDERS targeted tests for the four
+--       temp-table DEFINERs before any sweep. That sequencing belongs to
+--       `DEFINER-SEARCH-PATH-NARROW-FIX`, which owns the convention.
+--   ⚠ (3) REFUSED, AND MEASURED RATHER THAN ASSUMED. The obvious third reason — *"the empty
+--       form would force `pg_catalog.now()` into the body"* — does NOT hold here. Every relation
+--       and function this body names is already schema-qualified; its only unqualified references
+--       are the pg_catalog builtins `coalesce` and `now`, and pg_catalog is searched implicitly
+--       even when the declared path is empty (verified 2026-09-11 in a rolled-back read-only
+--       transaction: `set local search_path = ''` then `select now()` resolves). ⇒ converging
+--       this door may need NO body change at all — which is a reason it fits the narrow
+--       ALTER-FUNCTION migration, ⛔ never a reason to call the divergence harmless.
+-- ⇒ convergence is OWED, and owed to 0208's own named unit `DEFINER-SEARCH-PATH-NARROW-FIX`,
+-- ⛔ not to this one. This door was added to the scope of
+-- FUP-NO-GATE-CATCHES-A-COLLAPSED-SEARCH-PATH on the same date, so the debt is registered rather
+-- than remembered.
+-- ============================================================================
 -- THE DEFECT, measured on the LIVE CATALOG at head pair (20261003007390, 528), 2026-09-11,
 -- comment-stripped with
 --   regexp_replace(regexp_replace(prosrc, '/\*.*?\*/', '', 'gs'), '--[^\n]*', '', 'g')
@@ -70,19 +111,36 @@
 -- not as part of the discharge.
 --
 -- ============================================================================
--- THE HELD-ROLE SET, DEFINED BY ITS MINTER (ADR 0209 D2). The guard's second half asks whether
--- the presented hat is one of the roles the principal HOLDS, and "holds" is defined as exactly
--- the set `public.custom_access_token_hook` can mint `active_role` from:
+-- THE HELD-ROLE SET, DEFINED BY WHAT THE MINTER DERIVES FROM IMPLICITLY (ADR 0209 D2). The
+-- guard's second half asks whether the presented hat is one of the roles the principal HOLDS,
+-- and "holds" is defined as the set `public.custom_access_token_hook` derives `active_role` from
+-- IMPLICITLY — the hook's SECOND branch, the one reached when the session carries no explicit
+-- selection row:
 --
 --   select 'platform_admin' where profiles.is_admin
 --   union all
 --   select distinct role from public.memberships
 --    where principal_id = <uid> and (expires_at is null or expires_at > now())
 --
--- ⛔ Defined that way rather than hand-listed, so the door can never refuse a hat the token
--- hook is able to issue (a live session denied for presenting a claim the system minted for it
--- would be a lockout, not a tightening). The liveness predicate is BYTE-IDENTICAL to
--- `app.has_role`'s: `expires_at is null or expires_at > now()`.
+-- ⛔ Defined that way rather than hand-listed, so the door tracks the role model instead of a
+-- copy of it. The liveness predicate is BYTE-IDENTICAL to `app.has_role`'s:
+-- `expires_at is null or expires_at > now()`.
+--
+-- ⚠ IT IS NOT "EVERY HAT THE HOOK CAN ISSUE", AND THE DIFFERENCE IS MEASURED, NOT ARGUED
+-- (QA review 2026-09-11 finding B1; read from `pg_proc`, `pg_trigger` and `pg_constraint`).
+-- The hook has TWO branches. Its FIRST reads `app.active_role_selections` for this session and
+-- that row WINS. The only writer of that table is `public.assume_role`, which validates holding
+-- at SELECTION TIME ONLY and then upserts on `session_id`; nothing revalidates or removes the
+-- row afterwards — `public.memberships` carries no trigger but `trg_audit_memberships`, and the
+-- selection table has one FK (`user_id → profiles`, ON DELETE CASCADE), no `session_id` FK and
+-- no expiry column. ⇒ when a membership is revoked or its `expires_at` passes mid-session, the
+-- hook KEEPS MINTING that hat while this set no longer contains it, and this door DENIES it.
+-- ⛔ THAT DENY IS DELIBERATE, NOT A LOCKOUT: at that moment `app.has_role` and
+-- `app.is_admin_for` deny the same principal too, because the membership behind the hat is gone.
+-- ⛔ DO NOT "FIX" IT BY READING `app.active_role_selections` HERE — that would make the door
+-- accept a hat the principal no longer holds, which is the defect this migration exists to
+-- close. Filed as
+-- FUP-ARM3-HAT-TERM-FIX-STALE-ACTIVE-ROLE-SELECTION-OUTLIVES-ITS-MEMBERSHIP.
 --
 -- ⛔ NO `app.is_active` TERM IS ADDED. Account state is `_case_caps` STEP 2's job on this path
 -- and `app.is_admin_for`'s on arm 1; adding a third copy here would put the same predicate at
@@ -159,7 +217,12 @@ begin
   -- allowlist entry: the arm's rule is "adjacent", and `app.has_role` satisfies it the same way.
   if p_uid is not distinct from (select auth.uid()) then
     if exists (
-         -- HOLDS ANY LIVE ROLE? — the set custom_access_token_hook mints from (D2).
+         -- HOLDS ANY LIVE ROLE? — the set custom_access_token_hook derives the hat from
+         -- IMPLICITLY, i.e. its no-selection branch (D2). ⚠ NOT every hat the hook can issue:
+         -- an `app.active_role_selections` row written by `public.assume_role` OUTLIVES the
+         -- membership that justified it, so a stale session may present a hat this set no
+         -- longer contains and is denied here — deliberately, since `app.has_role` and
+         -- `app.is_admin_for` deny that principal too. Measured 2026-09-11, QA finding B1.
          select 1 from public.memberships m
           where m.principal_id = p_uid
             and (m.expires_at is null or m.expires_at > now())

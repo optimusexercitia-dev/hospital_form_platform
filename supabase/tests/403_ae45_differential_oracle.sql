@@ -105,8 +105,10 @@
 -- ⭐ 27 -> 27 AT ARM3-HAT-TERM-FIX, AND THE UNMOVED TOTAL IS WORTH STATING RATHER THAN LEAVING AS
 -- AN ABSENCE: § 7.4 was DELETED (its bug is fixed by ADR 0209 / migration 20261003007400, and
 -- deletion is the route its own message named) and § 7.4b ADDED in its place — a LIVE head-on pin
--- of the door-level ACT hat term, in three lines: the DENY the fix creates, the GRANT it must not
--- break (PO ruling R2's role-less reach), and the hatless-holder value no cell can carry. ⛔ A
+-- of the door-level ACT hat term, in FOUR lines: the DENY the fix creates, the GRANT it must not
+-- break (PO ruling R2's role-less reach), the hatless-holder value no cell can carry, and — added
+-- at the QA fix pass 2026-09-11 (finding m2) — the THIRD-PARTY question asked by a role-HOLDING
+-- caller under a hat it does not hold, which must GRANT. ⛔ A
 -- reader diagnosing plan(27) against a diff that deletes an assertion is looking at a SWAP, not at
 -- a silently dropped test.
 
@@ -940,7 +942,7 @@ select is(
 -- `arm3:pre-empted:door-hat-term`. ⛔ THE GRAIN IT HELD IS NOT LOST: § 7.4b below replaces it with
 -- a LIVE head-on pin of the term that fixed it — which is a stronger assertion, because § 7.4
 -- could only ever restate what the vector already said about ten cells, while this measures the
--- door at three coordinates the vector cannot carry all of.
+-- door at four coordinates the vector cannot carry all of.
 
 -- ⭐⭐ THE HAT-PARAMETERISED PROBE. ⛔ A SEPARATE FUNCTION, NOT A DEFAULT PARAMETER ON
 -- pg_temp.arm3_probe, and that is deliberate: § 7.3b's and § 7.5's calls stay BYTE-IDENTICAL, so
@@ -1000,15 +1002,87 @@ begin
     || ' door=' || app.can_read_professional_profile(v_prof, v_principal)::text;
 end $p$;
 
+-- ⭐⭐ THE THIRD-PARTY PROBE — A CALLER WHO IS NOT THE SUBJECT (added 2026-09-11, QA finding m2).
+-- ⛔ AGAIN A SEPARATE FUNCTION, for the reason above and one more: pg_temp.arm3_probe_at_hat's
+-- three call sites must stay byte-identical, and a defaulted caller argument would have re-pointed
+-- them at a new body while their call sites read unchanged.
+--
+-- ⛔ WHAT IT EXISTS TO CATCH, NAMED. No fixture in this tree ever put a ROLE-HOLDER in the CALLER
+-- seat of a THIRD-PARTY question: pg_temp.cell_answers seats f.nobody — the role-LESS persona —
+-- for every `p_self = false` cell, and 409 § 4.15's caller wears a hat it holds. So a door whose hat
+-- term asked "does the CALLER's hat match one of the CALLER's roles" FOR EVERY QUESTION, instead of
+-- only for a self-check, would OVER-DENY in production and pass this entire suite. Line 4 below is
+-- the coordinate that refuses it.
+--
+-- ⛔ THE CALLER MUST NOT BE THE SUBJECT, AND IT IS ASSERTED RATHER THAN ASSUMED. A probe that
+-- silently collapsed to a self-check would read door=false, and a broken fixture would look exactly
+-- like a correct DENY — the failure mode this whole section exists to avoid.
+-- ⛔ THE REACH IS BUILT FOR THE SUBJECT, NEVER FOR THE CALLER: arm 3 answers about `p_uid`, so a
+-- reach built for the caller would leave the subject unreachable and line 4 would read door=false
+-- for a reason that has nothing to do with the hat.
+create or replace function pg_temp.arm3_probe_third_party(p_caller_persona text,
+                                                          p_subject_persona text,
+                                                          p_scope text, p_reach text, p_hat text)
+returns text language plpgsql volatile as $p$
+declare
+  f record; v_caller uuid; v_subject uuid; v_prof uuid; v_org uuid;
+begin
+  if p_hat is null then
+    raise exception '403 § 7.4b: arm3_probe_third_party takes an EXPLICIT hat. The absent-hat value '
+                    'is line 3''s subject and is built with set_config there; routing it through '
+                    'test_helpers.claims_for here would silently seat a derived hat.';
+  end if;
+  perform test_helpers.reset_role_and_claims();
+  select * into f from f403;
+  -- ⛔⛔ THE SAME ACCOUNT-STATE RESET AS pg_temp.arm3_probe_at_hat, AND FOR THE SAME REASON: the
+  -- sweep's last cell leaves f.nobody DEACTIVATED, and `_case_caps` STEP 2 would then shut arm 3
+  -- for a reason that has nothing to do with the hat. It must be ALL FOUR principals, not just
+  -- this call's, or the answer depends on which cell ran last.
+  update public.profiles set is_active = true, suspended_until = null, email_confirmed_at = now()
+   where id in (f.uid, f.sib_holder, f.xorg_holder, f.nobody);
+  v_caller := case p_caller_persona
+      when 'subject_holder' then f.uid
+      when 'other_commission_holder' then f.sib_holder
+      when 'cross_org_actor' then f.xorg_holder
+      else f.nobody end;
+  v_subject := case p_subject_persona
+      when 'subject_holder' then f.uid
+      when 'other_commission_holder' then f.sib_holder
+      when 'cross_org_actor' then f.xorg_holder
+      else f.nobody end;
+  if v_caller = v_subject then
+    raise exception '403 § 7.4b line 4: caller persona % and subject persona % resolve to the SAME '
+                    'principal. That collapses the third-party probe into a self-check, which would '
+                    'read door=false and be indistinguishable from a correct deny.',
+                    p_caller_persona, p_subject_persona;
+  end if;
+  v_prof := case p_scope when 'foreign_org_commission' then f.xorg_prof else f.own_prof end;
+  select organization_id into v_org from public.professional_profiles where id = v_prof;
+  perform pg_temp.set_case_reach(p_subject_persona, p_scope, p_reach);
+  perform test_helpers.claims_for(v_caller, false, p_hat);
+  return 'caller=' || p_caller_persona || '@' || p_hat
+    || ' subject=' || p_subject_persona
+    || ': arm1=' || coalesce(app.is_admin_for(v_subject), false)::text
+    || ' arm2a=' || app.can_manage_professional(v_org, v_subject)::text
+    || ' arm2b=' || authz.has_permission(v_subject, 'organization', v_org,
+                                         'org.professionals.read')::text
+    || ' door=' || app.can_read_professional_profile(v_prof, v_subject)::text;
+end $p$;
+
 select is(
   pg_temp.arm3_probe_at_hat('subject_holder', 'own_commission', 'grant_keyed', 'quality_reviewer')
     || ' | ' ||
   pg_temp.arm3_probe_at_hat('unprivileged',   'own_commission', 'grant_keyed', 'quality_reviewer')
     || ' | ' ||
-  pg_temp.arm3_probe_at_hat('subject_holder', 'own_commission', 'grant_keyed', NULL),
+  pg_temp.arm3_probe_at_hat('subject_holder', 'own_commission', 'grant_keyed', NULL)
+    || ' | ' ||
+  pg_temp.arm3_probe_third_party('other_commission_holder', 'subject_holder',
+                                 'own_commission', 'grant_keyed', 'quality_reviewer'),
   'quality_reviewer: arm1=false arm2a=false arm2b=false door=false | '
   'quality_reviewer: arm1=false arm2a=false arm2b=false door=true | '
-  '(no hat): arm1=false arm2a=false arm2b=false door=false',
+  '(no hat): arm1=false arm2a=false arm2b=false door=false | '
+  'caller=other_commission_holder@quality_reviewer subject=subject_holder: '
+  'arm1=false arm2a=false arm2b=true door=true',
   '7.4b ⭐⭐ THE DOOR-LEVEL ACT HAT TERM, PINNED HEAD-ON IN BOTH POLARITIES (ADR 0209). This is '
   '§ 7.4''s successor: the same coordinate, measured on the LIVE door instead of restated from the '
   'vector. All three lines are the SAME reach — one `case_access_grants` row, arms 1/2a/2b false '
@@ -1029,10 +1103,29 @@ select is(
   'generator skips it by a named rule and no cell exists at it. Read the probe''s comment for why '
   'it is constructed with set_config rather than claims_for: through claims_for this line would '
   'have measured the MATCHING hat and read TRUE. '
+  '⭐⭐ LINE 4 IS THE CALLER-KEYED MUTATION''S REFUSAL, AND IT IS A ONE-VARIABLE DIFFERENTIAL '
+  'AGAINST LINE 1: same subject, same profile, same org, same reach, same hat string — only the '
+  'CALLER changes, from the subject themselves to ANOTHER ROLE-HOLDER (other_commission_holder, a '
+  'staff_admin of the sibling commission, who does not hold `quality_reviewer` either). Line 1 '
+  'DENIES and line 4 GRANTS, so the door''s answer turns on WHO IS ASKING — the § 6A asymmetry '
+  'ADR 0201 ratified and ADR 0209 D1 places at the door. ⛔ THE MUTATION IT REFUSES: a body asking '
+  '"does the CALLER''s hat match one of the CALLER''s roles" for EVERY question, not only for a '
+  'self-check, would OVER-DENY in production and pass everything else in this tree — '
+  'pg_temp.cell_answers seats the ROLE-LESS f.nobody for every third-party cell, so no generated '
+  'cell puts a holder in the caller seat, and 409 § 4.15''s caller wears a hat it holds. '
+  '⚠ THE GRANT ON LINE 4 IS OVER-DETERMINED, AND THE STRING SAYS SO RATHER THAN HIDING IT: arm2b '
+  'reads TRUE here where lines 1-3 read false, because `authz.has_permission` carries the SAME '
+  'asymmetry — its § 6A hat conjunct binds on a self-check and passes vacuously for a third '
+  'party, so the subject''s own commission staff_admin answers the org-scoped permission question. '
+  '⛔ SO LINE 4 PINS THE DOOR-LEVEL CALLER-KEYED TERM AND IS NOT A SECOND PIN ON ARM 3; arm 3''s '
+  'attribution lives in § 7.3b, where the four reaches are one case_access_grants row apart. '
   '⛔ IF A LINE MOVES, DO NOT ADJUST THE STRING. door=true on line 1 means the door-level term was '
   'removed or stopped firing on a self-check; door=false on line 2 means the fix grew a role or '
   'hat condition R2 forbids; door=true on line 3 means the NULL-safety went (`=` instead of `is '
-  'not distinct from`, the BUG-ACT-NULLHAT-1 shape). Each is a finding about the door.');
+  'not distinct from`, the BUG-ACT-NULLHAT-1 shape); door=false on line 4 means the hat term '
+  'stopped being self-check-scoped and now denies third-party questions on the CALLER''s hat — a '
+  'live over-deny, and arm2b=false there is a finding about `authz.entailed_grants`'' own '
+  'conjunct, not about this door. Each is a finding about the door.');
 
 select is(
   pg_temp.arm3_probe('cross_org_actor', 'own_commission',         'grant_keyed') || ' | ' ||
