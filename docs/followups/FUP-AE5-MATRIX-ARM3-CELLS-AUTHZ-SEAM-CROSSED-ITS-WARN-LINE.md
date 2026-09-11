@@ -19,12 +19,24 @@ check is silent on whether content still POINTS anywhere (LEARN-090); doing that
 whose scope is oracle vectors would be the same silent widening Batch 10 refused for a comment.
 ⛔ The cap and the ratchet may only be LOWERED — raising either is not an option.
 
-**Closes when:** the PO names the noun that leaves and a docs-only unit (or the next backend unit
-that touches this seam) lands the split: a new routed seam file with its own scaffolded
-`## Current state`, the README router updated, gate 16 exit 0 with **no** `[D]` warning on
-`authorization-and-audit.md`, and the moved slices' relative links checked by a run, not by eye.
-⚠ Until then, every further append to this file owes a paraphrase cut, never a bound (README
-§ The four rules a gate CANNOT enforce, rule 4).
+**Ruling (PO, 2026-09-11).** **The service-role DML registry leaves.** Measured at the ruling
+(`awk` byte sum per `##` heading; gate 16 read the file at **160.4 KB**, exit 0): the single frozen
+slice `## Service-role DML registry (AE1.4 …)` is **40,694 bytes**, the largest of the candidates
+(quality-office oversight 22,071 across three headings; privilege budget 18,091; the `authz` catalog
+13,492; the audit trail 5,341), it is one self-contained heading, and the README router already
+names *a service-role write* as its own trigger clause. Moving it takes the file to roughly
+**123 KB**, the most headroom for the AE5 increments that will keep appending here. The `authz`
+catalog and the audit trail stay: they are the seam's core. ⛔ Re-measure before the split; do not
+quote these figures.
+
+**Closes when:** a docs-only unit (or the next backend unit that touches this seam) lands that
+split: a new routed seam file for the service-role DML registry with its own scaffolded
+`## Current state`, the README router row for *a service-role write* re-pointed, the
+`## Current state` block on `authorization-and-audit.md` re-cut so it no longer paraphrases the moved
+slice, gate 16 exit 0 with **no** `[D]` warning on `authorization-and-audit.md`, and the moved
+slice's relative links checked by a run, not by eye (LEARN-090 — review the move OUTWARD from the
+moved text). ⚠ Until then, every further append to this file owes a paraphrase cut, never a bound
+(README § The four rules a gate CANNOT enforce, rule 4).
 
 **Origin.** Filed at unit `AE5-MATRIX-ARM3-CELLS`'s Record-step preparation (the authz seam slice
 for the arm-3 oracle); full record:

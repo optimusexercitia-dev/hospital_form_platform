@@ -839,3 +839,33 @@ writing: `origin/main..main` = **27** commits, ⛔ **not pushed** (the standing 
 approval said *no push*). `origin/authz-ae5-matrix-arm3-cells` is left as it was pushed mid-flight
 (pre-rebase shas; stale; deleting a remote branch is a push and was not instructed). Ledger row's
 Commit cell filled with `5ffeed2c` in this same docs commit.
+
+### 2026-09-11 — PO rulings on this unit's two remaining follow-ups (seam split noun; door-comment carrier) (lead)
+
+Decision-gathering only: no app code, no migration, no split performed. Tree clean on `main` at
+`078dde17` before the edits.
+
+**FUP-AE5-MATRIX-ARM3-CELLS-AUTHZ-SEAM-CROSSED-ITS-WARN-LINE — ruled: the service-role DML registry
+leaves.** Measured at the ruling: gate 16 (`node scripts/check-backend-state.mjs`, rc **0** read bare)
+prints `WARN — [D] … authorization-and-audit.md — 160.4 KB is over the 160 KB warn line (cap 200 KB)`;
+`wc -c` **164,204**; the block at 97/100. Byte sum per frozen `##` heading (`awk`): service-role DML
+registry **40,694** (one heading) · quality-office oversight 22,071 (QO·A + QO·B + QO·FUP) · privilege
+budget 18,091 · `authz` catalog 13,492 · audit trail 5,341 (read legs + TRUNCATE grants). The PO chose
+the largest single-heading cut on the recommendation that it is self-contained, already a router
+trigger clause, and leaves the most headroom (~123 KB) for the AE5 increments; the catalog and the audit
+trail stay as the seam's core. The split is a **docs-only unit** to be opened, not done here; its
+acceptance is the register's `Closes when` (scaffolded block in the new file, router row re-pointed,
+the authz block re-cut, gate 16 with no `[D]`, links checked by a run — LEARN-090).
+
+**FUP-AE5-MATRIX-ARM3-CELLS-READ-DOOR-COMMENT-CITES-THE-REPLACED-403-SECTION — ruled: carrier
+confirmed.** The live body was re-read from `pg_proc` (never migration text): line 40 of `prosrc` still
+carries `exercised-but-not-oracled (ADR 0175 D3 / 403 §7.3)`. The fix migration of
+`BUG-AE5-MATRIX-ARM3-CELLS-CASE-GRANT-ARM-MAKES-THE-HAT-TERM-UNENFORCEABLE` carries the correction; an
+earlier legitimate re-emit would carry it instead; never a comment-only migration. The PO also
+**ratified the fix constraint** measured at increment 3 (neither an org check nor a role-keyed hat
+check inside arm 3 — `403` §7.5 and §4.1b red respectively), written into the bug body as a dated
+ruling section and cited from the BUGS.md Related cell.
+
+**Homes written:** both register entries' `Closes when` + both bodies (`**Ruling**` + `Closes when`),
+the bug body (new ruling section) + its BUGS.md row, this entry. Gate 13 (`lint:registers`) run bare
+after the edits; rc recorded in the commit. ⛔ Not pushed (standing instruction).

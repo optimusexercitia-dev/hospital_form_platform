@@ -108,6 +108,20 @@ breaks). Whoever fixes this must handle **S3's role-free case** explicitly — m
 evaluating the hat term **before** the arms, which is the second of the two shapes R2 named, rather
 than inside the case-grant arm, which is the first.
 
+## ⭐ PO ruling on the fix shape and its second duty (2026-09-11)
+
+**Ratified as a PO ruling, not only the unit's measurement:** the fix may add **neither an org check
+nor a role-keyed hat check inside arm 3** — `403` **§7.5** reds on the first (class 4, cross-org
+reach) and **§4.1b** on the second (class 3, the role-free S3 reach) — so whoever fixes this must
+handle S3's role-free case explicitly, most likely by evaluating the hat term **before** the arms
+(R2's second shape). ⛔ A fix is not done while either section is red, and §7.4 must go red-to-green.
+
+**Second duty of the same migration:** it is the **confirmed carrier** for
+`FUP-AE5-MATRIX-ARM3-CELLS-READ-DOOR-COMMENT-CITES-THE-REPLACED-403-SECTION` — when it re-emits
+`app.can_read_professional_profile`, the arm-3 comment's parenthetical *"exercised-but-not-oracled
+(ADR 0175 D3 / 403 §7.3)"* must be corrected in the same body (the follow-up body has the wording).
+⛔ Never a separate comment-only migration.
+
 ## Related
 
 Unit [AE5-MATRIX-ARM3-CELLS](../progress/ae5-matrix-arm3-cells.md) · ADR 0175 D3 · the open QA
