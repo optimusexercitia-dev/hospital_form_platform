@@ -114,6 +114,10 @@ AXIS_DISPOSITION = {
     'activeContext':  'swept',
     'scope':          'swept',
     'principalState': 'swept',
+    # ⭐ AE5-MATRIX-ARM3-CELLS (PO ruling R1, 2026-09-10). Arm 3 of app.can_read_professional_profile
+    # was a FOOTNOTE in this generator and a global sentinel in 403 §7.3; it is now a loop
+    # coordinate, so every arm-3 answer is attributable to a cell instead of to a prose caveat.
+    'caseReach':      'swept',
     'operation':      'not-swept: stood in for by the legacy-class REPS above. Per-permission '
                       'AXES are not observable until AE5 gives a role a partial map; per-permission '
                       'GRANT is covered by 401 §19.4 (403 header, PER-PERMISSION GRAIN).',
@@ -167,6 +171,7 @@ personas    = axis_values('persona')
 contexts    = axis_values('activeContext')
 scopes      = axis_values('scope')
 states      = axis_values('principalState')
+reaches     = axis_values('caseReach')
 subject_roles = list(spec['subjectRoles'])
 
 HOLDS_AT = {                       # where each persona holds the subject role (axes file, Axis 1)
@@ -230,7 +235,135 @@ def expected(persona, ctx, scope, state, selfcheck, res_scope):
     return True, ('matrix-row' if state != 'pending' else 'deny-class:pending-is-granted')
 
 
-def build(personas, contexts, scopes, states, reps, exclusions):
+# ══ ARM 3'S DIVERGENCE LABEL (AE5-MATRIX-ARM3-CELLS, PO ruling R1) ════════════════════════
+#
+# ⛔⛔ THIS IS NOT A SECOND EXPECTED VALUE, AND THE DISTINCTION IS THE WHOLE RULING.
+# `expected_granted` stays what the deny-class effect table says. The label below records WHAT
+# ARM 3 DOES TO THAT CELL — agree, mask, or diverge — and, when it diverges, WHOSE DIVERGENCE IT
+# IS: PO-APPROVED designed reach, or a filed defect. R2: classes 3 and 4 are approved, class 5 is
+# BUG-AE5-MATRIX-ARM3-CELLS-CASE-GRANT-ARM-MAKES-THE-HAT-TERM-UNENFORCEABLE.
+#
+# ⚠ `expected()` DELIBERATELY TAKES NO `reach` ARGUMENT, and that omission is load-bearing rather
+# than lazy. 403's driver has no case_reach branch yet (increment 1 is the axis and the labels;
+# the participation fixture is increment 2), so it constructs `none` for all four values and the
+# door genuinely denies for want of a participation row. An expected value of GRANT here would
+# red 403 for a FIXTURE reason wearing a defect's label. R2's "classes 3 and 4 take GRANT as their
+# approved expected value" lands WITH the fixture, in the increment where it can be observed —
+# giving `expected()` a reach parameter is what that increment does, and the signature change is
+# the reviewable event.
+#
+# Computed by TRANSCRIPTION, exactly as `expected()` transcribes the deny-class table — from the
+# arm-3 derivation measured on the live catalog at head (20261003007390, 528). pgTAP 403 binds it
+# to the catalog later; ⛔ this file never queries anything.
+ARM3_GATE = 'can_read_professional_profile'   # the ONLY rep whose gate body carries a case arm
+
+# Two properties of each reach value, and they are the only two the label consults.
+#   fires       — can arm 3 return true at this reach at all?
+#   needs_role  — does the reach require the caller to HOLD a role at the case's scope? (S1/S5-S8)
+#   follows_hat — does the reach pass through has_role/has_role_any/holds_role, whose trailing
+#                 conjunct binds `active_role` WHEN p_user_id = auth.uid()?
+REACH_PROPERTIES = {
+    'none':        {'fires': False, 'needs_role': False, 'follows_hat': False},
+    'unreachable': {'fires': False, 'needs_role': False, 'follows_hat': False},
+    'role_keyed':  {'fires': True,  'needs_role': True,  'follows_hat': True},
+    'grant_keyed': {'fires': True,  'needs_role': False, 'follows_hat': False},
+}
+
+# The label vocabulary. arm8 refuses anything outside it, and anything blank.
+ARM3_DIVERGENCE_VALUES = {
+    'arm3:not-in-gate':
+        "this representative's gate has no case arm; caseReach is inert here",
+    'arm3:blocked:principal-state':
+        '_case_caps STEP 2 (app.is_active) returns 0 for EVERY case — arm 3 is unreachable by ANY '
+        'fixture at this coordinate',
+    'arm3:silent:no-participation':
+        'arm 3 denies through an EMPTY JOIN — the vacuity baseline, and 403 §7.3 as a cell',
+    'arm3:silent:caps-deny':
+        'arm 3 denies because _case_caps withheld C and/or D — the NON-VACUOUS deny',
+    'arm3:silent:reach-needs-a-role':
+        'a role-keyed reach cannot fire for a persona that holds no role',
+    'arm3:silent:reach-follows-the-hat':
+        '⭐ THE CONTROL FOR THE CLASS-5 BUG: at a role-keyed reach the same wrong/absent hat that '
+        'the deny-class table denies on ALSO shuts arm 3 — which is what grant_keyed does not do',
+    'arm3:masking':
+        '⚠ arm 3 AGREES with an expected GRANT and masks the arm the cell names',
+    'arm3:divergent-approved:not-a-holder':
+        'arm 3 grants where the table denies — PO-APPROVED (R2): an explicit case grant needs no role',
+    'arm3:divergent-approved:cross-org':
+        'arm 3 grants where the table denies — PO-APPROVED (R2): an explicit case grant anchors on '
+        'the CASE, never on the caller\'s org',
+    'arm3:divergent-defective:hat-unenforceable':
+        '⛔ DEFECT, NOT APPROVED REACH — BUG-AE5-MATRIX-ARM3-CELLS-CASE-GRANT-ARM-MAKES-THE-HAT-'
+        'TERM-UNENFORCEABLE. Awaiting a fix; ⛔ never read as an approved expected value',
+}
+
+# ⛔ CELLS CARRYING THESE LABELS ARE NOT ARM-3 COVERAGE, and the header counts them separately so
+# the number cannot be quoted as one. `blocked:principal-state` is class 1's 108 base cells: no
+# fixture can make arm 3 fire there, so they measure the deny-class table and say NOTHING about
+# arm 3. `not-in-gate` is a different door entirely. Counting either as arm-3 coverage would
+# inflate the report with cells that cannot fail for an arm-3 reason.
+NOT_ARM3_COVERAGE = ('arm3:not-in-gate', 'arm3:blocked:principal-state')
+
+
+def arm3_divergence(klass, persona, ctx, scope, state, selfcheck, exp, src, reach):
+    """Transcribed from the arm-3 derivation, in PRECEDENCE ORDER. Each branch names the catalog
+       fact it stands for; none of them re-derives `expected_granted`."""
+    if klass != ARM3_GATE:
+        return 'arm3:not-in-gate'
+
+    # (1) CLASS 1 — 108 base cells. `_case_caps` STEP 2 is `if not app.is_active(p_uid) then
+    # return 0`, evaluated BEFORE every positive sub-arm, so it dominates every reach value.
+    # ⚠ `pending` is NOT one of these: app.is_active reads `is_active` and `suspended_until` only,
+    # never `email_confirmed_at`, which is the single field 403 nulls to model `pending`.
+    if state in ('deactivated', 'suspended'):
+        return 'arm3:blocked:principal-state'
+
+    props = REACH_PROPERTIES[reach]
+
+    # (2) THE TWO SILENT REACHES — and the reason `unreachable` is not a duplicate of `none`.
+    if not props['fires']:
+        return 'arm3:silent:no-participation' if reach == 'none' else 'arm3:silent:caps-deny'
+
+    # (3) A role-keyed reach needs a role. `unprivileged` holds none by definition, so S1/S5-S8
+    # cannot fire for it — the cell is silent, NOT divergent. Labelling it divergent here would
+    # claim a reach the fixture could never build.
+    if props['needs_role'] and HOLDS_AT[persona] is None:
+        return 'arm3:silent:reach-needs-a-role'
+
+    # (4) ⭐ THE HAT, AND IT BINDS ON ONE SIDE ONLY. The trailing conjunct of has_role/
+    # has_role_any/holds_role is `p_user_id is distinct from auth.uid() or p_role is not distinct
+    # from app.active_role()`. Under a THIRD-PARTY probe 403 calls as f.nobody while passing
+    # v_principal, so the left disjunct is true and the hat is VACUOUSLY satisfied — which is the
+    # same asymmetry `expected()` encodes as row 7. So the hat can silence a role-keyed reach only
+    # on a self-check.
+    if props['follows_hat'] and selfcheck and ctx in ('other_role', 'absent'):
+        return 'arm3:silent:reach-follows-the-hat'
+
+    # ── ARM 3 FIRES BELOW THIS LINE. ─────────────────────────────────────────────────────────
+    # (5) CLASS 2 — arm 3 agrees with an expected GRANT. Green, but green for an arm the cell does
+    # not name: arm 2's positive polarity stops being measured on exactly these cells. This is why
+    # `none` had to stay a VALUE rather than the fixture simply gaining participation.
+    if exp:
+        return 'arm3:masking'
+
+    # (6) THE THREE DIVERGENT CLASSES. ⛔ EXHAUSTIVE BY RAISE, NOT BY `else`. A new deny class
+    # arriving in `expected()` must be dispositioned here deliberately; absorbing it into a
+    # default would silently label an unexamined divergence as approved — the default-arm shape
+    # ADR 0176 D5 retires, one layer down where no arm in this file could see it.
+    if src == 'matrix-row:not-a-holder':
+        return 'arm3:divergent-approved:not-a-holder'          # class 3
+    if src == 'deny-class:cross_org':
+        return 'arm3:divergent-approved:cross-org'             # class 4
+    if src == 'deny-class:wrong_active_context:self':
+        return 'arm3:divergent-defective:hat-unenforceable'    # class 5 — the filed bug
+    raise AssertionError(
+        'arm3_divergence has no disposition for expectedSource `%s` at reach `%s` (persona=%s '
+        'ctx=%s scope=%s state=%s self=%s). A deny class reached arm 3 without a PO ruling on '
+        'whether its divergence is approved or defective — rule it, do not default it.'
+        % (src, reach, persona, ctx, scope, state, selfcheck))
+
+
+def build(personas, contexts, scopes, states, reaches, reps, exclusions):
     """Returns (cells, skipped). EVERY skip counter counts CELLS, at one grain, so that
        `len(cells) + sum(skipped.values())` equals the full grid exactly — asserted below.
        ⛔ An earlier shape short-circuited excluded AXIS VALUES at their own loop level, so those
@@ -241,17 +374,25 @@ def build(personas, contexts, scopes, states, reps, exclusions):
     def skip(rule):
         skipped[rule] = skipped.get(rule, 0) + 1
 
+    # ⛔ `reach` IS A LOOP LEVEL OUTSIDE THE SKIP RULES, NOT AN INNER FAN-OUT, AND THE SHAPE IS
+    # THE POINT. An inner fan-out would have `skipped` counting PRE-REACH coordinates while
+    # `cells` counted post-reach ones — the exact census-that-cannot-sum this docstring warns
+    # about, one axis later. Every skip rule is reach-independent, so each fires four times and
+    # the grid below multiplies by four; `len(cells) + sum(skipped.values()) == _GRID` is what
+    # proves it rather than the reasoning.
     for code, klass, res in reps:
         for persona in personas:
             for ctx in contexts:
                 for scope in scopes:
                     for state in states:
                         for selfcheck in (True, False):
+                          for reach in reaches:
                             # ⭐ THE NAMED AXIS EXCLUSIONS (arm7's subject). Checked here, at cell
                             # grain, and attributed to the axis value that elided the cell.
                             axis_hit = next((('%s:%s' % (a, v))
                                              for a, v in (('persona', persona), ('activeContext', ctx),
-                                                          ('scope', scope), ('principalState', state))
+                                                          ('scope', scope), ('principalState', state),
+                                                          ('caseReach', reach))
                                              if (a, v) in exclusions), None)
                             if axis_hit is not None:
                                 skip('axis_excluded:%s' % axis_hit); continue
@@ -272,25 +413,31 @@ def build(personas, contexts, scopes, states, reps, exclusions):
                             if persona == 'anonymous' and not selfcheck:
                                 skip('anonymous_cannot_be_a_third_party_subject'); continue
                             exp, src = expected(persona, ctx, scope, state, selfcheck, res)
+                            # ⛔ `reach` IS IN THE CELL ID, AND IT HAS TO BE. Without it the four
+                            # reach values collapse onto ONE id, 403 reports on cell_id, and three
+                            # of every four cells become an invisible duplicate of the first.
                             cid = '|'.join([persona, SUBJECT_ROLE, ctx, scope, code, state,
-                                            'self' if selfcheck else 'third_party'])
-                            cells.append((cid, persona, ctx, scope, code, klass, res, state, selfcheck, exp, src))
+                                            'self' if selfcheck else 'third_party', reach])
+                            div = arm3_divergence(klass, persona, ctx, scope, state,
+                                                  selfcheck, exp, src, reach)
+                            cells.append((cid, persona, ctx, scope, code, klass, res, state,
+                                          selfcheck, exp, src, reach, div))
     return cells, skipped
 
 
-cells, skipped = build(personas, contexts, scopes, states, REPS, EXCLUSIONS)
+cells, skipped = build(personas, contexts, scopes, states, reaches, REPS, EXCLUSIONS)
 
 # ⭐ THE CENSUS SUMS. Every cell of the declared grid is either emitted or attributed to exactly
 # one named rule. ⛔ Without this the header's "N skipped" is a number of nothing, and a rule that
 # quietly elides a coordinate twice (or not at all) is invisible.
-_GRID = len(REPS) * len(personas) * len(contexts) * len(scopes) * len(states) * 2
+_GRID = len(REPS) * len(personas) * len(contexts) * len(scopes) * len(states) * 2 * len(reaches)
 assert len(cells) + sum(skipped.values()) == _GRID, (
     'the census does not sum: %d emitted + %d skipped != %d declared grid cells'
     % (len(cells), sum(skipped.values()), _GRID))
 
 
 def coverage(cells, skipped, reps, disposition=None, exclusions=None, axes=None):
-    """EIGHT ARMS. ⛔ An arm that has never refused anything is a detector nobody has shown finds
+    """NINE ARMS. ⛔ An arm that has never refused anything is a detector nobody has shown finds
        something — every one is exercised by --self-test below."""
     disposition = AXIS_DISPOSITION if disposition is None else disposition
     exclusions = EXCLUSIONS if exclusions is None else exclusions
@@ -332,7 +479,14 @@ def coverage(cells, skipped, reps, disposition=None, exclusions=None, axes=None)
     # FALSE (a non-zero sum implies a non-empty dict), so it had never refused anything and could
     # not: it was keyed on the skip DICT, and a value that never enters the loop is not in it.
     # Keyed on the DECLARED AXES instead, it sees exactly what its predecessor could not.
-    CELL_AXIS_COL = {'persona': 1, 'activeContext': 2, 'scope': 3, 'principalState': 7}
+    # ⛔ AN AXIS MISSING FROM THIS MAP IS AN AXIS arm7 CANNOT SEE. The lookup below falls back
+    # to `emitted = declared` when a swept axis has no column, so `missing` is empty by
+    # construction and the arm can never fire for it — a detector that could not fail, on the very
+    # axis someone just added. `role` is the ONE tolerable case: subjectRoles is asserted to hold
+    # exactly one value at the top of this file, so there is nothing for the arm to find.
+    # ⭐ `caseReach` -> 11 is why the reach had to become a COLUMN and not merely a cell-id suffix.
+    CELL_AXIS_COL = {'persona': 1, 'activeContext': 2, 'scope': 3, 'principalState': 7,
+                     'caseReach': 11}
     for axis in sorted(axes):
         if axis not in disposition:
             f.append('arm7: axis `%s` is declared in the axes JSON with NO disposition — it is '
@@ -354,6 +508,39 @@ def coverage(cells, skipped, reps, disposition=None, exclusions=None, axes=None)
             f.append('arm7: exclusion %s.%s carries no reason — an unattributed exclusion is a '
                      'silent population shrink wearing a rule\'s clothes' % (axis, value))
 
+    # ⭐ arm8 — THE DIVERGENCE-LABEL ARM (AE5-MATRIX-ARM3-CELLS). Modelled on arm6: arm6 refuses
+    # an expected value with no attribution, and this refuses an arm-3 DISPOSITION with none.
+    # ⛔ The stakes are higher than arm6's, because two of this column's values are a PO ruling
+    # (R2: classes 3 and 4 are APPROVED reach) and one is a filed DEFECT that must never be read
+    # as approved. A blank or unrecognised label silently merges those.
+    _blank = [c for c in cells if not c[12]]
+    if _blank:
+        f.append('arm8: %d cell(s) carry NO arm3 divergence label — an arm-3 answer with no '
+                 'disposition is indistinguishable from approved reach, a filed defect and a '
+                 'structural block (first: %s)' % (len(_blank), _blank[0][0]))
+    else:
+        _unknown = sorted({c[12] for c in cells} - set(ARM3_DIVERGENCE_VALUES))
+        if _unknown:
+            f.append('arm8: arm3 divergence label(s) outside the declared vocabulary: %s — a value '
+                     'nobody declared carries no ruling, and pgTAP 403 has nothing to bind it to'
+                     % ', '.join(_unknown))
+    # ⛔ A SINGLE-VALUED LABEL COLUMN IS A COLUMN OF NOTHING, and it is the cheapest way for this
+    # axis to become decorative: collapse arm3_divergence to a constant and every other arm here
+    # still passes. Same shape as arm2 for expected_granted.
+    if len({c[12] for c in cells}) < 2:
+        f.append('arm8: the arm3 divergence column is SINGLE-VALUED (%s) — it distinguishes '
+                 'nothing, and the caseReach axis is then four copies of one cell'
+                 % (sorted({c[12] for c in cells}) or ['(none)'])[0])
+    # ⛔ arm8c — THE REP-LOSS SHAPE, APPLIED TO THE NEW AXIS. Twice (AE4.9, ADR 0201 D5) a body
+    # split removed a representative and only body-counting arms noticed. If the rep carrying the
+    # ONLY gate with a case arm is dropped or re-pointed, every cell becomes `arm3:not-in-gate`,
+    # the axis quadruples the population and measures nothing, and no other arm in this file says
+    # so — arm3 and arm1b both stay satisfied because they compare reps to cells, not to ARM3_GATE.
+    if ARM3_GATE not in {r[1] for r in reps}:
+        f.append('arm8: the arm-3 gate `%s` has NO representative among the declared REPS — the '
+                 'caseReach axis then labels every cell `arm3:not-in-gate` and multiplies the '
+                 'population by %d for nothing' % (ARM3_GATE, len(REACH_PROPERTIES)))
+
     declared = {r[0] for r in reps}
     emitted = {c[4] for c in cells}
     if declared - emitted:
@@ -371,6 +558,10 @@ if '--self-test' in sys.argv:
     ax_extra_value['scope']['values']['a_ninth_scope'] = 'declared, never enumerated, never excused'
     ax_extra_axis = json.loads(json.dumps(ax))
     ax_extra_axis['aNewAxisNobodyDisposed'] = {'values': {'x': 'y'}}
+    _RENAMED = 'a_gate_with_no_case_arm'
+    _repointed_reps = [(r[0], _RENAMED if r[1] == ARM3_GATE else r[1], r[2]) for r in REPS]
+    _repointed_cells = [(c[:5] + (_RENAMED,) + c[6:]) if c[5] == ARM3_GATE else c
+                        for c in base_cells]
     checks = [
         ('arm1 empty cell set',          [],                                                      base_skipped, REPS, None, None, None),
         ('arm2 single polarity',         [c[:9] + (True,) + c[10:] for c in base_cells],          base_skipped, REPS, None, None, None),
@@ -381,7 +572,22 @@ if '--self-test' in sys.argv:
         ('arm3 a class dropped',         [c for c in base_cells if c[5] != 'can_create_professional'], base_skipped, REPS, None, None, None),
         ('arm4 self-check only',         [c for c in base_cells if c[8]],                          base_skipped, REPS, None, None, None),
         ('arm5 differing-scope dropped', [c for c in base_cells if not (c[6]=='organization' and c[3]=='sibling_commission')], base_skipped, REPS, None, None, None),
-        ('arm6 expectedSource blanked',  [c[:10] + ('',) for c in base_cells],                     base_skipped, REPS, None, None, None),
+        ('arm6 expectedSource blanked',  [c[:10] + ('',) + c[11:] for c in base_cells],          base_skipped, REPS, None, None, None),
+        # ⛔ arm8's FOUR SHAPES, EACH ISOLATED. A fixture that trips a second arm proves nothing
+        # about this one — the lesson arm1b's isolation note records, applied again.
+        # ⚠ ONE CELL, NOT ALL OF THEM, and that is the stronger control twice over: a wholesale
+        # wipe is a shape no real edit produces, AND it makes the column single-valued, so the
+        # single-valued sub-check fires too and the fixture stops isolating what it names.
+        ('arm8 divergence label blanked',  [base_cells[0][:12] + ('',)] + base_cells[1:],        base_skipped, REPS, None, None, None),
+        ('arm8 divergence label unknown',  [base_cells[0][:12] + ('arm3:a-label-nobody-declared',)] + base_cells[1:],
+                                                                                                 base_skipped, REPS, None, None, None),
+        # A VALID vocabulary value applied to every cell: blank and unknown both pass, only the
+        # single-valued check can fire.
+        ('arm8 divergence column collapsed', [c[:12] + ('arm3:not-in-gate',) for c in base_cells], base_skipped, REPS, None, None, None),
+        # ⛔ REPS AND CELLS RE-POINTED TOGETHER so arm3 (classes) and arm1b (codes) both stay
+        # clean and arm8c fires alone. Re-pointing only one side would trip arm3 instead, and the
+        # printed message would name the wrong detector.
+        ('arm8 arm-3 gate lost its rep',  _repointed_cells, base_skipped, _repointed_reps, None, None, None),
         # ⛔ ISOLATED DELIBERATELY. A first draft dropped org.professionals.read from the CELLS,
         # which also drops the only member of its legacy class — so arm3 fired and arm1b was
         # never exercised. An arm caught by ANOTHER arm's message is not proof that arm works.
@@ -420,10 +626,19 @@ assert cells, 'refusing to emit an empty differential'
 srcs = sorted({c[10] for c in cells})
 q = lambda x: "'" + str(x).replace("'", "''") + "'"
 rows = ',\n'.join(
-    '    (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)' % (
+    '    (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)' % (
         q(c[0]), q(c[1]), q(c[2]), q(c[3]), q(c[4]), q(c[5]), q(c[6]), q(c[7]),
-        'true' if c[8] else 'false', 'true' if c[9] else 'false', q(c[10]))
+        'true' if c[8] else 'false', 'true' if c[9] else 'false', q(c[10]), q(c[11]), q(c[12]))
     for c in cells)
+
+# The per-label census, printed in the header so the NOT-COVERAGE count cannot be quoted as
+# coverage by anyone reading the total.
+_div_census = {}
+for c in cells:
+    _div_census[c[12]] = _div_census.get(c[12], 0) + 1
+divcensus = '\n'.join('--   %-44s %6d   %s' % (k, _div_census[k], ARM3_DIVERGENCE_VALUES[k])
+                       for k in sorted(_div_census))
+notcov = sum(_div_census.get(k, 0) for k in NOT_ARM3_COVERAGE)
 excl = '; '.join('%s.%s' % (a, v) for (a, v) in sorted(EXCLUSIONS))
 
 body = """-- GENERATED FILE — DO NOT EDIT BY HAND.
@@ -450,13 +665,50 @@ body = """-- GENERATED FILE — DO NOT EDIT BY HAND.
 --   `principalState.offboarded` is FILLABLE and awaiting a PO expected value — not unfillable.
 --
 -- expectedSource values present: %s
+--
+-- ══ `case_reach` AND `arm3_divergence` — AE5-MATRIX-ARM3-CELLS, PO ruling R1 ════════════════
+-- ⭐ ARM 3 OF app.can_read_professional_profile IS NOW A SWEPT COORDINATE, not a prose caveat.
+-- `case_reach` is the axis (see axes.caseReach._source for the predicate and for why
+-- `unreachable` is mandatory); `arm3_divergence` is the DISPOSITION the generator transcribes
+-- from the arm-3 derivation, exactly as the expected values transcribe the deny-class table.
+--
+-- ⛔⛔ `arm3_divergence` IS NOT A SECOND EXPECTED VALUE. `expected_granted` is UNCHANGED by this
+-- axis — a cell labelled `divergent-approved` still expects what the deny-class table says. PO
+-- ruling R2 ("classes 3 and 4 take GRANT as their approved expected value") lands WITH the
+-- participation fixture, because 403's driver has no case_reach branch yet and constructs `none`
+-- for all four values: the door genuinely denies for want of a participation row, so a GRANT
+-- expectation today would red 403 for a FIXTURE reason wearing a defect's label. The reviewable
+-- event when that changes is `expected()` gaining a `reach` parameter — it has none on purpose.
+--
+-- ⛔ `divergent-approved` (R2: an explicit case grant needs no role and anchors on the CASE, not
+-- the caller's org) and `divergent-defective` (BUG-AE5-MATRIX-ARM3-CELLS-CASE-GRANT-ARM-MAKES-
+-- THE-HAT-TERM-UNENFORCEABLE) ARE DIFFERENT VALUES ON PURPOSE. Merging them would encode a filed
+-- defect's current behaviour as approved, which is the one thing R2 forbids.
+--
+--   arm-3 coverage: %d      ⛔ NOT arm-3 coverage: %d
+-- ⚠ THE SECOND NUMBER IS NOT A FOOTNOTE. `blocked:principal-state` cells cannot be made to fire
+-- arm 3 by ANY fixture (_case_caps STEP 2), and `not-in-gate` cells belong to a different door;
+-- counting either as arm-3 coverage inflates the report with cells that cannot fail for an
+-- arm-3 reason. They remain perfectly good cells for the deny-class table they do measure.
+--
+-- ⚠⚠ THE COST OF SWEEPING caseReach UNCONDITIONALLY, STATED SO IT CANNOT BE DISCOVERED LATER AS
+-- A SURPRISE. Only ONE of the five representatives has a gate with a case arm, so the other four
+-- are swept on an axis that cannot change their answer: their `not-in-gate` cells are FOUR
+-- IDENTICAL COPIES of one cell in every coordinate that can affect it, and three copies in four
+-- are redundant. 403 sweeps the whole table, so that redundancy is paid in suite runtime.
+-- ⛔ IT IS NOT A DEFECT AND MUST NOT BE "FIXED" SILENTLY: the population size is a PO/lead
+-- ruling, and the alternative — a named skip rule restricting caseReach to the arm-3 gate, which
+-- would land at 1728 instead — changes a number the unit brief fixes. Raise it, do not adjust it.
+--
+%s
 create temp table authz_differential_cells on commit drop as
   select * from (values
 %s
   ) as t(cell_id, persona, active_context, scope, permission_code, legacy_class,
-         resolution_scope_kind, principal_state, self_check, expected_granted, expected_source);
+         resolution_scope_kind, principal_state, self_check, expected_granted, expected_source,
+         case_reach, arm3_divergence);
 """ % (sha, len(cells), len({r[1] for r in REPS}), len(REPS), sum(skipped.values()),
-       excl, ', '.join(srcs), rows)
+       excl, ', '.join(srcs), len(cells) - notcov, notcov, divcensus, rows)
 
 if '--check' in sys.argv:
     try:

@@ -321,3 +321,47 @@ reasoning, recorded because it is narrower and sharper than the lead's and ⛔ t
   **org** check, or class 4's approved reach breaks."* ⇒ the bug row says this explicitly **and the
   pgTAP guard for the fix must assert one class-4 cell STILL GRANTS** — a fix verified only by class
   5 going red-to-green would silently revoke an approved reach.
+
+**Increment 1 built (backend) — the axis and the labels; ⛔ no fixture, no migration.** Files touched
+were only `scripts/gen-authz-differential-cells.py`, `authz-matrix-axes.json` and the three generated
+artifacts; `git status --porcelain` confirms no migration, no `src/**`, no `403_*.sql`, no seed, no
+tracker. `npm run lint:authz-vectors` **EXIT 0**, read bare, Docker-free, `--check` byte-identical.
+⭐ **RED-FIRST, unprompted**: with the axis declared and no disposition, coverage arm7 refused —
+*"axis `caseReach` is declared in the axes JSON with NO disposition"*, exit 1 — before the sweep.
+
+⛔ **The lead re-counted the vector itself rather than accepting the report**, and every figure below
+is the lead's own parse of `authz_differential_cells.psql`: 4320 cells, **4320 distinct `cell_id`**,
+13 columns; `expected_granted` true = **552 = 138 × 4** ⇒ ⛔ no existing expected value was edited;
+arm-3 rep = **864 = 216 × 4**; the `arm3_divergence` census **sums to 864 — a partition, not a
+sample**. ⭐ The cross-tabulation is the real result, and it is stronger than the summary:
+
+| `case_reach` | labels | Σ |
+|---|---|---|
+| `grant_keyed` | blocked 108 · masking 30 · **cross-org 32** · **not-a-holder 36** · **defective 10** | **216** |
+| `role_keyed` | blocked 108 · masking 30 · cross-org 24 · follows-the-hat 18 · needs-a-role 36 | 216 |
+| `none` | no-participation 108 · blocked 108 | 216 |
+| `unreachable` | caps-deny 108 · blocked 108 | 216 |
+
+⇒ at `grant_keyed` the **original five-class partition is reproduced exactly** (108/30/32/36/10), which
+is the independent confirmation that the axis encodes the derivation rather than re-deriving it. ⭐ And
+class 5's ten cells become `silent:reach-follows-the-hat` at `role_keyed` — **the control proving the
+hat rule DOES bind where the reach is role-keyed**, which is what makes the `grant_keyed` behaviour a
+defect and not a quirk. ⭐ `unreachable` earns its mandate: it separates *"no participation row"*
+(`none` → 108 `silent:no-participation`) from *"participation exists and `_case_caps` denies"*
+(`unreachable` → 108 `silent:caps-deny`), so a deny is never satisfied by an empty join.
+
+**Three corrections from the teammate, all accepted, all of which improve on the lead's brief:**
+1. ⭐⭐ **It is TWO columns, not one.** `case_reach` had to become a real column (12), not merely a
+   `cell_id` segment: arm7 resolves a swept axis through `CELL_AXIS_COL`, whose fallback is
+   `emitted = declared` when an axis has no column index — so `missing` would have been **empty by
+   construction** and arm7 could **never fire** for `caseReach`. ⛔ That is a *detector that could not
+   fail*, on the very axis being added — LESSONS' opening shape, caught inside the increment that
+   created it. The label is column 13.
+2. **R2's "classes 3 and 4 take GRANT as their approved expected value" is deliberately NOT in this
+   increment.** `403`'s driver has no `case_reach` branch yet, so it builds `none` for all four values
+   and the door denies for want of a participation row; a GRANT expectation **today** would red `403`
+   for a **fixture** reason wearing a **defect's** label. `expected()` therefore takes no `reach`
+   argument, and gaining one is the reviewable event when the fixture lands. ⇒ R2 is **scheduled, not
+   skipped**.
+3. **The reach loop sits OUTSIDE the skip rules**, not as an inner fan-out — otherwise `skipped`
+   counts pre-reach coordinates while `cells` counts post-reach ones: a census that cannot sum.

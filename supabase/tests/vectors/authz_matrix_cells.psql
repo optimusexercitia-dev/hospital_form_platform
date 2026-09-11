@@ -1,7 +1,7 @@
 -- GENERATED FILE — DO NOT EDIT BY HAND.
 -- Source:    supabase/tests/vectors/authz-matrix-axes.json
 -- Generator: scripts/gen-authz-matrix-cells.mjs
--- sourceSha256: 2ddda77978bba11e90050d3a7c9d746541459d642ac03ef9c2cf1d5a69b094dd
+-- sourceSha256: 871c7061eff9f15db88fe48884e85802c839d05ff0f282b29e283b6c706dc0f2
 --
 -- AE4.5 decision-matrix CELL ENUMERATION — the seven PO-approved axes
 -- (docs/design/authz-persona-matrix-axes-ae0.md), constraint rules applied.

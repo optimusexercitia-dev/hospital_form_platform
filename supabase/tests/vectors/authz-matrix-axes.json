@@ -12,7 +12,14 @@
     "",
     "⚠ SUBJECT SCOPE: `staff_admin` only. AE4 substitutes exactly one role (ADR 0155 D7); AE5",
     "adds one role at a time through the same template. Widening `subjectRoles` is what an AE5",
-    "increment does."
+    "increment does.",
+    "",
+    "⭐ THIS FILE NOW DECLARES EIGHT AXES: the SEVEN PO-approved ones above, plus `caseReach`,",
+    "added by AE5-MATRIX-ARM3-CELLS under PO ruling R1 (2026-09-10). ⛔ THE `_comment` HEADERS",
+    "THAT SAY `SEVEN` ARE NOT STALE — they name the PO-approved AE0.5 set, and `caseReach` is not",
+    "in it. It is swept by scripts/gen-authz-differential-cells.py ONLY; gen-authz-matrix-cells.mjs",
+    "picks its axes BY NAME and never reads this one, so its generated header's \"seven PO-approved",
+    "axes\" remains true of its own grid. Read `axes.caseReach._source` before adding a ninth."
   ],
 
   "subjectRoles": ["staff_admin"],
@@ -99,6 +106,16 @@
         "phi_standard": "_case_caps bit read_standard_phi",
         "phi_restricted": "_case_caps bit read_restricted_phi",
         "restricted_personal": "cpf / date_of_birth / phone — moved to profile_private_details by AE3"
+      }
+    },
+
+    "caseReach": {
+      "_source": "AE5-MATRIX-ARM3-CELLS Axis 8 — NOT one of the seven PO-approved AE0.5 axes. Added under PO ruling R1 (2026-09-10) so that ARM 3 of `app.can_read_professional_profile` is a SWEPT COORDINATE instead of a footnote. ⭐ THE PREDICATE, derived from the live catalog at head (20261003007390, 528) and reduced boolean-wise: arm 3 reaches iff THE SUBJECT PROFILE IS A LIVE PARTICIPANT ON SOME CASE (a `professional_participants` row joined through a `case_participants` row with `removed_at is null`), AND THE CALLER HOLDS BOTH `read_case_content` AND `read_case_deliberation` ON THAT CASE. The second conjunct is the whole of `app.can_read_case_committee`, which reduces to C ∧ D: `can_read_case(c,u) and not is_oversight_only_reader(c,u)` = C ∧ ¬(C ∧ ¬D) = C ∧ D, both bits sourced from `app._case_caps`. ⛔ NEITHER CONJUNCT IS A FUNCTION OF ANY OTHER SWEPT AXIS except `principalState` (via `_case_caps` STEP 2, `app.is_active`), which is why the reach needs a coordinate of its own rather than being derivable from the seven. ⚠ Swept by scripts/gen-authz-differential-cells.py only — gen-authz-matrix-cells.mjs selects its axes by name and does not read this one.",
+      "values": {
+        "none": "No `professional_participants` row exists for the subject profile, so arm 3's traversal has nothing to walk and returns false through an EMPTY JOIN. This is the state of today's 403 fixture and the cell form of its §7.3 sentinel — kept as a VALUE so that assertion becomes a swept coordinate rather than a global claim. ⛔ It is also the WEAKEST deny: see `unreachable`.",
+        "role_keyed": "Participation exists and the caller reaches C ∧ D through a ROLE-KEYED sub-arm of `app._case_caps` (S1 coordinator, S5+S7 quality oversight, S5+S8 administrativo, S6 nsp referral). Every one of those resolves through `app.has_role` / `has_role_any` / `authz.holds_role`, each of which ends in `… or p_role is not distinct from app.active_role()`, so this reach FOLLOWS THE HAT and requires the caller to actually hold a role at the CASE's commission/hospital. ⭐ THIS IS THE CONTROL VALUE: it is what `grant_keyed` is measured against.",
+        "grant_keyed": "Participation exists and the caller reaches C ∧ D through a sub-arm that contains NO ROLE LOOKUP AT ALL — S3 (a live `case_access_grants` row keyed on `principal_id`) or S4 (`case_phases.assigned_to` / `case_narratives.assigned_to`). ⭐ THE DIVERGENCE GENERATOR: hat-independent, role-independent and org-independent, which is why an explicit case grant survives a wrong or absent `active_role` (BUG-AE5-MATRIX-ARM3-CELLS-CASE-GRANT-ARM-MAKES-THE-HAT-TERM-UNENFORCEABLE) and why it reaches across organizations (PO-APPROVED designed reach — an explicit grant anchors on the CASE, never on the caller's org).",
+        "unreachable": "⭐⭐ MANDATORY AND LOAD-BEARING — DO NOT DROP IT TO SAVE CELLS. Participation EXISTS, but the caller holds no C ∧ D on that case, so `app._case_caps` returns 0 (or a partial mask without both bits) and arm 3 denies FOR THE REASON THE CELL NAMES. ⛔ Without this value every arm-3 deny in the population is satisfied by the EMPTY JOIN of `none` — the deny would be produced by the ABSENCE OF A FIXTURE rather than by the gate, which is precisely the `keystone that could not fail` shape in docs/learning/LESSONS.md (four of the six vacuity shapes). A three-value reduction {none, role_keyed, grant_keyed} costs exactly the non-vacuity of the deny polarity and nothing else, so it looks like a saving and is not."
       }
     }
   },
