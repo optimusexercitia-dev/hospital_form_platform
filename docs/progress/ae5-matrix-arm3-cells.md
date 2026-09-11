@@ -290,3 +290,34 @@ subject profile is a live participant on some case, and the caller holds both `r
 
 ⭐ **Classes 3 and 5 are demonstrable TODAY on the untouched seed** (the table above is class 5's
 shape); only class 3's `unprivileged` persona and class 4's cross-org coordinate need new data.
+
+**PO ruling R1 — THE SEAM IS GENERATOR-SIDE, AXIS-DRIVEN.** `case_reach ∈ {none, role_keyed,
+grant_keyed, unreachable}` becomes a real axis in `authz-matrix-axes.json`; the generator computes the
+divergence label from it exactly as `expected()` already transcribes the 9-row deny-class table; pgTAP
+`403` binds the label to the live catalog through the participation fixture. ⇒ gate 12 stays
+**Docker-free** and its `--check` stays **byte-identical**, and the label is derived from the door's
+**structure**, encoded once and reviewably, rather than from a live read the lint chain cannot make.
+⛔ Accepted cost, stated so it is not rediscovered as a defect: the transcription does **not**
+self-update if arm 3's structure changes — **pgTAP is what catches that**, not the generator. Vector
+growth for this rep 216 → **864** (overall 1080 → 4320).
+
+**PO ruling R2 — CLASSES 3 AND 4 ARE APPROVED AS DESIGNED REACH; CLASS 5 IS A BUG.** The PO's
+reasoning, recorded because it is narrower and sharper than the lead's and ⛔ the lead's framing was
+**corrected by it**:
+- **Classes 3 (36) and 4 (32) — approved.** *"The case-grant path deliberately anchors on the case,
+  not on the caller's org or role. That is the whole point of an explicit grant. Narrowing it would
+  silently break cross-org case collaboration that the referral module exists for."* ⇒ their 68 cells
+  take **GRANT** as the approved expected value and the oracle **records** the divergence.
+- **Class 5 (10) — a bug, but ⛔ NOT for the reason the lead gave.** The lead argued *"an absent hat
+  fails closed everywhere else"*. The PO's reason is narrower and is the one that governs: *"The
+  self-read cells in class 5 are readable only because the caller happens to hold a case grant on a
+  case they participate in. The hat term was meant to say 'you cannot read your own profile while
+  acting as another role'. Arm 3 makes that rule **unenforceable** for anyone with a case grant."*
+  ⇒ the defect is a **rule made unenforceable**, not a fail-open. Named fixes, either acceptable:
+  make the case-grant arm respect the active-hat check, **or** have the door evaluate the hat term
+  **before** the arms rather than inside some of them.
+- ⭐⭐ **The PO's caveat, which binds the fix and its test.** *"Class 4 and class 5 overlap
+  conceptually. If the fix for class 5 adds a hat check inside arm 3, it must not accidentally add an
+  **org** check, or class 4's approved reach breaks."* ⇒ the bug row says this explicitly **and the
+  pgTAP guard for the fix must assert one class-4 cell STILL GRANTS** — a fix verified only by class
+  5 going red-to-green would silently revoke an approved reach.
