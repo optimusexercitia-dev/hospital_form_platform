@@ -296,6 +296,14 @@ Its acceptance, in outline — the unit writes the detail:
 - **`assume_role`'s new signature** owes both halves of its gate — `session_selectable` **and the
   caller's real assignment** — with a mutation on each; today
   `supabase/tests/408_ae49_assume_role_session_selectable.sql` proves only the first.
+  ⚠ **Added 2026-09-11 (PO ruling on sequencing; ADR 0105 — appended beside, not rewritten):**
+  the new signature is a **new SECURITY DEFINER**, so ADR 0208 D4 binds it to `search_path = ''`
+  with a schema-qualified body — the current `assume_role(platform_role)` is `prosecdef` on
+  `search_path=app, public, pg_catalog` (measured live). The unit therefore runs **AFTER**
+  `DEFINER-SEARCH-PATH-NARROW-FIX` (0208 D5's `419` ratchet), so the new door lands under the
+  gate that observes the non-empty-path population rather than before it; the ratchet's frozen
+  set may shrink when the old signature is dropped and must not grow. This ADR's step order is
+  unchanged.
 - **`npm run gen:types`** after every migration (Rule 8); D7's 7-file TS reach is the blast radius
   step 5 works through — 6 hand-written, 1 regenerated.
 - **The generated manifest artifact** lands with both halves of 0197 D4: a text-only `--check` in

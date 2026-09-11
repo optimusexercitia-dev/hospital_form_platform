@@ -40,6 +40,18 @@ constraint). Measure the tree (command below), then read `docs/plans/pre-ae5-rem
 > D2 / D5 / D6). ⛔ AE5 itself still stays post-pilot (ADR 0155 G1) — the compat unit is pre-AE5
 > remediation, not increment 1. For any other subject's ADR number, take *highest on any live ref +
 > 1*, re-measured (highest was **0208** at this writing; ⛔ do not quote that either).
+>
+> ⚠ **ORDER RULED 2026-09-11 (PO, on the lead's recommendation) — the paragraph above is superseded
+> on ONE point: `DEFINER-SEARCH-PATH-NARROW-FIX` runs BEFORE `AE5-ROLE-CATALOG-COMPAT`.** The
+> compat unit's step 2 writes a brand-new SECURITY DEFINER (`assume_role` on a text signature),
+> and ADR 0208 D4 makes `search_path = ''` mandatory for a new one — but today nothing enforces
+> that: the current `assume_role(platform_role)` is `prosecdef` on `search_path=app, public,
+> pg_catalog` (measured live 2026-09-11), and it is a member of the population the 419 ratchet
+> freezes. Ratchet first ⇒ the compat unit's new door is the ratchet's first REAL discrimination
+> event (a genuinely new DEFINER entering the population, not only the planted control), and the
+> unit cannot add non-empty-path debt unnoticed. The two are still NOT merged — different subjects,
+> different close conditions, and the search-path item's own ⛔ "converging one door is not closing
+> the class" applies. `AE4-D-SHAPE-ASSERTION` stays unordered.
 ⚠ Two follow-ups filed by the concluded unit need a PO ruling before the next backend unit touches
 their subjects: `FUP-AE5-MATRIX-ARM3-CELLS-AUTHZ-SEAM-CROSSED-ITS-WARN-LINE` (which noun leaves the
 authz seam file) and `FUP-AE5-MATRIX-ARM3-CELLS-READ-DOOR-COMMENT-CITES-THE-REPLACED-403-SECTION`
