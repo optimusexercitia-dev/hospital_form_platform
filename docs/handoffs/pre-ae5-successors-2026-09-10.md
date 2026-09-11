@@ -2,24 +2,28 @@
 expires: 2026-09-24
 task: pre-AE5 remediation — successors of Batch 10 (no unit open; the PO names the next)
 created: 2026-09-10
-updated: 2026-09-10
+updated: 2026-09-11
 status: live
 ---
 
 # Handoff — after pre-AE5 Batch 10 (`ADMIN-ARM-IS-ACTIVE`), before the next unit
 
 ## ▶ RESUME HERE
-Nothing is mid-flight. Batch 10 was opened, built, gated, QA-approved, PO-approved and
-fast-forwarded to local `main` on 2026-09-10; the branch is deleted. The pre-AE5 programme is
-exhausted by its own plan and three successors are named there, none started; the PO names which.
-The single next action is to measure the tree (command below), then read
-`docs/plans/pre-ae5-remediation.md` §6 *Where the next session starts* and ask the PO to name
-one of: **ADR 0202** (F7 · F8 · `platform_role`; docs-only; before AE5 increment 2), **ADR 0204**
-(the `D` ceiling · the `search_path=''` convention; docs-only; both censuses already in the two
-follow-up bodies; no ordering constraint), or unit **`AE5-MATRIX-ARM3-CELLS`** (hub exists,
-`planned`; enumeration + generated vectors + a full authz sweep at the tip; before increment 1
-runs its matrix). ⛔ AE5 itself stays post-pilot (ADR 0155 G1). ⛔ ADR numbers 0202 and 0204 are
-reserved; for any other subject take *highest on any live branch + 1*, re-measured.
+Nothing is mid-flight. ⚠ **Updated 2026-09-11:** unit **`AE5-MATRIX-ARM3-CELLS`** — one of the three
+successors this handoff named — is **concluded**: built, gated, QA-approved at round 2, PO-approved and
+fast-forwarded to local `main` on 2026-09-11; its branch is deleted; ⛔ **`main` is NOT pushed** (the
+standing instruction; the branch itself was pushed mid-flight on the PO's instruction and is now
+stale on `origin`). Two successors remain, both docs-only ADRs, and the PO names which: **ADR 0202**
+(F7 · F8 · `platform_role`; before AE5 increment 2) or **ADR 0204** (the `D` ceiling · the
+`search_path=''` convention; both censuses already in the two follow-up bodies; no ordering
+constraint). Measure the tree (command below), then read `docs/plans/pre-ae5-remediation.md` §6
+*Where the next session starts*. ⛔ AE5 itself stays post-pilot (ADR 0155 G1). ⛔ ADR numbers 0202 and
+0204 are reserved; for any other subject take *highest on any live branch + 1*, re-measured.
+⚠ Two follow-ups filed by the concluded unit need a PO ruling before the next backend unit touches
+their subjects: `FUP-AE5-MATRIX-ARM3-CELLS-AUTHZ-SEAM-CROSSED-ITS-WARN-LINE` (which noun leaves the
+authz seam file) and `FUP-AE5-MATRIX-ARM3-CELLS-READ-DOOR-COMMENT-CITES-THE-REPLACED-403-SECTION`
+(carried by the class-5 bug's fix). The CLAUDE.md review queue on this clone was non-empty at the
+unit's close and was **not** processed — step 7 of the Record step is owed before the next unit opens.
 
 ## Trust
 - **Verified, in the tree:** everything Batch 10 claims is witnessed in
@@ -40,8 +44,9 @@ reserved; for any other subject take *highest on any live branch + 1*, re-measur
 - **Pushed** on the PO's explicit instruction after the Record step (`b87eac1e..44f69ff6`, 27 commits; a fifth one-push override, spent). ⛔ "do not push" is the standing instruction again; re-measure `origin/main..main`, never quote.
 
 ## Tree
-Branch `main`, HEAD at or after `37f3b3bd` (`ef2625f2` = the phase commit; `37f3b3bd` = the merge
-sha recorded in plan §2 row 10 and the ledger). Expected clean. No worktrees. No unit branch.
+Branch `main`, HEAD at or after the `AE5-MATRIX-ARM3-CELLS` phase commit (2026-09-11; the sha is in
+the ledger row and the unit record's Record-step entry — re-measure, never quote). Expected clean. No
+worktrees. No unit branch. `origin/main` is behind by the whole unit — re-measure the distance.
 
 ## Next command
 ```bash

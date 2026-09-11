@@ -748,3 +748,82 @@ no PUBLIC grant.
 their two sha lines, `410` re-run green) · step 2 test pass — **`e2e:prod` not owed**, ruled and **QA
 confirmed** · step 3 QA **APPROVED** (round 2) · step 4 **human approval — WAITING** · step 5 Record —
 not started. ⛔ Not merged, not pushed.
+
+### 2026-09-11 — RECORD STEP on the PO's approval (*"approved — run the Record step, merge to main, no push"*) (lead)
+
+**Human approval (step 4):** given in this session's chat, verbatim above; scope: Record step + merge to
+`main`, ⛔ **no push** — the standing instruction stands.
+
+**Record step, lead-playbook §4, item by item:**
+1. Ledger row appended to `docs/progress/phase-ledger.md` after Batch 10's row (the phase-commit sha
+   filled in before the commit, the merge sha added in the post-merge docs commit as Batch 10 did).
+2. PROGRESS.md: nothing owed (it holds only § Phase Status and § State). Bugs closed: **none** — the
+   class-5 bug stays open by design. Follow-ups resolved: **none**; two filed this unit stay open.
+3. Task detail: the record IS the feature-named file; nothing to archive.
+4. `docs/backend-state/authorization-and-audit.md`: slice appended + `## Current state` replaced earlier
+   this session (gate 16 rc 0, the `[D]` warn filed).
+5. ADR: no new number; ADR 0175 amended by dated markers with an `**Amended:**` record line (⛔ not an
+   `Amends:` edge — 0175 changes no other ADR). `npm run adr:index` rc 0.
+6. `lint:progress` / `lint:registers` / `features:index` re-run bare below; commit
+   `phase(AE5-MATRIX-ARM3-CELLS): complete — …`.
+7. ⚠ `.claude/claude-md-review-queue.md` is **non-empty on this clone** (`wc -c` = 6227 at the unit's
+   open, re-measure) — ⛔ **not processed here**; recorded in the handoff and the hub as owed before the
+   next unit opens (the PO's approval named the Record step and the merge, not a CLAUDE.md pass).
+8. **Rulings taken → the NON-LOG artefact that carries each:** **R1** (generator-side, axis-driven seam)
+   → `scripts/gen-authz-differential-cells.py` (the `case_reach` axis, the `arm3_divergence` label,
+   coverage `arm9`/`arm10`), the emitted `authz_differential_cells.psql`, and the forward note in
+   `docs/plans/authz-evolution.md` § Per-role checklist. **R2** (classes 3 + 4 approved, class 5 a bug;
+   the caveat on the fix) → `403` §7.3 / §7.5 / §4.1b (the values and the guard), the 14th column
+   `expected_legacy_granted`, `docs/bugs/BUGS.md` + the bug body (the class-5 clause and the caveat), ADR
+   0175's D3 marker, and the manifest qualifier. ⛔ Neither ruling lives in the record alone.
+9. Both filed follow-ups carry the same `Closes when` in entry and body (QA round 2 verified the second).
+10. Sets named, not sized: the two follow-ups filed (seam size; door comment), the one bug filed
+    (class 5), zero bugs closed, zero follow-ups closed.
+11. Hub `## Current state` replaced as the **last** edit of the round (status → `complete`).
+
+**Also touched at the Record step:** `docs/plans/pre-ae5-remediation.md` — CONCLUDED markers at the
+§3 successor bullet and §6 steps 2–3 (the derivation blocks kept); the programme handoff in
+`docs/handoffs/` (the Batch-10 successors handoff; ⛔ path not cited — gate 13) — RESUME HERE and Tree re-routed to the two remaining
+ADR successors (⛔ not deleted: it is the programme's handoff, not this unit's, which had none).
+
+**Merge (after the phase commit):** `git checkout main && git merge --ff-only authz-ae5-matrix-arm3-cells`,
+ancestry proven **bare** (`git merge-base --is-ancestor <phase-sha> main`, rc read alone), then the
+branch deleted locally. `origin/authz-ae5-matrix-arm3-cells` is left as pushed mid-flight (stale, 8
+commits behind the phase commit at the time of writing — re-measure); `main` **not pushed**. The
+shas are in the next entry, written on `main`.
+
+### Current state at close (cut from the hub on completion, 2026-09-11)
+
+**Updated:** 2026-09-11 — at close
+
+#### Objective
+Discharge ADR 0175 D3's forward promise as WORK: label every cell of the arm-3 candidate population
+with whether arm 3 diverges, **derived**; a PO expected value per derived **CLASS**; make `403`
+actually oracle arm 3 (what retires the manifest's *"OPEN AND MASKING"*); close 0175 D3 at its source.
+
+#### Done since start
+**Complete 2026-09-11** — all four acceptance criteria ticked above, each witnessed in the record.
+Arm 3 derived from the live catalog (no org term — D3 CONFIRMED; role-free at S3/S4 only; `pending`
+reachable); the `grant_keyed` population a **partition** (216 at the rep = 108 blocked · 30 masking ·
+36 + 32 + 10 divergent; 92 approved-divergent over the rep's 864); **PO rulings R1** (generator-side
+axis, `case_reach` + `arm3_divergence`, coverage `arm9`/`arm10`) and **R2** (classes 3 + 4 approved,
+class 5 a **BUG** filed, pinned by `403` §7.4, guarded by §7.5 — mutation-proven, the caveat widened:
+neither an org term nor a role-keyed hat check). **`403` oracles arm 3** (§7.3 replaced; §7.3b/§7.4/
+§7.5/§4.1b; R2 in a 14th column, `expected_granted` byte-unmoved). The manifest qualifier **retired for
+arm 3** (arm 1 still owed); ADR 0175 D3 closed by dated markers; authz seam slice + Current state.
+Gate at `29422327` (every arm holds; deriver NOT-APPLICABLE both arms; set-valued CLEAN); `lint` bare
+0 at `eaf1757a` / `00846736`; `e2e:prod` not owed, QA-confirmed. QA r1 CHANGES REQUESTED (6 docs-only,
+all fixed), r2 **APPROVED**. PO approved 2026-09-11; ff-merged to `main`; ⛔ **not pushed**.
+
+#### In progress
+Nothing — the unit is closed. Ledger row written; plan §3/§6 carry CONCLUDED markers; the programme
+handoff re-routed to the two remaining ADR successors.
+
+#### Next
+Owned by others: **ADR 0202** / **ADR 0204** (the PO names which); the class-5 bug's fix (⛔ not this
+unit; its constraint is `403` §7.5 **and** §4.1b together); the two follow-ups filed here (seam size;
+the live door comment). The CLAUDE.md review queue on this clone is non-empty and owed before the next
+unit opens (Record step 7).
+
+#### Blockers
+None.

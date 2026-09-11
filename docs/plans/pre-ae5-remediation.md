@@ -639,7 +639,8 @@ below are kept as the protocol a successor reads, ⛔ **not** as an instruction 
 - **Named successor units:** ADR **0202** (F7 · F8 · `platform_role`) before AE5 **increment 2** —
   increment 1 is `staff_admin`, the only already-`authoritative` role · ADR **0204** (the `D` ceiling ·
   the `search_path` convention), both censuses **already written into their follow-up bodies** so
-  neither is re-measured · unit **`AE5-MATRIX-ARM3-CELLS`** before increment 1 runs its **matrix**.
+  neither is re-measured · unit **`AE5-MATRIX-ARM3-CELLS`** before increment 1 runs its **matrix**
+  — ✅ **CONCLUDED 2026-09-11** ([hub](../features/ae5-matrix-arm3-cells.md) · [record](../progress/ae5-matrix-arm3-cells.md) · [r1](../reviews/ae5-matrix-arm3-cells-review.md) · [r2](../reviews/ae5-matrix-arm3-cells-rereview.md)); ADR 0175 D3 closed by dated markers, no new ADR, no migration; QA APPROVED at round 2; PO-approved, ff-merged, ⛔ **not pushed**. **The two ADRs are the only successors still open.**
   ⛔ **ADR numbering: `0202` and `0204` are RESERVED and `0202` can never be filled** — ⚠ *"take
   0205 for any other subject"* is **SPENT**: 0205 became the grant-plane convention the same day
   (2026-09-10); the next free number for any other subject is *highest on any live branch + 1*,
@@ -668,13 +669,13 @@ below are kept as the protocol a successor reads, ⛔ **not** as an instruction 
    is the **named successors**: **ADR 0202** (F7 · F8 · `platform_role`) before AE5 **increment 2** —
    increment 1 is `staff_admin`, the only already-`authoritative` role · **ADR 0204** (the `D` ceiling ·
    the `search_path` convention), both censuses **already in their follow-up bodies** · unit
-   **`AE5-MATRIX-ARM3-CELLS`** before increment 1 runs its **matrix**. ⛔ **ADR numbering: take 0205** —
+   **`AE5-MATRIX-ARM3-CELLS`** before increment 1 runs its **matrix** — ✅ **CONCLUDED 2026-09-11**, see the bullet in §3 above; only the two ADRs remain. ⛔ **ADR numbering: take 0205** —
    0202 and 0204 are reserved and 0202 can never be filled.
    ⚠ ADR 0201 carries forward **ADR 0200's data obligation** (0193 D5 extended): the AE5 per-role
    template must declare the **keying** of every arm it pairs and never pair a caller-keyed arm with a
    `p_uid`-keyed one — and ⛔ **nothing reds if it does; that clause is `prose only`.**
 
-3. **Name the successor you are opening** — *"open `AE5-MATRIX-ARM3-CELLS`"*, *"write ADR 0202"*, or
+3. **Name the successor you are opening** — *"write ADR 0202"* or *"write ADR 0204"* (⚠ *"open `AE5-MATRIX-ARM3-CELLS`"* is SPENT — concluded 2026-09-11), or
    *"initiate Batch 10"* (which has **no block here** by decision — derive it from ADR 0201 + 0203 and
    the unit record's R11/R12 entries, ⛔ never from R3/R4 alone). The lead opens the hub + record
    **before** the branch (gate 13's branch check wants the branch to exist), then plans before

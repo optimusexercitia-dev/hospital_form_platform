@@ -1,7 +1,7 @@
 ---
 id: AE5-MATRIX-ARM3-CELLS
 title: "Arm-3 divergent cells enumerated — discharging ADR 0175 D3's forward promise, which is WORK and not a decision: 216 candidate rows carry zero divergence labels"
-status: in_progress
+status: complete
 kind: feature
 program: AUTHZ
 phase: "Named at pre-AE5 Batch 9 by PO ruling R9 — due before AE5 increment 1 runs its MATRIX, not before its TEMPLATE is written"
@@ -80,47 +80,3 @@ the door harness · the set-valued targeted home · the diff-scoped deriver over
 `supabase/tests/vectors/**`, so ⛔ **Batch 7's empty-pathspec assertion does NOT apply** — but
 `supabase/migrations` and `src` must still be untouched unless the unit is explicitly ruled a
 migration. ⛔ Someone other than the builder runs the arms at the tip.
-
-## Current state
-
-**Updated:** 2026-09-11 (post-QA, awaiting human approval)
-
-### Objective
-Discharge ADR 0175 D3's forward promise as WORK: label every cell of the arm-3 candidate population
-with whether arm 3 diverges, **derived**; a PO expected value per derived **CLASS**; make `403`
-actually oracle arm 3 (what retires the manifest's *"OPEN AND MASKING"*); close 0175 D3 at its source.
-
-### Done since start
-All four acceptance criteria met (ticked above), each with its witness in the record. **Arm 3 derived
-from the live catalog** (no org term — D3 CONFIRMED; role-free at S3/S4 only, so it survives an absent hat; `pending` reachable); a **live,
-unmasked arm-3 grant reproduced on the untouched seed**. Population = a **partition of the 216
-`grant_keyed` cells** at the rep (the rep holds 864): 108 blocked · 30 masking · 36 + 32 + 10 divergent
-(over the rep's 864: 92 approved-divergent, 10 defective). **PO rulings R1** (generator-side axis) and **R2**
-(classes 3 + 4 approved reach; class 5 a **BUG**, filed, not fixed). **Built and lead-verified at the
-tip**: `case_reach` axis + `arm3_divergence` label (inc. 1); gate-scoped by a named rule bound to the
-manifest via coverage `arm9`, 1728 cells, byte-identity proven (inc. 2); ⭐ **`403` ORACLES arm 3** —
-§7.3 replaced, §7.3b/§7.4/§7.5/§4.1b added, R2 in a 14th column, `expected_granted` unmoved,
-mutation-proven and the PO's caveat **widened** (neither an org term nor a role-keyed hat check) (inc. 3).
-**This session (resumed from origin):** rebased onto `main` (one docs conflict, resolved to `main`);
-**manifest qualifier RETIRED FOR ARM 3**, history verbatim, scope stated (arm 1 still owed); **ADR 0175
-D3 closed by dated markers**; **authz seam slice + `## Current state` replaced** (97/100 lines; the
-file crossed the 160 KB warn line → `FUP-…-AUTHZ-SEAM-CROSSED-ITS-WARN-LINE`).
-**Gate at tip `29422327`, run by the lead, every rc bare:** typecheck 0 · unit 154/154 · `test:db` on a
-fresh reset `Files=267, Tests=9023, PASS` · **census 608 HOLDS · hat HOLDS (4 allowlisted) · floor
-HOLDS · wrapper HOLDS** · SELFTEST deriver `46/0/0` + door harness 0 · deriver **NOT-APPLICABLE (3)**
-both arms (no migration; `SCOPE:` quoted in the record) · set-valued **CLEAN 3/3** · tree clean before
-and after. ⛔ `lint` was **1** at that tip — gate 13 on the record's own handoff citation, reworded;
-re-run bare at `eaf1757a`: **17/17, rc 0** (record entry *lint re-run BARE*).
-
-### In progress
-Phase Gate step 4 — **human approval, WAITING**. QA round 1 CHANGES REQUESTED (6 docs-only findings,
-all fixed at `00846736`, one follow-up filed for the live door comment); round 2 **APPROVED** (two
-MINORs discharged in the same commit as this block). `lint` bare rc 0 at `eaf1757a` and `00846736`.
-
-### Next
-On approval: the Record step (lead-playbook §4 — ledger row, plan §2 row, hub `complete`, review-queue
-check, ff-merge to `main`; ⛔ **no push** — standing instruction). E2E `e2e:prod` **not owed** (no
-`src`/migration/seed/`e2e` in the diff) — ruled by the lead, **confirmed by QA** in both rounds.
-
-### Blockers
-None. ⚠ Standing: *"do not push"*. ⛔ Class 5's fix is a filed bug and deliberately **not** this unit.
