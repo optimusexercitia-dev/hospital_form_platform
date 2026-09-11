@@ -869,3 +869,14 @@ ruling section and cited from the BUGS.md Related cell.
 **Homes written:** both register entries' `Closes when` + both bodies (`**Ruling**` + `Closes when`),
 the bug body (new ruling section) + its BUGS.md row, this entry. Gate 13 (`lint:registers`) run bare
 after the edits; rc recorded in the commit. ⛔ Not pushed (standing instruction).
+
+### 2026-09-11 — `origin/authz-ae5-matrix-arm3-cells` DELETED on the PO's explicit instruction (lead)
+
+The merge entry above left the remote branch in place because deleting it is a push. The PO then
+instructed *"delete the branch `origin/authz-ae5-matrix-arm3-cells`"*. Before the delete: `git cherry
+main origin/authz-ae5-matrix-arm3-cells` = **18 `-` / 1 `+`** — every commit's patch is on `main` except
+the branch's first (`d9fbc7d7`), whose plan-§2-row-10 hunk was resolved to `main`'s cell at the rebase;
+its twin on `main` (`d6ee35d6`) differs from it only by the 10 lines `main`'s own `ad9ffb21` added to
+`docs/progress/admin-arm-is-active.md`. `git push origin --delete authz-ae5-matrix-arm3-cells` →
+`- [deleted]`; after `git fetch --prune`, zero remote refs match. ⛔ **`main` was NOT pushed** — this
+push moved only the branch ref, the way the mid-flight branch push did; `origin/main` unchanged.
