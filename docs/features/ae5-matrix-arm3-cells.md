@@ -86,40 +86,38 @@ migration. ⛔ Someone other than the builder runs the arms at the tip.
 **Updated:** 2026-09-10
 
 ### Objective
-Discharge ADR 0175 D3's forward promise as WORK: label every cell in the arm-3 candidate
-population with whether arm 3 diverges from the oracled arms, **derived**; get a PO expected value
-per derived cell **CLASS**; make `403` actually oracle arm 3 (which is what retires the manifest's
-*"OPEN AND MASKING"*); and close 0175 D3 at its source.
+Discharge ADR 0175 D3's forward promise as WORK: label every cell of the arm-3 candidate population
+with whether arm 3 diverges, **derived**; a PO expected value per derived **CLASS**; make `403`
+actually oracle arm 3 (what retires the manifest's *"OPEN AND MASKING"*); close 0175 D3 at its source.
 
 ### Done since start
-Unit opened on the PO's naming; preconditions measured (clean `main` @ `44f69ff6`, `origin/main..main`
-= 0 after fetch, no worktrees). ⚠ The hub's three headline figures re-derived at today's head pair:
-**216** and `grep -c diverg` **0** unmoved, ⛔ the anchor **`:456` STALE → `:459`** (corrected above).
-⛔ **The local stack was one migration BEHIND the tree** — `(…7380, 527)` vs **528** — and the missing
-one is Batch 10's rewrite of `is_admin_for`, i.e. **arm 1 of this very door**; fresh
-`npx supabase db reset --local` (exit 0) put it at `(20261003007390, 528)`. The door read from the
-**live catalog**: four grant terms in three arms, and its own body comment says arm 3 *"grants with NO
-org term at all"*. Population stated as a **set**: persona 4 × context 3 × scope 3 × state 4 × self 2,
-minus `absent`-only-for-`unprivileged` ⇒ 3×48 + 72 = **216** ✓ (30 grant / 186 deny, 8
-`expected_source` values). ⭐ **Defect found and FIXED**: the manifest's `openArms` named the
-re-key-removed `app.can_create_professional` and listed three arms while the emitted, gated
-`authorizer_composed_with` carried the correct four — corrected against the live catalog, gate 12
-**exit 0**. Full `npm run lint` **exit 0**. Two follow-ups filed (increment-1 ambiguity; ADR 0202's
-borrowed census).
+Unit opened; the hub's own figures re-derived (**216** and **0** unmoved, ⛔ anchor `:456` → **`:459`**).
+⛔ The local stack was **one migration behind the tree** on this door's own arm 1; reset to
+`(20261003007390, 528)`. Door read from the **live catalog**: four grant terms, three arms. **Arm 3
+derived**: ⛔ no org term (ADR 0175 D3 **CONFIRMED** by rolled-back probe, trigger active); `_case_caps`
+STEP 2 **does** gate on `app.is_active`, so suspended/deactivated close it — but `pending` is **not** an
+`is_active` state, so 54 pending cells stay reachable; S3/S4 carry **no role lookup**, so arm 3 survives
+an **absent hat**. ⭐ **A live, unmasked arm-3 grant reproduced by the lead on the untouched seed** — at
+hat `staff` and at no hat, arm 1/2a/2b all deny and **arm 3 alone answers `true`**. Population derived
+as a **partition of 216**: 108 blocked · 30 masking · **36 + 32 + 10 divergent**.
+**PO rulings:** **R1** the seam is generator-side, axis-driven; **R2** classes 3 and 4 **approved** as
+designed reach, class 5 a **BUG** (filed, with the PO's caveat binding its fix *and its test*).
+**Built + verified at the tip:** `case_reach` axis and `arm3_divergence` label (increment 1), then
+gate-scoped by a named rule bound to the manifest by new coverage `arm9` (increment 2) — 1728 cells,
+arm-3 rep **864**, census **sums**, `grant_keyed` **108/30/32/36/10**, per-cell **byte-identity** proven
+against the prior tip (0 altered, 2592 deleted). `npm run lint` **17/17 exit 0**.
+**Found in passing:** manifest `openArms` **fixed**; two follow-ups filed (increment-1 ambiguity; ADR
+0202's borrowed census); **LEARN-103** (a wrong-arm catch scored as a pass) with a real enforcer.
 
 ### In progress
-`backend` is deriving, from the live catalog, which of the five swept axes arm 3 actually depends on
-— ⚠ sharply, whether it depends on **account state**, since Batch 10 just made the admin arms follow
-`app.is_active` and arm 3 may not — plus the minimal new axis that makes arm 3 expressible, and the
-divergence **classes** with their counts.
+Increment 3 — `403`'s participation fixture (⛔ never the seed), the driver's `case_reach` branch,
+R2's GRANT values landing, **§7.3 REPLACED not renumbered**, and the class-4 guard the PO's caveat
+makes a test obligation.
 
 ### Next
-Two PO decisions, in this order, **before** anything is generated: (1) **the seam** — the generator is
-catalog-free **by design** (gate 12 must run without Docker), so *"derived from the live catalog and
-the generator"* names two derivations that cannot happen in one place; (2) **an expected value per
-derived class**, with the class count reported first. Then the build, whose shape `403` §7.3 already
-fixes: approved values **first**, then a participation fixture that **breaks** its `0` sentinel —
-⛔ which that assertion forbids renumbering.
+Retire the manifest qualifier **because `403` oracles arm 3**, not by editing it; then close ADR 0175
+D3 at its source with a dated marker. Then the gate: `test:db` on a fresh reset, the four authz arms
+with domains quoted, the diff-scoped door sweep read **bare**.
 
 ### Blockers
-None. ⚠ Standing, not a blocker: *"do not push"* (plan §6); the four one-push overrides are spent.
+None. ⚠ Standing: *"do not push"*; class 5's fix is a filed bug, ⛔ deliberately **not** this unit.
