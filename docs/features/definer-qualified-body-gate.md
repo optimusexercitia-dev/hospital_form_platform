@@ -30,42 +30,31 @@ ruling already states the convention; this builds its missing enforcer.
 pgTAP `421_definer_qualified_body.sql`: every `prosecdef` function in `app`/`public`/`authz` whose
 `proconfig` is `search_path=""` has a body that resolves under the empty path — measured by Postgres,
 never by a hand parser. Two arms keyed on `pg_language`: **plpgsql** via `plpgsql_check_function_tb`
-(honours `proconfig`; measured 2026-09-11), **sql** via re-executing `pg_get_functiondef(oid)` in a
-rolled-back savepoint (the validator re-runs under the declared path; `ALTER … SET search_path` never
-re-validates, which is the hole). Findings counted: `42P01` + `42883` only. Exclusion: a `42P01` whose
-relation the SAME `prosrc` creates by `create temp[orary] table`. Residual held: bodies containing
-`execute` must number 0 (dynamic SQL is invisible to both arms). Each arm carries a planted positive
-control that MUST red, and a temp-vs-persistent discrimination plant. Extension created INSIDE the test
-transaction; unavailable ⇒ red, never skip.
+(honours `proconfig`), **sql** via re-executing `pg_get_functiondef(oid)` in a rolled-back savepoint
+(`ALTER … SET search_path` never re-validates a body — the hole). Findings: `42P01` + `42883`;
+exclusion: a `42P01` on a relation the SAME body creates by `create temp table`; residual held:
+`execute` bodies = 0. Planted positive controls per arm; extension created INSIDE the test transaction.
 
 ### Done since start
-- Lead spike on the live catalog (rolled back): both arms discriminate; live population 29 = 18 plpgsql +
-  11 sql, 0 findings outside the four temp-table bodies, 0 `execute`. Witnesses in the record.
-- `backend`: **`supabase/tests/421_definer_qualified_body.sql` built**, `plan(16)`, RUN SHAPE
-  `Files=2, Tests=17` (measured, not recalled). Both arms green over the live population
-  (`18 examined` / `11 visited | 0 findings`), five planted controls all discriminating, the `execute`
-  residual `0 of 29` stated as a bound. Extension created inside the transaction and gone after it.
-- ⭐ **The brief's savepoint capture was unimplementable and was replaced, not worked around**: a
-  `rollback to savepoint` discards temp-table rows written inside it, so the two mutating arms carry their
-  result out by `setval` on a temp sequence (non-transactional, measured), seeded `0 = never ran`. Every
-  assertion sits OUTSIDE every savepoint.
-- **Mutation proof, three mutations on mutated COPIES** (the tracked file was never edited to red): the
-  requested one — exclusion matches everything — reds `§ 3d` and `§ 3a` while `§ 1c` stays GREEN, i.e. only
-  the controls can see a blinded exclusion; a dead sql arm reds `§ 2a` on `0 visited`; a dead plpgsql arm
-  reds six.
-- **The five carriers re-worded** from "UNGATED" to "gated by 421 + the `execute` bound", the follow-up
-  cited as *closed by 421* rather than deleted. `419` is **comment-only** in the diff (its assertions and
-  `§ 0` splice byte-unchanged); the rule file is 2043 bytes of its 2048 cap.
-- **Gates:** fresh `supabase db reset --local` then `npm run test:db` → **`Files=270, Tests=9062` PASS**;
-  `npm run lint` **rc 0** (18 gates).
+- Lead spike (rolled back): both arms discriminate; population 29 = 18 plpgsql + 11 sql; 0 `execute`.
+- `backend`: `421` built, `plan(16)`, RUN SHAPE `Files=2, Tests=17`; both arms green over the live
+  population (`18 examined` / `11 visited | 0 findings`); five controls discriminating; mutation proof
+  on copies (blinded exclusion → 2 red, dead sql arm → 1 red, dead plpgsql arm → 6 red). Results leave
+  savepoints by `setval` on a temp sequence (temp-table rows do not survive a savepoint rollback).
+- Five carriers re-worded from "UNGATED" to "gated by 421 + the `execute` bound"; `419` comment-only;
+  rule file 2043/2048 bytes.
+- **Gate step 1 closed (lead, 2026-09-12):** fresh reset → `npm run test:db` `Files=270, Tests=9062`
+  PASS (re-earned on the final code); `npm run lint` rc 0 (18 gates); door sweep exit **3**
+  NOT-APPLICABLE, `SCOPE: 0 file(s) — 0 committed (6fd0bfdb..HEAD), 0 worktree, 0 untracked`
+  (zero migrations); authz arms census · hat · floor · `FROMFINDINGS=1` wrapper all rc 0.
+- AC-1's no-splice deviation RULED accepted (record entry 2026-09-12). Three follow-ups filed.
 
 ### In progress
-- Nothing. The build is complete and handed back to the lead.
+- Nothing; awaiting the PO's ruling on step 2.
 
 ### Next
-- Gate step 1's remaining arms, which `backend` did NOT run: the authz arms (`census`, `hat`, `floor`,
-  `FROMFINDINGS=1 wrapper`) and the diff-scoped door sweep over the diff — expect exit 1 NO DOORS, ruled
-  option (a): a test file alters no door → tester → QA → PO approval → record.
+- Step 2 (tester): PO to rule whether `npm run e2e:prod` is owed for a diff with no runtime surface
+  (no migration, no `src/`, no policy) → step 3 QA review → step 4 PO approval → step 5 record.
 
 ### Blockers
 - None.
@@ -73,13 +62,9 @@ transaction; unavailable ⇒ red, never skip.
 ## Acceptance criteria
 
 - [x] **AC-1 — the file.** `supabase/tests/421_definer_qualified_body.sql`; domain = the empty-path
-  DEFINER population, spliced from the same predicate `419 § 0` uses (an empty-path member is the
-  complement of the frozen set within `414`'s population; the three must partition 890).
-  ⚠ **Satisfied in intent, NOT by a splice, and the lead/QA should rule on that.** `419 § 0`'s block is
-  compared byte-for-byte with `scripts/definer-search-path-census.sql` by gate 18, so copying it into 421
-  would bind this file to a text the generator owns. 421 writes its OWN equivalent predicate and asserts
-  the property the splice was for: `§ 0c` pins `890 = 861 non-empty (419) + 29 empty (421)` as one string,
-  so a member acquiring a third form falls out of both gates and reds.
+  DEFINER population. ⚠ RULED 2026-09-12 (lead): NOT a splice of `419 § 0` — gate 18 owns that text
+  byte-for-byte, so 421 writes its own predicate and asserts the partition the splice was for:
+  `§ 0c` pins `890 = 861 non-empty (419) + 29 empty (421) + 0 undeclared` as one string.
 - [x] **AC-2 — the plpgsql arm.** `plpgsql_check_function_tb(oid, relid, fatal_errors => false)`,
   trigger functions given a `tgrelid` from `pg_trigger`; findings = `sqlstate in ('42P01','42883')`
   minus the in-body temp-table exclusion; expected 0 over the live population.
@@ -99,5 +84,5 @@ transaction; unavailable ⇒ red, never skip.
   (stay ≤ 2048 bytes), `scripts/gen-definer-search-path-freeze.mjs` header, `419`'s header,
   `docs/backend-state/authorization-and-audit.md` seam bullet (`## Current state`) + a new dated slice,
   `docs/lint-gates.md` gate 18 paragraph. ⛔ `419` and `420` assertions unchanged.
-- [ ] **AC-8 — the gates.** `npm run test:db` on a fresh `supabase db reset` green with 421 in the run
-  shape; `npm run lint` rc 0; door sweep over the diff RULED (a test file alters no door).
+- [x] **AC-8 — the gates.** `npm run test:db` on a fresh `supabase db reset` green with 421 in the run
+  shape; `npm run lint` rc 0; door sweep over the diff RULED (exit 3 NOT-APPLICABLE: no migration).

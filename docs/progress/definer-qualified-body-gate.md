@@ -171,3 +171,47 @@ comment/doc texts and **no migration**, so no door changes — but that is a cla
   Second fresh `supabase db reset --local` then `npm run test:db`: **`Files=270, Tests=9062`** ·
   `All tests successful.` · `Result: PASS`, 202 wallclock secs. The count is unchanged because the
   tightening altered one assertion's expression, not the plan.
+
+### 2026-09-12 — gate step 1 closed by the lead; AC-1 deviation ruled; three follow-ups filed (lead)
+
+**Door sweep, both arms — RULED NOT-APPLICABLE.** `bash scripts/door-sweep-cases.sh 6fd0bfdb` → exit
+**3** `RESULT: NOT-APPLICABLE (3) — no migration file in the diff.`, quoting
+`SCOPE: 0 file(s) — 0 committed (6fd0bfdb..HEAD), 0 worktree, 0 untracked | filter: none | derivation: NOT REACHED (this run ended before the catalog was probed)`.
+The hub's `Next` predicted exit 1 (NO DOORS); the measured verdict is exit 3, which is the stronger
+claim for this diff — four commits, one new pgTAP file, five comment/doc carriers, **zero migrations** —
+and it is checkable: `git diff --stat 6fd0bfdb..HEAD -- supabase/migrations` is empty. Exit 3 was
+never pasted into a `CASES=` substitution; the rc was read bare. No predicate/policy sweep ran, and
+none is owed: the sweep has no domain here.
+
+**The four authz arms, each rc read bare from `p0-authz-invariant.sh`:**
+
+| arm | knob | rc | line quoted |
+| --- | --- | --- | --- |
+| census | `ARM=census` | 0 | `OK: no unswept newcomer WITHIN THIS ARM'S DOMAIN` (domain: prosecdef bool · prosecdef set-returning+reachable · public INVOKER plpgsql · all RLS policies) |
+| hat | `ARM=hat` | 0 | `self-test: 7/7 OK` · `HAT-BLIND SWEEP HOLDS: 4 finding(s), all reasoned-allowlisted` |
+| floor | `ARM=floor` | 0 | `OK: every never-called door is on the floor allowlist.` · `OK: every floor-allowlist entry resolves to a live door.` |
+| wrapper | `FROMFINDINGS=1 ARM=wrapper` | 0 | `ARM 5: invoker-wrapper BLIND ⊆ allowlist` · `BLIND set size: 41` · `OK: every BLIND wrapper is on the allowlist.` |
+
+Run against the catalog the backend's second fresh reset left (the pgTAP suite rolls every file back).
+⚠ These arms measure the catalog, and this diff changes no catalog object — a green here is the
+expected no-op, quoted because the gate requires the arms to be RUN, not because it could have moved.
+
+**AC-1 deviation RULED: accepted.** 421 does not splice `419 § 0`'s domain block; it writes its own
+predicate and asserts the partition (`§ 0c`: 890 = 861 + 29 + 0 undeclared). Reason: gate 18 compares
+419's block byte-for-byte with the generator's, so a splice would have made 421 a third copy of text the
+generator owns and gate 18 does not watch — a hand-written copy of production text (LEARN-024 shape).
+The partition assertion is what the splice was FOR. The AC text in the hub now says so.
+
+**Step-1 dead end, for the next reader.** The hub predicted the deriver's exit 1 (FINDING — NO DOORS)
+from the two predecessor units; both of those carried a migration. A diff with no migration is exit 3,
+a different claim with a different remedy (none), and the prediction was wrong at the grain of "which
+exit", not "does a sweep run".
+
+**Follow-ups filed** (register, one entry each): 421's split figures are hand literals with no
+generator behind them; the undeclared-`search_path` class now has a live enforcer waiting on an
+unbuilt ruling; `supabase test db` leaves no `pgtap` installed, so a bare psql loop emits no TAP.
+
+**Step 2 (tester) — put to the PO.** The diff has no runtime surface: no migration, no `src/`, no
+policy. The comparable predecessor ran `npm run e2e:prod` because it shipped a migration that altered
+four runtime functions. Whether the mandatory full-suite run is owed here is the PO's call; it is
+asked, not skipped.

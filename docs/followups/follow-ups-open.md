@@ -1964,3 +1964,27 @@ D4 is two clauses: `set search_path = ''` AND schema-qualified object references
 **Status:** open
 
 Measured 2026-09-11: `bash scripts/door-sweep-cases.sh b1e9b924` → exit **1** `FINDING (1) — NO DOORS AT ALL`, `SCOPE: 1 file(s) — 0 committed (b1e9b924..HEAD), 0 worktree, 1 untracked | filter: none | derivation: catalog`, against a diff whose ONE file alters four `prosecdef=t` functions. The same happened to `20261003007410` in `DEFINER-SEARCH-PATH-NARROW-FIX` (two names, exit 1, ruled option (a)). ⭐ Mechanism (QA-corrected — the first draft said "does not see `alter function`", which is FALSE): `:743` DOES extract `alter function` but requires `security definer` in the matched text, deliberately, so the 449 `ALTER FUNCTION … OWNER TO` lines in the baseline do not flood `fn_alter` (closed `FUP-DOOR-SWEEP-DERIVER-BLIND-TO-ALTER-FUNCTION`, archive). The residual: an attribute change on a function that is ALREADY a DEFINER carries no `security definer` token and is invisible. ⛔ Not closed by widening the regex to every `alter function` (that re-opens the flood the closed FUP measured), nor by the option-(a) rulings (they are the human step this deriver exists to remove), nor by "the four return no `bool` so the sweep is UNPROVEN anyway" — the NEXT `set <attribute>` migration may touch a predicate.
+
+### 🟢 FUP-DEFINER-QUALIFIED-BODY-GATE-421-FIGURES-ARE-HAND-LITERALS-BESIDE-419S-GENERATED-ARTIFACT — two-file hand pin
+
+**Filed:** 2026-09-12 (unit `DEFINER-QUALIFIED-BODY-GATE`, backend hand-back) · **Owner:** lead + backend · **Severity:** low — nothing is wrong today (`§ 0c` pins `890 = 861 + 29 + 0` and matches the catalog), but the shape is the one that drifts
+**Closes when:** pgTAP `421 § 0c`/`§ 0d`'s population figures are read from the same generated artifact `419` loads by `\ir` (so one `gen-definer-search-path-freeze.mjs --write` moves both files' expected side), with gate 18 still refusing any non-deletion diff — or the PO rules the two-file hand pin acceptable and `421`'s header names the pair that must move together
+**Status:** open
+
+`419` reads its frozen side from a committed, generated artifact; `421` pins `861 non-empty (419) + 29 empty (421) + 0 undeclared` as hand literals in a message string. A convergence of one more DEFINER (the D4 "on touch" path) reds `419 § 1c`-legally AND `421 § 0c`, and the fix is a hand edit in two files whose figures are not derived from one source. A pin plus its artifact updated by hand in two places is how a pin and its artifact come apart (LEARN-084 shape, the other direction). ⛔ Not closed by deriving the expected side live in the same instant (that compares the catalog to itself), nor by widening `§ 0c` to "sums to the total" (the two middle terms are complements — that assertion cannot fail).
+
+### 🟡 FUP-DEFINER-QUALIFIED-BODY-GATE-UNDECLARED-CLASS-NOW-HAS-A-LIVE-ENFORCER — ruled, unbuilt
+
+**Filed:** 2026-09-12 (unit `DEFINER-QUALIFIED-BODY-GATE`, backend hand-back) · **Owner:** lead + PO · **Severity:** medium — the undeclared class (`414 § 0b`'s 890/890) is outside the 419 freeze by construction; it was PO-ruled in the predecessor unit and never built, and `421` now reds on its first member without naming the remedy
+**Closes when:** the ruled disposition of the undeclared-`search_path` DEFINER class is built as its own assertion (or `414 § 0b` is named as that assertion and `421 § 0c`'s message points at it), so that a red on `0 undeclared` names one remedy instead of two gates disagreeing about whose finding it is
+**Status:** open
+
+`421 § 0c` asserts `890 = 861 non-empty (419) + 29 empty (421) + 0 undeclared`. The fourth term is the non-tautological one (the first two are complements). Today `414 § 0b` also asserts every `prosecdef` function declares a `search_path`; a new undeclared DEFINER therefore reds `414 § 0b` AND `421 § 0c`, and only `414`'s message says what to do. The predecessor seam slice (`authorization-and-audit.md`, unit `DEFINER-TEMP-TABLE-CONVERGENCE`) records the class's disposition as "PO-ruled but unbuilt". ⛔ Not closed by deleting the term from `421` — it is the term that makes `§ 0c` able to fail.
+
+### 🟢 FUP-DEFINER-QUALIFIED-BODY-GATE-SUPABASE-TEST-DB-LEAVES-NO-PGTAP-INSTALLED — no TAP from bare psql
+
+**Filed:** 2026-09-12 (unit `DEFINER-QUALIFIED-BODY-GATE`, backend hand-back) · **Owner:** backend · **Severity:** low — a diagnostics trap, not a gate defect: `supabase test db` installs `pgtap` for its own run and leaves the catalog without it, so `psql -f <test>` afterwards fails at `plan(integer) does not exist` and every later statement aborts silently inside the transaction
+**Closes when:** `docs/backend-state/conventions.md`'s pgTAP section carries one line saying so and naming the single-file loop that works (`supabase test db <file>`, or `create extension pgtap` inside a rolled-back transaction, the way the mutation harnesses do)
+**Status:** open
+
+Measured 2026-09-11 while building `421`: `select count(*) from pg_extension where extname='pgtap'` → 0 after a green `npm run test:db`; the first standalone `psql -f 421_…sql` produced no `ok` lines and no error a reader would recognise as "the instrument is missing". The `100_dashboard.sql` comment already alludes to this; nothing in the conventions seam says it.
