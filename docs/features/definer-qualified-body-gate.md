@@ -1,7 +1,7 @@
 ---
 id: DEFINER-QUALIFIED-BODY-GATE
 title: "ADR 0208 D4's schema-qualified-body clause gets its gate: pgTAP 421 reads every empty-path DEFINER body, one arm per language"
-status: in_progress
+status: gated
 kind: fup-fix
 program: AUTHZ
 phase: "pre-AE5 remediation — ADR 0208 D4 second clause (PO ruled option (a) on 2026-09-11)"
@@ -55,7 +55,8 @@ exclusion: a `42P01` on a relation the SAME body creates by `create temp table`;
   bounds; `plan(18)`, RUN SHAPE `Files=2, Tests=19`) → suite re-earned `Files=270, Tests=9064` → QA r2
   **APPROVED**, MINOR-1/2/3 CLOSED, one new comment-only **MINOR-4** (header claims all scrub gaps err
   safe; the dollar-quote gap does not — 0 of 29 bodies use one, `§ 1b` pins the raw set) + NOTE-5 →
-  `backend` correcting the wording in place (no assertion change) → step 4.
+  corrected in place, comment-only (`712cf030`; 421 non-comment diff 0 lines, `Files=2, Tests=19`
+  PASS, lint rc 0). **Gated — awaiting human approval (step 4).**
 
 ### Next
 - Step 2 RULED N/A by the PO (2026-09-12): no migration, no `src/`, no policy — nothing the E2E suite
