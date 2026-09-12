@@ -159,3 +159,39 @@ belonging to the other live session had already been committed by it (`bb6f3571`
 was clean afterwards. ⚠ The spawn prompt named a `Co-Authored-By: Claude Fable 5.1` trailer while this
 session's own attribution config names `Claude Opus 5 (1M context)`; the accurate one was used — the lead
 can re-state it if the other was intended.
+
+### 2026-09-12 — gate step 1 run by the lead; step 2 ruled N/A; QA spawned (lead)
+
+**Reset.** ⛔ `supabase db reset --local` was DENIED to this session by the permission classifier (twice,
+alone and chained). The suite below therefore ran on the catalog as the backend left it — every backend
+run was transactional and no E2E ran since the last reset, so no leftover is expected, but **"fresh
+reset" is NOT witnessed here**; the PO is asked to run the reset, after which `npm run test:db` is
+re-run and this line amended.
+
+| arm | invocation | rc | witness |
+| --- | --- | --- | --- |
+| pgTAP | `npm run test:db` (NOT on a fresh reset — see above) | 0 | `Files=270, Tests=9066` (was 9064: `414` +1, `421` +1) · `Result: PASS` · `not ok` lines: 0 |
+| lint | `npm run lint` | 0 | 18 gates; one WARN, new and this unit's: gate 16 check D `authorization-and-audit.md — 163.2 KB is over the 160 KB warn line (cap 200 KB)` |
+| typecheck | `npm run typecheck` | 0 | — |
+| door sweep deriver | `bash scripts/door-sweep-cases.sh f55b53ba` | **3 NOT-APPLICABLE** | `SCOPE: 0 file(s) — 0 committed (f55b53ba..HEAD), 0 worktree, 0 untracked \| filter: none \| derivation: NOT REACHED (this run ended before the catalog was probed)` — no migration; neither sweep arm run |
+| census | `ARM=census` | 0 | `=== INVARIANT HOLDS ===` |
+| hat | `ARM=hat` | 0 | `self-test: 7/7 OK` · `HAT-BLIND SWEEP HOLDS: 4 finding(s), all reasoned-allowlisted` |
+| floor | `ARM=floor` | 0 | `=== INVARIANT HOLDS ===` |
+| wrapper | `FROMFINDINGS=1 ARM=wrapper` | 0 | `ARM 5: invoker-wrapper BLIND ⊆ allowlist` · `BLIND set size: 41` · `=== INVARIANT HOLDS ===` |
+| deriver self-test | `SELFTEST=1 bash scripts/door-sweep-cases.sh` under `GNU bash, version 5.2.37(1)-release (x86_64-pc-msys)` | 0 | `SELF-TEST: PASS 46 · FAIL 0 · SKIPPED 0` · `--- GROUP deriver: scenarios 20 (pass 20 · fail 0 · skipped 0)` · `--- GROUP merge helper: scenarios 18 (pass 18 · fail 0 · skipped 0)` · `--- GROUP audit startup capture: scenarios 8 (pass 8 · fail 0 · skipped 0)` |
+
+Set-valued arm: not owed — the door sweep did not run (exit 3, no migration).
+
+**Step 2 (tester) ruled N/A by the lead, for the PO to confirm at step 4:** the change is two pgTAP
+files, one SQL comment and three docs; there is no runtime surface a Playwright spec could reach — the
+same ground on which the PO ruled step 2 N/A for `DEFINER-QUALIFIED-BODY-GATE`.
+
+**Backend deviations, ruled by the lead.** (1) The `Co-Authored-By` trailer on `1a5dc2a1`/`e694bf0e`
+names the backend's own model rather than the lead's — correct attribution, left as is. (2) The gate-16
+check-D warn (seam 157.1 → 163.2 KB) is this unit's and is filed as a follow-up at the Record step, not
+compressed away; the seam's `## Current state` block is at 98/100 lines and the lead's replacement must
+stay under the cap. (3) Two commits from ANOTHER session (`bb6f3571`, `664a70a5`, the pgTAP-diagnostics
+FUP closure) sit on this branch because the sessions share one checkout; they fast-forward onto `main`
+and the lead's `git branch -f main 664a70a5` was DENIED by the classifier, so they ride along at merge.
+
+**QA spawned** on the eight ACs, with the reset caveat named as a "could not verify" input.

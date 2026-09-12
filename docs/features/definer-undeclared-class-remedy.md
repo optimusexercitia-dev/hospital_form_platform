@@ -85,16 +85,27 @@ Make an undeclared-`search_path` DEFINER red with ONE named owner (`414 § 0b`) 
 - Live catalog measured 2026-09-12: `890 = 861 + 29 | 0 undeclared` under both `sp = '<none>'`
   (`421`) and `proconfig is null` — the two predicates agree today, not in general.
 
+- AC-1 … AC-5 built by `backend` (`1a5dc2a1`): `414 § 0b` message names the remedy, `§ 2d` control;
+  `421 § 0c` partitions (`non-empty` excludes `<none>`) and names `414 § 0b` as owner, `§ 3h` delta
+  control; census comment, two seam markers + one slice, gate-18 line in `docs/lint-gates.md`.
+  Six mutation proofs on copies, in the record.
+- Gate step 1 (lead): `test:db` `Files=270, Tests=9066` PASS; lint rc 0 (one new gate-16 check-D
+  WARN, seam at 163.2 KB); typecheck rc 0; door sweep deriver exit 3 NOT-APPLICABLE; census · hat ·
+  floor · wrapper rc 0; deriver self-test `PASS 46 · FAIL 0 · SKIPPED 0` (bash 5.2.37). Step 2 ruled
+  N/A by the lead (no runtime surface), PO to confirm.
+
 ### In progress
 
-- `backend`: AC-1 … AC-5 on this branch (files: `414`, `421`, the seam slice, the census comment).
+- `qa` review round 1 over AC-1 … AC-6.
 
 ### Next
 
-- Lead: gate step 1 (fresh reset, `test:db`, lint, door sweep, authz arms), then `qa` review, then
-  PO approval and the Record step.
+- PO: run `supabase db reset --local` (denied to this session), lead re-runs `test:db` on the fresh
+  catalog; then step 4 approval, then the Record step (seam `## Current state` replacement under its
+  100-line cap; follow-up filed for the gate-16 warn; FUP entry archived; ledger row).
 
 ### Blockers
 
-- ⚠ Another session holds uncommitted work in this tree (4 docs files, a pgTAP-diagnostics FUP
-  closure). Stage by path only; a `db reset` collides if that session is mid-gate.
+- ⚠ "Fresh reset" is unwitnessed: the classifier denied the reset to this session.
+- ⚠ Another session shares this checkout; two of its docs commits (`bb6f3571`, `664a70a5`) sit on
+  this branch and fast-forward onto `main` at merge.
