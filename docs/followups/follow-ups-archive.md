@@ -13611,3 +13611,25 @@ the dedicated rule file deferred on the cap (`FUP-DEFINER-SEARCH-PATH-NARROW-FIX
 **Status:** open
 
 ADR 0208 D6 ordered the four (`app.copy_response_answers` · `app.copy_template_version_children` · `app.copy_version_children` · `public.clone_framework`) TESTED before any sweep; `420` did so with the ALTER applied to ONE function per rolled-back savepoint and each call's effects asserted (items/sections/phases/answers/standards counts), identical today and under `''`. ⭐ Mechanism: `pg_temp` is searched implicitly and FIRST for relation names even when the path is empty — the empty form removes `app`/`public`, not the temp schema. `420 § 6` proves the instrument can fail (a planted DEFINER reading `from profiles` unqualified reds with 42P01 under the identical ALTER). ⛔ The convergence was NOT performed in the unit — it would have moved the `419` artifact by more than the two AC-2 names, and D6 ordered testing, not conversion. ⛔ "Free" is a statement about these four BODIES, never a general one; the closing migration re-runs `420`'s effect assertions, not "did not throw", and regenerates the freeze as a pure four-row deletion.
+
+### 🟡 FUP-DEFINER-SEARCH-PATH-NARROW-FIX-DOOR-SWEEP-ARM-2-ROW-WAS-ARM-1-RELABELLED — the door audit never reads `FROMFINDINGS` — ✅ RESOLVED 2026-09-11
+
+> **RESOLVED 2026-09-11** — unit DOOR-SWEEP-ARM-LABEL-CORRECTION (lead; docs-only, no code). Record: docs/progress/door-sweep-arm-label-correction.md.
+> Closed ON its clause, all three halves: (1) `docs/progress/arm3-hat-term-fix.md` carries a dated `⚠ CORRECTION 2026-09-11` marker
+> directly under each of the two gate blocks (the `:137` / `:424` rows — themselves untouched, ADR 0105), naming the row as the predicate
+> arm repeated and the policy arm's verdict from the same invocation (`ARM-DOMAIN predicate=1/127 policy=0/226 out-of-domain-bool=35`,
+> 0 of 226 selected — a true empty selection); (2) lead-playbook §4 names the two door-sweep arms **predicate** and **policy** from ONE
+> invocation and `FROMFINDINGS=1` as the WRAPPER arm's knob only; (3) the ledger row's *"door sweep both arms CLEAN 1/1 COVERED"* re-read
+> in place — TRUE as predicate + policy of one invocation — with a dated marker appended to the cell. Re-measured before closing:
+> `grep -cE '\$\{?FROMFINDINGS' supabase/tests/mutation/p0-authz-door-audit.sh` → **0** reads. ⚠ The body below quotes the measurement as
+> `grep -c FROMFINDINGS scripts/p0-authz-door-audit.sh → 0`: that path does not exist, and a bare `grep -c FROMFINDINGS` on the real file returns
+> **6** (all comment and echo prose). The FACT the entry states holds; its quoted instrument did not — left as filed, corrected here. Lesson
+> filed as LEARN-104. ⛔ Nothing was deleted from the prior record and no verdict moved.
+
+
+**Filed:** 2026-09-11 (unit `DEFINER-SEARCH-PATH-NARROW-FIX`, gate step 1, while writing the door-sweep gate block) · **Owner:** lead · **Severity:** medium — no gate was skipped (the sweep's one invocation runs BOTH its arms, predicate and policy, and the wrapper arm was run under its own row), but a prior unit's record carries a row whose label claims a distinct run that never existed
+**Closes when:** the mislabelled row in `docs/progress/arm3-hat-term-fix.md` (its gate blocks at `:137` and `:424`, *"door sweep arm 2 (FROMFINDINGS=1 CASES=…)"*) carries a dated correction marker beside it (ADR 0105 — never rewritten) saying it was the predicate arm repeated, with the policy arm's verdict from the same invocation named; the lead-playbook §4 recipe names the two door-sweep arms as **predicate** and **policy** and names `FROMFINDINGS=1` as the WRAPPER arm's knob only; and the ledger row's *"door sweep both arms CLEAN 1/1 COVERED"* is re-read against that.
+**Status:** open
+
+Measured by `backend` 2026-09-11: `grep -c FROMFINDINGS scripts/p0-authz-door-audit.sh` → **0**; the variable is consumed by `scripts/p0-authz-invariant.sh` (`:107`, `:323`, `:800`) — the wrapper arm (ADR 0079: *"the cheap `FROMFINDINGS=1 ARM=wrapper` comparison every phase"*). Running the door sweep twice with and without it produced outputs differing in exactly one line (`ARM1_RC=` vs `ARM2_RC=`), same `SELECTION-SOURCE`, same `ARM-DOMAIN`, same verdict. ⭐ This unit's gate block therefore labels its rows **predicate arm** / **policy arm** from ONE invocation. ⛔ What must NOT be mistaken for closing it: deleting the prior row (the record is append-only), or reading this as "the prior unit missed an arm" — its `FROMFINDINGS=1 ARM=wrapper rc 0` row is the wrapper arm and stands. Lesson candidate: *a gate row's label is a claim about which SCRIPT read which KNOB — an unread knob makes two rows out of one run.*
+

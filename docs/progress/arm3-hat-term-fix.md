@@ -139,6 +139,8 @@ git diff --stat -- docs/reviews/authz-door-audit-findings.md   EMPTY (after both
 authz-setvalued-targeted-cases.sh                  rc 0
 ```
 
+> ⚠ **CORRECTION 2026-09-11 (lead, unit `DOOR-SWEEP-ARM-LABEL-CORRECTION`, closing `FUP-DEFINER-SEARCH-PATH-NARROW-FIX-DOOR-SWEEP-ARM-2-ROW-WAS-ARM-1-RELABELLED`):** the row *"door sweep arm 2 (FROMFINDINGS=1 CASES=…)"* in the block above is **the predicate arm run a second time, not a second arm**. `p0-authz-door-audit.sh` never reads `FROMFINDINGS` — `grep -cE '\$\{?FROMFINDINGS'` over it returns **0** (re-measured 2026-09-11; the six mentions it carries are comment and echo prose) — the knob belongs to `p0-authz-invariant.sh` (`:107`, `:323`, `:800`) and selects the WRAPPER arm, which this block ran under its own `FROMFINDINGS=1 ARM=wrapper` row. The door sweep's two arms are the **predicate arm** and the **policy arm**, and ONE invocation runs both; the policy arm's verdict from that same invocation is the sentence this record already carries a few lines below (*"Both sweep arms printed …"*): `ARM-DOMAIN predicate=1/127 policy=0/226 out-of-domain-bool=35` — **0 of 226 policies selected**, a true empty selection for a migration that creates and alters no policy, ⛔ not a skipped arm. No gate was skipped and no verdict moves: the predicate arm, the policy arm and the wrapper arm all ran. The row stands as written (ADR 0105); the label is corrected here, not there.
+
 The deriver's three self-test GROUP lines: `deriver: scenarios 20 (pass 20 · fail 0 · skipped 0)` ·
 `merge helper: scenarios 18 (pass 18 · fail 0 · skipped 0)` ·
 `audit startup capture: scenarios 8 (pass 8 · fail 0 · skipped 0)`.
@@ -427,6 +429,8 @@ git diff --stat -- docs/reviews/authz-door-audit-findings.md      0 bytes (subse
 authz-setvalued-targeted-cases.sh                  rc 0   ARM-DOMAIN setvalued=3/3 (in scope) out-of-scope=2 (named, with dispositions)
 npm run gen:types ; git diff --stat database.ts    rc 0 · 0 bytes (signature unchanged; app schema not exposed)
 ```
+
+> ⚠ **CORRECTION 2026-09-11 (lead, unit `DOOR-SWEEP-ARM-LABEL-CORRECTION`, closing `FUP-DEFINER-SEARCH-PATH-NARROW-FIX-DOOR-SWEEP-ARM-2-ROW-WAS-ARM-1-RELABELLED`):** the row *"door sweep arm 2 (FROMFINDINGS=1 CASES=…)"* in the block above is **the predicate arm run a second time, not a second arm**. `p0-authz-door-audit.sh` never reads `FROMFINDINGS` — `grep -cE '\$\{?FROMFINDINGS'` over it returns **0** (re-measured 2026-09-11; the six mentions it carries are comment and echo prose) — the knob belongs to `p0-authz-invariant.sh` (`:107`, `:323`, `:800`) and selects the WRAPPER arm, which this block ran under its own `FROMFINDINGS=1 ARM=wrapper` row. The door sweep's two arms are the **predicate arm** and the **policy arm**, and ONE invocation runs both; the policy arm's verdict from that same invocation is the `ARM-DOMAIN … (both arms)` line inside the block itself: `ARM-DOMAIN predicate=1/127 policy=0/226 out-of-domain-bool=35` — **0 of 226 policies selected**, a true empty selection for a migration that creates and alters no policy, ⛔ not a skipped arm. No gate was skipped and no verdict moves: the predicate arm, the policy arm and the wrapper arm all ran. The row stands as written (ADR 0105); the label is corrected here, not there.
 
 ⚠ The deriver's `SCOPE:` says **1 committed, 0 worktree, 0 untracked** because the migration is now
 committed; the build session's line read `0 committed … 1 untracked` for the same one file. Same

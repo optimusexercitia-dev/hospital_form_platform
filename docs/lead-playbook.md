@@ -263,6 +263,22 @@ merge aborted and wrote nothing, which also leaves the diff empty (QA F-MAJOR-5,
   COVERED, and its remedy is capture-then-assert in the aborting file
   (`FUP-C2-TIER1-VALUE-ASSERTIONS-ABORT-ON-AN-INLINE-RAISE`'s work-list), never a relabel.
 
+**Since DOOR-SWEEP-ARM-LABEL-CORRECTION (2026-09-11), one more — how the door-sweep rows are LABELLED:**
+- **The door sweep's two arms are the PREDICATE arm and the POLICY arm, and ONE invocation of
+  `supabase/tests/mutation/p0-authz-door-audit.sh` runs both** — that is what its
+  `ARM-DOMAIN predicate=N/127 policy=M/226` line reports. A gate record quotes that line beside two
+  rows labelled *predicate arm* / *policy arm (same invocation)*. ⛔ **`FROMFINDINGS=1` is
+  `p0-authz-invariant.sh`'s knob and selects the WRAPPER arm only** (`FROMFINDINGS=1 ARM=wrapper`,
+  the fourth authz arm); the door audit never reads it —
+  `grep -cE '\$\{?FROMFINDINGS' supabase/tests/mutation/p0-authz-door-audit.sh` → **0** (its six
+  mentions are comment and echo prose) — so `FROMFINDINGS=1 CASES=… bash <sweep>` is the same run
+  again, byte-identical but for its rc label. ⛔ **Never write a *"door sweep arm 2 (FROMFINDINGS=1 …)"*
+  row.** Two unit records did (`arm3-hat-term-fix.md`, corrected by marker 2026-09-11;
+  `definer-search-path-narrow-fix.md`, which caught it): a gate row's label is a claim about which
+  SCRIPT read which KNOB, and an unread knob makes two rows out of one run (LEARN-104). A policy arm
+  selecting **0 of M** is a verdict — the diff touches no policy — not a skipped arm: quote it as such,
+  and it says nothing about the write half (`p0-authz-writepath-audit.sh`).
+
 ## 5. PROGRESS.md rotation & archive discipline
 
 **PROGRESS.md is live state only, and the contract is machine-enforced** —
