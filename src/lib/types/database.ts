@@ -11334,10 +11334,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      assume_role: {
-        Args: { p_role: Database["public"]["Enums"]["platform_role"] }
-        Returns: undefined
-      }
+      assume_role: { Args: { p_role: string }; Returns: undefined }
       attach_controlled_document_version_file: {
         Args: {
           p_core_version_id: string
@@ -17426,18 +17423,6 @@ export type Database = {
         | "failed"
         | "cancelled"
         | "applied"
-      platform_role:
-        | "org_admin"
-        | "nsp_org_admin"
-        | "hospital_admin"
-        | "nsp_coordinator"
-        | "staff_admin"
-        | "staff"
-        | "pqs_member"
-        | "technical_director"
-        | "technical_director_deputy"
-        | "quality_reviewer"
-        | "platform_admin"
     }
     CompositeTypes: {
       case_referral_public: {
@@ -17664,19 +17649,6 @@ export const Constants = {
         "failed",
         "cancelled",
         "applied",
-      ],
-      platform_role: [
-        "org_admin",
-        "nsp_org_admin",
-        "hospital_admin",
-        "nsp_coordinator",
-        "staff_admin",
-        "staff",
-        "pqs_member",
-        "technical_director",
-        "technical_director_deputy",
-        "quality_reviewer",
-        "platform_admin",
       ],
     },
   },

@@ -2,8 +2,8 @@
 
 import { redirect } from 'next/navigation'
 
+import type { PlatformRole } from '@/lib/role/role-catalog'
 import { createClient } from '@/lib/supabase/server'
-import type { Database } from '@/lib/types/database'
 
 /**
  * ACT Stage 3 (ADR 0106) — the "act as" role picker's server action.
@@ -21,11 +21,19 @@ import type { Database } from '@/lib/types/database'
  * whatever hat — or lack of one — is active on THIS request, before the
  * switch takes effect on the next one).
  *
- * `p_role` is a `public.platform_role` value (the same enum
- * `getSelectableRoles` reads its `role` field from) — passed as the raw
- * string the picker's radio group already carries; the RPC itself is the
- * validating boundary (a value outside the enum, or a role the caller does
- * not hold, is rejected there — never assume client input is authoritative).
+ * `p_role` is a role CODE (the same value `getSelectableRoles` reads its
+ * `role` field from) — passed as the raw string the picker's radio group
+ * already carries; the RPC itself is the validating boundary (a code the
+ * catalog does not carry, or a role the caller does not hold, is rejected
+ * there — never assume client input is authoritative).
+ *
+ * ⚠ SINCE ADR 0207 D3 THE RPC'S PARAMETER IS `text`, NOT AN ENUM, and the
+ * `PlatformRole` type here is inferred from `ROLE_MANIFEST` rather than from
+ * the generated `Database['public']['Enums']`. The wire shape did not move —
+ * `.rpc()` sent a JSON string before and sends one now — but the enum no
+ * longer rejects an unknown code at the call boundary: `assume_role` fails
+ * closed on its own catalog lookup with 42501 (pgTAP 422 §2.11), which is
+ * the same code `MESSAGES.notAvailable` below already maps.
  */
 export interface AssumeRoleState {
   ok: boolean
@@ -45,7 +53,7 @@ const MESSAGES = {
  * discipline the Stage 3 destination sweep is built on).
  */
 export async function assumeRole(
-  role: Database['public']['Enums']['platform_role'],
+  role: PlatformRole,
   landingPath: string,
 ): Promise<AssumeRoleState> {
   const supabase = await createClient()
@@ -91,7 +99,7 @@ export async function assumeRole(
  * surfaced to the user must use `assumeRole` + `useActionState` instead.
  */
 export async function assumeRoleFormAction(
-  role: Database['public']['Enums']['platform_role'],
+  role: PlatformRole,
   landingPath: string,
 ): Promise<void> {
   await assumeRole(role, landingPath)
