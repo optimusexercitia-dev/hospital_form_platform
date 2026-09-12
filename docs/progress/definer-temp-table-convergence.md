@@ -280,3 +280,36 @@ npm run lint:progress                                        rc 0
 npm run lint:registers                                       rc 0
 supabase db reset --local + npm run test:db                  ⛔ OUTSTANDING — stack held by e2e:prod
 ```
+
+### 2026-09-11 — the verification the QA r1 fix pass owed, on a fresh reset (backend)
+
+The fix-pass entry above closed with `supabase db reset --local + npm run test:db ⛔ OUTSTANDING —
+stack held by e2e:prod`. The lead released the stack (the `e2e:prod` launch never started); this
+entry discharges that debt. ⛔ The load-bearing subject is **MINOR-2**, the only non-comment change
+in that pass: `420`'s fixture subqueries now order on `(principal_id, commission_id)` instead of
+`principal_id` alone, and until this run nothing had executed them. Nothing red.
+
+```
+supabase db reset --local                                    rc 0   531 migrations applied + seeded
+npm run test:db (full, on that fresh reset)                  rc 0   Files=269, Tests=9046, Result: PASS
+  419_definer_search_path_freeze.sql                                ok   (emits no planned/ran diagnostic)
+  420_definer_temp_table_empty_path.sql                             ok
+    420 planned/ran shape                                           # Looks like you planned 11 tests but ran 9
+node scripts/gen-definer-search-path-freeze.mjs --check       rc 0   in sync (861 frozen non-empty DEFINER paths)
+  check F, verbatim                                                 baseline 865 -> 861 (removed 4, added 0)
+  baseline resolved                                                 main (b1e9b9241cc5)
+npm run gen:types                                             rc 0   git diff --stat src/lib/types/ EMPTY (measured)
+```
+
+⭐ **Every figure is UNCHANGED from the pre-fix-pass run, and that is the verdict this run buys.**
+`Files=269, Tests=9046, PASS`; `420` still `planned 11 tests but ran 9`; check F still
+`865 -> 861 (removed 4, added 0)` against the same `b1e9b924` baseline. The MINOR-2 change was meant
+to be behaviour-preserving on today's seed — it re-orders a fixture selection that already resolved
+to one row — so identical totals are the expected outcome, not a null result. ⛔ What this run does
+NOT prove is the case MINOR-2 exists for: a principal holding `staff_admin` in TWO commissions does
+not occur in this seed, so the old form's failure mode remains UNREACHABLE here and untested. The
+change is a guard against a future seed, and its correctness rests on the ordering being total, not
+on this green.
+
+⛔ No server and no E2E were started; `e2e:prod` remains the LEAD's run. The stack was released the
+moment `test:db` finished.
