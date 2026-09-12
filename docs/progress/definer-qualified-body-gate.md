@@ -333,3 +333,13 @@ the step-1 full-suite witness as owed again rather than inherited.
 is regex-escaped…"*) as contradicted by the regex. With the anchor and the scrub in place that
 sentence is now accurate, so the file is left unedited — recorded so the next reader does not read
 its absence from this diff as an oversight.
+
+### 2026-09-12 — full-suite witness re-earned after the MINOR corrections; QA r2 spawned (lead)
+
+**Why owed:** the corrections moved `421` from `plan(16)` to `plan(18)`, so the `Files=270, Tests=9062`
+witness is for other bytes. Fresh `supabase db reset --local` (`Finished supabase db reset on branch
+definer-qualified-body-gate.`) then `npm run test:db` → **`All tests successful.` · `Files=270,
+Tests=9064, 126 wallclock secs` · `Result: PASS`**, rc 0 read bare. The +2 is exactly the two new
+assertions in `421` (`§ 3f` right-hand bound, `§ 3g` comment/string scrub).
+
+**QA r2 spawned** to verify the three corrections against the r1 findings, read-only.
