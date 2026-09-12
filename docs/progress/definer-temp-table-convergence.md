@@ -338,3 +338,21 @@ QA verdict, and the rulings this unit ASKS for: (1) the door-sweep deriver's exi
 (2) the new follow-up `FUP-DEFINER-TEMP-TABLE-CONVERGENCE-DERIVER-BLIND-TO-SET-ATTRIBUTE` — to accept
 as filed; (3) QA's carried NOTE — file or not. The three PO-owned follow-ups from the prior unit stay
 untouched. The CLAUDE.md review queue is per-clone and was not run.
+
+### 2026-09-11 — PO approval; Record step (lead)
+
+**Approval and its SCOPE, written down:** the PO replied *"Approved"* to the step-4 presentation that
+named three rulings. Read as: the unit approved; ruling (1), the door-sweep deriver exit-1 → option (a)
+by hand, **ratified**; ruling (2), `FUP-DEFINER-TEMP-TABLE-CONVERGENCE-DERIVER-BLIND-TO-SET-ATTRIBUTE`,
+**accepted as filed**; ruling (3), QA's carried NOTE (`420 §§ 1–2` short-circuit on NULL `auth.uid()`;
+callees' own `search_path` unasserted) — a bare "Approved" does not answer "file or not", so it is
+**NOT filed** and stays named here and in the review only. If the PO meant otherwise, the correction is
+one line here and one entry at the register's end.
+
+**Record step, what moved where:** `FUP-DEFINER-SEARCH-PATH-NARROW-FIX-FOUR-TEMP-TABLE-DEFINERS-MEASURED-FREE-TO-CONVERGE`
+moved VERBATIM open → archive with the closure note under its heading (closed ON "PO to rule": ruled
+converge 2026-09-11, approved the same day) · ledger row appended (Commit cell filled at the merge record)
+· hub → `complete`, five ACs ticked, `## Current state` removed (gate 13 HUBS arm) · seam already
+replaced by `backend` at `cf5856d7` (the frozen slice + Current state; nothing further owed) · no ADR
+produced · no handoff existed · review queue per-clone, not run · the evidence directory
+`.dsp-gate-evidence/` is git-excluded and holds the `e2e:prod` output at `48c192ed`.

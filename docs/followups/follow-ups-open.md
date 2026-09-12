@@ -1940,14 +1940,6 @@ live catalog, and `supabase_migrations.schema_migrations`.
 **Status:** open
 **Body:** [FUP-ARM3-HAT-TERM-FIX-STALE-ACTIVE-ROLE-SELECTION-OUTLIVES-ITS-MEMBERSHIP.md](FUP-ARM3-HAT-TERM-FIX-STALE-ACTIVE-ROLE-SELECTION-OUTLIVES-ITS-MEMBERSHIP.md)
 
-### 🟡 FUP-DEFINER-SEARCH-PATH-NARROW-FIX-FOUR-TEMP-TABLE-DEFINERS-MEASURED-FREE-TO-CONVERGE — 420 measured all four FREE; converging them is unruled
-
-**Filed:** 2026-09-11 (unit `DEFINER-SEARCH-PATH-NARROW-FIX`, AC-3, pgTAP `420_definer_temp_table_empty_path.sql`) · **Owner:** backend + PO · **Severity:** medium — four members of the frozen non-empty-path set (ADR 0208 D5) whose only stated reason to stay non-empty was "temp tables make the empty form not a free change", and that reason is now measured false
-**Closes when:** PO to rule
-**Status:** open
-
-ADR 0208 D6 ordered the four (`app.copy_response_answers` · `app.copy_template_version_children` · `app.copy_version_children` · `public.clone_framework`) TESTED before any sweep; `420` did so with the ALTER applied to ONE function per rolled-back savepoint and each call's effects asserted (items/sections/phases/answers/standards counts), identical today and under `''`. ⭐ Mechanism: `pg_temp` is searched implicitly and FIRST for relation names even when the path is empty — the empty form removes `app`/`public`, not the temp schema. `420 § 6` proves the instrument can fail (a planted DEFINER reading `from profiles` unqualified reds with 42P01 under the identical ALTER). ⛔ The convergence was NOT performed in the unit — it would have moved the `419` artifact by more than the two AC-2 names, and D6 ordered testing, not conversion. ⛔ "Free" is a statement about these four BODIES, never a general one; the closing migration re-runs `420`'s effect assertions, not "did not throw", and regenerates the freeze as a pure four-row deletion.
-
 ### 🟢 FUP-DEFINER-SEARCH-PATH-NARROW-FIX-RULES-CAP-DEFERS-THE-D5-HINT-FILE — the D5 rule file became one line because `.claude/rules/` is at its 12-file cap
 
 **Filed:** 2026-09-11 (unit `DEFINER-SEARCH-PATH-NARROW-FIX`, AC-4, lead ruling "exit (c)") · **Owner:** lead + PO · **Severity:** low — the enforcer is pgTAP `419` + gate 18, not the rule; only the hint's prominence is reduced
