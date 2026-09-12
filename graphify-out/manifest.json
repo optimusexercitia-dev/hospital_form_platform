@@ -5610,8 +5610,8 @@
     "semantic_hash": ""
   },
   "docs/lead-playbook.md": {
-    "mtime": 1789079433.7168958,
-    "ast_hash": "1b1b3f4c95793bff3adc468673b72413",
+    "mtime": 1789179979.6929743,
+    "ast_hash": "72645850a90f347d1e3b76e389b2e00f",
     "semantic_hash": ""
   },
   "docs/progress/ui-batch-2026-07.md": {
@@ -13790,8 +13790,8 @@
     "semantic_hash": ""
   },
   ".claude/rules/migrations-forward-only.md": {
-    "mtime": 1789166236.8230896,
-    "ast_hash": "041b4f1fce90c624420719bb4a4ac8d9",
+    "mtime": 1789220228.3274255,
+    "ast_hash": "98bdb1845ca269f783c725c380085e36",
     "semantic_hash": ""
   },
   ".claude/rules/radix-dialogs.md": {
@@ -14135,8 +14135,8 @@
     "semantic_hash": ""
   },
   "docs/progress/phase-ledger.md": {
-    "mtime": 1789176671.5936,
-    "ast_hash": "bd87ee51971e03063e66ddd621e82ee2",
+    "mtime": 1789220228.5868652,
+    "ast_hash": "354164b6133bdac490035d2b36d2dece",
     "semantic_hash": ""
   },
   "docs/progress/previa-split-2026-08-19.md": {
@@ -15655,8 +15655,8 @@
     "semantic_hash": ""
   },
   "docs/features/INDEX.md": {
-    "mtime": 1789176671.4794717,
-    "ast_hash": "122371c0b9f751df600255f6b470ae56",
+    "mtime": 1789220228.3290112,
+    "ast_hash": "633b62afc34471065c28f693390fe21c",
     "semantic_hash": ""
   },
   "docs/features/ae4.md": {
@@ -16345,13 +16345,13 @@
     "semantic_hash": ""
   },
   "docs/followups/follow-ups-archive.md": {
-    "mtime": 1789176671.4874275,
-    "ast_hash": "4dd95f2bd10d30ad300e803f4644b4fc",
+    "mtime": 1789220228.3363492,
+    "ast_hash": "e49577b15b9cf622d66cf832483d5aaf",
     "semantic_hash": ""
   },
   "docs/followups/follow-ups-open.md": {
-    "mtime": 1789176671.488934,
-    "ast_hash": "cce1765c66eae981a58167e86d68bb48",
+    "mtime": 1789220228.3363492,
+    "ast_hash": "5cb0764063978c4ba4f245f507bde6e3",
     "semantic_hash": ""
   },
   "docs/followups/legacy-codes.md": {
@@ -16365,8 +16365,8 @@
     "semantic_hash": ""
   },
   "docs/learning/LESSONS.md": {
-    "mtime": 1789123935.1167777,
-    "ast_hash": "8082065df7cd360a15217b57fc03843a",
+    "mtime": 1789179979.6929743,
+    "ast_hash": "9977f7bed8b0604b99eafe88c309c14e",
     "semantic_hash": ""
   },
   "docs/learning/postmortems/LEARN-073-no-answer-vs-nothing.md": {
@@ -16380,8 +16380,8 @@
     "semantic_hash": ""
   },
   "docs/lint-gates.md": {
-    "mtime": 1789176671.4896455,
-    "ast_hash": "9d285e5bad02f28bfc9138eb6b123740",
+    "mtime": 1789220228.3363492,
+    "ast_hash": "20a08078e7f08b8dcbd3ed15536c61b1",
     "semantic_hash": ""
   },
   "docs/plans/docs-consolidation.md": {
@@ -16615,8 +16615,8 @@
     "semantic_hash": ""
   },
   "scripts/gen-definer-search-path-freeze.mjs": {
-    "mtime": 1789176671.4922748,
-    "ast_hash": "d9bb08fafa03b171cd8c22f874edbb1d",
+    "mtime": 1789220228.346403,
+    "ast_hash": "2b27c0b0afe024c9f59db976aa01f83c",
     "semantic_hash": ""
   },
   "scripts/lib/merge-findings-baseline.sh": {
@@ -16715,8 +16715,8 @@
     "semantic_hash": ""
   },
   "supabase/tests/419_definer_search_path_freeze.sql": {
-    "mtime": 1789176671.493287,
-    "ast_hash": "e1d3204bd6cebf214f1ec887198aaf7a",
+    "mtime": 1789220228.3469255,
+    "ast_hash": "96b49fc92d5aa249dab76b99e3e258f6",
     "semantic_hash": ""
   },
   "supabase/tests/420_definer_temp_table_empty_path.sql": {
@@ -16835,8 +16835,8 @@
     "semantic_hash": ""
   },
   "docs/backend-state/authorization-and-audit.md": {
-    "mtime": 1789176671.4794717,
-    "ast_hash": "2acf6d43f8ef195ca86f9c2ecb631b56",
+    "mtime": 1789220228.3290112,
+    "ast_hash": "75a91b5a759bfc50d1a86edacfedca49",
     "semantic_hash": ""
   },
   "docs/backend-state/cases-and-ethics.md": {
@@ -17300,8 +17300,8 @@
     "semantic_hash": ""
   },
   "docs/progress/arm3-hat-term-fix.md": {
-    "mtime": 1789151220.9427843,
-    "ast_hash": "9222e1bb4b7f0a5bcec871184080ed44",
+    "mtime": 1789179979.6929743,
+    "ast_hash": "66a2393583fdaa4bdb31ce38434e6cf1",
     "semantic_hash": ""
   },
   "docs/progress/backend-state-current-state.md": {
@@ -17647,6 +17647,41 @@
   "scripts/fixtures/door-sweep/merge/E-four-row-cases.generated.md": {
     "mtime": 1788628080.419628,
     "ast_hash": "26b5b2e406e2443b64e721245aff1bcd",
+    "semantic_hash": ""
+  },
+  "supabase/tests/421_definer_qualified_body.sql": {
+    "mtime": 1789220228.3474503,
+    "ast_hash": "47d2aeabe0196a5def91c053a79fed04",
+    "semantic_hash": ""
+  },
+  "docs/features/definer-qualified-body-gate.md": {
+    "mtime": 1789220228.3290112,
+    "ast_hash": "7ceacba16fad4a6771bbf576f2ad6f89",
+    "semantic_hash": ""
+  },
+  "docs/features/door-sweep-arm-label-correction.md": {
+    "mtime": 1789179979.6837935,
+    "ast_hash": "16aca067b9bd1af3e526830519d5f5cd",
+    "semantic_hash": ""
+  },
+  "docs/progress/definer-qualified-body-gate.md": {
+    "mtime": 1789220228.7112231,
+    "ast_hash": "cf131035a9dcb043e8e4ad0f217a451c",
+    "semantic_hash": ""
+  },
+  "docs/progress/door-sweep-arm-label-correction.md": {
+    "mtime": 1789179979.6929743,
+    "ast_hash": "d2e1afe5714c173a826c93d2c891ef02",
+    "semantic_hash": ""
+  },
+  "docs/reviews/definer-qualified-body-gate-review.md": {
+    "mtime": 1789220228.3453717,
+    "ast_hash": "95a82c42bb5323b5561d656928fbad54",
+    "semantic_hash": ""
+  },
+  "docs/reviews/door-sweep-arm-label-correction-review.md": {
+    "mtime": 1789179979.6949878,
+    "ast_hash": "ff57cf17199189dec0330279b1cd1a50",
     "semantic_hash": ""
   }
 }
