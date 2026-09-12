@@ -1971,11 +1971,3 @@ Measured 2026-09-11: `bash scripts/door-sweep-cases.sh b1e9b924` → exit **1** 
 **Status:** open
 
 `421 § 0c` asserts `890 = 861 non-empty (419) + 29 empty (421) + 0 undeclared`. The fourth term is the non-tautological one (the first two are complements). Today `414 § 0b` also asserts every `prosecdef` function declares a `search_path`; a new undeclared DEFINER therefore reds `414 § 0b` AND `421 § 0c`, and only `414`'s message says what to do. The predecessor seam slice (`authorization-and-audit.md`, unit `DEFINER-TEMP-TABLE-CONVERGENCE`) records the class's disposition as "PO-ruled but unbuilt". ⛔ Not closed by deleting the term from `421` — it is the term that makes `§ 0c` able to fail.
-
-### 🟢 FUP-DEFINER-QUALIFIED-BODY-GATE-SUPABASE-TEST-DB-LEAVES-NO-PGTAP-INSTALLED — no TAP from bare psql
-
-**Filed:** 2026-09-12 (unit `DEFINER-QUALIFIED-BODY-GATE`, backend hand-back) · **Owner:** backend · **Severity:** low — a diagnostics trap, not a gate defect: `supabase test db` installs `pgtap` for its own run and leaves the catalog without it, so `psql -f <test>` afterwards fails at `plan(integer) does not exist` and every later statement aborts silently inside the transaction
-**Closes when:** `docs/backend-state/conventions.md`'s pgTAP section carries one line saying so and naming the single-file loop that works (`supabase test db <file>`, or `create extension pgtap` inside a rolled-back transaction, the way the mutation harnesses do)
-**Status:** open
-
-Measured 2026-09-11 while building `421`: `select count(*) from pg_extension where extname='pgtap'` → 0 after a green `npm run test:db`; the first standalone `psql -f 421_…sql` produced no `ok` lines and no error a reader would recognise as "the instrument is missing". The `100_dashboard.sql` comment already alludes to this; nothing in the conventions seam says it.

@@ -13661,3 +13661,29 @@ Measured by `backend` 2026-09-11: `grep -c FROMFINDINGS scripts/p0-authz-door-au
 
 D4 is two clauses: `set search_path = ''` AND schema-qualified object references. pgTAP `419` + gate 18 enforce the PATH clause only; `414` proves named schemas resolve. A new DEFINER on `''` naming an unqualified persistent relation is invisible to all three — and `420`'s header measured why it matters: under `''` Postgres still searches `pg_temp` implicitly and FIRST, and all four client roles hold `TEMP`, so the empty path alone does not close the shadowing threat ADR 0208 D5 cites. Candidate closures for the PO: (a) a catalog check that an empty-path DEFINER's body names no unqualified relation — feasible (parse `pg_get_functiondef` for `from`/`join`/`update`/`insert into`/`delete from` targets without a dot) but not trivially decidable (dynamic SQL, CTE names, temp tables that are LEGITIMATELY unqualified as in the four `420` subjects); (b) a PO ruling that the qualified-body half stays a REVIEW obligation, named as such in the rule line. ⛔ Not closed by the text corrections this unit makes (the rule line, the generator header, `419`'s header, the seam bullet now say the half is ungated) — those make the bound TRUE, they do not gate it.
 
+
+### 🟢 FUP-DEFINER-QUALIFIED-BODY-GATE-SUPABASE-TEST-DB-LEAVES-NO-PGTAP-INSTALLED — no TAP from bare psql — ✅ RESOLVED 2026-09-12
+
+> **RESOLVED 2026-09-12** — ad-hoc backend session after the `DEFINER-QUALIFIED-BODY-GATE` merge (the unit
+> that filed it), ADR none. Record: docs/progress/definer-qualified-body-gate.md (§ Session log, 2026-09-12
+> follow-up closure). Closing commit: the commit carrying this rotation — the seam line and this block land
+> together, so the sha cannot be quoted here; a later dated line beneath may name it.
+> Closed ON *"`docs/backend-state/conventions.md`'s pgTAP section carries one line saying so and naming the
+> single-file loop that works"*: § Testing the schema now carries the bullet, and it names BOTH loops the
+> clause offers. Measured 2026-09-12 on the local stack before writing it: `pg_extension` count for `pgtap`
+> = **0**; bare `begin; select plan(1)` → `42883 function plan(integer) does not exist`; `begin; create
+> extension if not exists pgtap with schema extensions; select plan(1); select ok(true); select finish();
+> rollback;` printed `1..1` / `ok 1` and left the count at **0**; the harness form `supabase test db
+> supabase/tests/00_setup.sql supabase/tests/421_…sql` is the record's own 2026-09-12 witness (`Files=2,
+> Tests=19`, PASS). ⚠ Bounds the closure STATES: only the `with schema extensions` spelling was measured
+> (six harnesses use it, four omit it — not proven equivalent here); and the line is prose — no gate reds
+> if it rots, which is the register's ordinary condition for a diagnostics note.
+>
+> ⛔ **The entry block below is VERBATIM, its `Closes when` included.**
+
+
+**Filed:** 2026-09-12 (unit `DEFINER-QUALIFIED-BODY-GATE`, backend hand-back) · **Owner:** backend · **Severity:** low — a diagnostics trap, not a gate defect: `supabase test db` installs `pgtap` for its own run and leaves the catalog without it, so `psql -f <test>` afterwards fails at `plan(integer) does not exist` and every later statement aborts silently inside the transaction
+**Closes when:** `docs/backend-state/conventions.md`'s pgTAP section carries one line saying so and naming the single-file loop that works (`supabase test db <file>`, or `create extension pgtap` inside a rolled-back transaction, the way the mutation harnesses do)
+**Status:** open
+
+Measured 2026-09-11 while building `421`: `select count(*) from pg_extension where extname='pgtap'` → 0 after a green `npm run test:db`; the first standalone `psql -f 421_…sql` produced no `ok` lines and no error a reader would recognise as "the instrument is missing". The `100_dashboard.sql` comment already alludes to this; nothing in the conventions seam says it.

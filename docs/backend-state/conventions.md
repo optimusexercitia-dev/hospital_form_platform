@@ -129,6 +129,20 @@ in a phase's task text where they would be rotated out with it._
   run, so the suite aborts with `schema "test_helpers" does not exist` and a plan mismatch.
   That red is indistinguishable from a keystone catching a mutant. **Judge any mutation on
   the WHOLE suite, and check each suite RAN ITS FULL PLAN before believing its reds.**
+- ⚠ **`supabase test db` leaves NO `pgtap` extension behind — bare `psql -f <suite>` afterwards
+  produces no TAP at all.** The harness installs `pgtap` for its own run and the catalog ends
+  without it (`select count(*) from pg_extension where extname='pgtap'` → **0** after a green
+  `npm run test:db`, measured 2026-09-11 and again 2026-09-12), so a standalone `psql -f` fails at
+  its first `plan()` with `42883 function plan(integer) does not exist` and every later statement
+  aborts silently inside the transaction — no `ok` lines, and no error a reader recognises as
+  "the instrument is missing". **The single-file loops that work:**
+  `supabase test db supabase/tests/00_setup.sql supabase/tests/<suite>.sql` (the harness
+  installs and removes the extension itself), or, from `psql`, `begin; create extension if not
+  exists pgtap with schema extensions; \i <suite>; rollback;` — the way the mutation harnesses in
+  `supabase/tests/mutation/` preflight it; the rollback leaves the count at 0 (measured
+  2026-09-12). ⚠ `100_dashboard.sql`'s FUP-QO-5 block is the other face of the same fact: a
+  catalog that DOES carry `pgtap` holds ~1079 extension-owned anon-executable functions, which is
+  why that guard excludes extension members by `pg_depend` rather than by count.
 - ⚠ **`00_setup.sql` also mints tenant users AFTER `seed.sql`**, so any anchor the seed
   applies to personas (**since AE2 the `organization_affiliations` row is the ONLY one** — this
   read *"`home_organization_id`, and since AFF4 the `organization_affiliations` row"* until the

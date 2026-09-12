@@ -416,3 +416,20 @@ handoff existed for this branch (`docs/handoffs/` holds only the pre-AE5 success
 unit's). Gate runs at this step are in the phase commit message and the ledger row.
 
 **Merge recorded (lead, 2026-09-12).** `main` fast-forwarded to phase commit `45a16c6f`; ledger Commit cell filled; not pushed.
+
+### 2026-09-12 — follow-up closure: `…SUPABASE-TEST-DB-LEAVES-NO-PGTAP-INSTALLED` (ad-hoc backend session, post-merge)
+
+Closed `FUP-DEFINER-QUALIFIED-BODY-GATE-SUPABASE-TEST-DB-LEAVES-NO-PGTAP-INSTALLED` on its clause: one bullet
+added to `docs/backend-state/conventions.md` § Testing the schema, naming both single-file loops. Measured
+BEFORE writing, on the local stack (`docker exec supabase_db_azkbbhskturikxpgmafq psql -U postgres`):
+
+| What | Command | Result |
+|---|---|---|
+| the claim | `select count(*) from pg_extension where extname='pgtap'` | **0** |
+| the trap | `begin; select plan(1); rollback;` | `ERROR: function plan(integer) does not exist` (`42883`) |
+| loop (a) | `begin; create extension if not exists pgtap with schema extensions; select plan(1); select ok(true,'probe'); select finish(); rollback;` | `1..1` · `ok 1 - probe` · `ROLLBACK`; count afterwards **0** |
+| loop (b) | `supabase test db supabase/tests/00_setup.sql supabase/tests/421_…sql` | the 2026-09-12 witness above (`Files=2, Tests=19`, PASS) — not re-run |
+
+Entry rotated to `follow-ups-archive.md` under the standard shape (RESOLVED, note-above, body verbatim,
+`cmp` OK at the destination before the cut). Bounds stated in the note: only the `with schema extensions`
+spelling measured; the seam line is prose, ungated. No app code, no migration, no test touched.
