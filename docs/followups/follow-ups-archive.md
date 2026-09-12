@@ -13687,3 +13687,5 @@ D4 is two clauses: `set search_path = ''` AND schema-qualified object references
 **Status:** open
 
 Measured 2026-09-11 while building `421`: `select count(*) from pg_extension where extname='pgtap'` → 0 after a green `npm run test:db`; the first standalone `psql -f 421_…sql` produced no `ok` lines and no error a reader would recognise as "the instrument is missing". The `100_dashboard.sql` comment already alludes to this; nothing in the conventions seam says it.
+
+> **2026-09-12 — closing commit named:** `bb6f3571` (the seam line, this rotation and the record entry, together).
