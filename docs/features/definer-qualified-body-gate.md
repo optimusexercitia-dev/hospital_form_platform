@@ -50,11 +50,11 @@ exclusion: a `42P01` on a relation the SAME body creates by `create temp table`;
 - AC-1's no-splice deviation RULED accepted (record entry 2026-09-12). Three follow-ups filed.
 
 ### In progress
-- Nothing; awaiting the PO's ruling on step 2.
+- Step 3: `qa` review in flight (`docs/reviews/definer-qualified-body-gate-review.md`).
 
 ### Next
-- Step 2 (tester): PO to rule whether `npm run e2e:prod` is owed for a diff with no runtime surface
-  (no migration, no `src/`, no policy) → step 3 QA review → step 4 PO approval → step 5 record.
+- Step 2 RULED N/A by the PO (2026-09-12): no migration, no `src/`, no policy — nothing the E2E suite
+  can observe; no spec written, `e2e:prod` not run → step 3 QA review → step 4 PO approval → record.
 
 ### Blockers
 - None.

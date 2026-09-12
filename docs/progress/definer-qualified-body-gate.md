@@ -215,3 +215,16 @@ unbuilt ruling; `supabase test db` leaves no `pgtap` installed, so a bare psql l
 policy. The comparable predecessor ran `npm run e2e:prod` because it shipped a migration that altered
 four runtime functions. Whether the mandatory full-suite run is owed here is the PO's call; it is
 asked, not skipped.
+
+### 2026-09-12 — step 2 RULED N/A by the PO; QA review spawned (lead)
+
+**The ruling (PO, 2026-09-12), offered three ways and chosen as the first:** *rule step 2 not applicable
+and go to QA*. Grounds put to the PO and accepted: the diff (`6fd0bfdb..HEAD`) carries no migration, no
+`src/` change and no policy — one new pgTAP file plus five comment/doc carriers — so `npm run e2e:prod`
+would exercise nothing this diff touches, and a green from it would be a gate whose fixture cannot reach
+the failing state. The predecessor `DEFINER-TEMP-TABLE-CONVERGENCE` ran it because its migration
+altered four runtime functions. Rejected alternatives: run `e2e:prod` anyway; tester probes `421` as a
+black box. ⛔ This is a ruling about THIS diff's surface, not a precedent that pgTAP-only units skip step
+2 — the next one re-derives the claim from its own `git diff --stat`.
+
+**Step 3 spawned:** `qa` (read-only on code) writes `docs/reviews/definer-qualified-body-gate-review.md`.
