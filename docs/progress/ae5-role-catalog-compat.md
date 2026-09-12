@@ -76,3 +76,122 @@ report is not pasted):
 Two follow-ups the handoff said needed a ruling before the next backend unit
 (`…AUTHZ-SEAM-CROSSED-ITS-WARN-LINE`, `…READ-DOOR-COMMENT-CITES-THE-REPLACED-403-SECTION`) are
 both **RESOLVED 2026-09-11** in the archive — no gate on this unit.
+
+### 2026-09-12 — steps 1–5 built, AC-6 generator landed, AC-8 re-keyed; all backend gates green (backend)
+
+**Plan acked by the lead** with three riders (FK stays NO ACTION; `--check`'s declared bound
+accepted; every figure re-measured at build and quoted from the run, never from the plan). Two
+questions answered YES: the two vector JSONs and `401` §3.4–§3.6 are this unit's.
+
+**Red-first, witnessed.** `422_ae5_role_catalog_compat.sql` was written and RUN against the
+PRE-migration catalog before the migration existed: **17 of 28 red** (1.1 · 1.2 · 1.3 · 2.1–2.6 ·
+2.8–2.11 · 3.1 · 4.1 · 4.2 · 4.6). Post-migration: **28/28 green**. The eleven greens on the first
+run are each a control, an invariance pin, or an already-clean precondition, and each is labelled
+as such in the file — 1.4 (a valid code still inserts), 2.7 (the mutation landed), 3.2 (`to_regtype`
+resolves a type that exists), 4.3 (0 `capability_plane` memberships — already clean), 4.4 (the
+planted-row discrimination, which must work in BOTH states or it is not an instrument), 4.5, 4.7,
+4.8, and §5's two md5 invariance pins. ⛔ None is a keystone that was green because its subject was
+missing.
+
+**A defect the pre-migration run exposed, before the migration was written.** §4's plant block
+dropped the generated expression and the composite FK, which is enough PRE-tightening. After step 4
+the `authz.scope_kind` DOMAIN itself refuses `capability_plane` with 23514, so the plant would have
+RAISED inside the `do $$`, aborted the transaction, and taken every later section's verdict with
+it. The block now drops the domain constraint too (restored by the savepoint rollback; §4.6, which
+runs after it, is what proves the restore). ⚠ Found only because the cell was run twice, in both
+states — a red-first cell run once, after the migration, would have shipped this.
+
+**Measured at build, quoted from the run** (rider 3; container `supabase_db_azkbbhskturikxpgmafq`):
+
+| limb | value | query |
+| --- | --- | --- |
+| DEFINERs in app/public/authz | **890** (unchanged) | `… where p.prosecdef` |
+| empty `search_path` | **29 → 30** | `… unnest(proconfig) c where c = 'search_path=""'` |
+| non-empty | **861 → 860** | the complement |
+| `authz.roles` | **12 → 11** | `select count(*) from authz.roles` |
+| `scope_kind_check` | `CHECK ((VALUE = ANY (ARRAY['organization'::text, 'hospital'::text, 'commission'::text, 'none'::text])))` | `pg_get_constraintdef` on `contypid = 'authz.scope_kind'::regtype` |
+| the door | `assume_role(text)` · `prosecdef=t` · `proconfig={"search_path=\"\""}` · ACL `postgres·service_role·authenticated = X` | `pg_proc` |
+| `app.member_can(uuid,text)` md5 | `25c6747df0c01a34a6783f8a25c8dbd4` — **unchanged** | `md5(pg_get_functiondef(oid))` |
+| `app.member_can_for(uuid,text,uuid)` md5 | `da9b5b9bdac1a45cb4deed23ef4a3d27` — **unchanged** | same |
+
+⚠ The proconfig token is `search_path=""`, **not** `search_path=` — a probe written against the
+latter returns 0 for the whole empty-path population. Measured before `422 § 2.3` was pinned.
+
+**The `419` regeneration is a PURE DELETION, as the hub predicted.** `861 -> 860 (removed 1, added
+0); converged: public.assume_role(p_role platform_role)`. The new door never enters the non-empty
+population, which is the catalog confirming its `search_path` is empty. `421 § 0c` re-pinned to
+`890 = 860 non-empty (419) + 30 empty (421) | 0 undeclared`, `§ 0d` to `19 plpgsql | 11 sql`, `§ 1a`
+to 19, `§ 5` to 30.
+
+**AC-6, and the gate biting on its first live run.** `scripts/gen-role-manifest.mjs` +
+`supabase/tests/vectors/role_manifest.psql` (anchor `rows=11 md5=a6b2308068d4b0f3e59e3f74e4539245`),
+wired as `lint:role-manifest` (gate 19) and consumed by `411` through `\ir`. ⭐ The first `--write`
+produced an artifact with `session_selectable=false` on all eleven roles: `'x' || <boolean>` yields
+the TEXT output `true`/`false`, not psql's `-qAt` column rendering `t`/`f`, so the parser's `=== 't'`
+was false for every row. `--check` reported **14 findings** (11 role-level, 3 mirror-level) before
+the artifact was ever committed — the cross-language arm catching a defect in its own generator,
+which is the job it exists for. The parser now throws on anything that is not `true`/`false` rather
+than defaulting.
+
+**Cells re-cast rather than deleted** (the lead's rule; old → new predicate):
+
+| site | old predicate | new predicate |
+| --- | --- | --- |
+| `411 § 2.1/2.2/2.3` | `authz.roles` holds ≥1 NON-session-selectable row (`administrativo`), so §3's subset comparison is not vacuous | `411 § 2.2`: the SAME fingerprint expression, run against a temp copy of the catalog with one `scope_kind` changed, reports a DIFFERENCE (+ `§ 2.3`: the mutation landed on exactly one row) |
+| `411 § 5.1` | manifest vocabulary == declared vocabulary **minus `capability_plane`** | `411 § 4.1`: plain equality — the subtraction would now remove a name that is not there, a no-op reading as a live exclusion |
+| `411 § 5.2` | `'true/administrativo/(none)'` — the label IS declared, held by `administrativo`, unused by the manifest | `411 § 4.2`: `'false/(none)/rejected'` — not declared, held by nobody, and **rejected at runtime by a real cast** (a CHECK can name a label it fails to enforce, so part (c) is independent of part (a)) |
+| `401 § 3.6` | `administrativo` is the only non-session-selectable row; `assume_role`'s parameter is typed `platform_role` and cannot carry it | `'0/(absent)'` — every surviving row IS selectable (the column excludes nobody) **and** `administrativo` is absent from the catalog, which is what makes it unseatable now; the door's half moved to `408 § 4` / `422 § 2.11` |
+| `401 § 3.4` | the **two** non-membership rows carry unreachable scope kinds | the **one** row does; the sentinel the audit called evidence of a wrong abstraction is gone, the device itself is unchanged and still load-bearing for `platform_admin` |
+| `401 § 14.5` | assertion kept; its RATIONALE (*"`authz.scope_kind` admits it … reusing scope_kind would have allowed it"*) went FALSE | comment corrected in place with a dated note; the assertion is byte-unchanged and still earns its place because the two domains are independent |
+
+**Sites the unit's mapping did not name, found at build.** Two further 12-row catalog mirrors break
+on the row deletion, neither keyed on the signature: `vectors/authz-enforcement-manifest.json:153`
+(`roles` roster) and `vectors/authz-matrix-axes.json:28` (`catalogRoles`). Both regenerated through
+their own generators (`gen-authz-matrix-cells.mjs`, `gen-authz-differential-cells.py`) — cell counts
+**unchanged** at 2002 / 1728, confirming `catalogRoles` is a roster and not a grid dimension. Only
+the two JSON source lines were hand-edited; every `.psql` came from a generator. ⚠ A third:
+`400_data_access_census.sql § 2`'s RPC digest reds on the re-typed signature while
+`lint:data-access` stays green, because that gate never opens a database — regenerated via
+`gen-data-access-surface.mjs` (`docs/backend-state/generated-rpc-surface.md` + the pgTAP pin;
+`rows=555 definer=465 invoker=90 aclnull=0` all unchanged, the diff is the signature row and the
+digest).
+
+**Operational consequence of the new FK, for the seam slice.** `active_role_selections.role ->
+authz.roles(code)` on NO ACTION means a role code held by a LIVE session selection can no longer be
+deleted from the catalog. `408 § 4` deletes the `platform_admin` catalog row to reach the
+fail-closed branch and would have failed 23503 on rows its own `§ 2.3`/`§ 3.3` had just seated; it
+now clears its own selection rows first, declared in the file as fixture cleanup, not a weakening.
+
+**Gate runs (bare exit codes, tails in the scratchpad).**
+- `supabase db reset --local` → **0**; `npm run test:db` → **0**, `Files=271, Tests=9099, Result: PASS`.
+  The single `# Looks like you planned 11 tests but ran 9` is `420`'s documented noise (419's header
+  names it by file and figure), not this unit's.
+- The first `test:db` after the re-keys was **1** — `400 § 2` only, the digest above; the re-run
+  after the regeneration is the PASS quoted.
+- `npm run lint` → **0** (all 19 gates, eslint 0/0). Gate 18: `860 frozen … removed 1, added 0`.
+  Gate 19: `in sync (11 roles)` with its self-test at 22/22.
+- `npx tsc --noEmit` → **0**. `npm run test` → **0**, 154 files / **2092** tests (2091 before; +1 is
+  the branch-fallback agreement assertion the manifest collapse newly owes).
+- ⛔ Not run here, by instruction: the four authz arms + selftest, the diff-scoped door sweep,
+  `npm run e2e:prod`.
+
+**TS collapse.** `ROLE_MANIFEST` is the only place a role is declared; `ROLE_LABELS`,
+`ROLE_SCOPE_KIND`, `ROLE_ORDER`, `ROLE_BRANCH`, `LANDING_BRANCHES`, `BRANCH_EMPTY_FALLBACK` and
+`scopeSummary`'s role groups are derived, with every export name, type and value preserved.
+`ROLE_ORDER` keeps its literal-tuple type through ONE documented double cast — `Array.map` returns
+`T[]` and TypeScript will not narrow that to an 11-element tuple; the alternative was to publish
+`readonly PlatformRole[]`, widening a type ~10 call sites already see as a tuple. ⚠ Only
+`src/lib/role-selection/actions.ts` read `Database['public']['Enums']['platform_role']` directly;
+`user-menu.tsx`, `role-switch-hint.tsx` and `landing-route.test.ts` already imported `PlatformRole`
+from `role-catalog` and needed **no edit** — the unit's opening map listed them as enum-type
+consumers, which was true of the TYPE's origin and not of their import.
+
+**Dead end worth recording.** `{ readonly [K in keyof typeof ROLE_MANIFEST]: (typeof
+ROLE_MANIFEST)[K]["code"] }` does not typecheck — over a concrete tuple, `K` ranges over `length`,
+`map` and the rest, so `["code"]` is not indexable. The homomorphic form needs a generic helper
+(`type CodesOf<T extends readonly RoleManifestShape[]> = { readonly [K in keyof T]: T[K]["code"] }`)
+with `T` a constrained type parameter.
+
+**Commits** (branch `ae5-role-catalog-compat`, not pushed): `7327d498` red-first cells · `6fe4289e`
+the migration · `f767308f` the TS collapse · `29bb5293` the generator + artifact + 411 · `5f72c11b`
+the re-keys · `ac55a1ce` the RPC registry.
