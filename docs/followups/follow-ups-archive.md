@@ -13712,3 +13712,55 @@ Measured 2026-09-11 while building `421`: `select count(*) from pg_extension whe
 **Status:** open
 
 `421 § 0c` asserts `890 = 861 non-empty (419) + 29 empty (421) + 0 undeclared`. The fourth term is the non-tautological one (the first two are complements). Today `414 § 0b` also asserts every `prosecdef` function declares a `search_path`; a new undeclared DEFINER therefore reds `414 § 0b` AND `421 § 0c`, and only `414`'s message says what to do. The predecessor seam slice (`authorization-and-audit.md`, unit `DEFINER-TEMP-TABLE-CONVERGENCE`) records the class's disposition as "PO-ruled but unbuilt". ⛔ Not closed by deleting the term from `421` — it is the term that makes `§ 0c` able to fail.
+
+### 🟢 FUP-DEFINER-SEARCH-PATH-NARROW-FIX-RULES-CAP-DEFERS-THE-D5-HINT-FILE — the D5 rule file became one line because `.claude/rules/` is at its 12-file cap — ✅ CLOSED 2026-09-12
+
+> **CLOSED 2026-09-12** — ad-hoc lead session (the PO ruling this entry existed to wait for), ADR none.
+> Record: docs/progress/definer-search-path-narrow-fix.md (§ Session log, 2026-09-12 follow-up closure).
+> Closing commit: the commit carrying this rotation — the entry and its closure land together, so the sha
+> cannot be quoted here; a later dated line beneath may name it.
+> Closed ON its own `Closes when` (*"PO to rule"*) as the block below clauses it: the PO **accepted exit (c)
+> as final** on 2026-09-12, so this entry archives with that ruling and no rule is retired under (a).
+>
+> ⭐ **The ground of the ruling is NOT "there was no room".** ADR 0208 **D5 ordered a hint, not a dedicated
+> file** — *"A prospective rule against new non-empty DEFINER paths is ORDERED, and its home is named. ⛔ A
+> `.claude/rules/` file is a **hint** to the writer, never the enforcer (CLAUDE.md §8)"* — and AC-4's own
+> wording, *"the `.claude/rules/` hint, path-scoped to `supabase/migrations/**`, naming the 419 ratchet as
+> the enforcer"*, is satisfied clause by clause by the appended line in `migrations-forward-only.md`
+> (`paths: supabase/migrations/**`, `broad:`-declared). The dedicated file was the lead's preferred SHAPE,
+> never D5's requirement. ⚠ Recorded because it cuts the other way too: D5 orders a hint for a subject a
+> gate enforces, which is exactly what ADR 0127's admission filter rejects (*"is not already enforced by a
+> gate or by code… A rule a gate already enforces is a downgrade dressed as a cleanup"*). That tension is
+> real, and this closure does not resolve it — it does not need to, because the hint already exists.
+>
+> ⚠ **Two figures in the VERBATIM block below were true when filed and are not now** (rule 8 — the entry is
+> not edited; the correction stands here, dated). (1) The host file is at **2043 of 2048 bytes, 5 free**,
+> not 1997: the line was rewritten twice after the deferral, once shortened to fit at 2040. (2) The enforcer
+> is **`419` + gate 18 + pgTAP `421`**, not "`419` + gate 18" — `421_definer_qualified_body.sql` closed D4's
+> body clause on 2026-09-12, which is why the hint no longer carries an ungated half. Current line:
+> *"SECURITY DEFINER (ADR 0208 D4) = `set search_path = ''` AND a qualified body. 419/gate 18 gate the PATH,
+> pgTAP `421` the BODY (bound: `execute` opaque). `pg_temp` resolves first under `''`."*
+>
+> **Exit (a) was AVAILABLE and declined — measured, not assumed.** A sweep of all 12 rules against the
+> literal `lint` chain in `package.json` and against `supabase/tests/` found exactly one retirement
+> candidate, `profiles-guard-never-widened.md` (both prohibited moves red pgTAP `386`: § 3.2 self-elevate to
+> `is_admin`, § 3.3 `suspended_until`, § 1.3 no `authenticated` EXECUTE), two near-misses whose *method*
+> half is ungated (`answer-maps.md`, `ui-copy-forbidden-strings.md` — and the vitest specs backing the
+> latter are not in `npm run lint`), and **six rules that state in their own text that the rule is the only
+> witness**. Retiring the candidate would buy a slot for a file D5 never required, against ADR 0127's own
+> *"Nothing reads the archive."* Filed separately, on the PO's instruction, as
+> `FUP-RULES-PROFILES-GUARD-LESSON-IS-NOW-GATE-CARRIED`. Exit (b) (`MAX_RULES` 12 → 13) stays refused.
+>
+> ⛔ **What this closure does NOT reach.** `.claude/rules/` is at **12/12**, the D4 hint is permanently housed
+> in a file with **5 bytes** free, `push-schema-before-code.md` is also at **2043**, and gate 8 still prints
+> `check-rules-staleness: OK (12 rule file(s), anchors + globs resolve)` — neither number. That is
+> `FUP-RULES-VOLUME-CAPS-BIND-IN-OPPOSITE-DIRECTIONS`, which stays **open**; this ruling does not discharge
+> it, and the next correction to the D4 line must shorten something else first.
+>
+> ⛔ **The entry block below is VERBATIM, its `Closes when` included.**
+
+**Filed:** 2026-09-11 (unit `DEFINER-SEARCH-PATH-NARROW-FIX`, AC-4, lead ruling "exit (c)") · **Owner:** lead + PO · **Severity:** low — the enforcer is pgTAP `419` + gate 18, not the rule; only the hint's prominence is reduced
+**Closes when:** PO to rule
+**Status:** open
+
+Measured: `scripts/check-rules-staleness.mjs` `MAX_RULES = 12` and `.claude/rules/` holds **12/12**; `migrations-forward-only.md` had **1843/2048** bytes of headroom (205) before the line, **1997** after; gate 8 rc 0. The three exits, none taken unilaterally: (a) retire a rule whose lesson a gate now carries (ADR 0127's intended exit — a separate subject); (b) raise the cap (⛔ the "directory that only grows" 0127 escaped); (c) the one-line append, taken. ⛔ Not closed by the line itself — it closes when the PO either accepts (c) as final (then this entry archives with that ruling) or names the rule to retire under (a).

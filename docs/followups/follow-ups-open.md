@@ -1940,14 +1940,6 @@ live catalog, and `supabase_migrations.schema_migrations`.
 **Status:** open
 **Body:** [FUP-ARM3-HAT-TERM-FIX-STALE-ACTIVE-ROLE-SELECTION-OUTLIVES-ITS-MEMBERSHIP.md](FUP-ARM3-HAT-TERM-FIX-STALE-ACTIVE-ROLE-SELECTION-OUTLIVES-ITS-MEMBERSHIP.md)
 
-### 🟢 FUP-DEFINER-SEARCH-PATH-NARROW-FIX-RULES-CAP-DEFERS-THE-D5-HINT-FILE — the D5 rule file became one line because `.claude/rules/` is at its 12-file cap
-
-**Filed:** 2026-09-11 (unit `DEFINER-SEARCH-PATH-NARROW-FIX`, AC-4, lead ruling "exit (c)") · **Owner:** lead + PO · **Severity:** low — the enforcer is pgTAP `419` + gate 18, not the rule; only the hint's prominence is reduced
-**Closes when:** PO to rule
-**Status:** open
-
-Measured: `scripts/check-rules-staleness.mjs` `MAX_RULES = 12` and `.claude/rules/` holds **12/12**; `migrations-forward-only.md` had **1843/2048** bytes of headroom (205) before the line, **1997** after; gate 8 rc 0. The three exits, none taken unilaterally: (a) retire a rule whose lesson a gate now carries (ADR 0127's intended exit — a separate subject); (b) raise the cap (⛔ the "directory that only grows" 0127 escaped); (c) the one-line append, taken. ⛔ Not closed by the line itself — it closes when the PO either accepts (c) as final (then this entry archives with that ruling) or names the rule to retire under (a).
-
 ### 🟡 FUP-DEFINER-TEMP-TABLE-CONVERGENCE-DERIVER-BLIND-TO-SET-ATTRIBUTE — `alter function … set <attr>` on a DEFINER derives ZERO doors
 
 **Filed:** 2026-09-11 (unit `DEFINER-TEMP-TABLE-CONVERGENCE`, gate step 1 door sweep; mechanism corrected by QA r1 MAJOR-1) · **Owner:** lead + backend · **Severity:** medium — no gate was skipped (the deriver's exit 1 was RULED option (a) both times and the four were swept by hand, exit 3 UNPROVEN: none returns `bool`), but a class of migration that touches `prosecdef=t` functions reads as "NO DOORS AT ALL" to the deriver, and the ruling is a human step the deriver was built to remove
@@ -1964,3 +1956,11 @@ Measured 2026-09-11: `bash scripts/door-sweep-cases.sh b1e9b924` → exit **1** 
 
 `419` reads its frozen side from a committed, generated artifact; `421` pins `861 non-empty (419) + 29 empty (421) + 0 undeclared` as hand literals in a message string. A convergence of one more DEFINER (the D4 "on touch" path) reds `419 § 1c`-legally AND `421 § 0c`, and the fix is a hand edit in two files whose figures are not derived from one source. A pin plus its artifact updated by hand in two places is how a pin and its artifact come apart (LEARN-084 shape, the other direction). ⛔ Not closed by deriving the expected side live in the same instant (that compares the catalog to itself), nor by widening `§ 0c` to "sums to the total" (the two middle terms are complements — that assertion cannot fail).
 
+
+### 🟢 FUP-RULES-PROFILES-GUARD-LESSON-IS-NOW-GATE-CARRIED — the one rule in `.claude/rules/` whose lesson pgTAP `386` now fully carries
+
+**Filed:** 2026-09-12 (ad-hoc lead session — the 12-rule sweep taken while ruling the `.claude/rules/` cap, `FUP-DEFINER-SEARCH-PATH-NARROW-FIX-RULES-CAP-DEFERS-THE-D5-HINT-FILE`) · **Owner:** lead + PO · **Severity:** low — nothing goes unenforced either way; what is at stake is a slot in a directory sitting at 12/12 and a rule whose prominence is now redundant
+**Closes when:** the PO either rules `profiles-guard-never-widened.md` **RETIRED** to `docs/progress/rules-archive.md` under ADR 0127's exit clause — with pgTAP `386` named in the archive row as the thing that carries the lesson — or rules it **KEPT**, with the reason recorded in this entry so the sweep is not re-run the next time the population cap binds
+**Status:** open
+
+Measured 2026-09-12, all 12 rule files against the literal `lint` chain in `package.json` and against `supabase/tests/`: `profiles-guard-never-widened.md` (*"`guard_profile_privileged_columns`' trusted-caller arm is NEVER widened"*) is the ONLY one whose prohibitions a live gate reds on — `supabase/tests/386_person_doors_acl_and_guard.sql`, inside `npm run test:db`: § 1.3 (`authenticated` holds EXECUTE on none of the person doors), § 3.2 (a signed-in caller cannot self-elevate to `is_admin`), § 3.3 (`suspended_until`); the test's own header says *"Granting a door to `authenticated` reds 3.3 alone"*. That is ADR 0127 Amendment 1's `print-door.md` shape exactly — retired for being *"too broad, and **already enforced**"*. ⚠ Two near-misses are NOT candidates: `answer-maps.md` and `ui-copy-forbidden-strings.md` have the *property* gated but the *method* half unenforced, and the vitest specs backing the latter are not in `npm run lint`. Six rules state in their own text that the rule is the only witness. ⛔ Not closed by retiring it to buy a slot — ADR 0127: *"Nothing reads the archive"*, so retirement is a deletion of prominence, and the slot has no claimant since the cap follow-up closed on exit (c). ⛔ Not a byte-cap item: this file has 127 of 2048 bytes free; the cap that binds it is the population.

@@ -400,3 +400,51 @@ AC-5 replaced by `backend` at `d683a79a` (gate 16 refuses a date inside the bloc
 here and in the FUP, not there; 9 seam blocks sit within 8 lines of the 100-line ratchet) · no ADR
 produced (ADR 0207 carries the appended ordering note) · review queue non-empty (88 lines) —
 surfaced to the PO, not run. NOTE-r2-2 (a historical `867` in generator prose) left as history.
+
+### 2026-09-12 — follow-up closure: the PO ruled the `.claude/rules/` cap, exit (c) final (lead)
+
+Ad-hoc lead session; no code, no migration, no gate change. Closes
+`FUP-DEFINER-SEARCH-PATH-NARROW-FIX-RULES-CAP-DEFERS-THE-D5-HINT-FILE`, filed by this unit's AC-4 with
+`Closes when: PO to rule`.
+
+**What was measured before the ruling, not recalled.** `.claude/rules/` holds **12/12** against
+`MAX_RULES = 12`; `node scripts/check-rules-staleness.mjs` → `check-rules-staleness: OK (12 rule file(s),
+anchors + globs resolve)`, rc 0. Headroom by file (`wc -c`, cap 2048): `migrations-forward-only.md` **2043
+(5 free)** · `push-schema-before-code.md` **2043 (5)** · `mutation-harnesses-are-not-killable.md` 2032 (16)
+· `prettier-does-not-govern-this-tree.md` 2011 (37) · `authz-gate-results-need-a-current-baseline.md` and
+`grant-plane-convention.md` 1998 (50) · `live-facts-measure-dont-quote.md` 1952 (96) ·
+`ui-copy-forbidden-strings.md` 1923 (125) · `profiles-guard-never-widened.md` 1921 (127) ·
+`prosrc-is-not-the-whole-function.md` 1546 (502) · `radix-dialogs.md` 837 (1211) · `answer-maps.md` 747
+(1301). ⚠ **The register entry's figures were stale**: it says the host file went to **1997**; the line has
+been rewritten twice since (once shortened to fit at 2040) and stands at **2043**. It also names the
+enforcer as "`419` + gate 18"; pgTAP **`421`** landed 2026-09-12 and the line now names all three.
+
+**The ruling and its ground.** PO, 2026-09-12: **exit (c) accepted as final**; no rule retired under (a);
+exit (b) (`MAX_RULES` 12 → 13) stays refused. ⭐ The ground is NOT "there was no room". ADR 0208 **D5 ordered
+a hint, not a dedicated file** — *"A prospective rule against new non-empty DEFINER paths is ORDERED, and
+its home is named. ⛔ A `.claude/rules/` file is a **hint** to the writer, never the enforcer"* — and AC-4's
+own wording (*"the `.claude/rules/` hint, path-scoped to `supabase/migrations/**`, naming the 419 ratchet as
+the enforcer"*) is satisfied clause by clause by the appended line, whose host declares exactly that
+`paths:` scope. The dedicated file was the lead's preferred SHAPE, never D5's requirement. ⚠ Recorded
+because it cuts both ways: D5 orders a hint for a subject a gate enforces, which is what ADR 0127's
+admission filter rejects (*"A rule a gate already enforces is a downgrade dressed as a cleanup"*). The
+tension is real and this closure does not resolve it — it does not need to, because the hint already exists.
+
+**Exit (a) was available and declined.** A 12-rule sweep against the literal `lint` chain in `package.json`
+and against `supabase/tests/` found exactly ONE retirement candidate — `profiles-guard-never-widened.md`,
+both of whose prohibitions red pgTAP `386` (§ 1.3, § 3.2, § 3.3) inside `npm run test:db` — two near-misses
+whose *method* half is ungated (`answer-maps.md`, `ui-copy-forbidden-strings.md`; the latter's vitest specs
+are not in `npm run lint`), and **six** rules that say in their own text the rule is the only witness.
+Declined because retiring it buys a slot for a file D5 never required, against ADR 0127's *"Nothing reads
+the archive."* Filed on the PO's instruction as `FUP-RULES-PROFILES-GUARD-LESSON-IS-NOW-GATE-CARRIED`.
+
+⛔ **What this does NOT reach.** The D4 hint is permanently housed in a file with **5 bytes** free, a second
+file sits at the same 2043, and gate 8's success line still reports neither the byte nor the file number —
+`FUP-RULES-VOLUME-CAPS-BIND-IN-OPPOSITE-DIRECTIONS` stays **open** and is not discharged by this ruling.
+
+**Record step:** entry moved VERBATIM open → archive (`cmp`-verified at the destination before the source
+was cut; `Closes when` travelled at column 0 — the `archiveMissingClosesWhen` ratchet is at 121/121 with
+zero headroom and held) with the closure note carrying both stale-figure corrections · one new entry
+appended to the open register · `RULES` added to `docs/followups/legacy-codes.md` (gate 13 requires a
+registered code prefix; `FUP-RULES-VOLUME-CAPS-…` had been using it unregistered) · hub untouched, it is
+already `complete` · no ADR (D5 and 0127 both already say what was needed) · `npm run lint:registers` rc 0.
