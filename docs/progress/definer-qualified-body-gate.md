@@ -166,3 +166,8 @@ comment/doc texts and **no migration**, so no door changes — but that is a cla
   replaced today); the dated SLICE headings and this record's entry heading stay **2026-09-11**, the
   unit's date. ⛔ A gate's demand outranks a brief's instruction — the deviation is recorded rather than
   papered over.
+- **The full-suite witness was RE-EARNED on the final code**, because the `Files=270, Tests=9062` run
+  above predated the `§ 0c` tightening and a witness from earlier bytes is not a witness for these.
+  Second fresh `supabase db reset --local` then `npm run test:db`: **`Files=270, Tests=9062`** ·
+  `All tests successful.` · `Result: PASS`, 202 wallclock secs. The count is unchanged because the
+  tightening altered one assertion's expression, not the plan.
