@@ -12,14 +12,13 @@
 > A hub's `## Current state` is its summary; its progress record's `## Session log`
 > (`docs/progress/<code>.md`) is its detail (ADR 0186 D3).
 
-**31 hubs** · in progress 0 · gated 4 · planned 2 · parked 0 · complete 25
+**31 hubs** · in progress 0 · gated 3 · planned 2 · parked 0 · complete 26
 
 | ID | Title | Status | Kind | Program | Branch | Hub |
 |---|---|---|---|---|---|---|
 | BACKEND-STATE-CURRENT-STATE | Backend seams get a replaceable current-state layer — a projection above the frozen history, gated in four checks (ADR 0198) | 🚧 gated | feature | DOCS | `backend-state-current-state` | [backend-state-current-state.md](backend-state-current-state.md) |
 | BACKEND-STATE-SPLIT | Backend surface map split onto the module-seam axis — a router replaces the 742 KB reading list (ADR 0196) | 🚧 gated | feature | DOCS | — | [backend-state-split.md](backend-state-split.md) |
 | DATA-ACCESS-GENERATION | Data-access registries generated from the catalog — four hand-maintained tables replaced by a derive-and-compare pair, gated in two halves (ADR 0197) | 🚧 gated | feature | DOCS | `data-access-generation` | [data-access-generation.md](data-access-generation.md) |
-| DEFINER-UNDECLARED-CLASS-REMEDY | The undeclared-search_path DEFINER class gets ONE owner and ONE remedy: 414 § 0b names the convergence, 421 § 0c points at it | 🚧 gated | fup-fix | AUTHZ | `definer-undeclared-class-remedy` | [definer-undeclared-class-remedy.md](definer-undeclared-class-remedy.md) |
 | C1B-DISPOSAL | PHI-disposal Cloud rehearsal (C1b) | 🔜 planned | feature | DM5 | — | [c1b-disposal.md](c1b-disposal.md) |
 | DLB | Deliberation & Voting Model — typed committee decisions with vote arithmetic the database owns | 🔜 planned | feature | DLB | — | [dlb.md](dlb.md) |
 | ADMIN-ARM-IS-ACTIVE | The admin arm follows the subject's state — `app.is_active` on `app.is_admin()`, `app.is_admin_for()` and `public.assume_role`, each RED-first; the `platform_admin` Class-2 write arm removed and relocated; R10's role-only audit stamp built with `315:212` rewritten; the four expected reds re-ruled, never silenced (pre-AE5 Batch 10 — the fix Batch 9 decided and deferred) | ✅ complete | feature | AUTHZ | — | [admin-arm-is-active.md](admin-arm-is-active.md) |
@@ -34,6 +33,7 @@
 | DEFINER-QUALIFIED-BODY-GATE | ADR 0208 D4's schema-qualified-body clause gets its gate: pgTAP 421 reads every empty-path DEFINER body, one arm per language | ✅ complete | fup-fix | AUTHZ | `definer-qualified-body-gate` | [definer-qualified-body-gate.md](definer-qualified-body-gate.md) |
 | DEFINER-SEARCH-PATH-NARROW-FIX | The 419 ratchet freezes the non-empty DEFINER search_path population, and the narrow ALTER FUNCTION migrations converge the two named members | ✅ complete | fup-fix | AUTHZ | `definer-search-path-narrow-fix` | [definer-search-path-narrow-fix.md](definer-search-path-narrow-fix.md) |
 | DEFINER-TEMP-TABLE-CONVERGENCE | The four temp-table DEFINERs converge to search_path = '' by narrow ALTER FUNCTION, and the 419 freeze shrinks by exactly four rows | ✅ complete | fup-fix | AUTHZ | `definer-temp-table-convergence` | [definer-temp-table-convergence.md](definer-temp-table-convergence.md) |
+| DEFINER-UNDECLARED-CLASS-REMEDY | The undeclared-search_path DEFINER class gets ONE owner and ONE remedy: 414 § 0b names the convergence, 421 § 0c points at it | ✅ complete | fup-fix | AUTHZ | `definer-undeclared-class-remedy` | [definer-undeclared-class-remedy.md](definer-undeclared-class-remedy.md) |
 | DOCS-CONSOLIDATION | Documentation consolidation — one home per fact, one summary and one log per unit (ADR 0186) | ✅ complete | feature | DOCS | `docs-consolidation` | [docs-consolidation.md](docs-consolidation.md) |
 | DOCS-RESTRUCTURE | Documentation restructure — feature hubs, CURRENT.md, gated registers (ADR 0185) | ✅ complete | feature | DOCS | `docs-restructure` | [docs-restructure.md](docs-restructure.md) |
 | DOOR-SWEEP-ARM-LABEL-CORRECTION | The door sweep's two arms are named PREDICATE and POLICY — a prior record's "arm 2 (FROMFINDINGS=1)" row corrected by dated marker, the playbook recipe names the knob's owner | ✅ complete | fup-fix | AUTHZ | — | [door-sweep-arm-label-correction.md](door-sweep-arm-label-correction.md) |

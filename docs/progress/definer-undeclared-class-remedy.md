@@ -291,3 +291,74 @@ executable `sp is null` line (`414:90`), read at `:145` (`§ 0b`) and `:245` (`�
 unchanged"*), carried there deliberately; ⚠ gate 16 check I will not red on it because the stamp already reads
 2026-09-12 — the lead edits that bullet by hand. Open for the PO at step 4: (a) approve; (b) confirm step 2 N/A;
 (c) confirm that two CONTROL assertions (`414 § 2d`, `421 § 3h`) do not breach the ruling's *"No new cell"*.
+
+### 2026-09-12 — step 4 human approval; step 5 Record (lead)
+
+**PO rulings, verbatim:** *"Approved, step 2 N/A, controls are fine. Also, increase the seam file limit to 200 KB"*.
+Carriers (playbook § 4 step 8 — a ruling in this log is not a ruling landed): approval → this entry + the ledger row;
+step 2 N/A → ledger `Test pass` cell; controls-not-cells → the archive note of the closed FUP; the size line → **ADR
+0210** (`**Amends:** 0196`; warn 200 KB, hard cap 250 KB so the warn stays reachable — the lead's interpretation of
+"limit", stated there), `scripts/check-backend-state.mjs` constants + check-D comment, `docs/backend-state/README.md`
+rule 4, `docs/lint-gates.md` gate 16. ⚠ CLAUDE.md § 7 says an over-cap file is never fixed by raising the cap; the PO
+ruled explicitly and ADR 0210 scopes the raise to these two numbers. The follow-up the backend asked the lead to file
+for the warn is therefore NOT filed.
+
+**Record step:** FUP entry moved open → archive verbatim (body byte-compared) with its RESOLVED note; ledger row
+appended; seam `## Current state` `:71` bullet re-worded (QA MINOR-1) and the new slice added to *Where the detail
+lives* on the same lines (block stays under the 100-line cap); hub → `complete`, its block cut below; `adr:index`,
+`features:index`, `npm run lint` re-run; commit `phase(DEFINER-UNDECLARED-CLASS-REMEDY): complete`, then merge to
+`main` (fast-forward; the other session's two docs commits ride along) and the graphify refresh in its own chore commit.
+
+### 2026-09-12 — hub `## Current state` at completion, cut here verbatim (lead)
+
+## Current state`
+  at the Record step.
+- [ ] **AC-6 — the gates.** Fresh `supabase db reset` → `npm run test:db` PASS with the new
+  `Files=/Tests=` figures quoted; `npm run lint` rc 0; door sweep exit 3 NOT-APPLICABLE (no
+  migration) with its `SCOPE:` line quoted; census · hat · floor · wrapper rc 0. Mutation proof on a
+  COPY of the catalog state: one planted undeclared DEFINER reds `414 § 0b` AND `421 § 0c`, both
+  messages naming the same remedy and `421`'s naming `414 § 0b`.
+
+
+**Updated:** 2026-09-12
+
+#### Objective
+
+Make an undeclared-`search_path` DEFINER red with ONE named owner (`414 § 0b`) and ONE named remedy
+(converge to `''`, ADR 0208 D4), with `421 § 0c` pointing at that owner instead of competing with it.
+
+#### Done since start
+
+- Branch cut from `main @ f55b53ba`; hub + record opened (lead).
+- Ruling located and quoted from three carriers (archive entry, seam `:71`, narrow-fix record
+  `:147-155`, `:388-390`): defect to converge, never a frozen-set member, no new cell — so the
+  FUP's second branch is the one the ruling implies; lead ruled it 2026-09-12, PO to confirm at step 4.
+- Live catalog measured 2026-09-12: `890 = 861 + 29 | 0 undeclared` under both `sp = '<none>'`
+  (`421`) and `proconfig is null` — the two predicates agree today, not in general.
+
+- AC-1 … AC-5 built by `backend` (`1a5dc2a1`): `414 § 0b` message names the remedy, `§ 2d` control;
+  `421 § 0c` partitions (`non-empty` excludes `<none>`) and names `414 § 0b` as owner, `§ 3h` delta
+  control; census comment, two seam markers + one slice, gate-18 line in `docs/lint-gates.md`.
+  Six mutation proofs on copies, in the record.
+- Gate step 1 (lead): `test:db` `Files=270, Tests=9066` PASS; lint rc 0 (one new gate-16 check-D
+  WARN, seam at 163.2 KB); typecheck rc 0; door sweep deriver exit 3 NOT-APPLICABLE; census · hat ·
+  floor · wrapper rc 0; deriver self-test `PASS 46 · FAIL 0 · SKIPPED 0` (bash 5.2.37). Fresh reset
+  by the PO (after one shared-stack deadlock) → `test:db` re-earned `Files=270, Tests=9066` PASS. Step 2 ruled
+  N/A by the lead (no runtime surface), PO to confirm.
+
+#### In progress
+
+- Nothing — awaiting step 4 human approval. QA r1 APPROVED (0 MAJOR / 3 MINOR / 4 NOTE); MINOR-3
+  (control re-typed the production predicate) fixed by a shared temp view `v414_undeclared`, QA's
+  mutant now reds; full suite re-earned on the final bytes `Files=270, Tests=9066` PASS, lint rc 0;
+  QA r2 APPROVED, 0 new findings, MINOR-1 (seam `:71` wording) deferred to the Record step by design.
+
+#### Next
+
+- Step 4 approval after QA r2, then the Record step (MINOR-1 wording fix in the seam's top block, under its
+  100-line cap; follow-up filed for the gate-16 warn; FUP entry archived; ledger row).
+
+#### Blockers
+
+- ⚠ Another session shares this checkout; two of its docs commits (`bb6f3571`, `664a70a5`) sit on
+  this branch and fast-forward onto `main` at merge.

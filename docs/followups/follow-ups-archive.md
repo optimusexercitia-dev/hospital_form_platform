@@ -13689,3 +13689,26 @@ D4 is two clauses: `set search_path = ''` AND schema-qualified object references
 Measured 2026-09-11 while building `421`: `select count(*) from pg_extension where extname='pgtap'` → 0 after a green `npm run test:db`; the first standalone `psql -f 421_…sql` produced no `ok` lines and no error a reader would recognise as "the instrument is missing". The `100_dashboard.sql` comment already alludes to this; nothing in the conventions seam says it.
 
 > **2026-09-12 — closing commit named:** `bb6f3571` (the seam line, this rotation and the record entry, together).
+
+### 🟡 FUP-DEFINER-QUALIFIED-BODY-GATE-UNDECLARED-CLASS-NOW-HAS-A-LIVE-ENFORCER — ruled, unbuilt — ✅ RESOLVED 2026-09-12
+
+> **RESOLVED 2026-09-12** — unit DEFINER-UNDECLARED-CLASS-REMEDY (test + docs only; no migration; no ADR for the
+> ruling itself — ADR 0210 landed beside it for the seam size line). Record: docs/progress/definer-undeclared-class-remedy.md.
+> Closing commit(s): `1a5dc2a1` (414 § 0b owns, § 2d control; 421 § 0c partitions and points, § 3h control; census
+> comment; two seam markers + slice; gate-18 line) · `fe3aa643` (QA r1 MINORs: one shared `v414_undeclared` view read by
+> § 0b AND § 2d; 421 comments renumbered). Closed ON the clause's SECOND branch — *"`414 § 0b` is named as that assertion
+> and `421 § 0c`'s message points at it"* — because the PO ruling of 2026-09-11 (archive, *Open half 1*) names `414 § 0b`
+> and orders *"No new cell"*; the PO confirmed on 2026-09-12 (*"Approved, step 2 N/A, controls are fine"*) that the two
+> CONTROL assertions are not new cells. A red on `0 undeclared` now names one remedy (converge to `''` + schema-qualified
+> references, ADR 0208 D4) and one owner. Witness: fresh reset → `npm run test:db` `Files=270, Tests=9066` PASS; lint rc 0;
+> door sweep exit 3 NOT-APPLICABLE; census/hat/floor/wrapper rc 0; QA r1 APPROVED (3 MINOR, closed) + r2 APPROVED.
+> ⚠ Bound the closure STATES: `414`/`421` share the predicate "no `search_path` element in `proconfig`"; a DEFINER whose
+> proconfig carries only a non-search_path element is undeclared to both, and `proconfig is null` is NOT their predicate.
+>
+> ⛔ **The entry block below is VERBATIM, its `Closes when` included.**
+
+**Filed:** 2026-09-12 (unit `DEFINER-QUALIFIED-BODY-GATE`, backend hand-back) · **Owner:** lead + PO · **Severity:** medium — the undeclared class (`414 § 0b`'s 890/890) is outside the 419 freeze by construction; it was PO-ruled in the predecessor unit and never built, and `421` now reds on its first member without naming the remedy
+**Closes when:** the ruled disposition of the undeclared-`search_path` DEFINER class is built as its own assertion (or `414 § 0b` is named as that assertion and `421 § 0c`'s message points at it), so that a red on `0 undeclared` names one remedy instead of two gates disagreeing about whose finding it is
+**Status:** open
+
+`421 § 0c` asserts `890 = 861 non-empty (419) + 29 empty (421) + 0 undeclared`. The fourth term is the non-tautological one (the first two are complements). Today `414 § 0b` also asserts every `prosecdef` function declares a `search_path`; a new undeclared DEFINER therefore reds `414 § 0b` AND `421 § 0c`, and only `414`'s message says what to do. The predecessor seam slice (`authorization-and-audit.md`, unit `DEFINER-TEMP-TABLE-CONVERGENCE`) records the class's disposition as "PO-ruled but unbuilt". ⛔ Not closed by deleting the term from `421` — it is the term that makes `§ 0c` able to fail.

@@ -1,7 +1,7 @@
 ---
 id: DEFINER-UNDECLARED-CLASS-REMEDY
 title: "The undeclared-search_path DEFINER class gets ONE owner and ONE remedy: 414 § 0b names the convergence, 421 § 0c points at it"
-status: gated
+status: complete
 kind: fup-fix
 program: AUTHZ
 phase: "pre-AE5 remediation — ADR 0208 D4 forward convention applied to the undeclared class (PO ruled 2026-09-11: defect to converge, no new cell)"
@@ -33,81 +33,34 @@ ADR (the ruling's non-log carriers are the two gate messages and the seam).
 
 ## Acceptance criteria
 
-- [ ] **AC-1 — `414 § 0b` names the remedy.** Its description string states, in one clause, that a
+- [x] **AC-1 — `414 § 0b` names the remedy.** Its description string states, in one clause, that a
   listed function is a DEFECT whose remedy is `set search_path = ''` with schema-qualified references
   (ADR 0208 D4; PO ruling 2026-09-11), ⛔ never a widening of `414`/`419` and never a frozen-set
   entry. The section's header comment says the class is RULED (dated) and keeps the 890/890 figure
   as a dated measurement. The assertion's predicate and expected value are unchanged.
-- [ ] **AC-2 — `414 § 0b` is proven able to red.** A planted `prosecdef` function with NO
+- [x] **AC-2 — `414 § 0b` is proven able to red.** A planted `prosecdef` function with NO
   `search_path` (created after `§ 0b` runs, dropped before any later live count; or in a rolled-back
   savepoint whose assertion is captured outside it) is LISTED by `v414_domain`'s `sp is null`
   predicate, and its twin planted with `set search_path = ''` is NOT. ⛔ The plant must not perturb
   `§ 0b`'s own live figure or `§ 1`'s population; `plan()` and the RUN SHAPE comment move together.
-- [ ] **AC-3 — `421 § 0c` partitions and points.** (i) The printed `non-empty` term EXCLUDES
+- [x] **AC-3 — `421 § 0c` partitions and points.** (i) The printed `non-empty` term EXCLUDES
   `<none>`, so an undeclared DEFINER moves exactly the total and the `undeclared` term (today a red
   reads `891 = 862 … | 1`, double-counting); the expected string stays
   `890 = 861 non-empty (419) + 29 empty (421) | 0 undeclared`. (ii) The description names `414 § 0b`
   as the OWNER of an `undeclared` red and states the remedy in one clause, so the two gates name one
   remedy. (iii) The header sentence *"would be counted on 419's side"* is corrected: it is counted in
   NEITHER frozen set nor `421`'s arm, because the census coalesces the missing value to `'""'`.
-- [ ] **AC-4 — `421`'s partition control.** A planted undeclared DEFINER (rolled back) makes the
+- [x] **AC-4 — `421`'s partition control.** A planted undeclared DEFINER (rolled back) makes the
   recomputed four-term string read `+1` on the total and on `undeclared` ONLY — proving AC-3 (i) — and
   a planted `''` twin moves `empty` instead. ⛔ A control that cannot red voids the change.
-- [ ] **AC-5 — the carriers.** Every text that still calls the class *"PO to rule"*, *"not ruled"*
+- [x] **AC-5 — the carriers.** Every text that still calls the class *"PO to rule"*, *"not ruled"*
   or *"PO-ruled but unbuilt"* is corrected **by dated marker, never by rewriting a posted slice**:
   `docs/backend-state/authorization-and-audit.md` (the `DEFINER-SEARCH-PATH-NARROW-FIX` and
   `DEFINER-TEMP-TABLE-CONVERGENCE` slices; a new dated slice appended at the bottom), the
   `scripts/definer-search-path-census.sql` header comment (*"disposition is the follow-up's open half
   1"* — ⚠ outside the gate-18 byte-compared block; if it is inside, leave it and file), and
-  `docs/lint-gates.md` gate 18 if it names the class. The lead replaces the seam's `## Current state`
-  at the Record step.
-- [ ] **AC-6 — the gates.** Fresh `supabase db reset` → `npm run test:db` PASS with the new
-  `Files=/Tests=` figures quoted; `npm run lint` rc 0; door sweep exit 3 NOT-APPLICABLE (no
-  migration) with its `SCOPE:` line quoted; census · hat · floor · wrapper rc 0. Mutation proof on a
-  COPY of the catalog state: one planted undeclared DEFINER reds `414 § 0b` AND `421 § 0c`, both
-  messages naming the same remedy and `421`'s naming `414 § 0b`.
+  `docs/lint-gates.md` gate 18 if it names the class. The lead replaces the seam's `
 
-## Current state
-
-**Updated:** 2026-09-12
-
-### Objective
-
-Make an undeclared-`search_path` DEFINER red with ONE named owner (`414 § 0b`) and ONE named remedy
-(converge to `''`, ADR 0208 D4), with `421 § 0c` pointing at that owner instead of competing with it.
-
-### Done since start
-
-- Branch cut from `main @ f55b53ba`; hub + record opened (lead).
-- Ruling located and quoted from three carriers (archive entry, seam `:71`, narrow-fix record
-  `:147-155`, `:388-390`): defect to converge, never a frozen-set member, no new cell — so the
-  FUP's second branch is the one the ruling implies; lead ruled it 2026-09-12, PO to confirm at step 4.
-- Live catalog measured 2026-09-12: `890 = 861 + 29 | 0 undeclared` under both `sp = '<none>'`
-  (`421`) and `proconfig is null` — the two predicates agree today, not in general.
-
-- AC-1 … AC-5 built by `backend` (`1a5dc2a1`): `414 § 0b` message names the remedy, `§ 2d` control;
-  `421 § 0c` partitions (`non-empty` excludes `<none>`) and names `414 § 0b` as owner, `§ 3h` delta
-  control; census comment, two seam markers + one slice, gate-18 line in `docs/lint-gates.md`.
-  Six mutation proofs on copies, in the record.
-- Gate step 1 (lead): `test:db` `Files=270, Tests=9066` PASS; lint rc 0 (one new gate-16 check-D
-  WARN, seam at 163.2 KB); typecheck rc 0; door sweep deriver exit 3 NOT-APPLICABLE; census · hat ·
-  floor · wrapper rc 0; deriver self-test `PASS 46 · FAIL 0 · SKIPPED 0` (bash 5.2.37). Fresh reset
-  by the PO (after one shared-stack deadlock) → `test:db` re-earned `Files=270, Tests=9066` PASS. Step 2 ruled
-  N/A by the lead (no runtime surface), PO to confirm.
-
-### In progress
-
-- Nothing — awaiting step 4 human approval. QA r1 APPROVED (0 MAJOR / 3 MINOR / 4 NOTE); MINOR-3
-  (control re-typed the production predicate) fixed by a shared temp view `v414_undeclared`, QA's
-  mutant now reds; full suite re-earned on the final bytes `Files=270, Tests=9066` PASS, lint rc 0;
-  QA r2 APPROVED, 0 new findings, MINOR-1 (seam `:71` wording) deferred to the Record step by design.
-
-### Next
-
-- Step 4 approval after QA r2, then the Record step (MINOR-1 wording fix in the seam's top block, under its
-  100-line cap; follow-up filed for the gate-16 warn; FUP entry archived; ledger row).
-
-### Blockers
-
-- ⚠ Another session shares this checkout; two of its docs commits (`bb6f3571`, `664a70a5`) sit on
-  this branch and fast-forward onto `main` at merge.
+**Complete 2026-09-12** — PO approved (*"Approved, step 2 N/A, controls are fine"*); QA r1 + r2 APPROVED; ledger
+row in `docs/progress/phase-ledger.md`; the gate-16 size warn this unit created is dispositioned by ADR 0210 (PO
+ruling, same day), not filed; detail in the [record](../progress/definer-undeclared-class-remedy.md).

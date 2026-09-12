@@ -25,7 +25,8 @@
  *      file left the gate at rc=0 still printing "all routed".
  *   C. SUPERSEDED TARGETS RESOLVE — a forward marker that names a file which does not exist sends
  *      the reader nowhere, which is worse than no marker: it reads like care.
- *   D. SIZE — warn at 160 KB, FAIL at 200 KB, per file. ⛔ The remedy is never to raise the cap,
+ *   D. SIZE — warn at 200 KB, FAIL at 250 KB, per file (ADR 0210 re-based these from 160/200 by PO
+ *      ruling 2026-09-12; a second raise needs a second ADR). ⛔ The remedy is never to raise the cap,
  *      never to open a phase-named overflow file, and never to delete a posted section. It is to
  *      find the seam inside the file that wants its own home.
  *   E. A SEAM IS A NOUN — no digit in a seam filename. This is D2's enforcer; without it a routed
@@ -106,8 +107,8 @@ const DIR_REL = 'docs/backend-state'
 const DIR = join(REPO_ROOT, 'docs', 'backend-state')
 const ROUTER = 'README.md'
 
-export const WARN_BYTES = 160 * 1024
-export const HARD_BYTES = 200 * 1024
+export const WARN_BYTES = 200 * 1024
+export const HARD_BYTES = 250 * 1024
 
 /** ⛔ FIRST, always. `.gitattributes` pins `*.md` to LF in both directions, but a gate that
  *  depends on that is a gate that reds on a checkout somebody configured differently. */

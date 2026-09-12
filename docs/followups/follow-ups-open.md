@@ -1964,10 +1964,3 @@ Measured 2026-09-11: `bash scripts/door-sweep-cases.sh b1e9b924` → exit **1** 
 
 `419` reads its frozen side from a committed, generated artifact; `421` pins `861 non-empty (419) + 29 empty (421) + 0 undeclared` as hand literals in a message string. A convergence of one more DEFINER (the D4 "on touch" path) reds `419 § 1c`-legally AND `421 § 0c`, and the fix is a hand edit in two files whose figures are not derived from one source. A pin plus its artifact updated by hand in two places is how a pin and its artifact come apart (LEARN-084 shape, the other direction). ⛔ Not closed by deriving the expected side live in the same instant (that compares the catalog to itself), nor by widening `§ 0c` to "sums to the total" (the two middle terms are complements — that assertion cannot fail).
 
-### 🟡 FUP-DEFINER-QUALIFIED-BODY-GATE-UNDECLARED-CLASS-NOW-HAS-A-LIVE-ENFORCER — ruled, unbuilt
-
-**Filed:** 2026-09-12 (unit `DEFINER-QUALIFIED-BODY-GATE`, backend hand-back) · **Owner:** lead + PO · **Severity:** medium — the undeclared class (`414 § 0b`'s 890/890) is outside the 419 freeze by construction; it was PO-ruled in the predecessor unit and never built, and `421` now reds on its first member without naming the remedy
-**Closes when:** the ruled disposition of the undeclared-`search_path` DEFINER class is built as its own assertion (or `414 § 0b` is named as that assertion and `421 § 0c`'s message points at it), so that a red on `0 undeclared` names one remedy instead of two gates disagreeing about whose finding it is
-**Status:** open
-
-`421 § 0c` asserts `890 = 861 non-empty (419) + 29 empty (421) + 0 undeclared`. The fourth term is the non-tautological one (the first two are complements). Today `414 § 0b` also asserts every `prosecdef` function declares a `search_path`; a new undeclared DEFINER therefore reds `414 § 0b` AND `421 § 0c`, and only `414`'s message says what to do. The predecessor seam slice (`authorization-and-audit.md`, unit `DEFINER-TEMP-TABLE-CONVERGENCE`) records the class's disposition as "PO-ruled but unbuilt". ⛔ Not closed by deleting the term from `421` — it is the term that makes `§ 0c` able to fail.

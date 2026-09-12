@@ -68,7 +68,7 @@
 
 - **RULED, NOT BUILT** (ADR [0207](../decisions/0207-the-role-catalog-holds-roles-administrativo-is-a-capability-provider.md) + [0208](../decisions/0208-the-candidate-fanout-is-structurally-dominated-and-empty-search-path-is-the-sole-forward-convention.md)):
   `administrativo` leaves `authz.roles` and `platform_role` retires — unit `AE5-ROLE-CATALOG-COMPAT`; `D ≤ F` is a
-  parametric invariant with accepted residual risk, ⛔ never "unreachable" — `AE4-D-SHAPE-ASSERTION`; ⛔ until it lands the catalog still holds the 12th role row and the enum. ⭐ **0208 D4–D6 are BUILT** (`DEFINER-SEARCH-PATH-NARROW-FIX`, migration `20261003007410`); `414` unchanged, still NOT the security property. ⭐ **AC-5 is RULED by the PO**: a DEFINER with **no** `search_path` at all (`414 § 0b`'s 890/890) is a **defect to converge to `''`**, ⛔ never a frozen-set member — a red on `414 § 0b` means exactly that, and no new cell was added, because a freeze admitting NULL paths would make its own subset arm ambiguous about which half moved. ⛔ One item stays **PO to rule**: the D5 hint is ONE LINE in `migrations-forward-only.md` rather than its own file, because `.claude/rules/` sits at its `MAX_RULES = 12` cap.
+  parametric invariant with accepted residual risk, ⛔ never "unreachable" — `AE4-D-SHAPE-ASSERTION`; ⛔ until it lands the catalog still holds the 12th role row and the enum. ⭐ **0208 D4–D6 are BUILT** (`DEFINER-SEARCH-PATH-NARROW-FIX`, migration `20261003007410`); `414 § 0b` now OWNS the undeclared-class finding — its message names the ONE remedy, `§ 2d` is its control, and `421 § 0c` points at it (unit `DEFINER-UNDECLARED-CLASS-REMEDY`); `414` is still NOT the security property. ⭐ **AC-5 is RULED by the PO**: a DEFINER with **no** `search_path` at all (`414 § 0b`'s 890/890) is a **defect to converge to `''`**, ⛔ never a frozen-set member — a red on `414 § 0b` means exactly that, and no new cell was added, because a freeze admitting NULL paths would make its own subset arm ambiguous about which half moved. ⛔ One item stays **PO to rule**: the D5 hint is ONE LINE in `migrations-forward-only.md` rather than its own file, because `.claude/rules/` sits at its `MAX_RULES = 12` cap.
 - **"Measured" is not "clean", and a row is not a pass.** In the write-path sweep a **BLIND** row is a real finding to
   keystone, ⛔ **never allowlisted**; an **ERROR** row is UNVERDICTED, not COVERED. `FROMFINDINGS=1 ARM=policy` is a
   separate, pre-existing RED, not one of CLAUDE.md § 6's arms.
@@ -99,7 +99,7 @@
   **§ The two pre-AE5 successor decisions taken (ADR 0207 + 0208)** — 0207 built nowhere; 0208 D4–D6 built in the last
   slice · **§ The ACT hat becomes a door-level term (ADR 0209)** · **§ The non-empty DEFINER population is FROZEN**
   (⚠ superseded in part) · **§ The four temp-table DEFINERs are CONVERGED** · **§ D4's qualified-body clause is
-  GATED by pgTAP 421**.
+  GATED by pgTAP 421** · **§ The undeclared-search_path class has ONE owner and ONE remedy**.
 - ADR [0155](../decisions/0155-post-aff4-tenancy-and-person-model-evolution-sequence.md) · [0162](../decisions/0162-authz-evolution-plan-audit-corrections.md) (authority-elect) ·
   [0176](../decisions/0176-authz-permission-layer-made-real.md) (the three interfaces) · [0100](../decisions/0100-quality-office-oversight.md) (oversight + content wall) ·
   [0149](../decisions/0149-org-admin-reads-hospital-tier-audit.md) + [0150](../decisions/0150-audit-org-derived-from-hospital.md) (audit read legs) ·

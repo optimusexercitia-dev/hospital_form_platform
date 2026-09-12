@@ -14,7 +14,7 @@
 >
 > Edges are **advisory** and over-inclusive by design; the ADR text is truth.
 
-**205 ADRs** · next free number: **0210** · 75 carry an inbound supersedes/amends edge
+**206 ADRs** · next free number: **0211** · 75 carry an inbound supersedes/amends edge
 
 ## ⚠ Anomalies
 
@@ -220,7 +220,7 @@
 | 0193 | [The enforcement manifest declares what it measured, and the measurement is a fixed poin…](0193-the-enforcement-manifest-declares-what-it-measured.md) | accepted | 2026-09-07 | amends 0176, 0178 | ⚠ amended by 0200, 0201 |
 | 0194 | [A sweep's `CASES` has three states, and a parent asks for a full run by UNSETTING it](0194-a-sweeps-cases-has-three-states-and-a-parent-unsets-it.md) | accepted | – | amends 0192 | – |
 | 0195 | [A committed number needs ONE home and a GATED mirror, and a ratchet joins its incumbent](0195-a-committed-number-needs-one-home-and-a-gated-mirror.md) | accepted | 2026-09-08 | – | – |
-| 0196 | [The backend surface map splits on the MODULE SEAM axis, and a router replaces the readi…](0196-backend-state-split-on-the-module-seam-axis.md) | accepted | 2026-09-09 | amends 0186 | ⚠ amended by 0197, 0198, 0199, 0206 |
+| 0196 | [The backend surface map splits on the MODULE SEAM axis, and a router replaces the readi…](0196-backend-state-split-on-the-module-seam-axis.md) | accepted | 2026-09-09 | amends 0186 | ⚠ amended by 0197, 0198, 0199, 0206, 0210 |
 | 0197 | [The data-access REGISTRIES are generated from the catalog; the prose keeps only what a…](0197-data-access-registries-are-generated-not-maintained.md) | accepted | 2026-09-09 | amends 0196 | – |
 | 0198 | [A backend seam carries two layers: a REPLACEABLE current state above its append-only hi…](0198-backend-state-seams-get-a-replaceable-current-state-layer.md) | accepted | 2026-09-09 | amends 0196 | – |
 | 0199 | [A frozen archive does not belong on the retrieval path, and "it holds unique facts" is…](0199-a-frozen-archive-does-not-belong-on-the-retrieval-path.md) | accepted | 2026-09-09 | amends 0196 | – |
@@ -232,3 +232,4 @@
 | 0207 | [The role catalog holds roles: `administrativo` becomes a capability-provider namespace…](0207-the-role-catalog-holds-roles-administrativo-is-a-capability-provider.md) | accepted | 2026-09-11 | amends 0176 | – |
 | 0208 | [Two conventions: the candidate fan-out `D` is a parametric structural invariant plus ac…](0208-the-candidate-fanout-is-structurally-dominated-and-empty-search-path-is-the-sole-forward-convention.md) | accepted | 2026-09-11 | – | – |
 | 0209 | [The ACT hat is a DOOR-level term on the professional-profile read door, evaluated befor…](0209-the-act-hat-is-a-door-level-term-on-the-professional-profile-read-door.md) | accepted | 2026-09-11 | amends 0201 | – |
+| 0210 | [The backend-state seam size warn line is raised to 200 KB (hard cap 250 KB)](0210-backend-state-seam-size-warn-line-raised-to-200-kb.md) | accepted | 2026-09-12 | amends 0196 | – |

@@ -68,7 +68,8 @@ by name as the reason the generated index exists — it "had stopped in the 0070
    one. The phase axis is what made the predecessor unreadable: 53 dated slices carrying 33
    `SUPERSEDED` and 45 `STALE` markers, because a reader asking "what is the surface *now*" had to
    replay them in order and apply the supersessions by hand.
-4. **Size is a signal.** Gate 16 warns at **160 KB** per file and fails at **200 KB**. ⛔ The fix is
+4. **Size is a signal.** Gate 16 warns at **200 KB** per file and fails at **250 KB** (ADR 0210, re-based
+   from 160/200 by PO ruling 2026-09-12). ⛔ The fix is
    never to raise the cap, never to open a phase-named overflow file, and never to delete a posted
    section — it is to find the seam inside the file that wants its own home, and to say so here.
 5. **Every figure carries the query that produces it.** A count without its query is not a
