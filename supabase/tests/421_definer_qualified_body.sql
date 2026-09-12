@@ -77,10 +77,25 @@
 -- gate's coverage is total over the 29. ⛔ The day that count moves, this gate's claim narrows and
 -- the assertion is what tells you — do not raise the number to make it pass.
 --
--- ⚠ A SECOND BOUND, STATED: the temp-table exclusion in `§ 1` interpolates the finding's relation
--- name into a regex, so the name is escaped character-by-character first. Without that escape an
--- identifier carrying a regex metacharacter could make the exclusion match MORE than its own
--- relation — excluding a real finding, which is the unsafe direction.
+-- ⚠ A SECOND BOUND, STATED: THE TEMP-TABLE EXCLUSION IN `§ 1`, AND EXACTLY HOW FAR IT REACHES.
+-- A `42P01` is excused ONLY when the SAME body creates that relation with `create temp table`.
+-- Three things make that bound real, and each of the three was a live OVER-MATCH until QA r1
+-- measured it (`docs/reviews/definer-qualified-body-gate-review.md`, MINOR-1):
+--   1. the finding's relation name is regex-ESCAPED character-by-character, so an identifier
+--      carrying a metacharacter cannot widen the match (`.*` as a name does not match `zzz`);
+--   2. the interpolated name is BOUNDED by `\m`…`\M`, so a body creating `_xy` no longer excuses
+--      a finding on `_x` — a PREFIX over-match, measured true before the anchor and false after;
+--   3. the match runs over EXECUTABLE TEXT ONLY: `prosrc` is scrubbed of `/* */` block comments,
+--      `--` line comments and single-quoted string literals BEFORE matching, so a
+--      `create temp table foo` written in a comment or inside a literal no longer excuses a real
+--      finding on `foo`.
+-- ⛔ THE SCRUB IS A REGEX CHAIN, NOT A LEXER, AND ALL THREE OF ITS GAPS ERR TOWARD KEEPING A
+-- FINDING (over-report, the safe direction): a DOLLAR-QUOTED string (`$q$…$q$`) is not stripped,
+-- a nested `/* /* */ */` strips only to the first `*/`, and an unbalanced apostrophe makes the
+-- literal rule swallow on to the next one. Swallowing MORE text can only take a
+-- `create temp table` out of view, which KEEPS a finding; it can never invent one. ⛔ Do not
+-- "fix" a gap by widening the exclusion. `§ 3d`, `§ 3f` and `§ 3g` are the controls that hold
+-- these three properties, each with both halves in one string.
 --
 -- ⚠ NO `test_helpers.bootstrap()`, no fixture, no tenancy — `pg_proc`, `pg_namespace`, `pg_language`
 -- and the planted controls only, so this file is invariant to seed scale and to the AE4 perf
@@ -90,12 +105,12 @@
 -- `rollback to savepoint` while the TAP stream pg_prove parses is already emitted); pg_prove's
 -- **"Bad plan"** is a FAILURE. See `419`'s header for the full statement of that distinction.
 --
--- RUN SHAPE: `Files=2, Tests=17` (16 here + 00_setup.sql's one). ⛔ Keep this line in step with
+-- RUN SHAPE: `Files=2, Tests=19` (18 here + 00_setup.sql's one). ⛔ Keep this line in step with
 -- plan() — a stale RUN SHAPE is read as the expected shape by the next person diagnosing a
 -- count mismatch.
 
 begin;
-select plan(16);
+select plan(18);
 
 -- ============================================================================
 -- § 0 — THE INSTRUMENT AND THE DOMAIN.
@@ -178,9 +193,19 @@ select is(
 -- from the result. The left join keeps one all-NULL row per clean member, which is what `§ 1a`
 -- counts. `tgrelid` comes from `pg_trigger` because the checker needs the trigger's relation to
 -- type `NEW`/`OLD`; 0 for a non-trigger function.
+-- ⚠ `exec_src` IS THE BODY WITH ITS NON-EXECUTABLE TEXT REMOVED, and it exists for exactly one
+-- consumer: the temp-table exclusion below, which must not be satisfiable by prose. The chain is
+-- block comments -> `--` line comments -> single-quoted string literals, each replaced by a
+-- SPACE (never by nothing, so two tokens either side of a stripped comment cannot fuse into one).
+-- ⛔ Its three gaps and why every one of them errs toward KEEPING a finding: header, second bound.
 create temp view v421_plpgsql_raw as
 select m.sig, m.src, m.oid, f.sqlstate, f.message,
-       substring(f.message from 'relation "([^"]+)" does not exist') as relname
+       substring(f.message from 'relation "([^"]+)" does not exist') as relname,
+       regexp_replace(
+         regexp_replace(
+           regexp_replace(m.src, '/\*.*?\*/', ' ', 'g'),
+           '--.*', ' ', 'gn'),
+         $re$'(''|[^'])*'$re$, ' ', 'g')                              as exec_src
   from v421_empty m
   left join lateral extensions.plpgsql_check_function_tb(
        m.oid,
@@ -191,16 +216,21 @@ select m.sig, m.src, m.oid, f.sqlstate, f.message,
 -- THE EXCLUSION, and its exact bound. A `42P01` is EXCUSED only when the SAME body creates that
 -- relation as a temporary table — the four DEFINERs ADR 0208 D6 names, whose unqualified reads
 -- resolve through `pg_temp` at run time and whose convergence `420` guards. ⛔ It excuses nothing
--- else: not a different function's temp table, not a `create table`, not a `42883`. The relation
--- name is escaped before interpolation (see the header's second bound).
+-- else: not a different function's temp table, not a `create table`, not a `42883`, not a relation
+-- whose name is merely a PREFIX of one the body creates (`\M`), and not a `create temp table`
+-- that lives only in a comment or a string literal (`exec_src`). Each of those five was written
+-- as a claim before it was true; the last two were measured OVER-MATCHING by QA r1 and are now
+-- carried by `§ 3f` and `§ 3g`. The relation name is escaped before interpolation, and `\m`/`\M`
+-- bound the match on both sides (header, second bound).
 create temp view v421_plpgsql_findings as
 select r.sig, r.sqlstate, r.message
   from v421_plpgsql_raw r
  where r.sqlstate in ('42P01', '42883')
    and not (r.sqlstate = '42P01'
             and r.relname is not null
-            and r.src ~* ('create\s+temp(orary)?\s+table\s+(if\s+not\s+exists\s+)?'
-                          || regexp_replace(r.relname, '([^[:alnum:]])', '\\\1', 'g')));
+            and r.exec_src ~* ('\mcreate\s+temp(orary)?\s+table\s+(if\s+not\s+exists\s+)?'
+                          || regexp_replace(r.relname, '([^[:alnum:]])', '\\\1', 'g')
+                          || '\M'));
 
 -- The live verdict is MATERIALISED here, before any plant exists, so `§ 3`'s controls cannot
 -- contaminate it and `§ 5` can re-read the view to prove the restore.
@@ -294,8 +324,11 @@ select is(
 
 -- ============================================================================
 -- § 3 — THE CONTROLS. Every verdict above is a clean 0, and an instrument that cannot fail returns
--- a clean 0 too. Each plant is a DEFINER on `''` naming an object that only resolves through a
--- schema, and each is pinned to the arm it must red in.
+-- a clean 0 too. Each plant is a DEFINER on `''` naming an object that does NOT resolve under that
+-- path — one that needs a schema (`profiles`, `is_admin()`), or one that exists nowhere at all
+-- (`_x`, `_cmt`, `_lit`, the exclusion-bound plants) — and each is pinned to the arm it must red
+-- in. ⚠ Which is not the same claim per plant: the qualified twin `§ 3b` is the ONLY one that must
+-- stay silent, and `§ 3b` proves it was examined rather than skipped.
 -- ⛔ A control that cannot red VOIDS its arm — read a missing plant here as "§ 1c / § 2a proved
 -- nothing", never as "the plants were unnecessary".
 -- ============================================================================
@@ -317,6 +350,40 @@ create function public.z421_ctl_temp_plus_unqualified() returns bigint language 
     create temp table _x(i int);
     insert into _x select 1;
     return (select count(*) from profiles) + (select count(*) from _x);
+  end $ctl$;
+
+-- The PREFIX discrimination plant (QA r1 MINOR-1). It creates temp `_xy` and reads an unqualified
+-- `_x` that exists NOWHERE — so the arm raises `42P01` for both names, and the exclusion must
+-- excuse only the one this body actually creates. ⛔ Without the `\M` bound the finding on `_x`
+-- was EXCUSED by the `create temp table _xy`, which is the unsafe direction: a real unqualified
+-- reference silently dropped because some other relation's name starts with it.
+-- ⚠ ONE UNQUALIFIED REFERENCE PER STATEMENT, in both new plants. Parse analysis stops at the
+-- FIRST unresolved name in a statement, so `(select … from _x) + (select … from _xy)` would have
+-- reported `_x` only and the other half of each assertion would have been silently unreachable —
+-- a control whose fixture cannot reach the state it claims to measure.
+create function public.z421_ctl_temp_prefix() returns bigint language plpgsql security definer
+  set search_path = '' as $ctl$
+  declare a bigint; b bigint;
+  begin
+    create temp table _xy(i int);
+    insert into _xy select 1;
+    a := (select count(*) from _x);
+    b := (select count(*) from _xy);
+    return a + b;
+  end $ctl$;
+
+-- The NON-EXECUTABLE-TEXT discrimination plant (QA r1 MINOR-1). Its only two `create temp table`
+-- strings live in a `--` comment and in a string literal; it creates NO temp table at all and
+-- reads both names unqualified. ⛔ Both findings must be KEPT: prose in a body excuses nothing.
+create function public.z421_ctl_text_temp() returns bigint language plpgsql security definer
+  set search_path = '' as $ctl$
+  declare s text; a bigint; b bigint;
+  begin
+    -- create temp table _cmt(i int)
+    s := 'create temp table _lit(i int)';
+    a := (select count(*) from _cmt);
+    b := (select count(*) from _lit);
+    return a + b + length(s);
   end $ctl$;
 
 create temp table t421_ctl_findings as
@@ -358,21 +425,61 @@ select is(
 --     satisfiable by a broken exclusion: an exclusion that matched NOTHING would keep `profiles`
 --     (and red § 1c on the four D6 functions), and one that matched EVERYTHING would drop
 --     `profiles` (and silently blind the whole arm).
+-- ⛔ `position(… in …)`, NOT `like '%"' || relname || '"%'` (QA r1 MINOR-2): every relation name
+--     this file handles begins with `_`, which is a SINGLE-CHARACTER WILDCARD in LIKE — measured,
+--     `'relation "ax" does not exist' like '%"_x"%'` is TRUE. A control that certifies a bound
+--     must not be looser than the thing it certifies.
 select is(
-  coalesce((select string_agg(r.relname || '=' ||
-             case when exists (select 1 from t421_ctl_findings f
-                                where f.sig = r.sig and f.message like '%"' || r.relname || '"%')
-                  then 'KEPT' else 'EXCLUDED' end, ' | ' order by r.relname collate "C")
-              from t421_ctl_raw r
-             where r.sig = 'public.z421_ctl_temp_plus_unqualified()'), '(NOTHING FIRED)'),
+  coalesce((select string_agg(x.entry, ' | ' order by x.entry collate "C")
+              from (select distinct r.relname || '=' ||
+                           case when exists (select 1 from t421_ctl_findings f
+                                              where f.sig = r.sig
+                                                and position('"' || r.relname || '"' in f.message) > 0)
+                                then 'KEPT' else 'EXCLUDED' end as entry
+                      from t421_ctl_raw r
+                     where r.sig = 'public.z421_ctl_temp_plus_unqualified()') x), '(NOTHING FIRED)'),
   '_x=EXCLUDED | profiles=KEPT',
   '§ 3d THE TEMP-TABLE EXCLUSION DOES NOT BLIND: in ONE body it excuses the relation that body creates (`_x`) and keeps the one it does not (`profiles`). ⛔ `profiles=EXCLUDED` means the exclusion swallows real findings and § 1c is worthless; `_x=KEPT` means it never fires and the four D6 functions would red for the wrong reason'
+);
+
+-- 14. THE EXCLUSION IS BOUND ON THE RIGHT. Same shape as § 3d, one token apart: the body creates
+--     `_xy` and reads `_x`, which no relation anywhere provides. ⛔ `_x=EXCLUDED` is the QA r1
+--     MINOR-1 defect — a PREFIX of a created temp table excusing a real finding.
+select is(
+  coalesce((select string_agg(x.entry, ' | ' order by x.entry collate "C")
+              from (select distinct r.relname || '=' ||
+                           case when exists (select 1 from t421_ctl_findings f
+                                              where f.sig = r.sig
+                                                and position('"' || r.relname || '"' in f.message) > 0)
+                                then 'KEPT' else 'EXCLUDED' end as entry
+                      from t421_ctl_raw r
+                     where r.sig = 'public.z421_ctl_temp_prefix()') x), '(NOTHING FIRED)'),
+  '_x=KEPT | _xy=EXCLUDED',
+  '§ 3f THE EXCLUSION HAS A RIGHT-HAND BOUND: a body creating temp `_xy` excuses `_xy` and NOT the unqualified `_x` it also reads. ⛔ `_x=EXCLUDED` means the interpolated name lost its `\M` anchor and any finding whose name PREFIXES a created temp table is silently dropped; `_xy=KEPT` means the anchor is too tight and the four D6 functions would red for the wrong reason'
+);
+
+-- 15. THE EXCLUSION READS EXECUTABLE TEXT ONLY. The plant creates no temp table at all — both
+--     `create temp table` strings are prose. ⛔ Either name reading `EXCLUDED` means a comment or
+--     a literal can talk the gate out of a finding, which is the QA r1 MINOR-1 unsafe direction.
+select is(
+  coalesce((select string_agg(x.entry, ' | ' order by x.entry collate "C")
+              from (select distinct r.relname || '=' ||
+                           case when exists (select 1 from t421_ctl_findings f
+                                              where f.sig = r.sig
+                                                and position('"' || r.relname || '"' in f.message) > 0)
+                                then 'KEPT' else 'EXCLUDED' end as entry
+                      from t421_ctl_raw r
+                     where r.sig = 'public.z421_ctl_text_temp()') x), '(NOTHING FIRED)'),
+  '_cmt=KEPT | _lit=KEPT',
+  '§ 3g THE EXCLUSION IGNORES COMMENTS AND STRING LITERALS: a `create temp table` written in a `--` comment (`_cmt`) or inside a single-quoted literal (`_lit`) excuses nothing, because the match runs over `exec_src` and not over raw `prosrc`. ⛔ An `EXCLUDED` here means the scrub chain stopped working and any body can excuse any finding by mentioning it in prose'
 );
 
 drop function public.z421_ctl_unqualified();
 drop function public.z421_ctl_qualified();
 drop function public.z421_ctl_missing_fn();
 drop function public.z421_ctl_temp_plus_unqualified();
+drop function public.z421_ctl_temp_prefix();
+drop function public.z421_ctl_text_temp();
 
 -- THE sql ARM'S CONTROL. Created on a NON-EMPTY path — where its unqualified body is valid and the
 -- CREATE-time validator passes it — then moved to `''` by `ALTER`, which does NOT re-validate.
@@ -410,7 +517,7 @@ end $do$;
 
 rollback to savepoint s421_sql_control;
 
--- 14. THE HOLE AND THE CATCH, IN ONE ASSERTION.
+-- 16. THE HOLE AND THE CATCH, IN ONE ASSERTION.
 select is(
   (select sp from v421_domain where sig = 'public.z421_ctl_sql_altered()') || ' accepted by ALTER | ' ||
   (currval('sq421_c4_visited') - 1)::text || ' visited | ' ||
@@ -425,7 +532,7 @@ drop function public.z421_ctl_sql_altered();
 -- § 4 — THE RESIDUAL. Stated as a bound, held at zero, and NOT claimed as coverage.
 -- ============================================================================
 
--- 15. ⛔ THIS IS NOT A SAFETY ASSERTION — it is the statement of what the two arms CANNOT see.
+-- 17. ⛔ THIS IS NOT A SAFETY ASSERTION — it is the statement of what the two arms CANNOT see.
 select is(
   (select coalesce(string_agg(sig, '; ' order by sig collate "C"), '')
      from v421_empty where src ~* '\mexecute\M'),
@@ -438,14 +545,14 @@ select is(
 -- § 0 found it, and the live verdict is unchanged — so § 3 mutated nothing that outlives it.
 -- ============================================================================
 
--- 16.
+-- 18.
 select ok(
       (select count(*) from v421_domain where sig like 'public.z421\_%') = 0
   and (select count(*) from v421_empty) = 29
   and (select count(*) from v421_plpgsql_findings) = 0
   and (select count(*) from t421_sql_before b
         where b.def is distinct from pg_get_functiondef(b.oid)) = 0,
-  '§ 5 RESTORE: all five planted controls are gone, the empty-path population is back to 29, the plpgsql arm is clean again and the 11 sql definitions are untouched — § 2 and § 3 left nothing behind'
+  '§ 5 RESTORE: all seven planted controls are gone, the empty-path population is back to 29, the plpgsql arm is clean again and the 11 sql definitions are untouched — § 2 and § 3 left nothing behind'
 );
 
 select * from finish();

@@ -61,8 +61,14 @@
  * hands every empty-path DEFINER to Postgres itself — `plpgsql_check_function_tb` for the
  * plpgsql members, a re-execution of `pg_get_functiondef` for the `language sql` ones (because
  * `ALTER FUNCTION … SET search_path` never re-validates a body) — and counts `42P01`/`42883` as
- * findings. ⛔ 421's STATED BOUND: a body that builds SQL with `execute` is opaque to both arms,
- * so 421 holds that population at ZERO rather than claiming to check it.
+ * findings. ⛔ 421's FIRST STATED BOUND: a body that builds SQL with `execute` is opaque to both
+ * arms, so 421 holds that population at ZERO rather than claiming to check it.
+ * ⛔ AND ITS SECOND: the temp-table EXCLUSION. A `42P01` on a relation the SAME body creates by
+ * `create temp table` is excused — the four ADR 0208 D6 DEFINERs read their own temp tables
+ * unqualified by design — and nothing else is: not another body's temp table, not a name that
+ * merely prefixes one, not a `create temp table` written in a comment or a string literal
+ * (`421 § 3d`/`§ 3f`/`§ 3g` hold those three halves). A reader who knows only the `execute` bound
+ * comes away thinking every `42P01` in the population is gated, and a whole class is not.
  * That matters because the clause is not cosmetic — under `search_path = ''`
  * `pg_temp` is still searched FIRST for relation names, and `anon`/`authenticated`/`service_role`/
  * `authenticator` all hold database TEMP (4 of 4, ADR 0208 D5's census), so an unqualified

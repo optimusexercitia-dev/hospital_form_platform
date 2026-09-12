@@ -228,3 +228,108 @@ black box. ⛔ This is a ruling about THIS diff's surface, not a precedent that 
 2 — the next one re-derives the claim from its own `git diff --stat`.
 
 **Step 3 spawned:** `qa` (read-only on code) writes `docs/reviews/definer-qualified-body-gate-review.md`.
+
+### 2026-09-12 — QA r1 MINORs corrected in place (backend)
+
+All three MINORs from `docs/reviews/definer-qualified-body-gate-review.md` corrected; no other
+behaviour in `421` changed. ⚠ The review's instrument warning was obeyed literally: every regex
+figure below was earned from a byte-exact SQL file `docker cp`'d into
+`supabase_db_azkbbhskturikxpgmafq` (`MSYS_NO_PATHCONV=1`, or Git Bash rewrites the container path),
+never through a shell heredoc — and the probe's expression was compared to the tracked file's
+**mechanically** (indentation and the `m.`/`r.`/`t.` alias stripped, then string equality), not by
+eye: `SCRUB: IDENTICAL`, `EXCLUSION: IDENTICAL`. A probe that has drifted from its subject measures
+the probe.
+
+**MINOR-1 — the exclusion gains a right-hand bound and is restricted to executable text.** The
+match now runs over a new `v421_plpgsql_raw.exec_src` column — `prosrc` with `/* */` block comments,
+then `--` line comments, then single-quoted string literals each replaced by a SPACE — and the
+interpolated relation name is bounded `\mcreate…\s+<escaped name>\M`. Measured on the FINAL
+expression against the r1 one, same file, same ten cases:
+
+```
+label                                                     | excused_final | excused_r1_old
+A1 EXACT      creates _x  | finding _x                    | t             | t   (legitimate excuse kept)
+A2 PREFIX     creates _xy | finding _x                    | f             | t   <-- over-match closed
+A3 PREFIX     creates abc | finding ab                    | f             | t   <-- over-match closed
+A4 SUFFIX     creates y_x | finding _x                    | f             | f
+B1 LINECMT    -- create temp table foo | finding foo      | f             | t   <-- over-match closed
+B2 STRINGLIT  v := 'create temp table foo' | finding foo  | f             | t   <-- over-match closed
+B3 BLOCKCMT   /* create temp table foo */ | finding foo   | f             | t   <-- over-match closed
+C1 METACHAR   creates zzz | finding .*                    | f             | f   (the escape still works)
+D1 IFNOTEXIST creates if not exists _x | finding _x       | t             | t   (legitimate excuse kept)
+D2 TEMPORARY  creates temporary _x | finding _x           | t             | t   (legitimate excuse kept)
+```
+
+⚠ The five `t → f` rows are the corrections; the five unchanged rows are the discrimination half —
+without them a chain that simply never matched would read the same. The three shapes the FINAL
+expression still cannot see (a dollar-quoted string, a nested `/* /* */ */`, an unbalanced
+apostrophe) all err toward KEEPING a finding, and the header now says so as a bound rather than
+leaving the old *"it excuses nothing else"* standing as a claim the regex did not deliver.
+
+**The two new controls were proven able to red, one property each — the green first run is not the
+evidence.** `421` passed on its first run after the fix, which for a new assertion is a finding and
+not a result, so each was driven by a single-token mutation of the tracked file into a scratchpad
+copy (the tracked file never edited; `git status --porcelain` clean between runs):
+
+| Mutant | One-token change | Red | Verbatim |
+|---|---|---|---|
+| M1 | `r.exec_src` → `r.src` (keeps `\m`/`\M`) | **§ 3g only**, 1/18 | `have: _cmt=EXCLUDED \| _lit=EXCLUDED` · `want: _cmt=KEPT \| _lit=KEPT` |
+| M2 | drop `\|\| '\M'` (keeps `exec_src`) | **§ 3f only**, 1/18 | `have: _x=EXCLUDED \| _xy=EXCLUDED` · `want: _x=KEPT \| _xy=EXCLUDED` |
+
+Each mutant reds exactly ONE assertion, and not the other — so `§ 3f` is keyed to the anchor and
+`§ 3g` to the scrub, rather than the pair jointly covering "something about the exclusion".
+
+⛔ **A fixture trap the first draft of both plants walked into.** Parse analysis stops at the FIRST
+unresolved name in a statement, so `return (select … from _cmt) + (select … from _lit);` would have
+reported `_cmt` only and the `_lit` half of `§ 3g` would have been unreachable — a control whose
+fixture cannot reach the state it claims to measure. Both plants now give every unqualified
+reference its own statement, and the file says why.
+
+**MINOR-2 — the certifying control no longer uses a looser matcher than the thing it certifies.**
+`f.message like '%"' || r.relname || '"%'` → `position('"' || r.relname || '"' in f.message) > 0`,
+in `§ 3d` and in both new assertions. The QA probe, re-run on the final expression:
+
+```
+like_matches_wrong_row | position_matches_wrong_row | position_matches_right_row
+ t                     | f                          | t
+```
+
+i.e. `'relation "ax" does not exist' LIKE '%"_x"%'` is still **true** (a leading `_` is a LIKE
+wildcard, and every relation name this file handles starts with one) while `position()` is false on
+that row and true on the real one.
+
+**MINOR-3 — both carriers now state both bounds.** `scripts/gen-definer-search-path-freeze.mjs`'s
+header and `419`'s header each gain the temp-table exclusion beside the `execute` bound, naming
+`421 § 3d`/`§ 3f`/`§ 3g` as its holders. ⛔ `.claude/rules/migrations-forward-only.md` deliberately
+untouched (2043/2048 bytes, as the review ruled).
+
+**`419` is comment-only, verified mechanically.** `git diff -- supabase/tests/419_…sql | grep -E
+'^[+-]' | grep -v '^[+-][+-]' | grep -v '^[+-]-- '` → **0 lines**, so the assertions and the `§ 0`
+splice gate 18 reads byte-for-byte are unchanged. ⚠ The task brief's shorter form of that command
+(`git diff … | grep -v '^[+-]-- '`) cannot return nothing for any non-empty diff — it still prints
+`diff --git`, `+++`, `@@` and every context line — so the review's three-stage form is the one that
+carries the claim; both were run and are quoted here rather than the shorter one being reported as
+having passed.
+
+**Witnesses (this round, all re-earned on the final bytes).**
+
+| What | Command | Result |
+|---|---|---|
+| `421` | `supabase test db supabase/tests/00_setup.sql supabase/tests/421_definer_qualified_body.sql` | `All tests successful.` · `Files=2, Tests=19` · `Result: PASS` |
+| `419` unbroken by its comment edit | same runner, `419` | `All tests successful.` · `Files=2, Tests=11` · `Result: PASS` |
+| plan / RUN SHAPE in step | 17 `select is(` + 1 `select ok(` counted; header line rewritten | `plan(18)`, `RUN SHAPE: Files=2, Tests=19` |
+| no assertion inside a savepoint | line map of `savepoint` / `rollback to savepoint` / `select is\|ok` | windows `282–305` and `497–518`; all 18 assertions outside both |
+| full chain | `npm run lint` | **rc 0**, 18 gate invocations; gate 18 `--self-test: OK (17 cases)` · `in sync (861 … baseline main (6fd0bfdb43bb))` |
+| live state | `npm run lint:progress` | **rc 0** |
+
+⛔ **Not re-run, and not claimed:** the full `npm run test:db` on a fresh `supabase db reset`
+(`Files=270, Tests=9062`). The review's closing note says the full suite need not be re-run because
+none of the three MINORs touches `plan()` — that premise no longer holds: this round takes `421`
+from `plan(16)` to `plan(18)`, so the suite's total test count moves by 2 and the lead should treat
+the step-1 full-suite witness as owed again rather than inherited.
+
+⚠ **One review sentence became TRUE rather than needing an edit.** MINOR-1 cited the seam slice in
+`docs/backend-state/authorization-and-audit.md` (*"⛔ It excuses nothing else, and the relation name
+is regex-escaped…"*) as contradicted by the regex. With the anchor and the scrub in place that
+sentence is now accurate, so the file is left unedited — recorded so the next reader does not read
+its absence from this diff as an oversight.

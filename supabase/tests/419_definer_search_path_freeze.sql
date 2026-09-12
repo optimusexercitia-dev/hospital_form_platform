@@ -37,8 +37,13 @@
 -- § 0c` asserts the two sets still partition the whole) and has Postgres resolve each body under
 -- its declared path: `plpgsql_check_function_tb` for the 18 plpgsql members, a re-execution of
 -- `pg_get_functiondef` for the 11 `language sql` ones, with `42P01`/`42883` the finding set. ⛔ Its
--- STATED BOUND is dynamic SQL: an `execute` body is opaque to both arms, so `421 § 4` holds that
--- population at zero instead of claiming coverage over it.
+-- FIRST STATED BOUND is dynamic SQL: an `execute` body is opaque to both arms, so `421 § 4` holds
+-- that population at zero instead of claiming coverage over it. ⛔ Its SECOND is the temp-table
+-- EXCLUSION: a `42P01` on a relation the SAME body creates by `create temp table` is excused (the
+-- four ADR 0208 D6 DEFINERs read their own temp tables unqualified by design) and nothing else is
+-- — not another body's temp table, not a name that merely prefixes one, not a `create temp table`
+-- written in a comment or a string literal; `421 § 3d`/`§ 3f`/`§ 3g` hold those three halves.
+-- ⛔ Knowing only the `execute` bound leaves a reader thinking every `42P01` is gated here.
 -- That clause is not cosmetic: under `search_path = ''` `pg_temp` is still searched FIRST for
 -- relation names, and `anon`, `authenticated`, `service_role` and `authenticator` all hold database
 -- TEMP (4 of 4, ADR 0208 D5), so an unqualified relation inside an empty-path DEFINER stays
