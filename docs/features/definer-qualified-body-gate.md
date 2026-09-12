@@ -1,7 +1,7 @@
 ---
 id: DEFINER-QUALIFIED-BODY-GATE
 title: "ADR 0208 D4's schema-qualified-body clause gets its gate: pgTAP 421 reads every empty-path DEFINER body, one arm per language"
-status: gated
+status: complete
 kind: fup-fix
 program: AUTHZ
 phase: "pre-AE5 remediation — ADR 0208 D4 second clause (PO ruled option (a) on 2026-09-11)"
@@ -19,51 +19,8 @@ fup: FUP-DEFINER-SEARCH-PATH-NARROW-FIX-QUALIFIED-BODY-CLAUSE-OF-D4-IS-UNGATED
 Closes `FUP-DEFINER-SEARCH-PATH-NARROW-FIX-QUALIFIED-BODY-CLAUSE-OF-D4-IS-UNGATED` (its *Closes when* was
 **PO to rule**; the PO ruled **option (a) — a catalog gate, pgTAP 421** on 2026-09-11). ADR 0208 D4 is
 two clauses: `set search_path = ''` AND schema-qualified object references. pgTAP `419` + gate 18 hold
-the PATH clause; nothing reads a function BODY. This unit adds the body half. No new ADR: D4's verbatim
-ruling already states the convention; this builds its missing enforcer.
-
-## Current state
-
-**Updated:** 2026-09-12
-
-### Objective
-pgTAP `421_definer_qualified_body.sql`: every `prosecdef` function in `app`/`public`/`authz` whose
-`proconfig` is `search_path=""` has a body that resolves under the empty path — measured by Postgres,
-never by a hand parser. Two arms keyed on `pg_language`: **plpgsql** via `plpgsql_check_function_tb`
-(honours `proconfig`), **sql** via re-executing `pg_get_functiondef(oid)` in a rolled-back savepoint
-(`ALTER … SET search_path` never re-validates a body — the hole). Findings: `42P01` + `42883`;
-exclusion: a `42P01` on a relation the SAME body creates by `create temp table`; residual held:
-`execute` bodies = 0. Planted positive controls per arm; extension created INSIDE the test transaction.
-
-### Done since start
-- Lead spike (rolled back): both arms discriminate; population 29 = 18 plpgsql + 11 sql; 0 `execute`.
-- `backend`: `421` built, `plan(16)`, RUN SHAPE `Files=2, Tests=17`; both arms green over the live
-  population (`18 examined` / `11 visited | 0 findings`); five controls discriminating; mutation proof
-  on copies (blinded exclusion → 2 red, dead sql arm → 1 red, dead plpgsql arm → 6 red). Results leave
-  savepoints by `setval` on a temp sequence (temp-table rows do not survive a savepoint rollback).
-- Five carriers re-worded from "UNGATED" to "gated by 421 + the `execute` bound"; `419` comment-only;
-  rule file 2043/2048 bytes.
-- **Gate step 1 closed (lead, 2026-09-12):** fresh reset → `npm run test:db` `Files=270, Tests=9062`
-  PASS (re-earned on the final code); `npm run lint` rc 0 (18 gates); door sweep exit **3**
-  NOT-APPLICABLE, `SCOPE: 0 file(s) — 0 committed (6fd0bfdb..HEAD), 0 worktree, 0 untracked`
-  (zero migrations); authz arms census · hat · floor · `FROMFINDINGS=1` wrapper all rc 0.
-- AC-1's no-splice deviation RULED accepted (record entry 2026-09-12). Three follow-ups filed.
-
-### In progress
-- Step 3: QA r1 **APPROVED** (0/0/3 MINOR/4 NOTE) → MINORs corrected in place (`13e6cd80`: exclusion
-  bounded by `\M` over comment/string-scrubbed text, control uses `position()`, two carriers name both
-  bounds; `plan(18)`, RUN SHAPE `Files=2, Tests=19`) → suite re-earned `Files=270, Tests=9064` → QA r2
-  **APPROVED**, MINOR-1/2/3 CLOSED, one new comment-only **MINOR-4** (header claims all scrub gaps err
-  safe; the dollar-quote gap does not — 0 of 29 bodies use one, `§ 1b` pins the raw set) + NOTE-5 →
-  corrected in place, comment-only (`712cf030`; 421 non-comment diff 0 lines, `Files=2, Tests=19`
-  PASS, lint rc 0). **Gated — awaiting human approval (step 4).**
-
-### Next
-- Step 2 RULED N/A by the PO (2026-09-12): no migration, no `src/`, no policy — nothing the E2E suite
-  can observe; no spec written, `e2e:prod` not run → step 3 QA review → step 4 PO approval → record.
-
-### Blockers
-- None.
+the PATH clause; nothing read a function BODY. This unit added the body half. No new ADR: D4's verbatim
+ruling already states the convention; this built its missing enforcer.
 
 ## Acceptance criteria
 
@@ -79,16 +36,20 @@ exclusion: a `42P01` on a relation the SAME body creates by `create temp table`;
 - [x] **AC-4 — controls, both arms.** A planted plpgsql DEFINER and a planted sql DEFINER on `''` naming
   `profiles` unqualified each red in THEIR arm; a plant that creates temp `_x` and reads `profiles`
   unqualified still reds (the exclusion does not blind); a qualified twin passes. ⛔ A control that
-  cannot red voids the arm.
+  cannot red voids the arm. (QA r1 added: a prefix plant `_xy`/`_x` and a comment/string plant, `§ 3f`/`§ 3g`.)
 - [x] **AC-5 — the residual is stated and held.** `count(*) where prosrc ~* '\mexecute\M' = 0` over the
   population, with the header saying WHY (dynamic SQL is opaque to both arms).
 - [x] **AC-6 — the extension.** `create extension if not exists plpgsql_check with schema extensions`
   inside the file's transaction, rolled back with it; `pg_available_extensions` absent ⇒ a failing
   assertion, never a skip. ⛔ No migration installs it; the catalog is not touched.
-- [x] **AC-7 — the carriers.** The five texts that say the body half is UNGATED are re-worded to name
-  421 as its gate and the `execute` residual as the stated bound: `.claude/rules/migrations-forward-only.md:38-39`
-  (stay ≤ 2048 bytes), `scripts/gen-definer-search-path-freeze.mjs` header, `419`'s header,
-  `docs/backend-state/authorization-and-audit.md` seam bullet (`## Current state`) + a new dated slice,
-  `docs/lint-gates.md` gate 18 paragraph. ⛔ `419` and `420` assertions unchanged.
-- [x] **AC-8 — the gates.** `npm run test:db` on a fresh `supabase db reset` green with 421 in the run
-  shape; `npm run lint` rc 0; door sweep over the diff RULED (exit 3 NOT-APPLICABLE: no migration).
+- [x] **AC-7 — the carriers.** The five texts that said the body half is UNGATED re-worded to name
+  421 as its gate and TWO bounds (the `execute` residual; the temp-table exclusion, which does not scrub
+  dollar-quoted text): `.claude/rules/migrations-forward-only.md` (2043/2048 bytes),
+  `scripts/gen-definer-search-path-freeze.mjs` header, `419`'s header (comment-only),
+  `docs/backend-state/authorization-and-audit.md` seam bullet + a dated slice, `docs/lint-gates.md` gate 18.
+- [x] **AC-8 — the gates.** Fresh `supabase db reset` → `npm run test:db` `Files=270, Tests=9064` PASS;
+  `npm run lint` rc 0; door sweep exit 3 NOT-APPLICABLE (no migration); census · hat · floor · wrapper rc 0.
+
+**Complete 2026-09-12** — PO approved (*"Approved"*); step 2 ruled N/A by the PO (no runtime surface);
+QA r1 + r2 APPROVED; ledger row in `docs/progress/phase-ledger.md`; detail in the
+[record](../progress/definer-qualified-body-gate.md).

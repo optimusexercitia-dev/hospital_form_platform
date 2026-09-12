@@ -13633,3 +13633,31 @@ ADR 0208 D6 ordered the four (`app.copy_response_answers` · `app.copy_template_
 
 Measured by `backend` 2026-09-11: `grep -c FROMFINDINGS scripts/p0-authz-door-audit.sh` → **0**; the variable is consumed by `scripts/p0-authz-invariant.sh` (`:107`, `:323`, `:800`) — the wrapper arm (ADR 0079: *"the cheap `FROMFINDINGS=1 ARM=wrapper` comparison every phase"*). Running the door sweep twice with and without it produced outputs differing in exactly one line (`ARM1_RC=` vs `ARM2_RC=`), same `SELECTION-SOURCE`, same `ARM-DOMAIN`, same verdict. ⭐ This unit's gate block therefore labels its rows **predicate arm** / **policy arm** from ONE invocation. ⛔ What must NOT be mistaken for closing it: deleting the prior row (the record is append-only), or reading this as "the prior unit missed an arm" — its `FROMFINDINGS=1 ARM=wrapper rc 0` row is the wrapper arm and stands. Lesson candidate: *a gate row's label is a claim about which SCRIPT read which KNOB — an unread knob makes two rows out of one run.*
 
+
+### 🟡 FUP-DEFINER-SEARCH-PATH-NARROW-FIX-QUALIFIED-BODY-CLAUSE-OF-D4-IS-UNGATED — ADR 0208 D4's second clause has no gate — ✅ RESOLVED 2026-09-12
+
+> **RESOLVED 2026-09-12** — unit DEFINER-QUALIFIED-BODY-GATE, ADR 0208 D4's second clause (schema-qualified
+> body) gated by pgTAP `421_definer_qualified_body.sql`. Record: docs/progress/definer-qualified-body-gate.md.
+> Closing commit(s): `8fa27d3c` (421 built, five carriers re-worded) · `1e0067ad` (§ 0c non-tautological
+> term) · `13e6cd80` (QA r1 MINORs: exclusion bounded by `\M` over comment/single-quote-scrubbed text,
+> control uses `position()`) · `712cf030` (QA r2 MINOR-4: dollar-quote gap named UNSAFE and bounded).
+> Closed ON the re-claused condition (PO ruled option (a) on 2026-09-11; approved 2026-09-12, *"Approved"*):
+> both arms resolve every empty-path body BY POSTGRES (`plpgsql_check_function_tb` honouring `proconfig`;
+> `pg_get_functiondef` re-emitted in a rolled-back savepoint), finding set `42P01`/`42883`, temp-table
+> exclusion keyed on the SAME body's `create temp table` with a right-hand anchor, `execute` population held
+> at 0, five planted controls each proven able to red by mutation. Witness: fresh reset → `npm run test:db`
+> `Files=270, Tests=9064` PASS; `npm run lint` rc 0 (18 gates); door sweep exit 3 NOT-APPLICABLE (0
+> migrations); census/hat/floor/wrapper rc 0; QA r1 APPROVED (3 MINOR, closed) + r2 APPROVED (MINOR-4
+> comment-only, corrected). ⚠ Two bounds the closure STATES rather than closes: dynamic SQL (`execute`,
+> 0 of 29) and dollar-quoted text (not scrubbed, 0 of 29; `§ 1b` pins the raw pre-exclusion set). Successor
+> follow-ups filed the same unit: `…421-FIGURES-ARE-HAND-LITERALS-BESIDE-419S-GENERATED-ARTIFACT`,
+> `…UNDECLARED-CLASS-NOW-HAS-A-LIVE-ENFORCER`, `…SUPABASE-TEST-DB-LEAVES-NO-PGTAP-INSTALLED`.
+
+
+**Filed:** 2026-09-11 (unit `DEFINER-SEARCH-PATH-NARROW-FIX`, QA review round 1, MAJOR-1) · **Owner:** lead + backend + PO · **Severity:** medium — no live exposure (both converged bodies verified qualified; no client role holds CREATE on `app`/`public`/`authz`), but the safety of the empty form rests ENTIRELY on the ungated clause
+**Closes when:** ⚠ **RE-CLAUSED 2026-09-11 — the PO ruled option (a)** (superseded text, kept so the change is visible: *"PO to rule"*). It now closes when pgTAP `421_definer_qualified_body.sql` lands in its named unit `DEFINER-QUALIFIED-BODY-GATE`: every empty-path `prosecdef` function in `app`/`public`/`authz` has its body resolved BY POSTGRES under the declared path — the plpgsql arm via `plpgsql_check_function_tb` (which applies `proconfig`), the sql arm via re-executing `pg_get_functiondef` in a rolled-back savepoint (because `ALTER FUNCTION … SET search_path` never re-validates a body) — with `42P01`/`42883` the finding set, a `42P01` excused only when the SAME body creates that relation by `create temp table`, the `execute` population held at 0 as the stated residual, and a planted positive control per arm that MUST red. The five carrier texts that say the half is UNGATED are re-worded to name 421. ⛔ Not closed by a hand parser of `from`/`join` targets, ⛔ not by a rule-file hint, ⛔ not by installing the extension in a migration (it lives inside the test transaction), ⛔ not while any control cannot red.
+**Ruling:** 2026-09-11 (PO, unit `DEFINER-QUALIFIED-BODY-GATE`) — option (a), a catalog gate as pgTAP `421`; option (b) (review obligation) rejected; the migration-installed variant of (a) offered and not taken.
+**Status:** closed 2026-09-12 (unit `DEFINER-QUALIFIED-BODY-GATE`)
+
+D4 is two clauses: `set search_path = ''` AND schema-qualified object references. pgTAP `419` + gate 18 enforce the PATH clause only; `414` proves named schemas resolve. A new DEFINER on `''` naming an unqualified persistent relation is invisible to all three — and `420`'s header measured why it matters: under `''` Postgres still searches `pg_temp` implicitly and FIRST, and all four client roles hold `TEMP`, so the empty path alone does not close the shadowing threat ADR 0208 D5 cites. Candidate closures for the PO: (a) a catalog check that an empty-path DEFINER's body names no unqualified relation — feasible (parse `pg_get_functiondef` for `from`/`join`/`update`/`insert into`/`delete from` targets without a dot) but not trivially decidable (dynamic SQL, CTE names, temp tables that are LEGITIMATELY unqualified as in the four `420` subjects); (b) a PO ruling that the qualified-body half stays a REVIEW obligation, named as such in the rule line. ⛔ Not closed by the text corrections this unit makes (the rule line, the generator header, `419`'s header, the seam bullet now say the half is ungated) — those make the bound TRUE, they do not gate it.
+

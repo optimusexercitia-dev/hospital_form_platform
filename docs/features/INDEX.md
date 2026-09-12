@@ -12,11 +12,10 @@
 > A hub's `## Current state` is its summary; its progress record's `## Session log`
 > (`docs/progress/<code>.md`) is its detail (ADR 0186 D3).
 
-**30 hubs** · in progress 1 · gated 3 · planned 2 · parked 0 · complete 24
+**30 hubs** · in progress 0 · gated 3 · planned 2 · parked 0 · complete 25
 
 | ID | Title | Status | Kind | Program | Branch | Hub |
 |---|---|---|---|---|---|---|
-| DEFINER-QUALIFIED-BODY-GATE | ADR 0208 D4's schema-qualified-body clause gets its gate: pgTAP 421 reads every empty-path DEFINER body, one arm per language | 🟢 in progress | fup-fix | AUTHZ | `definer-qualified-body-gate` | [definer-qualified-body-gate.md](definer-qualified-body-gate.md) |
 | BACKEND-STATE-CURRENT-STATE | Backend seams get a replaceable current-state layer — a projection above the frozen history, gated in four checks (ADR 0198) | 🚧 gated | feature | DOCS | `backend-state-current-state` | [backend-state-current-state.md](backend-state-current-state.md) |
 | BACKEND-STATE-SPLIT | Backend surface map split onto the module-seam axis — a router replaces the 742 KB reading list (ADR 0196) | 🚧 gated | feature | DOCS | — | [backend-state-split.md](backend-state-split.md) |
 | DATA-ACCESS-GENERATION | Data-access registries generated from the catalog — four hand-maintained tables replaced by a derive-and-compare pair, gated in two halves (ADR 0197) | 🚧 gated | feature | DOCS | `data-access-generation` | [data-access-generation.md](data-access-generation.md) |
@@ -31,6 +30,7 @@
 | BACKEND-STATE-SERVICE-ROLE-SEAM | The service-role DML registry gets its own seam — the first application of ADR 0196 D4's remedy, ruled by the PO on 2026-09-11 when authorization-and-audit.md crossed gate 16's warn line | ✅ complete | feature | DOCS | `backend-state-service-role-seam` | [backend-state-service-role-seam.md](backend-state-service-role-seam.md) |
 | C2-TIER1 | Command-door Tier 1 sweep — PHI-touching command doors, gate-aware closure | ✅ complete | feature | AUTHZ | — | [c2-tier1.md](c2-tier1.md) |
 | CAN-MANAGE-PROFESSIONAL-SELF-CHECK | `app.can_manage_professional`'s self-check arm — a third-party predicate whose first arm answers about the caller, given its reachability analysis, the PO's ruling, and (if ruled) the migration that makes it answer about `p_uid` (pre-AE5 Batch 8) | ✅ complete | feature | AUTHZ | — | [can-manage-professional-self-check.md](can-manage-professional-self-check.md) |
+| DEFINER-QUALIFIED-BODY-GATE | ADR 0208 D4's schema-qualified-body clause gets its gate: pgTAP 421 reads every empty-path DEFINER body, one arm per language | ✅ complete | fup-fix | AUTHZ | `definer-qualified-body-gate` | [definer-qualified-body-gate.md](definer-qualified-body-gate.md) |
 | DEFINER-SEARCH-PATH-NARROW-FIX | The 419 ratchet freezes the non-empty DEFINER search_path population, and the narrow ALTER FUNCTION migrations converge the two named members | ✅ complete | fup-fix | AUTHZ | `definer-search-path-narrow-fix` | [definer-search-path-narrow-fix.md](definer-search-path-narrow-fix.md) |
 | DEFINER-TEMP-TABLE-CONVERGENCE | The four temp-table DEFINERs converge to search_path = '' by narrow ALTER FUNCTION, and the 419 freeze shrinks by exactly four rows | ✅ complete | fup-fix | AUTHZ | `definer-temp-table-convergence` | [definer-temp-table-convergence.md](definer-temp-table-convergence.md) |
 | DOCS-CONSOLIDATION | Documentation consolidation — one home per fact, one summary and one log per unit (ADR 0186) | ✅ complete | feature | DOCS | `docs-consolidation` | [docs-consolidation.md](docs-consolidation.md) |

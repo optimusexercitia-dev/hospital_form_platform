@@ -402,3 +402,15 @@ the dollar-quote gap and its two bounds. ⛔ The `## Current state` block was NO
 round changes no `plan()` and no assertion text — the `Files=270, Tests=9064` witness above is for
 bytes that differ only in comments — but it is the lead's call whether the gate record wants it
 re-earned on the final bytes.
+
+### 2026-09-12 — step 4 human approval; step 5 record (lead)
+
+**Step 4.** Presented built / tests / QA verdict / open risks (the `execute` and dollar-quote bounds, the
+hand-literal figures, the undeclared class's live enforcer, `plpgsql_check` unverified on the production
+image). PO: *"Approved"* (option "Approved" — record step including the fast-forward of `main`).
+
+**Step 5.** `FUP-DEFINER-SEARCH-PATH-NARROW-FIX-QUALIFIED-BODY-CLAUSE-OF-D4-IS-UNGATED` moved verbatim to
+the archive with a RESOLVED block naming the four closing commits and the two stated bounds; ledger row
+appended (Commit cell filled after the phase commit); hub → `complete`, its `## Current state` cut; no
+handoff existed for this branch (`docs/handoffs/` holds only the pre-AE5 successors handoff, not this
+unit's). Gate runs at this step are in the phase commit message and the ledger row.
