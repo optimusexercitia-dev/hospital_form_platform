@@ -195,3 +195,48 @@ with `T` a constrained type parameter.
 **Commits** (branch `ae5-role-catalog-compat`, not pushed): `7327d498` red-first cells · `6fe4289e`
 the migration · `f767308f` the TS collapse · `29bb5293` the generator + artifact + 411 · `5f72c11b`
 the re-keys · `ac55a1ce` the RPC registry.
+
+### 2026-09-12 — Phase Gate step 1 (lead): the four authz arms, the deriver, the targeted case, the set-valued arm
+
+Every row is read from a copy kept under `.dsp-gate-evidence/ae5-role-catalog-compat/` (repo-local,
+excluded through `.git/info/exclude`, never committed); bare exit codes, nothing piped. Base for the
+diff-scoped derivation: `main @ 975fb4dd`.
+
+```
+ARM=census                                          rc 0   INVARIANT HOLDS — live authz gates 581 / gates carrying a verdict 608 / extension-owned 0
+ARM=hat                                             rc 0   INVARIANT HOLDS — 4 finding(s), all reasoned-allowlisted (incl. public.assume_role(p_role text), the re-keyed entry)
+ARM=floor                                           rc 0   INVARIANT HOLDS — 63 never-called doors, every one on the floor allowlist; every entry resolves
+FROMFINDINGS=1 ARM=wrapper                          rc 0   INVARIANT HOLDS — BLIND set 41, every BLIND wrapper on the allowlist
+git diff --stat -- docs/reviews/authz-door-audit-findings.md   EMPTY (after all four arms)
+SELFTEST=1 bash scripts/door-sweep-cases.sh         rc 0   SELF-TEST: PASS 46 · FAIL 0 · SKIPPED 0
+  --- GROUP deriver:               scenarios 20 (pass 20 · fail 0 · skipped 0)
+  --- GROUP merge helper:          scenarios 18 (pass 18 · fail 0 · skipped 0)
+  --- GROUP audit startup capture: scenarios 8 (pass 8 · fail 0 · skipped 0)
+bash --version                                      GNU bash, version 5.2.37(1)-release (x86_64-pc-msys)
+bash scripts/door-sweep-cases.sh 975fb4dd           rc 1   FINDING (1) — DOORS IDENTIFIED: 1. SWEEPABLE BY THIS ARM: 0.  → RULED below
+  SCOPE: 1 file(s) — 1 committed (975fb4dd..HEAD), 0 worktree, 0 untracked | filter: none | derivation: catalog
+  door named: assume_role (prosecdef, returns void — outside PRED_DOMAIN)
+CASES="public.assume_role" bash …/authz-command-door-targeted-cases.sh   rc 0   RESULT: 1 of 1 case(s) COVERED — CASE 2 public.assume_role(text): 2a/2b fingerprints restored, VERDICT COVERED
+bash …/authz-setvalued-targeted-cases.sh             rc 0   ARM-DOMAIN setvalued=3/3 (in scope) out-of-scope=2 (named, with dispositions) — RESULT: CLEAN
+  preflight baseline (captured by the harness)             Result: PASS, Files=271, Tests=9099; suite after restore: PASS (Files=271, Tests=9099)
+```
+
+**Exit 1 RULED.** The deriver resolved exactly one door in the diff — the new
+`public.assume_role(p_role text)` — and it is outside the predicate arm's domain (returns `void`), so
+**no door sweep ran and none is claimed**: ⛔ the *"no gate changed"* obligation is provably false
+for this diff and is not written. The discharge is the TARGETED case above (`CASE 2` in
+`authz-command-door-targeted-cases.sh`, re-keyed by the build onto the text signature), which
+mutates the `app.is_active` lines and shows `418` noticing with `408` as discrimination. ⚠ **What
+that case covers and does not**: it neutralises ONE of the door's three gates (account state). The
+other two — `session_selectable` and the caller's real assignment — are covered by DATA-level
+mutations (`408 § 3` flips the catalog row; `408 § 5` deletes the caller's membership; `422 § 2`
+red-first), not by a body mutation; that parity with the pre-existing `408 § 3` shape is stated
+here for QA to rule on, not assumed equivalent to a body mutation. The policy arm did not run
+because no case list exists — ⛔ not a *"0 of 226"* verdict; the migration creates and alters no
+RLS policy (`select count(*) from pg_policies where coalesce(qual,'')||coalesce(with_check,'') ilike
+'%platform_role%'` → 0 before; the migration's only DDL on a policy-bearing table is the column
+retype on `app.active_role_selections`, whose one policy `active_role_selections_select_own` is
+unchanged — `pg_policies` re-read after the reset).
+
+Tester spawned for `npm run e2e:prod` after these runs (the harnesses restore the stack; the tester
+resets fresh regardless).
