@@ -13764,3 +13764,78 @@ Measured 2026-09-11 while building `421`: `select count(*) from pg_extension whe
 **Status:** open
 
 Measured: `scripts/check-rules-staleness.mjs` `MAX_RULES = 12` and `.claude/rules/` holds **12/12**; `migrations-forward-only.md` had **1843/2048** bytes of headroom (205) before the line, **1997** after; gate 8 rc 0. The three exits, none taken unilaterally: (a) retire a rule whose lesson a gate now carries (ADR 0127's intended exit — a separate subject); (b) raise the cap (⛔ the "directory that only grows" 0127 escaped); (c) the one-line append, taken. ⛔ Not closed by the line itself — it closes when the PO either accepts (c) as final (then this entry archives with that ruling) or names the rule to retire under (a).
+
+> ⚠ **CORRECTION 2026-09-12, appended beneath the entry it corrects (archive rule 8), same session, later
+> the same day.** The closure note above says the sweep found a retirement candidate whose *"both prohibited
+> moves red pgTAP `386`"*. **That over-claims.** A per-prohibition map of
+> `.claude/rules/profiles-guard-never-widened.md` against `supabase/tests/386_person_doors_acl_and_guard.sql`
+> — predicate by predicate, not by subject — measured **3 of 11** prohibitions/claims CARRIED, 4 PARTIAL,
+> 4 NOT CARRIED. The rule's widening prohibition is ONE sentence with TWO mechanisms, and only the first is
+> gated: *"widening `if auth.uid() is null then return new` — **including via any transaction-local GUC
+> exemption**"*. A guard rewritten to `if auth.uid() is null or coalesce(current_setting('app.x', true),'')
+> = 'on' then return new` leaves **all 24** of 386's assertions green — nothing in the file sets a GUC and
+> nothing pins the arm's `prosrc` — and no assertion anywhere in `supabase/tests/`, `scripts/`, `src/` or
+> `e2e/` closes it either. ⛔ **The ruling ABOVE is unaffected** — exit (c) stands, and the correction makes
+> its "exit (a) declined" conclusion *stronger*, not weaker: the candidate was never eligible. What changes
+> is the reason, which is now ADR 0127's precondition failing outright rather than a judgment about slots.
+> Measured in `FUP-RULES-PROFILES-GUARD-LESSON-IS-NOW-GATE-CARRIED`, closed the same day below.
+
+
+### 🟢 FUP-RULES-PROFILES-GUARD-LESSON-IS-NOW-GATE-CARRIED — the one rule in `.claude/rules/` whose lesson pgTAP `386` now fully carries — ✅ CLOSED 2026-09-12
+
+> **CLOSED 2026-09-12** — ad-hoc lead session, same session that filed it, ADR none. Record:
+> docs/progress/definer-search-path-narrow-fix.md (§ Session log, 2026-09-12 follow-up closure (2)).
+> Closing commit: the commit carrying this rotation.
+> Closed ON its own `Closes when` — **ruled KEPT**, and ⛔ **the PO ruling it asks for was never reached,
+> because the precondition for the other branch turned out to be FALSE.** ADR 0127 permits retirement
+> *"ONLY once something else carries the lesson"*; the measurement below shows nothing does. Declining an
+> action the governing ADR forbids is not a judgment call, so KEPT is recorded on evidence.
+>
+> ⛔⛔ **THIS ENTRY'S OWN HEADING IS THE THING THAT TURNED OUT FALSE.** It says pgTAP `386` *"now fully
+> carries"* the lesson. It does not. The heading travels verbatim (headings are never edited once filed) and
+> this note is the correction standing beside it.
+>
+> **Measured — per prohibition, by PREDICATE, never by subject.** The rule states 11 distinct
+> prohibitions/claims; `386` carries **3 outright, 4 partially, 4 not at all**. ✅ CARRIED: granting
+> `authenticated` EXECUTE on a person door (§ 1.3's `has_function_privilege` `string_agg`, all four named
+> doors plus two more, with § 1.1's `= 6` cardinality and § 1.2's NULL-`proacl` trap blocking a vacuous
+> pass); UNCONDITIONAL widening of the trusted-caller arm (§ 3.2 / § 3.3 flip from `throws_ok … '23514'` to
+> a successful `update`, with § 3.0 and § 3.1 as the non-vacuity controls). ⛔ **NOT CARRIED — and it is the
+> mechanism the rule names FIRST**: *"including via any transaction-local GUC exemption"*. A guard rewritten
+> to `if auth.uid() is null or coalesce(current_setting('app.x', true),'') = 'on' then return new` leaves
+> **all 24** assertions green — 386 never sets a GUC and never pins the arm's `prosrc`; `400`'s `pg_temp.src`
+> grep reads the guard body but only for `app.person_is_anchorless` / `organization_affiliations` / `new.id`.
+> Nothing in `supabase/tests/`, `scripts/`, `src/**/*.test.*` or `e2e/**` closes it. Also uncarried: the
+> predicted `check_violation` cascade (386 prevents the state, never demonstrates the consequence), the
+> `set_config`-reachability claim, `is_active` as a member of the column-grant claim, and the
+> `USING (id = auth.uid())` SHAPE of `profiles_update_self` (pinned in `387` A2 and `371`, not in `386`).
+>
+> **Second, independent ground — the blast radius, which no gate can see.** Two live citations point AT the
+> rule file by path: `supabase/migrations/20261003006400_adr0166_demotion_tenant_anchor_backstop.sql:100`
+> (*"`.claude/rules/profiles-guard-never-widened.md` forbids WIDENING it. This arm NARROWS, which is the
+> permitted direction."* — a DIRECTIONAL argument whose authority is the rule) and
+> `supabase/tests/400_adr0166_demotion_tenant_anchor_backstop.sql:25` (*"the column grant is not the
+> protection — … says so independently"*). ⛔ The first is inside an APPLIED migration, so
+> `.claude/rules/migrations-forward-only.md` forbids ever editing it: a citation orphaned there is permanent
+> and unfixable. And **no gate resolves inbound citations into `.claude/rules/`** — gate 8 walks only
+> rule → anchor (`:238-254`, file set `:402` is the rules dir alone) and gate 13's retired-citation arm
+> matches PROGRESS.md SECTION NAMES (`RETIRED_SECTION_RX`, `:253`), never a path. Both would dangle silently.
+>
+> ⚠ Recorded so the sweep is not re-run: gate 8 has **no minimum population** — `checkPopulation(11)` and
+> `checkPopulation(12)` both return `[]` (`:282-291`), so retiring buys exactly one slot and nothing else,
+> and the slot has had no claimant since the cap follow-up closed on exit (c). The rule's three `anchors:`
+> all still resolve (386 § 3.2's description twice, `20261003004610_person_profile_doors.sql:29`).
+>
+> ⛔ **What this closure does NOT reach, and what it SPAWNED.** The GUC-exemption variant of the widening is
+> ungated by anything in the repo — an authz keystone with a hole its own rule file names in the first
+> sentence. That is a gate gap, not a ruling, and it is filed as
+> `FUP-RULES-GUARD-TRUSTED-CALLER-ARM-GUC-EXEMPTION-IS-UNGATED`. ⚠ No live exposure is claimed here: no such
+> GUC exists in the guard today. What is measured is that nothing would red if one were added.
+>
+> ⛔ **The entry block below is VERBATIM, its `Closes when` included.**
+
+**Filed:** 2026-09-12 (ad-hoc lead session — the 12-rule sweep taken while ruling the `.claude/rules/` cap, `FUP-DEFINER-SEARCH-PATH-NARROW-FIX-RULES-CAP-DEFERS-THE-D5-HINT-FILE`) · **Owner:** lead + PO · **Severity:** low — nothing goes unenforced either way; what is at stake is a slot in a directory sitting at 12/12 and a rule whose prominence is now redundant
+**Closes when:** the PO either rules `profiles-guard-never-widened.md` **RETIRED** to `docs/progress/rules-archive.md` under ADR 0127's exit clause — with pgTAP `386` named in the archive row as the thing that carries the lesson — or rules it **KEPT**, with the reason recorded in this entry so the sweep is not re-run the next time the population cap binds
+**Status:** open
+
+Measured 2026-09-12, all 12 rule files against the literal `lint` chain in `package.json` and against `supabase/tests/`: `profiles-guard-never-widened.md` (*"`guard_profile_privileged_columns`' trusted-caller arm is NEVER widened"*) is the ONLY one whose prohibitions a live gate reds on — `supabase/tests/386_person_doors_acl_and_guard.sql`, inside `npm run test:db`: § 1.3 (`authenticated` holds EXECUTE on none of the person doors), § 3.2 (a signed-in caller cannot self-elevate to `is_admin`), § 3.3 (`suspended_until`); the test's own header says *"Granting a door to `authenticated` reds 3.3 alone"*. That is ADR 0127 Amendment 1's `print-door.md` shape exactly — retired for being *"too broad, and **already enforced**"*. ⚠ Two near-misses are NOT candidates: `answer-maps.md` and `ui-copy-forbidden-strings.md` have the *property* gated but the *method* half unenforced, and the vitest specs backing the latter are not in `npm run lint`. Six rules state in their own text that the rule is the only witness. ⛔ Not closed by retiring it to buy a slot — ADR 0127: *"Nothing reads the archive"*, so retirement is a deletion of prominence, and the slot has no claimant since the cap follow-up closed on exit (c). ⛔ Not a byte-cap item: this file has 127 of 2048 bytes free; the cap that binds it is the population.

@@ -448,3 +448,60 @@ zero headroom and held) with the closure note carrying both stale-figure correct
 appended to the open register · `RULES` added to `docs/followups/legacy-codes.md` (gate 13 requires a
 registered code prefix; `FUP-RULES-VOLUME-CAPS-…` had been using it unregistered) · hub untouched, it is
 already `complete` · no ADR (D5 and 0127 both already say what was needed) · `npm run lint:registers` rc 0.
+
+### 2026-09-12 — follow-up closure (2): the profiles-guard retirement candidate ruled KEPT, and my own earlier claim corrected (lead)
+
+Same ad-hoc session as the entry above; no code, no migration, no gate change. Closes
+`FUP-RULES-PROFILES-GUARD-LESSON-IS-NOW-GATE-CARRIED`, filed earlier today by this session.
+
+⛔ **CORRECTION to the entry above.** It states the sweep found a candidate *"both of whose prohibitions red
+pgTAP `386` (§ 1.3, § 3.2, § 3.3)"*, and the archive closure note says the same. **That over-claims, and the
+over-claim is mine.** The first sweep matched by SUBJECT — a rule about `guard_profile_privileged_columns`,
+a test about `guard_profile_privileged_columns`. A second pass mapped by PREDICATE, prohibition by
+prohibition, and the two do not agree. A dated correction is appended beneath the archive entry (archive
+rule 8 — the entry itself is not edited).
+
+**Measured — 11 prohibitions/claims, `386` carries 3 outright, 4 partially, 4 not at all.** ✅ The grant half
+is fully enforced: § 1.3's `has_function_privilege` `string_agg` over all four named person doors plus two
+more, non-vacuous by § 1.1's `= 6` cardinality and § 1.2's NULL-`proacl` trap. ✅ UNCONDITIONAL widening is
+enforced: § 3.2 / § 3.3 flip from `throws_ok … '23514'` to a successful `update`, with § 3.0 (trigger lives)
+and § 3.1 (`lives_ok` on `full_name`) as the non-vacuity controls. ⛔ **The mechanism the rule names FIRST is
+not**: *"including via any transaction-local GUC exemption"*. `if auth.uid() is null or
+coalesce(current_setting('app.x', true),'') = 'on' then return new` leaves **all 24** assertions green — 386
+never calls `set_config` and never reads the arm's source, and `400`'s `pg_temp.src()` grep (`:103-118`)
+reads the guard body only for `app.person_is_anchorless` / `organization_affiliations` / `new.id`. Also
+uncarried: the predicted `check_violation` cascade (the state is prevented, the consequence never
+demonstrated), the `set_config`-reachability claim, `is_active` in the column-grant claim, and
+`profiles_update_self`'s `USING (id = auth.uid())` SHAPE (pinned in `387` A2 and `371`, not in `386`).
+
+**The ruling: KEPT — and the PO ruling the entry asked for was never reached**, because the other branch's
+precondition is false. ADR 0127 permits retirement *"ONLY once something else carries the lesson"*; nothing
+does. Declining an action the governing ADR forbids is not a judgment call.
+
+**Second, independent ground — a blast radius no gate can see.** Two live citations point at the rule file
+BY PATH: `supabase/migrations/20261003006400_adr0166_demotion_tenant_anchor_backstop.sql:100` (*"forbids
+WIDENING it. This arm NARROWS, which is the permitted direction."* — a directional argument whose authority
+IS the rule) and `supabase/tests/400_adr0166_demotion_tenant_anchor_backstop.sql:25` (*"the column grant is
+not the protection — … says so independently"*). ⛔ The first sits in an APPLIED migration, so
+`migrations-forward-only.md` forbids ever editing it — orphaning it is permanent and unfixable. And **no
+gate resolves inbound citations into `.claude/rules/`**: gate 8 walks only rule → anchor (`:238-254`; its
+file set `:402` is the rules directory alone), gate 13's retired-citation arm matches PROGRESS.md SECTION
+NAMES (`RETIRED_SECTION_RX`, `:253`), never a path. Both would dangle silently.
+
+⚠ Recorded so the sweep is not re-run: gate 8 has **no minimum population** — `checkPopulation(11)` and
+`checkPopulation(12)` both return `[]` (`:282-291`) — so retiring buys exactly one slot and nothing else,
+and the slot has had no claimant since the cap follow-up closed on exit (c). The rule's three `anchors:` all
+still resolve.
+
+**Spawned, not solved here:** `FUP-RULES-GUARD-TRUSTED-CALLER-ARM-GUC-EXEMPTION-IS-UNGATED` (🟡 medium) —
+the GUC variant has no enforcer anywhere in the repo. ⚠ No live exposure: the arm is clean today; what is
+measured is that nothing would red if a GUC disjunct were added. Building that assertion is backend work
+behind a Phase Gate, not an ad-hoc doc session.
+
+**Record step:** entry moved VERBATIM open → archive (`cmp`-verified before the source was cut; the
+`archiveMissingClosesWhen` ratchet held at 121/121) · a dated correction appended beneath the PREVIOUS
+closure, which is what it corrects · one new entry appended to the open register (`RULES` code, registered
+earlier today) · `npm run lint:registers` rc 0, archived follow-ups 170 → 171, open held at 230 (one out,
+one in). ⚠ `supabase db reset` was NOT run: a peer interactive session was live in this single checkout
+(`git worktree list` → one entry) and a peer pgTAP run deadlocks a reset — the 2026-09-12 lesson in
+docs/worktrees.md §1. Every verdict above is a read of committed text, never a suite run.
