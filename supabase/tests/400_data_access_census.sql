@@ -73,7 +73,7 @@ from (
 -- The pins, generated from the same census that produced the documentation.
 create temporary table _dac_pin (kind text, rows bigint, digest text);
 insert into _dac_pin (kind, rows, digest) values
-  ('rpc', 555, '90de15fbe48e1250668ae9516070c9aa'),
+  ('rpc', 555, 'ba4f033b4a0ee9dcb024fa9633db9ba2'),
   ('helper', 526, '5a4a5161f9c3830e7e267ab3f930ea5d'),
   ('flags', 43, 'e5ae44b11aa59c918274e3b15411bd6b');
 

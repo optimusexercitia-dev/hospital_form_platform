@@ -4,7 +4,7 @@
 > one file you need and carries the maintenance rules in full. ⛔ A posted section is FROZEN:
 > correct it by APPENDING a `⚠ **Superseded** — … See <file> § <heading>.` marker, never in place.
 
-<!-- DATA-ACCESS-ANCHOR kind=rpc schema=public rows=555 definer=465 invoker=90 trigger=22 aclnull=0 digest=90de15fbe48e1250668ae9516070c9aa -->
+<!-- DATA-ACCESS-ANCHOR kind=rpc schema=public rows=555 definer=465 invoker=90 trigger=22 aclnull=0 digest=ba4f033b4a0ee9dcb024fa9633db9ba2 -->
 
 ⚙ **GENERATED FILE — do not edit by hand.** Every row below is derived from the LIVE
 CATALOG and from `src/` by `scripts/gen-data-access-surface.mjs`; rebuild with `npm run data-access:surface`.
@@ -94,7 +94,7 @@ legal-privileged documents.
 | `public.assign_org_admin` | `p_org uuid, p_user uuid` | `void` | **definer** | volatile | `authenticated=X/postgres,postgres=X/postgres,service_role=X/postgres` |
 | `public.assign_referral_internal_note` | `p_note_id uuid, p_user_id uuid` | `referral_internal_note_public` | **definer** | volatile | `authenticated=X/postgres,postgres=X/postgres,service_role=X/postgres` |
 | `public.assign_referral_reviewer` | `p_referral_id uuid, p_commission_id uuid, p_assignee_user_id uuid, p_assignment_role text, p_due_at timestamp with time zone` | `referral_assignments` | **definer** | volatile | `authenticated=X/postgres,postgres=X/postgres,service_role=X/postgres` |
-| `public.assume_role` | `p_role platform_role` | `void` | **definer** | volatile | `authenticated=X/postgres,postgres=X/postgres,service_role=X/postgres` |
+| `public.assume_role` | `p_role text` | `void` | **definer** | volatile | `authenticated=X/postgres,postgres=X/postgres,service_role=X/postgres` |
 | `public.attach_controlled_document_version_file` | `p_version_id uuid, p_core_version_id uuid, p_summary_of_changes_md text, p_expiry_date date` | `controlled_document_versions` | **definer** | volatile | `authenticated=X/postgres,postgres=X/postgres,service_role=X/postgres` |
 | `public.attest_dsr_task` | `p_task_id uuid, p_reviewer_name text, p_redactions integer, p_note text` | `void` | **definer** | volatile | `authenticated=X/postgres,postgres=X/postgres,service_role=X/postgres` |
 | `public.audit_trail_enabled` | — | `boolean` | **definer** | stable | `authenticated=X/postgres,postgres=X/postgres,service_role=X/postgres` |
