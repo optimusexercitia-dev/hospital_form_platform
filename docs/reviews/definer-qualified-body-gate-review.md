@@ -1,4 +1,4 @@
-# DEFINER-QUALIFIED-BODY-GATE — QA review (r1)
+# DEFINER-QUALIFIED-BODY-GATE — QA review (r1 + r2)
 
 > Unit hub: [definer-qualified-body-gate.md](../features/definer-qualified-body-gate.md) ·
 > record: [definer-qualified-body-gate.md](../progress/definer-qualified-body-gate.md) ·
@@ -340,3 +340,193 @@ None of the three is a gap I would hold the approval on.
 one matcher, two comment clauses) and none of them changes an assertion's verdict on today's
 population. If they are fixed, `421` must be re-run for the `Files=2, Tests=17` witness; the full
 suite need not be, since none of the three touches `plan()`.
+
+---
+
+## Round 2 (2026-09-12)
+
+> Scope: commit `13e6cd80` (`test(definer-qualified-body-gate): QA r1 MINORs corrected …`), 4 files
+> / +250 / −27, plus `d3dab363` (record only). Reviewer: `qa`, 2026-09-12, branch
+> `definer-qualified-body-gate` @ `d3dab363`. Read-only on code, tests, scripts and every doc but
+> this one; nothing outside this file was written, nothing was committed, the working tree is clean
+> (`git status --porcelain` empty) and the local stack was left as found.
+>
+> ⛔ **My r1 closing note was WRONG and the backend caught it, not me.** It said the full suite need
+> not be re-run "since none of the three touches `plan()`". The MINOR-1 remedy needed two new
+> controls, so `plan(16) → plan(18)` and the suite total moved by 2. The record says so in its own
+> words and the lead re-earned the witness. Recorded here so the erratum lives beside the claim.
+
+**Verdict: APPROVED**
+
+Counts this round — **BLOCK 0 · MAJOR 0 · MINOR 1 (new: MINOR-4) · NOTE 1**. MINOR-1, MINOR-2 and
+MINOR-3 are all **CLOSED**, each on a witness I re-earned rather than read off the record. MINOR-4 is
+a residual of MINOR-1's own class that the correction's header explicitly names and mis-rules the
+DIRECTION of; it is **not live** (0 of the 29) and, unlike r1's four shapes, it cannot go unnoticed —
+`§ 1b` pins the raw relname set and reds if it moves.
+
+### 3.1 Closure per finding
+
+| Finding | Verdict | Witness |
+|---|---|---|
+| **MINOR-1** — exclusion has no right-hand boundary and matches non-executable text | ✅ **CLOSED** | `421:231-233` now `r.exec_src ~* ('\mcreate\s+temp(orary)?\s+table\s+(if\s+not\s+exists\s+)?' \|\| regexp_replace(r.relname,'([^[:alnum:]])','\\\1','g') \|\| '\M')`, with `exec_src` built at `421:204-208` by a three-stage scrub. All four r1 over-match shapes now read **KEPT**; the legitimate exclusions still read **EXCLUDED**. Probe table below. |
+| **MINOR-2** — the control certifying the bound used a LOOSER matcher (`like`, unescaped `_`) | ✅ **CLOSED** | `grep -n "position('\"'" 421…sql` → **three** hits, lines **437 (§ 3d)**, **453 (§ 3f)**, **469 (§ 3g)**, each `position('"' \|\| r.relname \|\| '"' in f.message) > 0`. `grep -n "like '%"` returns only the two COMMENT lines 428/430 that explain the change. The four surviving `like` uses (151, 390, 393, 550) are fixed literals with `\_` escaped, no relname interpolation. |
+| **MINOR-3** — two carriers named only the `execute` bound | ✅ **CLOSED** | `scripts/gen-definer-search-path-freeze.mjs` now reads *"421's FIRST STATED BOUND … ⛔ AND ITS SECOND: the temp-table EXCLUSION"*; `419`'s header now reads *"Its FIRST STATED BOUND is dynamic SQL … ⛔ Its SECOND is the temp-table EXCLUSION"*. Both name `421 § 3d`/`§ 3f`/`§ 3g`. `419` **assertion-unchanged**: `git diff 6fd0bfdb..HEAD -- supabase/tests/419_definer_search_path_freeze.sql \| grep -E '^[+-]' \| grep -v '^[+-][+-]' \| grep -v '^[+-]-- ' \| wc -l` → **0** (26 `^[+-]` lines total, all comment). Gate 18 re-run by me: `--self-test: OK (17 cases)` · `in sync (861 frozen … baseline main (6fd0bfdb43bb))`. |
+
+### 3.2 The probe — byte-exactness first, then the shapes
+
+⛔ My r1 warning stands and I obeyed it: **no shell heredoc ever held the load-bearing text.** Both
+expressions were extracted from the tracked file with `sed -n` line slices, concatenated with `cat`
+into the probe, `docker cp`'d into `supabase_db_azkbbhskturikxpgmafq`, and the probe file's own
+copies were then re-extracted and `cmp`'d back. Identity, not assertion:
+
+```
+sha256  614e1dc2323f22c40cb2ef2fa3b5cc97169fa30f30e27b8463b9f4eead878d32   probeA.txt == trackedA.txt   (421:201-208, the exec_src scrub)
+sha256  0a2f75f01c9ebc67f206c5e5791796fa56ec593d9b13244be5f3447d832c0656   probeB.txt == trackedB.txt   (421:225-233, the exclusion)
+docker copy sha256 8402bcd16d898c4a55334415814176c831eed1329780c61b045a80bef9598afd  (host == container)
+```
+
+`trackedA/B` came from `git show HEAD:supabase/tests/421_definer_qualified_body.sql`, and the
+worktree file is identical to that blob (`git diff --stat HEAD -- …421….sql` empty), so the
+expression I probed is the expression that is committed. The probe drives the **real**
+`v421_plpgsql_raw` / `v421_plpgsql_findings` view text over a synthetic `probe` relation, so the
+`relname` derivation (`substring(f.message from 'relation "([^"]+)" does not exist')`) is exercised
+too, not stubbed.
+
+```
+    case_label     |     relname      | verdict            expected / r1 result
+-------------------+------------------+----------
+ A1_EXACT          | _x               | EXCLUDED   the legitimate exclusion still fires (r1: true)
+ A2_PREFIX_xy      | _x               | KEPT       <-- r1 said `true` (over-match). FIXED
+ A3_PREFIX_abc     | ab               | KEPT       <-- r1 said `true` (over-match). FIXED
+ A4_SUFFIX         | _x               | KEPT       unchanged from r1
+ B1_LINECOMMENT    | foo              | KEPT       <-- r1 said `true` (over-match). FIXED
+ B2_STRINGLIT      | foo              | KEPT       <-- r1 said `true` (over-match). FIXED
+ B3_BLOCKCOMMENT   | foo              | KEPT       new shape, /* … */ scrubbed
+ C1_METACHAR       | .*               | KEPT       the escape still works (r1: false)
+ C2_METACHAR_EXACT | a.b              | EXCLUDED   the escape did NOT over-tighten a real name
+ D1_D6_SHAPE       | _copy_answer_map | EXCLUDED   the live D6 shape still excused
+ D2_TEMPORARY_IFNE | _x               | EXCLUDED   `create temporary table if not exists` still excused
+ E1_42883_NOTEMPT  | (null)           | KEPT       the exclusion is 42P01-only
+ F1_LEFTGLUE       | _x               | KEPT       new `\m` left anchor: `xcreate temp table _x` excuses nothing
+```
+
+Both directions are covered: the four r1 over-matches flipped to KEPT, and A1 / C2 / D1 / D2 prove
+the anchor and the scrub did **not** over-tighten the exclusion the four ADR 0208 D6 DEFINERs
+depend on. The live catalog agrees — `§ 1c` is green on a real run with the exclusion in place.
+
+### 3.3 Non-vacuity — three mutants, each one line, each on a COPY
+
+Copies live in my scratchpad; `supabase/tests/` was never written to. Each was run
+`supabase test db supabase/tests/00_setup.sql <copy>`.
+
+| Mutant | The one-line change | Result |
+|---|---|---|
+| **M0 unmutated** (`cmp` identical to the tracked file) | — | `All tests successful.` · **`Files=2, Tests=19`** · `Result: PASS` |
+| **M1 — `\M` anchor removed** (`\|\| '\M'));` → `\|\| ''));`, diff is exactly line 233) | drops the right-hand bound | **`Failed test 14`** = `§ 3f`, `have: _x=EXCLUDED \| _xy=EXCLUDED` / `want: _x=KEPT \| _xy=EXCLUDED`; `Failed 1/18`; `Files=2, Tests=19` · `Result: FAIL` |
+| **M2 — raw `src` for `exec_src`** (`r.exec_src ~* (` → `r.src ~* (`, diff is exactly line 231) | drops the scrub | **`Failed test 15`** = `§ 3g`, `have: _cmt=EXCLUDED \| _lit=EXCLUDED` / `want: _cmt=KEPT \| _lit=KEPT`; `Failed 1/18` · `Result: FAIL` |
+| **M3 — exclusion made DEAD** (`'\mcreate\s+temp` → `'\mzcreate\s+temp`) — mine, not asked for | proves the OTHER half of each control | `Failed tests: 7, 13-14, 18` — `§ 1c` reds on the 17 real D6 rows, **`§ 3d` `have: _x=KEPT \| profiles=KEPT`**, **`§ 3f` `have: _x=KEPT \| _xy=KEPT`**, `§ 5` reds |
+
+M1 and M2 give each new assertion a discriminating mutation; **M3 is why I ran a third** — M1 only
+exercises `§ 3f`'s `_x=KEPT` half and M2 only flips both of `§ 3g`'s, so without M3 the
+`_xy=EXCLUDED` half of `§ 3f` and the whole of `§ 3d` under its **new** `position()` matcher would
+have been assertions no mutation had ever moved (r1's evidence was against the old `like` matcher,
+which is not the text that ships). Every one of the four halves is now measured live.
+
+`plan(18)` is exact: 17 `select is(` + 1 `select ok(` = **18**, and the runner prints no *Bad plan*.
+Savepoint windows are **282–305** and **497–518**; the 18 assertion line numbers are 121, 132, 168,
+179, 244, 254, 263, 309, 318, 398, 408, 417, 432, 448, 464, 521, 536, 549 — **none inside either
+window**. RUN SHAPE header line and `plan()` agree (`Files=2, Tests=19`).
+
+### 3.4 The live population, re-measured (not read off the record)
+
+`app`/`public`/`authz` `prosecdef`, 421's own `sp` expression, live catalog: **total 890 · empty 29
+· 18 plpgsql · 11 sql**, `mentions_create_temp = 4` — unchanged, so the tightened exclusion did not
+shift the domain. Stack left as found: `ext=none` (no `pgtap`, no `plpgsql_check` in
+`pg_extension`), `z421_procs=0`, `plpgsql_check_procs=0`, `extensions_schema_objs=0`; the five files
+I `docker cp`'d into `/tmp` were removed.
+
+### 3.5 New finding
+
+#### MINOR-4 — the header's gap list gets the DOLLAR-QUOTE gap's direction backwards, and two carriers inherit the over-claim
+
+`supabase/tests/421_definer_qualified_body.sql:88-92`:
+
+```
+-- ⛔ THE SCRUB IS A REGEX CHAIN, NOT A LEXER, AND ALL THREE OF ITS GAPS ERR TOWARD KEEPING A
+-- FINDING (over-report, the safe direction): a DOLLAR-QUOTED string (`$q$…$q$`) is not stripped,
+-- a nested `/* /* */ */` strips only to the first `*/`, and an unbalanced apostrophe makes the
+-- literal rule swallow on to the next one. Swallowing MORE text can only take a
+-- `create temp table` out of view, which KEEPS a finding; it can never invent one.
+```
+
+The reasoning is right for two of the three and **inverted for the first**. Nested comments and an
+unbalanced apostrophe make the scrub swallow **MORE** — safe. A dollar-quoted literal makes it
+swallow **LESS**: the prose survives into `exec_src`, so a `create temp table foo` written inside
+`$q$…$q$` **excuses a real finding on `foo`** — MINOR-1's exact unsafe direction, one quoting syntax
+over. Measured against the same byte-exact expression (`probe2`, fragments `cmp`-identical to the
+tracked file):
+
+```
+       case_label        | relname | verdict
+-------------------------+---------+----------
+ G1_DOLLARQUOTED_PROSE   | foo     | EXCLUDED   <-- unsafe: prose in $q$…$q$ excused a real finding
+ G2_DOUBLEDOLLAR_PROSE   | foo     | EXCLUDED   <-- same, with the $$…$$ form
+ G3_NESTED_BLOCKCOMMENT  | foo     | KEPT       safe, exactly as the header predicts
+ G4_SLASHSTAR_IN_LITERAL | _x      | KEPT       safe (a 4th gap the list omits: `/*` inside a literal)
+ G5_ESCAPE_STRING_PROSE  | foo     | KEPT       safe, E'…' is stripped by the literal rule
+ G6_DOLLARTAG_UNQUOTED   | _x      | EXCLUDED   correct — this body really does create the temp table
+```
+
+The over-claim propagates into MINOR-3's own fix text: `scripts/gen-definer-search-path-freeze.mjs`
+and `419`'s header both now say the exclusion excuses *"not a `create temp table` written in a
+comment or a string literal"* — and a dollar-quoted literal **is** a string literal in SQL. `§ 3g`'s
+own message is precise (*"inside a single-quoted literal"*) and is not at fault.
+
+**Why MINOR and not MAJOR.** (a) **Not live**: over the real 29, `src ~ '\$[A-Za-z_]*\$'` → **0**
+(and `src ~ '/\*'` → 0; 18 carry `--` comments, which the scrub handles). (b) **It cannot arrive
+unnoticed.** `§ 1b` pins `string_agg(distinct relname)` over the **raw**, pre-exclusion finding set
+at exactly the five D6 names, so a future body that excused a `foo` this way would add `foo` to that
+set and red `§ 1b` — whose message already says *"a name appearing or leaving here means the
+exclusion set moved and must be re-reasoned, never re-baselined"*. That is a designed tripwire, not
+an incidental guard.
+
+**Remedy (comment-only, no assertion changes).** Split the header's sentence: swallowing MORE
+(nested comments, unbalanced apostrophes, `/*` inside a literal) is the safe direction; the
+dollar-quote gap swallows LESS and is the **unsafe** one, held today by `§ 1b`'s pinned relname set
+and by `with_dollar_quote = 0` over the population. Then narrow both carriers' *"a comment or a
+string literal"* to *"a comment or a single-quoted literal"*. ⛔ Do **not** bolt a dollar-quote
+stripper onto the chain to make the sentence true — a fourth regex stage is a fifth gap; the honest
+bound plus `§ 1b` is worth more than a longer chain.
+
+### 3.6 Note
+
+- **NOTE-5 — the seam slice is now TRUE but names only one of the three mechanisms.**
+  `docs/backend-state/authorization-and-audit.md:1355` still reads *"⛔ It excuses nothing else, and
+  the relation name is regex-escaped before interpolation so an identifier carrying a metacharacter
+  cannot widen it."* r1 cited that sentence as contradicted; with the anchor and the scrub in place
+  it is accurate, so leaving it unedited is the right call and the record says so explicitly. It
+  does, however, credit the bound to the escape alone, where three things now deliver it. One clause
+  at the record step, not a finding.
+
+### 3.7 What I could NOT verify this round
+
+1. **The full `npm run test:db` on a fresh `supabase db reset`** — **not re-run** by me. The lead's
+   witness in `docs/progress/definer-qualified-body-gate.md` reads `All tests successful.` ·
+   **`Files=270, Tests=9064, 126 wallclock secs`** · `Result: PASS`, re-earned on the corrected bytes
+   after a fresh reset, and the `+2` it reports is exactly `§ 3f` and `§ 3g`. Consistent with the
+   `plan(16) → plan(18)` I counted and with the `Files=2, Tests=19` I ran four times; unchallenged by
+   anything I measured, but it is the lead's measurement, not mine.
+2. **`npm run lint` end to end** — not re-run; I ran only gate 18 (`lint:definer-freeze`), which is
+   the one this diff could break, and it is green. The record's `rc 0, 18 gate invocations` stands
+   on the lead's run.
+3. **The door sweep and the four authz arms** — not re-run; unchanged from r1 (0 migrations in the
+   diff, and this round adds none).
+4. **`plpgsql_check`'s behaviour on the production Postgres image** — unchanged from r1.
+
+---
+
+**Verdict (r2): APPROVED** — the three r1 MINORs are closed on re-earned witnesses, both new
+assertions are non-vacuous with each of their four halves moved by a mutation, `plan(18)` is exact
+and `419` is assertion-unchanged. MINOR-4 is comment-only, not live over the 29, and already
+tripwired by `§ 1b`; it should be corrected in place at the record step and does **not** require a
+re-run of `421` or of the suite.

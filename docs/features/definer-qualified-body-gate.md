@@ -50,11 +50,12 @@ exclusion: a `42P01` on a relation the SAME body creates by `create temp table`;
 - AC-1's no-splice deviation RULED accepted (record entry 2026-09-12). Three follow-ups filed.
 
 ### In progress
-- Step 3: QA r1 **APPROVED** (0/0/3 MINOR/4 NOTE); the three MINORs corrected in place (commit
-  `13e6cd80`: exclusion bounded by `\M` and matched against comment/string-scrubbed text, its control
-  uses `position()` not LIKE, two carriers name both bounds; `plan(16)` → `plan(18)`, RUN SHAPE
-  `Files=2, Tests=19`; two single-token mutants each red exactly one new assertion) → full-suite
-  witness re-earned by the lead → QA r2.
+- Step 3: QA r1 **APPROVED** (0/0/3 MINOR/4 NOTE) → MINORs corrected in place (`13e6cd80`: exclusion
+  bounded by `\M` over comment/string-scrubbed text, control uses `position()`, two carriers name both
+  bounds; `plan(18)`, RUN SHAPE `Files=2, Tests=19`) → suite re-earned `Files=270, Tests=9064` → QA r2
+  **APPROVED**, MINOR-1/2/3 CLOSED, one new comment-only **MINOR-4** (header claims all scrub gaps err
+  safe; the dollar-quote gap does not — 0 of 29 bodies use one, `§ 1b` pins the raw set) + NOTE-5 →
+  `backend` correcting the wording in place (no assertion change) → step 4.
 
 ### Next
 - Step 2 RULED N/A by the PO (2026-09-12): no migration, no `src/`, no policy — nothing the E2E suite
