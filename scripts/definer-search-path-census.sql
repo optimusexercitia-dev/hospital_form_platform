@@ -25,9 +25,14 @@
 -- ⛔ WHAT THE DOMAIN DELIBERATELY EXCLUDES, so a green is not over-read: a DEFINER
 -- carrying NO `search_path` at all (`sp is null`) is `sp_nonempty = false` here and
 -- therefore never enters the frozen set. That population is pinned at 0 by
--- `414_definer_search_path_resolves.sql § 0b` (890 of 890 declare one) and its
--- disposition is the follow-up's open half 1 — it is NOT covered by the freeze, and
--- admitting it would make the ratchet's subset arm ambiguous about which half moved.
+-- `414_definer_search_path_resolves.sql § 0b` (890 of 890 declare one), and its
+-- disposition was RULED on 2026-09-11: such a function is a DEFECT to converge to
+-- `search_path = ''` with a schema-qualified body (ADR 0208 D4), never a member to add
+-- to any frozen set — `414 § 0b` OWNS that finding and carries the remedy in its own
+-- message; `421 § 0c` counts the class as its `undeclared` term and points there.
+-- ⛔ So the exclusion below stays: it is NOT covered by the freeze, admitting it would
+-- make the ratchet's subset arm ambiguous about which half moved, and widening this
+-- domain to swallow the class would hide the gap convergence is supposed to close.
 
 -- >>> BEGIN definer_nonempty_domain <<<
 select n.nspname as schema_name,

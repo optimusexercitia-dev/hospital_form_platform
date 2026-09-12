@@ -127,12 +127,12 @@
 -- `rollback to savepoint` while the TAP stream pg_prove parses is already emitted); pg_prove's
 -- **"Bad plan"** is a FAILURE. See `419`'s header for the full statement of that distinction.
 --
--- RUN SHAPE: `Files=2, Tests=19` (18 here + 00_setup.sql's one). ⛔ Keep this line in step with
+-- RUN SHAPE: `Files=2, Tests=20` (19 here + 00_setup.sql's one). ⛔ Keep this line in step with
 -- plan() — a stale RUN SHAPE is read as the expected shape by the next person diagnosing a
 -- count mismatch.
 
 begin;
-select plan(18);
+select plan(19);
 
 -- ============================================================================
 -- § 0 — THE INSTRUMENT AND THE DOMAIN.
@@ -179,21 +179,41 @@ select p.oid                                                                    
 
 create temp view v421_empty as select * from v421_domain where sp = '""';
 
+-- THE PARTITION'S FOUR COUNTS, DEFINED ONCE. `§ 0c` prints them and `§ 3h` moves them, so the
+-- control exercises the SAME expression the gate prints rather than a hand-written copy of it —
+-- a harness holding its own copy of production text is a control that certifies itself.
+-- ⛔ `n_nonempty` EXCLUDES `<none>` deliberately (2026-09-12). It used to read `sp <> '""'`, which
+-- is TRUE for `<none>`, so an undeclared newcomer was added to the term that names `419` — the
+-- printed line read `891 = 862 non-empty (419) + 29 empty (421) | 1 undeclared` (the QA r1 probe of
+-- unit DEFINER-QUALIFIED-BODY-GATE), double-counting it into a gate whose domain it is not in. With
+-- the exclusion the three terms no longer sum by construction, which is the point: a newcomer moves
+-- the TOTAL and its own term, and `§ 3h` asserts exactly that.
+create temp view v421_partition as
+select (select count(*) from v421_domain)                                    as n_total,
+       (select count(*) from v421_domain where sp <> '""' and sp <> '<none>') as n_nonempty,
+       (select count(*) from v421_domain where sp = '""')                     as n_empty,
+       (select count(*) from v421_domain where sp = '<none>')                 as n_undeclared;
+
 -- 3. THE PARTITION. `419` freezes the NON-EMPTY side (861) and this file gates the EMPTY side (29);
 --    the two must still sum to `414`'s whole population (890). ⛔ Without this, a member that
 --    acquired an `<none>` or some third form would fall out of BOTH gates and neither would red.
--- ⚠ THE `0 undeclared` TERM IS THE NON-TAUTOLOGICAL ONE. `sp <> '""'` and `sp = '""'` sum to the
---    total by construction, so the two middle figures alone prove only arithmetic; the fourth term
---    is what closes the escape — a DEFINER declaring NO `search_path` at all satisfies `<> '""'`,
---    would be counted on 419's side, and is in neither gate's actual domain (`414 § 0b`'s class,
---    whose disposition is still open).
+-- ⚠ THE `0 undeclared` TERM IS THE NON-TAUTOLOGICAL ONE, and the ONLY term a newcomer of that class
+--    moves. It is in NEITHER gate's domain — ⛔ NOT, as this comment said until 2026-09-12,
+--    "counted on 419's side": `scripts/definer-search-path-census.sql`'s `definer_nonempty_domain`
+--    block COALESCES a missing value to `'""'`, so an undeclared DEFINER is `sp_nonempty = false`
+--    there and never enters the frozen set `419` ratchets, while `421`'s own arms read only the
+--    EMPTY form. The false clause was true of the PRINTED STRING and false of the catalog, which is
+--    why the term is now excluded from `n_nonempty` above.
+-- ⭐ THE CLASS IS RULED AND `414 § 0b` OWNS IT (PO 2026-09-11): a `prosecdef` function with no
+--    `search_path` is a DEFECT to converge to `''`, never a member to add to any frozen set. This
+--    term is the COUNT; the remedy and the offender's name live in `414 § 0b`'s red. ⛔ Two gates,
+--    one remedy — do not grow a third assertion here.
 select is(
-  (select count(*) from v421_domain)::text || ' = ' ||
-  (select count(*) from v421_domain where sp <> '""')::text || ' non-empty (419) + ' ||
-  (select count(*) from v421_empty)::text || ' empty (421) | ' ||
-  (select count(*) from v421_domain where sp = '<none>')::text || ' undeclared',
+  (select n_total::text || ' = ' || n_nonempty::text || ' non-empty (419) + ' ||
+          n_empty::text || ' empty (421) | ' || n_undeclared::text || ' undeclared'
+     from v421_partition),
   '890 = 861 non-empty (419) + 29 empty (421) | 0 undeclared',
-  '§ 0c THE TWO GATES PARTITION THE POPULATION: every prosecdef function in app/public/authz is either frozen by 419 or body-checked here, with nothing in between. ⛔ `undeclared` moving off 0 means a member is in NEITHER gate''s domain while both stay green. ⚠ The two middle figures MOVE when a member converges to the empty form, which is exactly what D4 asks for — that is a re-baseline (here AND 419 § 0c/§ 0d, in the same change, after re-running the generator), never a reason not to converge'
+  '§ 0c THE TWO GATES PARTITION THE POPULATION: every prosecdef function in app/public/authz is either frozen by 419 or body-checked here, with nothing in between. ⛔ `undeclared` moving off 0 means a member is in NEITHER gate''s domain while both stay green — and `414 § 0b` is the assertion that OWNS that finding: it names the offender and its ONE remedy, converge it to `set search_path = ''''` with schema-qualified references (ADR 0208 D4; PO ruled 2026-09-11), ⛔ never by widening 414/419 and never by adding it to the frozen set. ⚠ The two middle figures MOVE when a member converges to the empty form, which is exactly what D4 asks for — that is a re-baseline (here AND 419 § 0c/§ 0d, in the same change, after re-running the generator), never a reason not to converge'
 );
 
 -- 4. THE ARMS' OWN DOMAIN, AS A NAMED SET. An arm that stopped covering its language returns the
@@ -554,6 +574,59 @@ select is(
 
 drop function public.z421_ctl_sql_altered();
 
+-- ────────────────────────────────────────────────────────────────────────────
+-- § 3h — THE PARTITION LINE'S OWN CONTROL (added 2026-09-12, unit
+-- DEFINER-UNDECLARED-CLASS-REMEDY). `§ 0c` has printed `890 / 861 / 29 / 0` since the day it was
+-- written, and a line that has only ever printed one value is indistinguishable from a line whose
+-- terms are wired to the wrong predicates. This moves the catalog under it TWICE and asserts WHICH
+-- terms move: an undeclared DEFINER moves the total and `undeclared` ONLY — the property the
+-- `sp <> '<none>'` exclusion above buys, and the one that was FALSE before it (the newcomer used to
+-- land on the `non-empty (419)` term as well) — and its `''` twin moves `empty` instead.
+--
+-- ⛔ A DELTA, NOT A SECOND COPY OF THE EXPECTED STRING. Re-typing `891 = 861 … | 1` here would give
+-- the baseline a second home and make every future convergence a three-place re-baseline. The four
+-- terms are read from `v421_partition` — the SAME view `§ 0c` formats — so no hand-written copy of
+-- the production expression exists to drift from it; what this control does NOT assert is the
+-- string's punctuation, which `§ 0c` alone pins.
+-- ⚠ Both plants are `language sql` bodies naming NOTHING (`select 1`), so neither reaches the
+-- plpgsql arm and the `''` twin cannot contribute a finding while it exists; each is dropped
+-- immediately after its own snapshot, and `§ 5` re-measures that they are gone.
+-- ────────────────────────────────────────────────────────────────────────────
+
+create temp table t421_partition_snap(
+  label text, n_total bigint, n_nonempty bigint, n_empty bigint, n_undeclared bigint);
+
+insert into t421_partition_snap select 'base', * from v421_partition;
+
+create function public.z421_ctl_undeclared() returns int language sql security definer
+  as $ctl$ select 1 $ctl$;
+insert into t421_partition_snap select 'undeclared plant', * from v421_partition;
+drop function public.z421_ctl_undeclared();
+
+create function public.z421_ctl_empty_twin() returns int language sql security definer
+  set search_path = '' as $ctl$ select 1 $ctl$;
+insert into t421_partition_snap select 'empty-form twin', * from v421_partition;
+drop function public.z421_ctl_empty_twin();
+
+-- 17. THE FOUR TERMS RESPOND, AND EACH TO THE RIGHT PLANT. Both halves in one string: either alone
+--     is satisfiable by a broken line — a `non-empty` term that still swallowed `<none>` would give
+--     the undeclared plant `+1` there too, and a line whose `undeclared` term were wired to a dead
+--     predicate would give `+0` while the total moved.
+select is(
+  coalesce((select string_agg(
+                     s.label
+                     || ': total '      || to_char(s.n_total      - b.n_total,      'FMS999')
+                     || ' non-empty '   || to_char(s.n_nonempty   - b.n_nonempty,   'FMS999')
+                     || ' empty '       || to_char(s.n_empty      - b.n_empty,      'FMS999')
+                     || ' undeclared '  || to_char(s.n_undeclared - b.n_undeclared, 'FMS999'),
+                     ' | ' order by s.label collate "C")
+              from t421_partition_snap s
+              cross join (select * from t421_partition_snap where label = 'base') b
+             where s.label <> 'base'), '(NOTHING MEASURED)'),
+  'empty-form twin: total +1 non-empty +0 empty +1 undeclared +0 | undeclared plant: total +1 non-empty +0 empty +0 undeclared +1',
+  '§ 3h § 0c''s FOUR TERMS EACH MOVE, AND ONLY FOR THEIR OWN CLASS: a planted `prosecdef` function with NO `set search_path` moves the total and `undeclared` and NOTHING else, and its `set search_path = ''''` twin moves `empty` instead. ⛔ `non-empty +1` on the undeclared plant is the pre-2026-09-12 defect — the class counted onto the term that names 419, a gate whose frozen set the census keeps it out of; `undeclared +0` means § 0c''s fourth term is wired to a predicate that cannot fire and the escape it exists to close is open. ⛔ `(NOTHING MEASURED)` means no plant ever reached the catalog and § 0c is VOID, not green. The remedy for a real red on the `undeclared` term is `414 § 0b`''s, not a new term here'
+);
+
 -- ============================================================================
 -- § 4 — THE RESIDUAL. Stated as a bound, held at zero, and NOT claimed as coverage.
 -- ============================================================================
@@ -578,7 +651,7 @@ select ok(
   and (select count(*) from v421_plpgsql_findings) = 0
   and (select count(*) from t421_sql_before b
         where b.def is distinct from pg_get_functiondef(b.oid)) = 0,
-  '§ 5 RESTORE: all seven planted controls are gone, the empty-path population is back to 29, the plpgsql arm is clean again and the 11 sql definitions are untouched — § 2 and § 3 left nothing behind'
+  '§ 5 RESTORE: all nine planted controls are gone (the seven of § 3 plus § 3h''s undeclared plant and its empty-form twin), the empty-path population is back to 29, the plpgsql arm is clean again and the 11 sql definitions are untouched — § 2 and § 3 left nothing behind'
 );
 
 select * from finish();

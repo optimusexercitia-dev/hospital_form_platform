@@ -1290,6 +1290,8 @@ Unit `ARM3-HAT-TERM-FIX` ([hub](../features/arm3-hat-term-fix.md) · [record](..
 
 ⚠ **Superseded** — two statements below are no longer true: the frozen population is **861**, not 865, and the four temp-table DEFINERs are **CONVERGED**, not "measured free but unconverged" (migration `20261003007420`, ADR 0208 D4 on touch). ⛔ Everything else in this slice stands, the MECHANISM paragraph included — it is why the convergence was free. See authorization-and-audit.md § The four temp-table DEFINERs are CONVERGED and the frozen population is 861.
 
+⚠ **Superseded** (2026-09-12, unit `DEFINER-UNDECLARED-CLASS-REMEDY`) — the undeclared-`search_path` class is **RULED**, so two more statements below are stale: the bullet whose disposition is *"PROPOSED in the unit's record and is **PO to rule**"* and the closing line calling the class *"pinned by `414`, not ruled"*. The PO ruled on **2026-09-11** (same clause in this file's `## Current state`): such a `prosecdef` function is a **DEFECT to converge to `search_path = ''`** with a schema-qualified body (ADR 0208 D4), never a member to add to any frozen set, and neither `414` nor `419` may be widened to admit it — no new cell. `414 § 0b` now OWNS that finding and carries the remedy in its own message. ⛔ Everything else in this slice stands, the EXCLUSION reasoning included — it is why the class must converge rather than be admitted. See authorization-and-audit.md § The undeclared-`search_path` class has ONE owner and ONE remedy.
+
 **What is now true, each with its home — witnesses (bare exit codes, TAP counts, the four verdicts) are in the record's § Session log, ⛔ not restated here:**
 
 - **The population is a FROZEN NAME SET that may only SHRINK, and it is GENERATED.** `supabase/tests/vectors/definer_search_path_freeze.psql` holds the `prosecdef` functions of `app`/`public`/`authz` carrying a NON-empty `search_path` — **865** after this unit (**867** before it) — written only by `node scripts/gen-definer-search-path-freeze.mjs --write`, which reads the live catalog. ⛔ Never hand-typed: the one time a `search_path` expectation was hand-typed here it was copied out of a broken catalog and PINNED the defect (`413`'s own comment).
@@ -1310,6 +1312,8 @@ Unit `ARM3-HAT-TERM-FIX` ([hub](../features/arm3-hat-term-fix.md) · [record](..
 ## The four temp-table DEFINERs are CONVERGED and the frozen population is 861 (2026-09-11, unit `DEFINER-TEMP-TABLE-CONVERGENCE`; ADR **0208** D4/D6; migration `20261003007420`)
 
 ⚠ **Superseded** — one clause below is a PARAPHRASE ADR 0208 D5 does not carry, corrected here rather than in place (2026-09-11, QA r1 MINOR-3). The false clause is *"0208 D5 requires [a new ADR] only to admit a SECOND compatibility form"*. D5's actual sentence (`0208:239-241`) constrains the SHAPE such a form would have to take — *"If a second compatibility form is ever admitted, it is property-based … ⛔ never the current dominant string"* — and says nothing about when an ADR is required. ⭐ The airtight ground for "no new ADR" is **D4's verbatim ruling**, which already ORDERS this convergence and therefore leaves no decision to take: *"SET search_path = '' with schema-qualified object references is the sole forward convention for new or touched SECURITY DEFINER functions. Existing nonempty paths are frozen compatibility debt, not an alternative convention; they may not grow and converge to the empty form on touch."* ⛔ Everything else in this slice stands. See authorization-and-audit.md § The four temp-table DEFINERs are CONVERGED and the frozen population is 861.
+
+⚠ **Superseded** (2026-09-12, unit `DEFINER-UNDECLARED-CLASS-REMEDY`) — the STILL OPEN bullet below is stale in both of its live clauses. D4's schema-qualified BODY clause is **GATED** (pgTAP `421`, unit `DEFINER-QUALIFIED-BODY-GATE`, 2026-09-11), and the undeclared-`search_path` class is no longer *"PO-ruled but unbuilt"*: the ruling of **2026-09-11** is now BUILT as a named owner rather than as a new gate — `414 § 0b` carries the remedy (converge to `search_path = ''` with a schema-qualified body, ADR 0208 D4; ⛔ never widen `414`/`419`, never add to the frozen set) and `421 § 0c` counts the class and points at that owner. ⛔ The `.claude/rules/` D5 hint clause and everything else in this slice stand. See authorization-and-audit.md § The undeclared-`search_path` class has ONE owner and ONE remedy.
 
 **What is now true, each with its home — witnesses (the before/after `proconfig` values, the red-first TAP, gate exit codes) are in the record's § Session log, ⛔ not restated here:**
 
@@ -1401,3 +1405,48 @@ the record's § Session log, ⛔ not restated here:**
 861 frozen non-empty paths, the BODY by `421` over the 29 empty-path DEFINERs, the two populations asserted to
 partition the 890; the body gate's only residual is the `execute` class, held at zero and stated rather than claimed;
 the `plpgsql_check` instrument lives inside `421`'s transaction and in no migration.
+
+## The undeclared-`search_path` class has ONE owner and ONE remedy (2026-09-12, unit `DEFINER-UNDECLARED-CLASS-REMEDY`; ADR **0208** D4; PO ruling **2026-09-11**; ⛔ NO migration, NO new gate)
+
+**What is now true, each with its home — witnesses (the TAP figures, the six mutation runs, gate exit codes) are in
+the record's § Session log, ⛔ not restated here:**
+
+- **The class is a DEFECT with a named remedy, and the remedy is written where the red appears.** A `prosecdef`
+  function in `app`/`public`/`authz` carrying **no** `search_path` converges to `set search_path = ''` with
+  schema-qualified object references (ADR 0208 D4). `414 § 0b`'s message now says exactly that — ⛔ never by widening
+  `414` or `419` to admit the member, and never by adding it to the frozen set. The PO ruled it on **2026-09-11**
+  ("*a defect to converge to `''`, never a member to add to any frozen set … No new cell*"), closing
+  `FUP-DEFINER-QUALIFIED-BODY-GATE-UNDECLARED-CLASS-NOW-HAS-A-LIVE-ENFORCER` on its SECOND branch.
+- **ONE owner, and the second gate points at it rather than competing.** `414 § 0b` names the offender and the
+  remedy; `421 § 0c` counts the class as its `undeclared` term and its message names `414 § 0b` as the owner of that
+  finding. ⛔ No third assertion was built — the ruling says *no new cell*, and a class with two remedial messages is
+  the shape that produces two divergent fixes.
+- ⛔ **THE CLASS IS IN NEITHER GATE'S DOMAIN, AND NOT — as `421`'s header claimed until now — "counted on 419's
+  side".** `scripts/definer-search-path-census.sql`'s `definer_nonempty_domain` block COALESCES a missing value to
+  `'""'`, so an undeclared DEFINER is `sp_nonempty = false` and never enters the frozen set `419` ratchets; `421`
+  reads only the EMPTY form. The false clause was true of the PRINTED STRING and false of the catalog — the census
+  comment carries the same correction, outside gate 18's byte-compared block.
+- **`421 § 0c`'s `non-empty` term now EXCLUDES `<none>`, so the partition line's arithmetic matches the catalog it
+  describes.** It read `sp <> '""'`, which is TRUE for `<none>`: a newcomer printed as
+  `891 = 862 non-empty (419) + 29 empty (421) | 1 undeclared`, double-counted onto the term that names a gate whose
+  domain it is not in. It now moves the TOTAL and `undeclared` only. ⛔ The expected string is UNCHANGED
+  (`890 = 861 non-empty (419) + 29 empty (421) | 0 undeclared`) — the fix is visible only when the class is non-empty,
+  which is why it needs a control and not a re-read.
+- ⭐ **Both messages are now proven able to appear, which is the half a ruling cannot supply.** `414 § 2d` plants a
+  DEFINER with no path and asserts `sp is null` LISTS it and NOT its `''` twin (`z414_ctl_empty_form`, already
+  planted) — the twin half matters because a predicate conflating EMPTY with ABSENT would red on every DEFINER that
+  converged, i.e. on exactly what D4 orders. `421 § 3h` plants the same two shapes and asserts the four partition
+  counts as DELTAS: `total +1 … undeclared +1` for the undeclared plant, `empty +1` for the twin.
+- **`421`'s four partition counts are defined ONCE, in `v421_partition`, which `§ 0c` formats and `§ 3h` moves.** ⛔ A
+  control holding its own hand-written copy of the production expression certifies itself; the delta form also keeps
+  the baseline in ONE place, so a future convergence re-baselines `§ 0c` and not a second literal.
+- ⚠ **`414 § 0b`'s predicate and its expected `''` are UNCHANGED** — only its message moved. The 890/890 figure stays
+  in the section comment as a DATED measurement (2026-09-03), not as a live claim.
+- ⚠ **What this does NOT do:** no migration, no policy, no ADR (D4 already rules the VALUE; the PO ruled the class).
+  It does not converge any function — the live population is **0 undeclared** on 2026-09-12, so the remedy has no
+  subject yet and the change is entirely about what the red will SAY on the day it does.
+
+**What this seam should say from here:** the undeclared-`search_path` DEFINER class is RULED, not open — a defect
+that converges to `search_path = ''` with a schema-qualified body, owned by `414 § 0b`, counted by `421 § 0c`, kept
+out of the frozen set by the census's coalesce, and proven able to red by a control in each file. ⛔ A future member
+is fixed by converging it; widening `414`, `419` or the census domain to admit it would only make the gap invisible.

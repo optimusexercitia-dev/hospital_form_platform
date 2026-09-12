@@ -49,3 +49,106 @@ only mention is the census note `:216`), so no ADR is amended.
 **Tree state at open.** `git status` showed four modified docs files belonging to another live session
 (a closure of `…SUPABASE-TEST-DB-LEAVES-NO-PGTAP-INSTALLED`, uncommitted). ⛔ Not this unit's; staged by
 path only, never `git add -A` (playbook § 4).
+
+### 2026-09-12 — AC-1 … AC-5 built: `414 § 0b` owns the remedy, `421 § 0c` points at it, a control in each (backend)
+
+**What landed.** Five files, TEST + DOCS only — no migration, no `src/`, no policy, no ADR.
+`414_definer_search_path_resolves.sql` (`plan(7)` → `plan(8)`, RUN SHAPE `Tests=8` → `Tests=9`) ·
+`421_definer_qualified_body.sql` (`plan(18)` → `plan(19)`, RUN SHAPE `Tests=19` → `Tests=20`) ·
+`scripts/definer-search-path-census.sql` (comment only, outside gate 18's byte-compared block) ·
+`docs/backend-state/authorization-and-audit.md` (two markers + one appended slice) ·
+`docs/lint-gates.md` (gate 18's *"`414` … kept byte-unchanged"* clause, which THIS unit falsified).
+
+**AC-1 — `414 § 0b` is the named owner.** Predicate (`sp is null`) and expected (`''`) UNCHANGED; only the
+message moved. It now names the defect, the remedy (`set search_path = ''` + schema-qualified references,
+ADR 0208 D4, PO ruled 2026-09-11), the two ⛔s (never widen `414`/`419`, never add to the frozen set) and why
+the member is in NO gate's domain meanwhile. Its section comment carries the ruling quoted, keeps
+*"Measured 2026-09-03: 890 of 890"* as a dated figure, and points at `§ 2d` as its control.
+
+**AC-2 — `414 § 2d`, and the twin came free.** The seventh plant (`public.z414_ctl_undeclared()`,
+`security definer` with no `set search_path`) is created inside the EXISTING `s414_plant` savepoint, i.e.
+after `§ 0b` and `§ 1` have read the live population, and dies with it — `§ 3`'s restore check already
+covers it (`proname like 'z414\_ctl\_%'`). ⭐ It is invisible to `§ 2a`/`§ 2b`/`§ 2c` **by the very property
+under test**: no `sp`, so no `v414_tokens` row, so no offender row — which is why no eighth probe was
+needed for the discrimination half either: `z414_ctl_empty_form` (already planted, `set search_path to ''`)
+IS the `''` twin, and `§ 2b` already proves it is in the sweep's domain.
+
+**AC-3 — `421 § 0c` partitions and points.** (i) The four counts moved into a temp view `v421_partition`,
+whose `n_nonempty` is now `sp <> '""' and sp <> '<none>'`. Expected string UNCHANGED
+(`890 = 861 non-empty (419) + 29 empty (421) | 0 undeclared`; re-measured on the live catalog the same day
+under both the fixed and the old term — identical today, because the class is empty). ⛔ The view is not
+cosmetic: `§ 3h` reads the SAME columns `§ 0c` formats, so the control is not a hand-written copy of
+production text. (ii) The description names `414 § 0b` as the OWNER of an `undeclared` red, states the
+remedy in one clause, and keeps the two-middle-figures re-baseline warning verbatim. (iii) The header's
+*"would be counted on 419's side"* is replaced by the measured mechanism — the census's
+`definer_nonempty_domain` block coalesces a missing value to `'""'`, so the member is `sp_nonempty = false`
+and never enters the frozen set, while `421`'s arms read only the empty form; the false clause was true of
+the PRINTED STRING and false of the catalog.
+
+**AC-4 — `421 § 3h`, as DELTAS and not a second copy of the baseline.** Two `language sql` plants naming
+nothing (`select 1`) — one undeclared, one on `''` — each snapshotted into `t421_partition_snap` and dropped
+immediately (`§ 5`'s restore count raised seven → nine in its message). The assertion reads
+`empty-form twin: total +1 non-empty +0 empty +1 undeclared +0 | undeclared plant: total +1 non-empty +0
+empty +0 undeclared +1`. ⛔ Re-typing `891 = 861 … | 1` would have given the baseline a second home and made
+every future convergence a three-place re-baseline.
+
+**Mutation proofs — six runs, each on a COPY in the scratchpad via `supabase test db <abs path>`** (it
+accepts a path outside `supabase/tests/`, verified: baseline copy `Files=1, Tests=8 PASS`). ⛔ No mutant
+ever touched `supabase/tests/`.
+
+- **A — a planted undeclared DEFINER reds `414 § 0b`**, message naming the remedy:
+  `# Failed test 2: "§0b NO SILENT EXITS FROM THE DOMAIN: … is a DEFECT whose ONE remedy is to converge it
+  to `set search_path = ''` with SCHEMA-QUALIFIED object references (ADR 0208 D4; PO ruled 2026-09-11) …"` /
+  `have: public.zzz_mut_undeclared()` / `want:` (empty). `Failed 1/8`.
+- **D — the same plant reds `421 § 0c`**, message naming the owner:
+  `# Failed test 3: "§ 0c THE TWO GATES PARTITION THE POPULATION: … and `414 § 0b` is the assertion that
+  OWNS that finding: it names the offender and its ONE remedy, converge it to `set search_path = ''` with
+  schema-qualified references (ADR 0208 D4; PO ruled 2026-09-11) …"` /
+  `have: 891 = 861 non-empty (419) + 29 empty (421) | 1 undeclared` /
+  `want: 890 = 861 non-empty (419) + 29 empty (421) | 0 undeclared`. ⭐ That `have` IS AC-3 (i)'s property:
+  the non-empty term stayed **861** while total and `undeclared` each moved +1. Both messages name one
+  remedy and `421`'s names `414 § 0b`.
+- **B — `414 § 2d` reds when its plant is neutered** (given `set search_path to app`):
+  `have: (NOTHING FIRED)` / `want: z414_ctl_undeclared`. (`§ 2b` reds alongside it, which independently
+  confirms the unmutated plant really carries no path.)
+- **C — `414 § 2d` reds on the twin half** (predicate widened to `sp is null or sp = '""'`, i.e. reading the
+  EMPTY form as an ABSENT one): `have: z414_ctl_empty_form | z414_ctl_undeclared` /
+  `want: z414_ctl_undeclared`.
+- **E — `421 § 3h` reds when AC-3 (i) is reverted** (`n_nonempty` back to `sp <> '""'`):
+  `have: … undeclared plant: total +1 non-empty +1 empty +0 undeclared +1`. ⭐⭐ **`§ 0c` itself stayed
+  GREEN in that run — only test 17 failed.** That is the whole case for the control: the partition line
+  cannot see its own miswiring while the class is empty, so the fix would have been unwitnessed.
+- **F / G — each plant proven load-bearing in its own direction**: neutering the undeclared plant gives
+  `undeclared +0` (and `non-empty +1`), neutering the `''` twin gives `empty +0 non-empty +1`. Both red.
+
+**Gates run here (the lead owns the fresh-reset full gate).** `supabase test db 00_setup + 414` →
+`Files=2, Tests=9 … Result: PASS`. `00_setup + 421` → `Files=2, Tests=20 … Result: PASS`. The whole DEFINER
+family together (`413 · 414 · 419 · 420 · 421` + setup) → `Files=6, Tests=78 … Result: PASS` (420's
+`planned 11 … ran 9` is the documented savepoint-counter noise). `npm run lint` **rc 0, 18 gates**;
+`npm run typecheck` rc 0. Gate 18 re-run alone after the census edit: `in sync (861 … baseline 861 -> 861)`
+rc 0 — the comment is outside the `>>> BEGIN definer_nonempty_domain <<<` block, as claimed.
+⛔ No `supabase db reset` (shared stack); every run was transactional.
+
+**⚠ A finding this unit CREATED, for the lead, not fixable inside it.** The seam file crossed gate 16's
+check-D **warn** line: `docs/backend-state/authorization-and-audit.md` went 157.1 KB → **163.2 KB**
+(160913 → 167157 bytes) and the gate now prints
+`WARN — [D] … 163.2 KB is over the 160 KB warn line (cap 200 KB). Plan the next seam.` It exits **0** (a
+warn must not red the build, or it gets raised), so `npm run lint` is rc 0 — but the warn is NEW and mine.
+⛔ I did not compress the slice to duck it: cutting a record to fit a cap selects against its qualifiers,
+and the remedy check D names is a SEPARATE SEAM, not a shorter slice. Its `## Current state` block is also
+at **98 of the 100-line ratchet** (2 left) — relevant to the lead's Record-step replacement. ⛔ I could not
+file the follow-up myself: `docs/followups/follow-ups-open.md` was named off-limits in the spawn prompt.
+
+**Dead ends and things deliberately not done.**
+
+- `psql` is not on PATH on this machine; catalog probes ran through
+  `docker exec -i supabase_db_azkbbhskturikxpgmafq psql -U postgres -d postgres`. `pg_extension` carries
+  neither `pgtap` nor `plpgsql_check` between runs, so mutants went through `supabase test db` (which
+  supplies pgTAP) rather than raw `psql`.
+- `to_char(…, 'S9')` overflows to `#` past one digit; `§ 3h` uses `'FMS999'` (verified `+1` / `+0` / `-2`).
+- ⛔ **No third assertion was built.** The ruling says *"No new cell"*; `§ 2d` and `§ 3h` are CONTROLS over
+  the two existing cells, not new subjects, and both are named as such in their messages.
+- `docs/lint-gates.md` gate 18 does NOT carry the *"PO to rule"* / *"open half"* phrasing AC-5 anticipated
+  (grepped: no match). What it did carry was a clause my own change falsified — *"that population's
+  resolvability is `414`'s property, which is kept byte-unchanged"* — corrected in place with the
+  superseded words quoted, since that file has no frozen-slice convention.

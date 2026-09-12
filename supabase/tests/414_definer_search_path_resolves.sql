@@ -42,12 +42,12 @@
 -- ⚠ NO `test_helpers.bootstrap()`, no fixture, no tenancy. This suite reads pg_proc and
 -- pg_namespace only, so it is invariant to seed scale and to the AE4 perf fixture.
 --
--- RUN SHAPE: `Files=2, Tests=8` (7 here + 00_setup.sql's one). ⛔ Keep this line in step with
+-- RUN SHAPE: `Files=2, Tests=9` (8 here + 00_setup.sql's one). ⛔ Keep this line in step with
 -- plan() — a stale RUN SHAPE is read as the expected shape by the next person diagnosing a
 -- count mismatch.
 
 begin;
-select plan(7);
+select plan(8);
 
 -- ============================================================================
 -- §0 — THE SWEEP, DEFINED ONCE. Three views, so §1 (live population) and §2 (planted
@@ -109,14 +109,26 @@ select is(
   '§0a DOMAIN as a NAMED SET: the sweep examines prosecdef functions in all three of app, authz and public. ⛔ If this reds, the sweep stopped covering a schema — a clean §1 below then means nothing for that schema'
 );
 
--- 2. THE SWEEP'S OWN BLIND SPOT, pinned. A DEFINER with NO `set search_path` at all has no
---    value to tokenize, so it drops out of v414_tokens silently and §1 can never see it — and
---    an unpinned DEFINER is a strictly worse instance of this same resolution-hijack class.
---    Measured 2026-09-03: 890 of 890 carry one. Naming any that stop doing so is free here.
+-- 2. THE SWEEP'S OWN BLIND SPOT, pinned — AND, since 2026-09-11, THE OWNER OF ITS REMEDY.
+--    A DEFINER with NO `set search_path` at all has no value to tokenize, so it drops out of
+--    v414_tokens silently and §1 can never see it — and an unpinned DEFINER is a strictly worse
+--    instance of this same resolution-hijack class. Measured 2026-09-03: 890 of 890 carry one.
+--
+--    ⭐ THE CLASS IS RULED, NOT MERELY PINNED (PO 2026-09-11, closing the open half of
+--    `FUP-DEFINER-SEARCH-PATH-NARROW-FIX-QUALIFIED-BODY-CLAUSE-OF-D4-IS-UNGATED`): *"a `prosecdef`
+--    function with no `search_path` is a DEFECT to converge to `''`, never a member to add to any
+--    frozen set; a red on `414 § 0b` means exactly that, and neither `414` nor `419` may be widened
+--    to admit it. No new cell."* So this assertion is the class's ONE owner — its predicate and its
+--    expected `''` are unchanged by that ruling; only its message now says what to DO. `421 § 0c`
+--    counts the same class as its `undeclared` term and points back here rather than competing.
+--    ⛔ It is in NEITHER gate's checking domain meanwhile: the census coalesces a missing value to
+--    `'""'` (`scripts/definer-search-path-census.sql`), so it never enters `419`'s frozen set, and
+--    `421` body-checks only the EMPTY form. That gap is what convergence closes; widening a gate to
+--    admit the member would only make the gap invisible. §2d below is this assertion's control.
 select is(
   (select coalesce(string_agg(sig, '; ' order by sig), '') from v414_domain where sp is null),
   '',
-  '§0b NO SILENT EXITS FROM THE DOMAIN: every prosecdef function in app/public/authz declares a search_path at all. ⛔ A function listed here is NOT covered by §1 — it has no declared resolution order to check, which is the same hijack shape one step earlier'
+  '§0b NO SILENT EXITS FROM THE DOMAIN: every prosecdef function in app/public/authz declares a search_path at all. ⛔ A function listed here is a DEFECT whose ONE remedy is to converge it to `set search_path = ''''` with SCHEMA-QUALIFIED object references (ADR 0208 D4; PO ruled 2026-09-11) — ⛔ NEVER by widening 414 or 419 to admit it and NEVER by adding it to the frozen set. Until it converges it is covered by NO gate: §1 cannot check a resolution order it does not declare, 419 never sees it (the census coalesces a missing value to `""`) and 421 body-checks only the empty form — which is the same hijack shape one step earlier'
 );
 
 -- ============================================================================
@@ -139,6 +151,11 @@ select is(
 -- ⭐ The POSITIVE half proves the sweep can find something; the NEGATIVE half proves it is
 -- bound on schema-existence and not on quoting. Both are needed: a detector that flags
 -- everything would satisfy the positive half alone, and §1 would already be red.
+--
+-- ⚠ A SEVENTH plant (2026-09-12) belongs to §0b, not to §1: the shape that declares NO path at
+-- all is absent from the header table because it has no value to tokenize. It is planted with
+-- the six and asserted separately in §2d, and it is invisible to §2a/§2b/§2c for that same
+-- reason — no `sp`, no token, no offender row.
 -- ============================================================================
 savepoint s414_plant;
 
@@ -154,6 +171,15 @@ create function public.z414_ctl_quoted_existing() returns text language sql stab
   security definer set search_path to 'app' as $ctl$ select 'x' $ctl$;
 create function public.z414_ctl_user_placeholder() returns text language sql stable
   security definer set search_path to "$user", public as $ctl$ select 'x' $ctl$;
+
+-- The SEVENTH probe, and the only one that is NOT about tokenizing (added 2026-09-12, unit
+-- DEFINER-UNDECLARED-CLASS-REMEDY): `security definer` with NO `set search_path` at all — §0b's
+-- class. ⛔ It carries no path, so it never enters v414_tokens and therefore cannot perturb §2a,
+-- §2b or §2c; the `''` twin §2d needs is already planted above (`z414_ctl_empty_form`), so the
+-- discrimination half costs no eighth probe. It is created AFTER §0b and §1 have read the live
+-- population and dies with this savepoint, which §3 re-measures.
+create function public.z414_ctl_undeclared() returns text language sql stable
+  security definer as $ctl$ select 'x' $ctl$;
 
 -- 3. THE POSITIVE CONTROL, and the anti-symptom half, as ONE named set. Anything other than
 --    these two names — more, fewer, different — is a finding about the instrument.
@@ -183,6 +209,20 @@ select is(
           (select string_agg(name, '+' order by name) from v414_tokens where proname = 'z414_ctl_collapsed_list')),
   'app+pg_catalog+public  vs  app, public, pg_catalog',
   '§2c THE MECHANISM: unquoted, the value splits into THREE schema names that each resolve; single-quoted, it is ONE token whose text is the entire list — a schema name containing commas and spaces, which Postgres then skips in silence'
+);
+
+-- 6. §0b'S OWN CONTROL. §0b has only ever returned the empty string — which is exactly what a
+--    predicate reading the wrong column, or one whose domain quietly stopped including the
+--    undeclared shape, would also return. Now that §0b carries the class's REMEDY its silence is
+--    load-bearing, so the predicate is made to speak. ⛔ Both halves in one string: `sp is null`
+--    must LIST the undeclared plant and must NOT list its `set search_path = ''` twin. A detector
+--    that listed everything would red here (and §0b would already be red); one that lists nothing
+--    reads `(NOTHING FIRED)`, which is VOID, not a pass.
+select is(
+  (select coalesce(string_agg(proname, ' | ' order by proname), '(NOTHING FIRED)')
+     from v414_domain where sp is null and proname like 'z414\_ctl\_%'),
+  'z414_ctl_undeclared',
+  '§2d §0b CAN BITE, on exactly the undeclared shape: a prosecdef function with NO `set search_path` is LISTED by §0b''s `sp is null` predicate and its `set search_path = ''''` twin (z414_ctl_empty_form) is NOT. ⛔ `(NOTHING FIRED)` means §0b''s clean 890/890 proved nothing and the class it owns is unwatched; `z414_ctl_empty_form` appearing means the predicate reads the EMPTY form as an ABSENT one and §0b would red on every DEFINER that converged — i.e. on exactly what ADR 0208 D4 orders'
 );
 
 rollback to savepoint s414_plant;
