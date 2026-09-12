@@ -35,5 +35,6 @@ in the next migration that touches the same object.
   `db push`.
 - **A remote that already ran the file never re-runs it**, so an edit makes repo and remote
   disagree with nothing able to report it: the catalog matches the OLD text.
-- **SECURITY DEFINER (ADR 0208 D4) = `set search_path = ''` AND a qualified body. 419 + gate 18
-  gate the PATH ONLY; the qualified half is UNGATED — `pg_temp` still resolves first under `''`.**
+- **SECURITY DEFINER (ADR 0208 D4) = `set search_path = ''` AND a qualified body. 419/gate 18
+  gate the PATH, pgTAP `421` the BODY (bound: `execute` opaque). `pg_temp` resolves
+  first under `''`.**

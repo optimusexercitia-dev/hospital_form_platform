@@ -32,12 +32,19 @@
 --
 -- ⛔⛔ AND D4 IS A TWO-CLAUSE CONVENTION OF WHICH THIS ASSERTS ONE. D4 is `set search_path = ''`
 -- **with schema-qualified object references**. This file reads `proconfig` and never a function
--- BODY, and neither does gate 18 — the qualified half is UNGATED. That is not cosmetic: under
--- `search_path = ''` `pg_temp` is still searched FIRST for relation names, and `anon`,
--- `authenticated`, `service_role` and `authenticator` all hold database TEMP (4 of 4, ADR 0208 D5),
--- so an unqualified relation inside an empty-path DEFINER stays shadowable by a temp object. The
--- empty path NARROWS that exposure; it does not close it. `420 § 6` demonstrates the same mechanism
--- from the other side. Tracked: FUP-DEFINER-SEARCH-PATH-NARROW-FIX-QUALIFIED-BODY-CLAUSE-OF-D4-IS-UNGATED.
+-- BODY, and neither does gate 18. The qualified half is asserted by its own file, `421` — which
+-- takes the COMPLEMENT of this file's population (the empty-path DEFINERs, 29 of the 890; `421
+-- § 0c` asserts the two sets still partition the whole) and has Postgres resolve each body under
+-- its declared path: `plpgsql_check_function_tb` for the 18 plpgsql members, a re-execution of
+-- `pg_get_functiondef` for the 11 `language sql` ones, with `42P01`/`42883` the finding set. ⛔ Its
+-- STATED BOUND is dynamic SQL: an `execute` body is opaque to both arms, so `421 § 4` holds that
+-- population at zero instead of claiming coverage over it.
+-- That clause is not cosmetic: under `search_path = ''` `pg_temp` is still searched FIRST for
+-- relation names, and `anon`, `authenticated`, `service_role` and `authenticator` all hold database
+-- TEMP (4 of 4, ADR 0208 D5), so an unqualified relation inside an empty-path DEFINER stays
+-- shadowable by a temp object. The empty path NARROWS that exposure; the qualified body closes it.
+-- `420 § 6` demonstrates the same mechanism from the other side.
+-- FUP-DEFINER-SEARCH-PATH-NARROW-FIX-QUALIFIED-BODY-CLAUSE-OF-D4-IS-UNGATED: closed by 421.
 --
 -- ⚠ NO `test_helpers.bootstrap()`, no fixture, no tenancy — pg_proc and pg_namespace only, so
 -- this suite is invariant to seed scale and to the AE4 perf fixture. Same posture as `414`.

@@ -54,7 +54,7 @@
 - **A predicate's arms must answer about the principal its own signature names.** `can_manage_professional` and `can_read_professional_profile` are subject-keyed on `p_uid` since ADR 0200; `is_admin()`/`is_admin_for()` are **not** interchangeable at SELF (a JWT-claim fast path vs a `profiles` read); the model is **ratified as subject-keyed asymmetry** (ADR 0201) — third-party ignores the ACT hat, self requires it — and on the **SCOPE** axis the hat stays role-wide, so R10 (next bullet), not R8, discharges ADR 0176 D8's audit-scope obligation.
 - **The admin arm follows the subject's account state at all three sites** (pre-AE5 Batch 10, ADR 0201 D4/D5 + R10, migration `20261003007390`): `app.is_admin()`, `app.is_admin_for(uuid)` and the seating door `public.assume_role` each gate on `app.is_active`, so a deactivated or suspended `platform_admin` denies at all three and can no longer seat a fresh hat — the `is_admin()` **JWT-claim fast path is untouched**, so the surviving stale-token window is the admin FLAG alone. The Class-2 write arm moved OFF `app.can_manage_professional` onto `app.can_manage_case_vocabulary` (an explicit, `is_admin_for`-keyed arm); `app.can_manage_external_participant` stays deliberately unarmed, so `platform_admin` loses professional CREATE and external-participant MINT (keeps READ and vocabulary MANAGE); `active_role.assumed` now stamps the ROLE only, for every tier. ⚠ **R6 (ruled at the E2E gate): that stamp has two READERS** — `listAudit` (the `/admin/audit` platform feed, `commission_id IS NULL`) now shows every tenant seating and `listAuditForOrg` (`organization_id = org`) no longer does; ruled *seating is an IDENTITY event, the platform feed is its home* (ADR 0201 D2 dated note; `phase13-audit` AC-3f asserts the scope-less property).
 
-- **New or touched `SECURITY DEFINER` ⇒ `set search_path = ''` + schema-qualified body** (ADR 0208 D4); the **861** non-empty paths left are frozen debt that **may not grow**. Two arms, each catching what the other cannot: forgetting to regenerate the frozen artifact reds pgTAP `419` (catalog), laundering an addition in by re-running the generator reds **gate 18** (bytes + git, pure deletions only, ⛔ never opens a database). ⛔⛔ **D4 has TWO clauses and only the PATH one is gated** — no gate reads a function BODY, so the schema-qualified half is UNGATED, and under `''` `pg_temp` is still searched FIRST while all four client roles hold TEMP (`FUP-DEFINER-SEARCH-PATH-NARROW-FIX-QUALIFIED-BODY-CLAUSE-OF-D4-IS-UNGATED`). ⭐ The four temp-table DEFINERs are **converged** (migration `20261003007420`); `420` measured them free FIRST and is now their regression guard, binding each one's `proconfig` and its copy counts into one assertion. ⛔ Their survival is a fact about THOSE BODIES — `pg_temp` is searched implicitly and first, so their unqualified references are temp tables — never a general licence. Frozen §§ The non-empty DEFINER population · The four temp-table DEFINERs are CONVERGED.
+- **New or touched `SECURITY DEFINER` ⇒ `set search_path = ''` + schema-qualified body** (ADR 0208 D4); the **861** non-empty paths left are frozen debt that **may not grow**. Two arms, each catching what the other cannot: forgetting to regenerate the frozen artifact reds pgTAP `419` (catalog), laundering an addition in by re-running the generator reds **gate 18** (bytes + git, pure deletions only, ⛔ never opens a database). ⛔⛔ **D4 has TWO clauses and they are gated in TWO files** — `419` + gate 18 hold the PATH, pgTAP **`421`** holds the BODY over the COMPLEMENT population (the 29 empty-path DEFINERs; `421 § 0c` asserts 861 + 29 = 890 still partitions), resolved **by Postgres**: `plpgsql_check_function_tb` for the 18 plpgsql members, a re-execution of `pg_get_functiondef` for the 11 `language sql` ones (`ALTER … SET search_path` never re-validates a body), `42P01`/`42883` the finding set, a `42P01` excused only when the SAME body creates that relation as a temp table. ⛔ **421's STATED BOUND is not coverage**: an `execute` body is opaque to both arms, so `§ 4` holds that population at **0** instead of checking it. The clause matters because under `''` `pg_temp` is still searched FIRST while all four client roles hold TEMP — the empty path NARROWS, the qualified body CLOSES (`FUP-DEFINER-SEARCH-PATH-NARROW-FIX-QUALIFIED-BODY-CLAUSE-OF-D4-IS-UNGATED`: closed by 421). ⭐ The four temp-table DEFINERs are **converged** (migration `20261003007420`); `420` measured them free FIRST and is now their regression guard, binding each one's `proconfig` and its copy counts into one assertion. ⛔ Their survival is a fact about THOSE BODIES — `pg_temp` is searched implicitly and first, so their unqualified references are temp tables — never a general licence. Frozen §§ The non-empty DEFINER population · The four temp-table DEFINERs are CONVERGED.
 
 ### Rollout
 
@@ -98,7 +98,8 @@
   plane (ADR 0205)** · **§ Admin arm follows account state (ADR 0201 D4/D5 + R10)** · **§ Arm 3 oracled (ADR 0175 D3 delivered)** ·
   **§ The two pre-AE5 successor decisions taken (ADR 0207 + 0208)** — 0207 built nowhere; 0208 D4–D6 built in the last
   slice · **§ The ACT hat becomes a door-level term (ADR 0209)** · **§ The non-empty DEFINER population is FROZEN**
-  (⚠ superseded in part) · **§ The four temp-table DEFINERs are CONVERGED**.
+  (⚠ superseded in part) · **§ The four temp-table DEFINERs are CONVERGED** · **§ D4's qualified-body clause is
+  GATED by pgTAP 421**.
 - ADR [0155](../decisions/0155-post-aff4-tenancy-and-person-model-evolution-sequence.md) · [0162](../decisions/0162-authz-evolution-plan-audit-corrections.md) (authority-elect) ·
   [0176](../decisions/0176-authz-permission-layer-made-real.md) (the three interfaces) · [0100](../decisions/0100-quality-office-oversight.md) (oversight + content wall) ·
   [0149](../decisions/0149-org-admin-reads-hospital-tier-audit.md) + [0150](../decisions/0150-audit-org-derived-from-hospital.md) (audit read legs) ·
@@ -1324,3 +1325,73 @@ Unit `ARM3-HAT-TERM-FIX` ([hub](../features/arm3-hat-term-fix.md) · [record](..
 - ⚠ **A figure about ANOTHER file goes stale when that file changes, and nothing reds.** `419`'s header carried `420` emits `planned 15 tests but ran 13` as the expected-noise example; the re-cast makes it `planned 11 tests but ran 9`, and the line was moved in the same change. That is the identical shape as QA r2 MINOR-r2-1 in the predecessor unit — a wrong expected diagnostic pre-authorises dismissing one the file never prints.
 
 **What this seam should say from here:** the non-empty DEFINER population is a generated frozen set of **861** names, ratcheted by `419` (catalog) and gate 18 (bytes + git); the empty form is the sole forward convention and a touched DEFINER converges to it; the four temp-table DEFINERs are CONVERGED and `420` guards them by binding `proconfig` to copy counts in one assertion per function; `app.tenant_orphan_profiles()` and `app.current_professional_read_organizations` remain deliberately unconverged and each has a named reason. ⛔ Any future convergence regenerates the artifact by `--write` ONLY, moves `419`'s two pins in the same change, produces a diff that is a PURE DELETION, and re-casts whatever pinned the OLD state rather than leaving it to red.
+
+## D4's qualified-body clause is GATED — pgTAP `421`, one arm per language (2026-09-11, unit `DEFINER-QUALIFIED-BODY-GATE`; ADR **0208** D4 second clause; NO migration)
+
+**What is now true, each with its home — witnesses (the TAP lines, the three mutation runs, gate exit codes) are in
+the record's § Session log, ⛔ not restated here:**
+
+- **D4's SECOND clause has an enforcer, and it is a pgTAP file, not a rule hint or a review obligation.**
+  `supabase/tests/421_definer_qualified_body.sql` closes
+  `FUP-DEFINER-SEARCH-PATH-NARROW-FIX-QUALIFIED-BODY-CLAUSE-OF-D4-IS-UNGATED`, whose *Closes when* was `PO to rule`
+  until the PO ruled **option (a), a catalog gate**, on 2026-09-11. ⛔ No new ADR: D4's verbatim ruling already states
+  the two-clause convention; this is the missing enforcer, not a new decision.
+- **The subject is the COMPLEMENT of `419`'s.** `419` freezes the **861** non-empty paths; `421` reads the **29**
+  empty-path `prosecdef` bodies in `app`/`public`/`authz`. `421 § 0c` asserts `890 = 861 + 29` as ONE named string, so
+  a member acquiring a third form (e.g. `<none>`, `414 § 0b`'s class) falls out of BOTH gates and reds here. ⛔ 421
+  writes its OWN domain predicate and does **not** splice `419 § 0` — gate 18 compares that block byte-for-byte with
+  `scripts/definer-search-path-census.sql`, so copying it would bind 421 to a text the generator owns.
+- ⭐ **POSTGRES resolves the bodies; there is no parser.** ⛔ A regex over `from`/`join` targets would have to
+  re-implement name resolution and every case it got wrong would be a SILENT pass. Two arms, keyed on `pg_language`
+  and disjoint: **plpgsql (18)** via `extensions.plpgsql_check_function_tb(oid, tgrelid, fatal_errors => false)`,
+  which applies the function's own `proconfig` and not the session path (measured: a plant on `''` reds even under
+  `set local search_path = public, app, pg_catalog`); **sql (11)** via re-executing `pg_get_functiondef(oid)`, because
+  a `language sql` body IS validated at CREATE under its declared path but **`ALTER FUNCTION … SET search_path` never
+  re-validates** — the exact shape of every narrow convergence migration this program writes (`20261003007410`,
+  `20261003007420`). Finding set: `42P01` + `42883`.
+- **The `42P01` exclusion is bounded to ONE body.** A `42P01` is excused only when the SAME `prosrc` creates that
+  relation by `create temp[orary] table` — the four ADR 0208 D6 DEFINERs, on exactly five relations
+  (`_clone_item_map` · `_clone_section_map` · `_clone_standard_map` · `_copy_answer_map` · `_tpl_phase_map`, pinned by
+  `§ 1b`). ⛔ It excuses nothing else, and the relation name is regex-escaped before interpolation so an identifier
+  carrying a metacharacter cannot widen it.
+- ⛔ **THE STATED BOUND, WHICH IS NOT COVERAGE.** Dynamic SQL is opaque to both arms — `execute 'select … from
+  profiles'` is a string until run time. `§ 4` therefore holds the `execute`-carrying population at **0 of 29** and
+  says so: today the residual is EMPTY and the gate covers the whole population. ⛔ The day that count moves the
+  gate's claim narrows; the assertion is what tells you, and raising the number to make it pass inverts it.
+- **The instrument is created INSIDE the test transaction and rolled back with it.** `create extension if not exists
+  plpgsql_check with schema extensions` (available 2.8, not installed) runs inside `421`'s `begin; … rollback;`, so
+  the catalog is untouched and nothing ships. ⛔ Installing it by MIGRATION was offered to the PO and **not taken**.
+  ⛔ An unavailable extension must RED, never `skip`: `§ 0a` asserts availability before the create, `§ 0b` reads
+  `pg_extension` rather than trusting the DDL's quiet exit.
+- ⭐ **EVERY assertion sits OUTSIDE every savepoint**, and where an arm must mutate its result leaves the savepoint on
+  a channel `rollback to savepoint` cannot reach: **`setval` on a temp sequence is non-transactional** (measured — a
+  value set inside a savepoint survives its rollback; a row inserted into a temp table in the same savepoint does
+  not). Each counter is seeded to **0 = the block never ran** and written as `value + 1`, so "the measurement did not
+  happen" reads differently from "the measurement found nothing". The plpgsql arm needs no savepoint at all —
+  `plpgsql_check_function_tb` is read-only — so its findings keep their text.
+- **FIVE planted controls, each pinned to the arm it must red in** (`§ 3`): an unqualified plpgsql DEFINER on `''`
+  (42P01) · its schema-qualified twin, which must NOT fire **and is asserted to have been EXAMINED** · an unqualified
+  FUNCTION call (42883 — the live catalog raises only 42P01, so without this plant that half of the finding set is
+  carried by no assertion) · a body that creates temp `_x` AND reads `profiles` unqualified, asserted as
+  `_x=EXCLUDED | profiles=KEPT` in one string · a `language sql` DEFINER created on `search_path = public` and then
+  moved to `''` by `ALTER`, asserted as `"" accepted by ALTER | 1 visited | 1 findings`. ⛔ A control that cannot red
+  VOIDS its arm.
+- **Both arms carry their own non-vacuity term in the same assertion as the property.** `§ 1a` counts the 18 members
+  the checker actually returned for (a `left join lateral … on true`, so a clean member is not dropped); `§ 2a` reads
+  `11 visited | 0 findings`, because `0 visited` would produce `0 findings` too and a findings-only assertion would
+  read that as a pass; `§ 2b` proves the 11 definitions are byte-identical to their pre-savepoint snapshot.
+- **The five carriers that said the half was UNGATED now name 421 and its residual bound**:
+  `.claude/rules/migrations-forward-only.md` (re-worded within the 2048-byte cap, 2043 after) ·
+  `scripts/gen-definer-search-path-freeze.mjs` header · `419`'s header (⛔ its assertions and its `§ 0` splice are
+  byte-unchanged — gate 18 reads that block) · this seam's `## Current state` bullet · `docs/lint-gates.md` gate 18.
+  ⛔ The follow-up is cited as **closed by 421**, not deleted.
+- ⚠ **What 421 does NOT claim.** It is not a security proof: it proves each body RESOLVES under `''`, which is D4's
+  clause, not that no `pg_temp` shadowing is possible for a body that legitimately uses a temp table (that mechanism
+  is `420`'s subject and is unchanged). It reads the LIVE catalog, so like `419` it buys *"the next Phase Gate
+  noticed"* and not *"the next commit refused"* — ⛔ and it is in `npm run test:db`, never in `npm run lint`, because
+  it opens a database.
+
+**What this seam should say from here:** ADR 0208 D4 is gated in BOTH clauses — the PATH by `419` + gate 18 over the
+861 frozen non-empty paths, the BODY by `421` over the 29 empty-path DEFINERs, the two populations asserted to
+partition the 890; the body gate's only residual is the `execute` class, held at zero and stated rather than claimed;
+the `plpgsql_check` instrument lives inside `421`'s transaction and in no migration.

@@ -42,3 +42,108 @@ a decision.
 wording changes and must stay under the byte cap.
 
 **Delegation.** `backend` builds 421 and re-words the five carriers; tester and QA follow the §6 order.
+
+### 2026-09-11 — pgTAP 421 built; carriers re-worded (backend)
+
+⚠ The session crossed midnight during the full-suite run; the trailing gate runs below carry a 2026-09-12
+wall clock. The unit's date stays **2026-09-11** (its opening, its ruling and the hub's `Updated:`).
+
+**Deliverable 1 — `supabase/tests/421_definer_qualified_body.sql`, `plan(16)`, RUN SHAPE `Files=2, Tests=17`.**
+
+- **§ 0 the instrument and the domain.** `§ 0a` asserts `plpgsql_check` is in `pg_available_extensions`
+  BEFORE the `create extension … with schema extensions`, so a missing instrument reds with a diagnosis
+  rather than an unexplained abort; `§ 0b` then reads `pg_extension` rather than trusting the DDL's quiet
+  exit. The create runs inside the file's `begin; … rollback;` — measured: `ext_present 1` inside the
+  transaction, and `select count(*) from pg_extension where extname='plpgsql_check'` → **0** after the file
+  ends. ⛔ No migration; the catalog is untouched.
+- **§ 0c the partition** — `890 = 861 non-empty (419) + 29 empty (421)` as one named string, 421's OWN
+  predicate. ⛔ `419 § 0`'s splice was NOT copied: gate 18 compares that block byte-for-byte with
+  `scripts/definer-search-path-census.sql`. `§ 0d` pins `18 plpgsql | 11 sql | app authz public`.
+- **§ 1 plpgsql arm** — `left join lateral extensions.plpgsql_check_function_tb(oid, tgrelid, fatal_errors
+  => false) on true` (a LEFT join, so a member the checker CLEARS is not dropped and `§ 1a` can count
+  **18 examined**). `§ 1b` pins the raw finding set as `RAW>0 | _clone_item_map _clone_section_map
+  _clone_standard_map _copy_answer_map _tpl_phase_map` — the discrimination half, without which `§ 1c`'s
+  empty result is indistinguishable from a dead query. `§ 1c` = 0 post-exclusion findings. Measured raw:
+  **17 rows, 17 excluded**, from the four ADR 0208 D6 bodies only.
+- **§ 2 sql arm** — a DO block re-executing `pg_get_functiondef(oid)` per member inside `savepoint
+  s421_sql_reemit`, always rolled back. `§ 2a` reads **`11 visited | 0 findings`**; `§ 2b` proves all 11
+  definitions are byte-identical to a pre-savepoint snapshot.
+- ⭐ **The savepoint problem, and the mechanism chosen.** `rollback to savepoint` discards rows inserted
+  into a temp table inside that savepoint, so "capture into a temp table, roll back, assert after" cannot
+  work as written. Measured directly: a value `setval`'d to 42 inside a savepoint **survives** its
+  rollback, while a row inserted into a temp table in the same savepoint does not. So the two mutating
+  arms carry their result out on a **temp sequence** (`setval` is non-transactional), seeded to `0 = the
+  block never ran` and written as `value + 1` — which is why `§ 2a` reads `11 visited | 0 findings` and a
+  never-run block would read `-1 visited`. Findings are additionally `raise warning`-ed from inside the
+  block, so a red names function/sqlstate/message in the run log. Every assertion in the file sits OUTSIDE
+  every savepoint (the pgTAP savepoint trap: an assertion that RAISES inside one is recovered by the
+  following rollback and silently never runs). The plpgsql arm takes **no** savepoint — `plpgsql_check` is
+  read-only — so its findings keep their text.
+- **§ 3 five planted controls**, all measured discriminating: unqualified plpgsql DEFINER on `''` →
+  `42P01 relation "profiles" does not exist`; its qualified twin → no finding **and** `§ 3b` asserts it was
+  EXAMINED (1 row returned); `is_admin()` unqualified → **42883** (the live catalog raises only 42P01, so
+  without this plant that half of the finding set is carried by no assertion); the temp-plant →
+  `_x=EXCLUDED | profiles=KEPT` in ONE string, both halves, because an exclusion that matched nothing and
+  one that matched everything each satisfy either half alone; the sql plant created on `search_path =
+  public` then `ALTER`ed to `''` → `"" accepted by ALTER | 1 visited | 1 findings`, i.e. the catalog
+  accepted the body unvalidated and only the re-emission catches it. `§ 5` asserts the restore.
+- **§ 4 the residual** — `0 of 29` bodies match `\mexecute\M`, stated as a BOUND (dynamic SQL is opaque to
+  both arms), not as coverage.
+- **Exclusion bound tightened beyond the spec:** the finding's relation name is regex-escaped
+  (`regexp_replace(relname, '([^[:alnum:]])', '\\\1', 'g')`) before interpolation, so an identifier
+  carrying a metacharacter cannot make the exclusion match MORE than its own relation — the unsafe
+  direction.
+
+**Deliverable 2 — the five carriers, each now naming 421 and the `execute` residual:**
+`.claude/rules/migrations-forward-only.md` (**2043 bytes** after, cap 2048 — `lint:rules` OK; the wording
+was 2049 on the first attempt and one word was cut) · `scripts/gen-definer-search-path-freeze.mjs` header ·
+`419`'s header ⛔⛔ block (**comment-only**: `git diff … | grep -v '^[+-]-- '` returns nothing, so the
+assertions and the `§ 0` splice are byte-unchanged) · `docs/backend-state/authorization-and-audit.md`
+`## Current state` bullet REPLACED + a new dated slice appended at the seam's bottom + its "Where the
+detail lives" list extended · `docs/lint-gates.md` gate-18 paragraph. The follow-up name is kept and cited
+as **closed by 421**, never deleted.
+
+**Witnesses.**
+
+| run | verdict |
+| --- | --- |
+| `supabase db reset --local` | `Finished supabase db reset on branch definer-qualified-body-gate.` |
+| `npm run test:db` (that fresh reset) | **`Files=270, Tests=9062`** · `All tests successful.` · `Result: PASS` |
+| `supabase test db …/421_definer_qualified_body.sql` | `Files=1, Tests=16` · PASS (no `Looks like you planned…`, no Bad plan) |
+| `supabase test db …/00_setup.sql …/421_…sql` | **`Files=2, Tests=17`** — the RUN SHAPE line, measured, not asserted from memory (`419` alone measured `Files=1, Tests=10` / with setup `Files=2, Tests=11`, confirming the convention) |
+| `npm run lint` | **rc 0**, 18 gates; `gen-definer-search-path-freeze --self-test: OK (17 cases)` · `in sync (861 frozen …) [baseline main (6fd0bfdb43bb)]` · `check-rules-staleness: OK (12 rule file(s) …)` · `backend-state gate: OK — 16 seam file(s) … authorization-and-audit.md at 156.4 KB` |
+
+**Mutation proof (three mutations, run on the FRESH catalog against mutated COPIES in the scratchpad — the
+tracked file was never edited to red).**
+
+| mutation | result |
+| --- | --- |
+| exclusion matches every `42P01` (the requested one) | **2 red**: `§ 3d` `have: _x=EXCLUDED \| profiles=EXCLUDED` and `§ 3a` `have: (NOTHING FIRED)`. ⭐ `§ 1c` stayed **green** — a blinded exclusion is invisible to the property assertion and visible only to the controls, which is exactly why they are there |
+| sql arm's loop selects `lang = 'nosuchlang'` | **1 red**: `§ 2a` `have: 0 visited \| 0 findings` — the vacuity term fires, the findings term alone would have passed |
+| plpgsql arm's view selects `lang = 'nosuchlang'` | **6 red**: `§ 1a` `have: 0`, `§ 1b` `have: NULL`, `§ 3a`/`§ 3b`/`§ 3c`/`§ 3d` all `(NOTHING FIRED)`/`0` |
+| unmutated, same session | 16 `ok`, `Result: PASS` |
+
+**Dead ends and corrections, so the next reader does not re-walk them.**
+
+- ⛔ **"Capture into a temp table inside the savepoint, roll back, assert after" does not work** — the task
+  brief specified it and it is unimplementable: the rollback discards the rows. Measured before designing
+  around it (proto: `setval` 42 survives, temp-table row does not). The sequence channel is the fix, and
+  the `+1` sentinel is what keeps "never ran" distinguishable from "found nothing".
+- **A first draft of `§ 3d` put the `from` clause inside `coalesce(...)`'s argument list** — `select
+  coalesce(string_agg(…) from t), 'default')` — which is a syntax error that, inside a savepoint, would
+  have been recovered and the test silently skipped. It is outside every savepoint here, so it aborted
+  loudly at authoring time.
+- **`§ 0c` failed on its first run** (`have: 890 = 861 non-empty (419) + 29 empty (421)` vs a `want` that
+  omitted the parentheticals). Fixed by moving the expected literal to the richer form, not by stripping
+  the expression.
+- ⚠ **`supabase test db` does NOT leave `pgtap` installed** — the single-file psql loops used for the
+  mutation runs need `create extension pgtap` first. It was created and **dropped** afterwards
+  (`select count(*) … where extname='pgtap'` → **0**), so the local stack is back to what the reset left.
+- ⚠ **`plpgsql_check` findings repeat per statement**, so a raw COUNT (17 today) is a fragile pin; `§ 1b`
+  pins the distinct RELATION NAMES plus `RAW>0` instead, which discriminates without rotting on an
+  unrelated body edit.
+
+**Not run here (the lead's gate step 1 owns them):** the authz arms (`census`, `hat`, `floor`,
+`FROMFINDINGS=1 wrapper`) and the diff-scoped door sweep. ⚠ The diff is one new pgTAP file + five
+comment/doc texts and **no migration**, so no door changes — but that is a claim for the sweep's
+`SCOPE:` line to RULE, not for this entry to assert.

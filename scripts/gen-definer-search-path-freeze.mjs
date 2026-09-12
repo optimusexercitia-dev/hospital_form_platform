@@ -57,12 +57,20 @@
  *
  * ⛔⛔ AND D4 IS A TWO-CLAUSE CONVENTION OF WHICH THIS GATES ONE. D4 is `set search_path = ''`
  * **with schema-qualified object references**. Nothing here, and nothing in 419, reads a single
- * function BODY: the qualified half is UNGATED. That is not cosmetic — under `search_path = ''`
+ * function BODY. That half is gated ELSEWHERE, by pgTAP `421_definer_qualified_body.sql`, which
+ * hands every empty-path DEFINER to Postgres itself — `plpgsql_check_function_tb` for the
+ * plpgsql members, a re-execution of `pg_get_functiondef` for the `language sql` ones (because
+ * `ALTER FUNCTION … SET search_path` never re-validates a body) — and counts `42P01`/`42883` as
+ * findings. ⛔ 421's STATED BOUND: a body that builds SQL with `execute` is opaque to both arms,
+ * so 421 holds that population at ZERO rather than claiming to check it.
+ * That matters because the clause is not cosmetic — under `search_path = ''`
  * `pg_temp` is still searched FIRST for relation names, and `anon`/`authenticated`/`service_role`/
  * `authenticator` all hold database TEMP (4 of 4, ADR 0208 D5's census), so an unqualified
  * relation reference inside an empty-path DEFINER remains shadowable by a temp object. The empty
- * path narrows the exposure; it does not close it without the body half.
- * Tracked: FUP-DEFINER-SEARCH-PATH-NARROW-FIX-QUALIFIED-BODY-CLAUSE-OF-D4-IS-UNGATED.
+ * path narrows the exposure; the qualified body closes it.
+ * ⛔ 421 lives in `npm run test:db`, NOT in this chain: it opens a database, which no `lint` gate
+ * may. Its absence from a green `npm run lint` is not this gate's coverage.
+ * FUP-DEFINER-SEARCH-PATH-NARROW-FIX-QUALIFIED-BODY-CLAUSE-OF-D4-IS-UNGATED: closed by 421.
  *
  * ⛔ And the frozen set is a set of NAMES. A member that changes from one non-empty path to
  * a DIFFERENT non-empty path keeps its name and moves nothing here. That is the AC-1 shape
