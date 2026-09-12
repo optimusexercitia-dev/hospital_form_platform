@@ -168,9 +168,16 @@ run was transactional and no E2E ran since the last reset, so no leftover is exp
 reset" is NOT witnessed here**; the PO is asked to run the reset, after which `npm run test:db` is
 re-run and this line amended.
 
+**AMENDED the same day — the fresh reset IS witnessed.** The PO ran `supabase db reset --local`; its first
+attempt deadlocked (`40P01`, migration process 245 vs a concurrent `supabase test db` from the `qa` teammate — a
+shared-stack collision, not a migration defect; the catalog was left half-migrated at `20260718000100`), the QA
+teammate was told to stop all DB runs, the second attempt completed (531 rows in
+`supabase_migrations.schema_migrations`), and the lead re-ran `npm run test:db` on it:
+`Files=270, Tests=9066` · `Result: PASS` · `not ok` lines: 0. The pgTAP row below now stands on a fresh reset.
+
 | arm | invocation | rc | witness |
 | --- | --- | --- | --- |
-| pgTAP | `npm run test:db` (NOT on a fresh reset — see above) | 0 | `Files=270, Tests=9066` (was 9064: `414` +1, `421` +1) · `Result: PASS` · `not ok` lines: 0 |
+| pgTAP | `npm run test:db` (first on the backend's catalog; re-earned on the FRESH reset — see the amendment above) | 0 | `Files=270, Tests=9066` (was 9064: `414` +1, `421` +1) · `Result: PASS` · `not ok` lines: 0 |
 | lint | `npm run lint` | 0 | 18 gates; one WARN, new and this unit's: gate 16 check D `authorization-and-audit.md — 163.2 KB is over the 160 KB warn line (cap 200 KB)` |
 | typecheck | `npm run typecheck` | 0 | — |
 | door sweep deriver | `bash scripts/door-sweep-cases.sh f55b53ba` | **3 NOT-APPLICABLE** | `SCOPE: 0 file(s) — 0 committed (f55b53ba..HEAD), 0 worktree, 0 untracked \| filter: none \| derivation: NOT REACHED (this run ended before the catalog was probed)` — no migration; neither sweep arm run |

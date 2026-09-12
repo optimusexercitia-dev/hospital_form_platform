@@ -91,7 +91,8 @@ Make an undeclared-`search_path` DEFINER red with ONE named owner (`414 § 0b`) 
   Six mutation proofs on copies, in the record.
 - Gate step 1 (lead): `test:db` `Files=270, Tests=9066` PASS; lint rc 0 (one new gate-16 check-D
   WARN, seam at 163.2 KB); typecheck rc 0; door sweep deriver exit 3 NOT-APPLICABLE; census · hat ·
-  floor · wrapper rc 0; deriver self-test `PASS 46 · FAIL 0 · SKIPPED 0` (bash 5.2.37). Step 2 ruled
+  floor · wrapper rc 0; deriver self-test `PASS 46 · FAIL 0 · SKIPPED 0` (bash 5.2.37). Fresh reset
+  by the PO (after one shared-stack deadlock) → `test:db` re-earned `Files=270, Tests=9066` PASS. Step 2 ruled
   N/A by the lead (no runtime surface), PO to confirm.
 
 ### In progress
@@ -100,12 +101,10 @@ Make an undeclared-`search_path` DEFINER red with ONE named owner (`414 § 0b`) 
 
 ### Next
 
-- PO: run `supabase db reset --local` (denied to this session), lead re-runs `test:db` on the fresh
-  catalog; then step 4 approval, then the Record step (seam `## Current state` replacement under its
+- Step 4 approval after QA r1, then the Record step (seam `## Current state` replacement under its
   100-line cap; follow-up filed for the gate-16 warn; FUP entry archived; ledger row).
 
 ### Blockers
 
-- ⚠ "Fresh reset" is unwitnessed: the classifier denied the reset to this session.
 - ⚠ Another session shares this checkout; two of its docs commits (`bb6f3571`, `664a70a5`) sit on
   this branch and fast-forward onto `main` at merge.
