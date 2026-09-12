@@ -97,11 +97,13 @@ Make an undeclared-`search_path` DEFINER red with ONE named owner (`414 § 0b`) 
 
 ### In progress
 
-- `qa` review round 1 over AC-1 … AC-6.
+- `qa` round 2 over the r1 MINOR fixes (`fe3aa643`); r1 was APPROVED (0 MAJOR / 3 MINOR / 4 NOTE),
+  MINOR-3 (control re-typed the production predicate) fixed by a shared temp view, mutant now reds;
+  full suite re-earned on the final bytes: `Files=270, Tests=9066` PASS, lint rc 0.
 
 ### Next
 
-- Step 4 approval after QA r1, then the Record step (seam `## Current state` replacement under its
+- Step 4 approval after QA r2, then the Record step (MINOR-1 wording fix in the seam's top block, under its
   100-line cap; follow-up filed for the gate-16 warn; FUP entry archived; ledger row).
 
 ### Blockers

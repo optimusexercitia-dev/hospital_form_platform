@@ -256,3 +256,28 @@ newcomer of its class moves.
 `npm run lint` rc **0**. ⛔ No `supabase db reset`; every run transactional, every mutant a copy in the
 scratchpad. ⛔ `docs/backend-state/authorization-and-audit.md` untouched — MINOR-1 is the lead's at the
 Record step. No `plan()` moved, so the suite total is unchanged at 9066.
+
+### 2026-09-12 — QA r1 APPROVED (0/0/3 MINOR/4 NOTE); MINORs corrected; full-suite witness re-earned; QA r2 spawned (lead)
+
+**QA r1** (`docs/reviews/definer-undeclared-class-remedy-review.md`, committed `2d6b2b30`): **APPROVED**. The
+finding that mattered was **MINOR-3, measured**: `414 § 2d` re-typed `§ 0b`'s `where sp is null`, so QA's mutant
+(`§ 0b`'s clause drifted to `sp = '<none>'`, a live undeclared plant) left `§ 2d` GREEN while `§ 0b` was blind —
+the control certified a predicate it did not read (the hand-written-copy shape `421 § 3h` had avoided by
+`v421_partition`). MINOR-1: seam `## Current state` `:71` still says *"`414` unchanged"* — the lead's, at the
+Record step (the sweep was keyed on *"byte-unchanged"* and this carrier says *"unchanged"*). MINOR-2: `421`'s
+`-- 17.`/`-- 18.` section comments off by one after `§ 3h`. NOTEs: `421:196-198`'s "three terms" wording; `plan()`
+grew by two cells against the ruling's *"No new cell"* (PO to confirm at step 4 — the lead reads *"no new cell"*
+as *no new PARTITION of the population*, and these two are CONTROLS over existing cells, not cells); the record
+said "eight ACs"; the check-D warn's remedy is a new seam.
+
+**Fix loop** (`backend`, `fe3aa643`): `v414_undeclared` temp view read by BOTH `§ 0b` and `§ 2d`; QA's mutant
+re-run — before `Files=1, Tests=8 PASS` (survival reproduced), after `# Failed test 7: "§2d …" / have: (NOTHING
+FIRED)`; comments renumbered and each verified by a forced red; NOTE-1 and the "eight ACs" corrected. Detail in
+the backend's entry above.
+
+**Full-suite witness re-earned on the final bytes** (no reset needed — every run since the PO's fresh reset was
+transactional): `npm run test:db` → `Files=270, Tests=9066` · `Result: PASS` · `not ok` 0; `npm run lint` rc 0
+(the gate-16 check-D WARN stands, filed at the Record step). `plan()` did not move in the fix loop, so 9066 is
+unchanged from the pre-fix figure.
+
+**QA r2 spawned**, scoped to MINOR-2/3 and the two NOTEs; MINOR-1 stays open to the Record step by design.
