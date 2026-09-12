@@ -24,7 +24,7 @@ ruling already states the convention; this builds its missing enforcer.
 
 ## Current state
 
-**Updated:** 2026-09-11
+**Updated:** 2026-09-12
 
 ### Objective
 pgTAP `421_definer_qualified_body.sql`: every `prosecdef` function in `app`/`public`/`authz` whose

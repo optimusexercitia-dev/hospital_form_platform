@@ -147,3 +147,22 @@ tracked file was never edited to red).**
 `FROMFINDINGS=1 wrapper`) and the diff-scoped door sweep. ⚠ The diff is one new pgTAP file + five
 comment/doc texts and **no migration**, so no door changes — but that is a claim for the sweep's
 `SCOPE:` line to RULE, not for this entry to assert.
+
+**Addendum, same session (wall clock 2026-09-12).**
+
+- **`§ 0c` tightened after the first commit.** As first written its two middle figures summed to the
+  total BY CONSTRUCTION (`sp <> '""'` and `sp = '""'` are complements), so the assertion proved
+  arithmetic and a pinned pair, not the escape it names. It now carries a fourth term — **`0
+  undeclared`** (`sp = '<none>'`) — which is the non-tautological one: a DEFINER declaring no
+  `search_path` at all satisfies `<> '""'`, would be counted on 419's side, and is in neither gate's
+  real domain (`414 § 0b`'s class, disposition still open). Its message also now states that the two
+  middle figures MOVE on a legitimate convergence and that the fix is a re-baseline here AND in
+  `419 § 0c/§ 0d` in the same change — ⛔ never a reason not to converge, which is the inversion
+  `419`'s own header warns about. Re-verified: `Files=2, Tests=17` PASS, `npm run lint` rc 0.
+- ⚠ **The hub's `Updated:` was bumped 2026-09-11 → 2026-09-12 against the task brief**, because gate 13
+  reds on it: `[HUBS] … Updated 2026-09-11 is older than the newest code commit on this branch
+  (2026-09-12) — the block is stale`. The session crossed midnight during the 212-second suite run.
+  `authorization-and-audit.md`'s `## Current state` stamp was bumped for the same reason (the block was
+  replaced today); the dated SLICE headings and this record's entry heading stay **2026-09-11**, the
+  unit's date. ⛔ A gate's demand outranks a brief's instruction — the deviation is recorded rather than
+  papered over.

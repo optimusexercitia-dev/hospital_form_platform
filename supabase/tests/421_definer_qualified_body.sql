@@ -145,12 +145,18 @@ create temp view v421_empty as select * from v421_domain where sp = '""';
 -- 3. THE PARTITION. `419` freezes the NON-EMPTY side (861) and this file gates the EMPTY side (29);
 --    the two must still sum to `414`'s whole population (890). ⛔ Without this, a member that
 --    acquired an `<none>` or some third form would fall out of BOTH gates and neither would red.
+-- ⚠ THE `0 undeclared` TERM IS THE NON-TAUTOLOGICAL ONE. `sp <> '""'` and `sp = '""'` sum to the
+--    total by construction, so the two middle figures alone prove only arithmetic; the fourth term
+--    is what closes the escape — a DEFINER declaring NO `search_path` at all satisfies `<> '""'`,
+--    would be counted on 419's side, and is in neither gate's actual domain (`414 § 0b`'s class,
+--    whose disposition is still open).
 select is(
   (select count(*) from v421_domain)::text || ' = ' ||
   (select count(*) from v421_domain where sp <> '""')::text || ' non-empty (419) + ' ||
-  (select count(*) from v421_empty)::text || ' empty (421)',
-  '890 = 861 non-empty (419) + 29 empty (421)',
-  '§ 0c THE TWO GATES PARTITION THE POPULATION: every prosecdef function in app/public/authz is either frozen by 419 or body-checked here, with nothing in between. ⛔ A member carrying neither form (e.g. `<none>`) would leave both gates green while being gated by neither'
+  (select count(*) from v421_empty)::text || ' empty (421) | ' ||
+  (select count(*) from v421_domain where sp = '<none>')::text || ' undeclared',
+  '890 = 861 non-empty (419) + 29 empty (421) | 0 undeclared',
+  '§ 0c THE TWO GATES PARTITION THE POPULATION: every prosecdef function in app/public/authz is either frozen by 419 or body-checked here, with nothing in between. ⛔ `undeclared` moving off 0 means a member is in NEITHER gate''s domain while both stay green. ⚠ The two middle figures MOVE when a member converges to the empty form, which is exactly what D4 asks for — that is a re-baseline (here AND 419 § 0c/§ 0d, in the same change, after re-running the generator), never a reason not to converge'
 );
 
 -- 4. THE ARMS' OWN DOMAIN, AS A NAMED SET. An arm that stopped covering its language returns the
