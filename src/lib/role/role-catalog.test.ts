@@ -34,16 +34,28 @@ import { ROLE_LABELS as BLOCKER_ROLE_LABELS } from '@/components/users/affiliati
  *     as part of the DB gate, not as a unit test.
  *
  * THE CROSS-LANGUAGE SEAM. `ROLE_MANIFEST` is TypeScript; pgTAP is SQL; neither side can
- * import the other. 411's file carries a COMMITTED (code, scope_kind) snapshot between
- * `MANIFEST-SNAPSHOT-BEGIN`/`END` markers — a literal, machine-checkable stand-in for
- * `ROLE_MANIFEST` that both sides key on:
- *   - THIS file reads 411's SQL as plain text (`fs.readFileSync`, no DB, no Docker) and
- *     asserts the snapshot equals `ROLE_MANIFEST` — see the last test below.
- *   - 411 asserts that SAME snapshot against the live `authz.roles` table.
- * Neither hop alone re-proves the original claim ("ROLE_MANIFEST is authz.roles' live
- * session-selectable half"); chained, they do, and each hop can red independently on its
- * own half of a drift (edit `ROLE_MANIFEST` without touching 411's snapshot → this file
- * reds; edit a migration's role seed without touching 411's snapshot → 411 reds).
+ * import the other. The shared, machine-checkable stand-in is a COMMITTED, GENERATED
+ * artifact — `supabase/tests/vectors/role_manifest.psql`, written by
+ * `scripts/gen-role-manifest.mjs --write` from the LIVE catalog — that both sides key on:
+ *   - THIS file reads it as plain text (`fs.readFileSync`, no DB, no Docker) and asserts
+ *     it equals `ROLE_MANIFEST` — see the last test below.
+ *   - 411 asserts that SAME artifact against the live `authz.roles` table.
+ * Neither hop alone re-proves the original claim ("ROLE_MANIFEST is the live role
+ * catalog"); chained, they do, and each hop can red independently on its own half of a
+ * drift (edit `ROLE_MANIFEST` without regenerating → this file reds; edit a migration's
+ * role seed without regenerating → 411 reds).
+ *
+ * ⭐ IT USED TO BE A HAND-TYPED BLOCK INSIDE 411, between `MANIFEST-SNAPSHOT-BEGIN`/`END`
+ * markers, and 411's own comment conceded that *"nothing enforces the edit itself; a code
+ * review noticing 'ROLE_MANIFEST changed, did 411 move too' is still the first line of
+ * defense."* ADR 0207 D4 replaced it with the generated artifact, and the hand-edit — and
+ * with it the only step a human had to remember — is gone.
+ *
+ * ⚠ AND THERE ARE NOW TWO TS-SIDE READERS, WHICH IS NOT REDUNDANCY. Gate 19
+ * (`gen-role-manifest.mjs --check`, in `npm run lint`) compares the artifact to
+ * ROLE_MANIFEST by PARSING `role-catalog.ts` as text; it never evaluates the module, so a
+ * parser that read the source wrongly would agree with itself. The test below compares the
+ * artifact to the REAL EVALUATED objects. Each can catch what the other cannot.
  *
  * ⚠ THE CATALOG IS STILL READ AT (DB) GATE TIME, NOT TRANSCRIBED BY HAND INTO A SECOND
  * TS FILE. The recorded rule is that an enumeration's boundary must be the PROPERTY,
@@ -55,56 +67,62 @@ import { ROLE_LABELS as BLOCKER_ROLE_LABELS } from '@/components/users/affiliati
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..')
 
-const DB_GATE_RELATIVE_PATH = path.join(
+const ARTIFACT_RELATIVE_PATH = path.join(
   'supabase',
   'tests',
-  '411_ae48_role_manifest_db_gate.sql',
+  'vectors',
+  'role_manifest.psql',
 )
-const MANIFEST_SNAPSHOT_BEGIN = '-- MANIFEST-SNAPSHOT-BEGIN'
-const MANIFEST_SNAPSHOT_END = '-- MANIFEST-SNAPSHOT-END'
 
 /**
- * Parse the (code, scope_kind) snapshot embedded in 411's pgTAP file — see the module
- * doc comment above. Plain-text `fs.readFileSync` of a file already checked into THIS
- * repo: no DB connection, no Docker, no network. This is what lets the drift check below
- * run in the same process as every other unit test.
+ * Parse the GENERATED role-catalog artifact — see the module doc comment above. Plain-text
+ * `fs.readFileSync` of a file already checked into THIS repo: no DB connection, no Docker,
+ * no network. This is what lets the drift check below run in the same process as every
+ * other unit test.
  */
-function readManifestSnapshotFromDbGate(): Array<{ code: string; scopeKind: string }> {
-  const gatePath = path.join(REPO_ROOT, DB_GATE_RELATIVE_PATH)
-  const text = readFileSync(gatePath, 'utf8')
+function readManifestArtifact(): Array<{
+  code: string
+  scopeKind: string
+  sessionSelectable: boolean
+}> {
+  const artifactPath = path.join(REPO_ROOT, ARTIFACT_RELATIVE_PATH)
+  const text = readFileSync(artifactPath, 'utf8').replace(/\r\n/g, '\n')
 
-  const begin = text.indexOf(MANIFEST_SNAPSHOT_BEGIN)
-  const end = text.indexOf(MANIFEST_SNAPSHOT_END)
-  if (begin === -1 || end === -1 || end < begin) {
+  const marker = 'insert into role_manifest_pin'
+  const start = text.indexOf(marker)
+  if (start === -1) {
     throw new Error(
-      `AE4.9/IA-F7 manifest guard: could not find the ${MANIFEST_SNAPSHOT_BEGIN} / ` +
-        `${MANIFEST_SNAPSHOT_END} markers in ${DB_GATE_RELATIVE_PATH}. Keep them exactly — ` +
-        'this test parses that file as plain text to bind ROLE_MANIFEST to the committed ' +
-        'snapshot 411 checks against the live catalog.',
+      `role-catalog artifact guard: could not find "${marker}" in ` +
+        `${ARTIFACT_RELATIVE_PATH}. The artifact is generated by ` +
+        '`node scripts/gen-role-manifest.mjs --write`; if its shape changed, this parser ' +
+        'and gate 19 both need moving.',
     )
   }
-  const block = text.slice(begin, end)
 
-  // Matches each `('code', 'scope_kind')` row. The surrounding `create temp table` /
-  // `insert into … values` SQL has no other single-quoted-pair shape, so this cannot
-  // pick up anything but the data rows.
-  const rowPattern = /\(\s*'([a-z_]+)'\s*,\s*'([a-z_]+)'\s*\)/g
-  const rows: Array<{ code: string; scopeKind: string }> = []
+  // Each row is `  ('code', 'scope_kind', <selectable>, <system_managed>, 'state')`.
+  const rowPattern =
+    /^ {2}\('([a-z_]+)', '([a-z_]+)', (true|false), (?:true|false), '[a-z_]+'\),?;?$/gm
+  const rows: Array<{ code: string; scopeKind: string; sessionSelectable: boolean }> = []
   let match: RegExpExecArray | null
-  while ((match = rowPattern.exec(block)) !== null) {
-    rows.push({ code: match[1], scopeKind: match[2] })
+  const body = text.slice(start)
+  while ((match = rowPattern.exec(body)) !== null) {
+    rows.push({
+      code: match[1],
+      scopeKind: match[2],
+      sessionSelectable: match[3] === 'true',
+    })
   }
 
   if (rows.length === 0) {
     throw new Error(
-      `AE4.9/IA-F7 manifest guard: parsed ZERO rows out of ${DB_GATE_RELATIVE_PATH}'s ` +
-        'snapshot block. An empty snapshot would make the comparison below vacuous.',
+      `role-catalog artifact guard: parsed ZERO rows out of ${ARTIFACT_RELATIVE_PATH}. ` +
+        'An empty artifact would make the comparison below vacuous.',
     )
   }
   return rows
 }
 
-describe('role-catalog manifest — pure checks + the committed DB-gate snapshot binding', () => {
+describe('role-catalog manifest — pure checks + the generated-artifact binding', () => {
   it('the manifest covers every platform_role — ROLE_ORDER is not exhaustive by type', () => {
     // ⛔ `as const satisfies readonly PlatformRole[]` does NOT catch a MISSING role: a
     // short array still satisfies the constraint. ROLE_LABELS is exhaustive by type, so
@@ -145,27 +163,63 @@ describe('role-catalog manifest — pure checks + the committed DB-gate snapshot
     expect(Object.keys(ROLE_SCOPE_KIND).length).toBe(ROLE_ORDER.length)
   })
 
-  it('ROLE_MANIFEST matches the committed snapshot 411 binds to the live catalog (IA-F7)', () => {
-    // ⭐ THE DRIFT CHECK. This is the TS-side hop of the two-hop chain described in the
-    // module doc comment: it proves ROLE_MANIFEST agrees with the COMMITTED snapshot
-    // (plain text, no DB); 411 proves that SAME snapshot agrees with the live
-    // `authz.roles` catalog (DB, post-`db reset`). Together they re-prove what the old
-    // single Docker-shelling test proved — that ROLE_MANIFEST is exactly authz.roles'
-    // session-selectable half, with matching scope kinds — without either hop acquiring
-    // the other's dependency.
+  it('every role sharing a landing branch declares the same empty fallback', () => {
+    // ⭐ THE ONE MANIFEST FACT THE TYPE SYSTEM CANNOT HOLD. `branchEmptyFallback` is
+    // declared PER ROLE but consumed PER BRANCH: role-catalog.ts derives
+    // BRANCH_EMPTY_FALLBACK by keying the manifest on `branch`, so if two roles sharing a
+    // branch disagreed, the last one declared would silently win and the other role's
+    // stated fallback would never be used. Nothing in the types says they must agree.
     //
-    // ⛔ Edit ROLE_MANIFEST (add/remove a role, change a scopeKind) without updating
-    // 411's snapshot block, or vice versa, and THIS test reds — no `supabase start`
-    // required to see it.
-    const snapshot = readManifestSnapshotFromDbGate()
-    const fromManifest = [...ROLE_MANIFEST]
-      .map((r) => ({ code: r.code, scopeKind: r.scopeKind }))
-      .sort((a, b) => a.code.localeCompare(b.code))
-    const fromSnapshot = [...snapshot].sort((a, b) => a.code.localeCompare(b.code))
+    // ⚠ This is a NEW obligation created by the F7 collapse: before it, the table was
+    // hand-written per branch and the question could not arise. It is asserted here rather
+    // than thrown at import time because this module is imported by three "use client"
+    // components, and a module-level throw would take the page down instead of the build.
+    const byBranch = new Map<string, Set<string>>()
+    for (const entry of ROLE_MANIFEST) {
+      const seen = byBranch.get(entry.branch) ?? new Set<string>()
+      seen.add(entry.branchEmptyFallback)
+      byBranch.set(entry.branch, seen)
+    }
+    const disagreeing = [...byBranch.entries()]
+      .filter(([, fallbacks]) => fallbacks.size > 1)
+      .map(([branch, fallbacks]) => `${branch}: ${[...fallbacks].join(' vs ')}`)
+    expect(disagreeing).toEqual([])
 
-    // Cardinality control first: a truncated snapshot would make the equality below
+    // Cardinality control: a manifest that somehow produced no branches at all would pass
+    // the emptiness assertion above while measuring nothing.
+    expect(byBranch.size).toBeGreaterThan(0)
+  })
+
+  it('ROLE_MANIFEST matches the generated artifact that 411 binds to the live catalog', () => {
+    // ⭐ THE DRIFT CHECK. This is the TS-side hop of the two-hop chain described in the
+    // module doc comment: it proves ROLE_MANIFEST agrees with the COMMITTED artifact
+    // (plain text, no DB); 411 proves that SAME artifact agrees with the live
+    // `authz.roles` catalog (DB, post-`db reset`). Together they re-prove what the old
+    // single Docker-shelling test proved — that ROLE_MANIFEST is exactly the role catalog,
+    // with matching scope kinds — without either hop acquiring the other's dependency.
+    //
+    // ⚠ THIS IS NOT A DUPLICATE OF GATE 19, and the difference is the point. Gate 19
+    // (`gen-role-manifest.mjs --check`) compares the artifact to ROLE_MANIFEST by PARSING
+    // role-catalog.ts AS TEXT — it never evaluates the module, so a parser that read the
+    // source wrongly would agree with itself. This test compares the artifact to the REAL
+    // EVALUATED objects, after `as const`, after every derivation. Two readers, one of
+    // which cannot be fooled by the other's parse.
+    //
+    // ⛔ Edit ROLE_MANIFEST (add/remove a role, change a scopeKind) without regenerating
+    // the artifact, or vice versa, and THIS test reds — no `supabase start` required.
+    const artifact = readManifestArtifact()
+    const fromManifest = [...ROLE_MANIFEST]
+      .map((r) => ({
+        code: r.code as string,
+        scopeKind: r.scopeKind as string,
+        sessionSelectable: r.sessionSelectable as boolean,
+      }))
+      .sort((a, b) => a.code.localeCompare(b.code))
+    const fromArtifact = [...artifact].sort((a, b) => a.code.localeCompare(b.code))
+
+    // Cardinality control first: a truncated artifact would make the equality below
     // pass on a subset instead of the whole manifest.
-    expect(snapshot.length).toBe(ROLE_MANIFEST.length)
-    expect(fromSnapshot).toEqual(fromManifest)
+    expect(artifact.length).toBe(ROLE_MANIFEST.length)
+    expect(fromArtifact).toEqual(fromManifest)
   })
 })

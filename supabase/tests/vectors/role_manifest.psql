@@ -1,0 +1,38 @@
+-- GENERATED FILE — DO NOT EDIT BY HAND.
+-- Source:    the LIVE catalog — authz.roles
+-- Generator: scripts/gen-role-manifest.mjs  (--write / --check / --self-test)
+-- Consumers: supabase/tests/411_ae48_role_manifest_db_gate.sql  (artifact == the catalog)
+--            scripts/gen-role-manifest.mjs --check              (artifact == the TS manifest)
+-- anchor: role-manifest rows=11 sha256=ad8a2dcd6e6cf13fbbbd7761199333fbfa8c7660cc03f455151e44acd9489d30 md5=a6b2308068d4b0f3e59e3f74e4539245
+--
+-- The role catalog, pinned. ⛔ NEITHER CONSUMER IS THE VERDICT ALONE (ADR 0197 D4):
+-- gate 19 proves these bytes equal `src/lib/role/role-catalog.ts`'s ROLE_MANIFEST and
+-- never opens a database; 411 proves they equal `authz.roles` and is the only arm that
+-- does. Chained, ROLE_MANIFEST agrees with the catalog.
+--
+-- ⛔ `system_managed` and `state` have NO TypeScript twin — gate 19 cannot check them,
+-- and 411 is their only reader. `label`, `branch` and the manifest's ORDER have no
+-- catalog twin and are deliberately absent here; role-catalog.test.ts gates those.
+--
+-- ⚠ `.psql`, NOT `.sql`, AND THE EXTENSION IS LOAD-BEARING — do not "tidy" it.
+-- `pg_prove` collects every `*.sql` under the tests directory AS A TEST; this fixture
+-- declares no plan and emits no TAP, so being collected fails the whole run with "No plan
+-- found in TAP output". `\ir` does not care about the extension.
+--
+-- ⚠ Ordered by `code collate "C"` — code-point order, which is what 411's md5 pin and
+-- the generator's JavaScript sort both assume. Editing this file by hand REDS gate 19.
+create temp table role_manifest_pin (
+  code text, scope_kind text, session_selectable boolean, system_managed boolean, state text
+) on commit drop;
+insert into role_manifest_pin (code, scope_kind, session_selectable, system_managed, state) values
+  ('hospital_admin', 'hospital', true, false, 'legacy'),
+  ('nsp_coordinator', 'hospital', true, false, 'legacy'),
+  ('nsp_org_admin', 'organization', true, false, 'legacy'),
+  ('org_admin', 'organization', true, false, 'legacy'),
+  ('platform_admin', 'none', true, true, 'legacy'),
+  ('pqs_member', 'hospital', true, false, 'legacy'),
+  ('quality_reviewer', 'hospital', true, false, 'legacy'),
+  ('staff', 'commission', true, false, 'legacy'),
+  ('staff_admin', 'commission', true, false, 'authoritative'),
+  ('technical_director', 'hospital', true, false, 'legacy'),
+  ('technical_director_deputy', 'hospital', true, false, 'legacy');

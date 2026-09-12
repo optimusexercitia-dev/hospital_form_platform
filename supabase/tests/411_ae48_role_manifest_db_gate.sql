@@ -3,159 +3,194 @@
 -- Docker (`docker exec … psql`) to read this same catalog — which made `npm run test`
 -- require the local Supabase stack. Subject: `authz.roles` (401's §3), read-only here.
 --
--- WHY THIS FILE EXISTS RATHER THAN STAYING IN role-catalog.test.ts. `ROLE_MANIFEST`
--- (src/lib/role/role-catalog.ts) is TypeScript; pgTAP is SQL; neither side can import
--- the other's source. `role-catalog.test.ts` keeps every assertion provable from the TS
--- objects alone — no DB, no Docker. This file carries the half that needs the live
--- catalog: is `ROLE_MANIFEST` exactly `authz.roles`' session-selectable half, with
--- matching `allowed_scope_kind`?
+-- ⭐⭐ THE SNAPSHOT IS NO LONGER HAND-TYPED (ADR 0207 D4, unit AE5-ROLE-CATALOG-COMPAT).
+-- §1 used to be ELEVEN ROWS TYPED BY HAND between `MANIFEST-SNAPSHOT-BEGIN`/`END` markers,
+-- and this file's own comment admitted what that cost: *"Keep this block in sync with
+-- ROLE_MANIFEST BY HAND — both drift directions are gated, but nothing enforces the edit
+-- itself; a code review noticing 'ROLE_MANIFEST changed, did 411 move too' is still the
+-- first line of defense."* A human noticing is not a gate. The rows are now a GENERATED,
+-- COMMITTED artifact — `supabase/tests/vectors/role_manifest.psql`, written by
+-- `scripts/gen-role-manifest.mjs --write` from the LIVE catalog — and the hand-edit step
+-- is gone.
 --
--- THE CROSS-LANGUAGE SEAM — READ BEFORE EDITING §1. §1 below is a COMMITTED, literal
--- (code, scope_kind) snapshot of `ROLE_MANIFEST`, between the `MANIFEST-SNAPSHOT-BEGIN`
--- / `MANIFEST-SNAPSHOT-END` marker comments. It is the machine-checkable stand-in both
--- sides key on, and it is read TWICE:
---   * `role-catalog.test.ts` reads THIS FILE as plain text (`fs.readFileSync`, no DB)
---     and asserts the marked block equals `ROLE_MANIFEST` — edit one without the other
---     and that test reds, with no `supabase start` needed to see it.
---   * §3/§4/§5 below assert that SAME block against the live `authz.roles` table — edit
---     a migration's role seed without updating the block and THIS suite reds.
--- Chained, the two hops re-prove the original single-test claim (TS manifest agrees with
--- the live catalog) without either hop acquiring the other's dependency.
+-- ⛔⛔ TWO ARMS, AND NEITHER IS THE VERDICT ALONE (ADR 0197 D4):
+--   artifact == the TypeScript ROLE_MANIFEST  -> gate 19 (`npm run lint:role-manifest`),
+--                                                text only, never opens a database
+--   artifact == the live `authz.roles`        -> THIS FILE, in `npm run test:db`
+-- Chained, ROLE_MANIFEST agrees with the catalog, and each arm reds independently on its
+-- own half of a drift: edit ROLE_MANIFEST without regenerating and gate 19 reds; change a
+-- migration's role seed without regenerating and §2 here reds. ⛔ The absence of one arm's
+-- verdict is NOT the other arm's coverage.
 --
--- ⛔⛔ KEEP THE MARKER COMMENTS AND THE `('code', 'scope_kind')` ROW SHAPE EXACTLY.
--- `role-catalog.test.ts` parses this file with a regex keyed on those two markers and on
--- single-quoted `('x', 'y')` pairs. Reformatting the block (multi-line rows, double
--- quotes, trailing commentary inside the marker span) breaks that parser. The vitest
--- side guards against a parse that silently finds NOTHING (throws on zero rows), but a
--- parse that finds the WRONG rows would not be caught by that guard — do not rely on it,
--- keep the shape.
+-- ⚠ THE PINNED SIDE IS READ FROM A COMMITTED FILE, NEVER RE-DERIVED. `\ir` includes bytes
+-- that are in git. Deriving the "expected" side live in the same instant would compare the
+-- catalog to itself and pass under every mutation (LEARN-084).
 --
--- ⚠ THIS SUITE DOES NOT CALL `test_helpers.bootstrap()` and performs no mutation: its
--- only subject is the catalog table `authz.roles`, seeded once by migration and
--- independent of the org/commission fixture bootstrap builds. Everything here is a
--- read, and the transaction rolls back regardless.
+-- ⛔ WHAT THIS FILE CANNOT SEE, STATED SO A GREEN IS NOT OVER-READ. The artifact carries
+-- only what BOTH sides can speak about. `label`, `branch`, `branchEmptyFallback` and the
+-- manifest's ORDER (which IS the landing precedence) have no catalog twin — Postgres has
+-- no opinion about pt-BR wording or about where a role lands — so nothing here asserts
+-- them; `src/lib/role/role-catalog.test.ts` does.
 --
--- RUN SHAPE: `Files=2, Tests=9` (8 here + 00_setup.sql's one).
--- ⚠ 7 -> 8 at the Gate AE4 review (F-MAJOR-4b): §5.1 was re-pointed at the DECLARED domain
--- vocabulary — the one grain §3/§4 do not entail — and gained the discrimination control §5.2
--- that a subtraction-built expectation needs. See §5's header for the dependency proof.
+-- ⚠ THIS SUITE DOES NOT CALL `test_helpers.bootstrap()` and performs no mutation to any
+-- PERMANENT table: its only subject is the catalog table `authz.roles`, seeded once by
+-- migration and independent of the org/commission fixture bootstrap builds. §2.2's
+-- mutation is applied to a TEMP COPY, never to `authz.roles`, and everything rolls back.
+--
+-- RUN SHAPE: `Files=2, Tests=10` (9 here + 00_setup.sql's one).
+-- ⚠ 7 -> 8 at the Gate AE4 review (F-MAJOR-4b); 8 -> 9 at AE5-ROLE-CATALOG-COMPAT, where
+-- the old §2 lost its subject and was RE-CAST rather than deleted (see §2's header).
 
 begin;
-select plan(8);
+select plan(9);
 
 -- ============================================================================
--- §1 — the committed manifest snapshot. ALSO parsed as plain text by
--- src/lib/role/role-catalog.test.ts (see that file's module doc comment). Keep this
--- block in sync with src/lib/role/role-catalog.ts's ROLE_MANIFEST BY HAND — both drift
--- directions are gated (there, and by §3/§4/§5 below), but nothing enforces the edit
--- itself; a code review noticing "ROLE_MANIFEST changed, did 411 move too" is still the
--- first line of defense.
+-- §0 — the GENERATED artifact, and the two literals that pin it.
+--
+-- ⚠ THE ANCHOR IS MIRRORED, NOT RE-DERIVED (ADR 0195: one home, a gated mirror). The
+-- artifact's header carries `rows=` and `md5=`; the two literals below must equal them,
+-- and `gen-role-manifest.mjs --check` reads THESE LINES — the ones pgTAP actually
+-- asserts, never a comment restating them — so two comments cannot agree while the
+-- assertion says otherwise.
 -- ============================================================================
--- MANIFEST-SNAPSHOT-BEGIN
-create temp table manifest_snapshot (code text, scope_kind text) on commit drop;
-insert into manifest_snapshot (code, scope_kind) values
-  ('platform_admin', 'none'),
-  ('org_admin', 'organization'),
-  ('hospital_admin', 'hospital'),
-  ('nsp_org_admin', 'organization'),
-  ('staff_admin', 'commission'),
-  ('staff', 'commission'),
-  ('nsp_coordinator', 'hospital'),
-  ('pqs_member', 'hospital'),
-  ('technical_director', 'hospital'),
-  ('technical_director_deputy', 'hospital'),
-  ('quality_reviewer', 'hospital');
--- MANIFEST-SNAPSHOT-END
+\ir vectors/role_manifest.psql
 
-select is((select count(*)::int from manifest_snapshot), 11,
-  '1.1 FIXTURE CONTROL: the committed snapshot carries all eleven ROLE_MANIFEST rows — '
-  'a truncated paste here would make §3/§4 pass by vacuity (comparing an empty or '
-  'partial set instead of the real one).');
-
--- ============================================================================
--- §2 — DISCRIMINATION CONTROL, ported from role-catalog.test.ts's own: authz.roles
--- actually distinguishes selectable from not, so §3's set-equality assertion cannot be
--- vacuously true against an empty or all-one-value catalog. The original control
--- existed to catch a text-parsing boolean-cast bug specific to the retired
--- `docker exec … psql -tAc` read path; this SQL-native read cannot reproduce that
--- specific bug, but the vacuity risk it guards — an accidentally all-true or all-false
--- catalog — is a property of the DATA, not of the old read mechanism, so the control is
--- kept.
--- ============================================================================
-select cmp_ok(
-  (select count(*)::int from authz.roles where session_selectable), '>', 0,
-  '2.1 at least one authz.roles row is session_selectable (else §3''s RHS is empty)');
-
-select cmp_ok(
-  (select count(*)::int from authz.roles),
-  '>',
-  (select count(*)::int from authz.roles where session_selectable),
-  '2.2 the catalog holds at least one NON-selectable row too (administrativo) — so §3 '
-  'compares against a genuine subset of authz.roles, not the whole table');
-
-select ok(
-  exists(select 1 from authz.roles where not session_selectable),
-  '2.3 …and at least one such row is directly OBSERVABLE, not merely inferable from '
-  'the 2.2 arithmetic — restates the same fact as an EXISTS, mirroring the retired '
-  'role-catalog.test.ts discrimination control''s own third (and independently '
-  'necessary, per its comment) assertion rather than dropping it as redundant');
-
--- ============================================================================
--- §3 — the manifest snapshot is EXACTLY authz.roles' session-selectable half: no code
--- missing, none extra (`administrativo`, the one false row, is correctly absent).
--- ============================================================================
 select is(
-  (select array_agg(code order by code) from manifest_snapshot),
-  (select array_agg(code order by code) from authz.roles where session_selectable),
-  '3.1 the snapshot''s code set equals { code : authz.roles.session_selectable }');
+  (select count(*)::int from role_manifest_pin),
+  11,
+  '§ 0a ROWS PIN: the artifact holds exactly the 11 roles its anchor declares. ⛔ A role '
+  'added or removed updates BOTH the artifact (via --write) and this literal; updating '
+  'only one is the drift this pin exists to catch.');
+
+-- ⚠ `code collate "C"` — CODE-POINT order, matching the generator's JavaScript sort. Under
+-- the cluster's default collation Postgres orders `_` differently and the md5 of a
+-- byte-identical set would disagree. The concatenation shape is the generator's `rowText`.
+select is(
+  (select md5(string_agg(
+            code || '|' || scope_kind || '|' || session_selectable || '|' ||
+            system_managed || '|' || state, '|' order by code collate "C"))
+     from role_manifest_pin),
+  'a6b2308068d4b0f3e59e3f74e4539245',
+  '§ 0b CONTENT PIN: the artifact''s CONTENT, not merely its count. A role swapped for '
+  'another keeps § 0a green and moves this.');
 
 -- ============================================================================
--- §4 — every snapshot row's scope_kind matches authz.roles.allowed_scope_kind for that
--- SAME code.
+-- §1 — the catalog side's cardinality, so §2 is not comparing against a shrunken table.
 -- ============================================================================
+
+select is(
+  (select count(*)::int from authz.roles),
+  11,
+  '1.1 FIXTURE CONTROL: `authz.roles` itself holds eleven rows. ⚠ TWELVE until ADR 0207 D5 '
+  'step 4 (migration 20261003007430) deleted `administrativo` — the capability plane is a '
+  'PROVIDER, not a role, and the row its own seed comment called "NOT A ROLE" is gone.');
+
+-- ============================================================================
+-- §2 — THE BINDING: the artifact IS `authz.roles`.
+--
+-- ⛔⛔ WHAT §2.2 REPLACED, AND WHY IT WAS RE-CAST RATHER THAN DELETED. The old §2 was a
+-- three-part discrimination control asserting that `authz.roles` DISTINGUISHES
+-- session-selectable rows from non-selectable ones — "at least one row is selectable",
+-- "the table holds at least one NON-selectable row too (administrativo)", "…and one is
+-- directly observable". It existed because the old §3 compared the snapshot to a SUBSET
+-- of the catalog (`where session_selectable`), and a catalog that was accidentally
+-- all-true would have made that subset the whole table and the comparison vacuous.
+--
+-- ⭐ ADR 0207 D5 step 4 removed its subject: `administrativo` was the ONLY non-selectable
+-- row, so all eleven survivors are `session_selectable = true` and no row can play the
+-- control's part. ⛔ A retired assertion with no successor is a finding, not a deletion —
+-- so the PROPERTY was kept and its mechanism replaced. The vacuity risk is no longer
+-- subset-shaped at all (the artifact now pins the WHOLE catalog, not its selectable
+-- half), and what remains is the plain risk that the comparison cannot report inequality:
+-- a fingerprint expression that is broken, always-null, or comparing something to itself
+-- satisfies §2.1 perfectly. §2.2 answers exactly that, by mutating a TEMP COPY of the
+-- catalog and requiring the SAME expression to report a difference.
+-- ============================================================================
+
+create temp table roles_mutated on commit drop as
+  select r.code,
+         r.allowed_scope_kind::text as scope_kind,
+         r.session_selectable,
+         r.system_managed,
+         r.state::text              as state
+    from authz.roles r;
+
+update roles_mutated set scope_kind = 'hospital' where code = 'staff_admin';
+
+select is(
+  (select string_agg(
+            code || '|' || scope_kind || '|' || session_selectable || '|' ||
+            system_managed || '|' || state, '|' order by code collate "C")
+     from role_manifest_pin),
+  (select string_agg(
+            r.code || '|' || r.allowed_scope_kind::text || '|' || r.session_selectable || '|' ||
+            r.system_managed || '|' || r.state::text, '|' order by r.code collate "C")
+     from authz.roles r),
+  '2.1 ⭐⭐ THE COMMITTED ARTIFACT EQUALS THE LIVE CATALOG, on all five columns at once — '
+  'code, allowed_scope_kind, session_selectable, system_managed and state. Edit a '
+  'migration''s role seed without re-running `gen-role-manifest.mjs --write` and this reds.');
+
+select isnt(
+  (select string_agg(
+            code || '|' || scope_kind || '|' || session_selectable || '|' ||
+            system_managed || '|' || state, '|' order by code collate "C")
+     from role_manifest_pin),
+  (select string_agg(
+            code || '|' || scope_kind || '|' || session_selectable || '|' ||
+            system_managed || '|' || state, '|' order by code collate "C")
+     from roles_mutated),
+  '2.2 ⭐⭐ DISCRIMINATION HALF, and the successor to the retired §2 (see this section''s '
+  'header): the SAME fingerprint expression, run against a copy of the catalog with ONE '
+  'scope_kind changed, reports a DIFFERENCE. ⛔ Without it, §2.1 is satisfied just as well '
+  'by an expression that is always NULL, or that compares the artifact to itself — the '
+  'shapes that make a binding gate green while binding nothing.');
+
+select is(
+  (select count(*)::int from roles_mutated m
+     join authz.roles r on r.code = m.code
+    where m.scope_kind is distinct from r.allowed_scope_kind::text),
+  1,
+  '2.3 ⛔ THE MUTATION LANDED, and landed on exactly ONE row. A mutation that did not fully '
+  'apply reports GREEN downstream — if the UPDATE had matched nothing, §2.2 would be '
+  'comparing two identical strings and would red for the right reason by accident; if it '
+  'matched everything, §2.2 would pass while proving far less than it claims.');
+
+-- ============================================================================
+-- §3 — the SAME agreement re-asked as a JOIN COUNT, because the two failures are not
+-- equally diagnosable. §2.1's fingerprint reds identically whether a code is MISSING or
+-- merely MISMATCHED; an 11/11 join count separates them (a code that fails to join at all
+-- — dropped from the catalog, or renamed — versus one that joins with different values).
+-- ============================================================================
+
 select is(
   (select count(*)::int
-     from manifest_snapshot m
-     join authz.roles r on r.code = m.code
-    where r.allowed_scope_kind::text = m.scope_kind),
+     from role_manifest_pin p
+     join authz.roles r on r.code = p.code
+    where r.allowed_scope_kind::text = p.scope_kind
+      and r.session_selectable      = p.session_selectable
+      and r.system_managed          = p.system_managed
+      and r.state::text             = p.state),
   11,
-  '4.1 every snapshot row''s scope_kind matches authz.roles.allowed_scope_kind for that '
-  'code — an 11/11 JOIN COUNT rather than a boolean, so a code that fails to join at '
-  'all (dropped from the catalog, or renamed) is distinguishable from one that joins '
-  'with a mismatched scope_kind');
+  '3.1 every artifact row joins its catalog row and agrees on all four non-key columns — '
+  'an 11/11 JOIN COUNT rather than a boolean, so "the code is gone" and "the code is here '
+  'with different values" are distinguishable failures.');
 
 -- ============================================================================
--- §5 — the scope_kind VOCABULARY, at the one grain §3/§4 cannot reach.
+-- §4 — the scope_kind VOCABULARY, at the one grain §2/§3 cannot reach.
 --
--- ⛔⛔ WHAT §5.1 USED TO ASSERT, AND WHY IT WAS REPLACED RATHER THAN KEPT. It read:
+-- ⭐ WHAT §4 CAN ASK THAT §2/§3 CANNOT. §2.1 fully determines the (code, scope_kind, …)
+-- tuples of the catalog, so EVERY claim about the rows is entailed. The vocabulary claim
+-- survives only if it is asked of the DECLARED type — the `authz.scope_kind` domain's
+-- CHECK — because nothing in §2/§3 constrains which labels the domain declares. A sixth
+-- label could be declared while §2.1 stays green.
 --
---     count(*) from manifest_snapshot
---      where scope_kind not in (select distinct allowed_scope_kind::text from authz.roles)  = 0
---
--- with the justification "§4 only checks the codes actually present in both sides".
--- ⛔ THAT JUSTIFICATION IS FACTUALLY FALSE AND THE ASSERTION COULD NOT FAIL ALONE. §1.1 pins
--- |manifest_snapshot| = 11 and §4.1 demands ELEVEN joined rows with equal scope_kind, so if
--- §4.1 passes then EVERY snapshot code is present in both sides and every snapshot scope_kind
--- is, by construction, a member of `select distinct allowed_scope_kind`. §5.1 was therefore
--- entailed by §4.1: green whenever §4.1 was green, and red only when §4.1 was already red.
--- ⭐ MEASURED, not only argued: typo `pqs_member`'s kind to `hospitaI` and §4.1 goes 11 -> 10
--- (red) while the old §5.1 goes 0 -> 1 (red) — the two move TOGETHER, always. There is no
--- state in which the old §5.1 was the assertion that caught anything.
--- (Gate AE4 review, F-MAJOR-4b — the only assertion in the six AE4 suites provably incapable
--- of failing alone, inside a phase whose subject is gates that cannot fail.)
---
--- ⭐ WHAT §5 CAN ASK THAT §3/§4 CANNOT. §3.1 + §4.1 together fully determine the (code,
--- scope_kind) pairs of the session-selectable half, so EVERY claim about that half is
--- entailed. The vocabulary claim survives only if it is asked of the DECLARED type — the
--- `authz.scope_kind` domain's CHECK — because nothing in §3/§4 constrains which labels the
--- domain declares. Today it declares FIVE and the manifest exercises FOUR; the fifth,
--- `capability_plane`, is `administrativo`'s, and `administrativo` is precisely the row §2/§3
--- exist to keep OUT of the manifest. So §5.1 is now "the manifest exercises exactly the
--- declared vocabulary minus the capability plane", which reds when a sixth label is declared
--- while §4.1 stays 11/11 — the independent failure the old form did not have.
--- ⚠ WHEN IT REDS BECAUSE AE5 DECLARED A NEW SCOPE KIND, that is the assertion working: rule
--- on whether the session-selectable manifest must cover the new plane, then move the name.
--- Do not delete the line.
+-- ⚠ THE SUBTRACTION IS GONE, AND THAT IS A DELIBERATE RE-CAST. This assertion read "the
+-- manifest exercises exactly the declared vocabulary MINUS the capability plane", because
+-- the domain declared FIVE labels and the manifest exercised FOUR. ADR 0207 D5 step 4
+-- dropped `capability_plane` from the domain, so the subtraction would now remove a name
+-- that is not there — a no-op that reads like a live exclusion. The two sides are simply
+-- EQUAL now, and §4.2 is what proves the fifth label really left rather than merely
+-- falling out of a filter.
 -- ============================================================================
 
 -- Reads the LIVE domain constraint, never a migration's text. ⚠ If `authz.scope_kind` is ever
@@ -169,31 +204,44 @@ language sql stable as $$
    where c.contypid = 'authz.scope_kind'::regtype and c.contype = 'c';
 $$;
 
+-- Exercises the domain at RUNTIME rather than reading its text, so §4.2's third part is
+-- independent of its first: a CHECK that no longer mentions the label and a CHECK that
+-- mentions it but does not enforce it are different states, and only this one separates them.
+create or replace function pg_temp.casts_capability_plane() returns text
+language plpgsql as $$
+begin
+  perform 'capability_plane'::authz.scope_kind;
+  return 'accepted';
+exception when check_violation then
+  return 'rejected';
+end;
+$$;
+
 select is(
-  (select array_agg(distinct scope_kind order by scope_kind) from manifest_snapshot),
-  (select array_agg(k order by k) from unnest(pg_temp.declared_scope_kinds()) k
-    where k <> 'capability_plane'),
-  '5.1 the manifest''s scope-kind vocabulary is EXACTLY the vocabulary `authz.scope_kind` '
-  'DECLARES, minus the capability plane. ⛔ Asked of the DOMAIN CHECK and not of '
-  '`select distinct allowed_scope_kind` — the latter is entailed by §4.1 and cannot fail '
-  'alone (see this section''s header). A label added to the domain reds this while §4.1 stays '
-  '11/11, which is the whole reason the assertion exists.');
+  (select array_agg(distinct scope_kind order by scope_kind) from role_manifest_pin),
+  (select array_agg(k order by k) from unnest(pg_temp.declared_scope_kinds()) k),
+  '4.1 the catalog''s scope-kind vocabulary is EXACTLY the vocabulary `authz.scope_kind` '
+  'DECLARES. ⛔ Asked of the DOMAIN CHECK, not of `select distinct allowed_scope_kind` — '
+  'the latter is entailed by §2.1 and could not fail alone (the defect F-MAJOR-4b found '
+  'here). A label added to the domain reds this while §2.1 stays green, which is the whole '
+  'reason the assertion exists. ⚠ WHEN IT REDS BECAUSE AE5 DECLARED A NEW SCOPE KIND, that '
+  'is the assertion working: rule on whether the manifest must cover the new plane, then '
+  'move the name. Do not delete the line.');
 
 select is(
   ('capability_plane' = any(pg_temp.declared_scope_kinds()))::text
     || '/' || coalesce((select string_agg(r.code, ',' order by r.code) from authz.roles r
                          where r.allowed_scope_kind::text = 'capability_plane'), '(none)')
-    || '/' || coalesce((select string_agg(m.code, ',' order by m.code) from manifest_snapshot m
-                         where m.scope_kind = 'capability_plane'), '(none)'),
-  'true/administrativo/(none)',
-  '5.2 ⭐ DISCRIMINATION CONTROL for 5.1, in three parts, because 5.1''s expected side is '
-  'built by SUBTRACTING a name and a probe that never saw that name would pass 5.1 while '
-  'measuring nothing. (a) `capability_plane` IS in what the probe reads, so '
-  '`declared_scope_kinds()` is not silently truncated; (b) it is held by exactly '
-  '`administrativo` in the live catalog, which is WHY it is subtracted — the capability plane '
-  'is not a session role scope (ADR 0061); (c) no manifest row uses it, so the subtraction is '
-  'not hiding a snapshot row. ⛔ If a SECOND role ever takes `capability_plane` this reds: '
-  'rule on it, do not widen the string.');
+    || '/' || pg_temp.casts_capability_plane(),
+  'false/(none)/rejected',
+  '4.2 ⭐ THE CAPABILITY PLANE IS GONE FROM THE ROLE DOMAIN — the successor to the control '
+  'that used to prove it was PRESENT. Its three parts are the same three, inverted by ADR '
+  '0207 D1/D5 step 4: (a) the domain no longer DECLARES `capability_plane`; (b) no catalog '
+  'row carries it — it was `administrativo`''s alone, and `administrativo` left '
+  '`authz.roles` to become a capability PROVIDER; (c) the domain actually REJECTS the '
+  'value at runtime, which is a different claim from (a) — a CHECK can name a label it '
+  'fails to enforce, and only a real cast separates the two. ⛔ If this reds because a role '
+  'took a capability-plane scope again, rule on it — do not widen the string.');
 
 select * from finish();
 rollback;
