@@ -414,3 +414,5 @@ the archive with a RESOLVED block naming the four closing commits and the two st
 appended (Commit cell filled after the phase commit); hub → `complete`, its `## Current state` cut; no
 handoff existed for this branch (`docs/handoffs/` holds only the pre-AE5 successors handoff, not this
 unit's). Gate runs at this step are in the phase commit message and the ledger row.
+
+**Merge recorded (lead, 2026-09-12).** `main` fast-forwarded to phase commit `45a16c6f`; ledger Commit cell filled; not pushed.
