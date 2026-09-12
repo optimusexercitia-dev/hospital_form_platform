@@ -14,6 +14,12 @@ in a phase" (CLAUDE.md §4, mechanics in
 [lead-playbook.md](./lead-playbook.md)). Don't wrap routine phase work in a
 worktree; that machinery already exists and worktrees would just add overhead.
 
+⚠ File ownership stops edit collisions, not commit collisions. One checkout has
+ONE `HEAD`: a second *interactive session* in the same directory commits onto
+whichever branch the other session has checked out (measured 2026-09-12 — two
+docs commits meant for `main` landed on a unit branch), and its pgTAP run can
+deadlock a `supabase db reset` from the other. Two sessions ⇒ two worktrees.
+
 Reach for a worktree when work needs to happen **beside** the phase, not as
 part of it:
 

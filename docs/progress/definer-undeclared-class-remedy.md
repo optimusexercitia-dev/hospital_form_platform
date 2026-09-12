@@ -362,3 +362,17 @@ Make an undeclared-`search_path` DEFINER red with ONE named owner (`414 § 0b`) 
 
 - ⚠ Another session shares this checkout; two of its docs commits (`bb6f3571`, `664a70a5`) sit on
   this branch and fast-forward onto `main` at merge.
+
+### 2026-09-12 — /review-claude-md run after the merge (playbook § 4 step 7) (lead)
+
+Seven queue entries. Four were the 2026-09-11 batch (already triaged, never deleted). Three new, each read at its
+transcript window by an Explore subagent: `d6bc4a02` (`rules`) — a teammate's AC-4 report; the D4 hint line it wrote
+named gate 18 for BOTH clauses, QA MAJOR-1 corrected it in-session, live file correct today — not a doc problem;
+`89aa778b` (`rules`) — the PO's own sequencing prompt, false positive; `d6437d06` (`claude-md`) — a QA report saying a
+playbook addition does NOT contradict CLAUDE.md § 6, false positive. No CLAUDE.md edit. **One PO-approved doc fix**,
+motivated by this unit's own measurements rather than any entry: `docs/worktrees.md` § 1 gains the shared-HEAD
+paragraph (a peer session's commits landed on this branch; its pgTAP run deadlocked the PO's reset). Verification
+findings, no edit: `.claude/rules/` is at `MAX_RULES` 12/12 and `migrations-forward-only.md` at 2043/2048 B — the
+deferred D5 hint file (`FUP-DEFINER-SEARCH-PATH-NARROW-FIX-RULES-CAP-DEFERS-THE-D5-HINT-FILE`) is harder to place than
+when deferred; CLAUDE.md § 7's *"never fixed by raising the cap"* stands beside ADR 0210. Queue cleared to its markers.
+
