@@ -66,8 +66,9 @@
  * ⛔ AND ITS SECOND: the temp-table EXCLUSION. A `42P01` on a relation the SAME body creates by
  * `create temp table` is excused — the four ADR 0208 D6 DEFINERs read their own temp tables
  * unqualified by design — and nothing else is: not another body's temp table, not a name that
- * merely prefixes one, not a `create temp table` written in a comment or a string literal
- * (`421 § 3d`/`§ 3f`/`§ 3g` hold those three halves). A reader who knows only the `execute` bound
+ * merely prefixes one, not a `create temp table` written in a comment or a SINGLE-QUOTED string
+ * literal — dollar-quoted text is NOT scrubbed, and 421's header states that bound and why no
+ * stripper is bolted on (`421 § 3d`/`§ 3f`/`§ 3g` hold those three halves). A reader who knows only the `execute` bound
  * comes away thinking every `42P01` in the population is gated, and a whole class is not.
  * That matters because the clause is not cosmetic — under `search_path = ''`
  * `pg_temp` is still searched FIRST for relation names, and `anon`/`authenticated`/`service_role`/

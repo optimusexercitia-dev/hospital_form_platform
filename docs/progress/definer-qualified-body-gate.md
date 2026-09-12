@@ -343,3 +343,62 @@ Tests=9064, 126 wallclock secs` · `Result: PASS`**, rc 0 read bare. The +2 is e
 assertions in `421` (`§ 3f` right-hand bound, `§ 3g` comment/string scrub).
 
 **QA r2 spawned** to verify the three corrections against the r1 findings, read-only.
+
+### 2026-09-12 — QA r2 MINOR-4 + NOTE-5 corrected in place, comment-only (backend)
+
+**MINOR-4 — the header's gap list ruled the DOLLAR-QUOTE gap's direction backwards.** `421:88-92`
+claimed *"ALL THREE OF ITS GAPS ERR TOWARD KEEPING A FINDING (over-report, the safe direction)"*.
+QA measured that false for one of them (probe `G1`/`G2`, both `EXCLUDED`): prose inside `$q$…$q$`
+or `$$…$$` survives the scrub, so a `create temp table foo` written there EXCUSES a real finding on
+`foo` — MINOR-1's own defect one quoting syntax over, the UNSAFE direction. The header now splits
+the list: nested `/* /* */ */` (`G3`), a `/*` inside a single-quoted literal (`G4`, a FOURTH gap the
+old list omitted) and an unbalanced apostrophe swallow MORE and err safe; `E'…'` (`G5`) is no gap at
+all; the dollar-quote gap errs UNSAFE and is **bounded, not fixed** — (a) `0 of the 29` bodies carry
+a dollar-quote tag, (b) `§ 1b` pins the RAW pre-exclusion relname set, so an arrival reds there. The
+header also states why **no stripper is added** (QA recommends against it): an arbitrary `$tag$` is
+a LEXER, not a fourth `regexp_replace`, and a wrong one blinds in the SAME unsafe direction while
+adding a gap no control names.
+
+**The bound was re-measured, not read off the review.** Over 421's own domain predicate on the live
+catalog (`app`/`public`/`authz` `prosecdef`, `sp = '""'`): `empty_total 29 | with_dollar_quote 0 |
+with_block_comment 0 | with_line_comment 18` (`src ~ '\$[A-Za-z_]*\$'`). Read-only `psql`, nothing
+created, stack left as found.
+
+**Three sibling over-claims inside `421` carried the same wrong direction and were qualified too** —
+`:200` (*"its three gaps and why every one of them errs toward KEEPING a finding"*), `:221` (the
+exclusion's *"a comment or a string literal"*) and `:376-377` (the text plant's *"prose in a body
+excuses nothing"*, which is exactly what dollar-quoted prose disproves). A corrected header beside
+three uncorrected paraphrases of the old claim would have left the false sentence readable in the
+same file.
+
+**MINOR-3's two carriers narrowed.** `scripts/gen-definer-search-path-freeze.mjs` and `419`'s header
+both said *"a comment or a string literal"* — and a dollar-quoted literal IS a string literal in
+SQL. Both now read *"a comment or a SINGLE-QUOTED string literal (dollar-quoted text is NOT
+scrubbed — 421's header states that bound)"*.
+
+**NOTE-5 — the seam credits the bound to the escape alone.**
+`docs/backend-state/authorization-and-audit.md` (dated slice, the `42P01`-exclusion bullet) now names
+all three mechanisms — the regex escape, the `\m`…`\M` anchor and the executable-text scrub — plus
+the dollar-quote gap and its two bounds. ⛔ The `## Current state` block was NOT touched: it stays at
+**98 lines** (gate 16 headroom line: `authorization-and-audit.md (98, 2 left)`).
+
+**Comment-only, verified mechanically.**
+
+| Claim | Command | Result |
+|---|---|---|
+| `421` changed in comment lines only | `git diff HEAD -- supabase/tests/421_definer_qualified_body.sql \| grep -E '^[+-]' \| grep -v '^[+-][+-]' \| grep -v '^[+-]\s*--'` | **0** (`git diff --stat` → `54 ++++-------`, `40 insertions(+), 14 deletions(-)`) |
+| `419` assertion-unchanged since the phase base | `git diff 6fd0bfdb..HEAD -- supabase/tests/419_definer_search_path_freeze.sql \| grep -E '^[+-]' \| grep -v '^[+-][+-]' \| grep -v '^[+-]-- '` | **0** (same command against the working tree, `git diff 6fd0bfdb -- …`, also **0**) |
+| no assertion, `plan()`, view or expression moved | the two greps above over the whole diff | 4 files, **+53 / −19**, every one a comment line |
+
+**Witnesses (this round).**
+
+| What | Command | Result |
+|---|---|---|
+| `421` still green | `supabase test db supabase/tests/00_setup.sql supabase/tests/421_definer_qualified_body.sql` | `All tests successful.` · **`Files=2, Tests=19`** · `Result: PASS` |
+| seam shape | `npm run lint:backend-state` | `backend-state gate: OK — 16 seam file(s) + README.md, all routed, preamble identical, 1103 KB total, largest authorization-and-audit.md at 157.1 KB (warn 160 KB / cap 200 KB).` |
+| full chain | `npm run lint` | **rc 0** (read bare, not through a pipe), 18 gate invocations; final line `gen-definer-search-path-freeze: in sync (861 frozen non-empty DEFINER paths; baseline 861 -> 861 (removed 0, added 0) [baseline main (6fd0bfdb43bb)])` |
+
+⛔ **Not re-run, and not claimed:** the full `npm run test:db` on a fresh `supabase db reset`. This
+round changes no `plan()` and no assertion text — the `Files=270, Tests=9064` witness above is for
+bytes that differ only in comments — but it is the lead's call whether the gate record wants it
+re-earned on the final bytes.

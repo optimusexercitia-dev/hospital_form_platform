@@ -1352,8 +1352,14 @@ the record's § Session log, ⛔ not restated here:**
 - **The `42P01` exclusion is bounded to ONE body.** A `42P01` is excused only when the SAME `prosrc` creates that
   relation by `create temp[orary] table` — the four ADR 0208 D6 DEFINERs, on exactly five relations
   (`_clone_item_map` · `_clone_section_map` · `_clone_standard_map` · `_copy_answer_map` · `_tpl_phase_map`, pinned by
-  `§ 1b`). ⛔ It excuses nothing else, and the relation name is regex-escaped before interpolation so an identifier
-  carrying a metacharacter cannot widen it.
+  `§ 1b`). ⛔ It excuses nothing else, and THREE mechanisms deliver that bound, not the escape alone: the relation
+  name is regex-escaped before interpolation (an identifier carrying a metacharacter cannot widen it), the
+  interpolation is anchored `\m`…`\M` (a body creating `_xy` no longer excuses a finding on `_x`), and the match runs
+  over EXECUTABLE text — `prosrc` scrubbed of `/* */` block comments, `--` comments and single-quoted literals, so
+  prose cannot satisfy it. ⛔ DOLLAR-QUOTED text is NOT scrubbed: the one gap erring UNSAFE (prose inside `$q$…$q$`
+  would excuse a real finding), bounded today by **0 of the 29** bodies carrying a dollar-quote tag and by `§ 1b`
+  pinning the RAW pre-exclusion relname set, which reds the day one arrives. 421's header states it and says why no
+  stripper is added (QA r2 MINOR-4; the last two mechanisms were measured over-matching at QA r1).
 - ⛔ **THE STATED BOUND, WHICH IS NOT COVERAGE.** Dynamic SQL is opaque to both arms — `execute 'select … from
   profiles'` is a string until run time. `§ 4` therefore holds the `execute`-carrying population at **0 of 29** and
   says so: today the residual is EMPTY and the gate covers the whole population. ⛔ The day that count moves the

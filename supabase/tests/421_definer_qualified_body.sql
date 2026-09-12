@@ -86,16 +86,38 @@
 --   2. the interpolated name is BOUNDED by `\m`…`\M`, so a body creating `_xy` no longer excuses
 --      a finding on `_x` — a PREFIX over-match, measured true before the anchor and false after;
 --   3. the match runs over EXECUTABLE TEXT ONLY: `prosrc` is scrubbed of `/* */` block comments,
---      `--` line comments and single-quoted string literals BEFORE matching, so a
---      `create temp table foo` written in a comment or inside a literal no longer excuses a real
---      finding on `foo`.
--- ⛔ THE SCRUB IS A REGEX CHAIN, NOT A LEXER, AND ALL THREE OF ITS GAPS ERR TOWARD KEEPING A
--- FINDING (over-report, the safe direction): a DOLLAR-QUOTED string (`$q$…$q$`) is not stripped,
--- a nested `/* /* */ */` strips only to the first `*/`, and an unbalanced apostrophe makes the
--- literal rule swallow on to the next one. Swallowing MORE text can only take a
--- `create temp table` out of view, which KEEPS a finding; it can never invent one. ⛔ Do not
--- "fix" a gap by widening the exclusion. `§ 3d`, `§ 3f` and `§ 3g` are the controls that hold
--- these three properties, each with both halves in one string.
+--      `--` line comments and SINGLE-QUOTED string literals BEFORE matching, so a
+--      `create temp table foo` written in a comment or inside a single-quoted literal no longer
+--      excuses a real finding on `foo`. ⛔ DOLLAR-QUOTED text is NOT scrubbed — the gap statement
+--      directly below is where that bound lives, and it is the one gap that errs UNSAFE.
+-- ⛔ THE SCRUB IS A REGEX CHAIN, NOT A LEXER, AND ITS GAPS DO NOT ALL ERR IN THE SAME DIRECTION.
+-- ⚠ THE ONE THAT ERRS UNSAFE IS THE DOLLAR-QUOTE GAP — item 3's own defect, one quoting syntax
+-- over. A dollar-quoted string (`$q$…$q$`, `$$…$$`) is NOT stripped, so a `create temp table foo`
+-- written as PROSE inside one survives into `exec_src` and EXCUSES a real finding on `foo`:
+-- under-report, the unsafe direction. Measured, not reasoned (QA r2 MINOR-4, probe cases G1/G2 —
+-- both read `EXCLUDED`); this header used to claim the opposite for it, and that claim was false.
+-- ⛔ Two things BOUND the gap. Neither is a fix, and saying so is the point of stating it here:
+--   (a) it is NOT LIVE — `0 of the 29` bodies contain a dollar-quote tag at all
+--       (`src ~ '\$[A-Za-z_]*\$'`, re-measured on the live catalog; `/\*` is 0 likewise, and the
+--       18 bodies carrying `--` comments are text the chain does handle);
+--   (b) it CANNOT ARRIVE UNNOTICED — `§ 1b` pins `string_agg(distinct relname)` over the RAW,
+--       PRE-exclusion finding set at exactly the five D6 relations, so a body that excused a
+--       `foo` this way puts `foo` into that set and REDS `§ 1b`, whose own message forbids
+--       re-baselining it. A designed tripwire, not an incidental guard.
+-- ⛔ NO DOLLAR-QUOTE STRIPPER IS ADDED, DELIBERATELY (QA r2 recommends against it). The tag is
+-- ARBITRARY — `$` + any identifier + `$`, matched by its own closing twin — so stripping it
+-- correctly is a LEXER, not a fourth `regexp_replace`; a stripper that gets the tag wrong
+-- swallows the wrong span and blinds in this SAME unsafe direction, while adding a gap no control
+-- names. The honest bound plus `§ 1b` is worth more than a longer chain. ⛔ And do not "fix" any
+-- gap by WIDENING the exclusion either.
+-- ⚠ THE GAPS THAT ERR SAFE (over-report: swallowing MORE text can only take a `create temp table`
+-- OUT of view, which KEEPS a finding; it can never invent one) — a nested `/* /* */ */` strips
+-- only to the first `*/` (G3); a `/*` sitting inside a single-quoted literal is eaten by the
+-- block-comment stage, which runs first (G4 — a FOURTH gap the earlier list omitted); and an
+-- unbalanced apostrophe makes the literal rule swallow on to the next one. An `E'…'` escape
+-- string is no gap at all — its quoted text goes with every other literal (G5, measured KEPT).
+-- `§ 3d`, `§ 3f` and `§ 3g` are the controls that hold items 1–3, each with both halves in one
+-- string.
 --
 -- ⚠ NO `test_helpers.bootstrap()`, no fixture, no tenancy — `pg_proc`, `pg_namespace`, `pg_language`
 -- and the planted controls only, so this file is invariant to seed scale and to the AE4 perf
@@ -197,7 +219,8 @@ select is(
 -- consumer: the temp-table exclusion below, which must not be satisfiable by prose. The chain is
 -- block comments -> `--` line comments -> single-quoted string literals, each replaced by a
 -- SPACE (never by nothing, so two tokens either side of a stripped comment cannot fuse into one).
--- ⛔ Its three gaps and why every one of them errs toward KEEPING a finding: header, second bound.
+-- ⛔ Its gaps — three that err toward KEEPING a finding and ONE, dollar-quoted text, that errs the
+-- other way and is bounded rather than fixed: header, second bound.
 create temp view v421_plpgsql_raw as
 select m.sig, m.src, m.oid, f.sqlstate, f.message,
        substring(f.message from 'relation "([^"]+)" does not exist') as relname,
@@ -218,7 +241,8 @@ select m.sig, m.src, m.oid, f.sqlstate, f.message,
 -- resolve through `pg_temp` at run time and whose convergence `420` guards. ⛔ It excuses nothing
 -- else: not a different function's temp table, not a `create table`, not a `42883`, not a relation
 -- whose name is merely a PREFIX of one the body creates (`\M`), and not a `create temp table`
--- that lives only in a comment or a string literal (`exec_src`). Each of those five was written
+-- that lives only in a comment or a SINGLE-QUOTED literal (`exec_src`; dollar-quoted text is not
+-- scrubbed — header, second bound). Each of those five was written
 -- as a claim before it was true; the last two were measured OVER-MATCHING by QA r1 and are now
 -- carried by `§ 3f` and `§ 3g`. The relation name is escaped before interpolation, and `\m`/`\M`
 -- bound the match on both sides (header, second bound).
@@ -373,8 +397,10 @@ create function public.z421_ctl_temp_prefix() returns bigint language plpgsql se
   end $ctl$;
 
 -- The NON-EXECUTABLE-TEXT discrimination plant (QA r1 MINOR-1). Its only two `create temp table`
--- strings live in a `--` comment and in a string literal; it creates NO temp table at all and
--- reads both names unqualified. ⛔ Both findings must be KEPT: prose in a body excuses nothing.
+-- strings live in a `--` comment and in a SINGLE-QUOTED literal; it creates NO temp table at all
+-- and reads both names unqualified. ⛔ Both findings must be KEPT: prose the scrub can see excuses
+-- nothing. ⚠ Dollar-quoted prose is the text it CANNOT see, and no control plants that shape —
+-- header, second bound, states the gap and its two bounds instead.
 create function public.z421_ctl_text_temp() returns bigint language plpgsql security definer
   set search_path = '' as $ctl$
   declare s text; a bigint; b bigint;
