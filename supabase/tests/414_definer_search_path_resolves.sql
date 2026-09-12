@@ -54,9 +54,18 @@ select plan(8);
 -- controls) run THE SAME predicate rather than two hand-written copies of it. An
 -- exact-match neutralizer written twice is a duplicate no gate protects.
 --
---   v414_domain    — every prosecdef function in app/public/authz, with its raw search_path
---   v414_tokens    — that value split into the schema names it actually NAMES
---   v414_offenders — the tokens that name nothing
+--   v414_domain     — every prosecdef function in app/public/authz, with its raw search_path
+--   v414_undeclared — the members that declare NO search_path at all (§0b's class)
+--   v414_tokens     — that value split into the schema names it actually NAMES
+--   v414_offenders  — the tokens that name nothing
+--
+-- ⛔ `v414_undeclared` EXISTS FOR THE SAME REASON THE OTHER THREE DO, and it was added late (QA r1
+-- MINOR-3, 2026-09-12) because §0b and its control §2d had each re-typed `where sp is null`. QA
+-- MUTATED §0b's own copy to `sp = '<none>'` — a realistic paste from 421, whose view labels this
+-- same class `'<none>'` rather than NULL — and the whole file stayed GREEN with a real undeclared
+-- DEFINER live in the catalog: §0b went blind and §2d certified "§0b CAN BITE" in the same run.
+-- One view, read by both, is what makes §2d's verdict a statement about §0b's PREDICATE rather
+-- than about a second text that happens to agree with it today.
 --
 -- Tokenizing: the value is a GUC list, so a element containing a comma or a space is stored
 -- DOUBLE-QUOTED. Splitting naively on ',' would shred exactly the broken form we are hunting
@@ -74,6 +83,11 @@ create temp view v414_domain as
     join pg_namespace n on n.oid = p.pronamespace
    where n.nspname in ('app', 'public', 'authz')
      and p.prosecdef;
+
+-- §0b's class and §2d's subject, in ONE text. ⛔ Do not inline this clause at either site: the
+-- control's whole claim is that it exercises the predicate §0b asserts on.
+create temp view v414_undeclared as
+  select * from v414_domain where sp is null;
 
 create temp view v414_tokens as
   select d.oid, d.schema_name, d.proname, d.sig, d.sp,
@@ -119,14 +133,16 @@ select is(
 --    function with no `search_path` is a DEFECT to converge to `''`, never a member to add to any
 --    frozen set; a red on `414 § 0b` means exactly that, and neither `414` nor `419` may be widened
 --    to admit it. No new cell."* So this assertion is the class's ONE owner — its predicate and its
---    expected `''` are unchanged by that ruling; only its message now says what to DO. `421 § 0c`
+--    expected `''` are unchanged by that ruling; only its message now says what to DO (and, since
+--    QA r1 MINOR-3, its clause is READ FROM `v414_undeclared` instead of typed here, so §2d's
+--    control is about this predicate and not about a copy of it). `421 § 0c`
 --    counts the same class as its `undeclared` term and points back here rather than competing.
 --    ⛔ It is in NEITHER gate's checking domain meanwhile: the census coalesces a missing value to
 --    `'""'` (`scripts/definer-search-path-census.sql`), so it never enters `419`'s frozen set, and
 --    `421` body-checks only the EMPTY form. That gap is what convergence closes; widening a gate to
 --    admit the member would only make the gap invisible. §2d below is this assertion's control.
 select is(
-  (select coalesce(string_agg(sig, '; ' order by sig), '') from v414_domain where sp is null),
+  (select coalesce(string_agg(sig, '; ' order by sig), '') from v414_undeclared),
   '',
   '§0b NO SILENT EXITS FROM THE DOMAIN: every prosecdef function in app/public/authz declares a search_path at all. ⛔ A function listed here is a DEFECT whose ONE remedy is to converge it to `set search_path = ''''` with SCHEMA-QUALIFIED object references (ADR 0208 D4; PO ruled 2026-09-11) — ⛔ NEVER by widening 414 or 419 to admit it and NEVER by adding it to the frozen set. Until it converges it is covered by NO gate: §1 cannot check a resolution order it does not declare, 419 never sees it (the census coalesces a missing value to `""`) and 421 body-checks only the empty form — which is the same hijack shape one step earlier'
 );
@@ -211,18 +227,24 @@ select is(
   '§2c THE MECHANISM: unquoted, the value splits into THREE schema names that each resolve; single-quoted, it is ONE token whose text is the entire list — a schema name containing commas and spaces, which Postgres then skips in silence'
 );
 
--- 6. §0b'S OWN CONTROL. §0b has only ever returned the empty string — which is exactly what a
---    predicate reading the wrong column, or one whose domain quietly stopped including the
---    undeclared shape, would also return. Now that §0b carries the class's REMEDY its silence is
---    load-bearing, so the predicate is made to speak. ⛔ Both halves in one string: `sp is null`
---    must LIST the undeclared plant and must NOT list its `set search_path = ''` twin. A detector
---    that listed everything would red here (and §0b would already be red); one that lists nothing
---    reads `(NOTHING FIRED)`, which is VOID, not a pass.
+-- 6. §0b'S OWN CONTROL — and it reads §0b'S OWN VIEW, not a second copy of its clause. §0b has
+--    only ever returned the empty string, which is exactly what a predicate reading the wrong
+--    column, or one whose domain quietly stopped including the undeclared shape, would also
+--    return. Now that §0b carries the class's REMEDY its silence is load-bearing, so the predicate
+--    is made to speak. ⛔ Both halves in one string: `v414_undeclared` must LIST the undeclared
+--    plant and must NOT list its `set search_path = ''` twin. A detector that listed everything
+--    would red here (and §0b would already be red); one that lists nothing reads
+--    `(NOTHING FIRED)`, which is VOID, not a pass.
+-- ⛔ THE SHARED VIEW IS WHAT MAKES THIS A STATEMENT ABOUT §0b (QA r1 MINOR-3, measured): while the
+--    two sites each carried their own `where sp is null`, drifting §0b's copy to `sp = '<none>'`
+--    left THIS assertion green and printing `z414_ctl_undeclared` in the same run in which §0b
+--    could not see a live undeclared DEFINER. A control that certifies its own copy of the text
+--    certifies nothing about the gate.
 select is(
   (select coalesce(string_agg(proname, ' | ' order by proname), '(NOTHING FIRED)')
-     from v414_domain where sp is null and proname like 'z414\_ctl\_%'),
+     from v414_undeclared where proname like 'z414\_ctl\_%'),
   'z414_ctl_undeclared',
-  '§2d §0b CAN BITE, on exactly the undeclared shape: a prosecdef function with NO `set search_path` is LISTED by §0b''s `sp is null` predicate and its `set search_path = ''''` twin (z414_ctl_empty_form) is NOT. ⛔ `(NOTHING FIRED)` means §0b''s clean 890/890 proved nothing and the class it owns is unwatched; `z414_ctl_empty_form` appearing means the predicate reads the EMPTY form as an ABSENT one and §0b would red on every DEFINER that converged — i.e. on exactly what ADR 0208 D4 orders'
+  '§2d §0b CAN BITE, on exactly the undeclared shape: a prosecdef function with NO `set search_path` is LISTED by `v414_undeclared` — the view §0b ITSELF asserts on, not a re-typed copy of its clause — and its `set search_path = ''''` twin (z414_ctl_empty_form) is NOT. ⛔ `(NOTHING FIRED)` means §0b''s clean 890/890 proved nothing and the class it owns is unwatched; `z414_ctl_empty_form` appearing means the predicate reads the EMPTY form as an ABSENT one and §0b would red on every DEFINER that converged — i.e. on exactly what ADR 0208 D4 orders'
 );
 
 rollback to savepoint s414_plant;

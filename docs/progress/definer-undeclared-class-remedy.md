@@ -201,4 +201,58 @@ stay under the cap. (3) Two commits from ANOTHER session (`bb6f3571`, `664a70a5`
 FUP closure) sit on this branch because the sessions share one checkout; they fast-forward onto `main`
 and the lead's `git branch -f main 664a70a5` was DENIED by the classifier, so they ride along at merge.
 
-**QA spawned** on the eight ACs, with the reset caveat named as a "could not verify" input.
+**QA spawned** on the six ACs (⚠ *"eight"* as first written — an inherited figure from the predecessor
+unit, which had eight; the hub defines AC-1…AC-6. QA r1 NOTE-3), with the reset caveat named as a "could
+not verify" input.
+
+### 2026-09-12 — QA r1 MINORs corrected (backend)
+
+**MINOR-3 — the one that mattered. `§ 0b`'s clause now has ONE text, and the control reads it.**
+`create temp view v414_undeclared as select * from v414_domain where sp is null;` sits beside the other
+three `§ 0` views; `§ 0b` and `§ 2d` both read it and neither types the clause. ⛔ The predicate and the
+expected `''` are still unchanged — only where the clause LIVES moved. `§ 2d`'s message now says the bound
+it earns (*"the view §0b ITSELF asserts on, not a re-typed copy of its clause"*), the `§ 0` header block
+carries QA's measurement as the reason the view exists, and the `§ 0b` comment names the change.
+
+**QA's mutant QA-1, re-run on both shapes — its survival is what the fix removes.** Same mutant both
+times: `§ 0b`'s clause drifted to `sp = '<none>'` (the realistic paste from `421`, whose view labels the
+same class `'<none>'` rather than `NULL`) with a live `public.zzz_mut_undeclared()` in the catalog.
+
+- **BEFORE** (`414` as committed at `1a5dc2a1`, clause typed at both sites): `Files=1, Tests=8, Result:
+  PASS` — ⚠ **zero failed tests.** QA-1 reproduced exactly: `§ 0b` blind to a live offender while `§ 2d`
+  certified *"§0b CAN BITE"* in the same run.
+- **AFTER** (the shared view's clause drifted instead): `# Failed test 7: "§2d §0b CAN BITE …"` /
+  `have: (NOTHING FIRED)` / `want: z414_ctl_undeclared` — `Failed test: 7`, `Result: FAIL`. The drift that
+  was silent now reds, and it reds in the control rather than only in the gate.
+
+**The two original `414` mutants re-run against the refactored file, because a refactor can invalidate the
+controls that read it** (⛔ not recalled from the earlier entry — re-measured):
+
+- **A2** — a live undeclared DEFINER still reds `§ 0b`: `have: public.zzz_mut_undeclared()`, `Failed test:
+  2`.
+- **C2** — the twin-conflation half, now expressed as a drift of the SHARED view (`sp is null or sp = '""'`):
+  `Failed tests: 2, 7`. ⭐ Both cells red together, which is the coupling the view buys — `§ 0b` prints the
+  29 empty-form DEFINERs (the *"reds on every DEFINER that converged"* failure mode, made concrete) and
+  `§ 2d` prints `z414_ctl_empty_form | z414_ctl_undeclared`.
+
+**MINOR-2 — `421`'s assertion-number comments, and the map VERIFIED rather than counted by eye.**
+`-- 17.` → `-- 18.` at `§ 4` and `-- 18.` → `-- 19.` at `§ 5` (`§ 3h`'s own `-- 17.` was already right,
+per QA's mutation E). Proven by forcing each to red on a copy: `§ 4`'s residual predicate widened to
+`src ~* 'select'` → `# Failed test 18: "§ 4 THE RESIDUAL IS EMPTY …"`; `§ 5`'s empty-path count pinned to
+`28` → `# Failed test 19: "§ 5 RESTORE …"`. ⚠ A first attempt mutated `§ 4` through `sed` and the
+backslashes were eaten (`'\mexecute\M'` → `'mbeginM'`), so the predicate matched nothing and `§ 4` stayed
+GREEN — a mutant that did not apply reporting as "no finding". Caught by diffing the copy before scoring it.
+
+**NOTE-1 — `421:186-194` reworded to what is true.** The old sentence (*"the three terms no longer sum by
+construction"*) was backwards. BEFORE the change `n_nonempty` + `n_empty` summed to the total by
+construction and an `<none>` member was counted TWICE; AFTER it, the three class terms PARTITION the total
+and still sum to it. The gain is attribution, not arithmetic: `n_undeclared` is now the only term a
+newcomer of its class moves.
+
+**NOTE-3 — the record's *"eight ACs"*** corrected to six, with the superseded numeral quoted beside it.
+
+**Witnesses.** `00_setup + 414` → `Files=2, Tests=9 … Result: PASS`. `00_setup + 421` → `Files=2, Tests=20
+… Result: PASS`. `413 · 414 · 419 · 420 · 421` + setup → `Files=6, Tests=78 … Result: PASS`.
+`npm run lint` rc **0**. ⛔ No `supabase db reset`; every run transactional, every mutant a copy in the
+scratchpad. ⛔ `docs/backend-state/authorization-and-audit.md` untouched — MINOR-1 is the lead's at the
+Record step. No `plan()` moved, so the suite total is unchanged at 9066.

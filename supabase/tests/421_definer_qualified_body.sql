@@ -185,9 +185,15 @@ create temp view v421_empty as select * from v421_domain where sp = '""';
 -- ⛔ `n_nonempty` EXCLUDES `<none>` deliberately (2026-09-12). It used to read `sp <> '""'`, which
 -- is TRUE for `<none>`, so an undeclared newcomer was added to the term that names `419` — the
 -- printed line read `891 = 862 non-empty (419) + 29 empty (421) | 1 undeclared` (the QA r1 probe of
--- unit DEFINER-QUALIFIED-BODY-GATE), double-counting it into a gate whose domain it is not in. With
--- the exclusion the three terms no longer sum by construction, which is the point: a newcomer moves
--- the TOTAL and its own term, and `§ 3h` asserts exactly that.
+-- unit DEFINER-QUALIFIED-BODY-GATE), double-counting it into a gate whose domain it is not in.
+-- ⚠ WHAT THE EXCLUSION CHANGES, STATED PRECISELY (QA r1 NOTE-1 — the earlier wording here, *"the
+-- three terms no longer sum by construction"*, was backwards). BEFORE: `n_nonempty` and `n_empty`
+-- summed to the total by construction and an `<none>` member was counted TWICE, once in
+-- `n_nonempty` and once in `n_undeclared`. AFTER: the three class terms PARTITION the total —
+-- every member lands in exactly one, and all three still sum to it. The gain is not arithmetic; it
+-- is that `n_undeclared` is now the ONLY term a newcomer of its class moves, so the class is
+-- attributable from the printed line instead of hiding inside the term that names `419`.
+-- `§ 3h` asserts exactly that, as a delta.
 create temp view v421_partition as
 select (select count(*) from v421_domain)                                    as n_total,
        (select count(*) from v421_domain where sp <> '""' and sp <> '<none>') as n_nonempty,
@@ -631,7 +637,7 @@ select is(
 -- § 4 — THE RESIDUAL. Stated as a bound, held at zero, and NOT claimed as coverage.
 -- ============================================================================
 
--- 17. ⛔ THIS IS NOT A SAFETY ASSERTION — it is the statement of what the two arms CANNOT see.
+-- 18. ⛔ THIS IS NOT A SAFETY ASSERTION — it is the statement of what the two arms CANNOT see.
 select is(
   (select coalesce(string_agg(sig, '; ' order by sig collate "C"), '')
      from v421_empty where src ~* '\mexecute\M'),
@@ -644,7 +650,7 @@ select is(
 -- § 0 found it, and the live verdict is unchanged — so § 3 mutated nothing that outlives it.
 -- ============================================================================
 
--- 18.
+-- 19.
 select ok(
       (select count(*) from v421_domain where sig like 'public.z421\_%') = 0
   and (select count(*) from v421_empty) = 29
