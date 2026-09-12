@@ -13960,8 +13960,8 @@
     "semantic_hash": ""
   },
   "docs/decisions/INDEX.md": {
-    "mtime": 1789151199.3516073,
-    "ast_hash": "ab9ffdd3fc33742b86d260f6f073576f",
+    "mtime": 1789224926.3220901,
+    "ast_hash": "2a199df7599635814698e7721468815f",
     "semantic_hash": ""
   },
   "docs/deployment/phi-backup-run-log.md": {
@@ -14135,8 +14135,8 @@
     "semantic_hash": ""
   },
   "docs/progress/phase-ledger.md": {
-    "mtime": 1789220228.5868652,
-    "ast_hash": "354164b6133bdac490035d2b36d2dece",
+    "mtime": 1789224926.4836698,
+    "ast_hash": "2c25ef21d67320ada28788481696e660",
     "semantic_hash": ""
   },
   "docs/progress/previa-split-2026-08-19.md": {
@@ -15385,8 +15385,8 @@
     "semantic_hash": ""
   },
   "supabase/tests/414_definer_search_path_resolves.sql": {
-    "mtime": 1788907091.1013408,
-    "ast_hash": "f095b4e33e7afe611cd93d81c6dd428a",
+    "mtime": 1789224926.3341541,
+    "ast_hash": "e7a4ac27835d42a1f605bee5504c2469",
     "semantic_hash": ""
   },
   "supabase/tests/mutation/adr0167-staff-admin-one-authority-mutation-audit.sh": {
@@ -15655,8 +15655,8 @@
     "semantic_hash": ""
   },
   "docs/features/INDEX.md": {
-    "mtime": 1789220228.3290112,
-    "ast_hash": "633b62afc34471065c28f693390fe21c",
+    "mtime": 1789224926.3226085,
+    "ast_hash": "6f3dbe785c9be150d73205c35ca894b1",
     "semantic_hash": ""
   },
   "docs/features/ae4.md": {
@@ -16345,13 +16345,13 @@
     "semantic_hash": ""
   },
   "docs/followups/follow-ups-archive.md": {
-    "mtime": 1789220228.3363492,
-    "ast_hash": "e49577b15b9cf622d66cf832483d5aaf",
+    "mtime": 1789224926.3289769,
+    "ast_hash": "f53b48e32dbe0164904f5b98fa6dabd4",
     "semantic_hash": ""
   },
   "docs/followups/follow-ups-open.md": {
-    "mtime": 1789220228.3363492,
-    "ast_hash": "5cb0764063978c4ba4f245f507bde6e3",
+    "mtime": 1789224926.3300455,
+    "ast_hash": "929d1dc3ecd6ee212dfe51e915d430e6",
     "semantic_hash": ""
   },
   "docs/followups/legacy-codes.md": {
@@ -16380,8 +16380,8 @@
     "semantic_hash": ""
   },
   "docs/lint-gates.md": {
-    "mtime": 1789220228.3363492,
-    "ast_hash": "20a08078e7f08b8dcbd3ed15536c61b1",
+    "mtime": 1789224926.3310535,
+    "ast_hash": "45028c59b97690c76a82cbb8d1490fd3",
     "semantic_hash": ""
   },
   "docs/plans/docs-consolidation.md": {
@@ -16500,8 +16500,8 @@
     "semantic_hash": ""
   },
   "scripts/check-backend-state.mjs": {
-    "mtime": 1788974814.5204291,
-    "ast_hash": "b1a66b0ee6b552f3c14231744bdca8c9",
+    "mtime": 1789224926.3330548,
+    "ast_hash": "e7651235af1b164482adc92bfe894703",
     "semantic_hash": ""
   },
   "scripts/check-budget-anchor.mjs": {
@@ -16525,8 +16525,8 @@
     "semantic_hash": ""
   },
   "scripts/definer-search-path-census.sql": {
-    "mtime": 1789166236.837947,
-    "ast_hash": "8042a5228b3095040f6c39954cc1acca",
+    "mtime": 1789224926.3341541,
+    "ast_hash": "d2ae69374113b6d42d95bae711025791",
     "semantic_hash": ""
   },
   "scripts/door-sweep-selftest.sh": {
@@ -16830,13 +16830,13 @@
     "semantic_hash": ""
   },
   "docs/backend-state/README.md": {
-    "mtime": 1789129296.7946913,
-    "ast_hash": "ea39b7062635bd043c80507f364826ee",
+    "mtime": 1789224926.319477,
+    "ast_hash": "27bf3548606d1eb4df889712099b9fd4",
     "semantic_hash": ""
   },
   "docs/backend-state/authorization-and-audit.md": {
-    "mtime": 1789220228.3290112,
-    "ast_hash": "75a91b5a759bfc50d1a86edacfedca49",
+    "mtime": 1789224926.3210368,
+    "ast_hash": "7bfe8df274f523c3b2d89028fc9def9a",
     "semantic_hash": ""
   },
   "docs/backend-state/cases-and-ethics.md": {
@@ -16845,8 +16845,8 @@
     "semantic_hash": ""
   },
   "docs/backend-state/conventions.md": {
-    "mtime": 1789048962.6984794,
-    "ast_hash": "72cdec8c33104de3726a1f6b0d1ad51a",
+    "mtime": 1789220797.8872867,
+    "ast_hash": "82d2a3387b79de893e5436ba5dd3bc6e",
     "semantic_hash": ""
   },
   "docs/backend-state/data-access.md": {
@@ -16975,8 +16975,8 @@
     "semantic_hash": ""
   },
   "docs/decisions/0196-backend-state-split-on-the-module-seam-axis.md": {
-    "mtime": 1789129296.7968557,
-    "ast_hash": "9150517bdc103e008e7ba1a0ac4f6404",
+    "mtime": 1789224926.3215802,
+    "ast_hash": "0f62d8cd1edb4f1f11c6d486565f711f",
     "semantic_hash": ""
   },
   "docs/decisions/0197-data-access-registries-are-generated-not-maintained.md": {
@@ -17650,8 +17650,8 @@
     "semantic_hash": ""
   },
   "supabase/tests/421_definer_qualified_body.sql": {
-    "mtime": 1789220228.3474503,
-    "ast_hash": "47d2aeabe0196a5def91c053a79fed04",
+    "mtime": 1789224926.3351605,
+    "ast_hash": "e789383585fdd857a4c7a6bbeaa9bef3",
     "semantic_hash": ""
   },
   "docs/features/definer-qualified-body-gate.md": {
@@ -17665,8 +17665,8 @@
     "semantic_hash": ""
   },
   "docs/progress/definer-qualified-body-gate.md": {
-    "mtime": 1789220228.7112231,
-    "ast_hash": "cf131035a9dcb043e8e4ad0f217a451c",
+    "mtime": 1789220836.0807023,
+    "ast_hash": "5df4cbeff2fae34e10d184ec04560e2e",
     "semantic_hash": ""
   },
   "docs/progress/door-sweep-arm-label-correction.md": {
@@ -17682,6 +17682,26 @@
   "docs/reviews/door-sweep-arm-label-correction-review.md": {
     "mtime": 1789179979.6949878,
     "ast_hash": "ff57cf17199189dec0330279b1cd1a50",
+    "semantic_hash": ""
+  },
+  "docs/decisions/0210-backend-state-seam-size-warn-line-raised-to-200-kb.md": {
+    "mtime": 1789224926.3215802,
+    "ast_hash": "5c5c71b298300a44cc1537d802f6330a",
+    "semantic_hash": ""
+  },
+  "docs/features/definer-undeclared-class-remedy.md": {
+    "mtime": 1789224926.3226085,
+    "ast_hash": "472fb56224a126d734b96f4eb120d1d8",
+    "semantic_hash": ""
+  },
+  "docs/progress/definer-undeclared-class-remedy.md": {
+    "mtime": 1789224926.3310535,
+    "ast_hash": "0696e533212e08533a1dacef99b0ed52",
+    "semantic_hash": ""
+  },
+  "docs/reviews/definer-undeclared-class-remedy-review.md": {
+    "mtime": 1789224926.3330548,
+    "ast_hash": "3634d7312c2e831eaad0b3446dc3ad57",
     "semantic_hash": ""
   }
 }
