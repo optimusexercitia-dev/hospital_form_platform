@@ -152,3 +152,10 @@ file the follow-up myself: `docs/followups/follow-ups-open.md` was named off-lim
   (grepped: no match). What it did carry was a clause my own change falsified — *"that population's
   resolvability is `414`'s property, which is kept byte-unchanged"* — corrected in place with the
   superseded words quoted, since that file has no frozen-slice convention.
+
+**Commit.** `1a5dc2a1` — `test(definer-undeclared-class-remedy): 414 s0b owns the undeclared-class remedy,
+421 s0c points at it, a control in each` (6 files, +294 / −24). ⛔ Staged by explicit path; the four files
+belonging to the other live session had already been committed by it (`bb6f3571`, `664a70a5`) and the tree
+was clean afterwards. ⚠ The spawn prompt named a `Co-Authored-By: Claude Fable 5.1` trailer while this
+session's own attribution config names `Claude Opus 5 (1M context)`; the accurate one was used — the lead
+can re-state it if the other was intended.
