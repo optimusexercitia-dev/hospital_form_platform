@@ -281,3 +281,13 @@ transactional): `npm run test:db` → `Files=270, Tests=9066` · `Result: PASS` 
 unchanged from the pre-fix figure.
 
 **QA r2 spawned**, scoped to MINOR-2/3 and the two NOTEs; MINOR-1 stays open to the Record step by design.
+
+### 2026-09-12 — QA r2 APPROVED; hub → gated; awaiting human approval (lead)
+
+QA r2 (same review file, `## Round 2`): **APPROVED**, 0 new findings. MINOR-3 closed "the strong way" — one
+executable `sp is null` line (`414:90`), read at `:145` (`§ 0b`) and `:245` (`§ 2d`); QA's r1 mutant now
+`# Failed test 7 … have: (NOTHING FIRED)`, where r1 had `Tests=9 PASS`. MINOR-2 map verified by forced reds
+(`Failed tests: 18-19`). NOTE-1/NOTE-3 closed. MINOR-1 stays open TO the Record step (seam `:71` *"`414`
+unchanged"*), carried there deliberately; ⚠ gate 16 check I will not red on it because the stamp already reads
+2026-09-12 — the lead edits that bullet by hand. Open for the PO at step 4: (a) approve; (b) confirm step 2 N/A;
+(c) confirm that two CONTROL assertions (`414 § 2d`, `421 § 3h`) do not breach the ruling's *"No new cell"*.

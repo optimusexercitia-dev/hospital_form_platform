@@ -418,3 +418,69 @@ gate will force), MINOR-2 (two off-by-one assertion-number comments in `421`) an
 file) are all correctable in place, and none of them opens a hole or weakens an existing
 assertion. ⛔ The approval is **conditional on § 9 item 1**: the ledger and the record must carry
 the full-suite figures from the run on the COMPLETED reset.
+
+---
+
+## Round 2 (2026-09-12)
+
+Scope: my three r1 MINORs and NOTE-1/NOTE-3, over `fe3aa643` (3 files: `414`, `421`, the record;
+`docs/backend-state/` deliberately untouched). Lead's witnesses on it: `npm run test:db`
+`Files=270, Tests=9066, Result: PASS`, `not ok` 0; `npm run lint` rc 0.
+
+**Verdict (r2): APPROVED**
+
+Counts this round — **BLOCK 0 · MAJOR 0 · MINOR 0 new · NOTE 0 new**. MINOR-2, MINOR-3, NOTE-1 and
+NOTE-3 are **CLOSED**, each on a witness I re-earned rather than read off the record. MINOR-1 stays
+**OPEN BY DESIGN**, deferred to the lead's Record step.
+
+### Baselines, re-run first
+
+`00_setup + 414` → `Files=2, Tests=9, Result: PASS`. `00_setup + 421` → `Files=2, Tests=20,
+Result: PASS`. Unchanged figures: the fix moved no `plan()`.
+
+### Closure per finding
+
+| Finding | Verdict | Witness I earned |
+|---|---|---|
+| **MINOR-3** — `§ 2d` re-typed `§ 0b`'s clause; my r1 mutant survived the whole file | ✅ **CLOSED** | `414:89-90` is now the single text `create temp view v414_undeclared as select * from v414_domain where sp is null;`, and `grep -n "sp is null" 414` returns exactly **one executable line** (90) plus two comment lines (63, 239). Its only two readers are `414:145` (`§ 0b`) and `414:245` (`§ 2d`). ⭐ **My r1 mutant is now KILLED.** Re-running it with the drift moved to the SHARED view (`sp = '<none>'`) plus a live undeclared DEFINER: `Failed test 7`, `have: (NOTHING FIRED)` / `want: z414_ctl_undeclared`, `Result: FAIL` — where in r1 the identical situation returned `Tests=9, Result: PASS`. |
+| **MINOR-2** — `-- N.` comments off by one from `§ 3h` on; `-- 17.` appeared twice | ✅ **CLOSED** | `421:640` → `-- 18.`, `421:653` → `-- 19.`. **Map verified by forcing reds rather than by counting**: a copy with `§ 4`'s expected replaced by `'FORCED-RED-QA'` and `§ 5`'s first conjunct replaced by `false` reports `# Failed test 18` on `§ 4 THE RESIDUAL` and `# Failed test 19` on `§ 5 RESTORE`, `Failed tests: 18-19`. |
+| **NOTE-1** — *"the three terms no longer sum by construction"* was backwards | ✅ **CLOSED** | `421:189-197` now states both polarities and names the direction: BEFORE, `n_nonempty + n_empty` summed to the total and an `<none>` member was counted TWICE; AFTER, the three class terms PARTITION the total and all three still sum to it, the gain being attributability rather than arithmetic. I checked that against the view: `sp` is `coalesce(…, '<none>')`, so it takes exactly three shapes and the new sentence is true in both halves. The superseded wording is quoted beside it. |
+| **NOTE-3** — record said *"the eight ACs"* | ✅ **CLOSED** | `docs/progress/definer-undeclared-class-remedy.md:204-205` now reads *"on the six ACs"* with the superseded numeral and its provenance quoted. |
+| **MINOR-1** — seam `:71` still says *"`414` unchanged"* | ⏳ **OPEN, deferred by design** | `sed -n '71p' docs/backend-state/authorization-and-audit.md` still returns `` `414` unchanged ``, and `fe3aa643` correctly does not touch that file. ⛔ **Not closed, and not waived.** It is the lead's at the Record step, and § 4's aggravating fact 2 still applies: gate 16 check I is already satisfied by the 2026-09-12 stamp, so nothing will red if the replacement is written without it. The accurate clause to carry across is `docs/lint-gates.md:37`'s. |
+
+### Non-vacuity of the closures themselves
+
+⛔ A red under mutation is only evidence if the instrument was alive without it, so each closure
+has its unmutated control:
+
+| run | state | outcome |
+|---|---|---|
+| baseline `414` | production | `Tests=9 PASS` — no false fire |
+| **A** (re-run) | plant only, view intact | `§ 0b` **RED** (`Failed test 2`, `have: public.zzz_qa_mut_undeclared()`) — the offender is still detectable at `§ 0b` |
+| **QA-1** (re-run, drift now on the shared view) | plant + drifted view | `§ 2d` **RED** (`Failed test 7`) — the control now speaks for `§ 0b`'s predicate |
+| baseline `421` | production | `Tests=20 PASS` |
+| **numbering probe** | `§ 4` and `§ 5` each forced | `Failed tests: 18-19` — the two comments that moved are the two numbers that fired |
+
+⭐ One nuance worth writing down, because it is the point of the fix and not an accident: in QA-1
+`§ 0b` itself stays GREEN — with the view broken it sees nothing and its expected value is `''`.
+The mutant is killed by `§ 2d` ALONE, through its `(NOTHING FIRED)` VOID sentinel. That is exactly
+the division of labour MINOR-3 asked for: `§ 0b` asserts the property, `§ 2d` asserts that `§ 0b`'s
+predicate is alive, and after the fix the second claim is about the first's own text rather than
+about a copy that happens to agree with it.
+
+### What I could NOT verify this round
+
+1. **The full-suite `Files=270, Tests=9066 PASS` on `fe3aa643`** — still the lead's run, not mine.
+   The fix touches no `plan()` (my two baselines re-confirm `Tests=9` and `Tests=20`), so the
+   figure is unchanged from the run § 9 item 1 already discusses; that is consistency, not a run.
+2. **`npm run lint` end to end on `fe3aa643`** — not re-run. The diff is two pgTAP files and one
+   record, none of which any lint gate reads, and gate 16's subject (`docs/backend-state/`) is
+   untouched by this commit.
+3. **MINOR-1's eventual correction** — by construction it lands after this review.
+4. Everything still open from r1 § 9 items 5-7 (the check-D follow-up, step 2's N/A ruling, and
+   whether `§ 2d`/`§ 3h` satisfy *"No new cell"*) is unchanged and remains the PO's or the lead's.
+
+**Verdict (r2): APPROVED** — the two MINORs that touched test code are closed on re-earned
+witnesses, and MINOR-3's closure is the strong kind: the exact mutant that survived the whole file
+in r1 now reds. MINOR-1 is open and owed at the Record step; ⛔ it must not be read as closed by
+this approval.

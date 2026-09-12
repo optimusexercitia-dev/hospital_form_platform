@@ -1,14 +1,14 @@
 ---
 id: DEFINER-UNDECLARED-CLASS-REMEDY
 title: "The undeclared-search_path DEFINER class gets ONE owner and ONE remedy: 414 § 0b names the convergence, 421 § 0c points at it"
-status: in_progress
+status: gated
 kind: fup-fix
 program: AUTHZ
 phase: "pre-AE5 remediation — ADR 0208 D4 forward convention applied to the undeclared class (PO ruled 2026-09-11: defect to converge, no new cell)"
 branch: definer-undeclared-class-remedy   # cut from main @ f55b53ba
 plan: ../plans/authz-evolution.md
 progress: ../progress/definer-undeclared-class-remedy.md
-reviews: []
+reviews: ["../reviews/definer-undeclared-class-remedy-review.md"]
 adrs: ["0208"]
 handoff: ~
 fup: FUP-DEFINER-QUALIFIED-BODY-GATE-UNDECLARED-CLASS-NOW-HAS-A-LIVE-ENFORCER
@@ -97,9 +97,10 @@ Make an undeclared-`search_path` DEFINER red with ONE named owner (`414 § 0b`) 
 
 ### In progress
 
-- `qa` round 2 over the r1 MINOR fixes (`fe3aa643`); r1 was APPROVED (0 MAJOR / 3 MINOR / 4 NOTE),
-  MINOR-3 (control re-typed the production predicate) fixed by a shared temp view, mutant now reds;
-  full suite re-earned on the final bytes: `Files=270, Tests=9066` PASS, lint rc 0.
+- Nothing — awaiting step 4 human approval. QA r1 APPROVED (0 MAJOR / 3 MINOR / 4 NOTE); MINOR-3
+  (control re-typed the production predicate) fixed by a shared temp view `v414_undeclared`, QA's
+  mutant now reds; full suite re-earned on the final bytes `Files=270, Tests=9066` PASS, lint rc 0;
+  QA r2 APPROVED, 0 new findings, MINOR-1 (seam `:71` wording) deferred to the Record step by design.
 
 ### Next
 
