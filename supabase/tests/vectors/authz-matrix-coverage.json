@@ -1,6 +1,6 @@
 {
-  "sourceSha256": "ac475f3d65d3a73e0a382afcab35117ae5bf368df800a7eba2842ef967d5c9a6",
-  "manifestSha256": "4d76dcb602838d15ca70745d43ecccf27590bd15c4d90ca2e0862431f60117c6",
+  "sourceSha256": "20a4bd6f0b99e0081f96522889692b2300c7256038dbe99c313f45e6d9c24708",
+  "manifestSha256": "3183fec6c43b3dcaf83e7d15db6f4899094a02d3dbd7693020453cad330cf835",
   "expected": 117000,
   "executed": 2002,
   "skipped": 114998,
@@ -25,7 +25,7 @@
   "manifest": {
     "permissionRows": 43,
     "snapshotPermissions": 43,
-    "snapshotRoles": 12,
+    "snapshotRoles": 11,
     "migrationHead": "20261003007260",
     "statusCounts": {
       "pending-rekey": 40,

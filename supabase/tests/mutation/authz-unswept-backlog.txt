@@ -952,7 +952,7 @@ authz.entailed_grants(p_principal uuid, p_resolution_kind text, p_scope_id uuid,
 # `md5(pg_get_functiondef)` is pinned at 3b069ecb1a1c51b340a127f7a7dcd105). CASE 3 mutates
 # the CALL — deleting it reds eight `315` cells across all three tiers, including the
 # "the row still carries role + actor" twins that a never-written row cannot satisfy.
-public.assume_role(p_role platform_role)
+public.assume_role(p_role text)
 
 # ── CATEGORY (b) · 2026-09-03 · AE4/IA-F9 statement-scoped increment ──────
 #

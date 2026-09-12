@@ -163,10 +163,10 @@ select set_config('request.jwt.claims',
     'session_id', gen_random_uuid())::text, true);
 set local role authenticated;
 select lives_ok(
-  $$ select public.assume_role('org_admin'::public.platform_role) $$,
+  $$ select public.assume_role('org_admin'::text) $$,
   'assume_role: sa_x (a real org_admin) can assume the org_admin hat');
 select throws_ok(
-  $$ select public.assume_role('nsp_org_admin'::public.platform_role) $$,
+  $$ select public.assume_role('nsp_org_admin'::text) $$,
   '42501', null,
   'assume_role: sa_x CANNOT assume a role he does not hold (nsp_org_admin)');
 -- Capture the session_id before reset role drops the request.jwt.claims GUC scope.
@@ -230,7 +230,7 @@ select set_config('request.jwt.claims',
     'session_id', gen_random_uuid())::text, true);
 set local role authenticated;
 select lives_ok(
-  $$ select public.assume_role('staff_admin'::public.platform_role) $$,
+  $$ select public.assume_role('staff_admin'::text) $$,
   'assume_role: sa_x (a real staff_admin) can assume the staff_admin hat');
 create temp table sid2 on commit drop as
   select (nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'session_id')::uuid as v;
@@ -256,7 +256,7 @@ select set_config('request.jwt.claims',
     'session_id', gen_random_uuid())::text, true);
 set local role authenticated;
 select lives_ok(
-  $$ select public.assume_role('platform_admin'::public.platform_role) $$,
+  $$ select public.assume_role('platform_admin'::text) $$,
   'assume_role: admin (a real platform_admin) can assume the platform_admin hat');
 create temp table sid3 on commit drop as
   select (nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'session_id')::uuid as v;

@@ -65,7 +65,7 @@
 #      clause assume_role already carries, and with memberships_select (b).
 fn: public.session_context()
 
-# public.assume_role(p_role platform_role) — the hat-ACQUISITION door (ADR 0106
+# public.assume_role(p_role text) — the hat-ACQUISITION door (ADR 0106
 # D2/D12). It validates "does the caller genuinely hold p_role?" against live
 # memberships; consulting the CURRENT hat here would make switching to any
 # other held role impossible (you could only ever re-assume the hat you wear).
@@ -96,7 +96,7 @@ fn: public.session_context()
 #      (org / commission / platform tiers), and 418 § 3.7.
 # ⇒ THE ENTRY SURVIVES and the finding stays reasoned-allowlisted. What would move
 # it is unchanged: a grant-data read, or the audit row disappearing.
-fn: public.assume_role(p_role platform_role)
+fn: public.assume_role(p_role text)
 
 # public.memberships.memberships_select (SELECT), self arm — the caller reads
 # their OWN membership rows under every hat. Same D9 information boundary as

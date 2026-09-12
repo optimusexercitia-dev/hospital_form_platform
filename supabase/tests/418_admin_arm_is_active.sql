@@ -253,7 +253,7 @@ select set_config('request.jwt.claims',
                      'session_id', (select v from sid1))::text, true);
 set local role authenticated;
 select throws_ok(
-  $$ select public.assume_role('platform_admin'::public.platform_role) $$,
+  $$ select public.assume_role('platform_admin'::text) $$,
   '42501', null,
   '3.1 ⭐⭐ THE SEATING DOOR, DEACTIVATED: a deactivated admin-flagged principal may no longer '
   'MINT the platform_admin hat. RED at head — the platform branch tested `profiles.is_admin` '
@@ -270,7 +270,7 @@ select set_config('request.jwt.claims',
                      'session_id', (select v from sid2))::text, true);
 set local role authenticated;
 select throws_ok(
-  $$ select public.assume_role('platform_admin'::public.platform_role) $$,
+  $$ select public.assume_role('platform_admin'::text) $$,
   '42501', null,
   '3.2 ⭐⭐ THE SEATING DOOR, SUSPENDED — the other column, the same 42501, RED at head. ⚠ The '
   'errcode is load-bearing: `28000` would be the authentication/session guards standing in '
@@ -284,7 +284,7 @@ select set_config('request.jwt.claims',
                      'session_id', (select v from sid3))::text, true);
 set local role authenticated;
 select lives_ok(
-  $$ select public.assume_role('platform_admin'::public.platform_role) $$,
+  $$ select public.assume_role('platform_admin'::text) $$,
   '3.3 ⭐⭐ THE DIFFERENTIAL HALF: the SAME principal, re-activated, making the SAME call, is '
   'seated. Green BEFORE and AFTER. ⛔ Without it 3.1/3.2 are satisfied by a door that refuses '
   'everyone — and a door refusing everyone is exactly what a mis-keyed `is_active` argument '
@@ -320,7 +320,7 @@ select set_config('request.jwt.claims',
                      'session_id', (select v from sid4))::text, true);
 set local role authenticated;
 select throws_ok(
-  $$ select public.assume_role('staff_admin'::public.platform_role) $$,
+  $$ select public.assume_role('staff_admin'::text) $$,
   '42501', null,
   '3.8 ⭐⭐ THE DECLARED WIDENING''S OWN CELL (PO ruling R1). A deactivated COMMISSION '
   'staff_admin cannot seat a tenant hat either. RED at head. ⛔ This is what makes R1 a '
@@ -337,7 +337,7 @@ select set_config('request.jwt.claims',
                      'session_id', (select v from sid5))::text, true);
 set local role authenticated;
 select lives_ok(
-  $$ select public.assume_role('staff_admin'::public.platform_role) $$,
+  $$ select public.assume_role('staff_admin'::text) $$,
   '3.9 ⭐ DISCRIMINATION FOR 3.8: the same tenant principal, re-activated, is seated. Green '
   'before and after — the widening must not have closed the tenant tier outright.');
 reset role;

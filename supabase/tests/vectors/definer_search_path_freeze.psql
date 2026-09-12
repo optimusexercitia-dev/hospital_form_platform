@@ -3,7 +3,7 @@
 -- Domain:    scripts/definer-search-path-census.sql, block `definer_nonempty_domain`
 -- Generator: scripts/gen-definer-search-path-freeze.mjs  (--write / --check / --self-test)
 -- Consumer:  supabase/tests/419_definer_search_path_freeze.sql
--- anchor: definer-search-path-freeze rows=861 sha256=7553e105e58f7156fef19165dcc6a1b444d552a4c1fbf2d510c9bec45ebb1a7b md5=b87831f83db14d97b695e4b10f6cb05f
+-- anchor: definer-search-path-freeze rows=860 sha256=19a1aae73ab0b7c37b44c43ab46c94c972cf5f9e7520ddf51fa189230b36c7a9 md5=c61b3ec993ffa2a44cffa9e03a2c2ad0
 --
 -- The NON-EMPTY `search_path` population of SECURITY DEFINER functions in app/public/authz,
 -- frozen as a name set that may only SHRINK (ADR 0208 D4/D5).
@@ -480,7 +480,6 @@ create temp table definer_search_path_freeze on commit drop as
     ('public.assign_org_admin(p_org uuid, p_user uuid)'),
     ('public.assign_referral_internal_note(p_note_id uuid, p_user_id uuid)'),
     ('public.assign_referral_reviewer(p_referral_id uuid, p_commission_id uuid, p_assignee_user_id uuid, p_assignment_role text, p_due_at timestamp with time zone)'),
-    ('public.assume_role(p_role platform_role)'),
     ('public.attach_controlled_document_version_file(p_version_id uuid, p_core_version_id uuid, p_summary_of_changes_md text, p_expiry_date date)'),
     ('public.attest_dsr_task(p_task_id uuid, p_reviewer_name text, p_redactions integer, p_note text)'),
     ('public.audit_trail_enabled()'),

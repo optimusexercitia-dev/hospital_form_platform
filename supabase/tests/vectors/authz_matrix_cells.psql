@@ -1,7 +1,7 @@
 -- GENERATED FILE — DO NOT EDIT BY HAND.
 -- Source:    supabase/tests/vectors/authz-matrix-axes.json
 -- Generator: scripts/gen-authz-matrix-cells.mjs
--- sourceSha256: ac475f3d65d3a73e0a382afcab35117ae5bf368df800a7eba2842ef967d5c9a6
+-- sourceSha256: 20a4bd6f0b99e0081f96522889692b2300c7256038dbe99c313f45e6d9c24708
 --
 -- AE4.5 decision-matrix CELL ENUMERATION — the seven PO-approved axes
 -- (docs/design/authz-persona-matrix-axes-ae0.md), constraint rules applied.
@@ -2032,7 +2032,6 @@ create temp table authz_matrix_cells on commit drop as
 -- drifting away from the catalog itself, using a gate that already runs.
 create temp table authz_matrix_catalog_roles on commit drop as
   select * from (values
-    ('administrativo'),
     ('hospital_admin'),
     ('nsp_coordinator'),
     ('nsp_org_admin'),

@@ -133,8 +133,12 @@ end $$;
 -- §3 — the seed (AE4.2), and the unreachable-scope-kind device.
 -- ============================================================================
 
-select is((select count(*)::int from authz.roles), 12,
-  '3.1 twelve role rows: the 10 membership-bearing roles + platform_admin + administrativo');
+select is((select count(*)::int from authz.roles), 11,
+  '3.1 eleven role rows: the 10 membership-bearing roles + platform_admin. ⚠ TWELVE until ADR '
+  '0207 D5 step 4 (migration 20261003007430): `administrativo` was the twelfth, held out of '
+  'memberships by the `capability_plane` sentinel, and its own seed comment called it NOT A ROLE. '
+  'It is now a capability PROVIDER and has left this table — the abstraction stopped lying about '
+  'its own domain, which is what audit finding F8 asked for.');
 
 select is(
   (select coalesce(string_agg(code || '=' || state::text, ', ' order by code), '(none)')
@@ -166,25 +170,43 @@ select is(
 select is(
   (select array_agg(code || '=' || allowed_scope_kind order by code) from authz.roles
     where allowed_scope_kind not in ('organization', 'hospital', 'commission')),
-  array['administrativo=capability_plane', 'platform_admin=none'],
-  '3.4 ⭐ the two non-membership rows carry STRUCTURALLY UNREACHABLE scope kinds. '
+  array['platform_admin=none'],
+  '3.4 ⭐ the non-membership row carries a STRUCTURALLY UNREACHABLE scope kind. '
   'memberships.scope_kind is GENERATED and can only ever produce organization | hospital '
-  '| commission | NULL, so neither row can be matched by the composite FK. This is what '
-  'keeps role = ''administrativo'' out of memberships AFTER memberships_role_check '
-  'retires — the safety survives the retirement without depending on it.');
+  '| commission | NULL, so the row cannot be matched by the composite FK — the safety '
+  'survives `memberships_role_check`''s retirement without depending on it. ⚠ TWO ROWS '
+  'UNTIL AE5-ROLE-CATALOG-COMPAT: `administrativo=capability_plane` was the other, and ADR '
+  '0207 D5 step 4 removed BOTH the row and the `capability_plane` label from the '
+  '`authz.scope_kind` domain. ⛔ The device is unchanged and still load-bearing for '
+  '`platform_admin`; what left is the SENTINEL the audit called evidence that the '
+  'abstraction was wrong — one unreachable value for a row that is not a role at all.');
 
 select is(
   (select array_agg(code order by code) from authz.roles where system_managed),
-  array['administrativo', 'platform_admin'],
-  '3.5 system_managed is TRUE exactly for the two roles whose assignment does not flow '
-  'through app.grant_role_impl (the only function that inserts into memberships)');
+  array['platform_admin'],
+  '3.5 system_managed is TRUE exactly for the role whose assignment does not flow '
+  'through app.grant_role_impl (the only function that inserts into memberships). ⚠ TWO '
+  'until AE5-ROLE-CATALOG-COMPAT — `administrativo` was the other, and it left the table '
+  '(ADR 0207 D5 step 4). The property is unchanged; its population shrank by the row that '
+  'was never a role.');
 
 select is(
-  (select array_agg(code order by code) from authz.roles where not session_selectable),
-  array['administrativo'],
-  '3.6 administrativo is the only non-session-selectable row: public.assume_role''s '
-  'parameter is typed platform_role and cannot carry it, while all eleven role codes are '
-  'accepted (platform_admin via its profiles.is_admin branch)');
+  (select count(*)::int from authz.roles where not session_selectable)::text
+    || '/' || coalesce((select string_agg(code, ',') from authz.roles where code = 'administrativo'),
+                       '(absent)'),
+  '0/(absent)',
+  '3.6 ⭐⭐ RE-CAST AT AE5-ROLE-CATALOG-COMPAT, NOT DELETED — the assertion LOST ITS SUBJECT '
+  'and kept its claim. It read "administrativo is the only non-session-selectable row: '
+  'assume_role''s parameter is typed platform_role and cannot carry it". BOTH of its '
+  'mechanisms are gone: ADR 0207 D5 step 4 removed the row (so no row is non-selectable) '
+  'and D3 retyped `assume_role` to `text` and dropped the enum (so no type boundary '
+  'excludes anything). ⛔ A retired assertion with no successor is a finding, so the CLAIM '
+  '— administrativo cannot be seated — is re-asked at the two grains that now carry it: '
+  '(a) every surviving row IS session_selectable, so the column no longer excludes '
+  'anybody, and (b) `administrativo` is absent from the catalog entirely, which is what '
+  'makes it unseatable now. ⚠ The DOOR''s half of this moved too: with a text parameter '
+  'the vocabulary check is the body''s, and `408` §4 / `422` §2.11 are what hold the '
+  'fail-closed branch for a code the catalog does not carry.');
 
 -- ============================================================================
 -- §4 — grants. EFFECTIVE PRIVILEGE ONLY, never relacl text.
@@ -793,9 +815,15 @@ select throws_ok(
   $$insert into authz.permissions (code, resource_kind, risk_class, sensitivity_ceiling, resolution_scope_kind)
     values ('zzfix.r2', 'commission_content', 'read', 'none', 'capability_plane')$$,
   '23514', null,
-  '14.5 ...and rejects `capability_plane` specifically. ⛔ THIS IS THE POINT OF THE SEPARATE '
-  'DOMAIN: `authz.scope_kind` admits it, and a permission RESOLVING at an unreachable scope '
-  'is a state nothing should be able to write. Reusing scope_kind would have allowed it.');
+  '14.5 ...and rejects `capability_plane` specifically. ⚠ CORRECTED 2026-09-12 '
+  '(AE5-ROLE-CATALOG-COMPAT): this read "THIS IS THE POINT OF THE SEPARATE DOMAIN: '
+  '`authz.scope_kind` admits it, and reusing scope_kind would have allowed it". That was '
+  'true when written and is now FALSE — ADR 0207 D5 step 4 dropped `capability_plane` from '
+  '`authz.scope_kind` too, so BOTH domains reject it and this assertion is no longer the '
+  'only thing standing between a permission and an unreachable resolution scope (411 §4.2 '
+  'holds the other side). ⛔ The assertion itself is UNCHANGED and still earns its place: '
+  'the two domains are independent, and a future widening of either must not be assumed to '
+  'have been ruled on for the other.');
 
 select is((select count(*)::int from authz.permissions), 43,
   '14.6 exactly 43 permission codes - the PO-approved matrix count, 42 (2026-09-01) plus row 43 '

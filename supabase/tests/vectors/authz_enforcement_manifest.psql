@@ -1,7 +1,7 @@
 -- GENERATED FILE — DO NOT EDIT BY HAND.
 -- Source:    supabase/tests/vectors/authz-enforcement-manifest.json
 -- Generator: scripts/gen-authz-matrix-cells.mjs
--- sourceSha256: 4d76dcb602838d15ca70745d43ecccf27590bd15c4d90ca2e0862431f60117c6
+-- sourceSha256: 3183fec6c43b3dcaf83e7d15db6f4899094a02d3dbd7693020453cad330cf835
 --
 -- ADR 0176 D5 — THE ENFORCEMENT MANIFEST, as a pgTAP fixture.
 --
@@ -139,7 +139,6 @@ create temp table authz_manifest_snapshot_permissions on commit drop as
 
 create temp table authz_manifest_snapshot_roles on commit drop as
   select * from (values
-    ('administrativo', 'legacy', false),
     ('hospital_admin', 'legacy', true),
     ('nsp_coordinator', 'legacy', true),
     ('nsp_org_admin', 'legacy', true),

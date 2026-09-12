@@ -25,7 +25,7 @@
   "subjectRoles": ["staff_admin"],
 
   "catalogRoles": [
-    "administrativo", "hospital_admin", "nsp_coordinator", "nsp_org_admin", "org_admin",
+    "hospital_admin", "nsp_coordinator", "nsp_org_admin", "org_admin",
     "platform_admin", "pqs_member", "quality_reviewer", "staff", "staff_admin",
     "technical_director", "technical_director_deputy"
   ],

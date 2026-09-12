@@ -1,7 +1,7 @@
 -- GENERATED FILE — DO NOT EDIT BY HAND.
 -- Source:    supabase/tests/vectors/authz-matrix-axes.json
 -- Generator: scripts/gen-authz-differential-cells.py   (--check is chained into lint gate 12)
--- sourceSha256: ac475f3d65d3a73e0a382afcab35117ae5bf368df800a7eba2842ef967d5c9a6
+-- sourceSha256: 20a4bd6f0b99e0081f96522889692b2300c7256038dbe99c313f45e6d9c24708
 --
 -- AE4.5 differential cells. 1728 cells over 5 legacy-equivalence classes, 5 representative(s)
 -- (pgTAP 401 §19.2 asserts the partition; 403 §2.3 asserts this class count), 10272 skipped by

@@ -150,7 +150,6 @@
     ],
 
     "roles": [
-      { "code": "administrativo",            "state": "legacy",        "sessionSelectable": false },
       { "code": "hospital_admin",            "state": "legacy",        "sessionSelectable": true },
       { "code": "nsp_coordinator",           "state": "legacy",        "sessionSelectable": true },
       { "code": "nsp_org_admin",             "state": "legacy",        "sessionSelectable": true },
@@ -1219,7 +1218,7 @@
         {
           "gate": "app.is_admin_for",
           "population": "platform_admin, via profiles.is_admin — a role-free superuser arm. ⚠ SUBJECT-KEYED SINCE ADR 0200 (2026-09-09): the arm was `app.is_admin` (zero-argument, caller-keyed) until pre-AE5 Batch 8 re-keyed it onto `p_uid`. The population is unchanged; WHICH PRINCIPAL it is evaluated about is not.",
-          "retiredBy": "AE5 / ADR 0176 D8 (platform_role retirement, explicitly NOT decided in 0176)"
+          "retiredBy": "AE5 — the platform_role retirement itself LANDED at AE5-ROLE-CATALOG-COMPAT (ADR 0207 D3, migration 20261003007430); what is still owed is the is_admin_for arm, which ADR 0176 D8 bundled with it and did not decide"
         },
         {
           "gate": "app.can_manage_professional",

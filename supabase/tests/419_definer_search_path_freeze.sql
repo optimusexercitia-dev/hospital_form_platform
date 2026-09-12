@@ -5,10 +5,13 @@
 --
 -- ⭐ WHAT THIS ASSERTS, AND WHY IT IS NOT `414`. ADR 0208 D4 rules `set search_path = ''` with a
 -- schema-qualified body the SOLE forward convention for a new or touched SECURITY DEFINER; the
--- 861 remaining non-empty paths are frozen compatibility debt that **may not grow**. The lineage,
+-- 860 remaining non-empty paths are frozen compatibility debt that **may not grow**. The lineage,
 -- because a bare figure here rots into a claim nobody can date: 867 before migration
 -- `20261003007410` converged two of them -> 865; 861 after `20261003007420` converged the four
--- temp-table DEFINERs. `414` proves
+-- temp-table DEFINERs; 860 after `20261003007430` DROPPED `public.assume_role(p_role
+-- platform_role)` and created `public.assume_role(p_role text)` on the EMPTY path (ADR 0207
+-- D3 + 0208 D4) — a PURE DELETION here, because the replacement never enters this
+-- population. `414` proves
 -- every schema NAMED in such a path RESOLVES — a different claim, and neither is the other's
 -- verdict. `414` is kept byte-unchanged; this file is the prospective half.
 --
@@ -33,9 +36,9 @@
 -- ⛔⛔ AND D4 IS A TWO-CLAUSE CONVENTION OF WHICH THIS ASSERTS ONE. D4 is `set search_path = ''`
 -- **with schema-qualified object references**. This file reads `proconfig` and never a function
 -- BODY, and neither does gate 18. The qualified half is asserted by its own file, `421` — which
--- takes the COMPLEMENT of this file's population (the empty-path DEFINERs, 29 of the 890; `421
+-- takes the COMPLEMENT of this file's population (the empty-path DEFINERs, 30 of the 890; `421
 -- § 0c` asserts the two sets still partition the whole) and has Postgres resolve each body under
--- its declared path: `plpgsql_check_function_tb` for the 18 plpgsql members, a re-execution of
+-- its declared path: `plpgsql_check_function_tb` for the 19 plpgsql members, a re-execution of
 -- `pg_get_functiondef` for the 11 `language sql` ones, with `42P01`/`42883` the finding set. ⛔ Its
 -- FIRST STATED BOUND is dynamic SQL: an `execute` body is opaque to both arms, so `421 § 4` holds
 -- that population at zero instead of claiming coverage over it. ⛔ Its SECOND is the temp-table
@@ -131,13 +134,13 @@ select is(
 --    orderings differ on `_`, and the md5 would disagree for a set that is byte-identical.
 select is(
   (select count(*)::int from definer_search_path_freeze),
-  861,
-  '§ 0c ROWS PIN: the frozen artifact holds exactly the 861 rows its anchor declares. ⛔ A shrink updates BOTH the artifact (via --write) and this literal; updating only one is the drift this pin exists to catch'
+  860,
+  '§ 0c ROWS PIN: the frozen artifact holds exactly the 860 rows its anchor declares. ⛔ A shrink updates BOTH the artifact (via --write) and this literal; updating only one is the drift this pin exists to catch'
 );
 
 select is(
   (select md5(string_agg(sig, '|' order by sig collate "C")) from definer_search_path_freeze),
-  'b87831f83db14d97b695e4b10f6cb05f',
+  'c61b3ec993ffa2a44cffa9e03a2c2ad0',
   '§ 0d CONTENT PIN: the frozen NAMES, not merely their count. A row swapped for another row keeps § 0c green and moves this'
 );
 

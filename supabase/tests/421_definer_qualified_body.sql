@@ -200,7 +200,7 @@ select (select count(*) from v421_domain)                                    as 
        (select count(*) from v421_domain where sp = '""')                     as n_empty,
        (select count(*) from v421_domain where sp = '<none>')                 as n_undeclared;
 
--- 3. THE PARTITION. `419` freezes the NON-EMPTY side (861) and this file gates the EMPTY side (29);
+-- 3. THE PARTITION. `419` freezes the NON-EMPTY side (860) and this file gates the EMPTY side (30);
 --    the two must still sum to `414`'s whole population (890). ⛔ Without this, a member that
 --    acquired an `<none>` or some third form would fall out of BOTH gates and neither would red.
 -- ⚠ THE `0 undeclared` TERM IS THE NON-TAUTOLOGICAL ONE, and the ONLY term a newcomer of that class
@@ -218,7 +218,7 @@ select is(
   (select n_total::text || ' = ' || n_nonempty::text || ' non-empty (419) + ' ||
           n_empty::text || ' empty (421) | ' || n_undeclared::text || ' undeclared'
      from v421_partition),
-  '890 = 861 non-empty (419) + 29 empty (421) | 0 undeclared',
+  '890 = 860 non-empty (419) + 30 empty (421) | 0 undeclared',
   '§ 0c THE TWO GATES PARTITION THE POPULATION: every prosecdef function in app/public/authz is either frozen by 419 or body-checked here, with nothing in between. ⛔ `undeclared` moving off 0 means a member is in NEITHER gate''s domain while both stay green — and `414 § 0b` is the assertion that OWNS that finding: it names the offender and its ONE remedy, converge it to `set search_path = ''''` with schema-qualified references (ADR 0208 D4; PO ruled 2026-09-11), ⛔ never by widening 414/419 and never by adding it to the frozen set. ⚠ The two middle figures MOVE when a member converges to the empty form, which is exactly what D4 asks for — that is a re-baseline (here AND 419 § 0c/§ 0d, in the same change, after re-running the generator), never a reason not to converge'
 );
 
@@ -228,7 +228,7 @@ select is(
   (select (select count(*) from v421_empty where lang = 'plpgsql')::text || ' plpgsql | ' ||
           (select count(*) from v421_empty where lang = 'sql')::text || ' sql | ' ||
           (select string_agg(distinct schema_name, ' ' order by schema_name) from v421_domain)),
-  '18 plpgsql | 11 sql | app authz public',
+  '19 plpgsql | 11 sql | app authz public',
   '§ 0d THE SPLIT AND THE SCHEMAS, NAMED: 18 members go to the plpgsql arm, 11 to the sql arm, and the domain still spans all three schemas. ⛔ If a language count drops to 0 its arm below proves nothing while still reporting green'
 );
 
@@ -293,8 +293,8 @@ create temp table t421_live_examined as select distinct sig from v421_plpgsql_ra
 --    silently returned nothing for a member is indistinguishable from one that cleared it.
 select is(
   (select count(*)::int from t421_live_examined),
-  18,
-  '§ 1a EVERY plpgsql MEMBER REACHED THE INSTRUMENT: plpgsql_check returned for all 18, clean ones included. ⛔ A member missing here was never looked at, and § 1c is silent for it'
+  19,
+  '§ 1a EVERY plpgsql MEMBER REACHED THE INSTRUMENT: plpgsql_check returned for all 19, clean ones included. ⛔ A member missing here was never looked at, and § 1c is silent for it'
 );
 
 -- 6. THE INSTRUMENT IS LIVE ON THIS CATALOG, AND THE EXCLUSION IS WHAT MAKES § 1c GREEN. Without
@@ -582,8 +582,9 @@ drop function public.z421_ctl_sql_altered();
 
 -- ────────────────────────────────────────────────────────────────────────────
 -- § 3h — THE PARTITION LINE'S OWN CONTROL (added 2026-09-12, unit
--- DEFINER-UNDECLARED-CLASS-REMEDY). `§ 0c` has printed `890 / 861 / 29 / 0` since the day it was
--- written, and a line that has only ever printed one value is indistinguishable from a line whose
+-- DEFINER-UNDECLARED-CLASS-REMEDY). `§ 0c` printed `890 / 861 / 29 / 0` from the day it was written until 2026-09-12 and now prints
+-- `890 / 860 / 30 / 0` (AE5-ROLE-CATALOG-COMPAT re-typed `public.assume_role` onto the empty path);
+-- a line that has only ever printed one value is indistinguishable from a line whose
 -- terms are wired to the wrong predicates. This moves the catalog under it TWICE and asserts WHICH
 -- terms move: an undeclared DEFINER moves the total and `undeclared` ONLY — the property the
 -- `sp <> '<none>'` exclusion above buys, and the one that was FALSE before it (the newcomer used to
@@ -653,11 +654,11 @@ select is(
 -- 19.
 select ok(
       (select count(*) from v421_domain where sig like 'public.z421\_%') = 0
-  and (select count(*) from v421_empty) = 29
+  and (select count(*) from v421_empty) = 30
   and (select count(*) from v421_plpgsql_findings) = 0
   and (select count(*) from t421_sql_before b
         where b.def is distinct from pg_get_functiondef(b.oid)) = 0,
-  '§ 5 RESTORE: all nine planted controls are gone (the seven of § 3 plus § 3h''s undeclared plant and its empty-form twin), the empty-path population is back to 29, the plpgsql arm is clean again and the 11 sql definitions are untouched — § 2 and § 3 left nothing behind'
+  '§ 5 RESTORE: all nine planted controls are gone (the seven of § 3 plus § 3h''s undeclared plant and its empty-form twin), the empty-path population is back to 30, the plpgsql arm is clean again and the 11 sql definitions are untouched — § 2 and § 3 left nothing behind'
 );
 
 select * from finish();

@@ -249,7 +249,7 @@ echo "    CASE 1 VERDICT: $VERDICT"
 fi
 
 # ===========================================================================
-# CASE 2 — public.assume_role(p_role platform_role), THE SEATING DOOR.
+# CASE 2 — public.assume_role(p_role text), THE SEATING DOOR.
 #   Two mutations, one per line that pre-AE5 Batch 10 (20261003007390) changed.
 #
 # ⛔ NOT A NEWCOMER, AND THAT IS PRECISELY WHY IT NEEDS THIS. The door kept its NAME
@@ -266,7 +266,7 @@ fi
 #   would read as covering both.
 # ===========================================================================
 SUBJ2="public.assume_role"
-SIG2="public.assume_role(platform_role)"
+SIG2="public.assume_role(text)"
 S418="supabase/tests/418_admin_arm_is_active.sql"
 S315="supabase/tests/315_act_stage3_hat_condition.sql"
 S408="supabase/tests/408_ae49_assume_role_session_selectable.sql"
