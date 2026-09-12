@@ -47,14 +47,14 @@
   admin — **FALSE for `staff_admin`**, admitted by the separate `app.is_staff_admin_of` disjunct; on the case-grant doors that tenancy arm **manages access and reads nothing**, kept by ADR 0205 D6 for the recused AND the absent coordinator, and the door refuses a WRITE grant on a terminal case (`HC0U0`, D9). ⛔ `\yis_tenancy_admin_of\y`
   cannot match `is_tenancy_admin_of_for`: a sweep on the short name is **silently blind** to every `_for` site.
 - **The catalog is authority-ELECT, not authority** — an *additional* authority beside `memberships_role_check`, the
-  scope-shape CHECK, `public.platform_role` and the TS manifest, ⛔ **not a replacement**; a policy or door calling layer
+  scope-shape CHECK and the TS `ROLE_MANIFEST` (the enum `public.platform_role` is GONE — the catalog is the only DB-side role vocabulary now, and `app.active_role_selections.role` is text under an FK to `authz.roles(code)`), ⛔ **not a replacement**; a policy or door calling layer
   1 or 2 **directly for a permission decision** is a finding. A re-keyed authorizer is ⛔ **not** purely
   permission-keyed — residual arms sit in the DEFINER body, invisible in `pg_policies`, so they are pinned **BY NAME**:
   adding an arm reds the pin, **retiring** one reds it too. Frozen § AE4 carries the enumeration. ⚠ On the professional-profile READ door the case-committee arm (no org term; role-free at its S3/S4 case-grant sources only; `pending` reachable) is **ORACLED** by `403` with a PO-ruled value per derived class — ⛔ the admin arm there is **exercised, not oracled** (frozen § Arm 3 oracled). ⭐ The arm's role-freeness no longer means the door survives an absent or wrong hat: since ADR 0209 the **ACT hat is a DOOR-level term evaluated BEFORE every arm**, so a caller who HOLDS a live role and asks about THEMSELVES under a hat that is none of them is denied whatever arm would have answered — while a caller holding NO role keeps the reach, and no org term was added (frozen § The ACT hat becomes a door-level term).
 - **A predicate's arms must answer about the principal its own signature names.** `can_manage_professional` and `can_read_professional_profile` are subject-keyed on `p_uid` since ADR 0200; `is_admin()`/`is_admin_for()` are **not** interchangeable at SELF (a JWT-claim fast path vs a `profiles` read); the model is **ratified as subject-keyed asymmetry** (ADR 0201) — third-party ignores the ACT hat, self requires it — and on the **SCOPE** axis the hat stays role-wide, so R10 (next bullet), not R8, discharges ADR 0176 D8's audit-scope obligation.
 - **The admin arm follows the subject's account state at all three sites** (pre-AE5 Batch 10, ADR 0201 D4/D5 + R10, migration `20261003007390`): `app.is_admin()`, `app.is_admin_for(uuid)` and the seating door `public.assume_role` each gate on `app.is_active`, so a deactivated or suspended `platform_admin` denies at all three and can no longer seat a fresh hat — the `is_admin()` **JWT-claim fast path is untouched**, so the surviving stale-token window is the admin FLAG alone. The Class-2 write arm moved OFF `app.can_manage_professional` onto `app.can_manage_case_vocabulary` (an explicit, `is_admin_for`-keyed arm); `app.can_manage_external_participant` stays deliberately unarmed, so `platform_admin` loses professional CREATE and external-participant MINT (keeps READ and vocabulary MANAGE); `active_role.assumed` now stamps the ROLE only, for every tier. ⚠ **R6 (ruled at the E2E gate): that stamp has two READERS** — `listAudit` (the `/admin/audit` platform feed, `commission_id IS NULL`) now shows every tenant seating and `listAuditForOrg` (`organization_id = org`) no longer does; ruled *seating is an IDENTITY event, the platform feed is its home* (ADR 0201 D2 dated note; `phase13-audit` AC-3f asserts the scope-less property).
 
-- **New or touched `SECURITY DEFINER` ⇒ `set search_path = ''` + schema-qualified body** (ADR 0208 D4); the **861** non-empty paths left are frozen debt that **may not grow**. Two arms, each catching what the other cannot: forgetting to regenerate the frozen artifact reds pgTAP `419` (catalog), laundering an addition in by re-running the generator reds **gate 18** (bytes + git, pure deletions only, ⛔ never opens a database). ⛔⛔ **D4 has TWO clauses and they are gated in TWO files** — `419` + gate 18 hold the PATH, pgTAP **`421`** holds the BODY over the COMPLEMENT population (the 29 empty-path DEFINERs; `421 § 0c` asserts 861 + 29 = 890 still partitions), resolved **by Postgres**: `plpgsql_check_function_tb` for the 18 plpgsql members, a re-execution of `pg_get_functiondef` for the 11 `language sql` ones (`ALTER … SET search_path` never re-validates a body), `42P01`/`42883` the finding set, a `42P01` excused only when the SAME body creates that relation as a temp table. ⛔ **421's STATED BOUND is not coverage**: an `execute` body is opaque to both arms, so `§ 4` holds that population at **0** instead of checking it. The clause matters because under `''` `pg_temp` is still searched FIRST while all four client roles hold TEMP — the empty path NARROWS, the qualified body CLOSES (`FUP-DEFINER-SEARCH-PATH-NARROW-FIX-QUALIFIED-BODY-CLAUSE-OF-D4-IS-UNGATED`: closed by 421). ⭐ The four temp-table DEFINERs are **converged** (migration `20261003007420`); `420` measured them free FIRST and is now their regression guard, binding each one's `proconfig` and its copy counts into one assertion. ⛔ Their survival is a fact about THOSE BODIES — `pg_temp` is searched implicitly and first, so their unqualified references are temp tables — never a general licence. Frozen §§ The non-empty DEFINER population · The four temp-table DEFINERs are CONVERGED.
+- **New or touched `SECURITY DEFINER` ⇒ `set search_path = ''` + schema-qualified body** (ADR 0208 D4); the non-empty paths left (**860** after `assume_role`'s rewrite — `select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname in ('app','public','authz') and p.prosecdef and p.proconfig is not null and not exists (select 1 from unnest(p.proconfig) c where c='search_path=""')`) are frozen debt that **may not grow**. Two arms, each catching what the other cannot: forgetting to regenerate the frozen artifact reds pgTAP `419` (catalog), laundering an addition in by re-running the generator reds **gate 18** (bytes + git, pure deletions only, ⛔ never opens a database). ⛔⛔ **D4 has TWO clauses and they are gated in TWO files** — `419` + gate 18 hold the PATH, pgTAP **`421`** holds the BODY over the COMPLEMENT population (the 30 empty-path DEFINERs — `assume_role(text)` is the newest; `421 § 0c` asserts 860 + 30 = 890 still partitions), resolved **by Postgres**: `plpgsql_check_function_tb` for the 19 plpgsql members, a re-execution of `pg_get_functiondef` for the 11 `language sql` ones (`ALTER … SET search_path` never re-validates a body), `42P01`/`42883` the finding set, a `42P01` excused only when the SAME body creates that relation as a temp table. ⛔ **421's STATED BOUND is not coverage**: an `execute` body is opaque to both arms, so `§ 4` holds that population at **0** instead of checking it. The clause matters because under `''` `pg_temp` is still searched FIRST while all four client roles hold TEMP — the empty path NARROWS, the qualified body CLOSES (`FUP-DEFINER-SEARCH-PATH-NARROW-FIX-QUALIFIED-BODY-CLAUSE-OF-D4-IS-UNGATED`: closed by 421). ⭐ The four temp-table DEFINERs are **converged** (migration `20261003007420`); `420` measured them free FIRST and is now their regression guard, binding each one's `proconfig` and its copy counts into one assertion. ⛔ Their survival is a fact about THOSE BODIES — `pg_temp` is searched implicitly and first, so their unqualified references are temp tables — never a general licence. Frozen §§ The non-empty DEFINER population · The four temp-table DEFINERs are CONVERGED.
 
 ### Rollout
 
@@ -66,9 +66,8 @@
 
 ### Open edges
 
-- **RULED, NOT BUILT** (ADR [0207](../decisions/0207-the-role-catalog-holds-roles-administrativo-is-a-capability-provider.md) + [0208](../decisions/0208-the-candidate-fanout-is-structurally-dominated-and-empty-search-path-is-the-sole-forward-convention.md)):
-  `administrativo` leaves `authz.roles` and `platform_role` retires — unit `AE5-ROLE-CATALOG-COMPAT`; `D ≤ F` is a
-  parametric invariant with accepted residual risk, ⛔ never "unreachable" — `AE4-D-SHAPE-ASSERTION`; ⛔ until it lands the catalog still holds the 12th role row and the enum. ⭐ **0208 D4–D6 are BUILT** (`DEFINER-SEARCH-PATH-NARROW-FIX`, migration `20261003007410`); `414 § 0b` now OWNS the undeclared-class finding — its message names the ONE remedy, `§ 2d` is its control, and `421 § 0c` points at it (unit `DEFINER-UNDECLARED-CLASS-REMEDY`); `414` is still NOT the security property. ⭐ **AC-5 is RULED by the PO**: a DEFINER with **no** `search_path` at all (`414 § 0b`'s 890/890) is a **defect to converge to `''`**, ⛔ never a frozen-set member — a red on `414 § 0b` means exactly that, and no new cell was added, because a freeze admitting NULL paths would make its own subset arm ambiguous about which half moved. ⛔ One item stays **PO to rule**: the D5 hint is ONE LINE in `migrations-forward-only.md` rather than its own file, because `.claude/rules/` sits at its `MAX_RULES = 12` cap.
+- **ADR [0207](../decisions/0207-the-role-catalog-holds-roles-administrativo-is-a-capability-provider.md) D5 steps 1–5 are BUILT** (unit `AE5-ROLE-CATALOG-COMPAT`, migration `20261003007430`): `authz.roles` holds **roles only** (`administrativo` deleted; `capability_plane` gone from the `authz.scope_kind` DOMAIN, which also types `public.memberships.scope_kind`); `public.platform_role` is dropped; `public.assume_role` is ONE text signature on `search_path = ''`; the TS mirrors derive from one `ROLE_MANIFEST` pinned to the catalog by gate 19 + pgTAP `411` (⛔ neither half alone). ⛔ **Step 6 is NOT built**: `app.member_can` / `member_can_for` are byte-unchanged (md5-pinned in `422 § 5`), `authz.capability_permissions` does not exist, and the three narrower codes for `schedule_meetings` / `create_cases` / `assign_case_phases` are still OWED at proposed-order item 6 — ⛔ nothing may map them to `commission.meetings.manage` / `commission.cases.manage` meanwhile. ⚠ The new FK `active_role_selections.role → authz.roles(code)` is NO ACTION: a role code seated by a live session cannot be deleted from the catalog. `D ≤ F` (ADR [0208](../decisions/0208-the-candidate-fanout-is-structurally-dominated-and-empty-search-path-is-the-sole-forward-convention.md)) is a
+  parametric invariant with accepted residual risk, ⛔ never "unreachable" — `AE4-D-SHAPE-ASSERTION`, still RULED NOT BUILT. ⭐ **0208 D4–D6 are BUILT** (`DEFINER-SEARCH-PATH-NARROW-FIX`, migration `20261003007410`); `414 § 0b` now OWNS the undeclared-class finding — its message names the ONE remedy, `§ 2d` is its control, and `421 § 0c` points at it (unit `DEFINER-UNDECLARED-CLASS-REMEDY`); `414` is still NOT the security property. ⭐ **AC-5 is RULED by the PO**: a DEFINER with **no** `search_path` at all (`414 § 0b`'s 890/890) is a **defect to converge to `''`**, ⛔ never a frozen-set member — a red on `414 § 0b` means exactly that, and no new cell was added, because a freeze admitting NULL paths would make its own subset arm ambiguous about which half moved. ⛔ One item stays **PO to rule**: the D5 hint is ONE LINE in `migrations-forward-only.md` rather than its own file, because `.claude/rules/` sits at its `MAX_RULES = 12` cap.
 - **"Measured" is not "clean", and a row is not a pass.** In the write-path sweep a **BLIND** row is a real finding to
   keystone, ⛔ **never allowlisted**; an **ERROR** row is UNVERDICTED, not COVERED. `FROMFINDINGS=1 ARM=policy` is a
   separate, pre-existing RED, not one of CLAUDE.md § 6's arms.
@@ -96,10 +95,10 @@
   **§ AE3** · **§ AE4** · **§ Audit read legs** · **§ Client-role TRUNCATE grants** · **§ QO·B** ·
   **§ QO·FUP** · **§ QO·A** · **§ RLS authorization surface** · **§ AE5's opening decision** · **§ Per-object grant
   plane (ADR 0205)** · **§ Admin arm follows account state (ADR 0201 D4/D5 + R10)** · **§ Arm 3 oracled (ADR 0175 D3 delivered)** ·
-  **§ The two pre-AE5 successor decisions taken (ADR 0207 + 0208)** — 0207 built nowhere; 0208 D4–D6 built in the last
-  slice · **§ The ACT hat becomes a door-level term (ADR 0209)** · **§ The non-empty DEFINER population is FROZEN**
+  **§ The two pre-AE5 successor decisions taken (ADR 0207 + 0208)** — 0207 D5 steps 1–5 built in the LAST slice; 0208 D4–D6 built in the
+  ones before it · **§ The ACT hat becomes a door-level term (ADR 0209)** · **§ The non-empty DEFINER population is FROZEN**
   (⚠ superseded in part) · **§ The four temp-table DEFINERs are CONVERGED** · **§ D4's qualified-body clause is
-  GATED by pgTAP 421** · **§ The undeclared-search_path class has ONE owner and ONE remedy**.
+  GATED by pgTAP 421** · **§ The undeclared-search_path class has ONE owner and ONE remedy** · **§ The role catalog holds roles (ADR 0207 D5 steps 1–5)**.
 - ADR [0155](../decisions/0155-post-aff4-tenancy-and-person-model-evolution-sequence.md) · [0162](../decisions/0162-authz-evolution-plan-audit-corrections.md) (authority-elect) ·
   [0176](../decisions/0176-authz-permission-layer-made-real.md) (the three interfaces) · [0100](../decisions/0100-quality-office-oversight.md) (oversight + content wall) ·
   [0149](../decisions/0149-org-admin-reads-hospital-tier-audit.md) + [0150](../decisions/0150-audit-org-derived-from-hospital.md) (audit read legs) ·
@@ -1450,3 +1449,53 @@ the record's § Session log, ⛔ not restated here:**
 that converges to `search_path = ''` with a schema-qualified body, owned by `414 § 0b`, counted by `421 § 0c`, kept
 out of the frozen set by the census's coalesce, and proven able to red by a control in each file. ⛔ A future member
 is fixed by converging it; widening `414`, `419` or the census domain to admit it would only make the gap invisible.
+
+## The role catalog holds roles — `platform_role` retired, `administrativo` out of `authz.roles`, one `assume_role(text)` (2026-09-12, unit `AE5-ROLE-CATALOG-COMPAT`; ADR **0207** D5 steps 1–5; migration `20261003007430`)
+
+**What is now true, each with its home — witnesses (the red-first TAP figures, the arm and sweep exit codes, the E2E
+run) are in the record's § Session log, ⛔ not restated here:**
+
+- **`app.active_role_selections.role` is `text` under `active_role_selections_role_fkey → authz.roles(code)`** (NO
+  ACTION), values preserved through `using role::text`. Consequence: a catalog row whose code a live session has
+  seated is undeletable (`23503`) until that selection row is gone — `408 § 4` clears its own selection rows first,
+  declared in the file as fixture cleanup. `public.custom_access_token_hook(jsonb)` still reads the column
+  (`role::text`, a no-op cast now); `app.can_read_professional_profile` names the table in a comment only.
+- **`public.assume_role` is ONE routine, `(p_role text)`**, `prosecdef`, `proconfig = {search_path=""}` (⚠ the token is
+  `search_path=""`, not `search_path=` — a probe on the latter reads the whole empty-path population as 0), body
+  schema-qualified and resolved by `421`'s plpgsql arm; ACL re-issued (`postgres·service_role·authenticated = X`, PUBLIC
+  revoked — a fresh function's NULL `proacl` includes PUBLIC). The three gates and their order are unchanged:
+  `session_selectable` fail-closed → `app.is_active(v_uid)` → the real assignment (`profiles.is_admin` for
+  `platform_admin`, a live `memberships` row otherwise); same pt-BR messages, same SQLSTATEs (`28000`/`42501`); the
+  audit row stamps the role only. ⛔ An unknown code fails `42501` (selectability, fail-closed), never `23503`.
+  Both halves of the seating gate now carry a mutation: `408 § 3` (catalog row flipped) and `408 § 5` (the caller's
+  membership deleted; a sibling still seats); `422 § 2` holds the structural pins.
+- **`public.platform_role` is DROPPED** (`to_regtype` → NULL), after a DO block asserted zero non-internal `pg_depend`
+  dependents. The **`419` frozen set shrank by exactly one** (`public.assume_role(p_role platform_role)` removed, nothing
+  added — gate 18's pure-deletion rule held); `421 § 0c` re-pinned `890 = 860 non-empty + 30 empty | 0 undeclared`.
+- **`authz.roles` = 11 rows, all `session_selectable`**; `administrativo` deleted after DO blocks asserted zero
+  `role_permissions` / `memberships` references. **`authz.scope_kind`'s CHECK is exactly
+  `organization·hospital·commission·none`** — an `ALTER DOMAIN … DROP CONSTRAINT` + re-add, preceded by a DO block
+  proving no `public.memberships` row carried `capability_plane` (the domain also types that column); `422 § 4`
+  proves it red-first against a PLANTED row (the plant must drop the domain constraint too, found by running the cell
+  in BOTH states) and that a `capability_plane` insert now fails `23514`. `authz.role_permissions` untouched (still
+  `staff_admin` only).
+- **The TS side has ONE declaration site** — `ROLE_MANIFEST` in `src/lib/role/role-catalog.ts` (code, label, scope
+  kind, session-selectable, landing branch, fallback, precedence = order); `PlatformRole` is inferred from it, and
+  `ROLE_LABELS`/`ROLE_SCOPE_KIND`/`ROLE_ORDER`/`ROLE_BRANCH`/`LANDING_BRANCHES`/`scopeSummary` are derived compat
+  exports with every name, type and value preserved. The DB binding is a generated artifact
+  (`supabase/tests/vectors/role_manifest.psql`, `scripts/gen-role-manifest.mjs`): **gate 19** (`lint:role-manifest`,
+  text-only) proves artifact == TS manifest; **pgTAP `411`** proves artifact == `authz.roles`; ⛔ neither half alone
+  is the verdict, and `system_managed` / `state` have NO TS twin (pinned by 411 only — the gate prints that bound).
+- ⛔ **Step 6 NOT taken, proven**: `app.member_can(uuid,text)` and `app.member_can_for(uuid,text,uuid)` md5-unchanged
+  (`422 § 5` pins both); `authz.capability_permissions` does not exist; the three narrower codes stay OWED at
+  proposed-order item 6 and ⛔ may not be mapped to the two broad codes meanwhile (ADR 0207 § Consequences).
+- **Three catalog mirrors the unit's opening map did not name broke on the ROW deletion, not the rename** —
+  `vectors/authz-enforcement-manifest.json` (`roles`), `vectors/authz-matrix-axes.json` (`catalogRoles`; cell counts
+  unchanged at 2002 / 1728, so it is a roster, not a grid dimension) and `400_data_access_census.sql § 2`'s RPC digest
+  (reds while `lint:data-access` stays green — that gate never opens a database). ⚠ A rename-keyed sweep is blind to a
+  VALUE-keyed mirror; the class is *12-row rosters of the catalog*, and `grep -rn "administrativo" supabase/tests
+  scripts src` is the enumerator, not a signature grep.
+- **Six cells lost their subject and were RE-CAST, never deleted** (`411 § 2.x`, `§ 5.1`, `§ 5.2`; `401 § 3.4`,
+  `§ 3.6`, `§ 14.5`) — old → new predicate in the record. The new door was **outside the predicate arm's domain**
+  (returns `void`): the deriver exits 1 and the discharge is the TARGETED command-door case (`CASE 2` of
+  `authz-command-door-targeted-cases.sh`, COVERED), ⛔ not a `CASES=` entry.
