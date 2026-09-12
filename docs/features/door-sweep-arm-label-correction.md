@@ -8,7 +8,7 @@ phase: "pre-AE5 remediation — a gate-record correction owed by DEFINER-SEARCH-
 branch: door-sweep-arm-label-correction   # cut from main @ 8949e491
 plan: ../plans/authz-evolution.md
 progress: ../progress/door-sweep-arm-label-correction.md
-reviews: []   # the QA review file is added here the moment it exists
+reviews: ["../reviews/door-sweep-arm-label-correction-review.md"]
 adrs: ["0079", "0105", "0190"]
 handoff: ~
 fup: FUP-DEFINER-SEARCH-PATH-NARROW-FIX-DOOR-SWEEP-ARM-2-ROW-WAS-ARM-1-RELABELLED
@@ -61,7 +61,7 @@ correction of its own misquoted instrument. LEARN-104 filed. Detail: the [record
 
 ### In progress
 
-QA review (read-only, docs) → human approval.
+QA r1 **APPROVED** (0 BLOCK / 0 MAJOR / 1 MINOR, corrected) → awaiting human approval.
 
 ### Next
 

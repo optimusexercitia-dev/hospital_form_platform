@@ -68,9 +68,31 @@ of one invocation; the two rows were one run; no verdict changes. Row count and 
 `+ " — ✅ RESOLVED 2026-09-11"` (the archive's precedent shape), a `> **RESOLVED …**` closure note,
 then the body **verbatim** — verified by substring containment of the whole body in the archive and
 the heading's absence from the open register (the script printed both `True`). LEARN-104 filed in
-`docs/learning/LESSONS.md` (`prose only` — no gate can read a row's label against the script it
-names). The memory the lead already held on this shape stays as it was.
+`docs/learning/LESSONS.md` — Enforcement cell `docs/lead-playbook.md`, the bound stated in the Lesson cell
+(no gate can read a row's label against the script it names; the `prose only` ratchet is at its cap of 52 and
+may only be lowered, so the precedent shape of LEARN-095/097–099 is used). The memory the lead already held
+on this shape was updated with the misquoted-instrument twist. ⚠ This paragraph first said `prose only` — QA
+r1 MINOR-1, corrected in place before approval (this session's own draft, not a historical record).
 
 **Gates.** Docs-only unit: no migration, no `src/`, no schema. `npm run lint` and
 `npm run lint:registers` — see the next entry for the witnesses. ⛔ `test:db`, the authz arms, the
 door sweep and `e2e:prod` are NOT owed by a change that touches no code, and are not claimed.
+
+### 2026-09-11 — gates, QA r1 APPROVED, awaiting human approval (lead)
+
+**Gates at `9fad1bac` (docs-only — the code gates are not owed):** `npm run lint` **rc 0** (18 gates;
+`lint:registers` 0 findings after the `prose only` ratchet was respected — a first draft of LEARN-104
+said `prose only` and gate 13 reported `lessonsProseOnly is 53, cap 52 — may only be lowered`, which
+is the ratchet doing its job); `npm run features:index` wrote 29 hubs. ⛔ Not run and not claimed:
+`test:db`, `typecheck`, vitest, the authz arms, the door sweep, `e2e:prod` — no `src/`, `supabase/`,
+`e2e/` file is in `git diff 8949e491..HEAD`.
+
+**QA r1 — APPROVED, BLOCK 0 · MAJOR 0 · MINOR 1 · NOTE 0**
+([review](../reviews/door-sweep-arm-label-correction-review.md)). QA re-derived AC-4 from the live
+scripts (0 reads / 6 prose mentions / invariant reads at `:107,323,800`), diffed the arm3 record
+(additions only), pipe-counted the ledger row (10 before and after), and byte-compared the archived
+body against the removed one. MINOR-1 (the record quoting LEARN-104's Enforcement as `prose only`)
+corrected in place above.
+
+**Awaiting human approval** (Phase Gate step 4). On approval: hub → `complete`, ledger row appended,
+`phase(DOOR-SWEEP-ARM-LABEL-CORRECTION): complete` commit, `main` fast-forwarded.
