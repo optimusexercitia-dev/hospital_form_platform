@@ -96,3 +96,9 @@ corrected in place above.
 
 **Awaiting human approval** (Phase Gate step 4). On approval: hub → `complete`, ledger row appended,
 `phase(DOOR-SWEEP-ARM-LABEL-CORRECTION): complete` commit, `main` fast-forwarded.
+
+### 2026-09-11 — approved; Record step (lead)
+
+PO: *"Approved."* Hub → `complete`; ledger row appended (docs-only cells stated as such, never left
+blank); this record's earlier "awaiting human approval" line stands as written. Commit
+`phase(DOOR-SWEEP-ARM-LABEL-CORRECTION): complete`, then `main` fast-forwarded to it — ⛔ not pushed.

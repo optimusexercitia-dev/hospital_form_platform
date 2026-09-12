@@ -1,11 +1,11 @@
 ---
 id: DOOR-SWEEP-ARM-LABEL-CORRECTION
 title: "The door sweep's two arms are named PREDICATE and POLICY — a prior record's \"arm 2 (FROMFINDINGS=1)\" row corrected by dated marker, the playbook recipe names the knob's owner"
-status: gated
+status: complete
 kind: fup-fix
 program: AUTHZ
 phase: "pre-AE5 remediation — a gate-record correction owed by DEFINER-SEARCH-PATH-NARROW-FIX's door-sweep finding (docs-only)"
-branch: door-sweep-arm-label-correction   # cut from main @ 8949e491
+branch: ~   # door-sweep-arm-label-correction, cut from main @ 8949e491; fast-forwarded into main 2026-09-11
 plan: ../plans/authz-evolution.md
 progress: ../progress/door-sweep-arm-label-correction.md
 reviews: ["../reviews/door-sweep-arm-label-correction-review.md"]
@@ -45,28 +45,4 @@ governs how a record is corrected). Docs-only: no migration, no `src/`, no test.
 - [x] **AC-5 — register, lesson, gates.** Entry moved verbatim to the archive with its closure note;
       LEARN-104 filed; `npm run lint` 0/0.
 
-## Current state
-
-**Updated:** 2026-09-11
-
-### Objective
-
-Make the prior unit's record say, beside the mislabelled rows, what the run actually was; make the
-recipe say which script reads `FROMFINDINGS`; re-read the ledger row against that.
-
-### Done since start
-
-AC-1 – AC-5 built. The knob's non-read re-measured on the live script. Entry archived with the
-correction of its own misquoted instrument. LEARN-104 filed. Detail: the [record](../progress/door-sweep-arm-label-correction.md).
-
-### In progress
-
-QA r1 **APPROVED** (0 BLOCK / 0 MAJOR / 1 MINOR, corrected) → awaiting human approval.
-
-### Next
-
-On approval: hub → `complete`, ledger row appended, `phase(DOOR-SWEEP-ARM-LABEL-CORRECTION): complete` commit, fast-forward `main`.
-
-### Blockers
-
-None.
+**Complete 2026-09-11** — PO approved (*"Approved."*); ledger row in `docs/progress/phase-ledger.md`; detail in the [record](../progress/door-sweep-arm-label-correction.md).
