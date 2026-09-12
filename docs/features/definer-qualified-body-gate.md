@@ -8,7 +8,7 @@ phase: "pre-AE5 remediation — ADR 0208 D4 second clause (PO ruled option (a) o
 branch: definer-qualified-body-gate   # cut from main @ 6fd0bfdb
 plan: ../plans/authz-evolution.md
 progress: ../progress/definer-qualified-body-gate.md
-reviews: []
+reviews: ["../reviews/definer-qualified-body-gate-review.md"]
 adrs: ["0208"]
 handoff: ~
 fup: FUP-DEFINER-SEARCH-PATH-NARROW-FIX-QUALIFIED-BODY-CLAUSE-OF-D4-IS-UNGATED
@@ -50,7 +50,9 @@ exclusion: a `42P01` on a relation the SAME body creates by `create temp table`;
 - AC-1's no-splice deviation RULED accepted (record entry 2026-09-12). Three follow-ups filed.
 
 ### In progress
-- Step 3: `qa` review in flight (`docs/reviews/definer-qualified-body-gate-review.md`).
+- Step 3: QA r1 **APPROVED** (0 BLOCK / 0 MAJOR / 3 MINOR / 4 NOTE); `backend` correcting the three
+  MINORs in place (exclusion regex lacks a right boundary and matches comments/strings; the exclusion's
+  control interpolates a relname into LIKE unescaped; two carriers omit the temp-table bound) → QA r2.
 
 ### Next
 - Step 2 RULED N/A by the PO (2026-09-12): no migration, no `src/`, no policy — nothing the E2E suite
