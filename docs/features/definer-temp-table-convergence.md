@@ -1,14 +1,14 @@
 ---
 id: DEFINER-TEMP-TABLE-CONVERGENCE
 title: "The four temp-table DEFINERs converge to search_path = '' by narrow ALTER FUNCTION, and the 419 freeze shrinks by exactly four rows"
-status: in_progress
+status: gated
 kind: fup-fix
 program: AUTHZ
 phase: "pre-AE5 remediation — ADR 0208 D4 on touch, D6 precondition discharged by pgTAP 420 (ruled 2026-09-11)"
 branch: definer-temp-table-convergence   # cut from main @ b1e9b924
 plan: ../plans/authz-evolution.md
 progress: ../progress/definer-temp-table-convergence.md
-reviews: []
+reviews: ["../reviews/definer-temp-table-convergence-review.md"]
 adrs: ["0208", "0209"]
 handoff: ~
 fup: FUP-DEFINER-SEARCH-PATH-NARROW-FIX-FOUR-TEMP-TABLE-DEFINERS-MEASURED-FREE-TO-CONVERGE
@@ -59,11 +59,14 @@ Converge the four temp-table DEFINERs to `search_path = ''` and shrink the 419 f
 - AC-5 step-1 gates green on a fresh reset (`test:db` 269/9046, lint 18 gates, typecheck, vitest, four authz arms, door sweep ruled — record).
 - QA r1 APPROVED (0 BLOCK / 1 MAJOR / 3 MINOR / 3 NOTE), conditioned on `e2e:prod`.
 
+- QA r1 fix pass landed (`53529324` + three lead commits) and re-verified on a fresh reset at `48c192ed`; QA r2 APPROVED (1 NOTE carried).
+- `e2e:prod` GREEN at `48c192ed`: 1263 passed · 0 failed · 2 flaky · 21 batches.
+
 ### In progress
-- `e2e:prod` running; `backend` on the QA r1 fix pass (MAJOR-1 record mechanism, MINOR-2 `420` ordering, MINOR-3 seam paraphrase).
+- Awaiting human approval (step 4).
 
 ### Next
-- `test:db` re-run after the fix pass, PO approval, Record step (register entry → archive; deriver `set <attribute>` follow-up filed).
+- Record step: register entry → archive, ledger row, hub → complete, ACs ticked, merge to `main` (no push).
 
 ### Blockers
 - None.

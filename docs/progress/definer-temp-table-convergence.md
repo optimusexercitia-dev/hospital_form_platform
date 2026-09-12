@@ -313,3 +313,28 @@ on this green.
 
 ⛔ No server and no E2E were started; `e2e:prod` remains the LEAD's run. The stack was released the
 moment `test:db` finished.
+
+### 2026-09-11 — `e2e:prod` GREEN at `48c192ed`; QA r2 APPROVED; the unit is gated, awaiting human approval (lead)
+
+**`npm run e2e:prod`** (lead, primary tree, launched detached from a script file after `backend` released
+the stack; output in the git-excluded `.dsp-gate-evidence/e2e-prod.txt`, `START … HEAD=48c192ed` on its
+first line, exit code captured as `E2E_RC=`): **`E2E_RC=0`** — `GATE SUMMARY: 1263 passed · 0 failed ·
+0 infra · 2 flaky · 0 did-not-run · 21 batches`. HEAD did not move during the run (started and finished
+at `48c192ed`). ⚠ Dead end named: the first detached launch (`Start-Process bash -lc '<inline command>'`)
+died at startup with no file and no process — and an earlier tool-shell launch was stopped mid `next
+build` (worker exit `3221225794`, the kill, not the build); both were noticed by measuring the process
+table, not by the monitor, which only reads the file. The launcher is now a script file.
+
+**QA:** round 1 APPROVED with findings (0 BLOCK · 1 MAJOR · 3 MINOR · 3 NOTE) → fixed at `53529324`
+(backend) + `ea81b227` / `619bdcf9` / `9de19df7` (lead) → round 2 **APPROVED** (0 · 0 · 0 · 1 NOTE
+carried: `420 §§ 1–2` short-circuit the authz arm on NULL `auth.uid()`; QA measured all six callees
+carry their own `SET search_path`, nothing asserts it — a candidate follow-up, not filed by this unit).
+The fix pass re-verified on a fresh reset at `48c192ed`: `test:db` 269/9046 PASS, `420` ok
+(planned 11 / ran 9), check F `865 -> 861 (removed 4, added 0)`, types diff empty.
+
+**Presented to the PO for step 4 (human approval):** the build, the gate rows in `backend`'s entries, the
+QA verdict, and the rulings this unit ASKS for: (1) the door-sweep deriver's exit 1 ruled option (a)
+(the four named by hand, one invocation, exit 3 UNPROVEN because none returns `bool`) — to ratify;
+(2) the new follow-up `FUP-DEFINER-TEMP-TABLE-CONVERGENCE-DERIVER-BLIND-TO-SET-ATTRIBUTE` — to accept
+as filed; (3) QA's carried NOTE — file or not. The three PO-owned follow-ups from the prior unit stay
+untouched. The CLAUDE.md review queue is per-clone and was not run.
