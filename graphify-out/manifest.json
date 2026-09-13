@@ -11365,8 +11365,8 @@
     "semantic_hash": ""
   },
   "docs/plans/act-as-role-assumption.md": {
-    "mtime": 1787054290.1626093,
-    "ast_hash": "0065cb2c1e25c5c2c72d215ad7469721",
+    "mtime": 1789302835.4409583,
+    "ast_hash": "ea8f0b6c9dcc5b19b450ad5e7de18ab4",
     "semantic_hash": ""
   },
   "docs/progress/act-as-role-assumption.md": {
@@ -12770,8 +12770,8 @@
     "semantic_hash": ""
   },
   "scripts/build-adr-index.mjs": {
-    "mtime": 1789048962.731968,
-    "ast_hash": "0223a6cd00bf50ab11346df77cb9a61f",
+    "mtime": 1789302835.4409583,
+    "ast_hash": "a4de654810a70199147f200fcc46eedf",
     "semantic_hash": ""
   },
   "scripts/check-migration-set-local.mjs": {
@@ -13960,8 +13960,8 @@
     "semantic_hash": ""
   },
   "docs/decisions/INDEX.md": {
-    "mtime": 1789224926.3220901,
-    "ast_hash": "2a199df7599635814698e7721468815f",
+    "mtime": 1789311697.4974544,
+    "ast_hash": "0576c4c69899d1eeaf5aad41e28b4126",
     "semantic_hash": ""
   },
   "docs/deployment/phi-backup-run-log.md": {
@@ -14135,8 +14135,8 @@
     "semantic_hash": ""
   },
   "docs/progress/phase-ledger.md": {
-    "mtime": 1789269251.4656537,
-    "ast_hash": "83ed92e3b24d3677856b1c2d55540144",
+    "mtime": 1789311976.8160846,
+    "ast_hash": "2ffa20a3df0bcf640261d0c787d4b1b6",
     "semantic_hash": ""
   },
   "docs/progress/previa-split-2026-08-19.md": {
@@ -14925,8 +14925,8 @@
     "semantic_hash": ""
   },
   "docs/plans/authz-evolution.md": {
-    "mtime": 1789138396.1747718,
-    "ast_hash": "9dcdb41db8fa89b871ab0b4936ba2578",
+    "mtime": 1789302946.9704206,
+    "ast_hash": "2a31b0f16cd9c82abc69df2a72edabeb",
     "semantic_hash": ""
   },
   "docs/progress/authz-ae0.md": {
@@ -14975,8 +14975,8 @@
     "semantic_hash": ""
   },
   "scripts/authz-ae4-p2-invocation-count.sql": {
-    "mtime": 1788452929.156104,
-    "ast_hash": "d6634d9bc403b16c331857f2c9b82d3b",
+    "mtime": 1789311976.8170824,
+    "ast_hash": "45c2ea079b3c00f814db66e4b4d340b1",
     "semantic_hash": ""
   },
   "scripts/authz-ae4-perf-fixture.sql": {
@@ -15050,13 +15050,13 @@
     "semantic_hash": ""
   },
   "src/lib/role/landing-route.test.ts": {
-    "mtime": 1788440552.602393,
-    "ast_hash": "e08d2fe228026939d52e0aa5756b77ef",
+    "mtime": 1789302946.9714189,
+    "ast_hash": "f693c71d56300a3b7a90baeccf470ab0",
     "semantic_hash": ""
   },
   "src/lib/role/role-catalog.test.ts": {
-    "mtime": 1789269251.4696536,
-    "ast_hash": "e2be2fb39e225adca6e99df1fbcf9de0",
+    "mtime": 1789302946.9714189,
+    "ast_hash": "2601b8f1a59fe8464ea9c85d727acd01",
     "semantic_hash": ""
   },
   "src/lib/users/suspension-date.test.ts": {
@@ -15655,8 +15655,8 @@
     "semantic_hash": ""
   },
   "docs/features/INDEX.md": {
-    "mtime": 1789269251.4621842,
-    "ast_hash": "e4f7afbdfcdde21461cfdc49dfb603f6",
+    "mtime": 1789311976.805945,
+    "ast_hash": "e5954cf56ef85081bfd4a222eb1728d3",
     "semantic_hash": ""
   },
   "docs/features/ae4.md": {
@@ -15739,11 +15739,6 @@
     "ast_hash": "53a2ec34af2e85f398f34542ee89556f",
     "semantic_hash": ""
   },
-  "docs/followups/FUP-AE4-CANDIDATE-SCOPE-FANOUT-IS-UNBOUNDED.md": {
-    "mtime": 1789138396.1646087,
-    "ast_hash": "cc8f5c5154738c37317b3cdf2797bf56",
-    "semantic_hash": ""
-  },
   "docs/followups/FUP-AE4-PERFORMANCE-EVIDENCE-ON-THE-FINAL-PATH.md": {
     "mtime": 1788481112.4006352,
     "ast_hash": "9cbdbc987b8c29b741da37e80b5087f0",
@@ -15762,11 +15757,6 @@
   "docs/followups/FUP-AFF-3.md": {
     "mtime": 1788479531.3999949,
     "ast_hash": "347034aaf2d6a4a207f8ee4300b83a13",
-    "semantic_hash": ""
-  },
-  "docs/followups/FUP-AFF-4.md": {
-    "mtime": 1788479531.3999949,
-    "ast_hash": "8c6f7d288dae0784a6d7a58be57e676b",
     "semantic_hash": ""
   },
   "docs/followups/FUP-AFF2-ACTIVE-MEANS-TWO-THINGS.md": {
@@ -16315,8 +16305,8 @@
     "semantic_hash": ""
   },
   "docs/followups/FUP-VITEST-CATALOG-DRIVEN-CASE-COUNT.md": {
-    "mtime": 1788479531.4572878,
-    "ast_hash": "6eabeaf785ac61910ecf7583927f29f6",
+    "mtime": 1789303404.1482263,
+    "ast_hash": "691f1d597f001be458759e9ed9321e60",
     "semantic_hash": ""
   },
   "docs/followups/FUP-VITEST-UNCAPTURED-FAILURE.md": {
@@ -16345,13 +16335,13 @@
     "semantic_hash": ""
   },
   "docs/followups/follow-ups-archive.md": {
-    "mtime": 1789229210.8083937,
-    "ast_hash": "1595593297f5424298f32b2b0635b8cb",
+    "mtime": 1789311976.811476,
+    "ast_hash": "8824e385bf95a4bba74584cc9dfa9a3d",
     "semantic_hash": ""
   },
   "docs/followups/follow-ups-open.md": {
-    "mtime": 1789229247.3083096,
-    "ast_hash": "c098857f3cecbca4101ff7c50eb5efa6",
+    "mtime": 1789311976.8140764,
+    "ast_hash": "7cf5e2a31e5239b3e2fe67a2d2efb4ca",
     "semantic_hash": ""
   },
   "docs/followups/legacy-codes.md": {
@@ -16365,8 +16355,8 @@
     "semantic_hash": ""
   },
   "docs/learning/LESSONS.md": {
-    "mtime": 1789179979.6929743,
-    "ast_hash": "9977f7bed8b0604b99eafe88c309c14e",
+    "mtime": 1789311976.8140764,
+    "ast_hash": "6d0c3533a6f3a8b23eca94aa0ff4d034",
     "semantic_hash": ""
   },
   "docs/learning/postmortems/LEARN-073-no-answer-vs-nothing.md": {
@@ -16835,8 +16825,8 @@
     "semantic_hash": ""
   },
   "docs/backend-state/authorization-and-audit.md": {
-    "mtime": 1789269251.4551194,
-    "ast_hash": "01825ccb2fa337878f3117b891f85ffb",
+    "mtime": 1789311976.8049524,
+    "ast_hash": "686f979f88f84368f203201e95c1c89e",
     "semantic_hash": ""
   },
   "docs/backend-state/cases-and-ethics.md": {
@@ -16910,8 +16900,8 @@
     "semantic_hash": ""
   },
   "docs/backend-state/tenancy-and-identity.md": {
-    "mtime": 1788974814.5091805,
-    "ast_hash": "61befd2fe8305bf9240e79f434c71554",
+    "mtime": 1789302946.9704206,
+    "ast_hash": "26eb8ce05eb2c21fba848574ac332ed2",
     "semantic_hash": ""
   },
   "docs/bugs/BUG-0137-MRN-WARNING-TEST-FLAKY.md": {
@@ -17020,13 +17010,13 @@
     "semantic_hash": ""
   },
   "docs/decisions/0207-the-role-catalog-holds-roles-administrativo-is-a-capability-provider.md": {
-    "mtime": 1789166236.8250794,
-    "ast_hash": "9e588f3974268536b429bcb61aba85d0",
+    "mtime": 1789302835.4409583,
+    "ast_hash": "5185afc23d80097fd8e06fea3afe22ea",
     "semantic_hash": ""
   },
   "docs/decisions/0208-the-candidate-fanout-is-structurally-dominated-and-empty-search-path-is-the-sole-forward-convention.md": {
-    "mtime": 1789138396.161086,
-    "ast_hash": "24917321a6ba8bbd29ba254f87651ec6",
+    "mtime": 1789311976.8049524,
+    "ast_hash": "7bc759f3a86151b361373ef62b9f9fb5",
     "semantic_hash": ""
   },
   "docs/decisions/0209-the-act-hat-is-a-door-level-term-on-the-professional-profile-read-door.md": {
@@ -17270,13 +17260,13 @@
     "semantic_hash": ""
   },
   "docs/handoffs/pre-ae5-successors-2026-09-10.md": {
-    "mtime": 1789269251.4626477,
-    "ast_hash": "855b7fa267c216ed6c5c653ed9b4bba9",
+    "mtime": 1789302946.969414,
+    "ast_hash": "34fe5cb999e8b9f63f10c9cc4dbb7d6f",
     "semantic_hash": ""
   },
   "docs/plans/pre-ae5-remediation.md": {
-    "mtime": 1789138396.175842,
-    "ast_hash": "6c6cf325b91fec5cf2426df01f3b1f35",
+    "mtime": 1789302835.4409583,
+    "ast_hash": "924ac8827cff37cf6c4a52d47f09a422",
     "semantic_hash": ""
   },
   "docs/progress/admin-arm-is-active.md": {
@@ -17760,13 +17750,33 @@
     "semantic_hash": ""
   },
   "docs/progress/ae5-role-catalog-compat.md": {
-    "mtime": 1789269251.4646466,
-    "ast_hash": "e3bb96fe287ba6de25b3660d663b420c",
+    "mtime": 1789303405.4993165,
+    "ast_hash": "2497cbd4e35b10e60833045f5ed71a20",
     "semantic_hash": ""
   },
   "docs/reviews/ae5-role-catalog-compat-review.md": {
     "mtime": 1789269251.4656537,
     "ast_hash": "b4db7087d8b3d130af1acafefd2d7fd9",
+    "semantic_hash": ""
+  },
+  "supabase/tests/423_ae4_d_shape_assertion.sql": {
+    "mtime": 1789311976.8170824,
+    "ast_hash": "05ec754f962d3708370ec460590eab8e",
+    "semantic_hash": ""
+  },
+  "docs/features/ae4-d-shape-assertion.md": {
+    "mtime": 1789311976.805945,
+    "ast_hash": "52c2149673354d74f67a4359982a486b",
+    "semantic_hash": ""
+  },
+  "docs/progress/ae4-d-shape-assertion.md": {
+    "mtime": 1789311976.8150856,
+    "ast_hash": "ee918ad86dc590dba6dd6e2592972144",
+    "semantic_hash": ""
+  },
+  "docs/reviews/ae4-d-shape-assertion-review.md": {
+    "mtime": 1789311976.8160846,
+    "ast_hash": "ad56953f7c61084be85d1ac7cd6e24db",
     "semantic_hash": ""
   }
 }
