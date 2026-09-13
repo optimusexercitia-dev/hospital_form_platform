@@ -123,7 +123,7 @@ describe('landingRouteForRole — behaviour pinned against the pre-AE4.8 impleme
     ['staff_admin', [], '/c'],
     ['staff_admin', [commissionGrant('staff_admin', '1', 'a')], '/o/org-a/c/com-1'],
 
-    // Not a platform_role at all — the old `default` arm.
+    // Not a PlatformRole code at all (no such row in authz.roles) — the old `default` arm.
     ['administrativo', [], '/'],
     ['not_a_role', [], '/'],
   ])('%s with %j → %s', (role, grants, expected) => {

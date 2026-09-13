@@ -2,7 +2,7 @@
 expires: 2026-09-24
 task: pre-AE5 remediation — successors of Batch 10 (no unit open; the PO names the next)
 created: 2026-09-10
-updated: 2026-09-11
+updated: 2026-09-13
 status: live
 ---
 
@@ -33,6 +33,7 @@ constraint). Measure the tree (command below), then read `docs/plans/pre-ae5-rem
 >   starting point: every cited fact was re-measured before drafting (10 of 14 reproduced, 4
 >   differed), and both follow-up clauses are **RE-CLAUSED, not closed**.
 >
+> ⛔ **SPENT 2026-09-13 — the unit named on the next line is CONCLUDED (see the ✅ dated note below); the open successor is `AE4-D-SHAPE-ASSERTION`.** Kept as history (ADR 0105); this handoff stays live only because it still routes that one unit.
 > **▶ THE NEXT UNIT IS `AE5-ROLE-CATALOG-COMPAT`** — a backend build unit, not an ADR (ADR 0207 D5:
 > six ordered steps, before AE5 increment 1; the `authz.scope_kind` step is an `ALTER DOMAIN` and
 > needs a red-first `memberships` proof first). Two further named units are owed and are **not**

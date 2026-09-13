@@ -792,7 +792,7 @@ matrix is not the oracle of what shipped. **Direction adopted 2026-09-02: Option
 ### AE4.2 — Seed the identifiers, everything legacy
 
 All ten current roles + `platform_admin` + the `administrativo` capability plane get catalog
-rows (stable codes = the existing enum literals; `staff_admin` keeps its key — G-note in the
+rows (⚠ **DATED NOTE 2026-09-13:** the `administrativo` row was DELETED by unit `AE5-ROLE-CATALOG-COMPAT` — the catalog holds 11 roles and the capability plane lives outside it, ADR 0207 D1) (stable codes = the existing enum literals; `staff_admin` keeps its key — G-note in the
 ADR); **zero** `role_permissions` rows except `staff_admin`'s (AE4.3). Role state tracking
 (`legacy` / `test_validation` / `authoritative`) is a **column on `authz.roles`**, asserted by
 pgTAP, so "which evaluator owns role X" is a catalog fact, not a code-reading exercise.

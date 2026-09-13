@@ -123,7 +123,7 @@ function readManifestArtifact(): Array<{
 }
 
 describe('role-catalog manifest — pure checks + the generated-artifact binding', () => {
-  it('the manifest covers every platform_role — ROLE_ORDER is not exhaustive by type', () => {
+  it('the manifest covers every PlatformRole code — ROLE_ORDER is not exhaustive by type', () => {
     // ⛔ `as const satisfies readonly PlatformRole[]` does NOT catch a MISSING role: a
     // short array still satisfies the constraint. ROLE_LABELS is exhaustive by type, so
     // comparing against its keys is the check the type system cannot make.
