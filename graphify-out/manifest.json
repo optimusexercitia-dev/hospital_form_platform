@@ -10735,8 +10735,8 @@
     "semantic_hash": ""
   },
   "src/lib/queries/session-grants.test.ts": {
-    "mtime": 1786429416.4128,
-    "ast_hash": "01acfa2595a36478bc582cf22b430be8",
+    "mtime": 1789316363.702617,
+    "ast_hash": "5578b94eb8040cf9f0478a5c0fc667ab",
     "semantic_hash": ""
   },
   "src/lib/queries/session-grants.ts": {
@@ -11220,8 +11220,8 @@
     "semantic_hash": ""
   },
   "src/components/shell/nav-scope-exclusivity.test.ts": {
-    "mtime": 1786410764.923768,
-    "ast_hash": "32267524c4c5c3502c26a7b2305aecfe",
+    "mtime": 1789316363.701617,
+    "ast_hash": "4256fb3d0dffdffcddaab3c7670d7516",
     "semantic_hash": ""
   },
   "src/lib/role-selection/actions.ts": {
@@ -14030,8 +14030,8 @@
     "semantic_hash": ""
   },
   "docs/plans/case-referral-usability-batch.md": {
-    "mtime": 1788479531.4724772,
-    "ast_hash": "9bf8a276a7930aeb4fb04d279d95eda1",
+    "mtime": 1789316363.6986172,
+    "ast_hash": "681fcf941344b8436db7d1d346b4ee02",
     "semantic_hash": ""
   },
   "docs/plans/case-surface-split.md": {
@@ -14135,8 +14135,8 @@
     "semantic_hash": ""
   },
   "docs/progress/phase-ledger.md": {
-    "mtime": 1789311976.8160846,
-    "ast_hash": "2ffa20a3df0bcf640261d0c787d4b1b6",
+    "mtime": 1789316364.03031,
+    "ast_hash": "649993635d07760c1a476fd6457dd18a",
     "semantic_hash": ""
   },
   "docs/progress/previa-split-2026-08-19.md": {
@@ -15655,8 +15655,8 @@
     "semantic_hash": ""
   },
   "docs/features/INDEX.md": {
-    "mtime": 1789311976.805945,
-    "ast_hash": "e5954cf56ef85081bfd4a222eb1728d3",
+    "mtime": 1789316363.6902883,
+    "ast_hash": "3aba2818b08204ebca4c2e1c45d99398",
     "semantic_hash": ""
   },
   "docs/features/ae4.md": {
@@ -16304,11 +16304,6 @@
     "ast_hash": "752127a6dbfd46ccc5b85361d634d6a5",
     "semantic_hash": ""
   },
-  "docs/followups/FUP-VITEST-CATALOG-DRIVEN-CASE-COUNT.md": {
-    "mtime": 1789303404.1482263,
-    "ast_hash": "691f1d597f001be458759e9ed9321e60",
-    "semantic_hash": ""
-  },
   "docs/followups/FUP-VITEST-UNCAPTURED-FAILURE.md": {
     "mtime": 1788479531.4572878,
     "ast_hash": "2948ae911126260acd378245d627fc16",
@@ -16335,13 +16330,13 @@
     "semantic_hash": ""
   },
   "docs/followups/follow-ups-archive.md": {
-    "mtime": 1789311976.811476,
-    "ast_hash": "8824e385bf95a4bba74584cc9dfa9a3d",
+    "mtime": 1789316364.0453203,
+    "ast_hash": "88559b2d5c6060d981e6eb9730556625",
     "semantic_hash": ""
   },
   "docs/followups/follow-ups-open.md": {
-    "mtime": 1789311976.8140764,
-    "ast_hash": "7cf5e2a31e5239b3e2fe67a2d2efb4ca",
+    "mtime": 1789316363.6986172,
+    "ast_hash": "fd17453d2c8c4ff1720a16a8a2fc7fcb",
     "semantic_hash": ""
   },
   "docs/followups/legacy-codes.md": {
@@ -16825,8 +16820,8 @@
     "semantic_hash": ""
   },
   "docs/backend-state/authorization-and-audit.md": {
-    "mtime": 1789311976.8049524,
-    "ast_hash": "686f979f88f84368f203201e95c1c89e",
+    "mtime": 1789316363.6892948,
+    "ast_hash": "8c5dde4b47aee5265073d09448494fe0",
     "semantic_hash": ""
   },
   "docs/backend-state/cases-and-ethics.md": {
@@ -17015,8 +17010,8 @@
     "semantic_hash": ""
   },
   "docs/decisions/0208-the-candidate-fanout-is-structurally-dominated-and-empty-search-path-is-the-sole-forward-convention.md": {
-    "mtime": 1789311976.8049524,
-    "ast_hash": "7bc759f3a86151b361373ef62b9f9fb5",
+    "mtime": 1789312865.3225455,
+    "ast_hash": "bb8a809201a3d01b38e3c2958aef1359",
     "semantic_hash": ""
   },
   "docs/decisions/0209-the-act-hat-is-a-door-level-term-on-the-professional-profile-read-door.md": {
@@ -17750,8 +17745,8 @@
     "semantic_hash": ""
   },
   "docs/progress/ae5-role-catalog-compat.md": {
-    "mtime": 1789303405.4993165,
-    "ast_hash": "2497cbd4e35b10e60833045f5ed71a20",
+    "mtime": 1789316363.6996095,
+    "ast_hash": "113341ea549f6f593ea1fd719f8f7db0",
     "semantic_hash": ""
   },
   "docs/reviews/ae5-role-catalog-compat-review.md": {
@@ -17770,13 +17765,33 @@
     "semantic_hash": ""
   },
   "docs/progress/ae4-d-shape-assertion.md": {
-    "mtime": 1789311976.8150856,
-    "ast_hash": "ee918ad86dc590dba6dd6e2592972144",
+    "mtime": 1789312865.323061,
+    "ast_hash": "30bbe46587a3193ca507836e387bf1a4",
     "semantic_hash": ""
   },
   "docs/reviews/ae4-d-shape-assertion-review.md": {
     "mtime": 1789311976.8160846,
     "ast_hash": "ad56953f7c61084be85d1ac7cd6e24db",
+    "semantic_hash": ""
+  },
+  "src/lib/role/membership-role-vocabulary.test-support.ts": {
+    "mtime": 1789316363.702617,
+    "ast_hash": "d5279decdada2af242bb8f40c6b57929",
+    "semantic_hash": ""
+  },
+  "docs/features/vitest-role-set-pin.md": {
+    "mtime": 1789316363.6902883,
+    "ast_hash": "ae1de259bf48124ecfe7f3dc8bc3dd4d",
+    "semantic_hash": ""
+  },
+  "docs/progress/vitest-role-set-pin.md": {
+    "mtime": 1789316364.03031,
+    "ast_hash": "ee417326f5f8b916a24c197adc30c56c",
+    "semantic_hash": ""
+  },
+  "docs/reviews/vitest-role-set-pin-review.md": {
+    "mtime": 1789316363.701617,
+    "ast_hash": "7c9f099e9b9f0aa2eb4fb73c74f75317",
     "semantic_hash": ""
   }
 }
