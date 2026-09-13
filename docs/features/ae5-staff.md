@@ -101,11 +101,14 @@ interface. `backend` parked; T3 waits (ARM C3 fuses `approvedSuites` ↔ `subjec
 
 ### Next
 
-**PO: the SEVEN items in matrix § 11** (item 4 over all 18 codes; item 5 eleven arm-3 values per class;
-item 7 the `responses.fill` interface, backend recommends (A) rename to `.create`) — plus: (rows + codes · row 9/10 split · the two non-rows · the
-`staff_admin` read-code consequence · five arm-3 expected values per class · PA-F8-STAFF-1 (b) /
-PA-F8-STAFF-2 (a)) **and R-1's wrapper** (`app.is_commission_staff_of(_for)`, an ADR at the next
-free number). Then T3+T5, T4 seed, tester T11, T6 cutover, T7 re-key, T8–T10, gate.
+**PO: the SEVEN items in matrix § 11** — (1) the 20 held rows and codes · (2) the row 9/10 split ·
+(3) the two non-rows confirmed NOT held · (4) the `staff_admin` disposition for ALL 18 new codes
+(proposal: grant at T4, 42 → 60) · (5) an expected value per class for the ELEVEN arm-3 coordinates,
+row 8's `in_signature` term as arm-3 or a `resourceLifecycle` value · (6) PA-F8-STAFF-2 as (a);
+PA-F8-STAFF-1 follows item 7 · (7) the `responses.fill` interface, backend recommends (A) rename to
+`commission.responses.create` — **and R-1's wrapper** (`app.is_commission_staff_of(_for)`, an ADR at
+the next free number; R-2 proposed closed as (a)). Then T3+T5, T4 seed, tester T11, T6 cutover, T7
+re-key, T8–T10, gate.
 
 ### Blockers
 
