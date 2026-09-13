@@ -9,7 +9,7 @@ phase: "post-AE5-ROLE-CATALOG-COMPAT — applies the manifest pin (gate 19 + pgT
 branch: vitest-role-set-pin   # cut from main @ 297d6ba2
 plan: ~
 progress: ../progress/vitest-role-set-pin.md
-reviews: []
+reviews: ["../reviews/vitest-role-set-pin-review.md"]
 adrs: ["0207"]
 handoff: ~
 ---
@@ -34,7 +34,8 @@ migration, no `src/` behaviour change, no policy.
       (`scopeKind !== "none"`); each read is explicit at its call site, so the read count never
       depends on Vitest's `pool` / `isolate` defaults (unpinned in `vitest.config.mts`).
 - [x] **AC-2 — two independent live reads KEPT; SET equality asserted in each.** Both suites keep
-      their own top-level catalog read and assert `[...read].sort()` `toEqual` the derived set —
+      their own catalog read (top-level in `session-grants`, `describe`-scope in
+      `nav-scope-exclusivity`, as before) and assert `[...read].sort()` `toEqual` the derived set —
       never `.length`. Two reads pinned to one constant are the instrument that observes a catalog
       change between them; they are not collapsed.
 - [x] **AC-3 — one reader definition, two call sites.** The two copy-pasted
@@ -66,11 +67,14 @@ set. Red-first witnessed twice (short read: 37 → 34 tests, both pins red; subs
 red). Gates on a fresh reset: `npm run test` 154 files / 2094 PASS, `npm run lint` rc 0 (19 gates),
 `npm run typecheck` rc 0. `test:db`, authz arms, door sweep, `e2e:prod` NOT owed (test-only).
 
+QA r1 **APPROVED** (0 BLOCK / 0 MAJOR / 1 MINOR — record's `main..HEAD` range, corrected in place / 4 NOTE);
+QA re-ran both red-first plants itself and the full vitest (2094).
+
 ### In progress
-QA review (step 3).
+Presented for PO approval (step 4).
 
 ### Next
-PO approval → Record step (entry to the archive with the body folded, body file deleted, ledger row, hub
+On approval, the Record step (entry to the archive with the body folded, body file deleted, ledger row, hub
 to complete, fast-forward `main`, no push).
 
 ### Blockers

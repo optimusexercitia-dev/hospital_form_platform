@@ -65,8 +65,10 @@ supplies the manifest and its pin. Highest ADR on any branch: 0210, untouched.
 for step 3. (CLAUDE.md §4's lead-does-not-write-feature-code rule is about feature code; this diff
 moves two test helpers into one and adds two assertions.)
 
-**What landed** (`a8aeeb25`, on top of the open commit `3b48f9d0`; `git diff --stat main..HEAD`:
-6 files, +303 / −135 including the three docs):
+**What landed** (`a8aeeb25`, on top of the open commit `3b48f9d0`; `git diff --stat main..a8aeeb25`:
+6 files, +303 / −135 including the three docs — ⚠ first written as `main..HEAD`, which is true only at
+`a8aeeb25` and reads +387 / −135 from the commit this record lives on; QA r1 MINOR-1, corrected in
+place in this session's own draft):
 
 - `src/lib/role/membership-role-vocabulary.test-support.ts` — NEW. Exports exactly two functions
   and no module-scope value: `expectedMembershipRoleVocabulary()` (=
@@ -137,3 +139,34 @@ subject.
 
 **Line endings.** `.gitattributes` normalises to LF (`i/lf w/crlf`); the two edited suites were
 CRLF in the working tree and are LF in the index, as before; the new module is LF both sides.
+
+### 2026-09-13 — QA r1 APPROVED; MINOR-1 corrected in place; NOTE-4 filed as a follow-up; presented for PO approval (lead)
+
+**QA r1** (`qa`, read-only, [review](../reviews/vitest-role-set-pin-review.md)): **APPROVED — 0 BLOCK / 0
+MAJOR / 1 MINOR / 4 NOTE**. QA re-planted BOTH red-first witnesses itself (short read → `2 failed | 32
+passed (34)`, both pins red on the filtered role; substitution → count held at 37, pin red), re-ran the
+full vitest (**2094**), `npm run lint` rc 0 read bare (19 gates), `npm run typecheck` rc 0,
+`check-docs-registers` rc 0, `npx vitest list` showing `.test-support.ts` NOT collected, and measured the
+not-owed claim (empty `supabase/` + `e2e/` diff, zero app importers) rather than accepting it.
+
+- **MINOR-1** — the record's *"`git diff --stat main..HEAD`: +303 / −135"* is true only at `a8aeeb25`
+  (+387 / −135 from the commit the record lives on). Corrected in place as `main..a8aeeb25` with a dated
+  marker — this session's own draft, not a historical record.
+- **NOTE-1** — QA's own `git checkout --` reverts rewrote both suites to LF in ITS working tree, so the
+  record's *"CRLF in the working tree"* sentence is no longer falsifiable there; committed bytes are LF
+  regardless. Left as written (it described the lead's tree at the time).
+- **NOTE-2** — the record's own `grep -c "^const\|^export const\|^let "` cannot see `var` / `export let` /
+  indented bindings; QA's wider `^(export )?(const|let|var) ` also reads **0**. Claim true, instrument
+  narrower than the claim — noted, not re-measured into the earlier entry.
+- **NOTE-3** — hub AC-2 said *"own top-level catalog read"* for both suites; `nav-scope-exclusivity`'s
+  is `describe`-scope (unchanged from before). Hub wording corrected.
+- **NOTE-4** — containment widened: an unexported test-local became an exported `docker exec` reader in a
+  non-test `src/` module, kept out of app code by prose. Filed as
+  `FUP-VITEST-ROLE-SET-PIN-TEST-SUPPORT-MODULE-IS-APP-IMPORTABLE` (🟢 low, `PO to rule`).
+- **In the unit's favour** (QA): `memberships_role_scope_kind_fkey` is `(role, scope_kind) →
+  authz.roles(code, allowed_scope_kind) MATCH FULL`, so a `scopeKind: none` role structurally cannot
+  hold a `memberships` row — the derivation's `!== 'none'` filter is catalog-enforced, not merely true
+  today.
+
+**Presented for PO approval** (step 4) with: built · gates (test on a fresh reset, lint, typecheck) ·
+QA APPROVED · open risks = NOTE-4 (filed). Waiting.
