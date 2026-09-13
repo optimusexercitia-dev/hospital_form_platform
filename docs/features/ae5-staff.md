@@ -81,23 +81,32 @@ exposes, so increments 2–7 inherit a template proven on two roles.
 
 ### Done since start
 
-Unit opened on `main @ a02487bc`: hub, record, branch `ae5-staff`. Pre-conditions measured: every
-pre-AE5 unit `complete`; local stack started and freshly reset (exit 0); live catalog = 11 roles,
-`staff` `legacy`/`commission`, `staff_admin` the only `authoritative`. Register hygiene at open: one
-resolved follow-up moved to the archive (record § 2026-09-13). Review queue processed (2 entries,
-0 doc fixes). Implementation plan T1–T14 written into the record.
+Unit opened on `main @ a02487bc` (`704fafcc`): hub, record, branch, T1–T14 task list; every pre-AE5
+unit `complete`; stack started, fresh reset exit 0; one resolved follow-up moved to the archive;
+review queue processed. **T1 + T2 delivered PROVISIONAL** (`a31ba31e`): the matrix
+(`docs/design/authz-ae5-staff-permission-matrix.md`, 20 held rows / 18 new codes / 2 shared, two
+non-rows kept visible) and the deny-class table, both measured on the LIVE catalog. **R-1
+CONFIRMED** on the catalog; **R-2 REFUTED as stated** — `is_member_of` carries the hat one delegation
+down (`has_role_any`), and the surviving grain difference is unreachable under
+`memberships_one_commission_role_uq`. Two PA-F8 divergences found (record § Session log). T3 plan
+posted, not executed.
 
 ### In progress
 
-`backend` on T1 (matrix), T2 (deny-class table), T3 (generators multi-role — the critical path).
+Nothing executing. `backend` is parked on the T3 plan (ack owed once the PO approves, because
+ARM C3 fuses `approvedSuites` ↔ `subjectRoles` — T3 and T5's `approvedSuites.staff` land together).
 
 ### Next
 
-PO: approve the matrix (AC-1/AC-2) and rule R-1 / R-2 (record § Open rulings) — both precede the
-cutover (AC-6). Then T4 seed, tester T11, cutover, re-key, census, runbook, gate.
+**PO: the six items in matrix § 11** (rows + codes · row 9/10 split · the two non-rows · the
+`staff_admin` read-code consequence · five arm-3 expected values per class · PA-F8-STAFF-1 (b) /
+PA-F8-STAFF-2 (a)) **and R-1's wrapper** (`app.is_commission_staff_of(_for)`, an ADR at the next
+free number). Then T3+T5, T4 seed, tester T11, T6 cutover, T7 re-key, T8–T10, gate.
 
 ### Blockers
 
-⛔ AC-6 is blocked on R-1 (no single-role wrapper exists for `staff`; `is_member_of` is a role-SET
-predicate) and R-2 (cutting `is_member_of` over to `holds_role` adds a hat gate it lacks today — a
-PA-F8 divergence across the largest call population). Both are PO rulings, not lead decisions.
+⛔ Everything from T3 on is blocked on the PO approval above (the matrix is the oracle; ADR 0175's
+shape). ⛔ R-1: no `candidate_holds_role` exists, so the wrapper cutover cannot be pre-flighted
+under `test_validation` — the ruling must say how the cutover is proven before it flips.
+⚠ Owed to T7/T13, not blocking now: `app.can_reach_case_on_member_surface` has ZERO production
+callers (matrix § 8.3); 6 of 9 seeded CCIH `staff` personas carry a non-role case reach (§ 8.2).
