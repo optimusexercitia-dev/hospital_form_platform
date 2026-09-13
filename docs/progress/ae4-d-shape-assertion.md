@@ -551,3 +551,13 @@ reading the file.
   Invariants bullet as well (one bullet, no new line; the block stays under the 100-line ratchet).
 
 QA r2 spawned on the corrected documents.
+
+### 2026-09-13 — QA r2 `APPROVED`; step 4 presented to the PO (lead)
+
+Round 2 verified by `git show dd505dfd`: both MAJORs closed (the hub block re-cut; the seam sentence
+superseded by an appended dated marker, ruled the correct form under the seam's own rule), both MINORs
+closed or accepted (clause 2's aggregate grain is ADR 0208 D1's own statement of `D ≤ F`). Nothing
+outstanding. Presented to the PO with: built · gate step 1 (all arms, quoted above) · step 2 ruled N/A
+by the lead and put to the PO · QA verdict · open risks (`U` measured once on the fixture only; clause
+6's family property blind to another schema/arity/spelling/wrapper/view; clause 2's aggregate blind to
+a compensating mutation; triggers 4–5 `prose only`). Waiting.

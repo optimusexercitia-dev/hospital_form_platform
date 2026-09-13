@@ -9,7 +9,7 @@ phase: "post-AE5-ROLE-CATALOG-COMPAT — ADR 0208 D2 (the D1 invariant's asserti
 branch: ae4-d-shape-assertion   # cut from main @ c71e7c33
 plan: ~
 progress: ../progress/ae4-d-shape-assertion.md
-reviews: []
+reviews: ["../reviews/ae4-d-shape-assertion-review.md"]
 adrs: ["0183", "0208"]
 handoff: ~
 ---
@@ -101,13 +101,14 @@ D3's five triggers in the record; retire the seam's *"RULED NOT BUILT"* bullet.
   `d921e8be` (capture-then-assert; a `5.1` `is(NULL,NULL)` vacuity closed on the way).
 - Step 2 ruled N/A by the lead (no `src/`, no migration), put to the PO.
 - QA r1 `CHANGES REQUESTED` — two MAJORs, both documentation stale against the fix (this block;
-  one seam sentence), corrected; two MINORs answered in the record.
+  one seam sentence), corrected; two MINORs answered in the record. **QA r2 `APPROVED`**, nothing
+  outstanding (`docs/reviews/ae4-d-shape-assertion-review.md`).
 
 ### In progress
-- QA r2 on the corrected documents.
+- Step 4: presented to the PO; waiting. Step 2 (`e2e:prod`) is put to the PO as N/A.
 
 ### Next
-- PO approval → Record step (ledger row, hub `complete`, FUP closed in both homes, seam re-stamp).
+- On approval → Record step (ledger row, hub `complete`, FUP closed in both homes, seam re-stamp).
 
 ### Blockers
 - None.
