@@ -198,3 +198,34 @@ follow-up's own rule is that a vitest count is never gate evidence); `.claude/cl
 (gitignored, per-clone; triaged at `/review-claude-md`). Generated registries: none need a re-run —
 `gen-data-access-surface.mjs` walks `src/lib/queries/*.ts` + `*actions.ts` only, gate 19 keys on
 `role-catalog.ts` alone, and `check-memberships-door.mjs` (which walks all of `src/`) stays green.
+
+### 2026-09-13 — step 4 human approval; step 5 Record (lead)
+
+**Approval.** PO: *"Approved"* (2026-09-13), on the presentation: built · gates (fresh reset + `test`, `lint`,
+`typecheck`) · QA APPROVED · open risk = the filed NOTE-4 follow-up. Scope of the approval as written: the
+unit as presented plus the documentation sweep committed at `38bf496e`; nothing wider.
+
+**Record step, in the gate's order.** (1) The archive appended FIRST: heading verbatim + ` — ✅ RESOLVED
+2026-09-13`, a `> **RESOLVED …**` note (vehicle, record, commits, the clause closed on, the bound not
+reached, the follow-up filed), then the entry block VERBATIM — `Filed` / `Closes when` / `Status: open` at
+column 0 — with its one `Body:` pointer reworded to say the file is folded in (gate 13 reds on the literal
+token), then the body with every heading demoted three levels (`#` → `####` naming the same id; `##` →
+`#####`), 105 lines. Verified by substring containment of the entry block and the body at the destination
+BEFORE cutting the source (the script throws otherwise). (2) The seven source lines cut;
+`grep -c FUP-VITEST-CATALOG-DRIVEN-CASE-COUNT follow-ups-open.md` → **0**. (3) The body file deleted. (4)
+`check-docs-registers` rc 0 after the move (retired-citation scan included). ⚠ The QA review's header link to
+the body file now dangles; a dated note beside it says where the text went — the review is QA's artifact and
+is not rewritten. (5) Ledger row appended (commit cell `_pending_` until the phase commit exists — filled by a
+follow-on docs commit, the shape every recent row uses). (6) Hub → `complete`: `## Current state` cut (into
+this record, as gate 13 requires), AC-6 ticked, `branch: ~` with the fast-forward noted, the Complete line.
+(7) `npm run features:index`; `lint:registers` + `lint:progress` + the full `npm run lint` bare. (8) Commit
+`phase(VITEST-ROLE-SET-PIN): complete — …`; `main` fast-forwarded; branch deleted; ⛔ not pushed.
+
+**`docs/backend-state/`** — already extended at the sweep commit `38bf496e` (slice + current-state
+invariant + marker); nothing further at the Record step. **No ADR** ⇒ no `adr:index`. **Review queue**
+(`.claude/claude-md-review-queue.md`, gitignored): carries this session's opening prompt as an entry pointing
+at the now-archived register heading — for `/review-claude-md`, not this unit.
+
+**Rulings taken vs landed (playbook §4 item 8).** One ruling: the PO's approval, landed in the ledger row's
+Human ✓ cell, the hub's Complete line and the archive's closure note. The NOTE-4 disposition is a filed
+follow-up with `PO to rule`, not a ruling.

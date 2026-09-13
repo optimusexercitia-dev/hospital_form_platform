@@ -796,13 +796,6 @@ a hypothesis, not a finding.
 **Status:** open
 **Body:** [FUP-E2E-FLAKE-BASELINE-NOT-FED-BY-THE-RUN-THAT-EXCEEDED-IT.md](FUP-E2E-FLAKE-BASELINE-NOT-FED-BY-THE-RUN-THAT-EXCEEDED-IT.md)
 
-### 🟡 FUP-VITEST-CATALOG-DRIVEN-CASE-COUNT — two suites generate their cases from the LIVE catalog; pin the role SET so a mid-reset read cannot shrink coverage silently (owner: backend + frontend)
-
-**Filed:** 2026-09-02 (ad-hoc: PROGRESS.md consolidation 2026-09-02) · **Owner:** backend + frontend · **Severity:** medium — per emoji at consolidation
-**Closes when:** RE-CLAUSED 2026-09-13 (PO ruling on the lead's recommendation, after unit `AE5-ROLE-CATALOG-COMPAT`): a small TEST-ONLY unit applies the pattern this repo now has — (a) ONE shared exported FUNCTION (never a module-scope `const`) that derives the expected membership vocabulary from `ROLE_MANIFEST` in `src/lib/role/role-catalog.ts` (every entry whose scope kind is not `none`; the manifest is already pinned to `authz.roles` by gate 19 + pgTAP `411`, so no new hand-typed literal is introduced); (b) `src/lib/queries/session-grants.test.ts` and `src/components/shell/nav-scope-exclusivity.test.ts` each keep their OWN catalog read and assert SET equality (`[...read].sort()` equals the derived set — never `.length`) against that function; (c) the two copy-pasted `readRoleVocabularyFromCatalog` regexes collapse to one definition with two call sites, fail-closed with the stack down preserved; (d) a red-first witness: the assertion observed RED against a planted short read. ⛔ Not folded into `AE4-D-SHAPE-ASSERTION` (different subject, different close condition).
-**Status:** open
-**Body:** [FUP-VITEST-CATALOG-DRIVEN-CASE-COUNT.md](FUP-VITEST-CATALOG-DRIVEN-CASE-COUNT.md)
-
 ### 🟡 FUP-E2E-CREATEFRESHCASE-SILENT-NULL
 
 **Filed:** 2026-08-23 (tester) · **Owner:** tester · **Severity:** medium — the heading carried NO emoji at consolidation; medium is the default, PO to confirm

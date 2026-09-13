@@ -3,6 +3,7 @@
 > Unit hub: [vitest-role-set-pin.md](../features/vitest-role-set-pin.md) ·
 > record: [vitest-role-set-pin.md](../progress/vitest-role-set-pin.md) ·
 > follow-up: [FUP-VITEST-CATALOG-DRIVEN-CASE-COUNT.md](../followups/FUP-VITEST-CATALOG-DRIVEN-CASE-COUNT.md)
+> (⚠ 2026-09-13, lead, at the Record step: that body file is now folded into `../followups/follow-ups-archive.md` under the entry's heading and deleted — link kept as written)
 > (binding close condition = its last section, **RE-CLAUSED 2026-09-13**, clauses (a)–(d)) ·
 > branch `vitest-role-set-pin`, base `main @ 297d6ba2`, reviewed range `297d6ba2..037f0f0d`
 > (3 commits: `3b48f9d0` open · `a8aeeb25` code · `037f0f0d` docs), 6 files / +387 / −135.

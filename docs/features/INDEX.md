@@ -12,11 +12,10 @@
 > A hub's `## Current state` is its summary; its progress record's `## Session log`
 > (`docs/progress/<code>.md`) is its detail (ADR 0186 D3).
 
-**34 hubs** · in progress 1 · gated 3 · planned 2 · parked 0 · complete 28
+**34 hubs** · in progress 0 · gated 3 · planned 2 · parked 0 · complete 29
 
 | ID | Title | Status | Kind | Program | Branch | Hub |
 |---|---|---|---|---|---|---|
-| VITEST-ROLE-SET-PIN | The two catalog-driven vitest suites pin the membership role SET to the manifest — one derived expected set, two independent live reads, set equality never a count | 🟢 in progress | fup-fix | AUTHZ | `vitest-role-set-pin` | [vitest-role-set-pin.md](vitest-role-set-pin.md) |
 | BACKEND-STATE-CURRENT-STATE | Backend seams get a replaceable current-state layer — a projection above the frozen history, gated in four checks (ADR 0198) | 🚧 gated | feature | DOCS | `backend-state-current-state` | [backend-state-current-state.md](backend-state-current-state.md) |
 | BACKEND-STATE-SPLIT | Backend surface map split onto the module-seam axis — a router replaces the 742 KB reading list (ADR 0196) | 🚧 gated | feature | DOCS | — | [backend-state-split.md](backend-state-split.md) |
 | DATA-ACCESS-GENERATION | Data-access registries generated from the catalog — four hand-maintained tables replaced by a derive-and-compare pair, gated in two halves (ADR 0197) | 🚧 gated | feature | DOCS | `data-access-generation` | [data-access-generation.md](data-access-generation.md) |
@@ -49,4 +48,5 @@
 | PRED-DOMAIN | Door-audit domain — the authz resolvers enter PRED_DOMAIN (or a scheduled targeted-case home), the read arm stops mirror-ambiguous, and the findings baseline is re-earned through the merge (pre-AE5 Batch 2) | ✅ complete | feature | AUTHZ | — | [pred-domain.md](pred-domain.md) |
 | PRIVILEGE-SURFACE | Privilege surface — the authenticated-executable DEFINER budget's seven-over-ceiling breach attributed function by function, the 233 held AE1 revokes ruled on with their 137 silent no-ops named, and the app-schema PUBLIC floor given the decision it has been waiting for (pre-AE5 Batch 7) | ✅ complete | feature | AUTHZ | — | [privilege-surface.md](privilege-surface.md) |
 | REGISTER-GATE-HYGIENE | Register and gate hygiene — the complete-gate regexes learn bold ids and real verdict lines, ADR link TARGETS get resolved, AE2 re-enters the ledger, an archived closure keeps its `Closes when`, and the door arm stops reading an empty `CASES` as a full sweep (pre-AE5 Batch 6) | ✅ complete | feature | DOCS | — | [register-gate-hygiene.md](register-gate-hygiene.md) |
+| VITEST-ROLE-SET-PIN | The two catalog-driven vitest suites pin the membership role SET to the manifest — one derived expected set, two independent live reads, set equality never a count | ✅ complete | fup-fix | AUTHZ | — | [vitest-role-set-pin.md](vitest-role-set-pin.md) |
 | WRITEPATH-BASELINE | Write-arm baseline — the committed write-path findings file re-earned over the widened 107-policy domain through the merge, the three storage.objects INSERT policies verdicted, and the write arm's empty-set exit made a FINDING (pre-AE5 Batch 3) | ✅ complete | feature | AUTHZ | — | [writepath-baseline.md](writepath-baseline.md) |
