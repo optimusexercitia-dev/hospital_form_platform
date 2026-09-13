@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { cachedSignIn, DEFAULT_PASSWORD } from './helpers/auth'
+import { accessToken, cachedSignIn, DEFAULT_PASSWORD } from './helpers/auth'
 
 /**
  * ACT (ADR 0106) — Stage 3 E2E: "act as" role assumption.
@@ -361,5 +361,68 @@ test.describe('ACT — role assumption (ADR 0106)', () => {
     await expect(
       page.getByRole('heading', { name: 'Casos sob supervisão', level: 1 }),
     ).toBeVisible()
+  })
+
+  /**
+   * AE5-ROLE-CATALOG-COMPAT (ADR 0207 D5 step 2) — over REST, past the UI, the
+   * three-way shape of `public.assume_role(p_role text)`'s two fail-closed
+   * gates plus the positive control that proves the instrument itself works:
+   *
+   *   1. an UNKNOWN code (no `authz.roles` row at all) is refused by the
+   *      selectability check — `session_selectable` reads false via
+   *      `coalesce(..., false)` for a code with no row — 42501,
+   *      "papel não selecionável nesta sessão" (migration
+   *      20261003007430_role_catalog_compat.sql:114).
+   *   2. a KNOWN, selectable code the caller does NOT hold — `multi@` holds
+   *      only `staff` (two Rede A commissions), never `staff_admin` — is
+   *      refused by the real-assignment gate (ADR 0207 D3) — 42501,
+   *      "papel não disponível para este usuário" (same file:126).
+   *   3. the NON-VACUITY control: the SAME text-typed door seats a role the
+   *      caller genuinely holds — `chefe.ccih@test.local` IS `staff_admin`
+   *      of CCIH — so (1) and (2) are refusals of THIS instrument, not a
+   *      door that refuses everything post-migration.
+   *
+   * No UI is exercised (assume_role has no picker path for a single-role
+   * persona) and no keyboard-only flow is owed here — the file's own
+   * keyboard-only cell above already covers the picker UI, which did not
+   * change shape in this unit.
+   */
+  test('AE5 step 2: assume_role(text) — unknown code and unheld code both refused (pt-BR messages), held code seats', async ({
+    request,
+  }) => {
+    const assumeRaw = async (token: string, role: string) =>
+      request.post(`${SUPABASE_URL}/rest/v1/rpc/assume_role`, {
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        data: { p_role: role },
+      })
+
+    // (1) Unknown code — no `authz.roles` row exists for it at all.
+    const multiToken = await accessToken(request, 'multi@test.local', DEFAULT_PASSWORD)
+    const unknownAttempt = await assumeRaw(multiToken, 'papel_inexistente_ae5')
+    expect(unknownAttempt.ok(), 'an unknown role code must be refused, not accepted').toBeFalsy()
+    expect(unknownAttempt.status()).toBeGreaterThanOrEqual(400)
+    expect(unknownAttempt.status()).toBeLessThan(500)
+    expect(await unknownAttempt.text()).toContain('papel não selecionável nesta sessão')
+
+    // (2) A real, selectable code the caller does not hold — multi@ never
+    // holds staff_admin anywhere.
+    const unheldAttempt = await assumeRaw(multiToken, 'staff_admin')
+    expect(
+      unheldAttempt.ok(),
+      'a role the caller does not hold must be refused, not accepted',
+    ).toBeFalsy()
+    expect(unheldAttempt.status()).toBeGreaterThanOrEqual(400)
+    expect(unheldAttempt.status()).toBeLessThan(500)
+    expect(await unheldAttempt.text()).toContain('papel não disponível para este usuário')
+
+    // (3) Non-vacuity control — the same door, same code, a caller who DOES
+    // hold it: chefe.ccih@ is staff_admin of CCIH.
+    const chefeToken = await accessToken(request, 'chefe.ccih@test.local', DEFAULT_PASSWORD)
+    const heldAttempt = await assumeRaw(chefeToken, 'staff_admin')
+    expect(heldAttempt.ok(), await heldAttempt.text()).toBeTruthy()
   })
 })
