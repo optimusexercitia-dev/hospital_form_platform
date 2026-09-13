@@ -16,10 +16,11 @@
 -- THE THREE INSTRUMENTS, AND WHY NONE OF THEM IS A COPY OF PRODUCTION TEXT
 -- --------------------------------------------------------------------------------------------
 --   I1  PRODUCER-EXTRACTED.  `pg_temp.cte(sig)` cuts the candidate CTE out of
---       `pg_get_functiondef(sig)` with one anchored regex and RAISES — never returns empty — when
---       the anchor moves. `pg_temp.pcount(...)` substitutes the parameters BY NAME (checking each
---       expected name was found, else RAISE) and EXECUTES that text, optionally with the
---       deduplication token removed (again: RAISE if the token is absent).
+--       `pg_get_functiondef(sig)` with one anchored regex. `pg_temp.pcount(...)` substitutes the
+--       parameters BY NAME (checking each expected name was found) and EXECUTES that text,
+--       optionally with the deduplication token removed. ⛔ Every one of those checks RECORDS its
+--       refusal in `s423_refusal` and returns NULL — it does NOT raise, and the reason why is the
+--       RUN-SHAPE INVARIANT below.
 --       ⛔⛔ THIS IS NOT ADR 0183 `:114-115`'s FORBIDDEN HAND-COPY, and the difference is the whole
 --       reason it is allowed here. What 0183 rejects is "a harness holding a copy of production
 --       text… a duplicate no gate protects", written once and left to drift away from the body it
@@ -112,9 +113,28 @@
 --      function, and widening it is exactly what ADR 0208 D3 trigger 2 asks a human to do.
 --   7. Nothing here says the CONFIRMER is correct — that is `403`/`407`/`409`/`413`.
 --
+-- ============================================================================================
+-- ⛔⛔ THE RUN-SHAPE INVARIANT: THIS FILE EMITS EXACTLY 33 TAP LINES UNDER ANY MUTATION OF ITS
+-- SUBJECT — IT NEVER ABORTS. This is a gate requirement, not tidiness, and it was learned by
+-- breaking one. The first version RAISED on every instrument refusal; under the set-valued mutation
+-- arm (`supabase/tests/mutation/authz-setvalued-targeted-cases.sh`), which replaces each resolver
+-- with an open universal set, the `with candidate as materialized (` anchor vanishes, the extractor
+-- raised, and this file died after `plan(33)` with ZERO TAP lines. That arm scores by RUN SHAPE: it
+-- saw `Files=272 Tests=9099` against a `9132` baseline (the difference is exactly this plan) and
+-- could only rule the two resolver cases **NOTICED** — *"something noticed, cannot say what"* —
+-- never COVERED, and a NOTICED case BLOCKS the phase. ⇒ LEARN-083's class; the playbook's remedy is
+-- CAPTURE-THEN-ASSERT IN THE ABORTING FILE, ⛔ never a relabel of the arm's verdict, ⛔ never an
+-- allowlist, ⛔ never a change to the arm.
+-- ⛔ SO: no helper raises, no plant raises, and every predicate that can read a refusal is NULL-safe
+-- and evaluates it to a RED — `coalesce(…, false)`, `is distinct from`, `is null or …`, and an
+-- explicit `is not null` wherever pgTAP's `is()` would have scored two NULLs as equal. A refused
+-- instrument becomes a failing TAP line CARRYING ITS REASON (§0.2, §0.3), never a missing one.
+-- ⛔ Do not "simplify" a `coalesce` or an `is distinct from` below back into a bare comparison.
+--
 -- RUN SHAPE: `Files=2, Tests=34` (33 here + 00_setup.sql's one). ⛔ Keep this line in step with
 -- plan() — a stale RUN SHAPE is read as the expected shape by the next person diagnosing a count
--- mismatch.
+-- mismatch, and here it is ALSO what a neighbouring mutation arm reads to tell COVERED from
+-- NOTICED.
 
 begin;
 select plan(33);
@@ -137,59 +157,118 @@ create temp sequence s423_p5_mut  minvalue 0 start 0;  -- §5.4  CTE equality un
 create temp sequence s423_p6_size minvalue 0 start 0;  -- §6.3  provider-family size under the planted adapter
 create temp sequence s423_p6_unc  minvalue 0 start 0;  -- §6.3  unconsumed providers under that plant
 
--- I1 — the extraction. RAISES rather than returning empty when its anchor moves.
+-- ⛔⛔ NO PATH IN THIS FILE MAY ABORT IT, AND THAT IS A GATE REQUIREMENT, NOT TIDINESS.
+-- The first version of this file RAISED on every instrument refusal. That is a stronger failure
+-- mode and a WORSE witness, and it broke a neighbouring gate: under the set-valued mutation arm
+-- (`supabase/tests/mutation/authz-setvalued-targeted-cases.sh`) the resolver body is replaced by an
+-- open universal set, the `with candidate as materialized (` anchor disappears, the extractor
+-- raised, and this file died after `plan(33)` with ZERO TAP lines. The arm reads RUN SHAPE, saw
+-- `Files=272 Tests=9099` against a `9132` baseline (9132 − 9099 = 33 = this plan), and could only
+-- score the resolver cases **NOTICED** — *"something noticed, cannot say what"* — never COVERED.
+-- ⇒ LEARN-083's class, and the playbook's remedy is CAPTURE-THEN-ASSERT IN THE ABORTING FILE:
+-- ⛔ never a relabel of the arm's verdict, ⛔ never an allowlist, ⛔ never a change to the arm.
+-- So every helper below RECORDS its refusal in `s423_refusal` and returns NULL; every predicate
+-- that reads one is NULL-safe and evaluates a refusal to a RED, never to a NULL and never to a
+-- pass. ⭐ THE INVARIANT THIS BUYS: **this file emits exactly 33 TAP lines under ANY mutation of
+-- its subject** — the run shape is fixed, so a neighbouring arm that reads run shape can attribute
+-- the reds to the cells that produced them.
+create temp table s423_refusal(source text, detail text);
+
+-- I1 — the extraction. Records and returns NULL when its anchor moves; §0.2 is where that is read.
 create function pg_temp.cte(p_sig regprocedure) returns text language plpgsql as $cte$
 declare v text;
 begin
   v := substring(pg_get_functiondef(p_sig)
                  from 'with candidate as materialized \((.*)\)[^)]*select c\.scope_id');
   if v is null or v not like '%assignment_facts%' then
-    raise exception 'CTE EXTRACTION FAILED for % — the anchor moved. FIX THE EXTRACTOR, do not widen it.', p_sig;
+    insert into s423_refusal values ('cte',
+      format('CTE EXTRACTION FAILED for %s — the `with candidate as materialized (…) … select c.scope_id` anchor is absent or the cut carries no provider call. ⛔ FIX THE EXTRACTOR, do not widen it.', p_sig));
+    return null;
   end if;
   return v;
+exception when others then
+  insert into s423_refusal values ('cte', format('CTE EXTRACTION RAISED for %s: %s', p_sig, sqlerrm));
+  return null;
 end $cte$;
 
 create function pg_temp.cte_norm(p_sig regprocedure) returns text language plpgsql as $n$
+declare v text;
 begin
   -- `--` comments stripped and whitespace collapsed. ⛔ A RAW equality is NOT the comparator:
   -- measured, the two definitions differ on the signature, THREE `--` comment lines and the
   -- confirmer, so a raw test reds on the comments and proves nothing about the logic.
-  return md5(regexp_replace(regexp_replace(pg_temp.cte(p_sig), '--[^\n]*', '', 'g'), '\s+', ' ', 'g'));
+  v := pg_temp.cte(p_sig);
+  if v is null then return null; end if;   -- ⛔ NULL propagates; §5.1 asserts NOT NULL explicitly,
+                                           --    because `is(NULL, NULL)` PASSES in pgTAP and two
+                                           --    failed extractions would otherwise read as "equal".
+  return md5(regexp_replace(regexp_replace(v, '--[^\n]*', '', 'g'), '\s+', ' ', 'g'));
 end $n$;
 
--- I1 — execute the extracted producer. Parameters bound BY NAME, each checked present.
+-- I1 — execute the extracted producer. Parameters bound BY NAME, each checked present. Every
+-- refusal — a missing parameter name, an absent dedup token, a malformed dynamic statement — is
+-- RECORDED and returns NULL. ⛔ NULL is not "zero candidates": every reader treats it as a RED.
 create function pg_temp.pcount(p_sig regprocedure, p_principal uuid, p_kind text, p_dedup boolean)
 returns bigint language plpgsql as $pc$
 declare v text; n bigint;
 begin
   v := pg_temp.cte(p_sig);
+  if v is null then return null; end if;
   if v !~ '\mp_principal\M' or v !~ '\mp_resolution_kind\M' then
-    raise exception 'PARAMETER NAME NOT FOUND in the extracted CTE of % — the substitution would be silent.', p_sig;
+    insert into s423_refusal values ('pcount',
+      format('PARAMETER NAME NOT FOUND in the extracted CTE of %s — the substitution would have been silent.', p_sig));
+    return null;
   end if;
   v := regexp_replace(v, '\mp_principal\M', '$1', 'g');
   v := regexp_replace(v, '\mp_resolution_kind\M', '$2', 'g');
   if not p_dedup then
     if regexp_replace(v, 'select\s+distinct', 'select', '') = v then
-      raise exception 'DEDUP TOKEN NOT FOUND in the extracted CTE of % — the pre-dedup variant is not constructible, so a silent raw = D would read as "no overlap".', p_sig;
+      insert into s423_refusal values ('pcount-dedup',
+        format('DEDUP TOKEN NOT FOUND in the extracted CTE of %s — the pre-deduplication variant is not constructible, so a silent raw = D would read as "no overlap".', p_sig));
+      return null;
     end if;
     v := regexp_replace(v, 'select\s+distinct', 'select', '');
   end if;
-  execute format('with candidate as materialized (%s) select count(*) from candidate where scope_id is not null', v)
-    into n using p_principal, p_kind;
+  begin
+    execute format('with candidate as materialized (%s) select count(*) from candidate where scope_id is not null', v)
+      into n using p_principal, p_kind;
+  exception when others then
+    insert into s423_refusal values ('pcount-execute',
+      format('THE EXTRACTED CTE OF %s DID NOT EXECUTE: %s — the cut is malformed (too greedy, or it swallowed the confirm select).', p_sig, sqlerrm));
+    return null;
+  end;
   return n;
 end $pc$;
 
--- The mutants are built from the LIVE definition by ANCHORED surgery, never hand-written, and the
--- surgery RAISES when its anchor is absent (so a plant that silently did nothing cannot be read as
--- a green — the probe stays 0, which every cell reports as THE BLOCK NEVER RAN).
+-- The mutants are built from the LIVE definition by ANCHORED surgery, never hand-written. A missing
+-- anchor RECORDS and returns NULL; the plant then leaves its probe at 0, which every cell reads as
+-- THE PLANT NEVER RAN — a VOID reading, never a pass.
 create function pg_temp.surgery(p_sig regprocedure, p_find text, p_repl text) returns text language plpgsql as $s$
 declare d text; m text;
 begin
   d := pg_get_functiondef(p_sig);
   m := replace(d, p_find, p_repl);
-  if m = d then raise exception 'SURGERY ANCHOR NOT FOUND in %: %', p_sig, p_find; end if;
+  if m = d then
+    insert into s423_refusal values ('surgery', format('SURGERY ANCHOR NOT FOUND in %s: %s', p_sig, p_find));
+    return null;
+  end if;
   return m;
 end $s$;
+
+-- Apply a mutant, or do nothing at all. ⛔ Never raises: a plant that could not be applied must
+-- leave its probe at 0, not take the file down with it.
+create function pg_temp.plant(p_sig regprocedure, p_find text, p_repl text) returns boolean language plpgsql as $pl$
+declare m text;
+begin
+  m := pg_temp.surgery(p_sig, p_find, p_repl);
+  if m is null then return false; end if;
+  begin
+    execute m;
+  exception when others then
+    insert into s423_refusal values ('plant', format('THE MUTANT FOR %s DID NOT COMPILE: %s', p_sig, sqlerrm));
+    return false;
+  end;
+  return true;
+end $pl$;
 
 -- I2 — every scope, by kind. The three tenancy levels a resolution kind can name.
 create temp view s423_scopes as
@@ -232,23 +311,33 @@ select ok(
          (select count(*) from s423_cells), (select count(distinct pid) from s423_cells)));
 
 select ok(
-  pg_temp.cte('authz.authorized_scope_ids(uuid,text,text)'::regprocedure) like '%assignment_facts%'
-  and pg_temp.cte('authz.candidate_authorized_scope_ids(uuid,text,text)'::regprocedure) like '%assignment_facts%'
-  and pg_temp.cte('authz.authorized_scope_ids(uuid,text,text)'::regprocedure) not like '%has_permission%'
-  and pg_temp.cte('authz.candidate_authorized_scope_ids(uuid,text,text)'::regprocedure) not like '%has_permission%',
-  '0.2 EXTRACTION CONTROL: both cuts land on the PRODUCER — each contains the provider call and '
-  'NEITHER contains a confirmer. ⛔ Load-bearing for §5: an extraction that swallowed the confirmer '
-  'would make the equality cell red for a reason that has nothing to do with the candidate logic, '
-  'and one that swallowed too little would make it green for the same kind of reason.');
+  coalesce(
+    pg_temp.cte('authz.authorized_scope_ids(uuid,text,text)'::regprocedure) like '%assignment_facts%'
+    and pg_temp.cte('authz.candidate_authorized_scope_ids(uuid,text,text)'::regprocedure) like '%assignment_facts%'
+    and pg_temp.cte('authz.authorized_scope_ids(uuid,text,text)'::regprocedure) not like '%has_permission%'
+    and pg_temp.cte('authz.candidate_authorized_scope_ids(uuid,text,text)'::regprocedure) not like '%has_permission%',
+    false),
+  format('0.2 EXTRACTION CONTROL: both cuts land on the PRODUCER — each contains the provider call '
+         'and NEITHER contains a confirmer. ⛔ Load-bearing for §5: an extraction that swallowed the '
+         'confirmer would make the equality cell red for a reason that has nothing to do with the '
+         'candidate logic, and one that swallowed too little would make it green for the same kind '
+         'of reason. ⛔ `coalesce(…, false)` is load-bearing too: a refused extraction returns NULL, '
+         'and `ok(NULL)` must read as a FAIL with a reason, never as an aborted file. REFUSALS '
+         'RECORDED: %s',
+         coalesce((select string_agg(detail, ' || ' order by detail) from s423_refusal where source in ('cte','pcount-execute')),
+                  'none')));
 
-select lives_ok(
-  $$ select pg_temp.pcount('authz.authorized_scope_ids(uuid,text,text)'::regprocedure,
-       (select pid from s423_cells limit 1), 'organization', false) $$,
-  '0.3 DEDUP TOKEN CONTROL: the pre-deduplication variant is CONSTRUCTIBLE, i.e. `select distinct` '
-  'is really how the producer dedups. ⛔ If the dedup were re-spelled (a `group by`, an outer '
-  '`distinct`), the replacement would be a silent no-op and `raw` would equal `D` everywhere — '
-  '§3 would then read "no overlap anywhere" as a pass. pcount RAISES instead, and this cell is '
-  'where that raise is caught.');
+select ok(
+  pg_temp.pcount('authz.authorized_scope_ids(uuid,text,text)'::regprocedure,
+                 (select pid from s423_cells order by pid limit 1), 'organization', false) is not null,
+  format('0.3 DEDUP TOKEN CONTROL: the pre-deduplication variant is CONSTRUCTIBLE, i.e. `select '
+         'distinct` is really how the producer dedups. ⛔ If the dedup were re-spelled (a `group by`, '
+         'an outer `distinct`), the replacement would be a silent no-op and `raw` would equal `D` '
+         'everywhere — §3 would then read "no overlap anywhere" as a pass. pcount RECORDS AND '
+         'RETURNS NULL instead, and this cell is where that refusal becomes a red TAP line. '
+         'REFUSALS RECORDED: %s',
+         coalesce((select string_agg(detail, ' || ' order by detail) from s423_refusal where source = 'pcount-dedup'),
+                  'none')));
 
 -- ============================================================================
 -- §1 — CLAUSE 1: EVERY CANDIDATE ORIGINATES FROM AN ENTITLEMENT-PROVIDER FACT.
@@ -258,7 +347,7 @@ select lives_ok(
 -- ============================================================================
 
 select is(
-  (select count(*)::int from s423_cells where pd > rd),
+  (select count(*)::int from s423_cells where pd is null or pd > rd),
   0,
   '1.1 ⭐ PROVENANCE: over every swept cell the producer proposes no more candidates than its own '
   'facts reach — `pd ≤ I2.D`. A candidate with no fact behind it breaks this; 1.4 plants exactly '
@@ -297,9 +386,10 @@ do $p1$
 declare v_pid uuid;
 begin
   select pid into v_pid from s423_cells where rd > 0 order by rd desc, pid limit 1;
-  execute pg_temp.surgery('authz.authorized_scope_ids(uuid,text,text)'::regprocedure,
+  if not pg_temp.plant('authz.authorized_scope_ids(uuid,text,text)'::regprocedure,
     'with candidate as materialized (',
-    'with candidate as materialized ( select ''ffffffff-ffff-ffff-ffff-ffffffffffff''::uuid as scope_id union all');
+    'with candidate as materialized ( select ''ffffffff-ffff-ffff-ffff-ffffffffffff''::uuid as scope_id union all')
+  then return; end if;
   perform setval('s423_p1_mut',
     pg_temp.pcount('authz.authorized_scope_ids(uuid,text,text)'::regprocedure, v_pid, 'organization', true) + 1);
   update public.profiles set is_active = false where id = v_pid;
@@ -336,7 +426,7 @@ select is(
 -- ============================================================================
 
 select is(
-  (select count(*)::int from s423_cells where praw > f),
+  (select count(*)::int from s423_cells where praw is null or praw > f),
   0,
   '2.1 ⭐ THE PRODUCER: its PRE-DEDUPLICATION candidate count never exceeds F, the provider''s own '
   'fact count. This is the `D ≤ F` derivation''s load-bearing half — `distinct` can only shrink a '
@@ -349,7 +439,7 @@ select is(
   'either. ⛔ Asserted separately from 2.1 because they are two artifacts: 2.5 breaks THIS one.');
 
 select is(
-  (select count(*)::int from s423_cells where praw <> rraw),
+  (select count(*)::int from s423_cells where praw is distinct from rraw),
   0,
   '2.3 ⭐⭐ THE TWO LIVE ARTIFACTS AGREE, cell by cell. The producer''s inline CASE and '
   'authz.scope_reaches are two copies of the same ascent sitting on opposite sides of the resolver, '
@@ -368,8 +458,9 @@ do $p2$
 declare v_pid uuid;
 begin
   select pid into v_pid from s423_cells where kind = 'organization' and rraw = f and f > 0 order by f desc, pid limit 1;
-  execute pg_temp.surgery('authz.scope_reaches(text,uuid,text,uuid)'::regprocedure,
-    'p_requested_id = (select c.organization_id', 'true or p_requested_id = (select c.organization_id');
+  if not pg_temp.plant('authz.scope_reaches(text,uuid,text,uuid)'::regprocedure,
+    'p_requested_id = (select c.organization_id', 'true or p_requested_id = (select c.organization_id')
+  then return; end if;
   perform setval('s423_p2_mut',
     (select count(*) from authz.assignment_facts(v_pid) af join s423_scopes s on s.kind = 'organization'
       where authz.scope_reaches(af.scope_kind, af.scope_id, 'organization', s.id)) + 1);
@@ -400,7 +491,7 @@ select is(
 -- ============================================================================
 
 select ok(
-  (select pd = rd and pd < praw from s423_cells where rraw > rd order by (rraw - rd) desc, pid, kind limit 1),
+  coalesce((select pd = rd and pd < praw from s423_cells where rraw > rd order by (rraw - rd) desc, pid, kind limit 1), false),
   format('3.1 ⭐ DEDUP, ON THE WIDEST OVERLAP ROW (%s / %s, derived not named): the producer emits '
          'D = %s DISTINCT candidates out of raw = %s mappings, and D matches the fact-derived '
          'distinct count exactly. ⛔ A producer that confirmed once per FACT would show pd = raw '
@@ -411,7 +502,7 @@ select ok(
          (select praw from s423_cells where rraw > rd order by (rraw - rd) desc, pid, kind limit 1)));
 
 select ok(
-  (select pd = rd and pd = praw from s423_cells where rraw = rd and rd > 0 order by rd desc, pid, kind limit 1),
+  coalesce((select pd = rd and pd = praw from s423_cells where rraw = rd and rd > 0 order by rd desc, pid, kind limit 1), false),
   format('3.2 ⭐ THE DISCRIMINATION HALF — a principal whose facts do NOT overlap (%s / %s) gives '
          'D = raw = %s. ⛔ Without this, 3.1''s `D < raw` could be read as "the producer always '
          'shrinks", which is a different claim; the pair shows it shrinks exactly when the facts '
@@ -436,8 +527,9 @@ do $p3$
 declare r record;
 begin
   select pid, kind into r from s423_cells where rraw > rd order by (rraw - rd) desc, pid, kind limit 1;
-  execute pg_temp.surgery('authz.authorized_scope_ids(uuid,text,text)'::regprocedure,
-    'select distinct case', 'select case');
+  if not pg_temp.plant('authz.authorized_scope_ids(uuid,text,text)'::regprocedure,
+    'select distinct case', 'select case')
+  then return; end if;
   perform setval('s423_p3_mut',
     pg_temp.pcount('authz.authorized_scope_ids(uuid,text,text)'::regprocedure, r.pid, r.kind, true) + 1);
 end $p3$;
@@ -465,7 +557,7 @@ select is(
 -- ============================================================================
 
 select is(
-  (select count(*)::int from s423_cells where pd <> rd),
+  (select count(*)::int from s423_cells where pd is distinct from rd),
   0,
   '4.1 ⭐⭐ THE CROSS-CHECK: the producer''s own distinct candidate count equals the fact-derived '
   'one, in every swept cell. ⛔ This is the cell that makes the rest more than bookkeeping — the '
@@ -473,7 +565,7 @@ select is(
   '1.4 breaks it upward. ⛔ A ONE-DIRECTIONAL mutation would leave the opposite polarity unproven.');
 
 select is(
-  (select count(*)::int from s423_cells where pd > f),
+  (select count(*)::int from s423_cells where pd is null or pd > f),
   0,
   '4.2 ⭐ `D ≤ F`, ADR 0208 D1''s invariant, over every swept cell. ⛔ No maximum is pinned and none '
   'may be: D1 is a PARAMETRIC structural invariant plus accepted operational risk, and a numeric '
@@ -490,11 +582,12 @@ savepoint s423_plant4;
 do $p4$
 declare v_n int;
 begin
-  execute pg_temp.surgery('authz.authorized_scope_ids(uuid,text,text)'::regprocedure,
+  if not pg_temp.plant('authz.authorized_scope_ids(uuid,text,text)'::regprocedure,
     'from authz.assignment_facts(p_principal) af',
-    'from authz.assignment_facts(p_principal) af where af.scope_kind <> ''hospital''');
+    'from authz.assignment_facts(p_principal) af where af.scope_kind <> ''hospital''')
+  then return; end if;
   select count(*) into v_n from s423_cells c
-   where pg_temp.pcount('authz.authorized_scope_ids(uuid,text,text)'::regprocedure, c.pid, c.kind, true) <> c.rd;
+   where pg_temp.pcount('authz.authorized_scope_ids(uuid,text,text)'::regprocedure, c.pid, c.kind, true) is distinct from c.rd;
   perform setval('s423_p4_mut', v_n + 1);
 end $p4$;
 rollback to savepoint s423_plant4;
@@ -522,11 +615,16 @@ select is(
 -- two copies. ADR 0208 D2 says so, and this is the cell that notices the day they part.
 -- ============================================================================
 
-select is(
-  pg_temp.cte_norm('authz.authorized_scope_ids(uuid,text,text)'::regprocedure),
-  pg_temp.cte_norm('authz.candidate_authorized_scope_ids(uuid,text,text)'::regprocedure),
+select ok(
+  pg_temp.cte_norm('authz.authorized_scope_ids(uuid,text,text)'::regprocedure) is not null
+  and pg_temp.cte_norm('authz.authorized_scope_ids(uuid,text,text)'::regprocedure)
+      = pg_temp.cte_norm('authz.candidate_authorized_scope_ids(uuid,text,text)'::regprocedure),
   '5.1 ⭐⭐ THE CANDIDATE CTEs ARE THE SAME PRODUCER, compared on the LIVE bodies after stripping '
-  '`--` comments and collapsing whitespace. ⛔ A raw-text equality is forbidden and 5.3 is why.');
+  '`--` comments and collapsing whitespace. ⛔ A raw-text equality is forbidden and 5.3 is why. '
+  '⛔ AND THE `is not null` IS LOAD-BEARING: this was an `is(a, b)` until the set-valued arm forced '
+  'the extractor to stop raising, and `is(NULL, NULL)` PASSES in pgTAP — under a mutation that '
+  'defeats BOTH extractions the cell would have gone green on two refusals. 0.2 names the refusal; '
+  'this cell refuses to call it equality.');
 
 select ok(
   pg_get_functiondef('authz.authorized_scope_ids(uuid,text,text)'::regprocedure) like '%authz.has_permission(%'
@@ -542,8 +640,9 @@ select ok(
 savepoint s423_plant5b;
 do $p5b$
 begin
-  execute pg_temp.surgery('authz.candidate_authorized_scope_ids(uuid,text,text)'::regprocedure,
-    'authz.candidate_has_permission(p_principal', 'authz.has_permission(p_principal');
+  if not pg_temp.plant('authz.candidate_authorized_scope_ids(uuid,text,text)'::regprocedure,
+    'authz.candidate_has_permission(p_principal', 'authz.has_permission(p_principal')
+  then return; end if;
   perform setval('s423_p5_cte',
     case when pg_temp.cte_norm('authz.candidate_authorized_scope_ids(uuid,text,text)'::regprocedure)
             = (select cten from s423_def where sig = 'authz.candidate_authorized_scope_ids(uuid,text,text)'::regprocedure)
@@ -570,9 +669,10 @@ select ok(
 savepoint s423_plant5;
 do $p5$
 begin
-  execute pg_temp.surgery('authz.candidate_authorized_scope_ids(uuid,text,text)'::regprocedure,
+  if not pg_temp.plant('authz.candidate_authorized_scope_ids(uuid,text,text)'::regprocedure,
     'when af.scope_kind = p_resolution_kind then af.scope_id',
-    'when af.scope_kind = p_resolution_kind then af.scope_id::uuid');
+    'when af.scope_kind = p_resolution_kind then af.scope_id::uuid')
+  then return; end if;
   perform setval('s423_p5_mut',
     case when pg_temp.cte_norm('authz.authorized_scope_ids(uuid,text,text)'::regprocedure)
             = pg_temp.cte_norm('authz.candidate_authorized_scope_ids(uuid,text,text)'::regprocedure)
@@ -649,6 +749,10 @@ begin
     as $stub$ select null::text, null::text, null::uuid where false $stub$;
   perform setval('s423_p6_size', (select count(*) from s423_providers) + 1);
   perform setval('s423_p6_unc',  (select count(*) from s423_unconsumed) + 1);
+exception when others then
+  -- ⛔ The probes stay at 0 and 6.3 reads THE PLANT NEVER RAN. The file does NOT abort: its run
+  --    shape must be 33 TAP lines under every mutation of its subject.
+  insert into s423_refusal values ('plant-provider', format('THE PROVIDER STUB WAS NOT CREATED: %s', sqlerrm));
 end $p6$;
 rollback to savepoint s423_plant6;
 

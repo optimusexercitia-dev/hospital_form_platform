@@ -436,3 +436,63 @@ allowlist. Sent to `backend` as a fix: no path in `423` may abort the file; an i
 red TAP line and every dependent cell reds rather than raises, so the run shape stays 9132 under any
 mutation and `423` appears in the arm's `reddened:` list. Re-earned afterwards: the plants whose witness
 was an abort (W3, H2), fresh reset + `test:db`, then this arm re-run by the lead.
+
+### 2026-09-13 — the fix: `423` never aborts; every instrument refusal is a RED TAP LINE (backend)
+
+**The defect, in one sentence.** `423`'s helpers RAISED on refusal, so a mutation that removed an
+anchor killed the file after `plan(33)` with **zero TAP lines**; the set-valued arm scores by RUN
+SHAPE, saw `Tests=9099` against the `9132` baseline (the difference is exactly this plan) and could
+only rule both resolver cases **NOTICED** — which blocks the phase. ⛔ Fixed the playbook's way —
+**capture-then-assert in the aborting file**; the arm was not touched, no verdict was relabelled and
+nothing was allowlisted.
+
+**What changed in `423`** (no cell added, no cell removed — still `plan(33)`):
+- A new temp table **`s423_refusal(source, detail)`**. `pg_temp.cte`, `cte_norm`, `pcount` and
+  `surgery` now RECORD their refusal there and return **NULL**; `pcount`'s dynamic `execute` is
+  wrapped so a malformed cut is captured, not raised. A new `pg_temp.plant()` applies a mutant or
+  reports that it could not, and §6's stub creation carries its own handler — so a plant that fails
+  leaves its probe at 0, which the cells already read as **THE PLANT NEVER RAN**.
+- Every predicate that can read a refusal is NULL-safe *toward RED*: `is null or …`,
+  `is distinct from`, `coalesce(…, false)`.
+- **`0.2` and `0.3` are now ordinary assertions** whose messages carry the recorded reason
+  (`REFUSALS RECORDED: …`), replacing `lives_ok` and a bare `like` chain.
+- ⚠ **A second latent vacuity was found while doing this and fixed.** `5.1` was
+  `is(cte_norm(a), cte_norm(b))` — and **`is(NULL, NULL)` PASSES in pgTAP**, so the moment the
+  extractor stopped raising, a mutation defeating BOTH extractions would have scored `5.1` GREEN on
+  two refusals. It is now `ok(cte_norm(a) is not null and cte_norm(a) = cte_norm(b), …)`. ⭐ The
+  fix for one gate created the hole; the cell was re-read because of it.
+- The header states the **RUN-SHAPE INVARIANT** — *this file emits exactly 33 TAP lines under any
+  mutation of its subject* — with the arm's mechanism, the `9132 → 9099` figures, and why a
+  `coalesce` or an `is distinct from` below may not be "simplified" away.
+
+**Before → after, verbatim.** The two cells whose only witness was an abort now emit reds:
+
+| arm | before | after |
+| --- | --- | --- |
+| **W3** — deduplication removed before the suite runs | `ERROR: DEDUP TOKEN NOT FOUND in the extracted CTE of authz.authorized_scope_ids(uuid,text,text)…` · **0 TAP lines** | **`not ok 3 - 0.3 DEDUP TOKEN CONTROL: … pcount RECORDS AND RETURNS NULL instead, and this cell is where that refusal becomes a red TAP line. REFUSALS RECORDED: DEDUP TOKEN NOT FOUND in the extracted CTE of authz.authorized_scope_ids(uuid,text,text) — the pre-deduplication variant is not constructible…`** · 23 ok / **10 red** (0.3 · 1.1 · 2.1 · 2.3 · 2.4 · 3.1 · 3.2 · 3.4 · 4.1 · 5.1) |
+| **H2** — the extraction boundary made greedy | `ERROR: syntax error at or near "select"` · **0 TAP lines** | **`not ok 2 - 0.2 EXTRACTION CONTROL: … ⛔ coalesce(…, false) is load-bearing too: a refused extraction returns NULL, and ok(NULL) must read as a FAIL with a reason, never as an aborted file. REFUSALS RECORDED: THE EXTRACTED CTE OF … DID NOT EXECUTE: syntax error at or near "select"…`** · 18 ok / **15 red** (0.2 · 0.3 · 1.1 · 1.4 · 2.1 · 2.3 · 2.4 · 3.1 · 3.2 · 3.4 · 4.1 · 4.2 · 4.3 · 5.1 · 5.3) |
+
+⭐ **And the arm's OWN mutation shape, reproduced directly** (`W8`: `authz.authorized_scope_ids`
+replaced by `select o.id from public.organizations o`, the open universal set): **33 TAP lines, 15
+ok / 18 red** — `0.2 · 0.3 · 1.1 · 1.4 · 2.1 · 2.3 · 2.4 · 3.1 · 3.2 · 3.4 · 4.1 · 4.2 · 4.3 · 4.4 ·
+5.1 · 5.2 · 6.2 · 6.3`. That is the case the arm ruled NOTICED; the run shape is now the baseline
+and `423` names itself in the reds. ⛔ The arm itself was NOT run here (~13 min; the lead re-runs it).
+
+**Nothing regressed — every earlier witness re-run against the rewritten file.** Catalog arms:
+W1 **23/10, the same ten cells as before** (1.1 · 1.3 · 1.4 · 2.1 · 2.3 · 3.1 · 3.2 · 4.1 · 4.2 ·
+5.1); W2 26/7; W4 27/6 — ⭐ and W4 **no longer prints an ERROR at all**: its double-applied surgery
+is now captured by `pg_temp.plant`, and `4.4` still reds reading *"THE PLANT NEVER RAN"*; W5 32/1
+(`5.1` alone); W6 30/3. Harness arms: H1 23/10, H3 28/5, H4 30/3, H5 22/11, H6 → `2.6`, H7 → `5.5`.
+**Every one of the 33 cells still has an observed red, and no arm aborts.** Live catalog
+byte-identical afterwards (`providers = 1`).
+
+**Gates.** Peers re-checked (0 client backends on the stack) → `supabase db reset --local` rc 0 →
+**`npm run test:db`: `Files=272, Tests=9132, Result: PASS`**, rc 0, `423_ae4_d_shape_assertion.sql …
+ok`. ⚠ `scripts/authz-ae4-p2-invocation-count.sql` is **unchanged** by this fix and its `§ 5` run
+stands from the previous entry.
+
+**⛔ What is still not proved, corrected from the previous entry.** The line *"`0.2` and `0.3` red by
+REFUSING, never by a `not ok` line"* is **retired — that was the defect, not a bound**. Both now emit
+failing TAP lines carrying their reason. The remaining bounds are unchanged: `U` on the fixture only;
+§1 scoped to the candidate CTE; §2 blind to an identical expansion in both artifacts; §5 compares
+normalised text; §6's family narrow by design; I1 only evidence against I2.
