@@ -349,3 +349,47 @@ and not only `lint:authz-vectors`'. The single `# Looks like you planned 11 test
 `420`'s documented noise, unchanged. `gen-definer-search-path-freeze.mjs --check` → **0**
 (`860 … removed 1, added 0`), `gen-role-manifest.mjs --check` → **0** (`11 roles`).
 
+### 2026-09-13 — Record step (lead): PO approval, the hub's current state cut in at close
+
+PO approval 2026-09-12: *"approved. proceed"* (the presentation named the four open risks: the batch-6 ethics flake, the ungated gate ORDER, data-level parity on two gates, the NO ACTION FK). Hub → `complete`; the `## Current state` block below is the hub's at close, cut verbatim (ADR 0186 D3).
+
+
+**Updated:** 2026-09-12
+
+#### Objective
+
+Land ADR 0207 D5 steps 1–5 as one backend unit before AE5 increment 1: retire `platform_role`,
+move `administrativo` out of `authz.roles`, tighten the `scope_kind` domain, collapse the TS
+role mirrors into one manifest with a generated pin — without touching the capability plane.
+
+#### Done since start
+
+Everything AC-1…AC-9 asks for (ticked above; witnesses in the record's § Session log): the
+migration with every step preceded by the assertion it depends on; `422` red-first (17 of 28 red
+before it existed); `assume_role(text)` on an empty `search_path`, the `419` set shrunk by exactly
+one, `421` re-pinned; the manifest collapse with every export preserved; gate 19 + `411` as the
+two halves of the generated pin; six subject-losing cells re-cast, not deleted; three value-keyed
+mirrors the opening map missed found and regenerated; step 6 proven untaken by md5. Gate step 1:
+four arms hold, deriver exit 1 ruled (the new door owes and has a targeted case, COVERED),
+set-valued arm CLEAN. E2E: second full run GREEN with 0 did-not-run (the first run's one
+failure was an unrelated ethics flow, green in isolation). QA APPROVED — 0 BLOCK / 0 MAJOR /
+4 MINOR (all fixed and re-verified) / 4 NOTE. Post-fix fresh `db reset` + `test:db` PASS.
+The authz seam slice appended and its `## Current state` replaced.
+
+#### In progress
+
+Nothing. Awaiting §6 step 4 (human approval).
+
+#### Next
+
+On approval: the Record step — ledger row, hub → `complete` with this block cut into the record,
+`features:index`, `phase(N): complete` commit, fast-forward to `main`, ⛔ no push; then the
+graphify refresh in its own commit. Still owed elsewhere, not here: proposed-order item 6
+(`member_can` mapping, `authz.capability_permissions`, the three narrower codes) and
+`AE4-D-SHAPE-ASSERTION`.
+
+#### Blockers
+
+None. Two things recorded, not fixed, for the reader: the gate ORDER inside `assume_role` is
+ungated (QA NOTE-3 — a reorder changes only which correct refusal is shown); the pt-BR labels
+and manifest order have no catalog twin by design (QA NOTE-2).

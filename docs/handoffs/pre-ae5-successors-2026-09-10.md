@@ -52,6 +52,8 @@ constraint). Measure the tree (command below), then read `docs/plans/pre-ae5-rem
 > unit cannot add non-empty-path debt unnoticed. The two are still NOT merged — different subjects,
 > different close conditions, and the search-path item's own ⛔ "converging one door is not closing
 > the class" applies. `AE4-D-SHAPE-ASSERTION` stays unordered.
+> ✅ **DATED NOTE 2026-09-13 — `AE5-ROLE-CATALOG-COMPAT` is CONCLUDED** ([hub](../features/ae5-role-catalog-compat.md) · [record](../progress/ae5-role-catalog-compat.md) · [review](../reviews/ae5-role-catalog-compat-review.md)): ADR 0207 D5 steps 1–5 built (migration `20261003007430`), QA APPROVED r1, PO-approved 2026-09-12, fast-forwarded to local `main`, ⛔ not pushed. What remains owed and unordered: `AE4-D-SHAPE-ASSERTION` (ADR 0208 D2); step 6 (the capability-plane mapping, `authz.capability_permissions`, the three narrower codes) belongs to AE5 proposed-order item 6 and ⛔ AE5 stays post-pilot (ADR 0155 G1). The two follow-ups named in the next paragraph were RESOLVED 2026-09-11.
+
 ⚠ Two follow-ups filed by the concluded unit need a PO ruling before the next backend unit touches
 their subjects: `FUP-AE5-MATRIX-ARM3-CELLS-AUTHZ-SEAM-CROSSED-ITS-WARN-LINE` (which noun leaves the
 authz seam file) and `FUP-AE5-MATRIX-ARM3-CELLS-READ-DOOR-COMMENT-CITES-THE-REPLACED-403-SECTION`
