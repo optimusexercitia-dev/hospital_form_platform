@@ -29,21 +29,21 @@ migration, no `src/` behaviour change, no policy.
 
 ## Acceptance criteria
 
-- [ ] **AC-1 — one exported FUNCTION, never a module-scope `const`.** A shared module exports
+- [x] **AC-1 — one exported FUNCTION, never a module-scope `const`.** A shared module exports
       `expectedMembershipRoleVocabulary()` deriving the sorted expected set from `ROLE_MANIFEST`
       (`scopeKind !== "none"`); each read is explicit at its call site, so the read count never
       depends on Vitest's `pool` / `isolate` defaults (unpinned in `vitest.config.mts`).
-- [ ] **AC-2 — two independent live reads KEPT; SET equality asserted in each.** Both suites keep
+- [x] **AC-2 — two independent live reads KEPT; SET equality asserted in each.** Both suites keep
       their own top-level catalog read and assert `[...read].sort()` `toEqual` the derived set —
       never `.length`. Two reads pinned to one constant are the instrument that observes a catalog
       change between them; they are not collapsed.
-- [ ] **AC-3 — one reader definition, two call sites.** The two copy-pasted
+- [x] **AC-3 — one reader definition, two call sites.** The two copy-pasted
       `readRoleVocabularyFromCatalog` regexes collapse into the shared module; the fail-closed throws
       (stack down; zero roles) are preserved and still name the calling guard.
-- [ ] **AC-4 — red-first witness.** The new assertion observed RED in each suite against a planted
+- [x] **AC-4 — red-first witness.** The new assertion observed RED in each suite against a planted
       short read (one role filtered out of the live read), then green on the real read; both
       outputs quoted in the record.
-- [ ] **AC-5 — gates.** Fresh `supabase db reset --local` with the stack up → `npm run test` PASS;
+- [x] **AC-5 — gates.** Fresh `supabase db reset --local` with the stack up → `npm run test` PASS;
       `npm run lint` rc 0 (0 errors, 0 warnings); `npm run typecheck` rc 0. `test:db`, the authz
       arms, the door sweep and `e2e:prod` are NOT owed (no migration, no `src/` behaviour change)
       and the record says so.
@@ -60,14 +60,18 @@ Pin the membership role SET in both catalog-driven suites against one manifest-d
 follow-up's re-claused condition (a)–(d), test-only.
 
 ### Done since start
-Peers cleared (no live session on this checkout; `AE4-D-SHAPE-ASSERTION` merged and its branch deleted;
-`pg_stat_activity` shows only the stack's own backends). Hub + record written; branch cut from `main @ 297d6ba2`.
+Peers cleared; branch cut from `main @ 297d6ba2`. Built (`a8aeeb25`): one `.test-support.ts` module with
+two exported functions and no module-scope value; both suites keep their own read and pin it to the derived
+set. Red-first witnessed twice (short read: 37 → 34 tests, both pins red; substitution: count unchanged, pin
+red). Gates on a fresh reset: `npm run test` 154 files / 2094 PASS, `npm run lint` rc 0 (19 gates),
+`npm run typecheck` rc 0. `test:db`, authz arms, door sweep, `e2e:prod` NOT owed (test-only).
 
 ### In progress
-The shared module and the two suite edits; the red-first witness.
+QA review (step 3).
 
 ### Next
-Gates (`test` on a fresh reset, `lint`, `typecheck`) → QA review → PO approval → Record step.
+PO approval → Record step (entry to the archive with the body folded, body file deleted, ledger row, hub
+to complete, fast-forward `main`, no push).
 
 ### Blockers
 None.
