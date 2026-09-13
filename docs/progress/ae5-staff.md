@@ -561,3 +561,30 @@ verdicts, the 28-of-40 preserved tenancy arms, the 69 hat readings — those are
 measurements and the PO's reading, and QA at T14 re-derives them. Disposition of r1: all eight
 closed. The unit now waits on the PO's seven rulings in matrix § 11 plus R-1's wrapper; nothing from
 T3 on may start before them (the matrix is the oracle).
+
+### 2026-09-13 — PO APPROVAL of the matrix package (lead; scope written, not inferred)
+
+The PO replied *"approved"* to the package presented at `b40c5236`: matrix § 11's seven items as
+proposed, plus R-1 and R-2. ⭐ The scope is exactly what the package proposed — nothing the package
+left as an open choice or an unproposed value is approved by this word:
+
+| item | ruled | scope |
+| --- | --- | --- |
+| 1 | ✅ | the 20 held rows and codes of § 5.2 (rows 1–2, 4–9, 11–22), each with its `resource_kind` / `risk_class` / `sensitivity_ceiling` |
+| 2 | ✅ | the split: `staff` holds a NEW `commission.cases.deliberation.read`; row 10 is not a narrower reach of `commission.cases.read` |
+| 3 | ✅ | rows 3 and 10 are NOT held |
+| 4 | ✅ | all 18 new codes GRANTED to `staff_admin` at T4 (42 → 60); the residual-arm alternative rejected |
+| 5 | ✅ partial | the ELEVEN-coordinate set of § 5.3 (rows 1, 4, 6, 7, 8, 9, 11, 12, 15, 16, 19) and row 8's `in_signature` term as an arm-3 (a) coordinate as the census wrote it. ⛔ **NOT approved: the expected value per class** — § 5.3 proposed none, so backend PROPOSES them with T3's vector (legacy reading as the default, divergence in `expected_legacy_granted`) and the PO confirms them at T11's plan review |
+| 6 | ✅ | PA-F8-STAFF-2 = (a), conditional on `memberships_one_commission_role_uq` and the two-value commission tier being ASSERTED in the cutover's pgTAP; PA-F8-STAFF-1 WITHDRAWN as a PA-F8 item under 7(A) and re-filed as a bug on the ownership path (its § 8.1 transcript unchanged) |
+| 7 | ✅ (A) | rename to **`commission.responses.create`**; sites = `responses_insert_own` + the TS guard; the catalog says nothing about edit/submit, stated as a visible gap |
+| R-1 | ✅ | introduce `app.is_commission_staff_of(_for)` as `staff`'s wrapper, cut IT over to `holds_role`; `is_member_of` re-expressed only when both commission roles are `authoritative`; carried in an ADR — number re-measured at approval: highest on any live ref is **0210** ⇒ **0211**; the ADR states how the cutover is proven given no `candidate_holds_role` exists |
+| R-2 | ✅ | closed as (a) — refuted premise, unreachable residual |
+
+⚠ **Not in the package, therefore not approved:** AC-2's deny-class expected VALUES
+(`docs/design/authz-ae5-staff-deny-class-effects.md`, delivered PROVISIONAL at `a31ba31e`) — the
+package named AC-2 only as "prior six" context. They are presented with T11's plan review, beside the
+per-class arm-3 values. AC-1 ticks now; AC-2 does not.
+
+Consequences released: T3 + T5 (one landing), T4 (seed with the rename and the 18 `staff_admin`
+grants), ADR 0211, the bug filing for § 8.1; T11/T13 may start their read-only halves. Backend's T3
+plan (posted 2026-09-13) is acked by the lead in the round-3 message.

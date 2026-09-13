@@ -27,7 +27,7 @@ task breakdown T1–T14, with owners, files and gates, is in the record § Task 
 
 Each is the template step it names; the witness for every box is a dated entry in the record.
 
-- [ ] **AC-1 Matrix.** `docs/design/authz-ae5-staff-permission-matrix.md` derived from every plane
+- [x] **AC-1 Matrix.** ✅ **PO-APPROVED 2026-09-13** (record § PO APPROVAL — scope table; item 5's per-class values still owed) — `docs/design/authz-ae5-staff-permission-matrix.md` derived from every plane
       (the name matched UNANCHORED ONCE and each hit classified; `.manage` split at reversibility
       boundaries), every row citing its plane and a live-catalog query; per arm its **subject** and
       **hat requirement** declared (ADR 0200 · ADR 0201 D3), per row its `definerSurface` (ADR 0193
@@ -93,27 +93,20 @@ posted, not executed.
 
 ### In progress
 
-Nothing executing. Matrix **r2** landed (`b5ff2552`): all eight r1 findings closed — § 3.0 partition
-sums by listing; § 5.3 arm-3 criterion written once and its census re-run (eleven coordinates);
-§ 5.4 per-site subject · hat · `definerSurface` table (69 lines) for T5 to copy; § 9.1a all 40
-policies mapped; § 9.3 the `staff_admin` disposition over all 18; § 11 item 7 the `responses.fill`
-interface. `backend` parked; T3 waits (ARM C3 fuses `approvedSuites` ↔ `subjectRoles`).
+**PO approved the matrix package 2026-09-13** (scope table in the record). `backend` on round 3:
+T3 + T5 as one landing (generators multi-role, `approvedSuites.staff`, manifest rows from § 5.4),
+T4 seed (`commission.responses.create`, 18 `staff_admin` grants, `test_validation`), ADR 0211 for
+R-1's wrapper, the § 8.1 bug filed. `tester` on the read-only halves of T13 (fixture-gap report) and
+T11 (suite design) — no DB, no dev server; backend owns the stack.
 
 ### Next
 
-**PO: the SEVEN items in matrix § 11** — (1) the 20 held rows and codes · (2) the row 9/10 split ·
-(3) the two non-rows confirmed NOT held · (4) the `staff_admin` disposition for ALL 18 new codes
-(proposal: grant at T4, 42 → 60) · (5) an expected value per class for the ELEVEN arm-3 coordinates,
-row 8's `in_signature` term as arm-3 or a `resourceLifecycle` value · (6) PA-F8-STAFF-2 as (a);
-PA-F8-STAFF-1 follows item 7 · (7) the `responses.fill` interface, backend recommends (A) rename to
-`commission.responses.create` — **and R-1's wrapper** (`app.is_commission_staff_of(_for)`, an ADR at
-the next free number; R-2 proposed closed as (a)). Then T3+T5, T4 seed, tester T11, T6 cutover, T7
-re-key, T8–T10, gate.
+Lead acks T5/T4 plans; PO confirms the per-class arm-3 expected values and AC-2's deny-class values
+at T11's plan review; then T6 cutover (full plan review), T7 re-key, T8–T10, gate.
 
 ### Blockers
 
-⛔ Everything from T3 on is blocked on the PO approval above (the matrix is the oracle; ADR 0175's
-shape). ⛔ R-1: no `candidate_holds_role` exists, so the wrapper cutover cannot be pre-flighted
-under `test_validation` — the ruling must say how the cutover is proven before it flips.
+⛔ R-1: no `candidate_holds_role` exists, so the wrapper cutover cannot be pre-flighted under
+`test_validation` — ADR 0211 must say how the cutover is proven before it flips (owed to T6).
 ⚠ Owed to T7/T13, not blocking now: `app.can_reach_case_on_member_surface` has ZERO production
 callers (matrix § 8.3); 6 of 9 seeded CCIH `staff` personas carry a non-role case reach (§ 8.2).
