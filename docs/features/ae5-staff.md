@@ -8,7 +8,7 @@ phase: "ADR 0155 — Phase AE5, Proposed order item 1 (post-pilot by ADR 0155 G1
 branch: ae5-staff   # cut from main @ a02487bc
 plan: ../plans/authz-evolution.md
 progress: ../progress/ae5-staff.md
-reviews: []
+reviews: ["../reviews/ae5-staff-matrix-review-r1.md"]
 adrs: ["0155", "0162", "0174", "0175", "0193", "0200", "0201", "0203", "0207", "0208"]
 handoff: ~
 fup: ~
@@ -93,12 +93,17 @@ posted, not executed.
 
 ### In progress
 
-Nothing executing. `backend` is parked on the T3 plan (ack owed once the PO approves, because
-ARM C3 fuses `approvedSuites` ↔ `subjectRoles` — T3 and T5's `approvedSuites.staff` land together).
+`backend` on the matrix **fix round r2** — the eight findings of the PO-supplied review
+([r1](../reviews/ae5-staff-matrix-review-r1.md), `CHANGES REQUESTED`): the `staff_admin`
+disposition for all 18 codes; a per-row subject · hat · `definerSurface` table T5 copies; the arm-3
+census re-run under one written criterion; `securable_resources_select` mapped; the function
+reconciliation re-derived; the `responses.fill` interface stated; two minors. T3 stays parked (ARM C3
+fuses `approvedSuites` ↔ `subjectRoles`, so T3 and T5 land together after approval).
 
 ### Next
 
-**PO: the six items in matrix § 11** (rows + codes · row 9/10 split · the two non-rows · the
+**PO: the SEVEN items in matrix § 11 after r2** (item 4 over all 18 codes; new item 7 = the
+`responses.fill` interface) — the prior six: (rows + codes · row 9/10 split · the two non-rows · the
 `staff_admin` read-code consequence · five arm-3 expected values per class · PA-F8-STAFF-1 (b) /
 PA-F8-STAFF-2 (a)) **and R-1's wrapper** (`app.is_commission_staff_of(_for)`, an ADR at the next
 free number). Then T3+T5, T4 seed, tester T11, T6 cutover, T7 re-key, T8–T10, gate.

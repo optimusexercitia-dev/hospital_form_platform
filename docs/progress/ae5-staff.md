@@ -401,3 +401,21 @@ NOTICED = evidence; CARRIED = a step.
   PA-F8 divergence to be dispositioned (a)/(b)/(c) **before the matrix is approved** (plan
   `:942-950`). Planner's recommendation: (b), a named compatibility exception with owner + expiry.
 - **R-3 — the matrix itself** (AC-1) and the deny-class values (AC-2), on T1/T2's delivery.
+
+### 2026-09-13 — matrix review r1 received from the PO; lead evaluation; fix round routed (lead)
+
+The PO supplied an external QA review of the T1 matrix at `a31ba31e` (eight findings: 2 blockers,
+4 high, 2 minor). Filed verbatim with the lead's per-finding evaluation in
+[ae5-staff-matrix-review-r1.md](../reviews/ae5-staff-matrix-review-r1.md). Every cited line was
+`sed -n`-read and both named policies read from the live catalog before a finding was accepted.
+Verdict: six confirm exactly (B1 `staff_admin` consequence over 7 of 18; H4 `securable_resources_select`
+absent from row 16 — live qual `is_member_of OR is_tenancy_admin_of`; H5 the § 3.2 "15 functions"
+heading and § 9.1's non-reproducing residue; H6 `responses.fill`'s incoherent interface; M7; M8);
+H3 confirms in core (row 15's NULL-owner public arm is the vacuous shape) with rows 19/21 left to a
+re-run census under one written criterion; B2 confirms against AC-1 with the *as data* home noted as
+T5's manifest. ⚠ Found while evaluating M8: gate 13 resolves no links under `docs/design/`, so a
+broken ADR link in a design doc reds nothing (`RETIRED_EXCLUDE_PATH_PREFIXES` names only
+`docs/design/temp/`; the design directory is outside the link arms altogether) — noted for the
+Record step, not fixed here. Disposition `CHANGES REQUESTED`; PO rules on nothing in § 11 until r2.
+The § 11 package grows to seven items: item 4 over all 18 codes, a new item on the
+`responses.fill` interface. Routed to `backend` as a fix round on the same agent context.
