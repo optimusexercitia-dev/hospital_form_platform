@@ -197,8 +197,8 @@ export interface SessionContext {
   /**
    * ACT (ADR 0106 D12) — the caller's active hat, read from the SAME verified
    * `active_role` JWT claim `app.active_role()` reads server-side (minted by
-   * `custom_access_token_hook`; a `public.platform_role` value, or `null` for
-   * a hatless multi-role session, D5). `null` for every pre-cutover-shaped
+   * `custom_access_token_hook`; a role code from `authz.roles` — catalog-validated
+   * text — or `null` for a hatless multi-role session, D5). `null` for every pre-cutover-shaped
    * session too, by construction — the claim is simply absent.
    */
   activeRole: string | null

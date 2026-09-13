@@ -229,7 +229,7 @@ select is(
           (select count(*) from v421_empty where lang = 'sql')::text || ' sql | ' ||
           (select string_agg(distinct schema_name, ' ' order by schema_name) from v421_domain)),
   '19 plpgsql | 11 sql | app authz public',
-  '§ 0d THE SPLIT AND THE SCHEMAS, NAMED: 18 members go to the plpgsql arm, 11 to the sql arm, and the domain still spans all three schemas. ⛔ If a language count drops to 0 its arm below proves nothing while still reporting green'
+  '§ 0d THE SPLIT AND THE SCHEMAS, NAMED: 19 members go to the plpgsql arm, 11 to the sql arm, and the domain still spans all three schemas. ⛔ If a language count drops to 0 its arm below proves nothing while still reporting green'
 );
 
 -- ============================================================================

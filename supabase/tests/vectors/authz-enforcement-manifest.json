@@ -85,13 +85,21 @@
 
   "catalogSnapshot": {
     "_comment": [
-      "MEASURED 2026-09-02 on the local stack at migration head 20261003007260, read-only, by the",
-      "AE4.9 D5 author. RE-DERIVE, NEVER QUOTE. 410 is what proves this current; nothing else does.",
-      "The ADR cites head 20261003007240 for its own measurements — this snapshot is LATER, and the",
-      "difference is why the head is recorded here rather than assumed to match the ADR."
+      "FIRST MEASURED 2026-09-02 on the local stack at migration head 20261003007260, read-only,",
+      "by the AE4.9 D5 author. RE-DERIVE, NEVER QUOTE. 410 is what proves this current; nothing",
+      "else does. The ADR cites head 20261003007240 for its own measurements — that snapshot was",
+      "LATER than the ADR, and the difference is why the head is recorded here rather than assumed",
+      "to match it.",
+      "⚠ AMENDED 2026-09-12 at head 20261003007430 (unit AE5-ROLE-CATALOG-COMPAT, ADR 0207 D5",
+      "step 4): the `administrativo` row left `roles` with the catalog row it mirrored, and one",
+      "`retiredBy` string was re-worded because the platform_role retirement it called owed has",
+      "LANDED. The fields below name THAT measurement, not the 2026-09-02 one — a stamp describing",
+      "a measurement the content no longer is reads as currency it does not have (QA MINOR-3).",
+      "⛔ Everything else here is still the 2026-09-02 derivation and is NOT re-measured by this",
+      "amendment; the head moving is not a claim that the whole file was re-derived."
     ],
-    "measuredOn": "2026-09-02",
-    "migrationHead": "20261003007260",
+    "measuredOn": "2026-09-12",
+    "migrationHead": "20261003007430",
 
     "_permissionsComment": [
       "⭐⭐ THIS LIST IS DELIBERATELY REDUNDANT WITH THE KEYS OF `permissions` BELOW, AND THE",
