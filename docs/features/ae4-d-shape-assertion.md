@@ -100,11 +100,14 @@ D3's five triggers in the record; retire the seam's *"RULED NOT BUILT"* bullet.
   4–5 stay `prose only`.
 
 ### In progress
-- Lead's own gate step 1: fresh reset + `test:db` (running), then the deriver (exit read bare,
-  exit 3 expected), the four authz arms + SELFTEST, the set-valued arm; seam slice + block.
-
+- Lead's gate step 1 first pass: fresh reset + `test:db` PASS (272/9132), `lint` 0/0, `typecheck`,
+  `test` green; deriver rc 3 NOT-APPLICABLE (no migration); four authz arms + SELFTEST (46/46,
+  bash 5.2.37) hold. **Set-valued arm rc 1 DIRTY**: both resolver cases NOTICED — under the arm's
+  mutation `423`'s extractor raises and the file aborts (run shape 9099 = 9132 − 33). Attributed
+  to this unit; `backend` is making `423` capture-then-assert so no mutation can abort it; the arm
+  is re-run by the lead afterwards (record entry *gate step 1, first pass*).
 ### Next
 - QA review → PO approval → Record step (seam block re-stamped, FUP closed in both homes).
 
 ### Blockers
-- None.
+- The set-valued arm must return CLEAN with `423` in both cases' `reddened:` list before QA.
