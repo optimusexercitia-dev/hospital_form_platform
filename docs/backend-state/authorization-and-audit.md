@@ -57,6 +57,8 @@
 - **New or touched `SECURITY DEFINER` ⇒ `set search_path = ''` + schema-qualified body** (ADR 0208 D4); the non-empty paths left (**860** after `assume_role`'s rewrite — `select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname in ('app','public','authz') and p.prosecdef and p.proconfig is not null and not exists (select 1 from unnest(p.proconfig) c where c='search_path=""')`) are frozen debt that **may not grow**. Two arms, each catching what the other cannot: forgetting to regenerate the frozen artifact reds pgTAP `419` (catalog), laundering an addition in by re-running the generator reds **gate 18** (bytes + git, pure deletions only, ⛔ never opens a database). ⛔⛔ **D4 has TWO clauses and they are gated in TWO files** — `419` + gate 18 hold the PATH, pgTAP **`421`** holds the BODY over the COMPLEMENT population (the 30 empty-path DEFINERs — `assume_role(text)` is the newest; `421 § 0c` asserts 860 + 30 = 890 still partitions), resolved **by Postgres**: `plpgsql_check_function_tb` for the 19 plpgsql members, a re-execution of `pg_get_functiondef` for the 11 `language sql` ones (`ALTER … SET search_path` never re-validates a body), `42P01`/`42883` the finding set, a `42P01` excused only when the SAME body creates that relation as a temp table. ⛔ **421's STATED BOUND is not coverage**: an `execute` body is opaque to both arms, so `§ 4` holds that population at **0** instead of checking it. The clause matters because under `''` `pg_temp` is still searched FIRST while all four client roles hold TEMP — the empty path NARROWS, the qualified body CLOSES (`FUP-DEFINER-SEARCH-PATH-NARROW-FIX-QUALIFIED-BODY-CLAUSE-OF-D4-IS-UNGATED`: closed by 421). ⭐ The four temp-table DEFINERs are **converged** (migration `20261003007420`); `420` measured them free FIRST and is now their regression guard, binding each one's `proconfig` and its copy counts into one assertion. ⛔ Their survival is a fact about THOSE BODIES — `pg_temp` is searched implicitly and first, so their unqualified references are temp tables — never a general licence. Frozen §§ The non-empty DEFINER population · The four temp-table DEFINERs are CONVERGED.
 - **The candidate fan-out `D` is structurally DOMINATED by the provider fact count `F`, never bounded by a number** (ADR 0208 D1; `423`): every candidate the two resolvers propose originates from an `authz.assignment_facts` row, one fact yields at most one candidate per resolution kind, candidates are deduplicated BEFORE confirmation, `D ≤ F` on every swept principal × kind, and `authz.authorized_scope_ids` / `authz.candidate_authorized_scope_ids` carry ONE candidate producer (their live CTEs equal after comment/whitespace normalisation — ⛔ they are two COPIES, not byte-identical, and not a shared function) differing only in the confirmer. The provider family is DERIVED (`authz`, `(uuid)` → `TABLE(role_code, scope_kind, scope_id)`), today `{assignment_facts}`, and `423 § 6` reds the moment a second member exists that either CTE does not consume — that is ADR 0208 D3 triggers 1–2 with a gate; trigger 3 (`scope_reaches` one-to-many) reds `§ 2` at seed scale. ⛔ `423` executes the LIVE extracted CTE (re-read from `pg_proc` each run, anchors RAISE when they move) against a fact × `scope_reaches` derivation — the ascent lives twice in the catalog; ⛔ no cell hand-copies the production `CASE` (ADR 0183 `:114-115`), and no cell pins a maximum. ⚠ Two bounds travel with the invariant: `U = D` (the confirmation COUNT) is measured ONLY by the P2 script at top level on the loaded perf fixture, one principal × one kind — `npm run test:db` holds `D ≤ F` and the shape, never `U`; and D3 triggers 4–5 (membership uniqueness relaxed · production beyond the `M=20, D=5` envelope) are `prose only`.
 
+- **`memberships_role_check`'s vocabulary is the manifest's non-`none` set, pinned at READ time in both catalog-driven vitest suites** (`VITEST-ROLE-SET-PIN`): each suite keeps its OWN live read and asserts `[...read].sort()` equals `expectedMembershipRoleVocabulary()` (from `ROLE_MANIFEST`, bound to `authz.roles` by gate 19 + `411`) — SET equality, ⛔ never `.length`; a read inside a `db reset`'s partial-CHECK window now REDS. ⚠ Two reads are the instrument — collapsing them is a regression; `292` pins durably, the pin covers only the window `292` cannot see (frozen § The two catalog-driven vitest suites).
+
 ### Rollout
 
 - Cutovers here are **flagless by pattern** — the **migrations ARE the cutover**; the content wall is **subtractive by
@@ -99,7 +101,7 @@
   **§ The two pre-AE5 successor decisions taken (ADR 0207 + 0208)** — 0207 D5 steps 1–5 built in the LAST slice; 0208 D4–D6 built in the
   ones before it · **§ The ACT hat becomes a door-level term (ADR 0209)** · **§ The non-empty DEFINER population is FROZEN**
   (⚠ superseded in part) · **§ The four temp-table DEFINERs are CONVERGED** · **§ D4's qualified-body clause is
-  GATED by pgTAP 421** · **§ The undeclared-search_path class has ONE owner and ONE remedy** · **§ The role catalog holds roles (ADR 0207 D5 steps 1–5)**.
+  GATED by pgTAP 421** · **§ The undeclared-search_path class has ONE owner and ONE remedy** · **§ The role catalog holds roles (ADR 0207 D5 steps 1–5)** · **§ The two catalog-driven vitest suites pin the membership role SET** (test-only).
 - ADR [0155](../decisions/0155-post-aff4-tenancy-and-person-model-evolution-sequence.md) · [0162](../decisions/0162-authz-evolution-plan-audit-corrections.md) (authority-elect) ·
   [0176](../decisions/0176-authz-permission-layer-made-real.md) (the three interfaces) · [0100](../decisions/0100-quality-office-oversight.md) (oversight + content wall) ·
   [0149](../decisions/0149-org-admin-reads-hospital-tier-audit.md) + [0150](../decisions/0150-audit-org-derived-from-hospital.md) (audit read legs) ·
@@ -769,6 +771,7 @@ Beyond the expiry-seam change (recorded in the QO·A "Role doors" paragraph belo
   `memberships_role_check` from `pg_constraint` AT TEST TIME, drives the real `page.tsx`
   default export per role; `KNOWN_UNROUTED` ledger asserted both directions, currently
   **empty**. A new role with no landing route reds the suite.
+  ⚠ **Superseded** — the reader is now ONE shared function and the read is PINNED to the manifest-derived role set. See `authorization-and-audit.md` § The two catalog-driven vitest suites pin the membership role SET.
 - **`100_dashboard` t19** is now "no FIRST-PARTY public function is anon-executable"
   (excludes extension-owned via `pg_depend`→`pg_extension`; 19c plants a violation to prove
   the detector's eyes). No longer run-order-sensitive to pgtap-in-public. FUP-QO-5 resolved.
@@ -1546,3 +1549,35 @@ the record's § Session log, ⛔ not restated here:**
   `423 § 6`; 3 → `423 § 2` (blind to an expansion applied identically to BOTH artifacts); 4–5 `prose only`.
 - **What this buys**: *"the next Phase Gate noticed"*, never *"the next commit noticed"* (ADR 0195) — a live-catalog
   count cannot live in `npm run lint`. `FUP-AE4-CANDIDATE-SCOPE-FANOUT-IS-UNBOUNDED` closes on this unit's landing.
+
+## The two catalog-driven vitest suites pin the membership role SET (2026-09-13, unit `VITEST-ROLE-SET-PIN`; closes `FUP-VITEST-CATALOG-DRIVEN-CASE-COUNT` on its 2026-09-13 re-clause; ⛔ **NO migration**, NO catalog change, NO `src/` behaviour change — test-only)
+
+**What changed on the TEST side of this seam, and why it is recorded here.** The unrouted-role class guard
+(`src/lib/queries/session-grants.test.ts`, ADR 0101) and the ACT S4 nav-scope guard
+(`src/components/shell/nav-scope-exclusivity.test.ts`) both enumerate `public.memberships_role_check` from
+`pg_constraint` at import and generate one case per role (three `it.each` blocks between them, 3N cases). Each
+used to carry its OWN copy of the reader; neither pinned what the read should return, so a read taken inside a
+`supabase db reset`'s partial-CHECK window generated fewer cases and stayed green — pgTAP `292` pins the
+vocabulary bidirectionally but structurally cannot see that window (it reads the same database at a different
+time).
+
+**Now.** `src/lib/role/membership-role-vocabulary.test-support.ts` exports two FUNCTIONS and no module-scope value:
+`expectedMembershipRoleVocabulary()` — `ROLE_MANIFEST.filter(scopeKind !== 'none').map(code).sort()` — and
+`readRoleVocabularyFromCatalog(guardName)`, the one reader (the `docker exec … psql` over `pg_get_constraintdef`,
+fail-closed on a stack that is down and on zero roles). Each suite keeps its own read and asserts set equality
+against the derived set. ⛔ The derivation is not a new hand literal: the manifest is bound to the live
+`authz.roles` by gate 19 (`lint:role-manifest`) + pgTAP `411`, and QA measured the filter to be catalog-enforced —
+`memberships_role_scope_kind_fkey` is `(role, scope_kind) → authz.roles(code, allowed_scope_kind) MATCH FULL`, so a
+`none`-scoped role structurally cannot hold a `memberships` row.
+
+**Witness.** Short-read plant (one role filtered out of each read): both pins red, run shape 37 → 34 (one case per
+generated block per missing role). Substitution plant (`staff` → `stafx`): count unchanged at 37, pin red — the
+case a `.length` assertion cannot see. Gates on a fresh reset: `npm run test` 154 files / 2094, `npm run lint` rc 0
+(19 gates), `npm run typecheck` rc 0; `test:db`, the authz arms, the door sweep and `e2e:prod` NOT owed.
+
+**Open edge filed.** The reader is now an EXPORTED function in a non-test `src/` module that shells out to Docker,
+kept out of application code by prose and the `.test-support.ts` suffix only (zero app importers today):
+`FUP-VITEST-ROLE-SET-PIN-TEST-SUPPORT-MODULE-IS-APP-IMPORTABLE` (🟢, PO to rule).
+
+Record: [`../progress/vitest-role-set-pin.md`](../progress/vitest-role-set-pin.md) · hub:
+[`../features/vitest-role-set-pin.md`](../features/vitest-role-set-pin.md).

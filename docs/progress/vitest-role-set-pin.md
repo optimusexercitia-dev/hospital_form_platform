@@ -170,3 +170,31 @@ not-owed claim (empty `supabase/` + `e2e/` diff, zero app importers) rather than
 
 **Presented for PO approval** (step 4) with: built · gates (test on a fresh reset, lint, typecheck) ·
 QA APPROVED · open risks = NOTE-4 (filed). Waiting.
+
+### 2026-09-13 — documentation sweep on the PO's instruction: every carrier of the old shape found and corrected beside the original (lead)
+
+**Instrument.** An Explore sweep over `docs/**`, the root trackers, `.claude/rules` + `agents`, pgTAP headers,
+script headers and `src/` comments for: both suite paths, `readRoleVocabularyFromCatalog`, the follow-up id,
+`FUP-QO-2` as the reader, `docker exec` beside vitest, `.test-support`, and `memberships_role_check` beside
+"generated"/"3N". Verdict per hit: STALE / INCOMPLETE / OK.
+
+**Corrected (appended, dated — frozen text never rewritten):**
+- `docs/plans/case-referral-usability-batch.md` § *The mechanism, demonstrated* — said the partial-CHECK window
+  *"PASSES with fewer tests"* and that `session-grants.test.ts` shells `docker exec` itself: STALE on both. A dated
+  blockquote under the paragraph names the pin, the shared module and the 37 → 34 witness; the operational rule
+  (one owner of the stack at gate time) is kept — the pin makes the window LOUD, not absent.
+- `docs/progress/ae5-role-catalog-compat.md` — its last word on the follow-up was *"RE-CLAUSED, stays open"*: a
+  dated sub-bullet beneath it names this unit and that the entry moves at the Record step.
+- `docs/backend-state/authorization-and-audit.md` — the unrouted-role guard bullet (frozen § QO·FUP) predates the
+  shared reader and the pin: `⚠ Superseded` marker under it naming the new slice; a new frozen slice appended
+  (test-only, ⛔ no migration); ONE new Invariants bullet in `## Current state` (folded to one line — the block was at
+  99 of the 100-line ratchet, [G]) and the slice added to § Where the detail lives. Gate 16 rc 0 after the fold;
+  file 185 KB, under the 200 KB warn line.
+
+**Left as-is, with the reason:** the register entry (moves at the Record step on approval — the one statement the
+tree still contradicts); the follow-up body (archived verbatim); seven dated review/record sentences quoting
+21/21 · 14/14 · 35-test counts for the two suites (true at their date; now 22 · 15 · 37 — frozen reviews, and the
+follow-up's own rule is that a vitest count is never gate evidence); `.claude/claude-md-review-queue.md:90`
+(gitignored, per-clone; triaged at `/review-claude-md`). Generated registries: none need a re-run —
+`gen-data-access-surface.mjs` walks `src/lib/queries/*.ts` + `*actions.ts` only, gate 19 keys on
+`role-catalog.ts` alone, and `check-memberships-door.mjs` (which walks all of `src/`) stays green.

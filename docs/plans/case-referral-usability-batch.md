@@ -592,6 +592,14 @@ A `supabase db reset` therefore opens **two** windows that behave oppositely:
 - **constraint present but PARTIAL** (after the first migration, before the last) → a valid but smaller
   role vocabulary → fewer cases → ⛔ **PASSES with fewer tests.** The dangerous window, and a wide one.
 
+> ⚠ **2026-09-13 — the partial window no longer passes silently** (unit `VITEST-ROLE-SET-PIN`, closing
+> `FUP-VITEST-CATALOG-DRIVEN-CASE-COUNT`). Both catalog-driven suites now assert `[...read].sort()` equals the
+> set derived from `ROLE_MANIFEST` (`scopeKind !== 'none'`) by `expectedMembershipRoleVocabulary()` in
+> `src/lib/role/membership-role-vocabulary.test-support.ts`, which also holds the ONE reader
+> (`readRoleVocabularyFromCatalog`, formerly copy-pasted into each file). A read taken in the partial window
+> reds the pin (witnessed: 37 → 34 tests, both pins red). The mechanism above is still the reason the
+> operational rule holds — the pin makes the window LOUD, not absent. Record: `docs/progress/vitest-role-set-pin.md`.
+
 ⚠ **Do not attribute any specific historical count to this** — an empty read throws rather than
 shrinking, so only the partial window shrinks silently. The mechanism is demonstrated; the diagnosis of
 one past run is not, and asserting it would be the same wrong-grain error this batch made twice.
