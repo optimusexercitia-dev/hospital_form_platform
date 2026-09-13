@@ -302,6 +302,7 @@ the same claim, and the `TEMP`/`pg_temp` shadowing path is untouched by it.
 
 ## Consequences
 
+- ⚠ **DATED NOTE 2026-09-13:** `DEFINER-SEARCH-PATH-NARROW-FIX` is BUILT (2026-09-11, migration `20261003007410`, [hub](../features/definer-search-path-narrow-fix.md)); D4 has since bound its first genuinely new DEFINER, `assume_role(text)` (unit `AE5-ROLE-CATALOG-COMPAT`, 2026-09-12). **`AE4-D-SHAPE-ASSERTION` is the ONLY unit of the two still owed.**
 - **Two named units are owed**: `AE4-D-SHAPE-ASSERTION` (D2) and `DEFINER-SEARCH-PATH-NARROW-FIX`
   (D5 + D6). Neither is started here; each writes its own hub and record.
 - **Both follow-ups are RE-CLAUSED, not closed.** `FUP-AE4-CANDIDATE-SCOPE-FANOUT-IS-UNBOUNDED`

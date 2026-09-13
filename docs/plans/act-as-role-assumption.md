@@ -82,6 +82,7 @@ keystone proving a third-party check is hat-independent. ⚠ Sweep by the proper
 ### Stage 0 — the role enum (FUP-AFF-4, scoped)
 
 > **AMENDED 2026-08-09 during the build (lead ruling, PROGRESS.md Decisions).** The enum is
+> ⚠ **DATED NOTE 2026-09-13:** the enum `public.platform_role` is DROPPED (ADR 0207 D3, unit `AE5-ROLE-CATALOG-COMPAT`, migration `20261003007430`); `app.active_role_selections.role` is text under an FK to `authz.roles(code)` and `assume_role` is `(p_role text)`. Every mention of the enum below is history.
 > **`public.platform_role`**, NOT `app.platform_role` as originally written below. Measured at
 > build time: `supabase/config.toml` exposes `["public","graphql_public"]`, so an `app`-schema
 > enum never reaches `gen:types` — which silently voids this plan's own "the picker (via

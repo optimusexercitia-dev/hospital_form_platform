@@ -399,7 +399,7 @@ through. Needs its own reachability analysis; a migration → diff-scoped sweep,
 >    (`0190`) and **599** (`0191`) for 4–5 decisions each. One document would also defeat
 >    `Supersedes:`/`Amends:` — reversing the `D` ceiling later would mean amending the very document
 >    AE5's template cites. **Batch 9 writes 0201 + 0203.** The rest, each with the reason it may wait:
->    - **ADR 0202** (F7 · F8 · `platform_role` retirement) → a named unit **before AE5 increment 2**.
+>    - **ADR 0202** (F7 · F8 · `platform_role` retirement) → a named unit **before AE5 increment 2**. ✅ **DATED NOTE 2026-09-13:** written as ADR 0207 and BUILT as unit `AE5-ROLE-CATALOG-COMPAT` (migration `20261003007430`, merged 2026-09-13; steps 1–5, step 6 owed at AE5 item 6) — [hub](../features/ae5-role-catalog-compat.md).
 >      ⭐ Measured, not assumed: increment 1 is `staff_admin`, **the only role already
 >      `state = 'authoritative'`** (`select code, state from authz.roles` → 11 `legacy` + 1), so 0202
 >      gates increment **2**. Its blast radius is **3 sites** and fully measured (see the unit record).
@@ -486,7 +486,7 @@ inside a role increment"* (ADR [0176](../decisions/0176-authz-permission-layer-m
 
 - The **D8 bundle**, one compatibility migration: F6 exact-assignment active context vs the role-wide
   hat (audit scope must match whichever wins) · F8 `administrativo` out of `authz.roles` ·
-  `platform_role` retirement (⚠ the implementation audit recommended retiring it *now*; the binding
+  `platform_role` retirement (✅ **RETIRED 2026-09-12** pre-AE5 — ADR 0207 D3, unit `AE5-ROLE-CATALOG-COMPAT`; the deferral below was overtaken) (⚠ the implementation audit recommended retiring it *now*; the binding
   decision defers it *into* AE5 — do not report these as agreeing) · F7 one manifest entry per role.
 - Audit F5: *"Decide and encode the model before AE5"* — the entitlement / hard-deny / lifecycle /
   sensitivity seam; the classification columns (`risk_class`, `sensitivity_ceiling`, `resource_kind`)
@@ -699,6 +699,7 @@ below are kept as the protocol a successor reads, ⛔ **not** as an instruction 
     survive contact: every cited fact was re-measured before drafting (10 of 14 reproduced, 4
     differed), and the two clauses are **RE-CLAUSED, not closed**, because 0208 orders builds. ⇒ **the
     next unit is `AE5-ROLE-CATALOG-COMPAT`**, not another ADR.
+    - ✅ **DATED NOTE 2026-09-13 — `AE5-ROLE-CATALOG-COMPAT` is CONCLUDED** (built 2026-09-12, QA APPROVED, PO-approved, ff-merged to `main` 2026-09-13, ⛔ not pushed; [hub](../features/ae5-role-catalog-compat.md)). `DEFINER-SEARCH-PATH-NARROW-FIX` concluded 2026-09-11 too. **The only pre-AE5 build unit still owed is `AE4-D-SHAPE-ASSERTION`** (ADR 0208 D2); ADR 0207 step 6 belongs to AE5 item 6, and AE5 stays post-pilot.
 - ⚠ **`.claude/claude-md-review-queue.md` is GITIGNORED, so it is PER-CLONE** — ⭐ found 2026-09-10 when
   the clone that opened Batch 10 still held **12 entries (13,875 bytes)** after Batch 9's own record said
   the queue was *"cleared to empty"*: that clearing happened on the **other** clone (five entries, 1,433
@@ -730,7 +731,7 @@ below are kept as the protocol a successor reads, ⛔ **not** as an instruction 
    reserved pair renumbered by PO ruling); 0205 and 0206 are spent; the next number is *highest on
    any live ref + 1*, re-measured. ⚠ *"increment 1 is `staff_admin`"* is **REFUTED** (ADR 0207 D6 —
    baseline, not an increment; item 1 is `staff`). ⇒ **What remains is not an ADR but a build: the
-   named backend unit `AE5-ROLE-CATALOG-COMPAT`** (ADR 0207 D5, six ordered steps, before AE5
+   named backend unit `AE5-ROLE-CATALOG-COMPAT`** (✅ **CONCLUDED 2026-09-13** — steps 1–5 built, step 6 owed at AE5 item 6; what remains is `AE4-D-SHAPE-ASSERTION`) (ADR 0207 D5, six ordered steps, before AE5
    increment 1), with `AE4-D-SHAPE-ASSERTION` and `DEFINER-SEARCH-PATH-NARROW-FIX` (ADR 0208 D2/D5/D6)
    unordered relative to it.
    ⚠ ADR 0201 carries forward **ADR 0200's data obligation** (0193 D5 extended): the AE5 per-role
@@ -739,7 +740,7 @@ below are kept as the protocol a successor reads, ⛔ **not** as an instruction 
 
 3. **Name the successor you are opening** — ⛔ **DATED NOTE 2026-09-11 (unit `AE5-SUCCESSOR-ADRS`):
    *"write ADR 0202"* and *"write ADR 0204"* are BOTH SPENT** — written as **0207** and **0208**; the
-   next successor is the build unit **`AE5-ROLE-CATALOG-COMPAT`** (ADR 0207 D5). Superseded options,
+   next successor is the build unit **`AE5-ROLE-CATALOG-COMPAT`** (ADR 0207 D5) — ✅ **CONCLUDED 2026-09-13**; the next open successor is **`AE4-D-SHAPE-ASSERTION`** (ADR 0208 D2, unordered, no predecessor left). Superseded options,
    kept as history: *"write ADR 0202"* or *"write ADR 0204"* (⚠ *"open `AE5-MATRIX-ARM3-CELLS`"* is SPENT — concluded 2026-09-11), or
    *"initiate Batch 10"* (which has **no block here** by decision — derive it from ADR 0201 + 0203 and
    the unit record's R11/R12 entries, ⛔ never from R3/R4 alone). The lead opens the hub + record

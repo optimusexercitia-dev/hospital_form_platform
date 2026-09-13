@@ -287,6 +287,7 @@ capability plane's behaviour.
 ## Consequences
 
 **`AE5-ROLE-CATALOG-COMPAT` is a named, owed unit**, running **before** AE5 increment 1 (`staff`).
+✅ **DATED NOTE 2026-09-13 — BUILT.** D5 steps 1–5 landed in migration `20261003007430` (unit [hub](../features/ae5-role-catalog-compat.md) · [record](../progress/ae5-role-catalog-compat.md) · [review](../reviews/ae5-role-catalog-compat-review.md)), QA APPROVED, PO-approved 2026-09-12, merged 2026-09-13. Measured at close: one `assume_role(p_role text)` on `search_path = ''`, `to_regtype('public.platform_role')` NULL, 11 rows in `authz.roles`, the domain CHECK at four values, both `member_can` bodies md5-unchanged. ⛔ **Step 6 is NOT built** and the three narrower codes stay OWED, exactly as § *What this ADR does NOT decide* says.
 Its acceptance, in outline — the unit writes the detail:
 
 - **RED-first cells.** Every step's keystone is written before its SQL and observed red; a keystone

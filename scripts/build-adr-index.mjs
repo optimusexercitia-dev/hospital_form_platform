@@ -557,10 +557,11 @@ export function render(adrs, a) {
   //    taking it collides with a number this project has already promised to a subject. Whoever
   //    numbers an ADR reads THIS line, not just the figure. Source: docs/plans/pre-ae5-remediation.md §3.
   L.push(
-    '- ⛔ **RESERVED numbers — do NOT take `next free` blindly:** **0202** is reserved for the ' +
-      'role-catalog decision (F7 · F8 · `platform_role` retirement) and **0204** for the two ' +
-      'platform-wide conventions (the `D` ceiling · the `search_path` value). ⇒ **take 0205** for any ' +
-      'other subject, or renumber a reserved pair and amend this reservation where it is stated. ' +
+    '- ⛔ **RESERVED numbers — none today (re-checked 2026-09-13).** The 0202 / 0204 reservations for the ' +
+      'role-catalog decision and the two platform-wide conventions were RENUMBERED by PO ruling on ' +
+      '2026-09-11 and written as **0207** / **0208** (both built or in build since); **0202 can never be ' +
+      'filled** and 0204 stays a gap. A future reservation is stated HERE and in ' +
+      'docs/plans/pre-ae5-remediation.md §3, never in only one of them. ' +
       '⚠ And per CLAUDE.md §8 the number is **the highest on ANY live branch + 1**, ⛔ never this ' +
       "index's figure alone — a branch this generator never saw can already hold it.",
   )

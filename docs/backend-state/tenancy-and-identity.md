@@ -27,7 +27,7 @@
 - **Person identity is keyed on `profile_private_details.cpf`** — ⛔ **not** `profiles.cpf` — validated in **both**
   `app.is_valid_cpf` and `src/lib/users/cpf.ts`. The org people directory is `public.list_org_people(uuid, text, text)`:
   DEFINER, inline tenancy gate, returning **`[]` and never raising** for an unauthorized caller, `cpf` never in its payload.
-- **"Act as"** — enum `public.platform_role`; the session↔hat binding `app.active_role_selections` (in `app`, so PostgREST
+- **"Act as"** — the role vocabulary is `authz.roles` alone (the enum `public.platform_role` is DROPPED; `app.active_role_selections.role` is text under an FK to `authz.roles(code)`, and `public.assume_role` is ONE `(p_role text)` DEFINER on `search_path = ''` — [`authorization-and-audit.md`](authorization-and-audit.md) § The role catalog holds roles); the session↔hat binding `app.active_role_selections` (in `app`, so PostgREST
   offers no route to it at all); `public.assume_role`, the only way to acquire a hat; `app.active_role()`, returning
   **`text`**; the picker route `/selecionar-perfil`.
 - **The Diretor Técnico plane** — hospital-tier `technical_director` (titular; one per hospital) + `technical_director_deputy`;

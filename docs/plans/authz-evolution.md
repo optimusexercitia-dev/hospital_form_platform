@@ -779,7 +779,7 @@ matrix is not the oracle of what shipped. **Direction adopted 2026-09-02: Option
   `memberships_role_check` / `memberships_scope_shape` reject first, so a keystone run there
   goes green while measuring a different control. MATCH FULL is what survives their
   retirement. `platform_admin` and `administrativo` carry **structurally unreachable**
-  `allowed_scope_kind` values (`none` / `capability_plane`), which is what keeps
+  `allowed_scope_kind` values (`none` / `capability_plane` — ⚠ **DATED NOTE 2026-09-13:** `capability_plane` is GONE from the `authz.scope_kind` domain, unit `AE5-ROLE-CATALOG-COMPAT`; only `none` remains a non-membership value), which is what keeps
   `role = 'administrativo'` out of `memberships` **after** the CHECK retires.
 - pgTAP: referential integrity; **implication acyclicity** (recursive check as a test, not a
   trigger); the PHI/write separation invariants as data tests — `…phi…` codes never implied by
@@ -969,6 +969,7 @@ scope check → the staff_admin keystones red).
 
 The F1 payoff on the app side, mechanical and behavior-preserving:
 
+- ✅ **BUILT 2026-09-12** (unit `AE5-ROLE-CATALOG-COMPAT`, ADR 0207 D4/D5 step 5 — one `ROLE_MANIFEST` declaration site, the maps are derived compat exports, `PlatformRole` inferred from it, pinned by gate 19 + pgTAP `411`). The line below is the plan as written:
 - `role-catalog.ts` becomes the **single** role manifest: the six label maps collapse into
   `ROLE_LABELS` re-exports; the hand-mirrored `landingRouteForRole` and `page.tsx`'s precedence
   chain are re-derived from one ordered manifest (one array, two consumers) so a future role
@@ -979,7 +980,7 @@ The F1 payoff on the app side, mechanical and behavior-preserving:
   (`code` / `allowed_scope_kind` / `session_selectable`), so the two cannot drift silently;
   the check runs in the lint/vitest gate, not in review;
 - G4's selection-vocabulary move: `assume_role`'s validity check reads
-  `authz.roles.session_selectable` instead of the TS enum list — the `platform_role` **DB enum
+  `authz.roles.session_selectable` instead of the TS enum list — ⚠ **DATED NOTE 2026-09-13: the enum is DROPPED** (migration `20261003007430`, unit `AE5-ROLE-CATALOG-COMPAT`; retired PRE-AE5 by ADR 0207 D3, not at AE5-complete) — the `platform_role` **DB enum
   stays** for now (its retirement is AE5-complete territory, ADR re-analysis trigger 4 — ⚠ and
   part of the AE5 bundle, § AE5). ⛔ **The in-flight "G4 is not implementable as written"
   ruling is SUPERSEDED 2026-09-02 [IA-F4]:** it read "typed query" as a *client-side* query into
@@ -1066,7 +1067,7 @@ cutover" still may not appear in any gate record for what AE4.6 built (0176 Cons
    with the `authoritative` gate, the two renames, the `denial_reason` domain,
    `permission_not_granted`, deterministic explanation.
 2. **[IA-F4]** `assume_role` reads and enforces `session_selectable` (AE4.8), true→false
-   mutation proven. `platform_role` retirement stays in the AE5 bundle.
+   mutation proven. `platform_role` retirement stays in the AE5 bundle. ⚠ **DATED NOTE 2026-09-13:** it did not — ADR 0207 D3 retired it PRE-AE5 and unit `AE5-ROLE-CATALOG-COMPAT` built it (migration `20261003007430`).
 3. **[IA-F2]** populate `catalogPermissions` / `nonLegacyRoles` from the catalog at generation
    time; prove both arms can red. The no-default manifest itself is AE4.9's first artifact.
 4. **[IA-F7]** move `role-catalog.test.ts`'s Docker shell-out to a post-reset DB gate.
@@ -1097,7 +1098,7 @@ and written as ADR
 (the reserved number 0202 renumbered by PO ruling on `pre-ae5-remediation.md` §3 item 5's own offered
 remedy; ⛔ no `0202` exists). ⇒ **nothing in ADR 0176 D8's bundle is open**: F6 by 0201, the
 classification columns by 0203, F7 · F8 · `platform_role` by 0207. The build 0207 orders is the named
-unit `AE5-ROLE-CATALOG-COMPAT`, due before AE5 **increment 1**.
+unit `AE5-ROLE-CATALOG-COMPAT`, due before AE5 **increment 1**. ✅ **BUILT 2026-09-12, merged to `main` 2026-09-13** ([hub](../features/ae5-role-catalog-compat.md) · [record](../progress/ae5-role-catalog-compat.md)): D5 steps 1–5; ⛔ step 6 (the capability-plane mapping, `authz.capability_permissions`, the three narrower codes) is still OWED at proposed-order item 6.
 
 **Gate AE4 [language per PA-F7/F8/F12, ADR 0162]:** ✅ **APPROVED BY THE PO 2026-09-04.** The 2026-09-03 HOLD is discharged: C2 closed at **170 COVERED · 1 BLIND · 0 ERROR = 171** with a QA verdict of APPROVED, satisfying the "C2 subset closed (pilot cutline)" clause below — the only external precondition that gated on C2. ⛔ The approval does **not** clear Tier 2: its **190 doors stay deferred by ADR 0171 and are NOT cleared**. Record: [authz-ae4.md](../progress/authz-ae4.md) and [c2-tier1.md](../progress/c2-tier1.md), 2026-09-04; ledger row `AE4`. Original text follows.
 
@@ -1157,7 +1158,7 @@ F6 **exact-assignment active context** (`app.active_role_selections` stores only
 while `assume_role` stamps ONE most-recently-granted membership into the audit event — role-wide
 hat vs exact assignment `(role_code, scope_kind, scope_id)`; audit scope must match whichever is
 chosen); F8 **`administrativo` out of `authz.roles`** (seeded as a 12th row under the
-unreachable `capability_plane` sentinel while its own comment says NOT A ROLE — split assignable
+unreachable `capability_plane` sentinel while its own comment says NOT A ROLE — ⚠ **DATED NOTE 2026-09-13: BUILT** (unit `AE5-ROLE-CATALOG-COMPAT`: 11 rows, no sentinel, the domain CHECK holds four values, `assume_role` takes text, and the five TS declarations are ONE manifest with derived exports; every fact in this bullet is now history) — split assignable
 roles / assignment providers / entitlement bundles rather than adding sentinels); **retiring
 `platform_role`** (`assume_role` takes the enum; its input becomes a validated catalog code —
 already AE5-complete territory below); F7 **one manifest entry per role in `role-catalog.ts`**
@@ -1190,7 +1191,7 @@ inside a role increment.
 >     not a 0202 that does not exist. (ii) *"due before increment 2 (increment 1 is `staff_admin`)"*
 >     is **REFUTED**: 0207 D6 rules `staff_admin` the already-authoritative **baseline**, not an
 >     increment — item 1 is `staff`, exactly as the Proposed order below already numbered it — so
->     0207 and its unit `AE5-ROLE-CATALOG-COMPAT` are due before **increment 1**. ⭐ The *"do not pick
+>     0207 and its unit `AE5-ROLE-CATALOG-COMPAT` are due before **increment 1** (✅ **CONCLUDED 2026-09-13** — steps 1–5 built, step 6 owed at item 6; [hub](../features/ae5-role-catalog-compat.md)). ⭐ The *"do not pick
 >     one off inside a role increment"* prohibition is **preserved**: 0207 D5 gives it a carrier (one
 >     named unit before the first increment) rather than relaxing it.
 
@@ -1278,7 +1279,7 @@ updated ([PA-F9] — never a committed migration) → Record.
 >    ruling and the count of re-filed vs deleted is recorded (Batches 2 and 3).
 
 **AE5-complete (the ADR's re-analysis trigger 4):** ⭐ also releases `FUP-GRANT-PLANE-CONVENTION-BUILD-AFTER-AE5` (ADR 0205 D12 — scaffold, shared trigger, dialog kit, conformance keystone, roster); retire the legacy adapter, the
-`platform_role` enum's remaining consumers (token hook included — its claim value becomes a
+`platform_role` enum's remaining consumers (⚠ **DATED NOTE 2026-09-13: DONE pre-AE5** — the enum is dropped, the token hook reads the text column, unit `AE5-ROLE-CATALOG-COMPAT`) (token hook included — its claim value becomes a
 catalog code; prove revocation/suspension/rotation behavior unchanged; `assume_role`'s input
 becomes a validated catalog code at the same moment [PA-F1]), the legacy
 `memberships_role_check` + scope-shape CHECKs (superseded by AE4's composite-FK binding —
