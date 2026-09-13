@@ -1,7 +1,7 @@
 ---
 id: AE4-D-SHAPE-ASSERTION
 title: "The candidate fan-out D gets its six-clause shape assertion — every clause of ADR 0208 D2 asserted on the live catalog through the P2 instrument, red-first in pgTAP, with D3's five re-measurement triggers named where a reader will find them"
-status: in_progress
+status: complete
 kind: fup-fix
 fup: FUP-AE4-CANDIDATE-SCOPE-FANOUT-IS-UNBOUNDED
 program: AUTHZ
@@ -76,39 +76,11 @@ its first run is a finding, never a pass. ⛔ No cell may hand-copy the producti
 - [x] **AC-8 — the record names D3's five triggers**, with what each invalidates, the ADR 0195
       statement (*"the next Phase Gate noticed"*, never *"the next commit noticed"*), and which trigger
       has a gate (clause 6) vs `prose only`.
-- [ ] **AC-9 — gates.** Fresh `supabase db reset --local` + `npm run test:db`; `npm run lint` (0/0) +
+- [x] **AC-9 — gates.** Fresh `supabase db reset --local` + `npm run test:db`; `npm run lint` (0/0) +
       `typecheck` + `test`; the four authz arms + `SELFTEST` with `bash --version`; the diff-scoped door
       sweep (deriver exit code read BARE, `SCOPE:` quoted; exit 3 expected — no migration); the
       set-valued arm; `npm run e2e:prod` only if `src/` or a migration changes; the authz seam slice
       appended + its `## Current state` block REPLACED (the *"RULED NOT BUILT"* bullet retired); QA
       `APPROVED`; PO approval; `FUP-AE4-CANDIDATE-SCOPE-FANOUT-IS-UNBOUNDED` closed in BOTH homes.
 
-## Current state
-
-**Updated:** 2026-09-13
-
-### Objective
-Land ADR 0208 D2's six-clause shape assertion on the P2 instrument, red-first in pgTAP, and name
-D3's five triggers in the record; retire the seam's *"RULED NOT BUILT"* bullet.
-
-### Done since start
-- pgTAP `423` (`plan(33)`, every cell with an observed red) + P2 `§ 5` (`U = D = 2 ≤ F = 20` on the
-  fixture) at `7e655461`; AC-4 re-worded to the measured limit (no `U` inside a transaction).
-- Gate step 1 CLOSED by the lead on the second pass: fresh reset + `test:db` 272/9132 PASS; `lint`
-  0/0, `typecheck`, `test` green; deriver rc 3 NOT-APPLICABLE; four authz arms + SELFTEST 46/46
-  (bash 5.2.37) hold; set-valued arm **CLEAN** with `423` in both resolver cases' reddened set —
-  after the first pass found it DIRTY because `423` aborted under the arm's mutation, fixed at
-  `d921e8be` (capture-then-assert; a `5.1` `is(NULL,NULL)` vacuity closed on the way).
-- Step 2 ruled N/A by the lead (no `src/`, no migration), put to the PO.
-- QA r1 `CHANGES REQUESTED` — two MAJORs, both documentation stale against the fix (this block;
-  one seam sentence), corrected; two MINORs answered in the record. **QA r2 `APPROVED`**, nothing
-  outstanding (`docs/reviews/ae4-d-shape-assertion-review.md`).
-
-### In progress
-- Step 4: presented to the PO; waiting. Step 2 (`e2e:prod`) is put to the PO as N/A.
-
-### Next
-- On approval → Record step (ledger row, hub `complete`, FUP closed in both homes, seam re-stamp).
-
-### Blockers
-- None.
+**Complete 2026-09-13** — PO approved 2026-09-13 (*"Approved"*); ledger row in `docs/progress/phase-ledger.md`; detail in the [record](../progress/ae4-d-shape-assertion.md).

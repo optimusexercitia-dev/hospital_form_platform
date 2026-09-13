@@ -561,3 +561,58 @@ outstanding. Presented to the PO with: built · gate step 1 (all arms, quoted ab
 by the lead and put to the PO · QA verdict · open risks (`U` measured once on the fixture only; clause
 6's family property blind to another schema/arity/spelling/wrapper/view; clause 2's aggregate blind to
 a compensating mutation; triggers 4–5 `prose only`). Waiting.
+
+### 2026-09-13 — step 4 human approval; step 5 Record (lead)
+
+**PO approval:** *"Approved"* (2026-09-13), on the presentation recorded in the previous entry — which put step 2
+(`e2e:prod`) to the PO as N/A; the approval was given with that ruling in the presentation, so **step 2 is
+RULED N/A by the PO's approval** (the non-log artefacts carrying it: the hub's AC-9 tick and the ledger row's
+Tests cell). No other ruling was taken in this unit — the AC-4 re-wording was a lead decision on a measured
+limit, disclosed in the presentation and accepted with it.
+
+**Rulings reconciled against artefacts (playbook §4 step 8):** approval → ledger row + hub `complete`; step 2
+N/A → hub AC-9 + ledger Tests cell; the D3 trigger table → the record's own top section (a register clause, not a
+log line); the follow-up's re-claused close condition → its archive entry AND its body's new RESOLVED section
+(step 9: both homes). This unit wrote no ADR; ADR 0208's `§ Consequences` dated note is updated in this commit
+to say the last owed unit is built.
+
+**Record step mechanics:** the hub's `## Current state` block (below, verbatim) cut into this entry; the
+follow-up entry moved verbatim (`cmp` against the extracted bytes) with the `— ✅ RESOLVED` heading suffix and a
+resolution blockquote; the body gained a `## ✅ RESOLVED` section; LESSONS gains `LEARN-105` (the abort ↔ NOTICED
+class from the introducing side); the review queue's one post-marker entry (`89aa778b`, the user's own ordering
+prompt, hook finding (ii)) marked processed — not a doc problem, 0 doc fixes, no CLAUDE.md edit. ⛔ `main` is
+NOT pushed (standing instruction); the branch is merged locally, and the graphify refresh follows the merge in
+its own `chore(graphify):` commit. The phase commit's sha is filled into the ledger row by the commit that
+follows it (a row cannot name its own sha).
+
+**The hub's final `## Current state` block, moved here verbatim:**
+
+## Current state
+
+**Updated:** 2026-09-13
+
+### Objective
+Land ADR 0208 D2's six-clause shape assertion on the P2 instrument, red-first in pgTAP, and name
+D3's five triggers in the record; retire the seam's *"RULED NOT BUILT"* bullet.
+
+### Done since start
+- pgTAP `423` (`plan(33)`, every cell with an observed red) + P2 `§ 5` (`U = D = 2 ≤ F = 20` on the
+  fixture) at `7e655461`; AC-4 re-worded to the measured limit (no `U` inside a transaction).
+- Gate step 1 CLOSED by the lead on the second pass: fresh reset + `test:db` 272/9132 PASS; `lint`
+  0/0, `typecheck`, `test` green; deriver rc 3 NOT-APPLICABLE; four authz arms + SELFTEST 46/46
+  (bash 5.2.37) hold; set-valued arm **CLEAN** with `423` in both resolver cases' reddened set —
+  after the first pass found it DIRTY because `423` aborted under the arm's mutation, fixed at
+  `d921e8be` (capture-then-assert; a `5.1` `is(NULL,NULL)` vacuity closed on the way).
+- Step 2 ruled N/A by the lead (no `src/`, no migration), put to the PO.
+- QA r1 `CHANGES REQUESTED` — two MAJORs, both documentation stale against the fix (this block;
+  one seam sentence), corrected; two MINORs answered in the record. **QA r2 `APPROVED`**, nothing
+  outstanding (`docs/reviews/ae4-d-shape-assertion-review.md`).
+
+### In progress
+- Step 4: presented to the PO; waiting. Step 2 (`e2e:prod`) is put to the PO as N/A.
+
+### Next
+- On approval → Record step (ledger row, hub `complete`, FUP closed in both homes, seam re-stamp).
+
+### Blockers
+- None.

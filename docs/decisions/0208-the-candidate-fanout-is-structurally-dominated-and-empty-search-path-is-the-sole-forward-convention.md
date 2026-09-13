@@ -101,7 +101,7 @@ and one seeded principal is inactive. ⇒ **the invariant is stated over `F`, th
 the membership-row figures remain valid as a tenancy census and are not the same number.
 ⛔ The scaled-fixture `M = 20, D = 5` ceiling is **a different population** (the AE4 perf fixture,
 12,036 principals over 13 orgs) and is quoted only with that label — see
-`docs/followups/FUP-AE4-CANDIDATE-SCOPE-FANOUT-IS-UNBOUNDED.md` § *How it was MEASURED*.
+`docs/followups/FUP-AE4-CANDIDATE-SCOPE-FANOUT-IS-UNBOUNDED.md` § *How it was MEASURED* (⚠ dated note 2026-09-13: that body is folded into `docs/followups/follow-ups-archive.md` under the RESOLVED entry of the same id — the file no longer exists).
 
 ### D2 — The six-clause shape assertion, ordered to a named unit and built on the P2 instrument
 
@@ -302,7 +302,7 @@ the same claim, and the `TEMP`/`pg_temp` shadowing path is untouched by it.
 
 ## Consequences
 
-- ⚠ **DATED NOTE 2026-09-13:** `DEFINER-SEARCH-PATH-NARROW-FIX` is BUILT (2026-09-11, migration `20261003007410`, [hub](../features/definer-search-path-narrow-fix.md)); D4 has since bound its first genuinely new DEFINER, `assume_role(text)` (unit `AE5-ROLE-CATALOG-COMPAT`, 2026-09-12). **`AE4-D-SHAPE-ASSERTION` is the ONLY unit of the two still owed.**
+- ⚠ **DATED NOTE 2026-09-13:** `DEFINER-SEARCH-PATH-NARROW-FIX` is BUILT (2026-09-11, migration `20261003007410`, [hub](../features/definer-search-path-narrow-fix.md)); D4 has since bound its first genuinely new DEFINER, `assume_role(text)` (unit `AE5-ROLE-CATALOG-COMPAT`, 2026-09-12). **`AE4-D-SHAPE-ASSERTION` is the ONLY unit of the two still owed.** ⚠ **DATED NOTE 2026-09-13:** it is BUILT — pgTAP `423` + P2 `§ 5`, NO migration ([hub](../features/ae4-d-shape-assertion.md)); ⚠ clause 4's `U = D` is measured only by the script on the perf fixture (a pgTAP transaction cannot read the function-call counter), `npm run test:db` holds `D ≤ F` and the shape. D3 triggers 1–3 now have a gate; 4–5 remain `prose only`. **Every unit this ADR ordered is built.**
 - **Two named units are owed**: `AE4-D-SHAPE-ASSERTION` (D2) and `DEFINER-SEARCH-PATH-NARROW-FIX`
   (D5 + D6). Neither is started here; each writes its own hub and record.
 - **Both follow-ups are RE-CLAUSED, not closed.** `FUP-AE4-CANDIDATE-SCOPE-FANOUT-IS-UNBOUNDED`
