@@ -276,3 +276,66 @@ that gives one.
 
 Commit `ea00da10` (`fix(authz): QA MINOR-2/3/4`).
 
+### 2026-09-12 — E2E pass (tester)
+
+**Sweep.** Grepped `e2e/` for `platform_role` (1 hit — `helpers/auth.ts:62`, a doc comment
+explaining `loginFresh`'s `actAs` param is deliberately left untyped against the enum; not an
+assertion, holds as-is), `administrativo` (every hit is the capability-plane sense —
+`commission_administrativos` / `commission_administrativo_capabilities` /
+`appoint_administrativo` — never the retired `authz.roles` row; out of this unit's scope by the
+task's own carve-out), `capability_plane` (0 hits), and any role-count / role-picker-list
+assertion (0 found — `ae48-landing-by-scope-kind.spec.ts` imports `ROLE_SCOPE_KIND` as a value,
+unaffected since the manifest collapse preserved every export name/value). The two named sites
+(`e2e/act-role-assumption.spec.ts:274`, `e2e/admin-arm-is-active.spec.ts:85`) both already pass
+`{ p_role: '<code>' }` as a plain string over REST — the wire shape is unchanged, so neither
+needed editing. **No spec required a predicate change; nothing re-cast old → new.**
+
+**New cell.** `e2e/act-role-assumption.spec.ts` — `'AE5 step 2: assume_role(text) — unknown code
+and unheld code both refused (pt-BR messages), held code seats'`, appended inside the file's one
+`test.describe`. Three-way over REST, past the UI: (1) `multi@test.local` (holds `staff` only)
+attempts `papel_inexistente_ae5` — refused, `42501`, body contains `papel não selecionável nesta
+sessão` (the `session_selectable` gate, `20261003007430_role_catalog_compat.sql:114`); (2) the
+same caller attempts `staff_admin`, which she does not hold — refused, `42501`, `papel não
+disponível para este usuário` (the real-assignment gate, D3, same file:126); (3) non-vacuity
+control — `chefe.ccih@test.local` (genuinely `staff_admin` of CCIH) attempts `staff_admin` and
+seats. No UI touched; the file's own keyboard-only cell (picker UI, unchanged shape) already
+covers this unit's keyboard-flow obligation, so none is owed here.
+
+**Scoped run** (chromium, fresh reset, dev server): `e2e/act-role-assumption.spec.ts` — new cell
+passed on both of two runs. Four pre-existing tests in the same file intermittently timed out
+navigating to `/login` / `/selecionar-perfil` under `next dev` (`⨯ Error: The destination stream
+closed early` in the dev server log, ~10-30s waits on ordinarily sub-second routes) — a dev-mode
+serving hiccup, not this unit's change (none of the four exercise `assume_role`, `authz.roles`,
+or the new text signature differently from before) and not reproduced against the prod build
+below.
+
+**Full gate, run 1** (`REBUILD=1 npm run e2e:prod`, fresh build + fresh DB/server per batch):
+`GATE SUMMARY: 1253 passed · 1 failed · 0 infra · 4 flaky · 8 did-not-run · 21 batches` /
+`COVERAGE: accounted for 1266 of 1278` — **GATE_EXIT=1**, duration 20:48:45→21:54:07 (~65m).
+Sole failure: batch 6, `e2e/ethics-e2-procedure.spec.ts:847` "FLOW-4 issue a notification with a
+due date…" — `expect(locator).toBeVisible()` on `Notificações e prazos` → li "prazo de defesa do
+denunciado" not found, failed on retry too; the 8 did-not-run are that spec's own serial tail
+(`test.describe.configure({ mode: 'serial' })`, line 78) aborted behind it. The spec touches none
+of this unit's surface (no `assume_role` / `authz.roles` / `active_role_selections` /
+`scope_kind` reference — confirmed by grep) and its batch's server log shows repeated
+`⨯ Error: The destination stream closed early` (no 401/429 — not a GoTrue rate-limit shape).
+
+**Triage re-run** (`npm run e2e:prod`, `SPECS="e2e/ethics-e2-procedure.spec.ts"`, same standalone
+build, fresh DB/server, isolated): `GATE SUMMARY: 21 passed · 0 failed · 0 infra · 0 flaky · 0
+did-not-run · 1 batches` — **GATE_EXIT=0**, 21:57:08. FLOW-4 and its whole serial tail green in
+isolation, confirming order/contamination-dependence inside batch 6 (multiple specs sharing one
+per-batch reset/server) rather than a reproducible defect — matches this spec's documented
+history of isolated flakes (`FLOW-7` keyboard-vote, a worker-crash entry) with no prior FLOW-4
+record. **No bug filed** — non-reproducing, pre-existing-class flake, unrelated to this unit's
+`src`/migration changes; engineers were not asked to fix anything.
+
+**Full gate, run 2** (`npm run e2e:prod`, build reused — "reusing existing standalone build",
+unchanged since run 1): `GATE SUMMARY: 1264 passed · 0 failed · 0 infra · 2 flaky · 0 did-not-run
+· 21 batches` / `COVERAGE: accounted for 1266 of 1278` — **GATE_EXIT=0**, `GATE GREEN`, duration
+21:57:39→23:02:32 (~65m). Same 12-test gap between collected (1278) and accounted (1266) both
+runs — pre-existing intentional skips (e.g. `user-registration.spec.ts` invite-mode,
+server-env-gated), not a coverage regression.
+
+**Verdict: GREEN.** `npm run e2e:prod` run 2 is the declaring run. Specs touched: 1 file, 1 new
+cell added, 0 re-cast, 0 deleted. Bugs filed: 0.
+
