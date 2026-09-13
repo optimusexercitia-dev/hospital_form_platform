@@ -1468,7 +1468,8 @@ run) are in the record's § Session log, ⛔ not restated here:**
   `platform_admin`, a live `memberships` row otherwise); same pt-BR messages, same SQLSTATEs (`28000`/`42501`); the
   audit row stamps the role only. ⛔ An unknown code fails `42501` (selectability, fail-closed), never `23503`.
   Both halves of the seating gate now carry a mutation: `408 § 3` (catalog row flipped) and `408 § 5` (the caller's
-  membership deleted; a sibling still seats); `422 § 2` holds the structural pins.
+  membership EXPIRED — ⚠ expiry, never delete: a delete cascades and the refusal would then be attributable to collateral
+  damage, not the assignment gate; a sibling still seats); `422 § 2` holds the structural pins.
 - **`public.platform_role` is DROPPED** (`to_regtype` → NULL), after a DO block asserted zero non-internal `pg_depend`
   dependents. The **`419` frozen set shrank by exactly one** (`public.assume_role(p_role platform_role)` removed, nothing
   added — gate 18's pure-deletion rule held); `421 § 0c` re-pinned `890 = 860 non-empty + 30 empty | 0 undeclared`.
