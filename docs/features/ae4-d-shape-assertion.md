@@ -33,23 +33,31 @@ state on the live catalog, and green only once the real surface satisfies it; a 
 its first run is a finding, never a pass. ⛔ No cell may hand-copy the production candidate `CASE`
 (ADR 0183 `:114-115`); ⛔ no cell may merely restate a clause in its own words (LEARN-024).
 
-- [ ] **AC-1 — clause 1, provenance.** Every candidate the producer emits originates from an
+- [x] **AC-1 — clause 1, provenance.** Every candidate the producer emits originates from an
       entitlement-provider fact: for every seeded principal and each resolution kind, the candidate
       set is contained in the scopes derivable from that principal's provider facts. A candidate
       with no fact behind it reds the cell (planted red).
-- [ ] **AC-2 — clause 2, one fact ⇒ at most one candidate per kind.** For a fixed principal and
+- [x] **AC-2 — clause 2, one fact ⇒ at most one candidate per kind.** For a fixed principal and
       kind, the pre-deduplication candidate count is ≤ `F` (the producer's fact count); a fact that
       yields two candidates for one kind reds the cell (planted red).
-- [ ] **AC-3 — clause 3, dedup before confirmation.** Measured on a principal whose facts overlap on
+- [x] **AC-3 — clause 3, dedup before confirmation.** Measured on a principal whose facts overlap on
       one scope (two commission facts, one org) the confirmer runs once per DISTINCT candidate, not
       once per fact — `U = D < raw`. Discrimination half: a principal with no overlap gives
       `U = D = raw`.
-- [ ] **AC-4 — clause 4, `U = D ≤ F`.** Confirmations counted as `authz.has_permission` invocations
-      on the P2 instrument's method (counter delta, `coalesce(...,0)`, snapshot cleared, liveness
-      calibration first) equal the distinct candidate count and never exceed `F`, for each seeded
-      principal × kind. ⚠ The counter's cold NULL is VOID, not zero — the cell must refuse, not pass,
-      when the calibration shows Δ ≠ 1.
-- [ ] **AC-5 — clause 5, one producer, two confirmers, asserted on the LIVE bodies.** The candidate
+- [x] **AC-4 — clause 4, `U = D ≤ F`, split across the two files by a MEASURED limit.** `U` is
+      counted as `authz.has_permission` invocations on the P2 instrument's method (counter delta,
+      `coalesce(...,0)`, snapshot cleared, liveness calibration first) in
+      `scripts/authz-ae4-p2-invocation-count.sql § 5`, at top level on the loaded AE4 perf fixture,
+      against a `D` derived relationally (never off the counter), with a dedup-removed
+      discrimination half; the pgTAP file asserts the half a transaction CAN measure, `D ≤ F`, and
+      its header states why `U` is not there. ⚠ Re-worded 2026-09-13 from *"for each seeded
+      principal × kind"* in pgTAP: the counter publishes nothing inside a transaction (Δ = 0 with
+      and without `pg_stat_force_next_flush()`, Δ = 1 at top level) and the `dblink` side-session
+      escape is closed on this stack (`postgres` is `rolsuper = f`; `dblink_connect_u` is
+      `supabase_admin`-only) — record entry *measurement on the live catalog*. ⛔ `U` is therefore
+      measured on ONE principal × ONE kind at the fixture's `D`, never on the seed, and never in
+      `npm run test:db`.
+- [x] **AC-5 — clause 5, one producer, two confirmers, asserted on the LIVE bodies.** The candidate
       CTEs of `authz.authorized_scope_ids(uuid,text,text)` and
       `authz.candidate_authorized_scope_ids(uuid,text,text)` are extracted from `pg_get_functiondef`,
       normalised (comments and whitespace stripped), and required equal; the two bodies differ only
@@ -57,15 +65,15 @@ its first run is a finding, never a pass. ⛔ No cell may hand-copy the producti
       equality is forbidden (it reds on three comment lines and proves nothing). Discrimination half:
       a one-token change to one body inside a savepoint reds the comparator, measured on a channel the
       rollback cannot reach.
-- [ ] **AC-6 — clause 6, a new provider adapter fails the assertion until included.** The provider
+- [x] **AC-6 — clause 6, a new provider adapter fails the assertion until included.** The provider
       set is DERIVED from the catalog (not hand-listed) and every derived provider must be consumed by
       BOTH candidate CTEs; a planted provider adapter (a stub in the provider family, created inside
       the test transaction) reds the cell. This is the one D3 trigger that fires automatically.
-- [ ] **AC-7 — the instrument extended, not duplicated.** `scripts/authz-ae4-p2-invocation-count.sql`
+- [x] **AC-7 — the instrument extended, not duplicated.** `scripts/authz-ae4-p2-invocation-count.sql`
       gains the clause-4 section on the loaded AE4 perf fixture (`U = D ≤ F` at the fixture's `D`);
       the pgTAP file (next free number after `422`) carries the six cells over the seed so they run in
       `npm run test:db` on a fresh reset. Both state what they do NOT prove.
-- [ ] **AC-8 — the record names D3's five triggers**, with what each invalidates, the ADR 0195
+- [x] **AC-8 — the record names D3's five triggers**, with what each invalidates, the ADR 0195
       statement (*"the next Phase Gate noticed"*, never *"the next commit noticed"*), and which trigger
       has a gate (clause 6) vs `prose only`.
 - [ ] **AC-9 — gates.** Fresh `supabase db reset --local` + `npm run test:db`; `npm run lint` (0/0) +
@@ -84,14 +92,19 @@ Land ADR 0208 D2's six-clause shape assertion on the P2 instrument, red-first in
 D3's five triggers in the record; retire the seam's *"RULED NOT BUILT"* bullet.
 
 ### Done since start
-- Unit opened; peers confirmed the checkout and stack free; hub + record written; branch cut.
+- pgTAP `423` (`plan(33)`, all 33 cells with an observed red — six catalog plants by anchored
+  surgery on the live bodies, seven harness plants) and P2 `§ 5` (`U = D = 2 ≤ F = 20` on the
+  fixture, dedup-removed control `U = 20`) committed at `7e655461`; backend's fresh reset +
+  `test:db` PASS, `lint` 0/0, `typecheck`, `test` green. AC-4 re-worded (measured limit, above).
+- Record: D3's five triggers tabled; triggers 1–3 now have a gate (`423 § 6` · `§ 6` · `§ 2`),
+  4–5 stay `prose only`.
 
 ### In progress
-- `backend` measuring the two resolver bodies and the provider family on the live catalog, then
-  posting a one-page plan for the six cells (AC-1..AC-7) before writing them.
+- Lead's own gate step 1: fresh reset + `test:db` (running), then the deriver (exit read bare,
+  exit 3 expected), the four authz arms + SELFTEST, the set-valued arm; seam slice + block.
 
 ### Next
-- Red-first cells → gate step 1 → QA → PO approval → Record step (seam slice, FUP closure).
+- QA review → PO approval → Record step (seam block re-stamped, FUP closed in both homes).
 
 ### Blockers
 - None.
