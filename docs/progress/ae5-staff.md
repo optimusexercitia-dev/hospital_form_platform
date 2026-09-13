@@ -548,3 +548,16 @@ broken ADR link in a design doc reds nothing (`RETIRED_EXCLUDE_PATH_PREFIXES` na
 Record step, not fixed here. Disposition `CHANGES REQUESTED`; PO rules on nothing in § 11 until r2.
 The § 11 package grows to seven items: item 4 over all 18 codes, a new item on the
 `responses.fill` interface. Routed to `backend` as a fix round on the same agent context.
+
+### 2026-09-13 — matrix r2 received; lead spot-checks; § 11 package (seven items) to the PO (lead)
+
+Backend closed all eight r1 findings at `b5ff2552` (its entry above carries the queries). Lead
+spot-checks on the committed file, each run bare: the `:7` link resolves (`ls`); § 3.0 sums BY
+LISTING (`12 + 11 + 1 + 1 + 17 = 42`, the count an output of the four lists); the arm-3 column marks
+exactly rows 1, 4, 6, 7, 8, 9, 11, 12, 15, 16, 19 (awk over the § 5.2 table); row 16 names
+`securable_resources_select`; § 5.4 holds 69 site lines (71 table lines incl. header); § 11 has seven
+items and no sentence reads as approved. Not re-derived by the lead: the H3 criterion's per-row
+verdicts, the 28-of-40 preserved tenancy arms, the 69 hat readings — those are backend's
+measurements and the PO's reading, and QA at T14 re-derives them. Disposition of r1: all eight
+closed. The unit now waits on the PO's seven rulings in matrix § 11 plus R-1's wrapper; nothing from
+T3 on may start before them (the matrix is the oracle).
