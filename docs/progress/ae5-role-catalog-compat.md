@@ -393,3 +393,11 @@ graphify refresh in its own commit. Still owed elsewhere, not here: proposed-ord
 None. Two things recorded, not fixed, for the reader: the gate ORDER inside `assume_role` is
 ungated (QA NOTE-3 — a reorder changes only which correct refusal is shown); the pt-BR labels
 and manifest order have no catalog twin by design (QA NOTE-2).
+
+### 2026-09-13 — post-merge: documentation second pass and two follow-up dispositions (lead)
+
+**Second pass** (`45d82e37`, `607b1391`): dated notes beside every live sentence that still said the enum, the 12th row or the `capability_plane` sentinel exist (authz-evolution plan ×9, pre-AE5 plan ×5, act-as plan, the handoff's ▶ pointer, ADR 0207 § Consequences, ADR 0208); corrected in place: the tenancy seam's `## Current state` "Act as" bullet (re-stamped), the ADR-index generator's RESERVED-numbers line (0202/0204 were renumbered 2026-09-11; the generated INDEX.md said "take 0205"), two test-file mentions of the dropped enum. A peer session (`hospital-form-platform-c1`) ran a parallel sweep and found five of these; folded in, tree handed back clean.
+
+**Two follow-ups whose premise this unit changed — PO ruled 2026-09-13 (*"i agree"*) on the lead's recommendation:**
+- `FUP-AFF-4` (make the membership-role list an ENUM) → **RESOLVED, superseded by ADR 0207 D3** — the trigger fired and the project took the opposite branch; the goal is met by gate 19 + `411`; ⛔ `memberships_role_check` stays as the second lock until AE5 makes the catalog the authority. Entry moved verbatim to the archive with the body folded in; body file deleted.
+- `FUP-VITEST-CATALOG-DRIVEN-CASE-COUNT` → **RE-CLAUSED, stays open**: a small test-only unit derives the expected membership vocabulary from `ROLE_MANIFEST` (no new hand literal), set equality in both suites, one regex definition with two reads, red-first against a planted short read; ⛔ not folded into `AE4-D-SHAPE-ASSERTION`. Clause updated in BOTH homes (register entry + body file).

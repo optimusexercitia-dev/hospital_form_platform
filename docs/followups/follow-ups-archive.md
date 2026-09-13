@@ -13839,3 +13839,44 @@ Measured: `scripts/check-rules-staleness.mjs` `MAX_RULES = 12` and `.claude/rule
 **Status:** open
 
 Measured 2026-09-12, all 12 rule files against the literal `lint` chain in `package.json` and against `supabase/tests/`: `profiles-guard-never-widened.md` (*"`guard_profile_privileged_columns`' trusted-caller arm is NEVER widened"*) is the ONLY one whose prohibitions a live gate reds on — `supabase/tests/386_person_doors_acl_and_guard.sql`, inside `npm run test:db`: § 1.3 (`authenticated` holds EXECUTE on none of the person doors), § 3.2 (a signed-in caller cannot self-elevate to `is_admin`), § 3.3 (`suspended_until`); the test's own header says *"Granting a door to `authenticated` reds 3.3 alone"*. That is ADR 0127 Amendment 1's `print-door.md` shape exactly — retired for being *"too broad, and **already enforced**"*. ⚠ Two near-misses are NOT candidates: `answer-maps.md` and `ui-copy-forbidden-strings.md` have the *property* gated but the *method* half unenforced, and the vitest specs backing the latter are not in `npm run lint`. Six rules state in their own text that the rule is the only witness. ⛔ Not closed by retiring it to buy a slot — ADR 0127: *"Nothing reads the archive"*, so retirement is a deletion of prominence, and the slot has no claimant since the cap follow-up closed on exit (c). ⛔ Not a byte-cap item: this file has 127 of 2048 bytes free; the cap that binds it is the population.
+
+### 🟡 FUP-AFF-4 — make the membership-role list a Postgres ENUM (2026-08-06) — ✅ RESOLVED 2026-09-13
+
+**Filed:** 2026-08-06 (see heading) · **Owner:** backend · **Severity:** medium — per emoji at consolidation
+**Closes when:** Decide before the role set next changes, not after.
+**Status:** parked
+**Revisit when:** Decide before the role set next changes, not after.
+**Body:** [FUP-AFF-4.md](FUP-AFF-4.md)
+
+> **RESOLVED 2026-09-13** — SUPERSEDED by ADR 0207 D3 (unit `AE5-ROLE-CATALOG-COMPAT`, migration
+> `20261003007430`; record: docs/progress/ae5-role-catalog-compat.md), PO ruling 2026-09-13 (*"i agree"* on the
+> lead's recommendation). Closed AGAINST the clause below, not on it: the trigger *"before the role set next
+> changes"* fired (the `administrativo` row was deleted), and the project took the OPPOSITE branch — the one
+> enum that existed (`public.platform_role`) was DROPPED because a second vocabulary must be kept in sync with the
+> catalog. The goal behind this item (*"the build, not a suite someone must run, catches a missing role"*) is met
+> another way: the TS `ROLE_MANIFEST` is pinned to `authz.roles` by lint gate 19 (`lint:role-manifest`, every
+> `npm run lint`) and by pgTAP `411`. ⛔ What this closure does NOT do: pin or retire `memberships_role_check`
+> itself. That CHECK is kept ON PURPOSE as the second lock while the catalog is *authority-ELECT, not authority*
+> (`docs/backend-state/authorization-and-audit.md` § Current state › Invariants); its retirement is AE5-complete
+> work (ADR 0155 / the AE5 plan), never a follow-up. ⛔ Do not reopen this as "add the enum back".
+> Body — folded in below as the `####` section (the pointer line the open register carried named the body
+> file, now deleted).
+
+
+#### FUP-AFF-4 — make the membership-role list a Postgres ENUM (2026-08-06)
+
+Index entry: [follow-ups-open.md](follow-ups-open.md) · filed 2026-08-06 · status parked
+
+Raised by `backend`, and it is the durable fix for N1. `memberships_role_check` is a `CHECK` over
+`text`, so the role list reaches **no** generated type (`grep technical_director_deputy
+src/lib/types/database.ts` → 0 hits) and **no unit test can see the authority**. N1's remedy is a
+committed fixture with a gate at each end (pgTAP `304` §10 ↔ fixture ↔ the pt-BR label test) — which
+closes the drift hole, but is a **build-time gate, not a guard**: widen the CHECK, never regenerate
+the fixture, ship without `npm run test:db`, and an English snake_case identifier still reaches a
+pt-BR `role="alert"` through `roleLabel`'s `?? role` fallback.
+
+As an **enum**, the list lands in `database.ts` and `tsc` enforces exhaustiveness — the check moves
+from "a suite someone must run" to "the build". Deferred because it is a schema change with real
+blast radius (`memberships_scope_shape`, every `role` comparison, the ADR-0094 completeness grid).
+Decide before the role set next changes, not after.
+
