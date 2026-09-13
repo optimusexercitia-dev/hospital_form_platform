@@ -1,11 +1,11 @@
-import { execFileSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
-import path from 'node:path'
-
 import { describe, expect, it, vi } from 'vitest'
 
 import { partitionGrants, type SessionGrant } from '@/lib/queries/session-grants'
 import type { SessionContext } from '@/lib/queries/session'
+import {
+  expectedMembershipRoleVocabulary,
+  readRoleVocabularyFromCatalog,
+} from '@/lib/role/membership-role-vocabulary.test-support'
 
 /**
  * ⭐ FUP-QO-2 — THE GUARD THAT CANNOT BE FORGOTTEN.
@@ -20,7 +20,9 @@ import type { SessionContext } from '@/lib/queries/session'
  * comment is not a guard.**
  *
  * THE ENUMERATION BOUNDARY IS THE CATALOG, READ AT TEST TIME. The role vocabulary
- * comes from `memberships_role_check` via `pg_constraint`, never from a list anyone
+ * comes from `memberships_role_check` via `pg_constraint` (the one reader in
+ * `src/lib/role/membership-role-vocabulary.test-support.ts` — shared LOGIC, but THIS
+ * file's own READ; see that module's header), never from a list anyone
  * remembered to update — the recorded rule is that an enumeration's boundary must be
  * the PROPERTY, not a syntax and not a remembered list, and every instance of this
  * class so far has been someone updating one list and not the other. This is the same
@@ -57,72 +59,6 @@ vi.mock('next/navigation', () => ({
     throw Object.assign(new Error('NEXT_REDIRECT'), { landingUrl: url })
   },
 }))
-
-const REPO_ROOT = path.resolve(__dirname, '..', '..', '..')
-
-/**
- * The live role vocabulary of `public.memberships_role_check`.
- *
- * Read through the DB container, which is how every mutation harness in
- * `supabase/tests/mutation/` reaches the catalog. The container name is derived from
- * `supabase/config.toml`'s `project_id` rather than hardcoded, so renaming the project
- * cannot silently point this at a container that does not exist.
- */
-function readRoleVocabularyFromCatalog(): string[] {
-  const configPath = path.join(REPO_ROOT, 'supabase', 'config.toml')
-  const projectId = /^\s*project_id\s*=\s*"([^"]+)"/m.exec(
-    readFileSync(configPath, 'utf8'),
-  )?.[1]
-  if (!projectId) {
-    throw new Error(`FUP-QO-2 guard: no project_id in ${configPath}`)
-  }
-
-  // Same extraction as pgTAP 292 §3's `role_vocab`.
-  const sql = `select (regexp_matches(pg_get_constraintdef(oid), '''([a-z_]+)''::text', 'g'))[1]
-                 from pg_constraint
-                where conrelid = 'public.memberships'::regclass
-                  and conname = 'memberships_role_check'`
-
-  let raw: string
-  try {
-    raw = execFileSync(
-      'docker',
-      [
-        'exec',
-        `supabase_db_${projectId}`,
-        'psql',
-        '-U',
-        'postgres',
-        '-d',
-        'postgres',
-        '-tAc',
-        sql,
-      ],
-      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
-    )
-  } catch (cause) {
-    throw new Error(
-      'FUP-QO-2 guard: could not read memberships_role_check from the live catalog. ' +
-        'Start the local stack (`supabase start`) — this guard reads the catalog on ' +
-        'purpose and must never silently skip.',
-      { cause },
-    )
-  }
-
-  const roles = raw
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
-
-  if (roles.length === 0) {
-    throw new Error(
-      'FUP-QO-2 guard: memberships_role_check yielded ZERO roles. Either the ' +
-        'constraint was renamed or the extraction regex no longer matches its ' +
-        'definition — an empty enumeration would make every assertion below vacuous.',
-    )
-  }
-  return roles
-}
 
 /**
  * A grant of `role` with EVERY scope reference populated.
@@ -199,7 +135,7 @@ async function resolveLanding(role: string): Promise<LandingOutcome> {
   }
 }
 
-const CATALOG_ROLES = readRoleVocabularyFromCatalog()
+const CATALOG_ROLES = readRoleVocabularyFromCatalog('FUP-QO-2 guard')
 
 /**
  * Roles known to have NO landing route, with the date they were found.
@@ -222,6 +158,20 @@ const CATALOG_ROLES = readRoleVocabularyFromCatalog()
 const KNOWN_UNROUTED: string[] = []
 
 describe('FUP-QO-2 — every membership role resolves to a landing route', () => {
+  /**
+   * ⭐ FUP-VITEST-CATALOG-DRIVEN-CASE-COUNT — THE SET PIN. The `it.each` below generates one
+   * case per role the live read returned, so a read taken inside a `supabase db reset`'s
+   * transient window (the CHECK present, valid, and PARTIAL) generates fewer cases and
+   * stays green; pgTAP 292 pins the vocabulary durably but cannot see that window. This
+   * pins THIS file's own read to the SET derived from `ROLE_MANIFEST` — a set, never
+   * `.length`, because a substitution keeps the count. `nav-scope-exclusivity.test.ts`
+   * keeps its own read pinned to the same set: two reads that must both equal one
+   * constant are what make a catalog change BETWEEN them observable.
+   */
+  it('the live memberships_role_check vocabulary IS the manifest-derived role set', () => {
+    expect([...CATALOG_ROLES].sort()).toEqual(expectedMembershipRoleVocabulary())
+  })
+
   it('reads a non-trivial role vocabulary from the live catalog', () => {
     expect(CATALOG_ROLES.length).toBeGreaterThan(0)
     // The ledger may only name roles the CHECK actually admits.

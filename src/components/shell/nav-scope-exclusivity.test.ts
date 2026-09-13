@@ -1,11 +1,11 @@
-import { execFileSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
-import path from 'node:path'
-
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { isCommissionAdmin } from '@/lib/auth/access'
 import { partitionGrants, type SessionGrant } from '@/lib/queries/session-grants'
+import {
+  expectedMembershipRoleVocabulary,
+  readRoleVocabularyFromCatalog,
+} from '@/lib/role/membership-role-vocabulary.test-support'
 
 /**
  * ⭐ ACT S4 / QA MINOR-1 — THE TRIPWIRE UNDER THE DELETED `navScope` ARM.
@@ -42,9 +42,11 @@ import { partitionGrants, type SessionGrant } from '@/lib/queries/session-grants
  *
  * THE ENUMERATION BOUNDARY IS THE CATALOG, READ AT TEST TIME — the live
  * `memberships_role_check` vocabulary, never a list someone must remember to
- * update (same derivation, and the same deliberate stack dependency, as the
- * FUP-QO-2 guard in `src/lib/queries/session-grants.test.ts`; that file's header
- * carries the full rationale). A role added to the CHECK is swept here for free.
+ * update (the ONE reader in `src/lib/role/membership-role-vocabulary.test-support.ts`,
+ * shared with the FUP-QO-2 guard in `src/lib/queries/session-grants.test.ts` — shared
+ * LOGIC, but this file's OWN read, pinned below to the manifest-derived set; that
+ * module's header carries the rationale). A role added to the CHECK is swept here for
+ * free.
  *
  * ⚠ REQUIRES THE LOCAL SUPABASE STACK, and fails loudly rather than skipping
  * when it is down — a guard that quietly turns itself off is not a guard.
@@ -61,60 +63,6 @@ const USER_ID = '00000000-0000-0000-0000-0000000e0000'
 
 /** The commission the layout resolves — the scope `isCommissionAdmin` is asked about. */
 const COMMISSION_SCOPE = { organizationId: ORG.id, hospitalId: HOSPITAL_ID }
-
-const REPO_ROOT = path.resolve(__dirname, '..', '..', '..')
-
-/**
- * The live role vocabulary of `public.memberships_role_check`, read through the
- * DB container (the same path every harness in `supabase/tests/mutation/` uses).
- * The container name is derived from `supabase/config.toml`'s `project_id` rather
- * than hardcoded, so renaming the project cannot silently point this at a
- * container that does not exist.
- */
-function readRoleVocabularyFromCatalog(): string[] {
-  const configPath = path.join(REPO_ROOT, 'supabase', 'config.toml')
-  const projectId = /^\s*project_id\s*=\s*"([^"]+)"/m.exec(
-    readFileSync(configPath, 'utf8'),
-  )?.[1]
-  if (!projectId) {
-    throw new Error(`ACT S4 nav-scope guard: no project_id in ${configPath}`)
-  }
-
-  const sql = `select (regexp_matches(pg_get_constraintdef(oid), '''([a-z_]+)''::text', 'g'))[1]
-                 from pg_constraint
-                where conrelid = 'public.memberships'::regclass
-                  and conname = 'memberships_role_check'`
-
-  let raw: string
-  try {
-    raw = execFileSync(
-      'docker',
-      ['exec', `supabase_db_${projectId}`, 'psql', '-U', 'postgres', '-d', 'postgres', '-tAc', sql],
-      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
-    )
-  } catch (cause) {
-    throw new Error(
-      'ACT S4 nav-scope guard: could not read memberships_role_check from the live ' +
-        'catalog. Start the local stack (`supabase start`) — this guard reads the ' +
-        'catalog on purpose and must never silently skip.',
-      { cause },
-    )
-  }
-
-  const roles = raw
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
-
-  if (roles.length === 0) {
-    throw new Error(
-      'ACT S4 nav-scope guard: memberships_role_check yielded ZERO roles. Either ' +
-        'the constraint was renamed or the extraction regex no longer matches its ' +
-        'definition — an empty enumeration would make every assertion below vacuous.',
-    )
-  }
-  return roles
-}
 
 /**
  * A grant of `role` with EVERY scope reference populated — deliberately wider
@@ -234,12 +182,24 @@ async function resolveContextWearing(activeRole: string, grants: SessionGrant[])
 }
 
 describe('ACT S4 — the commission nav scopes are mutually exclusive', () => {
-  const ROLES = readRoleVocabularyFromCatalog()
+  const ROLES = readRoleVocabularyFromCatalog('ACT S4 nav-scope guard')
   const ALL_HATS_AT_ONCE = ROLES.map(maximalGrantFor)
 
   beforeEach(() => {
     rpcState.activeRole = null
     rpcState.grants = []
+  })
+
+  /**
+   * ⭐ FUP-VITEST-CATALOG-DRIVEN-CASE-COUNT — THE SET PIN. Both `it.each(ROLES)` blocks
+   * below generate one case per role the live read returned; a read taken inside a
+   * `supabase db reset`'s transient window (the CHECK present, valid, PARTIAL) generates
+   * fewer and stays green, and pgTAP 292 cannot see that window. This pins THIS file's
+   * own read to the SET derived from `ROLE_MANIFEST` — never `.length` (a substitution
+   * keeps the count). `session-grants.test.ts` keeps its own read pinned to the same set.
+   */
+  it('the live memberships_role_check vocabulary IS the manifest-derived role set', () => {
+    expect([...ROLES].sort()).toEqual(expectedMembershipRoleVocabulary())
   })
 
   /**
