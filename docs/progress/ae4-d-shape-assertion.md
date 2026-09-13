@@ -496,3 +496,34 @@ REFUSING, never by a `not ok` line"* is **retired — that was the defect, not a
 failing TAP lines carrying their reason. The remaining bounds are unchanged: `U` on the fixture only;
 §1 scoped to the candidate CTE; §2 blind to an identical expansion in both artifacts; §5 compares
 normalised text; §6's family narrow by design; I1 only evidence against I2.
+
+### 2026-09-13 — gate step 1 closed by the lead on the second pass: the set-valued arm CLEAN with 423 in its reddened set (lead)
+
+**Re-run after the fix commit `d921e8be`, by the lead.** Peers unchanged (idle). Fresh
+`supabase db reset --local` (rc 0) → `npm run test:db`: `Files=272, Tests=9132, Result: PASS` (rc 0).
+`npm run lint` rc 0, every gate OK (⚠ one earlier invocation returned rc 1 with NO log file written — the
+output redirect failed while the background reset ran; the immediate re-run is the verdict). `typecheck` and
+`test` were not re-run: the fix touched one pgTAP file and the record, neither of which those gates read.
+
+**Set-valued arm — rc 0, `=== RESULT: CLEAN — 3 resolver(s) measured, all COVERED. ===`**,
+`ARM-DOMAIN setvalued=3/3 (in scope) out-of-scope=2 (named, with dispositions)`:
+`authz.authorized_scope_ids(uuid,text,text)` → COVERED (`252, 311, 321, 409, 413, 423_ae4_d_shape_assertion.sql`);
+`authz.candidate_authorized_scope_ids(uuid,text,text)` → COVERED (`413, 423_ae4_d_shape_assertion.sql`);
+`app.current_professional_read_organizations()` → COVERED (unchanged). ⭐ Both formerly-NOTICED cases now
+name `423` in their reddened set: the run shape held at 9132 under the mutation, so the harness could say
+WHICH file noticed. `git diff --stat -- docs/reviews` empty (the arm writes its verdicts to stdout for hand
+filing; nothing was filed, since the committed baseline carries no set-valued rows and the previous unit
+filed none either).
+
+**The four authz arms and SELFTEST are NOT re-run** and their first-pass verdicts stand: they measure the
+catalog, and the fix changed no catalog object (`git diff c71e7c33..HEAD -- supabase/migrations` is empty;
+`423` rolls back).
+
+**Step 2 (tester) — RULED N/A by the lead, put to the PO at step 4.** No `src/`, no migration, no policy
+changed; `npm run e2e:prod` is owed only when either changes (the unit brief and AC-9 say so). The precedent
+is `DEFINER-QUALIFIED-BODY-GATE`, where the PO ruled step 2 N/A for the same shape.
+
+**Lesson candidate, filed at the Record step:** a test file that RAISES on a defeated anchor is correct for
+its own reader and WRONG for every mutation harness that reads run shape — the abort converts a would-be
+COVERED into NOTICED across the whole arm. This is LEARN-083's class from the other side (the file
+introduced, not the file inherited).
