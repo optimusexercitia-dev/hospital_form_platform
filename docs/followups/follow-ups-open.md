@@ -1881,14 +1881,6 @@ live catalog, and `supabase_migrations.schema_migrations`.
 
 **Measured 2026-09-10.** The comment reads *"a THIRD-PARTY question ignores the hat (the **27** `_for` sites), a SELF question requires it (the **151** self-check sites)"*. **Eleven grains** were tried against the live catalog and **none** yields 27, 150 or 151: `_for` functions 18 / 37 · bodies 104 / 69 · policies 2 · occurrences 141 / 178 · `auth.uid()` bodies 43 / 244 / 2 / 289 · `(select auth.uid())` 57 · policies 184 · occurrences 53. ⇒ ⛔ **stated as *"reproduces at no grain measured"*, never as a delta** — an earlier plan turn proposed *"151 → 150"*, which would have committed a correction to a figure whose subject is unknown.
 
-### 🟠 FUP-AE5-OPENING-ADR-0175-D3-FORWARD-PROMISE-UNDISCHARGED — 0175 promises an enumeration that does not exist (owner: backend + PO)
-
-**Filed:** 2026-09-10 (Batch 9, unit AE5-OPENING-ADR; ⚠ QA R2-MINOR-2 caught the Record list DROPPING this) · **Owner:** backend + PO · **Severity:** high — an accepted ADR tells AE5 it inherits work nobody has done, and the promise is the kind a reader acts on rather than checks
-**Closes when:** ADR [0175](../decisions/0175-ae4-po-batch-oracle-inputs-and-arm3-deferral.md) D3's sentence — *"the arm-3 cells **arrive** already enumerated and already known to diverge, so AE5 rules them rather than discovering them"* — is either **discharged** (the enumeration exists, per unit `AE5-MATRIX-ARM3-CELLS`) or **withdrawn** by a dated appended marker on 0175 saying the inheritance was not delivered and why. ⛔ Not closed by the unit's hub existing: a hub is a plan, and ⛔ **an unchecked acceptance box is not a register entry** — which is exactly how this nearly went missing.
-**Status:** open
-
-**Measured 2026-09-09/10:** `supabase/tests/vectors/authz_differential_cells.psql` holds **216** `org.professionals.read` rows and `grep -c divergent` over it returns **0**; the enforcement manifest only *narrates* the hazard (`authz-enforcement-manifest.json:1240` — *"arms 1 and 3 are EXERCISED BUT NOT ORACLED, and arm 3 is OPEN AND MASKING"*). ⚠ D3's wording is **forward-looking**, so this is an **undischarged promise, not a false claim** — ⛔ and it must not be quoted as an assertion of completion. A live home already exists and must not be duplicated: the open QA finding at `docs/reviews/authz-ae4-review.md:99-101`.
-
 ### 🟡 FUP-ADMIN-ARM-IS-ACTIVE-IS-ADMIN-CARRIES-A-PUBLIC-EXECUTE-ACL-ENTRY — `app.is_admin()`'s ACL grants EXECUTE to PUBLIC (owner: backend)
 
 **Filed:** 2026-09-10 (pre-AE5 Batch 10, unit ADMIN-ARM-IS-ACTIVE, lead decision L2) · **Owner:** backend · **Severity:** medium — a second object's ACL, in a different catalog, is the only thing keeping an otherwise-reachable predicate inert, and nothing ties that fact to this one

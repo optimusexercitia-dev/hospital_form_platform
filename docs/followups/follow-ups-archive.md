@@ -14211,3 +14211,26 @@ silently skip"* instead of defaulting to a hardcoded list. Preserve that behavio
 **Closes when:** RE-CLAUSED 2026-09-13 (PO ruling on the lead's recommendation, after unit `AE5-ROLE-CATALOG-COMPAT`): a small TEST-ONLY unit applies the pattern this repo now has — (a) ONE shared exported FUNCTION (never a module-scope `const`) that derives the expected membership vocabulary from `ROLE_MANIFEST` in `src/lib/role/role-catalog.ts` (every entry whose scope kind is not `none`; the manifest is already pinned to `authz.roles` by gate 19 + pgTAP `411`, so no new hand-typed literal is introduced); (b) `src/lib/queries/session-grants.test.ts` and `src/components/shell/nav-scope-exclusivity.test.ts` each keep their OWN catalog read and assert SET equality (`[...read].sort()` equals the derived set — never `.length`) against that function; (c) the two copy-pasted `readRoleVocabularyFromCatalog` regexes collapse to one definition with two call sites, fail-closed with the stack down preserved; (d) a red-first witness: the assertion observed RED against a planted short read. ⛔ Not folded into `AE4-D-SHAPE-ASSERTION` (different subject, different close condition).
 
 Why now: unit `AE5-ROLE-CATALOG-COMPAT` built exactly the mechanism § The fix asks for — a committed expected set checked against the live catalog from both sides — for `authz.roles`. The two suites above read `memberships_role_check`, a different (tighter) vocabulary, so the item stays OPEN; but the expected set can now be DERIVED from the pinned manifest instead of hand-typed, which removes the fourth written copy § The fix warned about. FUP-AFF-4 (the enum proposal) was closed the same day as superseded by ADR 0207 D3 — the enum was retired, not adopted.
+
+### 🟠 FUP-AE5-OPENING-ADR-0175-D3-FORWARD-PROMISE-UNDISCHARGED — 0175 promises an enumeration that does not exist (owner: backend + PO) — ✅ RESOLVED 2026-09-13
+
+> **RESOLVED 2026-09-13** — unit AE5-MATRIX-ARM3-CELLS delivered the enumeration; moved at the open of
+> unit AE5-STAFF (AE5 increment 1), which found the entry still `open` after its condition was met.
+> Record: docs/progress/ae5-matrix-arm3-cells.md. Closing commit(s): `29422327` (the dated markers on
+> ADR 0175; the phase commit is named in the ledger row).
+> Closed ON the clause below: *"ADR 0175 D3's sentence … is either **discharged** (the enumeration
+> exists, per unit `AE5-MATRIX-ARM3-CELLS`) or **withdrawn** by a dated appended marker on 0175"*.
+> Measured 2026-09-13 on `main @ a02487bc`: `docs/decisions/0175-ae4-po-batch-oracle-inputs-and-arm3-deferral.md`
+> carries `✅ **DELIVERED 2026-09-11 — the deferral above is discharged, as WORK, by unit
+> AE5-MATRIX-ARM3-CELLS**` under D3 (line 92) and `✅ **Delivered 2026-09-11**` under § Consequences
+> (line 161); its header reads `**Amended:** 2026-09-11 — dated markers only`. The first arm of the
+> clause (discharged, by the named unit) is met; the entry was never moved at that unit's Record step,
+> so this closure carries a two-day lag and no new work.
+>
+> ⛔ **The entry block below is VERBATIM, its `Closes when` included.**
+
+**Filed:** 2026-09-10 (Batch 9, unit AE5-OPENING-ADR; ⚠ QA R2-MINOR-2 caught the Record list DROPPING this) · **Owner:** backend + PO · **Severity:** high — an accepted ADR tells AE5 it inherits work nobody has done, and the promise is the kind a reader acts on rather than checks
+**Closes when:** ADR [0175](../decisions/0175-ae4-po-batch-oracle-inputs-and-arm3-deferral.md) D3's sentence — *"the arm-3 cells **arrive** already enumerated and already known to diverge, so AE5 rules them rather than discovering them"* — is either **discharged** (the enumeration exists, per unit `AE5-MATRIX-ARM3-CELLS`) or **withdrawn** by a dated appended marker on 0175 saying the inheritance was not delivered and why. ⛔ Not closed by the unit's hub existing: a hub is a plan, and ⛔ **an unchecked acceptance box is not a register entry** — which is exactly how this nearly went missing.
+**Status:** open
+
+**Measured 2026-09-09/10:** `supabase/tests/vectors/authz_differential_cells.psql` holds **216** `org.professionals.read` rows and `grep -c divergent` over it returns **0**; the enforcement manifest only *narrates* the hazard (`authz-enforcement-manifest.json:1240` — *"arms 1 and 3 are EXERCISED BUT NOT ORACLED, and arm 3 is OPEN AND MASKING"*). ⚠ D3's wording is **forward-looking**, so this is an **undischarged promise, not a false claim** — ⛔ and it must not be quoted as an assertion of completion. A live home already exists and must not be duplicated: the open QA finding at `docs/reviews/authz-ae4-review.md:99-101`.
