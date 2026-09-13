@@ -618,3 +618,32 @@ D3's five triggers in the record; retire the seam's *"RULED NOT BUILT"* bullet.
 - None.
 
 **Phase commit:** `a3a2a71d`; the ledger row carries it via this follow-on commit (a row cannot name its own sha).
+
+### 2026-09-13 — merge, graphify refresh, and a second documentation pass (lead)
+
+**Merge.** Phase commit `a3a2a71d`; sha-fill commit `b0330c3f` (`main` fast-forwarded to it, no merge commit);
+`chore(graphify): refresh after the AE4-D-SHAPE-ASSERTION merge` = `5c6ad863`, in its own commit after the
+merge (playbook §6). Branch `ae4-d-shape-assertion` deleted (was `b0330c3f`). ⛔ `main` NOT pushed. Peer
+session `hospital-form-platform-09` told that `main` moved; `hospital-form-platform-c1` was no longer
+reachable. The local DB is at seed state (last reset by the lead at gate step 1, pass 2).
+
+**Correction to the entry above (step 4/5).** It says *"the body gained a `## ✅ RESOLVED` section"*. That was
+the first edit, and gate 13 then redded it twice — *orphan body* (no open entry links it) and *a resolved
+entry's body lives INLINE in the archive (ADR 0185 D5)* — so the body file's whole content (its new RESOLVED
+section included) was **folded under the archived entry** with headings demoted three levels, the entry's
+`**Body:**` pointer dropped, and `docs/followups/FUP-AE4-CANDIDATE-SCOPE-FANOUT-IS-UNBOUNDED.md` **deleted**
+(`git rm`), exactly the form `c71e7c33` used for `FUP-AFF-4` the same day. Two backtick paths still named the
+file — ADR 0208 `:104` (dated note added) and `docs/progress/ae5-successor-adrs.md` (a frozen record, left).
+
+**The other Record-step gate loop, for the next lead.** `LEARN-105` first carried `prose only` as its
+enforcement and redded the `lessonsProseOnly` ratchet (53 > cap 52, *may only be lowered*); the honest
+column is the set-valued arm itself (`authz-setvalued-targeted-cases.sh`, the NOTICED verdict — after the
+fact, at a phase gate), which is what noticed. The lessons register's Origin/Enforcement columns take
+TOKENS (a FUP id + `(unit X)`; a path or `prose only`), not prose.
+
+**Second pass, what was checked and what changed.** Hub (`complete`, no block, AC-1..AC-9 ticked, review
+linked) — no change. Ledger row — commit cell completed with the two follow-on shas. Seam block and slice —
+consistent with the record; no change. ADR 0208 § Consequences — four dated notes (both units built; both
+follow-ups closed; clause 6 exists so triggers 1–3 are gated; the producer NOT factored). Review file — verdict
+token current. LESSONS row — tokens valid. Register move — `cmp` witnessed at the Record step (7 lines).
+

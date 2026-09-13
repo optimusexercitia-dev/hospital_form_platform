@@ -304,17 +304,26 @@ the same claim, and the `TEMP`/`pg_temp` shadowing path is untouched by it.
 
 - ⚠ **DATED NOTE 2026-09-13:** `DEFINER-SEARCH-PATH-NARROW-FIX` is BUILT (2026-09-11, migration `20261003007410`, [hub](../features/definer-search-path-narrow-fix.md)); D4 has since bound its first genuinely new DEFINER, `assume_role(text)` (unit `AE5-ROLE-CATALOG-COMPAT`, 2026-09-12). **`AE4-D-SHAPE-ASSERTION` is the ONLY unit of the two still owed.** ⚠ **DATED NOTE 2026-09-13:** it is BUILT — pgTAP `423` + P2 `§ 5`, NO migration ([hub](../features/ae4-d-shape-assertion.md)); ⚠ clause 4's `U = D` is measured only by the script on the perf fixture (a pgTAP transaction cannot read the function-call counter), `npm run test:db` holds `D ≤ F` and the shape. D3 triggers 1–3 now have a gate; 4–5 remain `prose only`. **Every unit this ADR ordered is built.**
 - **Two named units are owed**: `AE4-D-SHAPE-ASSERTION` (D2) and `DEFINER-SEARCH-PATH-NARROW-FIX`
-  (D5 + D6). Neither is started here; each writes its own hub and record.
+  (D5 + D6). Neither is started here; each writes its own hub and record. ⚠ **DATED NOTE 2026-09-13:** both are
+  built and complete — `DEFINER-SEARCH-PATH-NARROW-FIX` (2026-09-11) and `AE4-D-SHAPE-ASSERTION` (2026-09-13).
 - **Both follow-ups are RE-CLAUSED, not closed.** `FUP-AE4-CANDIDATE-SCOPE-FANOUT-IS-UNBOUNDED`
   closes when the six-clause assertion lands in its unit; `FUP-NO-GATE-CATCHES-A-COLLAPSED-SEARCH-PATH`
   closes when the prospective gate **and** the narrow `ALTER FUNCTION` migration land. Each carries a
-  dated `**Ruling:**` line in both of its homes.
+  dated `**Ruling:**` line in both of its homes. ⚠ **DATED NOTE 2026-09-13:** both are now CLOSED on those
+  re-claused conditions and sit in `docs/followups/follow-ups-archive.md` —
+  `FUP-NO-GATE-CATCHES-A-COLLAPSED-SEARCH-PATH` at `DEFINER-SEARCH-PATH-NARROW-FIX`,
+  `FUP-AE4-CANDIDATE-SCOPE-FANOUT-IS-UNBOUNDED` at `AE4-D-SHAPE-ASSERTION` (its body is folded inline there).
 - **The accepted risk is recorded, not hidden.** Cost still grows with tenant and assignment count.
   What is proven is that `D` is not an *independent* dimension; what is accepted is the residual.
   D3's five triggers are the only thing standing between that acceptance and a silently changed
   premise, and ⛔ nothing reds when one fires — they are `prose only` until the D2 unit's clause 6
-  exists, which is the one clause that fires automatically on a new provider.
+  exists, which is the one clause that fires automatically on a new provider. ⚠ **DATED NOTE 2026-09-13:** clause 6
+  exists (`423 § 6`); triggers 1–2 red there, trigger 3 reds `423 § 2` at seed scale (blind to an expansion
+  applied identically to both artifacts); triggers 4–5 are still `prose only`.
 - **What remains open:** whether the producer is factored out into one function (D2's alternative to
-  a body comparison) is the unit's call, not this ADR's; the `.claude/rules/` file's exact scope
+  a body comparison) is the unit's call, not this ADR's (⚠ **DATED NOTE 2026-09-13:** decided at the unit's
+  open — NOT factored; the two copies stay and `423 § 5` proves them equal after normalisation on every run,
+  because a producer function would be a migration, a new DEFINER under D4 and a door the sweep must
+  inherit); the `.claude/rules/` file's exact scope
   path; and whether any second compatibility form is ever admitted at all — D5 states its shape
   without inviting one.
