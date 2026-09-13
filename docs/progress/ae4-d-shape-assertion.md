@@ -616,3 +616,5 @@ D3's five triggers in the record; retire the seam's *"RULED NOT BUILT"* bullet.
 
 ### Blockers
 - None.
+
+**Phase commit:** `a3a2a71d`; the ledger row carries it via this follow-on commit (a row cannot name its own sha).
