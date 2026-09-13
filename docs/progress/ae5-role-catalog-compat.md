@@ -87,10 +87,13 @@ questions answered YES: the two vector JSONs and `401` §3.4–§3.6 are this un
 PRE-migration catalog before the migration existed: **17 of 28 red** (1.1 · 1.2 · 1.3 · 2.1–2.6 ·
 2.8–2.11 · 3.1 · 4.1 · 4.2 · 4.6). Post-migration: **28/28 green**. The eleven greens on the first
 run are each a control, an invariance pin, or an already-clean precondition, and each is labelled
-as such in the file — 1.4 (a valid code still inserts), 2.7 (the mutation landed), 3.2 (`to_regtype`
-resolves a type that exists), 4.3 (0 `capability_plane` memberships — already clean), 4.4 (the
-planted-row discrimination, which must work in BOTH states or it is not an instrument), 4.5, 4.7,
-4.8, and §5's two md5 invariance pins. ⛔ None is a keystone that was green because its subject was
+as such in the file — 0.1 (the fixture control: the personas and a commission resolve), 1.4 (a valid
+code still inserts), 2.7 (the mutation landed), 3.2 (`to_regtype` resolves a type that exists), 4.3
+(0 `capability_plane` memberships — already clean), 4.4 (the planted-row discrimination, which must
+work in BOTH states or it is not an instrument), 4.5, 4.7, 4.8, and §5's two md5 invariance pins.
+⚠ That list named TEN against a count of eleven until QA NOTE-1; `0.1` is the one it dropped, and a
+count that does not match its own enumeration is exactly the shape this record warns about
+elsewhere. ⛔ None is a keystone that was green because its subject was
 missing.
 
 **A defect the pre-migration run exposed, before the migration was written.** §4's plant block
@@ -240,3 +243,36 @@ unchanged — `pg_policies` re-read after the reset).
 
 Tester spawned for `npm run e2e:prod` after these runs (the harnesses restore the stack; the tester
 resets fresh regardless).
+
+### 2026-09-12 — QA r1 MINOR-2/3/4 + NOTE-1 fixed (backend)
+
+Four findings from `docs/reviews/ae5-role-catalog-compat-review.md`, all of one shape — a
+DESCRIPTION left behind by the fact it describes, which no gate can contradict:
+
+- **MINOR-2** `421 § 0d` — the description read *"18 members go to the plpgsql arm"* beside a pinned
+  value already reading 19. Fixed to 19. ⚠ The assertion was never wrong; the label was, which is
+  the half a green cannot see.
+- **MINOR-3** `vectors/authz-enforcement-manifest.json` — `measuredOn` 2026-09-02 / `migrationHead`
+  20261003007260 described a measurement the content no longer is. Moved to 2026-09-12 /
+  20261003007430, and the `_comment` prose above them AMENDED rather than overwritten: the first
+  derivation keeps its date and author, and the amendment states its own bound — only the
+  `administrativo` roster row and one `retiredBy` string moved, so the head advancing is ⛔ not a
+  claim that the file was re-derived. Both generators re-run: `authz-matrix-coverage.json` echoes
+  the new head and `manifestSha256`; cells unchanged at 2002 / 1728.
+- **MINOR-4** `src/lib/queries/session.ts:200` — `activeRole` described as *"a `public.platform_role`
+  value"*; now *"a role code from `authz.roles` (catalog-validated text)"*. `src/lib/auth/actions.ts:84`
+  left alone as history, per the lead.
+- **NOTE-1** — this record's own entry above said *"eleven greens"* and enumerated **ten**. The
+  missing one is `422 § 0.1`, the fixture control; added, with the discrepancy named rather than
+  silently corrected.
+
+**Gates:** `npm run lint` → **0** (19 gates, eslint 0/0, `lint:authz-vectors` rc 0), `npm run
+typecheck` → **0**. ⛔ No `supabase db reset`, no `npm run test:db`, no mutation harness — the
+tester's second `npm run e2e:prod` owns the local stack; catalog reads only. ⚠ `421 § 0d` and the
+regenerated `.psql` therefore have **not** been re-run under pgTAP in this pass: `§ 0d`'s change is
+inside an assertion's message string and cannot move its verdict, and `410`'s manifest pin is
+covered by `lint:authz-vectors`, but neither is a pgTAP verdict and the next `test:db` is the arm
+that gives one.
+
+Commit `ea00da10` (`fix(authz): QA MINOR-2/3/4`).
+
