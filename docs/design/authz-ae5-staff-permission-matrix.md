@@ -4,11 +4,14 @@
 **plan:** [`docs/plans/authz-evolution.md`](../plans/authz-evolution.md) § Phase AE5, Proposed order
 item 1 · **authority:** ADR [0155](../decisions/0155-post-aff4-tenancy-and-person-model-evolution-sequence.md) D7,
 ADR [0162](../decisions/0162-authz-evolution-plan-audit-corrections.md) §2 (PA-F8),
-ADR [0193](../decisions/0193-definer-writers-and-the-policy-rekey.md) D5 (`definerSurface` as data),
+ADR [0193](../decisions/0193-the-enforcement-manifest-declares-what-it-measured.md) D5 (`definerSurface` as data),
 ADR [0200](../decisions/0200-professional-identity-predicates-answer-about-their-subject.md) (declare the SUBJECT),
 ADR [0201](../decisions/0201-the-keying-asymmetry-is-the-model.md) D3 (declare the HAT),
 ADR [0207](../decisions/0207-the-role-catalog-holds-roles-administrativo-is-a-capability-provider.md) D6 (item 1 is `staff`) ·
-**owner:** backend · **status:** ⛔ **PROVISIONAL — NOT PO-APPROVED. 22 lines, 20 held rows, 18 new codes.** ·
+**owner:** backend · **status:** ⛔ **PROVISIONAL — NOT PO-APPROVED. 22 lines, 20 held rows, 18 new
+codes.** ⚠ **r2 2026-09-13** — eight findings from
+[`ae5-staff-matrix-review-r1.md`](../reviews/ae5-staff-matrix-review-r1.md) applied (B1 · B2 · H3 · H4 ·
+H5 · H6 · M7 · M8); the § 11 package is now **SEVEN** items. ⛔ Nothing here is approved ·
 **derived:** 2026-09-13 · **stack:** local, fresh reset; `authz.roles` = 11 rows, `staff` `legacy`,
 `staff_admin` the only `authoritative`; `authz.permissions` = 43 codes; `authz.role_permissions` =
 42 rows, all `staff_admin` · **sibling:** [`authz-ae5-staff-deny-class-effects.md`](authz-ae5-staff-deny-class-effects.md) ·
@@ -152,24 +155,30 @@ policies, so the plan's rule-3 pair trap has a *third* direction here: on the po
 
 | command | policies | tables |
 | --- | ---: | --- |
-| **SELECT** | **39** | forms ×8 + `storage.objects` ×1 · process templates ×8 + `phase_results` ×1 · accreditation ×4 · documents ×2 + `securable_resources` ×1 · roster ×4 (`memberships`, `commissions`, `profiles`, `commission_member_titles`) · meetings ×3 · cases-vocabulary ×3 (`case_narrative_types`, `case_outcomes`, `case_tags`) · indicators ×2 · `commission_charters` ×1 · `action_items` ×1 |
+| **SELECT** | **39** | forms ×8 + `storage.objects` ×1 · process templates ×8 + `phase_results` ×1 · accreditation ×4 · documents ×3 (`controlled_documents`, `controlled_document_versions`, **`securable_resources`** — all row 16) · roster ×4 (`memberships`, `commissions`, `profiles`, `commission_member_titles`) · meetings ×3 · cases-vocabulary ×3 (`case_narrative_types`, `case_outcomes`, `case_tags`) · indicators ×2 · `commission_charters` ×1 · `action_items` ×1 |
 | **INSERT** | **1** | `responses` (`responses_insert_own`) |
 | UPDATE / DELETE / ALL | **0** | — |
 
-`8+1+8+1+4+2+1+4+3+3+2+1+1 = 39`, and `39 + 1 = 40`; the bucketing sums with no residue.
-⚠ `phase_results` sits with the process templates (it is a template's result vocabulary) and
-`securable_resources` with the documents (ADR 0114 D4: *"one row per document-bearing domain row"*)
-— **an earlier draft of this table put both under "cases-vocabulary" and the buckets still summed to
-39**, which is exactly why the sum is not the check: a partition can total correctly and classify
-wrongly, and the classification is what decides which row each policy lands on.
+`8+1+8+1+4+3+4+3+3+2+1+1 = 39`, and `39 + 1 = 40`.
+⛔ **THE SUM IS NOT THE CHECK, and this table has now proved it TWICE.** `phase_results` sits with
+the process templates (a template's result vocabulary) and `securable_resources` with the documents
+(ADR 0114 D4: *"one row per document-bearing domain row"*). An **r1** draft put both under
+"cases-vocabulary" and the buckets still summed to 39 — which is how row 22 came to be missing. An
+**r2** review (H4) then found `securable_resources_select` counted here and absent from row 16's own
+site list: the same failure, one row earlier, surviving the first fix. ⇒ the durable form is
+**§ 9.1a's per-policy → row mapping**, where every one of the 40 is named against its row; ⛔ treat
+the aggregate above as a reading aid, never as the completeness proof.
 
 ⭐⭐ **`staff`'s ENTIRE role-derived policy surface is 39 reads and ONE write.** The single write is
 `responses_insert_own`, `with_check = (created_by = auth.uid() AND app.is_member_of(commission_id))`
 — creating a response draft in a commission you belong to. That is the role, in one policy.
 
-⚠ **Three of the 39 are NOT free disjuncts, and each is an arm-3-shaped coordinate** (the ⚠⚠ block
-at plan `:1216-1234`: *a role whose door carries a non-permission arm that no axis varies owes the
-same treatment*):
+⚠ **Three of the 39 are NOT free disjuncts** (the ⚠⚠ block at plan `:1216-1234`: *a role whose door
+carries a non-permission arm that no axis varies owes the same treatment*). ⭐ **r2: the criterion in § 5.3 CONFIRMS all three** — `meetings_select` and
+`action_items_select` under limb (a), `accreditation_frameworks_select` under limb (b) — **and
+finds eight more this paragraph did not see** (rows 1, 4, 7, 8, 9, 12, 16, 19). ⛔ That is the point
+of writing the criterion down: r1 read this paragraph, marked five rows, and left row 15 — named
+here — unmarked in its own table:
 
 | policy | the non-permission conjunct, verbatim from `pg_policies` |
 | --- | --- |
@@ -201,6 +210,66 @@ call form (the classifier is `src ~ 'is_member_of\('` vs `src ~ 'is_member_of_fo
 `public.add_meeting_attendee`. ⚠ **`prosecdef` is quoted beside every one of these because a
 DEFINER's gate *replaces* RLS** (LEARN-074) — 40 of the 42 are the only control on their own path.
 
+### 3.0 The four-way partition — ⭐ IT SUMS BY LISTING, NOT BY ARITHMETIC
+
+⛔ **r2 correction (review H5). The r1 text said "15 functions" in a heading and reconciled 42 as
+`15 + 18 + 1` with an "8 residue" that did not reproduce.** A heading that carries a size is a claim
+nobody can re-check without re-deriving the set; a heading that carries the *set* is checkable by
+reading it. Every function below is named, and each appears in **exactly one** class.
+
+**The population and the classifier, verbatim.** Domain: `pg_proc ⋈ pg_namespace`,
+`nspname in ('app','public','authz')`, `prokind='f'`, body comment-stripped with
+`regexp_replace(prosrc,'--[^<LF>]*','','g')`, restricted to bodies matching `is_member_of` — the
+**42** of § 3. Classifier, applied in this order (later tests see only what earlier ones left):
+
+```
+D_allowlisted              fn = 'app.member_can_for'                                   -- the capability plane (§ 3.4)
+C_registry                 fn = 'app._audit_access_authorized'                         -- the audited-read registry (§ 8.4)
+A_caller_keyed_permission  src ~ 'is_member_of\('   OR  a `_for` site whose principal argument
+                           matches 'auth\.uid\(\)|v_uid'                               -- the caller's own authority
+E_managed_row_value        src ~ 'not\s+app\.is_member_of_for'                         -- the negated guard: raises on a third party
+R_residue                  everything else                                             -- resolved by READING each body
+```
+
+| class | n | members |
+| --- | ---: | --- |
+| **A — permission-shaped, caller-keyed** | **12** | `public.cast_case_vote` · `public.create_referral_internal_note` · `public.documents_due_for_review` · `public.get_referral_case_access_summary` · `public.get_standard_assessment` · `public.indicator_series` · `public.list_commission_documents` · `public.meeting_cadence_status` · `public.notify_safety_event` · `public.readiness_evidence` · `public.readiness_report` · `public.suggest_carry_forward` |
+| **B — permission-shaped, subject-keyed** | **11** | `app._case_caps` · `app.can_reach_meeting` · `app.can_read_action_item` · `app.can_read_capa` · `app.can_read_document` · `app.can_read_document_of_version` · `app.can_read_event` · `app.can_read_referral_internal_note` · `app.can_read_referral_internal_notes` · `app.can_read_referral_metadata` · `app.can_sign_meeting` |
+| **C — registry** | **1** | `app._audit_access_authorized` |
+| **D — allowlisted (capability plane)** | **1** | `app.member_can_for` |
+| **E — managed-row value** | **17** | `public.activate_phase` · `add_ad_hoc_narrative` · `add_ad_hoc_phase` · `add_interview_interviewer` · `add_meeting_attendee` · **`add_reserved_item`** · **`apply_minutes_review`** · `appoint_administrativo` · `assign_narrative` · `assign_referral_internal_note` · `assign_referral_reviewer` · `bulk_create_cases` · `create_committee_action_item` · `file_correction_request` · `grant_case_access` · `reassign_phase` · `update_committee_action_item` |
+
+**`12 + 11 + 1 + 1 + 17 = 42`** — the count is now an *output of the listing*, not a premise.
+**Permission-shaped total = 23**, which reproduces the reviewer's figure independently.
+
+⚠ **The mechanical classifier does NOT reach a clean partition on its own, and saying so is the
+point.** Run as written it leaves an **R_residue of 13**: the 11 class-B predicates plus
+`public.add_reserved_item` and `public.apply_minutes_review`. Those two were resolved by **reading
+the bodies** — each uses `is_member_of_for` as a *positive* filter rather than a negated guard
+(`... insert into meeting_closed_session_item_readers … select v_id, u from unnest(p_reader_uids) u
+where app.is_member_of_for(v_comm, u)`; and `if v_txt ~ c_uuid_re and app.is_member_of_for(v_commission,
+v_txt::uuid) then v_assignee := v_txt::uuid`) — so both are class **E**. ⛔ An earlier attempt used
+the RETURN TYPE as the discriminant (`boolean|integer` ⇒ subject-keyed predicate); it misfiled
+`public.bulk_create_cases`, which returns `integer` and whose `is_member_of_for` is a
+`HC021`-raising precondition on the assignee. **A shape-shaped discriminant classified by shape and
+not by role**, and it took a body read to see it. The two-stage form — mechanical first, residue
+named and read — is what makes the partition checkable rather than asserted.
+
+### 3.0a ⛔ THE OVERLAP, RESOLVED EXPLICITLY
+
+`public.create_referral_internal_note` is the **one** function carrying both a caller-keyed and a
+third-party `is_member_of_for` site (measured: `select … where for_caller and for_third` returns
+exactly it). **Precedence rule, stated once and applied once:** a function that gates the *caller's
+own* authority anywhere in its body is class **A**, and its third-party sites are recorded as a
+secondary managed-row property of the same line, never as a second membership.
+
+Applied: `create_referral_internal_note` is **A** (arm 1 —
+`is_member_of_for(p_committee_id, auth.uid())`, the caller must be a member of a side), with a
+class-E property (arm 2 — `is_member_of_for(p_committee_id, p_assigned_to)`, the assignee must be a
+member). ⛔ It is therefore **absent from § 3.3's list**, where r1 wrongly also named it. The
+reviewer's `−1 overlap` term is not needed: the precedence rule removes the double-count at
+classification time instead of subtracting it afterwards.
+
 ### 3.1 ⛔ `_for` AT A SITE DOES NOT MEAN THIRD-PARTY — two grains, and they are not interchangeable
 
 Extracting the second argument of every `is_member_of_for(` call:
@@ -224,7 +293,7 @@ third-party: `app._audit_access_authorized` (`p_commission, v_uid` where `v_uid 
 and `v_uid` is `auth.uid()`, so **every** arm answers about the caller. ⛔ A grep that pairs the two
 forms and calls it a mixed-keying disjunction would be wrong here; the body had to be read.
 
-### 3.2 The permission-shaped doors — 15 functions, the ones that become rows
+### 3.2 The permission-shaped doors — classes **A** and **B** of § 3.0, the ones that become rows
 
 Caller-keyed unless the **subject** column says otherwise.
 
@@ -248,19 +317,24 @@ Caller-keyed unless the **subject** column says otherwise.
 | `app._case_caps` | `t` | `p_uid` | the S5 arm — `read_case_deliberation` **only** | 9 |
 | `app._audit_access_authorized` | `t` | caller | the audited-read registry; its member legs **mirror** rows 6 and 20 | — (§ 8.4) |
 
-### 3.3 ⛔ MANAGED-ROW VALUE — 18 functions that are NOT rows
+### 3.3 ⛔ MANAGED-ROW VALUE — class **E** of § 3.0, 17 functions that are NOT rows
 
 In each, `is_member_of_for` is a **precondition on the row being written** — the assignee, corrector,
 reader, interviewer, attendee, appointee or approver must be a member. The **caller's** authority
 comes from a *different* predicate in the same body (usually `is_staff_admin_of`). ⛔ Recording any of
-these as a `staff` permission would convert *being assignable* into *being authorised*:
+these as a `staff` permission would convert *being assignable* into *being authorised*. The set is
+§ 3.0's class E, reproduced here rather than re-derived:
 
 `public.activate_phase` · `add_ad_hoc_narrative` · `add_ad_hoc_phase` (INVOKER) · `add_interview_interviewer` ·
-`add_meeting_attendee` (INVOKER) · `add_reserved_item` · `apply_minutes_review` · `assign_narrative` ·
-`assign_referral_internal_note` · `assign_referral_reviewer` · `bulk_create_cases` ·
-`create_committee_action_item` · `create_referral_internal_note` (its `p_assigned_to` arm) ·
-`file_correction_request` · `grant_case_access` · `reassign_phase` · `update_committee_action_item` ·
-`appoint_administrativo`.
+`add_meeting_attendee` (INVOKER) · `add_reserved_item` · `apply_minutes_review` · `appoint_administrativo` ·
+`assign_narrative` · `assign_referral_internal_note` · `assign_referral_reviewer` · `bulk_create_cases` ·
+`create_committee_action_item` · `file_correction_request` · `grant_case_access` · `reassign_phase` ·
+`update_committee_action_item`.
+
+⛔ **r2 correction (review H5): `create_referral_internal_note` is NO LONGER in this list.** r1 named
+it here *and* in § 3.2, which is the double-count the reviewer's equation had to subtract. § 3.0a's
+precedence rule puts it in class **A** once, with its `p_assigned_to` arm recorded as a secondary
+managed-row property of that line. The list is **17**, not 18.
 
 ⚠ **One more of this class sits on a DIFFERENT predicate and at a DIFFERENT scope**, and it is the
 only place a commission-scoped role's membership is consumed at hospital grain:
@@ -409,7 +483,7 @@ not; they are not role-derived. § 8.2 shows the seed makes this trap easy to fa
 
 ⛔ **The `administrativo` capability plane is NOT in this matrix** — § 3.4.
 
-### 5.2 The matrix — 21 proposed rows
+### 5.2 The matrix — 22 lines, 20 held rows
 
 **18 codes are NEW** (they do not exist in `authz.permissions`, measured: 43 codes, listed in full
 by `select code from authz.permissions order by code`) and **2 already exist and are held by
@@ -419,32 +493,34 @@ by `select code from authz.permissions order by code`) and **2 already exist and
 increment.
 
 `risk_class` values are the live domain's (`read` · `write` · `authority` · `irreversible`);
-`sensitivity` is `authz.permissions.sensitivity_ceiling`'s three-class partition. **arm-3** marks a
-row whose door carries a non-permission conjunct that no existing axis varies (plan `:1216-1234`).
+`sensitivity` is `authz.permissions.sensitivity_ceiling`'s three-class partition. ⭐ **The arm-3
+column is the OUTPUT of § 5.3's written criterion**, not a per-row judgement — read that criterion
+before disputing a cell; the three ⛔ **no** entries are rows the criterion actively EXCLUDES, and
+they say which exclusion applies.
 
 | # | proposed permission code | resource_kind | risk_class | sensitivity | arm-3 | enforcement sites (R / D / T) |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | `commission.forms.read` | commission_content | read | none | — | **R** 8 SELECT policies (`forms`, `form_versions`, `form_sections`, `form_items`, `form_item_options`, `form_item_validations`, `form_matrix_rows`, `form_matrix_columns`) + **R** `storage.objects.form_assets_select_member` · **T** `src/app/o/[org]/c/[commission]/forms/page.tsx:32` · **E2E** `phase-multitenancy.spec.ts:345,355` |
+| 1 | `commission.forms.read` | commission_content | read | none | ⚠ **yes** | **R** 8 SELECT policies (`forms`, `form_versions`, `form_sections`, `form_items`, `form_item_options`, `form_item_validations`, `form_matrix_rows`, `form_matrix_columns`) + **R** `storage.objects.form_assets_select_member` · **T** `src/app/o/[org]/c/[commission]/forms/page.tsx:32` · **E2E** `phase-multitenancy.spec.ts:345,355` |
 | 2 | `commission.responses.fill` | commission_content | write | none | — | **R** `responses.responses_insert_own` (`with_check = created_by = auth.uid() AND app.is_member_of(commission_id)`) — ⭐ **the ONLY membership-gated write policy in the database** · **T** `src/lib/responses/actions.ts:282-287` gating `:347` `start_or_resume_response` · **E2E** `phase5-wizard.spec.ts` · ⛔ see § 8.1 |
 | 3 | `commission.responses.own.read` | commission_content | read | none | — | ⛔ **PROPOSED AS A NON-ROW** — kept in the table so the omission is visible. `responses_select`'s first leg is `created_by = auth.uid()`; there is **no** membership leg. § 5.1 |
-| 4 | `commission.roster.read` | identity | read | none | — | **R** `memberships.memberships_select` · **R** `commissions.commissions_select_member_or_admin` · **R** `commission_member_titles.member_titles_select` · **R** `profiles.profiles_select_self_or_admin` (the **co-member** leg, § 2) · **T** `src/lib/queries/members.ts:122` |
+| 4 | `commission.roster.read` | identity | read | none | ⚠ **yes** | **R** `memberships.memberships_select` · **R** `commissions.commissions_select_member_or_admin` · **R** `commission_member_titles.member_titles_select` · **R** `profiles.profiles_select_self_or_admin` (the **co-member** leg, § 2) · **T** `src/lib/queries/members.ts:122` |
 | 5 | `commission.charter.read` | commission_content | read | none | — | **R** `commission_charters.commission_charters_select` (member-only — no tenancy arm) · **D** `public.meeting_cadence_status`, `public.suggest_carry_forward` (both raise `HC0K2` *"você não é membro desta comissão"*) |
 | 6 | `commission.meetings.read` | commission_content | read | none | ⚠ **yes** | **R** `meetings.meetings_select` — `is_member_of AND (visibility_policy = 'commission_default' OR attendee)` · **R** `meeting_settings_select`, `meeting_types_select` · **D** `app.can_reach_meeting` (subject `p_uid`; same conjunct) · **D** `app._audit_access_authorized` `'meeting.viewed'` leg · **E2E** `phase10-meetings.spec.ts:1025` 🚩UI-text |
-| 7 | `commission.meetings.cases.shell.read` ⭐SHARED | commission_content | read | none | — | **R** `meeting_cases.meeting_cases_select` = `app.can_reach_meeting(meeting_id, auth.uid()) AND NOT app.is_case_respondent(case_id, auth.uid())`. ⭐ **`staff` holds AE4.3's row 13 in full** — the shell is member-wide; rows 14/15 (substance, decision) are **NOT** held, and § 8.3 measures the projection that strips them |
+| 7 | `commission.meetings.cases.shell.read` ⭐SHARED | commission_content | read | none | ⚠ **yes** | **R** `meeting_cases.meeting_cases_select` = `app.can_reach_meeting(meeting_id, auth.uid()) AND NOT app.is_case_respondent(case_id, auth.uid())`. ⭐ **`staff` holds AE4.3's row 13 in full** — the shell is member-wide; rows 14/15 (substance, decision) are **NOT** held, and § 8.3 measures the projection that strips them |
 | 8 | `commission.meetings.minutes.sign` | commission_content | write | none | ⚠ **yes** | **R** `meeting_signatures.meeting_signatures_insert` — `signer_id = auth.uid() AND app.can_sign_meeting(attendee_id, auth.uid())` · **D** `app.can_sign_meeting` = `is_member_of_for(m.commission_id, p_signer) AND a.attendance = 'present' AND m.status = 'in_signature'`. The attendance + status conjuncts are the arm-3 coordinate |
 | 9 | `commission.cases.deliberation.read` | commission_content | read | none | ⚠ **yes** | **D** `app._case_caps` **S5** — `if v_member and not v_eg then read_case_deliberation`. `v_eg` (`visibility_policy = 'explicit_grants_only'`) is the arm-3 coordinate. Consumers of the bit: `app._project_meeting_case`, `app._project_meeting_agenda_item`, `public.get_reserved_session_items`, `app.resolve_document_version_bytes`. ⛔ **`app.can_reach_case_on_member_surface` is the NAMED authorizer for exactly this bit and has ZERO production callers** — § 8.3 |
 | 10 | `commission.cases.read` | commission_content | read | none | — | ⛔ **NOT HELD — and this is the most counter-intuitive row in the matrix.** AE4.3 row 41's site is `app.can_read_case`, which is `has_case_capability(…, 'read_case_content')`. S5 confers **only** `read_case_deliberation`, so `cases.cases_select` (= `can_read_case`) **denies a plain member on every case**. Measured in § 8.2 |
 | 11 | `commission.action_items.read` | commission_content | read | none | ⚠ **yes** | **R** `action_items.action_items_select`, the `visibility_scope = 'committee'` leg · **D** `app.can_read_action_item` (subject `p_uid`; `if v_scope = 'committee' then return app.is_member_of_for(...)`, behind an `is_case_excluded` hard deny) · **E2E** `action-items-satellites.spec.ts:504,577` 🚩UI-text |
-| 12 | `commission.cases.vote` | commission_content | write | none | — | **D** `public.cast_case_vote` — `is_member_of_for(v_commission, auth.uid())`, `42501` on failure. Caller-keyed via the `_for` form (§ 3.1) |
+| 12 | `commission.cases.vote` | commission_content | write | none | ⚠ **yes** | **D** `public.cast_case_vote` — `is_member_of_for(v_commission, auth.uid())`, `42501` on failure. Caller-keyed via the `_for` form (§ 3.1) |
 | 13 | `commission.process_templates.read` | commission_content | read | none | — | **R** 9 SELECT policies (`process_templates`, `process_template_versions`, `process_template_phases`, `..._custom_fields`, `..._narratives`, `..._outcomes`, `..._phase_allowed_results`, `..._phase_offered_results`, `phase_results`) |
 | 14 | `commission.indicators.read` | commission_content | read | none | — | **R** `indicators.indicators_select`, `indicator_measurements.indicator_measurements_select` · **D** `public.indicator_series` · **E2E** `phase15-indicators.spec.ts:725` (**403** on the write — a strong-signal deny) |
-| 15 | `commission.accreditation.read` | commission_content | read | none | — | **R** `accreditation_frameworks_select` (⚠ NULL-owner arm, § 2), `accreditation_standards_select`, `evidence_links_select`, `standard_assessments_select` · **D** `public.get_standard_assessment`, `public.readiness_evidence`, `public.readiness_report` · **E2E** `phase16-accreditation-core.spec.ts:492` |
-| 16 | `commission.documents.read` | commission_content | read | none | — | **R** `controlled_documents_select`, `controlled_document_versions_select` · **D** `public.list_commission_documents`, `public.documents_due_for_review`, `app.can_read_document`, `app.can_read_document_of_version` (subject `p_uid`). ⚠ `app.resolve_document_version_bytes` additionally requires the row-9 bit for case-homed documents |
-| 17 | `commission.safety_events.read` | commission_content | read | none | — | **D** `app.can_read_event` — `is_member_of_for(e.current_owner_commission_id, p_user_id) OR is_member_of_for(e.reporting_commission_id, p_user_id)`; ⭐ **two commissions reach one event**, which is a scope shape no single `scope_id` cell can express (§ 8.5) |
+| 15 | `commission.accreditation.read` | commission_content | read | none | ⚠ **yes** | **R** `accreditation_frameworks_select` (⚠ NULL-owner arm, § 2), `accreditation_standards_select`, `evidence_links_select`, `standard_assessments_select` · **D** `public.get_standard_assessment`, `public.readiness_evidence`, `public.readiness_report` · **E2E** `phase16-accreditation-core.spec.ts:492` |
+| 16 | `commission.documents.read` | commission_content | read | none | ⚠ **yes** | **R** `controlled_documents_select`, `controlled_document_versions_select`, ⭐ **`securable_resources.securable_resources_select`** — ⛔ **ADDED in r2 (review H4): § 2 and § 9.1 both credited this row with THREE policies while the row named two.** Live qual, re-read at r2: `(app.is_member_of(commission_id) OR app.is_tenancy_admin_of(commission_id))`. It belongs here and not with the case vocabulary because `securable_resources` is the **document-bearing resource registry** — its own live `obj_description` says *"one row per document-bearing domain row"* (ADR 0114 D4). Its tenancy arm is a **preserved arm**, § 9.1a · **D** `public.list_commission_documents`, `public.documents_due_for_review`, `app.can_read_document`, `app.can_read_document_of_version` (subject `p_uid`). ⚠ `app.resolve_document_version_bytes` additionally requires the row-9 bit for case-homed documents |
+| 17 | `commission.safety_events.read` | commission_content | read | none | ⛔ **no** — the `scope` axis, § 5.3 | **D** `app.can_read_event` — `is_member_of_for(e.current_owner_commission_id, p_user_id) OR is_member_of_for(e.reporting_commission_id, p_user_id)`; ⭐ **two commissions reach one event**, which is a scope shape no single `scope_id` cell can express (§ 8.5) |
 | 18 | `commission.safety_events.report` ⭐SHARED | commission_content | write | none | — | **D** `public.notify_safety_event` — `if not app.is_member_of(p_reporting_commission_id) then raise …`. ⭐ **`staff` holds AE4.3's row 28 in full**: reporting a safety event is a MEMBER act, not a coordinator act · **E2E** `phase14a-safety-events.spec.ts` |
-| 19 | `commission.capa.read` | commission_content | read | none | — | **D** `app.can_read_capa`, third arm — an **indicator-sourced** CAPA is readable by the indicator's commission members (`cp.source = 'indicator' AND is_member_of_for(i.commission_id, p_user_id)`). ⛔ The event-sourced arm is `can_read_event`'s, i.e. row 17, not this one |
-| 20 | `commission.referrals.metadata.read` | commission_content | read | none | ⚠ **yes** | **D** `app.can_read_referral_metadata`, `app.can_read_referral_internal_note(s)` (subject `p_uid`), `public.get_referral_case_access_summary` (caller-keyed), `app._audit_access_authorized` `'referral.case_access_summary_viewed'` leg. Arm-3 coordinate: the **target** side reaches only when `r.status <> 'draft'`; the source side always. ⛔ **PHI is NOT here** — `commission.referrals.phi.read` (AE4.3 row 27) gates on `app.can_read_referral_phi`, which has no member arm |
-| 21 | `commission.referrals.notes.author` | commission_content | write | none | — | **D** `public.create_referral_internal_note` — arm 1 is `is_member_of_for(p_committee_id, auth.uid())` plus *"apenas um membro da comissão de origem ou destino"* · **E2E** `phase22-referrals.spec.ts:1520,1714` 🚩UI-text |
+| 19 | `commission.capa.read` | commission_content | read | none | ⚠ **yes** | **D** `app.can_read_capa`, third arm — an **indicator-sourced** CAPA is readable by the indicator's commission members (`cp.source = 'indicator' AND is_member_of_for(i.commission_id, p_user_id)`). ⛔ The event-sourced arm is `can_read_event`'s, i.e. row 17, not this one |
+| 20 | `commission.referrals.metadata.read` | commission_content | read | none | ⛔ **no** — reclassified to `resourceLifecycle`, § 5.3 | **D** `app.can_read_referral_metadata`, `app.can_read_referral_internal_note(s)` (subject `p_uid`), `public.get_referral_case_access_summary` (caller-keyed), `app._audit_access_authorized` `'referral.case_access_summary_viewed'` leg. Arm-3 coordinate: the **target** side reaches only when `r.status <> 'draft'`; the source side always. ⛔ **PHI is NOT here** — `commission.referrals.phi.read` (AE4.3 row 27) gates on `app.can_read_referral_phi`, which has no member arm |
+| 21 | `commission.referrals.notes.author` | commission_content | write | none | ⛔ **no** — the `scope` axis, § 5.3 | **D** `public.create_referral_internal_note` — arm 1 is `is_member_of_for(p_committee_id, auth.uid())` plus *"apenas um membro da comissão de origem ou destino"* · **E2E** `phase22-referrals.spec.ts:1520,1714` 🚩UI-text |
 | 22 | `commission.cases.vocabulary.read` | vocabulary | read | none | — | ⭐ **ADDED by § 9.1's reconciliation — these three policies had NO row until the parts were forced to sum.** **R** `case_narrative_types.case_narrative_types_select`, `case_outcomes.case_outcomes_select`, `case_tags.case_tags_select`, each `app.is_member_of(commission_id) OR app.is_tenancy_admin_of(commission_id)`. ⛔ **Not** the same code as the existing org-scoped `org.case_vocabulary.manage` (AE4.3 row 32), which governs *ethics allegation categories / sanction types / case assignment roles* at `organization` scope — different tables, different resolution scope |
 
 **Row count: 22 lines, of which 20 are held rows** — rows 3 and 10 are **non-rows kept visible on
@@ -464,6 +540,177 @@ SME writes, via `rca_members`, not via membership) and interview authorship
 (`e2e/phase11-interviews.spec.ts:833` — a *registered interviewer*, via `case_interview_interviewers`).
 `app.can_write_rca` and `app.can_write_interview` were read in full: **neither contains
 `is_member_of`**, and their non-admin arms are explicit membership tables of their own.
+
+---
+
+### 5.3 ⭐ THE ARM-3 CRITERION, WRITTEN ONCE — and the census re-run against it
+
+⛔ **r2 (review H3). r1 marked five rows arm-3 by inspection and no criterion was written down**, so
+the inventory contradicted § 2's own text (row 15) and could not decide rows 19 and 21. One criterion
+now decides every site, and the census below is its output — including the rows it takes **out**.
+
+> **CRITERION.** An enforcement site of a `staff` row is **arm-3-shaped** iff the door's answer, for
+> a principal whose only relevant grant is the `staff` membership, depends on a term beyond that
+> membership which **no declared axis of `supabase/tests/vectors/authz-matrix-axes.json` varies**
+> (`persona` · `role` · `activeContext` · `scope` · `operation` · `principalState` ·
+> `resourceLifecycle` · `sensitivity` · `caseReach`), in either of two limbs:
+> **(a) conjunctive** — a further CONJUNCT that can turn a GRANT cell into a deny; or
+> **(b) role-free disjunctive** — a further DISJUNCT that is true for a principal holding **no role
+> at all**, so a DENY cell can be satisfied by the disjunct instead of by the predicate.
+>
+> Three exclusions, each because the term is already varied or is not a per-cell variable:
+> **(i) a sibling-ROLE arm** (`is_tenancy_admin_of`, `is_org_admin_of`, `is_pqs_operator_of`,
+> `is_quality_reviewer_of`, `is_staff_admin_of`, `is_admin`) — the `persona`/`role` axes describe
+> role-holding, and such an arm is false for a `staff`-only persona by construction; it is a
+> **preserved-arm** disposition instead (§ 9.1a).
+> **(ii) a term the `scope` axis already varies** — "is this resource anchored at the scope under
+> test?" is exactly `own_commission` vs `sibling_commission`.
+> **(iii) a resource-class selector** that chooses which rows the policy speaks about rather than
+> whether the caller passes (`bucket_id = 'form-assets'`).
+>
+> And one term that is declared but is **NOT a coordinate**: a **feature-flag precondition**
+> (`app.assert_*_enabled()` / `app.feature_enabled(...)`) is CONSTANT across every cell of a run, so
+> it distinguishes nothing between cells — ⛔ but it must still be declared, because a flag flip
+> voids the whole row silently. Measured: **29 of the 42** functions carry one.
+
+**Census — every R and D site of every held row, against the criterion.**
+
+| row | site | verdict | the term |
+| --- | --- | --- | --- |
+| 1 | `form_matrix_columns_select`, `form_matrix_rows_select` | ⚠ **arm-3 (b)** | `OR app.can_access_targeted_version(form_version_id, auth.uid())` — role-free (measured body: a `case_participants` ⋈ `professional_profiles` join, no role term) |
+| 1 | the other 6 form policies + `form_assets_select_member` | — | membership + a tenancy arm (i); `bucket_id` is (iii) |
+| 2 | `responses_insert_own` | — | bare membership + `created_by = auth.uid()`; the response's own lifecycle is `resourceLifecycle` (see § 11 item 7) |
+| 4 | `profiles_select_self_or_admin` | ⚠ **arm-3 (a)** | the co-member leg — `EXISTS(… them.principal_id = profiles.id AND app.is_member_of(them.commission_id))`: the answer depends on the **target profile's** memberships, which no axis varies |
+| 4 | `memberships_select`, `profiles_select_self_or_admin` | ⚠ **arm-3 (b)** | `principal_id = auth.uid()` / `id = auth.uid()` — a role-free SELF-read disjunct: a deny cell about these tables is satisfied by the fixture reading its own row |
+| 4 | `commissions_select_member_or_admin`, `member_titles_select` | — | membership + role arms only (i) |
+| 5 | `commission_charters_select` | — | bare membership, no other term |
+| 5 | `meeting_cadence_status`, `suggest_carry_forward` | — (flag) | `assert_charters_enabled()` |
+| 6 | `meetings_select`, `app.can_reach_meeting` | ⚠ **arm-3 (a)** | `AND (visibility_policy = 'commission_default' OR EXISTS(… meeting_attendees …))` |
+| **7** | `meeting_cases_select` | ⚠ **arm-3 (a)** — ⛔ **r1 marked this `—`; the criterion catches it** | `app.can_reach_meeting(…) AND NOT app.is_case_respondent(case_id, auth.uid())` — it inherits row 6's conjunct **and** adds a respondent hard-deny |
+| 8 | `meeting_signatures_insert`, `app.can_sign_meeting` | ⚠ **arm-3 (a)** | `a.attendance = 'present' AND m.status = 'in_signature'` — ⚠ `in_signature` is **not** one of `resourceLifecycle`'s six declared values, so no axis varies it today (§ 11 item 5 offers the alternative of extending that axis instead) |
+| 9 | `app._case_caps` S5 | ⚠ **arm-3 (a)** | `v_member and not v_eg`, plus the STEP-4 hard denies `is_case_respondent` / `is_recused_from_case` |
+| 11 | `action_items_select`, `app.can_read_action_item` | ⚠ **arm-3 (a)** | `visibility_scope = 'committee'` gates the member leg; `can_read_action_item` adds an `is_case_excluded` hard deny |
+| 11 | `action_items_select`, the `assignees_only` leg | ⚠ **arm-3 (b)** | `assigned_to = auth.uid()` and the `action_item_assignments` EXISTS — role-free |
+| **12** | `public.cast_case_vote` | ⚠ **arm-3 (a)** — ⛔ **r1 marked this `—`** | the ethics-case status guard (`HC0J0`) precedes the membership test; the case's ethics status is not among `resourceLifecycle`'s six values |
+| 13 | 9 process-template policies | — | membership + tenancy arm (i) |
+| 14 | `indicators_select`, `indicator_measurements_select`, `indicator_series` | — (flag) | tenancy arm (i); `assert_quality_indicators_enabled()` |
+| **15** | `accreditation_frameworks_select`, `accreditation_standards_select` | ⚠ **arm-3 (b)** — ⛔ **r1 marked row 15 `—` while § 2 already named it**; this is the review's core finding and the **vacuous** shape | `owner_commission_id IS NULL OR …` — a **PUBLIC** arm: every authenticated caller passes, so a `staff` deny cell on these tables cannot fail |
+| 15 | `evidence_links_select`, `standard_assessments_select`, the three D readers | — (flag) | bare membership; `assert_accreditation_enabled()` |
+| 16 | `controlled_documents_select`, `controlled_document_versions_select` | ⚠ **arm-3 (b)** | `OR app.is_document_approver_of(id, auth.uid())` / `is_document_version_approver(…)` — role-free (measured: a `document_approvals` lookup, no role term) |
+| 16 | `securable_resources_select` | — | membership + tenancy arm (i) — see § 9.1a |
+| 17 | `app.can_read_event` | ⛔ **NOT arm-3** | two membership disjuncts (`current_owner_commission_id`, `reporting_commission_id`). Exclusion (ii): "is the resource anchored at the scope under test?" **is** the `scope` axis. The two-commission shape is § 8.5's, not arm 3's |
+| 18 | `public.notify_safety_event` | — (flag) | `assert_patient_safety_enabled()` |
+| **19** | `app.can_read_capa`, third arm | ⚠ **arm-3 (a)** — **the criterion puts it IN** | `cp.source = 'indicator' AND is_member_of_for(i.commission_id, …)`. The CAPA's **provenance column** decides, and no axis carries provenance — `resourceLifecycle` varies lifecycle states, not origin |
+| 20 | `app.can_read_referral_metadata` and siblings | ⛔ **NOT arm-3 — RECLASSIFIED** | the target-side conjunct is `r.status <> 'draft'`, and **`draft` IS a declared `resourceLifecycle` value**. Exclusion by the criterion's own axis list ⇒ this is a `resourceLifecycle` coordinate whose per-operation map is empty today (`constraintRules.lifecycle_requires_lifecycled_resource` says so in as many words). **T3 must populate it**, which is a stronger obligation than an arm-3 label |
+| **21** | `public.create_referral_internal_note` | ⛔ **NOT arm-3** | "the caller's commission must be one of the referral's two sides" is exclusion (ii) — the same shape as row 17, and the `scope` axis varies it |
+| 22 | the three case-vocabulary policies | — | membership + tenancy arm (i) |
+
+**Result: 11 rows carry an arm-3 coordinate** — 1, 4, 6, 7, 8, 9, 11, 12, 15, 16, 19 (rows 4 and 11
+carry both limbs). r1 listed five (6, 8, 9, 11, 20); the criterion **adds** 1, 4, 7, 12, 15, 16, 19
+and **removes** 20 (to `resourceLifecycle`) — and it removes 21 and 17 for the same stated reason.
+⛔ Two of the additions (15 and 4's self-read) are limb **(b)**, the vacuous shape, which is the one
+that makes a deny cell pass without exercising the predicate; they matter most.
+
+---
+
+### 5.4 ⭐ THE PER-ARM INTERFACE TABLE — subject · hat · `definerSurface`, one line per site
+
+⛔ **r2 (review B2). r1 satisfied AC-1 in PROSE** — a `subject` column in § 3.2, a `prosecdef`
+column, and a global hat argument in § 6A. **A global statement is exactly where a wrong arm hides**,
+and ADR 0201 D3 says the hat requirement is *"declared, never inferred"* per arm. This table is the
+declaration, and **T5 copies it verbatim** into the enforcement manifest (ADR 0193 D5 / ADR 0200:
+the `definerSurface` home is the manifest, and the matrix is its source).
+
+**How each column was resolved — ⛔ none of it from § 6A.**
+- **subject**: the principal argument as written at the site (`auth.uid()` ⇒ `caller`; a parameter
+  ⇒ that parameter's name).
+- **hat**: read from `app.has_role_any`'s term `(p_user_id is distinct from auth.uid() or m.role is
+  not distinct from app.active_role())` **applied to the principal this site passes**. `required`
+  when the site passes the caller; `ignored` when it passes a third party; `conditional` for a
+  predicate whose own callers differ — and then the caller sets are named, measured with
+  `select … from pg_policies / pg_proc where src ~ '<predicate>\('`.
+- **`definerSurface`**: `prosecdef` from `pg_proc`, plus whether the door carries the permission code
+  as a greppable literal. ⚠ **Today the answer is `carriesCode:false` everywhere** — none of the 18
+  codes exists yet — and the empty declaration is written out rather than left blank, as AC-1 requires.
+
+| row | arm (site) | kind | subject | hat | `definerSurface` |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `forms_select` | R | caller | **required** | none — policy arm |
+| 1 | `form_versions_select` | R | caller | **required** | none — policy arm |
+| 1 | `form_sections_select` | R | caller | **required** | none — policy arm |
+| 1 | `form_items_select` | R | caller | **required** | none — policy arm |
+| 1 | `form_item_options_select` | R | caller | **required** | none — policy arm |
+| 1 | `form_item_validations_select` | R | caller | **required** | none — policy arm |
+| 1 | `form_matrix_rows_select` | R | caller | **required** | none — policy arm |
+| 1 | `form_matrix_columns_select` | R | caller | **required** | none — policy arm |
+| 1 | `storage.objects.form_assets_select_member` | R | caller | **required** | none — policy arm |
+| 2 | `responses.responses_insert_own` | R | caller | **required** | ⚠ **NOT empty**: `public.responses` has **5** DEFINER writers (`reject_correction`, `start_correction_draft`, `submit_targeted_case_response`, `supersede_response`, `target_case_response`) and 4 INVOKER ones (`save_section_answers`, `start_or_resume_phase`, `start_or_resume_response`, `submit_response`). **None of the 5 is in the `is_member_of` population**, so none sits on `staff`'s legacy gate ⇒ `carriesCode:false`, and all 5 are OUT of this row's re-key surface |
+| 2 | `src/lib/responses/actions.ts:282-287` `authorizeMember` | T | caller | n/a — the TS layer reads no `active_role` | none — ⛔ defence in depth only |
+| 4 | `memberships.memberships_select` | R | caller | **required** | none — policy arm |
+| 4 | `commissions.commissions_select_member_or_admin` | R | caller | **required** | none — policy arm |
+| 4 | `profiles.profiles_select_self_or_admin` | R | caller | **required** | none — policy arm |
+| 4 | `commission_member_titles.member_titles_select` | R | caller | **required** | none — policy arm |
+| 5 | `commission_charters.commission_charters_select` | R | caller | **required** | none — policy arm |
+| 5 | `public.meeting_cadence_status` | D | caller (bare `is_member_of`) | **required** | `prosecdef=t`, `carriesCode:false` |
+| 5 | `public.suggest_carry_forward` | D | caller (bare `is_member_of`) | **required** | `prosecdef=t`, `carriesCode:false` |
+| 6 | `meetings.meetings_select` | R | caller | **required** | none — policy arm |
+| 6 | `commission_meeting_settings.meeting_settings_select` | R | caller | **required** | none — policy arm |
+| 6 | `commission_meeting_types.meeting_types_select` | R | caller | **required** | none — policy arm |
+| 6 | `app.can_reach_meeting` | D | `p_uid` | **conditional** — **required** at its 5 policy callers, each passing `auth.uid()` (`meeting_agenda_items_select`, `meeting_closed_sessions_select`, `meeting_cases_select`, `meeting_attendees_select`, `meeting_signatures_select`) and at the 4 function callers passing `v_uid`; **ignored** at `app.can_view_printed_document` and `app.can_read_full_case_content`, which propagate `p_uid` | `prosecdef=t`, `carriesCode:false` |
+| 6 | `app._audit_access_authorized` — `'meeting.viewed'` and `'interview.viewed'` legs | registry | caller (`v_uid := auth.uid()`) | **required** | `prosecdef=t`, `carriesCode:false` — ⛔ mirrors this row, never a row of its own (§ 8.4) |
+| 7 | `meeting_cases.meeting_cases_select` | R | caller | **required** (it passes `auth.uid()` to `can_reach_meeting`) | none — policy arm |
+| 8 | `meeting_signatures.meeting_signatures_insert` | R | caller | **required** | ⚠ **NOT empty** — next line |
+| 8 | `app.can_sign_meeting` | D | `p_signer` | **conditional** — **required** at both live callers (`meeting_signatures_insert` passes `auth.uid()`; `public.sign_meeting` passes `v_uid`) | `prosecdef=t`, `carriesCode:false` |
+| 8 | `public.sign_meeting` | D-writer | caller (`v_uid`) | **required** | ⭐ **`prosecdef=t` and it WRITES `meeting_signatures`** — the ADR 0193 D5 split, live on this row. `public.reopen_meeting` also writes the relation as DEFINER but is not on the `staff` gate. ⛔ Re-keying the POLICY alone leaves `sign_meeting` on the legacy gate; because both call `app.can_sign_meeting`, re-keying **the predicate** closes the split in one move — that is this row's T7 instruction |
+| 9 | `app._case_caps` — the **S5** arm | D | `p_uid` | **conditional** — **ignored** wherever the caps resolver is asked about a third party, which is its normal use; **required** where a consumer passes `auth.uid()` | `prosecdef=t`, `carriesCode:false`. ⛔ The named authorizer `app.can_reach_case_on_member_surface` (`prosecdef=t`) has **zero production callers** (§ 8.3) — declared here so T7 wires it rather than only re-keying it |
+| 11 | `action_items.action_items_select` | R | caller | **required** | none — policy arm |
+| 11 | `app.can_read_action_item` | D | `p_uid` | **conditional** — **required** at its 5 policy callers, all passing `auth.uid()` (`action_item_assignments/_status_history/_reminders/_updates/_checklists_select`); **ignored** at `app.can_write_action_item_stake`, `public.compute_due_notifications` and `app.can_read_document`, which pass a third party | `prosecdef=t`, `carriesCode:false` |
+| 12 | `public.cast_case_vote` | D | caller (`_for` + `auth.uid()`) | **required** | `prosecdef=t`, `carriesCode:false` |
+| 13 | `process_templates_select` | R | caller | **required** | none — policy arm |
+| 13 | `process_template_versions_select` | R | caller | **required** | none — policy arm |
+| 13 | `process_template_phases_select` | R | caller | **required** | none — policy arm |
+| 13 | `process_template_custom_fields_select` | R | caller | **required** | none — policy arm |
+| 13 | `process_template_narratives_select` | R | caller | **required** | none — policy arm |
+| 13 | `process_template_outcomes_select` | R | caller | **required** | none — policy arm |
+| 13 | `process_template_phase_allowed_results_select` | R | caller | **required** | none — policy arm |
+| 13 | `process_template_phase_offered_results_select` | R | caller | **required** | none — policy arm |
+| 13 | `phase_results.phase_results_select` | R | caller | **required** | none — policy arm |
+| 14 | `indicators.indicators_select` | R | caller | **required** | none — policy arm |
+| 14 | `indicator_measurements.indicator_measurements_select` | R | caller | **required** | none — policy arm |
+| 14 | `public.indicator_series` | D | caller (bare) | **required** | `prosecdef=t`, `carriesCode:false` |
+| 15 | `accreditation_frameworks.accreditation_frameworks_select` | R | caller | **required** | none — policy arm |
+| 15 | `accreditation_standards.accreditation_standards_select` | R | caller | **required** | none — policy arm |
+| 15 | `evidence_links.evidence_links_select` | R | caller | **required** | none — policy arm |
+| 15 | `standard_assessments.standard_assessments_select` | R | caller | **required** | none — policy arm |
+| 15 | `public.get_standard_assessment` | D | caller (bare) | **required** | `prosecdef=t`, `carriesCode:false` |
+| 15 | `public.readiness_evidence` | D | caller (bare) | **required** | `prosecdef=t`, `carriesCode:false` |
+| 15 | `public.readiness_report` | D | caller (bare) | **required** | `prosecdef=t`, `carriesCode:false` |
+| 16 | `controlled_documents.controlled_documents_select` | R | caller | **required** | none — policy arm |
+| 16 | `controlled_document_versions.controlled_document_versions_select` | R | caller | **required** | none — policy arm |
+| 16 | `securable_resources.securable_resources_select` | R | caller | **required** | none — policy arm |
+| 16 | `public.list_commission_documents` | D | caller (bare) | **required** | `prosecdef=t`, `carriesCode:false` |
+| 16 | `public.documents_due_for_review` | D | caller (bare) | **required** | `prosecdef=t`, `carriesCode:false` |
+| 16 | `app.can_read_document` | D | `p_uid` | **conditional** — **required** at its 3 policy callers, all passing `auth.uid()` (`documents_select`, `document_versions_select`, `document_placements_select`) and at `issue_ethics_notification` / `set_ethics_decision_details` / `add_rca_evidence`; **ignored** at `app.resolve_document_version_bytes`, `app.can_read_file_object`, `app.can_read_document_version` | `prosecdef=t`, `carriesCode:false` |
+| 16 | `app.can_read_document_of_version` | D | `p_uid` | **ignored** — no live caller passes `auth.uid()` | `prosecdef=t`, `carriesCode:false` |
+| 17 | `app.can_read_event` | D | `p_user_id` | **conditional** — **required** at its 11 policy callers and at the 9 event RPCs, all passing `auth.uid()`; **ignored** at `app.can_read_capa`, `app.can_read_document` and `app._audit_access_authorized`, which propagate | `prosecdef=t`, `carriesCode:false` |
+| 18 | `public.notify_safety_event` | D | caller (bare) | **required** | `prosecdef=t`, `carriesCode:false` |
+| 19 | `app.can_read_capa` — the indicator-sourced arm | D | `p_user_id` | **conditional** — **required** at its 4 policy callers, all passing `auth.uid()` (`capa_plan/_action/_measure/_effectiveness_select`) and at `capa_viewer_can_manage`; **ignored** at `link_evidence`, `evidence_candidates`, `_audit_access_authorized` | `prosecdef=t`, `carriesCode:false` |
+| 20 | `app.can_read_referral_metadata` | D | `p_uid` | **conditional** — **required** at its 4 policy callers, all passing `auth.uid()`; **ignored** at `app.can_read_referral` and `app.can_read_document`, which propagate | `prosecdef=t`, `carriesCode:false` |
+| 20 | `app.can_read_referral_internal_note` | D | `p_uid` | **ignored** — no live caller passes `auth.uid()` | `prosecdef=t`, `carriesCode:false` |
+| 20 | `app.can_read_referral_internal_notes` | D | `p_uid` | **ignored** — no live caller passes `auth.uid()` | `prosecdef=t`, `carriesCode:false` |
+| 20 | `public.get_referral_case_access_summary` | D | caller (`_for` + `auth.uid()`) | **required** | `prosecdef=t`, `carriesCode:false` |
+| 20 | `app._audit_access_authorized` — `'referral.case_access_summary_viewed'` leg | registry | caller (`v_uid`) | **required** | `prosecdef=t`, `carriesCode:false` — mirrors this row (§ 8.4) |
+| 21 | `public.create_referral_internal_note` — arm 1 | D | caller (`_for` + `auth.uid()`) | **required** | `prosecdef=t`, `carriesCode:false`. ⚠ Its arm 2 (`p_assigned_to`) is a class-E managed-row property of the same body (§ 3.0a), ⛔ not an arm of this row |
+| 22 | `case_narrative_types.case_narrative_types_select` | R | caller | **required** | none — policy arm |
+| 22 | `case_outcomes.case_outcomes_select` | R | caller | **required** | none — policy arm |
+| 22 | `case_tags.case_tags_select` | R | caller | **required** | none — policy arm |
+
+⭐ **What this table says that § 6A cannot.** § 6A is true and global: the hat applies to self-checks
+and not to third-party ones. Read off it alone, every `_for` predicate would be declared
+`hat: ignored` — and **that is wrong wherever the live caller passes `auth.uid()` into the `_for`
+form**, which is the majority of the policy sites above. ⛔ The hat is a property of the **site**,
+not of the predicate — exactly ADR 0201 D3's *"an arm's hat behaviour is not a property of the arm
+alone."*
 
 ---
 
@@ -664,13 +911,23 @@ not a bug in any one policy: `responses_insert_own` is the only membership gate 
 every later step is ownership-keyed (§ 5.1). ⇒ under the catalog, `commission.responses.fill` would
 **deny** at steps 5–6 while the legacy path **grants**.
 
-**Proposed disposition: (b) — a named compatibility exception with owner and expiry**, encoded in
-`424`'s **`expected_legacy_granted`** column and ⛔ never in `expected_granted` (the ⚠⚠ block, plan
-`:1223-1227`: the catalog is *right* to deny where a legacy arm grants for a reason it has no
-mechanism for). ⛔ **Not (a)** — nothing has fixed it. ⛔ **Not (c)** unless the PO reads
-"finish the form you started" as a defect rather than a feature; that is the PO's call, not the
-lead's and not mine. ⚠ Whichever way it goes, the *reason* must travel with the cell: a reviewer
-seeing "legacy grants, catalog denies" on a response write will otherwise try to widen the catalog.
+⛔ **r2 (review H6): THE DISPOSITION IS NOW CONDITIONAL ON § 11 ITEM 7, and the measurement above is
+unchanged either way.** r1 proposed **(b)** flatly. The reviewer's point is prior to the
+disposition: whether this is a PA-F8 divergence **at all** depends on what row 2's code governs.
+- Under item 7 **option (A)** (rename to `commission.responses.create`) there is **no row for this
+  to diverge from** — later ownership behaviour is not a divergence of a creation permission ⇒
+  **PA-F8-STAFF-1 is WITHDRAWN as a PA-F8 item** and the behaviour is re-filed as a product
+  bug / follow-up on the ownership path.
+- Under item 7 **option (B)** (`.fill` governs the lifecycle) it is **(b)** — a named compatibility
+  exception with owner and expiry, encoded in `424`'s **`expected_legacy_granted`** column and
+  ⛔ never in `expected_granted` (the ⚠⚠ block, plan `:1223-1227`: the catalog is *right* to deny
+  where a legacy arm grants for a reason it has no mechanism for). ⛔ Not (a) — nothing has fixed it;
+  ⛔ not (c) unless the PO reads "finish the form you started" as a defect.
+
+⚠ **Withdrawing the PA-F8 LABEL would not downgrade the FINDING.** The transcript above is what was
+measured and it stands under both options; only the register it lands in changes. ⭐ And whichever
+way it goes, the *reason* must travel with the cell or the artefact: a reader seeing "legacy grants,
+catalog denies" on a response write will otherwise try to widen the catalog.
 
 ### 8.2 ⛔ THE SEED'S PLAIN-`staff` PERSONAS ARE CONTAMINATED IN FIVE DIFFERENT WAYS
 
@@ -763,18 +1020,56 @@ recorded in its own comment, and unchanged by this increment.
 | population | count | disposition |
 | --- | ---: | --- |
 | policies calling `is_member_of` | **40** | 39 SELECT → rows **1** (9) · **4** (4) · **5** (1) · **6** (3) · **11** (1) · **13** (9) · **14** (2) · **15** (4) · **16** (3) · **22** (3) = `9+4+1+3+1+9+2+4+3+3` = **39** ✓ ; 1 INSERT (`responses_insert_own`) → row **2**. ⚠ **Row 7's site is NOT in this population** — `meeting_cases_select` reaches membership only transitively, through `app.can_reach_meeting`, and contains no `is_member_of` text of its own; a policy-text sweep is blind to it |
-| functions calling `is_member_of(_for)` | **42** | **15** permission-shaped → rows (§ 3.2) · **18** managed-row value (§ 3.3) · **1** allowlisted (`app.member_can_for`, § 3.4) · **8** are the same functions counted once in § 3.2's multi-row groups (`can_read_document` ×2 sites, `can_read_referral_*` ×3, `readiness_*` ×2, `list_commission_documents`/`documents_due_for_review`) |
+| functions calling `is_member_of(_for)` | **42** | § 3.0's four-way partition, **which sums by listing the 42 names**: **12** A caller-keyed permission · **11** B subject-keyed permission · **1** C registry · **1** D allowlisted · **17** E managed-row value. ⛔ r1's `15 + 18 + 1` and its "8 residue" are withdrawn (review H5) |
 | functions naming the literal `'staff'` | **3** | 2 administered value (§ 5.1) · 1 managed-row value |
 | other commission-tier `has_role_any` callers | **2** | `is_entitled_document_approver` (§ 8.5) · `appoint_hospital_dpo` (managed-row value) |
 | policies naming the literal `'staff'` | **0** | — |
 
-⚠ `15 + 18 + 1 = 34`, not 42. The residue is **8 functions that appear in more than one § 3.2 group
-or in none** — resolved by listing them rather than by adjusting a total: `app.can_read_document`
-(2 call sites, 1 row), `app.can_read_referral_internal_note` / `_notes` / `_metadata` (3 functions,
-2 rows), `public.readiness_evidence` / `readiness_report` (2 functions, 1 row),
-`public.documents_due_for_review` / `list_commission_documents` (2 functions, 1 row), and
-`app._audit_access_authorized` (a registry, § 8.4). ⛔ A count that "sums" by silently folding these
-would hide exactly the mapping the § header names.
+⛔ **r2 (review H5): the r1 arithmetic here (`15 + 18 + 1 = 34`, with an unreproducible "8 residue")
+is DELETED, not patched.** The function side of this reconciliation is now § 3.0's four-way partition,
+which sums **by listing 42 names** — `12 + 11 + 1 + 1 + 17`. Nothing in this section re-derives it;
+§ 3.0 is the one home.
+
+### 9.1a ⭐ THE PER-POLICY → ROW MAPPING, ALL 40, AND THE PRESERVED-ARM DISPOSITION
+
+⛔ **The row-22 trap recurred one row earlier (review H4), so the fix is a mapping, not another
+aggregate.** r1 fixed the buckets in § 2 and the counts still hid a policy the row did not name.
+Below, every one of the 40 is named against its row; the check is reading it, not summing it.
+
+| row | policies (all 40, named) | n |
+| --- | --- | ---: |
+| 1 | `forms_select` · `form_versions_select` · `form_sections_select` · `form_items_select` · `form_item_options_select` · `form_item_validations_select` · `form_matrix_rows_select` · `form_matrix_columns_select` · `objects.form_assets_select_member` | 9 |
+| 2 | `responses_insert_own` (the only INSERT) | 1 |
+| 4 | `memberships_select` · `commissions_select_member_or_admin` · `profiles_select_self_or_admin` · `member_titles_select` | 4 |
+| 5 | `commission_charters_select` | 1 |
+| 6 | `meetings_select` · `meeting_settings_select` · `meeting_types_select` | 3 |
+| 11 | `action_items_select` | 1 |
+| 13 | `process_templates_select` · `process_template_versions_select` · `process_template_phases_select` · `process_template_custom_fields_select` · `process_template_narratives_select` · `process_template_outcomes_select` · `process_template_phase_allowed_results_select` · `process_template_phase_offered_results_select` · `phase_results_select` | 9 |
+| 14 | `indicators_select` · `indicator_measurements_select` | 2 |
+| 15 | `accreditation_frameworks_select` · `accreditation_standards_select` · `evidence_links_select` · `standard_assessments_select` | 4 |
+| 16 | `controlled_documents_select` · `controlled_document_versions_select` · **`securable_resources_select`** | 3 |
+| 22 | `case_narrative_types_select` · `case_outcomes_select` · `case_tags_select` | 3 |
+
+`9+1+4+1+3+1+9+2+4+3+3 = 40` — and now every addend is a list you can read against its row.
+⚠ **Row 7's site is still NOT in this population**: `meeting_cases_select` reaches membership only
+through `app.can_reach_meeting` and carries no `is_member_of` text of its own.
+
+**The tenancy-admin arm — dispositioned the way AE4.3 dispositioned admin arms.** Measured over the
+40: **28 carry `app.is_tenancy_admin_of`, 12 do not** (`select count(*) … where src ~
+'is_tenancy_admin_of'`). AE4.3's precedent is `app.can_edit_commission_forms`, whose live body labels
+its second disjunct in as many words — *"PRESERVED ARM — the tenancy admins (org_admin /
+hospital_admin), both `legacy` roles whose catalog grants are inert. This is the legacy-equivalence
+half; deleting it is the regression this migration exists to avoid."*
+
+⇒ **Disposition for all 28, including `securable_resources_select`: PRESERVED ARM at T7.** The
+layer-3 authorizer for each of those rows is
+`authz.has_permission(p_uid,'commission',X,'<row code>') OR app.is_tenancy_admin_of_for(X, p_uid)`,
+⛔ **never permission-only** — `org_admin` and `hospital_admin` are still `legacy`, so their catalog
+grants are inert and a permission-only authorizer would revoke tenancy reach on the day it lands.
+⚠ A preserved arm is a **residual legacy authority** and the seam records that such arms are pinned
+**BY NAME** (adding one reds the pin; retiring one reds it too), so each must appear in the T5
+manifest row's `residualLegacyAuthority` **and** in its `domainAuthorizer.composedWith` — the
+generator cross-checks both directions and fails generation if they disagree.
 
 ### 9.2 Top-down: the write surface, which a predicate-keyed derivation misses systematically
 
@@ -801,17 +1096,57 @@ row; `app.can_write_interview` = `is_staff_admin_of_for` **or** a `case_intervie
 ✅ **The top-down pass adds ONE row the bottom-up pass had already found (row 8) and no row it had
 missed** — which is the result that makes § 5.2 a mapping rather than an enumeration.
 
-### 9.3 Against `authz.permissions` as it stands
+### 9.3 Against `authz.permissions` as it stands — and the `staff_admin` disposition for ALL 18
 
 43 codes exist; `staff_admin` holds 42. **`staff` shares exactly 2** (rows 7 and 18) and needs **18
-new codes**. ⚠ That is a large addition and the PO should see it as such: `staff_admin`'s matrix
-enumerated *management* verbs, and the read verbs a member exercises were folded into them
-implicitly. Rows 1, 4, 5, 13, 14, 15, 16 are the read halves of `staff_admin` codes that never had a
-separate read code (`commission.forms.edit` has no `.read`; `commission.process_templates.manage` has
-no `.read`; and so on). ⇒ approving this matrix implies `staff_admin` will hold those read codes too
-at the moment they are seeded, or a coordinator will lose a read the day the sites re-key. ⛔ **That
-is a consequence of approval, not a side effect to discover at T7** — it is item 4 of § 11.
+new codes**.
 
+⛔ **r2 (review B1). r1 discussed the consequence for SEVEN of the 18 and asked the PO to rule on
+that set — the wrong set.** § 0.1's own finding is that every `staff` site is gated by
+`app.is_member_of(_for)` → `app.has_role_any('commission', …)`, a **role-SET** predicate satisfied by
+`staff_admin` exactly as readily as by `staff`. ⇒ **`staff_admin` reaches all 18 sites TODAY, through
+membership.** Every one of the 18 therefore owes a disposition before T7 re-keys its sites, or the
+baseline role is silently under-granted — which is the reviewer's blocker, and it is correct.
+
+**How `staff_admin` reaches each site today, and what preserves it.** Column 2 is measured from the
+site's own live predicate; a `.manage`/`.edit` twin in column 2 means a *different* code already
+covers the same resource family for `staff_admin`, ⛔ **not** that it covers this site.
+
+| # | new code | how `staff_admin` reaches it today | proposed disposition | what breaks if neither |
+| --- | --- | --- | --- | --- |
+| 1 | `commission.forms.read` | membership (the 9 policies' `is_member_of` arm) — `commission.forms.edit` is a WRITE code and gates none of the 9 SELECT policies | **grant at T4** | a coordinator cannot READ the form tree it may edit |
+| 2 | `commission.responses.fill` | membership (`responses_insert_own`) | **grant at T4** | a coordinator cannot create a response draft |
+| 4 | `commission.roster.read` | membership (4 policies) — `commission.staff.manage` gates the administrativo doors, not these SELECTs | **grant at T4** | the coordinator's own roster, commission row and co-member profiles go dark |
+| 5 | `commission.charter.read` | membership (`commission_charters_select`, and `HC0K2` in the two D readers) — `commission.charter.manage` is the WRITE twin and the SELECT policy is **member-level, not `staff_admin`** (already noted in AE4.3 row 34) | **grant at T4** | cadence + carry-forward raise `HC0K2` for the coordinator |
+| 6 | `commission.meetings.read` | membership (3 policies + `can_reach_meeting`) — `commission.meetings.manage` covers the write policies only | **grant at T4** | the meeting list and its settings go dark |
+| 8 | `commission.meetings.minutes.sign` | membership, inside `app.can_sign_meeting` | **grant at T4** | a coordinator who attends can no longer sign the minutes |
+| 9 | `commission.cases.deliberation.read` | ⚠ **NOT membership** — `staff_admin` gets deliberation from `_case_caps` **S1** (the coordinator arm), a different source | **grant at T4** (it is not an over-grant: S1 already confers the bit) | nothing at S1, but the re-keyed authorizer would answer *false* for a coordinator and any site composed only on the new code would deny |
+| 11 | `commission.action_items.read` | membership (the `committee` leg) **and** an explicit `is_staff_admin_of` arm on the `assignees_only` leg | **grant at T4** | the committee-visibility leg denies; the coordinator keeps only the assignees-only leg |
+| 12 | `commission.cases.vote` | membership (`cast_case_vote`) | **grant at T4** | a coordinator on the committee cannot vote |
+| 13 | `commission.process_templates.read` | membership (9 policies) — `commission.process_templates.manage` is the ALL-policy twin on other tables | **grant at T4** | template reads go dark |
+| 14 | `commission.indicators.read` | membership (2 policies + `indicator_series`) — `commission.indicators.manage` is the write twin | **grant at T4** | a coordinator cannot read the indicators it manages |
+| 15 | `commission.accreditation.read` | membership (4 policies + 3 D readers) — `commission.accreditation.manage` is the write twin | **grant at T4** | readiness + assessment reads go dark |
+| 16 | `commission.documents.read` | membership (3 policies + 4 D readers) — `commission.documents.manage` / `.publish` are the write twins | **grant at T4** | the controlled-document list goes dark |
+| 17 | `commission.safety_events.read` | membership, at **either** commission arm of `can_read_event` | **grant at T4** | event, triage and RCA reads deny for the coordinator |
+| 19 | `commission.capa.read` | membership, on the indicator-sourced arm of `can_read_capa` | **grant at T4** | indicator-sourced CAPA reads deny |
+| 20 | `commission.referrals.metadata.read` | membership (source side always; target side once `status <> 'draft'`) — `commission.referrals.manage` covers the coordinator write doors | **grant at T4** | referral metadata and internal notes go dark |
+| 21 | `commission.referrals.notes.author` | membership (`create_referral_internal_note` arm 1) | **grant at T4** | a coordinator cannot author an internal note |
+| 22 | `commission.cases.vocabulary.read` | membership (3 policies) — `org.case_vocabulary.manage` is **org-scoped and on different tables** | **grant at T4** | narrative types, outcomes and tags go dark |
+
+**18 rows, 18 dispositions, all the same: grant the code to `staff_admin` at T4.** ⭐ The uniformity
+is a *result*, not a shortcut — the alternative disposition (preserve via a named authorizer arm at
+T7) was checked per row and rejected for all 18 on one measured ground: the arm that would be
+preserved **is the membership term itself**, and preserving it means the re-keyed authorizer keeps
+calling `app.is_member_of`, i.e. the site is not re-keyed at all. ⛔ A residual arm is for an
+authority the catalog **cannot** express (the tenancy admins, § 9.1a); it is not for the role the
+catalog is being taught to express.
+
+⚠ **Granting all 18 to `staff_admin` never over-grants**, because `has_role_any` already admits it
+at every one of these sites — with **one** row where the reach comes from elsewhere (row 9, via S1),
+and there the grant still confers nothing new. ⇒ `authz.role_permissions` gains **20** rows for
+`staff` and **18** for `staff_admin` at T4, taking `staff_admin` from 42 to 60.
+
+⛔ **This is a consequence of approval, not a side effect to discover at T7** — § 11 item 4.
 ---
 
 ## 10. Did the `.manage` reversibility rule bite?
@@ -843,7 +1178,7 @@ spans a boundary. AE4.3 § 8 owns that question.
 
 ## 11. § For PO approval
 
-The PO is asked to rule **six** things. ⛔ Everything below is a **proposal**, not a decision, and
+The PO is asked to rule **seven** things. ⛔ Everything below is a **proposal**, not a decision, and
 nothing in this file may be cited as approved until the ruling is recorded in
 [`docs/progress/ae5-staff.md`](../progress/ae5-staff.md).
 
@@ -857,20 +1192,82 @@ nothing in this file may be cited as approved until the ruling is recorded in
 3. **The two non-rows kept visible** — row 3 (`commission.responses.own.read`) and row 10
    (`commission.cases.read`): confirm they are **NOT** held, so a later reader cannot add them back
    as an oversight correction.
-4. **The read-code consequence for `staff_admin`** (§ 9.3) — 7 of the new codes are read halves of
-   codes `staff_admin` holds only in `.manage`/`.edit` form. Approving them implies `staff_admin`
-   receives them too, or loses a read at T7's re-key.
-5. **The five arm-3 coordinates** (rows 6, 8, 9, 11, 20 — five marks, five distinct mechanisms:
-   meeting `visibility_policy`/attendee · signature attendance+status · case `explicit_grants_only` ·
-   action-item `visibility_scope` · referral target-side `status <> 'draft'`). Each needs a
-   **PO expected value per class**, per the ⚠⚠ block at plan `:1229-1234`. ⛔ Without them the cells
-   are satisfied by an empty join rather than by the predicate.
+4. **The `staff_admin` disposition for ALL 18 new codes** (§ 9.3's table) — ⛔ **r2 widened this item
+   from 7 to 18** (review B1). Because every `staff` site is gated by the role-SET predicate
+   `app.has_role_any`, `staff_admin` reaches **all 18** today through membership. The proposal is
+   uniform: **grant all 18 to `staff_admin` at T4**, taking it from 42 codes to 60, on the measured
+   ground that the alternative (preserve via a residual arm at T7) would mean keeping
+   `app.is_member_of` in the authorizer, i.e. not re-keying the site at all. **If neither is done,
+   the baseline role silently loses the reach** listed in the table's last column.
+5. **The eleven arm-3 coordinates** (§ 5.3's census — rows **1, 4, 6, 7, 8, 9, 11, 12, 15, 16, 19**;
+   rows 4 and 11 carry both limbs). ⛔ **r2 replaced r1's five-by-inspection list with a written
+   criterion and its output** (review H3): the criterion **added** rows 1, 4, 7, 12, 15, 16, 19 and
+   **removed** row 20 (it is a `resourceLifecycle` coordinate, since `draft` is a declared value of
+   that axis and T3 must populate its per-operation map), and it excludes rows 17 and 21 as `scope`-axis
+   shapes. Each coordinate needs a **PO expected value per class**, per the ⚠⚠ block at plan
+   `:1229-1234`. ⭐ Two of them are limb **(b)** — the *role-free disjunct* — and they are the ones
+   that matter most, because a deny cell there is satisfied without the predicate ever being
+   exercised: row **15**'s `owner_commission_id IS NULL` (a **PUBLIC** arm: every authenticated
+   caller passes) and row **4**'s self-read (`principal_id = auth.uid()` / `id = auth.uid()`).
+   ⚠ Row 8's `m.status = 'in_signature'` is offered either as an arm-3 coordinate or as a new
+   `resourceLifecycle` value — the PO picks which.
 6. **The PA-F8 divergences.** Two were found; both are proposals:
 
 | id | divergence | proposed disposition |
 | --- | --- | --- |
-| **PA-F8-STAFF-1** | § 8.1 — a revoked member keeps, edits and **submits** their draft; the catalog would deny, the legacy path grants | **(b)** named compatibility exception, owner **backend**, expiry to be set by the PO; encoded in `424`'s `expected_legacy_granted`, ⛔ never in `expected_granted` |
+| **PA-F8-STAFF-1** | § 8.1 — a revoked member keeps, edits and **submits** their draft; the catalog would deny, the legacy path grants | ⚠ **CONDITIONAL ON ITEM 7.** Under 7(A) this is **withdrawn as a PA-F8 item** and re-filed as a bug/follow-up on the ownership path — there is no row for it to diverge from. Under 7(B) it is **(b)**, a named compatibility exception, owner **backend**, expiry set by the PO, encoded in `424`'s `expected_legacy_granted`, ⛔ never in `expected_granted` |
 | **PA-F8-STAFF-2** | § 7.2 — the hat-grain difference between `has_role_any` and `holds_role` | **(a)** no divergence to except — it is unreachable under `memberships_one_commission_role_uq`; ⛔ conditional on that index and on `memberships_scope_shape`'s two-value commission tier being **asserted in the cutover's pgTAP**, not assumed |
+
+7. ⭐ **NEW in r2 (review H6) — the `commission.responses.fill` INTERFACE: does the code govern
+   creation, or the lifecycle?** The three r1 statements cannot all describe one permission: row 2
+   names only the INSERT policy and a TS guard; § 5.1 excludes every later lifecycle door as
+   ownership-keyed; § 8.1 files the revoked-member submit as a divergence *of that row*. The PO
+   picks one shape, and the choice moves PA-F8-STAFF-1 with it.
+
+   **Option (A) — CREATION ONLY. Rename the code `commission.responses.create`.**
+   The permission is exactly what `responses_insert_own`'s `with_check` gates: *may this member
+   start a draft in this commission?* Everything after creation is the owner's, by design.
+   - Sites: `responses.responses_insert_own` (R) + `src/lib/responses/actions.ts:282-287` (T). ⛔ No
+     other site, and § 5.1's exclusion list stands unchanged.
+   - ⇒ **PA-F8-STAFF-1 is WITHDRAWN as a PA-F8 item.** Later ownership behaviour is not a divergence
+     of a creation permission, so there is no cell for it. The measured behaviour is still real and
+     is re-filed as a **product bug / follow-up on the ownership path**: *a submitted, counted,
+     immutable response can be authored by a non-member*. ⚠ Withdrawing the PA-F8 label ⛔ does not
+     downgrade the finding — the account of what was measured is unchanged (§ 8.1 keeps its
+     transcript); only its **home** changes.
+   - Cost: the catalog then says nothing at all about who may edit or submit a draft, which is
+     honest but means `425` (T12) has no `staff` write door to flip beyond the INSERT.
+
+   **Option (B) — THE LIFECYCLE. Keep `commission.responses.fill`.**
+   The permission governs create → edit → submit, and the ownership doors are declared as sites.
+   - Enforcement sites: `responses_insert_own` (R, membership).
+   - **Residual-compatibility sites** — ownership-keyed today, no membership term, DB path named:
+     `responses.responses_update_own_draft` (`created_by = auth.uid() AND status = 'in_progress'`) ·
+     `responses.responses_delete_own_draft` · `answers.answers_write_own_draft` ·
+     `response_group_instances.response_group_instances_write_own_draft` ·
+     `answer_selected_options.answer_selected_options_write_own_draft` · and the RPC
+     **`public.submit_response`**, `prosecdef = f` (**INVOKER**), whose body carries **no membership
+     gate at all** — it relies entirely on `responses_update_own_draft`. ⚠ The DB path is
+     `authenticated` → RLS on `public.responses`, ⛔ not the TS guard, which a direct PostgREST call
+     never reaches.
+   - ⇒ **PA-F8-STAFF-1 stands as (b)**, and each residual site is declared in T5's manifest row as a
+     `residualLegacyAuthority`, pinned by name.
+   - Cost: five policies and one INVOKER RPC become part of a `staff` row's declared surface without
+     being re-keyable — re-keying them to a membership permission would be a **behaviour change**
+     (it would break the draft of anyone whose membership lapsed), which is the divergence itself.
+
+   ⭐ **RECOMMENDATION: (A), rename to `commission.responses.create`.** Three measured reasons.
+   (i) **A permission code must be answerable by the resolver**, and `authz.candidate_has_permission`
+   can only answer *"does this principal hold this code at this scope"* — it has no ownership input,
+   so a `.fill` code can never be the thing those five policies consult. (ii) The plan's own
+   reversibility rule (§ 10) forbids one code spanning a boundary; create is `write`, but *submit* is
+   the irreversible act (Architecture Rule 3: `submitted` is immutable and counted), so `.fill`
+   spans `write` and `irreversible` in a single `risk_class` cell — the exact defect that split
+   `commission.forms.manage` into `.edit` + `.publish`. (iii) Under (B) the row's declared surface is
+   five sites that the re-key must **not** touch, which is a standing invitation for a later
+   increment to "finish the re-key" and break every lapsed member's draft. ⛔ Under (A) the honest
+   gap — nothing in the catalog governs edit/submit — is **visible** instead of papered over by a
+   code that does not reach them.
 
 **And two rulings this matrix hands back to the record** (R-1 / R-2, § 7): R-1 is **confirmed** and
 its recommendation stands; **R-2's stated premise is refuted** and the surviving divergence is

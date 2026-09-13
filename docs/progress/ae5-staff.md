@@ -181,6 +181,135 @@ per bucket. A count that sums is not a mapping.
 **Gates.** `npm run lint:registers` and `npm run lint:progress` run before the commit, exit codes
 read bare.
 
+### 2026-09-13 — matrix r2 (backend)
+
+Eight findings from [`docs/reviews/ae5-staff-matrix-review-r1.md`](../reviews/ae5-staff-matrix-review-r1.md)
+(§ 1 the review verbatim, § 2 the lead's per-finding verdict) applied to
+`docs/design/authz-ae5-staff-permission-matrix.md`, with one cross-reference fix in the deny-class
+sibling. ⛔ T3 stays parked; nothing under `scripts/`, `supabase/`, `src/` or `e2e/` was touched.
+Same stack and transport as the r1 entry (live catalog, `ON_ERROR_STOP=1`, rolled-back probes).
+
+**H5 — the function reconciliation now sums BY LISTING.** New § 3.0 prints the population query and
+the classifier, then names all **42** in four classes: **A** caller-keyed permission **12** · **B**
+subject-keyed permission **11** · **C** registry **1** · **D** allowlisted **1** · **E** managed-row
+value **17**. `12+11+1+1+17 = 42`, permission-shaped **23** — the reviewer's figure reproduced
+independently. § 3.2's heading no longer carries a size; § 3.3 is now 17, not 18; r1's
+`15 + 18 + 1` and its unreproducible "8 residue" are **deleted** from § 9.1, not patched.
+⭐ Two mechanical honesty notes are kept in the document because they changed the answer: the
+classifier run as written leaves an **R_residue of 13**, resolved by reading bodies
+(`add_reserved_item` and `apply_minutes_review` use `is_member_of_for` as a *positive filter*, not a
+negated guard ⇒ class E); and an earlier RETURN-TYPE discriminant (`boolean|integer` ⇒ predicate)
+**misfiled `public.bulk_create_cases`**, which returns `integer` and whose call is an `HC021`-raising
+precondition — a shape-shaped discriminant classifying by shape and not by role.
+**The overlap is resolved by a precedence rule, not by subtraction** (new § 3.0a): a function gating
+the caller's own authority anywhere is class A, its third-party sites recorded as a secondary
+property. `public.create_referral_internal_note` is therefore class **A once** and is **removed from
+§ 3.3**, where r1 also listed it. Measured: `select … where for_caller and for_third` returns
+exactly that one function.
+
+**H3 — one written criterion, and the census is its output.** New § 5.3. ⭐ **The criterion:** a site
+is arm-3-shaped iff, for a principal whose only relevant grant is the `staff` membership, the door's
+answer still depends on a term **no declared axis of `authz-matrix-axes.json` varies**, in either
+limb — **(a) conjunctive** (a further CONJUNCT that can turn a GRANT into a deny) or **(b) role-free
+disjunctive** (a DISJUNCT true for a principal holding *no role at all*, so a DENY cell is satisfied
+without the predicate). Three exclusions: a sibling-ROLE arm (the `persona`/`role` axes cover it —
+it becomes a preserved-arm disposition instead), a term the `scope` axis already varies, and a
+resource-class selector. A **feature-flag precondition is declared but is NOT a coordinate** (it is
+constant across every cell; measured: **29 of the 42** functions carry one).
+**Output: 11 rows** — 1, 4, 6, 7, 8, 9, 11, 12, 15, 16, 19 (rows 4 and 11 carry both limbs).
+Against r1's five: **added** 1, 4, 7, 12, 15, 16, 19; **removed** 20. The decisions the review left
+to the criterion: **row 19 is IN** (`cp.source = 'indicator'` — the CAPA's *provenance* column, and
+no axis carries provenance); **row 21 is OUT** (exclusion (ii): "is the resource anchored at the
+scope under test" **is** the `scope` axis) — and the same reasoning puts **row 17 OUT** too, which
+the review had not asked about. **Row 20 is RECLASSIFIED, not dropped**: its conjunct is
+`r.status <> 'draft'` and **`draft` IS a declared `resourceLifecycle` value**, so it is a lifecycle
+coordinate whose per-operation map is empty today (`constraintRules.lifecycle_requires_lifecycled_resource`
+says so) — **T3 must populate it**, a stronger obligation than an arm-3 label. Row 8's
+`m.status = 'in_signature'` is *not* among that axis's six values, so it stays arm-3 with the
+alternative (extend the axis) offered to the PO. ⛔ The two limb-(b) coordinates are the ones that
+matter: row 15's `owner_commission_id IS NULL` is a **PUBLIC arm** (every authenticated caller
+passes) and row 4's self-read — both are the vacuous shape.
+
+**H4 — `securable_resources_select` mapped, and the trap closed at its source.** Live qual re-read:
+`(app.is_member_of(commission_id) OR app.is_tenancy_admin_of(commission_id))`. Mapped to **row 16**,
+because `securable_resources` is the document-bearing resource registry — its own live
+`obj_description` says *"one row per document-bearing domain row"* (ADR 0114 D4). § 2's aggregate
+corrected (`documents ×3`, naming all three) and its sum re-derived. ⭐ **The durable fix is new
+§ 9.1a: the per-policy → row mapping, all 40 named against their row** (`9+1+4+1+3+1+9+2+4+3+3 = 40`),
+with the § 2 aggregate demoted to a reading aid — because the same failure has now occurred twice
+(row 22 in r1, `securable_resources` in r2) and a bucket that sums is not a mapping.
+**Tenancy-arm disposition, AE4.3's way:** measured **28 of 40** policies carry
+`app.is_tenancy_admin_of`; all 28 are **PRESERVED ARMS at T7**, so each layer-3 authorizer is
+`authz.has_permission(…) OR app.is_tenancy_admin_of_for(…)`, ⛔ never permission-only — `org_admin`
+and `hospital_admin` are still `legacy`, so their catalog grants are inert. Each must appear in T5's
+`residualLegacyAuthority` **and** in `domainAuthorizer.composedWith` (the generator cross-checks both
+directions).
+
+**B1 — a disposition for ALL 18 new codes.** § 9.3 rewritten as a five-column table: code · how
+`staff_admin` reaches the site today · proposed disposition · what breaks if neither. Because every
+`staff` site is gated by the role-SET `app.has_role_any`, `staff_admin` reaches **all 18** today
+through membership — r1 discussed seven, which was the wrong set. **All 18 → grant at T4**
+(`staff_admin` 42 → 60). ⭐ The uniformity is a result, not a shortcut: the alternative (preserve via
+a residual arm) was checked per row and rejected for all 18 on one ground — the arm that would be
+preserved **is the membership term**, so preserving it means the site is not re-keyed at all.
+⚠ One row reaches its site from elsewhere: **row 9**, where `staff_admin` gets deliberation from
+`_case_caps` **S1** (the coordinator arm), not S5 — granting is still not an over-grant.
+
+**B2 — the per-arm interface table.** New § 5.4, **one line per R / D / registry / T site** (~70
+lines), with `subject` · `hat` · `definerSurface`, **T5 copies it verbatim**. ⛔ The hat is read from
+the body and the site, never from § 6A: measured per predicate with
+`select … from pg_policies / pg_proc where src ~ '<predicate>\(' `, which is what shows that **every
+policy consumer of `can_reach_meeting`, `can_read_action_item`, `can_read_capa`, `can_read_event`,
+`can_read_document`, `can_read_referral_metadata` and `can_sign_meeting` passes `auth.uid()`** ⇒
+`hat: required` at those sites, while the function consumers that propagate `p_uid` are
+`hat: ignored`. ⭐ Read off § 6A alone every `_for` predicate would have been declared
+`hat: ignored`, and that is wrong at the majority of the policy sites — ADR 0201 D3's *"an arm's hat
+behaviour is not a property of the arm alone"*, measured. Empty declarations are written out
+(`carriesCode:false` everywhere today — no code exists yet). Two `definerSurface` entries are **not**
+empty and were measured rather than assumed: `public.responses` has **5** DEFINER writers, none of
+them in the `is_member_of` population (⇒ out of row 2's re-key surface); and **`public.sign_meeting`
+is `prosecdef = t`, writes `meeting_signatures`, and IS on `staff`'s gate** — a live ADR 0193 D5
+split on row 8, closed in one move because both it and the policy call `app.can_sign_meeting`, so
+re-keying the **predicate** moves both.
+
+**H6 — the `commission.responses.fill` interface is now § 11 item 7, a PO ruling.** Both shapes are
+written out with their sites and their costs: **(A)** rename to `commission.responses.create`
+(creation only; § 5.1's exclusions stand) or **(B)** keep `.fill` over the lifecycle and declare
+`responses_update_own_draft`, `responses_delete_own_draft`, `answers_write_own_draft`,
+`response_group_instances_write_own_draft`, `answer_selected_options_write_own_draft` and
+`public.submit_response` (`prosecdef = f`, **no membership gate in its body**) as
+residual-compatibility sites, with the DB path named as `authenticated` → RLS on `public.responses`,
+⛔ not the TS guard. **Recommendation: (A)**, on three measured grounds — the resolver has no
+ownership input so a `.fill` code can never be what those five policies consult; `.fill` spans
+`write` and the **irreversible** submit in one `risk_class` cell, the exact defect that split
+`commission.forms.manage`; and under (B) the row's declared surface is five sites the re-key must
+*not* touch, an invitation for a later increment to "finish" it and break every lapsed member's
+draft. ⇒ **§ 8.1's disposition is now conditional**: under (A) **PA-F8-STAFF-1 is WITHDRAWN as a
+PA-F8 item** and re-filed as a bug/follow-up on the ownership path; under (B) it is **(b)**.
+⚠ Withdrawing the label would ⛔ **not** downgrade the finding — the transcript stands either way,
+only its register changes.
+
+**M7** — § 5.2's heading `21 proposed rows` → `22 lines, 20 held rows` (`:412` at r1).
+**M8** — the ADR 0193 link `0193-definer-writers-and-the-policy-rekey.md` →
+`0193-the-enforcement-manifest-declares-what-it-measured.md` (1 occurrence, `:7`). ⛔ Gate 13 does
+not resolve links under `docs/design/`, so **every** relative link in both files was resolved by
+hand against the filesystem: 6 `../decisions/`, 3 `../plans|features|progress/`, 4 same-directory
+`authz-*.md` in the matrix and 3 `../` in the deny-class file — **the 0193 one was the only break**;
+all others resolve.
+
+**Also changed, not requested but required for consistency.** The deny-class sibling's row 7 said
+*"all 33 `is_member_of_for` call sites"* — 33 is the FUNCTION count; corrected to **35 third-party
+call sites in 30 functions**, pointing at that file's § 6 where the two grains are set out. Its
+`matrix § 3.2` cross-reference re-pointed to § 3.1 (+ § 3.0 for the new class partition).
+⚠ **One self-inflicted error caught before commit**: a first draft of § 2's r2 note claimed *"two of
+these three are arm-3-shaped and one is not"* — false; the criterion confirms **all three** (rows 6,
+11, 15) and finds eight more. Corrected in place; recorded here because it is the same class of
+error the review found — a summary sentence disagreeing with the table under it.
+
+**§ 11 now carries SEVEN items**, and the header states r2 + *"Nothing here is approved"*.
+**Gates:** `npm run lint:registers` and `npm run lint:progress`, exit codes read bare, before the
+commit.
+
 ## T3 plan — generators MULTI-ROLE ⛔ NOT EXECUTED; awaiting the lead's ack
 
 Read-only inspection of `scripts/gen-authz-differential-cells.py` (1218 lines) and
