@@ -13846,7 +13846,6 @@ Measured 2026-09-12, all 12 rule files against the literal `lint` chain in `pack
 **Closes when:** Decide before the role set next changes, not after.
 **Status:** parked
 **Revisit when:** Decide before the role set next changes, not after.
-**Body:** [FUP-AFF-4.md](FUP-AFF-4.md)
 
 > **RESOLVED 2026-09-13** — SUPERSEDED by ADR 0207 D3 (unit `AE5-ROLE-CATALOG-COMPAT`, migration
 > `20261003007430`; record: docs/progress/ae5-role-catalog-compat.md), PO ruling 2026-09-13 (*"i agree"* on the
