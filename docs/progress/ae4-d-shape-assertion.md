@@ -57,3 +57,333 @@ above 422 on `main`, and the four local `definer-*` branches are merged.
 two resolver bodies, the provider family, the seed's per-principal `F` / candidate counts, the
 overlap principal for clause 3. Plan-approval is the full form (a novel assertion shape over
 `SECURITY DEFINER` resolvers); the lead acks by message.
+
+### 2026-09-13 — measurement on the live catalog + the six-clause plan, before any test code (backend)
+
+⛔ Nothing was written this turn. Every figure below is `docker exec supabase_db_azkbbhskturikxpgmafq
+psql -U postgres -d postgres` against the LIVE catalog (ADR 0078); no migration file was read for a
+schema fact. **DB state at measurement:** product seed — 43 `memberships`, 36 `profiles`, 3 orgs,
+4 hospitals, 6 commissions; `to_regclass('ae4perf.fixture_meta') is null` ⇒ **the AE4 perf fixture is
+NOT loaded** (so the P2 script could not be run this turn, and was not).
+
+**(a) The two resolver bodies.** `pg_get_functiondef` of both, diffed:
+
+| diff | exit | differing lines |
+| --- | --- | --- |
+| raw | **1** | the signature line; **three `--` comment lines** present only in the runtime resolver (2 inside the CTE, 1 before the confirm `select`); the confirmer line |
+| `sed -e 's/--.*$//' -e 's/[[:space:]]\+/ /g'` + drop blank lines | **1**, and **only two lines** | the signature line and the confirmer line |
+
+⇒ ADR 0208 D2's ⚠ correction **reproduces exactly**: identical in every non-comment token but the
+signature and the confirmer (`authz.has_permission` vs `authz.candidate_has_permission`). ⛔ A raw
+equality would red on the comments and prove nothing, as the ADR says.
+
+**The candidate CTE's boundaries, cut mechanically.** Both bodies open the CTE with the literal
+`with candidate as materialized (` and close it with the `)` that precedes the confirm select. One
+anchored regex cuts both:
+
+```sql
+substring(pg_get_functiondef(sig) from 'with candidate as materialized \((.*)\)[^)]*select c\.scope_id')
+```
+
+Greedy `.*` is safe because the only `select c.scope_id` in either body is the confirm select and the
+text between the CTE's `)` and it contains no `)`. Measured: length **873** (runtime) / **714**
+(candidate); both contain `assignment_facts`; **neither extraction contains either confirmer**
+(`leaks_confirmer = f`, both) — so the cut really is the producer and the comparator is not
+trivially comparing whole bodies. md5 of each extraction after `regexp_replace(…,'--[^\n]*','','g')`
+then `'\s+'→' '`: **`e1d6843b447d882dd8a5733bf3bc7e3f` for BOTH**.
+
+**⭐ The candidate CTE does NOT call `authz.scope_reaches`.** It carries its own inline `CASE`; the
+four arms (`same kind` · commission→org · hospital→org · commission→hospital) are the *projection*
+form of the *predicate* `authz.scope_reaches(text,uuid,text,uuid)`, which lives on the CONFIRM side
+(`prosrc like '%scope_reaches%'` ⇒ exactly `authz.entailed_grants` and `authz.explain_permission`).
+So the catalog holds the ascent **three** times, not two, and the two copies on opposite sides of the
+resolver are what makes an independent derivation possible without a hand copy.
+
+**Catalog attributes.** All **ten** functions in schema `authz` are `prosecdef = t`,
+`provolatile = s`, `proconfig = {search_path=""}`, `proacl = postgres=X/postgres` (no client role
+reaches `authz`). `authz.assignment_facts(uuid)` returns `TABLE(role_code text, scope_kind text,
+scope_id uuid)` and is gated on `app.is_active(p_principal)` in BOTH its legs (the `memberships`
+leg and the `profiles.is_admin ⇒ ('platform_admin','none',null)` leg); `app.is_active` reads
+`profiles.is_active and (suspended_until is null or now() >= suspended_until)`, `coalesce(...,false)`.
+`authz.has_permission` and `authz.candidate_has_permission` differ in ONE token: `role_state =
+'authoritative'` vs `role_state in ('test_validation','authoritative')`.
+
+**(b) The provider family, defined as a PROPERTY.** Proposed definition, both halves read live from
+the catalog in the same statement:
+
+> a `pg_proc` row in schema **`authz`** with `prokind = 'f'` whose
+> `pg_get_function_identity_arguments(oid)` equals `authz.assignment_facts(uuid)`'s (**`uuid`**) and
+> whose `pg_get_function_result(oid)` equals its (**`TABLE(role_code text, scope_kind text, scope_id
+> uuid)`**).
+
+Measured: the family is **exactly `{authz.assignment_facts}`**, size 1, and it is referenced by
+**2 of 2** extracted candidate CTEs. Planted in a savepoint,
+`authz.administrativo_facts(p_principal uuid) returns table(role_code text, scope_kind text, scope_id
+uuid)` moves the family to **2** and `unconsumed_providers` from 0 to **1**; `rollback to savepoint`
+returns it to 1. ⇒ **a planted `authz.<x>_facts` in the provider row type IS caught.**
+⛔ **Missed, stated honestly:** a provider in another schema (`app.*`), one taking a different
+argument list, one whose return shape differs by a column name/type or is spelled `setof <composite>`
+rather than `TABLE(...)` (different `pg_get_function_result` text), one the CTE consumes through a
+wrapper, and one plumbed in as a VIEW rather than a function. The property is deliberately narrow so
+a false RED cannot come from an unrelated function; the price is that widening the family is a manual
+re-derivation, which is what D3 trigger 2 asks for anyway.
+
+**(c) Per seeded principal × kind on the seed** (33 principals with ≥1 fact × 3 kinds = **99 cells**).
+`F = count(*) from authz.assignment_facts(p)`. Two INDEPENDENT derivations of the candidate counts,
+neither a copy of the production `CASE`:
+
+- **I2, fact × reach:** `… from authz.assignment_facts(p) af join <all scopes of kind k> s on
+  authz.scope_reaches(af.scope_kind, af.scope_id, k, s.id)` — `raw = count(*)`, `D = count(distinct
+  s.id)`. Uses the LIVE `scope_reaches`, whose own correctness is gated by pgTAP `412`.
+- **I1, producer-extracted:** the CTE cut above, with `\mp_principal\M → $1` and
+  `\mp_resolution_kind\M → $2`, executed via `execute format('with candidate as materialized (%s)
+  select count(*) from candidate where scope_id is not null', …) using p, k`; the **pre-dedup**
+  variant is the same text with `'select\s+distinct' → 'select'` (the helper RAISES if that
+  replacement is a no-op, so a re-spelled dedup reds loudly instead of reading as "no overlap").
+
+| kind | cells | max F | max raw | max D | overlap cells (raw > D) | cells with raw > F | I1 vs I2 disagreements |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| commission | 33 | 3 | 2 | **2** | 0 | 0 | **0** |
+| hospital | 33 | 3 | 3 | **2** | 3 | 0 | **0** |
+| organization | 33 | 3 | 3 | **1** | 9 | 0 | **0** |
+
+⭐ The maxima `D_organization = 1`, `D_hospital = 2`, `D_commission = 2` **independently reproduce
+ADR 0208 D1's measured figures** by a derivation the ADR did not use. `raw ≤ F` holds in all 99
+cells. I1 and I2 agree in all 99 cells.
+
+- **Overlap principal (raw > D), derived not hand-listed:** `multi@test.local` at
+  `kind = organization` — `F = 2`, `raw = 2`, `D = 1` (**the expected one**); also at
+  `kind = hospital` (2/2/1). Twelve overlap cells exist in all: 9 organization, 3 hospital, 0
+  commission (`pqsdual.a` is the widest: organization `F=3, raw=3, D=1`; hospital `3/3/2`).
+- **No-overlap principal:** `chefe.ccih@test.local`, `raw = D = 1` at all three kinds; so is
+  `multi@test.local` at `kind = commission` (`raw = D = 2`), which makes the same principal carry
+  both polarities.
+- **A natural zero:** `platform@test.local` has `F = 1` and `raw = D = 0` at all three kinds — the
+  `('platform_admin','none',null)` fact proposes nothing, in BOTH derivations.
+- **Resolver output counts** (`count(*) from authz.authorized_scope_ids(p,k,code)`) are ≤ D
+  everywhere; e.g. `chefe.ccih` organization/`org.professionals.read` = 1 of D = 1,
+  `multi@test.local` organization = 0 of D = 1. ⚠ **`authz.permissions` has only TWO
+  `resolution_scope_kind` values — `commission` (38 codes) and `organization` (5). There is NO
+  hospital-scoped permission**, so `authorized_scope_ids(p,'hospital',…)` is ALWAYS empty while its
+  candidate set is not; the hospital arm of the fan-out is real and invisible in the output. ⇒ an
+  assertion on the OUTPUT would be blind at `kind = hospital`; the cells are written on D/raw.
+
+**(d) ⛔ THE P2 COUNTER METHOD DOES NOT WORK INSIDE A TRANSACTION — MEASURED, not assumed.**
+Under `set track_functions = 'all'`, one direct `authz.assignment_facts(p)` call over M = 2 rows:
+
+| arm | before | after | Δ |
+| --- | --- | --- | --- |
+| inside `begin … rollback`, `pg_stat_clear_snapshot()` only | 0 | 0 | **0** |
+| inside `begin … rollback`, **plus `pg_stat_force_next_flush()` before each read** | 0 | 0 | **0** |
+| **top level**, force flush + clear snapshot (the P2 §0 recipe) | 2 | 3 | **1** ✅ |
+
+The top-level baseline reading **2** is itself the proof that the two in-transaction calls were
+counted and only became VISIBLE after their transactions ended: pending function stats accumulate
+but are not published to the snapshot until transaction end, and `pg_stat_force_next_flush()` does
+not change that. ⚠ Cold reads are NULL, so `coalesce(…,0)` stays load-bearing.
+⇒ **`U` is NOT measurable inside a pgTAP file** (every pgTAP file is one transaction). The §0
+calibration `Δ = 1` holds at top level exactly as ADR 0183 records.
+
+**Mutation levers, all three proven RED on the live catalog, each measured onto a temp sequence
+outside its savepoint (the 421/422 channel) and each restored by `rollback to savepoint`:**
+
+| lever | baseline | under mutation | restored |
+| --- | --- | --- | --- |
+| **A** producer `create or replace` with a fact-independent `union all select 'ffff…'::uuid` | `pd = 1` (`multi`, organization), `praw = 2`, `F = 2` | `pd = 2 > D_derived = 1`; **and with the principal ablated (`is_active = false` ⇒ `F = 0`) `pd = 1`, not 0** | `pd = 1` |
+| **B** `scope_reaches` given one-to-many reach (commission→organization `then true`) | `raw = 2 ≤ F = 2` | `raw = 6 > F = 2` | — |
+| **C** one-token change in `candidate_authorized_scope_ids`' CTE (third `WHEN` re-keyed) | CTE md5s equal | **not equal** | equal again |
+
+The ablation lever itself is one row: `update public.profiles set is_active = false where id = p`
+⇒ `F = 0` and `authorized_scope_ids` empty; `rollback to savepoint` restores `F = 2`.
+
+**What already exists, so no cell restates it** (checked before designing): `413` holds the subset
+invariant, the candidate twin and an over-broad-body vacuity control; `412` holds `scope_reaches`'
+ascent against `commissions_hospital_org_fkey`; `407` holds scope-kind validation with a
+deliberately FROZEN pre-change body as its defect anchor. **None of them asserts `D ≤ F`,
+one-fact-one-candidate, dedup-before-confirmation, the two CTEs' equality, or the provider family.**
+
+#### The plan for the six clauses (one page)
+
+Two files. `supabase/tests/423_ae4_d_shape_assertion.sql` (**423 confirmed free** — `ls
+supabase/tests` shows nothing above `422`) carries clauses 1·2·3·5·6 and the U-free half of 4 over
+the seed; `scripts/authz-ae4-p2-invocation-count.sql` gains **§5**, the `U = D ≤ F` measurement, on
+the loaded perf fixture at top level. Three instruments, defined once in the file: **I1** the
+producer-extracted CTE (executed, never copied), **I2** the fact × `scope_reaches` derivation,
+**I3** the P2 counter (script only). Every extraction/replacement helper RAISES when its anchor is
+absent, so a moved boundary reds instead of reading as a clean zero.
+
+| § | clause | predicate (relational) | red-first plant / mutation | discrimination half | channel |
+| --- | --- | --- | --- | --- | --- |
+| 1 | provenance | `I1.pd(p,k) ≤ I2.D(p,k)` over the swept cells, **and** with the principal ablated (`F = 0`) `I1.pd = 0` | **A** — measured `pd 1→2` and `pd_ablated = 1` | a cell with `I2.D > 0` must exist (else the `≤` is an all-zero pass); plus the md5 restore control | temp sequence, asserted outside the savepoint |
+| 2 | one fact ⇒ ≤ 1 candidate per kind | `I1.praw ≤ F` **and** `I2.raw ≤ F` **and** `I1.praw = I2.raw` | **B** — measured `raw 6 > F 2` | ≥ 1 cell with `praw = F > 0`, else VACUOUS-red | sequence |
+| 3 | dedup before confirmation | on the **derived** overlap row (max `I2.raw − I2.D`): `I1.pd = I2.D < I1.praw`; on a non-overlap row `I1.pd = I2.D = I1.praw` | producer `create or replace` with the `distinct` REMOVED ⇒ `pd = praw = 2 ≠ D = 1` | the sweep must hold ≥ 1 overlap and ≥ 1 non-overlap row, else VACUOUS-red (seed: 12 / 87) | sequence |
+| 4 | `U = D ≤ F` | **pgTAP (U-free):** `I1.pd = I2.D ≤ F` per cell, with the counter's in-transaction impossibility stated as a non-proof. **Script §5:** `ΔU = I2.D` and `ΔU ≤ F` around ONE direct `authorized_scope_ids` call, after §0's `Δ = 1`, `coalesce(…,0)`, snapshot cleared, and `d_asi = 1` so `ΔU` is attributable | script: the dedup-removed producer in a rolled-back transaction must push `ΔU > I2.D`; inherits P2's VOID-outranks-FAIL precedence | script inherits §1 arm B (`ΔU = 0` when a fact is absorbed) | script: top level, counters survive rollback |
+| 5 | one producer, two confirmers | `cte_md5(asi) = cte_md5(casi)` on the NORMALISED extractions, **plus** each body's remainder names a different confirmer (so "equal" cannot be satisfied by two identical functions), **plus** neither extraction contains a confirmer | **C** — measured, equality → false | the extraction controls above; ⛔ raw-text equality explicitly not used (measured: exit 1 on 3 comment lines) | sequence |
+| 6 | a new provider fails until included | family non-empty **and** contains `authz.assignment_facts` **and** every member referenced by BOTH extracted CTEs | the planted `authz.administrativo_facts(uuid)` — measured, family 1→2, unconsumed 0→1 | the non-empty + contains-`assignment_facts` pair IS the vacuity control (an empty family makes "every member is consumed" vacuously true) | sequence |
+
+**Sweep bound, for both scale regimes.** The swept population is deterministic — principals with
+≥ 1 fact, `order by id limit 40`, × the three kinds — so the file stays 120 cells with the 12 036-principal
+perf fixture loaded (413's requirement) instead of 36 108. The non-vacuity cells above RED if that
+slice happens to contain no overlap row, no `praw = F > 0` row or no `D > 0` row, so a bound that
+starts hiding the property is a failure, not a quiet pass.
+
+**⛔ What each file does NOT prove.**
+`423`: it asserts the SHAPE of the candidate producer at the seed's tenancy. It does not measure
+`U` (impossible in a transaction — see (d)), nor execution ORDER (that dedup runs *before* the
+confirmer is the script's job), nor any cost. Clause 1 is scoped to the candidate CTE: a
+fact-independent term in the *confirm* select would not be seen, and OUTPUT-level containment is
+deliberately NOT used because the CONFIRMER enforces it regardless of the producer, which would be a
+cell masked by a legitimately-closed arm. Clause 2's blind spot is an identical one-to-many
+expansion made in BOTH the `CASE` and `scope_reaches` (each alone reds, via `praw = raw` or
+`raw ≤ F`). Clause 5 compares normalised TEXT: an equivalent re-spelling reds (a true signal under
+D2's "one producer" reading) and a divergence hidden inside a called function's body is invisible.
+Clause 6's family is narrow by design — the misses are enumerated in (b). I1 runs production text,
+so I1 alone proves nothing; it is only evidence against I2, whose own correctness rests on `412` and
+on `commissions_hospital_org_fkey`.
+`scripts/…-p2-…sql` §5: one statement shape, one principal, at the loaded fixture's `D`; an
+invocation count, never a cost; it says nothing about the seed population.
+
+**Open, for the lead** (carried to the report): AC-4 as worded puts the counter-based `U` in the
+pgTAP file, which measurement (d) shows is impossible — the split above is the proposal, not a
+scope cut; the script section needs the perf fixture, which `ANALYZE`s the database, so the gate
+order must be **load fixture → run P2 (exit read bare) → `supabase db reset --local` → `npm run
+test:db`**; and executing the *mechanically extracted live* CTE is read here as the opposite of ADR
+0183 `:114-115`'s forbidden hand-copy (it is re-read from the catalog every run and its extractor
+raises when the anchors move), but it is the novel move in this plan and is put to the lead
+explicitly. ⛔ The open decision **not to factor the producer stands**: the comparator is workable
+(measured — one md5 equality on the normalised extractions, red under a one-token change), so no
+migration, no new DEFINER and no new door are needed.
+
+### 2026-09-13 — the six clauses BUILT: pgTAP `423` + P2 `§5`, with a red witness for every cell (backend)
+
+**Plan ACKED by the lead with four rulings.** Built to them; the AC-4 ruling ordered one more
+measurement first, and it is below with the branch it selected.
+
+#### AC-4: the ordered `dblink` option was MEASURED and is CLOSED — branch 2 taken
+
+`dblink` **1.2 is available and not installed**, and there is **no `dblink` precedent anywhere in
+`supabase/` or `scripts/`** (grep, 0 hits). The mechanism never got as far as a Δ, because the
+connection itself is refused — `postgres` on this stack is **`rolsuper = f`** (`rolbypassrls = t`),
+so `dblink_connect` demands credentials the server actually consumed:
+
+| arm | result |
+| --- | --- |
+| `dblink_connect('s1','dbname=postgres user=postgres host=/var/run/postgresql')` | `ERROR: password or GSSAPI delegated credentials required` — *"Non-superusers must provide a password…"* |
+| same over TCP **with** `password=postgres` | `ERROR: … Non-superusers may only connect using credentials they PROVIDE … Ensure provided credentials match target server's authentication method` — `pg_hba` is trust, so the password is never consumed and `PQconnectionUsedPassword()` is false. ⇒ **supplying the local password does not help**; only an `hba` change would, and that is stack configuration the runner cannot guarantee |
+| `dblink_connect_u` | `ERROR: permission denied for function dblink_connect_u`; its ACL is **`supabase_admin=X/supabase_admin`** (measured) — granting it is a migration, which this unit forbids |
+
+⇒ **Branch 2, the proposal.** `423 § 4` asserts `pd = D_derived ≤ F` and states the non-proof in its
+header with these figures; **`U`'s only home is `scripts/authz-ae4-p2-invocation-count.sql § 5`**.
+No side-session Δ exists to report; the in-transaction Δ figures from the previous entry stand
+(0 · 0 · **1** at top level).
+
+#### The files
+
+`supabase/tests/423_ae4_d_shape_assertion.sql` — **`plan(33)`**, `RUN SHAPE: Files=2, Tests=34`.
+Three instruments as planned (I1 the mechanically-extracted-and-executed live CTE, I2 the
+`assignment_facts × scope_reaches` derivation, I3 the counter — **not used here**). ⭐ Every mutant
+is built by **ANCHORED SURGERY on the live definition** (`pg_temp.surgery`, which RAISES when its
+anchor is absent) — nothing in the file hand-writes a producer body, so no plant can rot away from
+the thing it mutates. Nine temp sequences carry every probe out of its savepoint, each written as
+`value + 1` so **0 reads as THE PLANT NEVER RAN**.
+
+⚠ **One cell changed during the build, and the reason is a finding.** The planned `5.3` was
+`isnt(raw_def(asi), raw_def(casi))` — and that cell **CANNOT FAIL**: the two definitions differ on
+the signature line by construction, so it is green for a reason that has nothing to do with its
+subject (LEARN-001). It was replaced with a cell that can: inside a savepoint the candidate
+resolver's confirmer is swapped to `authz.has_permission`, and `5.3` requires the extracted CTE's
+normalised md5 to be **UNCHANGED** (the cut really is the producer — a boundary that crept into the
+confirm select would make `5.1` red for the wrong reason) **while `5.2`'s predicate goes FALSE**, so
+the same block is `5.2`'s red witness.
+
+`scripts/authz-ae4-p2-invocation-count.sql` — new **`§ 5`**, two arms, placed after `§ 4` and inside
+the existing VOID-outranks-FAIL precedence and postflight. ⛔ `D` is **not** read off the counter
+(that would make `U = D` a tautology): it is derived relationally from `assignment_facts ×
+scope_reaches`, and the section carries its own discrimination arm.
+
+#### Red-first witnesses — every one of the 33 cells has an observed red
+
+Each arm applies ONE mutation and runs the suite; the suite's own `rollback` undoes it.
+**Catalog mutations** (the subject changed):
+
+| arm | mutation (anchored surgery on the live body) | cells that went RED |
+| --- | --- | --- |
+| W1 | a fact-independent candidate unioned into `authorized_scope_ids`' CTE | **1.1 · 1.3 · 1.4** · 2.1 · 2.3 · 3.1 · 3.2 · **4.1 · 4.2** · 5.1 (23 green / 10 red) |
+| W2 | `scope_reaches` given a one-to-many commission→organization arm | **2.2 · 2.3 · 2.5** · 1.4 · 3.1 · 3.2 · **4.1** (26 / 7) |
+| W3 | the deduplication removed from the producer | ⚠ **the file ABORTS** — `DEDUP TOKEN NOT FOUND in the extracted CTE…`. The instrument **REFUSES**; it cannot be green with the dedup re-spelled. `0.3` is the cell that catches that raise, and `3.4` demonstrates the in-file discrimination on the real catalog |
+| W4 | provider rows filtered so hospital-rooted facts propose nothing | **4.4 · 4.1** · 2.3 · 3.1 · 3.4 · 5.1 (27 / 6). ⭐ `4.4`'s own plant then double-applies and RAISES; the savepoint recovers it, the probe stays 0, and `4.4` reds reading *"THE PLANT NEVER RAN"* — the VOID-not-pass channel working, observed |
+| W5 | one token changed in the candidate CTE of `candidate_authorized_scope_ids` | **5.1** — and ONLY 5.1 (32 / 1) |
+| W6 | a provider adapter planted in the family, consumed by nothing | **6.2 · 6.3 · 6.4** (30 / 3) |
+
+**Harness mutations** — the only way to red a control, a non-vacuity guard or a restore cell, since
+no change to the subject can impoverish a population or disable a rollback. Run on SCRATCH COPIES;
+⛔ the committed file is untouched:
+
+| arm | mutation | cells that went RED |
+| --- | --- | --- |
+| H1 | the sweep narrowed to a principal with no candidate at any kind | **1.2 · 2.4 · 3.3 · 4.3** (+ 1.4 · 2.5 · 3.1 · 3.2 · 3.4 · 4.4) |
+| H2 | the extraction boundary made greedy past the CTE | ⚠ **the file ABORTS** (`syntax error at or near "select"`) — the malformed dynamic SQL refuses; this is `0.2`'s failure mode |
+| H3 | `rollback to savepoint s423_plant1` disabled | **1.5 · 3.5 · 4.5** |
+| H6 | `rollback to savepoint s423_plant2` disabled | **2.6** |
+| H7 | `rollback to savepoint s423_plant5` disabled | **5.5** |
+| H4 | the provider property pointed at a schema with no provider | **6.1 · 6.3 · 6.4** |
+| H5 | the swept population emptied (`limit 0`) | **0.1** (+ every non-vacuity guard) |
+
+After both batches the live catalog is byte-identical (`authorized_scope_ids` ·
+`candidate_authorized_scope_ids` · `scope_reaches` md5s unchanged, `providers = 1`), and the one
+inactive profile is the seed's own `desativado.conta@test.local`, not an ablation left behind.
+
+#### P2 `§ 5` on the loaded fixture
+
+Gate order as acked — **load fixture → run P2 → teardown → fresh reset → `test:db`** — and ⛔ the
+`supabase db reset --local` was run **by `backend`, announced here**: peers were re-checked
+immediately before it (`ListAgents`: `hospital-form-platform-c1` and `-09` present; `pg_stat_activity`
+on the stack: **only the service backends** — PostgREST, realtime, storage, pg_net, pg_cron — no
+client `psql`).
+
+Fixture loaded (exit 0), P2 run with its **exit code read BARE: `0`**. The new section:
+
+```
+ 5 clause 4       | U against the fact-derived distinct candidate count
+                  | U=2  D=2  raw=20  F=20  authorized_scope_ids=1  granted=2
+                  | CLEAR — U = D = 2 ≤ F = 20 (ADR 0208 D1), measured, not predicted.
+ 5 discrimination | U must rise above D when the producer stops deduplicating
+                  | U(dedup removed)=20  vs  D=2  raw=20
+                  | CLEAR — U rose to 20 once the producer stopped deduplicating, so U = 2 above is
+                  |         the DISTINCT count and not the fact count.
+```
+
+⭐ `U = 2` reproduces ADR 0183's own recorded fixture baseline (`A = 3, U = 2`) from a derivation
+0183 did not use, and `A = 3 = 1 + U` holds on this arm too. ⚠ `D = 2` here is the
+**organization-kind** distinct candidate count for the fixture principal; it is **not** the
+`M = 20, D = 5` envelope figure, which is a different quantity on a different population and stays
+labelled that way. The discrimination arm is decisive — **20 vs 2** — so `U = D` on this fixture is
+not `U = raw` wearing a different name. Postflight OK; teardown exit 0.
+
+#### Gates
+
+`supabase db reset --local` exit 0 → **`npm run test:db`: `Files=272, Tests=9132, Result: PASS`,
+exit 0** (`423_ae4_d_shape_assertion.sql … ok`). `npm run lint` exit 0 (every gate, 0 errors /
+0 warnings) · `npm run typecheck` exit 0 · `npm run test`: **154 files, 2092 tests, all passed**.
+⚠ The remaining AC-9 arms — the four authz arms + `SELFTEST`, the diff-scoped door sweep (exit **3**
+expected: no migration), the set-valued arm — are the lead's gate step; `npm run e2e:prod` is **not
+required**, as no `src/` file and no migration changed.
+
+#### ⛔ What is still NOT proved, after the build
+
+- **`U` is not measured on the SEED.** It is measured once, on the fixture, for one principal at one
+  kind. `423` says so in its header.
+- **`W3`'s and `H2`'s reds are ABORTS, not `not ok` lines.** `0.2` and `0.3` are proven able to
+  REFUSE, which is the behaviour they were written for, but neither has ever emitted a failing TAP
+  line — the instrument stops the file instead. That is the stronger failure mode and the weaker
+  witness, and it is recorded as such rather than counted as a `not ok`.
+- The bounds from the plan stand unchanged: §1 is scoped to the candidate CTE; §2 is blind to an
+  identical expansion made in BOTH artifacts; §5 compares normalised TEXT; §6's family is narrow by
+  design and misses a provider in another schema, of another arity or row-type spelling, reached
+  through a wrapper, or plumbed in as a view. I1 alone proves nothing — it runs production text and
+  is only evidence against I2, whose own correctness rests on pgTAP `412` and
+  `commissions_hospital_org_fkey`.
+- ⭐ ADR 0208 **D3 trigger 3 is now better than `prose only`**: `423 § 2.5` is a GATE for the half of
+  *"`scope_reaches` gains one-to-many or descendant expansion"* that a seeded principal's facts can
+  see. Triggers 1 and 2 are gated by `§ 6`. Triggers 4 and 5 remain `prose only`, as the trigger
+  table above records.

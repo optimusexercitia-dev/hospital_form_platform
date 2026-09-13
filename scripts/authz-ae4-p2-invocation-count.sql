@@ -33,6 +33,12 @@
 --      costs; the cost axis is P4/P5 and the fitted `(1+D)*(96+5.7*M)` model in ADR 0183.
 --   2. It bounds ONE statement shape on ONE principal at the loaded fixture's `D`. It is not a
 --      statement about the fixture-wide maximum of `1 + D`, which is a separate census.
+--   2b. §5 (ADR 0208 D2 clause 4) inherits both bounds: `U = D ≤ F` is measured for ONE principal
+--      at ONE kind on the loaded fixture, and says nothing about the seed population — the other
+--      five clauses of D2 live in `supabase/tests/423_ae4_d_shape_assertion.sql`, which runs on the
+--      seed in `npm run test:db` and states in ITS header why `U` could not go there. ⛔ Neither
+--      file pins a numeric ceiling on `D`: D1 is a PARAMETRIC structural invariant plus accepted
+--      operational risk, never "large D is unreachable".
 --   3. §1 calls the resolver DIRECTLY (as `postgres`), where `auth.uid()` is NULL and
 --      `entailed_grants`' hat conjunct therefore takes its third-party arm. That is correct for
 --      an invocation count — neither the `candidate` CTE nor the call count consults the hat —
@@ -582,6 +588,106 @@ select '4 decomposition', d.arm,
   from p2_delta d where d.arm = '4 unfiltered limit 200';
 
 -- ============================================================================
+-- §5 — CLAUSE 4 OF ADR 0208 D2: `U = D ≤ F`. Added by unit `AE4-D-SHAPE-ASSERTION`.
+--
+-- The other five clauses of D2 live in `supabase/tests/423_ae4_d_shape_assertion.sql`, over the
+-- SEED. ⛔ Clause 4 cannot: `U` is `pg_stat_get_function_calls`, and MEASURED 2026-09-13 on this
+-- stack a function counter does NOT move inside a transaction — Δ = 0 with `pg_stat_force_next_flush()`
+-- and all, against Δ = 1 for the same call at top level — because pending stats are published only
+-- at transaction end. Every pgTAP file is one transaction, and the `dblink` side-session escape is
+-- shut here too (`postgres` is `rolsuper = f`, so `dblink_connect` refuses without credentials the
+-- server actually used; `dblink_connect_u` is `supabase_admin`-only). So clause 4 lands HERE, at
+-- top level, on the loaded fixture — which is also where §0's calibration already holds.
+--
+-- ⛔ `D` IS NOT READ OFF THE COUNTER. That would make `U = D` a tautology — the defect shape this
+-- whole checker exists to avoid. `D` is derived RELATIONALLY from two live catalog artifacts the
+-- producer does not share: `authz.assignment_facts(p)` joined to every scope of the kind through
+-- `authz.scope_reaches`, which lives on the CONFIRM side (`authz.entailed_grants` calls it) while
+-- the producer carries its own inline `CASE`. ⛔ It is NOT a hand-copy of that `CASE` — nothing of
+-- the producer's text is written here; `scope_reaches`' own correctness is pinned by pgTAP `412`
+-- against `commissions_hospital_org_fkey`.
+--
+-- ⛔ AND THE EQUALITY NEEDS ITS DISCRIMINATION: `U = D` and `U = raw` are the same number whenever
+-- the principal's facts do not overlap. The second arm removes the deduplication from the live
+-- producer inside a rolled-back transaction and REQUIRES U to rise above D. If the fixture
+-- principal has no overlap (`raw = D`) the arm cannot fire and this section reports **VOID**, never
+-- a pass.
+-- ============================================================================
+create temp view p2_scopes as
+  select 'organization'::text as kind, o.id from public.organizations o
+  union all select 'hospital', h.id from public.hospitals h
+  union all select 'commission', c.id from public.commissions c;
+
+select count(*) as p2_f from authz.assignment_facts(:'p2_principal'::uuid) \gset
+select count(distinct s.id) as p2_d
+  from authz.assignment_facts(:'p2_principal'::uuid) af
+  join p2_scopes s on s.kind = 'organization'
+ where authz.scope_reaches(af.scope_kind, af.scope_id, 'organization', s.id) \gset
+select count(*) as p2_rawd
+  from authz.assignment_facts(:'p2_principal'::uuid) af
+  join p2_scopes s on s.kind = 'organization'
+ where authz.scope_reaches(af.scope_kind, af.scope_id, 'organization', s.id) \gset
+
+do $$ begin perform pg_stat_force_next_flush(); end $$;
+call pg_temp.p2_take('s5_0');
+select count(*) as p2_g5
+  from authz.authorized_scope_ids(:'p2_principal'::uuid, 'organization', 'org.professionals.read') \gset
+do $$ begin perform pg_stat_force_next_flush(); end $$;
+call pg_temp.p2_take('s5_1', :p2_g5);
+insert into p2_pair values ('5 clause 4 U=D<=F', 's5_0', 's5_1');
+
+-- The discrimination arm. The mutant is built by ANCHORED SURGERY on the live definition — never
+-- hand-written — and the surgery raises if its anchor is gone, so a plant that silently did nothing
+-- cannot be read as a pass. Everything rolls back; the counters it moved do not (that is the
+-- feature §1 already relies on), and the postflight proves the body came back.
+do $$ begin perform pg_stat_force_next_flush(); end $$;
+call pg_temp.p2_take('s5_m0');
+begin;
+  do $mut$
+  declare d text; m text;
+  begin
+    d := pg_get_functiondef('authz.authorized_scope_ids(uuid,text,text)'::regprocedure);
+    m := replace(d, 'select distinct case', 'select case');
+    if m = d then
+      raise exception 'P2 §5 SURGERY ANCHOR NOT FOUND — the producer no longer dedups with `select distinct`, so this arm would measure nothing.';
+    end if;
+    execute m;
+  end $mut$;
+  select count(*) as p2_g5m
+    from authz.authorized_scope_ids(:'p2_principal'::uuid, 'organization', 'org.professionals.read') \gset
+rollback;
+do $$ begin perform pg_stat_force_next_flush(); end $$;
+call pg_temp.p2_take('s5_m1', :p2_g5m);
+insert into p2_pair values ('5 dedup removed, rolled back', 's5_m0', 's5_m1');
+
+insert into p2_result
+select '5 clause 4', 'U against the fact-derived distinct candidate count',
+       format('U=%s  D=%s  raw=%s  F=%s  authorized_scope_ids=%s  granted=%s',
+              d.d_hp, :p2_d, :p2_rawd, :p2_f, d.d_asi, d.granted),
+       case
+         when d.d_asi <> 1
+           then format('FAIL — the resolver was entered %s times, not once, so U is not attributable to one statement.', d.d_asi)
+         when d.d_hp <> :p2_d
+           then format('FAIL — U = %s but the fact-derived distinct candidate count is %s. The producer confirms something other than once per DISTINCT candidate.', d.d_hp, :p2_d)
+         when d.d_hp > :p2_f
+           then format('FAIL — U = %s exceeds F = %s: D ≤ F does not hold on the loaded fixture.', d.d_hp, :p2_f)
+         else format('CLEAR — U = D = %s ≤ F = %s (ADR 0208 D1), measured, not predicted.', :p2_d, :p2_f)
+       end
+  from p2_delta d where d.arm = '5 clause 4 U=D<=F';
+
+insert into p2_result
+select '5 discrimination', 'U must rise above D when the producer stops deduplicating',
+       format('U(dedup removed)=%s  vs  D=%s  raw=%s', d.d_hp, :p2_d, :p2_rawd),
+       case
+         when :p2_rawd = :p2_d
+           then format('VOID — the fixture principal''s facts do not overlap (raw = D = %s), so "U = D" and "U = raw" are the same number here and this arm discriminates NOTHING. REMEDY: point the fixture at a principal whose facts collide on one scope.', :p2_d)
+         when d.d_hp <= :p2_d
+           then format('VOID — with the deduplication REMOVED U is still %s (≤ D = %s). The counter is not tracking the producer''s proposals; nothing above may be read as a pass.', d.d_hp, :p2_d)
+         else format('CLEAR — U rose to %s once the producer stopped deduplicating, so U = %s above is the DISTINCT count and not the fact count.', d.d_hp, :p2_d)
+       end
+  from p2_delta d where d.arm = '5 dedup removed, rolled back';
+
+-- ============================================================================
 -- REPORT
 -- ============================================================================
 \echo ''
@@ -646,7 +752,7 @@ begin
     raise exception E'P2 FAIL — the statement-scoped invocation bound does not hold:\n  %', v_fail;
   end if;
 
-  raise notice 'P2 PASS — calibration Δ=1; the candidate differential fired in BOTH directions and separated proposals from grants; the N-differential control fired and A did not move with N; A = 1 + U at both N; the decomposition closes with residual 0.';
+  raise notice 'P2 PASS — calibration Δ=1; the candidate differential fired in BOTH directions and separated proposals from grants; the N-differential control fired and A did not move with N; A = 1 + U at both N; the decomposition closes with residual 0; and §5 closes ADR 0208 D2 clause 4, U = D ≤ F against a RELATIONALLY derived D whose discrimination arm fired.';
 end
 $verdict$;
 
