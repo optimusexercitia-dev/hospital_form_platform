@@ -14086,7 +14086,7 @@ Record: [ae4-d-shape-assertion.md](../progress/ae4-d-shape-assertion.md) · hub:
 ### 🟡 FUP-VITEST-CATALOG-DRIVEN-CASE-COUNT — two suites generate their cases from the LIVE catalog; pin the role SET so a mid-reset read cannot shrink coverage silently (owner: backend + frontend) — ✅ RESOLVED 2026-09-13
 
 > **RESOLVED 2026-09-13** — unit `VITEST-ROLE-SET-PIN` (test-only, no ADR; the manifest pin it applies is ADR 0207 D4). Record:
-> docs/progress/vitest-role-set-pin.md. Closing commits: `a8aeeb25` (the code), the phase commit that follows it.
+> docs/progress/vitest-role-set-pin.md. Closing commits: `a8aeeb25` (the code), `136501e8` (the phase commit).
 > Closed ON the clause as **RE-CLAUSED 2026-09-13** below, all four parts: (a) `expectedMembershipRoleVocabulary()` — ONE exported
 > FUNCTION in `src/lib/role/membership-role-vocabulary.test-support.ts`, derived from `ROLE_MANIFEST` (`scopeKind !== "none"`), no
 > new literal; (b) `session-grants.test.ts` and `nav-scope-exclusivity.test.ts` each KEEP their own live read and assert

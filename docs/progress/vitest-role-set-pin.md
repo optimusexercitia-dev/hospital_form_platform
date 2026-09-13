@@ -229,3 +229,5 @@ at the now-archived register heading — for `/review-claude-md`, not this unit.
 **Rulings taken vs landed (playbook §4 item 8).** One ruling: the PO's approval, landed in the ledger row's
 Human ✓ cell, the hub's Complete line and the archive's closure note. The NOTE-4 disposition is a filed
 follow-up with `PO to rule`, not a ruling.
+
+**Phase commit `136501e8`** — `main` fast-forwarded to it 2026-09-13 (no merge commit), branch `vitest-role-set-pin` deleted, ⛔ not pushed; the ledger row's commit cell filled by the sha-fill commit that follows.
