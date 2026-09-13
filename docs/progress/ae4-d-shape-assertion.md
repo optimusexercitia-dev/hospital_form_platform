@@ -527,3 +527,27 @@ is `DEFINER-QUALIFIED-BODY-GATE`, where the PO ruled step 2 N/A for the same sha
 its own reader and WRONG for every mutation harness that reads run shape — the abort converts a would-be
 COVERED into NOTICED across the whole arm. This is LEARN-083's class from the other side (the file
 introduced, not the file inherited).
+
+### 2026-09-13 — QA r1 `CHANGES REQUESTED`: two doc-staleness MAJORs corrected, two MINORs answered (lead)
+
+Review: `docs/reviews/ae4-d-shape-assertion-review.md`. The test engineering (all 33 cells, the P2 `§ 5`, the
+abort fix, the `5.1` vacuity fix, the ADR 0183 argument, trigger 3's `§ 2.5` citation) was verified clean by
+reading the file.
+
+- **MAJOR 1 — the hub's `## Current state` predated the fix and the closed gate** (last touched `a6d52b82`,
+  still claiming the set-valued arm "must return CLEAN"). Replaced — the block is the last edit of the round
+  (playbook §4 step 11), and it had not been re-cut after `13e871f9`.
+- **MAJOR 2 — the seam slice (`:1537-1538`) still said `0.2`/`0.3` "red by REFUSING (the instrument aborts)"**,
+  the sentence the abort fix retired. Per the seam's own rule a posted sentence is corrected by an APPENDED
+  dated `⚠ Superseded` marker, never in place — appended directly under the bullet, naming `d921e8be` and the
+  two record entries.
+- **MINOR — clause 2 is asserted as the aggregate bound `raw ≤ F` per principal × kind, not per fact.** Accepted
+  as the assertion's grain and recorded here: attributing each candidate to the fact that produced it would
+  require the producer to expose the fact → candidate edge, which the live CTE does not, and reconstructing it
+  would be the hand copy ADR 0183 forbids; the aggregate bound is exactly `D ≤ F`'s premise (ADR 0208 D1), and
+  `2.5` proves the bound reds under a one-to-many expansion. A compensating mutation (one fact yielding two,
+  another yielding none) is a blind spot of the aggregate — now stated in the record; D3 does not name it.
+- **MINOR — the `U`-on-the-fixture and triggers-4–5 qualifiers sat only in the block's Open edges.** Added to the
+  Invariants bullet as well (one bullet, no new line; the block stays under the 100-line ratchet).
+
+QA r2 spawned on the corrected documents.

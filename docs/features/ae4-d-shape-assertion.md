@@ -92,22 +92,22 @@ Land ADR 0208 D2's six-clause shape assertion on the P2 instrument, red-first in
 D3's five triggers in the record; retire the seam's *"RULED NOT BUILT"* bullet.
 
 ### Done since start
-- pgTAP `423` (`plan(33)`, all 33 cells with an observed red — six catalog plants by anchored
-  surgery on the live bodies, seven harness plants) and P2 `§ 5` (`U = D = 2 ≤ F = 20` on the
-  fixture, dedup-removed control `U = 20`) committed at `7e655461`; backend's fresh reset +
-  `test:db` PASS, `lint` 0/0, `typecheck`, `test` green. AC-4 re-worded (measured limit, above).
-- Record: D3's five triggers tabled; triggers 1–3 now have a gate (`423 § 6` · `§ 6` · `§ 2`),
-  4–5 stay `prose only`.
+- pgTAP `423` (`plan(33)`, every cell with an observed red) + P2 `§ 5` (`U = D = 2 ≤ F = 20` on the
+  fixture) at `7e655461`; AC-4 re-worded to the measured limit (no `U` inside a transaction).
+- Gate step 1 CLOSED by the lead on the second pass: fresh reset + `test:db` 272/9132 PASS; `lint`
+  0/0, `typecheck`, `test` green; deriver rc 3 NOT-APPLICABLE; four authz arms + SELFTEST 46/46
+  (bash 5.2.37) hold; set-valued arm **CLEAN** with `423` in both resolver cases' reddened set —
+  after the first pass found it DIRTY because `423` aborted under the arm's mutation, fixed at
+  `d921e8be` (capture-then-assert; a `5.1` `is(NULL,NULL)` vacuity closed on the way).
+- Step 2 ruled N/A by the lead (no `src/`, no migration), put to the PO.
+- QA r1 `CHANGES REQUESTED` — two MAJORs, both documentation stale against the fix (this block;
+  one seam sentence), corrected; two MINORs answered in the record.
 
 ### In progress
-- Lead's gate step 1 first pass: fresh reset + `test:db` PASS (272/9132), `lint` 0/0, `typecheck`,
-  `test` green; deriver rc 3 NOT-APPLICABLE (no migration); four authz arms + SELFTEST (46/46,
-  bash 5.2.37) hold. **Set-valued arm rc 1 DIRTY**: both resolver cases NOTICED — under the arm's
-  mutation `423`'s extractor raises and the file aborts (run shape 9099 = 9132 − 33). Attributed
-  to this unit; `backend` is making `423` capture-then-assert so no mutation can abort it; the arm
-  is re-run by the lead afterwards (record entry *gate step 1, first pass*).
+- QA r2 on the corrected documents.
+
 ### Next
-- QA review → PO approval → Record step (seam block re-stamped, FUP closed in both homes).
+- PO approval → Record step (ledger row, hub `complete`, FUP closed in both homes, seam re-stamp).
 
 ### Blockers
-- The set-valued arm must return CLEAN with `423` in both cases' `reddened:` list before QA.
+- None.
