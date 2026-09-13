@@ -339,3 +339,13 @@ server-env-gated), not a coverage regression.
 **Verdict: GREEN.** `npm run e2e:prod` run 2 is the declaring run. Specs touched: 1 file, 1 new
 cell added, 0 re-cast, 0 deleted. Bugs filed: 0.
 
+### 2026-09-12 — the owed post-QA-fix `test:db` witness (backend)
+
+The verdict the previous entry named as missing. Stack handed back after the tester's `e2e:prod`
+went GREEN; fresh `supabase db reset --local` → **0**, `npm run test:db` → **0**,
+`Files=271, Tests=9099, Result: PASS`. `410` · `411` · `421` · `422` all ran `ok`, so `421 § 0d`'s
+re-worded message and the regenerated `authz_enforcement_manifest.psql` now carry a pgTAP verdict
+and not only `lint:authz-vectors`'. The single `# Looks like you planned 11 tests but ran 9` is
+`420`'s documented noise, unchanged. `gen-definer-search-path-freeze.mjs --check` → **0**
+(`860 … removed 1, added 0`), `gen-role-manifest.mjs --check` → **0** (`11 roles`).
+
