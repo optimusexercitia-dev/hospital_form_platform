@@ -387,3 +387,52 @@ required**, as no `src/` file and no migration changed.
   *"`scope_reaches` gains one-to-many or descendant expansion"* that a seeded principal's facts can
   see. Triggers 1 and 2 are gated by `§ 6`. Triggers 4 and 5 remain `prose only`, as the trigger
   table above records.
+
+### 2026-09-13 — gate step 1, first pass by the lead: suite, lint, four arms, SELFTEST green; the set-valued arm DIRTY on 423's own abort (lead)
+
+**Re-run by the lead, not read off the backend's report.** Peers re-checked (`pg_stat_activity`: only the
+stack's service backends). Fresh `supabase db reset --local` (rc 0) → `npm run test:db`:
+`Files=272, Tests=9132, Result: PASS` (rc 0; `423_ae4_d_shape_assertion.sql .. ok`). `npm run lint` rc 0
+(0 errors / 0 warnings — the single `warning` hit in the log is the `--max-warnings=0` flag on the script
+line); `npm run typecheck` rc 0; `npm run test` `154 files / 2092 tests` passed.
+
+**Door sweep — RULED NOT-APPLICABLE.** `CASELIST="$(bash scripts/door-sweep-cases.sh c71e7c33)"; rc=$?` →
+**rc 3**, `=== RESULT: NOT-APPLICABLE (3) — no migration file in the diff. ===`, quoting
+`SCOPE: 0 file(s) — 0 committed (c71e7c33..HEAD), 0 worktree, 0 untracked | filter: none | derivation: NOT REACHED (this run ended before the catalog was probed)`.
+`git diff --stat -- docs/reviews/authz-door-audit-findings.md` empty. No predicate/policy sweep ran and none is
+owed: `git diff --stat c71e7c33..HEAD -- supabase/migrations` is empty.
+
+**The four authz arms, rc read bare from `p0-authz-invariant.sh`, run after the suite (which rolls back):**
+
+| arm | knob | rc | line quoted |
+| --- | --- | --- | --- |
+| census | `ARM=census` | 0 | `=== INVARIANT HOLDS ===` |
+| hat | `ARM=hat` | 0 | `self-test: 7/7 OK` · `HAT-BLIND SWEEP HOLDS: 4 finding(s), all reasoned-allowlisted` |
+| floor | `ARM=floor` | 0 | `=== INVARIANT HOLDS ===` |
+| wrapper | `FROMFINDINGS=1 ARM=wrapper` | 0 | `=== ARM 5: invoker-wrapper BLIND ⊆ allowlist ===` · `BLIND set size: 41` · `=== INVARIANT HOLDS ===` |
+
+**SELFTEST** (`SELFTEST=1 bash scripts/door-sweep-cases.sh`, rc 0, `GNU bash, version 5.2.37(1)-release
+(x86_64-pc-msys)`): `SELF-TEST: PASS 46 · FAIL 0 · SKIPPED 0` —
+`--- GROUP deriver: scenarios 20 (pass 20 · fail 0 · skipped 0)` ·
+`--- GROUP merge helper: scenarios 18 (pass 18 · fail 0 · skipped 0)` ·
+`--- GROUP audit startup capture: scenarios 8 (pass 8 · fail 0 · skipped 0)`.
+
+**Set-valued arm — rc 1, `=== RESULT: DIRTY — at least one case is not COVERED. This BLOCKS the phase. ===`**,
+`ARM-DOMAIN setvalued=3/3 (in scope) out-of-scope=2 (named, with dispositions)`. Per case:
+`authz.authorized_scope_ids(uuid,text,text)` → **NOTICED** (`suite FAIL but run-shape!=baseline (Files=272
+Tests=9099); aborting file(s): <none>; reddened: 252, 311, 321, 40x…, 413`);
+`authz.candidate_authorized_scope_ids(uuid,text,text)` → **NOTICED** (same shape message; `reddened:
+413_ae4_authorized_scope_ids.sql` only); `app.current_professional_read_organizations()` → COVERED. The
+previous gate (`AE5-ROLE-CATALOG-COMPAT`, record `:223`) had this arm `CLEAN`.
+
+**Attributed to THIS unit, not to the catalog.** `9132 − 9099 = 33 = 423's plan()`. Under the arm's
+open→universal-set mutation the resolver body no longer carries the `with candidate as materialized (`
+anchor; `423`'s extractor RAISES by design, the file dies after `plan(33)` with zero TAP lines, and the run
+shape moves — which the harness reads as *"something noticed, cannot say what"* (NOTICED), never COVERED.
+The backend's own report already named this failure mode for `0.2`/`0.3`: *"red by REFUSING, never by a
+`not ok` line"*. ⇒ This is the LEARN-083 class the playbook names for NOTICED, and its remedy is the
+playbook's — **capture-then-assert in the aborting file**, ⛔ never a relabel of the arm's verdict, never an
+allowlist. Sent to `backend` as a fix: no path in `423` may abort the file; an instrument refusal becomes a
+red TAP line and every dependent cell reds rather than raises, so the run shape stays 9132 under any
+mutation and `423` appears in the arm's `reddened:` list. Re-earned afterwards: the plants whose witness
+was an abort (W3, H2), fresh reset + `test:db`, then this arm re-run by the lead.
