@@ -3807,7 +3807,20 @@ skips the `_*_note` keys; `_flip_keying` and `_synth_badkeying` REFUSE BY NAME w
 void-control message instead of walking off the end. arm14(b) live and able to red — self-test:
 `caught — arm14 a caller-keyed door claims a principal [fired: arm14]`. **Gate 12 = 0.**
 
-**L13′ / L22 / L23 discrimination witnesses, all planted and rolled back:**
+**L22 — the identity gate, and it is a CORRECTION OF A FALSE CLAIM, not a missing one.**
+`public.start_correction_draft` is a DEFINER writer of `responses` whose authority is
+`if auth.uid() is distinct from v_corrector then raise` — a predicate, not a call. The field admitted only a
+function name (there is none; naming its liveness check would have read as "gated only on liveness", the
+alarming misreading and the opposite of the truth) or `null`, which `410 § 8.7` DEFINES as "no authority check
+at all". Both were false, so the vocabulary grew: `{"kind":"identity","expression"}`, emitted as its own
+column and pinned against the **comment-stripped** body — plus a new REVERSE 3b arm that reds if the
+expression appears ONLY in a comment, because "present in the stripped body" and "present in both" are not
+the same claim and the stronger one is stated rather than inferred. `410 § 8.7` green with it declared.
+⚠ L22 has NO planted witness below, and this line says so rather than letting the heading imply one: its
+discrimination is the REVERSE 3b arm's existence, which is itself untested until a door declares a gate it
+only comments. Filed mentally as the weakest of the five rulings' evidence.
+
+**L13′ / § 3.8 / L23 discrimination witnesses, all planted and rolled back:**
 ```
 6a  § 6.3  baseline predicate t → plant one staff_admin pending row as measured-% with zero
            arm sites → f → rollback → t
