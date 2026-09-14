@@ -1959,6 +1959,20 @@ Before the unit, `readRoleVocabularyFromCatalog` was an UNEXPORTED local in two 
 
 **Measured 2026-09-14** (`select qual from pg_policies where tablename='action_items' and policyname='action_items_select'`): the live `assignees_only` leg is `app.is_staff_admin_of(commission_id) OR (assigned_to IS NOT NULL AND assigned_to = auth.uid()) OR EXISTS(… action_item_assignments … user_id = auth.uid() … completed_at IS NULL)`, while the manifest's `commission.action_items.read` `arm3Door.expression` carries ONLY the `EXISTS` term. Consequence already paid once: backend's L8 diagnosis read row 11's limb (b) as firing for *nobody* because it evaluated the declared `EXISTS` leg, while the tester's pre-existing fixture (`a5f40000-…-a1`, `assigned_to = staff4.ccih`) fires the OMITTED `assigned_to` arm — the two readings disagreed because they read two different doors. ⚠ Row 11 is the measured instance; the other ten `arm3Door` rows were NOT checked and the close condition covers all of them. ⛔ Owed to T7 (the re-key must key on the LIVE door) and to the T14 review.
 
+### 🟢 FUP-AE5-STAFF-PERIODIC-RESET-LINE-PRINTS-THE-RUNNING-TOTAL — the reset banner over-states the drift bound it exists to report (owner: backend)
+
+**Filed:** 2026-09-14 (unit `AE5-STAFF`, T8) · **Owner:** backend · **Severity:** low — cosmetic in the code, but the line is READ AS EVIDENCE in gate records and it over-states the very quantity `RESET_EVERY` exists to bound (measured: with `RESET_EVERY=5` the fourth scheduled line read `20 case(s) swept since the last baseline`; 5 had been).
+**Closes when:** `p0-authz-door-audit.sh`'s scheduled line prints the count SINCE THE LAST RESET rather than `$((DONE - 1))`, and ONE RUN shows the corrected line at the SECOND reset — the first cannot distinguish the two quantities, so a run that stops after one is not a proof. ⛔ Not closable by rewording the line to "swept so far": that makes the text true and leaves the gate record without the number it needs.
+**Status:** open
+**Body:** [FUP-AE5-STAFF-PERIODIC-RESET-LINE-PRINTS-THE-RUNNING-TOTAL.md](FUP-AE5-STAFF-PERIODIC-RESET-LINE-PRINTS-THE-RUNNING-TOTAL.md)
+
+### 🟡 FUP-AE5-STAFF-ARM1-HARNESSES-DO-NOT-READ-RESET-EVERY — two of ARM 1's three sweeps accept the knob and drop it (owner: backend)
+
+**Filed:** 2026-09-14 (unit `AE5-STAFF`, T8) · **Owner:** backend · **Severity:** medium — no wrong verdict is known to have come from it; what is missing is the BOUND on how much drift a verdict may carry, in two harnesses that run the FULL suite per case.
+**Closes when:** `p0-authz-rowdoor-audit.sh` and `p0-authz-invoker-audit.sh` each READ the knob (measured as reads of the variable, `grep -cE '\$\{?RESET_EVERY'`, never prose mentions — both are 0/0 today against the door audit's 13 and the write-path audit's 11), with the door audit's rule stated per file: set-ness captured BEFORE the default, and the file's own default with its measured reason. Proven by ONE RUN EACH showing the reset fire and announce itself — ⛔ not by the presence of the code, which is the same class of claim this entry exists to close.
+**Status:** open
+**Body:** [FUP-AE5-STAFF-ARM1-HARNESSES-DO-NOT-READ-RESET-EVERY.md](FUP-AE5-STAFF-ARM1-HARNESSES-DO-NOT-READ-RESET-EVERY.md)
+
 ### 🟡 FUP-AE5-STAFF-S8-S5-PAIRING-NOW-CONTINGENT — Amendment 4 §A4.2's derivation is no longer structural (owner: backend)
 
 **Filed:** 2026-09-14 (unit `AE5-STAFF`, T7; lead ruling L20) · **Owner:** backend · **Severity:** medium — no live defect; a derivation that was STRUCTURAL is now CONTINGENT on a catalog fact that nothing gates.
