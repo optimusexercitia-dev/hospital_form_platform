@@ -3581,3 +3581,25 @@ run, satisfied properly here because this arm IS composed. Complete and witnesse
 doors, policies, functions, row 7 pair, C1 census, L18 pair, row 9 triple, five fixtures. Not done,
 stated by backend: L13's § 6.3 text, anchor + `320 § U4`, `387`, scoped `396`/`400`, move-in, steps
 2–7, full `test:db`, lint, `gen:types`, the live budget line — the long single stretch, not started.
+
+### 2026-09-14 — T7 step 2 witness: `410 § 8` RED both directions on the unmigrated catalog; move-in authorised explicitly (lead)
+
+Backend, flipped manifest (scratch-emitted) against the LIVE pre-migration catalog,
+`pg_stat_activity` 0, settle-checked 171 → 171:
+
+```
+not ok 37 - 8.1 ⭐⭐ DECLARED => ENFORCING
+#  have: commission.accreditation.read -> public.accreditation_frameworks / accreditation_frameworks_select; … 
+#  want: (none)
+ok 38 - 8.2 DISCRIMINATION PAIR, positive half … returns TRUE for a site that genuinely is re-keyed
+ok 39 - 8.3 DISCRIMINATION PAIR, negative half — anchored on something correct BY DESIGN
+```
+
+13 reds total (§ 8.1 plus § 8.6 cardinality, § 8.7 definer-writer closure, § 8.8
+authorizer-consumer partition — all moving with the flip) while § 8.2/8.3 stay GREEN: a § 8.1 red
+with a broken `reaches_code` would look identical, the green positive half rules it out. The witness
+that only exists between "declared" and "landed". Backend parked BEFORE the move-in — the first
+irreversible step on the shared stack (a migration in `supabase/migrations/` is applied by any
+session's reset: this unit's incident) — everything before it rolled back or scratch-only. pgtap
+installed for the run, to be dropped before the reset. **Move-in authorised explicitly:** the tester
+and the PO session are off the stack.
