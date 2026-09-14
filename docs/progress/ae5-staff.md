@@ -4129,3 +4129,29 @@ command door `sign_meeting` (which raises `HC036` when it denies). Under `select
 expected from one of those two paths or from the audit writer; backend reads the case's run log
 (a file) and names the raising test, message and neutralization form; the SQLSTATE is owed at the
 sweep's end with the first one. Evidence, never a pass, never BLIND; dispositioned at the merge.
+
+### 2026-09-14 — the second NOTICED dispositioned: HC036 is the leak, the state guard's raise is the wreckage; three files noticed (lead)
+
+Backend, from `120_meetings.sql`'s run log: form = the predicate arm's `select true` (measured from
+effect — `select false` would have produced denials). Raising site verbatim:
+`psql:…/supabase/tests/120_meetings.sql:240: ERROR: esta reunião não está aguardando assinatura /
+CONTEXT: PL/pgSQL function sign_meeting(uuid,text,text) line 24 at RAISE` → `Failed 11/32
+subtests`, `Bad plan. You planned 32 tests but ran 22`. **Mechanism, in order:** `# Failed test 22:
+"cannot sign another attendee's row (HC036)" caught: no exception / wanted: HC036` — with the
+authorizer forced open a caller SIGNED ANOTHER ATTENDEE'S ROW; that advanced the meeting past
+"awaiting signature", so the next legitimate `sign_meeting` hit the later state guard at line 24 —
+the mirror of the earlier-guard lesson: an earlier guard NOT firing corrupted the state a later
+guard then rejected. **Three independent files noticed:** (1) `120` test 22, the identity guard;
+(2) `251_authz_p0_isolation.sql` — `test 23 "meeting_signatures_insert DENY 42501: a non-attendee
+cannot sign for an attendee" caught: no exception` and `test 24 … died: 23505 duplicate key …
+meeting_signatures_active_key` (the illegitimate row from test 23 already holds the slot) — the
+POLICY site noticed; (3) `410` itself, 3 of 45 — § 3.5 (every `composedWith` authority present),
+§ 8.1 (declared ⇒ enforcing), § 8.6 (the cardinality triple): the neutralized body no longer
+composes `can_meetings_minutes_sign`, so the manifest caught the mutation STRUCTURALLY. Reproduced
+through the retry net after a fresh reset (preflight clean, baseline PASS, worklist unchanged).
+Contrast kept for the gate record: on the first NOTICED a DIFFERENT subsystem (the audit writer)
+refused and the leak was visible only indirectly; here the door's own sibling guards and the
+manifest named it — same verdict class, opposite evidentiary quality, both attributable only
+because the retry net reproduced them. Errcodes owed at the sweep's end: the two raising RAISEs
+(`log_audit_access`; `sign_meeting` line 24) — HC036 and 42501 came back as WANTED values from the
+assertions and need no read.
