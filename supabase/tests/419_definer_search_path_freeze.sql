@@ -5,7 +5,7 @@
 --
 -- ⭐ WHAT THIS ASSERTS, AND WHY IT IS NOT `414`. ADR 0208 D4 rules `set search_path = ''` with a
 -- schema-qualified body the SOLE forward convention for a new or touched SECURITY DEFINER; the
--- 860 remaining non-empty paths are frozen compatibility debt that **may not grow**. The lineage,
+-- 836 remaining non-empty paths (860 until AE5 T7 converged 24) are frozen compatibility debt that **may not grow**. The lineage,
 -- because a bare figure here rots into a claim nobody can date: 867 before migration
 -- `20261003007410` converged two of them -> 865; 861 after `20261003007420` converged the four
 -- temp-table DEFINERs; 860 after `20261003007430` DROPPED `public.assume_role(p_role
@@ -134,13 +134,18 @@ select is(
 --    orderings differ on `_`, and the md5 would disagree for a set that is byte-identical.
 select is(
   (select count(*)::int from definer_search_path_freeze),
-  860,
-  '§ 0c ROWS PIN: the frozen artifact holds exactly the 860 rows its anchor declares. ⛔ A shrink updates BOTH the artifact (via --write) and this literal; updating only one is the drift this pin exists to catch'
+  -- ⚠ RE-PINNED 860 -> 836 AT AE5 T7 (2026-09-14), OBSERVED RED FIRST at § 1c. A PURE
+  --    DELETION of 24 signatures, 0 added: T7 re-emitted them under `set search_path = ''`
+  --    with schema-qualified bodies, which is D4's "converge on touch". The 24 are named in
+  --    the AE5-STAFF gate record; `--write` prints them and gate 18 checks the diff is a
+  --    deletion against git, not against that line.
+  836,
+  '§ 0c ROWS PIN: the frozen artifact holds exactly the 836 rows its anchor declares. ⛔ A shrink updates BOTH the artifact (via --write) and this literal; updating only one is the drift this pin exists to catch'
 );
 
 select is(
   (select md5(string_agg(sig, '|' order by sig collate "C")) from definer_search_path_freeze),
-  'c61b3ec993ffa2a44cffa9e03a2c2ad0',
+  'f5a23dc82230ed4345c61dc8b53e8c63',
   '§ 0d CONTENT PIN: the frozen NAMES, not merely their count. A row swapped for another row keeps § 0c green and moves this'
 );
 

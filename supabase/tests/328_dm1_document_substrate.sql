@@ -912,8 +912,14 @@ select ok(
   (select array_to_string(p.proconfig, '|') from pg_proc p
      join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'app' and p.proname = 'can_read_document')
-    ~ 'search_path=app, public, pg_catalog',
-  'K14s5 the kernel kept its pinned search_path (preservation pin)');
+    -- ⚠⚠ CORRECTED TO THE D4 CONVENTION AT AE5 T7 (2026-09-14), OBSERVED RED FIRST.
+    --    `app.can_read_document` is one of the 24 that converged: AE5 T7 converged it off the frozen path under ADR 0208 D4 / lead ruling L15 ("converge on touch"): it is one of the 24 signatures 419's shrink-only set lost, 860 -> 836, a PURE DELETION with 0 added.
+    -- ⛔ THE PRESERVATION PIN IS KEPT, ITS SUBJECT IS NOT. What this assertion exists to
+    --    catch is a re-emission that drops the search_path setting ALTOGETHER, which is the
+    --    injection hazard; `''` is a SETTING, and the strongest one. Matching the legacy
+    --    literal would now defend the debt instead of the property.
+    ~ 'search_path=""',
+  'K14s5 the kernel kept an explicit search_path through the re-emit (preservation pin) -- now the ADR 0208 D4 empty form, converged at AE5 T7; an ABSENT proconfig is the regression this catches');
 select ok(
   (select regexp_replace(p.prosrc, '--[^\n]*', '', 'g') from pg_proc p
      join pg_namespace n on n.oid = p.pronamespace

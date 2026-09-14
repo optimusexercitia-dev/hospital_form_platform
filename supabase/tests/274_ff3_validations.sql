@@ -936,8 +936,14 @@ select public.set_item_validations('ff300000-0000-0000-0000-000000000021',
 select ok(
   exists (select 1 from pg_policies
           where schemaname='public' and tablename='form_item_validations'
-            and cmd='SELECT' and qual like '%is_member_of%'),
-  'C1. the base member/admin SELECT policy is still there');
+            -- ⚠⚠ `is_member_of` -> `can_forms_read` AT AE5 T7 (2026-09-14), OBSERVED RED
+            --    FIRST. The base member arm was RE-KEYED, not removed: the policy now reads
+            --    `app.can_forms_read(app.commission_of_version(form_version_id), (select
+            --    auth.uid())) OR app.is_tenancy_admin_of(...)`. The TEXT is corrected to the
+            --    predicate that now carries the member question, so C1 keeps defending the
+            --    ARM rather than a retired name.
+            and cmd='SELECT' and qual like '%can_forms_read%'),
+  'C1. the base member/admin SELECT policy is still there (its member arm re-keyed to app.can_forms_read at AE5 T7)');
 
 select ok(
   exists (select 1 from pg_policies

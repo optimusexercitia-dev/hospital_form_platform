@@ -24,6 +24,29 @@
 --      10    B6    orgadmin.b       (org_admin, Rede B)  6 -> 7   f3
 --      19    D1b   restore control for B1                —        moves WITH test 5
 --
+--    AE5 T7 (2026-09-14) added ONE profile and re-keyed 20 `staff` doors. Observed RED
+--    first; every delta traced before any pin moved.
+--      `a5f00000-...-f5` — the T7 case-GRANT persona: an org affiliation in Rede A and a
+--      case_access_grants row, and NO membership anywhere (that absence is the fixture).
+--
+--      test  §     arm                                  rows      the profiles that ENTERED
+--      6     B2    orgadmin.a       (org_admin)         35 -> 36  f5 (org affiliation, Rede A)
+--      7     B3    platform_admin   (all rows)          44 -> 45  f5
+--    ⛔ B1/B4/B5/B6 DID NOT MOVE and were not re-pinned: f5 holds no membership, so no
+--    membership-keyed arm reaches it. That four of the six stayed still is the attribution.
+--    ⭐ MEASURED, NOT ARGUED: under each persona, `md5(id-set MINUS f5)` reproduces the
+--    OLD pin exactly — 35 rows -> 67d2c9c2f1d190c8ae1e21654a772107 and 44 rows ->
+--    4ba7d3593c3c824604fa80604e1287bc. The delta is f5 and nothing else.
+--
+--    C1 (test 16) MOVED FOR A DIFFERENT REASON and is attributed separately: 9 of the 99
+--    hot-table policies changed predicate, each one a T7 door swap measured against the
+--    PRE-T7 live capture, never against the migration text — case_narrative_types_select,
+--    case_outcomes_select, case_tags_select (app.is_member_of -> app.can_cases_vocabulary_read),
+--    form_items_select, form_sections_select, form_versions_select (-> app.can_forms_read),
+--    meeting_cases_select (+ app.can_meetings_cases_shell_read conjunct, the respondent
+--    exclusion KEPT), profiles_select_self_or_admin (-> app.can_roster_read),
+--    responses_insert_own (-> app.can_responses_create). The other 90 are bit-identical.
+--
 --    ⛔ EVERY DELTA IS EXACTLY THE COUNT OF NEW PROFILES THAT ARM CAN SEE, and each is
 --    visible for a reason the arm's own predicate gives:
 --      • B1 reaches f1 and f2 through their memberships in commissions under Hospital
@@ -258,15 +281,21 @@ select test_helpers.claims_for('00000000-0000-0000-0000-0000000000b1', false, 'o
 set local role authenticated;
 select is(
   (select md5(coalesce(string_agg(id::text, ',' order by id), '')) from public.profiles),
-  '67d2c9c2f1d190c8ae1e21654a772107',
-  'B2 org_admin (orgadmin.a, 35 rows) sees the IDENTICAL set of profiles.id');
+  -- ⚠ RE-PINNED AT AE5 T7 (2026-09-14), OBSERVED RED FIRST. 35 -> 36 rows; the id set
+  --    MINUS `a5f00000-...-f5` reproduces the old pin 67d2c9c2f1d190c8ae1e21654a772107
+  --    exactly, so the delta is that one profile and no other.
+  'cd9eb75a30154ee31b207a13ac9a8040',
+  'B2 org_admin (orgadmin.a, 36 rows) sees the IDENTICAL set of profiles.id');
 
 select test_helpers.claims_for('00000000-0000-0000-0000-0000000000b0', true, 'platform_admin');
 set local role authenticated;
 select is(
   (select md5(coalesce(string_agg(id::text, ',' order by id), '')) from public.profiles),
-  '4ba7d3593c3c824604fa80604e1287bc',
-  'B3 ⭐ platform_admin (44 rows = all) sees the IDENTICAL set -- app.is_admin() is the ONE arm KEPT in profiles_admin_select, so this is the persona the edit could most plausibly break, and AE0.2''s control set has no platform_admin arm at all');
+  -- ⚠ RE-PINNED AT AE5 T7 (2026-09-14), OBSERVED RED FIRST. 44 -> 45 rows; the id set
+  --    MINUS `a5f00000-...-f5` reproduces the old pin 4ba7d3593c3c824604fa80604e1287bc
+  --    exactly, so the delta is that one profile and no other.
+  '458dfa002b5b2251e563efc960048d54',
+  'B3 ⭐ platform_admin (45 rows = all) sees the IDENTICAL set -- app.is_admin() is the ONE arm KEPT in profiles_admin_select, so this is the persona the edit could most plausibly break, and AE0.2''s control set has no platform_admin arm at all');
 
 select test_helpers.claims_for('00000000-0000-0000-0000-000000000002', false, 'staff_admin');
 set local role authenticated;
@@ -428,8 +457,12 @@ select is(
   --    and §5's SUBSET invariant -- plus `413` §7, which plants exactly that over-broad body
   --    and requires the differential to go RED.  §B is silent here for D6's reason:
   --    `professional_profiles` is not one of its five pinned tables.
-  'f2a0693be216cfe08eb6cf0283565e7c',
-  'C1 un-wrapping every policy on the hot tables reproduces the pinned predicate set exactly -- no arm added, dropped or reordered beyond the three legs AE2.2 re-predicated and the three form-write policies AE4.9 D6 re-keyed, both on purpose');
+  -- ⚠ RE-CAPTURED AT AE5 T7 (2026-09-14), OBSERVED RED FIRST. 9 of the 99 hot-table
+  --    policies moved, every one a `staff` door swap; the other 90 are bit-identical to the
+  --    PRE-T7 LIVE CAPTURE (not to the migration text). The nine are named in the header.
+  --    ⛔ C2 below is what stops this re-capture absorbing a DELETION: 99 is unchanged.
+  '168aa4c6418d33da4717648ab11847f4',
+  'C1 un-wrapping every policy on the hot tables reproduces the pinned predicate set exactly -- no arm added, dropped or reordered beyond the three legs AE2.2 re-predicated, the three form-write policies AE4.9 D6 re-keyed, and the nine AE5 T7 re-keyed, all on purpose');
 
 select is(
   (select count(*)::int from pg_temp.ae15_hot_subset()),

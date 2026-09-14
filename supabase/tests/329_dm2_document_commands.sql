@@ -938,8 +938,21 @@ select ok(
   (select regexp_replace(p.prosrc, '--[^\n]*', '', 'g') from pg_proc p
      join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'app' and p.proname = 'resolve_document_version_bytes')
-    ~ 'read_case_deliberation',
-  'P0d the deliberation conjunct is enforced in the SHARED RESOLVER''s body, never client-side (resolve-shape, part 1)');
+    -- ⚠⚠ RE-POINTED AT AE5 T7 (2026-09-14), OBSERVED RED FIRST — AND THE FALSIFIABILITY
+    --    NOTE ABOVE APPLIES TO THE NEW NEEDLE TOO, re-executed below. T7's C1 wiring replaced
+    --    the four inline copies of this predicate with the row-9 authority
+    --    `app.can_reach_case_on_member_surface`, which carries
+    --    `commission.cases.deliberation.read` down the declared chain
+    --    (-> app.can_cases_deliberation_read -> app.has_case_capability -> app._case_caps ->
+    --    S5 -> app.can_cases_deliberation_read_in_commission -> authz.has_permission).
+    --    The conjunct is STILL in the shared resolver's body; it is spelled as the door now.
+    -- ⛔ RE-POINTING A NAME-KEYED ASSERTION WITHOUT RE-PROVING IT IS HOW A DETECTOR DIES
+    --    QUIETLY: measured 2026-09-14 on the live catalog, the comment-stripped body matches
+    --    `can_reach_case_on_member_surface` = true and `read_case_deliberation` = false, so
+    --    the OLD needle would now pass over a body that still enforces and the NEW one is the
+    --    only form that can still fire.
+    ~ 'can_reach_case_on_member_surface',
+  'P0d the deliberation conjunct is enforced in the SHARED RESOLVER''s body, never client-side (resolve-shape, part 1) -- spelled as app.can_reach_case_on_member_surface since AE5 T7 wired row 9''s authority in place of the four inline copies');
 select ok(
   (select regexp_replace(p.prosrc, '--[^\n]*', '', 'g') from pg_proc p
      join pg_namespace n on n.oid = p.pronamespace

@@ -177,7 +177,15 @@ select is(
   (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.proname in (select proname from doors)
       and array_to_string(p.proconfig, ';') like '%search_path=app, public, pg_catalog%'),
-  23, 't13 CONTROL: all 23 doors keep the pinned search_path=app, public, pg_catalog');
+  -- ⚠⚠ RE-PINNED 23 -> 22 AT AE5 T7 (2026-09-14), OBSERVED RED FIRST, AND THE TEXT IS
+  --    CORRECTED WITH IT. `public.create_referral_internal_note` is the door that left: AE5 T7 converged it off the frozen path under ADR 0208 D4 / lead ruling L15 ("converge on touch"): it is one of the 24 signatures 419's shrink-only set lost, 860 -> 836, a PURE DELETION with 0 added.
+  -- ⛔ THE LEGACY PATH IS NOT A PROPERTY TO KEEP. This control was written when all 23 doors
+  --    carried `search_path=app, public, pg_catalog` and its job was to catch a DROP+CREATE
+  --    that silently lost the pin. Under D4 that pin is compatibility DEBT and the direction
+  --    of travel is DOWN: this number must fall as doors are touched, and a door that
+  --    RE-ACQUIRED the legacy path would be the regression. Read a red here as "name which
+  --    door moved and why", never as "restore 23".
+  22, 't13 CONTROL: 22 of the 23 doors still carry the legacy search_path=app, public, pg_catalog; public.create_referral_internal_note converged to the D4 empty form at AE5 T7 and this number is expected to keep FALLING');
 
 select * from finish();
 rollback;

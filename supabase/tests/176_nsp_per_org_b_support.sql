@@ -414,8 +414,15 @@ select ok(
   (select count(*)::int from pg_policies
    where tablename = 'commissions' and policyname = 'commissions_select_member_or_admin'
      and qual like '%is_pqs_operator_of%' and qual like '%is_nsp_org_admin_of%'
-     and qual like '%is_member_of%' and qual like '%is_org_admin_of%') = 1,
-  'D4: commissions_select carries the per-hospital NSP arms (is_member_of + is_org_admin_of + is_pqs_operator_of + is_nsp_org_admin_of)');
+     -- ⚠⚠ `is_member_of` -> `can_roster_read` AT AE5 T7 (2026-09-14), OBSERVED RED FIRST.
+     --    The member arm did not go away; it was RE-KEYED onto the permission layer, so the
+     --    commission-membership question is now asked as `commission.roster.read` through
+     --    `app.can_roster_read(id, (select auth.uid()))`. ⛔ THE TEXT IS CORRECTED, NOT THE
+     --    NUMBER ALONE: this arm's whole purpose is to be a defence against a future revert
+     --    that DROPS an arm, and leaving it matching on the retired predicate would have made
+     --    it defend a name instead of the arm.
+     and qual like '%can_roster_read%' and qual like '%is_org_admin_of%') = 1,
+  'D4: commissions_select carries the per-hospital NSP arms (can_roster_read [the AE5 T7 re-key of the is_member_of arm] + is_org_admin_of + is_pqs_operator_of + is_nsp_org_admin_of)');
 
 select * from finish();
 rollback;

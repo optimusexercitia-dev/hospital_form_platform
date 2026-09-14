@@ -74,7 +74,7 @@ from (
 create temporary table _dac_pin (kind text, rows bigint, digest text);
 insert into _dac_pin (kind, rows, digest) values
   ('rpc', 555, 'ba4f033b4a0ee9dcb024fa9633db9ba2'),
-  ('helper', 528, '3aea2afbda0306957311158b6fce488e'),
+  ('helper', 549, '8d70367d3a12afb863a4960a581b7156'),
   ('flags', 43, 'e5ae44b11aa59c918274e3b15411bd6b');
 
 select is(

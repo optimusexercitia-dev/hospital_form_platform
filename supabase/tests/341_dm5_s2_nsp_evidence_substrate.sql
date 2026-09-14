@@ -221,7 +221,12 @@ select is((select provolatile::text from pg_proc p join pg_namespace n on n.oid 
   'DM5·S2 D4b can_read_document is still STABLE');
 select is((select array_to_string(proconfig, ',') from pg_proc p join pg_namespace n on n.oid = p.pronamespace
             where n.nspname = 'app' and p.proname = 'can_read_document'),
-  'search_path=app, public, pg_catalog',
+    -- ⚠⚠ CORRECTED TO THE D4 CONVENTION AT AE5 T7 (2026-09-14), OBSERVED RED FIRST — the
+  --    have/want read `search_path=""` vs `search_path=app, public, pg_catalog`.
+  --    `app.can_read_document` is one of the 24 that converged: AE5 T7 converged it off the frozen path under ADR 0208 D4 / lead ruling L15 ("converge on touch"): it is one of the 24 signatures 419's shrink-only set lost, 860 -> 836, a PURE DELETION with 0 added.
+  -- ⛔ The pin is on HAVING an explicit search_path, which is the injection property; the
+  --    legacy value was compatibility debt and D4's direction is toward the empty form.
+  'search_path=""',
   'DM5·S2 D4c can_read_document kept its search_path pin');
 -- ⚠ STRUCTURAL, not substring. PUBLIC is an aclitem with an EMPTY grantee, so
 -- `like '%=X/postgres%'` also matches `postgres=X/postgres` — one habit that

@@ -169,11 +169,40 @@ $$;
 --    failed on whatever order the executor happened to produce. A pin that can flip without
 --    the subject changing is worse than no pin.
 select is((select string_agg(site || ' => ' || code, ' | ' order by code, site) from pg_temp.code_sites()),
+  -- ⚠⚠ RE-PINNED 4 -> 24 PAIRS AT AE5 T7 (2026-09-14), OBSERVED RED FIRST. The 21 that
+  --    ARRIVED are the `staff` doors this increment creates, one per re-keyed row plus the
+  --    21st (lead ruling L20, `app.can_cases_deliberation_read_in_commission`). ⛔ NOT ONE
+  --    of the original four MOVED, was duplicated, or landed at a different gate — which is
+  --    the property this arm exists to hold, and the reason it is a NAMED SET: a count
+  --    would have read 4 -> 25 identically for a swap.
+  -- ⚠ `app.can_cases_deliberation_read` is ABSENT from this list on purpose: lead ruling
+  --    L24 removed its permission disjunct, so row 9's authorizer no longer carries the
+  --    code literal — the 21st door carries it one hop down the declared chain.
+  'app.can_accreditation_read => commission.accreditation.read | '
+  'app.can_action_items_read => commission.action_items.read | '
+  'app.can_capa_read => commission.capa.read | '
+  'app.can_cases_deliberation_read_in_commission => commission.cases.deliberation.read | '
+  'app.can_cases_vocabulary_read => commission.cases.vocabulary.read | '
+  'app.can_cases_vote => commission.cases.vote | '
+  'app.can_charter_read => commission.charter.read | '
+  'app.can_documents_read => commission.documents.read | '
   'app.can_edit_commission_forms => commission.forms.edit | '
+  'app.can_forms_read => commission.forms.read | '
+  'app.can_indicators_read => commission.indicators.read | '
+  'app.can_meetings_cases_shell_read => commission.meetings.cases.shell.read | '
+  'app.can_meetings_minutes_sign => commission.meetings.minutes.sign | '
+  'app.can_meetings_read => commission.meetings.read | '
+  'app.can_process_templates_read => commission.process_templates.read | '
+  'app.can_referrals_metadata_read => commission.referrals.metadata.read | '
+  'app.can_referrals_notes_author => commission.referrals.notes.author | '
+  'app.can_responses_create => commission.responses.create | '
+  'app.can_roster_read => commission.roster.read | '
+  'app.can_safety_events_read => commission.safety_events.read | '
+  'app.can_safety_events_report => commission.safety_events.report | '
   'app.can_create_professional => org.professionals.create | '
   'app.can_read_professional_profile => org.professionals.read | '
   'app.current_professional_read_organizations => org.professionals.read',
-  '1.1 ⭐ THE SEAM, AS A NAMED SET RATHER THAN A COUNT: exactly FOUR (site, code) pairs exist '
+  '1.1 ⭐ THE SEAM, AS A NAMED SET RATHER THAN A COUNT: exactly 24 (site, code) pairs exist '
   'across `app` + `public`. ⛔ A count would pass on a swap; this reds if a code moves, is '
   'duplicated, or lands at the wrong gate. '
   '⚠ The probe strips `--` comments first — a prosrc text match otherwise counts comments '
@@ -199,8 +228,8 @@ select is((select count(*)::int from pg_temp.code_sites() where code = 'org.prof
   '0182). The count is re-derived from 1.1''s own expected string, not remembered.');
 
 select is((select count(*)::int from authz.permissions
-            where code not in (select code from pg_temp.code_sites())), 58,
-  '1.3 THE COUNTDOWN, PINNED — ⚠ RE-PINNED 40 of 43 -> 58 of 61 at AE5 increment 1 (2026-09-13), AFTER BEING OBSERVED RED on the T4 seed (`20261003007440`) — the 18 new codes arrive `pending-rekey` and carry no site literal, which is T4 doing exactly what it says: it seeds a catalog and re-keys nothing. ⛔ The SECOND number of the pair (3 re-keyed) did NOT move, and a landing that moved both would be a re-key hiding inside a seed. ⛔ Never pre-adjusted. 58 of the 61 permissions carry NO enforcement-site literal — they '
+            where code not in (select code from pg_temp.code_sites())), 38,
+  '1.3 THE COUNTDOWN, PINNED — ⚠⚠ RE-PINNED 58 of 61 -> 38 of 61 AT AE5 T7 (2026-09-14), AFTER BEING OBSERVED RED. The delta is exactly the 20 `staff` rows this increment re-keys: T4 seeded 18 new codes and moved NOTHING onto layer 3 (58/61), T7 moves 20 codes onto it (38/61). ⛔ THE TWO HALVES MUST MOVE TOGETHER WITH § 1.1: 4 -> 24 pairs there against 58 -> 38 uncarried here, because 24 pairs cover 23 DISTINCT codes (org.professionals.read has two sites) and 61 - 23 = 38. A countdown that fell without the seam growing would be a code losing its gate, not a re-key. ⚠ RE-PINNED 40 of 43 -> 58 of 61 at AE5 increment 1 (2026-09-13), AFTER BEING OBSERVED RED on the T4 seed (`20261003007440`) — the 18 new codes arrive `pending-rekey` and carry no site literal, which is T4 doing exactly what it says: it seeds a catalog and re-keys nothing. ⛔ The SECOND number of the pair (3 re-keyed) did NOT move, and a landing that moved both would be a re-key hiding inside a seed. ⛔ Never pre-adjusted. 58 of the 61 permissions carry NO enforcement-site literal — they '
   'are the `pending-rekey` population (0176 D5/D6). ⛔ This number is meant to FALL, one AE5 role '
   'increment at a time. It is asserted here so that "N of 43 re-keyed" is a measured figure and '
   'not a sentence in a gate record.');

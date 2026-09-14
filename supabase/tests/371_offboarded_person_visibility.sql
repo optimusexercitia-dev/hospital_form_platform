@@ -418,8 +418,16 @@ select test_helpers.reset_role_and_claims();
 
 select ok(
   (select qual from pg_policies where tablename = 'profiles' and policyname = 'profiles_select_self_or_admin')
-    like '%is_member_of%',
-  '6.4 REGRESSION (co-membership leg): the `app.is_member_of` leg survived the re-emission. No arm above exercises it, so only a structural assertion can notice it vanish');
+    -- ⚠⚠ `is_member_of` -> `can_roster_read` AT AE5 T7 (2026-09-14), OBSERVED RED FIRST.
+    --    The co-membership leg was RE-KEYED, not dropped: the live qual now reads
+    --    `app.can_roster_read(them.commission_id, (select auth.uid()))` in place of
+    --    `app.is_member_of(them.commission_id)`, measured against the pre-T7 live capture
+    --    of this policy (not against the migration text). ⛔ THE TEXT IS CORRECTED, NOT THE
+    --    ASSERTION DELETED: this arm's entire value is that no behavioural arm above
+    --    exercises the leg, so matching a retired predicate name would have left the leg
+    --    unwatched from the moment T7 landed — green, and blind.
+    like '%can_roster_read%',
+  '6.4 REGRESSION (co-membership leg): the co-membership leg survived the re-emission — spelled `app.can_roster_read` since AE5 T7 re-keyed it from `app.is_member_of`. No arm above exercises it, so only a structural assertion can notice it vanish');
 
 select * from finish();
 rollback;

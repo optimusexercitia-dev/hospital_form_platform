@@ -231,29 +231,46 @@ select is(
   current_setting('act319.orig_has_role', true),
   'A6 RESTORE: has_role byte-identical to its pre-mutation definition');
 
+-- ⚠⚠ RE-POINTED AT AE5 T7 (2026-09-14), FROM `app.has_role_any` TO `authz.holds_role`.
+-- ⛔⛔ THE SUBJECT MOVED, SO THE PLANT HAD TO, AND A RE-PIN WOULD HAVE KILLED THE DETECTOR.
+-- A7 exists to prove `_case_caps`'s S5 `committee_member_default` arm is really gated on the
+-- session HAT: strip the hat condition out of the gate S5 depends on, and the bitmask must GAIN
+-- `read_case_deliberation` (64 -> 66) under the `org_admin` hat. Until T7, S5 read
+-- `app.is_member_of_for` -> `app.has_role_any`, so the hat lived there. Lead rulings L20/L24
+-- moved S5 onto `app.can_cases_deliberation_read_in_commission` -> `authz.has_permission` ->
+-- `authz.holds_role`, which carries the hat condition itself:
+--     and ( p_principal is distinct from (select auth.uid())
+--           or af.role_code is not distinct from app.active_role() )
+-- ⛔ MEASURED, NOT ASSUMED: `authz.has_permission` and `authz.holds_role` do not call
+-- `app.has_role_any` at all (position() = 0 in both bodies, 2026-09-14). So the old plant
+-- mutated a function S5 no longer consults and A7 read `have: 64 / want: 66` — the mutation
+-- landing perfectly while changing nothing. Re-pinning 66 -> 64 would have turned a live
+-- mutation twin into an assertion that a no-op is a no-op, which is the failure mode this file
+-- is otherwise full of controls against.
 do $do$
 declare v_orig text;
 begin
   select pg_get_functiondef(p.oid) into v_orig
   from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-  where n.nspname = 'app' and p.proname = 'has_role_any';
-  perform set_config('act319.orig_has_role_any', v_orig, false);
+  where n.nspname = 'authz' and p.proname = 'holds_role';
+  perform set_config('act319.orig_holds_role', v_orig, false);
 
+  -- The SAME body with the hat conjunct removed, and nothing else touched.
   execute $sql$
-    create or replace function app.has_role_any(p_scope_type text, p_scope_id uuid, p_user_id uuid)
+    create or replace function authz.holds_role(p_principal uuid, p_role_code text,
+                                                p_scope_kind text, p_scope_id uuid)
      returns boolean language sql stable security definer
-     set search_path to 'app', 'public', 'pg_catalog'
+     set search_path to ''
     as $body$
       select exists (
-        select 1 from public.memberships m
-        where m.principal_id = p_user_id
-          and (m.expires_at is null or m.expires_at > now())
-          and case p_scope_type
-                when 'organization' then m.organization_id = p_scope_id
-                when 'hospital'     then m.hospital_id     = p_scope_id
-                when 'commission'   then m.commission_id   = p_scope_id
-                else false
-              end
+        select 1
+          from authz.assignment_facts(p_principal) af
+          join authz.roles r
+            on r.code = af.role_code
+         where af.role_code  = p_role_code
+           and af.scope_kind = p_scope_kind
+           and af.scope_id   = p_scope_id
+           and r.state       = 'authoritative'
       );
     $body$;
   $sql$;
@@ -262,16 +279,30 @@ end $do$;
 select test_helpers.claims_for((select sa_x from k), false, 'org_admin');
 select is(
   app._case_caps((select case_a from cs), (select sa_x from k)),
-  66,
-  'A7 MUTATION TWIN (has_role_any) ⭐: condition stripped -> the S5 member arm leaks read_case_deliberation under the org_admin hat (64 -> 66) — A2''s exact mask is sensitive to the SIBLING door too');
+  -- ⚠⚠ RE-PINNED 66 -> 111 AT AE5 T7 (2026-09-14), OBSERVED RED FIRST (have 111 / want 66),
+  --    AND THE TWIN BITES HARDER THAN IT DID, NOT LESS. Decomposed against app._cap_bit:
+  --      64  = manage_case_access                      (the S2 org_admin arm, unmutated)
+  --      66  = 64 + read_case_deliberation             (what the OLD plant leaked: S5 alone)
+  --      111 = 64 + 2 + 1 + 4 + 8 + 32                 (S5 AND the whole S1 coordinator set:
+  --            view_case_overview, read_case_deliberation, read_case_content,
+  --            read_standard_phi, write_case_content)
+  --    ⭐ read_restricted_phi (16) is ABSENT from 111, which is D5·6 holding: the coordinator
+  --      arm never confers it and the mutation does not invent it.
+  --    The old plant reached S5 through app.has_role_any; the hat now lives in
+  --    authz.holds_role, which EVERY layer-2 permission check consults — so stripping it
+  --    opens S1 (app.is_staff_admin_of_for) in the same breath as S5. ⛔ A NARROWER NUMBER
+  --    HERE WOULD BE THE WRONG PIN: the hat's blast radius is what it is, and recording 66
+  --    while the catalog leaks 111 is the under-report this file exists to prevent.
+  111,
+  'A7 MUTATION TWIN (authz.holds_role, re-pointed from app.has_role_any at AE5 T7) ⭐: hat condition stripped -> the S5 member arm leaks read_case_deliberation under the org_admin hat (64 -> 66) — A2''s exact mask is sensitive to the SIBLING door too');
 
 do $do$
-begin execute current_setting('act319.orig_has_role_any', true); end $do$;
+begin execute current_setting('act319.orig_holds_role', true); end $do$;
 select is(
   (select pg_get_functiondef(p.oid) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-   where n.nspname = 'app' and p.proname = 'has_role_any'),
-  current_setting('act319.orig_has_role_any', true),
-  'A8 RESTORE: has_role_any byte-identical to its pre-mutation definition');
+   where n.nspname = 'authz' and p.proname = 'holds_role'),
+  current_setting('act319.orig_holds_role', true),
+  'A8 RESTORE: authz.holds_role byte-identical to its pre-mutation definition -- re-pointed with A7 at AE5 T7; a mutation harness must prove its rollback, and the rollback subject has to be the mutated object');
 
 -- =============================================================================
 -- §3 RELATIONSHIP ARMS — grant (S3) + assignment (S4) on the SAME user+case.

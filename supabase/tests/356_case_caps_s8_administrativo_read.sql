@@ -730,7 +730,20 @@ select cmp_ok((select s3 from vv), '>', (select s8 from vv),
   '14.2 …and the S3 marker follows it, which is both an existence check (0 fails this) and an ORDER check: the removed span is [S8, S3) and an inverted pair would silently cut the wrong region');
 select is(
   (select md5(stripped) from vv),
-  'edb85248a21326eb139e7e994b9c469b',
+  -- ⚠⚠ RE-PINNED edb85248… -> 7a48d244… AT AE5 T7 (2026-09-14), OBSERVED RED FIRST, AND THE
+  --    CAUSE IS ONE LINE INSIDE THE STRIPPED SPAN'S NEIGHBOURS — not a change to S8.
+  --    Lead ruling L20 rewrote the S5 assignment from
+  --        v_member := app.is_member_of_for(v_commission, p_uid);
+  --    to  v_member := app.can_cases_deliberation_read_in_commission(v_commission, p_uid);
+  --    because T7's first draft had mechanically substituted the CASE-keyed door there and
+  --    passed it a COMMISSION id, killing the member-default arm outright. The S8 comment
+  --    block was corrected in the same migration (its claim about member_can_for's third
+  --    conjunct had gone false), and that text sits INSIDE the [S8, S3) span this arm cuts,
+  --    so it does not reach the hash — only the S5 line does.
+  -- ⛔ THE HASH IS RE-CAPTURED, THE ASSERTION IS NOT WEAKENED: 14.4 still proves the strip
+  --    removed the S8 arm, so this remains a comparison of S1–S7 + the S3 loop + STEPS 1–5
+  --    against a committed value, and the next unannounced edit to any of them reds here.
+  '7a48d244d0913c3bfa04f3759954f1e7',
   '14.3 ⭐⭐ V-1: with the S8 arm stripped out, app._case_caps is BYTE-IDENTICAL to its pre-change definition — S1–S7, the S3 loop and STEPS 1–5 were not touched by the wholesale CREATE OR REPLACE. Read the header before bumping this constant');
 select ok(
   (select (def ~ '\ymember_can_for\y') and not (stripped ~ '\ymember_can_for\y') from vv),

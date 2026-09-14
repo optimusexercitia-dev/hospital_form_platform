@@ -4,7 +4,7 @@
 > one file you need and carries the maintenance rules in full. ⛔ A posted section is FROZEN:
 > correct it by APPENDING a `⚠ **Superseded** — … See <file> § <heading>.` marker, never in place.
 
-<!-- DATA-ACCESS-ANCHOR kind=helper schema=app rows=528 definer=417 invoker=111 trigger=176 aclnull=228 digest=3aea2afbda0306957311158b6fce488e -->
+<!-- DATA-ACCESS-ANCHOR kind=helper schema=app rows=549 definer=438 invoker=111 trigger=176 aclnull=228 digest=8d70367d3a12afb863a4960a581b7156 -->
 
 ⚙ **GENERATED FILE — do not edit by hand.** Every row below is derived from the LIVE
 CATALOG and from `src/` by `scripts/gen-data-access-surface.mjs`; rebuild with `npm run data-access:surface`.
@@ -19,11 +19,11 @@ handwritten in [`data-access.md`](data-access.md), which is frozen and posted (A
 D5). A catalog knows an ACL; it does not know that re-ordering an enum would open
 legal-privileged documents.
 
-**528 functions** in schema `app` — 417 `SECURITY DEFINER`, 111 invoker, 176 trigger functions, 228 with a NULL `proacl`.
+**549 functions** in schema `app` — 438 `SECURITY DEFINER`, 111 invoker, 176 trigger functions, 228 with a NULL `proacl`.
 
 ⚠ **A NULL `proacl` is rendered `<NULL=PUBLIC>` and means PUBLIC MAY EXECUTE** — it is the default, not an absence of grants. Reading it as "no grants" inverts the fact (the same trap `scripts/catalog-fingerprint.sql` names). ⚠ **A `definer` row's gate REPLACES RLS**, so its EXECUTE list is the whole boundary: `prosecdef` belongs beside `pg_policies`, never read alone (ADR 0078, ADR 0079).
 
-⚠ **176 of these are TRIGGER functions** — invoked only by a `CREATE TRIGGER`, never called by name. They are marked `*(trigger)*` in the Function cell and return `trigger`. This registry is the WHOLE `pg_proc` population of the schema, which is why a trigger's `prosecdef` and ACL are visible here at all; **the directly-callable count is 528 − 176 = 352**. (No `app` function is reachable over PostgREST; the schema is not exposed.)
+⚠ **176 of these are TRIGGER functions** — invoked only by a `CREATE TRIGGER`, never called by name. They are marked `*(trigger)*` in the Function cell and return `trigger`. This registry is the WHOLE `pg_proc` population of the schema, which is why a trigger's `prosecdef` and ACL are visible here at all; **the directly-callable count is 549 − 176 = 373**. (No `app` function is reachable over PostgREST; the schema is not exposed.)
 
 ## The generated function registry
 
@@ -118,14 +118,25 @@ legal-privileged documents.
 | `app.cadence_status_of` | `p_meeting_frequency text, p_last_held_at timestamp with time zone` | `text` | invoker | stable | `postgres=X/postgres` |
 | `app.can_access_targeted_response` | `p_response_id uuid, p_uid uuid` | `boolean` | **definer** | stable | `authenticated=X/postgres,postgres=X/postgres,service_role=X/postgres` |
 | `app.can_access_targeted_version` | `p_form_version_id uuid, p_uid uuid` | `boolean` | **definer** | stable | `authenticated=X/postgres,postgres=X/postgres,service_role=X/postgres` |
+| `app.can_accreditation_read` | `p_commission_id uuid, p_user_id uuid` | `boolean` | **definer** | stable | `authenticated=X/postgres,postgres=X/postgres,service_role=X/postgres` |
+| `app.can_action_items_read` | `p_commission_id uuid, p_user_id uuid` | `boolean` | **definer** | stable | `authenticated=X/postgres,postgres=X/postgres,service_role=X/postgres` |
 | `app.can_administer_person_for` | `p_capability text, p_user uuid, p_actor uuid` | `boolean` | **definer** | stable | `postgres=X/postgres` |
 | `app.can_administer_person_via_affiliation` | `p_person uuid` | `boolean` | **definer** | stable | `authenticated=X/postgres,postgres=X/postgres,service_role=X/postgres` |
 | `app.can_amend_referral_phi_snapshot` | `p_referral_id uuid, p_uid uuid` | `boolean` | **definer** | stable | `authenticated=X/postgres,postgres=X/postgres,service_role=X/postgres` |
+| `app.can_capa_read` | `p_commission_id uuid, p_user_id uuid` | `boolean` | **definer** | stable | `postgres=X/postgres,service_role=X/postgres` |
+| `app.can_cases_deliberation_read_in_commission` | `p_commission_id uuid, p_user_id uuid` | `boolean` | **definer** | stable | `postgres=X/postgres` |
+| `app.can_cases_deliberation_read` | `p_case_id uuid, p_user_id uuid` | `boolean` | **definer** | stable | `postgres=X/postgres,service_role=X/postgres` |
+| `app.can_cases_vocabulary_read` | `p_commission_id uuid, p_user_id uuid` | `boolean` | **definer** | stable | `authenticated=X/postgres,postgres=X/postgres,service_role=X/postgres` |
+| `app.can_cases_vote` | `p_commission_id uuid, p_user_id uuid` | `boolean` | **definer** | stable | `postgres=X/postgres,service_role=X/postgres` |
+| `app.can_charter_read` | `p_commission_id uuid, p_user_id uuid` | `boolean` | **definer** | stable | `authenticated=X/postgres,postgres=X/postgres,service_role=X/postgres` |
 | `app.can_create_professional` | `p_org uuid, p_uid uuid` | `boolean` | **definer** | stable | `postgres=X/postgres` |
 | `app.can_curate_pqs_vocab` | `p_hospital_id uuid` | `boolean` | **definer** | stable | `authenticated=X/postgres,postgres=X/postgres,service_role=X/postgres` |
+| `app.can_documents_read` | `p_commission_id uuid, p_user_id uuid` | `boolean` | **definer** | stable | `authenticated=X/postgres,postgres=X/postgres,service_role=X/postgres` |
 | `app.can_edit_commission_forms` | `p_commission_id uuid, p_uid uuid` | `boolean` | **definer** | stable | `authenticated=X/postgres,postgres=X/postgres,service_role=X/postgres` |
 | `app.can_edit_referral_internal_note` | `p_note_id uuid, p_uid uuid` | `boolean` | **definer** | stable | `authenticated=X/postgres,postgres=X/postgres` |
 | `app.can_execute_dsr_task` | `p_hospital_id uuid, p_commission_id uuid, p_uid uuid` | `boolean` | **definer** | stable | `authenticated=X/postgres,postgres=X/postgres,service_role=X/postgres` |
+| `app.can_forms_read` | `p_commission_id uuid, p_user_id uuid` | `boolean` | **definer** | stable | `authenticated=X/postgres,postgres=X/postgres,service_role=X/postgres` |
+| `app.can_indicators_read` | `p_commission_id uuid, p_user_id uuid` | `boolean` | **definer** | stable | `authenticated=X/postgres,postgres=X/postgres,service_role=X/postgres` |
 | `app.can_manage_case_vocabulary` | `p_org uuid, p_uid uuid` | `boolean` | **definer** | stable | `postgres=X/postgres` |
 | `app.can_manage_external_participant` | `p_org uuid, p_uid uuid` | `boolean` | **definer** | stable | `postgres=X/postgres` |
 | `app.can_manage_professional` | `p_org uuid, p_uid uuid` | `boolean` | **definer** | stable | `authenticated=X/postgres,postgres=X/postgres,service_role=X/postgres` |
@@ -133,6 +144,10 @@ legal-privileged documents.
 | `app.can_manage_referral_phi_disclosure` | `p_referral_id uuid, p_uid uuid` | `boolean` | **definer** | stable | `authenticated=X/postgres,postgres=X/postgres,service_role=X/postgres` |
 | `app.can_manage_referral_source` | `p_referral_id uuid, p_uid uuid` | `boolean` | **definer** | stable | `authenticated=X/postgres,postgres=X/postgres,service_role=X/postgres` |
 | `app.can_manage_referral_target` | `p_referral_id uuid, p_uid uuid` | `boolean` | **definer** | stable | `authenticated=X/postgres,postgres=X/postgres,service_role=X/postgres` |
+| `app.can_meetings_cases_shell_read` | `p_meeting_id uuid, p_user_id uuid` | `boolean` | **definer** | stable | `authenticated=X/postgres,postgres=X/postgres,service_role=X/postgres` |
+| `app.can_meetings_minutes_sign` | `p_commission_id uuid, p_user_id uuid` | `boolean` | **definer** | stable | `authenticated=X/postgres,postgres=X/postgres,service_role=X/postgres` |
+| `app.can_meetings_read` | `p_commission_id uuid, p_user_id uuid` | `boolean` | **definer** | stable | `authenticated=X/postgres,postgres=X/postgres,service_role=X/postgres` |
+| `app.can_process_templates_read` | `p_commission_id uuid, p_user_id uuid` | `boolean` | **definer** | stable | `authenticated=X/postgres,postgres=X/postgres,service_role=X/postgres` |
 | `app.can_reach_case_on_member_surface` | `p_case_id uuid, p_uid uuid` | `boolean` | **definer** | stable | `authenticated=X/postgres,postgres=X/postgres,service_role=X/postgres` |
 | `app.can_reach_meeting` | `p_meeting_id uuid, p_uid uuid` | `boolean` | **definer** | stable | `authenticated=X/postgres,postgres=X/postgres,service_role=X/postgres` |
 | `app.can_read_action_item` | `p_action_item_id uuid, p_uid uuid` | `boolean` | **definer** | stable | `authenticated=X/postgres,postgres=X/postgres,service_role=X/postgres` |
@@ -161,6 +176,12 @@ legal-privileged documents.
 | `app.can_read_referral` | `p_referral_id uuid, p_uid uuid` | `boolean` | **definer** | stable | `authenticated=X/postgres,postgres=X/postgres,service_role=X/postgres` |
 | `app.can_read_signoff` | `p_response_id uuid` | `boolean` | **definer** | stable | `authenticated=X/postgres,postgres=X/postgres,service_role=X/postgres` |
 | `app.can_read_xref_row` | `p_commission_id uuid, p_uid uuid` | `boolean` | **definer** | stable | `authenticated=X/postgres,postgres=X/postgres,service_role=X/postgres` |
+| `app.can_referrals_metadata_read` | `p_commission_id uuid, p_user_id uuid` | `boolean` | **definer** | stable | `postgres=X/postgres,service_role=X/postgres` |
+| `app.can_referrals_notes_author` | `p_commission_id uuid, p_user_id uuid` | `boolean` | **definer** | stable | `postgres=X/postgres,service_role=X/postgres` |
+| `app.can_responses_create` | `p_commission_id uuid, p_user_id uuid` | `boolean` | **definer** | stable | `authenticated=X/postgres,postgres=X/postgres,service_role=X/postgres` |
+| `app.can_roster_read` | `p_commission_id uuid, p_user_id uuid` | `boolean` | **definer** | stable | `authenticated=X/postgres,postgres=X/postgres,service_role=X/postgres` |
+| `app.can_safety_events_read` | `p_commission_id uuid, p_user_id uuid` | `boolean` | **definer** | stable | `postgres=X/postgres,service_role=X/postgres` |
+| `app.can_safety_events_report` | `p_commission_id uuid, p_user_id uuid` | `boolean` | **definer** | stable | `postgres=X/postgres,service_role=X/postgres` |
 | `app.can_sign_meeting` | `p_attendee_id uuid, p_signer uuid` | `boolean` | **definer** | stable | `authenticated=X/postgres,postgres=X/postgres,service_role=X/postgres` |
 | `app.can_sign_section` | `p_response_id uuid, p_section_id uuid, p_signer uuid` | `boolean` | **definer** | stable | `authenticated=X/postgres,postgres=X/postgres,service_role=X/postgres` |
 | `app.can_view_printed_document` | `p_source_kind text, p_source_id uuid, p_uid uuid` | `boolean` | **definer** | stable | `authenticated=X/postgres,postgres=X/postgres,service_role=X/postgres` |
