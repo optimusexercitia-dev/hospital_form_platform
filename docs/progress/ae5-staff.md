@@ -4359,3 +4359,171 @@ line is the port's witness); then `SELFTEST=1` ×2 with the three `--- GROUP` li
 --version`, commits by explicit path, the T8 record entry. ⚠ `425` is modified in the shared
 checkout and is NOT backend's — the tester's round-2 addendum (`plan(18) → plan(21)`, fixture
 `f425w`), uncommitted and unrun by design until backend parks; backend's commits by path exclude it.
+
+### 2026-09-14 — T8: THE gate run, the four arms, and three controls that could not fail
+
+**Commits (by explicit path):** `34117443` the merge-helper guard · `4c6100a3` the findings
+fold-in · `1f139a08` 410's REVERSE 3b repair + 409 control (a) · `49c5adfe` the `RESET_EVERY`
+port + the write-path drift snapshot · `36359cf3` two follow-ups. Earlier this stretch:
+`1bbb347a` two harness follow-ups. ⛔ `supabase/tests/425_…sql` is modified in the shared
+checkout and is the TESTER's run-4 addendum (`plan(18) → plan(21)`, a new `f425w` fixture);
+committed by path, so it is not in any of the above.
+
+**Preconditions, every time:** `pg_stat_activity` 0 · settle-check 171 / 171 · **2** Supabase
+stacks on the host (ours + `supabase_db_escalume`), counted, never touched. `bash --version` =
+**GNU bash 5.2.37(1)-release (x86_64-pc-msys)** — the SELFTEST verdict is shell-dependent and
+nothing else says so.
+
+#### The direct-call census — per site, comment-stripped bodies + policy quals
+
+All 21 doors have callers. `fn | pol`: `can_forms_read` 0|9 · `can_process_templates_read` 0|9 ·
+`can_accreditation_read` 3|4 · `can_documents_read` 4|3 · `can_referrals_metadata_read` 4|0 ·
+`can_meetings_read` 1|3 · `can_roster_read` 0|4 · `can_cases_vocabulary_read` 0|3 ·
+`can_charter_read` 2|1 · `can_indicators_read` 1|2 · `can_action_items_read` 1|1 · and 1|0 or 0|1
+each for `can_capa_read`, `can_cases_deliberation_read` (its one caller is
+`app.can_reach_case_on_member_surface`), **`can_cases_deliberation_read_in_commission` (its one
+caller is `app._case_caps`, as designed)**, `can_cases_vote`, `can_meetings_cases_shell_read`,
+`can_meetings_minutes_sign`, `can_responses_create`, `can_safety_events_read`,
+`can_safety_events_report`, `can_referrals_notes_author`.
+⭐ **`app.is_commission_staff_of` 0 callers · `app.is_commission_staff_of_for` 0 callers** — the
+deferred re-expression, unchanged.
+
+#### The gate run — ONE invocation, both arms, `RESET_EVERY=5`
+
+```
+SCOPE: 4 file(s) — 4 committed (a02487bc..HEAD), 0 worktree, 0 untracked | filter: none | derivation: catalog
+READ_ARM_EXIT=3
+=== RESULT: UNPROVEN (PARTIAL) — 73 gate(s) measured, 0 BLIND · 0 ERROR, but
+    these were requested and matched NO gate: form_assets_select_member responses_insert_own
+    A clean verdict over a subset of what was asked for is the finding this gate
+    exists to prevent. NOT a pass. ===
+SWEPT: 73 gate(s)   COVERED: 71   BLIND: 0   NOTICED: 2   ERROR(harness): 0
+ARM-DOMAIN predicate=34/150 policy=39/226 out-of-domain-bool=35
+    POLICY ARM HALF: `using` ONLY — a COVERED on a FOR ALL policy is a READ-half claim.
+    preconditions: baseline GREEN at the LAST capture (shape=Files=275, Tests=9218) ·
+                   resets=16 (RESET_EVERY=5 — set EXPLICITLY, so this SUBSET run resets)
+    committed baseline VERIFIED unchanged (cksum)
+```
+
+⚠ **RESTARTED, and the restart is part of the record.** The first launch was abandoned at case 2
+of 34 for the UNBOUNDED-DRIFT property (a subset run resets only when `RESET_EVERY` is explicit),
+not for a failure. **The kill left a live authorization gate NEUTRALIZED**: the sentinel held
+`app.can_capa_read`'s original body and the catalog held `select true`. `RECOVER=1` (exit 2)
+restored it — *"⛔ Every verdict from the killed run is void"* — and I verified the body myself
+rather than trusting the message. The relaunch's `§ 7.16` preflight is the witness:
+`clean — 0 degenerate bodies (all three neutralization forms)`. `RESET_EVERY=5` confirmed in
+`/proc/<pid>/environ` for both PIDs.
+
+**The write arm**, `CASES="responses_insert_own"`: first run `WRITE_ARM_EXIT=1`,
+`ERROR responses.responses_insert_own`, `snapshot drift (with_check)` — the drift tripwire
+refusing to neutralize from a shape T7 had re-keyed. Snapshot refreshed, verdict **re-earned**:
+`WRITE_ARM_EXIT=0`, `SWEPT: 1 COVERED: 1 BLIND: 0 ERROR: 0`, `RESULT: CLEAN`.
+`form_assets_select_member` has no arm at all — filed.
+
+#### The two NOTICED — standing baseline verdicts, reproduced, neither attributable to T7
+
+Both were **already NOTICED in the committed baseline**. Both reproduced through the retry net
+after a fresh reset, which is what makes them evidence rather than drift; on the abandoned
+unbounded run they would have read *"(drift-shaped; NOT retried)"*.
+
+* `app.can_read_referral_internal_note` — neutralization direction **`positive`**. Raised at
+  `150_referrals.sql:1626`: `log_audit_access: sem permissão para registrar este acesso`,
+  `CONTEXT: PL/pgSQL function log_audit_access(…) line 22 at RAISE`, **errcode `42501`** (read
+  from the catalog; psql prints no SQLSTATE at default verbosity). The door opened, the reader
+  served the notes, and the **Rule 11 audit writer refused on privilege grounds**. Keystones
+  noticed too: `R5·K-R5-1` cross-side denials, `have: 2 / want: 1`, and a redaction rendering the
+  OTHER side's body. ⛔ Not a fixture artefact of T7's seed row — `150_referrals.sql` truncates
+  and builds its own.
+* `app.can_sign_meeting` — direction **`positive`**. `120_meetings.sql` test 22
+  `cannot sign another attendee's row (HC036)` → `caught: no exception / wanted: HC036`: the
+  identity guard **failed to fire**, the illegitimate signature advanced the meeting's state, and
+  the LATER state guard raised — `esta reunião não está aguardando assinatura`, `sign_meeting`
+  line 24, **errcode `HC033`** — aborting the plan (`planned 32 ran 22`). Three files noticed:
+  `120_meetings.sql`, `251_authz_p0_isolation.sql` (`meeting_signatures_insert DENY 42501` →
+  `caught: no exception`), and **`410` itself** (§ 3.5, § 8.1, § 8.6) — the manifest catching the
+  mutation STRUCTURALLY, independent of behaviour.
+
+#### ⭐⭐ The merge that emptied the table, and the parser that hid it
+
+The prescribed fold-in-by-MERGE **gutted the baseline**: top-level table rows **353 → 73**,
+**BLIND 36 → 0**, helper **exit 0** reporting *"the only legitimate drop"*. `ARM=census` caught it
+independently — **23 unknown → 205**, zero overlap with the 23.
+
+I reported it wrong **twice, in opposite directions**: first a false alarm from a bad grep, then a
+"corrected" parser using `lstrip().startswith('|')` that counted the merge's **indented quoted
+copies** as rows and produced the reassuring *"376 rows, 0 lost, 0 verdicts changed"* — which the
+lead recorded. The crude `grep -cE '^\|'` (87 vs 367) was right the whole time and I explained it
+away the moment a friendlier number appeared. Baseline restored byte-identical to HEAD (cksum
+`1983823619` both sides) before anything was committed.
+
+**L25 (b)** — the guard, proven three ways, exits bare: subset → **exit 2**,
+`missing 303 row(s)`, `353 / 73`, crude `367 / 77`; baseline-as-generated → **0**,
+`covers all 353 … 353 generated. No drop.`; synthetic superset → **0**, `… 376 generated. No drop.`
+⚠ The predicate had to be **"missing baseline rows"**, not literal strict subset: the subset
+carried 23 keys the baseline lacked, so a literal test would have PASSED it and gutted the file.
+⚠ Scoped to `SELFTEST != 1` — it aborted 5 of the helper's own 18 merge scenarios, which exercise
+the CARRY path legitimately.
+
+**L25 (a)** — targeted insertion: top-level **353 → 376**, crude **367 → 390**, BLIND **36 → 36**,
+lost **0**, `git diff --stat` = `23 insertions(+)`. Both counters move by exactly +23 and agree.
+
+The deeper defect — a carried row is emitted as an indented quote, not a table row, so it stops
+being machine-readable — is `FUP-AE5-STAFF-MERGE-CARRIES-ROWS-OUT-OF-THE-TABLE` (high). ⛔ "303
+rows lost" is the wrong description and the follow-up corrects it: nothing was lost, 303 rows left
+the TABLE, and the consequence is identical for every automated reader.
+
+#### The four arms, each shown ABLE TO RED — exits bare, baseline / planted / rolled back
+
+| arm | base | plant | back | what the plant printed |
+| --- | --- | --- | --- | --- |
+| FLOOR | 0 | **1** | 0 | `app.a_door_that_does_not_exist(uuid)` |
+| WRAPPER (`FROMFINDINGS=1`) | 0 | **1** | 0 | `BLIND wrappers NOT in the allowlist` |
+| HAT | 0 | **1** | 0 | `=== INVARIANT VIOLATED ===` |
+| CENSUS | 0 | **1** | 0 | `CENSUS VIOLATED … app.can_roster_read(p_commission_id uuid, p_user_id uuid)` |
+
+All three allowlists restored byte-identically (`git diff --stat` empty). **`ARM=census` GREEN
+after the fold-in: exit 0, `=== INVARIANT HOLDS ===`.** Its sequence is the attribution: 23 unknown
+→ 205 under the gutted merge → 23 after the restore → **0** after the honest fold-in.
+
+#### ⭐⭐ L22's plant found a control that could not fail
+
+REVERSE 3b compared `fn_body(...)` with `strip_sql_comments(fn_body(...))`. **`pg_temp.fn_body`
+already strips `--` comments**, so those are the same string and the arm could not fire for any
+input — shipped as the discrimination half of a ruling, and asserted as such in the caption and in
+my report. The plant found it on its first run: `the designated corrector only` fired REVERSE 3 and
+left 3b silent. Repaired with `pg_temp.fn_body_raw`; witness after:
+
+```
+PRECONDITION  in_raw_body=t  in_stripped_body=f
+BASELINE      reverse_3b: (none)
+PLANTED       reverse_3b: commission.responses.create -> public.start_correction_draft
+                          declares an identity gate that appears ONLY in a comment
+ROLLED BACK   reverse_3b: (none)   gate_kind=identity
+                          gate_expression='auth.uid() is distinct from v_corrector'
+```
+`410` after the repair: **exit 0, 45/45**.
+
+#### The set-valued arm — the port proven by run
+
+```
+--- PERIODIC RESET (before case 1) ---  reset #1 done; the baseline below is at most 1 case(s) old
+--- PERIODIC RESET (before case 2) ---  reset #2 …
+--- PERIODIC RESET (before case 3) ---  reset #3 …
+RESET-POLICY: RESET_EVERY=1 — 3 reset(s) performed; each verdict carries at most 1 case(s) of drift.
+=== RESULT: CLEAN — 3 resolver(s) measured, all COVERED. ===        exit 0
+```
+
+#### SELFTEST ×2
+
+```
+SELFTEST=1 door-sweep-cases.sh         exit 0
+  --- GROUP deriver:               scenarios 20 (pass 20 · fail 0 · skipped 0)
+  --- GROUP merge helper:          scenarios 18 (pass 18 · fail 0 · skipped 0)
+  --- GROUP audit startup capture: scenarios  8 (pass  8 · fail 0 · skipped 0)
+  SELF-TEST: PASS 46 · FAIL 0 · SKIPPED 0
+SELFTEST=1 p0-authz-door-audit.sh      exit 0   SELFTEST TOTAL: 33/33 ok, 0 failed
+```
+⚠ 5 of the merge-helper scenarios failed until the guard was scoped — recorded because a guard
+that breaks its own harness's self-test is a regression, not a hardening.
+
+`npm run lint` exit 0 (all gates). Loop: T8 iteration 4 of 5; each iteration closed a NEW cause.
