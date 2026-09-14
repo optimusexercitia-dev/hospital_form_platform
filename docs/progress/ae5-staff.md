@@ -1968,3 +1968,53 @@ no line it owns can fix either finding:
    or a NAMED skip rule where a class has no resource at a scope — never a probe at the wrong scope.
 ⭐ Both are exactly what L9′ was for: the suite no longer hides a vector defect behind its own
 dispatch, and the first run found two. Routed to backend (owns the stack).
+
+#### 2026-09-14 — backend: the two vector defects `424`'s new mechanism exposed (`b873b955`, `5ace5d91`)
+
+Both mine, and both are exactly what L9′ was built to surface — the loop found them on its
+first run because the suite now EXECUTES the vector instead of re-deriving the door.
+
+**(1) A non-deterministic id was pinned in the vector.** `action_items.read`'s committee fixture
+was created with `gen_random_uuid()`, so the generator read its id out of the CATALOG at generation
+time; the next reset minted a different one and the probe then hit a row that does not exist.
+⛔ A probe against a missing row returns FALSE — indistinguishable from a door that denies.
+Fixed id in my own fixture home (the base-seed row is untouched), and **arm14(d)** now refuses any
+bound id that is not a FIXED LITERAL in `seed.sql` or a migration. It scans the DECLARATION as well
+as the emitted cells: the declaration is where a bad id enters, and checking only cells would pass a
+binding unusable for a coordinate this run happened not to emit. It reads FILES, never a database —
+gate 12 runs inside `npm run lint`, which must never require Docker. Sweep: **37 of 37 literal**.
+
+**(2) Probes were anchored to CCIH regardless of the cell's `scope`.** `legacy_sql` measured one
+commission while `catalog_sql` asked about another, so the two sides answered about DIFFERENT
+RESOURCES by construction (the tester measured 458 of 572 red cells, every one off-CCIH). The
+binding table is now keyed by (class × gate arm × **scope**), and a missing scope returns
+None → a named skip, never a fallback.
+
+| class | own (CCIH) | sibling (Farmácia A) | foreign (Farmácia B) |
+| --- | --- | --- | --- |
+| action_items — committee | `a5f4…c1` **new** | `a5f4…c2` **new** | `a5f4…c3` **new** |
+| action_items — assignees_only | `a5f4…a1` / `a5f4…a2` | `a5f4…d1` **new** (+ assignment `a5f4…e1`) | `a5f4…d2` **new** (+ `a5f4…e2`) |
+| accreditation — owned | `a5f5…a2` | `a5f5…a4` **new** | `a5f5…a3` |
+| accreditation — PUBLIC (null owner) | `a5f5…a1` | same row | same row |
+| forms — version | `5000…a001` / `…a002` | `a5fc…b1` **new** (form `a5fc…f1`) | `a5fc…b2` **new** (form `a5fc…f2`) |
+| documents | `d0c0…d1` / `d0c0…d2` | `a5fd…a1` **new** | `a5fd…a2` **new** |
+| meetings · cases · capa · forms `disjunct_present` · documents approver | declared | — skipped | — skipped |
+
+⭐ The PUBLIC framework is the one genuinely scope-INDEPENDENT fixture: `owner_commission_id IS
+NULL` belongs to no commission, so the same row is the right probe everywhere.
+⛔ The last row is declared at `own_commission` ONLY — each needs a CCIH FK chain (a meeting
+with its attendance, a case with its participants and ethics detail, a capa plan with its source)
+with no equivalent elsewhere, and the approver/targeted-version legs have exactly one constructible
+principal. Skip rule **`no_resource_fixture_at_this_scope` = 2664 cells**, recorded in the coverage
+census. ⚠ It is a real coverage loss and it is counted rather than hidden; seeding those chains
+at two more commissions is a separate, larger piece of work.
+
+**Readings (OUTPUTS):** cells 8100 → **5436** · new skip **2664** · flips 558 → **408** ·
+`staff_admin` **1728 byte-identical** (sorted AND plain) · `--self-test` **32 caught** (was 30),
+both new fixtures BY NAME, clean on the real spec · `lint:authz-vectors` **0**, `npm run lint` **0**.
+**Full smoke, every cell and not a sample: 3708 probes executed, 0 errors; 34 distinct fixture ids,
+0 missing.**
+
+⚠ Left flagged, not fixed: `roster.read`'s subject profile is persona-keyed rather than
+scope-keyed — a profile belongs to no commission, so whether the subject should track the cell's
+`scope` axis is a vector-shape question. Recorded in its `scopeNote`.
