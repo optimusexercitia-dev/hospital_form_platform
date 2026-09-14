@@ -70,7 +70,8 @@ select is(
             code || '|' || scope_kind || '|' || session_selectable || '|' ||
             system_managed || '|' || state, '|' order by code collate "C"))
      from role_manifest_pin),
-  'abfc8621f6c3e82935c98c2e9bfc8424',
+  -- RE-PINNED at T6 (2026-09-14): `staff` test_validation -> authoritative, observed RED first.
+  '8b9e040a8c0fc9542b480f0865eb8294',
   '§ 0b CONTENT PIN: the artifact''s CONTENT, not merely its count. A role swapped for '
   'another keeps § 0a green and moves this.');
 

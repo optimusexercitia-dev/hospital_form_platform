@@ -218,7 +218,7 @@ select is(
   (select n_total::text || ' = ' || n_nonempty::text || ' non-empty (419) + ' ||
           n_empty::text || ' empty (421) | ' || n_undeclared::text || ' undeclared'
      from v421_partition),
-  '890 = 860 non-empty (419) + 30 empty (421) | 0 undeclared',
+  '892 = 860 non-empty (419) + 32 empty (421) | 0 undeclared',
   '§ 0c THE TWO GATES PARTITION THE POPULATION: every prosecdef function in app/public/authz is either frozen by 419 or body-checked here, with nothing in between. ⛔ `undeclared` moving off 0 means a member is in NEITHER gate''s domain while both stay green — and `414 § 0b` is the assertion that OWNS that finding: it names the offender and its ONE remedy, converge it to `set search_path = ''''` with schema-qualified references (ADR 0208 D4; PO ruled 2026-09-11), ⛔ never by widening 414/419 and never by adding it to the frozen set. ⚠ The two middle figures MOVE when a member converges to the empty form, which is exactly what D4 asks for — that is a re-baseline (here AND 419 § 0c/§ 0d, in the same change, after re-running the generator), never a reason not to converge'
 );
 
@@ -228,7 +228,7 @@ select is(
   (select (select count(*) from v421_empty where lang = 'plpgsql')::text || ' plpgsql | ' ||
           (select count(*) from v421_empty where lang = 'sql')::text || ' sql | ' ||
           (select string_agg(distinct schema_name, ' ' order by schema_name) from v421_domain)),
-  '19 plpgsql | 11 sql | app authz public',
+  '19 plpgsql | 13 sql | app authz public',
   '§ 0d THE SPLIT AND THE SCHEMAS, NAMED: 19 members go to the plpgsql arm, 11 to the sql arm, and the domain still spans all three schemas. ⛔ If a language count drops to 0 its arm below proves nothing while still reporting green'
 );
 
@@ -359,8 +359,8 @@ rollback to savepoint s421_sql_reemit;
 select is(
   (currval('sq421_sql_visited') - 1)::text || ' visited | ' ||
   (currval('sq421_sql_findings') - 1)::text || ' findings',
-  '11 visited | 0 findings',
-  '§ 2a THE sql HALF OF D4: all 11 empty-path `language sql` DEFINERs re-emit under their declared path with no 42P01/42883. ⛔ `-1 visited` means the DO block never ran at all (the sequences still hold their seed) and this verdict is VOID; findings are named by `WARNING` lines in the run log'
+  '13 visited | 0 findings',
+  '§ 2a THE sql HALF OF D4: all 13 empty-path `language sql` DEFINERs re-emit under their declared path with no 42P01/42883. ⛔ `-1 visited` means the DO block never ran at all (the sequences still hold their seed) and this verdict is VOID; findings are named by `WARNING` lines in the run log'
 );
 
 -- 9. THE ARM CLEANED UP AFTER ITSELF. The re-emission is an identity operation by construction,
@@ -654,11 +654,11 @@ select is(
 -- 19.
 select ok(
       (select count(*) from v421_domain where sig like 'public.z421\_%') = 0
-  and (select count(*) from v421_empty) = 30
+  and (select count(*) from v421_empty) = 32
   and (select count(*) from v421_plpgsql_findings) = 0
   and (select count(*) from t421_sql_before b
         where b.def is distinct from pg_get_functiondef(b.oid)) = 0,
-  '§ 5 RESTORE: all nine planted controls are gone (the seven of § 3 plus § 3h''s undeclared plant and its empty-form twin), the empty-path population is back to 30, the plpgsql arm is clean again and the 11 sql definitions are untouched — § 2 and § 3 left nothing behind'
+  '§ 5 RESTORE: all nine planted controls are gone (the seven of § 3 plus § 3h''s undeclared plant and its empty-form twin), the empty-path population is back to 32, the plpgsql arm is clean again and the 11 sql definitions are untouched — § 2 and § 3 left nothing behind'
 );
 
 select * from finish();
