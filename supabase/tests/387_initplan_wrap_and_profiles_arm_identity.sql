@@ -4,6 +4,42 @@
 -- more useful half of this file's record.
 -- Triage record: docs/design/authz-ae1-initplan-triage.md
 --
+-- ===========================================================================
+-- ⭐⭐ RE-PINNED A SECOND TIME (2026-09-14), and for the same REASON as the first:
+--    this unit's fixture grew, not because anything about visibility changed.
+--    Observed RED first; every delta traced to a NAMED profile before any pin moved.
+--
+--    Round 4/5 added FOUR profiles, all in the `a5f…` fixture home:
+--      `gap.comember.ccih`  (…f1) — one membership, CCIH
+--      `gap.comember.farma` (…f2) — one membership, Farmácia A (Rede A)
+--      `gap.comember.farmb` (…f3) — one membership, Farmácia B (Rede B)
+--      `gap.absent`         (…f4) — NO membership anywhere; org affiliation only
+--
+--      test  §     arm                                  rows      the profiles that ENTERED
+--      5     B1    hospitaladmin.a1 (hospital_admin)    25 -> 27  f1, f2
+--      6     B2    orgadmin.a       (org_admin)         32 -> 35  f1, f2, f4
+--      7     B3    platform_admin   (all rows)          40 -> 44  f1, f2, f3, f4
+--      8     B4    chefe.ccih       (staff_admin)       12 -> 13  f1
+--      9     B5    staff1.ccih      (staff)             12 -> 13  f1
+--      10    B6    orgadmin.b       (org_admin, Rede B)  6 -> 7   f3
+--      19    D1b   restore control for B1                —        moves WITH test 5
+--
+--    ⛔ EVERY DELTA IS EXACTLY THE COUNT OF NEW PROFILES THAT ARM CAN SEE, and each is
+--    visible for a reason the arm's own predicate gives:
+--      • B1 reaches f1 and f2 through their memberships in commissions under Hospital
+--        Central A. It does NOT reach f3 (Farmácia B is Rede B) and it does NOT reach f4,
+--        which holds no membership at all — the hospital-admin arms join `memberships` /
+--        `hospital_affiliations`, and f4 appears in neither.
+--      • B2 reaches f1, f2 and f4 — the three affiliated to org A — and not f3 (org B).
+--      • B4/B5 reach only f1, the CCIH co-member, and still SHARE one value.
+--      • B6 reaches only f3, the Farmácia B co-member.
+--    ⭐ f4's asymmetry (visible to B2/B3, invisible to B1) is the SAME shape `gap.unpriv`
+--    had at the first re-pin: an org affiliation with no hospital tier and no membership.
+--    That it recurs identically is what makes this a fixture delta and not a drift.
+--    ⚠ Had any profile entered or left that was NOT one of those four, the rule is to STOP
+--    and report a visibility change. None did: 27-25=2, 35-32=3, 44-40=4, 13-12=1, 7-6=1.
+-- ===========================================================================
+
 -- ============================================================================
 -- WHAT THIS SUITE HAS TO PROVE, AND WHY IT IS SPLIT THE WAY IT IS
 -- ============================================================================
@@ -215,36 +251,36 @@ select test_helpers.claims_for('00000000-0000-0000-0000-0000000000e1', false, 'h
 set local role authenticated;
 select is(
   (select md5(coalesce(string_agg(id::text, ',' order by id), '')) from public.profiles),
-  '67bfdf1fc6f19799353a5b7555298e0c',
-  'B1 hospital_admin (hospitaladmin.a1, 25 rows) sees the IDENTICAL set of profiles.id -- ⭐ the arm that FALLS THROUGH the whole disjunction, i.e. the one the removal could actually have broken');
+  '37a793c01ea47e4ba66c200b8403afaf',
+  'B1 hospital_admin (hospitaladmin.a1, 27 rows) sees the IDENTICAL set of profiles.id -- ⭐ the arm that FALLS THROUGH the whole disjunction, i.e. the one the removal could actually have broken');
 
 select test_helpers.claims_for('00000000-0000-0000-0000-0000000000b1', false, 'org_admin');
 set local role authenticated;
 select is(
   (select md5(coalesce(string_agg(id::text, ',' order by id), '')) from public.profiles),
-  'aad18a567b61494e42a34bdb91e3a957',
-  'B2 org_admin (orgadmin.a, 32 rows) sees the IDENTICAL set of profiles.id');
+  '67d2c9c2f1d190c8ae1e21654a772107',
+  'B2 org_admin (orgadmin.a, 35 rows) sees the IDENTICAL set of profiles.id');
 
 select test_helpers.claims_for('00000000-0000-0000-0000-0000000000b0', true, 'platform_admin');
 set local role authenticated;
 select is(
   (select md5(coalesce(string_agg(id::text, ',' order by id), '')) from public.profiles),
-  '783c2a1e28d44e12af028ca7d53aa36e',
-  'B3 ⭐ platform_admin (40 rows = all) sees the IDENTICAL set -- app.is_admin() is the ONE arm KEPT in profiles_admin_select, so this is the persona the edit could most plausibly break, and AE0.2''s control set has no platform_admin arm at all');
+  '4ba7d3593c3c824604fa80604e1287bc',
+  'B3 ⭐ platform_admin (44 rows = all) sees the IDENTICAL set -- app.is_admin() is the ONE arm KEPT in profiles_admin_select, so this is the persona the edit could most plausibly break, and AE0.2''s control set has no platform_admin arm at all');
 
 select test_helpers.claims_for('00000000-0000-0000-0000-000000000002', false, 'staff_admin');
 set local role authenticated;
 select is(
   (select md5(coalesce(string_agg(id::text, ',' order by id), '')) from public.profiles),
-  '03904c72e766d0719e6e0d9e4ffcd7d9',
-  'B4 staff_admin (chefe.ccih, 12 rows) sees the IDENTICAL set of profiles.id');
+  '379100bf45262c79bb2f7bc49ea36648',
+  'B4 staff_admin (chefe.ccih, 13 rows) sees the IDENTICAL set of profiles.id');
 
 select test_helpers.claims_for('00000000-0000-0000-0000-000000000003', false, 'staff');
 set local role authenticated;
 select is(
   (select md5(coalesce(string_agg(id::text, ',' order by id), '')) from public.profiles),
-  '03904c72e766d0719e6e0d9e4ffcd7d9',
-  'B5 staff (staff1.ccih, 12 rows) sees the IDENTICAL set of profiles.id');
+  '379100bf45262c79bb2f7bc49ea36648',
+  'B5 staff (staff1.ccih, 13 rows) sees the IDENTICAL set of profiles.id');
 
 -- ⚠ …b2 holds TWO live roles, so the hat MUST be passed explicitly here or
 --    claims_for mints none and this measures the self-only arm.  See the header.
@@ -252,8 +288,8 @@ select test_helpers.claims_for('00000000-0000-0000-0000-0000000000b2', false, 'o
 set local role authenticated;
 select is(
   (select md5(coalesce(string_agg(id::text, ',' order by id), '')) from public.profiles),
-  '00e55169b95a4a99cb9f14c8b40cbccf',
-  'B6 a DIFFERENT-org org_admin (orgadmin.b, 6 rows) sees the IDENTICAL set -- the negative direction: the edit did not WIDEN anyone either');
+  '34b085b80a1167ddd5b3482d0752642e',
+  'B6 a DIFFERENT-org org_admin (orgadmin.b, 7 rows) sees the IDENTICAL set -- the negative direction: the edit did not WIDEN anyone either');
 
 -- The wrap migration rewrites read policies on these tables too.  Arm-matched
 -- by construction: one fixed persona, the same one before and after (F-AE0-8).
@@ -415,7 +451,7 @@ select test_helpers.claims_for('00000000-0000-0000-0000-0000000000e1', false, 'h
 set local role authenticated;
 select isnt(
   (select md5(coalesce(string_agg(id::text, ',' order by id), '')) from public.profiles),
-  '67bfdf1fc6f19799353a5b7555298e0c',
+  '37a793c01ea47e4ba66c200b8403afaf',
   'D1a ⭐ VACUITY CONTROL: with a live restrictive deny-all policy the hospital_admin md5 MOVES -- B1 is measuring the visible row set, not a constant');
 reset role;
 
@@ -425,7 +461,7 @@ select test_helpers.claims_for('00000000-0000-0000-0000-0000000000e1', false, 'h
 set local role authenticated;
 select is(
   (select md5(coalesce(string_agg(id::text, ',' order by id), '')) from public.profiles),
-  '67bfdf1fc6f19799353a5b7555298e0c',
+  '37a793c01ea47e4ba66c200b8403afaf',
   'D1b the probe RESTORED the original md5 -- the control moved the value and put it back, so D1a''s failure was the probe and not drift');
 reset role;
 
