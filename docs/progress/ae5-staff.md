@@ -674,6 +674,225 @@ so the lead's review landed before this run. `npm run typecheck` **0**. `test:db
 **1** — `387` (7, the STOP above) and `424` (the tester's missing include); every other suite green,
 including `401`, `403`, `409`, `410`, `411` and `422`.
 
+### 2026-09-13 — T6 atomic cutover PLAN (backend) — ⛔ FOR FULL REVIEW, NO SQL WRITTEN
+
+Read-only round on the DB (the tester owns the stack). Every catalog fact below was measured by a
+read-only select today; the two migration citations are read for INTENT only, per ADR 0078.
+
+#### 1. What this cutover DOES and, more importantly, DOES NOT do
+
+Under ADR 0211 as written, T6 flips **exactly two things** and leaves the largest population alone:
+
+- ✅ **`authz.roles.staff` → `authoritative`**, with a count-verified `do` block.
+- ✅ **`app.is_commission_staff_of(_for)` created and PROVEN** — the single-role wrapper D1 names.
+- ⛔ **Every one of the 82 `is_member_of(_for)` dependents keeps its behaviour, untouched.** ADR
+  0211 D3: `is_member_of` stays a role-SET predicate until BOTH commission roles are
+  `authoritative`. After this cutover they are — so the re-expression becomes *available*, and it is
+  still **not** part of T6: it lands with T7's re-key, where the sites that move are chosen per site
+  from matrix § 5.4, not in a migration whose subject is the wrapper.
+- ⛔ **No enforcement site is re-keyed.** All 18 manifest rows stay `pending-rekey`; `410 § 4.5`'s
+  pair stays `58 / 3`. A landing that moved that pair would be a re-key hiding inside a cutover.
+
+⭐ **So the wrapper is created with ZERO callers, deliberately**, and that is the one thing a reviewer
+should push on. It is not dead code by accident: T7 is its consumer, and creating it here is what
+lets D2's proof run against the real object before anything depends on it. ⚠ It also means
+`docs/learning` "a designated authority with ZERO CALLERS is a conformance finding" applies to it
+from the moment it exists — the census in § 5 states the expected caller count as **0 at T6, N at
+T7**, so a reviewer can tell the planned zero from an accidental one.
+
+#### 2. The wrapper — exact shape, and the one place "mirror `is_staff_admin_of`" must NOT be obeyed
+
+```sql
+create or replace function app.is_commission_staff_of(p_commission_id uuid)
+returns boolean language sql stable security definer set search_path = '' as $$
+  select authz.holds_role((select auth.uid()), 'staff', 'commission', p_commission_id);
+$$;
+
+create or replace function app.is_commission_staff_of_for(p_commission_id uuid, p_user_id uuid)
+returns boolean language sql stable security definer set search_path = '' as $$
+  select authz.holds_role(p_user_id, 'staff', 'commission', p_commission_id);
+$$;
+```
+
+Measured properties of the pair being mirrored (`pg_proc`, today):
+
+| | `prosecdef` | `provolatile` | `proconfig` | `proacl` |
+| --- | --- | --- | --- | --- |
+| `app.is_staff_admin_of` | `t` | `s` | `search_path=app, public, pg_catalog` | `postgres=X, authenticated=X, service_role=X` |
+| `app.is_staff_admin_of_for` | `t` | `s` | `search_path=app, public, pg_catalog` | `postgres=X, authenticated=X, service_role=X` |
+
+⛔⛔ **"ACLs mirroring `is_staff_admin_of(_for)` exactly" is right; MIRRORING ITS `search_path` WOULD
+BE WRONG.** That pair runs on `app, public, pg_catalog` — frozen compatibility debt under ADR 0208
+D4, which rules `search_path = ''` + schema-qualified references **the sole forward convention for
+new or touched DEFINERs** and says the frozen set *"may not grow"*. Two new DEFINERs on a non-empty
+path would grow it by two and red `419` + gate 18. ⇒ **ACLs: mirror exactly. `search_path`: `''`,
+and the body schema-qualified (`authz.holds_role`, `auth.uid`) so `421`'s body arm resolves it.**
+
+⚠ **And mirror the `_for` twin's ACL, not `is_member_of`'s.** Measured: `app.is_member_of` carries a
+stray **`=X/postgres` (PUBLIC EXECUTE)** entry that `is_member_of_for` does not. Copying the bare
+member of that pair would propagate a stray grant into a brand-new object. The grant list is
+therefore stated explicitly in the migration — `revoke all from public; grant execute to
+authenticated, service_role;` — rather than inherited by resemblance.
+
+#### 3. The four-property snapshot/assert block
+
+Mirrors `20261003007210`'s shape, and its comment states the reason the block exists: *"`create or
+replace` is NOT drop+create: name, signature, `prosecdef`, volatility, `search_path` and ACLs all
+persist — which is exactly why the revoke is a SEPARATE, SNAPSHOTTED step."*
+
+⚠ **Here the block is doing a DIFFERENT job and that difference must be stated, or it is theatre.**
+At AE4.6 the wrappers already existed and the risk was a `create or replace` silently changing a
+property. Here the wrapper is **new**, so there is nothing to preserve; the block instead asserts the
+properties the new object was CREATED with, against the values ADR 0208 D4 and § 2 above require:
+
+- `prosecdef = true` · `provolatile = 's'` · `proconfig = {search_path=""}` · `proname`/signature
+  exactly as declared · `proowner = postgres` · `proacl = {postgres=X, authenticated=X,
+  service_role=X}` and ⛔ **no PUBLIC entry** (`proacl` is asserted as a SORTED ARRAY, not a count —
+  a count cannot tell a lost grant from a swapped one).
+- Captured **before** into a temp table and asserted **after**, in the same migration, so a failure
+  names which property moved rather than "something changed".
+
+#### 4. `staff` → `authoritative`, count-verified
+
+The `do` block mirrors `20261003007440`'s: assert the state BEFORE (`staff = test_validation`,
+exactly one `authoritative`), perform the update, `get diagnostics row_count = 1`, then assert
+**exactly two `authoritative` and zero `test_validation`** afterwards. ⛔ A bare update that matched
+zero rows would apply silently and every downstream resolver would read "the catalog denies
+everything" as a divergence rather than as a missing flip.
+
+#### 5. Direct-call census, per site, from the comment-stripped catalog
+
+Derived the way `20261003007200` derived its, ⛔ never from a name-keyed family classifier. Measured
+**today**, over `regexp_replace(prosrc,'--[^\n]*','','g')` in `app`/`public`/`authz`:
+
+| population | count | disposition at T6 |
+| --- | ---: | --- |
+| functions carrying the literal `'staff'` | **3** | ⛔ **none replaced.** `app.grant_role_impl` and `app.revoke_role_impl` dispatch on `p_role in ('staff','staff_admin')` — they ADMINISTER the role (matrix § 5.1's exclusion) and are org/hospital-admin territory; `public.appoint_administrativo` requires the appointee to BE a `staff` — a managed-row value. None is a caller of the role predicate on its own behalf, so none is a bypass. |
+| policies carrying the literal `'staff'` | **0** | — |
+| direct `app.has_role(..., 'staff')` calls | **0** | — the AE4 analogue had one (`can_manage_professional`); `staff` has none. |
+| callers of the NEW wrapper | **0 at T6, by design** | T7 is its consumer (§ 1). |
+
+⇒ **`staff` has no bypass to close**, and that is a measured result rather than an absence of
+looking: the same sweep that found AE4's one bypass finds none here, because `staff` is reached
+through a SET predicate and never by name.
+
+#### 6. ⛔ NEVER `legacy OR new` — the pgTAP grep
+
+`405 § 4.2` greps the comment-stripped `prosrc` of the wrapper family for `has_role`'s absence and
+`§ 4.3` is its positive control (the instrument must find something). T6 **extends the family** to
+the two new functions:
+
+- new `§ 4.2b` — neither `app.is_commission_staff_of` nor `_for` contains `has_role`, `is_member_of`,
+  `has_role_any`, or a second disjunct of any kind; the body is one `holds_role` call.
+- new `§ 4.3b` — the positive control on the same instrument: both DO contain `holds_role`.
+  ⛔ Without it, § 4.2b is an absence measured by an instrument never shown able to find anything.
+
+#### 7. ADR 0211 D2's proof — three parts, none sufficient alone
+
+1. **The snapshot/assert block** (§ 3) — sees a changed property, says nothing about answers.
+2. **The constructed differential** — `has_role_any('commission', C, u)` **restricted to `staff`
+   rows** ≡ `app.is_commission_staff_of_for(C, u)`, for every seeded principal × every commission.
+   The restriction is the whole content: `has_role_any` is a SET predicate, so an unrestricted
+   comparison reports every `staff_admin`-only membership as a divergence. ⚠ Stated bound: it proves
+   the wrapper agrees with the legacy predicate's `staff` slice — ⛔ **not** that `holds_role` behaves
+   under `test_validation`, which it cannot, because it refuses that state by design. ⭐ **This is
+   why the differential runs AFTER the flip, in the same migration's test, not before it.**
+3. **PA-F8-STAFF-2's condition, as cells** — `memberships_one_commission_role_uq` exists with its
+   measured definition (`UNIQUE (principal_id, commission_id) WHERE commission_id IS NOT NULL`;
+   a second commission row for one principal raises `23505`), and `memberships_scope_shape`'s
+   commission tier is exactly `{staff, staff_admin}`. ⛔ Dropping either re-opens the hat-grain
+   divergence **silently**, which is why it is a cell and not a sentence.
+
+#### 8. What ELSE reds — named now, each to be observed RED before it moves
+
+| suite | § | why it moves |
+| --- | --- | --- |
+| `401` | 3.2 | the tripwire names the non-legacy set BY VALUE: `staff=test_validation, staff_admin=authoritative` → **`staff=authoritative, staff_admin=authoritative`**. ⭐ It fires a THIRD time and that is it working — it is not widened, and a third role still reds. |
+| `403` | **3.2c** | ⛔⛔ **MY OWN L4 ASSERTION REDS AT T6, BY CONSTRUCTION, AND I AM NAMING IT BEFORE IT SURPRISES ANYONE.** § 3.2c pins the `test_validation` set against `approvedSuites` MINUS this suite's subject = `{staff}`. After the flip the live set is EMPTY while the computed side still says `staff` → `have: (none)  want: staff`. That is § 3.2c firing on exactly the case it was written for — *"a role that owes a suite but is NOT in that state … flipped to `authoritative` without its gate"* — and here the gate DID run, so the expected side must gain a third term: **minus roles already `authoritative`**. ⚠ A re-clause, not a relaxation, and it must be observed red first. |
+| `410` | ARM C1 / § 7.x | `authoritative − approvedSuites`: `staff` becomes authoritative and HAS a suite, so C1 stays quiet — but any pin counting authoritative roles moves 1 → 2. |
+| `405` | § 4.2b / § 4.3b | new sections (§ 6). |
+| `411` | § 2.1 / § 0b | `role_manifest.psql` follows the catalog: `staff` state changes again ⇒ regenerate, then move the md5 pin. The two-step is the generator's own instruction. |
+| `422` | — | unaffected: it asserts the granting-role SET, which does not change. |
+
+#### 9. ADR 0208 D3's five triggers — does the flip fire any? **No, and here is each one**
+
+1. *administrativo added as a permission provider* — **no**; that is proposed-order item 6, and
+   `app.member_can(_for)` is byte-unchanged (md5-pinned in `422 § 5`).
+2. *another provider adapter introduced* — **no**; the provider family stays `{assignment_facts}`,
+   which `423 § 6` reds on if a second member appears.
+3. *`scope_reaches` gains one-to-many or descendant expansion* — **no**; untouched.
+4. *membership uniqueness relaxed* — **no**, and T6 asserts the opposite (§ 7.3).
+5. *production beyond the `M=20, D=5` envelope* — **no**; not a production change.
+
+⭐ **The reason worth writing down**: `D ≤ F` is a bound on the CANDIDATE FAN-OUT, and candidates
+originate from `authz.assignment_facts` rows. Flipping a role's **state** adds no fact — it changes
+which proposed candidates **CONFIRM**, not how many are proposed. So `F` is unchanged, `D ≤ F` is
+undisturbed, and no coefficient is invalidated. ⚠ Trigger 1 remains the one that fires by
+construction, at item 6, exactly as D1 pre-empts.
+
+#### 10. Files, order, and what each test reds FIRST
+
+1. `2026100300746x_ae5_staff_wrapper_cutover.sql` — the ONE migration: snapshot → create both
+   wrappers → ACL statements → flip `staff` → assert-after. ⛔ One migration, because a wrapper
+   created before the flip denies everyone (`holds_role` refuses a non-authoritative role) and a flip
+   before the wrapper leaves a window where the catalog is authoritative with no single-role
+   predicate. They are not separable.
+2. `405` extended (§ 4.2b / § 4.3b) — **red first** by writing § 4.2b against the not-yet-created
+   functions (it fails on absence), then green.
+3. A new `426_ae5_staff_wrapper_differential.sql` — D2 part 2 + part 3. **Red first** by running it
+   before the migration: the wrapper does not exist, so every cell errors; then red *again* in the
+   useful sense by flipping one seeded `staff` membership's role and watching the restricted
+   comparison disagree; then green.
+4. `401 § 3.2`, `403 § 3.2c`, `411`, and any authoritative-count pin — **each observed red, then
+   moved**, with `old → new` in the commit body.
+
+**Rollback (T9, [PA-F9])**: ⛔ **never a committed migration** — a reviewed runbook entry plus an
+out-of-chain SQL template in `docs/deployment/`. Shape: revalidate the four properties FIRST, then
+`update authz.roles set state='test_validation' where code='staff'` (⛔ **not** `legacy` — the grants
+stay and the differential must still see them), leave both wrappers in place (they simply return
+false for a non-authoritative role, which is the correct behaviour for a rolled-back cutover), and
+⛔ **delete no catalog data**. Code/database compatibility stated in both directions: no application
+code calls the wrapper at T6, so rollback is DB-only.
+
+#### 11. Testing note
+
+The property that makes this cutover provable is **not** "the wrapper returns the right answer" —
+it is that the **restricted** legacy predicate and the wrapper agree on every seeded principal ×
+commission, with the restriction stated and the unrestricted comparison shown to disagree. ⛔ A
+differential that compared `is_member_of_for` (unrestricted) to the wrapper would report every
+`staff_admin`-only membership as a divergence and would be "fixed" by loosening the expected value —
+which is how a set predicate gets silently substituted for a single-role one. The three-part
+obligation exists because each part is blind to what the others see (§ 7), and the cheapest way to
+lose it is to run part 2 alone and call the suite green.
+
+⛔ **I have written no SQL. Awaiting ack.**
+
+#### 12. `387` — the query set, prepared read-only (the pin move itself is QUEUED behind the tester)
+
+The md5 is `md5(string_agg(id::text, ',' order by id))` over `public.profiles` under
+`test_helpers.claims_for(<uid>, false, '<role>')` + `set local role authenticated`. Re-derived today
+read-only, in that exact shape, so the figures below are the suite's own and not an approximation.
+⛔ The row counts in the test NAMES are RE-DERIVED, never carried over.
+
+| test | § | persona | rows old → new | md5 old → new |
+| --- | --- | --- | --- | --- |
+| 5 | B1 | `hospitaladmin.a1` (hospital_admin) | 23 → **25** | `cded5a2d…fad8` → `67bfdf1f…8e0c` |
+| 6 | B2 | `orgadmin.a` (org_admin) | 29 → **32** | `7954b320…6e81` → `aad18a56…a957` |
+| 7 | B3 | platform_admin | 36 → **40** | `8890048e…ba24` → `783c2a1e…a36e` |
+| 8 | B4 | `chefe.ccih` (staff_admin) | 10 → **12** | `17d08ead…ffd5` → `03904c72…d7d9` |
+| 9 | B5 | `staff1.ccih` (staff) | 10 → **12** | `17d08ead…ffd5` → `03904c72…d7d9` |
+| 10 | B6 | `orgadmin.b` (org_admin, other org) | 5 → **6** | `4acaab50…b33f` → `00e55169…bccf` |
+| 19 | D1b | restore control for B1 | — | same pair as test 5 |
+
+⭐ **EVERY DELTA RECONCILES TO A NAMED PERSONA, which is the check a bare md5 cannot give.**
+B2 +3 and B3 +4 are the three Rede A gap personas and the Rede B one; B1 +2 is `gap.pending` and
+`gap.deactivated`, visible to the hospital admin through their CCIH membership, while `gap.unpriv`
+is not (org affiliation only, no hospital tier, no membership); B4/B5 +2 are the same two CCIH
+members; B6 +1 is `gap.xorg.b`. ⛔ A pin whose new value I could not attribute to a persona would be
+a pin I should not move. Full-length md5s are in the round-4 entry.
+⚠ Tests 8 and 9 share a value (both read the CCIH set) and test 19 is test 5's restore control, so
+three of the seven move as two pairs — a reviewer should expect four distinct values, not seven.
+
 ## T3 plan — generators MULTI-ROLE ⛔ NOT EXECUTED; awaiting the lead's ack
 
 Read-only inspection of `scripts/gen-authz-differential-cells.py` (1218 lines) and
