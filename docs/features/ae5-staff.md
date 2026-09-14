@@ -40,7 +40,7 @@ Each is the template step it names; the witness for every box is a dated entry i
 - [ ] **AC-4 Seed + `test_validation`.** `staff` grants seeded; `authz.roles.staff` = `test_validation`;
       `403 § 3.2b` observed RED (recorded, never re-pointed) and `410 § 7.2` RED until the manifest
       names the suite; fixture gaps the tester lists are filled without ids shared across cases.
-- [ ] **AC-5 Differential oracle** (`424`): two assertions per cell — `is(legacy, catalog)` AND
+- [x] **AC-5 Differential oracle** ✅ **2026-09-14** (record: run 5 green, § 6 witness quoted, full suite `Result: PASS`) (`424`): two assertions per cell — `is(legacy, catalog)` AND
       `is(catalog, approved-value)` — over `authz.candidate_has_permission`; `case_reach` incl.
       `unreachable` swept; approved divergence in `expected_legacy_granted` only; shown able to fail.
       Every PA-F8 divergence dispositioned (a) fixed earlier / (b) named exception with owner +
@@ -101,10 +101,7 @@ independently (tester A–H, backend) with zero disagreement on mechanism and on
 probes the policy leg P1 was ruled on; its function door's `is_active` guard carried to the bug
 register); backend's round 5 is committed (`774edd50`: door truth tables measured before binding, L11
 applied to all eleven P1 doors, and every cell's EXPECTATION smoked — 3024/3024); **`424` GREEN
-on run 5** (24/24, committed `9c19fbdd`); § 6 witness QUOTED (`ok 19 … makes the oracle RED` / `ok 21 … RESTORE IS COMPLETE`); owed before
-AC-5 ticks: the full suite green — `330` (controlled document without a core `documents` row: the row-16
-fixtures) and `387` (profile-visibility md5 pins moved by the `gap.*` personas) are with `backend`,
-every delta attributed; then the stack goes to `backend` for the T6 red-first sequence (files held in the session scratchpad
+on run 5** (24/24, committed `9c19fbdd`); § 6 witness QUOTED (`ok 19 … makes the oracle RED` / `ok 21 … RESTORE IS COMPLETE`); **AC-5 ticked** (full suite `Result: PASS` on `test-db-run6-full.log`, 330 + 387 fixed with every delta named); the stack is with `backend` for the T6 red-first sequence (files held in the session scratchpad
 `t6-wip/` since the incident). `410` § 6.2 reads `armInterface` (L6, both discrimination halves
 witnessed); `387` re-pinned with every delta attributed; `npm run lint` exit 0.
 

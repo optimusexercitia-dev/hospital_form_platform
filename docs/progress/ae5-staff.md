@@ -2433,3 +2433,18 @@ reason). Exits bare after a fresh reset: `00_setup + 330` 0 · `+ 387` 0 · `npm
 `lint:authz-vectors` 0. Tester dispatched: full `test:db` once on a fresh reset (iteration 2 of the
 full-suite loop), the other host stack counted not stopped, a CLI-failed reset re-verified and
 written into the log header.
+
+### 2026-09-14 — full `test:db` GREEN on a fresh reset; AC-5 ticked (lead)
+
+Tester, `test-db-run6-full.log`: no peer session; the `*_escalume` stack up (11 containers,
+untouched); reset exit 0 with no CLI error this time, baseline measured anyway (`staff =
+test_validation`, 44 profiles, 8 `a5f*` fixture profiles); `Files=273, Tests=9156 … Result: PASS`;
+`424_ae5_staff_differential_oracle.sql … ok`; `grep -n "Failed test"` empty; 330 and 387 clean.
+**AC-5 ticked** on: two assertions per cell over `authz.candidate_has_permission` (§ 4.1 legacy ==
+catalog, § 4.1b legacy == `expected_legacy_granted`, every cell labelled or not); `case_reach` incl.
+`unreachable` swept; approved divergence carried in `expected_legacy_granted` only, under the P1/P2/P3
+rulings and L11; shown able to fail by § 6.1/6.2/6.2b quoted above; PA-F8 dispositions — STAFF-1
+(responses lifecycle) reclassified by the H6 rename to a product finding on the ownership path,
+STAFF-2 (the hat gate) = (b) named exception carried by ADR 0211 D2 for the PO at the T6 gate, the
+inactive role-free disjuncts = (b) with owner + fix unit `AE5-INACTIVE-DISJUNCT-GUARD` (bug row).
+Full-suite loop closed at iteration 2. Stack to backend for T6.
