@@ -3077,3 +3077,90 @@ sentence read as due; the lead's C5 (`60f79569`) requires backend to either re-e
 state a measured deferral to a NAMED unit in ADR 0211 itself. The PO reaffirmed the ruling's wording
 as given; whichever of C5's branches lands is what the amended sentence should say. `424`'s
 re-point: observed green in the tester's scoped run (24/24) and committed at `bf585a83`.
+
+### 2026-09-14 — L13 witnesses and C5 answered (backend) — still NO SQL
+
+Stack settle-checked before every read: 0 active peers, container up 16 min, `public` table count
+**171 then 171**. Nothing under `supabase/` moved.
+
+#### L13 — the re-ruled § 6.3 conjunct, both halves witnessed
+
+The conjunct becomes **"arm-sites non-empty OR no row left `pending-rekey`"** — never deleted. Two
+step-6 witnesses, added to the run book:
+
+| # | mutation | expected line |
+| --- | --- | --- |
+| 6a | a manifest holding ONE `pending-rekey` row with ZERO arm sites | § 6.3 **RED**: the OR's left half is false (no arm sites) and its right half is false (a row IS still pending-rekey) — the only state in which the control must fire, and the state a half-finished T7 leaves behind |
+| 6b | a `re-keyed` row with ZERO `enforcementSites` | § 6.2 **RED** naming that row with `have: (none)` against its committed `hardDenyClasses`, and § 8.1 **RED** because a declared-but-empty site list cannot reach the code — the case the OR's right half now owns |
+
+⭐ 6b is the half that matters: once "no row is pending-rekey" can satisfy the conjunct, a row that
+re-keyed to NOTHING would otherwise sail through § 6.3. The OR is only safe because § 6.2/§ 8
+own that case, so both are witnessed together or the re-rule is a widening.
+
+#### C5 (a) — the wrapper's caller census as T7 would leave it: **ZERO**
+
+Comment-stripped sweep of `pg_policies` + `pg_proc` in `public`/`app`/`authz`:
+**`app.is_commission_staff_of(_for)` — 0 policies, 0 function bodies.** T7 as planned does not
+change that: the layer-3 doors compose only `authz.has_permission`, so the wrapper stays uncalled.
+⛔ **The lead's reading is correct** — that mints the designated-authority-with-no-callers shape
+one commit after wiring row 9's door precisely against it.
+For contrast, `app.is_member_of(_for)` today has **82** callers: **40 policies + 42 function bodies**
+— the figure ADR 0211 D3 names.
+
+#### C5 (b) — the re-expression is AVAILABLE and answer-preserving; measured
+
+- **Precondition MET.** Exactly **two** commission-scoped roles exist — `staff` and `staff_admin`
+  — and since T6 **both are `authoritative`**. Commission-scope memberships carry only those two
+  (20 `staff`, 4 `staff_admin`).
+- **The twin already has the identical shape.** `app.is_staff_admin_of` is
+  `select authz.holds_role((select auth.uid()), 'staff_admin', 'commission', p_commission_id)` —
+  the same single-role wrapper I built for `staff`. The disjunction is genuinely two of a kind.
+- **The planes differ on 2 of 24 rows, and the difference is NOT an answer.**
+  `has_role_any` reads `public.memberships`; `holds_role` reads `authz.assignment_facts`.
+  Measured: **22 tuples in both, 0 facts-only, 2 memberships-only** — and the 2 are exactly
+  `gap.deactivated` (`is_active=f`) and `suspenso.temp` (suspended). `is_member_of` filters them
+  with its OWN wrapper-level `app.is_active(auth.uid())`; `assignment_facts` filters them at the
+  FACTS level. ⭐ Same two principals denied on both sides — this is the level-vs-answer
+  distinction `426` § A2 already measured across all four principal states. The hat is likewise
+  preserved: `has_role_any` and `holds_role` carry the SAME trailing term, and the third-party
+  `_for` forms ignore it on both sides. **PA-F8: R-2/P1's hat gate already covers the behaviour
+  change; I am not re-opening it.**
+
+#### C5 (b) — my recommendation: DEFER to a named unit, for a reason `425` cannot cover
+
+⛔ **The decisive measurement is not the equivalence — it is that `425` CANNOT WITNESS THIS.**
+`425` is a **grant-deletion** differential: it deletes an `authz.role_permissions` row and requires
+the door to flip. The re-expression lives on the **ROLE** plane, not the permission plane —
+deleting a grant moves `is_member_of` by exactly nothing, before or after. So the polarity pair T7
+uses for every other site is structurally blind to the one change that would give the wrapper its
+callers. It needs a **membership-deletion** pair instead (delete the `memberships` row → both
+sides deny; restore → both grant), which is a different fixture, a different suite, and a different
+red-first order.
+Second, the size: T7 is already ONE atomic migration carrying 20 doors, 66 site re-keys and row 9's
+wiring; adding a re-expression of a predicate with **82 dependents** puts two unrelated risks —
+code-keying and a plane migration — in one commit whose rollback is all-or-nothing.
+
+**Proposed named unit: `AE5-MEMBER-PREDICATE-REEXPRESSION`**, carrying its own before/after snapshot
+of the four properties for `is_member_of(_for)`, its own membership-deletion polarity pair, and the
+82-dependent census as its acceptance criterion.
+
+⚠ **AND THE DEFERRAL HAS A COST THAT MUST BE RECORDED, NOT ABSORBED.** Condition **A3** allow-listed
+the wrapper as a zero-caller authority with **owner `backend`, expiry `T7`**. Deferring past T7 moves
+that expiry, so the ADR text must say so — otherwise the allow-list silently outlives its own
+expiry, which is the failure A3 exists to prevent. **Proposed ADR 0211 amendment, for the PO's R-5:**
+
+> **D1 amendment (2026-09-14).** `app.is_commission_staff_of(_for)` is created by T6 and remains
+> **intentionally caller-less through T7**: T7's layer-3 doors compose `authz.has_permission` alone,
+> because a re-keyed row may not compose a non-permission grant path (the generator refuses it).
+> Its first callers arrive with the re-expression of `app.is_member_of(_for)` as
+> `is_commission_staff_of(c) OR is_staff_admin_of(c)`, which D3 makes available now that both
+> commission roles are `authoritative`. That re-expression is **deferred to
+> `AE5-MEMBER-PREDICATE-REEXPRESSION`** for a measured reason: the grant-deletion differential
+> (`425`) is structurally blind to a role-plane change, so it requires a membership-deletion pair of
+> its own. **A3's zero-caller allow-list therefore moves its expiry from `T7` to that unit**, owner
+> `backend`. ⛔ The allow-list is not renewed silently: this clause IS the renewal, and the unit
+> name is its bound.
+
+⚠ If the lead or PO prefers it INSIDE T7 instead, the measurement above says it is safe to do so
+— the blocker is witnessing, not correctness — and the cost is that `425` must gain a
+membership-deletion arm before step 1, which moves T7's red-first order rather than extending it.
