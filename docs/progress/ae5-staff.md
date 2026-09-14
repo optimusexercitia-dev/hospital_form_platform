@@ -3902,3 +3902,21 @@ mutation-that-did-not-apply lesson, caught); re-pointed and re-pinned 66 → 111
 the tester for `425` run 4 (attribute the nine short; re-point 3.1/3.2 to the post-T7 catalog with
 the scope cut re-derived); backend on T10 (docs only) meanwhile; T8 after the tester parks. AC-7
 ticks when `425` is green with its cut stated. Loop: T7 verification closed at iteration 2.
+
+### 2026-09-14 — T10 seam slice (`2e14fe75`, docs only); backend corrected an over-claim in its own gate record (lead)
+
+`docs/backend-state/authorization-and-audit.md`: the frozen `## AE5 increment 1 — staff runs on
+layer 3` slice appended (cutover shape 21 doors 13/8, 41 policies, 23 re-emissions, countdown 58/3
+→ 38/23; both defects the re-key created; the four-row witness table incl. (d)); its last section
+is what the INSTRUMENTS learned — § 6.2 blind to an `or`; a re-keyed row shed its per-arm data and
+arm14(b) went VOID rather than red; `reaches_code` saw one hop; a mutation twin can go DEAD without
+going red; "converge on touch" cost 24 signatures and seven pins had asserted the legacy path as a
+property to keep. `## Current state` replaced and re-stamped; new invariant, with the note that no
+gate enforces it today: *a hard deny must sit on EVERY disjunct of a door's grant expression*;
+open edges name the four owed items; 99 lines against the 100 ratchet (lowered); gate 16 = 0, lint
+0. **Over-claim caught by backend in its own gate record:** a heading read "L13′ / L22 / L23
+witnesses, all planted and rolled back" while the body held two — L22 (the `{kind, expression}`
+identity gate + the REVERSE 3b arm) has NO planted witness; the entry now says so, and that it is
+the weakest evidence among the five rulings. Lead: 3b gets its plant in T8 (a manifest declaring
+an expression that appears only in a comment → red), the detector proven able to find something.
+Stack still the tester's.
