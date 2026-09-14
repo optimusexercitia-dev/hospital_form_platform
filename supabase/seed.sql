@@ -3263,6 +3263,7 @@ declare
   v_farma    uuid := 'b0000000-0000-0000-0000-0000000000b1';  -- Farmácia (Rede A) — `sibling_commission`
   v_other    uuid := '00000000-0000-0000-0000-000000000006';  -- staff1.farm (other_commission_holder)
   v_status_a uuid;
+  v_absent   uuid := 'a5f00000-0000-0000-0000-0000000000f4';  -- the ABSENT subject: never a persona
   v_cm_ccih  uuid := 'a5f00000-0000-0000-0000-0000000000f1';  -- co-member, CCIH ONLY
   v_cm_farma uuid := 'a5f00000-0000-0000-0000-0000000000f2';  -- co-member, Farmácia A ONLY
   v_cm_farmb uuid := 'a5f00000-0000-0000-0000-0000000000f3';  -- co-member, Farmácia B ONLY
@@ -3292,7 +3293,15 @@ begin
     -- (measured: legacy=true, catalog=false). Each of these holds exactly ONE membership.
     jsonb_build_object('id', v_cm_ccih,  'email', 'gap.comember.ccih@test.local',  'name', 'Colega Gap CCIH'),
     jsonb_build_object('id', v_cm_farma, 'email', 'gap.comember.farma@test.local', 'name', 'Colega Gap Farmacia A'),
-    jsonb_build_object('id', v_cm_farmb, 'email', 'gap.comember.farmb@test.local', 'name', 'Colega Gap Farmacia B')
+    jsonb_build_object('id', v_cm_farmb, 'email', 'gap.comember.farmb@test.local', 'name', 'Colega Gap Farmacia B'),
+    -- ⭐⭐ THE ABSENT SUBJECT, AND IT EXISTS BECAUSE OF A SHARED-ID COLLISION. Row 4's
+    -- `disjunct_absent` bound `gap.unpriv` — which is ALSO `differentialFixtures.thirdPartyCaller`.
+    -- On every third-party cell the subject WAS the caller, so the door's self leg fired and the
+    -- probe measured an accidental self-read instead of an absent co-member (measured: ~64 cells).
+    -- ⛔ A resource fixture that doubles as a persona-axis value fabricates a defect in one
+    -- direction and an all-clear in the other; this one holds ZERO memberships and is NEVER a
+    -- persona, and a generator arm now refuses any fixture id equal to a persona id.
+    jsonb_build_object('id', v_absent, 'email', 'gap.absent@test.local', 'name', 'Sujeito Ausente Gap')
   );
   for u in select * from jsonb_array_elements(v_users)
   loop
@@ -3339,7 +3348,11 @@ begin
     (v_deact,   '0c000000-0000-0000-0000-00000000000a'::uuid, '2023-01-01'::date),
     (v_cm_ccih, '0c000000-0000-0000-0000-00000000000a'::uuid, '2023-01-01'::date),
     (v_cm_farma,'0c000000-0000-0000-0000-00000000000a'::uuid, '2023-01-01'::date),
-    (v_cm_farmb, v_orgb, '2023-01-01'::date);
+    (v_cm_farmb, v_orgb, '2023-01-01'::date),
+    -- ⛔ The affiliation is NOT optional — an unaffiliated profile is a tenant orphan and
+    -- four suites assert the seed contributes none. ⚠ NO membership, deliberately: the
+    -- co-member leg must be false for every caller at every scope.
+    (v_absent,  '0c000000-0000-0000-0000-00000000000a'::uuid, '2023-01-01'::date);
 
   -- ⛔ The two lifecycle personas DO get a `staff` membership — that is the whole
   -- point. Without it `app.is_member_of_for` returns false for the ABSENCE OF A
@@ -3507,6 +3520,19 @@ begin
   insert into public.meeting_cases (id, meeting_id, case_id) values
     ('a5f20000-0000-0000-0000-0000000000b1'::uuid, 'a5f20000-0000-0000-0000-0000000000a1'::uuid,
      'd0000000-0000-0000-0000-0000000000c1'::uuid);
+
+  -- ⭐⭐ Row 19 — a CAPA plan whose three disjuncts are ALL false, which the previous
+  -- `conjunct_unmet` binding was not. `app.can_read_capa` is
+  --   is_pqs_operator_of_for(hospital) OR can_read_event(event_of_capa(...)) OR
+  --   (source = 'indicator' AND is_member_of_for(indicator.commission))
+  -- The rca-sourced plan bound before has its indicator conjunct genuinely unmet, but
+  -- `can_read_event` GRANTED through its RCA's event — measured `can_read_capa(ca000000-…a3,
+  -- staff4.ccih) = true`, so the cell asserted "the conjunct is unmet" while the door answered
+  -- yes for an unrelated reason. ⛔ An unmet-conjunct fixture is only a control if the OTHER
+  -- disjuncts are false too. `manual` carries no source row at all, so `event_of_capa` is null.
+  insert into public.capa_plan (id, code, source, classification, status, hospital_id, opened_by)
+  values ('a5f70000-0000-0000-0000-0000000000b1'::uuid, 'CAPA-FIX-UNMET', 'manual',
+          'corretiva', 'open', '05000000-0000-0000-0000-00000000000a'::uuid, v_clean);
 
   -- Row 15 — a framework owned by Farmácia A, the one owner the trio was missing.
   insert into public.accreditation_frameworks (id, key, name, version, owner_commission_id)
