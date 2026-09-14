@@ -2230,3 +2230,30 @@ which is the only thing those arms exist for.
 72 distinct bound doors, 0 missing from the catalog; the planted-absent control fired.**
 
 ⚠ `424` was NOT touched — the tester's § 2.6 edit is uncommitted in the tree and was left there.
+
+### 2026-09-14 — `424` run 4: 18 (§ 4.1) + 42 (§ 4.1b) cells red; L11 GENERALISED; iteration 4 of 5 (lead)
+
+Tester re-derived § 2.1/2.3/7.1 from the emitted vector first (3348 cells, 11 classes, row 12's
+class at 0 rows under its named skip), reset exit 0, no peer on the stack. Log
+`424-run4-write-guard-skip.log`. Three causes, all vector/fixture, no iteration 2:
+**G1** row 4 `disjunct_absent` binds `gap.absent` (0 memberships anywhere) — the co-member leg can
+never fire for any caller, so legacy is stuck false where the catalog grants: round 4 fixed the
+id-collision HALF of cause A and re-created its other half with a new id (a partial fix that read as
+complete). Read against the door (self OR co-member): `disjunct_absent` = not-self, membership
+decides = the scope co-member; `conjunct_unmet` = a target no caller shares at that scope = the
+zero-membership profile. Round 4's two definitions are the door's two classes SWAPPED; `f3` under
+`conjunct_unmet` still shares Farmácia B with the cross-org caller (G, not closed). **G2** row 11
+`disjunct_absent` binds an assignees-only item assigned to someone else — unreachable by membership,
+G1's shape. **G3** row 11 `disjunct_present` at deactivated/suspended (24 cells, P1 label):
+`app.can_read_action_item` opens with `if not app.is_active(p_uid) then return false` — L11's
+finding on a second row.
+
+**L11 generalised (lead ruling on mechanism, the PO's P1 untouched):** every P1 coordinate probes
+the leg P1 was measured on — the POLICY leg named in the bug row (`action_items_select`'s
+assignees-only leg for row 11) — under L10's caller-only keying with the third-party skip; the
+function door's `is_active` gate is declared as a printed `keyingOverride` and noted on the bug per
+row. Backend sweeps ALL eleven P1 coordinates for a state-gated function door in one pass rather
+than fixing row 11 alone (correct-at-most-sites), and the generator refuses, by name, a P1-labelled
+class whose bound door is a function carrying `is_active`. ⚠ Loop safety: this is iteration 4 on
+the execute-and-compare mechanism (458 → 268 → 204 → 60, each with new causes named); round 5 is
+the last before the lead stops and reports to the PO instead of iterating.
