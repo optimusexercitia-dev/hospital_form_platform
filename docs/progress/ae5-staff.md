@@ -1113,6 +1113,15 @@ NOTICED = evidence; CARRIED = a step.
   PA-F8 divergence to be dispositioned (a)/(b)/(c) **before the matrix is approved** (plan
   `:942-950`). Planner's recommendation: (b), a named compatibility exception with owner + expiry.
 - **R-3 — the matrix itself** (AC-1) and the deny-class values (AC-2), on T1/T2's delivery.
+- **R-4 — `authenticated` EXECUTE on `app.is_commission_staff_of(_for)`.** Opened 2026-09-14 at T6:
+  the cutover granted postgres + service_role only; T7's re-keyed policy doors run as `authenticated`
+  and need EXECUTE to reach the wrapper; gate 15 caps the `authenticated`-executable population.
+  Backend's T7 plan counts the sites that turn on it. ⛔ PO: raise the ceiling for these two, or hold
+  it and have T7 route through an existing `authenticated`-executable door.
+- **R-5 — ADR 0211 D2 review.** The D2 proof is in the record's T6 entry (2026-09-14): snapshot/assert
+  of the four properties, the restricted differential `426` observed RED then GREEN, the
+  PA-F8-STAFF-2 condition. ⛔ PO: accept ADR 0211 (proposed → accepted) or change it; AC-6 ticks on
+  acceptance.
 
 ### 2026-09-13 — matrix review r1 received from the PO; lead evaluation; fix round routed (lead)
 
@@ -2565,3 +2574,37 @@ an inline comment beside it broke it once here.
 ⚠ The host carried TWO Supabase stacks throughout (ours 9 containers, `escalume` 11). `escalume`
 was counted and never touched; `pg_stat_activity` read **0** active peers before every reset, and
 each reset was verified afterwards on schema / profiles / role state.
+
+### 2026-09-14 — T6 APPLIED red-first (`665d9519`); L12 on `424`'s state control; two PO items opened (lead)
+
+Backend, shas `65a22ff5` (RED first) · `31b73837` (cutover) · `b0740962` (426) · `66603273` +
+`ed8387f3` (pins) · `665d9519` (record). **RED before, migration out of the tree:** `426` test 3
+*"0.3 FIXTURE CONTROL: `staff` is `authoritative` …"* `have: test_validation / want: authoritative`,
+then the planned abort (26 planned, 4 ran) — the control that stops two false predicates reading as a
+green; `405` §§ 4.3b/4.3c (positive control on 4.2b's regex; empty `search_path`), exits 1 and 1 —
+§ 4.2b itself PASSED on the pre-cutover catalog because an absence over a non-existent function is
+trivially true, which is why 4.3b exists. **GREEN after:** 401, 403, 405, 410, 426 exit 0. Snapshot,
+before → after: `is_commission_staff_of(_for)` — → prosecdef t, stable, `search_path` empty, ACL
+postgres + service_role only (no PUBLIC, no `authenticated`); `is_member_of(_for)`,
+`is_staff_admin_of(_for)` unchanged (incl. `is_member_of`'s stray PUBLIC entry). Flip: 1 flipped, 2
+authoritative, 0 in `test_validation`. **Effect:** `authz.has_permission` answers TRUE for a `staff`
+holder where it was FALSE — 80 pairs runtime vs candidate, 80 agree. Backend's own 426 had two
+defects found by running it: it assumed an `authenticated` grant the migration withholds (now pins
+the ABSENCE) and § 4.3a's "hat absent" was unreachable for a single-role principal (the generator's
+`absent_unreachable_for_single_role_principal`, named). `403 § 3.2c` was a derivation defect (read
+only `authz_differential_cells`, not the `_staff` table) — fixed, not pinned. `test:db` Files=274,
+Tests=9196, ONE red: `424` test 11's precondition (`staff` in `test_validation`) can never hold again;
+oracle intact. `lint` 0 · `lint:authz-vectors` 0 · `gen:types` no diff · `pg_stat_activity` 0 before
+every reset, the second host stack counted, untouched.
+
+**L12 (lead, mechanism):** `424`'s state precondition is a CONTROL, re-pointed deliberately to
+`authoritative` with its history in the assertion text (RED observed at the cutover, cited); never
+widened to accept both states. Tester executing; scoped run to `424-run7-post-cutover.log`.
+
+**PO items opened (§ Open rulings R-4, R-5):** **R-4** — the two wrappers carry no `authenticated`
+EXECUTE; T7's re-keyed policies need it to reach them, and gate 15's ceiling on
+`authenticated`-executable functions is the PO's to raise or hold — backend's T7 plan counts the
+sites that turn on it. **R-5** — ADR 0211 D2 (the D2 proof: snapshot/assert + restricted differential
+426 + the PA-F8-STAFF-2 condition) is reviewed by the PO at this gate, as the hub has said since
+2026-09-14; AC-6 does not tick before that review. T7 plan requested from backend (full review, no
+SQL).

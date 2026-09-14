@@ -93,16 +93,13 @@ posted, not executed.
 
 ### In progress
 
-**AC-5 closed 2026-09-14.** The `staff` differential (`424`) went through five iterations of the
-execute-and-compare mechanism (458 → 268 → 204 → 60 → 0 red cells, every round's causes named in the
-record) and two of the full-suite loop; the vector's expectations are now smoked by the generator
-before handover (3024/3024). Rulings made on the way, all mechanism, the PO's P1/P2/P3 untouched:
-L6–L10 (record) and **L11** — every P1 coordinate probes the policy leg P1 was ruled on; two function
-doors (`can_read_action_item`, `can_read_document`) carry an `is_active` gate the policy leg lacks,
-noted on the inactive-bypass bug for its fix unit. **T6 is with `backend`**: the wrapper cutover
-under ADR 0211, red-first per the acked plan (record `:677`, ack + A1–A4 `:1266`), the three held
-files returning from the session scratchpad in order (426 + 405 patch first, observed RED; the
-migration only then). `tester` idle. `npm run lint` exit 0 at HEAD.
+**T6 APPLIED red-first 2026-09-14** (`665d9519`): `426` and `405` observed RED with the migration out
+of the tree, GREEN with it in; the two wrappers `app.is_commission_staff_of(_for)` exist as DEFINER,
+stable, `search_path` empty, no PUBLIC and no `authenticated`; `staff` → `authoritative` (1 flipped,
+0 left); `authz.has_permission` now grants a `staff` holder, 80/80 pairs agreeing with the
+candidate. `424`'s state control is being re-pointed under L12 (tester, scoped run). **AC-6 waits on
+the PO** (R-5 below). `backend` is drafting the T7 re-key plan for full review — no SQL until acked.
+T13's specs are committed, unrun until AC-10. `npm run lint` exit 0 at HEAD.
 
 ### Next
 
@@ -111,7 +108,9 @@ T8 census/arms → T10 seam slice → AC-10 gate → QA → PO approval → Reco
 
 ### Blockers
 
-None ruling-shaped. ⚠ A second Supabase stack (`*_escalume`) runs on this host and made two resets
+**Two PO rulings (record § Open rulings):** **R-5** ADR 0211 D2 review — AC-6 ticks on acceptance;
+**R-4** `authenticated` EXECUTE on the two wrappers vs gate 15's ceiling — T7's shape turns on it.
+⚠ A second Supabase stack (`*_escalume`) runs on this host and made two resets
 fail at the CLI's post-reset step; AC-10's runs need it stopped or the reset re-verified. ⛔ ADR 0211 D2 is reviewed by the PO at the T6 gate (put in front of the PO on
 2026-09-14 as readable now). ⚠ Owed to T7/T13, not blocking: `app.can_reach_case_on_member_surface`
 has ZERO production callers (matrix § 8.3); 6 of 9 seeded CCIH `staff` personas carry a non-role
