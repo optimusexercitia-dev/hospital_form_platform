@@ -4318,3 +4318,44 @@ kept, not verdicts). 1 → 0 on the fold-in alone: **23 unknown before the sweep
 gutted merge → 23 after the restore → 0 after the honest fold-in** is the attribution. In flight:
 the four plants; then L22's plant, the set-valued run, `SELFTEST=1` ×2, commits by path, the T8
 record. Uncommitted: the guard, the fold-in, `409` (a), the port, the snapshot row, the follow-up.
+
+### 2026-09-14 — T8 plants: four arms RED→GREEN by plant and rollback; L22's plant found REVERSE 3b COULD NEVER FIRE (a control that compared a string with itself) — repaired, `410` 45/45 (lead)
+
+Backend's report, verified where git can see it. **The four arms, exits bare, baseline 0 / planted
+1 / rolled back 0 each:** FLOOR — `app.a_door_that_does_not_exist(uuid)` planted in its allowlist
+→ `=== INVARIANT VIOLATED ===`; WRAPPER (`FROMFINDINGS=1`) → `*** INVARIANT VIOLATED — BLIND
+wrappers NOT in the allowlist:`; HAT → `=== INVARIANT VIOLATED ===`; CENSUS — the one
+`can_roster_read` row pulled from the findings file → `*** CENSUS VIOLATED — authz gates that NO
+sweep has ever seen: app.can_roster_read(p_commission_id uuid, p_user_id uuid)` — which is also the
+direct proof that the fold-in is what made the census arm green (pull one of the 23, it names that
+gate). **Verified by the lead in git, not relayed:** `git diff --stat` on all five allowlist files
+(`act-hat-blind`, `authz-blind`, `authz-invoker-blind`, `authz-neverclled-door`,
+`authz-role-literal`) EMPTY — byte-identical to HEAD; the findings file still `23 insertions(+)`,
+zero deletions.
+
+⭐⭐ **L22's plant found the discrimination half it exercised was a control that could not fail.**
+First run of the plant (the identity-gate expression moved into a `--` comment of
+`start_correction_draft`) fired REVERSE 3 and left **3b silent** — 3b being the arm the plant
+existed for. Cause, measured by backend: `pg_temp.fn_body` ALREADY strips `--` comments (its own
+comment says so); § 8.7's 3b compared `fn_body(...)` against `strip_sql_comments(fn_body(...))` —
+**the same string, stripped twice**; "present in the raw body AND absent from the stripped one" was
+unsatisfiable for every input. Backend shipped it as L22's discrimination half and reported it as
+such; the plant caught it on its first run. **Repaired (uncommitted, in `410`):**
+`strip_sql_comments` deleted (two mentions remain, both in the comment that tells the story);
+`pg_temp.fn_body_raw` added (comments intact, `:1193`); 3b now `position(expr in fn_body_raw) > 0
+AND position(expr in fn_body) = 0` (`:1277–1278`) — RAW vs STRIPPED, two genuinely different
+strings; REVERSE 3's identity arm reads `fn_body` and says in-line it is comment-stripped by
+construction. Lead read the conjunction at `:1266–1278` in the worktree and the diff's accessor swap.
+**Re-run, correct:** `PRECONDITION in_raw_body = t in_stripped_body = f`; BASELINE `reverse_3b:
+(none)`; PLANTED `reverse_3b: commission.responses.create -> public.start_correction_draft declares
+an identity gate that appears ONLY in a comment` (and `reverse_3` on the same plant); ROLLED BACK
+`reverse_3b: (none)`, `gate_kind=identity gate_expression='auth.uid() is distinct from
+v_corrector'`. **`410` after the repair: exit 0, 45/45.** LESSONS candidate: *a discrimination half
+built on an accessor that already normalises compares a string with itself* — the
+close-condition-that-cannot-fail family, new shape (an idempotent transform applied twice).
+
+**In flight (stack backend's):** the set-valued harness under `RESET_EVERY=1` (its `RESET-POLICY:`
+line is the port's witness); then `SELFTEST=1` ×2 with the three `--- GROUP` lines and `bash
+--version`, commits by explicit path, the T8 record entry. ⚠ `425` is modified in the shared
+checkout and is NOT backend's — the tester's round-2 addendum (`plan(18) → plan(21)`, fixture
+`f425w`), uncommitted and unrun by design until backend parks; backend's commits by path exclude it.
