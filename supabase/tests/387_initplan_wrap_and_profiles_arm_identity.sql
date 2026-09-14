@@ -135,6 +135,40 @@ $$;
 
 
 -- ===========================================================================
+-- ===========================================================================
+-- ⭐⭐ RE-PINNED AT AE5 INCREMENT 1 (2026-09-13) — 9 TESTS, EACH OLD -> NEW
+--    ATTRIBUTED TO A NAMED PERSONA OR ROW. Observed RED first, never pre-adjusted.
+--
+--    The AE5-STAFF fixture block (`a5f…` in seed.sql) adds four gap personas plus the
+--    row-1 targeted-version chain. ⛔ A pin whose new value could not be attributed to a
+--    persona would be a pin that should not have been moved — a bare md5 cannot tell
+--    "the fixture grew" from "RLS regressed and now leaks rows", and those are exactly
+--    the two readings this block exists to separate.
+--
+--      test  §     persona / row                       rows old -> new
+--      5     B1    hospitaladmin.a1  (hospital_admin)   23 -> 25   + gap.pending, gap.deactivated
+--      6     B2    orgadmin.a        (org_admin)        29 -> 32   + the three Rede A gap personas
+--      7     B3    platform_admin    (all rows)         36 -> 40   + all four gap personas
+--      8     B4    chefe.ccih        (staff_admin)      10 -> 12   + the two CCIH members
+--      9     B5    staff1.ccih       (staff)            10 -> 12   + the same two (shares B4's value)
+--      10    B6    orgadmin.b        (org_admin, Rede B) 5 -> 6    + gap.xorg.b
+--      12    B8    public.responses, staff_admin's read  7 -> 8    + the row-1 targeted-version response
+--      15    B11   the RLS-bypassed totals              13 -> 14   + the same one response
+--      19    D1b   restore control for B1               —          moves WITH test 5, by construction
+--
+--    ⚠ `gap.unpriv` is in B2/B3 but NOT in B1: it holds an org affiliation only, with no
+--    hospital tier and no membership, so the hospital admin's footprint never reaches it.
+--    That asymmetry is the reason these deltas are listed per persona and not summed.
+--    ⚠ FOUR DISTINCT VALUES, NOT NINE: tests 8 and 9 read the same CCIH set, test 19 is
+--    test 5's restore control, and tests 12/15 move on the same single response.
+--
+--    ⛔ D1a (test 18) IS RE-PINNED TOO THOUGH IT NEVER WENT RED. It asserts `isnt(md5,
+--    <B1's pin>)` under a deny-all probe, so a STALE literal there still satisfies it —
+--    for the wrong reason: it would then be proving the md5 differs from a value nothing
+--    produces any more, which is true no matter what the probe does. Leaving a green
+--    assertion behind a moved pin is how a vacuity control quietly stops controlling.
+-- ===========================================================================
+
 -- §A  FIX DETECTORS — observed RED before 20261003004700 / 20261003004710
 -- ===========================================================================
 
@@ -181,36 +215,36 @@ select test_helpers.claims_for('00000000-0000-0000-0000-0000000000e1', false, 'h
 set local role authenticated;
 select is(
   (select md5(coalesce(string_agg(id::text, ',' order by id), '')) from public.profiles),
-  'cded5a2d2aa30200459df9b1cf79fad8',
-  'B1 hospital_admin (hospitaladmin.a1, 23 rows) sees the IDENTICAL set of profiles.id -- ⭐ the arm that FALLS THROUGH the whole disjunction, i.e. the one the removal could actually have broken');
+  '67bfdf1fc6f19799353a5b7555298e0c',
+  'B1 hospital_admin (hospitaladmin.a1, 25 rows) sees the IDENTICAL set of profiles.id -- ⭐ the arm that FALLS THROUGH the whole disjunction, i.e. the one the removal could actually have broken');
 
 select test_helpers.claims_for('00000000-0000-0000-0000-0000000000b1', false, 'org_admin');
 set local role authenticated;
 select is(
   (select md5(coalesce(string_agg(id::text, ',' order by id), '')) from public.profiles),
-  '7954b32056d1c7103f45a8fa4dab6e81',
-  'B2 org_admin (orgadmin.a, 29 rows) sees the IDENTICAL set of profiles.id');
+  'aad18a567b61494e42a34bdb91e3a957',
+  'B2 org_admin (orgadmin.a, 32 rows) sees the IDENTICAL set of profiles.id');
 
 select test_helpers.claims_for('00000000-0000-0000-0000-0000000000b0', true, 'platform_admin');
 set local role authenticated;
 select is(
   (select md5(coalesce(string_agg(id::text, ',' order by id), '')) from public.profiles),
-  '8890048e7c71c8bc3f5f6fd36e94ba24',
-  'B3 ⭐ platform_admin (36 rows = all) sees the IDENTICAL set -- app.is_admin() is the ONE arm KEPT in profiles_admin_select, so this is the persona the edit could most plausibly break, and AE0.2''s control set has no platform_admin arm at all');
+  '783c2a1e28d44e12af028ca7d53aa36e',
+  'B3 ⭐ platform_admin (40 rows = all) sees the IDENTICAL set -- app.is_admin() is the ONE arm KEPT in profiles_admin_select, so this is the persona the edit could most plausibly break, and AE0.2''s control set has no platform_admin arm at all');
 
 select test_helpers.claims_for('00000000-0000-0000-0000-000000000002', false, 'staff_admin');
 set local role authenticated;
 select is(
   (select md5(coalesce(string_agg(id::text, ',' order by id), '')) from public.profiles),
-  '17d08eadd7e1d99df2dbd88f3ad5ffd5',
-  'B4 staff_admin (chefe.ccih, 10 rows) sees the IDENTICAL set of profiles.id');
+  '03904c72e766d0719e6e0d9e4ffcd7d9',
+  'B4 staff_admin (chefe.ccih, 12 rows) sees the IDENTICAL set of profiles.id');
 
 select test_helpers.claims_for('00000000-0000-0000-0000-000000000003', false, 'staff');
 set local role authenticated;
 select is(
   (select md5(coalesce(string_agg(id::text, ',' order by id), '')) from public.profiles),
-  '17d08eadd7e1d99df2dbd88f3ad5ffd5',
-  'B5 staff (staff1.ccih, 10 rows) sees the IDENTICAL set of profiles.id');
+  '03904c72e766d0719e6e0d9e4ffcd7d9',
+  'B5 staff (staff1.ccih, 12 rows) sees the IDENTICAL set of profiles.id');
 
 -- ⚠ …b2 holds TWO live roles, so the hat MUST be passed explicitly here or
 --    claims_for mints none and this measures the self-only arm.  See the header.
@@ -218,8 +252,8 @@ select test_helpers.claims_for('00000000-0000-0000-0000-0000000000b2', false, 'o
 set local role authenticated;
 select is(
   (select md5(coalesce(string_agg(id::text, ',' order by id), '')) from public.profiles),
-  '4acaab502f5a639f29a4e30a7c1b33f2',
-  'B6 a DIFFERENT-org org_admin (orgadmin.b, 5 rows) sees the IDENTICAL set -- the negative direction: the edit did not WIDEN anyone either');
+  '00e55169b95a4a99cb9f14c8b40cbccf',
+  'B6 a DIFFERENT-org org_admin (orgadmin.b, 6 rows) sees the IDENTICAL set -- the negative direction: the edit did not WIDEN anyone either');
 
 -- The wrap migration rewrites read policies on these tables too.  Arm-matched
 -- by construction: one fixed persona, the same one before and after (F-AE0-8).
@@ -244,8 +278,8 @@ select is(
 
 select is(
   (select count(*)::int from public.responses),
-  7,
-  'B8 responses: staff_admin still reads 7 of the 13 rows in the table -- a genuine differential, so the count is filtered, not merely non-zero');
+  8,
+  'B8 responses: staff_admin still reads 8 of the 14 rows in the table -- a genuine differential, so the count is filtered, not merely non-zero. ⚠ RE-PINNED 7/13 -> 8/14 at AE5 increment 1 (2026-09-13) after being observed RED: the AE5-STAFF row-1 targeted-version fixture adds ONE response to the CCIH chain, which staff_admin can see. ⭐ The DIFFERENTIAL, not the count, is the assertion -- 7<13 became 8<14, so the gap SURVIVED the fixture. Had the new row been visible to everyone the count would have moved without the gap moving, and that is the case this re-pin had to rule out.');
 
 select is(
   (select count(*)::int from public.answers),
@@ -267,8 +301,8 @@ select is(
                 (select count(*) from public.responses),
                 (select count(*) from public.answers),
                 (select count(*) from public.case_referral)]::int[]),
-  array[1, 13, 50, 4]::int[],
-  'B11 ⭐ the RLS-BYPASSED totals are 1 / 13 / 50 / 4 -- so B8 (7<13), B9 (26<50) and B10 (3<4) are real differentials, and B7 (1 of 1) demonstrably is NOT. The weakness is measured here instead of being unstated');
+  array[1, 14, 50, 4]::int[],
+  'B11 ⭐ the RLS-BYPASSED totals are 1 / 14 / 50 / 4 -- so B8 (8<14), B9 (26<50) and B10 (3<4) are real differentials, and B7 (1 of 1) demonstrably is NOT. The weakness is measured here instead of being unstated. ⚠ RE-PINNED 13 -> 14 at AE5 increment 1 (2026-09-13) after being observed RED, and ONLY the responses total moved: case_events 1, answers 50 and case_referral 4 were RE-MEASURED and are unchanged, so the fixture is attributable to one table rather than assumed to be.');
 
 
 -- ===========================================================================
@@ -381,7 +415,7 @@ select test_helpers.claims_for('00000000-0000-0000-0000-0000000000e1', false, 'h
 set local role authenticated;
 select isnt(
   (select md5(coalesce(string_agg(id::text, ',' order by id), '')) from public.profiles),
-  'cded5a2d2aa30200459df9b1cf79fad8',
+  '67bfdf1fc6f19799353a5b7555298e0c',
   'D1a ⭐ VACUITY CONTROL: with a live restrictive deny-all policy the hospital_admin md5 MOVES -- B1 is measuring the visible row set, not a constant');
 reset role;
 
@@ -391,7 +425,7 @@ select test_helpers.claims_for('00000000-0000-0000-0000-0000000000e1', false, 'h
 set local role authenticated;
 select is(
   (select md5(coalesce(string_agg(id::text, ',' order by id), '')) from public.profiles),
-  'cded5a2d2aa30200459df9b1cf79fad8',
+  '67bfdf1fc6f19799353a5b7555298e0c',
   'D1b the probe RESTORED the original md5 -- the control moved the value and put it back, so D1a''s failure was the probe and not drift');
 reset role;
 
