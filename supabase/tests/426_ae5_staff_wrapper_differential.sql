@@ -35,7 +35,7 @@
 -- move the wrapper, so the two are not one predicate wearing two names.
 
 begin;
-select plan(26);
+select plan(37);
 
 -- ---------------------------------------------------------------------------
 -- FIXTURE — every principal is a `staff` of CCIH and nothing else in that scope.
@@ -51,7 +51,23 @@ select
   '00000000-0000-0000-0000-0000000000d3'::uuid as st_suspended,  -- suspenso.temp — suspended
   'a5f00000-0000-0000-0000-0000000000e3'::uuid as st_pending,    -- gap.pending   — unconfirmed
   'a5f00000-0000-0000-0000-0000000000e4'::uuid as st_deactivated,-- gap.deactivated
-  '00000000-0000-0000-0000-000000000002'::uuid as sa_only;       -- chefe.ccih — staff_admin, NOT staff
+  '00000000-0000-0000-0000-000000000002'::uuid as sa_only,       -- chefe.ccih — staff_admin, NOT staff
+  -- ⭐ THE ONLY PRINCIPAL FOR WHICH "NO HAT" IS CONSTRUCTIBLE. `test_helpers.claims_for`
+  -- MINTS a hat implicitly when the principal holds exactly ONE role type, so for every
+  -- single-role persona `active_role()` comes back non-null and the `absent` arm silently
+  -- measures a MATCHING hat instead. `staff1.qual.b` holds `staff` at Qualidade B AND
+  -- `staff_admin` at Farmácia B, so the mint does not fire (measured: uid set, hat NULL).
+  '00000000-0000-0000-0000-0000000000b3'::uuid as dual_hat,      -- staff + staff_admin
+  'c0000000-0000-0000-0000-0000000000c1'::uuid as dual_cid;      -- ...their `staff` commission
+
+-- ⛔ THE FIXTURE MUST BE READABLE BY THE ROLE THE ASSERTIONS RUN AS. §§ 4–5 read `f426` INLINE
+-- while `set local role service_role` is in force, and a temp table is owned by the session role,
+-- so without this the suite dies at the first such cell with `permission denied for table f426` —
+-- observed exactly that on the first post-cutover run. ⚠ `424` does not need it because it reads
+-- its fixture inside a plpgsql function, which runs as the owner; the difference is the read SITE,
+-- not the table. Granting it does not weaken any assertion: `f426` holds only literal ids that are
+-- already public knowledge in this suite's own source.
+grant select on f426 to service_role;
 
 -- The restricted legacy predicate, as a function so both sides are written once.
 -- ⛔ `m.role = 'staff'` is the restriction; `app.is_active` is the level-matching conjunct above.
@@ -65,6 +81,13 @@ returns boolean language sql stable as $$
        and (m.expires_at is null or m.expires_at > now())
   );
 $$;
+-- ⛔ Same reason as the `f426` grant above, and it is the SECOND half of the same mistake: the
+-- comparison cells call this helper INSIDE `set local role service_role`, and a `pg_temp` function
+-- is owned by the session role like the temp table is. Measured: without it the suite dies at
+-- § 4.3 with `permission denied for function legacy_staff_at`. ⚠ Granting a helper EXECUTE does not
+-- widen what it can see — it is `stable` and reads `public.memberships`, which RLS still governs
+-- for whatever role calls it.
+grant execute on function pg_temp.legacy_staff_at(uuid, uuid) to service_role;
 
 -- ===========================================================================
 -- § 0  FIXTURE CONTROLS — the population is non-empty and is what it claims.
@@ -172,6 +195,31 @@ select is(pg_temp.legacy_staff_at((select ccih from f426), (select st_pending fr
   '3.4b principalState=pending (gap.pending): the RESTRICTED LEGACY predicate also grants.');
 
 -- ===========================================================================
+-- § 3.5 ⭐⭐ THE GRANT THE MIGRATION DELIBERATELY WITHHELD, PINNED AS A FACT.
+--
+-- ⛔ THIS IS WHY §§ 4–5 CALL THE WRAPPER AS `service_role` AND NOT AS `authenticated`, and the
+-- reason is a ruling, not a convenience. `20261003007460` grants EXECUTE to `service_role` only:
+-- adding `authenticated` would put two new `prosecdef` functions inside the BUDGET-ANCHOR
+-- privilege ceiling (gate 15), which needs a PO ruling, so ADR 0211 defers it to T7.
+-- ⚠ MEASURED, NOT ASSUMED: the first post-cutover run of this suite died with `permission denied
+-- for function is_commission_staff_of` — the suite had been written against the grant it does not
+-- have. The honest repair is to assert the ABSENCE and then call it as a role that may, never to
+-- widen the grant so the suite goes green: that would move a privilege ceiling to satisfy a test.
+-- ⭐ A SECURITY DEFINER wrapper's answer does not depend on the CALLER's role — `auth.uid()` and
+-- `app.active_role()` come from the JWT claims, which `claims_for` sets identically under either
+-- role (measured). So the hat cells below lose nothing by running as `service_role`.
+-- ⇒ WHEN T7 GRANTS `authenticated`, THESE TWO CELLS GO RED and must be re-ruled, not deleted.
+-- ===========================================================================
+select is(has_function_privilege('authenticated', 'app.is_commission_staff_of(uuid)', 'execute'),
+  false,
+  '3.5a `authenticated` CANNOT execute the SELF wrapper — the grant is deferred to T7 pending the '
+  'BUDGET-ANCHOR ruling (ADR 0211). ⛔ Goes RED the day T7 grants it, on purpose.');
+select is(has_function_privilege('authenticated', 'app.is_commission_staff_of_for(uuid, uuid)', 'execute'),
+  false,
+  '3.5b ...and neither can it execute the `_for` wrapper. Both stated, because a grant added to '
+  'one of a pair is exactly the asymmetry a single-sided assertion would miss.');
+
+-- ===========================================================================
 -- § 4  A1 — THE HAT, BOTH POLARITIES, UNDER ALL THREE CONTEXTS.
 --
 -- ⛔ ONE HAT PROVES ONE POLARITY ONLY. The SELF form must be measured under a matching hat, a
@@ -181,7 +229,7 @@ select is(pg_temp.legacy_staff_at((select ccih from f426), (select st_pending fr
 -- § 6A asymmetry sits between.
 -- ===========================================================================
 select test_helpers.claims_for('00000000-0000-0000-0000-00000000000a', false, 'staff');
-set local role authenticated;
+set local role service_role;
 select is(app.is_commission_staff_of((select ccih from f426)), true,
   '4.1a SELF · hat=staff (matching): the wrapper GRANTS.');
 select is(pg_temp.legacy_staff_at((select ccih from f426), (select st_active from f426)), true,
@@ -191,36 +239,59 @@ select is(pg_temp.legacy_staff_at((select ccih from f426), (select st_active fro
 reset role;
 
 select test_helpers.claims_for('00000000-0000-0000-0000-00000000000a', false, 'staff_admin');
-set local role authenticated;
+set local role service_role;
 select is(app.is_commission_staff_of((select ccih from f426)), false,
   '4.2a ⭐ SELF · hat=staff_admin (a role this principal does NOT hold at this scope): the wrapper '
   'DENIES. `authz.holds_role` binds the hat to the code asked about.');
 reset role;
 
-select test_helpers.claims_for('00000000-0000-0000-0000-00000000000a', false, null);
-set local role authenticated;
-select is(app.is_commission_staff_of((select ccih from f426)), false,
-  '4.3a ⭐ SELF · hat=ABSENT: the wrapper DENIES and fails CLOSED — `app.active_role()` is NULL and '
-  '`is not distinct from` makes the comparison false rather than unknown.');
+-- ⛔⛔ THE `absent` ARM RUNS ON A DUAL-ROLE PRINCIPAL, AND THE REASON IS A MEASURED TRAP.
+-- `test_helpers.claims_for(u, false, null)` does NOT mean "no hat": when `u` holds exactly ONE
+-- role type it MINTS that role as the hat. Measured on the first post-cutover run of this suite —
+-- § 4.3a asserted DENY for `staff4.ccih` and got GRANT, because the hat it believed absent was
+-- `staff`, i.e. the MATCHING hat. The cell was re-measuring § 4.1a under another name.
+-- ⭐ The differential generator already carries this fact as the named skip
+-- `absent_unreachable_for_single_role_principal`; this suite had to learn it independently, which
+-- is the argument for naming such a rule where BOTH readers can see it.
+select is((select app.active_role() from (select test_helpers.claims_for(
+             (select st_active from f426), false, null)) _), 'staff',
+  '4.3-control ⚠ THE TRAP, ASSERTED: asking for NO hat on a SINGLE-role principal yields the hat '
+  '`staff` anyway — `claims_for` mints it. ⛔ Without this cell the arm below would look like a '
+  'free choice of principal instead of the only one that can reach the state.');
+
+select test_helpers.claims_for((select dual_hat from f426), false, null);
+set local role service_role;
+select is(app.is_commission_staff_of((select dual_cid from f426)), false,
+  '4.3a ⭐ SELF · hat=ABSENT (and genuinely absent — a dual-role principal, so nothing is '
+  'minted): the wrapper DENIES and fails CLOSED. `app.active_role()` is NULL and `is not distinct '
+  'from` makes the comparison false rather than unknown.');
+reset role;
+
+select test_helpers.claims_for((select dual_hat from f426), false, 'staff');
+set local role service_role;
+select is(app.is_commission_staff_of((select dual_cid from f426)), true,
+  '4.3a-pos ⭐ POSITIVE CONTROL ON THE SAME PRINCIPAL: with the MATCHING hat the very same call '
+  'GRANTS. ⛔ Without it, § 4.3a''s DENY is equally explained by this principal simply having no '
+  '`staff` membership at that commission — an absence proving the wrong thing.');
 reset role;
 
 -- the `_for` form, hat-BLIND under all three.
 select test_helpers.claims_for('00000000-0000-0000-0000-000000000002', false, 'staff_admin');
-set local role authenticated;
+set local role service_role;
 select is(app.is_commission_staff_of_for((select ccih from f426), (select st_active from f426)), true,
   '4.4a THIRD-PARTY · caller hat=staff_admin: the wrapper GRANTS about `staff4`. The hat is the '
   'CALLER''s and the question is about someone else, so it is not consulted.');
 reset role;
 
 select test_helpers.claims_for('00000000-0000-0000-0000-000000000002', false, 'staff');
-set local role authenticated;
+set local role service_role;
 select is(app.is_commission_staff_of_for((select ccih from f426), (select st_active from f426)), true,
   '4.4b THIRD-PARTY · caller hat=staff: same answer. ⛔ Two hats, one answer — that is what '
   '"hat-blind" means, and a single hat could not have shown it.');
 reset role;
 
 select test_helpers.claims_for('00000000-0000-0000-0000-000000000002', false, null);
-set local role authenticated;
+set local role service_role;
 select is(app.is_commission_staff_of_for((select ccih from f426), (select st_active from f426)), true,
   '4.4c THIRD-PARTY · caller hat=ABSENT: STILL grants. ⚠ THIS LOOKS LIKE A BUG AND IS NOT — it is '
   'the § 6A asymmetry, ratified by ADR 0201 D1: a third-party question ignores the hat, a self '
