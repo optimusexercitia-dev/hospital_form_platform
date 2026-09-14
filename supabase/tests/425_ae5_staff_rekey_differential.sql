@@ -64,6 +64,33 @@
 -- `00000000-0000-0000-0000-00000000000a`) is the caller throughout; this file asks ONE question
 -- per site ("does a `staff` holder's own read move when the grant does"), not the fuller
 -- self/third-party/scope sweep 424 already owns for the 11 arm-3 classes.
+--
+-- ⭐⭐ NAMED EXPECTATIONS FOR STEP 4 (post-T7 re-run) — recorded here, NOT YET ASSERTED: T7's seed
+-- work (`docs/testing/ae5-staff-fixture-gaps.md` § 9) has not landed on this stack, so none of the
+-- three fixtures these expectations need exist yet. Naming them now, ahead of the fixtures, so
+-- step 4's re-run has a written target rather than a post-hoc rationalization of whatever comes
+-- back:
+--   (1) ROW 9's RESIDUAL ARM, TWO SUB-CASES, expected to diverge from each other post-T7:
+--       (a) a principal who ALSO holds a `case_access_grants` row (`read_case_deliberation`) on
+--           the case, independent of commission membership — deleting `staff`'s
+--           `commission.cases.deliberation.read` grant is expected to STILL READ GRANTED for this
+--           principal (`residualLegacyAuthority`, kept under L17): the case grant is a SEPARATE,
+--           un-re-keyed authority, so this coordinate stays "no movement" even after T7, and must
+--           NOT be folded into §3.2's blanket "everything denies post-T7" expectation.
+--       (b) via `app._case_caps`'s S5 arm, a plain commission MEMBER who holds NO case grant —
+--           deleting the SAME row 9 permission is expected to DENY post-T7 (backend's ruling L20,
+--           sibling to (a)): the membership-path arm IS re-keyed, so (a) and (b) are two DIFFERENT
+--           principals at the SAME site expected to move in OPPOSITE directions after the SAME
+--           deletion — a single aggregate "did row 9 move" check would average them into nothing;
+--           step 4 must keep them as separate probes.
+--   (2) `public.meeting_cases.meeting_cases_select` (the `commission.meetings.cases.shell.read`
+--       site) gains an ADDED CONJUNCT under T7: deleting THIS code's `staff` grant is expected to
+--       DENY the shell read, while `app.can_reach_meeting` (a DIFFERENT code,
+--       `commission.meetings.read`) on the SAME underlying meeting stays GRANTED — the two codes'
+--       signatures are expected to diverge at a shared resource, which is a feature of the re-key
+--       (each site consults only its OWN code), not a contradiction to reconcile.
+-- ⛔ Do not implement (1)/(2) as assertions before the fixtures exist (T7's own seed work, § 9) —
+-- this block is a target for step 4's author to check against, never a claim about today's stack.
 
 begin;
 select plan(18);
@@ -241,7 +268,7 @@ select is((select count(*)::int from f425_sites where kind = 'ts'), 1,
 create or replace function pg_temp.site_signature(p_code text, p_kind text, p_site text)
 returns text language plpgsql stable as $sig$
 declare
-  r record; v_table text; v_result text;
+  r record; v_table text; v_result text; v_sqlstate text;
 begin
   select * into r from f425 limit 1;
   if p_kind = 'ts' then
@@ -258,57 +285,91 @@ begin
       return null;
     end if;
     v_table := regexp_replace(p_site, '\.[^.]+$', ''); -- strip the trailing .policyname
-    execute format('select count(*)::text from %s', v_table) into v_result;
+    begin
+      execute format('select count(*)::text from %s', v_table) into v_result;
+    exception when others then
+      get stacked diagnostics v_sqlstate = returned_sqlstate;
+      return 'RAISE:' || v_sqlstate;
+    end;
     return v_result;
   end if;
-  -- DEFINER / registry sites: dispatch by function name (site carries no descriptive suffix here
-  -- — f425_sites stores the bare qualified name for every function/registry row).
-  case p_site
-    when 'app.can_read_action_item' then
-      select app.can_read_action_item((select action_item_id from f425r), r.staff_uid)::text into v_result;
-    when 'app.can_reach_meeting' then
-      select app.can_reach_meeting((select meeting_id from f425r), r.staff_uid)::text into v_result;
-    when 'app.can_sign_meeting' then
-      select app.can_sign_meeting((select attendee_id from f425r), r.staff_uid)::text into v_result;
-    when 'app._case_caps' then
-      select app._case_caps((select case_id from f425r), r.staff_uid)::text into v_result;
-    when 'app.can_read_capa' then
-      select app.can_read_capa((select capa_id from f425r), r.staff_uid)::text into v_result;
-    when 'app.can_read_document' then
-      select app.can_read_document((select document_core_id from f425r), r.staff_uid)::text into v_result;
-    when 'app.can_read_document_of_version' then
-      select app.can_read_document_of_version((select document_version_id from f425r), r.staff_uid)::text into v_result;
-    when 'app.can_read_event' then
-      select app.can_read_event((select event_id from f425r), r.staff_uid)::text into v_result;
-    when 'app.can_read_referral_internal_notes' then
-      select app.can_read_referral_internal_notes((select referral_id from f425r), r.staff_uid)::text into v_result;
-    when 'app.can_read_referral_metadata' then
-      select app.can_read_referral_metadata((select referral_id from f425r), r.staff_uid)::text into v_result;
-    when 'public.indicator_series' then
-      select count(*)::text from public.indicator_series((select indicator_id from f425r)) into v_result;
-    when 'public.list_commission_documents' then
-      select count(*)::text from public.list_commission_documents((select ccih_cid from f425)) into v_result;
-    when 'public.documents_due_for_review' then
-      select count(*)::text from public.documents_due_for_review((select ccih_cid from f425)) into v_result;
-    when 'public.meeting_cadence_status' then
-      select public.meeting_cadence_status((select ccih_cid from f425))::text into v_result;
-    when 'public.suggest_carry_forward' then
-      select public.suggest_carry_forward((select ccih_cid from f425))::text into v_result;
-    when 'app._audit_access_authorized' then
-      if p_code = 'commission.meetings.read' then
-        select app._audit_access_authorized('meeting.viewed', (select meeting_id from f425r), (select ccih_cid from f425))::text into v_result;
-      elsif p_code = 'commission.referrals.metadata.read' then
-        select app._audit_access_authorized('referral.case_access_summary_viewed', (select referral_id from f425r), (select ccih_cid from f425))::text into v_result;
-      end if;
-    -- NOT live-probed this round (see header): the 5 volatile writers + the 4 fixture-gapped reads.
-    when 'public.cast_case_vote', 'public.create_referral_internal_note', 'public.notify_safety_event',
-         'public.get_referral_case_access_summary', 'public.get_standard_assessment',
-         'public.readiness_evidence', 'public.readiness_report', 'app.can_read_referral_internal_note',
-         'public.sign_meeting' then
-      return null;
-    else
-      raise exception 'pg_temp.site_signature: unhandled site %', p_site;
-  end case;
+  -- Unhandled-site guard stays OUTSIDE the trap below: a dispatch bug of MINE must still abort
+  -- the file loudly, never be swallowed as if it were a door's own denial.
+  if p_site not in (
+      'app.can_read_action_item','app.can_reach_meeting','app.can_sign_meeting','app._case_caps',
+      'app.can_read_capa','app.can_read_document','app.can_read_document_of_version','app.can_read_event',
+      'app.can_read_referral_internal_notes','app.can_read_referral_metadata','public.indicator_series',
+      'public.list_commission_documents','public.documents_due_for_review','public.meeting_cadence_status',
+      'public.suggest_carry_forward','app._audit_access_authorized',
+      'public.cast_case_vote','public.create_referral_internal_note','public.notify_safety_event',
+      'public.get_referral_case_access_summary','public.get_standard_assessment',
+      'public.readiness_evidence','public.readiness_report','app.can_read_referral_internal_note',
+      'public.sign_meeting') then
+    raise exception 'pg_temp.site_signature: unhandled site %', p_site;
+  end if;
+  -- NOT live-probed this round (see header): the 5 volatile writers + the 4 fixture-gapped reads.
+  if p_site in ('public.cast_case_vote', 'public.create_referral_internal_note', 'public.notify_safety_event',
+                'public.get_referral_case_access_summary', 'public.get_standard_assessment',
+                'public.readiness_evidence', 'public.readiness_report', 'app.can_read_referral_internal_note',
+                'public.sign_meeting') then
+    return null;
+  end if;
+  -- ⭐⭐ THE TRAP. Post-T7, a DEFINER site's gate can RAISE where pre-T7 it only returned a falsy
+  -- value — `public.meeting_cadence_status` is the measured case: its raise path (`HC0K2`) always
+  -- existed for a non-member, but this harness calls it AS a member whose grant just got deleted,
+  -- and once the site is re-keyed that member starts hitting the raise path instead of a plain
+  -- `false`. An untrapped raise here doesn't fail ONE assertion — it aborts the whole file before
+  -- §3.1/3.2 ever run (LEARN-083's shape: a verdict lost, never earned). So EVERY DEFINER/registry
+  -- call is trapped, and a raise becomes a SIGNATURE, not a suite failure: `'RAISE:' || SQLSTATE`.
+  -- This keeps the discrimination half honest under equality-comparison, unaltered: a site whose
+  -- signature is `RAISE:xxxxx` both before and after the deletion is still "no movement" (same
+  -- string, same equality test); one that goes from a real value to a `RAISE:xxxxx` (or between
+  -- two DIFFERENT SQLSTATEs) is "movement" — exactly what §3.1/§3.2 already ask, needing no
+  -- change to their own predicates now that `pg_temp.sig_is_granted` also reads a `RAISE:%`
+  -- signature as denied (never as an unmatched, accidentally-"granted" string).
+  begin
+    case p_site
+      when 'app.can_read_action_item' then
+        select app.can_read_action_item((select action_item_id from f425r), r.staff_uid)::text into v_result;
+      when 'app.can_reach_meeting' then
+        select app.can_reach_meeting((select meeting_id from f425r), r.staff_uid)::text into v_result;
+      when 'app.can_sign_meeting' then
+        select app.can_sign_meeting((select attendee_id from f425r), r.staff_uid)::text into v_result;
+      when 'app._case_caps' then
+        select app._case_caps((select case_id from f425r), r.staff_uid)::text into v_result;
+      when 'app.can_read_capa' then
+        select app.can_read_capa((select capa_id from f425r), r.staff_uid)::text into v_result;
+      when 'app.can_read_document' then
+        select app.can_read_document((select document_core_id from f425r), r.staff_uid)::text into v_result;
+      when 'app.can_read_document_of_version' then
+        select app.can_read_document_of_version((select document_version_id from f425r), r.staff_uid)::text into v_result;
+      when 'app.can_read_event' then
+        select app.can_read_event((select event_id from f425r), r.staff_uid)::text into v_result;
+      when 'app.can_read_referral_internal_notes' then
+        select app.can_read_referral_internal_notes((select referral_id from f425r), r.staff_uid)::text into v_result;
+      when 'app.can_read_referral_metadata' then
+        select app.can_read_referral_metadata((select referral_id from f425r), r.staff_uid)::text into v_result;
+      when 'public.indicator_series' then
+        select count(*)::text from public.indicator_series((select indicator_id from f425r)) into v_result;
+      when 'public.list_commission_documents' then
+        select count(*)::text from public.list_commission_documents((select ccih_cid from f425)) into v_result;
+      when 'public.documents_due_for_review' then
+        select count(*)::text from public.documents_due_for_review((select ccih_cid from f425)) into v_result;
+      when 'public.meeting_cadence_status' then
+        select public.meeting_cadence_status((select ccih_cid from f425))::text into v_result;
+      when 'public.suggest_carry_forward' then
+        select public.suggest_carry_forward((select ccih_cid from f425))::text into v_result;
+      when 'app._audit_access_authorized' then
+        if p_code = 'commission.meetings.read' then
+          select app._audit_access_authorized('meeting.viewed', (select meeting_id from f425r), (select ccih_cid from f425))::text into v_result;
+        elsif p_code = 'commission.referrals.metadata.read' then
+          select app._audit_access_authorized('referral.case_access_summary_viewed', (select referral_id from f425r), (select ccih_cid from f425))::text into v_result;
+        end if;
+    end case;
+  exception when others then
+    get stacked diagnostics v_sqlstate = returned_sqlstate;
+    return 'RAISE:' || v_sqlstate;
+  end;
   return v_result;
 end;
 $sig$;
@@ -330,10 +391,14 @@ $cs$;
 -- of '2', a jsonb payload) as NOT granted — a wrong MATCHER that read like a live defect at 6 of
 -- the 19 sites 2.0 first failed on (three fixture-empty tables and two policy-type mismatches
 -- accounted for the other 13; see the session log).
+-- ⭐⭐ `RAISE:%` — a TRAPPED door exception (`pg_temp.site_signature`'s own trap) — is ALWAYS
+-- denied, checked BEFORE the policy branch's `::int` cast: a raise on a policy's `count(*)` probe
+-- is not a numeric string, and casting it would abort THIS function instead of reading as a deny.
 create or replace function pg_temp.sig_is_granted(p_kind text, p_sig text) returns boolean
 language sql immutable as $ig$
   select case
     when p_sig is null then null
+    when p_sig like 'RAISE:%' then false
     when p_kind = 'policy' then p_sig::int > 0
     else p_sig not in ('f', 'false', '0', '', '{}', 'null')
   end;
