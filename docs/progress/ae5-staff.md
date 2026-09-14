@@ -1946,3 +1946,25 @@ themselves). The census stays as the record of the nine. ⛔ Not a coverage redu
 worded would have skipped ~half their cells; the amendment restores 403's coverage on those rows.
 Tester now re-cuts `424` to the loop backend published (columns `legacy_sql` · `catalog_sql` ·
 `legacy_fixture_id` · `keying` after `member_gate_arm, legacy_door`) — one authorized run.
+
+### 2026-09-14 — the loop-shaped `424` ran once and caught two VECTOR defects (lead)
+
+Tester re-cut `424` per L9′/L10 (committed by the lead): §§ 3–4 are the execute-and-compare loop,
+every door/dispatch/fallback helper deleted, § 2.3 measured at 12 classes, new **§ 2.6
+fixture-existence control** (RLS-bypassed presence of `legacy_fixture_id` before a `false` is
+trusted), plan(22). Run 1 of 2: RED on tests 6, 13, 14 — and the tester stopped at once because
+no line it owns can fix either finding:
+1. **A `gen_random_uuid()` id pinned into the vector.** `action_items.read`'s `legacy_fixture_id`
+   is `ac3f1301-…`, the id the committee-scope item had at GENERATION time; on a fresh reset it is
+   `df7de80e-…`. § 2.6 caught it directly ("NOT FOUND in public.action_items"). ⇒ the generator read
+   the catalog and pinned a non-deterministic id — every bound id must be a fixed literal from
+   `seed.sql`/a migration, and the generator refuses any other (self-test: refused BY NAME).
+2. **Probes anchored to the CCIH resource regardless of the cell's `scope`.** For every arm-3 class
+   whose fixture lives only at CCIH, `legacy_sql` probes the CCIH row while `catalog_sql` checks the
+   cell's scope (Farmácia B for `foreign_org_commission`): legacy and catalog measure two different
+   resources by construction — 458/572 cells red, all `cross_org_actor`/`other_commission_holder`
+   off-CCIH cells. ⇒ each class needs a resource fixture at EACH scope the cell axis varies
+   (`own_commission` CCIH · `sibling_commission` Farmácia A · `foreign_org_commission` Farmácia B),
+   or a NAMED skip rule where a class has no resource at a scope — never a probe at the wrong scope.
+⭐ Both are exactly what L9′ was for: the suite no longer hides a vector defect behind its own
+dispatch, and the first run found two. Routed to backend (owns the stack).
