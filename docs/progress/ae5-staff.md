@@ -2328,13 +2328,15 @@ full `test:db` on green.
 
 Tester: floors re-derived from the vector first (3024 cells, 11 classes, 10 names); reset exit 0;
 `424-run5-truthtable-fix.log` `Files=2, Tests=24, Result: PASS`. `424` committed by path
-(`§ 2.6` on `probe_table`.`probe_column`) — ⚠ with a measurement that CONTRADICTED ITSELF one command apart: the lead's LF guard
-read **398 CRLF lines** and aborted the commit; the next command's byte count read **0** (399 lines,
-no CR at all) and the "normalisation" was a no-op. Not a CRLF catch — the tester's turn was still
-running on the SAME checkout and normalised the file between the two reads (its report "LF-confirmed
-(0 CRLF)" was true at ITS instant, mine at mine). Lesson-shaped: a shared tree gives two writers one
-file, and "measured at commit time" must mean the SAME command that stages — the guard and the
-`git add` now sit in one `&&` chain on one read. **Witness partial:** `pg_prove`'s summary prints no per-test `ok`
+(`§ 2.6` on `probe_table`.`probe_column`) — ⚠ the lead's LF guard read **398** and aborted the commit; the next command's byte count
+read **0** (399 lines, no CR). ⛔ CORRECTED LATER THE SAME DAY (T13 entry below): the guard
+`grep -c $'\r'` is BROKEN in the form the lead used it — INSIDE a `$( )` command substitution the
+`$'\r'` is mangled and the count equals the line count; the same grep run bare on a committed LF
+file reports 0, agreeing with the byte count — so the file was LF all along, the tester's
+"LF-confirmed" was right, and
+the lead's first explanation ("the tester normalised concurrently") was an inference about an
+event never measured. The instrument is now a byte count in Python, checked on a known-LF file
+before trusting any reading; the guard and the `git add` sit in one chain. **Witness partial:** `pg_prove`'s summary prints no per-test `ok`
 lines, so § 6.1 (red-on-delete) / § 6.2 (green-on-restore) are among the 24 passes but not yet
 QUOTED; the tester's attempt at a raw `DELETE` on the shared stack outside the suite's rollback was
 blocked by the sandbox — correctly — and re-done inside `begin … rollback` (count 1 → 0 → 1 live).
@@ -2448,3 +2450,28 @@ rulings and L11; shown able to fail by § 6.1/6.2/6.2b quoted above; PA-F8 dispo
 STAFF-2 (the hat gate) = (b) named exception carried by ADR 0211 D2 for the PO at the T6 gate, the
 inactive role-free disjuncts = (b) with owner + fix unit `AE5-INACTIVE-DISJUNCT-GUARD` (bug row).
 Full-suite loop closed at iteration 2. Stack to backend for T6.
+
+### 2026-09-14 — T13 specs WRITTEN (tester) and committed by path; the lead's LF guard was a BROKEN INSTRUMENT (lead)
+
+Plan line re-verified first: `docs/plans/authz-evolution.md:999-1001` (moved from `:1092-1094`).
+`e2e/ae5-staff-landing.spec.ts` (3): the BUG-HAT-001 class for `staff`'s one scope-kind
+(commission-only per `ROLE_MANIFEST`, complementing `ae48-landing-by-scope-kind.spec.ts`'s
+`staff_admin` case); pending-only membership lands in its commission (`gap.pending`); deactivated →
+`/conta-inativa` (`requireUser`'s redirect, the real route). `e2e/ae5-staff-multi-commission.spec.ts`
+(2): `multi@test.local` via the real `/c` picker — CCIH unsectioned form to confirmation
+KEYBOARD-ONLY (CLAUDE.md § 8); Farmácia sectioned form, branch Não, to review (Form B's sign-off gate
+blocks a plain `staff`'s submit, per `phase5-wizard.spec.ts`'s note). Typecheck 0, eslint 0/0, no
+persona crosses orgs, assertions on text/heading/URL only, no fixture gap.
+
+⛔ **Instrument finding, the lead's own:** the LF guard `grep -c $'\r'` reported **273 of 273
+lines** for these two files while a byte count reported **0**. Proven on a committed, known-LF file
+(`00_setup.sql`, 634 lines): bare `grep -c $'\r'` → 0, byte count → 0 — the grep is sound; what is
+broken is the FORM the lead used every time, `CR=$(… grep -c $'\r' …)`: inside a `$( )` substitution
+the `$'\r'` is mangled and the count equals the line count. Every "CRLF" reading this unit's lead
+made that way (424's 398 of 399, today's 273 of 273) was the line count; every tester "LF-confirmed"
+was true. The earlier record entry blaming a concurrent normalisation is
+corrected in place above; the lead's memory note is rewritten. The rule that survives: a guard is
+proven on a known input BEFORE its contradictory reading is believed (a negative control for the
+instrument), and the byte count is the guard. Not yet RUN — the stack is backend's for T6 (its step 2
+visible in the tree: the cutover migration placed, 426 modified); the run (`e2e:prod` once) is
+AC-10's.
