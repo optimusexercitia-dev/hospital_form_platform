@@ -98,7 +98,7 @@ of the tree, GREEN with it in; the two wrappers `app.is_commission_staff_of(_for
 stable, `search_path` empty, no PUBLIC and no `authenticated`; `staff` → `authoritative` (1 flipped,
 0 left); `authz.has_permission` now grants a `staff` holder, 80/80 pairs agreeing with the
 candidate. `424`'s state control is being re-pointed under L12 (tester, scoped run). **AC-6 waits on
-the PO** (R-5 below). `backend` is drafting the T7 re-key plan for full review — no SQL until acked.
+the PO** (R-5 below). T7 plan posted (`5d7d3540`) and reviewed: CHANGES REQUESTED on B1 (§ 8.3's wiring of the zero-caller case door) and B2 (the gate-15 count re-derived for the layer-3 doors) — no SQL until acked; `tester` writing `425` for step 1's no-movement witness.
 T13's specs are committed, unrun until AC-10. `npm run lint` exit 0 at HEAD.
 
 ### Next
@@ -109,7 +109,7 @@ T8 census/arms → T10 seam slice → AC-10 gate → QA → PO approval → Reco
 ### Blockers
 
 **Two PO rulings (record § Open rulings):** **R-5** ADR 0211 D2 review — AC-6 ticks on acceptance;
-**R-4** `authenticated` EXECUTE on the two wrappers vs gate 15's ceiling — T7's shape turns on it.
+**R-4** gate 15's ceiling vs T7's N new layer-3 doors (REFRAMED at the T7 plan review: the wrappers themselves likely need no grant; backend measuring N and AE4's precedent).
 ⚠ A second Supabase stack (`*_escalume`) runs on this host and made two resets
 fail at the CLI's post-reset step; AC-10's runs need it stopped or the reset re-verified. ⛔ ADR 0211 D2 is reviewed by the PO at the T6 gate (put in front of the PO on
 2026-09-14 as readable now). ⚠ Owed to T7/T13, not blocking: `app.can_reach_case_on_member_surface`

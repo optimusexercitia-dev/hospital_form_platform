@@ -1113,11 +1113,15 @@ NOTICED = evidence; CARRIED = a step.
   PA-F8 divergence to be dispositioned (a)/(b)/(c) **before the matrix is approved** (plan
   `:942-950`). Planner's recommendation: (b), a named compatibility exception with owner + expiry.
 - **R-3 — the matrix itself** (AC-1) and the deny-class values (AC-2), on T1/T2's delivery.
-- **R-4 — `authenticated` EXECUTE on `app.is_commission_staff_of(_for)`.** Opened 2026-09-14 at T6:
-  the cutover granted postgres + service_role only; T7's re-keyed policy doors run as `authenticated`
-  and need EXECUTE to reach the wrapper; gate 15 caps the `authenticated`-executable population.
-  Backend's T7 plan counts the sites that turn on it. ⛔ PO: raise the ceiling for these two, or hold
-  it and have T7 route through an existing `authenticated`-executable door.
+- **R-4 — gate 15's ceiling and T7's new doors.** Opened 2026-09-14 at T6 as "`authenticated`
+  EXECUTE on the two wrappers"; **REFRAMED the same day at the T7 plan review (B2):** policies are
+  re-keyed onto layer-3 `app.can_<code>` DEFINER doors that call the wrapper inside their bodies, so
+  the wrapper itself likely needs NO `authenticated` grant — what gate 15 must absorb is the N new
+  layer-3 doors, the same shape AE4's re-key already passed through it. Backend is measuring N, the
+  AE4 precedent (script, count, ceiling) and whether any site must call the wrapper from a policy
+  directly. ⛔ PO: rule once that measurement is in the record — (a) raise gate 15's ceiling by N
+  under AE4's precedent, or (b) hold it and name what T7 leaves un-re-keyed. If the direct-call
+  count is zero, the original two-wrapper question is moot and is closed as such.
 - **R-5 — ADR 0211 D2 review.** The D2 proof is in the record's T6 entry (2026-09-14): snapshot/assert
   of the four properties, the restricted differential `426` observed RED then GREEN, the
   PA-F8-STAFF-2 condition. ⛔ PO: accept ADR 0211 (proposed → accepted) or change it; AC-6 ticks on
@@ -2711,3 +2715,31 @@ re-keyed row would have gone dark for exactly one commit.
 
 ⚠ **Open, and not mine to decide:** the `authenticated` EXECUTE ruling gates how much of step 3 is
 possible at all (42 of 69 sites), so I would want it before writing SQL rather than after.
+
+### 2026-09-14 — T7 plan reviewed (lead; full plan review): CHANGES REQUESTED on two points, R-4 REFRAMED
+
+Plan `5d7d3540`. Accepted as written: (a) the site list from the comment-stripped catalog (89
+catalog-wide carrying the layer-1 gate; 69 declared for the 20 rows = 42 policy + 25 DEFINER + 1
+ts), (c) every field T7 edits shown EMITTED (nine manifest tables; L6 makes the flip survivable —
+§ 6.2 roots from `armInterface` before and `enforcementSites` after), (d) the seven-step red-first
+order with each witness named before its step, and the settle-then-measure catch (a catalog read
+46 s after a container restart returned the OPPOSITE answer; two equal `information_schema` counts
+now precede every measurement — lead's memory + LESSONS candidate).
+
+**B1 — (b) narrows an approval.** The plan says the re-key does NOTHING with
+`app.can_reach_case_on_member_surface`; the PO-approved matrix § 8.3 (`:961`) makes it row 9's
+re-key target AND a T7 work item to WIRE it at the four sites testing its bit inline
+(`_project_meeting_case`, `_project_meeting_agenda_item`, `get_reserved_session_items`,
+`resolve_document_version_bytes`), its stale comment corrected. A3's intent is that a designated
+authority HAS callers, not that doors without callers stay untouched. Required: the wiring planned,
+census 0 → 4 callers, or a measured reason to take § 8.3 back to the PO.
+
+**B2 — the gate-15 count is derived for the wrong caller.** (a) counts policies calling the
+wrapper DIRECTLY; T7's design re-keys policies onto layer-3 `app.can_<code>` DEFINER doors that
+call the wrapper INSIDE their bodies, where the privilege check is against the owner — so the
+wrapper needs no `authenticated` EXECUTE; the N new layer-3 doors do, exactly the shape AE4's
+re-key put through gate 15. Required: N and the policy sites per door; how gate 15 absorbed AE4's
+N (script + current count/ceiling, quoted); whether ANY site must call the wrapper from a policy
+directly (zero ⇒ R-4 as posed is moot). **R-4 reframed under § Open rulings accordingly** — the
+PO is not asked the wrong question. SQL waits for backend's answer and for R-4/R-5. T12 (`425`)
+dispatched to the tester for step 1's no-movement witness — independent of both.
