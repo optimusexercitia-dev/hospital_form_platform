@@ -518,6 +518,36 @@ ARM3_DIVERGENCE_VALUES = {
         'on this one name, and --self-test SYNTHESISES a cell carrying it, so the arm that refuses '
         'a filed defect laundered into an approved legacy GRANT stays exercised against a defect '
         'nobody has filed yet. Deleting this entry disarms that detector',
+    'arm3:divergent-approved:role-free-disjunct-ignores-principal-state':
+        'PO-RULED (P1, 2026-09-14, "accept the exception"): the limb-(b) ROLE-FREE DISJUNCT of '
+        'this row grants any AUTHENTICATED caller and carries NO `app.is_active` term, so the '
+        'LEGACY DOOR GRANTS WHERE THE CATALOG DENIES ON PRINCIPAL STATE. Measured on all five '
+        'limb-(b) rows: `accreditation_frameworks_select` (`owner_commission_id IS NULL`, a '
+        'PUBLIC arm), `profiles_select_self_or_admin` (the `id = auth.uid()` self leg), '
+        '`app.can_access_targeted_version`, `app.is_document_approver_of`, and '
+        '`action_items_select`\'s assignees_only leg. \u26d4 THE APPROVAL IS THAT THE DOOR '
+        'BEHAVES THIS WAY TODAY, NOT THAT IT SHOULD: the behaviour is filed as '
+        'BUG-AE5-STAFF-INACTIVE-BYPASSES-ROLE-FREE-DISJUNCTS (critical, open) and its fix is '
+        'unit AE5-INACTIVE-DISJUNCT-GUARD, expiry = after this increment\'s gate (PA-F8 '
+        'disposition (b), owner backend). \u21d2 THIS LABEL IS EXPECTED TO BE RETIRED by that '
+        'unit, and the day it is, these cells lose their divergence and `expected_legacy_granted` '
+        'returns to `expected_granted`. A label that outlives its bug is a pinned defect. '
+        '\u2b50 It is the FIRST approved divergence where the legacy side is wider than the '
+        'catalog for a reason the catalog COULD have caught \u2014 the other two members are '
+        'approved REACH, this one is approved BLINDNESS',
+    'arm3:divergent-narrower:door-conjunct-unmet':
+        'PO-RULED (P2, 2026-09-14, "intended composition"): at `memberGateArm = conjunct_unmet` '
+        'the door\'s further conjunct is FALSE by the coordinate\'s own definition, so the '
+        'LEGACY DOOR DENIES a principal the CATALOG GRANTS. \u26d4 THE NARROWER DIRECTION, and '
+        'the first one this file has ever carried: `expected_legacy_granted` is FALSE while '
+        '`expected_granted` stays TRUE. \u26a0 NOT A DEFECT AND NO BUG IS FILED \u2014 a door '
+        'denying on its own documented conjunct is the door working; the divergence is that a '
+        'permission code cannot carry a non-permission term, which is what the memberGateArm axis '
+        'exists to record. Mechanisms, one per row: meetings `visibility_policy`/attendee \u00b7 '
+        '`attendance` + `status=in_signature` \u00b7 `explicit_grants_only` \u00b7 '
+        '`visibility_scope` \u00b7 the ethics-details guard \u00b7 `capa_plan.source` \u00b7 '
+        'the co-member leg. \u26d4 NO conjunct is promoted to a catalog axis value by this '
+        'ruling (matrix \u00a7 11 item 5\'s `in_signature` alternative stays unexercised)',
 }
 
 # ── THE SECOND EXPECTED VALUE (AE5-MATRIX-ARM3-CELLS increment 3) ────────────────────────
@@ -549,7 +579,15 @@ ARM3_DEFECT_PREFIX = 'arm3:divergent-defective:'
 # The label the door-level hat term puts on the 18 cells it pre-empts (ADR 0209 D1/D5).
 ARM3_PREEMPTED = 'arm3:pre-empted:door-hat-term'
 ARM3_DIVERGENT_APPROVED = ('arm3:divergent-approved:not-a-holder',
-                           'arm3:divergent-approved:cross-org')
+                           'arm3:divergent-approved:cross-org',
+                           'arm3:divergent-approved:role-free-disjunct-ignores-principal-state')
+# \u2b50\u2b50 THE NARROWER FAMILY, AND THE PREFIX IS THE WHOLE DESIGN (P2). Both existing
+# families mean THE LEGACY DOOR GRANTS \u2014 `divergent-approved:` an approved grant,
+# `divergent-defective:` a filed one \u2014 and arm10 is built on that assumption: arm10(a)
+# refuses an approved-labelled cell that expects a legacy DENY, which is exactly what these cells
+# must expect. \u26d4 Reusing either family would make arm10(a) fire on correct cells, and the
+# repair a later hand reaches for is to WEAKEN arm10(a).
+ARM3_NARROWER_CONJUNCT_UNMET = 'arm3:divergent-narrower:door-conjunct-unmet'
 
 
 def expected_legacy(exp, div):
@@ -578,6 +616,16 @@ def expected_legacy(exp, div):
        "this column is just a copy of expected_granted" shape entirely, and no separate
        copy-detector is written: an arm that cannot fire on its own is the vacuity this file
        exists to refuse."""
+    # \u26d4\u26d4 THE NARROWER DIRECTION, AND THIS FUNCTION HAD NO PATH FOR IT (P2). Every
+    # branch below returns True or falls through to `exp`, because until AE5 increment 1 every
+    # ruled divergence was the legacy door being WIDER than the catalog. `conjunct_unmet` is the
+    # first that is NARROWER: the door's own further conjunct is false, so it denies a principal
+    # the catalog grants. Returning `exp` there would assert the door GRANTS, which is the one
+    # thing the coordinate means it does not. \u26a0 It is placed FIRST so that it cannot be
+    # reached only when the approved tuple happens to miss \u2014 the two families are disjoint
+    # by construction and this ordering states that rather than relying on it.
+    if div == ARM3_NARROWER_CONJUNCT_UNMET:
+        return False
     if div in ARM3_DIVERGENT_APPROVED:
         return True
     return exp
@@ -591,9 +639,29 @@ def expected_legacy(exp, div):
 NOT_ARM3_COVERAGE = ('arm3:not-in-gate', 'arm3:blocked:principal-state')
 
 
-def arm3_divergence(klass, persona, ctx, scope, state, selfcheck, exp, src, reach):
+def arm3_divergence(klass, persona, ctx, scope, state, selfcheck, exp, src, reach, gate):
     """Transcribed from the arm-3 derivation, in PRECEDENCE ORDER. Each branch names the catalog
        fact it stands for; none of them re-derives `expected_granted`."""
+    # \u2b50\u2b50 THE TWO memberGateArm BRANCHES ARE TESTED BEFORE THE `klass != ARM3_GATE`
+    # SHORT-CIRCUIT, AND THAT PLACEMENT IS LOAD-BEARING. Every `staff` representative returns
+    # `arm3:not-in-gate` at that line, so a branch placed after it could never be reached: the
+    # labels would be declared, carried by ZERO cells, and arm8's single-valued check would be the
+    # only thing that noticed. \u26a0 STAFF_ADMIN IS UNTOUCHED BY BOTH: its cells all sit at the
+    # inert gate value, so neither predicate can match and its 1728 rows stay byte-identical.
+    #
+    # (P2) The door's further conjunct is FALSE and the catalog GRANTS \u2014 the legacy door is
+    # NARROWER. \u26d4 `and exp` is the predicate, not a convenience: where the catalog already
+    # denies there is nothing to diverge from, and labelling those cells would claim a divergence
+    # in a place both sides agree.
+    if gate == 'conjunct_unmet' and exp:
+        return ARM3_NARROWER_CONJUNCT_UNMET
+    # (P1) The role-free disjunct grants any authenticated caller and the catalog DENIES \u2014
+    # the legacy door is WIDER. \u26d4 `and not exp` is likewise the whole predicate: where the
+    # catalog already grants there is no divergence to approve, and labelling those cells would
+    # make `expected_legacy_granted` agree with `expected_granted` UNDER a divergent label, which
+    # reads as an approved divergence that is not one.
+    if gate == 'disjunct_present' and not exp:
+        return 'arm3:divergent-approved:role-free-disjunct-ignores-principal-state'
     if klass != ARM3_GATE:
         return 'arm3:not-in-gate'
 
@@ -789,7 +857,7 @@ def build(personas, contexts, scopes, states, reaches, reps_by_role, exclusions,
                                             'self' if selfcheck else 'third_party', reach]
                                            + ([gate] if gate != MEMBER_GATE_INERT else []))
                             div = arm3_divergence(klass, persona, ctx, scope, state,
-                                                  selfcheck, exp, src, reach)
+                                                  selfcheck, exp, src, reach, gate)
                             # ⛔ APPENDED AS THE LAST COLUMN, NOT INSERTED BESIDE `exp`. Every
                             # arm above and every --self-test fixture below addresses cells BY
                             # INDEX (c[9] is the expected value, c[12] the label); inserting a
@@ -1044,8 +1112,23 @@ def coverage(cells, skipped, reps_by_role, disposition=None, exclusions=None, ax
                  'ONE thing R2 forbids. A defect is carried as a head-on assertion in 403 § 7 '
                  'plus, while it stands, a carve-out — never as an expected value (first: %s)'
                  % (len(_approved_defect), ARM3_DEFECT_PREFIX, _approved_defect[0][0]))
+    # \u2b50 (d) THE NARROWER LABEL'S OWN CONTRADICTION. (a)/(b)/(c) all assume the WIDE
+    # direction, so none of them can see a narrower-labelled cell that expects a legacy GRANT.
+    # \u26d4 The real vector carries ZERO such cells by construction, so --self-test SYNTHESISES
+    # one: a selection-based fixture would have nothing to select, exactly as for the defective
+    # family.
+    _narrower_granting = [c for c in cells if c[12] == ARM3_NARROWER_CONJUNCT_UNMET and c[13]]
+    if _narrower_granting:
+        f.append('arm10: (d) %d cell(s) labelled `%s` expect the legacy door to GRANT — the '
+                 'label means the door DENIES on its own conjunct, so a granting expectation '
+                 'there is the label contradicting itself (first: %s)'
+                 % (len(_narrower_granting), ARM3_NARROWER_CONJUNCT_UNMET,
+                    _narrower_granting[0][0]))
+    # \u26a0 (c) MUST EXEMPT THE NARROWER FAMILY OR EVERY ONE OF ITS CELLS READS AS AN
+    # UNATTRIBUTED FLIP: they flip by design, and the label IS the attribution.
     _unattributed = [c for c in cells
                      if c[13] != c[9] and c[12] not in ARM3_DIVERGENT_APPROVED
+                     and c[12] != ARM3_NARROWER_CONJUNCT_UNMET
                      and not c[12].startswith(ARM3_DEFECT_PREFIX)]
     if _unattributed:
         f.append('arm10: %d cell(s) expect the legacy door to disagree with the matrix WITHOUT a '
@@ -1186,6 +1269,27 @@ if '--self-test' in sys.argv:
         out[i] = out[i][:12] + (ARM3_PINNED_DEFECT, True) + out[i][14:]
         return out
 
+    def _synth_narrower():
+        """base_cells with ONE cell RE-LABELLED into the narrower family AND given a legacy
+           GRANT — the exact shape arm10(d) exists to refuse.
+
+           \u26d4\u26d4 SYNTHESISED, NOT SELECTED, for _synth_defect's reason one step further
+           on: every real narrower-labelled cell expects a legacy DENY, because expected_legacy()
+           returns False for the label unconditionally. So there is NO cell to select that would
+           exercise (d), and a selection fixture would raise "no candidate" — whereupon the
+           obvious repair is to delete the fixture and disarm the only arm that refuses a
+           narrower label laundered into a GRANT.
+           \u2b50 DISCRIMINATION HALF: the real-spec run at the end of --self-test proves (d) is
+           QUIET on the true cell set; this proves it is LOUD. One without the other is half a
+           control."""
+        out = list(base_cells)
+        i = next((j for j, c in enumerate(out) if c[12] != ARM3_NARROWER_CONJUNCT_UNMET), None)
+        assert i is not None, ('every cell already carries the narrower label — the synthesised '
+                               'arm10(d) fixture would perturb nothing')
+        # \u26d4 TAIL PRESERVED — see _one. Columns 14+ (`role`, `gate`) must survive.
+        out[i] = out[i][:12] + (ARM3_NARROWER_CONJUNCT_UNMET, True) + out[i][14:]
+        return out
+
     # ⛔ arm12's FIXTURES PERTURB THE MANIFEST AND NOTHING ELSE, exactly as arm9's do: the arm
     # exists because the value set and the door are the MATRIX's claim, not this file's, so the
     # mutation has to be to the authority.
@@ -1284,6 +1388,9 @@ if '--self-test' in sys.argv:
         # ADR 0209 fixed its one member, and a fixture that can no longer FIND its subject is the
         # shape that gets deleted, taking the arm with it.
         ('arm10 filed defect approved',       _synth_defect(),                       base_skipped, REPS_BY_ROLE, None, None, None),
+        # \u26d4 SYNTHESISED, NOT SELECTED — see _synth_narrower. Every real cell carrying the
+        # narrower label expects a legacy DENY, so there is nothing to select.
+        ('arm10 narrower label granting',     _synth_narrower(),                     base_skipped, REPS_BY_ROLE, None, None, None),
         # A flip with no divergent label at all: the `caps-deny` cells are the honest non-vacuous
         # denials, so promoting one is exactly the unattributed exemption (e) exists to refuse.
         ('arm10 unattributed legacy flip',    _one(('arm3:silent:caps-deny',), True), base_skipped, REPS_BY_ROLE, None, None, None),
