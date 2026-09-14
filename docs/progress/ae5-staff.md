@@ -3992,3 +3992,26 @@ move. The tester waits (a reset destroys the sweep). Folding verdicts in is a ME
 the four plant + rollback proofs, L22's plant, the write arm, the set-valued cases, `SELFTEST=1`
 with the three `--- GROUP` lines and `bash --version`, `RESET_EVERY` port-then-prove, commits, the
 record entry. ⚠ A detached launch is verified by PID + START line, never by a file's presence.
+
+### 2026-09-14 — the sweep verified by PID + START banner; `RESET_EVERY` measured by READS; restart ordered with `RESET_EVERY=5` (lead)
+
+Backend: PIDs 1673 / 3287 live in `ps -ef`; the harness's own banner (`SELECTION-SOURCE: CASES set
+…`, `SUBSET RUN — COMMITTED baseline NOT opened for write`, `preflight: 0 degenerate bodies`,
+`ARM-DOMAIN predicate=34/150 policy=39/226`, `baseline OK: PASS, Files=275, Tests=9218`); at check,
+2 of 34 predicate cases, last `COVERED app.can_action_items_read(…)`. **`RESET_EVERY` counted as
+READS (`\$\{?RESET_EVERY`), never mentions** across all 38 harnesses: door audit 13, write-path
+audit 11, command-door neutralizer 13, every other harness 0 — `act-hat-blind-sweep.sh` has no
+`supabase test db` at all (nothing to bound; not ported, correctly), `authz-setvalued-targeted-cases.sh`
+ran the full suite per case and read the knob 0 times — an operator typing `RESET_EVERY=1 bash …`
+got a run that LOOKED configured. **Ported** there (reads 4, `bash -n` 0): interlock-first
+`periodic_reset`, `maybe_periodic_reset` at the top of `run_case`, a `RESET-POLICY:` summary line;
+two deviations with measured reasons (default 0 not 20 — three cases, 20 would never fire and be
+indistinguishable from "not implemented"; no `SUBSET_RUN` predicate — the file has no `CASES`).
+Proof-by-run after the sweep. **Finding 1, ruled:** the gate run in flight is a `CASES=` subset with
+`RESET_EVERY` unset, so by the harness's own rule it does NO periodic resets and each of 34
+verdicts carries the drift of every case before it — **RESTART ordered with `RESET_EVERY=5`** (two
+cases lost; a bound the gate record can rule on; a harness's own restores are the thing under
+suspicion). **Finding 2:** `p0-authz-rowdoor-audit.sh` and `p0-authz-invoker-audit.sh` (arm 1, not
+run by T8) read it 0 times with the same loop shape — follow-up
+`FUP-AE5-STAFF-ARM1-HARNESSES-DO-NOT-READ-RESET-EVERY`, ported with proof in their own run, never
+blind. `409` control (a) re-stated (uncommitted, door surface untouched).
