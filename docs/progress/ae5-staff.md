@@ -3427,3 +3427,22 @@ proceeds: the four inline sites call the door, their inline bit-tests deleted, t
 comment corrected to name them, census 0 → 4; the differential's expectations for row 9 unchanged
 (the reach is preserved by construction — witness: a persona with a case grant and NO role reads
 the deliberation before and after; a persona with neither is denied before and after).
+
+### 2026-09-14 — L17's witness cannot be constructed on the seed: no grant-holder without a role; an isolating persona is seeded (lead)
+
+Backend probed for a principal holding a live `case_access_grants` row with `read_case_deliberation`
+who is NOT a member of the case's commission: **none**. Every grant-holder is also a role holder, so
+arm (a) "grant and no role" is unconstructible, arm (c) would pass for the wrong reason, and `425`'s
+"no movement" on row 9's sites would be evidence of nothing — a declared residual authority nothing
+exercises, one layer down from the shape C1 fixes (the fixture-cannot-reach-the-failing-state
+lesson, again). Ruled: seed the isolating persona — a `case_access_grants` row with
+`read_case_deliberation` on a CCIH case, NO membership in CCIH, fixed-literal ids never a
+persona-axis value — folded into the seed tables T7 already owes; the tester's fixture-gap register
+gets the row. Consequences named: the new profile moves `387`'s visibility pins (attributed by name,
+as every `gap.*` profile was) and, if affiliated, `396`/`400`'s tenant checks; `424`'s persona axis
+is unchanged. Done this pass: `part5_c1_wiring.sql` — the authority re-keyed to the case-keyed
+door with the residual arm, the stale comment replaced (it claimed `meeting_cases_select` as its
+consumer and warned against a predicate retired by `20260814000000`; the new one names C1's four).
+Remaining: the four inline-copy deletions with census 0 → 4; seed tables + this persona; manifest
+flip (L13, `sign_meeting`, row 7's and row 9's signatures + residual) with dry-run; anchor + `320
+§ U4`. `419` 860 → 836 with the 24 named.
