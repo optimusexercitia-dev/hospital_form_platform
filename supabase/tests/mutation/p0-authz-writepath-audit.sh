@@ -917,7 +917,7 @@ rca|rca_delete|DELETE|app.can_write_rca(id, auth.uid())|-
 rca|rca_update|UPDATE|app.can_write_rca(id, auth.uid())|app.can_write_rca(id, auth.uid())
 response_section_signoffs|signoffs_insert|INSERT|-|((signed_by = ( SELECT auth.uid() AS uid)) AND app.can_sign_section(response_id, section_id, ( SELECT auth.uid() AS uid)))
 responses|responses_delete_own_draft|DELETE|((created_by = ( SELECT auth.uid() AS uid)) AND (status = 'in_progress'::text))|-
-responses|responses_insert_own|INSERT|-|((created_by = ( SELECT auth.uid() AS uid)) AND app.is_member_of(commission_id))
+responses|responses_insert_own|INSERT|-|((created_by = ( SELECT auth.uid() AS uid)) AND app.can_responses_create(commission_id, ( SELECT auth.uid() AS uid)))
 responses|responses_update_own_draft|UPDATE|((created_by = ( SELECT auth.uid() AS uid)) AND (status = 'in_progress'::text))|(created_by = ( SELECT auth.uid() AS uid))
 TSV
 }

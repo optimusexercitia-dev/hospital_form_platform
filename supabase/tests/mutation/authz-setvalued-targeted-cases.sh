@@ -107,6 +107,69 @@ psql_f () { MSYS_NO_PATHCONV=1 docker exec -i "$DB" psql -U postgres -d postgres
 
 run_suite () { ( cd "$ROOT" && supabase test db ) 2>&1; }
 
+# ─────────────────────────────────────────────────────────────────────────────
+# RESET_EVERY — PORTED FROM `p0-authz-door-audit.sh` AT AE5 T8 (2026-09-14).
+#
+# ⛔⛔ WHY: THE KNOB WAS SILENTLY IGNORED HERE. Measured across all 38 harnesses in this
+# directory by counting READS of the variable (`grep -cE '\$\{?RESET_EVERY'`) rather than
+# mentions — a bare `grep -c RESET_EVERY` returns prose hits and would have said this file
+# was fine. Only THREE read it: p0-authz-door-audit.sh (13), p0-authz-writepath-audit.sh
+# (11), c2-command-door-neutralizer.sh (13). This file had 0 mentions and 0 reads, so an
+# operator typing `RESET_EVERY=1 bash …` got a run that looked configured and was not —
+# a knob that is accepted and dropped is worse than one that is refused.
+#
+# WHAT IT BUYS: each case here neutralizes a resolver to the UNIVERSAL SET and runs the
+# FULL pgTAP suite. Without a reset between cases, every verdict carries whatever drift the
+# previous cases left; with it, the drift any verdict can carry is bounded to N cases and
+# the baseline is re-captured.
+#
+# ⚠ THE DEFAULT IS 0 HERE, AND THAT IS NOT THE DOOR AUDIT'S 20. Its default fires because
+# its domain is 34–150 cases; this file's domain is THREE (the list at the top, cardinality
+# asserted by §4b). A default of 20 would never fire on three cases and would be
+# indistinguishable from "not implemented" — which is the very defect this port closes.
+# ⚠ AND THE SUBSET PREDICATE IS DELIBERATELY NOT IMPORTED. The door audit gates on
+# `SUBSET_RUN` + set-ness because `CASES=` makes a partial run there; this file has no
+# `CASES` and no subset concept, so `RESET_EVERY_EXPLICIT` would be a variable with no
+# input — and with default 0, an explicit `RESET_EVERY=0` and an unset one mean the same
+# thing. Importing a predicate whose input does not exist is how a ported idiom starts
+# describing a rule the code does not implement.
+# ─────────────────────────────────────────────────────────────────────────────
+RESET_EVERY="${RESET_EVERY:-0}"   # 0 = never reset (the default here); N = reset every N cases
+RESETS=0
+CASE_N=0
+resets_enabled () { [ "$RESET_EVERY" != "0" ]; }
+
+periodic_reset () {   # $1 = why (printed)
+  local why="$1"
+  # ⛔ INTERLOCK FIRST, exactly as the door audit orders it: a reset with a mutation in
+  #    flight destroys the evidence AND its restore in one command. Reaching here with an
+  #    armed sentinel is a broken invariant whatever the knob says, so it stops LOUDLY
+  #    rather than being skipped quietly along with the reset.
+  if [ -s "$SENTINEL" ]; then
+    echo "*** refusing to reset with a mutation in flight: $SENTINEL" >&2
+    echo "    RECOVER=1 bash $0 first, then VERIFY it in the catalog." >&2
+    exit 2
+  fi
+  if ! resets_enabled; then
+    echo "    (RESET_EVERY=0 — NOT resetting: $why)"
+    return 0
+  fi
+  echo "--- PERIODIC RESET ($why) ---"
+  # ⛔ `cd "$ROOT"` IS LOAD-BEARING: `supabase db reset` applies the migrations of the
+  #    DIRECTORY YOU STAND IN, and this host measurably carries a second, unrelated stack.
+  ( cd "$ROOT" && supabase db reset --local ) >/dev/null 2>&1 \
+    || { echo "*** the periodic reset FAILED — stopping rather than measuring against an unknown DB" >&2; exit 2; }
+  RESETS=$((RESETS + 1))
+  echo "--- reset #$RESETS done; the baseline below is at most $RESET_EVERY case(s) old ---"
+}
+
+maybe_periodic_reset () {   # called BEFORE a case's work, so its baseline is at most N cases old
+  CASE_N=$((CASE_N + 1))
+  resets_enabled || return 0
+  [ $(( (CASE_N - 1) % RESET_EVERY )) -eq 0 ] || return 0
+  periodic_reset "before case $CASE_N"
+}
+
 fail_abort () { echo "*** ABORT: $*" >&2; exit 2; }
 
 # ── the in-flight sentinel, ported from the p0 siblings with their 2026-09-04 fix ────
@@ -300,6 +363,7 @@ VERDICTS=""
 DIRTY=0
 run_case () {  # $1 = label   $2 = catalog lookup predicate   $3 = FILE holding the replacement body
   local label="$1" pred="$2" bodyfile="$3"
+  maybe_periodic_reset   # no-op unless RESET_EVERY is set; announced either way
   local oid orig probe before after out res ft rf rt dub verdict note shapefiles failing
   echo
   echo "=========================================================================="
@@ -417,6 +481,12 @@ POST_RES=$(echo "$POST_OUT" | grep -oE 'Result: (PASS|FAIL)' | tail -1 | awk '{p
 POST_FT=$(echo "$POST_OUT" | grep -oE 'Files=[0-9]+, Tests=[0-9]+' | tail -1)
 echo "  (3) suite after restore: Result: ${POST_RES:-<none>}  ($POST_FT)"
 [ "$POST_RES" = "PASS" ] || fail_abort "the suite is NOT green after the restores — a restore is incomplete"
+if resets_enabled; then
+  echo "RESET-POLICY: RESET_EVERY=$RESET_EVERY — $RESETS reset(s) performed; each verdict carries at most $RESET_EVERY case(s) of drift."
+else
+  echo "RESET-POLICY: RESET_EVERY=0 (default here) — NO resets; every verdict carries the drift of all cases before it in this run."
+fi
+
 for f in "$SENTINEL" "$SENTINEL.probe" "$SENTINEL.want"; do
   [ -e "$f" ] && fail_abort "sentinel artefact still present: $f"
 done
