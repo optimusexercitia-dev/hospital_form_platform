@@ -2018,3 +2018,22 @@ both new fixtures BY NAME, clean on the real spec · `lint:authz-vectors` **0**,
 ⚠ Left flagged, not fixed: `roster.read`'s subject profile is persona-keyed rather than
 scope-keyed — a profile belongs to no commission, so whether the subject should track the cell's
 `scope` axis is a vector-shape question. Recorded in its `scopeNote`.
+
+### 2026-09-14 — both vector defects fixed by backend; the coverage loss is counted, not hidden (lead)
+
+Backend (`b873b955` seed · `5ace5d91` generator + vector · `f40babdc` record): the committee action
+item has a fixed literal id (the base-seed `gen_random_uuid()` row untouched); **arm14(d)** refuses
+any bound id that is not a fixed literal in `seed.sql`/a migration, scanning the DECLARATION as well
+as emitted cells (a bad id enters at the declaration; cells-only would pass a binding for a
+coordinate this run did not emit), reading files, never a DB — 37/37 literal. A resource fixture
+per class at each scope (own CCIH · sibling Farmácia A · foreign Farmácia B) for action items
+(committee + assignees), owned frameworks, form versions, documents; the PUBLIC framework is the one
+genuinely scope-independent fixture; meetings · cases · capa · forms `disjunct_present` · documents
+approver stay own-only (each needs a CCIH FK chain with no equivalent elsewhere) under the named
+skip **`no_resource_fixture_at_this_scope` = 2664 cells** in the coverage census — ⭐ a real
+coverage loss, COUNTED rather than hidden. Smoke over EVERY cell: 3708 probes, 0 errors, 34 distinct
+fixture ids, 0 missing. Cells 8100 → 5436, flips 558 → 408, `staff_admin` 1728 byte-identical,
+self-test 32 caught. ⚠ Flagged by backend, not ruled: `roster.read`'s subject profile is
+persona-keyed, not scope-keyed (a profile belongs to no commission) — recorded in its `scopeNote`;
+the lead reads it as correct for the profile door (the scope axis varies the CALLER's membership,
+which the co-member leg reads) and leaves it for the T14 review to contest. Tester runs `424`.
