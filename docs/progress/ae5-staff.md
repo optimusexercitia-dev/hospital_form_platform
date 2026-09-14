@@ -4053,3 +4053,11 @@ case (11:02 → 11:12) + ~5 min per reset ⇒ 34 predicate cases ≈ 6 h, 39 pol
 h end to end from 10:19**, i.e. into the night of 2026-09-14/15. Not shortened: the 75 cases are the
 deriver's diff-scoped set for this phase base and the run IS the gate; the stack stays the sweep's
 for the duration (a reset by anyone destroys it and leaves a neutralized gate live).
+
+### 2026-09-14 11:2x — PO asked for a status every 10 swept cases; a lead-side watcher armed (lead)
+
+Watcher on the relaunch's `progress.tsv` (`authz-audit-t8b`): one line at every multiple of 10
+verdicts with the verdict breakdown, any `NOTICED` / `DIRTY` / `ERROR` / `UNPROVEN` verdict the
+moment it lands, and a line if the sweep's parent process (3951) dies — exit at 75/75. Read-only on
+a file; the DB stays the sweep's. Each event is relayed to the PO as a status line; a verdict to
+act on is relayed immediately, not at the next ten.
