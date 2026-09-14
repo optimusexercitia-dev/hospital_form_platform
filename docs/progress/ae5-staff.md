@@ -2323,3 +2323,25 @@ self-test's wrong-arm check compares on the `arm14:` prefix, so a fixture claime
 sub-check (i's fixture was, twice) reads as caught by the right arm — LEARN-103's shape one level
 down. Tester dispatched for run 5, the fifth and last iteration on this mechanism; witness and one
 full `test:db` on green.
+
+### 2026-09-14 — `424` run 5 GREEN (24/24); witness PARTIAL; full `test:db` red on 330 + 387, both moved by this unit's seed (lead)
+
+Tester: floors re-derived from the vector first (3024 cells, 11 classes, 10 names); reset exit 0;
+`424-run5-truthtable-fix.log` `Files=2, Tests=24, Result: PASS`. `424` committed by path
+(`§ 2.6` on `probe_table`.`probe_column`) — ⚠ after the lead's LF guard caught **398 CRLF lines** in
+the tree file the tester had reported "LF-confirmed (0 CRLF)"; normalised as bytes, the diff then
+content-only (the CRLF-on-edit defect from earlier in this unit, a claim that must be MEASURED at
+commit time, never relayed). **Witness partial:** `pg_prove`'s summary prints no per-test `ok`
+lines, so § 6.1 (red-on-delete) / § 6.2 (green-on-restore) are among the 24 passes but not yet
+QUOTED; the tester's attempt at a raw `DELETE` on the shared stack outside the suite's rollback was
+blocked by the sandbox — correctly — and re-done inside `begin … rollback` (count 1 → 0 → 1 live).
+Owed: the two TAP lines verbatim via `psql` inside a transaction, before AC-5 is ticked. **Full
+suite** (`test-db-run5-full.log`): `Files=273, Tests=9156, Result: FAIL`, `424` clean; reds: `330`
+test 23 (every controlled document owns a core `documents` row — have 4, want 6; NEW, the row-16
+`public.documents` fixtures) and `387` 7/25 (md5 pins over profile-visibility sets, moved by the
+`gap.*` personas — backend's round-4 note called it "not this round's"; it is this UNIT's, and the
+rule from the first re-pin holds: every delta attributed to a named new profile, never a bare
+re-pin). Both routed to backend; the tester re-runs the full suite on a fresh reset after. Loop
+count: the 424 mechanism closed at iteration 5 of 5; the full-suite loop starts at 1. ⚠ Lead's own
+trap, again: a `grep -c` returning 0 exits 1 and silently ended an `&&` chain — this entry landed a
+turn late and gate 7 had passed on the unchanged tree.
