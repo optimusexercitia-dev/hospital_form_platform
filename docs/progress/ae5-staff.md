@@ -3564,3 +3564,20 @@ profile. Fixture defect caught by APPLYING, not reading: `referral_internal_note
 `author_user_id`, not `created_by`. Follow-up committed `2c43617a`. `t7-wip/` complete and
 witnessed end to end. Not done: `387` re-derived, scoped `396`/`400`, manifest dry-run, anchor +
 `320 § U4`, move-in, steps 2–7. `419` 860 → 836.
+
+### 2026-09-14 — the manifest flip emits cleanly (dry-run `t7dry2/`); the validator's third refusal (lead)
+
+Backend, nothing under `supabase/`: rows 61 → 61; re-keyed / pending 3/58 → **23/38**;
+`authz_manifest_sites` 13 → **78** (+65 = 42 policy + 23 function; not the 79 predicted —
+`sign_meeting` moved to `definerSurface`); `arm_sites` 69 → **0** (empty typed form);
+`definerSurface` +1 (`sign_meeting`, writes `meeting_signatures, meetings`);
+`nonEnforcementConsumers` +2 (§ 8.4's audited-read registry legs); the `ts` site dropped (not a DB
+site). Row 7's signature `p_meeting_id uuid, p_user_id uuid` and row 9's `p_case_id uuid,
+p_user_id uuid` declared with `signatureNote`s. ⭐ The validator refused the first draft: *a
+`residualLegacyAuthority` the authorizer does not compose overstates what still has to be
+retired* — row 9's `composedWith` must NAME `has_case_capability` as well as declare it, exactly
+what the door's SQL does; the same rule that removed the never-composed wrapper in the first dry
+run, satisfied properly here because this arm IS composed. Complete and witnessed in `t7-wip/`:
+doors, policies, functions, row 7 pair, C1 census, L18 pair, row 9 triple, five fixtures. Not done,
+stated by backend: L13's § 6.3 text, anchor + `320 § U4`, `387`, scoped `396`/`400`, move-in, steps
+2–7, full `test:db`, lint, `gen:types`, the live budget line — the long single stretch, not started.
