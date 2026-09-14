@@ -1113,7 +1113,7 @@ NOTICED = evidence; CARRIED = a step.
   PA-F8 divergence to be dispositioned (a)/(b)/(c) **before the matrix is approved** (plan
   `:942-950`). Planner's recommendation: (b), a named compatibility exception with owner + expiry.
 - **R-3 — the matrix itself** (AC-1) and the deny-class values (AC-2), on T1/T2's delivery.
-- **R-4 — gate 15's ceiling: 759 → 772 (+13) for T7's policy-called doors.** Opened 2026-09-14 at
+- **R-4 — gate 15's ceiling: 759 → 772 (+13) for T7's policy-called doors.** ⭐ **RULED 2026-09-14 (PO session): option (a) APPROVED — 759 → 772, `app` 326 → 339, `public` 433, exactly the 13 named doors, moved in the atomic re-key commit; verbatim text in the session-log entry "PO rulings on R-4 · R-5 (PO session)".** Opened 2026-09-14 at
   T6 as "`authenticated` EXECUTE on the two wrappers" — **that question is MOOT** (measured at the T7
   review: zero sites call the wrapper from a policy; the wrappers stay `service_role`-only).
   **FINAL FORM:** T7 creates 20 layer-3 doors, 13 policy-called (need `authenticated` EXECUTE), 7
@@ -1123,7 +1123,7 @@ NOTICED = evidence; CARRIED = a step.
   move the ceiling 759 → 772 with T7's gate record as the named justification, or (b) hold it and
   name which of the 13 doors T7 leaves un-re-keyed — note the budget counts DOORS: deferring the two
   largest codes drops 18 of 42 sites but only 2 of 13 doors.
-- **R-5 — ADR 0211 D2 review.** The D2 proof is in the record's T6 entry (2026-09-14): snapshot/assert
+- **R-5 — ADR 0211 D2 review.** ⭐ **RULED 2026-09-14 (PO session): ACCEPTED — ADR 0211 proposed → accepted; D3 `:185` amendment ordered (owed to the ADR owner, not applied by the PO session); verbatim text in the session-log entry "PO rulings on R-4 · R-5 (PO session)".** The D2 proof is in the record's T6 entry (2026-09-14): snapshot/assert
   of the four properties, the restricted differential `426` observed RED then GREEN, the
   PA-F8-STAFF-2 condition. ⛔ PO: accept ADR 0211 (proposed → accepted) or change it; AC-6 ticks on
   acceptance.
@@ -3016,3 +3016,64 @@ it, and either (a) the re-expression of `is_member_of(_for)` in T7 (its own snap
 own 425 pair, its own PA-F8 disposition — the hat gate R-2/P1 already covers it), or (b) a measured
 reason to defer it to a NAMED unit, stated in ADR 0211 so the PO's R-5 review sees it. Not a PO
 ruling by itself; it changes what R-5 approves.
+
+### 2026-09-14 — PO rulings on R-4 · R-5 (PO session)
+
+Presented to the PO in this session: R-4 first in the chip's T6 form (the two-wrapper grant), then
+re-presented in its FINAL form from § Open rulings at `fd685cd2` after the lead's cross-session
+message (the two-wrapper question moot; 13 policy-called layer-3 doors against zero headroom). The
+live budget was measured by this session with `320 § U4`'s own query, read-only via the DB
+container, before the presentation: **app 326 · public 433 · total 759**, ceiling 759, headroom 0;
+`npm run lint:budget-anchor` OK on the committed texts. The wrappers' ACLs re-read live:
+`postgres` + `service_role` only, `authenticated` refused with "permission denied". A postgres-owned
+DEFINER calling the wrapper under `set local role authenticated` was shown to succeed in a
+rolled-back transaction, nothing persisted — the mechanism the final form rests on, measured.
+
+**R-4 — the PO's ruling, VERBATIM:**
+
+> R‑4 — option (a), APPROVED. Gate 15's ceiling moves from 759 to 772, with the
+> authenticated-executable app population moving 326 to 339 and public remaining 433. The increase
+> is attributed exclusively to T7's 13 policy-called, per-permission layer‑3 authorizers, whose 42
+> policy callers are enumerated in the T7 gate record.
+> The seven DEFINER-only authorizers receive no authenticated grant. app.is_commission_staff_of(_for)
+> remains service_role-only; no policy calls either wrapper directly. The ceiling, budget anchor,
+> and 320 §U4 literals move in the same atomic re-key commit.
+> This ruling authorizes exactly these 13 doors, not general headroom. A fourteenth
+> authenticated-executable door, a change in the enumerated caller mapping, or an unexpected live
+> count requires a new ruling. Completion requires the post-migration live catalog to measure
+> app=339, public=433, total=772, in addition to gate 15's committed-text check.
+
+**R-5 — the PO's ruling, VERBATIM** (given after the PO-session evaluation of the same text as a
+draft; the PO reaffirmed it unchanged):
+
+> R‑5: accept ADR 0211 and mark it accepted.
+> D2's three-part obligation is satisfied:
+> - security properties were captured and asserted;
+> - the restricted differential went RED then GREEN, with the unrestricted disagreement proving the
+>   restriction is load-bearing;
+> - hat polarity, principal-state cells, and the two structural premises were individually asserted.
+> The former 424 red was a stale state control, not a failed oracle. The targeted suite now passes
+> after that control was re-pointed without widening it.
+> I would make one editorial correction alongside acceptance: D3's sequencing sentence (line 185)
+> still says the is_member_of re-expression lands in the same migration as the state flip, although
+> T6 deliberately did not do that. Change it to reflect the actual T7/per-site sequencing. This does
+> not weaken D2 or justify delaying acceptance.
+> Suggested ruling:
+> R‑5 — ACCEPTED. ADR 0211 moves from proposed to accepted; its D2 proof obligation is satisfied by
+> the migration snapshot/assert, the restricted RED→GREEN differential including A1/A2, and the
+> asserted PA‑F8‑STAFF‑2 structural premises. ADR 0211 governs T7: enforcement policies target
+> layer‑3 authorizers, not the layer‑1 staff wrapper. Amend D3's stale same-migration sequencing
+> sentence to match the approved T7/per-site sequence.
+
+**Applied by this session:** ADR 0211 `**Status:**` proposed → accepted (header line only) and
+`npm run adr:index` re-run; gate 9's `proposed-review.json` stamp refreshed (0211 left the proposed set,
+`reviewed` 2026-09-14) because the gate reds on set drift. ⛔ **The D3 `:185` amendment is NOT applied here** — the PO-session's
+scope is the Status line; the body edit (with its `**Amended:**` header line) is owed to the ADR's
+owner. **Evaluation note recorded beside the ruling, not against it:** the PO-session evaluation
+(chat, before the ruling) said the `:185` sentence is about re-expressing the PREDICATE BODY of
+`is_member_of(_for)` — an evaluator change across 82 dependents gated on R-2's disposition — not
+about T7's per-SITE re-key, and that both commission roles being authoritative now makes the
+sentence read as due; the lead's C5 (`60f79569`) requires backend to either re-express it in T7 or
+state a measured deferral to a NAMED unit in ADR 0211 itself. The PO reaffirmed the ruling's wording
+as given; whichever of C5's branches lands is what the amended sentence should say. `424`'s
+re-point: observed green in the tester's scoped run (24/24) and committed at `bf585a83`.

@@ -1,6 +1,6 @@
 # 0211 — `staff` gets its own single-role wrapper, and the cutover is proven without a candidate twin
 
-**Status:** proposed
+**Status:** accepted
 **Amended:** 2026-09-13 — D2 aligned to the T6 plan review's conditions A1/A2; the deferred `authenticated` grant recorded in § Consequences
 **Area:** authorization / AE5 increment 1
 **Related:** 0174, 0201, 0207

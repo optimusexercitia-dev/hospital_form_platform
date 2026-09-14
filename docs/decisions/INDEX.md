@@ -21,7 +21,7 @@
 - **Missing numbers:** 0034, 0077, 0202, 0204 — a gap is not automatically a defect (0077 was withdrawn by the PO and its subject re-filed as 0078; 0034 was never used; **0202 can NEVER be filled** — PO ruling R7 split four planned ADRs and pre-AE5 Batch 9 wrote only 0201 + 0203), but a gap nobody can explain usually means a lost file.
 - ⛔ **RESERVED numbers — none today (re-checked 2026-09-13).** The 0202 / 0204 reservations for the role-catalog decision and the two platform-wide conventions were RENUMBERED by PO ruling on 2026-09-11 and written as **0207** / **0208** (both built or in build since); **0202 can never be filled** and 0204 stays a gap. A future reservation is stated HERE and in docs/plans/pre-ae5-remediation.md §3, never in only one of them. ⚠ And per CLAUDE.md §8 the number is **the highest on ANY live branch + 1**, ⛔ never this index's figure alone — a branch this generator never saw can already hold it.
 - **No parseable `Status:`:** none
-- **Still proposed / draft / deferred (2):** 0115, 0211 — an ADR's status is the author's claim on the day it was written, and nothing updates it when the code ships. The last review of this list is stamped in `proposed-review.json`; gate 9 reds when that review is more than 30 days old or this set has drifted from it.
+- **Still proposed / draft / deferred (1):** 0115 — an ADR's status is the author's claim on the day it was written, and nothing updates it when the code ships. The last review of this list is stamped in `proposed-review.json`; gate 9 reds when that review is more than 30 days old or this set has drifted from it.
 
 ## Index
 
@@ -233,4 +233,4 @@
 | 0208 | [Two conventions: the candidate fan-out `D` is a parametric structural invariant plus ac…](0208-the-candidate-fanout-is-structurally-dominated-and-empty-search-path-is-the-sole-forward-convention.md) | accepted | 2026-09-11 | – | – |
 | 0209 | [The ACT hat is a DOOR-level term on the professional-profile read door, evaluated befor…](0209-the-act-hat-is-a-door-level-term-on-the-professional-profile-read-door.md) | accepted | 2026-09-11 | amends 0201 | – |
 | 0210 | [The backend-state seam size warn line is raised to 200 KB (hard cap 250 KB)](0210-backend-state-seam-size-warn-line-raised-to-200-kb.md) | accepted | 2026-09-12 | amends 0196 | – |
-| 0211 | [`staff` gets its own single-role wrapper, and the cutover is proven without a candidate…](0211-staff-gets-its-own-single-role-wrapper.md) | ⚠ proposed | 2026-09-13 | – | – |
+| 0211 | [`staff` gets its own single-role wrapper, and the cutover is proven without a candidate…](0211-staff-gets-its-own-single-role-wrapper.md) | accepted | 2026-09-13 | – | – |
