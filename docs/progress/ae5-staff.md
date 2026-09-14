@@ -3302,3 +3302,17 @@ by a planted control (`from memberships join profiles`) caught by name, both ref
 (negative only); the stop-if-ungated rule stands. Next pass: measurement 3, then the 23 re-emissions
 whole under `''`, validated mechanically BEFORE placement, apply-and-diff in a rollback for the
 `23/23` line. `supabase/` clean.
+
+### 2026-09-14 — `sign_meeting` is gated (no bug row); two declarations move; the "empty with_check" reading corrected (lead)
+
+Backend: `public.sign_meeting` is a DEFINER plpgsql COMMAND door delegating to
+`app.can_sign_meeting(p_attendee_id, v_uid)` (raises `HC036` on false) — the "0 bare / 0 `_for`"
+reading was the absence of a DIRECT gate. It WRITES `meeting_signatures` and `meetings`, so it is a
+`definerSurface` member (`writes: [meeting_signatures, meetings]`, `carriesCode: false`), not an
+`enforcementSites` entry — which also resolves the dry run's refusal "a DEFINER writer that writes
+nothing…". ⚠ Backend's earlier "`meeting_signatures_insert`: empty qual and empty with_check" was a
+`qual`-only read; its `with_check` is `signer_id = auth.uid() AND app.can_sign_meeting(attendee_id,
+auth.uid())` — composes the same authorizer, no bare call. Row 12's re-key target is
+`app.can_sign_meeting`; policy and command door inherit it. Net: 23 re-emissions + 1 re-declaration;
+hand policies 2 → 1 (`meeting_cases_select` via `can_reach_meeting`). Next: the 23 under `''`
+validated before placement, `23/23` in a rollback; then the rest. `supabase/` clean.
