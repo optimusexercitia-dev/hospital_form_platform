@@ -3555,23 +3555,25 @@ begin
     ('a5fd0000-0000-0000-0000-0000000000a2'::uuid, v_farmb, 'FIX-FB-001',
      'Documento da Farmácia B (fixture arm-3 linha 16)', 'policy', 'effective');
 
-  -- ⭐⭐ Row 16 — THE DOOR'S OWN TABLE. `app.can_read_document(p_document_id, p_uid)` looks its
-  -- resource up in `public.documents`, NOT in `controlled_documents`; the binding used
-  -- `controlled_documents.id`, so the lookup returned no row and the door denied EVERY persona,
-  -- `subject_holder`@own included. ⛔ My smoke checked presence in the table the binding
-  -- DECLARED, which is why it passed while the probe was measuring nothing — a presence check is
-  -- only a control if it looks where the DOOR looks.
-  -- ⚠ The `documents` rows the base seed creates carry `gen_random_uuid()` ids, so they cannot be
-  -- bound; these carry fixed ones and hang off the same home resources.
-  insert into public.documents (id, home_resource_id, title, status, created_by) values
-    ('a5fe0000-0000-0000-0000-0000000000a1'::uuid, 'd0c00000-0000-0000-0000-0000000000d1'::uuid,
-     'Documento aprovado por staff4.ccih (fixture linha 16 — escopo próprio)', 'active', v_clean),
-    ('a5fe0000-0000-0000-0000-0000000000a2'::uuid, 'd0c00000-0000-0000-0000-0000000000d2'::uuid,
-     'Documento sem aprovação (fixture linha 16 — escopo próprio)', 'active', v_clean),
+  -- ⭐⭐ Row 16 — THE CORE `documents` ROW EVERY CONTROLLED DOCUMENT MUST OWN.
+  -- ⛔ `330 DM3·X1` asserts `core_document_id IS NOT NULL` on EVERY controlled document, and
+  -- the two rows above were inserted directly without one — measured 4 of 6 on a fresh reset.
+  -- The obligation belongs to the DOOR; a direct insert bypasses it, so the seed reproduces the
+  -- post-backfill state by hand, exactly as the base seed does for its own three.
+  -- ⚠ THIS REPLACES a block that created `public.documents` rows to be probed by
+  -- `app.can_read_document`. L11 moved row 16 back to the POLICY leg, so those rows became bound
+  -- by nothing — verified zero references in the manifest and in the vector before deleting
+  -- them. ⭐ A fixture nothing binds is not harmless: it still owes every invariant its table
+  -- carries, and this one did not.
+  insert into public.documents (id, home_resource_id, title, kind, status, created_by) values
     ('a5fe0000-0000-0000-0000-0000000000a3'::uuid, 'a5fd0000-0000-0000-0000-0000000000a1'::uuid,
-     'Documento da Farmácia A (fixture linha 16 — escopo irmão)', 'active', v_clean),
+     'Documento da Farmácia A (fixture arm-3 linha 16)', 'documento_controlado', 'active', v_clean),
     ('a5fe0000-0000-0000-0000-0000000000a4'::uuid, 'a5fd0000-0000-0000-0000-0000000000a2'::uuid,
-     'Documento da Farmácia B (fixture linha 16 — escopo de outra org)', 'active', v_clean);
+     'Documento da Farmácia B (fixture arm-3 linha 16)', 'documento_controlado', 'active', v_clean);
+  update public.controlled_documents set core_document_id = 'a5fe0000-0000-0000-0000-0000000000a3'::uuid
+   where id = 'a5fd0000-0000-0000-0000-0000000000a1'::uuid;
+  update public.controlled_documents set core_document_id = 'a5fe0000-0000-0000-0000-0000000000a4'::uuid
+   where id = 'a5fd0000-0000-0000-0000-0000000000a2'::uuid;
 
 
   -- ── ROW 15 — the PUBLIC arm, and both of its comparators ──────────────────
