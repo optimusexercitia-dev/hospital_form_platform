@@ -2149,7 +2149,8 @@
         "call": "app.is_member_of_for({scope}::uuid, {uid}::uuid)",
         "fixtures": {},
         "scopeAnchored": true,
-        "note": "No arm-3 door: the legacy side IS the bare membership predicate. ⭐ `_for` takes an explicit uid, so unlike a policy probe this row IS third-party-capable."
+        "note": "No arm-3 door: the legacy side IS the bare membership predicate. ⭐ `_for` takes an explicit uid, so unlike a policy probe this row IS third-party-capable.",
+        "probeStateGated": true
       }
     },
     "commission.signoffs.read": {
@@ -2900,7 +2901,8 @@
         "call": "app.is_member_of_for({scope}::uuid, {uid}::uuid)",
         "fixtures": {},
         "scopeAnchored": true,
-        "note": "No arm-3 door: the legacy side IS the bare membership predicate. ⭐ `_for` takes an explicit uid, so unlike a policy probe this row IS third-party-capable."
+        "note": "No arm-3 door: the legacy side IS the bare membership predicate. ⭐ `_for` takes an explicit uid, so unlike a policy probe this row IS third-party-capable.",
+        "probeStateGated": true
       }
     },
     "commission.roster.read": {
@@ -3006,14 +3008,14 @@
               "_self": true
             },
             "disjunct_absent": {
+              "own_commission": "a5f00000-0000-0000-0000-0000000000f1",
+              "sibling_commission": "a5f00000-0000-0000-0000-0000000000f2",
+              "foreign_org_commission": "a5f00000-0000-0000-0000-0000000000f3"
+            },
+            "conjunct_unmet": {
               "own_commission": "a5f00000-0000-0000-0000-0000000000f4",
               "sibling_commission": "a5f00000-0000-0000-0000-0000000000f4",
               "foreign_org_commission": "a5f00000-0000-0000-0000-0000000000f4"
-            },
-            "conjunct_unmet": {
-              "own_commission": "a5f00000-0000-0000-0000-0000000000f3",
-              "sibling_commission": "a5f00000-0000-0000-0000-0000000000f1",
-              "foreign_org_commission": "a5f00000-0000-0000-0000-0000000000f1"
             },
             "_default": {
               "own_commission": "a5f00000-0000-0000-0000-0000000000f1",
@@ -3021,7 +3023,7 @@
               "foreign_org_commission": "a5f00000-0000-0000-0000-0000000000f3"
             }
           },
-          "note": "⚠ THE ONLY PERSONA-KEYED BINDING, and it has to be: `$1` is the SUBJECT PROFILE being read, so a fixed value across personas makes `subject_holder` a hidden SELF-read (424 § 4's own (b) finding). `disjunct_present` is the self leg — the subject IS the principal; `_default` is a genuine co-member in the commission that principal actually holds in.",
+          "note": "⭐ BOUND FROM A MEASURED TRUTH TABLE, not from the class NAME. Measured per (persona, scope) against the live door before binding: self=t for every persona; the scope co-members are DIAGONAL (own→subject_holder, sibling→other_comm, foreign→cross_org, f elsewhere); `gap.absent` f for all four. ⛔ ROUND 4 HAD THESE TWO CLASSES SWAPPED, and swapping them re-created the defect it had just fixed under a new id: `disjunct_absent` bound a zero-membership profile, so the co-member leg could never fire and legacy was stuck false where the catalog grants — which is what `gap.unpriv` had been doing. `disjunct_absent` means the SELF disjunct is absent and membership decides ⇒ the scope co-member. `conjunct_unmet` means no caller shares a commission with the target ⇒ the zero-membership profile. ⚠ It also fixes the tester's open G: `f3` under `conjunct_unmet` still shared Farmácia B with cross_org_actor at foreign scope, so the 'unmet' conjunct was met for that one persona; `gap.absent` shares with nobody, at any scope.",
           "scopeNote": "⛔ MY EARLIER `scopeNote` HERE WAS REFUTED BY MEASUREMENT and is kept as a correction rather than quietly replaced: it claimed a profile belongs to no commission so the subject could not be scope-keyed. The door asks whether the SUBJECT holds a membership in some commission the CALLER also holds, so the subject IS scope-bound through its memberships. Each `_default` subject holds EXACTLY ONE, and the co-member leg measures diagonal.",
           "probeReadsTable": "public.profiles",
           "probeReadsColumn": "id"
@@ -3115,7 +3117,8 @@
         "call": "app.is_member_of_for({scope}::uuid, {uid}::uuid)",
         "fixtures": {},
         "scopeAnchored": true,
-        "note": "No arm-3 door: the legacy side IS the bare membership predicate. ⭐ `_for` takes an explicit uid, so unlike a policy probe this row IS third-party-capable."
+        "note": "No arm-3 door: the legacy side IS the bare membership predicate. ⭐ `_for` takes an explicit uid, so unlike a policy probe this row IS third-party-capable.",
+        "probeStateGated": true
       }
     },
     "commission.meetings.read": {
@@ -3230,7 +3233,8 @@
           "note": "`conjunct_unmet` is the participants_only meeting the principal does not attend.",
           "scopeNote": "Declared at `own_commission` only: the fixture is a CCIH FK chain and no equivalent exists at the other two scopes. Cells at those scopes are skipped by the named rule, never probed against the CCIH row.",
           "probeReadsTable": "public.meetings",
-          "probeReadsColumn": "id"
+          "probeReadsColumn": "id",
+          "probeStateGated": false
         }
       },
       "hardDenyMeasurement": {
@@ -3337,7 +3341,8 @@
           "note": "⚠ The fixture is the ATTENDANCE row's meeting, not the meeting id: `att_present` is staff4.ccih present at the signing meeting, `att_absent` ativo.registro absent from it.",
           "scopeNote": "Declared at `own_commission` only: the fixture is a CCIH FK chain and no equivalent exists at the other two scopes. Cells at those scopes are skipped by the named rule, never probed against the CCIH row.",
           "probeReadsTable": "public.meeting_attendees",
-          "probeReadsColumn": "id"
+          "probeReadsColumn": "id",
+          "probeStateGated": false
         }
       },
       "hardDenyMeasurement": {
@@ -3431,7 +3436,8 @@
           "note": "`conjunct_unmet` is the explicit_grants_only case WITH ethics_case_details.",
           "scopeNote": "Declared at `own_commission` only: the fixture is a CCIH FK chain and no equivalent exists at the other two scopes. Cells at those scopes are skipped by the named rule, never probed against the CCIH row.",
           "probeReadsTable": "public.cases",
-          "probeReadsColumn": "id"
+          "probeReadsColumn": "id",
+          "probeStateGated": false
         }
       },
       "hardDenyMeasurement": {
@@ -3522,7 +3528,7 @@
               "cross_org_actor"
             ]
           },
-          "note": "⛔ SCOPE × PERSONA, because the fixtures are scope-keyed and the assignee therefore differs per scope: measured diagonal — own→staff4.ccih, sibling→staff1.farm, foreign→gap.xorg.b. A persona-only reach said `subject_holder` everywhere and so flipped 40 cells at scopes where that principal is not the assignee and the door denies."
+          "note": "The assignee per scope, measured diagonal. Unchanged by the move to the policy leg: the policy's assignees_only leg reads the same assignment rows."
         },
         "kind": "policy-qual",
         "row": 11,
@@ -3539,8 +3545,11 @@
         "legacyClassSource": "TESTER'S",
         "stateColumn": "public.action_items.visibility_scope; limb (b) additionally public.action_item_assignments.user_id / action_items.assigned_to = auth.uid()",
         "probe": {
-          "kind": "function-call",
-          "call": "app.can_read_action_item({resource}::uuid, {uid}::uuid)",
+          "kind": "rls-select",
+          "relation": "public.action_items",
+          "idColumn": "id",
+          "probeReadsTable": "public.action_items",
+          "probeReadsColumn": "id",
           "fixtures": {
             "disjunct_present": {
               "own_commission": "a5f40000-0000-0000-0000-0000000000a1",
@@ -3548,7 +3557,9 @@
               "foreign_org_commission": "a5f40000-0000-0000-0000-0000000000d2"
             },
             "disjunct_absent": {
-              "own_commission": "a5f40000-0000-0000-0000-0000000000a2"
+              "own_commission": "a5f40000-0000-0000-0000-0000000000c1",
+              "sibling_commission": "a5f40000-0000-0000-0000-0000000000c2",
+              "foreign_org_commission": "a5f40000-0000-0000-0000-0000000000c3"
             },
             "conjunct_unmet": {
               "own_commission": "a5f40000-0000-0000-0000-0000000000a2"
@@ -3559,9 +3570,12 @@
               "foreign_org_commission": "a5f40000-0000-0000-0000-0000000000c3"
             }
           },
-          "note": "L10: this row has a `p_uid` door (`app.can_read_action_item`, § 5.4 subject `p_uid`), so it is THIRD-PARTY-CAPABLE and is probed through that form — the hat ignored per ADR 0201 D1. ⛔ Probing the `action_items` POLICY instead would have made the row caller-only and skipped every third-party cell, which is a real coverage loss chosen by accident: the function is the door that can be asked about a principal who is not the caller. ⚠ The function carries the two arms the declaration omits (`is_staff_admin_of_for`, `assigned_to = p_uid`) — the drift follow-up's subject — so the probe is the whole live door either way.",
-          "probeReadsTable": "public.action_items",
-          "probeReadsColumn": "id"
+          "keyingOverride": {
+            "value": "caller-only",
+            "ruling": "L11 generalised (2026-09-14)",
+            "reason": "This row has a `p_uid` door (`app.can_read_action_item`) that § 5.4 reads as third-party-capable, but that function opens with `if not app.is_active(p_uid) then return false` while the POLICY's assignees_only leg carries no such term. P1's approved divergence was measured on the POLICY leg — the one the bug row names — so probing the function contradicted the PO ruling for 24 cells at deactivated/suspended. Every P1 coordinate now probes the leg P1 was measured on."
+          },
+          "note": "⭐ BOUND FROM A MEASURED TRUTH TABLE, not from the class NAME. Measured per (persona, scope) against the live door before binding: the committee items are DIAGONAL per scope; the assignees_only items are diagonal on their assignee; the locked-to-`ativo.registro` item is f for all four. ⛔ Round 4 bound `disjunct_absent` to that locked item — unreachable by membership, so legacy was stuck false exactly as row 4's was. `disjunct_absent` = no assignees_only lock at all ⇒ the committee item; the locked item is the UNMET shape."
         }
       },
       "hardDenyMeasurement": {
@@ -3775,7 +3789,8 @@
         "call": "app.is_member_of_for({scope}::uuid, {uid}::uuid)",
         "fixtures": {},
         "scopeAnchored": true,
-        "note": "No arm-3 door: the legacy side IS the bare membership predicate. ⭐ `_for` takes an explicit uid, so unlike a policy probe this row IS third-party-capable."
+        "note": "No arm-3 door: the legacy side IS the bare membership predicate. ⭐ `_for` takes an explicit uid, so unlike a policy probe this row IS third-party-capable.",
+        "probeStateGated": true
       }
     },
     "commission.indicators.read": {
@@ -3856,7 +3871,8 @@
         "call": "app.is_member_of_for({scope}::uuid, {uid}::uuid)",
         "fixtures": {},
         "scopeAnchored": true,
-        "note": "No arm-3 door: the legacy side IS the bare membership predicate. ⭐ `_for` takes an explicit uid, so unlike a policy probe this row IS third-party-capable."
+        "note": "No arm-3 door: the legacy side IS the bare membership predicate. ⭐ `_for` takes an explicit uid, so unlike a policy probe this row IS third-party-capable.",
+        "probeStateGated": true
       }
     },
     "commission.accreditation.read": {
@@ -4222,7 +4238,8 @@
         "call": "app.is_member_of_for({scope}::uuid, {uid}::uuid)",
         "fixtures": {},
         "scopeAnchored": true,
-        "note": "No arm-3 door: the legacy side IS the bare membership predicate. ⭐ `_for` takes an explicit uid, so unlike a policy probe this row IS third-party-capable."
+        "note": "No arm-3 door: the legacy side IS the bare membership predicate. ⭐ `_for` takes an explicit uid, so unlike a policy probe this row IS third-party-capable.",
+        "probeStateGated": true
       }
     },
     "commission.capa.read": {
@@ -4307,7 +4324,8 @@
           "note": "`can_read_capa` is THREE OR'd disjuncts (pqs operator · can_read_event · the indicator-sourced member arm). The old `conjunct_unmet` plan had its indicator conjunct genuinely unmet but `can_read_event` GRANTED through its RCA's event — measured true for staff4.ccih, so the cell asserted an unmet conjunct while the door said yes for an unrelated reason. ⛔ An unmet-conjunct fixture is only a control when the OTHER disjuncts are false too: the manual-sourced plan has no source row, so `event_of_capa` is null. Measured FALSE for all four personas, while the default plan stays TRUE for subject_holder only.",
           "scopeNote": "Declared at `own_commission` only: the fixture is a CCIH FK chain and no equivalent exists at the other two scopes. Cells at those scopes are skipped by the named rule, never probed against the CCIH row.",
           "probeReadsTable": "public.capa_plan",
-          "probeReadsColumn": "id"
+          "probeReadsColumn": "id",
+          "probeStateGated": false
         }
       },
       "hardDenyMeasurement": {
@@ -4416,7 +4434,8 @@
         "call": "app.is_member_of_for({scope}::uuid, {uid}::uuid)",
         "fixtures": {},
         "scopeAnchored": true,
-        "note": "No arm-3 door: the legacy side IS the bare membership predicate. ⭐ `_for` takes an explicit uid, so unlike a policy probe this row IS third-party-capable."
+        "note": "No arm-3 door: the legacy side IS the bare membership predicate. ⭐ `_for` takes an explicit uid, so unlike a policy probe this row IS third-party-capable.",
+        "probeStateGated": true
       }
     },
     "commission.referrals.notes.author": {
@@ -4483,7 +4502,8 @@
         "call": "app.is_member_of_for({scope}::uuid, {uid}::uuid)",
         "fixtures": {},
         "scopeAnchored": true,
-        "note": "No arm-3 door: the legacy side IS the bare membership predicate. ⭐ `_for` takes an explicit uid, so unlike a policy probe this row IS third-party-capable."
+        "note": "No arm-3 door: the legacy side IS the bare membership predicate. ⭐ `_for` takes an explicit uid, so unlike a policy probe this row IS third-party-capable.",
+        "probeStateGated": true
       }
     },
     "commission.cases.vocabulary.read": {
@@ -4564,10 +4584,12 @@
         "call": "app.is_member_of_for({scope}::uuid, {uid}::uuid)",
         "fixtures": {},
         "scopeAnchored": true,
-        "note": "No arm-3 door: the legacy side IS the bare membership predicate. ⭐ `_for` takes an explicit uid, so unlike a policy probe this row IS third-party-capable."
+        "note": "No arm-3 door: the legacy side IS the bare membership predicate. ⭐ `_for` takes an explicit uid, so unlike a policy probe this row IS third-party-capable.",
+        "probeStateGated": true
       }
     },
-    "_probeReadsTable_note": "⭐⭐ THE TABLE THE DOOR READS, which is NOT always the table the binding is named after. Derived by MEASURING each door's body (`pg_proc.prosrc` / the policy's relation), never recalled: `app.can_read_document` reads `public.documents` while its fixtures were named after `controlled_documents`, and the mismatch made the door deny everyone silently. A presence check is only a control if it looks where the DOOR looks, so the generator's smoke and 424 § 2.6 both assert presence HERE, and the vector carries it as `probe_table` so the suite is told rather than having to know."
+    "_probeReadsTable_note": "⭐⭐ THE TABLE THE DOOR READS, which is NOT always the table the binding is named after. Derived by MEASURING each door's body (`pg_proc.prosrc` / the policy's relation), never recalled: `app.can_read_document` reads `public.documents` while its fixtures were named after `controlled_documents`, and the mismatch made the door deny everyone silently. A presence check is only a control if it looks where the DOOR looks, so the generator's smoke and 424 § 2.6 both assert presence HERE, and the vector carries it as `probe_table` so the suite is told rather than having to know.",
+    "_probeStateGated_note": "⭐⭐ MEASURED, NOT RECALLED: `true` where the door function's body contains an `app.is_active` gate. Swept across all eleven arm-3 doors in one pass — `can_read_action_item` and `can_read_document` are gated; `can_reach_meeting`, `can_sign_meeting`, `has_case_capability`, `can_read_capa`, `can_read_case_committee`, `is_document_approver_of` and `can_access_targeted_version` are not. ⛔ A P1-labelled class MUST NOT bind a state-gated function door: P1's approved divergence says the role-free disjunct IGNORES principal state, and a door that gates on state denies exactly the cells the label approves. Both gated doors now probe their POLICY leg instead. The smoke re-reads each body and reds if this flag has gone stale."
   },
   "differentialFixtures": {
     "_note": "The axis-level fixture bindings the differential probes resolve against, authored once here (L9') instead of in 424's declare block. personaUid is the PRINCIPAL the cell is about; scopeCommission the commission its `scope` axis value names. The caller is NOT here: it is the principal on a self-check and gap.unpriv otherwise, which the probe sets as claims, never as text.",

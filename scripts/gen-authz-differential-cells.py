@@ -1504,6 +1504,24 @@ def coverage(cells, skipped, reps_by_role, disposition=None, exclusions=None, ax
                  'nor its § 5.4 sites) — a neighbouring predicate is a different test wearing the '
                  'row\'s name, and it answers for the wrong door in silence'
                  % (len(_wrongdoor), _wrongdoor[0][0], _wrongdoor[0][1] or '(unparsed)'))
+    # ⭐⭐ (i) A P1-LABELLED CLASS MUST NOT BIND A STATE-GATED FUNCTION DOOR. P1's approved
+    # divergence is exactly "the role-free disjunct IGNORES principal state"; a function that
+    # opens with `if not app.is_active(p_uid) then return false` DENIES the cells the label
+    # approves, so the probe and the label contradict each other. Measured twice, on rows 11 and
+    # 16, for 40 cells between them before it was caught. ⛔ Keyed on the DECLARED, measured flag
+    # (the smoke re-reads each body and reds if the flag goes stale) because this gate cannot
+    # open a database.
+    _p1lab = 'arm3:divergent-approved:role-free-disjunct-ignores-principal-state'
+    _p1labelled = {c[4] for c in cells if c[12] == _p1lab}
+    _gatedp1 = sorted(x for x in _p1labelled
+                      if (probe_for(x, _perms) or {}).get('kind') == 'function-call'
+                      and (probe_for(x, _perms) or {}).get('probeStateGated'))
+    if _gatedp1:
+        f.append('arm14: representative(s) %s carry the approved limb-(b) divergence while '
+                 'binding a STATE-GATED function door — P1 approves a disjunct that ignores '
+                 'principal state, and a door gating on `app.is_active` denies precisely those '
+                 'cells, so the probe contradicts the label it is measured against. Probe the '
+                 'POLICY leg P1 was ruled on.' % ', '.join('`%s`' % x for x in _gatedp1))
     _noreadtable = sorted({x for x in _staff_codes
                            if _needs_resource(x) and not probe_reads(x, _perms)[0]})
     if _noreadtable:
@@ -1850,6 +1868,25 @@ if '--self-test' in sys.argv:
         out[i] = out[i][:19] + (tgt,) + out[i][20:]
         return out
 
+    def _pm_gated_p1(pm):
+        """A P1-carrying class re-pointed at a STATE-GATED function door - rows 11 and 16's
+           measured defect, where the probe denied exactly the cells the label approves."""
+        # targets row 11 by NAME here only because the function must genuinely be THAT row's
+        # declared door - otherwise arm14(h) claims the fixture and the state-gate arm stays
+        # unexercised, which is the neighbouring-arm trap one level down
+        for code, row in pm.items():
+            if code != 'commission.action_items.read':
+                continue
+            d = row.get('arm3Door') or {}
+            if (d.get('reach') or {}) and (d.get('probe') or {}).get('kind') == 'rls-select':
+                d['probe'] = dict(d['probe'])
+                d['probe']['kind'] = 'function-call'
+                # the call binds auth.uid(), NOT the principal, so `row_keying` stays caller-only and
+                # the keying sub-check cannot fire - this fixture must isolate the STATE-GATE arm
+                d['probe']['call'] = 'app.can_read_action_item({resource}::uuid, auth.uid())'
+                d['probe']['probeStateGated'] = True
+                return
+
     def _pm_flat_reach(pm):
         """A scope-keyed reach flattened back to a persona list - the shape that flipped 40 cells
            at scopes where the named principal is not the assignee. arm14(g) must name it."""
@@ -1912,6 +1949,7 @@ if '--self-test' in sys.argv:
     _pm_bad_keying = _pm_mutate(_flip_keying)
     _pm_nonliteral = _pm_mutate(_pm_random_id)
     _pm_flatreach = _pm_mutate(_pm_flat_reach)
+    _pm_gatedp1 = _pm_mutate(_pm_gated_p1)
 
     checks = [
         ('arm1 empty cell set',          [],                                                      base_skipped, REPS_BY_ROLE, None, None, None),
@@ -2031,6 +2069,8 @@ if '--self-test' in sys.argv:
          REPS_BY_ROLE, None, None, None, None),
         ('arm14 a reach with no byScope', base_cells, base_skipped, REPS_BY_ROLE,
          None, None, None, _pm_flatreach),
+        ('arm14 a P1 class on a state-gated door', base_cells, base_skipped, REPS_BY_ROLE,
+         None, None, None, _pm_gatedp1),
     ]
     bad = 0
     # ⚠ THE TAIL IS PADDED, NOT TYPED OUT. Every arm added since has widened `coverage()`, and
