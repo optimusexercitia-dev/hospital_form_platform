@@ -3257,3 +3257,32 @@ while quals CONTAIN newlines, so the verifier shredded every multi-line record a
 instead of 40 — now ``-separated (serialization destroys the boundary the pattern needs). Both
 LESSONS candidates at Record. Still in the scratchpad: 2 hand policies, 24 function re-keys, C1
 wiring, two seed tables, manifest flip + L13, anchor + `320 § U4`. Nothing in `supabase/`.
+
+### 2026-09-14 — T7 step 2, third pass: 23 of 24 function sites on the frozen path; L15 — D4 applied as written (lead)
+
+Backend measured and parked: the 24 function sites = 9 bare `is_member_of(` (caller-keyed) + 14
+`is_member_of_for(` (subject-keyed) + 1 neither (`public.sign_meeting`, declared for
+`commission.meetings.minutes.sign`, body carries no layer-1 gate call — being measured: what gates
+it today; a bug row if nothing, a declaration defect if a policy does). **23 of the 24 sit on the
+legacy frozen search-path set** (C2 anticipated 2); converging them = ~1,160 lines across 23 bodies
+(largest 183 lines, ~121 unqualified references); `419`'s baseline would move 860 → 837, not → 858.
+Backend's options: (a) converge all 23; (b) re-key under their existing paths with a recorded D4
+exception per function; (c) defer the 24 function sites to a named unit, parking 7 codes and their
+7 doors at zero callers.
+
+**L15 (lead — a sentence applied, not a new ruling).** ADR 0208 D4, verbatim: *"SET search_path =
+'' with schema-qualified object references is the sole forward convention for new or TOUCHED
+SECURITY DEFINER functions. Existing nonempty paths are frozen compatibility debt … they may not
+grow and converge to the empty form on touch. No mass body re-emission is required."* A re-key that
+rewrites a body IS a touch; the touched 23 converge. The last clause removes an OBLIGATION to touch
+frozen bodies for convergence's sake; it grants no exception to a body touched anyway. (b) and (c)
+would each be an exception to a PO clause and are not the lead's to grant; (a) is the clause
+applied. The D4 paragraph's warning about "the middle 42" concerns converting to the dominant
+NON-EMPTY path, not to `''`. ⚠ Stated to the PO at the T7 gate for visibility (the scale: 23
+bodies, `419` 860 → 837 attributed by name), not as a ruling request. **Execution conditions
+(pending backend's three measurements):** every converged body validated mechanically under
+`search_path=''` before the migration is placed (`plpgsql_check` if present on the stack; otherwise
+`414`'s resolvability gate is the miss-catcher and is named as such), the qualifier's resolved /
+hand-decided counts per body in the gate record, `421 § 2a` visited-count and `419` 860 → 837 with
+the 23 named; AE4's precedent measured for the record (AE4's re-key predates ADR 0208 and does not
+bind it either way).
