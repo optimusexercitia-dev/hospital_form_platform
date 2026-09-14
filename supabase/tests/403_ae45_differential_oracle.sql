@@ -113,9 +113,14 @@
 -- a silently dropped test.
 
 begin;
-select plan(27);
+select plan(28);
 
 \ir vectors/authz_differential_cells.psql
+-- ⭐ ADDED AT AE5 INCREMENT 1 for § 3.2c, which pins the `test_validation` set against the
+-- manifest's approved suites. ⛔ The manifest vector creates ITS OWN temp tables and touches
+-- none of this suite's, so including it changes no assertion above; § 3.2c simply has no
+-- other source for "which roles owe a differential suite" that is not this file's own guess.
+\ir vectors/authz_enforcement_manifest.psql
 
 -- ============================================================================
 -- §1 — the fixture. Three holding scopes, one of them CONSTRUCTED cross-org.
@@ -572,7 +577,13 @@ select ok(
   'stuck on one value could satisfy a same-answer cell set, and this is what stops that reading as '
   'agreement.');
 
-select is((select count(*)::int from authz.roles where state = 'test_validation'), 0,
+select is(
+  (select coalesce(string_agg(distinct r.code, ', ' order by r.code), '(none)')
+     from authz.roles r
+    where r.state = 'test_validation'
+      and r.code in (select distinct split_part(c.cell_id, '|', 2)
+                       from authz_differential_cells c)),
+  '(none)',
   '3.2b ⭐ THE BOUND ON POINTING THIS SUITE AT THE CANDIDATE EVALUATOR (AE4.9, ADR 0176 D4). '
   'authz.candidate_has_permission and authz.has_permission differ in EXACTLY ONE respect: the '
   'candidate also sees roles in `test_validation`. With ZERO roles in that state, the two are '
@@ -582,7 +593,54 @@ select is((select count(*)::int from authz.roles where state = 'test_validation'
   'candidate: the role being differentialled is precisely the one the runtime evaluator must '
   'still refuse. Do not "fix" a red here by repointing the suite back — record it. '
   '⚠ ASSERTED, NOT ARGUED: 407 §3 proves the two evaluators genuinely DISAGREE under '
-  '`test_validation`, so this is a real bound and not a restatement of a rename.');
+  '`test_validation`, so this is a real bound and not a restatement of a rename. '
+  '⭐⭐ RE-CLAUSED AT AE5 INCREMENT 1 (2026-09-13, lead ruling L4), AFTER BEING OBSERVED '
+  'RED: the T4 seed put `staff` into `test_validation` and this assertion read a GLOBAL '
+  'count of that state, so it went red for a role THIS SUITE DOES NOT MEASURE. ⛔ The '
+  'global count was never the property; it STOOD IN for the property while exactly one '
+  'role existed. The property is: no role THIS SUITE SWEEPS is mid-differential, which '
+  'is what makes 403 evidence about the runtime path as well as the candidate one. So '
+  'the count becomes a SUBJECT-SCOPED set, derived from the cell ids this suite '
+  'actually iterates rather than from a literal, and it still reds the day `staff_admin` '
+  'itself re-enters `test_validation`. ⚠ Re-clausing a bound WEAKENS it unless the '
+  'population it stopped watching is picked up elsewhere — § 3.2c below is that half, '
+  'and neither is complete alone.');
+
+-- ⭐⭐ § 3.2c — THE HALF THAT KEEPS § 3.2b FROM BEING A WEAKENING. § 3.2b now says nothing
+-- about roles this suite does not sweep, and "says nothing" is exactly how a bound
+-- quietly stops watching the event it was written for. This pins the `test_validation`
+-- set BY NAME, and the expected value is COMPUTED from two independent sources rather
+-- than written as a literal: the manifest's approved suites (every role that owes a
+-- differential) MINUS the roles this suite's own cells sweep. ⛔ A literal 'staff' here
+-- would have to be edited by hand at every increment, and a hand-edited expected value
+-- is one that gets edited to match whatever was observed.
+--
+-- WHAT IT REFUSES, in both directions:
+--   * a role enters `test_validation` with NO approved suite — it is being differentialled
+--     against nothing, and no suite would notice;
+--   * a role has an approved suite, is not this suite's subject, and is NOT in
+--     `test_validation` — either its increment never flipped it (the differential is
+--     reading a catalog that denies everything) or it was flipped to `authoritative`
+--     early, which is the cutover happening without its gate.
+-- ⚠ It is deliberately NOT keyed on the name `staff`: at increment 2 the expected value
+-- moves on its own, and an assertion that needs editing to stay true is an assertion
+-- that will be edited to stay green.
+select is(
+  (select coalesce(string_agg(r.code, ', ' order by r.code), '(none)')
+     from authz.roles r where r.state = 'test_validation'),
+  (select coalesce(string_agg(s.role_code, ', ' order by s.role_code), '(none)')
+     from authz_manifest_approved_suites s
+    where s.role_code not in (select distinct split_part(c.cell_id, '|', 2)
+                                from authz_differential_cells c)),
+  '3.2c ⭐ THE `test_validation` SET, PINNED BY NAME against the manifest''s approved '
+  'suites minus this suite''s own subject. § 3.2b stopped watching the roles this suite '
+  'does not sweep; this watches them, and computes the expected value from two '
+  'independent sources so neither side can be edited to agree with the other. It reds '
+  'when a role enters `test_validation` with no approved suite (differentialled against '
+  'nothing), and when a role that owes a suite is NOT in that state (its increment never '
+  'flipped it, or flipped it straight to `authoritative` without its gate). ⛔ Not keyed '
+  'on the literal `staff`: at increment 2 this value moves by itself, and an assertion '
+  'that must be hand-edited to stay true is one that gets hand-edited to stay green.');
 
 select is(
   (select count(*)::int
