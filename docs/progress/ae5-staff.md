@@ -3506,3 +3506,18 @@ names the four consumers and says three other bodies compose the bit for other s
 classification pending. Parts 1–7 complete in `t7-wip/`; not done, named: the withdrawals witness,
 the persona threading, `387`/`396`/`400`, the manifest dry-run, anchor + `320 § U4`, move-in, steps
 2–7. `419` 860 → 836.
+
+### 2026-09-14 — L18's witness needs a fourth fixture: `meeting_closed_session_items` is empty; approved (lead)
+
+Backend: `public.meeting_closed_session_items` has 0 rows, so `get_reserved_session_items` returns
+nothing for any principal and L18's witness would read identically on both sides for the wrong
+reason — an empty result set, not an authorization decision (row 9's gap, one table over). Cases
+exist to support it (7 `commission_default`, 1 `explicit_grants_only`). **Approved:** a fourth
+fixture in `part6` — one closed session with two items, one on a `commission_default` case and one
+on the `explicit_grants_only` case, both carrying `withdrawals` and `substance`, fixed-literal ids
+never a persona-axis value, seeded through the table's own door where one exists (a direct insert
+bypassing an obligation is the 330 lesson). A wired-but-unwitnessed site is refused. Also this
+pass: `FUP-AE5-STAFF-THREE-BIT-TESTING-BODIES-UNCLASSIFIED` filed (closes per function by
+measurement; refuses closure by re-scoping § 8.3 or dropping the three), gates 13 and 7 exit 0;
+C1's comment names all three stalenesses and points at the follow-up. Fixture-gap register: the
+tester adds the row. Parts 1–7 complete; remaining unchanged plus this fixture.
