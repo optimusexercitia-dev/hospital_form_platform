@@ -4168,3 +4168,8 @@ left ≈ 4 h, finish ≈ 19:30.
 
 Policy arm at 16 of 39; last `form_item_validations.form_item_validations_select (SELECT)`. 10
 cases in 67 min ≈ 6.7 min/case; 23 left ≈ 2.6 h, finish ≈ 19:10.
+
+### 2026-09-14 17:44 — sweep status 60/73: 58 COVERED, 2 NOTICED (lead watcher)
+
+Policy arm at 26 of 39; last `meetings.meetings_select (SELECT)`. 10 cases in 71 min ≈ 7.1
+min/case; 13 left ≈ 1.5 h, finish ≈ 19:15.
