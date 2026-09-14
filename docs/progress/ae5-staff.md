@@ -3746,3 +3746,114 @@ names its function among the 24 that converged under D4/L15); censuses (400 528 
 `FUP-AE5-STAFF-S8-S5-PAIRING-NOW-CONTINGENT` filed (the S8 comment's "member_can_for's third
 conjunct" claim was false — it is `is_member_of_for`, measured). Loop: T7 verification iteration
 2 of 5; the P0 is a NEW cause, attributed to a lead ruling.
+
+### 2026-09-14 — T7 GREEN AND COMMITTED: the gate record, with every witness line
+
+**Commits (by path, in order):** `2dddd278` the atomic set per R-4 (migration + seed + manifest
+JSON + emitted fixture + both generators + `410` + `320 § U4` + the anchor doc) · `97d5f916` the
+attributed re-pins across 14 suites · `7444f37a` + `b9301439` the two follow-ups. `gen:types`
+produced NO diff — the 21st door lives in `app` and is not a PostgREST surface — so there is no
+types commit, and its absence is a measurement, not an omission.
+
+**Full `test:db` on a FRESH reset: 275 files, 9215 tests, ONE file red.** The pre-T7 baseline
+(`test-db-run6-full.log`) was 273 / 9156 / PASS, so the comparison is against a green tree, not
+against a remembered state. `supabase db reset --local` exit 0; settle-check 171 then 171;
+profiles 45; `authz.roles` authoritative = 2. `npm run lint` exit 0 (every gate, no Docker);
+`npm run typecheck` exit 0. Gate 18 `in sync`. All exits read BARE.
+
+**The one red is `425` (tester's, `3c91d86a`), on tests 12 and 13, and they are one measurement
+from two sides:**
+```
+3.1 ⭐⭐ THE WITNESS THIS FILE EXISTS TO PRODUCE — NO MOVEMENT   have: 45   want: 0
+3.2 ⭐⭐ THE MIRROR ASSERTION, DELIBERATELY RED-BY-DESIGN         have: 48   want: 57
+```
+`§ 2.0` is back to **47/47**. 3.1 was the PRE-T7 witness (deleting `staff`'s grant changed nothing,
+because the sites were membership-keyed); T7 is precisely the change that makes it move, so 45 is
+the increment landing and 3.2's 48-of-57 is the quantity to attribute. Both lines are left exactly
+as they read — tester's file, tester's call.
+
+**L24 — the WIDENING, closed.** Row 9's door was `authz.has_permission(...) or
+app.has_case_capability(...)`. The second disjunct applies `_case_caps`'s STEP-4 hard denies and
+the `explicit_grants_only` guard; the first applies neither; one true disjunct grants. Now the
+capability arm ALONE, with the permission enforced inside it at S5 through the 21st door.
+`residualLegacyAuthority` on row 9 WITHDRAWN — nothing residual remains — and the grant chain is
+declared hop by hop (`can_reach_case_on_member_surface → can_cases_deliberation_read →
+has_case_capability → _case_caps → S5 → can_cases_deliberation_read_in_commission → authz`), which
+`reaches_code` walks under L23 at depth 6.
+
+Row 9's witnesses, re-taken on the fresh reset, subject `00000000-…-000a`:
+
+| # | case | conditions | `_case_caps` | door | member surface |
+| --- | --- | --- | --- | --- | --- |
+| (a) | `d0000000-…-00c1` `commission_default` | plain member, NO case grant | 2 | `t` | `t` |
+| (b) | same | `staff`'s role-permission grant DELETED | 0 | `f` | `f` |
+| (c) | same | restored | 2 | `t` | — |
+| (d) | `ca000000-…-00e1` `explicit_grants_only` | **EXCLUDED RESPONDENT** holding the `staff` role **and** an explicit `read_case_deliberation` grant | **0** | **`f`** | **`f`** |
+
+(d) is the fourth row the ruling asked for: both positive sources present, the hard deny still
+wins. Behavioural suites GREEN: **228, 233, 241, 242, 243** (233 M6·7 read `have: true / want:
+false` on two lines before this).
+
+**L20 — the NARROWING, closed, and folded into `7470` per C3.** `7480` is deleted; there is ONE
+migration. 21 doors, **13 granted to `authenticated` / 8 DEFINER-only**; the 21st takes no grant at
+all (`prosecdef t`, `search_path=""`, EXECUTE false for `authenticated`, `anon` AND `service_role`),
+which is why **R-4 is untouched: `320 § U4` exit 0, app=339 / public=433 / total=772**.
+
+**L21 — `subject`/`hat` on `enforcementSites`.** 64 carried from the pre-flip capture, 14 derived
+and MEASURED — `create_professional_profile` and `set_professional_link_state` both declare a
+`p_user_id uuid` that is the profile's linked user while the authority call passes `auth.uid()`,
+so the value was resolved, not the noun. `subject_keying` reads either surface; `_manifest_rows()`
+skips the `_*_note` keys; `_flip_keying` and `_synth_badkeying` REFUSE BY NAME with a
+void-control message instead of walking off the end. arm14(b) live and able to red — self-test:
+`caught — arm14 a caller-keyed door claims a principal [fired: arm14]`. **Gate 12 = 0.**
+
+**L13′ / L22 / L23 discrimination witnesses, all planted and rolled back:**
+```
+6a  § 6.3  baseline predicate t → plant one staff_admin pending row as measured-% with zero
+           arm sites → f → rollback → t
+6b  § 3.8  plant subject `p_not_a_parameter` → "commission.cases.deliberation.read ->
+           app.can_reach_case_on_member_surface declares subject `p_not_a_parameter`"
+L23        declared chain reaches t · composition declared but not called f ·
+           intermediate hop undeclared as a site f   (undeclared 2-hop STAYS red)
+```
+`410` is **45/45** (plan 44 → 45: the new § 3.8). Pins moved, each observed red first: § 1.4
+13 → 78 → 80 → 82 sites · § 3.6 107 → 110 (82 site pairs + 28 authorizer pairs — the authorizer
+side FELL because L24 deleted a disjunct, and the pair is asserted as one number so a rise and a
+fall cannot cancel out of sight) · § 4.5 58/3 → 38/23 · § 4.6 back to five entries, row 9's
+residual WITHDRAWN and the withdrawal recorded · § 5.2 3 → 23 · § 8.5 4 → 25 → **24** names ·
+§ 8.6 13/8/4 → **82 / 50 / 24** (the second figure moved on the INSTRUMENT, not the catalog:
+L23 taught `reaches_code` the declared chain, so `meeting_signatures_insert` is now counted).
+
+**`419`: 860 → 836, a PURE DELETION — 24 removed, 0 added.** The 24, from the generator's own
+`--write` line: `app._case_caps`, `app.can_reach_case_on_member_surface`,
+`app.can_read_action_item`, `app.can_read_capa`, `app.can_read_document`,
+`app.can_read_document_of_version`, `app.can_read_event`, `app.can_read_referral_internal_note`,
+`app.can_read_referral_internal_notes`, `app.can_read_referral_metadata`, `app.can_sign_meeting`,
+`app.resolve_document_version_bytes`, `public.cast_case_vote`,
+`public.create_referral_internal_note`, `public.documents_due_for_review`,
+`public.get_referral_case_access_summary`, `public.get_standard_assessment`,
+`public.indicator_series`, `public.list_commission_documents`, `public.meeting_cadence_status`,
+`public.notify_safety_event`, `public.readiness_evidence`, `public.readiness_report`,
+`public.suggest_carry_forward`.
+
+**`387`, every delta attributed to `a5f00000-…-f5` ALONE:** B2 35 → 36 `cd9eb75a…`, B3 44 → 45
+`458dfa00…`, and `md5(id-set MINUS f5)` reproduces the OLD pins byte-for-byte — 35 rows →
+`67d2c9c2…`, 44 rows → `4ba7d359…`. B1/B4/B5/B6 did not move, which IS the attribution. C1
+re-captured `168aa4c6…` with its nine changed hot-table policies named individually, measured
+against the pre-T7 LIVE capture; C2's 99 unchanged, which stops the re-capture absorbing a
+deletion.
+
+**⚠ Two corrections to the plan's own numbers, measured:** `409 § 1.1` is **24** pairs, not 25 —
+L24 removed the permission literal from `app.can_cases_deliberation_read`, so the door is no
+longer a carrier and the 21st door carries the code one hop down. And the "319 t13" of the plan is
+**`326` t13**; `319`'s red was `A7`, which was not a pin at all but a dead mutation twin
+(`have: 64 / want: 66` — the plant mutating a function S5 no longer consults). Re-pointed to
+`authz.holds_role` and re-pinned 66 → **111**, decomposed against `_cap_bit`: S5's
+`read_case_deliberation` plus the whole S1 coordinator set, with `read_restricted_phi` (16) still
+ABSENT — D5·6 holding under the mutation. A8 restores the object that was actually mutated.
+
+**Follow-ups filed:** `FUP-AE5-STAFF-HARD-DENY-CLOSURE-IS-BLIND-TO-OR-AROUND` (⭐ high — keeps
+L17's two-arm door verbatim as the closing gate's fixture, because the migration now carries the
+corrected form and migration text is stale by design) and
+`FUP-AE5-STAFF-S8-S5-PAIRING-NOW-CONTINGENT` (medium). Loop: T7 verification iteration 3 of 5;
+each iteration closed a NEW cause.
