@@ -158,3 +158,23 @@ for first — is contaminated and must not be used.
 ⛔ Every inserted row above needs an id distinct from every other case's fixture (plan
 `:1144-1147`) — none may be shared, including across the two lifecycle-persona insertions (`pending`
 and `deactivated` need separate membership-row ids even though both attach to CCIH).
+
+---
+
+## 9. 2026-09-14 addendum (T12, `425_ae5_staff_rekey_differential.sql`) — two more EMPTY tables
+
+Found while wiring 425's live DEFINER-function probes (not part of the original T13 sweep, which
+never needed these two tables). Method: bare `select count(*)` as `postgres`, no role switch, no
+transaction — same read-only discipline as § 0 above.
+
+| table | measured count | blocks |
+| --- | --- | --- |
+| `public.accreditation_standards` | **0** | `public.get_standard_assessment`, `public.readiness_evidence`, `public.readiness_report` — all three take a `p_standard uuid` argument with no seeded row to supply. |
+| `public.referral_internal_notes` | **0** | `app.can_read_referral_internal_note` — takes a `p_note_id uuid` with no seeded row to supply. |
+
+No fixture ids proposed here — backend's call, in T7's own seed work.
+
+⛔ These are DISTINCT from row 15's `accreditation_frameworks` gap (§ 6 above, § 8): frameworks and
+standards are different tables (`accreditation_standards` presumably FKs to a framework), and this
+addendum's emptiness was not implied by that earlier finding — verify both independently, do not
+assume seeding one fixes the other.
