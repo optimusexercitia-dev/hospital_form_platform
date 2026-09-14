@@ -3521,3 +3521,24 @@ pass: `FUP-AE5-STAFF-THREE-BIT-TESTING-BODIES-UNCLASSIFIED` filed (closes per fu
 measurement; refuses closure by re-scoping § 8.3 or dropping the three), gates 13 and 7 exit 0;
 C1's comment names all three stalenesses and points at the follow-up. Fixture-gap register: the
 tester adds the row. Parts 1–7 complete; remaining unchanged plus this fixture.
+
+### 2026-09-14 — L18's witness, discriminating form; the closed-session fixture hand-seeded with the reason stated (lead)
+
+Backend, in a rollback:
+
+```
+L18 commission_default  : has_bit=f  withdrawals=Retiradas registradas (fixture L18…
+L18 explicit_grants_only: has_bit=f  withdrawals=(null)
+```
+
+`has_bit=f` on BOTH rows: the only difference is `visibility_policy`, so the default row's
+`withdrawals` is the carried disjunct doing its work and the restricted row's null is the
+authority's — had the disjunct been collapsed, both rows would read null and the narrowing would
+have been invisible. Fixture: one session, two items, hand-seeded and SAID SO — `add_reserved_item`
+carries authorization and a computed `position`, not a referential obligation (the 330 lesson's
+subject), and going through it would mint `gen_random_uuid()` ids the fixed-literal rule forbids;
+the post-door state (position, blank text nulled) reproduced explicitly. Follow-up
+`FUP-AE5-STAFF-THREE-BIT-TESTING-BODIES-UNCLASSIFIED` filed, gates 13/7 exit 0 — ⚠ its two files
+are UNCOMMITTED in the shared tree; backend commits them by path at its next pass. Parts 1–7 + four
+fixtures complete, every piece witnessed. Not done: persona threading, `387`, scoped `396`/`400`,
+manifest dry-run, anchor + `320 § U4`, move-in, steps 2–7; row 9's triple waits on the persona.
