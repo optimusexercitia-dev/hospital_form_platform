@@ -3286,3 +3286,19 @@ bodies, `419` 860 → 837 attributed by name), not as a ruling request. **Execut
 hand-decided counts per body in the gate record, `421 § 2a` visited-count and `419` 860 → 837 with
 the 23 named; AE4's precedent measured for the record (AE4's re-key predates ADR 0208 and does not
 bind it either way).
+
+### 2026-09-14 — L15's three measurements: option (a) costs a `proconfig` change, not 1,160 lines (lead)
+
+Backend: **(1) AE4's precedent** — its re-key touched POLICIES only (`alter policy` × 6+, zero
+pre-existing bodies re-emitted); its three new doors were created on the legacy path
+(`20261003007300:141/232/292`), two still there, one converged later on touch by ADR 0209's fix — so
+"converge on touch" has run once, per function; AE4 never had a row with function sites and no
+policy site (T7 has 7). Record only; predates ADR 0208. **(2) Option (a)'s real risk:** 7 `sql` +
+16 `plpgsql` bodies; SQL bodies validate at CREATE under their own `proconfig`; `plpgsql_check` is
+AVAILABLE on the stack (not yet installed) for the 16; unqualified references to real relations
+across the 23 = **0**, unqualified calls to real `app`/`public`/`authz` functions = **0** — ⭐ proven
+by a planted control (`from memberships join profiles`) caught by name, both refs. Convergence = the
+`proconfig` change + the gate substitution. **(3) `sign_meeting`'s real gate:** not yet measured
+(negative only); the stop-if-ungated rule stands. Next pass: measurement 3, then the 23 re-emissions
+whole under `''`, validated mechanically BEFORE placement, apply-and-diff in a rollback for the
+`23/23` line. `supabase/` clean.
