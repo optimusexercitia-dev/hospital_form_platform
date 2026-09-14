@@ -2743,3 +2743,89 @@ N (script + current count/ceiling, quoted); whether ANY site must call the wrapp
 directly (zero ⇒ R-4 as posed is moot). **R-4 reframed under § Open rulings accordingly** — the
 PO is not asked the wrong question. SQL waits for backend's answer and for R-4/R-5. T12 (`425`)
 dispatched to the tester for step 1's no-movement witness — independent of both.
+
+### 2026-09-14 — T7 plan, findings B1 and B2 answered (backend) — still NO SQL
+
+Read `docs/design/authz-ae5-staff-permission-matrix.md:961–982` whole before answering, and
+re-measured both on the settled catalog.
+
+#### B1 — CONCEDED. § 8.3 is right and my plan narrowed an approved matrix.
+
+§ 8.3's last paragraph is not a description, it is an instruction: *"**T7 work item:** row 9's
+re-key target is this predicate, and re-keying it is not enough — it must be **WIRED**. A layer-3
+authorizer carrying `commission.cases.deliberation.read` as a greppable literal that nothing calls
+satisfies the grep and enforces nothing."* My "the re-key does nothing with it" contradicted that,
+and the reasoning I used to justify it **inverted A3**: A3 exists so that a designated authority HAS
+callers, not so that we leave one without. ⛔ Leaving a zero-caller designated authority in place
+one increment after A3 would be the exact defect A3 was written to prevent, committed deliberately.
+
+**Measured, and it confirms § 8.3 in every particular:**
+
+| site | prosecdef | search_path | tests the bit INLINE | calls the authority |
+| --- | --- | --- | --- | --- |
+| `app._project_meeting_case` | t | `''` | **yes** | no |
+| `app._project_meeting_agenda_item` | t | `''` | **yes** | no |
+| `public.get_reserved_session_items` | t | `''` | **yes** | no |
+| `app.resolve_document_version_bytes` | t | `app, public, pg_catalog` | **yes** | no |
+| `app.can_reach_case_on_member_surface` (the authority) | t | `app, public, pg_catalog` | — | ACL carries `authenticated=X` |
+
+**The wiring, planned.** Row 9's layer-3 door carries `commission.cases.deliberation.read` as a
+greppable literal; the authority becomes its body (its semantics already ARE the bit — § 8.3);
+the four inline sites call it, each gaining a `-- door-sweep-targets:` entry; the stale comment is
+corrected (it still warns against `can_read_case_or_admin`, **retired** by `20260814000000`).
+**Census witness: its caller count goes 0 → 4**, asserted as a number, and the four sites' inline
+copies of the bit are deleted in the same migration — a wired door beside four surviving inline
+copies is five authorities, not one.
+⚠ **Two of the five objects sit on the legacy frozen path** (`app, public, pg_catalog`), not `''`.
+ADR 0208 D4 puts any new/touched DEFINER on the empty path, so touching them moves them OFF
+`419`'s frozen baseline: **860 → 858**, with `421`'s empty-path population rising correspondingly.
+That is a gate-18/419 movement T7 must state in advance, not discover.
+
+#### B2 — CONCEDED, and the re-derivation changes the question being asked.
+
+My (a) counted policy sites calling the WRAPPER directly. Under T7's own design no policy does that:
+each policy calls its code's layer-3 `app.can_<code>` DEFINER door, and the wrapper is called INSIDE
+that door's body, where the privilege check is against the owner. I stated that rule in (a) and then
+failed to apply it to my own step 3.
+
+**(i) N, and the fan-out.** T7 creates **20** layer-3 doors, one per staff row. Of these:
+- **13 are called from at least one POLICY** → those 13 need `authenticated` EXECUTE. The 42 policy
+  sites fan onto them: `forms.read` 9 · `process_templates.read` 9 · `accreditation.read` 4 ·
+  `roster.read` 4 · `cases.vocabulary.read` 3 · `documents.read` 3 · `meetings.read` 3 ·
+  `indicators.read` 2 · `action_items.read` 1 · `charter.read` 1 ·
+  `meetings.cases.shell.read` 1 · `meetings.minutes.sign` 1 · `responses.create` 1.
+- **7 are called only from DEFINER bodies** and need NO grant: `capa.read`,
+  `cases.deliberation.read`, `cases.vote`, `referrals.metadata.read`, `referrals.notes.author`,
+  `safety_events.read`, `safety_events.report`.
+
+**(ii) How gate 15 absorbed AE4's N.** The gate is `scripts/check-budget-anchor.mjs`, reading ONE
+machine-readable line in `docs/backend-state/authorization-and-audit.md:178`:
+`<!-- BUDGET-ANCHOR ceiling=759 app=326 public=433 total=759 -->`, mirrored against the literals in
+`320 § U4`. The budget is **`authenticated`-executable SECURITY DEFINER functions in `app` +
+`public`**. Its merge rule, quoted: *"no increment may raise the count without a **named
+justification in its own gate record**, and **the ceiling moves only by PO ruling**."*
+AE4's re-key produced **4** code-carrying doors, of which **3** are `authenticated`-executable
+(`app.can_edit_commission_forms`, `app.can_read_professional_profile`,
+`app.current_professional_read_organizations`; `app.can_create_professional` is NOT). The ceiling
+moved **752 → 759 (+7)** by PO ruling 2026-09-08, and AE4's doors were absorbed inside that move.
+⛔ **MEASURED TODAY THE BUDGET IS EXACTLY AT THE CEILING: 759 = app 326 + public 433**, matching
+the anchor to the unit. **Headroom is ZERO.**
+
+**(iii) Does any site need to call the wrapper DIRECTLY from a policy? — measured NO, zero.**
+Every one of the 42 policy sites is a policy on a table whose code has a layer-3 door; none requires
+the wrapper in its own expression. ⇒ **R-4 as posed is MOOT**: `app.is_commission_staff_of(_for)`
+can stay `service_role`-only forever, and T6's deferral was the right call for a reason other than
+the one stated.
+
+⭐ **THE QUESTION THE PO SHOULD ACTUALLY BE ASKED** is therefore not "grant `authenticated` on two
+wrappers" but: **move gate 15's ceiling 759 → 772 (+13) for T7's policy-called layer-3 doors, under
+the same merge rule AE4 used.** ⚠ And the comparison is not flattering by itself — AE4 added 3
+against a ceiling that then moved +7; T7 adds **13 against zero headroom**. Options I can measure if
+the lead wants them before the PO sees it: (1) one door per code as designed (+13); (2) fewer,
+coarser doors shared across codes (breaks the greppable-literal-per-code property the re-key exists
+for); (3) keep the highest-fan-out codes on a layer-1 gate this increment (`forms.read` and
+`process_templates.read` alone are 18 of the 42 sites but only 2 of the 13 doors — so deferring
+them saves 2 doors, not 18: the count is DOORS, not sites, which is the arithmetic that makes
+option 3 much weaker than it looks).
+
+⚠ Nothing under `supabase/` changed. SQL waits for the lead's ack and for R-4 (as reframed) and R-5.
