@@ -3164,3 +3164,38 @@ expiry, which is the failure A3 exists to prevent. **Proposed ADR 0211 amendment
 ⚠ If the lead or PO prefers it INSIDE T7 instead, the measurement above says it is safe to do so
 — the blocker is witnessing, not correctness — and the cost is that `425` must gain a
 membership-deletion arm before step 1, which moves T7's red-first order rather than extending it.
+
+### 2026-09-14 — PO rulings R-4 · R-5 VERIFIED in the record (`f8a66457`); AC-6 ticked; L14 on C5 — deferral accepted with its bound; C3 LIFTED (lead)
+
+Verified by the lead, not relayed: `f8a66457` touches exactly four files by path (record +65, ADR
+0211 Status line, `INDEX.md`, `proposed-review.json`), the two rulings are quoted VERBATIM under the
+PO-session entry, ADR 0211 `**Status:** accepted`, the stamp `reviewed 2026-09-14`, `npm run lint`
+exit 0 at that HEAD. The PO session measured the budget itself with `320 § U4`'s query (326 · 433 ·
+759) before presenting, re-read the wrappers' ACLs live, and showed the DEFINER-calls-wrapper
+mechanism in a rolled-back transaction — the presentation rested on measurements, not on the
+chip's stale wording. **R-4:** (a) approved, ceiling 759 → 772, `app` 326 → 339, `public` 433,
+attributed to exactly the 13 policy-called doors; anchor + `320 § U4` literals move in the same
+atomic commit; completion = the post-migration LIVE catalog at 339/433/772; a 14th door or a
+changed caller mapping needs a new ruling. **R-5:** accepted; D3 `:185` amendment ORDERED, owed to
+the ADR owner with an `**Amended:**` header; C5's branch decides the sentence. **AC-6 ticked** on
+T6's entry + R-5.
+
+**C5 answered (`b28b69c8`), measured:** wrapper census after T7 = 0 policies, 0 bodies (the lead's
+reading confirmed); `is_member_of(_for)` = 82 (40 + 42); exactly two commission roles, both
+authoritative; the re-expression is answer-preserving today (22 tuples in both planes, 0
+facts-only, 2 memberships-only = `gap.deactivated` + `suspenso.temp`, filtered at the wrapper level
+vs the facts level — 426 § A2's distinction). **L14 (lead, mechanism): the deferral is ACCEPTED**
+for the reason given, which is about witnessing, not size — `425` deletes an `authz.role_permissions`
+row and the re-expression lives on the MEMBERSHIP plane, where a grant deletion moves
+`is_member_of` by nothing; it needs a membership-deletion pair, its own suite and its own red-first
+order. The named unit is **`AE5-MEMBER-PREDICATE-REEXPRESSION`**; A3's allow-list of the wrapper
+(expiry: T7) is RENEWED by the deferral clause itself, bound to that unit — so ADR 0211 is amended
+in two places by its owner under one `**Amended:**` header: D1 (the deferral + renewed bound) and
+D3 `:185` (the PO's ordered sentence: per-site re-key in T7, predicate re-expression in the named
+unit). ⚠ The lead states to the PO at the T7 gate that a designated authority with ZERO production
+callers stands for one unit under a named bound; that is the cost recorded, not absorbed. Follow-up
+filed by backend with the bound as its closes-when. L13's 6a/6b witnesses are in the run book.
+
+**C3 lifted:** T7's SQL may be written. ⛔ The incident rule holds — the migration is authored in
+the session scratchpad and enters `supabase/migrations/` only after the tester's `425` no-movement
+witness is captured on the PRE-migration catalog (run-book step 1).

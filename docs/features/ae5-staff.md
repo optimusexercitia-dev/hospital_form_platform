@@ -45,7 +45,7 @@ Each is the template step it names; the witness for every box is a dated entry i
       `unreachable` swept; approved divergence in `expected_legacy_granted` only; shown able to fail.
       Every PA-F8 divergence dispositioned (a) fixed earlier / (b) named exception with owner +
       expiry / (c) blocks cutover.
-- [ ] **AC-6 Atomic cutover.** ⛔ PO ruling on the wrapper question first (record § Open rulings
+- [x] **AC-6 Atomic cutover** ✅ **2026-09-14** (record: T6 applied red-first `665d9519`; ADR 0211 ACCEPTED by R-5 `f8a66457`; D1/D3 amendment owed under L14). Was: ⛔ PO ruling on the wrapper question first (record § Open rulings
       R-1, R-2). `create or replace` only; name · signature · `prosecdef` · volatility ·
       `search_path` · ACLs snapshotted before and asserted after; `staff` → `authoritative` with the
       count-verified `do` block; direct-call census derived per site from the comment-stripped
@@ -93,13 +93,15 @@ posted, not executed.
 
 ### In progress
 
-**T6 APPLIED red-first 2026-09-14** (`665d9519`): `426` and `405` observed RED with the migration out
-of the tree, GREEN with it in; the two wrappers `app.is_commission_staff_of(_for)` exist as DEFINER,
-stable, `search_path` empty, no PUBLIC and no `authenticated`; `staff` → `authoritative` (1 flipped,
-0 left); `authz.has_permission` now grants a `staff` holder, 80/80 pairs agreeing with the
-candidate. `424`'s state control is being re-pointed under L12 (tester, scoped run). **AC-6 waits on
-the PO** (R-5 below). T7 plan (`5d7d3540` + `75f8b617`) ACKED with C1–C4: row 9's zero-caller door wired at its four inline sites with the copies deleted (census 0 → 4), `419` 860 → 858 attributed, ONE atomic migration held until R-4/R-5; `tester` writing `425` for step 1's no-movement witness.
-T13's specs are committed, unrun until AC-10. `npm run lint` exit 0 at HEAD.
+**T7 re-key — SQL authorised 2026-09-14.** R-4 ruled (gate 15's ceiling 759 → 772 for exactly the
+13 policy-called layer-3 doors; live catalog must read 339/433/772 after), R-5 ruled (ADR 0211
+accepted; D3 `:185` amendment ordered). Plan acked with C1–C5 and L13 (the § 6.3 conjunct re-ruled
+with both halves witnessed); C5 answered: the wrapper has ZERO callers after T7 and the
+`is_member_of(_for)` re-expression is DEFERRED to `AE5-MEMBER-PREDICATE-REEXPRESSION` (L14 — `425`
+is on the role plane, the re-expression on the membership plane), the allow-list's expiry moved
+with it by ADR 0211's amendment. Run-book order: `tester`'s `425` no-movement witness on the
+pre-migration catalog first (in flight), then `backend`'s ONE atomic migration enters the tree.
+T13's specs committed, unrun until AC-10. `npm run lint` exit 0 at HEAD.
 
 ### Next
 
@@ -108,9 +110,8 @@ T8 census/arms → T10 seam slice → AC-10 gate → QA → PO approval → Reco
 
 ### Blockers
 
-**Two PO rulings (record § Open rulings):** **R-5** ADR 0211 D2 review — AC-6 ticks on acceptance;
-**R-4** gate 15's ceiling 759 → 772 (+13) for T7's 13 policy-called doors, headroom today 0 (the two-wrapper question is moot: zero direct policy callers).
-⚠ A second Supabase stack (`*_escalume`) runs on this host and made two resets
+None ruling-shaped (R-4, R-5 ruled `f8a66457`). ⚠ For the PO at the T7 gate: the `staff` wrapper stands with ZERO
+production callers for one unit under a named bound (L14). ⚠ A second Supabase stack (`*_escalume`) runs on this host and made two resets
 fail at the CLI's post-reset step; AC-10's runs need it stopped or the reset re-verified. ⛔ ADR 0211 D2 is reviewed by the PO at the T6 gate (put in front of the PO on
 2026-09-14 as readable now). ⚠ Owed to T7/T13, not blocking: `app.can_reach_case_on_member_surface`
 has ZERO production callers (matrix § 8.3); **4 of 12** seeded CCIH `staff` personas carry a non-role
