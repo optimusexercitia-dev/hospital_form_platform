@@ -2414,3 +2414,22 @@ literal satisfies `isnt()` for the wrong reason.
 
 Scoped after a bare reset (`pg_stat_activity` checked first): `00_setup + 330` **exit 0**,
 `00_setup + 387` **exit 0**; `npm run lint` **0**, `lint:authz-vectors` **0**. `424` untouched.
+
+### 2026-09-14 — 330 + 387 fixed with every delta named (`d94efa9a`); full suite dispatched (lead)
+
+Backend: **330** — the two Farmácia controlled documents were inserted directly, bypassing the door
+that carries the `core_document_id` obligation; the seed now reproduces the post-backfill state (5 of
+5). The fix also DELETED the `public.documents` rows seeded when row 16 probed
+`app.can_read_document`: L11 moved the row to the policy leg, so nothing bound them (zero references
+in manifest and vector, verified before removal) — ⭐ lesson-shaped for Record: a fixture nothing
+binds is not harmless, it still owes every invariant its table carries, and the unreferenced half is
+exactly what broke 330. **387** — four profiles entered (`gap.comember.ccih/farma/farmb`,
+`gap.absent`); per arm the pin moved by EXACTLY the number of those profiles the arm can see (B1
++2, B2 +3, B3 +4, B4/B5 +1, B6 +1), nothing else entered or left ⇒ fixture delta, not a visibility
+change; `gap.absent` visible to B2/B3 and invisible to B1 (org affiliation, no hospital tier, no
+membership) — the same asymmetry `gap.unpriv` showed at the first re-pin, which is what makes it
+attributable; D1a re-pinned though never red (a stale literal satisfies `isnt()` for the wrong
+reason). Exits bare after a fresh reset: `00_setup + 330` 0 · `+ 387` 0 · `npm run lint` 0 ·
+`lint:authz-vectors` 0. Tester dispatched: full `test:db` once on a fresh reset (iteration 2 of the
+full-suite loop), the other host stack counted not stopped, a CLI-failed reset re-verified and
+written into the log header.
