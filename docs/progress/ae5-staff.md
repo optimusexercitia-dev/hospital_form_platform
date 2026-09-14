@@ -2098,3 +2098,18 @@ that plants an absent id and requires the check to report it**.
 pairs, 0 absent; the planted-absent control fired.** cells 5436 · flips 408 · `staff_admin`
 **1728 byte-identical** (sorted AND plain) · `--self-test` 32 caught, clean on the real spec ·
 `lint:authz-vectors` **0**, `npm run lint` **0**.
+
+### 2026-09-14 — stack back from backend at `8aed9422`; `424` run 3 dispatched (lead)
+
+Backend's fix round: `a16debbe` (seed: `public.documents` ids per scope, co-members with ONE
+membership each, the missing `meeting_cases` row), `d2a8acb3` (generator + vector: `probeReadsTable` /
+`probeReadsColumn` declared for all 11 resource-binding classes, emitted as `probe_table` /
+`probe_column`; arm14(e) refuses an undeclared binding; smoke over every cell with a planted-absent
+discrimination half), `8aed9422` (its record entry). Measured by the lead on the emitted `.psql`, not
+the report: the two columns are present in the `staff` temp table; `424` references neither yet
+(`grep` over the suite: 0 lines) — so § 2.6 still checks the table the binding is NAMED after, the
+blindness that kept run 2's smoke green. Tester dispatched: § 2.6 re-pointed at `probe_table`.
+`probe_column` with its discrimination half kept, run 3 to a NEW log name, cap 2; on green the § 6
+witness and one full `test:db` on a fresh reset. ⚠ Own trap re-hit in this round's measurement: a
+`grep … | head` chain printed `head`'s exit, not `grep`'s — the count was read from the lines, not
+the code.

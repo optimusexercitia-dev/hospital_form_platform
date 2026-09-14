@@ -94,9 +94,11 @@ posted, not executed.
 ### In progress
 
 **PO ruled P1 · P2 · P3 on 2026-09-14** (verbatim in the record: *"P1 accept the exception, P2
-intended composition, P3 pending GRANTED"*). `backend` applies P1 + P2 to the generator and
-regenerates the vector (no DB); then `tester` runs `424` to green with the able-to-fail witness; then
-the stack goes to `backend` for the T6 red-first sequence (files held in the session scratchpad
+intended composition, P3 pending GRANTED"*). `backend`'s
+vector fix round is committed (`8aed9422`: doors' READ tables declared as data, `probe_table` /
+`probe_column` emitted, every cell smoked with a planted-absent control); `tester` runs `424` run 3
+with § 2.6 re-pointed at those columns, to green with the able-to-fail witness; then the stack goes
+to `backend` for the T6 red-first sequence (files held in the session scratchpad
 `t6-wip/` since the incident). `410` § 6.2 reads `armInterface` (L6, both discrimination halves
 witnessed); `387` re-pinned with every delta attributed; `npm run lint` exit 0.
 
