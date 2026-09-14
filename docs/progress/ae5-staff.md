@@ -2037,3 +2037,22 @@ self-test 32 caught. ⚠ Flagged by backend, not ruled: `roster.read`'s subject 
 persona-keyed, not scope-keyed (a profile belongs to no commission) — recorded in its `scopeNote`;
 the lead reads it as correct for the profile door (the scope axis varies the CALLER's membership,
 which the co-member leg reads) and leaves it for the T14 review to contest. Tester runs `424`.
+
+### 2026-09-14 — `424` run 2: 458 → 268 cells red; two more VECTOR defects, both measured live by the tester (lead)
+
+Tester (log `424-run2of2.log`; § 2.1 floor re-measured at 3708 cells, 12 classes unchanged): § 4.1
+98 + § 4.1b 170 cells, stopped at its cap because neither is fixable from the loop:
+1. **`documents.read` binds ids from the wrong table for the door it calls.** `legacy_sql` now calls
+   `app.can_read_document(document_id, uid)` — which reads `public.documents` — while
+   `legacy_fixture_id` binds `controlled_documents.id` values (`d0c00000-…-d1/d2`); measured:
+   `select id from public.documents where id in (…)` → 0 rows, so the door denies everyone. ⚠ The
+   smoke "0 errors" and § 2.6's presence control could not see it: presence was checked in the
+   DECLARED table, not in the table the DOOR reads. ⇒ the binding declares the table the door reads
+   (as data, per class) and § 2.6 / the generator's smoke check presence THERE.
+2. **`roster.read` never got the per-scope fixture** the other nine classes got: its co-member ids
+   stay anchored regardless of the cell's `scope`; measured: `subject_holder` (staff4.ccih) at
+   `sibling_commission` probes CCIH's co-member (`…002`) — a real co-member fact at the WRONG scope
+   — `legacy=true`, `catalog=false`. ⇒ the deferred `scopeNote` question is settled by measurement,
+   against the lead's reading: the resource must be a profile whose ONLY shared commission with the
+   principal is the cell's scope (a co-member via Farmácia A only; via Farmácia B only), or the
+   named skip. Routed to backend (owns the stack).
