@@ -238,6 +238,12 @@ declare
   v_capa_indicator uuid := 'a5f70000-0000-0000-0000-0000000000a1'; -- source='indicator'
   v_capa_rca       uuid := 'ca000000-0000-0000-0000-0000000000a3'; -- source='rca'
   v_form_version uuid := '50000000-0000-0000-0000-00000000a001'; -- CCIH form version
+  -- Row 4's co-member targets, one per commission a fixture principal actually holds in (backend
+  -- ruling: "a fixed $1 across arms is exactly your mixed pattern" — $1 must be resolved RELATIVE
+  -- to whichever principal is under test, never a persona-independent constant).
+  v_comember_ccih  uuid := '00000000-0000-0000-0000-000000000002'; -- chefe.ccih, CCIH co-member
+  v_comember_farmA uuid := '00000000-0000-0000-0000-000000000005'; -- chefe.farm, Farmácia (Rede A) co-member
+  v_comember_farmB uuid := '00000000-0000-0000-0000-0000000000b3'; -- staff1.qual.b, Farmácia B co-member
 begin
   perform test_helpers.reset_role_and_claims();
   select * into f from f424;
@@ -280,18 +286,24 @@ begin
   end if;
   catalog := authz.candidate_has_permission(v_principal, v_res, v_scope_id, p_code);
 
-  -- ⚠ FOUR CLASSES ARE BARE `app.is_member_of(scope)` CALLS SOMEWHERE IN THEIR EXPRESSION, WITH NO
+  -- ⚠ FIVE CLASSES ARE BARE `app.is_member_of(scope)` CALLS SOMEWHERE IN THEIR EXPRESSION, WITH NO
   -- `uid`/`p_uid` PARAMETER AT ALL FOR THAT SUB-TERM (manifest `arm3Door.args`: row 15 declares only
   -- `owner_commission_id uuid`; rows 1/4/16 mix an explicit-uid arm with a bare one). A bare
   -- `is_member_of` reads `auth.uid()` — it can only ever answer about the QUERYING SESSION, never
   -- about a "subject" distinct from the caller. So `self_check=false` ("third_party") has NO
   -- meaning for the bare portion: there is no way to ask "is v_principal a member" from a caller
   -- who is not v_principal. Fixed after iteration 2 (measured: every `third_party` cell on these
-  -- four classes read the CALLER's membership, not v_principal's, producing 1496 false reds). These
-  -- four classes are therefore evaluated (for LEGACY ONLY, `catalog` already computed above) ALWAYS
-  -- as if `self_check` were true — the claims are re-set to `v_principal`, never `nobody`.
+  -- classes read the CALLER's membership, not v_principal's, producing 1496 false reds).
+  -- ⭐ `can_read_action_item` ADDED to this list this round, beyond the fixture-selection fix backend
+  -- named — `pg_temp.legacy_row11`'s COMMITTEE leg is `p_visibility_scope='committee' AND
+  -- app.is_member_of(p_commission_id)`, the SAME bare-membership shape as the other four; without
+  -- this it would still fail on every third-party `none`/`conjunct_met` cell even with the correct
+  -- committee-scope item selected. Flagged as MINE, not part of backend's literal instruction.
+  -- These five classes are therefore evaluated (for LEGACY ONLY, `catalog` already computed above)
+  -- ALWAYS as if `self_check` were true — the claims are re-set to `v_principal`, never `nobody`.
   if p_class in ('rls_form_matrix_targeted_version', 'rls_profiles_comember_or_self',
-                 'rls_accreditation_frameworks_owner_null', 'rls_controlled_documents_approver') then
+                 'rls_accreditation_frameworks_owner_null', 'rls_controlled_documents_approver',
+                 'can_read_action_item') then
     perform test_helpers.claims_for(v_principal, false,
       case p_ctx when 'matching' then 'staff' when 'other_role' then 'staff_admin' else null end);
   end if;
@@ -310,8 +322,18 @@ begin
   legacy := case
     when p_class = 'is_member_of_for' then app.is_member_of_for(v_scope_id, v_principal)
     when p_class = 'rls_accreditation_frameworks_owner_null' then
-      (case p_gate_arm when 'disjunct_present' then null::uuid else v_scope_id end is null)
-      or app.is_member_of(case p_gate_arm when 'disjunct_present' then null::uuid else v_scope_id end)
+      -- ⚠ FIXED per backend ruling (b, suite): `disjunct_absent` is a RESOURCE-anchored coordinate
+      -- ("the disjunct is absent because the framework IS owned by someone"), not a scope-anchored
+      -- one — it must always reference the same concrete, non-NULL-owner resource
+      -- (`gap-ccih`/`f.own_cid`) regardless of which `scope` axis value the cell also carries, never
+      -- `v_scope_id` (which drifted to the foreign-owned `gap-farmb` shape for `foreign_org_commission`
+      -- cells). `none` is unaffected — it is not one of the values backend named.
+      (case p_gate_arm when 'disjunct_present' then null::uuid
+                        when 'disjunct_absent'  then f.own_cid
+                        else v_scope_id end is null)
+      or app.is_member_of(case p_gate_arm when 'disjunct_present' then null::uuid
+                                           when 'disjunct_absent'  then f.own_cid
+                                           else v_scope_id end)
     when v_scope_id <> f.own_cid then app.is_member_of_for(v_scope_id, v_principal)
 
     when p_class = 'rls_form_matrix_targeted_version' then
@@ -323,13 +345,25 @@ begin
       or app.can_access_targeted_version(v_form_version, v_principal)
 
     when p_class = 'rls_profiles_comember_or_self' then
+      -- ⚠ FIXED per backend ruling (b, suite): $1 was a FIXED constant across every persona, which
+      -- for `subject_holder` (v_principal = f.uid) made `conjunct_met`/`none` a self-read in
+      -- disguise, and for other personas made `disjunct_absent` a self-read whenever v_principal
+      -- happened to equal the constant used. $1 is now resolved RELATIVE to v_principal: a genuine
+      -- co-member of v_principal's OWN commission for `none`/`conjunct_met` (ordinary membership,
+      -- and the arm-3 grant coordinate share the same shape); a stranger for `conjunct_unmet`; a
+      -- guaranteed-non-self, guaranteed-non-co-member target for `disjunct_absent`; v_principal
+      -- itself only for `disjunct_present` (the role-free self-read).
       pg_temp.legacy_row4(
         case p_gate_arm
-          when 'disjunct_present' then v_principal        -- self-read: $1 = $2
-          when 'disjunct_absent'  then f.nobody            -- no shared commission, not self
-          when 'conjunct_met'     then f.uid               -- shares CCIH with an own_commission caller
-          when 'conjunct_unmet'   then f.other_id          -- Farmácia — no shared commission
-          else v_principal end,
+          when 'disjunct_present' then v_principal
+          when 'disjunct_absent'  then (case when v_principal = f.nobody then f.uid else f.nobody end)
+          when 'conjunct_unmet'   then (case when v_principal = f.other_id then f.uid else f.other_id end)
+          else (case v_principal
+                  when f.uid then v_comember_ccih
+                  when f.other_id then v_comember_farmA
+                  when f.xorg_holder then v_comember_farmB
+                  else v_comember_ccih end)
+        end,
         v_principal)
 
     when p_class = 'can_reach_meeting' then
@@ -374,8 +408,16 @@ begin
         v_scope_id, v_principal)
 
     when p_class = 'rls_controlled_documents_approver' then
+      -- ⚠ FIXED per backend ruling (b, suite): `none` (the baseline, unrelated to the specific
+      -- approver fixture) was sharing `disjunct_present`'s document — the one document whose ONLY
+      -- approver is staff4.ccih. For any OTHER persona that made `none` silently depend on the
+      -- approver fixture too. `none` now uses the neutral document (nobody's approval on it);
+      -- `disjunct_present` keeps the approver-named document — the coordinate is genuinely
+      -- constructible only for `subject_holder` (staff4.ccih IS $3 there), and correctly falls
+      -- through to bare membership for every other persona, exactly as `is_document_approver_of`
+      -- returning false for them should.
       pg_temp.legacy_row16(
-        case p_gate_arm when 'disjunct_absent' then v_doc_other else v_doc_approved end,
+        case p_gate_arm when 'disjunct_present' then v_doc_approved else v_doc_other end,
         v_scope_id, v_principal)
 
     when p_class = 'can_read_capa' then
@@ -431,34 +473,34 @@ select is(
 -- ============================================================================
 -- §4 — is(legacy, catalog).
 --
--- ⛔⛔ REMAINING DISAGREEMENT CLASSES, iteration 4 (`424-iter4.log`, post-CRLF-normalisation, NOT
--- re-run since) — grouped by (code · gate_arm); persona/principalState/activeContext/scope collapse
--- into a single row wherever the four values below did not vary across them (noted "mixed" where
--- they did). `expected_granted` is not printed separately from `expected_legacy_granted` because
--- every failing cell here has the two EQUAL (that is WHY they appear in §4.1 at all — a declared
--- divergence would have excluded the cell). ⛔ LEFT AS-IS, PER THE LEAD'S INSTRUCTION — not iterated
--- further, not silently reconciled.
+-- ⛔⛔ DISAGREEMENT CLASSES AS OF ITERATION 4, WITH BACKEND'S RULING PER CLASS (its own record entry
+-- + the lead's relay). Ruling key: **(a) vector** — `expected_*` is wrong, PO-pending, NOT mine to
+-- touch; **(b) suite** — my dispatch was wrong, FIXED this round (not yet re-run); **(c) fixture**
+-- — backend's seed is incomplete, backend is building it, NOT mine. `expected_granted` is not
+-- printed separately from `expected_legacy_granted` because every failing cell here has the two
+-- EQUAL (that is WHY they appear in §4.1 at all — a declared divergence would exclude the cell).
 --
--- | code                                  | gate_arm         | legacy | catalog | expected(=expected_legacy) | div            | n   | my opinion (marked as opinion) |
--- |---------------------------------------|------------------|--------|---------|-----------------------------|----------------|-----|--------------------------------|
--- | commission.accreditation.read         | disjunct_present | true   | false   | false                       | arm3:not-in-gate | 198 | OPINION: `expected` is wrong. Verified live (`(null is null) or is_member_of(null)` = `true` unconditionally, no is_active gate) — the vacuous PUBLIC arm genuinely grants; PO-pending per the lead. |
--- | commission.accreditation.read         | none             | false  | true    | true                        | arm3:not-in-gate | 6   | OPINION: my dispatch is wrong OR this is the same PO question in the opposite polarity — `none` at this code/scope should behave like ordinary membership, and I have not re-verified it against the live door since iteration 1. |
--- | commission.accreditation.read         | disjunct_absent  | false  | true    | true                        | arm3:not-in-gate | 6   | OPINION: same as `none` — not re-verified. |
--- | commission.roster.read                | none/conjunct_met/conjunct_unmet/disjunct_present/disjunct_absent | mixed | mixed | mixed (=catalog) | arm3:not-in-gate | 214 | OPINION: MY BUG, not the vector's. Row 4's self-read leg (`$1=$2`) is unconditionally true, and my dispatch applies it inconsistently across gate_arm/persona/scope combinations rather than uniformly — this is the class I am least confident is a genuine finding rather than a dispatch defect. |
--- | commission.forms.read                 | none/disjunct_present/disjunct_absent | false | true | true | arm3:not-in-gate | 18 | OPINION: MY BUG. Row 1 has no `disjunct_present` fixture (documented in this file's header) and I never re-checked the `none`/`disjunct_absent` baseline against a live probe after the scope-fallback fix — likely the same v_form_version-is-CCIH-only issue the scope fallback was meant to fix, applied to the wrong branch. |
--- | commission.action_items.read          | none/conjunct_met/conjunct_unmet/disjunct_present/disjunct_absent | false | true | true | arm3:not-in-gate | 26 | OPINION: MY BUG. `pg_temp.legacy_row11`'s committee leg for `subject_holder`@CCIH should grant via the ORIGINAL committee-scope item at `none`/`conjunct_met` — a genuine CCIH member being denied there is not a PO question, it is a wrong fixture id or wrong branch selection. |
--- | commission.documents.read              | none/disjunct_present/disjunct_absent | mixed | mixed | mixed (=catalog) | arm3:not-in-gate | 66 | OPINION: MY BUG, same family as roster.read — `rls_controlled_documents_approver` mixes a bare `is_member_of` leg with an explicit-uid leg and I likely have not carried the iteration-3/4 self-mode-claims fix correctly through every gate_arm branch. |
--- | commission.cases.deliberation.read     | conjunct_unmet   | false  | true    | true                        | arm3:not-in-gate | 6   | OPINION: MY BUG. `case_caps_deliberation` should still grant via `has_case_capability` at a `commission_default` case for a clean CCIH member; `conjunct_unmet`'s fixture choice looks mis-selected. |
--- | commission.cases.vote                  | conjunct_unmet   | false  | true    | true                        | arm3:not-in-gate | 6   | OPINION: MY BUG, same shape as cases.deliberation.read. |
--- | commission.meetings.read               | conjunct_unmet   | false  | true    | true                        | arm3:not-in-gate | 6   | OPINION: MY BUG — `can_reach_meeting` at `conjunct_unmet` uses the participants_only meeting; a CCIH member reaching via a DIFFERENT commission_default meeting is not what `conjunct_unmet` should test, but denying a CCIH member entirely looks like a fixture-selection error, not a finding. |
--- | commission.meetings.cases.shell.read   | conjunct_unmet   | false  | true    | true                        | arm3:not-in-gate | 6   | OPINION: MY BUG, same shape as meetings.read (shares the `can_reach_meeting` call). |
--- | commission.meetings.minutes.sign       | conjunct_unmet   | false  | true    | true                        | arm3:not-in-gate | 6   | OPINION: MY BUG — `can_sign_meeting`'s `conjunct_unmet` (the absent attendee) should not deny EVERY persona/state combination; something in the attendee-id selection is not scoped correctly. |
+-- | code                                | gate_arm                        | legacy | catalog | expected | div               | n   | ruling |
+-- |--------------------------------------|----------------------------------|--------|---------|----------|-------------------|-----|--------|
+-- | commission.accreditation.read        | disjunct_present                 | true   | false   | false    | arm3:not-in-gate  | 198 | **(a) vector** — verified live: the vacuous PUBLIC arm grants unconditionally, no is_active gate; PO-pending. |
+-- | commission.accreditation.read        | disjunct_absent                  | false  | true    | true     | arm3:not-in-gate  | 6   | **(b) suite** — FIXED: was testing `v_scope_id` (drifted to Farmácia B for foreign-scope cells) instead of the fixed CCIH-owned resource; now always `f.own_cid`. |
+-- | commission.accreditation.read        | none                              | false  | true    | true     | arm3:not-in-gate  | 6   | not ruled this round — backend named only `disjunct_present`/`disjunct_absent`; left as measured, unchanged. |
+-- | commission.roster.read               | none / conjunct_met / disjunct_present / disjunct_absent | mixed | mixed | mixed (=catalog) | arm3:not-in-gate | ~184 | **(b) suite** — FIXED: `$1` (the co-member/target profile) was a PERSONA-INDEPENDENT constant, making `subject_holder` a hidden self-read at `conjunct_met`/`none`; now resolved relative to `v_principal` per commission. |
+-- | commission.roster.read               | conjunct_unmet                   | —      | —       | —        | arm3:not-in-gate  | ~30 | **(a) vector** — named in backend's "every `conjunct_unmet` class" ruling; the door's conjunct denies, `expected_legacy_granted` does not reflect it. Not touched. |
+-- | commission.documents.read            | none / disjunct_absent           | mixed  | mixed   | mixed (=catalog) | arm3:not-in-gate | ~48 | **(b) suite** — FIXED: `none` was sharing `disjunct_present`'s approver-named document, making the approver leg leak into the baseline cell for every persona; `none` now uses the neutral document. |
+-- | commission.documents.read            | disjunct_present                 | —      | —       | —        | arm3:not-in-gate  | ~18 | **(c) fixture** (implicitly, via row-16's own shape) — the ONLY constructible approver is `staff4.ccih`; correct for `subject_holder`, correctly falls through to bare membership for every other persona. Not a divergence. |
+-- | commission.action_items.read         | none / conjunct_met / disjunct_present / disjunct_absent | false | true | true | arm3:not-in-gate | ~20 | **(b) suite** — FIXED: the committee leg (`pg_temp.legacy_row11`) is a BARE `is_member_of`, not on the self-mode-claims list; added it — the fixture-id selection backend named was already correct. |
+-- | commission.action_items.read         | conjunct_unmet                   | —      | —       | —        | arm3:not-in-gate  | 6   | **(a) vector** — named in backend's `conjunct_unmet` ruling. Not touched. |
+-- | commission.cases.deliberation.read   | conjunct_unmet                   | false  | true    | true     | arm3:not-in-gate  | 6   | **(a) vector** — named explicitly (backend's second message). Not touched. |
+-- | commission.cases.vote                | conjunct_unmet                   | false  | true    | true     | arm3:not-in-gate  | 6   | **(a) vector** — named explicitly. Not touched. |
+-- | commission.meetings.read             | conjunct_unmet                   | false  | true    | true     | arm3:not-in-gate  | 6   | **(a) vector** — named explicitly. Not touched. |
+-- | commission.meetings.cases.shell.read | conjunct_unmet                   | false  | true    | true     | arm3:not-in-gate  | 6   | **(a) vector** — named explicitly. Not touched. |
+-- | commission.meetings.minutes.sign     | conjunct_unmet                   | false  | true    | true     | arm3:not-in-gate  | 6   | **(a) vector** — named explicitly. Not touched. |
+-- | commission.capa.read                 | conjunct_unmet                   | (not individually re-measured) | | | arm3:not-in-gate | — | **(a) vector** — named in backend's "the `conjunct_unmet` halves of action_items/capa/roster" clause. Not touched. |
 --
--- ⭐ THE ONE ROW I AM CONFIDENT IS A GENUINE FINDING, NOT MINE: `commission.accreditation.read` ·
--- `disjunct_present` — independently verified against the live catalog (not just this suite's own
--- dispatch), matches the lead's own prediction exactly, and is the one PO-pending question named in
--- the lead's message. Every other row above is UNVERIFIED beyond this suite's own output and is
--- more likely my dispatch than a vector defect — flagged, not fixed, per the instruction to stop.
+-- ⚠ Rows marked (b) were EDITED this round and NOT yet re-run (the lead holds the stack for
+-- backend's fixture work) — their `legacy`/`catalog`/`n` columns above are the PRE-fix, iteration-4
+-- measurements, kept as the record of what was wrong rather than updated to a guess.
 -- ============================================================================
 
 select is(
