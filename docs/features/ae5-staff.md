@@ -71,7 +71,7 @@ Each is the template step it names; the witness for every box is a dated entry i
 
 ## Current state
 
-**Updated:** 2026-09-13
+**Updated:** 2026-09-14
 
 ### Objective
 
@@ -100,6 +100,14 @@ moved after observed reds; `403` § 3.2b re-claused + § 3.2c able to fail; fixt
 Gate 9 discharged by the first ADR 0140 review (`1c1229ba`). `lint` 0 · `typecheck` 0 · `test:db` red
 on `387` (pins) and `424` (not yet runnable). `tester` now runs `424` on the new vector; `backend`
 writes the T6 cutover plan under ADR 0211 and re-derives `387`'s pins after.
+
+**L6 + the `387` re-pin landed** (`33fbfbca`, `aa95c723`). `410` § 6.2's roots are now
+`enforcementSites` ∪ `domainAuthorizer` ∪ `armInterface` — which first required the generator to
+EMIT `armInterface` at all (it did not; a second half the ruling had not anticipated), now
+`authz_manifest_arm_sites`, 69 sites over 20 rows. § 6.3 re-pinned 3 → 23, decomposing as 3 re-keyed
++ 20 pending-rekey, disjoint. Both discrimination plants witnessed and rolled back. `387` re-pinned
+across 9 tests, each old → new attributed to a named persona or row. `410` 44/44, `387` 25/25,
+gate 12 green; `test:db` bare leaves only `424` (2, the tester's, down from 8).
 
 ### Next
 

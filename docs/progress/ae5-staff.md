@@ -1420,3 +1420,87 @@ exactly 1218 = 84 + 990 + 144 as an OUTPUT.
 Routing: backend (owns the stack) — L6 now, then the `387` re-pin (9 tests, old → new, observed
 red); the PO's P1/P2 ruling gates the vector regeneration. Tester — wire row 1's dispatch to the
 new fixture ids (edit only). Then, on the ruling: regenerate → tester runs `424` → T6.
+
+### 2026-09-13 — backend: L6 applied (`410` § 6.2 roots from `armInterface`) + the `387` re-pin
+
+**Shape of the change, as acked.** § 6.2's roots become `enforcementSites` ∪ `domainAuthorizer` ∪
+`armInterface`; re-keyed rows are unchanged because they carry no `armInterface`, so the union
+contributes nothing to them and the three original rows keep their exact derivation — which is what
+makes § 6.3's move a POPULATION change and not a semantic one.
+
+**⛔ THE CHANGE HAD A SECOND HALF THAT WAS NOT IN THE RULING, AND IT WAS THE BLOCKING ONE.**
+`armInterface` was **not emitted into the generated `.psql` at all** (`grep -c` on
+`authz_enforcement_manifest.psql` = 0), and `410` reads that fixture, never the JSON. So the ruling
+as written could not be implemented in `410` alone: `scripts/gen-authz-matrix-cells.mjs` had to emit
+it first. It now emits `authz_manifest_arm_sites` — 69 sites over 20 rows, 42 `policy` / 24
+`function` / 2 `registry` / 1 `ts` — as a **separate table**, deliberately: `authz_manifest_sites`
+holds RE-KEYED sites carrying `composed_with`, and §§ 3.6 / 8 pin cardinalities on it, so merging
+would have moved counts in other sections to make one arm work. Site strings are DISPLAY names
+(`app.can_read_capa — the indicator-sourced arm`), so the note is cut in the generator, where the
+string is still structured, rather than in SQL. `ts` sites resolve to the empty root: defence in
+depth, never a DB gate, so they contribute no root rather than an unresolvable one.
+
+**Observed RED first, on the current tree** (`410`, before any edit):
+- test 28 (§ 6.2) — `have: commission.accreditation.read: (none) | commission.action_items.read:
+  (none) | …` against `want: commission.accreditation.read:
+  principal_inactive,respondent_exclusion | commission.action_items.read:
+  principal_inactive,recusal_exclusion,respondent_exclusion | …`
+- test 31 (§ 6.3) — the cardinality control's `= 3`, against an actual 23.
+
+**§ 6.3 re-derived from the extended instrument: 3 → 23**, and it decomposes exactly — 3 re-keyed
+(via `authz_manifest_sites`) + 20 pending-rekey (via `authz_manifest_arm_sites`), **disjoint**
+(`measured AND armInterface` = 20, `measured AND enforcementSites` = 3, total measured = 23).
+⭐ Its non-emptiness conjunct now names the NEW domain as well. That domain supplies 20 of the 23
+rows, and the control existed to catch a domain going empty — left naming only the re-keyed table it
+would have stayed green on the old one while the new one emptied out.
+
+**Discrimination half, both plants applied and rolled back** (the manifest JSON is byte-identical
+after; only the `.psql` carries the legitimate addition):
+- **WANT side** — `commission.forms.read` `hardDenyClasses` += `recusal_exclusion`. § 6.2 red,
+  naming the row: `have: commission.forms.read: principal_inactive` vs
+  `want: commission.forms.read: principal_inactive,recusal_exclusion`.
+- **HAVE side, the load-bearing plant** — an extra `armInterface` site `app.can_read_action_item`
+  on `commission.indicators.read`, a row without `recusal_exclusion`. § 6.2 red **by ADDING**:
+  `have: commission.indicators.read: principal_inactive,recusal_exclusion,respondent_exclusion` vs
+  `want: … principal_inactive`. ⛔ This is the only one of the two that proves the new union is
+  LIVE: the WANT-side plant would red identically on the pre-L6 tree, so on its own it says nothing
+  about L6. (It added `respondent_exclusion` too — `can_read_action_item` reaches both gates — which
+  strengthens rather than muddies the witness; the specified class is present.)
+
+`410` **44/44 green**. Gate 12 (`lint:authz-vectors`) green. `test:db` bare: **only `387` (9) and
+`424` (2)** — the permitted set; `424` has come down from 8 as the tester works it.
+Commit **`33fbfbca`**.
+
+**The `387` re-pin — 9 tests, one commit, `aa95c723`.** Observed red first; all six md5s matched the
+values I had tabled read-only in round 12, and the row counts in the test NAMES were **re-derived
+live**, not carried over (25 / 32 / 40 / 12 / 12 / 6, total `profiles` = 40, so B3's "36 rows = all"
+became "40 rows = all" on a measured total).
+
+| test | § | persona / row | old → new | attributed to |
+| --- | --- | --- | --- | --- |
+| 5 | B1 | `hospitaladmin.a1` (hospital_admin) | 23 → 25 | `gap.pending`, `gap.deactivated` |
+| 6 | B2 | `orgadmin.a` (org_admin) | 29 → 32 | the three Rede A gap personas |
+| 7 | B3 | platform_admin (all rows) | 36 → 40 | all four gap personas |
+| 8 | B4 | `chefe.ccih` (staff_admin) | 10 → 12 | the two CCIH members |
+| 9 | B5 | `staff1.ccih` (staff) | 10 → 12 | the same two (shares B4's value) |
+| 10 | B6 | `orgadmin.b` (org_admin, Rede B) | 5 → 6 | `gap.xorg.b` |
+| 12 | B8 | `responses`, staff_admin's read | 7 → 8 | the row-1 targeted-version response |
+| 15 | B11 | the RLS-bypassed totals | 13 → 14 | the same one response |
+| 19 | D1b | restore control for B1 | — | moves WITH test 5, by construction |
+
+⭐ **B8's assertion is the DIFFERENTIAL, not the count**: 7<13 became 8<14, so the gap SURVIVED the
+fixture. Had the new response been visible to everyone, the count would have moved without the gap
+moving — that is the case the re-pin had to rule out, and it is why B11 re-measured all four totals
+(`case_events` 1, `answers` 50, `case_referral` 4 all unchanged; only `responses` moved), making the
+fixture attributable to one table instead of assumed.
+⚠ `gap.unpriv` is in B2/B3 but **NOT** in B1 — org affiliation only, no hospital tier and no
+membership, so the hospital admin's footprint never reaches it. That asymmetry is why the deltas are
+listed per persona and not summed. Four distinct values, not nine.
+⛔ **D1a (test 18) was re-pinned although it never went red.** It asserts `isnt(md5, <B1's pin>)`
+under a deny-all probe, which a STALE literal still satisfies — for the wrong reason: it would be
+proving the md5 differs from a value nothing produces any more, true whatever the probe does.
+Leaving a green assertion behind a moved pin is how a vacuity control quietly stops controlling.
+`387` **25/25 green**.
+
+**Unchanged and still waiting**: P1 + P2 apply together only on the PO's word (combined flip count
+must read exactly **1218** as an OUTPUT); the T6 files stay in `t6-wip/`; `424` is the tester's.
