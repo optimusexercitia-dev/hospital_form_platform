@@ -31,7 +31,7 @@
 -- RUN SHAPE: `Files=2, Tests=27` (26 here + 00_setup.sql's one).
 
 begin;
-select plan(26);
+select plan(29);
 
 -- ============================================================================
 -- §1 — the fixture. Two staff_admins in the SAME org, at DIFFERENT commissions,
@@ -403,6 +403,57 @@ select is(
   'the input of §7.3''s own mutation. ⛔ Chaining each restore to its immediate predecessor is '
   'how a two-mutation sequence leaves the FIRST edit resident while every restore assertion '
   'passes.');
+
+-- ===========================================================================
+-- § 4.2b / § 4.3b — THE WRAPPER FAMILY GAINS TWO MEMBERS (AE5 increment 1, T6).
+--
+-- ⛔ THE `NEVER legacy OR new` RULE IS FAMILY-WIDE, NOT PER-MIGRATION. `20261003007200`'s rule
+-- ("⛔ NEVER `legacy OR new`, and no caller-selectable evaluator") was written for the staff_admin
+-- pair, and an AE5 increment that adds a wrapper without extending this grep leaves the new member
+-- outside the only assertion that refuses a disjunction. ⭐ The rule is about the SHAPE of a role
+-- wrapper, so the population is every role wrapper.
+-- ===========================================================================
+select is(
+  (select count(*)::int
+     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'app'
+      and p.proname in ('is_commission_staff_of', 'is_commission_staff_of_for')
+      and regexp_replace(p.prosrc, '--[^\n]*', '', 'g')
+          ~ '(has_role|has_role_any|is_member_of|assignment_facts|active_role)'),
+  0,
+  '4.2b ⛔ NEITHER NEW `staff` WRAPPER CARRIES A SECOND ARM. The body is ONE `holds_role` call: no '
+  '`has_role`, no `has_role_any`, no `is_member_of`, no hand-copied `assignment_facts` or '
+  '`active_role` conjunct. ⛔ `legacy OR new` is the shape this refuses — a disjunction would make '
+  'the cutover reversible by accident and the differential meaningless, because both arms would be '
+  'live at once. ⚠ The count is over BOTH members: a rule satisfied by one of a pair is how the '
+  '`_for` twin drifts.');
+
+select is(
+  (select count(*)::int
+     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'app'
+      and p.proname in ('is_commission_staff_of', 'is_commission_staff_of_for')
+      and regexp_replace(p.prosrc, '--[^\n]*', '', 'g') ~ 'holds_role'),
+  2,
+  '4.3b ⭐ POSITIVE CONTROL ON THE SAME INSTRUMENT, and § 4.2b is worth nothing without it. § 4.2b '
+  'asserts an ABSENCE measured by a regex over `prosrc`; if that regex matched nothing — a renamed '
+  'function, an `execute`-built body, a typo in the name filter — it would return 0 and read as '
+  'compliance. This finds something with the SAME instrument on the SAME rows, so a zero above '
+  'means "no second arm" rather than "nothing was examined".');
+
+select is(
+  (select count(*)::int
+     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'app'
+      and p.proname in ('is_commission_staff_of', 'is_commission_staff_of_for')
+      and p.prosecdef
+      and p.proconfig = array['search_path=""']),
+  2,
+  '4.3c ⭐ AND BOTH ARE ON THE EMPTY `search_path` (ADR 0208 D4). ⛔ Asserted HERE, beside the shape '
+  'rules, and not only in the migration that created them: a migration''s own assertion proves the '
+  'state at APPLY time, and this proves it at every `test:db` afterwards. ⚠ Mirroring '
+  '`is_staff_admin_of`''s ACLs was right; mirroring its `search_path` (`app, public, pg_catalog`) '
+  'would have grown the frozen non-empty set by two and red `419` + gate 18.');
 
 select test_helpers.reset_role_and_claims();
 
