@@ -1113,15 +1113,16 @@ NOTICED = evidence; CARRIED = a step.
   PA-F8 divergence to be dispositioned (a)/(b)/(c) **before the matrix is approved** (plan
   `:942-950`). Planner's recommendation: (b), a named compatibility exception with owner + expiry.
 - **R-3 — the matrix itself** (AC-1) and the deny-class values (AC-2), on T1/T2's delivery.
-- **R-4 — gate 15's ceiling and T7's new doors.** Opened 2026-09-14 at T6 as "`authenticated`
-  EXECUTE on the two wrappers"; **REFRAMED the same day at the T7 plan review (B2):** policies are
-  re-keyed onto layer-3 `app.can_<code>` DEFINER doors that call the wrapper inside their bodies, so
-  the wrapper itself likely needs NO `authenticated` grant — what gate 15 must absorb is the N new
-  layer-3 doors, the same shape AE4's re-key already passed through it. Backend is measuring N, the
-  AE4 precedent (script, count, ceiling) and whether any site must call the wrapper from a policy
-  directly. ⛔ PO: rule once that measurement is in the record — (a) raise gate 15's ceiling by N
-  under AE4's precedent, or (b) hold it and name what T7 leaves un-re-keyed. If the direct-call
-  count is zero, the original two-wrapper question is moot and is closed as such.
+- **R-4 — gate 15's ceiling: 759 → 772 (+13) for T7's policy-called doors.** Opened 2026-09-14 at
+  T6 as "`authenticated` EXECUTE on the two wrappers" — **that question is MOOT** (measured at the T7
+  review: zero sites call the wrapper from a policy; the wrappers stay `service_role`-only).
+  **FINAL FORM:** T7 creates 20 layer-3 doors, 13 policy-called (need `authenticated` EXECUTE), 7
+  DEFINER-only; gate 15 (`check-budget-anchor.mjs`, anchor at
+  `docs/backend-state/authorization-and-audit.md:178`) is at its ceiling 759 = 326 + 433, headroom 0;
+  its merge rule says the ceiling moves only by PO ruling (AE4: 752 → 759 for 3 doors). ⛔ PO: (a)
+  move the ceiling 759 → 772 with T7's gate record as the named justification, or (b) hold it and
+  name which of the 13 doors T7 leaves un-re-keyed — note the budget counts DOORS: deferring the two
+  largest codes drops 18 of 42 sites but only 2 of 13 doors.
 - **R-5 — ADR 0211 D2 review.** The D2 proof is in the record's T6 entry (2026-09-14): snapshot/assert
   of the four properties, the restricted differential `426` observed RED then GREEN, the
   PA-F8-STAFF-2 condition. ⛔ PO: accept ADR 0211 (proposed → accepted) or change it; AC-6 ticks on
@@ -2829,3 +2830,31 @@ them saves 2 doors, not 18: the count is DOORS, not sites, which is the arithmet
 option 3 much weaker than it looks).
 
 ⚠ Nothing under `supabase/` changed. SQL waits for the lead's ack and for R-4 (as reframed) and R-5.
+
+### 2026-09-14 — T7 plan ACKED with conditions C1–C4 (lead); R-4 FINALISED as a gate-15 ceiling ruling
+
+Backend's answer `75f8b617`. **B1 conceded, measured:** the four inline sites (`_project_meeting_case`,
+`_project_meeting_agenda_item`, `get_reserved_session_items` — DEFINER, `search_path ''`;
+`resolve_document_version_bytes` — DEFINER, `app, public, pg_catalog`) each test row 9's bit inline
+and call no authority; the authority itself carries `authenticated=X` and the stale comment. **B2
+conceded:** T7 creates **20** layer-3 doors — **13 policy-called** (the 42 policy sites fan onto
+them: `forms.read` 9, `process_templates.read` 9, `accreditation.read` 4, `roster.read` 4, then
+3/3/3/2/1×5) and **7 DEFINER-only**; gate 15 is `scripts/check-budget-anchor.mjs` reading
+`docs/backend-state/authorization-and-audit.md:178` `ceiling=759 app=326 public=433 total=759`,
+merge rule *"the ceiling moves only by PO ruling"*, AE4 moved it 752 → 759 (+7) for 3 doors; **live
+today 759 = 326 + 433, headroom ZERO**; **zero** sites need the wrapper from a policy directly ⇒ the
+two-wrapper question is MOOT, the wrappers stay `service_role`-only.
+
+**ACK, conditions:** **C1** row 9's door WIRED — the four inline copies deleted in the same
+migration as the wiring (a wired door beside four copies is five authorities), the comment
+corrected, census witness 0 → 4 callers, each a `-- door-sweep-targets:` entry. **C2** the two
+frozen-path touches move `419`'s baseline 860 → 858 — attributed by name in the gate record, never
+re-pinned bare. **C3** ⛔ no SQL that adds an `authenticated`-executable door before R-4 is ruled;
+the migration is ONE atomic re-key, not split around the ruling. **C4** the mitigation arithmetic
+stays in front of the PO: deferring `forms.read` + `process_templates.read` drops 18 of 42 sites but
+only 2 of 13 doors — the budget counts DOORS. Execution order stays (d)'s seven steps; step 1
+(`425` no-movement) is the tester's and is in flight.
+
+**R-4 finalised (§ Open rulings):** move gate 15's ceiling **759 → 772 (+13)** under AE4's merge
+rule, with T7's gate record as the named justification — or hold it and name which of the 13
+policy-called doors T7 leaves un-re-keyed. The PO's chip re-issued with this question.
