@@ -3263,6 +3263,9 @@ declare
   v_farma    uuid := 'b0000000-0000-0000-0000-0000000000b1';  -- Farmácia (Rede A) — `sibling_commission`
   v_other    uuid := '00000000-0000-0000-0000-000000000006';  -- staff1.farm (other_commission_holder)
   v_status_a uuid;
+  v_cm_ccih  uuid := 'a5f00000-0000-0000-0000-0000000000f1';  -- co-member, CCIH ONLY
+  v_cm_farma uuid := 'a5f00000-0000-0000-0000-0000000000f2';  -- co-member, Farmácia A ONLY
+  v_cm_farmb uuid := 'a5f00000-0000-0000-0000-0000000000f3';  -- co-member, Farmácia B ONLY
   v_status_b uuid;
   v_xorg     uuid := 'a5f00000-0000-0000-0000-0000000000e1';  -- NEW: clean org-B staff-only
   v_unpriv   uuid := 'a5f00000-0000-0000-0000-0000000000e2';  -- NEW: zero-role, zero-admin, active
@@ -3280,7 +3283,16 @@ begin
     jsonb_build_object('id', v_xorg,    'email', 'gap.xorg.b@test.local',   'name', 'Membro Gap Rede B'),
     jsonb_build_object('id', v_unpriv,  'email', 'gap.unpriv@test.local',   'name', 'Sem Vinculo Gap'),
     jsonb_build_object('id', v_pending, 'email', 'gap.pending@test.local',  'name', 'Pendente Gap'),
-    jsonb_build_object('id', v_deact,   'email', 'gap.deactivated@test.local', 'name', 'Desativada Gap')
+    jsonb_build_object('id', v_deact,   'email', 'gap.deactivated@test.local', 'name', 'Desativada Gap'),
+    -- ⭐⭐ THE SCOPE-BOUND CO-MEMBERS (L9‴). Row 4's door asks whether the SUBJECT holds a
+    -- membership in some commission the CALLER is also in, so the subject is only a fair probe for
+    -- a given scope if the ONLY commission it shares with anyone is THAT scope. The previous
+    -- binding used real co-members that carry other memberships, so `subject_holder` at
+    -- `sibling_commission` probed a CCIH co-member — a true co-member fact at the WRONG SCOPE
+    -- (measured: legacy=true, catalog=false). Each of these holds exactly ONE membership.
+    jsonb_build_object('id', v_cm_ccih,  'email', 'gap.comember.ccih@test.local',  'name', 'Colega Gap CCIH'),
+    jsonb_build_object('id', v_cm_farma, 'email', 'gap.comember.farma@test.local', 'name', 'Colega Gap Farmacia A'),
+    jsonb_build_object('id', v_cm_farmb, 'email', 'gap.comember.farmb@test.local', 'name', 'Colega Gap Farmacia B')
   );
   for u in select * from jsonb_array_elements(v_users)
   loop
@@ -3324,7 +3336,10 @@ begin
     (v_xorg,    v_orgb, '2023-01-01'::date),
     (v_unpriv,  '0c000000-0000-0000-0000-00000000000a'::uuid, '2023-01-01'::date),
     (v_pending, '0c000000-0000-0000-0000-00000000000a'::uuid, '2023-01-01'::date),
-    (v_deact,   '0c000000-0000-0000-0000-00000000000a'::uuid, '2023-01-01'::date);
+    (v_deact,   '0c000000-0000-0000-0000-00000000000a'::uuid, '2023-01-01'::date),
+    (v_cm_ccih, '0c000000-0000-0000-0000-00000000000a'::uuid, '2023-01-01'::date),
+    (v_cm_farma,'0c000000-0000-0000-0000-00000000000a'::uuid, '2023-01-01'::date),
+    (v_cm_farmb, v_orgb, '2023-01-01'::date);
 
   -- ⛔ The two lifecycle personas DO get a `staff` membership — that is the whole
   -- point. Without it `app.is_member_of_for` returns false for the ABSENCE OF A
@@ -3480,6 +3495,19 @@ begin
          ('a5f40000-0000-0000-0000-0000000000e2'::uuid, 'a5f40000-0000-0000-0000-0000000000d2'::uuid,
           v_xorg,  'owner', v_clean);
 
+  -- Row 4 — ONE membership each, so each is a co-member at exactly one scope.
+  insert into public.memberships (commission_id, principal_id, role) values
+    (v_ccih,  v_cm_ccih,  'staff'),
+    (v_farma, v_cm_farma, 'staff'),
+    (v_farmb, v_cm_farmb, 'staff');
+
+  -- Row 6 — the restricted meeting had NO `meeting_cases` row, so `shell.read`'s
+  -- `conjunct_unmet` probe bound a meeting_id absent from the table the policy reads. Found by
+  -- sweeping every class's ids against its door's table, not by a red cell.
+  insert into public.meeting_cases (id, meeting_id, case_id) values
+    ('a5f20000-0000-0000-0000-0000000000b1'::uuid, 'a5f20000-0000-0000-0000-0000000000a1'::uuid,
+     'd0000000-0000-0000-0000-0000000000c1'::uuid);
+
   -- Row 15 — a framework owned by Farmácia A, the one owner the trio was missing.
   insert into public.accreditation_frameworks (id, key, name, version, owner_commission_id)
   values ('a5f50000-0000-0000-0000-0000000000a4'::uuid, 'gap-farma',
@@ -3500,6 +3528,25 @@ begin
      'Documento da Farmácia A (fixture arm-3 linha 16)', 'policy', 'effective'),
     ('a5fd0000-0000-0000-0000-0000000000a2'::uuid, v_farmb, 'FIX-FB-001',
      'Documento da Farmácia B (fixture arm-3 linha 16)', 'policy', 'effective');
+
+  -- ⭐⭐ Row 16 — THE DOOR'S OWN TABLE. `app.can_read_document(p_document_id, p_uid)` looks its
+  -- resource up in `public.documents`, NOT in `controlled_documents`; the binding used
+  -- `controlled_documents.id`, so the lookup returned no row and the door denied EVERY persona,
+  -- `subject_holder`@own included. ⛔ My smoke checked presence in the table the binding
+  -- DECLARED, which is why it passed while the probe was measuring nothing — a presence check is
+  -- only a control if it looks where the DOOR looks.
+  -- ⚠ The `documents` rows the base seed creates carry `gen_random_uuid()` ids, so they cannot be
+  -- bound; these carry fixed ones and hang off the same home resources.
+  insert into public.documents (id, home_resource_id, title, status, created_by) values
+    ('a5fe0000-0000-0000-0000-0000000000a1'::uuid, 'd0c00000-0000-0000-0000-0000000000d1'::uuid,
+     'Documento aprovado por staff4.ccih (fixture linha 16 — escopo próprio)', 'active', v_clean),
+    ('a5fe0000-0000-0000-0000-0000000000a2'::uuid, 'd0c00000-0000-0000-0000-0000000000d2'::uuid,
+     'Documento sem aprovação (fixture linha 16 — escopo próprio)', 'active', v_clean),
+    ('a5fe0000-0000-0000-0000-0000000000a3'::uuid, 'a5fd0000-0000-0000-0000-0000000000a1'::uuid,
+     'Documento da Farmácia A (fixture linha 16 — escopo irmão)', 'active', v_clean),
+    ('a5fe0000-0000-0000-0000-0000000000a4'::uuid, 'a5fd0000-0000-0000-0000-0000000000a2'::uuid,
+     'Documento da Farmácia B (fixture linha 16 — escopo de outra org)', 'active', v_clean);
+
 
   -- ── ROW 15 — the PUBLIC arm, and both of its comparators ──────────────────
   -- ⛔ `owner_commission_id IS NULL` grants EVERY authenticated caller. Without
