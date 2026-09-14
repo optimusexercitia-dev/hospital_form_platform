@@ -3461,3 +3461,26 @@ value (arm14(f) green). Three declare vars threaded into `seed.sql` on landing (
 inputs and expectations. Remaining before move-in: the four inline-copy deletions (census 0 → 4),
 the persona's profile/affiliation rows, `387` re-derived and attributed + scoped `396`/`400`, the
 manifest flip dry-run, anchor + `320 § U4`. `419` 860 → 836 with the 24 named.
+
+### 2026-09-14 — L18: the `commission_default` disjunct is a carried condition; wire the inner call (lead)
+
+Backend parked on the fourth C1 site: `public.get_reserved_session_items` tests the bit three
+times; two are clean swaps (`i.substance`), one reads `(c.visibility_policy = 'commission_default'
+OR app.has_case_capability(i.case_id, v_uid, 'read_case_deliberation'))` guarding `i.withdrawals`
+in a closed session. The authority is the thin projection of the bit (§ 8.3), so swapping the whole
+disjunction would drop the `commission_default` arm and narrow a closed-session read path; the
+authority's COMMENT claims it encodes that split while its body does not — a third staleness for
+C1's correction. Options: (a) keep the disjunct, wire the inner call; (b) move the split into the
+authority (changes its body and its other three callers); (c) leave the clause inline under a named
+exception.
+
+**L18 (lead, mechanism):** (a). `c.visibility_policy = 'commission_default'` is a RESOURCE-SHAPE
+condition on the session, the same class as `NOT is_case_respondent` in row 7's policy — the
+template carries every non-authority condition through untouched and substitutes the authority
+where the bit is tested. After (a) no body anywhere tests the bit inline: the census is 4 sites /
+5 call sites, stated at both grains. (b) is a behaviour change to a designated authority with three
+other callers; (c) preserves the inline copy the wiring exists to remove. The corrected comment
+says: thin projection of `read_case_deliberation`; the `commission_default` split lives at the one
+site that has it, by design; consumers named. Witness for the fourth site: a member without the
+bit reads `withdrawals` in a `commission_default` session before and after, and is denied in a
+restricted one before and after — the disjunct's own discrimination half.
