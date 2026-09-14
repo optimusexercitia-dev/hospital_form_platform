@@ -2145,3 +2145,32 @@ disjunct_present 40 legacy=false vs expected true; documents.read disjunct_prese
 capa.read conjunct_unmet 6 + 6) fall outside A–D — tester asked to attribute them, backend to
 measure them in the same round. Added to backend's brief: the smoke must assert each class's bound
 function IS the manifest's declared door, not merely that some function exists (B's shape).
+
+### 2026-09-14 — L11: row 16 probes the POLICY leg P1 was ruled on; run 3's whole residual routed (lead)
+
+Backend's read-only diagnosis reconciled with the tester's: **A** agree (`thirdPartyCaller` and the
+`disjunct_absent` subject are literally one row — a dedicated zero-membership profile, never a
+persona, WITH an org affiliation or 396/400 red on a tenant orphan); **B** agree, but the honest fix
+is a NAMED SKIP (`door_is_a_write_guard_not_executable`) — `cast_case_vote` takes a decision id,
+raises, and is a write, so no substitute door; the write polarity is T12's; **C** agree (`_default`
+binds `a002`, the chain version reserved to `disjunct_present`); **D + the 40** are ONE cause:
+`arm3Door.reach` is persona-keyed while L9″ made fixtures scope-keyed, so the reach lies off the own
+scope (door measured diagonal: own→subject_holder, sibling→other_comm, foreign→cross_org) — reach
+becomes scope × persona, arm13 enforces it, self-test refuses a persona-only reach; roster
+`conjunct_unmet` fell through to `_default` (binding); capa `conjunct_unmet` grants via
+`can_read_event(event_of_capa)` (fixture: the other two disjuncts must be false too).
+
+**Documents `disjunct_present` (16) — L11, a lead ruling on MECHANISM that keeps the PO's ruling
+intact.** Measured by backend: `app.can_read_document` carries `is_active(p_uid)`; the policy leg
+(`app.is_document_approver_of`) does not. P1 — *"accept the exception"* — was ruled on the eleven
+coordinates AS MEASURED on the policy leg, whose whole content is that the role-free disjunct ignores
+principal state. L10 (lead) then preferred the `p_uid` function door for row 16, which gates on
+state, so the probe no longer measures the leg the PO ruled on. Ruling: row 16 probes the **policy**
+leg (RLS-select under the caller's claims, caller-only under L10, third-party cells under L10's named
+skip); the P1 label applies as ruled. Un-labelling row 16 (option 2) would silently shrink the PO's
+approval scope and is NOT the lead's to choose. The function door's stricter behaviour is not lost:
+it is a second production door for one row disagreeing with the first on inactive principals —
+noted on BUG-AE5-STAFF-INACTIVE-BYPASSES-ROLE-FREE-DISJUNCTS (row 16's policy leg is one of the
+disjuncts that bypass; the function beside it does not) for the fix unit, and stated to the PO at the
+T6 gate as a fact about what P1 covers. Backend authorised for the full round; tester stood down on
+the remainder (backend attributed it). Iteration count on this mechanism after the round lands: 4.
