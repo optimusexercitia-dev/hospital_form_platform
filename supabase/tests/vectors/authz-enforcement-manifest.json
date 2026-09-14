@@ -1587,10 +1587,15 @@
           "relation": "public.meeting_cases",
           "idColumn": "meeting_id",
           "fixtures": {
-            "conjunct_unmet": "a5f20000-0000-0000-0000-0000000000a1",
-            "_default": "f1000000-0000-0000-0000-0000000000e1"
+            "conjunct_unmet": {
+              "own_commission": "a5f20000-0000-0000-0000-0000000000a1"
+            },
+            "_default": {
+              "own_commission": "f1000000-0000-0000-0000-0000000000e1"
+            }
           },
-          "note": "Bound on `meeting_id`, not `id`: the policy is `can_reach_meeting(meeting_id, auth.uid()) AND NOT is_case_respondent(case_id, auth.uid())`, and the coordinate that moves is the MEETING's reachability."
+          "note": "Bound on `meeting_id`, not `id`: the policy is `can_reach_meeting(meeting_id, auth.uid()) AND NOT is_case_respondent(case_id, auth.uid())`, and the coordinate that moves is the MEETING's reachability.",
+          "scopeNote": "Declared at `own_commission` only: the fixture is a CCIH FK chain and no equivalent exists at the other two scopes. Cells at those scopes are skipped by the named rule, never probed against the CCIH row."
         }
       },
       "armInterface": [
@@ -2792,8 +2797,19 @@
           "relation": "public.form_versions",
           "idColumn": "id",
           "fixtures": {
-            "disjunct_absent": "50000000-0000-0000-0000-00000000a002",
-            "_default": "50000000-0000-0000-0000-00000000a001"
+            "disjunct_present": {
+              "own_commission": "50000000-0000-0000-0000-00000000a001"
+            },
+            "disjunct_absent": {
+              "own_commission": "50000000-0000-0000-0000-00000000a002",
+              "sibling_commission": "a5fc0000-0000-0000-0000-0000000000b1",
+              "foreign_org_commission": "a5fc0000-0000-0000-0000-0000000000b2"
+            },
+            "_default": {
+              "own_commission": "50000000-0000-0000-0000-00000000a001",
+              "sibling_commission": "a5fc0000-0000-0000-0000-0000000000b1",
+              "foreign_org_commission": "a5fc0000-0000-0000-0000-0000000000b2"
+            }
           },
           "note": "⭐ The RLS probe is what fixed row 1: the DECLARED expression fused `form_versions_select` and `form_versions_select_targeted` into one hand-written term and dropped `app.is_tenancy_admin_of`. Measured: for staff4.ccih the real door GRANTS (the member limb) while the declared limb (b) DENIES. `disjunct_absent` is the version with no targeted chain."
         }
@@ -3003,7 +3019,8 @@
               "unprivileged": "00000000-0000-0000-0000-000000000002"
             }
           },
-          "note": "⚠ THE ONLY PERSONA-KEYED BINDING, and it has to be: `$1` is the SUBJECT PROFILE being read, so a fixed value across personas makes `subject_holder` a hidden SELF-read (424 § 4's own (b) finding). `disjunct_present` is the self leg — the subject IS the principal; `_default` is a genuine co-member in the commission that principal actually holds in."
+          "note": "⚠ THE ONLY PERSONA-KEYED BINDING, and it has to be: `$1` is the SUBJECT PROFILE being read, so a fixed value across personas makes `subject_holder` a hidden SELF-read (424 § 4's own (b) finding). `disjunct_present` is the self leg — the subject IS the principal; `_default` is a genuine co-member in the commission that principal actually holds in.",
+          "scopeNote": "⚠ NOT scope-keyed, and deliberately: `$1` is a SUBJECT PROFILE, and a profile belongs to no commission — the co-member binding already resolves per persona to a commission that persona actually holds in. Left persona-keyed and flagged: whether the subject should instead track the cell's `scope` axis is a vector-shape question, not a binding one."
         }
       },
       "hardDenyMeasurement": {
@@ -3199,10 +3216,15 @@
           "kind": "function-call",
           "call": "app.can_reach_meeting({resource}::uuid, {uid}::uuid)",
           "fixtures": {
-            "conjunct_unmet": "a5f20000-0000-0000-0000-0000000000a1",
-            "_default": "f1000000-0000-0000-0000-0000000000e1"
+            "conjunct_unmet": {
+              "own_commission": "a5f20000-0000-0000-0000-0000000000a1"
+            },
+            "_default": {
+              "own_commission": "f1000000-0000-0000-0000-0000000000e1"
+            }
           },
-          "note": "`conjunct_unmet` is the participants_only meeting the principal does not attend."
+          "note": "`conjunct_unmet` is the participants_only meeting the principal does not attend.",
+          "scopeNote": "Declared at `own_commission` only: the fixture is a CCIH FK chain and no equivalent exists at the other two scopes. Cells at those scopes are skipped by the named rule, never probed against the CCIH row."
         }
       },
       "hardDenyMeasurement": {
@@ -3299,10 +3321,15 @@
           "kind": "function-call",
           "call": "app.can_sign_meeting({resource}::uuid, {uid}::uuid)",
           "fixtures": {
-            "conjunct_unmet": "a5f30000-0000-0000-0000-0000000000a3",
-            "_default": "a5f30000-0000-0000-0000-0000000000a2"
+            "conjunct_unmet": {
+              "own_commission": "a5f30000-0000-0000-0000-0000000000a3"
+            },
+            "_default": {
+              "own_commission": "a5f30000-0000-0000-0000-0000000000a2"
+            }
           },
-          "note": "⚠ The fixture is the ATTENDANCE row's meeting, not the meeting id: `att_present` is staff4.ccih present at the signing meeting, `att_absent` ativo.registro absent from it."
+          "note": "⚠ The fixture is the ATTENDANCE row's meeting, not the meeting id: `att_present` is staff4.ccih present at the signing meeting, `att_absent` ativo.registro absent from it.",
+          "scopeNote": "Declared at `own_commission` only: the fixture is a CCIH FK chain and no equivalent exists at the other two scopes. Cells at those scopes are skipped by the named rule, never probed against the CCIH row."
         }
       },
       "hardDenyMeasurement": {
@@ -3386,10 +3413,15 @@
           "kind": "function-call",
           "call": "app.has_case_capability({resource}::uuid, {uid}::uuid, 'read_case_deliberation')",
           "fixtures": {
-            "conjunct_unmet": "ca000000-0000-0000-0000-0000000000e1",
-            "_default": "d0000000-0000-0000-0000-0000000000c1"
+            "conjunct_unmet": {
+              "own_commission": "ca000000-0000-0000-0000-0000000000e1"
+            },
+            "_default": {
+              "own_commission": "d0000000-0000-0000-0000-0000000000c1"
+            }
           },
-          "note": "`conjunct_unmet` is the explicit_grants_only case WITH ethics_case_details."
+          "note": "`conjunct_unmet` is the explicit_grants_only case WITH ethics_case_details.",
+          "scopeNote": "Declared at `own_commission` only: the fixture is a CCIH FK chain and no equivalent exists at the other two scopes. Cells at those scopes are skipped by the named rule, never probed against the CCIH row."
         }
       },
       "hardDenyMeasurement": {
@@ -3492,10 +3524,22 @@
           "kind": "function-call",
           "call": "app.can_read_action_item({resource}::uuid, {uid}::uuid)",
           "fixtures": {
-            "disjunct_present": "a5f40000-0000-0000-0000-0000000000a1",
-            "disjunct_absent": "a5f40000-0000-0000-0000-0000000000a2",
-            "conjunct_unmet": "a5f40000-0000-0000-0000-0000000000a2",
-            "_default": "ac3f1301-49e3-4b2b-b904-6a2a4fea8cfc"
+            "disjunct_present": {
+              "own_commission": "a5f40000-0000-0000-0000-0000000000a1",
+              "sibling_commission": "a5f40000-0000-0000-0000-0000000000d1",
+              "foreign_org_commission": "a5f40000-0000-0000-0000-0000000000d2"
+            },
+            "disjunct_absent": {
+              "own_commission": "a5f40000-0000-0000-0000-0000000000a2"
+            },
+            "conjunct_unmet": {
+              "own_commission": "a5f40000-0000-0000-0000-0000000000a2"
+            },
+            "_default": {
+              "own_commission": "a5f40000-0000-0000-0000-0000000000c1",
+              "sibling_commission": "a5f40000-0000-0000-0000-0000000000c2",
+              "foreign_org_commission": "a5f40000-0000-0000-0000-0000000000c3"
+            }
           },
           "note": "L10: this row has a `p_uid` door (`app.can_read_action_item`, § 5.4 subject `p_uid`), so it is THIRD-PARTY-CAPABLE and is probed through that form — the hat ignored per ADR 0201 D1. ⛔ Probing the `action_items` POLICY instead would have made the row caller-only and skipped every third-party cell, which is a real coverage loss chosen by accident: the function is the door that can be asked about a principal who is not the caller. ⚠ The function carries the two arms the declaration omits (`is_staff_admin_of_for`, `assigned_to = p_uid`) — the drift follow-up's subject — so the probe is the whole live door either way."
         }
@@ -3581,10 +3625,15 @@
           "kind": "function-call",
           "call": "app.can_read_case_committee({resource}::uuid, auth.uid())",
           "fixtures": {
-            "conjunct_unmet": "d0000000-0000-0000-0000-0000000000c1",
-            "_default": "ca000000-0000-0000-0000-0000000000e1"
+            "conjunct_unmet": {
+              "own_commission": "d0000000-0000-0000-0000-0000000000c1"
+            },
+            "_default": {
+              "own_commission": "ca000000-0000-0000-0000-0000000000e1"
+            }
           },
-          "note": "DOCUMENTED APPROXIMATION, named rather than hidden: `cast_case_vote` is a WRITE whose guard cannot be executed for its truth value without casting a vote, so the probe is the guard's own reachability predicate. The uid is bound to `auth.uid()`, NOT to the cell's principal, and that is the point: matrix 5.4 records this site's subject as `caller`, so the row is CALLER-ONLY and its third-party cells are skipped by rule. Binding the principal here would fabricate a third-party capability the guard does not have - which is what arm14(b) caught on its first run, on me."
+          "note": "DOCUMENTED APPROXIMATION, named rather than hidden: `cast_case_vote` is a WRITE whose guard cannot be executed for its truth value without casting a vote, so the probe is the guard's own reachability predicate. The uid is bound to `auth.uid()`, NOT to the cell's principal, and that is the point: matrix 5.4 records this site's subject as `caller`, so the row is CALLER-ONLY and its third-party cells are skipped by rule. Binding the principal here would fabricate a third-party capability the guard does not have - which is what arm14(b) caught on its first run, on me.",
+          "scopeNote": "Declared at `own_commission` only: the fixture is a CCIH FK chain and no equivalent exists at the other two scopes. Cells at those scopes are skipped by the named rule, never probed against the CCIH row."
         }
       },
       "hardDenyMeasurement": {
@@ -3917,8 +3966,16 @@
           "relation": "public.accreditation_frameworks",
           "idColumn": "id",
           "fixtures": {
-            "disjunct_present": "a5f50000-0000-0000-0000-0000000000a1",
-            "_default": "a5f50000-0000-0000-0000-0000000000a2"
+            "disjunct_present": {
+              "own_commission": "a5f50000-0000-0000-0000-0000000000a1",
+              "sibling_commission": "a5f50000-0000-0000-0000-0000000000a1",
+              "foreign_org_commission": "a5f50000-0000-0000-0000-0000000000a1"
+            },
+            "_default": {
+              "own_commission": "a5f50000-0000-0000-0000-0000000000a2",
+              "sibling_commission": "a5f50000-0000-0000-0000-0000000000a4",
+              "foreign_org_commission": "a5f50000-0000-0000-0000-0000000000a3"
+            }
           },
           "note": "`disjunct_present` is the NULL-owner framework (the PUBLIC arm, grants any authenticated caller); every other arm is the CCIH-owned one. ⚠ RESOURCE-anchored, never scope-anchored — 424 § 4's own (b) ruling: binding this to `v_scope_id` drifted to the foreign-owned row for foreign-scope cells."
         }
@@ -4057,8 +4114,14 @@
           "kind": "function-call",
           "call": "app.can_read_document({resource}::uuid, {uid}::uuid)",
           "fixtures": {
-            "disjunct_present": "d0c00000-0000-0000-0000-0000000000d1",
-            "_default": "d0c00000-0000-0000-0000-0000000000d2"
+            "disjunct_present": {
+              "own_commission": "d0c00000-0000-0000-0000-0000000000d1"
+            },
+            "_default": {
+              "own_commission": "d0c00000-0000-0000-0000-0000000000d2",
+              "sibling_commission": "a5fd0000-0000-0000-0000-0000000000a1",
+              "foreign_org_commission": "a5fd0000-0000-0000-0000-0000000000a2"
+            }
           },
           "note": "L10: `app.can_read_document` is a `p_uid` door (§ 5.4), so the row is third-party-capable and is probed through it rather than through the `controlled_documents` policy, which would be caller-only. `disjunct_present` is the document staff4.ccih approved."
         }
@@ -4211,10 +4274,15 @@
           "kind": "function-call",
           "call": "app.can_read_capa({resource}::uuid, {uid}::uuid)",
           "fixtures": {
-            "conjunct_unmet": "ca000000-0000-0000-0000-0000000000a3",
-            "_default": "a5f70000-0000-0000-0000-0000000000a1"
+            "conjunct_unmet": {
+              "own_commission": "ca000000-0000-0000-0000-0000000000a3"
+            },
+            "_default": {
+              "own_commission": "a5f70000-0000-0000-0000-0000000000a1"
+            }
           },
-          "note": "`conjunct_unmet` is the RCA-sourced plan; the default the indicator-sourced one."
+          "note": "`conjunct_unmet` is the RCA-sourced plan; the default the indicator-sourced one.",
+          "scopeNote": "Declared at `own_commission` only: the fixture is a CCIH FK chain and no equivalent exists at the other two scopes. Cells at those scopes are skipped by the named rule, never probed against the CCIH row."
         }
       },
       "hardDenyMeasurement": {

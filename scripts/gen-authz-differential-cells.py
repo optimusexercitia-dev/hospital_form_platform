@@ -311,6 +311,21 @@ def scope_id_for(scope):
 # (the bare rows: production site caller-keyed, probe `_for` principal-keyed — ADR
 # 0201 D1). Counted and printed, never silenced; the PO may rule at the gate.
 _KEYING_CENSUS = []
+SKIP_NO_SCOPE_FIXTURE = 'no_resource_fixture_at_this_scope'
+
+
+def _resolved_fixture(code, persona, gate, scope):
+    v = probe_fixture(code, persona, gate, scope)
+    return principal_uid(persona) if v == '{uid}' else v
+
+
+def _needs_resource(code):
+    """Whether this row's probe names a RESOURCE at all. The bare rows do not — their probe is
+       the membership predicate over the cell's scope, which every scope has by definition."""
+    p = probe_for(code)
+    if not p:
+        return False
+    return p.get('kind') == 'rls-select' or '{resource}' in (p.get('call') or '')
 SKIP_CALLER_KEYED = 'self_check_undefined_for_caller_keyed_door'
 
 
@@ -328,13 +343,13 @@ def probe_for(code, perms=None):
     return (row.get('arm3Door') or {}).get('probe') or row.get('legacyProbe')
 
 
-def probe_fixture(code, persona, gate):
+def probe_fixture(code, persona, gate, scope=None, perms=None):
     """The fixture id this cell binds, from the declaration's `fixtures` map.
 
        ⚠ `_persona` marks the one map (row 4) whose value is itself keyed by persona, because
        `$1` there is the SUBJECT PROFILE: a fixed value across personas turns `subject_holder` into
        a hidden SELF-read, which is 424 § 4's own measured finding."""
-    p = probe_for(code)
+    p = probe_for(code, perms)
     if not p:
         return None
     fx = p.get('fixtures') or {}
@@ -342,8 +357,51 @@ def probe_fixture(code, persona, gate):
     if isinstance(v, dict):
         if v.get('_self'):
             return '{uid}'
-        v = v.get(persona)
+        # ⭐⭐ SCOPE-KEYED SINCE L9″, AND A MISSING SCOPE RETURNS None RATHER THAN FALLING BACK.
+        # `legacy_sql` probes a RESOURCE while `catalog_sql` asks about the cell's SCOPE, so a
+        # fallback to another scope's row makes the two sides measure DIFFERENT COMMISSIONS —
+        # measured on the first loop-shaped run as 458 of 572 red cells, every one an off-CCIH
+        # coordinate probing the CCIH fixture. None here becomes a NAMED SKIP, never a guess.
+        if scope is not None and (set(v) & _SCOPES):
+            v = v.get(scope)
+        else:
+            v = v.get(persona)
     return v
+
+
+_SCOPES = {'own_commission', 'sibling_commission', 'foreign_org_commission'}
+_LITERAL_IDS = None
+
+
+def seeded_literals():
+    """Every uuid that appears as a FIXED LITERAL in seed.sql or a migration.
+
+       ⛔⛔ THE GENERATOR REFUSES TO BIND AN ID IT CANNOT FIND HERE (L9″). `action_items`' committee
+       row was created with `gen_random_uuid()`, so its id was read out of the catalog at
+       GENERATION time and pinned into the vector; the next reset minted a different one and the
+       probe then hit a row that does not exist — a probe against a missing row returns FALSE,
+       which is indistinguishable from a door that denies. ⚠ This reads FILES, never a database:
+       gate 12 runs inside `npm run lint`, which must never require Docker."""
+    global _LITERAL_IDS
+    if _LITERAL_IDS is None:
+        import os
+        import re as _re
+        pat = _re.compile(r'[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-'
+                          r'[0-9a-fA-F]{4}-[0-9a-fA-F]{12}')
+        here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        paths = [os.path.join(here, 'supabase', 'seed.sql')]
+        mig = os.path.join(here, 'supabase', 'migrations')
+        if os.path.isdir(mig):
+            paths += [os.path.join(mig, f) for f in sorted(os.listdir(mig)) if f.endswith('.sql')]
+        found = set()
+        for p in paths:
+            try:
+                found |= {x.group(0).lower()
+                          for x in pat.finditer(io.open(p, encoding='utf-8', errors='replace').read())}
+            except OSError:
+                pass
+        _LITERAL_IDS = found
+    return _LITERAL_IDS
 
 
 def row_keying(code, perms=None):
@@ -382,7 +440,7 @@ def _lit(u):
     return "'%s'" % str(u).replace("'", "''")
 
 
-def legacy_sql_for(code, persona, gate, uid, scope):
+def legacy_sql_for(code, persona, gate, uid, scope, scope_axis=None):
     """The cell's LEGACY probe, as executable SQL.
 
        ⛔ NO TRANSCRIPTION. A policy door is probed by selecting the fixture row: RLS then
@@ -394,7 +452,7 @@ def legacy_sql_for(code, persona, gate, uid, scope):
     p = probe_for(code)
     if not p:
         return None
-    fx = probe_fixture(code, persona, gate)
+    fx = probe_fixture(code, persona, gate, scope_axis)
     if p.get('kind') == 'rls-select':
         if fx is None:
             return None
@@ -1050,15 +1108,28 @@ def build(personas, contexts, scopes, states, reaches, reps_by_role, exclusions,
                             _keying = row_keying(code)
                             if _keying == 'caller-only' and not selfcheck:
                                 skip(SKIP_CALLER_KEYED); continue
+                            _fx = probe_fixture(code, persona, gate, scope)
+                            # The self leg's subject IS the principal, so the column carries the
+                            # resolved uid rather than the placeholder - it must be checkable
+                            # against seed.sql like every other bound id.
+                            if _fx == '{uid}':
+                                _fx = principal_uid(persona)
+                            # ⛔ NO RESOURCE AT THIS SCOPE => SKIPPED BY NAME, NEVER PROBED
+                            # ELSEWHERE. The alternative — fall back to the commission the fixture
+                            # happens to live in — is what made legacy and catalog measure
+                            # different resources, and it did so silently.
+                            if _needs_resource(code) and not _fx:
+                                skip(SKIP_NO_SCOPE_FIXTURE); continue
                             _lsql = legacy_sql_for(code, persona, gate,
-                                                   principal_uid(persona), scope_id_for(scope))
+                                                   principal_uid(persona), scope_id_for(scope),
+                                                   scope)
                             cells.append((cid, persona, ctx, scope, code, klass, res, state,
                                           selfcheck, exp, src, reach, div, exp_legacy, role,
                                           gate, arm3_door_expr(code),
                                           _lsql or '',
                                           catalog_sql_for(code, principal_uid(persona),
                                                           res, scope_id_for(scope)),
-                                          str(probe_fixture(code, persona, gate) or ''),
+                                          str(_fx or ''),
                                           _keying or ''))
     return cells, skipped
 
@@ -1315,8 +1386,33 @@ def coverage(cells, skipped, reps_by_role, disposition=None, exclusions=None, ax
                              and row_keying(x, _perms) != subject_keying(x, _perms))
     if _bare_divergent:
         _KEYING_CENSUS.extend(_bare_divergent)
+    # ⭐ (d) EVERY BOUND ID MUST BE A FIXED LITERAL IN seed.sql OR A MIGRATION. An id read out
+    # of the catalog at generation time is a value that changes on the next reset, and the probe
+    # then silently measures a row that does not exist.
+    # ⛔ SCANNED ON THE DECLARATION, NOT ONLY ON THE CELLS. The declaration is where a bad id
+    # ENTERS; checking only emitted cells would pass a manifest whose binding is unusable for a
+    # coordinate this run happened not to emit, and the next axis change would surface it as a
+    # mystery red. Emitted ids are checked too, since a hand edit bypasses the declaration.
+    _declared_ids = set()
+    for _c, _row in (permissions or {}).items():
+        if _c.startswith('_'):
+            continue
+        _pr = (_row.get('arm3Door') or {}).get('probe') or _row.get('legacyProbe')
+        for _v in ((_pr or {}).get('fixtures') or {}).values():
+            for _x in (_v.values() if isinstance(_v, dict) else [_v]):
+                if isinstance(_x, str) and _x != '{uid}' and _x.count('-') == 4:
+                    _declared_ids.add(_x)
+    _nonliteral = sorted({x for x in _declared_ids | {c[19] for c in cells if c[19]}
+                          if x.lower() not in seeded_literals()})
+    if _nonliteral:
+        f.append('arm14: %d bound fixture id(s) do not appear as a FIXED LITERAL in seed.sql or '
+                 'any migration (first: %s) — an id resolved from the catalog at generation time '
+                 'changes on the next reset, and a probe against a row that no longer exists '
+                 'returns FALSE, which is indistinguishable from a door that denies'
+                 % (len(_nonliteral), _nonliteral[0]))
     _badbind = [c for c in cells
-                if c[14] == 'staff' and c[19] != str(probe_fixture(c[4], c[1], c[15]) or '')]
+                if c[14] == 'staff'
+                and c[19] != str(_resolved_fixture(c[4], c[1], c[15], c[3]) or '')]
     if _badbind:
         f.append('arm14: %d cell(s) carry a `legacy_fixture_id` the declaration does not resolve '
                  'for their (code, persona, gate arm) — the binding table is the manifest\'s, and '
@@ -1589,6 +1685,36 @@ if '--self-test' in sys.argv:
         out[i] = out[i][:19] + ('00000000-0000-0000-0000-0000000000ff',) + out[i][20:]
         return out
 
+    def _pm_random_id(pm):
+        """A fixture id replaced by one that appears in NO seed file - the `gen_random_uuid()`
+           shape. arm14(d) must name it; the emitter cannot, because a uuid read from the catalog
+           looks exactly like a uuid written in seed.sql."""
+        for code, row in pm.items():
+            pr = (row.get('arm3Door') or {}).get('probe')
+            if pr and pr.get('fixtures'):
+                for arm, v in pr['fixtures'].items():
+                    if isinstance(v, dict) and 'own_commission' in v:
+                        v['own_commission'] = 'ac3f1301-49e3-4b2b-b904-6a2a4fea8cfc'
+                        return
+
+    def _synth_crossscope():
+        """ONE cell at a non-own scope rebound to the OWN-scope resource - a real, literal,
+           seeded id, just the wrong commission. ⛔ This is the defect that made 458 of 572 cells
+           red: `legacy_sql` measured CCIH while `catalog_sql` asked about Farmácia, so the two
+           sides answered about different resources and the cell's name described neither.
+           ⚠ The planted id is LITERAL on purpose, so arm14(d) stays quiet and (c) is shown to
+           fire on its own predicate rather than on a malformed value."""
+        out = list(base_cells)
+        i = next((j for j, c in enumerate(out)
+                  if c[14] == 'staff' and c[3] != 'own_commission' and c[19]
+                  and _resolved_fixture(c[4], c[1], c[15], 'own_commission')
+                  and _resolved_fixture(c[4], c[1], c[15], 'own_commission') != c[19]), None)
+        assert i is not None, ('no off-own cell differs from its own-scope binding - the '
+                               'synthesised arm14 cross-scope fixture would perturb nothing')
+        own = _resolved_fixture(out[i][4], out[i][1], out[i][15], 'own_commission')
+        out[i] = out[i][:19] + (str(own),) + out[i][20:]
+        return out
+
     def _flip_keying(pm):
         """A CALLER-ONLY row's probe rewritten to pass the cell's principal - fabricating a
            third-party capability the production site does not have. arm14(b) must name it."""
@@ -1639,6 +1765,7 @@ if '--self-test' in sys.argv:
     _pm_no_door = _pm_mutate(_drop_door)
     _pm_door_unswept = _pm_mutate(_unsweep)
     _pm_bad_keying = _pm_mutate(_flip_keying)
+    _pm_nonliteral = _pm_mutate(_pm_random_id)
 
     checks = [
         ('arm1 empty cell set',          [],                                                      base_skipped, REPS_BY_ROLE, None, None, None),
@@ -1750,6 +1877,10 @@ if '--self-test' in sys.argv:
          None, None, None, None),
         ('arm14 a caller-keyed door claims a principal', base_cells, base_skipped, REPS_BY_ROLE,
          None, None, None, _pm_bad_keying),
+        ('arm14 a fixture id that is not a literal', base_cells, base_skipped, REPS_BY_ROLE,
+         None, None, None, _pm_nonliteral),
+        ('arm14 a cell bound across scopes', _synth_crossscope(), base_skipped, REPS_BY_ROLE,
+         None, None, None, None),
     ]
     bad = 0
     # ⚠ THE TAIL IS PADDED, NOT TYPED OUT. Every arm added since has widened `coverage()`, and
