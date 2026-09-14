@@ -314,6 +314,20 @@ _KEYING_CENSUS = []
 SKIP_NO_SCOPE_FIXTURE = 'no_resource_fixture_at_this_scope'
 
 
+def probe_reads(code, perms=None):
+    """(table, column) the DOOR reads — NOT necessarily the table the fixture is named after.
+
+       ⛔⛔ `app.can_read_document` resolves its resource in `public.documents`, while row 16's
+       fixtures were named after `controlled_documents`; the lookup found no row and the door
+       denied EVERY persona, silently. My smoke checked presence in the table the binding
+       DECLARED, which is exactly why it stayed green while the probe measured nothing.
+       ⭐ A presence check is only a control if it looks where the DOOR looks."""
+    p = probe_for(code, perms)
+    if not p:
+        return (None, None)
+    return (p.get('probeReadsTable'), p.get('probeReadsColumn') or 'id')
+
+
 def _resolved_fixture(code, persona, gate, scope):
     v = probe_fixture(code, persona, gate, scope)
     return principal_uid(persona) if v == '{uid}' else v
@@ -1130,7 +1144,9 @@ def build(personas, contexts, scopes, states, reaches, reps_by_role, exclusions,
                                           catalog_sql_for(code, principal_uid(persona),
                                                           res, scope_id_for(scope)),
                                           str(_fx or ''),
-                                          _keying or ''))
+                                          _keying or '',
+                                          probe_reads(code)[0] or '',
+                                          probe_reads(code)[1] or ''))
     return cells, skipped
 
 
@@ -1402,6 +1418,15 @@ def coverage(cells, skipped, reps_by_role, disposition=None, exclusions=None, ax
             for _x in (_v.values() if isinstance(_v, dict) else [_v]):
                 if isinstance(_x, str) and _x != '{uid}' and _x.count('-') == 4:
                     _declared_ids.add(_x)
+    _noreadtable = sorted({x for x in _staff_codes
+                           if _needs_resource(x) and not probe_reads(x, _perms)[0]})
+    if _noreadtable:
+        f.append('arm14: representative(s) %s bind a RESOURCE but declare no `probeReadsTable` — '
+                 'the presence check would then look in whatever table the fixture is NAMED '
+                 'after, and row 16 is the measured proof those differ: `can_read_document` '
+                 'reads `public.documents` while its ids were `controlled_documents` ones, so '
+                 'the door denied everyone and the check stayed green'
+                 % ', '.join('`%s`' % x for x in _noreadtable))
     _nonliteral = sorted({x for x in _declared_ids | {c[19] for c in cells if c[19]}
                           if x.lower() not in seeded_literals()})
     if _nonliteral:
@@ -1994,10 +2019,10 @@ def _render(cs, wide):
        does not sweep the axis has nothing to do with the column."""
     if wide:
         return ',\n'.join(
-            '    (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)' % (
+            '    (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)' % (
                 q(c[0]), q(c[1]), q(c[2]), q(c[3]), q(c[4]), q(c[5]), q(c[6]), q(c[7]),
                 b(c[8]), b(c[9]), q(c[10]), q(c[11]), q(c[12]), b(c[13]), q(c[15]), q(c[16]),
-                q(c[17]), q(c[18]), q(c[19]), q(c[20]))
+                q(c[17]), q(c[18]), q(c[19]), q(c[20]), q(c[21]), q(c[22]))
             for c in cs)
     return ',\n'.join(
         '    (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)' % (
@@ -2034,7 +2059,8 @@ _COLS = ('cell_id, persona, active_context, scope, permission_code, legacy_class
          '         resolution_scope_kind, principal_state, self_check, expected_granted, '
          'expected_source,\n         case_reach, arm3_divergence, expected_legacy_granted')
 _COLS_WIDE = _COLS + (',\n         member_gate_arm, legacy_door,\n'
-                      '         legacy_sql, catalog_sql, legacy_fixture_id, keying')
+                      '         legacy_sql, catalog_sql, legacy_fixture_id, keying,\n'
+                      '         probe_table, probe_column')
 _WIDE = {'staff'}
 
 tables = '\n\n'.join(
