@@ -93,20 +93,26 @@ posted, not executed.
 
 ### In progress
 
-**PO approved the matrix package 2026-09-13** (scope table in the record). `backend` on round 3:
-T3 + T5 as one landing (generators multi-role, `approvedSuites.staff`, manifest rows from § 5.4),
-T4 seed (`commission.responses.create`, 18 `staff_admin` grants, `test_validation`), ADR 0211 for
-R-1's wrapper, the § 8.1 bug filed. `tester` on the read-only halves of T13 (fixture-gap report) and
-T11 (suite design) — no DB, no dev server; backend owns the stack.
+**Round 3 landed** (`97e90f82` · `562c184a` · `65605f76`): generators multi-role (differential 2808
+cells, 1728 `staff_admin` byte-identical + 1080 `staff`), manifest 61 rows with § 5.4 copied,
+`approvedSuites.staff`; T4 seed — 18 codes into `authz.permissions`, `staff` 20 grants,
+`staff_admin` 42 → 60, rename to `commission.responses.create`, `staff` = `test_validation`;
+ADR 0211 (`proposed`); the ownership-path bug filed. Tester: fixture-gap report + `424` skeleton
+(`ea732d91`). `backend` on round 4: L2 (axis cells restored to the `staff` vector), L3 (count-pin
+re-pins), L4 (`403` § 3.2b re-clause), L5 (row 12 correction), gap rows seeded. `tester` writing
+`424` with the door-calling legacy side. A read-only subagent runs the proposed-ADR review gate 9
+now demands.
 
 ### Next
 
-Lead acks T5/T4 plans; PO confirms the per-class arm-3 expected values and AC-2's deny-class values
-at T11's plan review; then T6 cutover (full plan review), T7 re-key, T8–T10, gate.
+`424` runs green on round 4's vector; PO confirms the per-class arm-3 values and AC-2's deny-class
+values at T11's plan review; T6 cutover plan (full review) under ADR 0211; T7 re-key.
 
 ### Blockers
 
-⛔ R-1: no `candidate_holds_role` exists, so the wrapper cutover cannot be pre-flighted under
-`test_validation` — ADR 0211 must say how the cutover is proven before it flips (owed to T6).
+⚠ `npm run lint` is RED on gates 9 (proposed-ADR stamp drifted by 0211) and 19 (`411` md5 pin) and
+`test:db` carries 11 count-pin reds + `403` § 3.2b red by instruction — all routed (record L3/L4,
+gate 9 review), none a behaviour finding. ⛔ ADR 0211 D2 (how the cutover is proven without a
+`candidate_holds_role`) is unreviewed by the PO until T6's plan.
 ⚠ Owed to T7/T13, not blocking now: `app.can_reach_case_on_member_surface` has ZERO production
 callers (matrix § 8.3); 6 of 9 seeded CCIH `staff` personas carry a non-role case reach (§ 8.2).

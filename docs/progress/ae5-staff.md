@@ -776,3 +776,50 @@ per-class arm-3 values. AC-1 ticks now; AC-2 does not.
 Consequences released: T3 + T5 (one landing), T4 (seed with the rename and the 18 `staff_admin`
 grants), ADR 0211, the bug filing for § 8.1; T11/T13 may start their read-only halves. Backend's T3
 plan (posted 2026-09-13) is acked by the lead in the round-3 message.
+
+### 2026-09-13 — tester's T13/T11 skeleton received; round 3 received; lead rulings L2–L5; gate 9 routed (lead)
+
+**Tester delivered** (`ea732d91`, staged by the lead by path): `docs/testing/ae5-staff-fixture-gaps.md`
+(§ 8 = T4's gap list) and `supabase/tests/424_ae5_staff_differential_oracle.sql` as a valid pgTAP
+skeleton (`plan(1)`, one placeholder, `finish`, `rollback` — checked before staging so backend's
+next `test:db` could not trip on it), its header carrying PROPOSED per-class arm-3 values. It
+corrected a misreading (`multi@test.local` holds two Rede A memberships, not cross-org), found
+`staff1.farm`/`staff2.farm` clean `other_commission_holder` candidates, and could not locate
+`offboarded`'s mechanism (ADR 0163) nor verify rows 12/16/19's fixture population — routed to backend.
+
+**Backend round 3 received**: `97e90f82` (T3+T5) · `562c184a` (T4) · `65605f76` (ADR 0211, the bug,
+its entry). Cell totals as outputs: differential 2808 (1728 `staff_admin`, byte-identical to HEAD by
+sorted diff; 1080 `staff`), matrix 4004, manifest rows 61. Self-test 23 fixtures each firing its
+own arm, including `arm7 role value dropped` (unfireable before the column existed) and arm5's
+quiet half. ADR number re-measured 0210 → **0211**.
+
+**Lead rulings on what it handed back:**
+- **L2 — the L1 axis's sweeper does NOT move to `425`; REJECTED.** Backend moved the eleven-term
+  axis out of the resolver differential because `app.is_member_of_for` reads none of the terms, so
+  cells would differ only in a column the predicate never reads. That is the wrong legacy side: ADR
+  0175 D3's shape is that the differential's legacy column calls the REAL DOOR for an arm-3 row
+  (*"403 calls the real door now"*), not the bare membership predicate. ⇒ the `staff` vector emits
+  the axis cells for the eleven rows, and `424`'s legacy side calls each row's door
+  (`can_reach_meeting`, `can_sign_meeting`, `_case_caps` S5, `can_read_action_item`, the policy
+  quals for rows 1/4/15/16, `cast_case_vote`'s guard, `can_read_capa`) so the axis is CONSUMED. `425`
+  keeps its own job (the grant-deletion flip). ⛔ A vector column no assertion reads is a keystone
+  that cannot fail.
+- **L3 — the observed-red count pins MAY move, each with old → new and the seed change that moved
+  it, in one commit**: `401` § 3.2 / § 14.6 / § 14.7, `409` § 1.3 / § 5.5, `411` § 0b (the
+  `role_manifest.psql` md5 — gate 19 goes green with it), `422` § 4.8. None is a behaviour finding;
+  all were RED before the pin moves (backend's entry). Keeping a correct artifact and a red pin
+  rather than reverting the artifact was the right call.
+- **L4 — `403` § 3.2b re-clause ACCEPTED as proposed**: subject-scoped (no role appearing in
+  `authz_differential_cells` is in `test_validation`) plus a new § 3.2c pinning the
+  `test_validation` set BY NAME against `approvedSuites` minus this suite's subject. Backend applies
+  it, observed RED first on the current tree, then green.
+- **L5 — row 12's `HC0J0` is an ethics-DETAILS existence guard, not a status guard** (backend's
+  measurement): matrix § 5.3 (backend) and `424`'s header (tester) both corrected; the fixture pair
+  is a case with / without `ethics_case_details`. Row 19 has no fixture at all (`capa_plan` holds
+  one `source = 'rca'` row) — added to the gap set; backend states where it wrote that.
+- **Gate 9** reds because ADR 0211 (`proposed`) joined the proposed/draft/deferred set stamped in
+  `docs/decisions/proposed-review.json` (`reviewed: null`, installed 2026-08-24). ⛔ Not discharged by
+  appending 0211 to the list: the stamp's meaning is *"each listed ADR was re-read against what is
+  built"* (ADR 0140). The first such review is run now by a read-only subagent over the nine, the
+  lead stamps `reviewed` + the set on its report. ⚠ Backend's refusal to stamp was correct.
+- Fixture-gap rows: seeded in their own commit with their own `test:db` (round 4).
