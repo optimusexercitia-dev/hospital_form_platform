@@ -118,6 +118,36 @@ REPS = [
     ('org.participants.external.manage', 'can_manage_external_participant', 'organization'),
 ]
 
+# ── AE5 INCREMENT 1: `staff`'s REPRESENTATIVES ───────────────────────────────────────────────
+# ⛔ EVERY REP IS A CODE `staff` HOLDS (matrix § 5.2, PO-approved 2026-09-13). That is the AE4.7c
+# lesson applied rather than re-learned: a rep the subject does NOT hold makes every cell of its
+# class a denial, and arm2 does not catch it because arm2 is satisfied globally by the other reps.
+#
+# ⭐ THE SELECTION RULE IS THE `memberGateArm` PROFILE, NOT THE DOOR NAME, and the reason is that
+# `staff` has only ONE legacy-equivalence gate. Every one of its 40 policies and 42 function
+# bodies resolves to `app.is_member_of_for` -> `app.has_role_any('commission', ...)`; the
+# per-door differences live in the NON-PERMISSION TERMS the matrix § 5.3 criterion enumerated,
+# which is exactly what the `memberGateArm` axis coordinates. So the reps are chosen to cover
+# every declared value of that axis at least once, plus both risk classes:
+#   none                             -> commission.process_templates.read   (9 policies, no extra term)
+#   none, write polarity             -> commission.responses.create         (the ONE membership-gated write)
+#   conjunct_met / conjunct_unmet    -> commission.meetings.read            (visibility_policy / attendee)
+#   disjunct_present / _absent       -> commission.accreditation.read       (the PUBLIC NULL-owner arm)
+#   BOTH limbs on one row            -> commission.action_items.read        (visibility_scope + assignee)
+# ⛔ THE VALUE SET PER REP IS NOT WRITTEN HERE — it is read from the enforcement manifest at
+# `permissions[<code>].memberGateArm`, and arm11 refuses to emit if this list and the manifest
+# disagree. A generator's claim about its own coverage is not a detector (the arm9 lesson, one
+# axis over).
+REPS_STAFF = [
+    ('commission.process_templates.read', 'is_member_of_for', 'commission'),
+    ('commission.responses.create',       'is_member_of_for', 'commission'),
+    ('commission.meetings.read',          'is_member_of_for', 'commission'),
+    ('commission.accreditation.read',     'is_member_of_for', 'commission'),
+    ('commission.action_items.read',      'is_member_of_for', 'commission'),
+]
+
+REPS_BY_ROLE = {'staff_admin': REPS, 'staff': REPS_STAFF}
+
 # ── Axis disposition. EVERY axis the JSON declares must appear here, or arm7 refuses. ──
 # 'swept'       — this generator iterates the axis; every declared value must be emitted or
 #                 named in EXCLUSIONS.
@@ -134,12 +164,54 @@ AXIS_DISPOSITION = {
     # was a FOOTNOTE in this generator and a global sentinel in 403 §7.3; it is now a loop
     # coordinate, so every arm-3 answer is attributable to a cell instead of to a prose caveat.
     'caseReach':      'swept',
+    # ⭐⭐ AE5-STAFF (lead decision L1, 2026-09-13, option (a′)) — THE AXIS IS DECLARED, AND THIS
+    # GENERATOR IS NOT ITS SWEEPER. L1 ruled a `staff`-specific gate-arm axis sized by matrix
+    # § 5.3, and the axes file carries it in full, mandatory limb-(b) value included. What it
+    # cannot carry is a sweep HERE, and the reason is measured rather than preferred:
+    #
+    #   THE LEGACY SUBJECT OF EVERY `staff` REPRESENTATIVE IS `app.is_member_of_for`, AND THAT
+    #   PREDICATE CONSUMES NONE OF THE ELEVEN TERMS. `visibility_policy`, `attendance`,
+    #   `status='in_signature'`, `explicit_grants_only`, `visibility_scope`, the ethics-details
+    #   guard, `owner_commission_id IS NULL`, `source='indicator'`, the approver and
+    #   targeted-version disjuncts — every one of them lives in the CALLER (a policy qual or a
+    #   door body), never in the membership predicate the differential calls. So a cell swept
+    #   across this axis here would differ only in a column ITS OWN PREDICATE NEVER READS, which
+    #   is precisely the inflation the gate-scoped `caseReach` rule below deletes and measured at
+    #   2592 duplicate cells when it was tried on that axis.
+    #
+    # ⚠ WHY `caseReach` IS DIFFERENT AND NOT A PRECEDENT FOR SWEEPING THIS ONE: its carrying
+    # representative's legacy CLASS *is* the door (`can_read_professional_profile`), so the door
+    # is what the differential calls and the reach is a real input to the answer. No `staff`
+    # representative has a door as its class, because `staff` has exactly ONE legacy-equivalence
+    # gate (matrix § 3.0 — 40 policies and 42 function bodies, all resolving to
+    # `app.is_member_of_for`).
+    #
+    # ⛔ THE SWEEP IS OWED, AND ITS OWNER IS NAMED: the DOOR differential `425`
+    # (T12, the grant-present-vs-DELETED shape on real sites) is where these terms are inputs.
+    # ⚠ SURFACED TO THE LEAD as a fork on L1's implementation, not decided silently: L1's axis is
+    # built and approved-set-sized; only its sweeper moved. The per-class PROPOSED values live in
+    # matrix § 5.3 and in `424`'s header, reconciled 2026-09-13.
+    'memberGateArm':  'not-swept HERE, and the owner of the sweep is named: `app.is_member_of_for` '
+                      '— the legacy subject of every `staff` representative — consumes none of the '
+                      'eleven § 5.3 terms, so sweeping the axis in the RESOLVER differential '
+                      'produces cells differing only in a column their predicate never reads. The '
+                      'terms are inputs at the DOOR, so the sweep belongs to the door differential '
+                      '425 (T12). The axis is DECLARED and PO-coordinate-sized in the axes file; '
+                      'only its sweeper differs from lead decision L1\'s first reading.',
     'operation':      'not-swept: stood in for by the legacy-class REPS above. Per-permission '
                       'AXES are not observable until AE5 gives a role a partial map; per-permission '
                       'GRANT is covered by 401 §19.4 (403 header, PER-PERMISSION GRAIN).',
-    'resourceLifecycle': 'not-swept: none of the representatives acts on a lifecycled '
-                      'resource — every cell is `not_applicable`. A rep that did would make this '
-                      'a loop coordinate.',
+    'resourceLifecycle': 'not-swept HERE, and as of AE5 increment 1 that is a BOUND rather than '
+                      'a property: matrix § 5.3 reclassified row 20 '
+                      '(commission.referrals.metadata.read) ONTO this axis, because its '
+                      'target-side conjunct is `case_referral.status <> \'draft\'` and `draft` is '
+                      'a value this axis declares. The per-operation map IS populated — the '
+                      'enforcement manifest carries `axes.resourceLifecycle = [not_applicable, '
+                      'draft]` on that row and the mjs sibling reads it — but no REPRESENTATIVE '
+                      'here sweeps it yet, because the referral code is not among REPS_STAFF. '
+                      '⛔ OWED, and named so it cannot be mistaken for a property: giving the '
+                      'referral row a representative makes this a loop coordinate and is the next '
+                      'increment of this generator, not a silent gap.',
     'sensitivity':    'not-swept: sensitivity_ceiling is DEFERRED in Increment 1 (ADR 0172); all '
                       '42 seeded permissions carry a ceiling but no site enforces one yet, so the '
                       'axis has no observable effect to differentiate.',
@@ -190,6 +262,34 @@ ARM3_CASE_ARM_FN = 'app.can_read_case_committee'   # the open arm whose presence
 # kept at this reach is the cell that already existed before the axis — byte-identical, not a
 # newly-invented coordinate standing in for four.
 ARM3_INERT_REACH = 'none'
+
+# ── THE MEMBER GATE ARM, BOUND TO THE MANIFEST THE WAY arm9 BINDS caseReach ──────────────
+# The inert value every representative gets, carrying-row or not. `none` and not another value
+# because it is the state the driver already constructs — a cell kept here is the cell that
+# existed before the axis, byte-identical, not a newly-invented coordinate standing in for five.
+MEMBER_GATE_INERT = 'none'
+# ⛔ MANDATORY, and for `caseReach.unreachable`'s exact reason: row 15's role-free disjunct is a
+# PUBLIC arm (`owner_commission_id IS NULL` grants EVERY authenticated caller), so a limb-(b) deny
+# cell measured at `disjunct_present` CANNOT FAIL. This value is the state where the disjunct's
+# source row does not exist, which is the only coordinate at which a limb-(b) deny is attributable
+# to the membership predicate rather than to the disjunct being incidentally false.
+MEMBER_GATE_MANDATORY_LIMB_B = 'disjunct_absent'
+
+
+def member_gate_arms_for(code):
+    """The declared value set for ONE representative, READ FROM THE ENFORCEMENT MANIFEST.
+
+       ⛔ NOT a static list in this file. The premise of the gate-scoped rule below — "these reps
+       carry these coordinates" — is a claim about the approved matrix, and a claim a generator
+       makes about itself is not a detector (the arm9 lesson). arm11 re-reads this on every run
+       and refuses to emit when the manifest and this generator's loop disagree."""
+    if MANIFEST_PERMISSIONS is None:
+        return None
+    row = MANIFEST_PERMISSIONS.get(code)
+    if row is None:
+        return None
+    return row.get('memberGateArm')
+
 
 # ── CONDITIONAL (GATE-SCOPED) EXCLUSIONS — the same reasoned-exclusion idiom, one grain finer. ──
 # EXCLUSIONS above deletes an axis value from the WHOLE population; an entry here deletes it only
@@ -252,13 +352,28 @@ SAME_ORG = {'own_commission', 'sibling_commission'}   # foreign_org_commission i
 # for some coordinates and silently pass for others. Fail at the top, loudly.
 _unmapped = [p for p in personas if p not in HOLDS_AT]
 assert not _unmapped, 'persona(s) declared in the axes JSON with no HOLDS_AT mapping: %s' % _unmapped
-assert len(subject_roles) == 1, 'AE4 substitutes exactly ONE role (ADR 0155 D7); got %s' % subject_roles
-SUBJECT_ROLE = subject_roles[0]
+# ⛔ THE SINGLE-ROLE ASSERT IS REPLACED, NOT DELETED. It read `len(subject_roles) == 1` and was
+# correct for as long as AE4 substituted one role; AE5 increment 1 makes it false. A deleted
+# assertion is a detector retired with no replacement, so it becomes a bound that still refuses
+# something: every subject role must have a representative list here AND an approved suite in the
+# enforcement manifest. That mirrors the .mjs sibling's ARM C3 on this side of the fence, so the
+# two files cannot drift apart while each reads a different half.
+assert subject_roles, 'the axes file declares no subjectRoles'
+_missing_reps = [r for r in subject_roles if r not in REPS_BY_ROLE]
+assert not _missing_reps, 'subjectRole(s) with no representative list: %s' % _missing_reps
+_orphan_reps = [r for r in REPS_BY_ROLE if r not in subject_roles]
+assert not _orphan_reps, 'representative list(s) for a role the axes file does not declare: %s' % _orphan_reps
 
 
-def expected(persona, ctx, scope, state, selfcheck, res_scope):
+def expected(role, persona, ctx, scope, state, selfcheck, res_scope):
     """EXPECTED VALUES COME FROM EXACTLY TWO HAND-ENCODED SOURCES — never resolver logic.
-       (1) the approved matrix row: staff_admin holds EVERY code in REPS — after AE4.7c that is
+
+       ⭐ `role` IS A PARAMETER AS OF AE5 INCREMENT 1 and it is deliberately NOT branched on: the
+       (1) below holds for BOTH subject roles because REPS_BY_ROLE is built that way — every rep
+       is a code its own role holds. The parameter exists so the docstring's claim is checkable
+       per role and so a future role whose reps are not all held cannot inherit this silently.
+       (1) the approved matrix row: the subject role holds EVERY code in its own REPS —
+           for `staff` that is matrix § 5.2's 20 PO-approved rows (2026-09-13); for staff_admin — after AE4.7c that is
            org.professionals.create, NOT .manage, which staff_admin lost; and the Batch 10 fifth
            rep org.participants.external.manage is held too (measured in authz.role_permissions,
            and asserted independently by 401 §19.4, whose expected value names the ONE code
@@ -550,7 +665,7 @@ def arm3_divergence(klass, persona, ctx, scope, state, selfcheck, exp, src, reac
         % (src, reach, persona, ctx, scope, state, selfcheck))
 
 
-def build(personas, contexts, scopes, states, reaches, reps, exclusions):
+def build(personas, contexts, scopes, states, reaches, reps_by_role, exclusions):
     """Returns (cells, skipped). EVERY skip counter counts CELLS, at one grain, so that
        `len(cells) + sum(skipped.values())` equals the full grid exactly — asserted below.
        ⛔ An earlier shape short-circuited excluded AXIS VALUES at their own loop level, so those
@@ -569,7 +684,8 @@ def build(personas, contexts, scopes, states, reaches, reps, exclusions):
     # reach-DEPENDENT by definition and fires three times per surviving coordinate of the four
     # inert reps. ⛔ NEITHER PROPERTY IS ASSERTED BY THIS COMMENT — `len(cells) +
     # sum(skipped.values()) == _GRID` is what proves the census, and it is the only thing that does.
-    for code, klass, res in reps:
+    for role in sorted(reps_by_role):
+      for code, klass, res in reps_by_role[role]:
         for persona in personas:
             for ctx in contexts:
                 for scope in scopes:
@@ -616,11 +732,11 @@ def build(personas, contexts, scopes, states, reaches, reps, exclusions):
                             # is one new line instead of six moved ones.
                             if klass != ARM3_GATE and reach != ARM3_INERT_REACH:
                                 skip('caseReach_inert_outside_the_arm3_gate'); continue
-                            exp, src = expected(persona, ctx, scope, state, selfcheck, res)
+                            exp, src = expected(role, persona, ctx, scope, state, selfcheck, res)
                             # ⛔ `reach` IS IN THE CELL ID, AND IT HAS TO BE. Without it the four
                             # reach values collapse onto ONE id, 403 reports on cell_id, and three
                             # of every four cells become an invisible duplicate of the first.
-                            cid = '|'.join([persona, SUBJECT_ROLE, ctx, scope, code, state,
+                            cid = '|'.join([persona, role, ctx, scope, code, state,
                                             'self' if selfcheck else 'third_party', reach])
                             div = arm3_divergence(klass, persona, ctx, scope, state,
                                                   selfcheck, exp, src, reach)
@@ -630,17 +746,24 @@ def build(personas, contexts, scopes, states, reaches, reps, exclusions):
                             # column mid-tuple would silently re-point all of them at their
                             # neighbours, which is a whole-file mutation wearing a one-line diff.
                             exp_legacy = expected_legacy(exp, div)
+                            # ⛔ `role` IS APPENDED AS COLUMN 14, NEVER INSERTED MID-TUPLE. Every
+                            # arm and every --self-test fixture addresses cells BY INDEX (c[9] the
+                            # expected value, c[12] the label, c[13] the legacy value); an insert
+                            # would silently re-point all of them at their neighbours — a
+                            # whole-file mutation wearing a one-line diff.
                             cells.append((cid, persona, ctx, scope, code, klass, res, state,
-                                          selfcheck, exp, src, reach, div, exp_legacy))
+                                          selfcheck, exp, src, reach, div, exp_legacy, role))
     return cells, skipped
 
 
-cells, skipped = build(personas, contexts, scopes, states, reaches, REPS, EXCLUSIONS)
+cells, skipped = build(personas, contexts, scopes, states, reaches, REPS_BY_ROLE, EXCLUSIONS)
+reps_flat_top = [r for _role in sorted(REPS_BY_ROLE) for r in REPS_BY_ROLE[_role]]
 
 # ⭐ THE CENSUS SUMS. Every cell of the declared grid is either emitted or attributed to exactly
 # one named rule. ⛔ Without this the header's "N skipped" is a number of nothing, and a rule that
 # quietly elides a coordinate twice (or not at all) is invisible.
-_GRID = len(REPS) * len(personas) * len(contexts) * len(scopes) * len(states) * 2 * len(reaches)
+_GRID = (sum(len(v) for v in REPS_BY_ROLE.values())
+         * len(personas) * len(contexts) * len(scopes) * len(states) * 2 * len(reaches))
 assert len(cells) + sum(skipped.values()) == _GRID, (
     'the census does not sum: %d emitted + %d skipped != %d declared grid cells'
     % (len(cells), sum(skipped.values()), _GRID))
@@ -650,10 +773,21 @@ _UNSET = object()   # `None` is a LEGITIMATE value for `permissions` (an unreada
                     # the "use the real one" sentinel cannot be None — the self-test exercises both.
 
 
-def coverage(cells, skipped, reps, disposition=None, exclusions=None, axes=None,
+def coverage(cells, skipped, reps_by_role, disposition=None, exclusions=None, axes=None,
              permissions=_UNSET, conditional=None):
     """ELEVEN ARMS. ⛔ An arm that has never refused anything is a detector nobody has shown finds
        something — every one is exercised by --self-test below."""
+    # ⭐⭐ PER-ROLE ARMS, AND THE UNION IS WHAT THEY MUST NOT BE EVALUATED OVER. arm2 (polarity),
+    # arm4 (§ 6A both-polarity) and arm5 (the org-scope ascent) each ask "does this cell set
+    # exercise X". Over the UNION of two roles' cells every one of them is satisfiable by
+    # `staff_admin` alone, so a `staff` cell set that exercised none of them would still pass —
+    # the masked-arm shape this file already paid for once at AE4.7c (see the REPS comment on
+    # org.professionals.create). They are therefore evaluated ONE ROLE AT A TIME and their
+    # messages name the role.
+    reps_flat = [r for _role in sorted(reps_by_role) for r in reps_by_role[_role]]
+    cells_by_role = {}
+    for _c in cells:
+        cells_by_role.setdefault(_c[14], []).append(_c)
     disposition = AXIS_DISPOSITION if disposition is None else disposition
     exclusions = EXCLUSIONS if exclusions is None else exclusions
     axes = spec['axes'] if axes is None else axes
@@ -662,8 +796,11 @@ def coverage(cells, skipped, reps, disposition=None, exclusions=None, axes=None,
     f = []
     if not cells:
         f.append('arm1: the cell set is EMPTY — pgTAP would iterate nothing and pass')
-    if not (any(c[9] for c in cells) and any(not c[9] for c in cells)):
-        f.append('arm2: expected values are single-polarity — a resolver stuck on one answer would pass')
+    for _role in sorted(cells_by_role):
+        _rc = cells_by_role[_role]
+        if not (any(c[9] for c in _rc) and any(not c[9] for c in _rc)):
+            f.append('arm2: expected values are single-polarity for role `%s` — a resolver stuck '
+                     'on one answer would pass' % _role)
     # ⭐ arm3 COMPARES SETS, DERIVED FROM `reps`, NOT A HARD-CODED 3. The literal was correct
     # for as long as there were three reps and became a false gate the moment AE4.9 added a
     # fourth — it refused a CORRECT cell set. ⛔ It is not a tautology against arm1b: arm1b
@@ -676,18 +813,35 @@ def coverage(cells, skipped, reps, disposition=None, exclusions=None, axes=None,
     # ⛔ can_manage_external_participant (row 31) is NO LONGER covered by body identity — it has
     # its own rep. That reduction is retired, and 403 §2.3b now asserts the rep instead of the
     # identity.
-    _declared_classes = {r[1] for r in reps}
+    _declared_classes = {r[1] for r in reps_flat}
     _emitted_classes = {c[5] for c in cells}
     if _declared_classes != _emitted_classes:
         f.append('arm3: swept legacy-equivalence classes do not match the declared REPS — '
                  'declared-not-emitted %s, emitted-not-declared %s'
                  % (sorted(_declared_classes - _emitted_classes) or '(none)',
                     sorted(_emitted_classes - _declared_classes) or '(none)'))
-    if not (any(c[8] for c in cells) and any(not c[8] for c in cells)):
-        f.append('arm4: §6A both-polarity missing — self-check AND third-party are both required, or '
-                 'the suite passes while pinning the uniform-apply bug')
-    if not any(c[6] == 'organization' and c[3] == 'sibling_commission' and c[9] for c in cells):
-        f.append('arm5: §11.3 differing-scope cell missing — the whole org-scoped class would go untested')
+    for _role in sorted(cells_by_role):
+        _rc = cells_by_role[_role]
+        if not (any(c[8] for c in _rc) and any(not c[8] for c in _rc)):
+            f.append('arm4: §6A both-polarity missing for role `%s` — self-check AND third-party '
+                     'are both required, or the suite passes while pinning the uniform-apply bug'
+                     % _role)
+    # ⭐ arm5 IS RE-PREDICATED ON THE ROLE'S OWN RESOLUTION SCOPES, not on a constant. The org
+    # ascent it guards exists only where a role holds an ORG-scoped code: `staff_admin` does (four
+    # of its five reps), `staff` does not — matrix § 5.2, all 20 rows resolve at `commission`. The
+    # old constant predicate would have fired on every `staff` run and reported a coverage loss
+    # that cannot exist, which is a false red and, worse, one a future hand would silence by
+    # deleting the arm. ⛔ THE ARM MUST STILL FIRE FOR `staff_admin` — --self-test asserts BOTH
+    # halves (it fires when the ascent cell is removed from staff_admin; it stays quiet on an
+    # unmodified commission-only role).
+    for _role in sorted(cells_by_role):
+        _rc = cells_by_role[_role]
+        _role_scopes = {r[2] for r in reps_by_role.get(_role, [])}
+        if 'organization' not in _role_scopes:
+            continue
+        if not any(c[6] == 'organization' and c[3] == 'sibling_commission' and c[9] for c in _rc):
+            f.append('arm5: §11.3 differing-scope cell missing for role `%s` — the whole '
+                     'org-scoped class would go untested' % _role)
     if any(not c[10] for c in cells):
         f.append('arm6: a cell carries no expectedSource — an unattributed expected value is not an oracle input')
 
@@ -699,8 +853,13 @@ def coverage(cells, skipped, reps, disposition=None, exclusions=None, axes=None,
     # ⛔ AN AXIS MISSING FROM THIS MAP IS AN AXIS arm7 CANNOT SEE. The lookup below falls back
     # to `emitted = declared` when a swept axis has no column, so `missing` is empty by
     # construction and the arm can never fire for it — a detector that could not fail, on the very
-    # axis someone just added. `role` is the ONE tolerable case: subjectRoles is asserted to hold
-    # exactly one value at the top of this file, so there is nothing for the arm to find.
+    # axis someone just added.
+    # ⛔⛔ THE `role` EXEMPTION IS GONE, AND ITS OLD TEXT WAS TRUE ONLY WHILE ONE ROLE EXISTED. It
+    # read: "`role` is the ONE tolerable case: subjectRoles is asserted to hold exactly one value
+    # at the top of this file, so there is nothing for the arm to find." AE5 increment 1 makes
+    # subjectRoles two-valued, and that sentence would have turned arm7 into a detector that
+    # cannot fire on the axis the increment just made real. `role` now has a COLUMN (14) and is
+    # held to the same bar as every other swept axis.
     # ⭐ `caseReach` -> 11 is why the reach had to become a COLUMN and not merely a cell-id suffix.
     # ⭐⭐ IT IS ALSO THE STOP ON THE GATE-SCOPED RULE, AND THE PAIRING IS DELIBERATE. That rule
     # keeps all four reaches for the arm-3 rep and one for everyone else, so `emitted` is still the
@@ -709,7 +868,7 @@ def coverage(cells, skipped, reps, disposition=None, exclusions=None, axes=None,
     # NO named exclusion, which is exactly what arm7 refuses. So the saving cannot grow into a
     # silent axis deletion without this arm saying so.
     CELL_AXIS_COL = {'persona': 1, 'activeContext': 2, 'scope': 3, 'principalState': 7,
-                     'caseReach': 11}
+                     'caseReach': 11, 'role': 14}
     for axis in sorted(axes):
         if axis not in disposition:
             f.append('arm7: axis `%s` is declared in the axes JSON with NO disposition — it is '
@@ -762,7 +921,7 @@ def coverage(cells, skipped, reps, disposition=None, exclusions=None, axes=None,
     # ONLY gate with a case arm is dropped or re-pointed, every cell becomes `arm3:not-in-gate`,
     # the axis quadruples the population and measures nothing, and no other arm in this file says
     # so — arm3 and arm1b both stay satisfied because they compare reps to cells, not to ARM3_GATE.
-    if ARM3_GATE not in {r[1] for r in reps}:
+    if ARM3_GATE not in {r[1] for r in reps_flat}:
         f.append('arm8: the arm-3 gate `%s` has NO representative among the declared REPS — the '
                  'caseReach axis then labels every cell `arm3:not-in-gate` and multiplies the '
                  'population by %d for nothing' % (ARM3_GATE, len(REACH_PROPERTIES)))
@@ -784,13 +943,13 @@ def coverage(cells, skipped, reps, disposition=None, exclusions=None, axes=None,
                  '3 of every 4 cells for 4 of 5 reps is an unreasoned exclusion with a reason '
                  'attached' % (_MANIFEST_ERR or 'not supplied'))
     else:
-        _absent_reps = sorted({r[0] for r in reps} - set(permissions))
+        _absent_reps = sorted({r[0] for r in reps_flat} - set(permissions))
         if _absent_reps:
             f.append('arm9: representative(s) %s are absent from the enforcement manifest — their '
                      '`openArms` cannot be read, so there is no authority for deleting the '
                      'caseReach coordinate from them' % ', '.join(_absent_reps))
         else:
-            _armed = {klass for code, klass, _res in reps
+            _armed = {klass for code, klass, _res in reps_flat
                       if ARM3_CASE_ARM_FN in
                       ((permissions[code].get('legacyEquivalence') or {}).get('openArms') or [])}
             if _armed != {ARM3_GATE}:
@@ -841,7 +1000,7 @@ def coverage(cells, skipped, reps, disposition=None, exclusions=None, axes=None,
                  'disagreement on exactly these cells, so an unattributed flip is an exemption '
                  'nobody ruled (first: %s)' % (len(_unattributed), _unattributed[0][0]))
 
-    declared = {r[0] for r in reps}
+    declared = {r[0] for r in reps_flat}
     emitted = {c[4] for c in cells}
     if declared - emitted:
         f.append('arm1b: representative(s) declared but never emitted: %s' % ', '.join(sorted(declared - emitted)))
@@ -859,7 +1018,9 @@ if '--self-test' in sys.argv:
     ax_extra_axis = json.loads(json.dumps(ax))
     ax_extra_axis['aNewAxisNobodyDisposed'] = {'values': {'x': 'y'}}
     _RENAMED = 'a_gate_with_no_case_arm'
-    _repointed_reps = [(r[0], _RENAMED if r[1] == ARM3_GATE else r[1], r[2]) for r in REPS]
+    # ⛔ A DICT, like every other fixture's reps, since AE5 increment 1 made coverage() role-keyed.
+    _repointed_reps = {r: [(x[0], _RENAMED if x[1] == ARM3_GATE else x[1], x[2]) for x in v]
+                       for r, v in REPS_BY_ROLE.items()}
     _repointed_cells = [(c[:5] + (_RENAMED,) + c[6:]) if c[5] == ARM3_GATE else c
                         for c in base_cells]
     # ⛔ arm9's FIXTURES PERTURB THE MANIFEST AND NOTHING ELSE — not the cells, not the reps. That
@@ -892,7 +1053,10 @@ if '--self-test' in sys.argv:
         i = next((j for j, c in enumerate(out) if c[12] in labels and c[13] != value), None)
         assert i is not None, ('no cell carries any of %s with expected_legacy_granted != %s — '
                                'the arm10 fixture would perturb nothing' % (labels, value))
-        out[i] = out[i][:13] + (value,)
+        # ⛔ THE TAIL IS PRESERVED, NOT TRUNCATED. Before AE5 increment 1 the tuple ended at
+        # index 13 and `[:13] + (value,)` was a whole rewrite; it now drops the `role` column and
+        # the fixture dies in coverage() instead of exercising arm10.
+        out[i] = out[i][:13] + (value,) + out[i][14:]
         return out
 
     def _synth_defect():
@@ -913,33 +1077,34 @@ if '--self-test' in sys.argv:
         i = next((j for j, c in enumerate(out) if not c[12].startswith(ARM3_DEFECT_PREFIX)), None)
         assert i is not None, ('every cell already carries a defective label — the synthesised '
                                'arm10(b) fixture would perturb nothing')
-        out[i] = out[i][:12] + (ARM3_PINNED_DEFECT, True)
+        # ⛔ TAIL PRESERVED — see _one. Columns 14+ (`role`) must survive the synthesis.
+        out[i] = out[i][:12] + (ARM3_PINNED_DEFECT, True) + out[i][14:]
         return out
 
     checks = [
-        ('arm1 empty cell set',          [],                                                      base_skipped, REPS, None, None, None),
-        ('arm2 single polarity',         [c[:9] + (True,) + c[10:] for c in base_cells],          base_skipped, REPS, None, None, None),
+        ('arm1 empty cell set',          [],                                                      base_skipped, REPS_BY_ROLE, None, None, None),
+        ('arm2 single polarity',         [c[:9] + (True,) + c[10:] for c in base_cells],          base_skipped, REPS_BY_ROLE, None, None, None),
         # ⛔ THE KEY MOVED WITH THE REP. arm3 filters by legacy-class NAME; left at
         # 'can_manage_professional' after AE4.7c it would match NOTHING, drop no class, and
         # report NOT CAUGHT — a rename orphaning a name-keyed control, which is the failure
         # this whole file exists to make loud.
-        ('arm3 a class dropped',         [c for c in base_cells if c[5] != 'can_create_professional'], base_skipped, REPS, None, None, None),
-        ('arm4 self-check only',         [c for c in base_cells if c[8]],                          base_skipped, REPS, None, None, None),
-        ('arm5 differing-scope dropped', [c for c in base_cells if not (c[6]=='organization' and c[3]=='sibling_commission')], base_skipped, REPS, None, None, None),
-        ('arm6 expectedSource blanked',  [c[:10] + ('',) + c[11:] for c in base_cells],          base_skipped, REPS, None, None, None),
+        ('arm3 a class dropped',         [c for c in base_cells if c[5] != 'can_create_professional'], base_skipped, REPS_BY_ROLE, None, None, None),
+        ('arm4 self-check only',         [c for c in base_cells if c[8]],                          base_skipped, REPS_BY_ROLE, None, None, None),
+        ('arm5 differing-scope dropped', [c for c in base_cells if not (c[6]=='organization' and c[3]=='sibling_commission')], base_skipped, REPS_BY_ROLE, None, None, None),
+        ('arm6 expectedSource blanked',  [c[:10] + ('',) + c[11:] for c in base_cells],          base_skipped, REPS_BY_ROLE, None, None, None),
         # ⛔ arm8's FOUR SHAPES, EACH ISOLATED. A fixture that trips a second arm proves nothing
         # about this one — the lesson arm1b's isolation note records, applied again.
         # ⚠ ONE CELL, NOT ALL OF THEM, and that is the stronger control twice over: a wholesale
         # wipe is a shape no real edit produces, AND it makes the column single-valued, so the
         # single-valued sub-check fires too and the fixture stops isolating what it names.
-        ('arm8 divergence label blanked',  [base_cells[0][:12] + ('',) + base_cells[0][13:]] + base_cells[1:],        base_skipped, REPS, None, None, None),
+        ('arm8 divergence label blanked',  [base_cells[0][:12] + ('',) + base_cells[0][13:]] + base_cells[1:],        base_skipped, REPS_BY_ROLE, None, None, None),
         ('arm8 divergence label unknown',  [base_cells[0][:12] + ('arm3:a-label-nobody-declared',) + base_cells[0][13:]] + base_cells[1:],
-                                                                                                 base_skipped, REPS, None, None, None),
+                                                                                                 base_skipped, REPS_BY_ROLE, None, None, None),
         # A VALID vocabulary value applied to every cell: blank and unknown both pass, only the
         # single-valued check can fire. ⚠ It also trips arm10 since increment 3, and correctly:
         # wiping the labels strands every approved legacy GRANT with nothing to attribute it to,
         # which is exactly arm10(e). Named here rather than silenced.
-        ('arm8 divergence column collapsed', [c[:12] + ('arm3:not-in-gate',) + c[13:] for c in base_cells], base_skipped, REPS, None, None, None),
+        ('arm8 divergence column collapsed', [c[:12] + ('arm3:not-in-gate',) + c[13:] for c in base_cells], base_skipped, REPS_BY_ROLE, None, None, None),
         # ⛔ REPS AND CELLS RE-POINTED TOGETHER so arm3 (classes) and arm1b (codes) both stay
         # clean and arm8c fires alone. Re-pointing only one side would trip arm3 instead, and the
         # printed message would name the wrong detector.
@@ -956,39 +1121,50 @@ if '--self-test' in sys.argv:
         # by the WRONG ARM check in the runner below, not by reading. `org.professionals.manage` is
         # a real permission with no case arm, and its class is already declared so arm3 stays clean.
         ('arm1b rep never emitted',      base_cells, base_skipped,
-         REPS + [('org.professionals.manage', 'is_staff_admin_of_for', 'commission')], None, None, None),
+         {**REPS_BY_ROLE,
+          'staff_admin': REPS + [('org.professionals.manage', 'is_staff_admin_of_for', 'commission')]},
+         None, None, None),
         # ⛔ arm7's THREE shapes. The first is the live defect it was resurrected for: a value the
         # axes file declares that the loop never reaches. Note the cells are the REAL ones — that
         # is the point, arm7 must fire on a cell set every other arm calls clean.
-        ('arm7 axis value dropped silently', base_cells, base_skipped, REPS, None, EXCLUSIONS, ax_extra_value),
-        ('arm7 axis with no disposition',    base_cells, base_skipped, REPS, None, EXCLUSIONS, ax_extra_axis),
-        ('arm7 exclusion with no reason',    base_cells, base_skipped, REPS, None,
+        ('arm7 axis value dropped silently', base_cells, base_skipped, REPS_BY_ROLE, None, EXCLUSIONS, ax_extra_value),
+        ('arm7 axis with no disposition',    base_cells, base_skipped, REPS_BY_ROLE, None, EXCLUSIONS, ax_extra_axis),
+        ('arm7 exclusion with no reason',    base_cells, base_skipped, REPS_BY_ROLE, None,
          {**EXCLUSIONS, ('principalState', 'offboarded'): ''}, None),
         # ⛔ THE SAME BAR, ON THE GATE-SCOPED DICT. Without this fixture arm7's reason check would
         # be exercised only on the value exclusions, and the conditional rules — the ones that
         # delete 2592 cells — would be held to a bar nobody had ever seen refuse anything.
-        ('arm7 conditional exclusion with no reason', base_cells, base_skipped, REPS, None, None, None,
+        ('arm7 conditional exclusion with no reason', base_cells, base_skipped, REPS_BY_ROLE, None, None, None,
          _UNSET, {('caseReach', 'inert_outside_the_arm3_gate'): ''}),
         # ⭐ arm9's FOUR SHAPES. Cells and REPS are the REAL ones in all four — that is the point:
         # the arm must fire on a population every other arm calls clean, because the defect it
         # detects lives in the AUTHORITY for the population, not in the population.
-        ('arm9 a second rep grows the case arm',   base_cells, base_skipped, REPS, None, None, None, _pm_two_armed),
-        ('arm9 the arm-3 rep loses the case arm',  base_cells, base_skipped, REPS, None, None, None, _pm_disarmed),
-        ('arm9 the arm-3 rep left the manifest',   base_cells, base_skipped, REPS, None, None, None, _pm_rep_absent),
-        ('arm9 the manifest is unreadable',        base_cells, base_skipped, REPS, None, None, None, None),
+        ('arm9 a second rep grows the case arm',   base_cells, base_skipped, REPS_BY_ROLE, None, None, None, _pm_two_armed),
+        ('arm9 the arm-3 rep loses the case arm',  base_cells, base_skipped, REPS_BY_ROLE, None, None, None, _pm_disarmed),
+        ('arm9 the arm-3 rep left the manifest',   base_cells, base_skipped, REPS_BY_ROLE, None, None, None, _pm_rep_absent),
+        ('arm9 the manifest is unreadable',        base_cells, base_skipped, REPS_BY_ROLE, None, None, None, None),
         # ⭐ arm10's THREE SHAPES, EACH PERTURBING ONE CELL so the sub-check under test is the only
         # one that can fire. ⛔ `_one` rewrites the FIRST cell carrying the label the fixture is
         # about — never a positional index into base_cells, which would silently stop selecting a
         # labelled cell the moment the emission order changed and report NOT CAUGHT for a reason
         # that has nothing to do with the arm.
-        ('arm10 approved divergence demoted', _one(ARM3_DIVERGENT_APPROVED, False), base_skipped, REPS, None, None, None),
+        ('arm10 approved divergence demoted', _one(ARM3_DIVERGENT_APPROVED, False), base_skipped, REPS_BY_ROLE, None, None, None),
         # ⛔ SYNTHESISED, NOT SELECTED — see _synth_defect. The defective family is EMPTY since
         # ADR 0209 fixed its one member, and a fixture that can no longer FIND its subject is the
         # shape that gets deleted, taking the arm with it.
-        ('arm10 filed defect approved',       _synth_defect(),                       base_skipped, REPS, None, None, None),
+        ('arm10 filed defect approved',       _synth_defect(),                       base_skipped, REPS_BY_ROLE, None, None, None),
         # A flip with no divergent label at all: the `caps-deny` cells are the honest non-vacuous
         # denials, so promoting one is exactly the unattributed exemption (e) exists to refuse.
-        ('arm10 unattributed legacy flip',    _one(('arm3:silent:caps-deny',), True), base_skipped, REPS, None, None, None),
+        ('arm10 unattributed legacy flip',    _one(('arm3:silent:caps-deny',), True), base_skipped, REPS_BY_ROLE, None, None, None),
+        # ⭐⭐ arm7 ON THE `role` AXIS — THE FIXTURE THAT COULD NOT EXIST BEFORE AE5 INCREMENT 1.
+        # `role` had no entry in CELL_AXIS_COL, so arm7 fell back to `emitted = declared` and
+        # could not fire for it at all; the comment there called that tolerable because
+        # subjectRoles held one value. With two, dropping one role's cells is a whole subject
+        # silently vanishing from the oracle — exactly what arm7 exists to refuse. ⛔ REPS is
+        # narrowed to staff_admin IN THE SAME FIXTURE so arm1b and arm3 stay clean and arm7 is
+        # the only arm that can speak: an arm caught by a neighbour's message is not proof.
+        ('arm7 role value dropped', [c for c in base_cells if c[14] != 'staff'], base_skipped,
+         {'staff_admin': REPS}, None, None, None),
     ]
     bad = 0
     # ⚠ THE TAIL IS PADDED, NOT TYPED OUT. Every arm added since has widened `coverage()`, and
@@ -1025,14 +1201,34 @@ if '--self-test' in sys.argv:
             msg = next(g for g in got if g.startswith(want + ':'))
             print('gen-authz-differential-cells --self-test: caught — %s [fired: %s] (%s)'
                   % (name, '+'.join(fired), msg[:70]))
-    real = coverage(base_cells, base_skipped, REPS)
+    # ⭐⭐ THE QUIET HALF. Every fixture above proves an arm CAN fire. arm5 was RE-PREDICATED by
+    # this increment — from a constant to the role's own resolution scopes — and a re-predication
+    # is only half-proven by its loud half: an arm rewritten to fire correctly for staff_admin
+    # could still fire WRONGLY for a commission-only role, which is a FALSE RED, and the next
+    # hand silences a false red by deleting the arm. So the silence is asserted, not assumed.
+    # (Re-predicating one gate can invert another gate's failure mode — docs/learning/LESSONS.md.)
+    quiet = [
+        ('arm5', 'a commission-only role owes no org ascent',
+         [c for c in base_cells if c[14] == 'staff'], {'staff': REPS_STAFF}),
+    ]
+    for want, why, cs, rp in quiet:
+        got = coverage(cs, base_skipped, rp)
+        fired = sorted({g.split(':', 1)[0] for g in got})
+        if want in fired:
+            print('gen-authz-differential-cells --self-test: FALSE RED — `%s` fired where it '
+                  'must stay quiet (%s): %s' % (want, why, next(g for g in got if g.startswith(want))))
+            bad += 1
+        else:
+            print('gen-authz-differential-cells --self-test: quiet — `%s` correctly silent (%s)'
+                  % (want, why))
+    real = coverage(base_cells, base_skipped, REPS_BY_ROLE)
     if real:
         print('gen-authz-differential-cells --self-test: the REAL spec trips an arm — %s' % real[0]); bad += 1
     else:
         print('gen-authz-differential-cells --self-test: clean on the real spec (discrimination control)')
     raise SystemExit(0 if bad == 0 else 1)
 
-_fail = coverage(cells, skipped, REPS)
+_fail = coverage(cells, skipped, REPS_BY_ROLE)
 if _fail:
     print('gen-authz-differential-cells: COVERAGE FAILURE — refusing to emit.')
     for x in _fail: print('  - ' + x)
@@ -1042,11 +1238,46 @@ assert cells, 'refusing to emit an empty differential'
 srcs = sorted({c[10] for c in cells})
 q = lambda x: "'" + str(x).replace("'", "''") + "'"
 b = lambda x: 'true' if x else 'false'
-rows = ',\n'.join(
-    '    (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)' % (
-        q(c[0]), q(c[1]), q(c[2]), q(c[3]), q(c[4]), q(c[5]), q(c[6]), q(c[7]),
-        b(c[8]), b(c[9]), q(c[10]), q(c[11]), q(c[12]), b(c[13]))
-    for c in cells)
+def _render(cs):
+    return ',\n'.join(
+        '    (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)' % (
+            q(c[0]), q(c[1]), q(c[2]), q(c[3]), q(c[4]), q(c[5]), q(c[6]), q(c[7]),
+            b(c[8]), b(c[9]), q(c[10]), q(c[11]), q(c[12]), b(c[13]))
+        for c in cs)
+
+
+# ⭐⭐ ONE TABLE PER SUBJECT ROLE, AND THE SPLIT IS WHAT KEEPS AE4 NON-REGRESSIVE. A single shared
+# table with a `role` column would have forced `403` — the staff_admin oracle, with ~20
+# count-pinned sections — to gain a `where role = 'staff_admin'` filter and to re-derive every one
+# of those counts. That is a large, high-risk edit to a suite this increment has no finding
+# against. Split per role, `authz_differential_cells` keeps EXACTLY the columns and EXACTLY the
+# rows it had, so 403 is untouched and its greenness after this landing is evidence rather than
+# hope; `424` reads its own table with the identical column list.
+# ⛔ The column lists are deliberately IDENTICAL — a differential suite written against one shape
+# must port to the other without a rewrite, and a divergence here would be discovered by the next
+# role increment rather than by a gate.
+_by_role = {}
+for _c in cells:
+    _by_role.setdefault(_c[14], []).append(_c)
+_ROLE_TABLE = {'staff_admin': 'authz_differential_cells',
+               'staff': 'authz_differential_cells_staff'}
+_missing_table = sorted(set(_by_role) - set(_ROLE_TABLE))
+assert not _missing_table, (
+    'subject role(s) with cells but no output table name: %s — a role whose cells are generated '
+    'and never emitted is a silent coverage loss of exactly the shape this file gates against'
+    % _missing_table)
+
+_COLS = ('cell_id, persona, active_context, scope, permission_code, legacy_class,\n'
+         '         resolution_scope_kind, principal_state, self_check, expected_granted, '
+         'expected_source,\n         case_reach, arm3_divergence, expected_legacy_granted')
+
+tables = '\n\n'.join(
+    'create temp table %s on commit drop as\n  select * from (values\n%s\n  ) as t(%s);'
+    % (_ROLE_TABLE[r], _render(_by_role[r]), _COLS)
+    for r in sorted(_by_role))
+
+_role_census = '\n'.join(
+    '--   %-14s %-38s %6d cells' % (r, _ROLE_TABLE[r], len(_by_role[r])) for r in sorted(_by_role))
 
 # The per-label census, printed in the header so the NOT-COVERAGE count cannot be quoted as
 # coverage by anyone reading the total.
@@ -1178,15 +1409,17 @@ body = """-- GENERATED FILE — DO NOT EDIT BY HAND.
 %s
 --
 %s
-create temp table authz_differential_cells on commit drop as
-  select * from (values
+-- ══ ONE TABLE PER SUBJECT ROLE (AE5 increment 1) ═════════════════════════════════════════════
+-- ⛔ `authz_differential_cells` is staff_admin's and is unchanged in shape and content by the
+-- multi-role landing; `403` reads it and needed no edit. Each role's table carries the IDENTICAL
+-- column list.
 %s
-  ) as t(cell_id, persona, active_context, scope, permission_code, legacy_class,
-         resolution_scope_kind, principal_state, self_check, expected_granted, expected_source,
-         case_reach, arm3_divergence, expected_legacy_granted);
-""" % (sha, len(cells), len({r[1] for r in REPS}), len(REPS), sum(skipped.values()),
+--
+%s
+""" % (sha, len(cells), len({r[1] for r in reps_flat_top}), len(reps_flat_top),
+       sum(skipped.values()),
        excl, ', '.join(srcs), ARM3_PREEMPTED, npre, nflip, flips,
-       len(cells) - notcov, notcov, ARM3_GATE, condexcl, divcensus, rows)
+       len(cells) - notcov, notcov, ARM3_GATE, condexcl, divcensus, _role_census, tables)
 
 if '--check' in sys.argv:
     try:
