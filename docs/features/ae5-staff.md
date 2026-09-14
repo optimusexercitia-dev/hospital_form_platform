@@ -113,6 +113,6 @@ T8 census/arms → T10 seam slice → AC-10 gate → QA → PO approval → Reco
 ⚠ A second Supabase stack (`*_escalume`) runs on this host and made two resets
 fail at the CLI's post-reset step; AC-10's runs need it stopped or the reset re-verified. ⛔ ADR 0211 D2 is reviewed by the PO at the T6 gate (put in front of the PO on
 2026-09-14 as readable now). ⚠ Owed to T7/T13, not blocking: `app.can_reach_case_on_member_surface`
-has ZERO production callers (matrix § 8.3); 6 of 9 seeded CCIH `staff` personas carry a non-role
-case reach (§ 8.2). ⚠ T7's manifest edits must be checked against what the generator EMITS, not
+has ZERO production callers (matrix § 8.3); **4 of 12** seeded CCIH `staff` personas carry a non-role
+case reach (§ 8.2 said 6 of 9; re-measured 2026-09-14 after this unit's own seeding moved both halves: 3 via `case_access_grants`, 1 via `case_participants`). ⚠ T7's manifest edits must be checked against what the generator EMITS, not
 what the JSON holds (L6's second half: a field the gate could not see).
