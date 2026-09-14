@@ -4121,3 +4121,11 @@ stack.
 
 Last `app.can_safety_events_read(p_commission_id uuid, p_user_id uuid)`. 8 cases in 47 min since
 13:24 (~5.9 min/case, no reset in the window); 4 predicate cases left, then the 39 policy cases.
+
+### 2026-09-14 — sweep: second NOTICED — `app.can_sign_meeting(p_attendee_id, p_signer)` (lead watcher)
+
+Row 12's authorizer, composed by `meeting_signatures_insert`'s `with_check` and by the DEFINER
+command door `sign_meeting` (which raises `HC036` when it denies). Under `select true` a raise is
+expected from one of those two paths or from the audit writer; backend reads the case's run log
+(a file) and names the raising test, message and neutralization form; the SQLSTATE is owed at the
+sweep's end with the first one. Evidence, never a pass, never BLIND; dispositioned at the merge.
