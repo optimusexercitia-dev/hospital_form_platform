@@ -4116,3 +4116,8 @@ scheduled-reset line prints "N case(s) swept since the last baseline" with N = t
 (`DONE-1`), not the count since the last reset — "20" at the fourth reset when 5 had been swept;
 cosmetic, but a reader counting drift from it over-states 4× — low follow-up, backend, off the
 stack.
+
+### 2026-09-14 14:11 — sweep status 30/75: 29 COVERED, 1 NOTICED (lead watcher)
+
+Last `app.can_safety_events_read(p_commission_id uuid, p_user_id uuid)`. 8 cases in 47 min since
+13:24 (~5.9 min/case, no reset in the window); 4 predicate cases left, then the 39 policy cases.
