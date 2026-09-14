@@ -2982,3 +2982,37 @@ any reset before believing a number.
 
 ⚠ Step 3 is the one that cannot start until **R-4** is ruled (C3: ONE atomic migration, not split
 around the ruling), and step 6's § 6.3 re-rule is the one red I have pre-declared as mine.
+
+### 2026-09-14 — T7 pre-work received (`f015a03f`); L13 on `410` § 6.3's non-emptiness conjunct; C5 raised (lead)
+
+Backend, no DB read: gate-record skeleton (13 policy-called doors by name and fan-out = 42 sites; 7
+DEFINER-only; C1 census 0 → 4; C2 `860 → 858` attributed to `app.resolve_document_version_bytes`
+and `app.can_reach_case_on_member_surface`; C4 verbatim). **Offline dry run, measured on a scratch
+root:** re-keyed / pending 3/58 → 23/38; `authz_manifest_sites` 13 → 79; `arm_sites` 69 → 0; five
+structural refusals from the generator's own validator before any SQL — the load-bearing one: *a
+re-keyed row may not hide a non-permission grant path* ⇒ the layer-3 door composes ONLY
+`authz.has_permission`; the 24 read-authorizers are enforcement sites, not `definerSurface`
+members. Run book: seven steps, each with its command and the witness line read bare; step 3 waits
+on R-4 (C3).
+
+**Pre-declared red, backend's own:** the § 6.3 non-emptiness conjunct added at L6 asserts the
+arm-sites domain is non-empty — T7 empties it, so § 6.3 goes RED at the moment T7 SUCCEEDS.
+**L13 (lead, mechanism):** re-rule it in the same migration as *"arm-sites non-empty OR no row left
+`pending-rekey`"* — never deleted — AND keep its discrimination half: the re-ruled conjunct must be
+shown RED on a mutated manifest holding one `pending-rekey` row with zero arm sites (the case the
+escape must not silence), and the § 6.2 / § 8 arms must be shown RED on a `re-keyed` row with zero
+`enforcementSites` (the case the OTHER side of the OR now owns). A conjunct that becomes false
+when the work succeeds is the shape that gets deleted in a hurry; this one is re-ruled with both
+halves witnessed, recorded before step 6.
+
+**C5 — the wrapper's callers after T7.** If the layer-3 doors compose only `authz.has_permission`
+and the wrapper `app.is_commission_staff_of(_for)` is "an implementation detail inside", then
+after T7 the wrapper may have ZERO production callers — the designated-authority-with-no-callers
+shape A3 and matrix § 8.3 were written against, one commit after we wired row 9's door for exactly
+that reason. ADR 0211's own consequence: re-express `app.is_member_of(_for)` as the disjunction of
+the two single-role wrappers *once both commission roles are authoritative* — which is NOW (T6
+flipped `staff`; `staff_admin` was). Required of backend: the wrapper's caller census as T7 leaves
+it, and either (a) the re-expression of `is_member_of(_for)` in T7 (its own snapshot/assert, its
+own 425 pair, its own PA-F8 disposition — the hat gate R-2/P1 already covers it), or (b) a measured
+reason to defer it to a NAMED unit, stated in ADR 0211 so the PO's R-5 review sees it. Not a PO
+ruling by itself; it changes what R-5 approves.
