@@ -1179,13 +1179,22 @@ select is(
 --     `app.can_read_professional_profile` to decide what to RECORD, never what to permit.
 --     ⛔ Declaring it a site would make § 8.1/§ 8.4 measure a fiction; leaving it undeclared
 --     leaves the consumer axis open. It is a third state and it is declared as one.
--- ⭐ L22: the body with `--` comments removed, line by line. An identity gate is pinned
--- against THIS, never against the raw definition — "the door checks X" written in a comment is
--- exactly the claim no arm could contradict before.
-create or replace function pg_temp.strip_sql_comments(p_body text)
-returns text language sql immutable as $$
-  select string_agg(regexp_replace(l, '--.*$', ''), E'\n')
-    from unnest(string_to_array(coalesce(p_body, ''), E'\n')) with ordinality as u(l, i);
+-- ⭐⭐ L22: the RAW definition, comments INTACT. ⛔⛔ WHY THIS EXISTS AND WHAT IT REPLACES.
+-- The first draft of § 8.7's identity arm added a `strip_sql_comments()` helper and pinned the
+-- expression against `strip_sql_comments(fn_body(...))`. `pg_temp.fn_body` ALREADY strips `--`
+-- comments (see its own comment, ~line 237) — so the stripper was a second strip of an
+-- already-stripped string, and REVERSE 3b, whose whole predicate is "present in the raw body AND
+-- absent from the stripped one", compared a string to ITSELF. It could not fire, under any input.
+-- ⭐ THE PLANT IS WHAT FOUND IT: declaring `the designated corrector only` — a phrase that IS in
+-- `public.start_correction_draft`'s comment — fired REVERSE 3 and left 3b silent, when 3b was the
+-- arm the plant existed to exercise. A control shipped as the discrimination half of a ruling,
+-- which could never fail, caught by running it once. So the RAW accessor is the fix: 3b now
+-- compares two genuinely different strings.
+create or replace function pg_temp.fn_body_raw(p_schema text, p_name text)
+returns text language sql stable as $$
+  select string_agg(p.prosrc, ' ')
+    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = p_schema and p.proname = p_name;
 $$;
 
 create or replace function pg_temp.writes_relation(p_body text, p_schema text, p_relation text)
@@ -1244,9 +1253,11 @@ select is(
       where pg_temp.fn_body(d.fn_schema, d.fn_name) is not null
         and ((d.gate is not null
               and position(d.gate || '(' in pg_temp.fn_body(d.fn_schema, d.fn_name)) = 0)
+          -- ⚠ `fn_body` is COMMENT-STRIPPED BY CONSTRUCTION, so this already asks the
+          --    question the ruling wants: is the predicate in the code the door EXECUTES?
           or (d.gate_expression is not null
               and position(d.gate_expression
-                           in pg_temp.strip_sql_comments(pg_temp.fn_body(d.fn_schema, d.fn_name))) = 0)
+                           in pg_temp.fn_body(d.fn_schema, d.fn_name)) = 0)
           or (d.gate is null and d.gate_expression is null
               and pg_temp.fn_body(d.fn_schema, d.fn_name)
                   ~ '(app\.is_staff_admin_of|app\.is_tenancy_admin_of|app\.can_edit_commission_forms)\('))
@@ -1260,10 +1271,11 @@ select is(
               || ' declares an identity gate that appears ONLY in a comment'
        from authz_manifest_definer_surface d
       where d.gate_expression is not null
-        and pg_temp.fn_body(d.fn_schema, d.fn_name) is not null
-        and position(d.gate_expression in pg_temp.fn_body(d.fn_schema, d.fn_name)) > 0
-        and position(d.gate_expression
-                     in pg_temp.strip_sql_comments(pg_temp.fn_body(d.fn_schema, d.fn_name))) = 0
+        and pg_temp.fn_body_raw(d.fn_schema, d.fn_name) is not null
+        -- RAW (comments intact) vs fn_body (comments stripped) — two DIFFERENT strings, which
+        -- is the whole content of this arm and exactly what the first draft did not have.
+        and position(d.gate_expression in pg_temp.fn_body_raw(d.fn_schema, d.fn_name)) > 0
+        and position(d.gate_expression in pg_temp.fn_body(d.fn_schema, d.fn_name)) = 0
      union all
      -- REVERSE 4: carriesCode disagrees. The needle carries its quotes and uses `position`,
      -- for §4's reason: permission codes contain `.`, which a regex reads as "any character".

@@ -16,10 +16,25 @@
 --
 -- ⚠ THREE WAYS THIS SUITE COULD HAVE BEEN VACUOUS, EACH CLOSED BY A NAMED CONTROL:
 --
---  (a) THE PERMISSIVE SIBLING. Each form table carries a `*_select` policy gated on
---      `app.is_member_of`, and a staff_admin is a member. A SELECT-based row assertion therefore
---      stays GREEN with the write policy entirely revoked. §2 asserts on WRITES only, and §2.10
---      is the control that PROVES the sibling is open — so the write assertions are attributable.
+--  (a) THE PERMISSIVE SIBLING. Each form table carries a `*_select` policy that a staff_admin
+--      passes, so a SELECT-based row assertion stays GREEN with the write policy entirely
+--      revoked. §2 asserts on WRITES only, and §2.10 is the control that PROVES the sibling is
+--      open — so the write assertions are attributable.
+--      ⚠⚠ RE-STATED AT AE5 T7 (2026-09-14) AGAINST THE POST-T7 SITES, NOT INHERITED. This
+--      control read "gated on `app.is_member_of`, and a staff_admin is a member" until T7
+--      re-keyed those sites. Measured in the live catalog: the nine `*_select` policies that
+--      now gate this family compose `app.can_forms_read(…, (select auth.uid()))` beside
+--      `app.is_tenancy_admin_of(…)` — `forms_select`, `form_versions_select`,
+--      `form_sections_select`, `form_items_select`, `form_item_options_select`,
+--      `form_item_validations_select`, `form_matrix_rows_select`, `form_matrix_columns_select`
+--      and `storage.objects/form_assets_select_member`. The sibling is open for a staff_admin
+--      for a DIFFERENT REASON than it was: the role holds `commission.forms.read` in
+--      `authz.role_permissions`, a PERMISSION fact, where before it was a MEMBERSHIP fact.
+--      ⛔ THE CONCLUSION IS UNCHANGED AND THE GROUND UNDER IT IS NOT, which is precisely why
+--      this paragraph is re-derived rather than left: a vacuity control that names a retired
+--      predicate stops describing the hazard it was written for, and the next reader cannot
+--      tell whether it was checked. ⭐ §2.10 remains the MEASUREMENT — this text is the
+--      reasoning, never the evidence.
 --  (b) THE MASKING ARM. `can_read_professional_profile`'s case-committee arm grants with no org
 --      term at all, and the ONE seeded `professional_profiles` row IS seated in a case this
 --      suite's principal can read (measured: `can_read_case_committee` -> TRUE). Mutating the org
