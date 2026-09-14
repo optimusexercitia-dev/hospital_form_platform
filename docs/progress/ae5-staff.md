@@ -2174,3 +2174,16 @@ noted on BUG-AE5-STAFF-INACTIVE-BYPASSES-ROLE-FREE-DISJUNCTS (row 16's policy le
 disjuncts that bypass; the function beside it does not) for the fix unit, and stated to the PO at the
 T6 gate as a fact about what P1 covers. Backend authorised for the full round; tester stood down on
 the remainder (backend attributed it). Iteration count on this mechanism after the round lands: 4.
+
+### 2026-09-14 — the § 4.1b remainder attributed by the tester as E–H; agrees with backend cause for cause (lead)
+
+Independent measurement, no shared notes: **E** `action_items.read disjunct_present` at foreign scope
+binds the item assigned to `gap.xorg.b`, not the subject persona (= backend's reach × scope cause);
+**F** `can_read_document` opens with an unconditional `is_active(p_uid)` gate the policy leg lacks
+(= L11's subject; the tester reads it as "the label is stale for this door" — L11 keeps the label and
+moves the probe to the leg it was ruled on); **G** the `conjunct_unmet` profile `…f3` holds `staff` at
+the caller's own commission — a co-member by construction (= the `_default` fall-through); **H**
+`can_read_capa`'s event-sourced arm grants regardless of `source='rca'` (= the fixture cause). § 4.1b
+itself compares the right columns — not a suite defect. Tester's § 2.6 edit: LF, uncommitted, to be
+committed by path with run 4. Two measurers, eight labels, four causes, zero disagreement on the
+mechanism; the one difference (F's remedy) is the ruling already recorded as L11.
