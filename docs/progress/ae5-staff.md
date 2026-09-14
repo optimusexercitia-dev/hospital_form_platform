@@ -3384,3 +3384,23 @@ enforcement the code exists for. Manifest, as data: row 7's site composes `can_r
 (→ row 6) and `is_case_respondent`; the row-9 authority's comment corrected to name C1's four
 sites, not this policy. Recorded beside `sign_meeting` as the second declaration correction of T7;
 both go to T14 as evidence that the manifest was measured, not copied.
+
+### 2026-09-14 — L16 applied: `part4_hand_policy.sql`, the discriminating witness pair (lead)
+
+Backend, in a rollback:
+
+```
+(a) grant PRESENT : shell_door=t reach=t rows_visible=1
+(b) grant DELETED : shell_door=f reach=t rows_visible=0
+```
+
+`reach=t` in BOTH rows is the evidence: row 6's conjunct is intact throughout, so (b)'s loss of
+visibility is attributable to row 7's door alone. Row 7's door is meeting-keyed
+`app.can_meetings_cases_shell_read(p_meeting_id, p_user_id)`, resolving the commission from the
+meeting inside, composing `authz.has_permission` alone — the one signature of twenty that differs,
+declared in the manifest. The door is ADDED as a conjunct (no bare call to substitute; substituting
+would have deleted row 6's reachability rule). The pair goes into the gate record and `425`'s
+expectation for that site. Remaining: C1's wiring + census 0 → 4 with the authority's comment
+corrected to name C1's four sites; the two seed tables; the manifest flip (L13, `sign_meeting` on
+`definerSurface`, row 7's composition + signature); anchor + `320 § U4`; generator dry-run; move
+in; steps 2–7. `supabase/` clean, no extension resident.
