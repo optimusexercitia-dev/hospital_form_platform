@@ -2608,3 +2608,106 @@ sites that turn on it. **R-5** — ADR 0211 D2 (the D2 proof: snapshot/assert + 
 426 + the PA-F8-STAFF-2 condition) is reviewed by the PO at this gate, as the hub has said since
 2026-09-14; AC-6 does not tick before that review. T7 plan requested from backend (full review, no
 SQL).
+
+### 2026-09-14 — T7 RE-KEY PLAN (backend) — ⛔ FOR FULL REVIEW, NO SQL WRITTEN
+
+Nothing under `supabase/` changes until the lead acks. Every number below was measured read-only on
+the LIVE catalog today, comment-stripped; the matrix's § 5 table is intent and was not used as the
+source. Re-verified locations: the T6 plan at `docs/progress/ae5-staff.md:677`, the lead's A1–A4
+ack at `:1266`, and the task list's T7 line — all three read before writing this.
+
+⚠ **A MEASUREMENT TAKEN DURING A PEER'S RESET IS NOT A MEASUREMENT.** My first pass at (b) returned
+`can_reach_case_on_member_surface in pg_proc = 0` and then failed on `public.memberships`; the DB
+container had restarted 46 s earlier and `information_schema.tables` was climbing 155 → 171 as I
+read. I waited for two consecutive equal table counts before re-measuring, and the real answer is
+the opposite (it EXISTS). ⭐ Every figure below is post-settle.
+
+#### (a) The site list, from the comment-stripped catalog
+
+Sweep: bodies of `pg_policies.qual||with_check` and `pg_proc.prosrc`, `--` comments stripped,
+matching `app\.(is_member_of|is_member_of_for|has_role_any)\s*\(` — the staff layer-1 gate.
+
+| population | policy | DEFINER fn | INVOKER fn | total |
+| --- | ---: | ---: | ---: | ---: |
+| whole catalog carrying the layer-1 gate | **40** | **47** | **2** | **89** |
+| the 20 staff rows' DECLARED sites (`armInterface`) | 42 | 25 distinct, all `prosecdef=t` | 0 | 69 incl. 1 `ts` |
+
+⭐⭐ **THE GATE-15 COUNT THE PO'S RULING TURNS ON.** An RLS policy expression is evaluated with
+the QUERYING role's privileges, so a policy that calls `app.is_commission_staff_of(...)` needs
+`authenticated` EXECUTE — `prosecdef` changes what the body may READ, never who may CALL it. A
+SECURITY DEFINER function that calls the wrapper INSIDE its body does not: the privilege check there
+is against the function's owner (`postgres`).
+⇒ **42 of the 69 declared sites require the grant** (every policy site). **26 do not** — 25
+DEFINER functions plus the one `ts` site, which is not a DB call at all. The 2 catalog-wide INVOKER
+functions would also require it if T7 re-keys them; neither is currently a declared staff site.
+⛔ So the ruling is not "grant it or the re-key fails" — it is "grant it, or 42 of 69 sites cannot
+be re-keyed onto the wrapper and must keep a layer-1 gate". That is the shape I would put to the PO.
+
+**Per site, the polarity pair `425` (T12, tester) flips.** For each POLICY site the pair is
+(grant PRESENT → the door GRANTS for a `staff` holder) / (grant DELETED from
+`authz.role_permissions` → the door DENIES the same principal, same resource, same hat). For each
+DEFINER site the pair is the same two on the function's return value rather than on row visibility.
+⛔ Both halves must be observed on the PRE-migration catalog first, where deleting the grant must
+move NOTHING — today the codes are not consulted at all, so a 425 that is red before T7 is
+measuring its own fixture, and one that is GREEN before T7 has proven the re-key did nothing.
+
+#### (b) What the re-key does with the two sites the hub flags
+
+- **`app.can_reach_case_on_member_surface`** — EXISTS in `pg_proc` (1 row) and is referenced by
+  **0** policies and **0** function bodies in the stripped catalog. The hub's "ZERO production
+  callers" is CONFIRMED. ⛔ The re-key does NOTHING with it: giving a zero-caller function a
+  layer-3 door would mint exactly the DEFINER-authority-with-no-callers shape condition A3 was
+  written for, one increment after we agreed not to. It goes into T7's census as a declared
+  non-enforcement consumer, and whether it should be DELETED is a separate lead/PO item.
+- **The CCIH `staff` non-role case reach** — the hub says *6 of 9*. ⚠ **Measured today: 4 of 12.**
+  Both halves moved because THIS unit's seeding changed the population (gap.pending,
+  gap.deactivated and gap.comember.ccih are new `staff` of CCIH). Of the 12: **3** hold a live
+  `case_access_grants` row, **1** is linked through `case_participants`, 4 distinct principals in
+  total. The re-key must not narrow those reaches — they are arm-3's whole subject — so T7's
+  `hardDenyClasses` re-measurement (ADR 0203 D1 bound 2) is taken against **4 of 12**, and the hub
+  line needs correcting whoever owns it.
+
+#### (c) What the generator EMITS today for every field T7 edits — L6's second half
+
+⛔ A field the gate cannot see is not a declaration. Verified in
+`supabase/tests/vectors/authz_enforcement_manifest.psql`:
+
+| field T7 edits | emitted as | table |
+| --- | --- | --- |
+| `status` (pending-rekey → re-keyed) | `status` | `authz_manifest_permissions` |
+| `enforcementSites` | site rows + `composed_with` | `authz_manifest_sites` |
+| `domainAuthorizer` · `.composedWith` | `domain_authorizer`, `authorizer_composed_with` | `authz_manifest_permissions` |
+| `residualLegacyAuthority` | `residual_legacy_authority` | ” |
+| `layer1Gate` | `pending_layer1_gate` | ” |
+| `hardDenyClasses` | `hard_deny_classes` (+ provenance) | ” |
+| `definerSurface` | `carries_code`, `exec_authenticated`, `writes`, `gate` | `authz_manifest_definer_surface` |
+
+All nine manifest tables are emitted, including `authz_manifest_arm_sites`. ⭐ **And the flip is
+already survivable because of L6**: `410` § 6.2 roots from `enforcementSites` ∪ `domainAuthorizer`
+∪ `armInterface`, so a row's hard-deny classes derive from `armInterface` BEFORE the re-key and
+from `enforcementSites` AFTER, with no gap at the moment of transition. Had L6 not landed, every
+re-keyed row would have gone dark for exactly one commit.
+
+#### (d) Red-first order, each step's witness named BEFORE it is taken
+
+1. **`425` both polarities, pre-migration** — witness: the grant-deletion pair must show **no
+   movement** on today's catalog (the codes are not consulted yet). A 425 that already discriminates
+   is measuring its fixture. Tester's file; this step is the precondition for reading step 4.
+2. **`410` § 8 both directions, RED** — witness: `8.1 DECLARED => ENFORCING` must name each row
+   whose declared `enforcementSites` do not yet reach its code, and `8.2`'s positive half must stay
+   green so the arm is shown able to answer YES. Expected message shape: the same
+   `commission.X -> public.Y / policy_name` list `8.1` produced at head 20261003007330.
+3. **The layer-3 doors, per code**, each carrying the code as a greppable literal; then `410` § 8
+   turns green and `gate 18` + `414`/`419`/`421` move by the count of new DEFINERs — witness: `421`
+   § 0c's `892 = 860 + 32` becomes `892 + N`, stated before the migration and compared after.
+4. **`425` re-run** — witness: the same pairs now DISCRIMINATE. Step 1's no-movement reading is what
+   makes this one evidence rather than a coincidence.
+5. **`hardDenyClasses` re-measured per row** on the extended instrument, old → new per row.
+6. **Manifest rows flipped** pending-rekey → re-keyed, sites moved `armInterface` →
+   `enforcementSites` — witness: `authz_manifest_sites` grows from **13** to 13 + N and
+   `arm_sites` shrinks by the same N; § 6.3's measured-row population is re-derived, not adjusted.
+7. Every new/touched DEFINER on `search_path = ''` (ADR 0208 D4) — witness: `421` § 2a's
+   "N visited | 0 findings" grows by the new count, which is how T6's two wrappers were proven.
+
+⚠ **Open, and not mine to decide:** the `authenticated` EXECUTE ruling gates how much of step 3 is
+possible at all (42 of 69 sites), so I would want it before writing SQL rather than after.
