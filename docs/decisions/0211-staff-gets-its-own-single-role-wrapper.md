@@ -1,7 +1,7 @@
 # 0211 — `staff` gets its own single-role wrapper, and the cutover is proven without a candidate twin
 
 **Status:** accepted
-**Amended:** 2026-09-13 — D2 aligned to the T6 plan review's conditions A1/A2; the deferred `authenticated` grant recorded in § Consequences
+**Amended:** 2026-09-13 — D2 aligned to the T6 plan review's conditions A1/A2; the deferred `authenticated` grant recorded in § Consequences. **2026-09-14, by AE5-STAFF T7** — D1 gains the re-expression deferral and the renewed zero-caller allow-list; D3's sequencing sentence corrected (per-site re-key in T7, predicate re-expression in `AE5-MEMBER-PREDICATE-REEXPRESSION`)
 **Area:** authorization / AE5 increment 1
 **Related:** 0174, 0201, 0207
 
@@ -97,6 +97,39 @@ $$;
   permission code as a greppable literal (T7); this wrapper exists for the residual role questions
   that are genuinely about the role.
 
+**Amendment, 2026-09-14 (AE5-STAFF T7) — the wrapper is intentionally caller-less through T7, and
+the allow-list that permits that is renewed HERE with a named bound.**
+
+`app.is_commission_staff_of(_for)` is created by T6 and, measured on the live catalog, has **zero
+callers**: 0 policies and 0 function bodies. T7 does not change that, and the reason is structural
+rather than an oversight — T7's layer-3 doors compose **`authz.has_permission` alone**, because
+the enforcement manifest's own validator refuses a re-keyed row whose authorizer composes a
+non-permission grant path that is not a declared `residualLegacyAuthority`. The wrapper is an
+implementation detail *inside* those doors' answer, not a composed authority beside them.
+
+Its first callers arrive with the re-expression D3 describes:
+`app.is_member_of(c) := app.is_commission_staff_of(c) OR app.is_staff_admin_of(c)`. That
+re-expression is now **AVAILABLE** — exactly two commission-scoped roles exist and, since T6, both
+are `authoritative`; `app.is_staff_admin_of` is already the identical single-role wrapper — and it
+is **answer-preserving**: measured, the membership plane and the assignment-facts plane agree on 22
+of 24 commission tuples, and the two that differ are precisely the deactivated and the suspended
+principal, which `is_member_of` filters with its own wrapper-level `app.is_active` and
+`assignment_facts` filters at the facts level. Same answers, different level.
+
+⛔ **It is nonetheless DEFERRED to a named unit, `AE5-MEMBER-PREDICATE-REEXPRESSION`, for a
+WITNESSING reason and not a sizing one.** `425`, the differential every other T7 site is proven by,
+is a **grant-deletion** oracle: it removes an `authz.role_permissions` row and requires the door to
+flip. The re-expression lives on the **role** plane, where deleting a grant moves `is_member_of` by
+exactly nothing — before or after. The one change that would give this wrapper its callers is the
+one change T7's polarity pair is structurally blind to, so it requires a **membership-deletion**
+pair of its own: a different fixture, a different suite, a different red-first order.
+
+⇒ **The zero-caller allow-list of T6's condition A3 — owner `backend`, original expiry `T7` — is
+RENEWED by this clause and its expiry is moved to `AE5-MEMBER-PREDICATE-REEXPRESSION`.** ⚠ It is
+not renewed silently, and it is not open-ended: this sentence IS the renewal and the unit name IS
+its bound. An allow-list that outlives its own expiry without a clause like this one is the exact
+failure A3 was written to prevent.
+
 ### D2 — the cutover is proven by a THREE-PART obligation, because no candidate twin exists
 
 ⛔ **Not by a pre-flight differential** — there is none to run (fact 3). The proof is assembled from
@@ -182,8 +215,16 @@ and `expires_at` terms `has_role_any` does — but `holds_role` returns **false 
 role**, so performing the re-expression while `staff` is `legacy` or `test_validation` would silently
 delete every plain member's reach across **82** catalog objects.
 
-The re-expression is therefore sequenced: it lands in the increment that flips `staff` to
-`authoritative`, **after** the flip, in the same migration, with the same snapshot/assert block.
+The re-expression is therefore sequenced. ⚠ **CORRECTED 2026-09-14 (AE5-STAFF T7), by PO ruling
+R-5:** this clause read *"it lands in the increment that flips `staff` to `authoritative`, after the
+flip, in the same migration"*. That is superseded — the flip landed in T6 without it, and the work
+splits in two: **the per-site re-key lands in T7**, moving each declared site to a layer-3
+`app.can_*` authorizer carrying its permission code; **the predicate re-expression lands in
+`AE5-MEMBER-PREDICATE-REEXPRESSION`**, with its own snapshot/assert block and its own
+membership-deletion polarity pair (see D1's amendment for why `425` cannot witness it). The original
+sentence is kept above rather than deleted because the REASON it gave — that re-expressing while
+`staff` is non-authoritative would silently delete every plain member's reach across 82 objects —
+is still true and is still the precondition the named unit inherits.
 ⚠ Until then `is_member_of(_for)` is the live predicate for the member surface and the 82 dependents
 stay on it; the matrix's per-site declarations (§ 5.4) are what say which of them the T7 re-key moves
 to a layer-3 authorizer instead.

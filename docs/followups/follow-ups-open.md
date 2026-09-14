@@ -1958,3 +1958,11 @@ Before the unit, `readRoleVocabularyFromCatalog` was an UNEXPORTED local in two 
 **Status:** open
 
 **Measured 2026-09-14** (`select qual from pg_policies where tablename='action_items' and policyname='action_items_select'`): the live `assignees_only` leg is `app.is_staff_admin_of(commission_id) OR (assigned_to IS NOT NULL AND assigned_to = auth.uid()) OR EXISTS(… action_item_assignments … user_id = auth.uid() … completed_at IS NULL)`, while the manifest's `commission.action_items.read` `arm3Door.expression` carries ONLY the `EXISTS` term. Consequence already paid once: backend's L8 diagnosis read row 11's limb (b) as firing for *nobody* because it evaluated the declared `EXISTS` leg, while the tester's pre-existing fixture (`a5f40000-…-a1`, `assigned_to = staff4.ccih`) fires the OMITTED `assigned_to` arm — the two readings disagreed because they read two different doors. ⚠ Row 11 is the measured instance; the other ten `arm3Door` rows were NOT checked and the close condition covers all of them. ⛔ Owed to T7 (the re-key must key on the LIVE door) and to the T14 review.
+
+### 🟡 FUP-AE5-STAFF-MEMBER-PREDICATE-REEXPRESSION-DEFERRED — the `staff` wrapper has ZERO callers until the re-expression lands (owner: backend)
+
+**Filed:** 2026-09-14 (unit `AE5-STAFF`, T7; lead ruling L14, PO ruling R-5) · **Owner:** backend · **Severity:** medium — no live defect; a designated authority with zero callers, held open by a RENEWED allow-list with a named bound.
+**Closes when:** `AE5-MEMBER-PREDICATE-REEXPRESSION` lands the membership-deletion polarity pair (delete the `public.memberships` row → both `app.is_member_of(_for)` and the re-expressed disjunction deny; restore → both grant), observed RED before and GREEN after, with `app.is_commission_staff_of(_for)`'s caller census measured moving 0 → non-zero in the same gate record.
+**Status:** open
+**Body:** [FUP-AE5-STAFF-MEMBER-PREDICATE-REEXPRESSION-DEFERRED.md](FUP-AE5-STAFF-MEMBER-PREDICATE-REEXPRESSION-DEFERRED.md)
+
