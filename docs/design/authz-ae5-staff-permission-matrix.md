@@ -501,7 +501,7 @@ they say which exclusion applies.
 | # | proposed permission code | resource_kind | risk_class | sensitivity | arm-3 | enforcement sites (R / D / T) |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | `commission.forms.read` | commission_content | read | none | ⚠ **yes** | **R** 8 SELECT policies (`forms`, `form_versions`, `form_sections`, `form_items`, `form_item_options`, `form_item_validations`, `form_matrix_rows`, `form_matrix_columns`) + **R** `storage.objects.form_assets_select_member` · **T** `src/app/o/[org]/c/[commission]/forms/page.tsx:32` · **E2E** `phase-multitenancy.spec.ts:345,355` |
-| 2 | `commission.responses.fill` | commission_content | write | none | — | **R** `responses.responses_insert_own` (`with_check = created_by = auth.uid() AND app.is_member_of(commission_id)`) — ⭐ **the ONLY membership-gated write policy in the database** · **T** `src/lib/responses/actions.ts:282-287` gating `:347` `start_or_resume_response` · **E2E** `phase5-wizard.spec.ts` · ⛔ see § 8.1 |
+| 2 | `commission.responses.create` | commission_content | write | none | — | **R** `responses.responses_insert_own` (`with_check = created_by = auth.uid() AND app.is_member_of(commission_id)`) — ⭐ **the ONLY membership-gated write policy in the database** · **T** `src/lib/responses/actions.ts:282-287` gating `:347` `start_or_resume_response` · **E2E** `phase5-wizard.spec.ts` · ⭐ **RENAMED 2026-09-13** from `commission.responses.fill` — § 11 item 7 ruled **(A)** by the PO, so the code governs CREATION ONLY and its sites are exactly these two · ⛔ § 8.1's behaviour is no longer a divergence of this row |
 | 3 | `commission.responses.own.read` | commission_content | read | none | — | ⛔ **PROPOSED AS A NON-ROW** — kept in the table so the omission is visible. `responses_select`'s first leg is `created_by = auth.uid()`; there is **no** membership leg. § 5.1 |
 | 4 | `commission.roster.read` | identity | read | none | ⚠ **yes** | **R** `memberships.memberships_select` · **R** `commissions.commissions_select_member_or_admin` · **R** `commission_member_titles.member_titles_select` · **R** `profiles.profiles_select_self_or_admin` (the **co-member** leg, § 2) · **T** `src/lib/queries/members.ts:122` |
 | 5 | `commission.charter.read` | commission_content | read | none | — | **R** `commission_charters.commission_charters_select` (member-only — no tenancy arm) · **D** `public.meeting_cadence_status`, `public.suggest_carry_forward` (both raise `HC0K2` *"você não é membro desta comissão"*) |
@@ -908,8 +908,15 @@ a rolled-back transaction as `staff4.ccih@test.local`:
 
 A **submitted, immutable, dashboard-counted** response authored by a non-member. The mechanism is
 not a bug in any one policy: `responses_insert_own` is the only membership gate in the family, and
-every later step is ownership-keyed (§ 5.1). ⇒ under the catalog, `commission.responses.fill` would
-**deny** at steps 5–6 while the legacy path **grants**.
+every later step is ownership-keyed (§ 5.1).
+
+⭐ **RULED 2026-09-13 — § 11 item 7 option (A).** r1 and r2 read this as a divergence of row 2,
+which under the OLD name (`commission.responses.fill`, spanning the lifecycle) it would have been.
+With the code renamed **`commission.responses.create`** and scoped to creation, **there is no row
+for this to diverge from**: steps 5–6 are governed by no permission at all. ⛔ **PA-F8-STAFF-1 is
+WITHDRAWN as a PA-F8 item** and the behaviour is filed as a bug on the ownership path
+(`docs/bugs/BUGS.md`). ⚠ The transcript above is unchanged and the finding is not downgraded —
+only its register moved.
 
 ⛔ **r2 (review H6): THE DISPOSITION IS NOW CONDITIONAL ON § 11 ITEM 7, and the measurement above is
 unchanged either way.** r1 proposed **(b)** flatly. The reviewer's point is prior to the
@@ -1115,7 +1122,7 @@ covers the same resource family for `staff_admin`, ⛔ **not** that it covers th
 | # | new code | how `staff_admin` reaches it today | proposed disposition | what breaks if neither |
 | --- | --- | --- | --- | --- |
 | 1 | `commission.forms.read` | membership (the 9 policies' `is_member_of` arm) — `commission.forms.edit` is a WRITE code and gates none of the 9 SELECT policies | **grant at T4** | a coordinator cannot READ the form tree it may edit |
-| 2 | `commission.responses.fill` | membership (`responses_insert_own`) | **grant at T4** | a coordinator cannot create a response draft |
+| 2 | `commission.responses.create` | membership (`responses_insert_own`) | **grant at T4** | a coordinator cannot create a response draft |
 | 4 | `commission.roster.read` | membership (4 policies) — `commission.staff.manage` gates the administrativo doors, not these SELECTs | **grant at T4** | the coordinator's own roster, commission row and co-member profiles go dark |
 | 5 | `commission.charter.read` | membership (`commission_charters_select`, and `HC0K2` in the two D readers) — `commission.charter.manage` is the WRITE twin and the SELECT policy is **member-level, not `staff_admin`** (already noted in AE4.3 row 34) | **grant at T4** | cadence + carry-forward raise `HC0K2` for the coordinator |
 | 6 | `commission.meetings.read` | membership (3 policies + `can_reach_meeting`) — `commission.meetings.manage` covers the write policies only | **grant at T4** | the meeting list and its settings go dark |
@@ -1218,7 +1225,11 @@ nothing in this file may be cited as approved until the ruling is recorded in
 | **PA-F8-STAFF-1** | § 8.1 — a revoked member keeps, edits and **submits** their draft; the catalog would deny, the legacy path grants | ⚠ **CONDITIONAL ON ITEM 7.** Under 7(A) this is **withdrawn as a PA-F8 item** and re-filed as a bug/follow-up on the ownership path — there is no row for it to diverge from. Under 7(B) it is **(b)**, a named compatibility exception, owner **backend**, expiry set by the PO, encoded in `424`'s `expected_legacy_granted`, ⛔ never in `expected_granted` |
 | **PA-F8-STAFF-2** | § 7.2 — the hat-grain difference between `has_role_any` and `holds_role` | **(a)** no divergence to except — it is unreachable under `memberships_one_commission_role_uq`; ⛔ conditional on that index and on `memberships_scope_shape`'s two-value commission tier being **asserted in the cutover's pgTAP**, not assumed |
 
-7. ⭐ **NEW in r2 (review H6) — the `commission.responses.fill` INTERFACE: does the code govern
+7. ✅ **RULED 2026-09-13 — the PO chose option (A): rename to `commission.responses.create`.**
+   ⛔ The two options below are kept as HISTORY (ADR 0105 — a ruled proposal is not rewritten);
+   the operative facts are row 2 and § 8.1. Original wording follows.
+
+   ⭐ **NEW in r2 (review H6) — the `commission.responses.fill` INTERFACE: does the code govern
    creation, or the lifecycle?** The three r1 statements cannot all describe one permission: row 2
    names only the INSERT policy and a TS guard; § 5.1 excludes every later lifecycle door as
    ownership-keyed; § 8.1 files the revoked-member submit as a divergence *of that row*. The PO

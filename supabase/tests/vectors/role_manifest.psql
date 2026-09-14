@@ -3,7 +3,7 @@
 -- Generator: scripts/gen-role-manifest.mjs  (--write / --check / --self-test)
 -- Consumers: supabase/tests/411_ae48_role_manifest_db_gate.sql  (artifact == the catalog)
 --            scripts/gen-role-manifest.mjs --check              (artifact == the TS manifest)
--- anchor: role-manifest rows=11 sha256=ad8a2dcd6e6cf13fbbbd7761199333fbfa8c7660cc03f455151e44acd9489d30 md5=a6b2308068d4b0f3e59e3f74e4539245
+-- anchor: role-manifest rows=11 sha256=e53ef9d4f9844685f4139d137d9bf451e65426d061f7ef2981caa38671a8d753 md5=abfc8621f6c3e82935c98c2e9bfc8424
 --
 -- The role catalog, pinned. ⛔ NEITHER CONSUMER IS THE VERDICT ALONE (ADR 0197 D4):
 -- gate 19 proves these bytes equal `src/lib/role/role-catalog.ts`'s ROLE_MANIFEST and
@@ -32,7 +32,7 @@ insert into role_manifest_pin (code, scope_kind, session_selectable, system_mana
   ('platform_admin', 'none', true, true, 'legacy'),
   ('pqs_member', 'hospital', true, false, 'legacy'),
   ('quality_reviewer', 'hospital', true, false, 'legacy'),
-  ('staff', 'commission', true, false, 'legacy'),
+  ('staff', 'commission', true, false, 'test_validation'),
   ('staff_admin', 'commission', true, false, 'authoritative'),
   ('technical_director', 'hospital', true, false, 'legacy'),
   ('technical_director_deputy', 'hospital', true, false, 'legacy');

@@ -62,7 +62,7 @@ select ok((select count(*) from authz_manifest_permissions) > 0,
   'assertion below passes over an empty table and the suite reports green for a manifest '
   'that never arrived.');
 
-select is((select count(*)::int from authz_manifest_permissions), 43,
+select is((select count(*)::int from authz_manifest_permissions), 61,
   '1.2 CARDINALITY CONTROL: the manifest declares exactly 43 enforcement rows. ⚠ If this '
   'reds because the catalog grew, that is the gate working — ADR 0176 D5 says a 44th '
   'permission breaks generation until someone names its enforcement path. Adjust this number '
@@ -376,16 +376,16 @@ select is(
 select is(
   (select count(*)::int from authz_manifest_permissions where status = 'pending-rekey') || ' / ' ||
   (select count(*)::int from authz_manifest_permissions where status = 're-keyed')::text,
-  '40 / 3',
+  '58 / 3',
   '4.5 ⭐ THE COUNTDOWN, PINNED, AS A PAIR. 40 pending-rekey and 3 re-keyed — the honest '
   'sentence ADR 0176 Consequences demands ("staff_admin runs on layer 1; N of 43 permissions '
   're-keyed, the rest pending-rekey") with N = 3, the PO-confirmed Gate AE4 minimum (D6: '
   'commission.forms.edit, org.professionals.create, org.professionals.read). ⛔ ASSERTED AS A '
   'PAIR, NOT AS ONE NUMBER: 40 alone is satisfied by a 44th permission arriving re-keyed, and '
   '3 alone by a row flipped without its site. Together they also prove neither § 4.3 nor '
-  '§ 4.4 ranges over an empty set — 40 + 3 = 43, so the status partition is TOTAL and no row '
+  '§ 4.4 ranges over an empty set — 58 + 3 = 61, so the status partition is TOTAL and no row '
   'escaped both arms. Each further re-key moves this pair; a red here is the increment being '
-  'recorded, never a number to restore.');
+  'recorded, never a number to restore. ⚠ RE-PINNED 40/3 -> 58/3 at AE5 increment 1 (2026-09-13), AFTER BEING OBSERVED RED on the T4 seed. The 18 new rows arrive `pending-rekey`, which is why the SECOND number did not move: T4 seeds a catalog, it re-keys nothing. A landing that moved both would be a re-key hiding inside a seed.');
 
 select is(
   (select coalesce(string_agg(m.code || ' via ' || c.fn, '; ' order by m.code, c.fn), '(none)')
@@ -745,8 +745,8 @@ select is(
   'catalog in which NO role was non-legacy. ⚠ This number moves with each AE5 increment.');
 
 select is(
-  (select count(*)::int from authz_manifest_approved_suites), 1,
-  '7.4 ...and exactly one approved suite is declared. ⛔ Pinned separately from 7.3: the two '
+  (select count(*)::int from authz_manifest_approved_suites), 2,
+  '7.4 ...and exactly TWO approved suites are declared — ⚠ RE-PINNED 1 -> 2 at AE5 increment 1 (2026-09-13) AFTER BEING OBSERVED RED on the T4 seed, never pre-adjusted. `staff` joined `staff_admin` when the enforcement manifest gained `approvedSuites.staff`. ⛔ Pinned separately from 7.3: the two '
   'sides being equal is what 7.1 asserts, and a control that read the same table as the '
   'assertion it controls would be the assertion twice.');
 

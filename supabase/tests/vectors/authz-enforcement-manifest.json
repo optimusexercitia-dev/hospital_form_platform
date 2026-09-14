@@ -98,8 +98,8 @@
       "⛔ Everything else here is still the 2026-09-02 derivation and is NOT re-measured by this",
       "amendment; the head moving is not a claim that the whole file was re-derived."
     ],
-    "measuredOn": "2026-09-12",
-    "migrationHead": "20261003007430",
+    "measuredOn": "2026-09-13",
+    "migrationHead": "20261003007440",
 
     "_permissionsComment": [
       "⭐⭐ THIS LIST IS DELIBERATELY REDUNDANT WITH THE KEYS OF `permissions` BELOW, AND THE",
@@ -183,7 +183,7 @@
       { "code": "platform_admin",            "state": "legacy",        "sessionSelectable": true },
       { "code": "pqs_member",                "state": "legacy",        "sessionSelectable": true },
       { "code": "quality_reviewer",          "state": "legacy",        "sessionSelectable": true },
-      { "code": "staff",                     "state": "legacy",        "sessionSelectable": true },
+      { "code": "staff",                     "state": "test_validation", "sessionSelectable": true },
       { "code": "staff_admin",               "state": "authoritative", "sessionSelectable": true },
       { "code": "technical_director",        "state": "legacy",        "sessionSelectable": true },
       { "code": "technical_director_deputy", "state": "legacy",        "sessionSelectable": true }

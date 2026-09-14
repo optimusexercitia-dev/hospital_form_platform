@@ -1,6 +1,6 @@
 {
   "sourceSha256": "c00c0326ea1b3dfdc6424ae4559db18e712c2391041facd38e66ffe8cb8ec5d1",
-  "manifestSha256": "0721d0ec3e81fba86bc1650b829bb655587f70aab065322bfa89f903c60ecd11",
+  "manifestSha256": "7b5ced95e436473c1f90bc49cd260aa392db2b286830de8284cece818c6e4978",
   "expected": 234000,
   "executed": 4004,
   "skipped": 229996,
@@ -26,7 +26,7 @@
     "permissionRows": 61,
     "snapshotPermissions": 61,
     "snapshotRoles": 11,
-    "migrationHead": "20261003007430",
+    "migrationHead": "20261003007440",
     "statusCounts": {
       "pending-rekey": 58,
       "re-keyed": 3
@@ -36,6 +36,7 @@
       "staff_admin"
     ],
     "nonLegacyRoles": [
+      "staff",
       "staff_admin"
     ],
     "unusedHardDenyClasses": [
