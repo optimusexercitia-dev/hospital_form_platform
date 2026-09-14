@@ -3857,3 +3857,35 @@ L17's two-arm door verbatim as the closing gate's fixture, because the migration
 corrected form and migration text is stale by design) and
 `FUP-AE5-STAFF-S8-S5-PAIRING-NOW-CONTINGENT` (medium). Loop: T7 verification iteration 3 of 5;
 each iteration closed a NEW cause.
+
+### 2026-09-14 — T7 COMMITTED green (`2dddd278` … `9fe05301`), verified by the lead; the stack to the tester for `425` run 4 (lead)
+
+Verified, not relayed: five commits by path on `ae5-staff` — `2dddd278` the atomic set (migration +
+seed + manifest + `320 § U4` + anchor + `410`, R-4's wording), `97d5f916` 14 suites re-pinned with
+every delta attributed (incl. three `is_member_of` → door TEXT corrections at 176 D4 / 274 C1 / 371
+§ 6.4), `7444f37a` + `b9301439` the two follow-ups, `9fe05301` the gate record; tree clean apart from
+run logs; exactly two migrations of this unit in the tree (`…7460` cutover, `…7470` re-key — the
+L20 door folded in, `…7480` deleted); `npm run lint` exit 0 at HEAD. **The committed state is the
+verified one:** 275 files / 9215 tests, ONE red (`425`, the tester's, left as it reads: § 2.0 47/47;
+3.1 `have: 45 / want: 0`; 3.2 `have: 48 / want: 57`), against the pre-T7 baseline 273 / 9156 / PASS
+— a comparison, not a recollection. `typecheck` 0, gate 18 in sync, reset exit 0, settle 171/171,
+profiles 45, `gen:types` no diff (the 21st door is in `app`) — the absence measured. **Both P0s
+closed with witnesses:** L24's four rows on a fresh reset — (a) plain member on a
+`commission_default` case `_case_caps` 2 / door t / surface t; (b) grant DELETED 0 / f / f; (c)
+restored 2 / t; (d) EXCLUDED RESPONDENT on `explicit_grants_only` with the role AND an explicit
+grant **0 / f / f** — 228, 233, 241, 242, 243 GREEN (233 M6·7 had read `true / want false` on two
+lines). L20 in the one migration: 21 doors, 13 `authenticated` / 8 DEFINER-only, the 21st with no
+grant at all; `320 § U4` exit 0, **339/433/772**. L21 (78 subjects: 64 carried, 14 derived and
+measured — two `public.*` professional functions declare a `p_user_id` that is the LINKED user
+while the authority call passes `auth.uid()`: the value, not the noun), arm14(b) live, gate 12 = 0,
+new permanent `410 § 3.8`; L13′, L22, L23 with all plants witnessed and rolled back. **Two
+corrections to the plan's own figures, backend's:** `409 § 1.1` = 24 pairs, not 25 (L24 removed the
+literal from the member-surface door; the 21st carries it one hop down; `410 §§ 8.5/8.6` agree);
+"319 t13" was `326` t13 — `319`'s red was **A7**, NOT a pin: S5's hat gate moved from
+`app.has_role_any` to `authz.holds_role`, so the plant mutated a function S5 no longer consults and
+read `64 / 66` with the mutation landing perfectly while changing nothing (the
+mutation-that-did-not-apply lesson, caught); re-pointed and re-pinned 66 → 111 decomposed against
+`_cap_bit`, `read_restricted_phi` (16) still absent — D5·6 holding under the mutation. Stack to
+the tester for `425` run 4 (attribute the nine short; re-point 3.1/3.2 to the post-T7 catalog with
+the scope cut re-derived); backend on T10 (docs only) meanwhile; T8 after the tester parks. AC-7
+ticks when `425` is green with its cut stated. Loop: T7 verification closed at iteration 2.

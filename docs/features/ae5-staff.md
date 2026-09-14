@@ -93,14 +93,15 @@ posted, not executed.
 
 ### In progress
 
-**T7 re-key — SQL authorised 2026-09-14.** R-4 ruled (gate 15's ceiling 759 → 772 for exactly the
-13 policy-called layer-3 doors; live catalog must read 339/433/772 after), R-5 ruled (ADR 0211
-accepted; D3 `:185` amendment ordered). Plan acked with C1–C5 and L13 (the § 6.3 conjunct re-ruled
-with both halves witnessed); C5 answered: the wrapper has ZERO callers after T7 and the
-`is_member_of(_for)` re-expression is DEFERRED to `AE5-MEMBER-PREDICATE-REEXPRESSION` (L14 — `425`
-is on the role plane, the re-expression on the membership plane), the allow-list's expiry moved
-with it by ADR 0211's amendment. Run-book order: `tester`'s `425` no-movement witness on the
-pre-migration catalog first (in flight), then `backend`'s ONE atomic migration enters the tree.
+**T7 COMMITTED green 2026-09-14** (`2dddd278` atomic set … `9fe05301` gate record): the 20 `staff`
+codes re-keyed onto 21 layer-3 doors (13 `authenticated` / 8 DEFINER-only), 42 policy and 23 function
+sites, 22 frozen bodies converged (`419` 860 → 836), row 9's authority wired at its four sites, live
+budget **339/433/772** as R-4 requires; 275 files / 9215 tests, one red — `425`, the tester's, being
+re-pointed to the post-T7 catalog (run 4 in flight, nine sites to attribute). Two P0s were found by
+T7's own red-first verification BEFORE commit and closed with witnesses: a wrong-keyed call (fails
+closed, L20) and an OR-around widening of Class-1 content caused by the lead's L17 (superseded by
+L24; the closure gate that stayed green through it is a high follow-up). Rulings L20–L24, L13′ in
+the record. `backend` on T10 (seam slice, docs only); T8 (census + arms) after the tester parks.
 T13's specs committed, unrun until AC-10. `npm run lint` exit 0 at HEAD.
 
 ### Next
@@ -110,10 +111,9 @@ T8 census/arms → T10 seam slice → AC-10 gate → QA → PO approval → Reco
 
 ### Blockers
 
-None ruling-shaped (R-4, R-5 ruled `f8a66457`). ⛔ T7 is IN THE TREE, UNCOMMITTED, after TWO P0s found by its own verification before
-commit: the S5 arm keyed on the wrong id (fails closed; fixed, L20) and row 9's door OR-ing the permission
-arm past the case hard denies (a WIDENING of Class-1 content, local only; caused by the lead's L17, superseded
-by L24). 13 further reds are T7-moved pins under attributed re-pin. Nobody else resets until backend parks green. ⚠ For the PO at the T7 gate: the `staff` wrapper stands with ZERO
+None ruling-shaped (R-4, R-5 ruled `f8a66457`). ⚠ For the PO at the T7 gate, from T7's verification: two P0s caught pre-commit (one the lead's ruling L17,
+now L24) — both closed with witnesses; a high follow-up on the closure gate that stayed green through the
+second (`FUP-AE5-STAFF-HARD-DENY-CLOSURE-IS-BLIND-TO-OR-AROUND`). ⚠ For the PO at the T7 gate: the `staff` wrapper stands with ZERO
 production callers for one unit under a named bound (L14); T7 touches 23 frozen-path DEFINER bodies and
 converges them under ADR 0208 D4 as written (L15), `419` 860 → 837 attributed by name. ⚠ A second Supabase stack (`*_escalume`) runs on this host and made two resets
 fail at the CLI's post-reset step; AC-10's runs need it stopped or the reset re-verified. ⛔ ADR 0211 D2 is reviewed by the PO at the T6 gate (put in front of the PO on
