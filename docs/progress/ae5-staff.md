@@ -1709,3 +1709,27 @@ the DECLARED limb, which is what the differential evaluates — but the declarat
 have drifted, and that is a separate finding, not fixed here.
 
 Stack handed back. Next: the tester runs `424` once.
+
+### 2026-09-14 — the authorized `424` run is RED again; the mechanism changes, not the iteration count (lead)
+
+Tester's single authorized run on the persona-aware vector (`f5b12832`; log `424-authorized-run.log`):
+§ 4.1 198 cells, § 4.1b 410 cells red. The shape: THIRD-PARTY probes fail across five rows
+(`roster.read` — its row-4 fix exercised for the first time — and `accreditation.read`,
+`action_items.read`, `documents.read`, `forms.read`) while self-check cells mostly pass; plus
+`capa.read` `conjunct_unmet` for `subject_holder` on both keyings. The tester stopped after one run,
+as instructed. **Loop accounting for the PO:** across the day `424` has had 4 + 2 + 1 iterations
+under three vector states, every stop at its cap, every fix attributed; the vector was wrong twice
+(L8; P2) and the suite's dispatch several times, and the drift follow-up
+(`FUP-AE5-STAFF-ARM3DOOR-DECLARATION-DRIFTS-FROM-THE-LIVE-DOOR`) shows the declaration both sides
+read from is itself partial.
+**L9 — RULED (lead): stop transcribing doors twice.** The vector carries, per cell, the LEGACY
+probe as executable SQL fully bound by the generator to backend's own fixture ids (the `a5f…` rows,
+the `gap.*` personas, the hat claim for the cell's `activeContext`, the uid for its keying) and the
+CATALOG probe likewise; `424`'s § 3/§ 4 collapse to `EXECUTE` + compare, authoring no door. The
+legacy SQL is derived from the LIVE door text (`pg_policies.qual` / comment-stripped `prosrc`) with
+parameters substituted, never from `arm3Door.expression` — which discharges the drift follow-up's
+first arm by construction (the declaration becomes documentation of what was emitted, gated by
+comparison). A self-test proves a planted wrong binding is caught by name. This is a template change
+AE5 copies ten more times, which is why it is worth the rework now. Backend owns it (plan paragraph
+first, then proceed — it mirrors no existing suite exactly); the tester re-cuts `424` to the loop
+once the vector carries the probes; one authorized run after.
