@@ -1570,3 +1570,55 @@ ADR 0211 D2 was put in front of the PO as readable now; its review stays at the 
 regenerates (expected: 9936 cells, `staff_admin` 1728 byte-identical, flips = 1218 = 84 + 990 + 144,
 `--self-test` arm10 fixtures 4 caught); tester runs `424` to green + the able-to-fail witness; then
 T6. Recorded by the PO session; nothing else in the repo touched.
+
+### 2026-09-14 — backend: P1 + P2 applied to the vector (PO ruling), `847f439c`
+
+Applied from the prepared `t6-wip/P1-vector-change.md` + `P2-conjunct-unmet.md` against the PO's
+ruling entry above. Generator hunks only — the `.psql` was **regenerated, never hand-edited**.
+⛔ No DB, no reset, no `test:db`; `424` and the stack untouched.
+
+**P1** — label `arm3:divergent-approved:role-free-disjunct-ignores-principal-state`, added to the
+`ARM3_DIVERGENT_APPROVED` tuple so `expected_legacy()` needs no second code path; vocabulary entry
+cites `BUG-AE5-STAFF-INACTIVE-BYPASSES-ROLE-FREE-DISJUNCTS` and names the expiry unit
+`AE5-INACTIVE-DISJUNCT-GUARD`. **990 cells.** `expected_granted` moves by zero.
+
+**P2** — label `arm3:divergent-narrower:door-conjunct-unmet` (L7's string), a **new family
+prefix**, `ARM3_NARROWER_CONJUNCT_UNMET`; `expected_legacy()` gains its **first false-returning
+branch**; arm10 gains sub-check **(d)** and (c) exempts the new family. **144 cells.**
+
+Both branches sit **before** the `klass != ARM3_GATE` short-circuit — every `staff`
+representative returns `arm3:not-in-gate` there, so a branch after it is unreachable and the labels
+would have been declared and carried by zero cells, with only arm8's single-valued check noticing.
+
+**⛔ TWO CORRECTIONS TO MY OWN PREPARED HUNKS, both found while applying:**
+1. **P2's arm10(d) message would have broken the self-test runner.** I had written
+   `'arm10(d): …'`; the runner computes `fired = {g.split(':', 1)[0] for g in got}`, so that
+   string yields the arm name `arm10(d)`, `want` is `arm10`, and the fixture reports **WRONG ARM**
+   — and the `next(g for g in got if g.startswith(want + ':'))` line then raises. Corrected to
+   `'arm10: (d) …'`. ⚠ A new arm's message is not free-form: its prefix up to the first
+   colon IS its identity to the runner.
+2. **P2's arm10(d) fixture had to be SYNTHESISED, and the prepared note only half-said why.** Every
+   real narrower-labelled cell expects a legacy DENY — `expected_legacy()` returns False for the
+   label *unconditionally* — so there is no cell to select and a selection fixture would raise
+   "no candidate", whereupon the obvious repair is to delete the fixture and disarm the only arm
+   refusing a narrower label laundered into a GRANT. Written as `_synth_narrower()` beside
+   `_synth_defect()`.
+
+**Readings, as OUTPUTS rather than targets** — every one measured from the regenerated artifact:
+
+| reading | value | note |
+| --- | ---: | --- |
+| total cells | **9936** | unchanged; both are LABEL changes, so a different total would mean a branch changed the loop |
+| `staff_admin` rows | **1728, byte-identical** | sorted diff **and** plain diff both exit 0 — both predicates key on `gate`, inert for every staff_admin cell |
+| flips vs `expected_granted` | **1218** | = 84 + 990 + 144, exactly as predicted; no explanation owed |
+| arm3 census | 990 / 144 | printed in the `.psql` header, per label |
+| `--self-test` | **27 caught** (was 26) | all FOUR arm10 fixtures caught **by name**, incl. the new (d); plus the `arm5` quiet control, the axis property, and `clean on the real spec` |
+| gate 12 · `npm run lint` | **exit 0 · exit 0** | read bare, not through a pipe |
+
+⭐ **P3 needed no vector change, and I checked rather than assumed.** `expectedSource` already
+emits `deny-class:pending-is-granted`, so the oracle's expected value for deny-class row 5 was
+GRANTED before the ruling; the PO's P3 confirms the value the vector already carried rather than
+moving it. The open product question stays in
+`BUG-AE5-STAFF-PENDING-ACCOUNT-HAS-FULL-MEMBER-REACH`.
+
+Next: tester runs `424` (green + the able-to-fail witness), then T6.
