@@ -1262,3 +1262,34 @@ stale row counts in test NAMES — hand-off) and `424` (aborts: missing `\ir` of
 11-deny / 15 / 16 / 19 on the seeded fixtures, run `424` — it owns the stack for this round.
 Backend (no resets; read-only DB): the T6 cutover PLAN under ADR 0211 for full review, and the
 `387` re-derivation (names re-measured, pins observed RED first) queued behind the tester's run.
+
+### 2026-09-13 — T6 plan reviewed: ACKED with four conditions (lead; full plan review)
+
+Read in full at `cff43d89`. Sound on: ONE migration (a wrapper before the flip denies everyone, a
+flip before the wrapper leaves a window); `search_path = ''` + schema-qualified body instead of
+mirroring `is_staff_admin_of`'s frozen `app, public, pg_catalog` (ADR 0208 D4 — mirroring it would
+grow the frozen set by two); ACLs stated explicitly, no PUBLIC entry (`is_member_of` carries a stray
+`=X/postgres` its twin lacks); the snapshot/assert block re-purposed honestly as create-time
+assertions with `proacl` as a sorted array; § 4.2b + § 4.3b positive control; D2's three-part proof
+with the RESTRICTION to `staff` rows stated and the unrestricted comparison shown to disagree; D3's
+five triggers argued (state flips add no `assignment_facts` row); rollback to `test_validation`,
+never `legacy`, never a committed migration; every red named before it moves.
+
+**Conditions (each a cell, not a sentence):**
+- **A1 — the hat, both polarities.** `holds_role` and `has_role_any` both carry the active-role
+  term on self-checks. The constructed differential (`426`) runs the SELF form under
+  `active_role ∈ {staff, staff_admin, none}` and asserts agreement in each, and asserts the `_for`
+  form is hat-blind under the same three; a check under one hat leaves the other polarity unproven.
+- **A2 — principal state, by named cells.** State whether `authz.holds_role` evaluates
+  `app.is_active` (or how the wrapper inherits the `is_active` conjunct `is_member_of` has). The
+  differential population must include a `staff` member at each `principalState`
+  (`suspenso.temp`, `gap.pending`, `gap.deactivated`, an active one) and assert agreement on those
+  cells BY NAME — "every seeded principal" is not evidence the fixture reached the state.
+- **A3 — the zero-caller authority.** If any conformance gate (`410`, a keystone) reds on a DEFINER
+  authorizer with zero callers, the wrapper is allow-listed with owner `backend` + expiry `T7`,
+  never silenced; if none does, say so with the query.
+- **A4 — `403 § 3.2c`** re-clause = `approvedSuites − subject − authoritative`, observed RED first;
+  `426` is backend-owned (tester owns `424`/`425`); migration number after `20261003007450`.
+
+Backend writes the SQL now (migration, `405` § 4.2b/4.3b, `426`, ADR 0211 D2 aligned to A1/A2) but
+⛔ runs nothing until the lead hands the stack back after the tester's `424` run.
