@@ -4039,3 +4039,17 @@ for the unbounded-drift property; the kill's consequence is itself the lesson's 
 showing the reset FIRE, never on the code's presence), gate 13 = 0. Uncommitted: `409` (a), the
 set-valued port, the follow-up. LESSONS candidate: a killed mutation harness leaves its gate
 neutralized; `RECOVER=1`, then verify the body yourself.
+
+### 2026-09-14 11:20 — sweep progress measured by the lead on the relaunch's own directory (`authz-audit-t8b`): alive, on pace, ~12 h total
+
+PO asked whether it stalled. Read from the running process and its files, no DB touched: parent
+3951 alive since 10:19:26, `RESET_EVERY=5` and `WORK=…/authz-audit-t8b` in its environment; a case
+child (6165) started 11:18:37; `progress.tsv` 5 predicate verdicts (all COVERED so far:
+`can_accreditation_read`, `can_action_items_read`, `can_capa_read`, `can_cases_deliberation_read`,
+`can_cases_deliberation_read_in_commission`), last write 11:12:15; `outofdomain_pred_bool.tsv.reset`
+at 11:13:23 — the first periodic reset, fired after case 5 exactly as the cadence predicts; case 6
+(`can_cases_vocabulary_read`) mutated at 11:18:35 after the reset + re-baseline. Pace: ~10 min per
+case (11:02 → 11:12) + ~5 min per reset ⇒ 34 predicate cases ≈ 6 h, 39 policy cases ≈ 6.5 h, **≈ 12
+h end to end from 10:19**, i.e. into the night of 2026-09-14/15. Not shortened: the 75 cases are the
+deriver's diff-scoped set for this phase base and the run IS the gate; the stack stays the sweep's
+for the duration (a reset by anyone destroys it and leaves a neutralized gate live).
