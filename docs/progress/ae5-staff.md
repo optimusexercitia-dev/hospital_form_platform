@@ -3342,3 +3342,18 @@ frozen set, `419` 860 → 838** (not 837); language split 7 / 15; substitutions 
 snapshots and expectations. Remaining: the checker on the 15, `meeting_cases_select`, C1's wiring,
 two seed tables, manifest flip + L13 + `sign_meeting`'s re-declaration, anchor + `320 § U4`; then
 move-in and steps 2–7. `supabase/` clean.
+
+### 2026-09-14 — T7 function half validated before placement: 15 plpgsql bodies, 0 findings; no extension left resident (lead)
+
+Backend: `plpgsql_check` installs cleanly and was run INSIDE the same rolled-back transaction as the
+re-emissions — the stack is unchanged, nothing resident. Recommendation adopted for the gate
+record: do NOT persist it (build-time validator, referenced by neither 414 nor 421; a resident
+extension adds its own functions to `public`, the population `100 § 19` and the budget anchor count
+— the pgtap trap this tree already hit once). Division of labour: `CREATE OR REPLACE` validated the
+7 `sql` bodies at create time (apply under `ON_ERROR_STOP=1`, exit 0); the checker covered the 15
+`plpgsql` bodies CREATE never validates — all 22 converged bodies, so a missed qualification is a
+migration-time red, not a runtime `42P01`. Classification carried explicitly: "14 `_for`" counted
+FUNCTIONS carrying at least one `_for` call; the migration edits CALL SITES — 21 `_for` + 9 bare =
+**30 substitutions across 23 functions**. Remaining before move-in: `meeting_cases_select`, C1's
+wiring (0 → 4), two seed tables, manifest flip + L13 + `sign_meeting` on `definerSurface`, anchor +
+`320 § U4`. `supabase/` clean.
