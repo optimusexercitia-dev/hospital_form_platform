@@ -2377,3 +2377,40 @@ a "connection error" reset is neither a pass nor a proof of corruption.
 it ran in autocommit and survived the `rollback` — a stack change outside the read-only contract;
 verified and dropped, `pg_extension` count back to 0, the flipped grant's count 1 throughout. Owed
 for AC-5 now: the full suite green (330 + 387 with backend).
+
+#### 2026-09-14 — backend: the two suites this unit's seed moved (`8c7c2b77`, `05705e7e`)
+
+**330 DM3·X1 — 4 of 6.** The invariant is `core_document_id IS NOT NULL` on EVERY controlled
+document; the two Farmácia rows I added were inserted DIRECTLY, and a direct insert bypasses
+the door that carries the obligation. The seed now reproduces the post-backfill state by hand for
+them, as the base seed does for its own three. **Measured after a bare reset: 5 of 5.**
+⭐ It also deleted a block of `public.documents` rows added when row 16 was probed through
+`app.can_read_document`; L11 moved that row back to the policy leg, so those rows were bound by
+NOTHING — verified zero references in the manifest and the vector before removing them.
+⛔ **A fixture nothing binds is not harmless**: it still owes every invariant its table carries,
+and it was exactly the half of that block nothing referenced which broke 330.
+
+**387 — seven red, re-pinned with every delta named first.** Round 4/5 added four profiles
+(`gap.comember.ccih` f1 · `gap.comember.farma` f2 · `gap.comember.farmb` f3 · `gap.absent`
+f4, the last holding NO membership at all).
+
+| test | arm | rows | profiles that ENTERED | why that arm sees them |
+| --- | --- | --- | --- | --- |
+| 5 | B1 hospitaladmin.a1 | 25 → **27** | f1, f2 | memberships in commissions under Hospital Central A |
+| 6 | B2 orgadmin.a | 32 → **35** | f1, f2, f4 | the three affiliated to org A |
+| 7 | B3 platform_admin | 40 → **44** | f1, f2, f3, f4 | `is_admin()` sees all |
+| 8 | B4 chefe.ccih | 12 → **13** | f1 | the CCIH co-member |
+| 9 | B5 staff1.ccih | 12 → **13** | f1 | same set as B4 — they still SHARE one value |
+| 10 | B6 orgadmin.b | 6 → **7** | f3 | the Farmácia B co-member, affiliated to org B |
+| 19 | D1b | — | — | moves WITH test 5, by construction |
+
+⛔ **EVERY DELTA IS EXACTLY THE COUNT OF NEW PROFILES THAT ARM CAN SEE** — 27−25=2,
+35−32=3, 44−40=4, 13−12=1, 7−6=1 — and nothing entered or left that is not one of the
+four, so this is a fixture delta and not a visibility change. ⭐ f4 is visible to B2/B3 and
+INVISIBLE to B1 (org affiliation, no hospital tier, no membership — the hospital-admin arms join
+`memberships`/`hospital_affiliations` and it is in neither): the SAME asymmetry `gap.unpriv` had at
+the first re-pin, recurring identically. D1a was re-pinned too though it never went red — a stale
+literal satisfies `isnt()` for the wrong reason.
+
+Scoped after a bare reset (`pg_stat_activity` checked first): `00_setup + 330` **exit 0**,
+`00_setup + 387` **exit 0**; `npm run lint` **0**, `lint:authz-vectors` **0**. `424` untouched.
