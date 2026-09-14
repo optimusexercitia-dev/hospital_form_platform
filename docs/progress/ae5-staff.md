@@ -2873,3 +2873,112 @@ again ran `create extension pgtap` in autocommit and dropped it after (`pg_exten
 deliberate, reverted stack change this time, noted so the pattern is visible: the raw-TAP capture
 needs a harness path that does not touch extensions (LESSONS candidate at Record). Byte-count guard
 0; committed. Tester proceeds to T12 (`425`).
+
+### 2026-09-14 — T7 pre-work under C1–C4 (backend): gate-record skeleton, OFFLINE dry run, run book
+
+⛔ Nothing under `supabase/` moved — `git status` on `supabase/` and `scripts/` is clean apart
+from the tester's own `424`. The dry run wrote only inside the session scratchpad. No DB read was
+needed for any of it: every figure comes from the manifest JSON and the generator, so the tester
+kept the stack for `424` run 7 and `425` throughout.
+
+#### (1) The T7 gate-record skeleton — the named justification gate 15's merge rule requires
+
+Merge rule, quoted from `docs/backend-state/authorization-and-audit.md`: *"no increment may raise
+the count without a **named justification in its own gate record**, and **the ceiling moves only by
+PO ruling**."* This is that justification, pre-written so the PO rules on a filled form.
+
+**The 13 doors that need `authenticated` EXECUTE, by name, with the policy sites that call each:**
+
+| # | permission code | policy sites |
+| ---: | --- | ---: |
+| 1 | `commission.forms.read` | 9 |
+| 2 | `commission.process_templates.read` | 9 |
+| 3 | `commission.accreditation.read` | 4 |
+| 4 | `commission.roster.read` | 4 |
+| 5 | `commission.cases.vocabulary.read` | 3 |
+| 6 | `commission.documents.read` | 3 |
+| 7 | `commission.meetings.read` | 3 |
+| 8 | `commission.indicators.read` | 2 |
+| 9 | `commission.action_items.read` | 1 |
+| 10 | `commission.charter.read` | 1 |
+| 11 | `commission.meetings.cases.shell.read` | 1 |
+| 12 | `commission.meetings.minutes.sign` | 1 |
+| 13 | `commission.responses.create` | 1 |
+| | **total** | **42** |
+
+**The 7 doors that need NO grant** (called only from DEFINER bodies, where the privilege check is
+against the owner): `commission.capa.read` · `commission.cases.deliberation.read` ·
+`commission.cases.vote` · `commission.referrals.metadata.read` ·
+`commission.referrals.notes.author` · `commission.safety_events.read` ·
+`commission.safety_events.report`.
+
+**C4 — the door-vs-site arithmetic, kept in front of the PO exactly as stated:** the budget counts
+**DOORS, not SITES**. Deferring the two highest-fan-out codes removes **18 of 42 sites but only 2 of
+13 doors**. Any mitigation that reasons in sites will overstate its own saving by ~9×.
+**Ask: ceiling 759 → 772 (+13)**, against a budget measured today at exactly 759 = app 326 +
+public 433 — **zero headroom**. Precedent: AE4's re-key added **3** such doors and the ceiling
+moved 752 → 759 (+7) by PO ruling 2026-09-08.
+
+**C1 — the wiring census for row 9**, as a line the gate record will carry:
+`app.can_reach_case_on_member_surface` callers **0 → 4** (`app._project_meeting_case`,
+`app._project_meeting_agenda_item`, `public.get_reserved_session_items`,
+`app.resolve_document_version_bytes`), the four inline copies of the bit DELETED in the same
+migration, the stale comment corrected, each site a `-- door-sweep-targets:` entry.
+**C2 —** two of those objects sit on the legacy frozen path, so `419`'s baseline moves
+**860 → 858**, attributed by name (`app.resolve_document_version_bytes` and
+`app.can_reach_case_on_member_surface`), never re-pinned bare.
+
+#### (2) The OFFLINE dry run — measured, not predicted
+
+A complete scratch root (`scripts/` + `supabase/tests/vectors/*.json` copied into the scratchpad;
+the generator derives `ROOT` from its own location, so it read and wrote only there). The draft
+flips all 20 rows and moves their sites.
+
+| emitted | HEAD | DRAFT |
+| --- | ---: | ---: |
+| manifest rows | 61 | 61 |
+|   `re-keyed` / `pending-rekey` | 3 / 58 | **23 / 38** |
+| `authz_manifest_sites` rows | 13 | **79** (+66 = 42 policy + 24 function) |
+| `authz_manifest_arm_sites` rows | 69 | **0** — the EMPTY typed form |
+
+⭐⭐ **THE DRY RUN EARNED ITS KEEP: five structural rules found before any SQL**, each a refusal
+from the generator's own validator, each one I would otherwise have hit in a migration:
+1. *"the authorizer composes `app.is_commission_staff_of_for`, which is neither the permission arm
+   (`authz.has_permission`) nor a declared `residualLegacyAuthority` — a re-keyed row may not hide
+   a non-permission grant path."* ⇒ the layer-3 door composes **only** `authz.has_permission`; the
+   wrapper is an implementation detail INSIDE it, not a composed authority. That is a design
+   clarification, not a data fix.
+2. `definerSurface[*].writes` must be a non-empty list — *"a DEFINER writer that writes nothing is
+   not a member of this surface."* ⇒ the 24 read-authorizer functions are **enforcement sites**,
+   not definerSurface members.
+3. A function-kind enforcement site must carry `relation: null` **explicitly**.
+4. A `re-keyed` row may not still carry a `pendingRekey` block.
+5. `nonEnforcementConsumers[*].kind` admits only `policy | function` — so § 8.4's two audited-read
+   registry legs are recorded as `function` consumers with the mirror reason.
+
+⛔⛔ **AND ONE PREDICTED RED THAT IS MINE.** When every staff row is re-keyed, `arm_sites`
+becomes EMPTY — measured above. `410` § 6.3 carries a conjunct **I added at L6**:
+`(select count(*) ... join authz_manifest_arm_sites ...) > 0`, written because that domain then
+supplied 20 of 23 measured rows. T7 empties it, so **§ 6.3 goes RED at the moment T7 completes**,
+for a correct reason. It must be re-ruled in the same migration — the honest form is "non-empty
+**or** no row remains `pending-rekey`", never deleted — and it belongs in step 6's witness list
+below. ⚠ A conjunct that becomes false when the work SUCCEEDS is the shape that gets deleted in a
+hurry; naming it now is what stops that.
+
+#### (3) The run book — exact commands and the witness line to read, per step of (d)
+
+⚠ `pg_stat_activity` first, and settle-check (two equal `information_schema.tables` counts) after
+any reset before believing a number.
+
+| # | command | expected witness |
+| ---: | --- | --- |
+| 1 | `supabase test db supabase/tests/00_setup.sql supabase/tests/425_*.sql --local` | **exit 1**, and the grant-deletion pairs show **no movement** pre-migration |
+| 2 | `supabase test db supabase/tests/00_setup.sql supabase/tests/410_*.sql --local` | **exit 1** on § 8.1 naming each row whose declared sites do not reach its code; § 8.2's positive half stays green |
+| 3 | `supabase db reset --local` then `supabase test db ... 421_*.sql` | § 0c `892 = 860 + 32` → `892 + N`; § 2a `13 visited → 13 + N visited | 0 findings`; `419` baseline `860 → 858` |
+| 4 | `supabase test db ... 425_*.sql` | **exit 0**, and the same pairs now DISCRIMINATE — step 1's no-movement reading is what makes this evidence |
+| 5 | `node scripts/gen-authz-matrix-cells.mjs` | per-row `hardDenyClasses` old → new, re-derived on the extended instrument |
+| 6 | `supabase test db ... 410_*.sql` | `authz_manifest_sites` **13 → 79**, `arm_sites` **69 → 0**, § 6.3's re-ruled conjunct green, § 6.2 unchanged in shape |
+| 7 | `npm run lint` · `npm run lint:authz-vectors` · `npm run test:db` | all **exit 0** bare; gate 15 green only after R-4 |
+
+⚠ Step 3 is the one that cannot start until **R-4** is ruled (C3: ONE atomic migration, not split
+around the ruling), and step 6's § 6.3 re-rule is the one red I have pre-declared as mine.
