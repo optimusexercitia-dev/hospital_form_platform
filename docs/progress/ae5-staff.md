@@ -4155,3 +4155,11 @@ manifest named it — same verdict class, opposite evidentiary quality, both att
 because the retry net reproduced them. Errcodes owed at the sweep's end: the two raising RAISEs
 (`log_audit_access`; `sign_meeting` line 24) — HC036 and 42501 came back as WANTED values from the
 assertions and need no read.
+
+### 2026-09-14 15:26 — sweep status 40/73: 38 COVERED, 2 NOTICED; the predicate arm is DONE (34/34), the policy arm has begun (lead watcher)
+
+Last `policy case_tags.case_tags_select (SELECT)` — the policy arm's 6th of 39. Predicate arm
+closed at 34 cases: 32 COVERED + 2 NOTICED (both dispositioned), 0 BLIND, 0 DIRTY, 0 ERROR. The
+watcher now counts distinct (arm, case) and completes on the parent's exit (domain 73, not the 75
+names). Pace 15:26 − 14:11 = 10 cases / 75 min ≈ 7.5 min/case incl. resets ⇒ ~33 policy cases
+left ≈ 4 h, finish ≈ 19:30.
