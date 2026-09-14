@@ -1,6 +1,6 @@
 # 0058 — Derived quality-indicator measurement compute (the parity lock)
 
-**Date:** 2026-07-05 · **Status:** proposed (Phase 15 / task B4) · **Implements:** ADR
+**Date:** 2026-07-05 · **Status:** Accepted — implemented, Phase 15 (⚠ header corrected 2026-09-13 at the ADR 0140 proposed-ADR review, unit AE5-STAFF; it read "proposed (Phase 15 / task B4)" until then) · **Implements:** ADR
 [0057](./0057-indicators-doc-control-replan.md) dec. 3 · **Per-phase compute ADR required by** ADR
 [0028](./0028-accreditation-governance-roadmap.md). **Touches:** the Phase-8 dashboard spine
 (`app.submitted_form_responses`, `public.dashboard_distributions`, `app.version_has_option_code`,

@@ -10,7 +10,7 @@
 > Full map: [INDEX.md](INDEX.md).
 <!-- adr-backpointers:end -->
 
-**Status:** Proposed / deferred · **Date:** 2026-06-14 · **Phase:** post-Phase-8 Cases-Extras batch (R5)
+**Status:** Superseded by ADR 0037 (⚠ header corrected 2026-09-13 at the ADR 0140 proposed-ADR review, unit AE5-STAFF; it read "Proposed / deferred" until then) · **Date:** 2026-06-14 · **Phase:** post-Phase-8 Cases-Extras batch (R5)
 
 ## Context
 

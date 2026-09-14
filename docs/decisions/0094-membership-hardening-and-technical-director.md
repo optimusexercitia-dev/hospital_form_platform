@@ -1,6 +1,6 @@
 # ADR 0094 — Membership-model hardening + Diretor Técnico (technical director) backend
 
-**Status:** Proposed (awaiting human approval; no phase started) · **Date:** 2026-08-04
+**Status:** Accepted — implemented (W4 build state per Amendment 3; residual line items stay as that amendment records them) (⚠ header corrected 2026-09-13 at the ADR 0140 proposed-ADR review, unit AE5-STAFF; it read "Proposed (awaiting human approval; no phase started)" until then) · **Date:** 2026-08-04
 **Inputs:** external membership audit
 ([handoff](../design/temp/membership-model-audit-handoff.md)), catalog-verified internal
 analysis ([response](../design/temp/membership-model-internal-analysis.md)), PO feature

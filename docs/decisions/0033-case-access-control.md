@@ -10,7 +10,7 @@
 > Full map: [INDEX.md](INDEX.md).
 <!-- adr-backpointers:end -->
 
-**Status:** Proposed (pending human approval of the increment plan) · **Date:** 2026-06-19
+**Status:** Superseded by ADR 0072 and ADR 0078 (amended by 0038, 0134, 0205) (⚠ header corrected 2026-09-13 at the ADR 0140 proposed-ADR review, unit AE5-STAFF; it read "Proposed (pending human approval of the increment plan)" until then) · **Date:** 2026-06-19
 · **Feature:** Case Access Control — an additive, feature-flagged increment extending the
 Cases feature (Phases 7/12; Case Narratives ADR [0032](./0032-case-narratives.md)).
 Supersedes nothing; tightens the Cases RLS surface established in ADR

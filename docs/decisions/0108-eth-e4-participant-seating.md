@@ -1,6 +1,6 @@
 # ADR 0108 — ETH·E4: seating case participants, and the doors the lane never got
 
-- **Status:** Proposed (2026-08-11; revised same day after QA —
+- **Status:** Accepted — implemented, ETH·E4 (⚠ header corrected 2026-09-13 at the ADR 0140 proposed-ADR review, unit AE5-STAFF; it read "Proposed" until then) (2026-08-11; revised same day after QA —
   [eth-e4-plan-review.md](../reviews/eth-e4-plan-review.md)) — closes FUP-ETH-1; PO decisions
   taken in interview 2026-08-11
 - **Relates to:** ADR [0064](./0064-case-subject-generalization-participants.md) (participants

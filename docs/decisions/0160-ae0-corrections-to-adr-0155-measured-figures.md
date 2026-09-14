@@ -1,6 +1,6 @@
 # ADR 0160 — AE0 corrections to ADR 0155's measured figures: the `anon` residue never grew, and the role-helper predicate names a dead term
 
-- **Status:** PROPOSED 2026-08-26 — written at the AE0 measurement step, PO-directed the
+- **Status:** Accepted — its corrections were absorbed into ADR 0155 as amended 2026-08-26 (⚠ header corrected 2026-09-13 at the ADR 0140 proposed-ADR review, unit AE5-STAFF; it read "PROPOSED 2026-08-26" until then) — written at the AE0 measurement step, PO-directed the
   same day the two findings were re-derived. ⛔ **This ADR corrects two measured claims and
   changes no decision.** Every ratified decision in 0155 (G1–G11, D0–D10) stands exactly as
   accepted; the sequence, the pilot cutline and the role-by-role substitution strategy are

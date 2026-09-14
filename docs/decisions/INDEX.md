@@ -21,7 +21,7 @@
 - **Missing numbers:** 0034, 0077, 0202, 0204 — a gap is not automatically a defect (0077 was withdrawn by the PO and its subject re-filed as 0078; 0034 was never used; **0202 can NEVER be filled** — PO ruling R7 split four planned ADRs and pre-AE5 Batch 9 wrote only 0201 + 0203), but a gap nobody can explain usually means a lost file.
 - ⛔ **RESERVED numbers — none today (re-checked 2026-09-13).** The 0202 / 0204 reservations for the role-catalog decision and the two platform-wide conventions were RENUMBERED by PO ruling on 2026-09-11 and written as **0207** / **0208** (both built or in build since); **0202 can never be filled** and 0204 stays a gap. A future reservation is stated HERE and in docs/plans/pre-ae5-remediation.md §3, never in only one of them. ⚠ And per CLAUDE.md §8 the number is **the highest on ANY live branch + 1**, ⛔ never this index's figure alone — a branch this generator never saw can already hold it.
 - **No parseable `Status:`:** none
-- **Still proposed / draft / deferred (9):** 0022, 0031, 0033, 0058, 0094, 0108, 0115, 0160, 0211 — an ADR's status is the author's claim on the day it was written, and nothing updates it when the code ships. The last review of this list is stamped in `proposed-review.json`; gate 9 reds when that review is more than 30 days old or this set has drifted from it.
+- **Still proposed / draft / deferred (2):** 0115, 0211 — an ADR's status is the author's claim on the day it was written, and nothing updates it when the code ships. The last review of this list is stamped in `proposed-review.json`; gate 9 reds when that review is more than 30 days old or this set has drifted from it.
 
 ## Index
 
@@ -48,7 +48,7 @@
 | 0019 | [The default (anchor) section may carry a title](0019-default-section-may-carry-title.md) | accepted | 2026-06-13 | – | – |
 | 0020 | [Dashboard-countable responses: case-phase exclusion](0020-dashboard-countable-responses.md) | accepted | 2026-06-13 | – | – |
 | 0021 | [Due dates for case phases](0021-phase-due-dates.md) | accepted | 2026-06-14 | – | – |
-| 0022 | [Cross-committee case referrals (linked cases)](0022-cross-committee-referrals.md) | ⚠ proposed | 2026-06-14 | – | ⛔ superseded by 0037 |
+| 0022 | [Cross-committee case referrals (linked cases)](0022-cross-committee-referrals.md) | ⛔ superseded | 2026-06-14 | – | ⛔ superseded by 0037 |
 | 0023 | [Configurable per-committee case status](0023-configurable-case-status.md) | accepted | 2026-06-14 | – | ⛔ superseded by 0024 |
 | 0024 | [Case model adjustments: fixed statuses, phase blocking, outcomes](0024-case-model-adjustments.md) | accepted | 2026-06-14 | supersedes 0023 | – |
 | 0025 | [Meetings (scheduling, minutes/ata registry, internal e-signatures)](0025-meetings.md) | accepted | 2026-06-15 | – | – |
@@ -57,9 +57,9 @@
 | 0028 | [Accreditation & Quality-Governance Roadmap (Phases 13–21)](0028-accreditation-governance-roadmap.md) | accepted | 2026-06-17 | – | ⛔ superseded by 0030 |
 | 0029 | [Audit Trail: Hash-Chained, Trigger-Captured, Append-Only](0029-audit-trail-hash-chain.md) | accepted | 2026-06-17 | – | – |
 | 0030 | [Patient-Safety PHI Posture Reversal & PQS/NSP Module Architecture (Phase 14)](0030-patient-safety-phi-and-pqs-architecture.md) | accepted | 2026-06-18 | supersedes 0028 | ⚠ amended by 0037, 0038 |
-| 0031 | [Event Custody Ledger, Access-Follows-Custody RLS & PHI Isolation (Phase 14a)](0031-event-custody-ledger-and-phi-isolation.md) | ⚠ draft | 2026-06-18 | – | – |
+| 0031 | [Event Custody Ledger, Access-Follows-Custody RLS & PHI Isolation (Phase 14a)](0031-event-custody-ledger-and-phi-isolation.md) | accepted | 2026-06-18 | – | – |
 | 0032 | [Case Narratives (per-case prose interleaved with phases)](0032-case-narratives.md) | accepted | 2026-06-19 | – | ⚠ amended by 0047 |
-| 0033 | [Case Access Control (per-case read/write grants, attribution-driven access & "Meus Caso…](0033-case-access-control.md) | ⚠ proposed | 2026-06-19 | – | ⚠ amended by 0038, 0072, 0078, 0134, 0205 · ⛔ superseded by 0072, 0078 |
+| 0033 | [Case Access Control (per-case read/write grants, attribution-driven access & "Meus Caso…](0033-case-access-control.md) | ⛔ superseded | 2026-06-19 | – | ⚠ amended by 0038, 0072, 0078, 0134, 0205 · ⛔ superseded by 0072, 0078 |
 | 0035 | [Regulatory Posture (LGPD / ANVISA / CFM) & Column-Encryption Decision](0035-lgpd-anvisa-regulatory-posture.md) | accepted | 2026-06-20 | – | – |
 | 0036 | [PHI Access Hardening: PQS Membership, Single-Door Identifier Read, Free-Text Classifica…](0036-phi-access-hardening.md) | accepted | 2026-06-20 | – | ⚠ amended by 0037, 0038 |
 | 0037 | [Inter-Committee Case Referrals & the referral PHI posture](0037-inter-committee-case-referrals.md) | accepted | 2026-06-21 | supersedes 0022 · amends 0030, 0036 | ⛔ superseded by 0078 · ⚠ amended by 0078, 0137 |
@@ -83,7 +83,7 @@
 | 0055 | [CAPA tenant anchor: hospital-scope every CAPA, close the cross-hospital write hole](0055-capa-tenant-anchor.md) | accepted | 2026-07-05 | – | – |
 | 0056 | [PHI-disposal closure + narrowed erasure claim (DB-side complete, Storage retained)](0056-phi-disposal-closure-narrowed-claim.md) | accepted | 2026-07-05 | – | – |
 | 0057 | [Phase 15/17 revision & pre-pilot re-sequencing (15 → 17 → 16)](0057-indicators-doc-control-replan.md) | accepted | 2026-07-05 | – | ⛔ superseded by 0093 |
-| 0058 | [Derived quality-indicator measurement compute (the parity lock)](0058-derived-measurement-compute.md) | ⚠ proposed | 2026-07-05 | – | – |
+| 0058 | [Derived quality-indicator measurement compute (the parity lock)](0058-derived-measurement-compute.md) | accepted | 2026-07-05 | – | – |
 | 0059 | [Coolify as the pre-Phase-9 dev/staging deployment target](0059-coolify-deployment-target.md) | accepted | 2026-07-06 | – | – |
 | 0060 | [Flexible-Forms Foundation (partner-model gap disposition + pre-pilot bones)](0060-flexible-forms-foundation.md) | accepted | 2026-07-07 | – | – |
 | 0061 | ["Administrativo" delegated-capability role (per commission)](0061-administrativo-delegated-role.md) | accepted | 2026-07-07 | – | ⚠ amended by 0134 |
@@ -118,7 +118,7 @@
 | 0091 | [FF-5 Entity Reference: three lanes, hybrid participant scoping, and why INFO-2 needs no…](0091-ff5-entity-reference.md) | accepted | 2026-07-28 | – | – |
 | 0092 | [FF-4 Power Authoring: a commission-owned block library, condition-closed snapshots, and…](0092-ff4-power-authoring.md) | accepted | 2026-08-03 | – | – |
 | 0093 | [Phase 16 replan: Standards Crosswalk & Readiness/Gap Engine v2](0093-phase-16-standards-crosswalk-replan.md) | accepted | 2026-08-03 | supersedes 0057, 0086 | – |
-| 0094 | [Membership-model hardening + Diretor Técnico (technical director) backend](0094-membership-hardening-and-technical-director.md) | ⚠ proposed | 2026-08-04 | – | – |
+| 0094 | [Membership-model hardening + Diretor Técnico (technical director) backend](0094-membership-hardening-and-technical-director.md) | accepted | 2026-08-04 | – | – |
 | 0095 | [Process/case integrity audit: remediation scope, corrections, and deferred remodels](0095-process-case-integrity-audit-remediation.md) | accepted | 2026-08-04 | – | ⛔ superseded by 0096 |
 | 0096 | [Process-template versioning (audit M1, full remodel)](0096-process-template-versioning.md) | accepted | 2026-08-04 | supersedes 0095 | – |
 | 0097 | [Hospital affiliation, person identity (CPF) and the org-scoped people directory](0097-hospital-affiliation-person-identity.md) | accepted | 2026-08-05 | – | ⚠ amended by 0133, 0148, 0151, 0157 |
@@ -132,7 +132,7 @@
 | 0105 | [Rename `is_commission_admin_of` → `is_tenancy_admin_of`](0105-rename-is-tenancy-admin-of.md) | accepted | 2026-08-08 | – | – |
 | 0106 | ["Act as": role assumption as a binding constraint](0106-act-as-role-assumption.md) | accepted | 2026-08-09 | – | ⚠ amended by 0174 |
 | 0107 | [ACT S4: hat-blindness gets its own allowlist artifact + a self-testing standing sweep](0107-act-s4-hat-blind-sweep-and-allowlist.md) | accepted | 2026-08-10 | – | – |
-| 0108 | [ETH·E4: seating case participants, and the doors the lane never got](0108-eth-e4-participant-seating.md) | ⚠ proposed | 2026-08-11 | – | – |
+| 0108 | [ETH·E4: seating case participants, and the doors the lane never got](0108-eth-e4-participant-seating.md) | accepted | 2026-09-13 | – | – |
 | 0109 | [Referral "Registros internos" + the case-access summary door](0109-referral-registros-and-case-access-summary.md) | accepted | 2026-08-11 | – | ⛔ superseded by 0110 |
 | 0110 | [One Registro vocabulary for cases and referrals](0110-shared-registro-kind-vocabulary.md) | accepted | 2026-08-12 | supersedes 0109 | – |
 | 0111 | [Printed-document doors return the granted-column composite (FUP-PDF-3)](0111-printed-document-door-return-shape.md) | accepted | 2026-08-12 | – | – |
@@ -184,7 +184,7 @@
 | 0157 | [The dominance grid's population was bounded by SCHEMA, not by the property](0157-dominance-grid-population-bounded-by-schema.md) | accepted | 2026-08-26 | amends 0079, 0097 | – |
 | 0158 | [the hospital directory keeps its predicate: no org-affiliation filter at the hospital t…](0158-hospital-directory-keeps-its-predicate.md) | accepted | 2026-08-26 | amends 0154 | – |
 | 0159 | [an invariant backstop runs as DEFINER; two correct decisions can compose into a break](0159-invariant-backstops-run-as-definer.md) | accepted | 2026-08-26 | amends 0151 | – |
-| 0160 | [AE0 corrections to ADR 0155's measured figures: the `anon` residue never grew, and the…](0160-ae0-corrections-to-adr-0155-measured-figures.md) | ⚠ proposed | 2026-08-26 | amends 0155 | – |
+| 0160 | [AE0 corrections to ADR 0155's measured figures: the `anon` residue never grew, and the…](0160-ae0-corrections-to-adr-0155-measured-figures.md) | accepted | 2026-08-26 | amends 0155 | – |
 | 0161 | [The person-authority SQL twin: ADR 0133 D4's "no SQL twin" is retired](0161-person-authority-sql-twin-retires-no-twin-prohibition.md) | accepted | 2026-08-27 | amends 0133 | – |
 | 0162 | [Plan-audit corrections to the authorization-evolution program: rollback artifact, catal…](0162-authz-evolution-plan-audit-corrections.md) | accepted | 2026-08-27 | amends 0155 | ⚠ amended by 0172, 0184 |
 | 0163 | [lifecycle authority over a fully-offboarded person: last-org retention](0163-offboarded-person-lifecycle-authority.md) | accepted | 2026-08-27 | amends 0151 | ⚠ amended by 0164 |

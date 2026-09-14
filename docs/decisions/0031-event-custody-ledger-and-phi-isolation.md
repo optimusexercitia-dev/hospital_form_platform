@@ -1,6 +1,6 @@
 # ADR 0031 — Event Custody Ledger, Access-Follows-Custody RLS & PHI Isolation (Phase 14a)
 
-**Status:** Draft (B1 plan-gate) · **Date:** 2026-06-18 · **Phase:** 14a ·
+**Status:** Accepted — implemented, Phase 14a (⚠ header corrected 2026-09-13 at the ADR 0140 proposed-ADR review, unit AE5-STAFF; it read "Draft (B1 plan-gate)" until then) · **Date:** 2026-06-18 · **Phase:** 14a ·
 **Under:** ADR [0030](./0030-patient-safety-phi-and-pqs-architecture.md) (the
 umbrella PHI/NSP decision; this is the per-sub-phase backend ADR it requires for
 the novel/security-sensitive 14a shape).
