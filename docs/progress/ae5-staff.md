@@ -3484,3 +3484,25 @@ says: thin projection of `read_case_deliberation`; the `commission_default` spli
 site that has it, by design; consumers named. Witness for the fourth site: a member without the
 bit reads `withdrawals` in a `commission_default` session before and after, and is denied in a
 restricted one before and after — the disjunct's own discrimination half.
+
+### 2026-09-14 — C1 census 0 → 4 at both grains; the "9 bodies" classified; L19 — C1 stays at § 8.3's four, 4 of 7 stated (lead)
+
+Backend: authority callers **0 → 4 sites / 5 call sites** (`get_reserved_session_items` 2, the
+`commission_default` disjunct carried per L18). The detector's "9 bodies" matched any mention of the
+string; classified: 4 legitimate carriers (row 9's door, `_cap_bit`, `_case_caps`,
+`case_capabilities`) + 2 naming the bit as data (`_grant_case_access_unchecked`,
+`trg_audit_case_access`) + **3 bodies that still TEST the bit and are not among § 8.3's four:**
+`app.can_read_full_case_content`, `app.can_read_full_meeting_content`,
+`app.is_oversight_only_reader`. Catalog: seven test the bit; the PO-approved matrix names four.
+
+**L19 (lead):** C1 stays at § 8.3's four — extending an approved scope on a reading is not the
+lead's, and the three may be COMPOSERS of the capability for different surfaces (full content;
+oversight) rather than member-facing case-reach surfaces, the distinction the authority's comment
+draws. The gate record states **"4 of 7 bodies wired; 3 named, out of scope"** — never "no body
+tests the bit inline" (correct-at-most-sites). Follow-up filed by backend beside the gate record:
+closes when each of the three is classified (composer vs member-facing surface) by measurement and
+either wired to the authority or documented as a composer with the reason. The corrected comment
+names the four consumers and says three other bodies compose the bit for other surfaces,
+classification pending. Parts 1–7 complete in `t7-wip/`; not done, named: the withdrawals witness,
+the persona threading, `387`/`396`/`400`, the manifest dry-run, anchor + `320 § U4`, move-in, steps
+2–7. `419` 860 → 836.
