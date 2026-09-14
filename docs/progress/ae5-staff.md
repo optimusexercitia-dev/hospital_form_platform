@@ -4015,3 +4015,27 @@ suspicion). **Finding 2:** `p0-authz-rowdoor-audit.sh` and `p0-authz-invoker-aud
 run by T8) read it 0 times with the same loop shape — follow-up
 `FUP-AE5-STAFF-ARM1-HARNESSES-DO-NOT-READ-RESET-EVERY`, ported with proof in their own run, never
 blind. `409` control (a) re-stated (uncommitted, door surface untouched).
+
+### 2026-09-14 — the sweep's kill left `app.can_capa_read` at `select true` — recovered via `RECOVER=1`, verified; relaunched with `RESET_EVERY=5` (lead)
+
+Backend: `kill -TERM` left the parent alive, `kill -KILL 1673` finished it, and the sentinel
+`/tmp/authz-door-INFLIGHT.sql` was PRESENT holding `can_capa_read`'s original body — the live
+function read straight from the catalog was `select true`: a `commission.capa.read` door at
+always-grant on the local stack, the state the sentinel interlock exists for. Recovery through the
+harness's own path, `RECOVER=1 bash supabase/tests/mutation/p0-authz-door-audit.sh`, exit 2 (its
+recovery exit): *"RESTORE APPLIED and VERIFIED against the catalog (psql rc=0, probe=ab8ee139…).
+⚠ VERIFY IT ANYWAY — this message is not proof. ⛔ Every verdict from the killed run is void."*
+Verified independently: the body is back to `select authz.has_permission(p_user_id, 'commission',
+p_commission_id, 'commission.capa.read')`, sentinel cleared, `pg_stat_activity` 0, settle 171/171.
+**Relaunch verified:** PIDs 3951 / 5416 live; the § 7.16 preflight on relaunch reads `clean — 0
+degenerate bodies (all three neutralization forms)` — the witness that nothing was left behind;
+same single invocation, both arms, 75 cases, `RESET_EVERY=5`. Correction on the reset evidence:
+this harness prints no upfront `RESET-POLICY` banner (that line is the set-valued port's); its
+evidence is `--- PERIODIC RESET (…) ---` per firing, cadence `DONE > 1 && (DONE-1) % RESET_EVERY
+== 0`, so the first fires before case 6 and the expected count over 34 predicate cases is **6**,
+counted against that. Recorded as a restart, not a failure — the first launch abandoned at case 2
+for the unbounded-drift property; the kill's consequence is itself the lesson's direct evidence.
+`FUP-AE5-STAFF-ARM1-HARNESSES-DO-NOT-READ-RESET-EVERY` filed (medium; closes on one run each
+showing the reset FIRE, never on the code's presence), gate 13 = 0. Uncommitted: `409` (a), the
+set-valued port, the follow-up. LESSONS candidate: a killed mutation harness leaves its gate
+neutralized; `RECOVER=1`, then verify the body yourself.
