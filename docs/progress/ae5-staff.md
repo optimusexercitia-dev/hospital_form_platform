@@ -4178,3 +4178,18 @@ min/case; 13 left ≈ 1.5 h, finish ≈ 19:15.
 
 Policy arm at 36 of 39; last `process_templates.process_templates_select (SELECT)`. 3 cases left
 ≈ 20 min; the parent's exit is the completion signal.
+
+### 2026-09-14 19:16 — DOOR SWEEP COMPLETE on its own exit: 73/73, 71 COVERED, 2 NOTICED, 0 BLIND / DIRTY / ERROR / UNPROVEN (lead watcher)
+
+Parent 3951 exited 19:16 (launched 10:19:26 with `RESET_EVERY=5`; ~9 h). Last case `policy
+standard_assessments.standard_assessments_select (SELECT) COVERED`. Predicate arm 34: 32 COVERED +
+2 NOTICED (both dispositioned above, both reproduced through the retry net); policy arm 39: all
+COVERED. The verdict file is the watcher's reading; the HARNESS's own exit code and its SCOPE line
+are the claim and are read by backend bare, together, before anything is folded in (a pipe erases
+the exit; a summary line is not the code). Owed now, in order: the two errcode reads;
+`docs/reviews/authz-door-audit-findings.md` merged (`git diff --stat` read with the exit), NOTICED
+quoted as evidence; the write arm `CASES="responses_insert_own"` and the policy-arm disposition of
+the two names the predicate arm cannot match; the four plant + rollback proofs; L22's plant; the
+set-valued run proving the `RESET_EVERY` port; `SELFTEST=1` on the deriver + door harness with
+`PASS · FAIL · SKIPPED`, the three `--- GROUP` lines and `bash --version`; commits by path; the T8
+record entry. The stack stays backend's through the plants (they mutate); the tester's runs after.
