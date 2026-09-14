@@ -3603,3 +3603,30 @@ irreversible step on the shared stack (a migration in `supabase/migrations/` is 
 session's reset: this unit's incident) — everything before it rolled back or scratch-only. pgtap
 installed for the run, to be dropped before the reset. **Move-in authorised explicitly:** the tester
 and the PO session are off the stack.
+
+### 2026-09-14 — T7 LANDED in the tree (uncommitted): live budget 339/433/772, `419` 836, census 4; one seed abort, attributed and fixed (lead)
+
+Backend, read from the live catalog after the reset:
+
+```
+LIVE BUDGET                          app=339 public=433 total=772
+frozen non-empty DEFINER paths (419) 836
+C1 authority callers                 4
+```
+
+R-4(a)'s completion criterion met on the CATALOG, not only in the anchor; `419` 860 → 836 exactly as
+predicted (22 + 2); census 0 → 4; profiles 45 (44 + `f5`, so `387` moves by that profile alone).
+**Reset incident, recorded as the tester would:** first attempt applied every migration fully (171
+tables, 21 T7 doors, `staff` authoritative) but the SEED aborted at
+`accreditation_standards_framework_id_fkey` — profiles 0. Two faults, backend's own: (1) the
+manifest flip stripped `arm3Door.probe` (arm14(a) red on it, correctly — the probe is the
+DIFFERENTIAL's executable binding, unrelated to re-key status; restored for all 20 rows from HEAD);
+(2) the seed block referenced framework `a2` (`gap-ccih`) created LATER in the file; moved after
+that insert. Second reset exit 0. In the tree: `20261003007470_ae5_staff_t7_rekey.sql` (2137 lines:
+48 functions = 20 doors + 23 re-emissions + 1 authority + 4 C1 deletions; 41 policies = 40
+generated + 1 hand; 13 `authenticated` grants; 0 legacy paths), the seed block, the flipped manifest
+(23/38, sites 78, arm_sites 0, definerSurface +1), `410` with L13's § 6.3, `320 § U4` + the anchor
+772/339/433 (gate 15 green). Not done: `387` attributed, scoped `396`/`400`, `421 § 0c`/`§ 2a`, the
+24 named for `419`, `425`'s pair, L13's 6a/6b mutants, `410 § 8` now-green, full `test:db`, lint,
+`gen:types`; NOTHING COMMITTED. ⚠ An uncommitted live migration sits in the tree by intent now; the
+tester and the PO session stay off the stack until backend parks with the suite green.
