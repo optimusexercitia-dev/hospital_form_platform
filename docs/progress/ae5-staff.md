@@ -2858,3 +2858,18 @@ only 2 of 13 doors — the budget counts DOORS. Execution order stays (d)'s seve
 **R-4 finalised (§ Open rulings):** move gate 15's ceiling **759 → 772 (+13)** under AE4's merge
 rule, with T7's gate record as the named justification — or hold it and name which of the 13
 policy-called doors T7 leaves un-re-keyed. The PO's chip re-issued with this question.
+
+### 2026-09-14 — `424` run 7 GREEN post-cutover under L12 (tester); committed by path (lead)
+
+Reset exit 0 with the cutover migration applied; `424-run7-post-cutover.log` `Files=2, Tests=24,
+Result: PASS`. Test 11 verbatim (raw TAP side-capture via psql, plan `1..23`):
+`ok 11 - 3.2b ⭐ PRECONDITION mirroring 403's §3.2b from `staff`'s side: `staff` was in
+`test_validation` until the T6 cutover (`31b73837`, observed RED at `66603273`'s run on 2026-09-14),
+`authoritative` since. `candidate_has_permission` reads roles in EITHER state, so it remains the
+correct oracle for this suite's cells before and after the flip.` — the control asserts ONE state
+and carries the other as history, as L12 required. § 6's mutation/restore pair (19–21) `ok`;
+`authz.roles.state` for `staff` re-checked `authoritative` after the side-capture. ⚠ The side-capture
+again ran `create extension pgtap` in autocommit and dropped it after (`pg_extension` 0) — a
+deliberate, reverted stack change this time, noted so the pattern is visible: the raw-TAP capture
+needs a harness path that does not touch extensions (LESSONS candidate at Record). Byte-count guard
+0; committed. Tester proceeds to T12 (`425`).
