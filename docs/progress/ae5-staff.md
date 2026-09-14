@@ -1528,3 +1528,45 @@ satisfies for the wrong reason). `npm run lint` exit 0; `test:db` red on `424` o
 **Ownership:** backend also edited the hub (`3a8fc883`, Blockers) — the correction was right and
 stands, replaced cleanly by the lead now; the hub is the lead's file and backend is told so.
 **Waiting on the PO:** P1 · P2 · P3.
+
+### 2026-09-14 — PO rulings on P1 · P2 · P3 (PO session)
+
+The PO was presented each decision with its evidence (record § "`424` fix loop STOPPED at 4",
+§ "joint diagnosis", § "row-1 fixture landed; L6 … L7 ruled"; matrix § 5.3 / § 8.1 / § 11; the
+deny-class table § 1; `BUGS.md` rows `BUG-AE5-STAFF-INACTIVE-BYPASSES-ROLE-FREE-DISJUNCTS` and
+`BUG-AE5-STAFF-PENDING-ACCOUNT-HAS-FULL-MEMBER-REACH`; `424` § 4's per-class ruling table; the
+prepared `t6-wip/P1-vector-change.md` + `P2-conjunct-unmet.md`), with the schema facts re-verified
+on the live catalog in this session: `app.is_active` reads only `is_active` and `suspended_until`;
+`app.is_member_of` = `app.is_active(auth.uid()) and app.has_role_any('commission', …)`;
+`accreditation_frameworks_select` = `(owner_commission_id IS NULL) OR app.is_member_of(owner_commission_id)`;
+`meetings_select` = `app.is_member_of(commission_id) AND (visibility_policy = 'commission_default' OR EXISTS (… meeting_attendees …))`;
+`app.has_role_any` carries `(p_user_id is distinct from auth.uid() or m.role is not distinct from app.active_role())`;
+`authz.roles.staff` = `test_validation`, `staff_admin` = `authoritative`; `app` `nspacl` =
+`{postgres=UC/postgres,authenticated=U/postgres,service_role=U/postgres}`.
+
+**The PO's ruling, verbatim:** "P1 accept the exception, P2 intended composition, P3 pending GRANTED"
+
+Read against the three recommendations as presented:
+- **P1 — RULED: the exception is accepted.** The inactive-principal divergence is encoded as an
+  approved legacy divergence: `expected_legacy_granted = true` under the label
+  `arm3:divergent-approved:role-free-disjunct-ignores-principal-state`, ⛔ never in `expected_granted`
+  (the catalog's DENY stands). PA-F8 disposition (b): a named compatibility exception, owner backend,
+  expiry = the fix unit `AE5-INACTIVE-DISJUNCT-GUARD` after this increment's gate, citing
+  `BUG-AE5-STAFF-INACTIVE-BYPASSES-ROLE-FREE-DISJUNCTS`. The fix is NOT pulled forward.
+- **P2 — RULED: the intended composition.** The door-conjunct-unmet class (legacy narrower, 144 cells
+  on 8 rows) is permission AND resource conjunct, labelled `arm3:divergent-narrower:door-conjunct-unmet`
+  (L7's string) with `expected_legacy_granted = false` / `expected_granted = true`; not a defect, no
+  bug. No conjunct is promoted to a catalog axis value in this ruling (matrix § 11 item 5's
+  `in_signature` alternative stays unexercised).
+- **P3 — RULED: `pending` → GRANTED** as the oracle's expected value for deny-class row 5; the
+  product question stays open in `BUG-AE5-STAFF-PENDING-ACCOUNT-HAS-FULL-MEMBER-REACH`. The other
+  eight values of the deny-class table § 1 were presented with it and not contested: base GRANTED;
+  `wrong_scope`, `cross_org`, `inactive`, `suspended`, wrong-hat SELF, `unauthenticated` DENIED;
+  wrong-hat THIRD-PARTY GRANTED (ADR 0201 D1).
+
+ADR 0211 D2 was put in front of the PO as readable now; its review stays at the T6 gate.
+
+**Next (lead applies):** backend applies P1 + P2 to the generator per the prepared hunks and
+regenerates (expected: 9936 cells, `staff_admin` 1728 byte-identical, flips = 1218 = 84 + 990 + 144,
+`--self-test` arm10 fixtures 4 caught); tester runs `424` to green + the able-to-fail witness; then
+T6. Recorded by the PO session; nothing else in the repo touched.
