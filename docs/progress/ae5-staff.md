@@ -4294,3 +4294,27 @@ drift (with_check)`). `FUP-AE5-STAFF-DOOR-SWEEP-POLICY-ARM-EXCLUDES-STORAGE-SCHE
 = 0. Blocked behind L25: the census GREEN quote, the four plants (the census plant needs a green
 census), L22's plant, the set-valued run, `SELFTEST=1` ×2, commits, the T8 record. Uncommitted:
 `409` (a), the port, the write-path snapshot row, the storage follow-up. Stack idle and clean.
+
+### 2026-09-14 — L25 executed: the guard proven both ways, the 23 folded in, census arm GREEN; L25's predicate as WORDED would not have caught it (lead)
+
+**(b)** `merge-findings-baseline.sh` guard — proof 1, this subset file: `MERGE-ABORT: the GENERATED
+report is missing 303 row(s) the baseline carries. baseline top-level rows: 353 / generated: 73 /
+crude cross-check (grep -cE "^\|"): baseline=367 generated=77 / first missing rows: …` exit 2;
+proof 2, full-shaped inputs: `SUBSET GUARD: generated covers all 353 baseline row(s); 353
+generated` and `… 376 generated. No drop.` exit 0 — both counters printed, top-level `^\|` only,
+no leading whitespace, the parser lesson written at the guard. ⛔ **Correction to L25's wording,
+backend's and load-bearing:** "strict subset of the baseline" is FALSE for the file that gutted it
+— the subset report carried 23 keys the baseline did not have, so a literal subset test would have
+PASSED it. The guard keys on *the generated file is MISSING baseline rows* (one direction: a full
+run regenerates every row and drops none; new rows always welcome). The lead's predicate would not
+have caught the incident it was written for; the file carries the reasoning with 353/73/303 as
+evidence. **(a)** fold-in by targeted insertion: parser 353 → 376, crude 367 → 390, BLIND 36 → 36,
+COVERED 294 → 317, NOTICED 23 → 23, lost 0; `git diff --stat` = `23 insertions(+)`, zero deletions;
+both counters move by exactly +23 and AGREE — the disagreement they showed on the merge output was
+the signal talked away. **Census arm:** `ARM=census … exit 0 === INVARIANT HOLDS ===` (the named
+backlog above it — `_grant_case_access_unchecked`, `_set_participant_patient_unchecked`,
+`authz.entailed_grants`, `authz.explain_permission`, `public.assume_role` — live, outside the domain,
+kept, not verdicts). 1 → 0 on the fold-in alone: **23 unknown before the sweep → 205 under the
+gutted merge → 23 after the restore → 0 after the honest fold-in** is the attribution. In flight:
+the four plants; then L22's plant, the set-valued run, `SELFTEST=1` ×2, commits by path, the T8
+record. Uncommitted: the guard, the fold-in, `409` (a), the port, the snapshot row, the follow-up.
