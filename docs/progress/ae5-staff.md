@@ -2257,3 +2257,54 @@ than fixing row 11 alone (correct-at-most-sites), and the generator refuses, by 
 class whose bound door is a function carrying `is_active`. ⚠ Loop safety: this is iteration 4 on
 the execute-and-compare mechanism (458 → 268 → 204 → 60, each with new causes named); round 5 is
 the last before the lead stops and reports to the PO instead of iterating.
+
+#### 2026-09-14 — backend: round 5 — G1/G2/G3, bound from a measured truth table (`d5015060`)
+
+⛔ **I stopped binding from the class NAME and measured the door first**, which is what the
+previous three rounds had not done. The truth tables, per (persona, scope), taken BEFORE any edit:
+
+| row 4 candidate | subject_holder | other_comm | cross_org | unpriv |
+| --- | --- | --- | --- | --- |
+| self | t | t | t | t |
+| co-member @own / @sibling / @foreign | t/f/f | f/t/f | f/f/t | f/f/f |
+| `gap.absent` | f | f | f | f |
+
+| row 11 candidate | subject_holder | other_comm | cross_org | unpriv |
+| --- | --- | --- | --- | --- |
+| committee @own / @sibling / @foreign | t/f/f | f/t/f | f/f/t | f/f/f |
+| assignees_only @own / @sibling / @foreign | t/f/f | f/t/f | f/f/t | f/f/f |
+| locked to `ativo.registro` | f | f | f | f |
+
+**G1 — my two classes were the door's, swapped, and round 4's fix re-created the defect it had
+just removed under a new id.** `disjunct_absent` = the SELF disjunct is absent and MEMBERSHIP
+DECIDES ⇒ the scope co-member. `conjunct_unmet` = no caller shares a commission with the target
+⇒ the zero-membership profile. That also closes the tester's open **G**: `f3` under
+`conjunct_unmet` still shared Farmácia B with `cross_org_actor`, so the "unmet" conjunct was
+MET for that one persona; `gap.absent` shares with nobody at any scope.
+
+**G2 — row 11 carried the same swap.** `disjunct_absent` bound the assignees_only item locked to
+someone else — unreachable by membership, G1's shape exactly. It is now the committee item; the
+locked item is the unmet shape, **own-only** because the lock must name a principal who is never a
+persona and only CCIH has one.
+
+**G3 — L11 generalised, swept in ONE pass over all eleven arm-3 doors.** `can_read_action_item`
+and `can_read_document` carry an `app.is_active` gate; the other nine do not. Both now probe their
+POLICY leg, row 11 with a printed `keyingOverride`. **New refusal arm14(i)**: a P1-labelled class
+binding a state-gated function door — P1 approves a disjunct that IGNORES principal state, and
+such a door denies exactly the cells the label approves. ⚠ Its fixture took two corrections
+before it fired on its own predicate (first the keying arm claimed it, then the bound-door arm) —
+the shared `arm14:` prefix means the runner's wrong-arm check cannot see contamination BETWEEN
+sub-checks, which is worth remembering.
+
+⭐⭐ **NEW SMOKE HALF — THE EXPECTATION, NOT ONLY THE BINDING.** Every cell is now run the
+way `424` will run it (state mutation → claims → `set local role authenticated`) and the
+MEASURED legacy is compared to `expected_legacy_granted`. **All 3024 staff cells, including the
+divergence-labelled ones: 0 mismatches.** The previous four rounds each handed the tester a vector
+whose expectations had never been measured; this one has, so their run is a confirmation.
+
+**Readings:** cells **4752** · flips **366** · skips `self_check_undefined_for_caller_keyed_door`
+**2376**, `no_resource_fixture_at_this_scope` **2160**, `door_is_a_write_guard_not_executable`
+**648** · `staff_admin` **1728 byte-identical** (sorted AND plain) · `--self-test` **35 caught**
+· bound-id sweep **38/38 literal** · smoke: 3024 probes 0 errors, 37 (id, door table) pairs 0
+absent, 44 bound doors 0 missing, planted-absent control fired · `lint:authz-vectors` **0**,
+`npm run lint` **0**. `424` untouched.
