@@ -3542,3 +3542,25 @@ the post-door state (position, blank text nulled) reproduced explicitly. Follow-
 are UNCOMMITTED in the shared tree; backend commits them by path at its next pass. Parts 1–7 + four
 fixtures complete, every piece witnessed. Not done: persona threading, `387`, scoped `396`/`400`,
 manifest dry-run, anchor + `320 § U4`, move-in, steps 2–7; row 9's triple waits on the persona.
+
+### 2026-09-14 — row 9's witness triple, the ruled form; the persona threaded; a column guess refuted by the apply (lead)
+
+Backend, in a rollback:
+
+```
+ROW9 (a) grant, NO role      : before=t after=t
+ROW9 (b) neither             : before=f after=f
+ROW9 (c) role, grant DELETED : before=t after=f
+```
+
+(a) the residual arm carries a grant-holder with no role through the permission deletion —
+exercised in isolation for the first time; (b) neither is denied throughout, so (a) is not a door
+that grants everyone; (c) a role holder loses access when the grant is deleted — the permission
+arm is LIVE, so (a)'s survival is the residual arm and not a stuck `true`. (c) is the half without
+which (a) is decoration; it goes into `425`'s expectation for row 9's sites. Persona threaded:
+`auth.users` row, org-A affiliation, NO CCIH membership, fixed id `a5f00000-…-f5`, never a
+persona-axis value — the only new profile in T7's fixture set, so `387` moves by exactly one
+profile. Fixture defect caught by APPLYING, not reading: `referral_internal_notes` has
+`author_user_id`, not `created_by`. Follow-up committed `2c43617a`. `t7-wip/` complete and
+witnessed end to end. Not done: `387` re-derived, scoped `396`/`400`, manifest dry-run, anchor +
+`320 § U4`, move-in, steps 2–7. `419` 860 → 836.
