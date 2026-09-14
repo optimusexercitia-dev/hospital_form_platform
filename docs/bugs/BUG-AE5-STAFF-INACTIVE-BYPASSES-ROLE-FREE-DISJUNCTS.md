@@ -101,3 +101,14 @@ behaviour change across the RLS surface, needs its own red-first differential in
 `424`'s approved-divergence cells. It is named here as its own unit — **`AE5-INACTIVE-DISJUNCT-GUARD`**
 — to be scheduled after AE5 increment 1's gate, so that the divergence this unit approves is retired
 by a change that is measured rather than assumed.
+
+## 2026-09-14 — row 16 carries two doors that disagree (L11)
+
+Measured live (backend, run-3 diagnosis; confirmed independently by the tester as finding F):
+`app.can_read_document(p_document_id, p_uid)` opens with `if not app.is_active(p_uid) then return
+false` — an unconditional principal-state gate — while the policy leg `app.is_document_approver_of`
+has no `is_active` term. So an inactive approver is denied through the function and granted through
+the policy. Ruling L11 (`docs/progress/ae5-staff.md`) keeps the differential's probe on the POLICY
+leg because PO ruling P1 was made on that leg; the row's `keyingOverride` is printed by the generator
+so the exception stays one visible row. For the fix unit: the guard already exists in one door of
+the pair — the question per row is which door is the model, not whether a guard can be written.
