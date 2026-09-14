@@ -1504,3 +1504,20 @@ Leaving a green assertion behind a moved pin is how a vacuity control quietly st
 
 **Unchanged and still waiting**: P1 + P2 apply together only on the PO's word (combined flip count
 must read exactly **1218** as an OUTPUT); the T6 files stay in `t6-wip/`; `424` is the tester's.
+
+### 2026-09-14 — L6 + `387` re-pin received; hub ownership restated (lead)
+
+Backend's L6 (`33fbfbca`) needed a half the ruling did not name: `armInterface` was never emitted
+into the generated `.psql`, and `410` reads the fixture, not the JSON — so the generator now emits
+`authz_manifest_arm_sites` (69 sites over 20 rows) as a SEPARATE table, because `authz_manifest_sites`
+carries re-keyed sites with `composed_with` and §§ 3.6/8 pin cardinalities on it. § 6.2 observed
+red (test 28 `(none)` vs the measured classes; test 31 `= 3` vs 23), then `410` 44/44. Both
+discrimination halves witnessed and rolled back (manifest byte-identical after): a WANT-side plant
+reds by naming; a HAVE-side plant (`can_read_action_item` on `indicators.read`) reds by ADDING —
+⭐ only the second proves the union is live. § 6.3 3 → 23 = 3 re-keyed + 20 pending, disjoint, and
+its non-emptiness conjunct now names the new domain. `387` re-pin (`aa95c723`): 9 tests, each
+delta attributed to a persona/row; D1a re-pinned though it never went red (an `isnt` a stale literal
+satisfies for the wrong reason). `npm run lint` exit 0; `test:db` red on `424` only.
+**Ownership:** backend also edited the hub (`3a8fc883`, Blockers) — the correction was right and
+stands, replaced cleanly by the lead now; the hub is the lead's file and backend is told so.
+**Waiting on the PO:** P1 · P2 · P3.
