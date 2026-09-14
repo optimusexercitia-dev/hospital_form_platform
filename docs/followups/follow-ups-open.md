@@ -1959,6 +1959,13 @@ Before the unit, `readRoleVocabularyFromCatalog` was an UNEXPORTED local in two 
 
 **Measured 2026-09-14** (`select qual from pg_policies where tablename='action_items' and policyname='action_items_select'`): the live `assignees_only` leg is `app.is_staff_admin_of(commission_id) OR (assigned_to IS NOT NULL AND assigned_to = auth.uid()) OR EXISTS(… action_item_assignments … user_id = auth.uid() … completed_at IS NULL)`, while the manifest's `commission.action_items.read` `arm3Door.expression` carries ONLY the `EXISTS` term. Consequence already paid once: backend's L8 diagnosis read row 11's limb (b) as firing for *nobody* because it evaluated the declared `EXISTS` leg, while the tester's pre-existing fixture (`a5f40000-…-a1`, `assigned_to = staff4.ccih`) fires the OMITTED `assigned_to` arm — the two readings disagreed because they read two different doors. ⚠ Row 11 is the measured instance; the other ten `arm3Door` rows were NOT checked and the close condition covers all of them. ⛔ Owed to T7 (the re-key must key on the LIVE door) and to the T14 review.
 
+### 🟡 FUP-AE5-STAFF-S8-S5-PAIRING-NOW-CONTINGENT — Amendment 4 §A4.2's derivation is no longer structural (owner: backend)
+
+**Filed:** 2026-09-14 (unit `AE5-STAFF`, T7; lead ruling L20) · **Owner:** backend · **Severity:** medium — no live defect; a derivation that was STRUCTURAL is now CONTINGENT on a catalog fact that nothing gates.
+**Closes when:** either a gate asserts that every role appearing as a commission-tier `public.memberships.role` holds `commission.cases.deliberation.read`, or S8's guard and S5's assignment are re-united on one predicate — in both cases shown ABLE TO RED by planting a commission-tier role WITHOUT the code and observing `app._case_caps` produce content-without-deliberation for an appointee (`app.is_oversight_only_reader`'s bit shape). ⛔ A gate that merely re-states today's two-role catalog is not a closure: the hazard is a role that does not exist yet, so the plant IS the proof.
+**Status:** open
+**Body:** [FUP-AE5-STAFF-S8-S5-PAIRING-NOW-CONTINGENT.md](FUP-AE5-STAFF-S8-S5-PAIRING-NOW-CONTINGENT.md)
+
 ### 🟠 FUP-AE5-STAFF-HARD-DENY-CLOSURE-IS-BLIND-TO-OR-AROUND — § 6.2's closure reached the deny while the granting arm walked around it (owner: backend)
 
 **Filed:** 2026-09-14 (unit `AE5-STAFF`, T7; lead ruling L24, superseding L17) · **Owner:** backend · **Severity:** high — the live widening is CLOSED by L24; what stays open is that NO gate would have caught it, and the shape is available to every future re-key.
