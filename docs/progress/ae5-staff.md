@@ -2348,3 +2348,32 @@ re-pin). Both routed to backend; the tester re-runs the full suite on a fresh re
 count: the 424 mechanism closed at iteration 5 of 5; the full-suite loop starts at 1. ⚠ Lead's own
 trap, again: a `grep -c` returning 0 exits 1 and silently ended an `&&` chain — this entry landed a
 turn late and gate 7 had passed on the unchanged tree.
+
+### 2026-09-14 — `424` § 6 witness QUOTED; a second Supabase stack on the host; one autocommit slip reverted (lead)
+
+Tester, `424-run5-witness.txt` (psql inside `begin … rollback`, `00_setup.sql` + `424`, plan `1..23`,
+23 `ok`):
+
+```
+ok 19 - 6.1 FAIL-PROOF 1 — flipping ONE seeded `staff` role_permissions row makes the oracle RED.
+ok 20 - 6.2 ...and RESTORING the grant makes the mutated permission resolve TRUE again at its base coordinate.
+ok 21 - 6.2b ⭐ THE RESTORE IS COMPLETE ACROSS THE WHOLE SWEEP.
+```
+
+Read for what it is: § 6.1 is the suite's OWN discrimination half — inside one transaction it flips
+a grant and asserts the oracle diverges — so "shown able to fail" is a green line whose predicate is
+the red, not a red run; the polarity pair (6.2, 6.2b) proves the restore. Accepted as AC-5's witness
+on that reading, stated here so nobody later quotes it as "the suite was observed red".
+
+⚠ **Host:** two `supabase db reset --local` attempts failed at the CLI's post-reset step with a
+connection error — a SECOND Supabase project's full stack (`*_escalume`) is running on this host
+(Docker contention). The tester verified the reset had in fact completed (schema, 44 profiles, 8
+`a5f*` fixture rows, `staff = test_validation`) before proceeding, and installed `test_helpers` by
+hand (`00_setup.sql` — normal outside `pg_prove`). Carried to the AC-10 gate: the full-suite run and
+the door-sweep arms must be run with the other stack STOPPED or the reset re-verified the same way —
+a "connection error" reset is neither a pass nor a proof of corruption.
+
+⚠ **Slip, self-caught:** the tester's `create extension if not exists pgtap;` preceded `begin;`, so
+it ran in autocommit and survived the `rollback` — a stack change outside the read-only contract;
+verified and dropped, `pg_extension` count back to 0, the flipped grant's count 1 throughout. Owed
+for AC-5 now: the full suite green (330 + 387 with backend).

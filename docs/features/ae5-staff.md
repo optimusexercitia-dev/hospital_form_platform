@@ -101,8 +101,8 @@ independently (tester A–H, backend) with zero disagreement on mechanism and on
 probes the policy leg P1 was ruled on; its function door's `is_active` guard carried to the bug
 register); backend's round 5 is committed (`774edd50`: door truth tables measured before binding, L11
 applied to all eleven P1 doors, and every cell's EXPECTATION smoked — 3024/3024); **`424` GREEN
-on run 5** (24/24, committed `9c19fbdd`); owed before AC-5 ticks: the § 6 witness lines verbatim, and
-the full suite green — `330` (controlled document without a core `documents` row: the row-16
+on run 5** (24/24, committed `9c19fbdd`); § 6 witness QUOTED (`ok 19 … makes the oracle RED` / `ok 21 … RESTORE IS COMPLETE`); owed before
+AC-5 ticks: the full suite green — `330` (controlled document without a core `documents` row: the row-16
 fixtures) and `387` (profile-visibility md5 pins moved by the `gap.*` personas) are with `backend`,
 every delta attributed; then the stack goes to `backend` for the T6 red-first sequence (files held in the session scratchpad
 `t6-wip/` since the incident). `410` § 6.2 reads `armInterface` (L6, both discrimination halves
@@ -115,7 +115,8 @@ T8 census/arms → T10 seam slice → AC-10 gate → QA → PO approval → Reco
 
 ### Blockers
 
-None ruling-shaped. ⛔ ADR 0211 D2 is reviewed by the PO at the T6 gate (put in front of the PO on
+None ruling-shaped. ⚠ A second Supabase stack (`*_escalume`) runs on this host and made two resets
+fail at the CLI's post-reset step; AC-10's runs need it stopped or the reset re-verified. ⛔ ADR 0211 D2 is reviewed by the PO at the T6 gate (put in front of the PO on
 2026-09-14 as readable now). ⚠ Owed to T7/T13, not blocking: `app.can_reach_case_on_member_surface`
 has ZERO production callers (matrix § 8.3); 6 of 9 seeded CCIH `staff` personas carry a non-role
 case reach (§ 8.2). ⚠ T7's manifest edits must be checked against what the generator EMITS, not
