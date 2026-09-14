@@ -288,6 +288,38 @@ def member_gate_arms_for(code):
     return row.get('memberGateArm')
 
 
+def arm3_limb_b_reach(code):
+    """Limb (b)'s DECLARED reach for one representative, READ FROM THE ENFORCEMENT MANIFEST.
+
+       \u26d4\u26d4 NOT A PERSONA LIST IN THIS FILE, AND THAT IS THE WHOLE POINT (L8). "This
+       disjunct fires only for these principals" is a claim about the FIXTURE and the approved
+       matrix; a claim a generator makes about itself is not a detector (the arm9 lesson, and the
+       same one L6 hit when `armInterface` existed only in the JSON). arm13 re-reads this on every
+       run and refuses to emit when a row that sweeps `disjunct_present` declares no reach."""
+    if MANIFEST_PERMISSIONS is None:
+        return None
+    row = MANIFEST_PERMISSIONS.get(code) or {}
+    return (row.get('arm3Door') or {}).get('reach')
+
+
+def limb_b_fires(code, persona, selfcheck):
+    """Whether limb (b) can be TRUE at this coordinate. \u26a0 Returns None \u2014 not False \u2014
+       when the row declares nothing, so "undeclared" stays distinguishable from "declared
+       unreachable". Collapsing the two would let a missing declaration read as a measured
+       absence, which is the UNKNOWN-vs-ABSENT shape a classifier must never flatten."""
+    r = arm3_limb_b_reach(code)
+    if r is None:
+        return None
+    kind = r.get('kind')
+    if kind == 'unconditional':
+        return True
+    if kind == 'selfcheck':
+        return bool(selfcheck)
+    if kind == 'personas':
+        return persona in (r.get('personas') or [])
+    return None
+
+
 def arm3_door_expr(code):
     """The callable the differential's LEGACY column must evaluate for this row, from the manifest.
 
@@ -639,7 +671,7 @@ def expected_legacy(exp, div):
 NOT_ARM3_COVERAGE = ('arm3:not-in-gate', 'arm3:blocked:principal-state')
 
 
-def arm3_divergence(klass, persona, ctx, scope, state, selfcheck, exp, src, reach, gate):
+def arm3_divergence(klass, persona, ctx, scope, state, selfcheck, exp, src, reach, gate, code):
     """Transcribed from the arm-3 derivation, in PRECEDENCE ORDER. Each branch names the catalog
        fact it stands for; none of them re-derives `expected_granted`."""
     # \u2b50\u2b50 THE TWO memberGateArm BRANCHES ARE TESTED BEFORE THE `klass != ARM3_GATE`
@@ -660,7 +692,16 @@ def arm3_divergence(klass, persona, ctx, scope, state, selfcheck, exp, src, reac
     # catalog already grants there is no divergence to approve, and labelling those cells would
     # make `expected_legacy_granted` agree with `expected_granted` UNDER a divergent label, which
     # reads as an approved divergence that is not one.
-    if gate == 'disjunct_present' and not exp:
+    # \u26d4\u26d4 AND IT IS GATED ON THE DECLARED REACH (L8). The first cut of this branch
+    # flipped ALL 198 cells per row on all five rows \u2014 990 \u2014 on the reading that limb
+    # (b) is "role-free". It is role-free, but only ONE of the five disjuncts is also
+    # PRINCIPAL-free: `accreditation`'s `($1 is null)` is resource-keyed and grants anyone, while
+    # `forms`/`documents`/`action_items` fire only for a principal the FIXTURE names and
+    # `roster`'s `($1 = $2)` fires only on a self-check. 430 of the 990 were measured denying in
+    # 424 \u00a7 4.1b, every one reporting `legacy=false` against this column's `true`.
+    # \u26d4 A cell where the legacy door does not grant is NOT divergent, so the PO's P1 ruling
+    # \u2014 which is about how an approved divergence is ENCODED \u2014 never reached it.
+    if gate == 'disjunct_present' and not exp and limb_b_fires(code, persona, selfcheck):
         return 'arm3:divergent-approved:role-free-disjunct-ignores-principal-state'
     if klass != ARM3_GATE:
         return 'arm3:not-in-gate'
@@ -857,7 +898,7 @@ def build(personas, contexts, scopes, states, reaches, reps_by_role, exclusions,
                                             'self' if selfcheck else 'third_party', reach]
                                            + ([gate] if gate != MEMBER_GATE_INERT else []))
                             div = arm3_divergence(klass, persona, ctx, scope, state,
-                                                  selfcheck, exp, src, reach, gate)
+                                                  selfcheck, exp, src, reach, gate, code)
                             # ⛔ APPENDED AS THE LAST COLUMN, NOT INSERTED BESIDE `exp`. Every
                             # arm above and every --self-test fixture below addresses cells BY
                             # INDEX (c[9] is the expected value, c[12] the label); inserting a
@@ -1083,6 +1124,32 @@ def coverage(cells, skipped, reps_by_role, disposition=None, exclusions=None, ax
                          % (sorted(_armed) or ['(none — no rep\'s openArms names %s)' % ARM3_CASE_ARM_FN],
                             ARM3_GATE))
 
+    # \u2b50\u2b50 arm13 — LIMB (b)'s REACH IS THE MANIFEST'S CLAIM, AND THE CELLS ARE HELD TO
+    # IT. Two independently-firable halves, neither of which re-derives the label.
+    # (a) A row that sweeps `disjunct_present` must DECLARE a reach. Without this the generator
+    #     would silently label nothing on an undeclared row \u2014 a coordinate declared by the
+    #     matrix and answered by no cell, which is the exact shape L6 found in `armInterface`.
+    # (b) Every P1-labelled cell must sit where the declared reach says limb (b) can fire. This is
+    #     the half that would have caught the first cut: it refuses a flip on a persona the
+    #     fixture cannot make true.
+    _p1 = 'arm3:divergent-approved:role-free-disjunct-ignores-principal-state'
+    _gate_rows = sorted({c[4] for c in cells if c[15] == 'disjunct_present'})
+    _undeclared = [x for x in _gate_rows if arm3_limb_b_reach(x) is None]
+    if _undeclared:
+        f.append('arm13: representative(s) %s sweep `disjunct_present` but their `arm3Door` '
+                 'declares no `reach` — limb (b)\'s reach is the MATRIX\'s claim about which '
+                 'principals the disjunct can fire for, and without it this generator would have '
+                 'to hard-code a persona list, which is a claim it cannot make about itself. '
+                 'Declare `arm3Door.reach` (kind: unconditional | personas | selfcheck).'
+                 % ', '.join('`%s`' % x for x in _undeclared))
+    _overreach = [c for c in cells if c[12] == _p1 and not limb_b_fires(c[4], c[1], c[8])]
+    if _overreach:
+        f.append('arm13: %d cell(s) carry the approved limb-(b) divergence on a coordinate where '
+                 'the DECLARED reach says the disjunct cannot fire — the legacy door denies '
+                 'there, so the cell is not divergent and `expected_legacy_granted = true` is an '
+                 'approval of something that never happens (first: %s)'
+                 % (len(_overreach), _overreach[0][0]))
+
     # ⭐⭐ arm10 — THE SECOND EXPECTED VALUE, HELD TO THE SAME BAR AS THE FIRST.
     # `expected_legacy_granted` carries PO ruling R2 into the vector, and the ruling has two
     # halves that a single careless edit can merge: classes 3 and 4 are APPROVED reach, class 5
@@ -1290,6 +1357,27 @@ if '--self-test' in sys.argv:
         out[i] = out[i][:12] + (ARM3_NARROWER_CONJUNCT_UNMET, True) + out[i][14:]
         return out
 
+    def _synth_overreach():
+        """base_cells with ONE `disjunct_present` cell on an UNREACHABLE coordinate re-labelled
+           into the approved limb-(b) family and given a legacy GRANT \u2014 exactly the mistake
+           the first cut of the P1 branch made 430 times.
+
+           \u26d4\u26d4 SYNTHESISED, NOT SELECTED, and for the strongest form of the reason:
+           the derivation now computes the label FROM the declared reach, so no real cell can be
+           in this state and a selection fixture would have nothing to select. That is precisely
+           why the arm still has to exist \u2014 a hand editing the vector, or a reach declaration
+           narrowed without regenerating, puts cells here immediately.
+           \u2b50 DISCRIMINATION HALF: the real-spec run at the end of --self-test proves arm13 is
+           QUIET on the true cell set; this proves it is LOUD."""
+        out = list(base_cells)
+        i = next((j for j, c in enumerate(out)
+                  if c[15] == 'disjunct_present' and limb_b_fires(c[4], c[1], c[8]) is False), None)
+        assert i is not None, ('no cell sits at `disjunct_present` on an unreachable coordinate — '
+                               'the synthesised arm13 fixture would perturb nothing')
+        # \u26d4 TAIL PRESERVED — see _one. Columns 14+ (`role`, `gate`, door) must survive.
+        out[i] = out[i][:12] + ('arm3:divergent-approved:role-free-disjunct-ignores-principal-state', True) + out[i][14:]
+        return out
+
     # ⛔ arm12's FIXTURES PERTURB THE MANIFEST AND NOTHING ELSE, exactly as arm9's do: the arm
     # exists because the value set and the door are the MATRIX's claim, not this file's, so the
     # mutation has to be to the authority.
@@ -1391,6 +1479,9 @@ if '--self-test' in sys.argv:
         # \u26d4 SYNTHESISED, NOT SELECTED — see _synth_narrower. Every real cell carrying the
         # narrower label expects a legacy DENY, so there is nothing to select.
         ('arm10 narrower label granting',     _synth_narrower(),                     base_skipped, REPS_BY_ROLE, None, None, None),
+        # \u26d4 SYNTHESISED, NOT SELECTED — see _synth_overreach. The derivation reads the same
+        # declaration arm13 checks, so no real cell can be in this state.
+        ('arm13 flip on an unreachable persona', _synth_overreach(),                  base_skipped, REPS_BY_ROLE, None, None, None),
         # A flip with no divergent label at all: the `caps-deny` cells are the honest non-vacuous
         # denials, so promoting one is exactly the unattributed exemption (e) exists to refuse.
         ('arm10 unattributed legacy flip',    _one(('arm3:silent:caps-deny',), True), base_skipped, REPS_BY_ROLE, None, None, None),

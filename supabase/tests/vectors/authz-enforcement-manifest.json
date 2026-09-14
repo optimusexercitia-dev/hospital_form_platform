@@ -2751,6 +2751,13 @@
         }
       ],
       "arm3Door": {
+        "reach": {
+          "kind": "personas",
+          "personas": [
+            "unprivileged"
+          ],
+          "note": "`app.can_access_targeted_version($1, $2)` with `$2 = uid`: fires only for a principal linked through responses → case_participants → professional_participants → professional_profiles. MEASURED: only `gap.unpriv` (= persona `unprivileged`) holds that chain; the other three personas hold zero."
+        },
         "kind": "policy-qual",
         "row": 1,
         "expression": "app.is_member_of(app.commission_of_version($1)) or app.can_access_targeted_version($1, $2)",
@@ -2918,6 +2925,10 @@
         }
       ],
       "arm3Door": {
+        "reach": {
+          "kind": "selfcheck",
+          "note": "`($1 = $2)` is the SELF leg: it fires exactly when the probe's subject profile IS the caller, for every persona, and never on a third-party probe. ⚠ Its cells pass TODAY only under a dispatch 424 § 4 already marks fixed-and-unrun (its `$1` was a persona-independent constant), so a green here is not evidence."
+        },
         "kind": "policy-qual",
         "row": 4,
         "expression": "($1 = $2) or (app.is_active($2) and exists (select 1 from public.memberships them where them.commission_id is not null and them.principal_id = $1 and app.is_member_of(them.commission_id)))",
@@ -3358,6 +3369,13 @@
         }
       ],
       "arm3Door": {
+        "reach": {
+          "kind": "personas",
+          "personas": [
+            "subject_holder"
+          ],
+          "note": "The published expression's limb (b) is the EXISTS over `action_item_assignments`. ⚠ SEEDED BY L8 — before it, NO persona held such a row and this coordinate was undeclarable in practice: the matrix declared it and no fixture could build it. Now `staff4.ccih` (subject_holder) owns item a5f40000-…-a1 and `ativo.registro` owns …-a2, so the limb is persona-keyed in BOTH directions. ⛔ The real door has two further disjuncts (`is_staff_admin_of_for`, `assigned_to = p_uid`) that this expression does NOT declare; the reach below describes the DECLARED limb, which is what the differential evaluates."
+        },
         "kind": "policy-qual",
         "row": 11,
         "expression": "(($3 = 'committee' and app.is_member_of($2)) or ($3 = 'assignees_only' and exists (select 1 from public.action_item_assignments a where a.action_item_id = $1 and a.user_id = $4 and a.completed_at is null)))",
@@ -3747,6 +3765,10 @@
         }
       ],
       "arm3Door": {
+        "reach": {
+          "kind": "unconditional",
+          "note": "`($1 is null)` is RESOURCE-keyed: the null-owner framework grants every authenticated caller, so limb (b) fires for every persona. ⭐ This is the ONLY one of the five rows for which that is true — it is why a single uniform flip looked right and was wrong on the other four."
+        },
         "kind": "policy-qual",
         "row": 15,
         "expression": "($1 is null) or app.is_member_of($1)",
@@ -3868,6 +3890,14 @@
         }
       ],
       "arm3Door": {
+        "reach": {
+          "kind": "personas",
+          "personas": [
+            "subject_holder",
+            "other_commission_holder"
+          ],
+          "note": "`app.is_document_approver_of($1, $3)` with `$3 = uid`. MEASURED: `staff4.ccih` (subject_holder) and `staff1.farm` (other_commission_holder) each hold one document_approvals row; cross_org_actor and unprivileged hold none."
+        },
         "kind": "policy-qual",
         "row": 16,
         "expression": "app.is_member_of($2) or app.is_document_approver_of($1, $3)",
