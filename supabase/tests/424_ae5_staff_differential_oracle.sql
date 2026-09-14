@@ -237,7 +237,8 @@ declare
   v_doc_other    uuid := 'd0c00000-0000-0000-0000-0000000000d2'; -- document_id, no approval by staff4.ccih
   v_capa_indicator uuid := 'a5f70000-0000-0000-0000-0000000000a1'; -- source='indicator'
   v_capa_rca       uuid := 'ca000000-0000-0000-0000-0000000000a3'; -- source='rca'
-  v_form_version uuid := '50000000-0000-0000-0000-00000000a001'; -- CCIH form version
+  v_form_version uuid := '50000000-0000-0000-0000-00000000a001'; -- CCIH form version, WITH the targeted-version chain (backend f2dd7d00): professional_profiles a5f80000-…-a1 -> participants a5f90000-…-a1 -> case_participants a5fa0000-…-a1 (case d0000000-…-c1) -> responses a5fb0000-…-a1 -> app.can_access_targeted_version(v_form_version, gap.unpriv) = true; measured false for staff4.ccih (the masking control, §2.5).
+  v_form_version_no_chain uuid := '50000000-0000-0000-0000-00000000a002'; -- CCIH, a DIFFERENT version — no targeted-version chain built against it for any principal
   -- Row 4's co-member targets, one per commission a fixture principal actually holds in (backend
   -- ruling: "a fixed $1 across arms is exactly your mixed pattern" — $1 must be resolved RELATIVE
   -- to whichever principal is under test, never a persona-independent constant).
@@ -337,12 +338,19 @@ begin
     when v_scope_id <> f.own_cid then app.is_member_of_for(v_scope_id, v_principal)
 
     when p_class = 'rls_form_matrix_targeted_version' then
-      -- No `disjunct_present` fixture exists (§2.5's masking control covers the reason). Every
-      -- gate_arm value therefore evaluates the SAME real expression against the same form
-      -- version — bare membership decides every `staff`/`subject_holder` cell, and 2.5 is what
-      -- makes that a measurement rather than an accident.
-      app.is_member_of(app.commission_of_version(v_form_version))
-      or app.can_access_targeted_version(v_form_version, v_principal)
+      -- ⚠ WIRED per backend's fixture (f2dd7d00): `disjunct_present` uses `v_form_version`, the ONE
+      -- version the targeted chain reaches — `can_access_targeted_version` measures true there for
+      -- `gap.unpriv` (persona=`unprivileged`, since `f.nobody = gap.unpriv`) and false for every
+      -- other persona (measured false for `staff4.ccih`, §2.5's masking control). `disjunct_absent`
+      -- uses `v_form_version_no_chain`, a different CCIH version no chain was built against for any
+      -- principal, so the disjunct is structurally false there regardless of persona. `none` keeps
+      -- `v_form_version` — the disjunct is a pure addition (limb b), so pairing it with the chain
+      -- version changes nothing for a principal who already holds bare membership.
+      app.is_member_of(app.commission_of_version(
+        case p_gate_arm when 'disjunct_absent' then v_form_version_no_chain else v_form_version end))
+      or app.can_access_targeted_version(
+           case p_gate_arm when 'disjunct_absent' then v_form_version_no_chain else v_form_version end,
+           v_principal)
 
     when p_class = 'rls_profiles_comember_or_self' then
       -- ⚠ FIXED per backend ruling (b, suite): $1 was a FIXED constant across every persona, which
