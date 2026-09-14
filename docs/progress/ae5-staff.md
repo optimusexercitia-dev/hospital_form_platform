@@ -3404,3 +3404,26 @@ expectation for that site. Remaining: C1's wiring + census 0 → 4 with the auth
 corrected to name C1's four sites; the two seed tables; the manifest flip (L13, `sign_meeting` on
 `definerSurface`, row 7's composition + signature); anchor + `320 § U4`; generator dry-run; move
 in; steps 2–7. `supabase/` clean, no extension resident.
+
+### 2026-09-14 — L17: row 9's door keeps the case-capability arm, DECLARED as `residualLegacyAuthority`; 419 → 836 (lead)
+
+Backend measured C1's five objects: the row-9 authority (`sql`, frozen → converges), 
+`resolve_document_version_bytes` (`plpgsql`, frozen → converges), the three projection/session
+functions already on `''`; none overlaps part 3's 23 ⇒ **419 goes 860 → 836** (part 3 −22, C1 −2 —
+the third correction of that figure, each attributed). All five test the bit inline. ⛔ The
+question: the authority's body IS `app.has_case_capability(p_case_id, p_uid,
+'read_case_deliberation')`, which never consults `authz.has_permission` — a case-grant path. A
+door composing `has_permission` alone would DROP the case-grant arm: arm 3's entire subject for
+row 9, the reach 4 of 12 CCIH staff personas depend on, and a behaviour change no one ruled.
+
+**L17 (lead, mechanism — the matrix's own shape):** row 9's door is `authz.has_permission(…) OR
+app.has_case_capability(p_case_id, p_uid, 'read_case_deliberation')`, case-keyed, with
+`has_case_capability` declared as **`residualLegacyAuthority`** on row 9 — the field exists for
+exactly a non-permission arm that stays, so the validator is kept honest, not silenced (the same
+refusal the dry run raised for the wrapper, resolved the opposite way because here the arm is
+APPROVED: matrix row 9's arm 3 is the case reach, P1–P3 ruled on its coordinates). Row 9 is the one
+door of twenty with a declared residual arm and a case-keyed signature, both declared as data. C1
+proceeds: the four inline sites call the door, their inline bit-tests deleted, the authority's
+comment corrected to name them, census 0 → 4; the differential's expectations for row 9 unchanged
+(the reach is preserved by construction — witness: a persona with a case grant and NO role reads
+the deliberation before and after; a persona with neither is denied before and after).
