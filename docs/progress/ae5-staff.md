@@ -3199,3 +3199,26 @@ filed by backend with the bound as its closes-when. L13's 6a/6b witnesses are in
 **C3 lifted:** T7's SQL may be written. ⛔ The incident rule holds — the migration is authored in
 the session scratchpad and enters `supabase/migrations/` only after the tester's `425` no-movement
 witness is captured on the PRE-migration catalog (run-book step 1).
+
+### 2026-09-14 — T12 `425` written and run: the NO-MOVEMENT witness captured on the pre-migration catalog (tester); committed by path (lead)
+
+Design: § 1 transcribes the manifest's 20 `armInterface` rows into `f425_sites` (69 rows,
+cardinality-pinned 1.1–1.6); a generic driver captures a text SIGNATURE per site (`count(*)` for
+policy sites under `staff4.ccih`'s claims; the cast return value for DEFINER/registry sites); one
+delete/restore cycle per code (20; mutation landed × 20, restore proven × 20 — 409 § 2.7/2.16's
+idiom); aggregate assertions over all 20. Log `425-run-final.log`, plan `1..18`, 17 green + 1
+red-by-design. **Step 1's witness, verbatim:** `ok 12 - 3.1 ⭐⭐ THE WITNESS THIS FILE EXISTS TO
+PRODUCE — NO MOVEMENT. Across all 20 codes' live-probed sites, deleting `staff`'s permission-code
+grant changed NOT ONE signature. …` — pre-T7 the 69 sites gate on role membership, never on the
+code, exactly the manifest's `callGraphBoundary.reason`. **The mirror, red by design:** `not ok 13
+- 3.2 … have: 10, want: 57` (the 10 are sites on tables empty at baseline — denied both before and
+after, named and excluded from § 2.0's positive control too). **Scope cuts, in the file header:** 9
+of 25 distinct DEFINER functions not called live — 5 volatile/write or PHI-audit-logged
+(`cast_case_vote`, `create_referral_internal_note`, `notify_safety_event`, `sign_meeting`,
+`get_referral_case_access_summary`), 4 blocked by EMPTY tables (`accreditation_standards` for
+`get_standard_assessment` / `readiness_evidence` / `readiness_report`; `referral_internal_notes`
+for `can_read_referral_internal_note`) — all 9 under a static `prosrc`-literal check (§ 3, green);
+2 of 42 policy sites (`responses_insert_own`, `meeting_signatures_insert`) are INSERT/WITH CHECK,
+named-skipped. Fixture gaps → the tester's register; backend fills the two tables before step 4
+so four more doors are probed live. Byte-count guard 0; committed. **Step 1 of T7's run book is
+DONE; backend cleared for step 3 the moment its scratchpad files are ready.**
