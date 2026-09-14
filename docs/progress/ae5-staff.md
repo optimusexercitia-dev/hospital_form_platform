@@ -3357,3 +3357,30 @@ FUNCTIONS carrying at least one `_for` call; the migration edits CALL SITES — 
 **30 substitutions across 23 functions**. Remaining before move-in: `meeting_cases_select`, C1's
 wiring (0 → 4), two seed tables, manifest flip + L13 + `sign_meeting` on `definerSurface`, anchor +
 `320 § U4`. `supabase/` clean.
+
+### 2026-09-14 — L16: `meeting_cases_select` gains row 7's own door as an explicit conjunct; rows 6 and 7 both stand (lead)
+
+Backend parked on the second declaration/catalog disagreement found by reading the catalog:
+`meeting_cases_select` is declared row 7's site (`commission.meetings.cases.shell.read`) but its
+live qual is `app.can_reach_meeting(…) AND NOT app.is_case_respondent(…)`, and `can_reach_meeting`
+was re-keyed in part 3 to row 6's door (`can_meetings_read`) because row 6 declares that function —
+so "inherit" would make row 7's policy enforce row 6's code and leave row 7's door with zero
+callers. `meeting_cases` has no `commission_id` (`id, meeting_id, case_id, agenda_item_id, summary,
+decision, created_at`). Corroboration from inside the catalog: the row-9 authority's body comment
+names `meeting_cases_select` as its one consumer, and the live qual does not call it — the stale
+comment C1 corrects, and § 8.3's drop at `20260805000000` confirmed.
+
+**L16 (lead, mechanism — the approved matrix unchanged):** reading (ii) merges two PO-approved
+rows and is not the lead's; reading (i) IS the template — substitute the layer-1 gate with the
+row's own door, carry every other conjunct through. Here the policy's gate is composed inside
+`can_reach_meeting`, so row 7's door is ADDED as an explicit conjunct rather than substituted:
+`meeting_cases_select` = `app.can_reach_meeting(…)` (row 6's code enforced inside, as re-keyed)
+`AND app.can_meetings_cases_shell_read(meeting_id, (select auth.uid()))` `AND NOT
+app.is_case_respondent(…)` — the door meeting-keyed (scope resolved from the meeting's commission
+inside the door; the one door of 20 with that signature, declared as such), composing
+`authz.has_permission` alone like the other 19. Both `staff` and `staff_admin` hold rows 6 and 7,
+so the differential is unmoved; a principal lacking row 7's code is now denied the shell — the
+enforcement the code exists for. Manifest, as data: row 7's site composes `can_reach_meeting`
+(→ row 6) and `is_case_respondent`; the row-9 authority's comment corrected to name C1's four
+sites, not this policy. Recorded beside `sign_meeting` as the second declaration correction of T7;
+both go to T14 as evidence that the manifest was measured, not copied.
