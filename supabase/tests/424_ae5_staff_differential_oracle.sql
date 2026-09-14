@@ -1,7 +1,9 @@
 -- 424 — AE5 increment 1: the `staff` differential oracle.
 --
--- Subjects: authz.candidate_has_permission (⛔ NEVER authz.has_permission — `staff` sits in
--- `test_validation` throughout this suite's lifetime) vs the legacy evaluators.
+-- Subjects: authz.candidate_has_permission (⛔ NEVER authz.has_permission — `candidate_has_permission`
+-- reads roles in EITHER `test_validation` OR `authoritative`, per its own body's `r.state in (...)`
+-- test near §6's neutralised copy; `staff` was `test_validation` until T6's cutover (`31b73837`),
+-- `authoritative` since — see §3.2b for the state control, ruling L12) vs the legacy evaluators.
 --
 -- ⭐⭐ THE MECHANISM CHANGED (lead rulings L9′/L10; backend's build `a0723554`, HEAD `f5b12832`).
 -- `authz_differential_cells_staff` now carries, PER CELL, an EXECUTABLE probe pair — columns
@@ -250,14 +252,23 @@ select ok(
   (select count(*) from r424 where catalog) > 0 and (select count(*) from r424 where not catalog) > 0,
   '3.2 ⭐ DISCRIMINATION CONTROL: the resolver returned BOTH answers across the `staff` sweep.');
 
-select is((select state::text from authz.roles where code = 'staff'), 'test_validation',
-  '3.2b ⭐ PRECONDITION mirroring 403''s §3.2b from `staff`''s side: `staff` sits in '
-  '`test_validation`, which is what makes candidate_has_permission the correct oracle for this '
-  'suite''s cells.');
+-- ⚠ RE-POINTED per ruling L12 (lead, mechanism, this round): T6's cutover (`31b73837`)
+-- flipped `staff` to `authoritative` — that precondition can never read `test_validation`
+-- again. This is a STATE CONTROL, not an oracle assertion (the oracle itself — legacy vs
+-- `authz.candidate_has_permission` — is untouched by the flip: that function sees both
+-- `test_validation` AND `authoritative`, per its own header note below, so nothing else in
+-- this file changes). ⛔ Do NOT widen this to `state in (...)` — a control that accepts
+-- either value sees nothing; it must name the ONE state that is true NOW.
+select is((select state::text from authz.roles where code = 'staff'), 'authoritative',
+  '3.2b ⭐ PRECONDITION mirroring 403''s §3.2b from `staff`''s side: `staff` was in '
+  '`test_validation` until the T6 cutover (`31b73837`, observed RED at `66603273`''s run on '
+  '2026-09-14), `authoritative` since. `candidate_has_permission` reads roles in EITHER state, '
+  'so it remains the correct oracle for this suite''s cells before and after the flip.');
 
 select is((select count(*)::int from authz.roles where code = 'staff_admin' and state = 'test_validation'), 0,
-  '3.2c ⭐ mirrors L4''s §3.2c from 424''s side: `staff_admin` is NEVER in `test_validation` while '
-  '`staff` is — the two suites'' subjects are not confused.');
+  '3.2c ⭐ mirrors L4''s §3.2c from 424''s side: `staff_admin` has NEVER been in '
+  '`test_validation` — true throughout `staff`''s own `test_validation` window and still true '
+  'now that `staff` is `authoritative` too — the two suites'' subjects are not confused.');
 
 select is(
   (select count(*)::int
