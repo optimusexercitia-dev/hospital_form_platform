@@ -3442,3 +3442,80 @@ begin
   end if;
 end
 $a5f$;
+
+-- ---------------------------------------------------------------------------
+-- AE5-STAFF row 1 limb (b) — the TARGETED-VERSION chain (round 6).
+--
+-- ⛔ WITHOUT THIS THE COORDINATE IS UNCONSTRUCTIBLE, NOT MERELY UNSEEDED. Measured before
+-- writing it: `professional_profiles ⋈ professional_participants ⋈ case_participants ⋈
+-- responses.target_case_participant_id` reaching a CCIH form version returned ZERO rows, so
+-- `app.can_access_targeted_version` could never be true for any principal and row 1's
+-- `disjunct_present` cells measured a disjunct that cannot fire. That is the vacuous shape the
+-- `memberGateArm` axis exists to delete, reproduced in its own fixture.
+--
+-- ⭐ THE PERSONA IS `gap.unpriv`, AND THE CHOICE IS THE POINT: it holds NO membership anywhere
+-- and no admin flag, so `app.is_member_of(app.commission_of_version(...))` is FALSE for it and
+-- the targeted-version disjunct is the ONLY path to the row. A member persona here would grant
+-- through the membership arm and the cell would read green while proving nothing about limb (b).
+--
+-- ⚠ CLASS 2, NOT PHI (Rule 12). `participants` CHECKs bind `participant_type='professional'` to
+-- `sensitivity_class='professional_identity'`; no `patient` row and no patient identifier is
+-- created here.
+-- ⚠ ROLE `complainant`, NOT `respondent_doctor`: the latter would make the persona a case
+-- RESPONDENT, which `app._case_caps` STEP 4 hard-denies before every positive arm — a fixture
+-- that silently zeroes the persona's case reach for a reason unrelated to row 1. Selected BY KEY
+-- because that row's id is not deterministic across resets.
+-- ---------------------------------------------------------------------------
+do $a5fr1$
+declare
+  v_org      uuid := '0c000000-0000-0000-0000-00000000000a';
+  v_ccih     uuid := 'a0000000-0000-0000-0000-0000000000a1';
+  v_case     uuid := 'd0000000-0000-0000-0000-0000000000c1';   -- a CCIH case
+  v_unpriv   uuid := 'a5f00000-0000-0000-0000-0000000000e2';   -- gap.unpriv — no membership at all
+  v_author   uuid := '00000000-0000-0000-0000-000000000002';   -- chefe.ccih mints the targeted response
+  v_role     uuid;
+  v_fv       uuid;
+begin
+  select id into v_role from public.case_participant_roles
+   where key = 'complainant' and organization_id = v_org limit 1;
+  if v_role is null then
+    raise exception 'AE5-STAFF row-1 fixture: no `complainant` participant role in org % — the '
+                    'chain cannot be built without one, and picking `respondent_doctor` instead '
+                    'would trip the case-respondent hard deny', v_org;
+  end if;
+
+  select fv.id into v_fv
+    from public.form_versions fv join public.forms f on f.id = fv.form_id
+   where f.commission_id = v_ccih and fv.status = 'published'
+   order by fv.id limit 1;
+  if v_fv is null then
+    raise exception 'AE5-STAFF row-1 fixture: CCIH has no published form version to target';
+  end if;
+
+  insert into public.professional_profiles (id, organization_id, user_id, full_name,
+                                            professional_type, link_state)
+  values ('a5f80000-0000-0000-0000-0000000000a1'::uuid, v_org, v_unpriv,
+          'Profissional Externo Gap', 'medico', 'linked');
+
+  insert into public.participants (id, organization_id, participant_type, sensitivity_class,
+                                   display_name, created_by)
+  values ('a5f90000-0000-0000-0000-0000000000a1'::uuid, v_org, 'professional',
+          'professional_identity', 'Profissional Externo Gap', v_author);
+
+  insert into public.professional_participants (participant_id, professional_profile_id)
+  values ('a5f90000-0000-0000-0000-0000000000a1'::uuid, 'a5f80000-0000-0000-0000-0000000000a1'::uuid);
+
+  insert into public.case_participants (id, case_id, participant_id, role_id, is_primary_subject,
+                                        added_by)
+  values ('a5fa0000-0000-0000-0000-0000000000a1'::uuid, v_case,
+          'a5f90000-0000-0000-0000-0000000000a1'::uuid, v_role, false, v_author);
+
+  -- The targeted response: its form version is CCIH's, its commission is CCIH
+  -- (`guard_response_version_commission_trg` requires the two to agree), and its
+  -- `target_case_participant_id` is what makes the walk terminate.
+  insert into public.responses (id, form_version_id, commission_id, created_by, status,
+                                target_case_participant_id)
+  values ('a5fb0000-0000-0000-0000-0000000000a1'::uuid, v_fv, v_ccih, v_author, 'in_progress',
+          'a5fa0000-0000-0000-0000-0000000000a1'::uuid);
+end
+$a5fr1$;
