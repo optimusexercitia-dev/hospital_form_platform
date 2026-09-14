@@ -4163,3 +4163,8 @@ closed at 34 cases: 32 COVERED + 2 NOTICED (both dispositioned), 0 BLIND, 0 DIRT
 watcher now counts distinct (arm, case) and completes on the parent's exit (domain 73, not the 75
 names). Pace 15:26 − 14:11 = 10 cases / 75 min ≈ 7.5 min/case incl. resets ⇒ ~33 policy cases
 left ≈ 4 h, finish ≈ 19:30.
+
+### 2026-09-14 16:33 — sweep status 50/73: 48 COVERED, 2 NOTICED (lead watcher)
+
+Policy arm at 16 of 39; last `form_item_validations.form_item_validations_select (SELECT)`. 10
+cases in 67 min ≈ 6.7 min/case; 23 left ≈ 2.6 h, finish ≈ 19:10.
