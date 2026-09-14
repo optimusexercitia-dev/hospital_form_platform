@@ -1780,3 +1780,57 @@ arm rather than by the emitter.
 `is_member_of_for` and need no door text. The bulk of this landing is not the SQL assembly — it is
 the per-gate-arm fixture binding table, and it is the same body of fact `424`'s declare block holds
 today. I am transcribing it ONCE, from my own seed, into the manifest.
+
+#### L9, measured before building: the mechanism should change, and the plan above is superseded
+
+⛔ **STOPPED BEFORE THE GENERATOR WORK, for the lead's call.** L9 specifies the legacy text as
+"`pg_policies.qual` / comment-stripped `prosrc`, **parameters substituted**", pinned at generation
+time. I measured first, and the measurement says parameter substitution is the mechanism that
+CAUSED the partial door — so building it faithfully would rebuild the defect in a new place.
+
+**Witness (live, read-only).** Probing `form_versions` as `staff4.ccih` under its own claims:
+
+| probe | the REAL door (RLS select) | the DECLARED limb (b) |
+| --- | --- | --- |
+| `gap.unpriv`, targeted version | **true** | true |
+| `gap.unpriv`, no-chain version | false | false |
+| **`staff4.ccih`, targeted version** | **true** | **false** |
+
+The third row is the bug: RLS grants because `form_versions_select`'s `app.is_member_of(...)` limb
+fires, while the declared expression — limb (b) alone — denies.
+
+**The drift is WIDER than `FUP-AE5-STAFF-ARM3DOOR-DECLARATION-DRIFTS-FROM-THE-LIVE-DOOR` records**
+(it names row 11's two missing arms). Measured on `pg_policies` today:
+- **row 1 `forms.read`** — the declaration FUSES TWO LIVE POLICIES into one expression
+  (`form_versions_select` **and** `form_versions_select_targeted`) and drops
+  `app.is_tenancy_admin_of`. Two permissive SELECT policies are OR'd by Postgres; one hand-written
+  expression cannot be either of them.
+- **row 4 `roster.read`** — `profiles_select_self_or_admin` has **six** disjuncts live; the
+  declaration keeps **two**. The four it drops include `can_administer_person_via_affiliation`,
+  a tenancy-admin arm and two hospital-admin arms.
+- row 11 `action_items.read` — as filed. Rows 15/16 and `meeting_cases_select` match live.
+
+**The revised mechanism, and why it is strictly better.** Do not transcribe the qual at all. For a
+policy door the cell's `legacy_sql` is `select exists(select 1 from <relation> where <id col> =
+'<fixture id>'::uuid)`, executed under `set local role authenticated` with the cell's claims: **RLS
+then evaluates the real policy set itself** — every permissive SELECT policy OR'd, every
+restrictive one AND'd, every disjunct present, `auth.uid()` bound by the session. For a function
+door it is `select <schema>.<fn>(<bound args>)`, which is likewise the live object. ⭐ Three
+consequences: (1) transcription drift becomes structurally impossible rather than gated — there
+is no second copy to drift; (2) the `--refresh-doors` mode, the pinned door snapshot and its
+comparison arm all become UNNECESSARY, which also removes the problem that `npm run lint` must never
+require Docker; (3) `arm3Door.expression` is left as documentation, and the arm that compares it to
+`pg_policies.qual` still discharges the follow-up's first arm — it just no longer has anything
+load-bearing hanging off it. ⚠ One precondition it introduces: `exists()` is false both for an
+invisible row and for an absent one, so each cell must carry its fixture id and `424` must assert
+RLS-bypassed presence — cheap, and it is a control the current design lacks entirely.
+
+**⚠ What I did NOT do, and why it is the lead's call.** This contradicts an explicit mechanism
+instruction, on the oracle's core, so I did not build it. The remaining bulk either way is the
+per-gate-arm FIXTURE BINDING table (11 rows × up to 5 arms), which today lives in `424`'s
+dispatch together with two rules that are themselves unrun and contested — the CCIH-anchored
+SCOPE FALLBACK, and the re-binding of claims to `v_principal` for the five bare-`is_member_of`
+classes (that second one is the structural reason third-party probes fail, and no `legacy_sql`
+scheme removes it: a bare `is_member_of` reads `auth.uid()` and cannot be asked about a subject who
+is not the caller). Moving that table into the manifest is right and it is mine to author — but
+it should be authored ONCE, against whichever mechanism is ruled, not twice.
