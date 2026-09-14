@@ -2128,3 +2128,20 @@ the run-2 shape, one class over. Tester attributing (iteration 1 of cap 2); back
 same residual read-only, no edits until routed; lead reconciles. Loop count on this mechanism: 3
 runs, each cutting the residual (458 → 268 → ≤ 204) with new causes named — under the 5-iteration
 bar, reported here each round.
+
+### 2026-09-14 — run 3 attributed: four VECTOR causes (tester) + 68 § 4.1b cells still unattributed (lead)
+
+Tester, live-confirmed, no edits, no iteration 2: **A** `roster.read disjunct_absent` binds
+`gap.unpriv`'s profile for every persona/scope — the same id as the `unprivileged` persona axis value,
+so persona=unprivileged self-reads (legacy=true) and everyone else's co-member leg is stuck false
+(fixture-shared-ids, again); **B** `cases.vote` binds `app.can_read_case_committee` — a READ
+predicate, not `cast_case_vote`'s guard (different signature): wrong door bound; **C** `forms.read`
+/ `none` binds the version carrying `gap.unpriv`'s targeted-participation chain, so the role-free
+disjunct grants at the `none` baseline while the cell is `not-in-gate`; **D** `action_items.read
+disjunct_present` under `active_context=other_role` grants via the assignee leg, unlabelled for that
+value (the reach declaration does not cover it). All routed to backend. ⚠ The attribution reads as
+complete and is not: it covers § 4.1's 68 cells; 68 of § 4.1b's 136 (action_items.read
+disjunct_present 40 legacy=false vs expected true; documents.read disjunct_present 16; roster.read +
+capa.read conjunct_unmet 6 + 6) fall outside A–D — tester asked to attribute them, backend to
+measure them in the same round. Added to backend's brief: the smoke must assert each class's bound
+function IS the manifest's declared door, not merely that some function exists (B's shape).
