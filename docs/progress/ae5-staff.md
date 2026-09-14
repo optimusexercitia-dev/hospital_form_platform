@@ -1733,3 +1733,50 @@ comparison). A self-test proves a planted wrong binding is caught by name. This 
 AE5 copies ten more times, which is why it is worth the rework now. Backend owns it (plan paragraph
 first, then proceed — it mirrors no existing suite exactly); the tester re-cuts `424` to the loop
 once the vector carries the probes; one authorized run after.
+
+### 2026-09-14 — backend: L9 — the plan for executable `legacy_sql` / `catalog_sql` per cell
+
+**The plan, in one paragraph.** Each cell gains two executable boolean SQL texts the suite runs
+verbatim, so no one transcribes a door twice. A **policy** door becomes a per-cell boolean without
+substituting a single column reference, by running the LIVE `pg_policies.qual` as a WHERE clause
+over the pinned fixture row — `select exists(select 1 from <schema>.<relation> where id =
+'<fixture id>'::uuid and (<live qual>))` — because the qual already names that table's columns,
+so binding the ROW binds every column, and the only thing left free is `auth.uid()`; a **function**
+door becomes `select <schema>.<fn>(<bound args>)` with its uuid args bound to fixture ids and its
+`uid` arg bound to the cell's principal (the one door whose kind is `guard-expression` is snapshotted
+from `prosrc` and wrapped the same way as a policy qual). ⛔ `auth.uid()` and the claims are
+DELIBERATELY left unbound in the text: they are bound by the SESSION the probe establishes
+(`test_helpers.claims_for(<uid>, false, <hat>)` for the cell's `activeContext`, the caller being the
+principal on a self-check and `f.nobody` otherwise) — which is the only binding that can be
+correct, because five of these doors contain a BARE `app.is_member_of(scope)` with no uid parameter
+at all, and a bare `is_member_of` reads `auth.uid()` and can therefore only ever answer about the
+querying session. That fact is already written into `424` § 3 and it is, I believe, the mechanism
+behind this run's shape (third-party probes failing while self-checks pass); ⚠ it also means the
+`self_check=false` coordinate has no meaning for the bare portion of those rows, and no binding
+scheme can give it one — that is a vector-shape question, flagged here, not something
+`legacy_sql` fixes. `principalState` stays where it is, applied by the probe as the `profiles`
+mutation it already performs, because it is a property of the PRINCIPAL and not of the text.
+`catalog_sql` is `select authz.candidate_has_permission('<principal>'::uuid, '<res>',
+'<scope>'::uuid, '<code>')`, bound from the same three columns `424` derives today.
+⛔⛔ **THE GENERATOR MUST NOT READ THE CATALOG ON EVERY RUN**: gate 12 runs it inside
+`npm run lint`, which `410`'s own header makes binding — *it must never require Docker*. So the
+live read happens in a new `--refresh-doors` mode (Docker required, never in lint) that pins what it
+read into `supabase/tests/vectors/authz-door-snapshot.json` with a catalog fingerprint; normal
+generation binds from that pin; and `424` gains a **comparison arm** that re-reads the live door and
+reds on any difference from the pinned text — which is what makes the pin honest and what
+discharges the first arm of `FUP-AE5-STAFF-ARM3DOOR-DECLARATION-DRIFTS-FROM-THE-LIVE-DOOR` (to be
+said in its entry when it lands). `arm3Door.expression` then stops being the source of truth and
+becomes documentation, gated by an arm comparing it to what was emitted. The per-coordinate FIXTURE
+BINDING (which `a5f…` row each gate arm uses, and how each function's args bind) moves out of
+`424`'s declare block and into the manifest beside `arm3Door.reach`, as `arm3Door.fixtures` — it
+is the SEED author's fact, so it is mine to declare, and declaring it is what stops the tester
+re-deriving it. `--self-test` gains two fixtures: a **planted wrong binding** (a cell's `legacy_sql`
+rewritten to a different fixture id) caught BY NAME by an arm that re-derives the binding from the
+declaration, and a **planted pin drift** (the snapshot's door text altered) caught by the comparison
+arm rather than by the emitter.
+
+⚠ **Scope, stated before I start rather than discovered halfway.** Eleven rows carry an
+`arm3Door` (6 `policy-qual`, 4 `function`, 1 `guard-expression`); the other nine staff rows are bare
+`is_member_of_for` and need no door text. The bulk of this landing is not the SQL assembly — it is
+the per-gate-arm fixture binding table, and it is the same body of fact `424`'s declare block holds
+today. I am transcribing it ONCE, from my own seed, into the manifest.
