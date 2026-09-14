@@ -1861,3 +1861,36 @@ coverage JSON record the disposition; never evaluated as a synthetic third party
 silently). The PO may override at the gate; § 6A's asymmetry statement is re-read against the
 emitted keying, not assumed. The CCIH-anchored scope fallback in `424` is retired by construction
 (the probe runs against the cell's own scope fixture).
+
+### 2026-09-14 — backend: L9′ + L10 — the plan, then the build
+
+**The plan, in one paragraph.** Every cell gains four columns the suite executes or obeys verbatim.
+A **policy** door is probed as `select exists(select 1 from <relation> where <idcol> =
+'<fixture>'::uuid)`: no transcription, because RLS evaluates the whole live policy set — every
+permissive SELECT policy OR'd, every restrictive one AND'd — with `auth.uid()` bound by the
+session. A **function** door is probed as `select <schema>.<fn>(<bound args>)`, the live object
+itself; the one `guard-expression` door is probed through its owning function the same way. The
+session is established by the probe, per cell and in this order: the `profiles` mutation for
+`principalState` (`is_active` / `suspended_until` / `email_confirmed_at` — a property of the
+PRINCIPAL, not of the text), then `test_helpers.claims_for(<uid>, false, <hat>)` where `<hat>` is
+`staff` for `activeContext=matching`, `staff_admin` for `other_role` and `null` for `absent`, then
+`set local role authenticated`; `<uid>` is the principal on a self-check and `f.nobody` on a
+third-party one. `catalog_sql` is `select authz.candidate_has_permission('<principal>'::uuid,
+'<res>', '<scope>'::uuid, '<code>')`, computed under the TRUE claims before any override. The
+**binding table** — which fixture row each (legacy class × gate arm), and for row 4 each
+(persona × gate arm), resolves to — moves out of `424`'s declare block and into the manifest
+as `arm3Door.probe` (`kind`, `relation`/`call`, `idColumn`, `fixtures`), authored ONCE from my own
+seed; the generator binds it per cell and emits the finished SQL plus `legacy_fixture_id`, so `424`
+never names a resource. **L10 keying** is DERIVED, not listed: a row is `third-party-capable` iff its
+probe passes the cell's principal as an explicit uid argument (`p_uid` / `p_user_id` / `p_signer` in
+§ 5.4's `armInterface.subject`), and `caller-only` otherwise — which every `rls-select` probe
+is by construction, since RLS can only ever ask about the querying session. An arm cross-checks the
+derived keying against § 5.4's subject data and refuses to emit if they disagree, so the two
+cannot drift. On a `caller-only` row the third-party coordinate is **skipped by the named rule
+`self_check_undefined_for_caller_keyed_door`**, recorded in the `skipped` census and the coverage
+JSON and re-stated by arm7 — never answered with a synthetic third party, never dropped silently.
+`--self-test` gains two fixtures: a **planted wrong fixture id** (a cell's `legacy_fixture_id`
+repointed at another arm's row) caught BY NAME by the arm that re-derives the binding from the
+declaration, and a **planted wrong keying** (a `caller-only` row flipped to `third-party-capable`)
+caught by name by the keying arm. `arm3Door.expression` stays documentation, with the comparison arm
+to `pg_policies.qual` discharging the drift follow-up's first arm.
