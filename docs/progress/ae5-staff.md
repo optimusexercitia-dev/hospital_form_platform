@@ -1313,3 +1313,41 @@ tester resets again (the catalog still carries the applied migration until then)
 session that resets, tracked or not; unrun SQL waits OUTSIDE `supabase/migrations/`.* Extends
 `shared-local-stack-single-owner` ("db reset applies the directory you stand in") with: the
 directory includes what git does not track.
+
+### 2026-09-13 — `424` fix loop STOPPED at 4; the stuck cells are a FINDING, not a suite defect (lead)
+
+**Loop.** Iterations 1→4 of `424`: 8 red → 2 → 2 (different cell) → 6. Stopped by the lead (CLAUDE.md
+Loop Safety: iteration 3 fixed nothing new). Full `test:db` before the loop: `387` (7, the queued
+re-pin) and `424` red only; `403` § 3.2b/3.2c GREEN. ⚠ The tester's iterations introduced CRLF into
+`424` (`git diff` warns) — normalised to LF before any commit. Four `*.log` files in the repo root
+are the tester's run logs, never committed, deleted at the Record step.
+
+**Backend's ruling on the vector (owner of its PROPOSED values), measured:**
+1. `foreign_org_commission` for `cross_org_actor` is the commission the persona HOLDS `staff` in
+   (`HOLDS_AT['cross_org_actor']`, `gen-authz-differential-cells.py:374`; axes `:39`) = Farmácia B
+   `c0000000-…-c2` for `gap.xorg.b`. The tester's fixture pointed at a Rede A commission — a fixture
+   defect, the vector is right. `candidate_has_permission(gap.xorg.b, …, 'commission.accreditation.read')`
+   = true at Farmácia B, false at CCIH — which also explains the § 5.1 `other_role`/`third_party` red.
+2. ⛔⛔ **FINDING (PO): `app.is_active` gates the MEMBERSHIP arm and nothing else.** Every limb-(b)
+   role-free disjunct lacks it: `accreditation_frameworks_select`'s `owner_commission_id IS NULL`,
+   `can_access_targeted_version`, `is_document_approver_of`, `action_items_select`'s assignee leg,
+   `profiles_select_self_or_admin`'s self leg. Behavioural proof as `gap.deactivated`
+   (`app.is_active` = false): reads the NULL-owner framework and its own profile row. ⇒ a deactivated
+   or suspended principal still reads global frameworks, own profile/membership rows, targeted form
+   versions, documents they are approver-of-record on, action items assigned to them. Filed as a bug
+   (backend); the fix is NOT this unit's (a behaviour change across five policies).
+3. Encoding: the catalog is RIGHT to deny those cells; the legacy door grants for a reason the
+   catalog has no mechanism for ⇒ `expected_legacy_granted` false → **true** with an
+   `arm3:divergent-approved:<class>` label (arm10(c) refuses an unattributed flip), ⛔ never
+   `expected_granted`. **990 cells** = 198 of each row's 216 `disjunct_present` cells × the five
+   limb-(b) rows (`accreditation.read`, `roster.read`, `forms.read`, `documents.read`,
+   `action_items.read`); the 18 untouched per row are where the catalog already grants. ⛔ Regenerated
+   only after the PO rules — this is item P1 of the checkpoint.
+
+**Routing.** Tester: re-aim the fixture per (1) — ONE more iteration, allowed because the cause is
+measured; after it the ONLY disagreements may be the 990 limb-(b) cells (the witness that the suite
+is right and the vector awaits the PO); anything else is the tester's. Backend: file the bug. Then
+the PO checkpoint: P1 the divergence encoding (PA-F8 disposition (b), named exception, owner backend,
+expiry = the bug's fix unit) · P2 the per-class arm-3 values (`424` header, backend-reconciled) ·
+P3 AC-2's nine deny-class values — incl. row 5 `pending` → GRANTED (`is_active` never reads
+`email_confirmed_at`), a second finding to name.
