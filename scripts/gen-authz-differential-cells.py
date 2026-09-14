@@ -44,9 +44,11 @@ spec = json.loads(raw.decode('utf-8'))
 MANIFEST_SRC = ROOT + '/supabase/tests/vectors/authz-enforcement-manifest.json'
 _MANIFEST_ERR = None
 try:
-    MANIFEST_PERMISSIONS = json.loads(io.open(MANIFEST_SRC, 'rb').read().decode('utf-8'))['permissions']
+    _MANIFEST_ROOT = json.loads(io.open(MANIFEST_SRC, 'rb').read().decode('utf-8'))
+    MANIFEST_PERMISSIONS = _MANIFEST_ROOT['permissions']
 except Exception as _e:                       # noqa: BLE001 — any failure here is arm9's business
     MANIFEST_PERMISSIONS, _MANIFEST_ERR = None, '%s: %s' % (type(_e).__name__, _e)
+    _MANIFEST_ROOT = {}
 
 # ── The legacy-equivalence classes swept here, asserted in pgTAP 401 §19.2 ─────────────────
 REPS = [
@@ -288,10 +290,136 @@ def member_gate_arms_for(code):
     return row.get('memberGateArm')
 
 
+def _fixtures():
+    """The axis-level fixture bindings, from the manifest (L9′). ⛔ NOT constants in this
+       file: a persona's uid and a scope's commission are FIXTURE facts, and the whole point of
+       this landing is that a fixture fact has one home."""
+    if MANIFEST_PERMISSIONS is None:
+        return {}
+    return _MANIFEST_ROOT.get('differentialFixtures') or {}
+
+
+def principal_uid(persona):
+    return (_fixtures().get('personaUid') or {}).get(persona, '')
+
+
+def scope_id_for(scope):
+    return (_fixtures().get('scopeCommission') or {}).get(scope, '')
+
+
+# ⚠ Rows whose PROBE keying differs from § 5.4's site keying for a STRUCTURAL reason
+# (the bare rows: production site caller-keyed, probe `_for` principal-keyed — ADR
+# 0201 D1). Counted and printed, never silenced; the PO may rule at the gate.
+_KEYING_CENSUS = []
+SKIP_CALLER_KEYED = 'self_check_undefined_for_caller_keyed_door'
+
+
+def probe_for(code, perms=None):
+    """The row's executable probe declaration, READ FROM THE ENFORCEMENT MANIFEST (L9′).
+
+       ⛔ The binding table lives THERE, not in `424` and not here: which fixture row each
+       (class × gate arm) resolves to is the SEED author's fact, and it was being transcribed
+       twice — once in the suite's dispatch and once in `arm3Door.expression` — which is
+       how the declared door came to fuse two live policies and drop a disjunct."""
+    perms = MANIFEST_PERMISSIONS if perms is None else perms
+    if perms is None:
+        return None
+    row = perms.get(code) or {}
+    return (row.get('arm3Door') or {}).get('probe') or row.get('legacyProbe')
+
+
+def probe_fixture(code, persona, gate):
+    """The fixture id this cell binds, from the declaration's `fixtures` map.
+
+       ⚠ `_persona` marks the one map (row 4) whose value is itself keyed by persona, because
+       `$1` there is the SUBJECT PROFILE: a fixed value across personas turns `subject_holder` into
+       a hidden SELF-read, which is 424 § 4's own measured finding."""
+    p = probe_for(code)
+    if not p:
+        return None
+    fx = p.get('fixtures') or {}
+    v = fx.get(gate, fx.get('_default'))
+    if isinstance(v, dict):
+        if v.get('_self'):
+            return '{uid}'
+        v = v.get(persona)
+    return v
+
+
+def row_keying(code, perms=None):
+    """`third-party-capable` iff the probe passes the cell's principal as an EXPLICIT uid arg.
+
+       ⭐ DERIVED, NEVER LISTED (L10). A `rls-select` probe is `caller-only` by construction:
+       RLS binds `auth.uid()` from the session, so there is no way to ask it about a subject who is
+       not the caller — which is exactly why five of these rows' third-party cells were
+       failing. arm14 cross-checks this against § 5.4's `armInterface.subject` and refuses to
+       emit if the two disagree, so the derivation and the matrix cannot drift apart."""
+    p = probe_for(code, perms)
+    if not p:
+        return None
+    if p.get('kind') == 'rls-select':
+        return 'caller-only'
+    return 'third-party-capable' if '{uid}' in (p.get('call') or '') else 'caller-only'
+
+
+def subject_keying(code, perms=None):
+    """The SAME question answered from matrix § 5.4's per-site `subject`, for arm14 to compare
+       against. A subject that does not begin `caller` names an explicit principal parameter
+       (`p_uid` / `p_user_id` / `p_signer`)."""
+    perms = MANIFEST_PERMISSIONS if perms is None else perms
+    if perms is None:
+        return None
+    row = perms.get(code) or {}
+    sites = row.get('armInterface') or []
+    if not sites:
+        return None
+    return ('third-party-capable'
+            if any(not str(a.get('subject', '')).startswith('caller') for a in sites)
+            else 'caller-only')
+
+
+def _lit(u):
+    return "'%s'" % str(u).replace("'", "''")
+
+
+def legacy_sql_for(code, persona, gate, uid, scope):
+    """The cell's LEGACY probe, as executable SQL.
+
+       ⛔ NO TRANSCRIPTION. A policy door is probed by selecting the fixture row: RLS then
+       evaluates the whole live policy set — every permissive SELECT policy OR'd, every
+       restrictive one AND'd — so there is no second copy of the door to drift. A function
+       door is the live object, called. ⚠ `auth.uid()` is deliberately absent from the text:
+       it binds from the session the probe establishes, and it is the only binding that can be
+       right for the bare `app.is_member_of(...)` terms these policies contain."""
+    p = probe_for(code)
+    if not p:
+        return None
+    fx = probe_fixture(code, persona, gate)
+    if p.get('kind') == 'rls-select':
+        if fx is None:
+            return None
+        fx = uid if fx == '{uid}' else fx
+        return ('select exists(select 1 from %s where %s = %s::uuid)'
+                % (p['relation'], p.get('idColumn', 'id'), _lit(fx)))
+    call = (p.get('call') or '')
+    call = call.replace('{uid}', _lit(uid)).replace('{scope}', _lit(scope))
+    if '{resource}' in call:
+        if fx is None:
+            return None
+        call = call.replace('{resource}', _lit(uid if fx == '{uid}' else fx))
+    return 'select ' + call
+
+
+def catalog_sql_for(code, principal, res, scope):
+    """The CATALOG side, bound from the same three columns 424 derives today."""
+    return ('select authz.candidate_has_permission(%s::uuid, %s, %s::uuid, %s)'
+            % (_lit(principal), _lit(res), _lit(scope), _lit(code)))
+
+
 def arm3_limb_b_reach(code):
     """Limb (b)'s DECLARED reach for one representative, READ FROM THE ENFORCEMENT MANIFEST.
 
-       \u26d4\u26d4 NOT A PERSONA LIST IN THIS FILE, AND THAT IS THE WHOLE POINT (L8). "This
+       ⛔⛔ NOT A PERSONA LIST IN THIS FILE, AND THAT IS THE WHOLE POINT (L8). "This
        disjunct fires only for these principals" is a claim about the FIXTURE and the approved
        matrix; a claim a generator makes about itself is not a detector (the arm9 lesson, and the
        same one L6 hit when `armInterface` existed only in the JSON). arm13 re-reads this on every
@@ -303,7 +431,7 @@ def arm3_limb_b_reach(code):
 
 
 def limb_b_fires(code, persona, selfcheck):
-    """Whether limb (b) can be TRUE at this coordinate. \u26a0 Returns None \u2014 not False \u2014
+    """Whether limb (b) can be TRUE at this coordinate. ⚠ Returns None — not False —
        when the row declares nothing, so "undeclared" stays distinguishable from "declared
        unreachable". Collapsing the two would let a missing declaration read as a measured
        absence, which is the UNKNOWN-vs-ABSENT shape a classifier must never flatten."""
@@ -557,29 +685,29 @@ ARM3_DIVERGENCE_VALUES = {
         'limb-(b) rows: `accreditation_frameworks_select` (`owner_commission_id IS NULL`, a '
         'PUBLIC arm), `profiles_select_self_or_admin` (the `id = auth.uid()` self leg), '
         '`app.can_access_targeted_version`, `app.is_document_approver_of`, and '
-        '`action_items_select`\'s assignees_only leg. \u26d4 THE APPROVAL IS THAT THE DOOR '
+        '`action_items_select`\'s assignees_only leg. ⛔ THE APPROVAL IS THAT THE DOOR '
         'BEHAVES THIS WAY TODAY, NOT THAT IT SHOULD: the behaviour is filed as '
         'BUG-AE5-STAFF-INACTIVE-BYPASSES-ROLE-FREE-DISJUNCTS (critical, open) and its fix is '
         'unit AE5-INACTIVE-DISJUNCT-GUARD, expiry = after this increment\'s gate (PA-F8 '
-        'disposition (b), owner backend). \u21d2 THIS LABEL IS EXPECTED TO BE RETIRED by that '
+        'disposition (b), owner backend). ⇒ THIS LABEL IS EXPECTED TO BE RETIRED by that '
         'unit, and the day it is, these cells lose their divergence and `expected_legacy_granted` '
         'returns to `expected_granted`. A label that outlives its bug is a pinned defect. '
-        '\u2b50 It is the FIRST approved divergence where the legacy side is wider than the '
-        'catalog for a reason the catalog COULD have caught \u2014 the other two members are '
+        '⭐ It is the FIRST approved divergence where the legacy side is wider than the '
+        'catalog for a reason the catalog COULD have caught — the other two members are '
         'approved REACH, this one is approved BLINDNESS',
     'arm3:divergent-narrower:door-conjunct-unmet':
         'PO-RULED (P2, 2026-09-14, "intended composition"): at `memberGateArm = conjunct_unmet` '
         'the door\'s further conjunct is FALSE by the coordinate\'s own definition, so the '
-        'LEGACY DOOR DENIES a principal the CATALOG GRANTS. \u26d4 THE NARROWER DIRECTION, and '
+        'LEGACY DOOR DENIES a principal the CATALOG GRANTS. ⛔ THE NARROWER DIRECTION, and '
         'the first one this file has ever carried: `expected_legacy_granted` is FALSE while '
-        '`expected_granted` stays TRUE. \u26a0 NOT A DEFECT AND NO BUG IS FILED \u2014 a door '
+        '`expected_granted` stays TRUE. ⚠ NOT A DEFECT AND NO BUG IS FILED — a door '
         'denying on its own documented conjunct is the door working; the divergence is that a '
         'permission code cannot carry a non-permission term, which is what the memberGateArm axis '
-        'exists to record. Mechanisms, one per row: meetings `visibility_policy`/attendee \u00b7 '
-        '`attendance` + `status=in_signature` \u00b7 `explicit_grants_only` \u00b7 '
-        '`visibility_scope` \u00b7 the ethics-details guard \u00b7 `capa_plan.source` \u00b7 '
-        'the co-member leg. \u26d4 NO conjunct is promoted to a catalog axis value by this '
-        'ruling (matrix \u00a7 11 item 5\'s `in_signature` alternative stays unexercised)',
+        'exists to record. Mechanisms, one per row: meetings `visibility_policy`/attendee · '
+        '`attendance` + `status=in_signature` · `explicit_grants_only` · '
+        '`visibility_scope` · the ethics-details guard · `capa_plan.source` · '
+        'the co-member leg. ⛔ NO conjunct is promoted to a catalog axis value by this '
+        'ruling (matrix § 11 item 5\'s `in_signature` alternative stays unexercised)',
 }
 
 # ── THE SECOND EXPECTED VALUE (AE5-MATRIX-ARM3-CELLS increment 3) ────────────────────────
@@ -613,11 +741,11 @@ ARM3_PREEMPTED = 'arm3:pre-empted:door-hat-term'
 ARM3_DIVERGENT_APPROVED = ('arm3:divergent-approved:not-a-holder',
                            'arm3:divergent-approved:cross-org',
                            'arm3:divergent-approved:role-free-disjunct-ignores-principal-state')
-# \u2b50\u2b50 THE NARROWER FAMILY, AND THE PREFIX IS THE WHOLE DESIGN (P2). Both existing
-# families mean THE LEGACY DOOR GRANTS \u2014 `divergent-approved:` an approved grant,
-# `divergent-defective:` a filed one \u2014 and arm10 is built on that assumption: arm10(a)
+# ⭐⭐ THE NARROWER FAMILY, AND THE PREFIX IS THE WHOLE DESIGN (P2). Both existing
+# families mean THE LEGACY DOOR GRANTS — `divergent-approved:` an approved grant,
+# `divergent-defective:` a filed one — and arm10 is built on that assumption: arm10(a)
 # refuses an approved-labelled cell that expects a legacy DENY, which is exactly what these cells
-# must expect. \u26d4 Reusing either family would make arm10(a) fire on correct cells, and the
+# must expect. ⛔ Reusing either family would make arm10(a) fire on correct cells, and the
 # repair a later hand reaches for is to WEAKEN arm10(a).
 ARM3_NARROWER_CONJUNCT_UNMET = 'arm3:divergent-narrower:door-conjunct-unmet'
 
@@ -648,13 +776,13 @@ def expected_legacy(exp, div):
        "this column is just a copy of expected_granted" shape entirely, and no separate
        copy-detector is written: an arm that cannot fire on its own is the vacuity this file
        exists to refuse."""
-    # \u26d4\u26d4 THE NARROWER DIRECTION, AND THIS FUNCTION HAD NO PATH FOR IT (P2). Every
+    # ⛔⛔ THE NARROWER DIRECTION, AND THIS FUNCTION HAD NO PATH FOR IT (P2). Every
     # branch below returns True or falls through to `exp`, because until AE5 increment 1 every
     # ruled divergence was the legacy door being WIDER than the catalog. `conjunct_unmet` is the
     # first that is NARROWER: the door's own further conjunct is false, so it denies a principal
     # the catalog grants. Returning `exp` there would assert the door GRANTS, which is the one
-    # thing the coordinate means it does not. \u26a0 It is placed FIRST so that it cannot be
-    # reached only when the approved tuple happens to miss \u2014 the two families are disjoint
+    # thing the coordinate means it does not. ⚠ It is placed FIRST so that it cannot be
+    # reached only when the approved tuple happens to miss — the two families are disjoint
     # by construction and this ordering states that rather than relying on it.
     if div == ARM3_NARROWER_CONJUNCT_UNMET:
         return False
@@ -674,33 +802,33 @@ NOT_ARM3_COVERAGE = ('arm3:not-in-gate', 'arm3:blocked:principal-state')
 def arm3_divergence(klass, persona, ctx, scope, state, selfcheck, exp, src, reach, gate, code):
     """Transcribed from the arm-3 derivation, in PRECEDENCE ORDER. Each branch names the catalog
        fact it stands for; none of them re-derives `expected_granted`."""
-    # \u2b50\u2b50 THE TWO memberGateArm BRANCHES ARE TESTED BEFORE THE `klass != ARM3_GATE`
+    # ⭐⭐ THE TWO memberGateArm BRANCHES ARE TESTED BEFORE THE `klass != ARM3_GATE`
     # SHORT-CIRCUIT, AND THAT PLACEMENT IS LOAD-BEARING. Every `staff` representative returns
     # `arm3:not-in-gate` at that line, so a branch placed after it could never be reached: the
     # labels would be declared, carried by ZERO cells, and arm8's single-valued check would be the
-    # only thing that noticed. \u26a0 STAFF_ADMIN IS UNTOUCHED BY BOTH: its cells all sit at the
+    # only thing that noticed. ⚠ STAFF_ADMIN IS UNTOUCHED BY BOTH: its cells all sit at the
     # inert gate value, so neither predicate can match and its 1728 rows stay byte-identical.
     #
-    # (P2) The door's further conjunct is FALSE and the catalog GRANTS \u2014 the legacy door is
-    # NARROWER. \u26d4 `and exp` is the predicate, not a convenience: where the catalog already
+    # (P2) The door's further conjunct is FALSE and the catalog GRANTS — the legacy door is
+    # NARROWER. ⛔ `and exp` is the predicate, not a convenience: where the catalog already
     # denies there is nothing to diverge from, and labelling those cells would claim a divergence
     # in a place both sides agree.
     if gate == 'conjunct_unmet' and exp:
         return ARM3_NARROWER_CONJUNCT_UNMET
-    # (P1) The role-free disjunct grants any authenticated caller and the catalog DENIES \u2014
-    # the legacy door is WIDER. \u26d4 `and not exp` is likewise the whole predicate: where the
+    # (P1) The role-free disjunct grants any authenticated caller and the catalog DENIES —
+    # the legacy door is WIDER. ⛔ `and not exp` is likewise the whole predicate: where the
     # catalog already grants there is no divergence to approve, and labelling those cells would
     # make `expected_legacy_granted` agree with `expected_granted` UNDER a divergent label, which
     # reads as an approved divergence that is not one.
-    # \u26d4\u26d4 AND IT IS GATED ON THE DECLARED REACH (L8). The first cut of this branch
-    # flipped ALL 198 cells per row on all five rows \u2014 990 \u2014 on the reading that limb
+    # ⛔⛔ AND IT IS GATED ON THE DECLARED REACH (L8). The first cut of this branch
+    # flipped ALL 198 cells per row on all five rows — 990 — on the reading that limb
     # (b) is "role-free". It is role-free, but only ONE of the five disjuncts is also
     # PRINCIPAL-free: `accreditation`'s `($1 is null)` is resource-keyed and grants anyone, while
     # `forms`/`documents`/`action_items` fire only for a principal the FIXTURE names and
     # `roster`'s `($1 = $2)` fires only on a self-check. 430 of the 990 were measured denying in
-    # 424 \u00a7 4.1b, every one reporting `legacy=false` against this column's `true`.
-    # \u26d4 A cell where the legacy door does not grant is NOT divergent, so the PO's P1 ruling
-    # \u2014 which is about how an approved divergence is ENCODED \u2014 never reached it.
+    # 424 § 4.1b, every one reporting `legacy=false` against this column's `true`.
+    # ⛔ A cell where the legacy door does not grant is NOT divergent, so the PO's P1 ruling
+    # — which is about how an approved divergence is ENCODED — never reached it.
     if gate == 'disjunct_present' and not exp and limb_b_fires(code, persona, selfcheck):
         return 'arm3:divergent-approved:role-free-disjunct-ignores-principal-state'
     if klass != ARM3_GATE:
@@ -910,9 +1038,28 @@ def build(personas, contexts, scopes, states, reaches, reps_by_role, exclusions,
                             # expected value, c[12] the label, c[13] the legacy value); an insert
                             # would silently re-point all of them at their neighbours — a
                             # whole-file mutation wearing a one-line diff.
+                            # ⭐⭐ L10 — A CALLER-KEYED DOOR HAS NO THIRD-PARTY
+                            # QUESTION, AND THE COORDINATE IS SKIPPED BY NAME RATHER THAN
+                            # ANSWERED. An `rls-select` probe binds `auth.uid()` from the session,
+                            # so "is this OTHER principal a member" is a question it cannot be
+                            # asked; the previous shape answered it anyway, by re-binding the
+                            # claims to the principal, which quietly turned every third-party cell
+                            # on these rows into a second self-check. ⛔ Skipped, never
+                            # dropped silently: the rule is named, censused, and re-stated by
+                            # arm7, so the coverage loss is visible as a number.
+                            _keying = row_keying(code)
+                            if _keying == 'caller-only' and not selfcheck:
+                                skip(SKIP_CALLER_KEYED); continue
+                            _lsql = legacy_sql_for(code, persona, gate,
+                                                   principal_uid(persona), scope_id_for(scope))
                             cells.append((cid, persona, ctx, scope, code, klass, res, state,
                                           selfcheck, exp, src, reach, div, exp_legacy, role,
-                                          gate, arm3_door_expr(code)))
+                                          gate, arm3_door_expr(code),
+                                          _lsql or '',
+                                          catalog_sql_for(code, principal_uid(persona),
+                                                          res, scope_id_for(scope)),
+                                          str(probe_fixture(code, persona, gate) or ''),
+                                          _keying or ''))
     return cells, skipped
 
 
@@ -1124,10 +1271,62 @@ def coverage(cells, skipped, reps_by_role, disposition=None, exclusions=None, ax
                          % (sorted(_armed) or ['(none — no rep\'s openArms names %s)' % ARM3_CASE_ARM_FN],
                             ARM3_GATE))
 
-    # \u2b50\u2b50 arm13 — LIMB (b)'s REACH IS THE MANIFEST'S CLAIM, AND THE CELLS ARE HELD TO
+    # ⭐⭐ arm14 — THE PROBE DECLARATION IS HELD TO THE MATRIX, AND THE CELLS TO THE
+    # DECLARATION (L9′ / L10). Three independently-firable halves.
+    # (a) Every staff representative must DECLARE a probe, or its legacy column is empty and the
+    #     suite silently has nothing to execute — a coverage loss with no number.
+    # (b) The keying this file DERIVES from the probe must equal the keying matrix § 5.4's
+    #     per-site `subject` implies. These are two independent readings of one fact; letting them
+    #     drift is how the declared door came to disagree with the live one in the first place.
+    # (c) Every emitted cell's `legacy_fixture_id` must be the one the declaration resolves for its
+    #     (code, persona, gate) — the half that refuses a hand-repointed binding.
+    _staff_codes = sorted({c[4] for c in cells if c[14] == 'staff'})
+    _noprobe = [x for x in _staff_codes if probe_for(x) is None]
+    if _noprobe:
+        f.append('arm14: representative(s) %s declare no executable probe — 424 executes '
+                 '`legacy_sql` verbatim, so a row without one contributes an EMPTY legacy column '
+                 'and its cells assert nothing. Declare `arm3Door.probe` (or `legacyProbe`).'
+                 % ', '.join('`%s`' % x for x in _noprobe))
+    # ⚠⚠ arm14(b)'s DOMAIN IS THE ELEVEN arm3Door ROWS, AND THE BOUND IS STATED BECAUSE THE
+    # FIRST CUT GOT IT WRONG — it compared every row and FIRED ON THE REAL SPEC, which is the
+    # discrimination control doing its job on its author. § 5.4's `subject` describes the
+    # PRODUCTION SITE; a probe's keying describes what the DIFFERENTIAL can ask. For a row with an
+    # arm-3 door those are the same question and must agree. For the nine BARE rows they are NOT:
+    # the production site is a bare `app.is_member_of(scope)` reading `auth.uid()` (§ 5.4:
+    # `caller`), while the differential deliberately probes the `_for` variant, which accepts a
+    # principal — that is ADR 0201 D1's asymmetry, not a drift. ⛔ Those rows are OUT of this
+    # arm's domain and COUNTED in the census below, never silently exempted: an escape hatch for
+    # the genuinely-different also silences the merely-wrong.
+    _perms = permissions or {}
+    _doorrows = [x for x in _staff_codes
+                 if ((_perms.get(x) or {}).get('arm3Door') or {}).get('probe')]
+    _keymismatch = [(x, row_keying(x, _perms), subject_keying(x, _perms)) for x in _doorrows
+                    if subject_keying(x, _perms) is not None
+                    and row_keying(x, _perms) != subject_keying(x, _perms)]
+    if _keymismatch:
+        f.append('arm14: %d arm-3 door representative(s) derive a keying from their PROBE that '
+                 'disagrees with the keying matrix § 5.4\'s per-site `subject` implies (first: '
+                 '`%s` probe=%s vs § 5.4=%s) — for a row WITH a door these are one question, so a '
+                 'disagreement means the probe is reading a different door from the one the '
+                 'matrix swept' % (len(_keymismatch), _keymismatch[0][0],
+                                   _keymismatch[0][1], _keymismatch[0][2]))
+    _bare_divergent = sorted(x for x in _staff_codes if x not in _doorrows
+                             and subject_keying(x, _perms) is not None
+                             and row_keying(x, _perms) != subject_keying(x, _perms))
+    if _bare_divergent:
+        _KEYING_CENSUS.extend(_bare_divergent)
+    _badbind = [c for c in cells
+                if c[14] == 'staff' and c[19] != str(probe_fixture(c[4], c[1], c[15]) or '')]
+    if _badbind:
+        f.append('arm14: %d cell(s) carry a `legacy_fixture_id` the declaration does not resolve '
+                 'for their (code, persona, gate arm) — the binding table is the manifest\'s, and '
+                 'a cell that names a different row probes a resource nobody ruled (first: %s)'
+                 % (len(_badbind), _badbind[0][0]))
+
+    # ⭐⭐ arm13 — LIMB (b)'s REACH IS THE MANIFEST'S CLAIM, AND THE CELLS ARE HELD TO
     # IT. Two independently-firable halves, neither of which re-derives the label.
     # (a) A row that sweeps `disjunct_present` must DECLARE a reach. Without this the generator
-    #     would silently label nothing on an undeclared row \u2014 a coordinate declared by the
+    #     would silently label nothing on an undeclared row — a coordinate declared by the
     #     matrix and answered by no cell, which is the exact shape L6 found in `armInterface`.
     # (b) Every P1-labelled cell must sit where the declared reach says limb (b) can fire. This is
     #     the half that would have caught the first cut: it refuses a flip on a persona the
@@ -1179,9 +1378,9 @@ def coverage(cells, skipped, reps_by_role, disposition=None, exclusions=None, ax
                  'ONE thing R2 forbids. A defect is carried as a head-on assertion in 403 § 7 '
                  'plus, while it stands, a carve-out — never as an expected value (first: %s)'
                  % (len(_approved_defect), ARM3_DEFECT_PREFIX, _approved_defect[0][0]))
-    # \u2b50 (d) THE NARROWER LABEL'S OWN CONTRADICTION. (a)/(b)/(c) all assume the WIDE
+    # ⭐ (d) THE NARROWER LABEL'S OWN CONTRADICTION. (a)/(b)/(c) all assume the WIDE
     # direction, so none of them can see a narrower-labelled cell that expects a legacy GRANT.
-    # \u26d4 The real vector carries ZERO such cells by construction, so --self-test SYNTHESISES
+    # ⛔ The real vector carries ZERO such cells by construction, so --self-test SYNTHESISES
     # one: a selection-based fixture would have nothing to select, exactly as for the defective
     # family.
     _narrower_granting = [c for c in cells if c[12] == ARM3_NARROWER_CONJUNCT_UNMET and c[13]]
@@ -1191,7 +1390,7 @@ def coverage(cells, skipped, reps_by_role, disposition=None, exclusions=None, ax
                  'there is the label contradicting itself (first: %s)'
                  % (len(_narrower_granting), ARM3_NARROWER_CONJUNCT_UNMET,
                     _narrower_granting[0][0]))
-    # \u26a0 (c) MUST EXEMPT THE NARROWER FAMILY OR EVERY ONE OF ITS CELLS READS AS AN
+    # ⚠ (c) MUST EXEMPT THE NARROWER FAMILY OR EVERY ONE OF ITS CELLS READS AS AN
     # UNATTRIBUTED FLIP: they flip by design, and the label IS the attribution.
     _unattributed = [c for c in cells
                      if c[13] != c[9] and c[12] not in ARM3_DIVERGENT_APPROVED
@@ -1340,43 +1539,79 @@ if '--self-test' in sys.argv:
         """base_cells with ONE cell RE-LABELLED into the narrower family AND given a legacy
            GRANT — the exact shape arm10(d) exists to refuse.
 
-           \u26d4\u26d4 SYNTHESISED, NOT SELECTED, for _synth_defect's reason one step further
+           ⛔⛔ SYNTHESISED, NOT SELECTED, for _synth_defect's reason one step further
            on: every real narrower-labelled cell expects a legacy DENY, because expected_legacy()
            returns False for the label unconditionally. So there is NO cell to select that would
            exercise (d), and a selection fixture would raise "no candidate" — whereupon the
            obvious repair is to delete the fixture and disarm the only arm that refuses a
            narrower label laundered into a GRANT.
-           \u2b50 DISCRIMINATION HALF: the real-spec run at the end of --self-test proves (d) is
+           ⭐ DISCRIMINATION HALF: the real-spec run at the end of --self-test proves (d) is
            QUIET on the true cell set; this proves it is LOUD. One without the other is half a
            control."""
         out = list(base_cells)
         i = next((j for j, c in enumerate(out) if c[12] != ARM3_NARROWER_CONJUNCT_UNMET), None)
         assert i is not None, ('every cell already carries the narrower label — the synthesised '
                                'arm10(d) fixture would perturb nothing')
-        # \u26d4 TAIL PRESERVED — see _one. Columns 14+ (`role`, `gate`) must survive.
+        # ⛔ TAIL PRESERVED — see _one. Columns 14+ (`role`, `gate`) must survive.
         out[i] = out[i][:12] + (ARM3_NARROWER_CONJUNCT_UNMET, True) + out[i][14:]
         return out
 
     def _synth_overreach():
         """base_cells with ONE `disjunct_present` cell on an UNREACHABLE coordinate re-labelled
-           into the approved limb-(b) family and given a legacy GRANT \u2014 exactly the mistake
+           into the approved limb-(b) family and given a legacy GRANT — exactly the mistake
            the first cut of the P1 branch made 430 times.
 
-           \u26d4\u26d4 SYNTHESISED, NOT SELECTED, and for the strongest form of the reason:
+           ⛔⛔ SYNTHESISED, NOT SELECTED, and for the strongest form of the reason:
            the derivation now computes the label FROM the declared reach, so no real cell can be
            in this state and a selection fixture would have nothing to select. That is precisely
-           why the arm still has to exist \u2014 a hand editing the vector, or a reach declaration
+           why the arm still has to exist — a hand editing the vector, or a reach declaration
            narrowed without regenerating, puts cells here immediately.
-           \u2b50 DISCRIMINATION HALF: the real-spec run at the end of --self-test proves arm13 is
+           ⭐ DISCRIMINATION HALF: the real-spec run at the end of --self-test proves arm13 is
            QUIET on the true cell set; this proves it is LOUD."""
         out = list(base_cells)
         i = next((j for j, c in enumerate(out)
                   if c[15] == 'disjunct_present' and limb_b_fires(c[4], c[1], c[8]) is False), None)
         assert i is not None, ('no cell sits at `disjunct_present` on an unreachable coordinate — '
                                'the synthesised arm13 fixture would perturb nothing')
-        # \u26d4 TAIL PRESERVED — see _one. Columns 14+ (`role`, `gate`, door) must survive.
+        # ⛔ TAIL PRESERVED — see _one. Columns 14+ (`role`, `gate`, door) must survive.
         out[i] = out[i][:12] + ('arm3:divergent-approved:role-free-disjunct-ignores-principal-state', True) + out[i][14:]
         return out
+
+    def _synth_badbind():
+        """base_cells with ONE cell's `legacy_fixture_id` repointed at another arm's row — a
+           binding the declaration does not resolve. ⛔ Synthesised: the emitter derives the
+           column from the same declaration arm14(c) checks, so no real cell can be in this state,
+           which is exactly why a hand edit to the vector has to be refused."""
+        out = list(base_cells)
+        i = next((j for j, c in enumerate(out) if c[14] == 'staff' and c[19]), None)
+        assert i is not None, ('no staff cell carries a fixture id — the synthesised arm14(c) '
+                               'fixture would perturb nothing')
+        out[i] = out[i][:19] + ('00000000-0000-0000-0000-0000000000ff',) + out[i][20:]
+        return out
+
+    def _flip_keying(pm):
+        """A CALLER-ONLY row's probe rewritten to pass the cell's principal - fabricating a
+           third-party capability the production site does not have. arm14(b) must name it."""
+        for code, row in pm.items():
+            pr = (row.get('arm3Door') or {}).get('probe')
+            if pr and subject_keying(code) == 'caller-only' and '{uid}' not in (pr.get('call') or ''):
+                pr['kind'] = 'function-call'
+                pr['call'] = 'app.is_member_of_for({scope}::uuid, {uid}::uuid)'
+                return
+
+    def _synth_badkeying():
+        """The MANIFEST perturbed so a `caller-only` row's probe claims to take an explicit uid,
+           while § 5.4 still says its sites are caller-keyed — arm14(b)'s subject.
+           ⛔ Perturbs the AUTHORITY, not the cells, exactly as arm9/arm12's fixtures do: the
+           keying is the matrix's claim, so the mutation has to be to the claim."""
+        def _flip(pm):
+            for code, row in pm.items():
+                pr = (row.get('arm3Door') or {}).get('probe')
+                if pr and pr.get('kind') == 'rls-select' and subject_keying(code) == 'caller-only':
+                    pr['kind'] = 'function-call'
+                    pr['call'] = 'app.is_member_of_for({scope}::uuid, {uid}::uuid)'
+                    return
+        return _pm_mutate(_flip)
 
     # ⛔ arm12's FIXTURES PERTURB THE MANIFEST AND NOTHING ELSE, exactly as arm9's do: the arm
     # exists because the value set and the door are the MATRIX's claim, not this file's, so the
@@ -1403,6 +1638,7 @@ if '--self-test' in sys.argv:
 
     _pm_no_door = _pm_mutate(_drop_door)
     _pm_door_unswept = _pm_mutate(_unsweep)
+    _pm_bad_keying = _pm_mutate(_flip_keying)
 
     checks = [
         ('arm1 empty cell set',          [],                                                      base_skipped, REPS_BY_ROLE, None, None, None),
@@ -1476,10 +1712,10 @@ if '--self-test' in sys.argv:
         # ADR 0209 fixed its one member, and a fixture that can no longer FIND its subject is the
         # shape that gets deleted, taking the arm with it.
         ('arm10 filed defect approved',       _synth_defect(),                       base_skipped, REPS_BY_ROLE, None, None, None),
-        # \u26d4 SYNTHESISED, NOT SELECTED — see _synth_narrower. Every real cell carrying the
+        # ⛔ SYNTHESISED, NOT SELECTED — see _synth_narrower. Every real cell carrying the
         # narrower label expects a legacy DENY, so there is nothing to select.
         ('arm10 narrower label granting',     _synth_narrower(),                     base_skipped, REPS_BY_ROLE, None, None, None),
-        # \u26d4 SYNTHESISED, NOT SELECTED — see _synth_overreach. The derivation reads the same
+        # ⛔ SYNTHESISED, NOT SELECTED — see _synth_overreach. The derivation reads the same
         # declaration arm13 checks, so no real cell can be in this state.
         ('arm13 flip on an unreachable persona', _synth_overreach(),                  base_skipped, REPS_BY_ROLE, None, None, None),
         # A flip with no divergent label at all: the `caps-deny` cells are the honest non-vacuous
@@ -1508,6 +1744,12 @@ if '--self-test' in sys.argv:
          None, None, None, _pm_no_door),
         ('arm12 a door with no swept values',   base_cells, base_skipped, REPS_BY_ROLE,
          None, None, None, _pm_door_unswept),
+        # arm14's two halves, one per direction. (c) perturbs a CELL's binding; (b) perturbs the
+        # AUTHORITY, because the keying is the matrix's claim and not this file's.
+        ('arm14 a cell rebound to another fixture', _synth_badbind(), base_skipped, REPS_BY_ROLE,
+         None, None, None, None),
+        ('arm14 a caller-keyed door claims a principal', base_cells, base_skipped, REPS_BY_ROLE,
+         None, None, None, _pm_bad_keying),
     ]
     bad = 0
     # ⚠ THE TAIL IS PADDED, NOT TYPED OUT. Every arm added since has widened `coverage()`, and
@@ -1621,9 +1863,10 @@ def _render(cs, wide):
        does not sweep the axis has nothing to do with the column."""
     if wide:
         return ',\n'.join(
-            '    (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)' % (
+            '    (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)' % (
                 q(c[0]), q(c[1]), q(c[2]), q(c[3]), q(c[4]), q(c[5]), q(c[6]), q(c[7]),
-                b(c[8]), b(c[9]), q(c[10]), q(c[11]), q(c[12]), b(c[13]), q(c[15]), q(c[16]))
+                b(c[8]), b(c[9]), q(c[10]), q(c[11]), q(c[12]), b(c[13]), q(c[15]), q(c[16]),
+                q(c[17]), q(c[18]), q(c[19]), q(c[20]))
             for c in cs)
     return ',\n'.join(
         '    (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)' % (
@@ -1659,7 +1902,8 @@ assert not _missing_table, (
 _COLS = ('cell_id, persona, active_context, scope, permission_code, legacy_class,\n'
          '         resolution_scope_kind, principal_state, self_check, expected_granted, '
          'expected_source,\n         case_reach, arm3_divergence, expected_legacy_granted')
-_COLS_WIDE = _COLS + ',\n         member_gate_arm, legacy_door'
+_COLS_WIDE = _COLS + (',\n         member_gate_arm, legacy_door,\n'
+                      '         legacy_sql, catalog_sql, legacy_fixture_id, keying')
 _WIDE = {'staff'}
 
 tables = '\n\n'.join(

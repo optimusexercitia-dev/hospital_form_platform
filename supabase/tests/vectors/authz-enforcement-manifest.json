@@ -1581,7 +1581,17 @@
         "note": "Inherits row 6's conjunct AND adds a respondent hard-deny. ⚠ This code is SHARED with staff_admin and pre-dates AE5; the door declaration is new.",
         "legacyClass": "can_reach_meeting_not_respondent",
         "legacyClassSource": "TESTER'S",
-        "stateColumn": "public.meetings.visibility_policy + meeting_attendees, AND public.case_recusals/respondent state via app.is_case_respondent"
+        "stateColumn": "public.meetings.visibility_policy + meeting_attendees, AND public.case_recusals/respondent state via app.is_case_respondent",
+        "probe": {
+          "kind": "rls-select",
+          "relation": "public.meeting_cases",
+          "idColumn": "meeting_id",
+          "fixtures": {
+            "conjunct_unmet": "a5f20000-0000-0000-0000-0000000000a1",
+            "_default": "f1000000-0000-0000-0000-0000000000e1"
+          },
+          "note": "Bound on `meeting_id`, not `id`: the policy is `can_reach_meeting(meeting_id, auth.uid()) AND NOT is_case_respondent(case_id, auth.uid())`, and the coordinate that moves is the MEETING's reachability."
+        }
       },
       "armInterface": [
         {
@@ -2126,6 +2136,13 @@
         "measuredOn": "2026-09-13",
         "method": "composed-call closure over the row’s armInterface sites (function bodies) and policy quals plus arm3Door.expression, comment-stripped, NO depth bound — the reached set is a subset of pg_proc over app/public/authz and UNION dedupes, so the fixed point IS the bound. Identical to the method the hardDenyVocabulary comment records for the three re-keyed rows.",
         "bound": "complete over the CALL-REACHABLE sub-vocabulary only. 4 of the 7 classes have a null gate (two triggers, the UUID id-space, ADR 0172’s deferred column) and NO call search sees them at any depth — FUP-AUTHZ-HARDDENY-GATELESS-CLASSES-HAVE-NO-DETECTOR."
+      },
+      "legacyProbe": {
+        "kind": "function-call",
+        "call": "app.is_member_of_for({scope}::uuid, {uid}::uuid)",
+        "fixtures": {},
+        "scopeAnchored": true,
+        "note": "No arm-3 door: the legacy side IS the bare membership predicate. ⭐ `_for` takes an explicit uid, so unlike a policy probe this row IS third-party-capable."
       }
     },
     "commission.signoffs.read": {
@@ -2769,7 +2786,17 @@
         "note": "The limb-(b) disjunct is `app.can_access_targeted_version`, measured role-free (a case_participants join professional_profiles walk, no role term). ⛔ The tenancy arm is OMITTED from the callable on purpose: it is a sibling-ROLE arm, false for a staff-only persona by construction, and including it would make every cell grant.",
         "legacyClass": "rls_form_matrix_targeted_version",
         "legacyClassSource": "MINE",
-        "stateColumn": "the targeted-version participation walk (public.case_participants ⋈ public.professional_participants ⋈ public.professional_profiles reaching the form version) — presence/absence IS the coordinate"
+        "stateColumn": "the targeted-version participation walk (public.case_participants ⋈ public.professional_participants ⋈ public.professional_profiles reaching the form version) — presence/absence IS the coordinate",
+        "probe": {
+          "kind": "rls-select",
+          "relation": "public.form_versions",
+          "idColumn": "id",
+          "fixtures": {
+            "disjunct_absent": "50000000-0000-0000-0000-00000000a002",
+            "_default": "50000000-0000-0000-0000-00000000a001"
+          },
+          "note": "⭐ The RLS probe is what fixed row 1: the DECLARED expression fused `form_versions_select` and `form_versions_select_targeted` into one hand-written term and dropped `app.is_tenancy_admin_of`. Measured: for staff4.ccih the real door GRANTS (the member limb) while the declared limb (b) DENIES. `disjunct_absent` is the version with no targeted chain."
+        }
       },
       "hardDenyMeasurement": {
         "closureSize": 9,
@@ -2845,6 +2872,13 @@
         "measuredOn": "2026-09-13",
         "method": "composed-call closure over the row’s armInterface sites (function bodies) and policy quals plus arm3Door.expression, comment-stripped, NO depth bound — the reached set is a subset of pg_proc over app/public/authz and UNION dedupes, so the fixed point IS the bound. Identical to the method the hardDenyVocabulary comment records for the three re-keyed rows.",
         "bound": "complete over the CALL-REACHABLE sub-vocabulary only. 4 of the 7 classes have a null gate (two triggers, the UUID id-space, ADR 0172’s deferred column) and NO call search sees them at any depth — FUP-AUTHZ-HARDDENY-GATELESS-CLASSES-HAVE-NO-DETECTOR."
+      },
+      "legacyProbe": {
+        "kind": "function-call",
+        "call": "app.is_member_of_for({scope}::uuid, {uid}::uuid)",
+        "fixtures": {},
+        "scopeAnchored": true,
+        "note": "No arm-3 door: the legacy side IS the bare membership predicate. ⭐ `_for` takes an explicit uid, so unlike a policy probe this row IS third-party-capable."
       }
     },
     "commission.roster.read": {
@@ -2940,7 +2974,37 @@
         "note": "BOTH limbs on one row. Limb (a) is the co-member EXISTS — the answer depends on the TARGET profile's memberships, which no axis varies. Limb (b) is the role-free SELF-read `$1 = $2`. ⛔ `disjunct_present` here means the caller is reading its OWN row, at which a deny cell cannot fail.",
         "legacyClass": "rls_profiles_comember_or_self",
         "legacyClassSource": "TESTER'S",
-        "stateColumn": "limb (a): the TARGET profile’s own public.memberships rows (does it share a commission with the caller); limb (b): profile_id = auth.uid()"
+        "stateColumn": "limb (a): the TARGET profile’s own public.memberships rows (does it share a commission with the caller); limb (b): profile_id = auth.uid()",
+        "probe": {
+          "kind": "rls-select",
+          "relation": "public.profiles",
+          "idColumn": "id",
+          "fixtures": {
+            "_persona": true,
+            "disjunct_present": {
+              "_self": true
+            },
+            "disjunct_absent": {
+              "subject_holder": "a5f00000-0000-0000-0000-0000000000e2",
+              "other_commission_holder": "a5f00000-0000-0000-0000-0000000000e2",
+              "cross_org_actor": "a5f00000-0000-0000-0000-0000000000e2",
+              "unprivileged": "00000000-0000-0000-0000-00000000000a"
+            },
+            "conjunct_unmet": {
+              "subject_holder": "00000000-0000-0000-0000-000000000006",
+              "other_commission_holder": "00000000-0000-0000-0000-00000000000a",
+              "cross_org_actor": "00000000-0000-0000-0000-000000000006",
+              "unprivileged": "00000000-0000-0000-0000-000000000006"
+            },
+            "_default": {
+              "subject_holder": "00000000-0000-0000-0000-000000000002",
+              "other_commission_holder": "00000000-0000-0000-0000-000000000005",
+              "cross_org_actor": "00000000-0000-0000-0000-0000000000b3",
+              "unprivileged": "00000000-0000-0000-0000-000000000002"
+            }
+          },
+          "note": "⚠ THE ONLY PERSONA-KEYED BINDING, and it has to be: `$1` is the SUBJECT PROFILE being read, so a fixed value across personas makes `subject_holder` a hidden SELF-read (424 § 4's own (b) finding). `disjunct_present` is the self leg — the subject IS the principal; `_default` is a genuine co-member in the commission that principal actually holds in."
+        }
       },
       "hardDenyMeasurement": {
         "closureSize": 21,
@@ -3024,6 +3088,13 @@
         "measuredOn": "2026-09-13",
         "method": "composed-call closure over the row’s armInterface sites (function bodies) and policy quals plus arm3Door.expression, comment-stripped, NO depth bound — the reached set is a subset of pg_proc over app/public/authz and UNION dedupes, so the fixed point IS the bound. Identical to the method the hardDenyVocabulary comment records for the three re-keyed rows.",
         "bound": "complete over the CALL-REACHABLE sub-vocabulary only. 4 of the 7 classes have a null gate (two triggers, the UUID id-space, ADR 0172’s deferred column) and NO call search sees them at any depth — FUP-AUTHZ-HARDDENY-GATELESS-CLASSES-HAVE-NO-DETECTOR."
+      },
+      "legacyProbe": {
+        "kind": "function-call",
+        "call": "app.is_member_of_for({scope}::uuid, {uid}::uuid)",
+        "fixtures": {},
+        "scopeAnchored": true,
+        "note": "No arm-3 door: the legacy side IS the bare membership predicate. ⭐ `_for` takes an explicit uid, so unlike a policy probe this row IS third-party-capable."
       }
     },
     "commission.meetings.read": {
@@ -3123,7 +3194,16 @@
         "note": "The conjunct is `visibility_policy = 'commission_default' OR the caller is a meeting_attendees row`. `conjunct_unmet` = a participants_only meeting the caller does not attend.",
         "legacyClass": "can_reach_meeting",
         "legacyClassSource": "TESTER'S",
-        "stateColumn": "public.meetings.visibility_policy, plus a public.meeting_attendees row for the caller"
+        "stateColumn": "public.meetings.visibility_policy, plus a public.meeting_attendees row for the caller",
+        "probe": {
+          "kind": "function-call",
+          "call": "app.can_reach_meeting({resource}::uuid, {uid}::uuid)",
+          "fixtures": {
+            "conjunct_unmet": "a5f20000-0000-0000-0000-0000000000a1",
+            "_default": "f1000000-0000-0000-0000-0000000000e1"
+          },
+          "note": "`conjunct_unmet` is the participants_only meeting the principal does not attend."
+        }
       },
       "hardDenyMeasurement": {
         "closureSize": 52,
@@ -3214,7 +3294,16 @@
         "note": "The conjunct is `a.attendance = 'present' AND m.status = 'in_signature'`. ⚠ `in_signature` is NOT one of resourceLifecycle's six declared values, which is why this is an arm-3 coordinate and not a lifecycle one.",
         "legacyClass": "can_sign_meeting",
         "legacyClassSource": "MINE",
-        "stateColumn": "public.meetings.status (= ‘in_signature’) AND public.meeting_attendees.attendance (= ‘present’)"
+        "stateColumn": "public.meetings.status (= ‘in_signature’) AND public.meeting_attendees.attendance (= ‘present’)",
+        "probe": {
+          "kind": "function-call",
+          "call": "app.can_sign_meeting({resource}::uuid, {uid}::uuid)",
+          "fixtures": {
+            "conjunct_unmet": "a5f30000-0000-0000-0000-0000000000a3",
+            "_default": "a5f30000-0000-0000-0000-0000000000a2"
+          },
+          "note": "⚠ The fixture is the ATTENDANCE row's meeting, not the meeting id: `att_present` is staff4.ccih present at the signing meeting, `att_absent` ativo.registro absent from it."
+        }
       },
       "hardDenyMeasurement": {
         "closureSize": 8,
@@ -3292,7 +3381,16 @@
         "note": "The S5 arm of app._case_caps, reached through its public projection. The conjunct is `not v_eg` (visibility_policy <> 'explicit_grants_only'), plus the STEP-4 respondent / recusal hard denies. ⛔ NOT app.can_read_case — that asks for read_case_content, which S5 does not confer (matrix row 10).",
         "legacyClass": "case_caps_deliberation",
         "legacyClassSource": "TESTER'S",
-        "stateColumn": "public.cases.visibility_policy (v_eg = ‘explicit_grants_only’), plus the STEP-4 respondent / recusal hard denies"
+        "stateColumn": "public.cases.visibility_policy (v_eg = ‘explicit_grants_only’), plus the STEP-4 respondent / recusal hard denies",
+        "probe": {
+          "kind": "function-call",
+          "call": "app.has_case_capability({resource}::uuid, {uid}::uuid, 'read_case_deliberation')",
+          "fixtures": {
+            "conjunct_unmet": "ca000000-0000-0000-0000-0000000000e1",
+            "_default": "d0000000-0000-0000-0000-0000000000c1"
+          },
+          "note": "`conjunct_unmet` is the explicit_grants_only case WITH ethics_case_details."
+        }
       },
       "hardDenyMeasurement": {
         "closureSize": 21,
@@ -3389,7 +3487,18 @@
         "note": "BOTH limbs. Limb (a) is `visibility_scope = 'committee'` gating the member leg; limb (b) is the role-free assignee disjunct. ⚠ app.can_read_action_item($1,$4) is the equivalent callable and carries an is_case_excluded hard deny the policy does not.",
         "legacyClass": "can_read_action_item",
         "legacyClassSource": "TESTER'S",
-        "stateColumn": "public.action_items.visibility_scope; limb (b) additionally public.action_item_assignments.user_id / action_items.assigned_to = auth.uid()"
+        "stateColumn": "public.action_items.visibility_scope; limb (b) additionally public.action_item_assignments.user_id / action_items.assigned_to = auth.uid()",
+        "probe": {
+          "kind": "function-call",
+          "call": "app.can_read_action_item({resource}::uuid, {uid}::uuid)",
+          "fixtures": {
+            "disjunct_present": "a5f40000-0000-0000-0000-0000000000a1",
+            "disjunct_absent": "a5f40000-0000-0000-0000-0000000000a2",
+            "conjunct_unmet": "a5f40000-0000-0000-0000-0000000000a2",
+            "_default": "ac3f1301-49e3-4b2b-b904-6a2a4fea8cfc"
+          },
+          "note": "L10: this row has a `p_uid` door (`app.can_read_action_item`, § 5.4 subject `p_uid`), so it is THIRD-PARTY-CAPABLE and is probed through that form — the hat ignored per ADR 0201 D1. ⛔ Probing the `action_items` POLICY instead would have made the row caller-only and skipped every third-party cell, which is a real coverage loss chosen by accident: the function is the door that can be asked about a principal who is not the caller. ⚠ The function carries the two arms the declaration omits (`is_staff_admin_of_for`, `assigned_to = p_uid`) — the drift follow-up's subject — so the probe is the whole live door either way."
+        }
       },
       "hardDenyMeasurement": {
         "closureSize": 28,
@@ -3467,7 +3576,16 @@
         "note": "⛔ A GUARD EXPRESSION, NOT A CALLABLE. public.cast_case_vote(p_decision_id, p_vote, p_rationale_md) RETURNS uuid and WRITES; a read differential must not call it. ⭐ CORRECTED 2026-09-13 (lead ruling L5): the HC0J0 guard is an ethics-DETAILS EXISTENCE test, NOT a case-status test — measured in the live body. The fixture pair is a case WITH and a case WITHOUT an ethics_case_details row, ⛔ not two case statuses.",
         "legacyClass": "cast_case_vote_guard",
         "legacyClassSource": "TESTER'S",
-        "stateColumn": "presence of a public.ethics_case_details row for the case (⛔ NOT public.cases.status — lead ruling L5)"
+        "stateColumn": "presence of a public.ethics_case_details row for the case (⛔ NOT public.cases.status — lead ruling L5)",
+        "probe": {
+          "kind": "function-call",
+          "call": "app.can_read_case_committee({resource}::uuid, auth.uid())",
+          "fixtures": {
+            "conjunct_unmet": "d0000000-0000-0000-0000-0000000000c1",
+            "_default": "ca000000-0000-0000-0000-0000000000e1"
+          },
+          "note": "DOCUMENTED APPROXIMATION, named rather than hidden: `cast_case_vote` is a WRITE whose guard cannot be executed for its truth value without casting a vote, so the probe is the guard's own reachability predicate. The uid is bound to `auth.uid()`, NOT to the cell's principal, and that is the point: matrix 5.4 records this site's subject as `caller`, so the row is CALLER-ONLY and its third-party cells are skipped by rule. Binding the principal here would fabricate a third-party capability the guard does not have - which is what arm14(b) caught on its first run, on me."
+        }
       },
       "hardDenyMeasurement": {
         "closureSize": 15,
@@ -3591,6 +3709,13 @@
         "measuredOn": "2026-09-13",
         "method": "composed-call closure over the row’s armInterface sites (function bodies) and policy quals plus arm3Door.expression, comment-stripped, NO depth bound — the reached set is a subset of pg_proc over app/public/authz and UNION dedupes, so the fixed point IS the bound. Identical to the method the hardDenyVocabulary comment records for the three re-keyed rows.",
         "bound": "complete over the CALL-REACHABLE sub-vocabulary only. 4 of the 7 classes have a null gate (two triggers, the UUID id-space, ADR 0172’s deferred column) and NO call search sees them at any depth — FUP-AUTHZ-HARDDENY-GATELESS-CLASSES-HAVE-NO-DETECTOR."
+      },
+      "legacyProbe": {
+        "kind": "function-call",
+        "call": "app.is_member_of_for({scope}::uuid, {uid}::uuid)",
+        "fixtures": {},
+        "scopeAnchored": true,
+        "note": "No arm-3 door: the legacy side IS the bare membership predicate. ⭐ `_for` takes an explicit uid, so unlike a policy probe this row IS third-party-capable."
       }
     },
     "commission.indicators.read": {
@@ -3665,6 +3790,13 @@
         "measuredOn": "2026-09-13",
         "method": "composed-call closure over the row’s armInterface sites (function bodies) and policy quals plus arm3Door.expression, comment-stripped, NO depth bound — the reached set is a subset of pg_proc over app/public/authz and UNION dedupes, so the fixed point IS the bound. Identical to the method the hardDenyVocabulary comment records for the three re-keyed rows.",
         "bound": "complete over the CALL-REACHABLE sub-vocabulary only. 4 of the 7 classes have a null gate (two triggers, the UUID id-space, ADR 0172’s deferred column) and NO call search sees them at any depth — FUP-AUTHZ-HARDDENY-GATELESS-CLASSES-HAVE-NO-DETECTOR."
+      },
+      "legacyProbe": {
+        "kind": "function-call",
+        "call": "app.is_member_of_for({scope}::uuid, {uid}::uuid)",
+        "fixtures": {},
+        "scopeAnchored": true,
+        "note": "No arm-3 door: the legacy side IS the bare membership predicate. ⭐ `_for` takes an explicit uid, so unlike a policy probe this row IS third-party-capable."
       }
     },
     "commission.accreditation.read": {
@@ -3779,7 +3911,17 @@
         "note": "⭐ THE VACUOUS SHAPE, AND THE REASON `disjunct_absent` IS MANDATORY. `owner_commission_id IS NULL` is a PUBLIC arm: every authenticated caller passes, so a deny cell measured at `disjunct_present` CANNOT FAIL. ⚠ accreditation_frameworks holds ZERO rows today (measured) — the coordinate is unconstructible until the gap rows land.",
         "legacyClass": "rls_accreditation_frameworks_owner_null",
         "legacyClassSource": "MINE",
-        "stateColumn": "public.accreditation_frameworks.owner_commission_id IS NULL (the PUBLIC arm)"
+        "stateColumn": "public.accreditation_frameworks.owner_commission_id IS NULL (the PUBLIC arm)",
+        "probe": {
+          "kind": "rls-select",
+          "relation": "public.accreditation_frameworks",
+          "idColumn": "id",
+          "fixtures": {
+            "disjunct_present": "a5f50000-0000-0000-0000-0000000000a1",
+            "_default": "a5f50000-0000-0000-0000-0000000000a2"
+          },
+          "note": "`disjunct_present` is the NULL-owner framework (the PUBLIC arm, grants any authenticated caller); every other arm is the CCIH-owned one. ⚠ RESOURCE-anchored, never scope-anchored — 424 § 4's own (b) ruling: binding this to `v_scope_id` drifted to the foreign-owned row for foreign-scope cells."
+        }
       },
       "hardDenyMeasurement": {
         "closureSize": 29,
@@ -3910,7 +4052,16 @@
         "note": "The limb-(b) disjunct is `app.is_document_approver_of`, measured role-free (a document_approvals lookup). ⚠ document_approvals holds 4 rows today, so `disjunct_present` is constructible — whether its approver is a CLEAN staff is a fixture question.",
         "legacyClass": "rls_controlled_documents_approver",
         "legacyClassSource": "MINE",
-        "stateColumn": "a public.document_approvals row naming the caller as approver-of-record"
+        "stateColumn": "a public.document_approvals row naming the caller as approver-of-record",
+        "probe": {
+          "kind": "function-call",
+          "call": "app.can_read_document({resource}::uuid, {uid}::uuid)",
+          "fixtures": {
+            "disjunct_present": "d0c00000-0000-0000-0000-0000000000d1",
+            "_default": "d0c00000-0000-0000-0000-0000000000d2"
+          },
+          "note": "L10: `app.can_read_document` is a `p_uid` door (§ 5.4), so the row is third-party-capable and is probed through it rather than through the `controlled_documents` policy, which would be caller-only. `disjunct_present` is the document staff4.ccih approved."
+        }
       },
       "hardDenyMeasurement": {
         "closureSize": 56,
@@ -3979,6 +4130,13 @@
         "measuredOn": "2026-09-13",
         "method": "composed-call closure over the row’s armInterface sites (function bodies) and policy quals plus arm3Door.expression, comment-stripped, NO depth bound — the reached set is a subset of pg_proc over app/public/authz and UNION dedupes, so the fixed point IS the bound. Identical to the method the hardDenyVocabulary comment records for the three re-keyed rows.",
         "bound": "complete over the CALL-REACHABLE sub-vocabulary only. 4 of the 7 classes have a null gate (two triggers, the UUID id-space, ADR 0172’s deferred column) and NO call search sees them at any depth — FUP-AUTHZ-HARDDENY-GATELESS-CLASSES-HAVE-NO-DETECTOR."
+      },
+      "legacyProbe": {
+        "kind": "function-call",
+        "call": "app.is_member_of_for({scope}::uuid, {uid}::uuid)",
+        "fixtures": {},
+        "scopeAnchored": true,
+        "note": "No arm-3 door: the legacy side IS the bare membership predicate. ⭐ `_for` takes an explicit uid, so unlike a policy probe this row IS third-party-capable."
       }
     },
     "commission.capa.read": {
@@ -4048,7 +4206,16 @@
         "note": "The conjunct is `capa_plan.source = 'indicator'` — a PROVENANCE column no axis carries. ⚠ capa_plan holds ONE row and its source is 'rca' (measured), so `conjunct_met` has NO fixture at all until the gap rows land.",
         "legacyClass": "can_read_capa",
         "legacyClassSource": "MINE",
-        "stateColumn": "public.capa_plan.source (= ‘indicator’)"
+        "stateColumn": "public.capa_plan.source (= ‘indicator’)",
+        "probe": {
+          "kind": "function-call",
+          "call": "app.can_read_capa({resource}::uuid, {uid}::uuid)",
+          "fixtures": {
+            "conjunct_unmet": "ca000000-0000-0000-0000-0000000000a3",
+            "_default": "a5f70000-0000-0000-0000-0000000000a1"
+          },
+          "note": "`conjunct_unmet` is the RCA-sourced plan; the default the indicator-sourced one."
+        }
       },
       "hardDenyMeasurement": {
         "closureSize": 13,
@@ -4150,6 +4317,13 @@
         "measuredOn": "2026-09-13",
         "method": "composed-call closure over the row’s armInterface sites (function bodies) and policy quals plus arm3Door.expression, comment-stripped, NO depth bound — the reached set is a subset of pg_proc over app/public/authz and UNION dedupes, so the fixed point IS the bound. Identical to the method the hardDenyVocabulary comment records for the three re-keyed rows.",
         "bound": "complete over the CALL-REACHABLE sub-vocabulary only. 4 of the 7 classes have a null gate (two triggers, the UUID id-space, ADR 0172’s deferred column) and NO call search sees them at any depth — FUP-AUTHZ-HARDDENY-GATELESS-CLASSES-HAVE-NO-DETECTOR."
+      },
+      "legacyProbe": {
+        "kind": "function-call",
+        "call": "app.is_member_of_for({scope}::uuid, {uid}::uuid)",
+        "fixtures": {},
+        "scopeAnchored": true,
+        "note": "No arm-3 door: the legacy side IS the bare membership predicate. ⭐ `_for` takes an explicit uid, so unlike a policy probe this row IS third-party-capable."
       }
     },
     "commission.referrals.notes.author": {
@@ -4210,6 +4384,13 @@
         "measuredOn": "2026-09-13",
         "method": "composed-call closure over the row’s armInterface sites (function bodies) and policy quals plus arm3Door.expression, comment-stripped, NO depth bound — the reached set is a subset of pg_proc over app/public/authz and UNION dedupes, so the fixed point IS the bound. Identical to the method the hardDenyVocabulary comment records for the three re-keyed rows.",
         "bound": "complete over the CALL-REACHABLE sub-vocabulary only. 4 of the 7 classes have a null gate (two triggers, the UUID id-space, ADR 0172’s deferred column) and NO call search sees them at any depth — FUP-AUTHZ-HARDDENY-GATELESS-CLASSES-HAVE-NO-DETECTOR."
+      },
+      "legacyProbe": {
+        "kind": "function-call",
+        "call": "app.is_member_of_for({scope}::uuid, {uid}::uuid)",
+        "fixtures": {},
+        "scopeAnchored": true,
+        "note": "No arm-3 door: the legacy side IS the bare membership predicate. ⭐ `_for` takes an explicit uid, so unlike a policy probe this row IS third-party-capable."
       }
     },
     "commission.cases.vocabulary.read": {
@@ -4284,7 +4465,29 @@
         "measuredOn": "2026-09-13",
         "method": "composed-call closure over the row’s armInterface sites (function bodies) and policy quals plus arm3Door.expression, comment-stripped, NO depth bound — the reached set is a subset of pg_proc over app/public/authz and UNION dedupes, so the fixed point IS the bound. Identical to the method the hardDenyVocabulary comment records for the three re-keyed rows.",
         "bound": "complete over the CALL-REACHABLE sub-vocabulary only. 4 of the 7 classes have a null gate (two triggers, the UUID id-space, ADR 0172’s deferred column) and NO call search sees them at any depth — FUP-AUTHZ-HARDDENY-GATELESS-CLASSES-HAVE-NO-DETECTOR."
+      },
+      "legacyProbe": {
+        "kind": "function-call",
+        "call": "app.is_member_of_for({scope}::uuid, {uid}::uuid)",
+        "fixtures": {},
+        "scopeAnchored": true,
+        "note": "No arm-3 door: the legacy side IS the bare membership predicate. ⭐ `_for` takes an explicit uid, so unlike a policy probe this row IS third-party-capable."
       }
+    }
+  },
+  "differentialFixtures": {
+    "_note": "The axis-level fixture bindings the differential probes resolve against, authored once here (L9') instead of in 424's declare block. personaUid is the PRINCIPAL the cell is about; scopeCommission the commission its `scope` axis value names. The caller is NOT here: it is the principal on a self-check and gap.unpriv otherwise, which the probe sets as claims, never as text.",
+    "personaUid": {
+      "subject_holder": "00000000-0000-0000-0000-00000000000a",
+      "other_commission_holder": "00000000-0000-0000-0000-000000000006",
+      "cross_org_actor": "a5f00000-0000-0000-0000-0000000000e1",
+      "unprivileged": "a5f00000-0000-0000-0000-0000000000e2"
+    },
+    "thirdPartyCaller": "a5f00000-0000-0000-0000-0000000000e2",
+    "scopeCommission": {
+      "own_commission": "a0000000-0000-0000-0000-0000000000a1",
+      "sibling_commission": "b0000000-0000-0000-0000-0000000000b1",
+      "foreign_org_commission": "c0000000-0000-0000-0000-0000000000c2"
     }
   }
 }
