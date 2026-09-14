@@ -3410,6 +3410,28 @@ begin
           'Item restrito de outro responsável (fixture arm-3 linha 11b)', v_status,
           'assignees_only', '00000000-0000-0000-0000-0000000000d2'::uuid, v_clean);
 
+  -- ⭐⭐ THE ASSIGNMENT ROWS, AND WITHOUT THEM ROW 11's LIMB (b) WAS UNREACHABLE (L8).
+  -- ⛔ The two items above set `action_items.assigned_to`, which is only ONE of the three
+  -- disjuncts `app.can_read_action_item` evaluates under `assignees_only`:
+  --     app.is_staff_admin_of_for(...)  or  assigned_to = p_uid  or  EXISTS(action_item_assignments)
+  -- The manifest's published `arm3Door.expression` for this row declares ONLY the third, so the
+  -- differential suite evaluates only that one — and it found NO row for ANY persona, which made
+  -- every `disjunct_present` cell on row 11 deny. ⚠ Measured before this fix: 0 assignment rows
+  -- for all four vector personas, so the coordinate the matrix DECLARES was one the fixture could
+  -- not build. A declared coordinate no fixture can reach is the "green gate means the fixture
+  -- cannot reach the failing state" shape, one layer below where any arm could see it.
+  insert into public.action_item_assignments (id, action_item_id, user_id, role, assigned_by)
+  values ('a5f40000-0000-0000-0000-0000000000b1'::uuid,
+          'a5f40000-0000-0000-0000-0000000000a1'::uuid, v_clean, 'owner', v_clean);
+  -- ⛔ THE NEGATIVE CONTROL, AND IT IS A SECOND PERSONA ON A SECOND ITEM, NOT AN ABSENCE.
+  -- `ativo.registro` (…d2) owns item a2 and NOBODY owns item a1 but `staff4.ccih`, so "the
+  -- assignment is persona-keyed" is measurable in both directions: the limb fires for v_clean on
+  -- a1 and does NOT fire for v_clean on a2. An absent row would prove only that nothing is there.
+  insert into public.action_item_assignments (id, action_item_id, user_id, role, assigned_by)
+  values ('a5f40000-0000-0000-0000-0000000000b2'::uuid,
+          'a5f40000-0000-0000-0000-0000000000a2'::uuid,
+          '00000000-0000-0000-0000-0000000000d2'::uuid, 'owner', v_clean);
+
   -- ── ROW 15 — the PUBLIC arm, and both of its comparators ──────────────────
   -- ⛔ `owner_commission_id IS NULL` grants EVERY authenticated caller. Without
   -- the NULL-owner row the `disjunct_present` cell is unconstructible; without
