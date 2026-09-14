@@ -3260,6 +3260,10 @@ declare
   v_orgb     uuid := '0c000000-0000-0000-0000-00000000000b';
   v_hosp_a   uuid := '05000000-0000-0000-0000-00000000000a';
   v_clean    uuid := '00000000-0000-0000-0000-00000000000a';  -- staff4.ccih — the CLEAN plain staff
+  v_farma    uuid := 'b0000000-0000-0000-0000-0000000000b1';  -- Farmácia (Rede A) — `sibling_commission`
+  v_other    uuid := '00000000-0000-0000-0000-000000000006';  -- staff1.farm (other_commission_holder)
+  v_status_a uuid;
+  v_status_b uuid;
   v_xorg     uuid := 'a5f00000-0000-0000-0000-0000000000e1';  -- NEW: clean org-B staff-only
   v_unpriv   uuid := 'a5f00000-0000-0000-0000-0000000000e2';  -- NEW: zero-role, zero-admin, active
   v_pending  uuid := 'a5f00000-0000-0000-0000-0000000000e3';  -- NEW: pending + a staff membership
@@ -3397,6 +3401,13 @@ begin
   select id into v_status from public.action_item_statuses
    where (commission_id = v_ccih or commission_id is null) and is_initial
    order by commission_id nulls last, sort_order limit 1;
+  -- ⚠ The status table is PER-COMMISSION with a global fallback, so each scope resolves its own.
+  select id into v_status_a from public.action_item_statuses
+   where (commission_id = v_farma or commission_id is null) and is_initial
+   order by commission_id nulls last, sort_order limit 1;
+  select id into v_status_b from public.action_item_statuses
+   where (commission_id = v_farmb or commission_id is null) and is_initial
+   order by commission_id nulls last, sort_order limit 1;
 
   insert into public.action_items (id, commission_id, source_type, title, status_id,
                                    visibility_scope, assigned_to, created_by)
@@ -3431,6 +3442,64 @@ begin
   values ('a5f40000-0000-0000-0000-0000000000b2'::uuid,
           'a5f40000-0000-0000-0000-0000000000a2'::uuid,
           '00000000-0000-0000-0000-0000000000d2'::uuid, 'owner', v_clean);
+
+  -- ═══ PER-SCOPE RESOURCE FIXTURES (L9″, 2026-09-14) ════════════════════════
+  -- ⛔⛔ WHY THESE EXIST. `legacy_sql` probes a RESOURCE while `catalog_sql` asks about the
+  -- cell's SCOPE. Every arm-3 fixture above lives at CCIH only, so for a cell whose scope is
+  -- `sibling_commission` or `foreign_org_commission` the two sides measured DIFFERENT
+  -- COMMISSIONS by construction — the legacy answer was about CCIH and the catalog answer about
+  -- Farmácia. Measured by the tester on the first loop-shaped run: 458 of 572 red cells, every
+  -- one a `cross_org_actor`/`other_commission_holder` off-CCIH coordinate. A probe at the wrong
+  -- scope is not a weak test, it is a DIFFERENT test wearing the cell's name.
+  -- ⚠ Where a class genuinely has no resource at a scope the generator SKIPS by a named rule and
+  -- the coverage JSON counts it. These are the ones that are cheap and honest to construct.
+  -- ⛔ EVERY ID HERE IS A FIXED LITERAL. The committee action item below replaces a probe bound
+  -- to `ac3f1301-…`, which was a `gen_random_uuid()` value read out of the catalog at GENERATION
+  -- time: it changed on the next reset and the probe then hit a row that did not exist. The
+  -- generator now refuses to bind any id it cannot find as a literal in seed.sql or a migration.
+
+  -- Row 11 — the COMMITTEE-scope item, at each scope. (CCIH's replaces the random-id one.)
+  insert into public.action_items (id, commission_id, source_type, title, status_id,
+                                   visibility_scope, created_by)
+  values ('a5f40000-0000-0000-0000-0000000000c1'::uuid, v_ccih,  'manual',
+          'Item do comitê (fixture arm-3 linha 11 — escopo próprio)',  v_status, 'committee', v_clean),
+         ('a5f40000-0000-0000-0000-0000000000c2'::uuid, v_farma, 'manual',
+          'Item do comitê (fixture arm-3 linha 11 — escopo irmão)',    v_status_a, 'committee', v_clean),
+         ('a5f40000-0000-0000-0000-0000000000c3'::uuid, v_farmb, 'manual',
+          'Item do comitê (fixture arm-3 linha 11 — escopo de outra org)', v_status_b, 'committee', v_clean);
+  -- …and the assignees_only pair at the two off-CCIH scopes, so limb (b) is answerable there too.
+  insert into public.action_items (id, commission_id, source_type, title, status_id,
+                                   visibility_scope, assigned_to, created_by)
+  values ('a5f40000-0000-0000-0000-0000000000d1'::uuid, v_farma, 'manual',
+          'Item restrito (fixture linha 11 — escopo irmão)', v_status_a, 'assignees_only', v_other, v_clean),
+         ('a5f40000-0000-0000-0000-0000000000d2'::uuid, v_farmb, 'manual',
+          'Item restrito (fixture linha 11 — escopo de outra org)', v_status_b, 'assignees_only', v_xorg, v_clean);
+  insert into public.action_item_assignments (id, action_item_id, user_id, role, assigned_by)
+  values ('a5f40000-0000-0000-0000-0000000000e1'::uuid, 'a5f40000-0000-0000-0000-0000000000d1'::uuid,
+          v_other, 'owner', v_clean),
+         ('a5f40000-0000-0000-0000-0000000000e2'::uuid, 'a5f40000-0000-0000-0000-0000000000d2'::uuid,
+          v_xorg,  'owner', v_clean);
+
+  -- Row 15 — a framework owned by Farmácia A, the one owner the trio was missing.
+  insert into public.accreditation_frameworks (id, key, name, version, owner_commission_id)
+  values ('a5f50000-0000-0000-0000-0000000000a4'::uuid, 'gap-farma',
+          'Marco da Farmácia A (fixture arm-3 linha 15 — escopo irmão)', '1.0', v_farma);
+
+  -- Row 1 — a form + published version at each off-CCIH scope.
+  insert into public.forms (id, commission_id, title) values
+    ('a5fc0000-0000-0000-0000-0000000000f1'::uuid, v_farma, 'Formulário da Farmácia A (fixture arm-3 linha 1)'),
+    ('a5fc0000-0000-0000-0000-0000000000f2'::uuid, v_farmb, 'Formulário da Farmácia B (fixture arm-3 linha 1)');
+  insert into public.form_versions (id, form_id, version_number, status) values
+    ('a5fc0000-0000-0000-0000-0000000000b1'::uuid, 'a5fc0000-0000-0000-0000-0000000000f1'::uuid, 1, 'published'),
+    ('a5fc0000-0000-0000-0000-0000000000b2'::uuid, 'a5fc0000-0000-0000-0000-0000000000f2'::uuid, 1, 'published');
+
+  -- Row 16 — a controlled document at each off-CCIH scope (the NON-approver comparator; the
+  -- approver leg stays CCIH-only and is skipped by rule elsewhere).
+  insert into public.controlled_documents (id, commission_id, code, title, doc_type, status) values
+    ('a5fd0000-0000-0000-0000-0000000000a1'::uuid, v_farma, 'FIX-FA-001',
+     'Documento da Farmácia A (fixture arm-3 linha 16)', 'policy', 'effective'),
+    ('a5fd0000-0000-0000-0000-0000000000a2'::uuid, v_farmb, 'FIX-FB-001',
+     'Documento da Farmácia B (fixture arm-3 linha 16)', 'policy', 'effective');
 
   -- ── ROW 15 — the PUBLIC arm, and both of its comparators ──────────────────
   -- ⛔ `owner_commission_id IS NULL` grants EVERY authenticated caller. Without
