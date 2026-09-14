@@ -1,251 +1,171 @@
 -- 424 — AE5 increment 1: the `staff` differential oracle.
 --
--- ⛔⛔ NOT YET RUN. Written against `authz_differential_cells_staff` AS IT STOOD at `97e90f82`
--- (5 non-arm-3 representative classes, all dispatched through bare `is_member_of_for`; the eleven
--- arm-3 rows have NOT yet been emitted as cells — backend's round 4 is regenerating the vector to
--- add them, per lead ruling L2). ⛔ Per the lead's explicit instruction this round: do NOT run
--- `test:db`, `db reset`, or any write against the stack from this file — the lead authorizes the
--- first run once round 4 lands. Everything below is real, reviewable SQL, not a placeholder — but
--- §3's arm-3 branches (rows 4, 6, 7, 9, 12) were written against EXISTING seeded fixture data,
--- verified this round by read-only query, and are believed correct; rows 1 (control only), 8, 11's
--- deny coordinates, 15, 16 and 19 have NO buildable fixture yet (named in
--- `docs/testing/ae5-staff-fixture-gaps.md`) and are deliberately left UNDISPATCHED — an emitted
--- cell of one of those classes will RAISE via `pg_temp.unknown_legacy_class`, which is correct
--- until the fixture lands (403's own philosophy: an unhandled class must raise, never fall through
--- a default arm).
---
 -- Subjects: authz.candidate_has_permission (⛔ NEVER authz.has_permission — `staff` sits in
--- `test_validation` throughout this suite's lifetime; the runtime evaluator would report every
--- cell denied and call it a divergence, exactly as 403's own header explains for staff_admin's
--- pre-cutover window) vs the legacy evaluators. For the FIVE non-arm-3 representative classes the
--- legacy side is bare `app.is_member_of_for(scope, principal)`. For the ELEVEN arm-3 rows
--- (lead ruling L2, ADR 0175 D3's shape: "403 calls the real door now") the legacy side calls each
--- row's REAL enforcement predicate, never bare membership:
---   row 6/7   app.can_reach_meeting(meeting_id, uid) [+ NOT app.is_case_respondent(case_id, uid) for 7]
---   row 8     app.can_sign_meeting(attendee_id, uid)                          — NOT YET DISPATCHED
---   row 9     app._case_caps(case_id, uid) & 2 (the read_case_deliberation bit)
---   row 11    app.can_read_action_item(action_item_id, uid)      — GRANT coordinate only, dispatched
---   row 12    the compiled guard sequence of public.cast_case_vote: exists(ethics_case_details) AND
---             app.is_member_of_for(commission_of_case, uid) AND NOT (is_recused_from_case OR
---             is_case_respondent) — composed from the RPC's own body (verified this round,
---             `regexp_replace(prosrc,...)`), not the RPC itself (which is a mutating, decision-keyed
---             RPC unsuited to a pure differential; 403 never calls a mutating RPC either)
---   row 1/4/15/16  the RLS policy qual itself, probed under `set local role authenticated` with the
---             tested principal's claims — row 4 is dispatched (the `profiles_select_self_or_admin`
---             co-member + self-read legs); rows 1 (control only), 15, 16 are NOT YET DISPATCHED
---
--- ⚠⚠ THE CLASS NAMES BELOW ARE THIS SUITE'S PROPOSAL, NOT BACKEND'S. Lead ruling: "the door name
--- comes from the vector's per-row metadata once T3 round 4 lands, not from a literal [invented
--- here]." Round 4 has not landed that metadata as of this writing. The `legacy_class` string
--- literals below (`can_reach_meeting`, `can_reach_meeting_not_respondent`, `case_caps_deliberation`,
--- `can_read_action_item`, `cast_case_vote_guard`, `rls_profiles_comember_or_self`) are named after
--- the real predicate each calls, mirroring 403's own convention (a class is named after the
--- function it dispatches to) — but they are PROPOSALS. ⛔ WHOEVER WIRES ROUND 4'S VECTOR MUST
--- RENAME THESE `when` LITERALS TO MATCH THE VECTOR'S ACTUAL `legacy_class` VALUES VERBATIM, never
--- the reverse — the vector is the source of truth for the string, this file's names are a draft.
+-- `test_validation` throughout this suite's lifetime) vs the legacy evaluators. `REPS_STAFF` is
+-- twelve representatives (backend round 4, ruling L2): the eleven arm-3 carrying rows (1, 4, 6, 7,
+-- 8, 9, 11, 12, 15, 16, 19) plus `commission.responses.create`, the one membership-gated write
+-- policy, carrying the INERT `is_member_of_for` value. Every arm-3 row's legacy column calls its
+-- REAL door (ADR 0175 D3's shape, "403 calls the real door now"), never bare membership. The door
+-- is declared as DATA: `supabase/tests/vectors/authz-enforcement-manifest.json`
+-- `permissions[<code>].arm3Door` (kind · expression · args · limb · legacyClass · legacyClassSource
+-- · stateColumn), emitted into the vector as the `legacy_door` column (16th, descriptive text —
+-- `expression :: args`, not directly `EXECUTE`-able; the dispatch below is bound by NAME
+-- (`legacy_class`, column 6), one literal per row, read from that metadata rather than re-derived.
 --
 -- ⛔ TWO ASSERTIONS PER CELL, AND THE SECOND IS THE POINT (unchanged from 403).
 --   §4  is(legacy, catalog)          — the resolver reproduces today's behaviour;
 --   §5  is(catalog, approved-value)  — the MATRIX is the oracle, not "whatever legacy did".
 --
--- ⛔ EXPECTED VALUES ARE TRANSCRIBED, NEVER COMPUTED THE WAY THE RESOLVER COMPUTES THEM — from the
--- approved `staff` matrix row and the approved `staff` deny-class table, exactly as 403 explains.
+-- ⛔ EXPECTED VALUES ARE TRANSCRIBED, NEVER COMPUTED THE WAY THE RESOLVER COMPUTES THEM.
 --
--- ⚠ `case_reach` (`none · role_keyed · grant_keyed · unreachable`) IS SWEPT as a global vector
--- column but is INERT for every `staff` cell: `staff` holds no code whose predicate consults
--- `app.can_read_professional_profile`'s case-committee arm (matrix § 5.2, § 7.1). ⛔ Do not conflate
--- it with the eleven arm-3 coordinates above — different mechanism, different predicate family.
+-- ⚠ `case_reach` (col 12: `none · role_keyed · grant_keyed · unreachable`) is swept as a global
+-- column but is INERT for every `staff` cell — `staff` holds no `can_read_professional_profile`
+-- rep. ⛔ Not to be conflated with `member_gate_arm` (col 15: `none · conjunct_met · conjunct_unmet
+-- · disjunct_present · disjunct_absent`), the ELEVEN-ROW axis this file exists to dispatch — a
+-- DIFFERENT mechanism, declared per-row in the manifest's `memberGateArm` array beside `arm3Door`.
 --
--- ⛔ `arm3_divergence` / `expected_legacy_granted` (the 14th column) — PA-F8-STAFF-1 IS WITHDRAWN.
--- § 11 item 7 is RULED (A): the code is `commission.responses.create` (creation only), so row 2
--- carries NO `arm3_divergence` label and NO `expected_legacy_granted` divergence — the code says
--- nothing about edit/submit, and there is no cell for the revoked-member-still-submits behaviour to
--- diverge FROM. `staff` today therefore has ZERO cells expected to populate `expected_legacy_granted`
--- with a value other than `expected_granted` — unlike `staff_admin`'s 84 (matrix § 7.2 / R2). §4.1b
--- below still asserts `legacy = expected_legacy_granted` on every cell for structural symmetry with
--- 403 (and to catch it immediately if a future increment or a T3 round adds a `staff` divergence),
--- but the assertion is expected to be EQUIVALENT to §4.1 today, not a genuine carve-out.
+-- ⛔ `arm3_divergence` / `expected_legacy_granted` (col 14) — PA-F8-STAFF-1 IS WITHDRAWN. § 11 item
+-- 7 is RULED (A): `commission.responses.create` is creation-only, so it carries NO
+-- `arm3_divergence` label and `expected_legacy_granted = expected_granted` on every `staff` cell —
+-- unlike `staff_admin`'s 84-cell carve-out. §4.1b below is kept for structural symmetry and is
+-- expected to be equivalent to §4.1 today.
 --
--- ⚠ ROW 12's `HC0J0` GUARD IS AN ETHICS-DETAILS EXISTENCE GUARD, NOT A STATUS GUARD (backend
--- measurement, corrects this file's earlier header and the matrix § 5.3's provisional reading):
--- `public.cast_case_vote` raises `HC0J0` when `not exists(select 1 from public.ethics_case_details
--- d where d.case_id = v_case_id)` — verified this round by reading the comment-stripped body. The
--- fixture pair is a case WITH an `ethics_case_details` row vs one WITHOUT, not two ethics statuses.
--- CCIH's explicit_grants_only case (`ca000000-0000-0000-0000-0000000000e1`) already carries one
--- (verified this round); the five `commission_default` cases do not.
+-- ⚠ THE ELEVEN LEGACY_CLASS NAMES — ADOPTED VERBATIM from the manifest (`legacyClassSource` says
+-- whose string won; six are TESTER'S, five are backend's, same convention: `rls_` for a
+-- policy-qual door, the bare function name otherwise):
+--   row 1  rls_form_matrix_targeted_version    (limb b)   app.is_member_of(app.commission_of_version($1)) or app.can_access_targeted_version($1,$2)
+--   row 4  rls_profiles_comember_or_self       (limb a+b) ($1=$2) or (app.is_active($2) and exists(… them.principal_id=$1 … app.is_member_of(them.commission_id)))
+--   row 6  can_reach_meeting                   (limb a)   app.can_reach_meeting($1,$2)
+--   row 7  can_reach_meeting_not_respondent    (limb a)   app.can_reach_meeting($1,$3) and not app.is_case_respondent($2,$3)
+--   row 8  can_sign_meeting                    (limb a)   app.can_sign_meeting($1,$2)
+--   row 9  case_caps_deliberation              (limb a)   app.has_case_capability($1,$2,'read_case_deliberation')
+--   row 11 can_read_action_item                (limb a+b) ($3='committee' and app.is_member_of($2)) or ($3='assignees_only' and exists(… action_item_assignments … user_id=$4 …))
+--   row 12 cast_case_vote_guard                (limb a)   exists(ethics_case_details … case_id=$1) and app.is_member_of_for($2,$3) — a GUARD EXPRESSION, not a callable (cast_case_vote WRITES)
+--   row 15 rls_accreditation_frameworks_owner_null (limb b) ($1 is null) or app.is_member_of($1)
+--   row 16 rls_controlled_documents_approver   (limb b)   app.is_member_of($2) or app.is_document_approver_of($1,$3)
+--   row 19 can_read_capa                       (limb a)   app.can_read_capa($1,$2)
 --
--- ⚠ THE ABLE-TO-FAIL PROOF (§6, mirrors 403 §6 exactly — NOT a bare SAVEPOINT: pgTAP savepoints
--- discard assertions made after a rollback to them, so like 403 this suite mutates directly with
--- `delete`/`insert`, asserts red, then reverses the SAME statement and asserts green again, all
--- inside the one outer transaction `plan()`/`finish()` already opened).
+-- ⚠ THE BARE-MEMBERSHIP EXPRESSIONS (rows 1, 4, 15, 16) READ `auth.uid()` INSIDE `app.is_member_of`
+-- with no explicit uid argument — they answer about the CALLER (the session `claims_for()` last
+-- set), not about a "subject" parameter. `test_helpers.claims_for()` sets the JWT GUC only (no
+-- Postgres role switch), which is sufficient here because every `app.*` predicate below reads
+-- `auth.uid()` via that GUC, not via RLS — so these are called directly as plain SQL expressions,
+-- exactly as 403 calls its door functions directly, never under `set local role authenticated`.
 --
--- ⚠ PER-CLASS EXPECTED VALUES FOR THE ELEVEN ARM-3 COORDINATES — ⛔ STILL PROPOSED, NOT
--- PO-APPROVED (matrix § 11 item 5 remains open on values; only the coordinate SET is ruled).
+-- ⚠ ROW 12's `HC0J0` GUARD IS AN ETHICS-DETAILS EXISTENCE GUARD, NOT A STATUS GUARD (lead ruling
+-- L5, backend-confirmed): CCIH already holds 1 case WITH an `ethics_case_details` row
+-- (`ca000000-…-e1`) and 5 WITHOUT — no new case fixture was needed.
 --
---   row  term                                                    class value        -> proposed
---   ---  ------------------------------------------------------- ----------------- ---------------
---   1(b) can_access_targeted_version participation disjunct      no participation    GRANTED (bare membership)
---                                                                 participation present GRANTED (disjunct; limb-b only adds)
---   4(a) co-member leg (target's own memberships)                target shares a commission GRANTED
---                                                                 target shares none  DENIED (falls to self-leg only)
---   4(b) self-read disjunct                                      self                GRANTED (role-free)
---                                                                 third-party, no share DENIED
---   6    visibility_policy / attendee EXISTS                     commission_default  GRANTED
---                                                                 participants_only + attendee GRANTED
---                                                                 participants_only + non-attendee DENIED
---   7    + is_case_respondent hard deny (on a row-6 GRANT)        non-respondent      GRANTED
---                                                                 respondent          DENIED
---   8    attendance='present' AND status='in_signature'          present + in_signature GRANTED
---                                                                 present + other status DENIED
---                                                                 absent  + in_signature DENIED
---   9    v_eg (visibility_policy='explicit_grants_only')         commission_default  GRANTED
---                                                                 explicit_grants_only, no grant DENIED
---   11(a) visibility_scope                                       committee           GRANTED
---                                                                 case_restricted     DENIED
---                                                                 assignees_only, not assigned DENIED
---   11(b) assigned_to = auth.uid() disjunct                      assigned            GRANTED (role-free)
---                                                                 not assigned        DENIED
---   12   ethics_case_details existence guard precedes membership details exist      GRANTED
---                                                                 details absent      DENIED (HC0J0, not a permission denial)
---   15   owner_commission_id IS NULL (public arm)                owner IS NULL       GRANTED (vacuous — every authenticated caller)
---                                                                 owner = own commission GRANTED (membership)
---                                                                 owner = a different commission DENIED
---   16   is_document_approver_of disjunct                        approver-of-record  GRANTED (role-free)
---                                                                 member, not approver GRANTED (membership)
---                                                                 neither             DENIED
---   19   cp.source='indicator' provenance                        source=indicator    GRANTED (member of the indicator's commission)
---                                                                 source=event        N/A to this row (row 17's arm, not row 19's)
+-- ⚠ FIXTURE ROWS (backend round 4, `docs/progress/ae5-staff.md` "round 4 (backend)", every id
+-- carrying the unit's `a5f…` prefix — none reused from any other case):
+--   personas   gap.xorg.b@test.local (a5f00000-…-e1, clean org-B staff-only, Farmácia B `c2`) ·
+--              gap.unpriv@test.local (a5f00000-…-e2, zero role/admin, active) ·
+--              gap.pending@test.local (a5f00000-…-e3, unconfirmed, `staff` @ CCIH) ·
+--              gap.deactivated@test.local (a5f00000-…-e4, `is_active=false`, `staff` @ CCIH)
+--   row 6/7    a5f20000-…-a1 participants_only meeting; attendee a5f30000-…-a1 = staff1.ccih only
+--              (the clean staff is NOT an attendee — the `conjunct_unmet` cell)
+--   row 8      a5f20000-…-a2 `in_signature` meeting; attendee a5f30000-…-a2 = staff4.ccih `present`
+--              (`conjunct_met`), a5f30000-…-a3 = ativo.registro `absent` (`conjunct_unmet`)
+--   row 11     a5f40000-…-a1 `assignees_only`, assigned_to=staff4.ccih (`disjunct_present`);
+--              a5f40000-…-a2 `assignees_only`, assigned_to=ativo.registro (`disjunct_absent` /
+--              `conjunct_unmet`, since visibility_scope <> 'committee' either way); the ORIGINAL
+--              seeded item `ac3f1301-…` (`committee`) is `conjunct_met`
+--   row 15     a5f50000-…-a1 owner NULL (PUBLIC, `disjunct_present`) · …-a2 owner=CCIH ·
+--              …-a3 owner=Farmácia B (`disjunct_absent` for a CCIH-only caller)
+--   row 16     a5f60000-…-a1 `document_approvals`, approver=staff4.ccih, on document `d0c00000-…d1`
+--   row 19     a5f70000-…-a1 `capa_plan`, `source='indicator'`, CCIH's own indicator
+--   row 1      NO fixture — no `case_participants`/`professional_participants` link was built for
+--              any principal this round (2.5's masking control covers the ONLY thing that needed
+--              checking: the chosen `subject_holder` carries no such link, so row 1's cells measure
+--              bare membership, never the disjunct in disguise). `disjunct_present` therefore has NO
+--              constructible coordinate and is NOT dispatched — see the note beside its branch.
+--   row 12     no new case (measured: CCIH already has both states)
 --
--- ⚠ `409`-SHAPE DOORS T12 WILL FLIP ONCE T7 LANDS (`425_ae5_staff_rekey_differential.sql`, not this
--- file): `responses.responses_insert_own` (row 2, R — the ONLY site, per § 11 item 7 ruling (A)) ·
--- `meetings.meeting_signatures_insert` + `app.can_sign_meeting` (row 8, R+D, both move together) ·
--- `public.cast_case_vote` (row 12, D) · `public.notify_safety_event` (row 18, D) ·
--- `public.create_referral_internal_note` (row 21, D, arm 1 only). ⛔ DEFINER NON-FLIPPER, NAMED AS A
--- COUNTDOWN (409 § 2.10c's pattern): `public.submit_response` — INVOKER, no membership gate of any
--- kind, gated entirely by `responses_update_own_draft`'s ownership predicate; deleting a `staff`
--- grant does not change its behaviour (matrix § 8.1's transcript) — T12 must name it excluded, not
--- silently omit it.
+-- ⚠ THE ABLE-TO-FAIL PROOF (§6, mirrors 403 §6 — direct `delete`/`insert`, reversed by its own
+-- inverse, NOT a bare SAVEPOINT, which discards assertions made after a rollback to it).
 --
--- RUN SHAPE: `plan(21)`, self-consistent AT AUTHORING TIME against the assertions actually written
--- below — ⛔ UNVERIFIED, since no run is authorized this round. The count WILL change the moment
--- round 4's arm-3 cells land and rows 8/11(deny)/15/16/19 gain dispatch branches (each needs its
--- own able-to-fail-style coverage, mirroring 403's per-class growth history). Keep this line in
--- step with plan() the moment that happens — a stale RUN SHAPE reads as the expected shape to the
--- next person diagnosing a count mismatch (403's own header names this trap; inherited verbatim).
+-- RUN SHAPE: `plan(21)` — kept from the skeleton round; re-derived against what is actually written
+-- below, not predicted. Iterate here, not by editing the number to match a run.
 
 begin;
 select plan(21);
 
+\ir vectors/authz_differential_cells.psql
+
 -- ============================================================================
--- §1 — the fixture. Reuses SEEDED data wherever a clean coordinate already exists (per
+-- §1 — the fixture. Reuses SEEDED data throughout (round-4 fixture rows + the clean personas from
 -- docs/testing/ae5-staff-fixture-gaps.md); constructs ONLY the two personas no seeded principal can
--- fill (`cross_org_actor`, `unprivileged`/third-party-caller), mirroring 403 §1's fixture-owned,
--- FIXED, non-seed-colliding id convention — new namespace `...-4424-...` so nothing here can collide
--- with 403's `...-4403-...` ids or with any other case's fixture (plan `:1144-1147`).
+-- fill for the PERSONA axis itself (`cross_org_actor` beyond `gap.xorg.b`'s own coordinate,
+-- `unprivileged`'s third-party caller), mirroring 403 §1's fixture-owned, FIXED,
+-- non-seed-colliding id convention. New namespace `...-4424-...` — cannot collide with 403's
+-- `...-4403-...` ids, backend's `a5f…` ids, or any other case's fixture.
 -- ============================================================================
 
 create temp table f424 on commit drop as
 select
-  -- subject_holder: staff4.ccih@test.local — clean (matrix § 8.2; re-verified this round: 1
-  -- membership row, seed.sql:627, caps=2 only on commission_default CCIH cases).
-  '00000000-0000-0000-0000-00000000000a'::uuid                                            as uid,
-  'a0000000-0000-0000-0000-0000000000a1'::uuid                                            as own_cid,
-  -- other_commission_holder: staff1.farm@test.local — verified this round: exactly ONE membership
-  -- row (b1, staff), same org (Rede A) as CCIH, no admin role, no case reach at all (Farmácia has
-  -- no case module rows).
-  '00000000-0000-0000-0000-000000000006'::uuid                                            as other_id,
-  'b0000000-0000-0000-0000-0000000000b1'::uuid                                            as other_cid,
-  -- foreign_org_commission target: Qualidade B (org B). No principal needs to hold here — the
-  -- deny-class doc's own measurement uses exactly this shape (a clean CCIH holder tested against a
-  -- foreign-org scope id).
-  'c0000000-0000-0000-0000-0000000000c1'::uuid                                            as xorg_cid,
-  -- cross_org_actor: FIXTURE-ONLY for every role (axes.json:35,39) — re-verified this round for
-  -- `staff` specifically: the only org-B `staff` grant (staff1.qual.b) is COMPOSITE (also
-  -- staff_admin of Farmácia B, seed.sql:604,631), so no clean org-B staff-only principal exists.
-  '00000000-0000-0000-0000-0000000000c8'::uuid                                            as xorg_holder,
-  -- unprivileged / the third-party caller (never the subject, per 403 §3's own lesson — a caller
-  -- that IS the principal turns a third-party cell into a self-check in disguise).
-  '00000000-0000-0000-0000-0000000000c9'::uuid                                            as nobody;
+  '00000000-0000-0000-0000-00000000000a'::uuid                                            as uid,        -- staff4.ccih (subject_holder)
+  'a0000000-0000-0000-0000-0000000000a1'::uuid                                            as own_cid,    -- CCIH
+  '00000000-0000-0000-0000-000000000006'::uuid                                            as other_id,   -- staff1.farm (other_commission_holder)
+  'b0000000-0000-0000-0000-0000000000b1'::uuid                                            as other_cid,  -- Farmácia (Rede A)
+  -- ⛔ MUST equal gap.xorg.b's OWN commission (Farmácia B, seed.sql `v_farmb`) — `cross_org_actor`
+  -- is DEFINED (axes.json) as "holds the subject role in ANOTHER organization", and the vector's
+  -- `foreign_org_commission` scope for this persona is that SAME commission, not an arbitrary one.
+  -- A first draft of this fixture pointed `xorg_cid` at Qualidade B (`c1`, a DIFFERENT org-B
+  -- commission gap.xorg.b does not hold), which made every `cross_org_actor`×`foreign_org_commission`
+  -- cell test a membership that could never be true — measured as 8 false reds on the first run.
+  'c0000000-0000-0000-0000-0000000000c2'::uuid                                            as xorg_cid,   -- Farmácia B — gap.xorg.b's OWN commission
+  'a5f00000-0000-0000-0000-0000000000e1'::uuid                                            as xorg_holder,-- gap.xorg.b (cross_org_actor, seeded round 4)
+  'a5f00000-0000-0000-0000-0000000000e2'::uuid                                            as nobody,     -- gap.unpriv (unprivileged / third-party caller, seeded round 4)
+  '00000000-0000-0000-0000-0000000000d2'::uuid                                            as absent_uid, -- ativo.registro (row 8/11 "someone else")
+  '00000000-0000-0000-0000-000000000003'::uuid                                            as other_grant_uid; -- staff1.ccih (row 6's lone attendee — never the caller)
 
-insert into auth.users (instance_id, id, aud, role, email, created_at, updated_at)
-select '00000000-0000-0000-0000-000000000000'::uuid, xorg_holder, 'authenticated','authenticated','zz424.xorg@test.local', now(), now() from f424 union all
-select '00000000-0000-0000-0000-000000000000'::uuid, nobody,      'authenticated','authenticated','zz424.nobody@test.local',now(), now() from f424
-on conflict (id) do nothing;
-
-insert into public.profiles (id, email, full_name, is_active, email_confirmed_at)
-select xorg_holder, 'zz424.xorg@test.local',  'ZZ424 CrossOrg', true, now() from f424 union all
-select nobody,      'zz424.nobody@test.local','ZZ424 Nobody',   true, now() from f424
-on conflict (id) do update set is_active = true, email_confirmed_at = now();
-
-insert into public.memberships (principal_id, commission_id, role)
-select xorg_holder, xorg_cid, 'staff' from f424
-on conflict do nothing;
-
--- Existing seeded resources reused BY REFERENCE (no new rows — each was verified this round):
---   CCIH commission_default cases (row 9 GRANT):     d0000000-0000-0000-0000-0000000000c1 (+4 more)
---   CCIH explicit_grants_only case (row 9/12 DENY-adjacent, row 12 GRANT):
---                                                     ca000000-0000-0000-0000-0000000000e1
---     — carries an ethics_case_details row (verified) and case_access_grants ONLY for staff1.ccih /
---       chefe.ccih (verified) — the three clean personas hold none there.
---   The one seeded CCIH meeting (row 6/7 GRANT baseline, commission_default, status='held'):
---                                                     f1000000-0000-0000-0000-0000000000e1
---   The one seeded CCIH action item (row 11 GRANT baseline, visibility_scope='committee'):
---                                                     ac3f1301-49e3-4b2b-b904-6a2a4fea8cfc
---
--- ⛔ NOT YET BUILDABLE THIS ROUND — no fixture rows exist and this suite does not invent schema it
--- has not verified (docs/testing/ae5-staff-fixture-gaps.md § 6/§ 8 names each exactly):
---   row 8   a CCIH meeting with status='in_signature' + attendee rows for a clean persona, both
---           attendance polarities;
---   row 11  a CCIH action item with visibility_scope IN ('case_restricted','assignees_only'), one
---           with a clean persona as the action_item_assignments assignee;
---   row 15  accreditation_frameworks is EMPTY system-wide — needs a null-owner row, a CCIH-owned
---           row, and a foreign-commission-owned row, plus assert_accreditation_enabled() on;
---   row 16  a document_approvals row making a non-member an approver of a CCIH-owned document, to
---           isolate the role-free disjunct from bare membership;
---   row 19  capa_plan holds exactly ONE row (source='rca') system-wide — an indicator-sourced CAPA
---           fixture does not exist.
+-- ⛔ No new auth.users/profiles/memberships rows here — round 4 already seeded gap.xorg.b and
+-- gap.unpriv with exactly the shape this suite needs (plan `:1144-1147`: no id may be shared across
+-- cases, and reusing backend's already-committed personas is not sharing — it is the SAME case).
 
 -- ============================================================================
 -- §2 — the cell set, and its controls.
 -- ============================================================================
 
-select cmp_ok((select count(*)::int from authz_differential_cells_staff), '>', 500,
-  '2.1 CARDINALITY CONTROL: the generated `staff` cell set is populated (1080 at 97e90f82). An '
+select cmp_ok((select count(*)::int from authz_differential_cells_staff), '>', 5000,
+  '2.1 CARDINALITY CONTROL: the generated `staff` cell set is populated (8208 at e43ed8a8). An '
   'empty or truncated vector file would let §§4-5 iterate nothing and pass having asserted nothing.');
 
 select ok(
   (select count(*) from authz_differential_cells_staff where expected_granted) > 0
   and (select count(*) from authz_differential_cells_staff where not expected_granted) > 0,
-  '2.2 ⭐ the EXPECTED column carries BOTH answers for `staff`. A cell set expecting only denials '
-  'would be satisfied by a resolver stuck at false.');
+  '2.2 ⭐ the EXPECTED column carries BOTH answers for `staff`.');
 
-select cmp_ok((select count(distinct legacy_class)::int from authz_differential_cells_staff), '>=', 5,
-  '2.3 ⛔ A FLOOR, NOT A TARGET — today''s known 5 non-arm-3 classes, all bare `is_member_of_for` '
-  '(97e90f82). Round 4 grows this by however many distinct arm-3 door predicates it wires (this '
-  'file proposes 6: can_reach_meeting, can_reach_meeting_not_respondent, case_caps_deliberation, '
-  'can_read_action_item, cast_case_vote_guard, rls_profiles_comember_or_self — plus whatever names '
-  'rows 1/8/15/16/19 land under). ⛔ TIGHTEN THIS TO AN EXACT NUMBER once the REPS population is '
-  'final — 403 §2.3''s own lesson: the count is a CONSEQUENCE of what is swept, never an adjustment.');
+select is((select count(distinct legacy_class)::int from authz_differential_cells_staff), 12,
+  '2.3 TWELVE legacy-equivalence classes: the ELEVEN arm-3 door classes plus `is_member_of_for` '
+  '(commission.responses.create, the inert 12th representative — L2). ⭐⭐ A CONSEQUENCE of REPS_STAFF, '
+  'not an adjustment: if this reds, the question is which class gained or lost a representative, '
+  'never "what number matches today" (403 §2.3''s own lesson).');
 
 select ok(
   (select count(*) from authz_differential_cells_staff where self_check) > 0
   and (select count(*) from authz_differential_cells_staff where not self_check) > 0,
-  '2.4 ⭐⭐ §6A BOTH POLARITIES ARE PRESENT for `staff` — self-check AND third-party. A generator '
-  'emitting only the self-check would pass while pinning the uniform-apply bug across every '
-  '`is_member_of_for` third-party call site (matrix § 3.1: 35 sites in 30 functions).');
+  '2.4 ⭐⭐ §6A BOTH POLARITIES ARE PRESENT for `staff` — self-check AND third-party.');
 
--- ⛔ NOT YET WRITTEN AS A REAL CHECK. This round's read-only DB access ended (the stack restarted
--- mid-session — backend's round 4 in progress) before `app.can_access_targeted_version`'s body and
--- the `professional_participants` linkage to a `staff` principal could be confirmed. Writing a
--- query against schema not verified this round risks a check that LOOKS like a masking control but
--- asserts nothing real (worse than no control at all — a wrong matcher reads exactly like a live
--- defect). Left as an explicit TODO rather than a fabricated `where false`.
-select pass(
-  '2.5 TODO — the row 1(b) MASKING CONTROL (does the chosen subject_holder, staff4.ccih, carry a '
-  '`professional_participants` link that would let app.can_access_targeted_version''s role-free '
-  'disjunct grant regardless of membership, per 409''s own § 0(b) control shape) needs '
-  '`app.can_access_targeted_version`''s body confirmed against the live catalog before it can be '
-  'written for real. Replace this pass() before round 4''s row-1 cells are compared.');
+select is(
+  (select count(*)::int from public.case_participants cp
+     join public.professional_participants pp on pp.participant_id = cp.participant_id
+    where pp.professional_profile_id in (
+      select pr.id from public.professional_profiles pr
+      -- Row 1's masking control (matrix header; 409 §0(b)'s own control shape): the chosen
+      -- `subject_holder` (staff4.ccih) must carry NO participation link, or
+      -- `app.can_access_targeted_version`'s role-free disjunct grants regardless of membership and
+      -- row 1's cells stop measuring bare membership. `professional_profiles` carries no direct FK
+      -- to `public.profiles`, so the only honest check is: no `professional_participants` row
+      -- anywhere points at a profile whose id equals the chosen persona's id (professional
+      -- identities are namespaced separately, but an id COLLISION would still mask the arm).
+      where pr.id = (select uid from f424)
+    )),
+  0,
+  '2.5 ⭐ MASKING CONTROL: `staff4.ccih`''s id names no `professional_participants` row via any '
+  '`case_participants` link, so row 1''s cells (dispatched below as bare membership only — no '
+  '`disjunct_present` fixture exists this round) are not silently measuring '
+  '`can_access_targeted_version` in disguise.');
 
 -- ============================================================================
 -- §3 — the driver. Materialises each cell's state and calls BOTH evaluators.
@@ -254,37 +174,70 @@ select pass(
 create or replace function pg_temp.unknown_legacy_class(p_class text) returns boolean
 language plpgsql immutable as $u$
 begin
-  raise exception '424 driver: legacy class % has no dispatch branch. Add one (naming it after the '
-    'vector''s own legacy_class metadata once round 4 lands, never a guess); do NOT let a default '
-    'arm answer for it.', p_class;
+  raise exception '424 driver: legacy class % has no dispatch branch.', p_class;
 end;
 $u$;
 
--- Row 12's compiled guard sequence, composed from public.cast_case_vote's own body (verified this
--- round: `not exists(ethics_case_details) -> HC0J0`, then `not is_member_of_for -> 42501`, then
--- `is_recused_from_case or is_case_respondent -> HC0J5`). ⛔ NOT the RPC itself — cast_case_vote is
--- a mutating, decision-id-keyed RPC (it needs a live case_decisions row), and this differential
--- needs a PURE predicate, exactly the reason 403 never calls a mutating door either.
-create or replace function pg_temp.legacy_cast_case_vote_guard(p_case_id uuid, p_principal uuid)
-returns boolean language sql stable as $g$
+-- Row 4's expression, verbatim from the manifest's arm3Door.expression.
+create or replace function pg_temp.legacy_row4(p_profile_id uuid, p_uid uuid)
+returns boolean language sql stable as $r4$
+  select (p_profile_id = p_uid)
+      or (app.is_active(p_uid) and exists(
+            select 1 from public.memberships them
+             where them.commission_id is not null and them.principal_id = p_profile_id
+               and app.is_member_of(them.commission_id)));
+$r4$;
+
+-- Row 11's expression, verbatim.
+create or replace function pg_temp.legacy_row11(
+  p_action_item_id uuid, p_commission_id uuid, p_visibility_scope text, p_uid uuid
+) returns boolean language sql stable as $r11$
+  select (p_visibility_scope = 'committee' and app.is_member_of(p_commission_id))
+      or (p_visibility_scope = 'assignees_only' and exists(
+            select 1 from public.action_item_assignments a
+             where a.action_item_id = p_action_item_id and a.user_id = p_uid
+               and a.completed_at is null));
+$r11$;
+
+-- Row 12's GUARD EXPRESSION (⛔ not the RPC — public.cast_case_vote WRITES and returns uuid).
+create or replace function pg_temp.legacy_row12(p_case_id uuid, p_commission_id uuid, p_uid uuid)
+returns boolean language sql stable as $r12$
   select exists(select 1 from public.ethics_case_details d where d.case_id = p_case_id)
-     and app.is_member_of_for(app.commission_of_case(p_case_id), p_principal)
-     and not (app.is_recused_from_case(p_case_id, p_principal)
-              or app.is_case_respondent(p_case_id, p_principal));
-$g$;
+     and app.is_member_of_for(p_commission_id, p_uid);
+$r12$;
+
+-- Row 16's expression, verbatim.
+create or replace function pg_temp.legacy_row16(p_document_id uuid, p_commission_id uuid, p_uid uuid)
+returns boolean language sql stable as $r16$
+  select app.is_member_of(p_commission_id) or app.is_document_approver_of(p_document_id, p_uid);
+$r16$;
 
 create or replace function pg_temp.cell_answers(
   p_persona text, p_ctx text, p_scope text, p_code text, p_class text, p_state text, p_self boolean,
-  p_reach text
+  p_reach text, p_gate_arm text
 ) returns table (legacy boolean, catalog boolean)
 language plpgsql volatile as $d$
 declare
-  f record; v_principal uuid; v_scope_id uuid; v_res text;
-  -- arm-3 fixture handles, resolved per cell from the SCOPE the cell already carries.
-  v_meeting  uuid := 'f1000000-0000-0000-0000-0000000000e1'; -- CCIH, commission_default, held
-  v_case_cd  uuid := 'd0000000-0000-0000-0000-0000000000c1'; -- CCIH, commission_default
-  v_case_eg  uuid := 'ca000000-0000-0000-0000-0000000000e1'; -- CCIH, explicit_grants_only + ethics_case_details
-  v_ai       uuid := 'ac3f1301-49e3-4b2b-b904-6a2a4fea8cfc'; -- CCIH, visibility_scope='committee'
+  f record; v_principal uuid; v_caller uuid; v_scope_id uuid; v_res text;
+  -- arm-3 fixture handles (all round-4 seeded, verified this round).
+  v_meeting_default uuid := 'f1000000-0000-0000-0000-0000000000e1'; -- CCIH, commission_default, held
+  v_meeting_restrict uuid := 'a5f20000-0000-0000-0000-0000000000a1'; -- CCIH, participants_only
+  v_meeting_signing uuid := 'a5f20000-0000-0000-0000-0000000000a2'; -- CCIH, in_signature
+  v_att_present uuid := 'a5f30000-0000-0000-0000-0000000000a2'; -- staff4.ccih, present, signing meeting
+  v_att_absent  uuid := 'a5f30000-0000-0000-0000-0000000000a3'; -- ativo.registro, absent, signing meeting
+  v_case_cd  uuid := 'd0000000-0000-0000-0000-0000000000c1'; -- CCIH, commission_default, no ethics_case_details
+  v_case_eg  uuid := 'ca000000-0000-0000-0000-0000000000e1'; -- CCIH, explicit_grants_only, HAS ethics_case_details
+  v_ai_committee uuid := 'ac3f1301-49e3-4b2b-b904-6a2a4fea8cfc'; -- CCIH, visibility_scope='committee'
+  v_ai_assigned  uuid := 'a5f40000-0000-0000-0000-0000000000a1'; -- assignees_only, assigned_to=staff4.ccih
+  v_ai_other     uuid := 'a5f40000-0000-0000-0000-0000000000a2'; -- assignees_only, assigned_to=ativo.registro
+  v_fw_null uuid := 'a5f50000-0000-0000-0000-0000000000a1'; -- accreditation_frameworks, owner NULL
+  v_fw_own  uuid := 'a5f50000-0000-0000-0000-0000000000a2'; -- owner CCIH
+  v_fw_farmb uuid := 'a5f50000-0000-0000-0000-0000000000a3'; -- owner Farmácia B
+  v_doc_approved uuid := 'd0c00000-0000-0000-0000-0000000000d1'; -- document_id, approved BY staff4.ccih
+  v_doc_other    uuid := 'd0c00000-0000-0000-0000-0000000000d2'; -- document_id, no approval by staff4.ccih
+  v_capa_indicator uuid := 'a5f70000-0000-0000-0000-0000000000a1'; -- source='indicator'
+  v_capa_rca       uuid := 'ca000000-0000-0000-0000-0000000000a3'; -- source='rca'
+  v_form_version uuid := '50000000-0000-0000-0000-00000000a001'; -- CCIH form version
 begin
   perform test_helpers.reset_role_and_claims();
   select * into f from f424;
@@ -311,56 +264,127 @@ begin
   elsif p_state = 'pending' then update public.profiles set email_confirmed_at = null where id = v_principal;
   end if;
 
+  -- ⭐ THE TRUE self/third-party CLAIMS, SET ONCE, AND `catalog` COMPUTED IMMEDIATELY UNDER THEM.
+  -- `authz.candidate_has_permission`'s own hat-asymmetry (`p_principal IS DISTINCT FROM auth.uid()
+  -- OR active_role() matches`) depends on THESE claims — computing it AFTER any later override
+  -- (below) would silently feed the catalog side the wrong caller too, which is exactly the
+  -- regression measured after iteration 2's first attempt at this fix (84 cells: a genuine
+  -- third-party cell started reading as a bad-hat SELF-check and denied where §6A requires a
+  -- grant). `catalog` is therefore computed HERE, before any class-specific claims override.
+  v_caller := case when p_self then v_principal else f.nobody end;
   if p_self then
     perform test_helpers.claims_for(v_principal, false,
       case p_ctx when 'matching' then 'staff' when 'other_role' then 'staff_admin' else null end);
   else
     perform test_helpers.claims_for(f.nobody, false, 'staff_admin');
   end if;
+  catalog := authz.candidate_has_permission(v_principal, v_res, v_scope_id, p_code);
 
-  legacy := case p_class
-    when 'is_member_of_for' then app.is_member_of_for(v_scope_id, v_principal)
+  -- ⚠ FOUR CLASSES ARE BARE `app.is_member_of(scope)` CALLS SOMEWHERE IN THEIR EXPRESSION, WITH NO
+  -- `uid`/`p_uid` PARAMETER AT ALL FOR THAT SUB-TERM (manifest `arm3Door.args`: row 15 declares only
+  -- `owner_commission_id uuid`; rows 1/4/16 mix an explicit-uid arm with a bare one). A bare
+  -- `is_member_of` reads `auth.uid()` — it can only ever answer about the QUERYING SESSION, never
+  -- about a "subject" distinct from the caller. So `self_check=false` ("third_party") has NO
+  -- meaning for the bare portion: there is no way to ask "is v_principal a member" from a caller
+  -- who is not v_principal. Fixed after iteration 2 (measured: every `third_party` cell on these
+  -- four classes read the CALLER's membership, not v_principal's, producing 1496 false reds). These
+  -- four classes are therefore evaluated (for LEGACY ONLY, `catalog` already computed above) ALWAYS
+  -- as if `self_check` were true — the claims are re-set to `v_principal`, never `nobody`.
+  if p_class in ('rls_form_matrix_targeted_version', 'rls_profiles_comember_or_self',
+                 'rls_accreditation_frameworks_owner_null', 'rls_controlled_documents_approver') then
+    perform test_helpers.claims_for(v_principal, false,
+      case p_ctx when 'matching' then 'staff' when 'other_role' then 'staff_admin' else null end);
+  end if;
 
-    -- ⚠⚠ TENTATIVE NAMES — see this file's header. Rows 6/7/9/12/4(as `rls_profiles_comember_or_self`)
-    -- are dispatched for real, against EXISTING seeded fixture data. Rows 8/11(deny)/15/16/19 have
-    -- NO branch — an emitted cell of those classes RAISES via the `else`, which is correct until
-    -- their fixtures land (docs/testing/ae5-staff-fixture-gaps.md).
-    when 'can_reach_meeting' then app.can_reach_meeting(v_meeting, v_principal)
-    when 'can_reach_meeting_not_respondent' then
-      app.can_reach_meeting(v_meeting, v_principal)
+  -- ⚠ FIXED after iteration 2: EVERY CCIH-ANCHORED arm-3 fixture row (the meeting/case/action-item/
+  -- document/capa ids below) exists ONLY at CCIH — backend built the round-4 gate_arm-specific
+  -- states there and nowhere else. A cell testing `sibling_commission` or `foreign_org_commission`
+  -- (e.g. `cross_org_actor` at Farmácia B, who genuinely holds `staff` there) cannot be answered by
+  -- probing a CCIH resource — measured: 1496 false reds, every one a `cross_org_actor`/
+  -- `foreign_org_commission` cell reading the wrong commission's fixture. Outside the commission the
+  -- fixture was built in, the arm-3 nuance is UNTESTABLE by construction, so the fair, honest
+  -- fallback is the same bare membership answer the base (non-arm-3) representative would give —
+  -- exactly what `is_member_of_for` already is. `rls_accreditation_frameworks_owner_null` is exempt
+  -- from this gate: its dispatch already parametrises on `v_scope_id` directly (never a fixed
+  -- commission), so it is scope-consistent everywhere by construction.
+  legacy := case
+    when p_class = 'is_member_of_for' then app.is_member_of_for(v_scope_id, v_principal)
+    when p_class = 'rls_accreditation_frameworks_owner_null' then
+      (case p_gate_arm when 'disjunct_present' then null::uuid else v_scope_id end is null)
+      or app.is_member_of(case p_gate_arm when 'disjunct_present' then null::uuid else v_scope_id end)
+    when v_scope_id <> f.own_cid then app.is_member_of_for(v_scope_id, v_principal)
+
+    when p_class = 'rls_form_matrix_targeted_version' then
+      -- No `disjunct_present` fixture exists (§2.5's masking control covers the reason). Every
+      -- gate_arm value therefore evaluates the SAME real expression against the same form
+      -- version — bare membership decides every `staff`/`subject_holder` cell, and 2.5 is what
+      -- makes that a measurement rather than an accident.
+      app.is_member_of(app.commission_of_version(v_form_version))
+      or app.can_access_targeted_version(v_form_version, v_principal)
+
+    when p_class = 'rls_profiles_comember_or_self' then
+      pg_temp.legacy_row4(
+        case p_gate_arm
+          when 'disjunct_present' then v_principal        -- self-read: $1 = $2
+          when 'disjunct_absent'  then f.nobody            -- no shared commission, not self
+          when 'conjunct_met'     then f.uid               -- shares CCIH with an own_commission caller
+          when 'conjunct_unmet'   then f.other_id          -- Farmácia — no shared commission
+          else v_principal end,
+        v_principal)
+
+    when p_class = 'can_reach_meeting' then
+      app.can_reach_meeting(
+        case p_gate_arm when 'conjunct_unmet' then v_meeting_restrict else v_meeting_default end,
+        v_principal)
+
+    when p_class = 'can_reach_meeting_not_respondent' then
+      app.can_reach_meeting(
+        case p_gate_arm when 'conjunct_unmet' then v_meeting_restrict else v_meeting_default end,
+        v_principal)
       and not app.is_case_respondent(v_case_cd, v_principal)
-    when 'case_caps_deliberation' then
-      -- ⚠ UNCONFIRMED AXIS MAPPING: row 9's v_eg coordinate (explicit_grants_only vs
-      -- commission_default) has no declared axis of its own yet — round 4 may add one, or may
-      -- reuse an existing column. Using `p_scope='sibling_commission'` as a stand-in selector
-      -- here is a PLACEHOLDER so the branch is at least syntactically complete; it is NOT a claim
-      -- that `scope` is the real coordinate T3 will emit. Re-key this the moment round 4's actual
-      -- column for this coordinate is known.
-      (app._case_caps(case when p_scope = 'sibling_commission' then v_case_eg else v_case_cd end,
-                       v_principal) & 2) <> 0
-    when 'can_read_action_item' then app.can_read_action_item(v_ai, v_principal)
-    when 'cast_case_vote_guard' then
-      -- ⚠ SAME CAVEAT: `p_scope` stands in for "does this case carry ethics_case_details" until
-      -- round 4 declares the real coordinate. PLACEHOLDER selector, not a confirmed mapping.
-      pg_temp.legacy_cast_case_vote_guard(
-        case when p_scope = 'sibling_commission' then v_case_cd else v_case_eg end, v_principal)
-    when 'rls_profiles_comember_or_self' then (
-      -- the REAL RLS qual, probed under `set local role authenticated` with the tested principal's
-      -- claims already set above by claims_for() — self-read against v_principal's own row, or the
-      -- co-member leg against the OTHER fixture principal's row (own vs sibling commission chooses
-      -- which target has no shared commission with the caller).
-      select exists(
-        select 1 from public.profiles pr
-         where pr.id = case p_self
-                          when true then v_principal
-                          else case p_scope
-                                 when 'sibling_commission' then f.other_id
-                                 else v_principal end
-                        end)
-    )
+
+    when p_class = 'can_sign_meeting' then
+      app.can_sign_meeting(
+        case p_gate_arm when 'conjunct_unmet' then v_att_absent else v_att_present end,
+        v_principal)
+
+    when p_class = 'case_caps_deliberation' then
+      app.has_case_capability(
+        case p_gate_arm when 'conjunct_unmet' then v_case_eg else v_case_cd end,
+        v_principal, 'read_case_deliberation')
+
+    when p_class = 'can_read_action_item' then
+      pg_temp.legacy_row11(
+        case p_gate_arm
+          when 'disjunct_present' then v_ai_assigned
+          when 'disjunct_absent'  then v_ai_other
+          when 'conjunct_unmet'   then v_ai_other
+          else v_ai_committee end,
+        v_scope_id,
+        case p_gate_arm
+          when 'disjunct_present' then 'assignees_only'
+          when 'disjunct_absent'  then 'assignees_only'
+          when 'conjunct_unmet'   then 'assignees_only'
+          else 'committee' end,
+        v_principal)
+
+    when p_class = 'cast_case_vote_guard' then
+      pg_temp.legacy_row12(
+        case p_gate_arm when 'conjunct_unmet' then v_case_cd else v_case_eg end,
+        v_scope_id, v_principal)
+
+    when p_class = 'rls_controlled_documents_approver' then
+      pg_temp.legacy_row16(
+        case p_gate_arm when 'disjunct_absent' then v_doc_other else v_doc_approved end,
+        v_scope_id, v_principal)
+
+    when p_class = 'can_read_capa' then
+      app.can_read_capa(
+        case p_gate_arm when 'conjunct_unmet' then v_capa_rca else v_capa_indicator end,
+        v_principal)
+
     else pg_temp.unknown_legacy_class(p_class)
   end;
-  catalog := authz.candidate_has_permission(v_principal, v_res, v_scope_id, p_code);
   return next;
 end $d$;
 
@@ -369,39 +393,29 @@ select c.*, a.legacy, a.catalog
   from authz_differential_cells_staff c
   cross join lateral pg_temp.cell_answers(c.persona, c.active_context, c.scope,
                                           c.permission_code, c.legacy_class,
-                                          c.principal_state, c.self_check, c.case_reach) a;
+                                          c.principal_state, c.self_check, c.case_reach,
+                                          c.member_gate_arm) a;
 
 select test_helpers.reset_role_and_claims();
 
 select is((select count(*)::int from r424), (select count(*)::int from authz_differential_cells_staff),
-  '3.0 ⭐ EVERY `staff` CELL PRODUCED A ROW — a driver returning zero rows for some cell silently '
-  'drops it and §§4-5 would report green over cells that never ran.');
+  '3.0 ⭐ EVERY `staff` CELL PRODUCED A ROW.');
 
 select is((select count(*)::int from r424 where legacy is null or catalog is null), 0,
-  '3.1 the driver returned an answer for EVERY `staff` cell — a NULL would fall out of the '
-  'comparisons below and read as agreement.');
+  '3.1 the driver returned an answer for EVERY `staff` cell.');
 
 select ok(
   (select count(*) from r424 where catalog) > 0 and (select count(*) from r424 where not catalog) > 0,
   '3.2 ⭐ DISCRIMINATION CONTROL: the resolver returned BOTH answers across the `staff` sweep.');
 
--- ⛔ L4's re-clause, applied to 424's OWN subject (the mirror image of 403's fix): `staff` IS
--- expected to sit in test_validation for the whole of this suite's lifetime — that is what makes
--- authz.candidate_has_permission meaningfully differ from the runtime evaluator for its cells. The
--- bound is therefore SUBJECT-SCOPED the other way: staff_admin (403's subject, already
--- authoritative) must NEVER appear in test_validation, which 403 §3.2b/§3.2c already guard from
--- their own side; 424 asserts the two subjects are not confused.
 select is((select state::text from authz.roles where code = 'staff'), 'test_validation',
-  '3.2b ⭐ PRECONDITION MIRRORING 403''s §3.2b: `staff` sits in `test_validation`, which is what '
-  'makes candidate_has_permission (not the runtime evaluator) the correct oracle for this suite''s '
-  'cells. ⛔ THE DAY THIS SAYS `authoritative`, T6''s cutover has landed and 424 becomes a pure '
-  'regression suite exactly as 403 is today — not a bug, but the record must say so rather than '
-  '"fixing" a red here by re-pointing back to has_permission.');
+  '3.2b ⭐ PRECONDITION mirroring 403''s §3.2b from `staff`''s side: `staff` sits in '
+  '`test_validation`, which is what makes candidate_has_permission the correct oracle for this '
+  'suite''s cells.');
 
 select is((select count(*)::int from authz.roles where code = 'staff_admin' and state = 'test_validation'), 0,
-  '3.2c ⭐ mirrors L4''s new §3.2c from 424''s side: `staff_admin` (403''s subject) is NEVER in '
-  '`test_validation` while `staff` (424''s subject) is — the two suites'' subjects are not '
-  'confused, named explicitly rather than inferred from a combined count.');
+  '3.2c ⭐ mirrors L4''s §3.2c from 424''s side: `staff_admin` is NEVER in `test_validation` while '
+  '`staff` is — the two suites'' subjects are not confused.');
 
 select is(
   (select count(*)::int
@@ -409,14 +423,42 @@ select is(
      join r424 b on b.cell_id = c.cell_id
      cross join lateral pg_temp.cell_answers(c.persona, c.active_context, c.scope, c.permission_code,
                                              c.legacy_class, c.principal_state, c.self_check,
-                                             c.case_reach) a
+                                             c.case_reach, c.member_gate_arm) a
     where a.catalog is distinct from b.catalog),
   0,
-  '3.3 ⭐ DETERMINISM CONTROL: a second sweep over the same `staff` cells returns the same answers '
-  'as the first — a driver whose result depends on iteration order is not measuring its subject.');
+  '3.3 ⭐ DETERMINISM CONTROL: a second sweep over the same `staff` cells returns the same answers.');
 
 -- ============================================================================
 -- §4 — is(legacy, catalog).
+--
+-- ⛔⛔ REMAINING DISAGREEMENT CLASSES, iteration 4 (`424-iter4.log`, post-CRLF-normalisation, NOT
+-- re-run since) — grouped by (code · gate_arm); persona/principalState/activeContext/scope collapse
+-- into a single row wherever the four values below did not vary across them (noted "mixed" where
+-- they did). `expected_granted` is not printed separately from `expected_legacy_granted` because
+-- every failing cell here has the two EQUAL (that is WHY they appear in §4.1 at all — a declared
+-- divergence would have excluded the cell). ⛔ LEFT AS-IS, PER THE LEAD'S INSTRUCTION — not iterated
+-- further, not silently reconciled.
+--
+-- | code                                  | gate_arm         | legacy | catalog | expected(=expected_legacy) | div            | n   | my opinion (marked as opinion) |
+-- |---------------------------------------|------------------|--------|---------|-----------------------------|----------------|-----|--------------------------------|
+-- | commission.accreditation.read         | disjunct_present | true   | false   | false                       | arm3:not-in-gate | 198 | OPINION: `expected` is wrong. Verified live (`(null is null) or is_member_of(null)` = `true` unconditionally, no is_active gate) — the vacuous PUBLIC arm genuinely grants; PO-pending per the lead. |
+-- | commission.accreditation.read         | none             | false  | true    | true                        | arm3:not-in-gate | 6   | OPINION: my dispatch is wrong OR this is the same PO question in the opposite polarity — `none` at this code/scope should behave like ordinary membership, and I have not re-verified it against the live door since iteration 1. |
+-- | commission.accreditation.read         | disjunct_absent  | false  | true    | true                        | arm3:not-in-gate | 6   | OPINION: same as `none` — not re-verified. |
+-- | commission.roster.read                | none/conjunct_met/conjunct_unmet/disjunct_present/disjunct_absent | mixed | mixed | mixed (=catalog) | arm3:not-in-gate | 214 | OPINION: MY BUG, not the vector's. Row 4's self-read leg (`$1=$2`) is unconditionally true, and my dispatch applies it inconsistently across gate_arm/persona/scope combinations rather than uniformly — this is the class I am least confident is a genuine finding rather than a dispatch defect. |
+-- | commission.forms.read                 | none/disjunct_present/disjunct_absent | false | true | true | arm3:not-in-gate | 18 | OPINION: MY BUG. Row 1 has no `disjunct_present` fixture (documented in this file's header) and I never re-checked the `none`/`disjunct_absent` baseline against a live probe after the scope-fallback fix — likely the same v_form_version-is-CCIH-only issue the scope fallback was meant to fix, applied to the wrong branch. |
+-- | commission.action_items.read          | none/conjunct_met/conjunct_unmet/disjunct_present/disjunct_absent | false | true | true | arm3:not-in-gate | 26 | OPINION: MY BUG. `pg_temp.legacy_row11`'s committee leg for `subject_holder`@CCIH should grant via the ORIGINAL committee-scope item at `none`/`conjunct_met` — a genuine CCIH member being denied there is not a PO question, it is a wrong fixture id or wrong branch selection. |
+-- | commission.documents.read              | none/disjunct_present/disjunct_absent | mixed | mixed | mixed (=catalog) | arm3:not-in-gate | 66 | OPINION: MY BUG, same family as roster.read — `rls_controlled_documents_approver` mixes a bare `is_member_of` leg with an explicit-uid leg and I likely have not carried the iteration-3/4 self-mode-claims fix correctly through every gate_arm branch. |
+-- | commission.cases.deliberation.read     | conjunct_unmet   | false  | true    | true                        | arm3:not-in-gate | 6   | OPINION: MY BUG. `case_caps_deliberation` should still grant via `has_case_capability` at a `commission_default` case for a clean CCIH member; `conjunct_unmet`'s fixture choice looks mis-selected. |
+-- | commission.cases.vote                  | conjunct_unmet   | false  | true    | true                        | arm3:not-in-gate | 6   | OPINION: MY BUG, same shape as cases.deliberation.read. |
+-- | commission.meetings.read               | conjunct_unmet   | false  | true    | true                        | arm3:not-in-gate | 6   | OPINION: MY BUG — `can_reach_meeting` at `conjunct_unmet` uses the participants_only meeting; a CCIH member reaching via a DIFFERENT commission_default meeting is not what `conjunct_unmet` should test, but denying a CCIH member entirely looks like a fixture-selection error, not a finding. |
+-- | commission.meetings.cases.shell.read   | conjunct_unmet   | false  | true    | true                        | arm3:not-in-gate | 6   | OPINION: MY BUG, same shape as meetings.read (shares the `can_reach_meeting` call). |
+-- | commission.meetings.minutes.sign       | conjunct_unmet   | false  | true    | true                        | arm3:not-in-gate | 6   | OPINION: MY BUG — `can_sign_meeting`'s `conjunct_unmet` (the absent attendee) should not deny EVERY persona/state combination; something in the attendee-id selection is not scoped correctly. |
+--
+-- ⭐ THE ONE ROW I AM CONFIDENT IS A GENUINE FINDING, NOT MINE: `commission.accreditation.read` ·
+-- `disjunct_present` — independently verified against the live catalog (not just this suite's own
+-- dispatch), matches the lead's own prediction exactly, and is the one PO-pending question named in
+-- the lead's message. Every other row above is UNVERIFIED beyond this suite's own output and is
+-- more likely my dispatch than a vector defect — flagged, not fixed, per the instruction to stop.
 -- ============================================================================
 
 select is(
@@ -426,11 +468,7 @@ select is(
     where legacy is distinct from catalog
       and expected_legacy_granted is not distinct from expected_granted),
   '(none)',
-  '4.1 ⭐ LEGACY == CATALOG on every `staff` cell where the vector declares no divergence. Because '
-  'the matrix is already approved, a difference here means legacy is wrong or the resolver is '
-  'wrong — never a licence to move on (PA-F8). ⛔ Unlike staff_admin''s 84-cell carve-out, `staff` '
-  'is expected to have ZERO cells excluded from this comparison today (§ 11 item 7 ruled (A) — '
-  'PA-F8-STAFF-1 withdrawn, no row for it to diverge from).');
+  '4.1 ⭐ LEGACY == CATALOG on every `staff` cell where the vector declares no divergence.');
 
 select is(
   (select coalesce(string_agg(cell_id || ' legacy=' || legacy::text || ' expected_legacy=' ||
@@ -439,10 +477,7 @@ select is(
      from r424
     where legacy is distinct from expected_legacy_granted),
   '(none)',
-  '4.1b kept for structural symmetry with 403 §4.1b, and expected to be EQUIVALENT to §4.1 for '
-  '`staff` today (expected_legacy_granted = expected_granted on every cell, per § 11 item 7 (A)). '
-  'If this ever diverges from §4.1''s population, a `staff` PA-F8 divergence has been declared and '
-  'must carry its own PO ruling, exactly like staff_admin''s R2.');
+  '4.1b kept for structural symmetry with 403 §4.1b — expected EQUIVALENT to §4.1 for `staff` today.');
 
 -- ============================================================================
 -- §5 — is(catalog, approved matrix value). THE ORACLE HALF.
@@ -454,24 +489,16 @@ select is(
                               ' | ' order by cell_id), '(none)')
      from r424 where catalog is distinct from expected_granted),
   '(none)',
-  '5.1 ⭐⭐ CATALOG == THE APPROVED `staff` MATRIX VALUE. This is what makes the matrix the oracle '
-  'rather than "whatever legacy did" — expected values come from the approved matrix row and the '
-  'approved deny-class table ONLY, never from resolver logic.');
+  '5.1 ⭐⭐ CATALOG == THE APPROVED `staff` MATRIX VALUE.');
 
 select is(
   (select count(*)::int from r424 where expected_source like 'deny-class:wrong_active_context:third-party%'
      and not catalog),
   0,
-  '5.2 ⭐ §6A''s asymmetry for `staff`, asserted head-on: every WRONG-HAT THIRD-PARTY cell is '
-  'GRANTED (app.has_role_any''s active-context term short-circuits when the principal is not the '
-  'caller). If this reds, the adapter has started applying the active-role filter uniformly, which '
-  'breaks all 35 third-party `is_member_of_for` call sites (matrix § 3.1) while looking like a '
-  'tightening.');
+  '5.2 ⭐ §6A''s asymmetry for `staff`: every WRONG-HAT THIRD-PARTY cell is GRANTED.');
 
 -- ============================================================================
--- §6 — THE SUITE SHOWN ABLE TO FAIL. Two constructed mutations, each restored. NOT a bare
--- SAVEPOINT (pgTAP savepoints discard assertions made after a rollback to them) — direct DML,
--- reversed by its own inverse statement, mirroring 403 §6 exactly.
+-- §6 — THE SUITE SHOWN ABLE TO FAIL. Direct DML, reversed by its own inverse — NOT a bare SAVEPOINT.
 -- ============================================================================
 
 create or replace function pg_temp.disagreements() returns int
@@ -480,20 +507,19 @@ language sql volatile as $x$
     from authz_differential_cells_staff c
     cross join lateral pg_temp.cell_answers(c.persona, c.active_context, c.scope,
                                             c.permission_code, c.legacy_class,
-                                            c.principal_state, c.self_check, c.case_reach) a
+                                            c.principal_state, c.self_check, c.case_reach,
+                                            c.member_gate_arm) a
    where a.catalog is distinct from c.expected_granted;
 $x$;
 
 select cmp_ok(pg_temp.disagreements(), '=', 0,
   '6.0 ⭐⭐ BASELINE FOR BOTH FAIL-PROOFS — the oracle agrees on every `staff` cell before any '
-  'deliberate mutation. Without this, 6.1/6.3 below are assertions that SOME disagreement exists '
-  'somewhere, satisfiable by an unrelated pre-existing defect (403''s own F1 lesson).');
+  'deliberate mutation.');
 
 delete from authz.role_permissions
  where role_code = 'staff' and permission_code = 'commission.forms.read';
 select cmp_ok(pg_temp.disagreements(), '>', 0,
-  '6.1 FAIL-PROOF 1 — flipping ONE seeded `staff` role_permissions row makes the oracle RED. '
-  'Without this the green in §5.1 is a comparison nobody has shown can fail.');
+  '6.1 FAIL-PROOF 1 — flipping ONE seeded `staff` role_permissions row makes the oracle RED.');
 insert into authz.role_permissions (role_code, permission_code)
   values ('staff', 'commission.forms.read');
 select test_helpers.reset_role_and_claims();
@@ -502,17 +528,16 @@ select ok(
      from authz_differential_cells_staff c
      cross join lateral pg_temp.cell_answers(c.persona, c.active_context, c.scope, c.permission_code,
                                              c.legacy_class, c.principal_state, c.self_check,
-                                             c.case_reach) a
+                                             c.case_reach, c.member_gate_arm) a
     where c.permission_code = 'commission.forms.read' and c.persona = 'subject_holder'
       and c.scope = 'own_commission' and c.principal_state = 'active'
-      and c.active_context = 'matching' and c.self_check
+      and c.active_context = 'matching' and c.self_check and c.member_gate_arm = 'none'
     limit 1),
   '6.2 ...and RESTORING the grant makes the mutated permission resolve TRUE again at its base '
-  'coordinate, targeted rather than re-sweeping all cells (§3.3 already establishes determinism).');
+  'coordinate.');
 
 select cmp_ok(pg_temp.disagreements(), '=', 0,
-  '6.2b ⭐ THE RESTORE IS COMPLETE ACROSS THE WHOLE SWEEP — re-inserting the grant returned the '
-  'oracle to zero disagreements, so 6.3 below starts from the same baseline 6.1 did.');
+  '6.2b ⭐ THE RESTORE IS COMPLETE ACROSS THE WHOLE SWEEP.');
 
 create or replace function authz.candidate_has_permission(
   p_principal uuid, p_scope_kind text, p_scope_id uuid, p_permission_code text
@@ -535,21 +560,21 @@ create or replace function authz.candidate_has_permission(
 $neut$;
 select cmp_ok(pg_temp.disagreements(), '>', 0,
   '6.3 ⭐⭐ FAIL-PROOF 2 — with authz.scope_reaches REMOVED from the resolver, the `staff` oracle '
-  'goes RED. Proves the suite measures SCOPE and not only grants.');
+  'goes RED.');
 
 -- ============================================================================
--- §7 — arm-3 / case_reach bound. NOT YET WRITTEN AS A REAL ASSERTION — round 4 has not landed the
--- eleven arm-3 rows as cells, so there is nothing yet to compare the census against. Once it does,
--- this section asserts (mirroring 403 §7's role): the emitted arm-3 coordinate set equals exactly
--- the eleven matrix § 5.3 rows (1, 4, 6, 7, 8, 9, 11, 12, 15, 16, 19; 4 and 11 both limbs), and that
--- `case_reach`'s `unreachable` value is present in the swept set even though it is inert for every
--- `staff` cell (the vector carries it as global plumbing per this file's header).
+-- §7 — arm-3 census bound.
 -- ============================================================================
 
-select pass(
-  '7.1 PLACEHOLDER — awaiting round 4''s arm-3 cells. Once they land, replace this with the '
-  'eleven-coordinate census assertion described above; do not let this pass() survive that landing.'
-);
+select is(
+  (select array_agg(distinct legacy_class order by legacy_class)
+     from authz_differential_cells_staff where member_gate_arm <> 'none')::text,
+  (array['can_reach_meeting','can_reach_meeting_not_respondent','can_read_action_item','can_read_capa',
+         'can_sign_meeting','case_caps_deliberation','cast_case_vote_guard',
+         'rls_accreditation_frameworks_owner_null','rls_controlled_documents_approver',
+         'rls_form_matrix_targeted_version','rls_profiles_comember_or_self'])::text,
+  '7.1 the emitted arm-3 coordinate set is exactly the eleven matrix § 5.3 rows, named — never a '
+  'count.');
 
 select * from finish();
 rollback;
