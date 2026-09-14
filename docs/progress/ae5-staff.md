@@ -2056,3 +2056,45 @@ Tester (log `424-run2of2.log`; § 2.1 floor re-measured at 3708 cells, 12 classe
    against the lead's reading: the resource must be a profile whose ONLY shared commission with the
    principal is the cell's scope (a co-member via Farmácia A only; via Farmácia B only), or the
    named skip. Routed to backend (owns the stack).
+
+#### 2026-09-14 — backend: run 2's two causes, plus a third the sweep found (`a16debbe`, `d2a8acb3`)
+
+**(1) Row 16 bound ids from the wrong table for the door it calls.**
+`app.can_read_document(p_document_id, p_uid)` resolves its resource in **`public.documents`**
+(joined to `securable_resources`) — measured from its body — while the fixtures were
+`controlled_documents` ids. The lookup found no row, so the door denied EVERY persona,
+`subject_holder`@own included. ⛔ **My smoke checked presence in the table the binding was NAMED
+after, not the table the DOOR reads** — which is precisely why it stayed green while the probe
+measured nothing. A presence check is only a control if it looks where the door looks.
+
+**(2) Row 4 was not scope-bound, and my `scopeNote` was REFUTED.** I had written that a profile
+belongs to no commission so the subject could not be scope-keyed. Wrong: the door asks whether the
+SUBJECT holds a membership in some commission the CALLER is also in, so the subject is scope-bound
+THROUGH its memberships. Three new co-member personas hold **exactly one** membership each, and the
+leg is now diagonal — measured true only where the caller shares that commission. The note is
+kept and marked refuted rather than quietly rewritten.
+
+**(3) ⭐ A third, found by SWEEPING every class's ids against its door's table rather than by a
+red cell:** row 6's `conjunct_unmet` bound a `meeting_id` with no `meeting_cases` row (1 of 2
+present), which would have surfaced later as a mystery deny. Seeded.
+
+| class | own (CCIH) | sibling (Farmácia A) | foreign (Farmácia B) |
+| --- | --- | --- | --- |
+| documents — `public.documents` ids | `a5fe…0a1` (approved) / `a5fe…0a2` | `a5fe…0a3` | `a5fe…0a4` |
+| roster — co-member, ONE membership | `a5f0…f1` | `a5f0…f2` | `a5f0…f3` |
+| roster — `disjunct_present` | the principal (self leg) | same | same |
+| roster — `disjunct_absent` | `gap.unpriv` (no membership at all) | same | same |
+| meeting_cases for the restricted meeting | `a5f2…0b1` | — | — |
+
+**The presence-table column is `probe_table`** (with `probe_column` beside it, since row 6 is keyed
+on `meeting_id` rather than `id`). Both are emitted from the manifest's `probeReadsTable` /
+`probeReadsColumn`, declared for all 11 resource-binding classes and derived by MEASURING each
+door's body. **arm14(e)** refuses a row that binds a resource without declaring where its door reads
+it. ⚠ The presence check itself cannot live in the lint gate — it needs a database and
+`npm run lint` must never require Docker — so it lives in the smoke, **with a discrimination half
+that plants an absent id and requires the check to report it**.
+
+**Smoke, every cell and not a sample: 3708 probes executed, 0 errors; 36 distinct (id, door table)
+pairs, 0 absent; the planted-absent control fired.** cells 5436 · flips 408 · `staff_admin`
+**1728 byte-identical** (sorted AND plain) · `--self-test` 32 caught, clean on the real spec ·
+`lint:authz-vectors` **0**, `npm run lint` **0**.
