@@ -2113,3 +2113,18 @@ blindness that kept run 2's smoke green. Tester dispatched: § 2.6 re-pointed at
 witness and one full `test:db` on a fresh reset. ⚠ Own trap re-hit in this round's measurement: a
 `grep … | head` chain printed `head`'s exit, not `grep`'s — the count was read from the lines, not
 the code.
+
+### 2026-09-14 — `424` run 3: 268 → 68 (§ 4.1) + 136 (§ 4.1b) cells red; four binding-shaped causes (lead)
+
+Log `424-run3-probe-table-fix.log` (2 of 23 red, § 4.1 + § 4.1b; every other assertion green, § 2.6
+now on `probe_table`.`probe_column` per the tester's uncommitted edit). Lead's tally by (code, class,
+polarity): `roster.read disjunct_absent` 36 legacy=true/expected false + 6 the other way;
+`action_items.read disjunct_present` 40 legacy=false where `expected_legacy_granted` = true (P1 label);
+`documents.read disjunct_present` 16 the same shape after the `public.documents` rebinding;
+`forms.read` 12 legacy=true expected false with an EMPTY class column; `cases.vote` 4;
+`roster.read` / `capa.read conjunct_unmet` 6 + 6 legacy=true. Reading: the resources bound as
+"present" do not satisfy the door's role-free disjunct and the ones bound as "absent" / "unmet" do —
+the run-2 shape, one class over. Tester attributing (iteration 1 of cap 2); backend measuring the
+same residual read-only, no edits until routed; lead reconciles. Loop count on this mechanism: 3
+runs, each cutting the residual (458 → 268 → ≤ 204) with new causes named — under the 5-iteration
+bar, reported here each round.
