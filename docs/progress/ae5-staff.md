@@ -498,6 +498,182 @@ suite in the same commit as the seed would have made a red ambiguous between the
 `lint:role-manifest` **1** (the `411` md5 coupling, above) · `test:db` **1** (11 reds of 9133; `410`
 green, `403 § 3.2b` red by instruction, the rest out of ownership).
 
+### 2026-09-13 — round 4 (backend)
+
+Commits `39d6e43d` (L2) · `ac8a3bf2` (L2 follow-up: names) · `6ab207e0` (the closure repair) ·
+`47fbce12` (L3) · `8240b6eb` (L4) · `aef7d7f6` (L5) · `5f9d71f5` (step 5) · this entry.
+Three `supabase db reset --local`, all exit 0. Stack is mine; the tester's session dropped on the
+first reset, as it reported.
+
+**L2 — the axis is swept, and the lead's correction was right.** I had moved the eleven-term sweep
+out of the resolver differential because `app.is_member_of_for` reads none of the terms. The
+measurement held; the conclusion did not. ADR 0175 D3's shape is that an arm-3 row's LEGACY COLUMN
+CALLS THE REAL DOOR, so **the wrong half had moved**. `REPS_STAFF` is now the eleven carrying rows
+(1, 4, 6, 7, 8, 9, 11, 12, 15, 16, 19) plus `commission.responses.create` — the only
+membership-gated write policy — carrying the inert value, and each carrying rep is keyed on its
+DOOR. The door is declared as DATA in the manifest at `permissions[<code>].arm3Door` (kind ·
+expression · positional args · limb · note) and **emitted into the vector as a `legacy_door`
+column**, so `424` reads it from the cell instead of re-deriving it. ⭐ Row 12's entry is a
+`guard-expression`, not a callable: `public.cast_case_vote` WRITES and returns uuid, and a read
+differential must not call it.
+**arm12** binds the two in both directions — a carrying rep with no door, a door with no swept
+values, a door with no expression, a declared value emitted nowhere, and (after the naming round) a
+`legacyClass` disagreeing with the class the row is swept as. Modelled on arm9, one axis over.
+`memberGateArm` also entered `CELL_AXIS_COL` (column 15); without it arm7 falls back to
+`emitted = declared` and cannot fire on it — the blind spot `role` had.
+
+**Output, as an output:** 9936 cells = 1728 `staff_admin` + 8208 `staff`; **5616 arm-3 axis cells
+over 11 representatives**. The `staff` table carries **16** columns, `staff_admin`'s **14** — ⛔ not
+the identical lists an earlier revision promised, because the two extra columns ARE the axis and
+putting them on the shared shape would change the table `403` reads.
+⭐ **`staff_admin`'s 1728 rows are byte-identical to HEAD**, and keeping them so took a correction:
+appending the gate value to every cell id rewrote all 1728, and `403` joins by `cell_id`. The
+suffix is appended only for non-inert values.
+**Self-test: 26 fixtures, each firing its own arm**, plus arm5's quiet half and a new PROPERTY block
+for L2's two halves. ⚠ That block began as an arm7 QUIET fixture and **the quiet control caught
+it**: arm7 is a GLOBAL axis-completeness arm, so asked about one role's subset it correctly reports
+the values that subset omits. The fixture was asking an arm a question it is not designed to answer,
+and a green would have meant nothing. The claim is about cells, so it is asserted on cells.
+
+**ONE NAME PER ROW (tester request).** The tester's six PROPOSED strings are adopted **verbatim** —
+`can_reach_meeting` · `can_reach_meeting_not_respondent` · `case_caps_deliberation` ·
+`can_read_action_item` · `cast_case_vote_guard` · `rls_profiles_comember_or_self`. The five it did
+not name follow the same convention (`rls_` for a policy qual, the function name otherwise):
+`rls_form_matrix_targeted_version` · `can_sign_meeting` · `rls_accreditation_frameworks_owner_null` ·
+`rls_controlled_documents_approver` · `can_read_capa`. Each row carries `legacyClassSource` saying
+whose string won. **`stateColumn`** names the concrete column or row-presence a fixture must build:
+`cases.visibility_policy` (9) · an `ethics_case_details` row (12) · `meetings.visibility_policy` +
+`meeting_attendees` (6/7) · `meetings.status` + `attendance` (8) · `action_items.visibility_scope` +
+assignments (11) · `accreditation_frameworks.owner_commission_id` (15) · a `document_approvals` row
+(16) · `capa_plan.source` (19) · the targeted-version participation walk (1) · the target's
+memberships / self (4).
+
+**⛔⛔ A DEFECT IN T4, FOUND BY 409's NAMED LIST — the seed was FUNCTIONALLY INERT.**
+`authz.entailed_grants` joins the materialised closure on
+`cl.implying = rp.permission_code and cl.implied = p_permission_code`. T4 inserted 18 permissions
+and did **not** rebuild it, so each lacked its REFLEXIVE edge and resolved FALSE however correctly
+it was seeded. Measured: closure **43 rows against 61 permissions**, **18** with no reflexive edge,
+and `authz.has_permission(<chefe.ccih>, 'commission', <CCIH>, 'commission.forms.read')` = **false**
+for a `staff_admin` holding the grant under an `authoritative` role. Repaired forward-only
+(`20261003007450`, total rebuild, guarded on both sides); after: closure **61**, `has_permission`
+**true**, `candidate_has_permission(<staff4>, …)` **true**.
+⭐ **How it was caught is the lesson.** `409 § 5.5` asserts a **NAMED LIST** of the codes a fixture
+`staff_admin` fails, not a count. A count arm would have read *"18 more failures"* — a number to
+bump while moving the other AE5 pins, and the seed would have stayed inert behind a green suite. The
+list named exactly the 18 codes just added, and a list of precisely the things you just added is not
+a pin drifting; it is the addition not working. ⇒ `409 § 5.5` **went green on its own** after the
+repair and is NOT in the pin table below.
+
+**L3 — the nine pins, each observed RED first.**
+
+| suite | § | old → new | the seed change that moved it |
+| --- | --- | --- | --- |
+| 401 | 3.2 | `staff_admin=authoritative` → `staff=test_validation, staff_admin=authoritative` | T4 flipped `staff` |
+| 401 | 14.6 | 43 → 61 | T4 inserted the 18 codes |
+| 401 | 14.7 | 42 → 60 | the 18 also granted to `staff_admin` (PO item 4) |
+| 401 | 14.8 | 0 → 20 | `staff` got its 20 approved codes |
+| 401 | 19.2 | 6 → 7 classes | the 18 carry `legacyEquivalence.gate = app.is_member_of_for`, a class the catalog did not have |
+| 401 | 19.5 | 43 → 61 | cardinality control for § 19.4 |
+| 409 | 1.3 | 40 of 43 → 58 of 61 | the 18 arrive `pending-rekey`; ⛔ the SECOND number (3 re-keyed) did NOT move — a landing that moved both would be a re-key hiding inside a seed |
+| 411 | 0b | md5 `a6b23080…` → `abfc8621…` | `role_manifest.psql` follows the catalog after the state flip; gate 19 green with it |
+| 422 | 4.8 | `array['staff_admin']` → `array['staff','staff_admin']` | T4 seeded the `staff` bundle |
+
+⚠ **401 § 14.8's WORDING is deleted, not marked.** It read *"NO other role has a grant"*, quoting
+AE4.2. That sentence was true for AE4 and is now false; leaving it beside a count of 20 would be a
+message contradicting its own expected value.
+⚠ **One self-inflicted break, caught and fixed**: 401's new message was appended as a second SQL
+literal on the SAME line, which Postgres does not concatenate — the suite **aborted at test 72 of
+121** with a syntax error while the summary still read `Failed: 0`. An aborting suite is worse than a
+failing one: 49 tests did not run. A newline between the literals fixes it.
+**`test:db` on a fresh reset — BEFORE:** 401 (6) · 403 (1) · 409 (2) · 411 (1) · 422 (1).
+**AFTER:** only `403 § 3.2b`, exactly as the step required.
+
+**L4 — `403 § 3.2b` re-claused, red witness recorded.**
+
+```
+# Failed test 11: "3.2b ⭐ THE BOUND ON POINTING THIS SUITE AT THE CANDIDATE EVALUATOR …"
+#         have: 1
+#         want: 0
+```
+
+§ 3.2b is now subject-scoped: no role appearing in `authz_differential_cells` (staff_admin-only
+since the per-role split) is in `test_validation`. The global count was never the property; it stood
+in for it while one role existed. **§ 3.2c** pins the `test_validation` set BY NAME, computing the
+expected value from two independent sources — the manifest's `approvedSuites` MINUS the roles this
+suite's own cells sweep — so neither side can be edited to agree with the other. ⛔ Not keyed on the
+literal `staff`: at increment 2 the value moves by itself, and an assertion that must be hand-edited
+to stay true is one that gets hand-edited to stay green. 403 loads
+`vectors/authz_enforcement_manifest.psql` for that side; it creates only its own temp tables.
+**Able-to-fail proof for § 3.2c**, mutation applied then rolled back:
+`update authz.roles set state='test_validation' where code='org_admin';` →
+`# Failed test 12: "3.2c …" have: org_admin, staff  want: staff`; rolled back → `Result: PASS`.
+403: plan 27 → 28, PASS.
+
+**L5 — row 12 corrected in matrix § 5.3.** The `HC0J0` guard is
+`if not exists (select 1 from public.ethics_case_details d where d.case_id = v_case_id)` — an
+ethics-DETAILS EXISTENCE test. The arm-3 verdict is unchanged; the FIXTURE PAIR changes to a case
+WITH vs WITHOUT such a row, ⛔ not two statuses. **Where row 19's missing fixture was recorded:** in
+the round-3 record entry and in the manifest at
+`permissions["commission.capa.read"].arm3Door.note`, and now in the seed block's header. ⛔ **I did
+NOT append to `docs/testing/ae5-staff-fixture-gaps.md`** — it is tester-owned; the lead reconciles.
+
+**Step 5 — the fixture rows**, every id new and carrying this unit's `a5f…` prefix: 4 personas
+(`gap.xorg.b` clean org-B staff-only · `gap.unpriv` zero-role/zero-admin/active · `gap.pending`
+unconfirmed in `auth.users` AND `profiles` · `gap.deactivated`) · 3 `staff` memberships · 4
+`organization_affiliations` · a `participants_only` meeting + a non-attendee pair · an
+`in_signature` meeting + present/absent attendees · 2 `assignees_only` action items · 3
+`accreditation_frameworks` (NULL-owner, own, foreign) · a `document_approvals` row naming the CLEAN
+staff · an indicator-sourced `capa_plan`.
+⛔ **No existing persona repurposed**, diverging from § 8 on purpose: it asks for memberships on
+`novato.pendente` and `desativado.conta`, which suites read as committee-less. Two NEW personas
+carry the coordinates. **Row 12 needed no new case** — measured, CCIH already holds 1 case WITH an
+`ethics_case_details` row and 5 WITHOUT.
+**`offboarded` is not seeded, and not for want of a mechanism**: it is
+`public.hospital_affiliations` (`ended_on` / `voided_at`), written by `app.end_affiliation_impl` /
+`app.void_affiliation_impl`, read by `app.person_has_active_org_affiliation` /
+`app.person_is_anchorless` (ADR 0163). The coordinate is not constructible as a DISTINCT cell —
+**32** seeded profiles already hold zero live affiliations, so an offboarded persona's cells are
+byte-identical to its active ones. That is the finding AE4 recorded when it EXCLUDED the value.
+⚠ Three product guards shaped the fixture rather than being worked around: `HC0C3` (a
+`participants_only` meeting needs an attendee first), `23514` (an `in_signature` meeting refuses
+attendee writes), `23514` (a status transition needs `app.in_meeting_rpc` — the same flag the RPC
+sets, scoped transaction-local).
+
+**⚠ THE FIXTURE'S FIRST RUN BROKE FOUR SUITES, and it was not a count.** 387 (7) · 393 (1) · 396 (1)
+· 400 (3), because the four personas had **no organization affiliation** and were therefore tenant
+orphans: `396 § 9.3` asserts the seed contributes ZERO orphans and `400 § 1.6` pins the orphan set
+**as a LIST**. Those are properties the suites exist to hold, falsified by the fixture — not pins to
+move. Affiliations added; **393, 396 and 400 green**.
+
+**⛔ STOP — `387` (7 tests), and it is not this round's to touch.** Its pins are md5s over
+profile-visibility SETS, which any new persona moves. Old → new, measured:
+
+| test | § | old md5 | new md5 |
+| --- | --- | --- | --- |
+| 5 | B1 hospital_admin | `cded5a2d2aa30200459df9b1cf79fad8` | `67bfdf1fc6f19799353a5b7555298e0c` |
+| 6 | B2 org_admin | `7954b32056d1c7103f45a8fa4dab6e81` | `aad18a567b61494e42a34bdb91e3a957` |
+| 7 | B3 platform_admin | `8890048e7c71c8bc3f5f6fd36e94ba24` | `783c2a1e28d44e12af028ca7d53aa36e` |
+| 8 | B4 staff_admin | `17d08eadd7e1d99df2dbd88f3ad5ffd5` | `03904c72e766d0719e6e0d9e4ffcd7d9` |
+| 9 | B5 staff | `17d08eadd7e1d99df2dbd88f3ad5ffd5` | `03904c72e766d0719e6e0d9e4ffcd7d9` |
+| 10 | B6 cross-org org_admin | `4acaab502f5a639f29a4e30a7c1b33f2` | `00e55169b95a4a99cb9f14c8b40cbccf` |
+| 19 | D1b (the restore control) | `cded5a2d2aa30200459df9b1cf79fad8` | `67bfdf1fc6f19799353a5b7555298e0c` |
+
+⚠ Tests 8 and 9 share a value (both see the CCIH set) and test 19 is test 5's restore control, so it
+moves with it. ⛔ **The ROW COUNTS baked into the test NAMES (23 / 29 / 36 / 10 / 10 / 5) are stale
+too and must be RE-DERIVED, not copied** — I did not measure them, because a simplified JWT lacks
+the hat and reads 1 for every persona, which would be a wrong figure that looks like a measurement.
+
+**⚠ `424` aborts** — `Bad plan. You planned 21 tests but ran 0`, cause
+`relation "authz_differential_cells_staff" does not exist`: the tester's file is missing
+`\ir vectors/authz_differential_cells.psql`. Both role tables live in that one file, so the single
+include gives it the table. Tester-owned; reported, not touched.
+
+**Gates, exit codes read bare.** `npm run lint` **0** in full — ⚠ including gate 9, which the round
+expected to stay red: `proposed-review.json` now reads `"reviewed": "2026-09-13"` and carries 0211,
+so the lead's review landed before this run. `npm run typecheck` **0**. `test:db` on a fresh reset
+**1** — `387` (7, the STOP above) and `424` (the tester's missing include); every other suite green,
+including `401`, `403`, `409`, `410`, `411` and `422`.
+
 ## T3 plan — generators MULTI-ROLE ⛔ NOT EXECUTED; awaiting the lead's ack
 
 Read-only inspection of `scripts/gen-authz-differential-cells.py` (1218 lines) and
