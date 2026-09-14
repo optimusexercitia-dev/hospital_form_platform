@@ -4078,3 +4078,41 @@ text only); the raise is likely a PHI-audit or class-1 guard firing under a `sel
 Backend asked to read the case's run log (`runlogs/pred_app_can_read_referral_internal_note_….log`,
 a file, not the DB) and name the raising test and its SQLSTATE now, so the disposition is ready at
 the merge. The sweep continues untouched.
+
+### 2026-09-14 — the NOTICED dispositioned from the run log: a Rule 11 audited-read guard firing, genuine, reproduced after a fresh reset (lead)
+
+Backend, read-only on `runlogs/pred_app_can_read_referral_internal_note_….log`: neutralization
+form = the predicate arm's `select true` (always-grant). What raised, verbatim:
+
+```
+psql:…/supabase/tests/150_referrals.sql:1626: ERROR:  log_audit_access: sem permissão para registrar este acesso
+CONTEXT:  PL/pgSQL function log_audit_access(text,text,uuid,uuid,text,jsonb) line 22 at RAISE
+SQL statement "SELECT public.log_audit_access('referral.note_viewed', 'referral', p_referral_id, …)"
+PL/pgSQL function list_referral_internal_notes(uuid) line 44 at PERFORM
+```
+
+**Disposition — a Rule 11 guard, not a seed artefact, three reasons:** (1) the raise is in the AUDIT
+WRITER, not the reader — `list_referral_internal_notes` served the notes (the forced door said
+yes), then `log_audit_access('referral.note_viewed', …)` REFUSED to record an access for a caller
+it does not recognise as permitted: the door opened, a different class-1 guard noticed; (2) 15 of
+226 subtests failed with over-grant shapes — `R5·K-R5-1 a SOURCE member is DENIED the TARGET-owned
+note (cross-side)` and its mirror, both `QPS operator is DENIED` arms, `the source coordinator's
+note list carries ONLY the source note (1)` → have 2 / want 1, `the audited door serves the
+non-redacted body to the owning side` → have `CORPO-NOTA-DESTINO` / want `CORPO-NOTA-ORIGEM`, `a
+redacted note renders [redigido]` → have the OTHER side's body — the leak the door exists to stop;
+(3) `150_referrals.sql` truncates its tables first (`referral_read_receipts`, …), so T7's seed row
+is gone before its assertions run. Why NOTICED not COVERED: the raise aborted the plan (`Bad plan.
+You planned 226 tests but ran 218`, `Dubious, test returned 3`) — the suite failed, the harness
+cannot name WHICH assertion; evidence, never a pass, never BLIND. ⭐ **Reproduced after a fresh
+reset through the retry net** (`drift suspected — resetting and retrying … ONCE` → `post-reset
+§ 7.16 preflight: clean` → `post-reset baseline: PASS` → `NOTICED` again); the net is gated on
+`resets_enabled`, so on the abandoned unbounded run this verdict would have printed
+`drift-shaped; NOT retried` and been unattributable — the restart ruling is what made it evidence.
+`RESET_EVERY=5` confirmed in both PIDs' `/proc/…/environ`; resets at 5/10/15/20 + the retry, each
+with a clean preflight and an unmoved worklist; 23 of 34 predicate cases done. **Owed at the
+sweep's end (two-second catalog read):** `log_audit_access`'s `errcode` — psql prints the message,
+not the SQLSTATE, at default verbosity (0 hits over 26,896 lines). ⚠ Harness text inaccuracy: the
+scheduled-reset line prints "N case(s) swept since the last baseline" with N = the RUNNING TOTAL
+(`DONE-1`), not the count since the last reset — "20" at the fourth reset when 5 had been swept;
+cosmetic, but a reader counting drift from it over-states 4× — low follow-up, backend, off the
+stack.
