@@ -70,19 +70,30 @@
 -- three fixtures these expectations need exist yet. Naming them now, ahead of the fixtures, so
 -- step 4's re-run has a written target rather than a post-hoc rationalization of whatever comes
 -- back:
---   (1) ROW 9's RESIDUAL ARM, TWO SUB-CASES, expected to diverge from each other post-T7:
+--   (1) ROW 9's RESIDUAL ARM — ⚠ REVISED under ruling L24 (the member-surface door now composes
+--       `has_case_capability` ALONE: the permission is enforced INSIDE `_case_caps` via a
+--       commission-keyed SIBLING door, not beside it) — THREE sub-cases, not two, expected to
+--       diverge from each other post-T7:
 --       (a) a principal who ALSO holds a `case_access_grants` row (`read_case_deliberation`) on
 --           the case, independent of commission membership — deleting `staff`'s
---           `commission.cases.deliberation.read` grant is expected to STILL READ GRANTED for this
---           principal (`residualLegacyAuthority`, kept under L17): the case grant is a SEPARATE,
---           un-re-keyed authority, so this coordinate stays "no movement" even after T7, and must
---           NOT be folded into §3.2's blanket "everything denies post-T7" expectation.
+--           `commission.cases.deliberation.read` grant is expected to STAY GRANTED both before AND
+--           after (`t`/`t`): `residualLegacyAuthority` (kept under L17) is a SEPARATE, un-re-keyed
+--           authority, so this coordinate is "no movement" even after T7 and must NOT be folded
+--           into §3.2's blanket "everything denies post-T7" expectation.
 --       (b) via `app._case_caps`'s S5 arm, a plain commission MEMBER who holds NO case grant —
---           deleting the SAME row 9 permission is expected to DENY post-T7 (backend's ruling L20,
---           sibling to (a)): the membership-path arm IS re-keyed, so (a) and (b) are two DIFFERENT
---           principals at the SAME site expected to move in OPPOSITE directions after the SAME
---           deletion — a single aggregate "did row 9 move" check would average them into nothing;
---           step 4 must keep them as separate probes.
+--           deleting the SAME row 9 permission is expected to go `t` → `f` under the deletion
+--           (backend's ruling L20): the membership-path arm IS re-keyed, so (a) and (b) are two
+--           DIFFERENT principals at the SAME site expected to move in OPPOSITE directions after
+--           the SAME deletion — a single aggregate "did row 9 move" check would average them into
+--           nothing; step 4 must keep them as separate probes.
+--       (c) an EXCLUDED RESPONDENT (a principal the commission-keyed sibling door itself denies,
+--           independent of the row 9 permission) — expected `f`/`f`: denied both before and after,
+--           since the sibling door's own exclusion is what is being read, not the permission grant
+--           this file mutates. A third "no movement" reading, but for a DIFFERENT reason than (a)'s
+--           — (a) is "granted regardless" via residual authority, (c) is "denied regardless" via a
+--           door conjunct this file never touches; step 4 must not conflate the two as one "no
+--           movement" bucket, or a denied-respondent site would silently stand in for the
+--           residual-grant witness it is not.
 --   (2) `public.meeting_cases.meeting_cases_select` (the `commission.meetings.cases.shell.read`
 --       site) gains an ADDED CONJUNCT under T7: deleting THIS code's `staff` grant is expected to
 --       DENY the shell read, while `app.can_reach_meeting` (a DIFFERENT code,
