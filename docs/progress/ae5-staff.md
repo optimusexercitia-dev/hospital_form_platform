@@ -1502,6 +1502,13 @@ proving the md5 differs from a value nothing produces any more, true whatever th
 Leaving a green assertion behind a moved pin is how a vacuity control quietly stops controlling.
 `387` **25/25 green**.
 
+**Final full-suite confirmation, after both commits** (`npm run test:db` bare, no reset — the stack
+was reset by the tester earlier and no peer session was active, checked on `pg_stat_activity` before
+each run): **Files=273, Tests=9154**, and the ONLY red file is `424` (2 of 21, the tester's, down
+from 8). `387` and `410` both report `ok`. `npm run lint` **exit 0** end to end — eslint at
+`--max-warnings=0` plus gates 7, 9, 12, 13, 19 — so the hub's Blockers claim that gates 9 and 19
+were red is stale and has been corrected there (`3a8fc883`), re-measured rather than recalled.
+
 **Unchanged and still waiting**: P1 + P2 apply together only on the PO's word (combined flip count
 must read exactly **1218** as an OUTPUT); the T6 files stay in `t6-wip/`; `424` is the tester's.
 
