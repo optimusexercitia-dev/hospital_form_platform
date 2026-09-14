@@ -2308,3 +2308,18 @@ whose expectations had never been measured; this one has, so their run is a conf
 · bound-id sweep **38/38 literal** · smoke: 3024 probes 0 errors, 37 (id, door table) pairs 0
 absent, 44 bound doors 0 missing, planted-absent control fired · `lint:authz-vectors` **0**,
 `npm run lint` **0**. `424` untouched.
+
+### 2026-09-14 — round 5 received at `774edd50`: the vector's EXPECTATIONS smoked before handover; run 5 dispatched (lead)
+
+Backend measured the doors' truth tables per (persona, scope) BEFORE binding — the step the previous
+rounds skipped: row 4 and row 11 each had the door's two classes swapped (G1, G2, and the tester's
+open G closed by the zero-membership profile under `conjunct_unmet`); L11 generalised in one pass —
+of the eleven P1 doors only `can_read_action_item` and `can_read_document` carry `app.is_active`,
+both now probe the policy leg, arm14(i) refuses the shape. ⭐ New smoke half: every cell executed as
+`424` executes it and compared to `expected_legacy_granted` — 3024/3024 agree; the four earlier
+vectors had expectations nobody had measured. Cells 4752 · flips 366 · `staff_admin` 1728
+byte-identical · self-test 35 · lint chains 0. ⚠ Backend's observation, filed as a follow-up: the
+self-test's wrong-arm check compares on the `arm14:` prefix, so a fixture claimed by a SIBLING
+sub-check (i's fixture was, twice) reads as caught by the right arm — LEARN-103's shape one level
+down. Tester dispatched for run 5, the fifth and last iteration on this mechanism; witness and one
+full `test:db` on green.

@@ -99,9 +99,9 @@ vector fix round is committed (`8aed9422`: doors' READ tables declared as data, 
 `probe_column` emitted, every cell smoked with a planted-absent control); run 3 was attributed twice
 independently (tester A–H, backend) with zero disagreement on mechanism and one ruling, **L11** (row 16
 probes the policy leg P1 was ruled on; its function door's `is_active` guard carried to the bug
-register); backend's round 4 is committed (`5ff52214`: scope × persona reach, a named write-guard
-skip for row 12, four new refusal arms); `tester` runs `424` run 4 to green with the able-to-fail
-witness; then the stack goes to `backend` for the T6 red-first sequence (files held in the session scratchpad
+register); backend's round 5 is committed (`774edd50`: door truth tables measured before binding, L11
+applied to all eleven P1 doors, and every cell's EXPECTATION smoked — 3024/3024); `tester` runs
+`424` run 5, the last iteration on this mechanism, to green with the able-to-fail witness; then the stack goes to `backend` for the T6 red-first sequence (files held in the session scratchpad
 `t6-wip/` since the incident). `410` § 6.2 reads `armInterface` (L6, both discrimination halves
 witnessed); `387` re-pinned with every delta attributed; `npm run lint` exit 0.
 
