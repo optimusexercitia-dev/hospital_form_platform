@@ -1966,3 +1966,10 @@ Before the unit, `readRoleVocabularyFromCatalog` was an UNEXPORTED local in two 
 **Status:** open
 **Body:** [FUP-AE5-STAFF-MEMBER-PREDICATE-REEXPRESSION-DEFERRED.md](FUP-AE5-STAFF-MEMBER-PREDICATE-REEXPRESSION-DEFERRED.md)
 
+### 🟡 FUP-AE5-STAFF-THREE-BIT-TESTING-BODIES-UNCLASSIFIED — C1 wires 4 of 7; three compose `read_case_deliberation` for unknown surfaces (owner: backend)
+
+**Filed:** 2026-09-14 (unit `AE5-STAFF`, T7 C1; lead ruling L19) · **Owner:** backend · **Severity:** medium — no known defect; a scope boundary that is currently a reading rather than a measurement.
+**Closes when:** each of `app.can_read_full_case_content`, `app.can_read_full_meeting_content` and `app.is_oversight_only_reader` is classified BY MEASUREMENT as a composer (builds the capability for another surface) or a member-facing surface (asks row 9's question), and is then either wired to `app.can_reach_case_on_member_surface` or documented in place with the measured reason.
+**Status:** open
+**Body:** [FUP-AE5-STAFF-THREE-BIT-TESTING-BODIES-UNCLASSIFIED.md](FUP-AE5-STAFF-THREE-BIT-TESTING-BODIES-UNCLASSIFIED.md)
+
