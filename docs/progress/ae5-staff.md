@@ -1894,3 +1894,34 @@ repointed at another arm's row) caught BY NAME by the arm that re-derives the bi
 declaration, and a **planted wrong keying** (a `caller-only` row flipped to `third-party-capable`)
 caught by name by the keying arm. `arm3Door.expression` stays documentation, with the comparison arm
 to `pg_policies.qual` discharging the drift follow-up's first arm.
+
+#### L9' + L10 landed (`a0723554`)
+
+| reading (OUTPUT) | before | after |
+| --- | ---: | ---: |
+| cells | 9936 | **8100** |
+| skipped by `self_check_undefined_for_caller_keyed_door` | — | **1836** |
+| flips vs `expected_granted` | 726 | **558** |
+| keying | — | **4536** third-party-capable / **1836** caller-only |
+| `staff_admin` rows | 1728 | **1728, byte-identical** (sorted AND plain diff; the four new columns are on the WIDE shape only, so `403` is untouched) |
+| `--self-test` | 28 caught | **30 caught**, both arm14 fixtures BY NAME, clean on the real spec |
+
+Smoke test against the live stack: **60 sampled cells' `legacy_sql` and `catalog_sql` executed
+cleanly, 0 failures, 0 empty legacy columns.** `lint:authz-vectors` exit 0, `npm run lint` exit 0.
+
+**⚠ arm14(b) fired on the REAL SPEC on its first run — on me, which is the discrimination
+control working.** Its first cut compared every row's derived keying to § 5.4. But § 5.4's
+`subject` describes the PRODUCTION SITE, while a probe's keying describes what the DIFFERENTIAL can
+ask; for the nine bare rows those genuinely differ (the production site is a bare
+`app.is_member_of(scope)` on `auth.uid()`, while the probe uses the `_for` variant — ADR 0201
+D1's asymmetry, not drift), so they are OUT of the arm's stated domain and **counted in a census**
+rather than exempted. It also caught two REAL errors before they shipped: `action_items.read` and
+`documents.read` were probed through their POLICY, which silently made them caller-only and dropped
+every third-party cell, and `cases.vote`'s probe bound the principal, fabricating a third-party
+capability its guard does not have.
+
+**⛔ Open for the lead / PO.** The nine bare rows are `third-party-capable` in this landing
+because their probe is `app.is_member_of_for(scope, uid)` — the form `424` has always used. L10's
+wording ("`caller-only` for a policy / **bare `is_member_of` site**") would instead make them
+caller-only and skip ~half their cells. I did not make that call: it is a large coverage change and
+the census names the nine rows so it can be ruled at the gate.
