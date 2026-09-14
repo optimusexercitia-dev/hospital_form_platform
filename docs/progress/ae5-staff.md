@@ -1925,3 +1925,24 @@ because their probe is `app.is_member_of_for(scope, uid)` — the form `424` has
 wording ("`caller-only` for a policy / **bare `is_member_of` site**") would instead make them
 caller-only and skip ~half their cells. I did not make that call: it is a large coverage change and
 the census names the nine rows so it can be ruled at the gate.
+
+### 2026-09-14 — L9′ landed; L10 amended for the nine bare rows (lead)
+
+Backend (`6a6bc7a5` plan · `a0723554` vector · `6a60c1a5` record): cells 9936 → 8100 (1836 skipped
+under the named rule), flips 726 → 558, keying 4536 third-party-capable / 1836 caller-only,
+`staff_admin` 1728 byte-identical (new columns on the WIDE shape only; `403` untouched), self-test
+30 caught with both arm14 fixtures by name; 60 sampled cells' `legacy_sql`/`catalog_sql` executed
+clean on the live stack. arm14(b) fired on the real spec first — and caught two real errors before
+they shipped: `action_items.read` and `documents.read` probed through their POLICY (silently
+caller-only, every third-party cell dropped) and `cases.vote`'s probe binding the principal
+(fabricating a third-party capability its guard lacks). § 5.4's `subject` describes the PRODUCTION
+site; a probe's keying describes what the differential can ASK; the nine bare rows differ by ADR
+0201 D1's asymmetry and are counted in a census, not exempted.
+**L10 amended (lead):** for a BARE-membership site the door IS the predicate, and its `_for` twin
+(`app.is_member_of_for(scope, uid)`) is the legacy evaluator the differential has always used
+(403's shape) — so the nine bare rows are `third-party-capable`, as backend built them. `caller-only`
+applies to a COMPOSITE policy door with no `_for` twin (a policy whose further terms read `auth.uid()`
+themselves). The census stays as the record of the nine. ⛔ Not a coverage reduction: L10 as first
+worded would have skipped ~half their cells; the amendment restores 403's coverage on those rows.
+Tester now re-cuts `424` to the loop backend published (columns `legacy_sql` · `catalog_sql` ·
+`legacy_fixture_id` · `keying` after `member_gate_arm, legacy_door`) — one authorized run.
