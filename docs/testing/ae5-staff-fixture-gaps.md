@@ -178,3 +178,12 @@ No fixture ids proposed here — backend's call, in T7's own seed work.
 standards are different tables (`accreditation_standards` presumably FKs to a framework), and this
 addendum's emptiness was not implied by that earlier finding — verify both independently, do not
 assume seeding one fixes the other.
+
+**Row 9's residual arm, isolation gap (measured by backend, not this round)**: the seed has **no**
+principal holding a `case_access_grants` row with `read_case_deliberation` who is **not also** a
+member of the case's commission — count **0**. Matrix row 9's residual `has_case_capability` arm
+(kept under L17 as declared `residualLegacyAuthority`) therefore has no persona today that exercises
+it **in isolation** from ordinary membership — every seeded grant-holder would read through the
+membership path regardless, so a probe against any of them proves nothing about the residual arm
+specifically. Backend is seeding one such principal in T7. No fixture id proposed here — backend's
+call, in T7's own seed work.
