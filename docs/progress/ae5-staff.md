@@ -2187,3 +2187,46 @@ the caller's own commission — a co-member by construction (= the `_default` fa
 itself compares the right columns — not a suite defect. Tester's § 2.6 edit: LF, uncommitted, to be
 committed by path with run 4. Two measurers, eight labels, four causes, zero disagreement on the
 mechanism; the one difference (F's remedy) is the ruling already recorded as L11.
+
+#### 2026-09-14 — backend: round 4 — A/B/C/D + L11 (`cea002eb`, `c5ef5fef`)
+
+I reconciled all four of the tester's attributions against my own read-only measurements and agreed
+with A, B and C. **⚠ I partly disagreed with D and the disagreement was load-bearing**: that
+coordinate IS labelled (`other_role|own_commission|…|disjunct_present` carries P1 with
+`expected_legacy=true`, and the door measures true). D's 4 cells and the 40 "unattributed" are
+**ONE cause**: `arm3Door.reach` stayed persona-keyed after my own L9″ change made the fixtures
+scope-keyed, so the reach lied at every off-own scope. Measured diagonal: own→staff4.ccih,
+sibling→staff1.farm, foreign→gap.xorg.b.
+
+| cause | fix | arm that now refuses it |
+| --- | --- | --- |
+| A — `disjunct_absent` bound `gap.unpriv`, which IS `thirdPartyCaller` | dedicated `gap.absent`: 0 memberships, never a persona, affiliated (0 orphans) | **arm14(f)** — a fixture id that is also a persona id |
+| roster `conjunct_unmet` fell through to `_default` | its own binding: ABSENT = no membership anywhere, UNMET = one the caller does not share | arm14(c) |
+| B — row 12 approximated with `can_read_case_committee` | `not-executable`, skip `door_is_a_write_guard_not_executable` (**648**) | **arm14(h)** — a bound function not named in the row's own declaration |
+| C — forms' `none` shared the chain version | baseline → the no-chain version; **swept all five two-armed classes, 0 collisions left** | arm14(c) |
+| D + 40 — reach persona-keyed while fixtures are scope-keyed | reach = **scope × persona** (`byScope`) | **arm14(g)** — a `personas` reach with no `byScope`; arm13 now passes the cell's scope |
+| capa `conjunct_unmet` met the conjunct | manual-sourced plan: `event_of_capa` null, measured **false for all four** while the default stays true for subject_holder only | — |
+
+**L11 on row 16, applied as ruled.** It probes the POLICY leg again.
+⛔ The finding underneath is about PRODUCTION, not the fixture: `app.can_read_document` opens
+with `if not app.is_active(p_uid) then return false`, while the policy's
+`app.is_document_approver_of` leg carries **no** such term — both measured live. So two
+production doors disagree on exactly the inactive principal P1's approved divergence is about, and
+probing the function contradicted a PO ruling for 16 cells. The row carries a declared
+`keyingOverride` naming the ruling and the reason, and the overrides are **printed** — an
+exemption nobody can see is what a weakened arm looks like from outside. The lead carries the
+second door's guard to the bug register.
+
+⚠ `arm1b` and `arm3` gained ONE exemption each for a `not-executable` rep. Both are keyed on the
+DECLARATION, never on a code name: a hand-list there would silence the next genuinely-dropped rep,
+which is the only thing those arms exist for.
+
+**Readings:** cells **5076** · flips **382** · skips `no_resource_fixture_at_this_scope` **2376**,
+`self_check_undefined_for_caller_keyed_door` **1836**, `door_is_a_write_guard_not_executable`
+**648** · `staff_admin` **1728 byte-identical** (sorted AND plain) · `--self-test` **34 caught**
+(was 32), both new arms BY NAME, clean on the real spec · bound-id sweep **38/38 literal** ·
+`lint:authz-vectors` **0**, `npm run lint` **0**.
+**Smoke, every cell: 3348 probes executed, 0 errors; 37 distinct (id, door table) pairs, 0 absent;
+72 distinct bound doors, 0 missing from the catalog; the planted-absent control fired.**
+
+⚠ `424` was NOT touched — the tester's § 2.6 edit is uncommitted in the tree and was left there.
