@@ -4229,3 +4229,26 @@ reddens when it opens; it says nothing about production wiring and does not touc
 follow-up — written that way, never as coverage. Uncommitted: the merged baseline, `409` (a), the
 port. In flight: the write arm; owed: plants, L22's plant, the set-valued run, `SELFTEST=1`,
 commits, the T8 entry with the census arm re-run GREEN.
+
+### 2026-09-14 — write arm run 1: ERROR by the drift tripwire (correct) — a re-key orphans a shape-keyed control; the lead's 425 assumption measured WRONG (lead)
+
+`WRITE_ARM_EXIT=1`, `ARM-DOMAIN guard=0/13 policy=1/107`, `ERROR responses.responses_insert_own`,
+`=== RESULT: DIRTY — 0 BLIND, 1 ERROR … ERROR is not a pass ===`, baseline cksum unchanged. The
+subset report: `snapshot drift (with_check): live='((created_by = (SELECT auth.uid())) AND
+app.can_responses_create(commission_id, (SELECT auth.uid())))'` — the harness's embedded 33-row
+snapshot (§ 7.2, a TRIPWIRE: the live predicate must byte-match or the case is ERROR, "its
+committed verdict was earned against different text") still read `AND
+app.is_member_of(commission_id)`; T7 re-keyed the policy, the byte-match failed, and the harness
+refused to neutralize from a stale shape — right, because restoring from that snapshot would write
+back the WRONG body. Same family as `409` control (a) and the seven pins: a re-key orphans a
+shape-keyed control (LESSONS candidate beside the rename lesson). Backend refreshed the one row to
+the measured live text (a test asset; the frozen door surface untouched; `bash -n` 0) and
+relaunched that single case — the verdict is RE-EARNED, not inherited. **`form_assets_select_member`
+dispositioned and filed:** `FUP-AE5-STAFF-DOOR-SWEEP-POLICY-ARM-EXCLUDES-STORAGE-SCHEMA` (medium),
+gate 13 = 0 — no arm can neutralize a `storage.objects` policy. ⚠ **The lead's stated expectation
+("425's probe is public-only") was WRONG, measured by backend:** 425 derives the relation from the
+site string (`regexp_replace(p_site, '\.[^.]+$', '')` → `storage.objects`) and DOES issue `select
+count(*) from storage.objects`; the gap is two-fold — (1) no mutation arm reaches the site, (2) 425
+reaches it but cannot discriminate because the table is EMPTY on the seeded stack (§ 2.0 excludes
+it; § 3.1/3.2 keep it in the denominator). The follow-up's closure requires both halves and says a
+COVERED earned while `storage.objects` holds zero rows is not a closure. Owed unchanged: (5)–(9).
