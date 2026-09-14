@@ -1,6 +1,6 @@
 {
   "sourceSha256": "c00c0326ea1b3dfdc6424ae4559db18e712c2391041facd38e66ffe8cb8ec5d1",
-  "manifestSha256": "fd916ab1c3f6ca14488071c2f6cf19c19047d1291f8a8e79c86a39fd846e6e61",
+  "manifestSha256": "42d6f95e829dbca127474927f818657168d95cf4e2f3126f6bca44bc846f7aa5",
   "expected": 234000,
   "executed": 4004,
   "skipped": 229996,
@@ -42,7 +42,6 @@
     "unusedHardDenyClasses": [
       "record_immutable_published",
       "record_immutable_submitted",
-      "recusal_exclusion",
       "sensitivity_ceiling",
       "tenant_mismatch"
     ]

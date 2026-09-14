@@ -499,6 +499,28 @@
       "to guess which list won. `stateColumn` names the CONCRETE table column (or row presence) that",
       "carries the row's arm-3 state, which is what a fixture has to construct — `memberGateArm` is the",
       "abstract coordinate, this is the thing in the database."
+    ],
+    "_hardDenyMeasurementComment": [
+      "⭐ ADR 0203 D1 bound 2, discharged for the `staff` bundle at AE5 increment 1 (2026-09-13).",
+      "Round 3 seeded these 20 rows with `hardDenyClasses: []` and",
+      "`hardDenyProvenance: not-attributable-until-rekey` — the pending-rekey DEFAULT. ⛔ That default",
+      "is structurally honest for the pre-AE5 40 (no authorizer and no sites means nothing to search)",
+      "and DISHONEST here: these rows carry an `armInterface` naming every site and an `arm3Door`",
+      "naming the door, so there WAS something to search and the default asserted there was not.",
+      "",
+      "⛔ THE INSTRUMENT IS PROVEN BEFORE ITS ZEROES ARE BELIEVED. Each of the three call-reachable",
+      "gates was PLANTED on a synthetic root and the search required to name it; an empty root was",
+      "required to return nothing; and a depth control confirmed transitivity (app.can_read_action_item",
+      "reaches app.is_case_excluded only through a callee, and the search finds it). Without those a",
+      "`[]` is indistinguishable from a dead search — which is exactly what",
+      "`commission.safety_events.report` returned on the first run: closure=0, seeds=0, because that",
+      "SHARED row had no armInterface to seed from. It was given one rather than recorded as a zero.",
+      "",
+      "⭐ `recusal_exclusion` APPEARS HERE AND ON NONE OF staff_admin's THREE RE-KEYED ROWS, and that",
+      "is a real difference rather than an instrument error: `app.can_read_action_item` carries an",
+      "`app.is_case_excluded` hard deny, and rows 11 / 16 / 5 reach it. The vocabulary comment's",
+      "\"NO row reaches app.is_case_excluded\" was true of the three rows measured in 2026-09-07 and is",
+      "no longer true of the manifest as a whole."
     ]
   },
   "lifecycleDerivation": {
@@ -1523,8 +1545,11 @@
         "sensitivityCeiling": "none",
         "resolutionScopeKind": "commission"
       },
-      "hardDenyClasses": [],
-      "hardDenyProvenance": "not-attributable-until-rekey",
+      "hardDenyClasses": [
+        "principal_inactive",
+        "respondent_exclusion"
+      ],
+      "hardDenyProvenance": "measured-transitive-over-gated-classes",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
@@ -1557,6 +1582,23 @@
         "legacyClass": "can_reach_meeting_not_respondent",
         "legacyClassSource": "TESTER'S",
         "stateColumn": "public.meetings.visibility_policy + meeting_attendees, AND public.case_recusals/respondent state via app.is_case_respondent"
+      },
+      "armInterface": [
+        {
+          "site": "public.meeting_cases.meeting_cases_select",
+          "kind": "policy",
+          "subject": "caller",
+          "hat": "required",
+          "definerSurface": "none — policy arm",
+          "hatNote": "⚠ SHARED CODE — see commission.safety_events.report. The policy passes auth.uid() into app.can_reach_meeting, so the hat is required at this site."
+        }
+      ],
+      "hardDenyMeasurement": {
+        "closureSize": 7,
+        "seedSites": 2,
+        "measuredOn": "2026-09-13",
+        "method": "composed-call closure over the row’s armInterface sites (function bodies) and policy quals plus arm3Door.expression, comment-stripped, NO depth bound — the reached set is a subset of pg_proc over app/public/authz and UNION dedupes, so the fixed point IS the bound. Identical to the method the hardDenyVocabulary comment records for the three re-keyed rows.",
+        "bound": "complete over the CALL-REACHABLE sub-vocabulary only. 4 of the 7 classes have a null gate (two triggers, the UUID id-space, ADR 0172’s deferred column) and NO call search sees them at any depth — FUP-AUTHZ-HARDDENY-GATELESS-CLASSES-HAVE-NO-DETECTOR."
       }
     },
     "commission.meetings.cases.substance.read": {
@@ -2051,8 +2093,10 @@
         "sensitivityCeiling": "none",
         "resolutionScopeKind": "commission"
       },
-      "hardDenyClasses": [],
-      "hardDenyProvenance": "not-attributable-until-rekey",
+      "hardDenyClasses": [
+        "principal_inactive"
+      ],
+      "hardDenyProvenance": "measured-transitive-over-gated-classes",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
@@ -2065,7 +2109,24 @@
         "owner": "lead",
         "expiry": "AE5-complete"
       },
-      "exception": null
+      "exception": null,
+      "armInterface": [
+        {
+          "site": "public.notify_safety_event",
+          "kind": "function",
+          "subject": "caller",
+          "hat": "required",
+          "definerSurface": "prosecdef=t, carriesCode:false",
+          "hatNote": "⚠ SHARED CODE: this armInterface lists the site `staff` reaches it through (matrix row 18 — `if not app.is_member_of(p_reporting_commission_id) then raise`). staff_admin reaches the same door through the same membership term, so the entry is the union rather than a second list."
+        }
+      ],
+      "hardDenyMeasurement": {
+        "closureSize": 7,
+        "seedSites": 1,
+        "measuredOn": "2026-09-13",
+        "method": "composed-call closure over the row’s armInterface sites (function bodies) and policy quals plus arm3Door.expression, comment-stripped, NO depth bound — the reached set is a subset of pg_proc over app/public/authz and UNION dedupes, so the fixed point IS the bound. Identical to the method the hardDenyVocabulary comment records for the three re-keyed rows.",
+        "bound": "complete over the CALL-REACHABLE sub-vocabulary only. 4 of the 7 classes have a null gate (two triggers, the UUID id-space, ADR 0172’s deferred column) and NO call search sees them at any depth — FUP-AUTHZ-HARDDENY-GATELESS-CLASSES-HAVE-NO-DETECTOR."
+      }
     },
     "commission.signoffs.read": {
       "status": "pending-rekey",
@@ -2602,8 +2663,10 @@
         "sensitivityCeiling": "none",
         "resolutionScopeKind": "commission"
       },
-      "hardDenyClasses": [],
-      "hardDenyProvenance": "not-attributable-until-rekey",
+      "hardDenyClasses": [
+        "principal_inactive"
+      ],
+      "hardDenyProvenance": "measured-transitive-over-gated-classes",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
@@ -2700,6 +2763,13 @@
         "legacyClass": "rls_form_matrix_targeted_version",
         "legacyClassSource": "MINE",
         "stateColumn": "the targeted-version participation walk (public.case_participants ⋈ public.professional_participants ⋈ public.professional_profiles reaching the form version) — presence/absence IS the coordinate"
+      },
+      "hardDenyMeasurement": {
+        "closureSize": 9,
+        "seedSites": 10,
+        "measuredOn": "2026-09-13",
+        "method": "composed-call closure over the row’s armInterface sites (function bodies) and policy quals plus arm3Door.expression, comment-stripped, NO depth bound — the reached set is a subset of pg_proc over app/public/authz and UNION dedupes, so the fixed point IS the bound. Identical to the method the hardDenyVocabulary comment records for the three re-keyed rows.",
+        "bound": "complete over the CALL-REACHABLE sub-vocabulary only. 4 of the 7 classes have a null gate (two triggers, the UUID id-space, ADR 0172’s deferred column) and NO call search sees them at any depth — FUP-AUTHZ-HARDDENY-GATELESS-CLASSES-HAVE-NO-DETECTOR."
       }
     },
     "commission.responses.create": {
@@ -2725,8 +2795,10 @@
         "sensitivityCeiling": "none",
         "resolutionScopeKind": "commission"
       },
-      "hardDenyClasses": [],
-      "hardDenyProvenance": "not-attributable-until-rekey",
+      "hardDenyClasses": [
+        "principal_inactive"
+      ],
+      "hardDenyProvenance": "measured-transitive-over-gated-classes",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
@@ -2759,7 +2831,14 @@
           "definerSurface": "none — defence in depth only",
           "hatNote": "the TS layer reads no active_role"
         }
-      ]
+      ],
+      "hardDenyMeasurement": {
+        "closureSize": 4,
+        "seedSites": 1,
+        "measuredOn": "2026-09-13",
+        "method": "composed-call closure over the row’s armInterface sites (function bodies) and policy quals plus arm3Door.expression, comment-stripped, NO depth bound — the reached set is a subset of pg_proc over app/public/authz and UNION dedupes, so the fixed point IS the bound. Identical to the method the hardDenyVocabulary comment records for the three re-keyed rows.",
+        "bound": "complete over the CALL-REACHABLE sub-vocabulary only. 4 of the 7 classes have a null gate (two triggers, the UUID id-space, ADR 0172’s deferred column) and NO call search sees them at any depth — FUP-AUTHZ-HARDDENY-GATELESS-CLASSES-HAVE-NO-DETECTOR."
+      }
     },
     "commission.roster.read": {
       "status": "pending-rekey",
@@ -2784,8 +2863,10 @@
         "sensitivityCeiling": "none",
         "resolutionScopeKind": "commission"
       },
-      "hardDenyClasses": [],
-      "hardDenyProvenance": "not-attributable-until-rekey",
+      "hardDenyClasses": [
+        "principal_inactive"
+      ],
+      "hardDenyProvenance": "measured-transitive-over-gated-classes",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
@@ -2849,6 +2930,13 @@
         "legacyClass": "rls_profiles_comember_or_self",
         "legacyClassSource": "TESTER'S",
         "stateColumn": "limb (a): the TARGET profile’s own public.memberships rows (does it share a commission with the caller); limb (b): profile_id = auth.uid()"
+      },
+      "hardDenyMeasurement": {
+        "closureSize": 21,
+        "seedSites": 5,
+        "measuredOn": "2026-09-13",
+        "method": "composed-call closure over the row’s armInterface sites (function bodies) and policy quals plus arm3Door.expression, comment-stripped, NO depth bound — the reached set is a subset of pg_proc over app/public/authz and UNION dedupes, so the fixed point IS the bound. Identical to the method the hardDenyVocabulary comment records for the three re-keyed rows.",
+        "bound": "complete over the CALL-REACHABLE sub-vocabulary only. 4 of the 7 classes have a null gate (two triggers, the UUID id-space, ADR 0172’s deferred column) and NO call search sees them at any depth — FUP-AUTHZ-HARDDENY-GATELESS-CLASSES-HAVE-NO-DETECTOR."
       }
     },
     "commission.charter.read": {
@@ -2874,8 +2962,12 @@
         "sensitivityCeiling": "none",
         "resolutionScopeKind": "commission"
       },
-      "hardDenyClasses": [],
-      "hardDenyProvenance": "not-attributable-until-rekey",
+      "hardDenyClasses": [
+        "principal_inactive",
+        "recusal_exclusion",
+        "respondent_exclusion"
+      ],
+      "hardDenyProvenance": "measured-transitive-over-gated-classes",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
@@ -2914,7 +3006,14 @@
           "hat": "required",
           "definerSurface": "prosecdef=t, carriesCode:false"
         }
-      ]
+      ],
+      "hardDenyMeasurement": {
+        "closureSize": 31,
+        "seedSites": 3,
+        "measuredOn": "2026-09-13",
+        "method": "composed-call closure over the row’s armInterface sites (function bodies) and policy quals plus arm3Door.expression, comment-stripped, NO depth bound — the reached set is a subset of pg_proc over app/public/authz and UNION dedupes, so the fixed point IS the bound. Identical to the method the hardDenyVocabulary comment records for the three re-keyed rows.",
+        "bound": "complete over the CALL-REACHABLE sub-vocabulary only. 4 of the 7 classes have a null gate (two triggers, the UUID id-space, ADR 0172’s deferred column) and NO call search sees them at any depth — FUP-AUTHZ-HARDDENY-GATELESS-CLASSES-HAVE-NO-DETECTOR."
+      }
     },
     "commission.meetings.read": {
       "status": "pending-rekey",
@@ -2939,8 +3038,11 @@
         "sensitivityCeiling": "none",
         "resolutionScopeKind": "commission"
       },
-      "hardDenyClasses": [],
-      "hardDenyProvenance": "not-attributable-until-rekey",
+      "hardDenyClasses": [
+        "principal_inactive",
+        "respondent_exclusion"
+      ],
+      "hardDenyProvenance": "measured-transitive-over-gated-classes",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
@@ -3011,6 +3113,13 @@
         "legacyClass": "can_reach_meeting",
         "legacyClassSource": "TESTER'S",
         "stateColumn": "public.meetings.visibility_policy, plus a public.meeting_attendees row for the caller"
+      },
+      "hardDenyMeasurement": {
+        "closureSize": 52,
+        "seedSites": 6,
+        "measuredOn": "2026-09-13",
+        "method": "composed-call closure over the row’s armInterface sites (function bodies) and policy quals plus arm3Door.expression, comment-stripped, NO depth bound — the reached set is a subset of pg_proc over app/public/authz and UNION dedupes, so the fixed point IS the bound. Identical to the method the hardDenyVocabulary comment records for the three re-keyed rows.",
+        "bound": "complete over the CALL-REACHABLE sub-vocabulary only. 4 of the 7 classes have a null gate (two triggers, the UUID id-space, ADR 0172’s deferred column) and NO call search sees them at any depth — FUP-AUTHZ-HARDDENY-GATELESS-CLASSES-HAVE-NO-DETECTOR."
       }
     },
     "commission.meetings.minutes.sign": {
@@ -3036,8 +3145,10 @@
         "sensitivityCeiling": "none",
         "resolutionScopeKind": "commission"
       },
-      "hardDenyClasses": [],
-      "hardDenyProvenance": "not-attributable-until-rekey",
+      "hardDenyClasses": [
+        "principal_inactive"
+      ],
+      "hardDenyProvenance": "measured-transitive-over-gated-classes",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
@@ -3093,6 +3204,13 @@
         "legacyClass": "can_sign_meeting",
         "legacyClassSource": "MINE",
         "stateColumn": "public.meetings.status (= ‘in_signature’) AND public.meeting_attendees.attendance (= ‘present’)"
+      },
+      "hardDenyMeasurement": {
+        "closureSize": 8,
+        "seedSites": 4,
+        "measuredOn": "2026-09-13",
+        "method": "composed-call closure over the row’s armInterface sites (function bodies) and policy quals plus arm3Door.expression, comment-stripped, NO depth bound — the reached set is a subset of pg_proc over app/public/authz and UNION dedupes, so the fixed point IS the bound. Identical to the method the hardDenyVocabulary comment records for the three re-keyed rows.",
+        "bound": "complete over the CALL-REACHABLE sub-vocabulary only. 4 of the 7 classes have a null gate (two triggers, the UUID id-space, ADR 0172’s deferred column) and NO call search sees them at any depth — FUP-AUTHZ-HARDDENY-GATELESS-CLASSES-HAVE-NO-DETECTOR."
       }
     },
     "commission.cases.deliberation.read": {
@@ -3118,8 +3236,11 @@
         "sensitivityCeiling": "none",
         "resolutionScopeKind": "commission"
       },
-      "hardDenyClasses": [],
-      "hardDenyProvenance": "not-attributable-until-rekey",
+      "hardDenyClasses": [
+        "principal_inactive",
+        "respondent_exclusion"
+      ],
+      "hardDenyProvenance": "measured-transitive-over-gated-classes",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
@@ -3161,6 +3282,13 @@
         "legacyClass": "case_caps_deliberation",
         "legacyClassSource": "TESTER'S",
         "stateColumn": "public.cases.visibility_policy (v_eg = ‘explicit_grants_only’), plus the STEP-4 respondent / recusal hard denies"
+      },
+      "hardDenyMeasurement": {
+        "closureSize": 21,
+        "seedSites": 2,
+        "measuredOn": "2026-09-13",
+        "method": "composed-call closure over the row’s armInterface sites (function bodies) and policy quals plus arm3Door.expression, comment-stripped, NO depth bound — the reached set is a subset of pg_proc over app/public/authz and UNION dedupes, so the fixed point IS the bound. Identical to the method the hardDenyVocabulary comment records for the three re-keyed rows.",
+        "bound": "complete over the CALL-REACHABLE sub-vocabulary only. 4 of the 7 classes have a null gate (two triggers, the UUID id-space, ADR 0172’s deferred column) and NO call search sees them at any depth — FUP-AUTHZ-HARDDENY-GATELESS-CLASSES-HAVE-NO-DETECTOR."
       }
     },
     "commission.action_items.read": {
@@ -3186,8 +3314,12 @@
         "sensitivityCeiling": "none",
         "resolutionScopeKind": "commission"
       },
-      "hardDenyClasses": [],
-      "hardDenyProvenance": "not-attributable-until-rekey",
+      "hardDenyClasses": [
+        "principal_inactive",
+        "recusal_exclusion",
+        "respondent_exclusion"
+      ],
+      "hardDenyProvenance": "measured-transitive-over-gated-classes",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
@@ -3240,6 +3372,13 @@
         "legacyClass": "can_read_action_item",
         "legacyClassSource": "TESTER'S",
         "stateColumn": "public.action_items.visibility_scope; limb (b) additionally public.action_item_assignments.user_id / action_items.assigned_to = auth.uid()"
+      },
+      "hardDenyMeasurement": {
+        "closureSize": 28,
+        "seedSites": 3,
+        "measuredOn": "2026-09-13",
+        "method": "composed-call closure over the row’s armInterface sites (function bodies) and policy quals plus arm3Door.expression, comment-stripped, NO depth bound — the reached set is a subset of pg_proc over app/public/authz and UNION dedupes, so the fixed point IS the bound. Identical to the method the hardDenyVocabulary comment records for the three re-keyed rows.",
+        "bound": "complete over the CALL-REACHABLE sub-vocabulary only. 4 of the 7 classes have a null gate (two triggers, the UUID id-space, ADR 0172’s deferred column) and NO call search sees them at any depth — FUP-AUTHZ-HARDDENY-GATELESS-CLASSES-HAVE-NO-DETECTOR."
       }
     },
     "commission.cases.vote": {
@@ -3265,8 +3404,11 @@
         "sensitivityCeiling": "none",
         "resolutionScopeKind": "commission"
       },
-      "hardDenyClasses": [],
-      "hardDenyProvenance": "not-attributable-until-rekey",
+      "hardDenyClasses": [
+        "principal_inactive",
+        "respondent_exclusion"
+      ],
+      "hardDenyProvenance": "measured-transitive-over-gated-classes",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
@@ -3308,6 +3450,13 @@
         "legacyClass": "cast_case_vote_guard",
         "legacyClassSource": "TESTER'S",
         "stateColumn": "presence of a public.ethics_case_details row for the case (⛔ NOT public.cases.status — lead ruling L5)"
+      },
+      "hardDenyMeasurement": {
+        "closureSize": 15,
+        "seedSites": 2,
+        "measuredOn": "2026-09-13",
+        "method": "composed-call closure over the row’s armInterface sites (function bodies) and policy quals plus arm3Door.expression, comment-stripped, NO depth bound — the reached set is a subset of pg_proc over app/public/authz and UNION dedupes, so the fixed point IS the bound. Identical to the method the hardDenyVocabulary comment records for the three re-keyed rows.",
+        "bound": "complete over the CALL-REACHABLE sub-vocabulary only. 4 of the 7 classes have a null gate (two triggers, the UUID id-space, ADR 0172’s deferred column) and NO call search sees them at any depth — FUP-AUTHZ-HARDDENY-GATELESS-CLASSES-HAVE-NO-DETECTOR."
       }
     },
     "commission.process_templates.read": {
@@ -3333,8 +3482,10 @@
         "sensitivityCeiling": "none",
         "resolutionScopeKind": "commission"
       },
-      "hardDenyClasses": [],
-      "hardDenyProvenance": "not-attributable-until-rekey",
+      "hardDenyClasses": [
+        "principal_inactive"
+      ],
+      "hardDenyProvenance": "measured-transitive-over-gated-classes",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
@@ -3415,7 +3566,14 @@
           "hat": "required",
           "definerSurface": "none — policy arm"
         }
-      ]
+      ],
+      "hardDenyMeasurement": {
+        "closureSize": 10,
+        "seedSites": 9,
+        "measuredOn": "2026-09-13",
+        "method": "composed-call closure over the row’s armInterface sites (function bodies) and policy quals plus arm3Door.expression, comment-stripped, NO depth bound — the reached set is a subset of pg_proc over app/public/authz and UNION dedupes, so the fixed point IS the bound. Identical to the method the hardDenyVocabulary comment records for the three re-keyed rows.",
+        "bound": "complete over the CALL-REACHABLE sub-vocabulary only. 4 of the 7 classes have a null gate (two triggers, the UUID id-space, ADR 0172’s deferred column) and NO call search sees them at any depth — FUP-AUTHZ-HARDDENY-GATELESS-CLASSES-HAVE-NO-DETECTOR."
+      }
     },
     "commission.indicators.read": {
       "status": "pending-rekey",
@@ -3440,8 +3598,10 @@
         "sensitivityCeiling": "none",
         "resolutionScopeKind": "commission"
       },
-      "hardDenyClasses": [],
-      "hardDenyProvenance": "not-attributable-until-rekey",
+      "hardDenyClasses": [
+        "principal_inactive"
+      ],
+      "hardDenyProvenance": "measured-transitive-over-gated-classes",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
@@ -3480,7 +3640,14 @@
           "hat": "required",
           "definerSurface": "prosecdef=t, carriesCode:false"
         }
-      ]
+      ],
+      "hardDenyMeasurement": {
+        "closureSize": 10,
+        "seedSites": 3,
+        "measuredOn": "2026-09-13",
+        "method": "composed-call closure over the row’s armInterface sites (function bodies) and policy quals plus arm3Door.expression, comment-stripped, NO depth bound — the reached set is a subset of pg_proc over app/public/authz and UNION dedupes, so the fixed point IS the bound. Identical to the method the hardDenyVocabulary comment records for the three re-keyed rows.",
+        "bound": "complete over the CALL-REACHABLE sub-vocabulary only. 4 of the 7 classes have a null gate (two triggers, the UUID id-space, ADR 0172’s deferred column) and NO call search sees them at any depth — FUP-AUTHZ-HARDDENY-GATELESS-CLASSES-HAVE-NO-DETECTOR."
+      }
     },
     "commission.accreditation.read": {
       "status": "pending-rekey",
@@ -3505,8 +3672,11 @@
         "sensitivityCeiling": "none",
         "resolutionScopeKind": "commission"
       },
-      "hardDenyClasses": [],
-      "hardDenyProvenance": "not-attributable-until-rekey",
+      "hardDenyClasses": [
+        "principal_inactive",
+        "respondent_exclusion"
+      ],
+      "hardDenyProvenance": "measured-transitive-over-gated-classes",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
@@ -3588,6 +3758,13 @@
         "legacyClass": "rls_accreditation_frameworks_owner_null",
         "legacyClassSource": "MINE",
         "stateColumn": "public.accreditation_frameworks.owner_commission_id IS NULL (the PUBLIC arm)"
+      },
+      "hardDenyMeasurement": {
+        "closureSize": 29,
+        "seedSites": 8,
+        "measuredOn": "2026-09-13",
+        "method": "composed-call closure over the row’s armInterface sites (function bodies) and policy quals plus arm3Door.expression, comment-stripped, NO depth bound — the reached set is a subset of pg_proc over app/public/authz and UNION dedupes, so the fixed point IS the bound. Identical to the method the hardDenyVocabulary comment records for the three re-keyed rows.",
+        "bound": "complete over the CALL-REACHABLE sub-vocabulary only. 4 of the 7 classes have a null gate (two triggers, the UUID id-space, ADR 0172’s deferred column) and NO call search sees them at any depth — FUP-AUTHZ-HARDDENY-GATELESS-CLASSES-HAVE-NO-DETECTOR."
       }
     },
     "commission.documents.read": {
@@ -3613,8 +3790,12 @@
         "sensitivityCeiling": "none",
         "resolutionScopeKind": "commission"
       },
-      "hardDenyClasses": [],
-      "hardDenyProvenance": "not-attributable-until-rekey",
+      "hardDenyClasses": [
+        "principal_inactive",
+        "recusal_exclusion",
+        "respondent_exclusion"
+      ],
+      "hardDenyProvenance": "measured-transitive-over-gated-classes",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
@@ -3700,6 +3881,13 @@
         "legacyClass": "rls_controlled_documents_approver",
         "legacyClassSource": "MINE",
         "stateColumn": "a public.document_approvals row naming the caller as approver-of-record"
+      },
+      "hardDenyMeasurement": {
+        "closureSize": 56,
+        "seedSites": 8,
+        "measuredOn": "2026-09-13",
+        "method": "composed-call closure over the row’s armInterface sites (function bodies) and policy quals plus arm3Door.expression, comment-stripped, NO depth bound — the reached set is a subset of pg_proc over app/public/authz and UNION dedupes, so the fixed point IS the bound. Identical to the method the hardDenyVocabulary comment records for the three re-keyed rows.",
+        "bound": "complete over the CALL-REACHABLE sub-vocabulary only. 4 of the 7 classes have a null gate (two triggers, the UUID id-space, ADR 0172’s deferred column) and NO call search sees them at any depth — FUP-AUTHZ-HARDDENY-GATELESS-CLASSES-HAVE-NO-DETECTOR."
       }
     },
     "commission.safety_events.read": {
@@ -3725,8 +3913,10 @@
         "sensitivityCeiling": "none",
         "resolutionScopeKind": "commission"
       },
-      "hardDenyClasses": [],
-      "hardDenyProvenance": "not-attributable-until-rekey",
+      "hardDenyClasses": [
+        "principal_inactive"
+      ],
+      "hardDenyProvenance": "measured-transitive-over-gated-classes",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
@@ -3752,7 +3942,14 @@
           "definerSurface": "prosecdef=t, carriesCode:false",
           "hatNote": "required at its 11 policy callers and at the 9 event RPCs, all passing auth.uid(); ignored at app.can_read_capa, app.can_read_document and app._audit_access_authorized, which propagate"
         }
-      ]
+      ],
+      "hardDenyMeasurement": {
+        "closureSize": 10,
+        "seedSites": 1,
+        "measuredOn": "2026-09-13",
+        "method": "composed-call closure over the row’s armInterface sites (function bodies) and policy quals plus arm3Door.expression, comment-stripped, NO depth bound — the reached set is a subset of pg_proc over app/public/authz and UNION dedupes, so the fixed point IS the bound. Identical to the method the hardDenyVocabulary comment records for the three re-keyed rows.",
+        "bound": "complete over the CALL-REACHABLE sub-vocabulary only. 4 of the 7 classes have a null gate (two triggers, the UUID id-space, ADR 0172’s deferred column) and NO call search sees them at any depth — FUP-AUTHZ-HARDDENY-GATELESS-CLASSES-HAVE-NO-DETECTOR."
+      }
     },
     "commission.capa.read": {
       "status": "pending-rekey",
@@ -3777,8 +3974,10 @@
         "sensitivityCeiling": "none",
         "resolutionScopeKind": "commission"
       },
-      "hardDenyClasses": [],
-      "hardDenyProvenance": "not-attributable-until-rekey",
+      "hardDenyClasses": [
+        "principal_inactive"
+      ],
+      "hardDenyProvenance": "measured-transitive-over-gated-classes",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
@@ -3820,6 +4019,13 @@
         "legacyClass": "can_read_capa",
         "legacyClassSource": "MINE",
         "stateColumn": "public.capa_plan.source (= ‘indicator’)"
+      },
+      "hardDenyMeasurement": {
+        "closureSize": 13,
+        "seedSites": 2,
+        "measuredOn": "2026-09-13",
+        "method": "composed-call closure over the row’s armInterface sites (function bodies) and policy quals plus arm3Door.expression, comment-stripped, NO depth bound — the reached set is a subset of pg_proc over app/public/authz and UNION dedupes, so the fixed point IS the bound. Identical to the method the hardDenyVocabulary comment records for the three re-keyed rows.",
+        "bound": "complete over the CALL-REACHABLE sub-vocabulary only. 4 of the 7 classes have a null gate (two triggers, the UUID id-space, ADR 0172’s deferred column) and NO call search sees them at any depth — FUP-AUTHZ-HARDDENY-GATELESS-CLASSES-HAVE-NO-DETECTOR."
       }
     },
     "commission.referrals.metadata.read": {
@@ -3846,8 +4052,11 @@
         "sensitivityCeiling": "none",
         "resolutionScopeKind": "commission"
       },
-      "hardDenyClasses": [],
-      "hardDenyProvenance": "not-attributable-until-rekey",
+      "hardDenyClasses": [
+        "principal_inactive",
+        "respondent_exclusion"
+      ],
+      "hardDenyProvenance": "measured-transitive-over-gated-classes",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
@@ -3904,7 +4113,14 @@
           "definerSurface": "prosecdef=t, carriesCode:false",
           "hatNote": "mirrors this row (matrix § 8.4)"
         }
-      ]
+      ],
+      "hardDenyMeasurement": {
+        "closureSize": 59,
+        "seedSites": 5,
+        "measuredOn": "2026-09-13",
+        "method": "composed-call closure over the row’s armInterface sites (function bodies) and policy quals plus arm3Door.expression, comment-stripped, NO depth bound — the reached set is a subset of pg_proc over app/public/authz and UNION dedupes, so the fixed point IS the bound. Identical to the method the hardDenyVocabulary comment records for the three re-keyed rows.",
+        "bound": "complete over the CALL-REACHABLE sub-vocabulary only. 4 of the 7 classes have a null gate (two triggers, the UUID id-space, ADR 0172’s deferred column) and NO call search sees them at any depth — FUP-AUTHZ-HARDDENY-GATELESS-CLASSES-HAVE-NO-DETECTOR."
+      }
     },
     "commission.referrals.notes.author": {
       "status": "pending-rekey",
@@ -3929,8 +4145,10 @@
         "sensitivityCeiling": "none",
         "resolutionScopeKind": "commission"
       },
-      "hardDenyClasses": [],
-      "hardDenyProvenance": "not-attributable-until-rekey",
+      "hardDenyClasses": [
+        "principal_inactive"
+      ],
+      "hardDenyProvenance": "measured-transitive-over-gated-classes",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
@@ -3955,7 +4173,14 @@
           "hat": "required",
           "definerSurface": "prosecdef=t, carriesCode:false. Its arm 2 (p_assigned_to) is a class-E managed-row property of the same body (matrix § 3.0a), ⛔ not an arm of this row."
         }
-      ]
+      ],
+      "hardDenyMeasurement": {
+        "closureSize": 13,
+        "seedSites": 1,
+        "measuredOn": "2026-09-13",
+        "method": "composed-call closure over the row’s armInterface sites (function bodies) and policy quals plus arm3Door.expression, comment-stripped, NO depth bound — the reached set is a subset of pg_proc over app/public/authz and UNION dedupes, so the fixed point IS the bound. Identical to the method the hardDenyVocabulary comment records for the three re-keyed rows.",
+        "bound": "complete over the CALL-REACHABLE sub-vocabulary only. 4 of the 7 classes have a null gate (two triggers, the UUID id-space, ADR 0172’s deferred column) and NO call search sees them at any depth — FUP-AUTHZ-HARDDENY-GATELESS-CLASSES-HAVE-NO-DETECTOR."
+      }
     },
     "commission.cases.vocabulary.read": {
       "status": "pending-rekey",
@@ -3980,8 +4205,10 @@
         "sensitivityCeiling": "none",
         "resolutionScopeKind": "commission"
       },
-      "hardDenyClasses": [],
-      "hardDenyProvenance": "not-attributable-until-rekey",
+      "hardDenyClasses": [
+        "principal_inactive"
+      ],
+      "hardDenyProvenance": "measured-transitive-over-gated-classes",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
@@ -4020,7 +4247,14 @@
           "hat": "required",
           "definerSurface": "none — policy arm"
         }
-      ]
+      ],
+      "hardDenyMeasurement": {
+        "closureSize": 7,
+        "seedSites": 3,
+        "measuredOn": "2026-09-13",
+        "method": "composed-call closure over the row’s armInterface sites (function bodies) and policy quals plus arm3Door.expression, comment-stripped, NO depth bound — the reached set is a subset of pg_proc over app/public/authz and UNION dedupes, so the fixed point IS the bound. Identical to the method the hardDenyVocabulary comment records for the three re-keyed rows.",
+        "bound": "complete over the CALL-REACHABLE sub-vocabulary only. 4 of the 7 classes have a null gate (two triggers, the UUID id-space, ADR 0172’s deferred column) and NO call search sees them at any depth — FUP-AUTHZ-HARDDENY-GATELESS-CLASSES-HAVE-NO-DETECTOR."
+      }
     }
   }
 }
