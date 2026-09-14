@@ -610,6 +610,28 @@ returns text[] language sql stable as $$
                      from authz_manifest_sites s where s.code = p_code), '{}'::text[])
       || array[coalesce(pg_temp.fn_body(split_part(coalesce(m.domain_authorizer, '.'), '.', 1),
                                         split_part(coalesce(m.domain_authorizer, '.'), '.', 2)), '')]
+      -- ⭐⭐ THE SURFACE A NOT-YET-RE-KEYED ROW DECLARES IS ALSO A ROOT (L6, 2026-09-13).
+      -- A `pending-rekey` row has no `enforcementSites` and no `domain_authorizer`, so the two
+      -- seeds above hand it the single empty root `{''}` and this derivation returns `(none)` —
+      -- while the row's committed `hardDenyClasses`, measured over the SAME call graph from the
+      -- SAME sites and merely read out of a different field, says otherwise. ⛔ A value the gate
+      -- cannot reproduce is a hand-list wearing a label, so § 6.2 reads the field the
+      -- declaration actually lives in: `armInterface`, emitted as `authz_manifest_arm_sites`.
+      -- ⚠ RE-KEYED ROWS ARE UNTOUCHED: they carry no `armInterface`, so this union contributes
+      -- nothing to them and the three original rows keep their exact derivation — which is what
+      -- makes § 6.3's re-pin a POPULATION change and not a semantic one.
+      || coalesce((select array_agg(case a.arm_kind
+                                      when 'policy' then coalesce(pg_temp.policy_body(split_part(a.arm_site, '.', 1),
+                                                                                      split_part(a.arm_site, '.', 2),
+                                                                                      split_part(a.arm_site, '.', 3)), '')
+                                      -- ⛔ A TS site is defence in depth, never a DB gate: it can
+                                      -- neither grant nor deny in the catalog, so it contributes
+                                      -- no root rather than an unresolvable one.
+                                      when 'ts'     then ''
+                                      else               coalesce(pg_temp.fn_body(split_part(a.arm_site, '.', 1),
+                                                                                  split_part(a.arm_site, '.', 2)), '')
+                                    end)
+                     from authz_manifest_arm_sites a where a.code = p_code), '{}'::text[])
     from authz_manifest_permissions m where m.code = p_code;
 $$;
 
@@ -686,11 +708,23 @@ select is(
 select ok(
   (select count(*) from authz_manifest_permissions m join authz_manifest_sites s on s.code = m.code
     where m.hard_deny_provenance like 'measured-%') > 0
+  -- ⭐ THE SECOND ROOT DOMAIN, ADDED WITH IT (L6, 2026-09-13). 6.2 now roots from
+  -- `authz_manifest_arm_sites` as well, and that domain supplies 20 of the 23 measured rows.
+  -- ⛔ Leaving this conjunct naming only the re-keyed table would have left the control silent
+  -- about the domain doing most of the work — the emptiness it exists to catch could have
+  -- happened in the new table while this arm stayed green on the old one.
+  and (select count(*) from authz_manifest_permissions m join authz_manifest_arm_sites a on a.code = m.code
+        where m.hard_deny_provenance like 'measured-%') > 0
   and (select count(*) from authz_manifest_hard_deny_vocab where gate is not null) > 0
   and (select count(*) from authz_manifest_permissions
-        where hard_deny_provenance like 'measured-%') = 3,
-  '6.3 CARDINALITY CONTROL for 6.2: both of its domains are non-empty and the measured-row '
-  'population is exactly 3. 6.2 aggregates over rows joined to sites and to the gated '
+        where hard_deny_provenance like 'measured-%') = 23,
+  '6.3 CARDINALITY CONTROL for 6.2: all THREE of its domains are non-empty and the measured-row '
+  'population is exactly 23 — ⚠ RE-PINNED 3 -> 23 at AE5 increment 1 (2026-09-13) AFTER BEING '
+  'OBSERVED RED, never pre-adjusted. The number is a POPULATION, not a semantic, change: 6.2 '
+  'roots from `enforcementSites` u `domainAuthorizer` u `armInterface` since L6, so the 20 '
+  '`pending-rekey` rows that declare their surface in `armInterface` now derive too. It '
+  'decomposes exactly — 3 re-keyed (via authz_manifest_sites) + 20 pending-rekey (via '
+  'authz_manifest_arm_sites), disjoint, measured not assumed. 6.2 aggregates over rows joined to sites and to the gated '
   'vocabulary; either going empty would make BOTH of its sides collapse to null and the '
   'equality would hold over nothing. ⚠ THIS IS A CARDINALITY CONTROL AND NOT A DISCRIMINATION '
   'ONE — it proves the domains have rows, never that the closure can return a class. ⭐ THAT '

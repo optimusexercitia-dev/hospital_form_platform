@@ -106,6 +106,83 @@ create temp table authz_manifest_sites on commit drop as
     ('org.professionals.read', 'function', 'app', null::text, 'current_professional_read_organizations', array['authz.authorized_scope_ids'])
   ) as t(code, site_kind, site_schema, site_relation, site_name, composed_with);
 
+-- ⭐ The surface a NOT-YET-RE-KEYED row declares (L6). 410 § 6.2 unions these bodies into
+-- its roots, so such a row's committed `hardDenyClasses` is reproducible from the live
+-- catalog instead of being a claim only the manifest JSON makes. Re-keyed rows carry no
+-- `armInterface` and are therefore untouched by the union.
+create temp table authz_manifest_arm_sites on commit drop as
+  select * from (values
+    ('commission.accreditation.read', 'policy', 'public.accreditation_frameworks.accreditation_frameworks_select'),
+    ('commission.accreditation.read', 'policy', 'public.accreditation_standards.accreditation_standards_select'),
+    ('commission.accreditation.read', 'policy', 'public.evidence_links.evidence_links_select'),
+    ('commission.accreditation.read', 'policy', 'public.standard_assessments.standard_assessments_select'),
+    ('commission.accreditation.read', 'function', 'public.get_standard_assessment'),
+    ('commission.accreditation.read', 'function', 'public.readiness_evidence'),
+    ('commission.accreditation.read', 'function', 'public.readiness_report'),
+    ('commission.action_items.read', 'policy', 'public.action_items.action_items_select'),
+    ('commission.action_items.read', 'function', 'app.can_read_action_item'),
+    ('commission.capa.read', 'function', 'app.can_read_capa'),
+    ('commission.cases.deliberation.read', 'function', 'app._case_caps'),
+    ('commission.cases.vocabulary.read', 'policy', 'public.case_narrative_types.case_narrative_types_select'),
+    ('commission.cases.vocabulary.read', 'policy', 'public.case_outcomes.case_outcomes_select'),
+    ('commission.cases.vocabulary.read', 'policy', 'public.case_tags.case_tags_select'),
+    ('commission.cases.vote', 'function', 'public.cast_case_vote'),
+    ('commission.charter.read', 'policy', 'public.commission_charters.commission_charters_select'),
+    ('commission.charter.read', 'function', 'public.meeting_cadence_status'),
+    ('commission.charter.read', 'function', 'public.suggest_carry_forward'),
+    ('commission.documents.read', 'policy', 'public.controlled_documents.controlled_documents_select'),
+    ('commission.documents.read', 'policy', 'public.controlled_document_versions.controlled_document_versions_select'),
+    ('commission.documents.read', 'policy', 'public.securable_resources.securable_resources_select'),
+    ('commission.documents.read', 'function', 'public.list_commission_documents'),
+    ('commission.documents.read', 'function', 'public.documents_due_for_review'),
+    ('commission.documents.read', 'function', 'app.can_read_document'),
+    ('commission.documents.read', 'function', 'app.can_read_document_of_version'),
+    ('commission.forms.read', 'policy', 'public.forms.forms_select'),
+    ('commission.forms.read', 'policy', 'public.form_versions.form_versions_select'),
+    ('commission.forms.read', 'policy', 'public.form_sections.form_sections_select'),
+    ('commission.forms.read', 'policy', 'public.form_items.form_items_select'),
+    ('commission.forms.read', 'policy', 'public.form_item_options.form_item_options_select'),
+    ('commission.forms.read', 'policy', 'public.form_item_validations.form_item_validations_select'),
+    ('commission.forms.read', 'policy', 'public.form_matrix_rows.form_matrix_rows_select'),
+    ('commission.forms.read', 'policy', 'public.form_matrix_columns.form_matrix_columns_select'),
+    ('commission.forms.read', 'policy', 'storage.objects.form_assets_select_member'),
+    ('commission.indicators.read', 'policy', 'public.indicators.indicators_select'),
+    ('commission.indicators.read', 'policy', 'public.indicator_measurements.indicator_measurements_select'),
+    ('commission.indicators.read', 'function', 'public.indicator_series'),
+    ('commission.meetings.cases.shell.read', 'policy', 'public.meeting_cases.meeting_cases_select'),
+    ('commission.meetings.minutes.sign', 'policy', 'public.meeting_signatures.meeting_signatures_insert'),
+    ('commission.meetings.minutes.sign', 'function', 'app.can_sign_meeting'),
+    ('commission.meetings.minutes.sign', 'function', 'public.sign_meeting'),
+    ('commission.meetings.read', 'policy', 'public.meetings.meetings_select'),
+    ('commission.meetings.read', 'policy', 'public.commission_meeting_settings.meeting_settings_select'),
+    ('commission.meetings.read', 'policy', 'public.commission_meeting_types.meeting_types_select'),
+    ('commission.meetings.read', 'function', 'app.can_reach_meeting'),
+    ('commission.meetings.read', 'registry', 'app._audit_access_authorized'),
+    ('commission.process_templates.read', 'policy', 'public.process_templates.process_templates_select'),
+    ('commission.process_templates.read', 'policy', 'public.process_template_versions.process_template_versions_select'),
+    ('commission.process_templates.read', 'policy', 'public.process_template_phases.process_template_phases_select'),
+    ('commission.process_templates.read', 'policy', 'public.process_template_custom_fields.process_template_custom_fields_select'),
+    ('commission.process_templates.read', 'policy', 'public.process_template_narratives.process_template_narratives_select'),
+    ('commission.process_templates.read', 'policy', 'public.process_template_outcomes.process_template_outcomes_select'),
+    ('commission.process_templates.read', 'policy', 'public.process_template_phase_allowed_results.process_template_phase_allowed_results_select'),
+    ('commission.process_templates.read', 'policy', 'public.process_template_phase_offered_results.process_template_phase_offered_results_select'),
+    ('commission.process_templates.read', 'policy', 'public.phase_results.phase_results_select'),
+    ('commission.referrals.metadata.read', 'function', 'app.can_read_referral_metadata'),
+    ('commission.referrals.metadata.read', 'function', 'app.can_read_referral_internal_note'),
+    ('commission.referrals.metadata.read', 'function', 'app.can_read_referral_internal_notes'),
+    ('commission.referrals.metadata.read', 'function', 'public.get_referral_case_access_summary'),
+    ('commission.referrals.metadata.read', 'registry', 'app._audit_access_authorized'),
+    ('commission.referrals.notes.author', 'function', 'public.create_referral_internal_note'),
+    ('commission.responses.create', 'policy', 'public.responses.responses_insert_own'),
+    ('commission.responses.create', 'ts', 'src/lib/responses/actions.ts:282-287'),
+    ('commission.roster.read', 'policy', 'public.memberships.memberships_select'),
+    ('commission.roster.read', 'policy', 'public.commissions.commissions_select_member_or_admin'),
+    ('commission.roster.read', 'policy', 'public.profiles.profiles_select_self_or_admin'),
+    ('commission.roster.read', 'policy', 'public.commission_member_titles.member_titles_select'),
+    ('commission.safety_events.read', 'function', 'app.can_read_event'),
+    ('commission.safety_events.report', 'function', 'public.notify_safety_event')
+  ) as t(code, arm_kind, arm_site);
+
 -- The snapshot lists asserted against the live catalog by 410. ⛔ These are NOT derived from
 -- the manifest's row keys — the redundancy is what gives 410 a real set difference to compute.
 create temp table authz_manifest_snapshot_permissions on commit drop as

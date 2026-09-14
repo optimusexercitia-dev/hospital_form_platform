@@ -836,6 +836,30 @@ function emitManifest(manifest, manifestSha) {
       ? `select * from (values\n${siteRows.join(',\n')}\n  ) as t(code, site_kind, site_schema, site_relation, site_name, composed_with)`
       : `select null::text as code, null::text as site_kind, null::text as site_schema, null::text as site_relation, null::text as site_name, null::text[] as composed_with where false`
 
+  // ⭐⭐ `armInterface` REACHES THE pgTAP FIXTURE (L6, 2026-09-13). 410 § 6.2 derives a row's
+  // hard-deny classes LIVE from the bodies at its roots, and it reads THIS FILE, never the JSON.
+  // A `pending-rekey` row has no `enforcementSites` and no `domainAuthorizer`, so those two seeds
+  // gave it an empty root set and § 6.2 computed `(none)` while the row's committed
+  // `hardDenyClasses` — measured over the SAME call graph, from the SAME sites, just read out of
+  // a different field — said otherwise. ⛔ A value the gate cannot reproduce is a hand-list
+  // wearing a label, so the field a not-yet-re-keyed row DECLARES its surface in is emitted too.
+  // ⚠ A SEPARATE TABLE, deliberately, not extra rows in `authz_manifest_sites`: that table's
+  // rows are RE-KEYED sites carrying `composed_with`, and §§ 3.6 / 8 pin cardinalities on it.
+  // Merging would move counts in other sections to make this one arm work.
+  const armSiteRows = []
+  for (const code of codes) {
+    for (const a of rows[code].armInterface || []) {
+      // The site is a DISPLAY string: `app.can_read_capa — the indicator-sourced arm`. Only the
+      // leading token is catalog-resolvable, so the note is cut here rather than in SQL.
+      const site = String(a.site).split('—')[0].trim().split(/\s+/)[0]
+      armSiteRows.push(`    (${q(code)}, ${q(a.kind)}, ${q(site)})`)
+    }
+  }
+  const armSitesBody =
+    armSiteRows.length > 0
+      ? `select * from (values\n${armSiteRows.join(',\n')}\n  ) as t(code, arm_kind, arm_site)`
+      : `select null::text as code, null::text as arm_kind, null::text as arm_site where false`
+
   return `-- GENERATED FILE — DO NOT EDIT BY HAND.
 -- Source:    supabase/tests/vectors/authz-enforcement-manifest.json
 -- Generator: scripts/gen-authz-matrix-cells.mjs
@@ -869,6 +893,13 @@ ${permRows.join(',\n')}
 
 create temp table authz_manifest_sites on commit drop as
   ${sitesBody};
+
+-- ⭐ The surface a NOT-YET-RE-KEYED row declares (L6). 410 § 6.2 unions these bodies into
+-- its roots, so such a row's committed \`hardDenyClasses\` is reproducible from the live
+-- catalog instead of being a claim only the manifest JSON makes. Re-keyed rows carry no
+-- \`armInterface\` and are therefore untouched by the union.
+create temp table authz_manifest_arm_sites on commit drop as
+  ${armSitesBody};
 
 -- The snapshot lists asserted against the live catalog by 410. ⛔ These are NOT derived from
 -- the manifest's row keys — the redundancy is what gives 410 a real set difference to compute.
