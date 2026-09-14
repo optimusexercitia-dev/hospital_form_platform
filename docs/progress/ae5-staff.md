@@ -999,3 +999,47 @@ quiet half. ADR number re-measured 0210 → **0211**.
   built"* (ADR 0140). The first such review is run now by a read-only subagent over the nine, the
   lead stamps `reviewed` + the set on its report. ⚠ Backend's refusal to stamp was correct.
 - Fixture-gap rows: seeded in their own commit with their own `test:db` (round 4).
+
+### 2026-09-13 — gate 9 review discharged; tester's 424 built; round 4 received; routing (lead)
+
+**Gate 9 (ADR 0140) — the first proposed-ADR review, run and stamped** (`1c1229ba`). A read-only
+subagent re-read the nine against the code and the LIVE catalog; the lead re-read all nine status
+lines (`sed -n`) and three catalog facts (`event_custody` + `case_referral` tables exist;
+`compute_derived_measurement`, `appoint_technical_director`, `ensure_professional_participant`
+exist; `is_commission_staff_of` does NOT) before editing. Six headers were stale and are corrected
+with a dated marker that keeps the prior wording: 0022 → superseded by 0037 (0037 `:14`
+`**Supersedes:**`); 0033 → superseded by 0072/0078 (its own generated back-pointer); 0031 (Phase 14a),
+0058 (Phase 15), 0094 (W4 build state per its own Amendment 3), 0108 (ETH·E4 mint door live and
+called from `src/lib/participants/actions.ts`) → accepted/implemented; 0160 → accepted, absorbed into
+ADR 0155 as amended 2026-08-26. 0115 and 0211 stay `proposed`. Stamp: `reviewed: 2026-09-13`,
+`proposed: [0115, 0211]`; `adr:index` rc 0; gate 9 exit **0**. ⚠ The classifier cannot tell a stale
+design proposal from a `PROPOSED` correction memo (0160) — noted, no gate change proposed.
+
+**Tester's `424` built, not run** (`ab13ca7f`): 21 assertions in `403`'s §§ 2–6 shape; door-calling
+legacy side for rows 4, 6, 7, 9, 11-grant, 12; rows 8, 11-deny, 15, 16, 19 left UNDISPATCHED so an
+emitted cell of those classes raises rather than passes (correct until fixtures exist); population
+floors, never targets; its arm-3 `legacy_class` names flagged as proposals.
+
+**Backend round 4 received** (`39d6e43d` · `ac8a3bf2` · `6ab207e0` · `47fbce12` · `8240b6eb` ·
+`aef7d7f6` · `5f9d71f5` · `df37700e`; its entry holds the witnesses). L2 landed the right way round:
+`REPS_STAFF` = the eleven carrying rows + `commission.responses.create`, each keyed on its DOOR,
+the door declared in the manifest (`arm3Door`) and emitted as a `legacy_door` column; vector 9936 =
+1728 `staff_admin` (byte-identical) + 8208 `staff`, arm-3 cells 5616 over 11 representatives (outputs);
+arm12 binds reps ↔ manifest both ways; `memberGateArm` in `CELL_AXIS_COL`. The tester's six names
+adopted verbatim, five more in the convention. L3 pins moved after observed RED (table in backend's
+entry; `409` § 5.5 went green on its own — it was a named list, never a pin). L4 witnessed
+red-then-green with § 3.2c proven able to fail. L5 applied. Fixtures seeded as four NEW personas
+(`gap.*`) plus the resource rows — no existing persona repurposed. `offboarded` located
+(`hospital_affiliations.ended_on` / `voided_at`, ADR 0163) but not constructible as a distinct cell.
+⭐ **Defect caught: the T4 seed was functionally INERT** — 18 codes had no reflexive closure edge, so
+`has_permission(chefe.ccih, …, 'commission.forms.read')` was false; found by `409` § 5.5's NAMED
+list (a count arm would have read "18 more failures" and been bumped); repaired forward-only in
+`20261003007450`. → a LESSONS candidate at the Record step: *a seed that inserts what the resolver
+does not read is inert, and only a named-list assertion sees it.*
+`npm run lint` **0** (gate 9 included), `typecheck` **0**, `test:db` **1** with exactly `387` (7, md5 +
+stale row counts in test NAMES — hand-off) and `424` (aborts: missing `\ir` of the vectors file) red.
+
+**Routing.** Tester: add the `\ir`, bind to `legacy_door` + the manifest names, dispatch rows 8 /
+11-deny / 15 / 16 / 19 on the seeded fixtures, run `424` — it owns the stack for this round.
+Backend (no resets; read-only DB): the T6 cutover PLAN under ADR 0211 for full review, and the
+`387` re-derivation (names re-measured, pins observed RED first) queued behind the tester's run.

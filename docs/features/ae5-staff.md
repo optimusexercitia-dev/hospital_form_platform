@@ -93,20 +93,18 @@ posted, not executed.
 
 ### In progress
 
-**Round 3 landed** (`97e90f82` · `562c184a` · `65605f76`): generators multi-role (differential 2808
-cells, 1728 `staff_admin` byte-identical + 1080 `staff`), manifest 61 rows with § 5.4 copied,
-`approvedSuites.staff`; T4 seed — 18 codes into `authz.permissions`, `staff` 20 grants,
-`staff_admin` 42 → 60, rename to `commission.responses.create`, `staff` = `test_validation`;
-ADR 0211 (`proposed`); the ownership-path bug filed. Tester: fixture-gap report + `424` skeleton
-(`ea732d91`). `backend` on round 4: L2 (axis cells restored to the `staff` vector), L3 (count-pin
-re-pins), L4 (`403` § 3.2b re-clause), L5 (row 12 correction), gap rows seeded. `tester` writing
-`424` with the door-calling legacy side. A read-only subagent runs the proposed-ADR review gate 9
-now demands.
+**Round 4 landed** (eight commits, `39d6e43d`…`df37700e`): the arm-3 axis in the resolver differential
+with each row's door declared in the manifest (`arm3Door` → `legacy_door`), vector 9936 cells; pins
+moved after observed reds; `403` § 3.2b re-claused + § 3.2c able to fail; fixtures seeded as four new
+`gap.*` personas; the INERT-seed defect (no closure edges for the 18 codes) repaired forward-only.
+Gate 9 discharged by the first ADR 0140 review (`1c1229ba`). `lint` 0 · `typecheck` 0 · `test:db` red
+on `387` (pins) and `424` (not yet runnable). `tester` now runs `424` on the new vector; `backend`
+writes the T6 cutover plan under ADR 0211 and re-derives `387`'s pins after.
 
 ### Next
 
-`424` runs green on round 4's vector; PO confirms the per-class arm-3 values and AC-2's deny-class
-values at T11's plan review; T6 cutover plan (full review) under ADR 0211; T7 re-key.
+`424` green → PO checkpoint (T11 plan review): confirm the per-class arm-3 values and AC-2's
+deny-class values. Lead reviews the T6 plan (full review). Then T6, T7, T8–T10, gate.
 
 ### Blockers
 
