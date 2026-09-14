@@ -3222,3 +3222,19 @@ for `can_read_referral_internal_note`) — all 9 under a static `prosrc`-literal
 named-skipped. Fixture gaps → the tester's register; backend fills the two tables before step 4
 so four more doors are probed live. Byte-count guard 0; committed. **Step 1 of T7's run book is
 DONE; backend cleared for step 3 the moment its scratchpad files are ready.**
+
+### 2026-09-14 — T7 step 2, first pass (backend, scratchpad only): the 20 doors land R-4's criterion exactly (lead)
+
+`t7-wip/part1_doors.sql`: 20 layer-3 doors, each carrying its code as a greppable literal, DEFINER,
+`search_path=''`, schema-qualified, `revoke all from public`, `service_role` always, `authenticated`
+on exactly the 13 policy-called doors — measured in a rolled-back transaction against the live
+catalog: **`app=339 public=433 total=772`**, 326 → 339 = the 13. Each composes `authz.has_permission`
+alone (ADR 0211 D1 as amended, enforced by the manifest validator). De-risk measurements: the 42
+policy sites sit on 42 distinct relations; 39 carry exactly one bare `app.is_member_of(` call
+(mechanical rewrite); 3 hand-treated and NAMED (`meeting_cases_select` via `can_reach_meeting`;
+`meeting_signatures_insert` and `responses_insert_own` — INSERT, logic in `with_check`). Not yet
+written, stated plainly by backend: the 42 rewrites, the 24 function-site re-keys, C1's wiring, the
+two seed tables, the manifest flip with L13, the anchor + `320 § U4` literals. Nothing in
+`supabase/`. Lead's guards for the next pass: generate rewrites FROM the live qual and DIFF the live
+result against the expectation post-apply (`42/42 identical` quoted); touched DEFINERs re-emitted
+whole via `pg_get_functiondef` (ALTER never re-validates a body).
