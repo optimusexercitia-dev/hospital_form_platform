@@ -1389,3 +1389,34 @@ one reset; commit), then holds. PO checkpoint P1 · P2 · P3 (next lead message)
 backend applies P1+P2 to the generator, regenerates (`t6-wip/P1-vector-change.md` is the prepared
 command; `staff_admin` 1728 stays byte-identical), tester runs `424` to green + the able-to-fail
 witness; then the stack goes to backend for the T6 red-first sequence and the `387` re-pin.
+
+### 2026-09-13 — row-1 fixture landed; L6 (`410` §§ 6.2/6.3) and L7 (`conjunct_unmet` label) ruled (lead)
+
+Backend's row-1 fixture (`f2dd7d00`): `gap.unpriv` reaches form version `50000000-…-a001` through
+`can_access_targeted_version` (true) while `is_member_of_for` is false and memberships = 0; the
+control (`staff4.ccih` → false) shows the walk is principal-keyed. Class-2, not PHI. Tester's four
+dispatch fixes committed at `a9bbeadf` (row 11's fix went beyond backend's diagnosis: the committee
+leg is a bare `is_member_of` and was missing from the self-mode claims list — flagged as the
+tester's own, correctly).
+
+**L6 — `410` §§ 6.2/6.3 red since `a8443ab9` (T5's `hardDenyClasses`): option (b), NOT (c).**
+§ 6.2 derives each row's reachable deny classes from `enforcementSites` + `domainAuthorizer` (empty
+on the 20 `pending-rekey` rows) while T5 measured from `armInterface` — two instruments, two
+fields, one claim. Backend recommended (c): keep the values under a non-`measured-` provenance so
+the gate stays green. ⛔ Rejected: a value the gate cannot reproduce is a hand-list wearing a label
+(the `verified-facts baseline` lesson); the manifest's `armInterface` IS the seat of enforcement
+declaration for a pending-rekey row (ADR 0200/0201 data), so the gate reads it. Ruling: extend
+§ 6.2's roots to `armInterface` (union with the two existing roots, so re-keyed rows are unchanged),
+observed RED first on the current tree, with a DISCRIMINATION half — a planted wrong class on one
+`staff` row must red § 6.2, and a planted extra `armInterface` site reaching `is_case_excluded` must
+add `recusal_exclusion` — and § 6.3's "exactly 3" re-derived from what the extended instrument
+finds, old → new. The `measured-` provenance then means what it says.
+**L7 — `conjunct_unmet` label: `arm3:divergent-narrower:door-conjunct-unmet` accepted as the
+proposed string** (a new family because both existing families mean "the door grants"; arm10 gains
+sub-check (d)); applied only on the PO's P2 ruling, together with P1; combined flip count must read
+exactly 1218 = 84 + 990 + 144 as an OUTPUT.
+**`387`**: now 9 reds (tests 12/15 join: `responses` 13 → 14) — all in the queued re-pin.
+
+Routing: backend (owns the stack) — L6 now, then the `387` re-pin (9 tests, old → new, observed
+red); the PO's P1/P2 ruling gates the vector regeneration. Tester — wire row 1's dispatch to the
+new fixture ids (edit only). Then, on the ruling: regenerate → tester runs `424` → T6.
