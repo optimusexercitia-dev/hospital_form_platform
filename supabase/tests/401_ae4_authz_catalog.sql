@@ -143,8 +143,13 @@ select is((select count(*)::int from authz.roles), 11,
 select is(
   (select coalesce(string_agg(code || '=' || state::text, ', ' order by code), '(none)')
      from authz.roles where state <> 'legacy'),
-  'staff=test_validation, staff_admin=authoritative',
-  '3.2 ⚠⚠ TRIPWIRE — FIRED AS DESIGNED AT AE4.6 AND CHANGED DELIBERATELY, 2026-09-01. It '
+  'staff=authoritative, staff_admin=authoritative',
+  '3.2 ⚠⚠ TRIPWIRE — FIRED AS DESIGNED A SECOND TIME AT AE5 T6, 2026-09-14, and re-pinned '
+  '`staff=test_validation` -> `staff=authoritative` after being observed RED. The delta is '
+  'exactly one role and one state word: `staff`, flipped by migration 20261003007460''s '
+  'count-verified block. ⭐ That this arm reds on a cutover is the whole reason it exists, so '
+  'firing twice is it working twice, not drift. '
+  '3.2 (original note) ⚠⚠ TRIPWIRE — FIRED AS DESIGNED AT AE4.6 AND CHANGED DELIBERATELY, 2026-09-01. It '
   'previously asserted that EVERY role is `legacy`, and it went red the moment the cutover '
   'flipped `staff_admin` to `authoritative` — which is the moment it was built for. It is NOT '
   'widened: it now names EXACTLY which role is non-legacy, so a SECOND role flipping (an AE5 '
@@ -1112,15 +1117,25 @@ insert into authz.role_permissions (role_code, permission_code) values ('staff',
 -- correct gate stood in front of it. ⛔ The fix is to construct the fixture the assertion needs
 -- (an authoritative second granting role), never to weaken the assertion. 16.9b pins the fact
 -- that was discovered here, so it is evidence instead of a footnote.
+-- ⚠⚠ THE BASELINE MOVED UNDER THIS PAIR AT T6, AND THE DEMONSTRATION IS PRESERVED BY DRIVING
+-- THE STATE DOWN RATHER THAN BY WEAKENING THE ASSERTION. Until 20261003007460, `staff` was
+-- non-authoritative in the seeded catalog, so 16.9b could observe the gate simply by asking. After
+-- the cutover `staff` IS authoritative and the same question answers TRUE — observed RED exactly
+-- here. ⛔ The content of the pair is "the state gate bites", not "staff happens to be legacy", so
+-- the fixture now CONSTRUCTS the pre-cutover state for one assertion and the `update` below
+-- restores it. The whole file rolls back regardless.
+update authz.roles set state = 'test_validation' where code = 'staff';
 select test_helpers.claims_for((select uid from t401_p), false, 'staff');
 select ok(not authz.has_permission((select uid from t401_p), 'organization', (select oid from t401_org), 'org.professionals.create'),
-  '16.9b ⭐⭐ THE STATE GATE, MEASURED WHERE IT BITES: `staff` now HOLDS org.professionals.create '
-  'and the `staff` hat is ON, yet the answer is still FALSE — because authz.roles.state for '
-  '`staff` is `legacy` (ADR 0174 D2''s gate, extended to layer 2 by 0176 D4). ⛔ CONSEQUENCE FOR '
-  'AE5, stated where someone will read it: a role''s authz.role_permissions rows are INERT at '
-  'runtime until its state flips. Seeding a role''s grants is NOT cutting it over. Today only '
-  'staff_admin is authoritative, so no production answer moves — but an AE5 increment that seeds '
-  'grants and forgets the state flip will look exactly like this.');
+  '16.9b ⭐⭐ THE STATE GATE, MEASURED WHERE IT BITES: `staff` HOLDS org.professionals.create '
+  'and the `staff` hat is ON, yet the answer is FALSE — because authz.roles.state for '
+  '`staff` is not `authoritative` (ADR 0174 D2''s gate, extended to layer 2 by 0176 D4). '
+  '⛔ CONSEQUENCE FOR AE5, stated where someone will read it: a role''s authz.role_permissions '
+  'rows are INERT at runtime until its state flips. Seeding a role''s grants is NOT cutting it '
+  'over — an increment that seeds grants and forgets the flip looks exactly like this. '
+  '⚠ SINCE T6 THIS STATE IS CONSTRUCTED, NOT OBSERVED: `staff` is authoritative in the seeded '
+  'catalog now, so the line above drives it back down for this one cell. That the cell had to '
+  'change at all is the cutover being real.');
 
 update authz.roles set state = 'authoritative' where code = 'staff';
 select test_helpers.claims_for((select uid from t401_p), false, 'staff');

@@ -1,6 +1,6 @@
 {
   "sourceSha256": "c00c0326ea1b3dfdc6424ae4559db18e712c2391041facd38e66ffe8cb8ec5d1",
-  "manifestSha256": "adbeb753aa97d92760d7b5254ab768acd730d8afed1beae19a0de086f4df606e",
+  "manifestSha256": "a3f5a5d86ecb91fad5605c218921360bc6da6da2466a4f01e7f0f9b19f39616d",
   "expected": 234000,
   "executed": 4004,
   "skipped": 229996,
@@ -33,6 +33,7 @@
     },
     "enforcementSites": 13,
     "authoritativeRoles": [
+      "staff",
       "staff_admin"
     ],
     "nonLegacyRoles": [

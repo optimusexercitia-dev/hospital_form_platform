@@ -773,10 +773,15 @@ select is(
   'with its sibling, and this is its catalog-side twin.');
 
 select is(
-  (select count(*)::int from authz.roles where state::text = 'authoritative'), 1,
-  '7.3 CARDINALITY CONTROL for 7.1/7.2: exactly ONE role is authoritative today '
-  '(staff_admin). Both are "violations = 0" assertions and would be perfectly satisfied by a '
-  'catalog in which NO role was non-legacy. ⚠ This number moves with each AE5 increment.');
+  (select count(*)::int from authz.roles where state::text = 'authoritative'), 2,
+  '7.3 CARDINALITY CONTROL for 7.1/7.2: exactly TWO roles are authoritative today '
+  '(staff_admin, and `staff` since T6). Both are "violations = 0" assertions and would be '
+  'perfectly satisfied by a catalog in which NO role was non-legacy. ⚠ This number moves with '
+  'each AE5 increment — and it just did: RE-PINNED 1 -> 2 at increment 1''s cutover '
+  '(2026-09-14), observed RED first. The delta is exactly `staff`, flipped by migration '
+  '20261003007460''s count-verified block, which itself asserts 1 flipped / 2 authoritative / 0 '
+  'left in `test_validation` — so this cell and that block are two independent readings of the '
+  'same flip rather than one of them quoting the other.');
 
 select is(
   (select count(*)::int from authz_manifest_approved_suites), 2,

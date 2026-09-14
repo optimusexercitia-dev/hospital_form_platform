@@ -209,7 +209,7 @@
       },
       {
         "code": "staff",
-        "state": "test_validation",
+        "state": "authoritative",
         "sessionSelectable": true
       },
       {

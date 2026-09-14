@@ -631,7 +631,10 @@ select is(
   (select coalesce(string_agg(s.role_code, ', ' order by s.role_code), '(none)')
      from authz_manifest_approved_suites s
     where s.role_code not in (select distinct split_part(c.cell_id, '|', 2)
-                                from authz_differential_cells c)),
+                                from authz_differential_cells c
+                              union
+                              select distinct split_part(c.cell_id, '|', 2)
+                                from authz_differential_cells_staff c)),
   '3.2c ⭐ THE `test_validation` SET, PINNED BY NAME against the manifest''s approved '
   'suites minus this suite''s own subject. § 3.2b stopped watching the roles this suite '
   'does not sweep; this watches them, and computes the expected value from two '
@@ -640,7 +643,12 @@ select is(
   'nothing), and when a role that owes a suite is NOT in that state (its increment never '
   'flipped it, or flipped it straight to `authoritative` without its gate). ⛔ Not keyed '
   'on the literal `staff`: at increment 2 this value moves by itself, and an assertion '
-  'that must be hand-edited to stay true is one that gets hand-edited to stay green.');
+  'that must be hand-edited to stay true is one that gets hand-edited to stay green. '
+  '⚠ FIXED AT T6, and the bug was in the DERIVATION, not the pin: the right side read only '
+  '`authz_differential_cells`, so after AE5 split the vector into a per-role pair it counted '
+  '`staff` as UNSWEPT and demanded it be in `test_validation` — which the cutover had just '
+  'ended. It now unions both cell tables. ⛔ The tempting repair was to pin the left side to '
+  '`(none)`; that would have deleted exactly the cross-check this assertion exists to make.');
 
 select is(
   (select count(*)::int
