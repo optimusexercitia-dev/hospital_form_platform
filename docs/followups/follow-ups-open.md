@@ -1959,6 +1959,20 @@ Before the unit, `readRoleVocabularyFromCatalog` was an UNEXPORTED local in two 
 
 **Measured 2026-09-14** (`select qual from pg_policies where tablename='action_items' and policyname='action_items_select'`): the live `assignees_only` leg is `app.is_staff_admin_of(commission_id) OR (assigned_to IS NOT NULL AND assigned_to = auth.uid()) OR EXISTS(… action_item_assignments … user_id = auth.uid() … completed_at IS NULL)`, while the manifest's `commission.action_items.read` `arm3Door.expression` carries ONLY the `EXISTS` term. Consequence already paid once: backend's L8 diagnosis read row 11's limb (b) as firing for *nobody* because it evaluated the declared `EXISTS` leg, while the tester's pre-existing fixture (`a5f40000-…-a1`, `assigned_to = staff4.ccih`) fires the OMITTED `assigned_to` arm — the two readings disagreed because they read two different doors. ⚠ Row 11 is the measured instance; the other ten `arm3Door` rows were NOT checked and the close condition covers all of them. ⛔ Owed to T7 (the re-key must key on the LIVE door) and to the T14 review.
 
+### 🟠 FUP-AE5-STAFF-MERGE-CARRIES-ROWS-OUT-OF-THE-TABLE — a carried row survives as prose and stops being read (owner: backend)
+
+**Filed:** 2026-09-14 (unit `AE5-STAFF`, T8; lead ruling L25 added the guard, this is the defect BEHIND it) · **Owner:** backend · **Severity:** high — the committed door-audit baseline is the domain of `ARM=census` and of every `FROMFINDINGS` arm; a row that leaves the TABLE stops being read by all of them, silently. Measured on T8's own run: top-level table rows 353 → 73, BLIND 36 → 0, helper exit 0, and `ARM=census` went 23 unknown → 205.
+**Closes when:** a carried row stays a TABLE ROW (same five columns, provenance in column 5 or beside it, never instead of it), the helper asserts `out_rows >= baseline_rows` and ABORTS otherwise, and a self-test covers a FULL run where one gate disappeared — ⛔ counting rows the way the CONSUMERS do (`^\|`, no leading whitespace). A scenario that counts indented quotes as rows passes on the defective emit, which is the exact reading error that let this ship.
+**Status:** open
+**Body:** [FUP-AE5-STAFF-MERGE-CARRIES-ROWS-OUT-OF-THE-TABLE.md](FUP-AE5-STAFF-MERGE-CARRIES-ROWS-OUT-OF-THE-TABLE.md)
+
+### 🟡 FUP-AE5-STAFF-DOOR-SWEEP-POLICY-ARM-EXCLUDES-STORAGE-SCHEMA — a re-keyed site no mutation arm can reach (owner: backend)
+
+**Filed:** 2026-09-14 (unit `AE5-STAFF`, T8) · **Owner:** backend · **Severity:** medium — AE5 T7 re-keyed `storage.objects / form_assets_select_member` onto `app.can_forms_read`, and NO arm sweeps it: the predicate arm neutralizes functions, the policy arm's domain is `public`. T8's gate run named it as the reason it could not end CLEAN (`REQUESTED BUT NEVER SWEPT`, exit 3 UNPROVEN).
+**Closes when:** the policy arm's domain includes `storage` policies carrying a layer-1 gate or a domain-authorizer call, that site is actually SWEPT with a verdict, and the arm is shown ABLE TO RED on it. ⛔ A COVERED obtained while `storage.objects` holds zero rows is not a closure — the discrimination half needs a seeded form asset, or the arm is measuring an empty table.
+**Status:** open
+**Body:** [FUP-AE5-STAFF-DOOR-SWEEP-POLICY-ARM-EXCLUDES-STORAGE-SCHEMA.md](FUP-AE5-STAFF-DOOR-SWEEP-POLICY-ARM-EXCLUDES-STORAGE-SCHEMA.md)
+
 ### 🟢 FUP-AE5-STAFF-PERIODIC-RESET-LINE-PRINTS-THE-RUNNING-TOTAL — the reset banner over-states the drift bound it exists to report (owner: backend)
 
 **Filed:** 2026-09-14 (unit `AE5-STAFF`, T8) · **Owner:** backend · **Severity:** low — cosmetic in the code, but the line is READ AS EVIDENCE in gate records and it over-states the very quantity `RESET_EVERY` exists to bound (measured: with `RESET_EVERY=5` the fourth scheduled line read `20 case(s) swept since the last baseline`; 5 had been).
