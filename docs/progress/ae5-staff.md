@@ -3697,3 +3697,52 @@ authority regression), `hardDenyClasses` now `["principal_inactive"]`. Gates 7/9
 gate 12 = 1 (L21). Files touched, all uncommitted: the migration, the manifest, `410`, `387`,
 `419`, `421`, `320`, `seed.sql`, the seam file, three regenerated `.psql`. Loop count on T7's
 verification: iteration 1; the P0 is a NEW cause.
+
+### 2026-09-14 — T7 verification iteration 2: a P0 WIDENING caused by L17 — L24 supersedes it; the closure gate's blindness filed (lead)
+
+Backend's fresh-reset `test:db` after executing L20–L23 + L13′ (all witnessed, gates
+7/9/12/13/15/18/19 = 0, `410` 45/45, R-4 intact at 339/433/772): **18 red files against a pre-T7
+full PASS**, five of them one cause. **P0 — row 9's door as ruled in L17,**
+`authz.has_permission(…) OR app.has_case_capability(…, 'read_case_deliberation')`, **ORs the
+permission arm PAST the case-level hard denies** (`is_case_respondent` / `is_recused_from_case`,
+STEP-4 of `_case_caps`) **and past the `explicit_grants_only` fence** (`not v_eg` guarding S5).
+Measured by the suites that build those states: `233 M6·7` a plain member reaches an
+`explicit_grants_only` case (`true`, want `false`); the EXCLUDED respondent reaches the case even
+under `commission_default`; `241`/`242`/`243` deliberation substance reads `RESUMO_EG` /
+`NOTAS_DELIB` / `WD_B` where NULL is wanted; `228 QA MAJOR-3` `summary` unmasked. Class-1
+case-deliberation content (Rule 12). C1's wiring carried it onto the four projection surfaces. Local
+only, uncommitted, found before commit. **The error is the lead's:** L17 asked "which arm do we
+keep?" and never asked "does the OR walk around a conjunct the other arm carries?" — the
+two-locks / masked-by-a-legitimately-open-arm shape, in a ruling I wrote.
+
+**L24 (supersedes L17):** row 9's member-surface door is `select app.has_case_capability(p_case_id,
+p_user_id, 'read_case_deliberation')` ALONE. After L20 the permission IS enforced — inside
+`_case_caps`'s S5 arm via the commission-keyed sibling `can_cases_deliberation_read_in_commission`
+→ `authz.has_permission` — behind `v_eg` and the hard denies, and the code literal lives in the
+sibling so the row still reads as re-keyed. The door's first arm was therefore both redundant and
+unsafe. Manifest: row 9's member-surface door composes `has_case_capability` (declared), which
+reaches the code by the declared chain S5 → sibling (L23's `reaches_code` follows it);
+`residualLegacyAuthority` on row 9 is withdrawn (nothing residual remains: the capability path
+now carries the permission). Witnesses: 233 M6·7 both lines GREEN; 241/242/243 NULL; 228 masked;
+row 9's triple re-taken — (a) grant-no-role `t/t`, (b) neither `f/f`, (c) role-with-grant-deleted
+`t → f` — and a fourth row: (d) EXCLUDED respondent with role and grant `f/f`.
+
+**Why `410 § 6.2` stayed green through it — filed as
+`FUP-AE5-STAFF-HARD-DENY-CLOSURE-IS-BLIND-TO-OR-AROUND` (high, backend):** the closure from row
+9's declared sites REACHES `is_case_respondent` (inside `_case_caps`), so the committed
+`hardDenyClasses` measured as satisfied while the arm that actually grants walked around it. A
+deny present in the closure is not a deny on every grant path. Closes when § 6.2 (or a new arm)
+proves the deny is on EVERY disjunct of the door's grant expression — structural, not
+reachability — shown able to red on exactly this door as L17 wrote it. LESSONS candidate.
+
+**The other 13 reds are pins T7 moved, re-pinned WITH attribution, never bare:** converged
+`search_path` pins asserting the OLD legacy path (319 t13 "23 doors keep
+`app,public,pg_catalog`" have 22; 341 D4c; 328 K14s5; 326 § 6.4; 274 C1; 176 D4; 329 P0d — each
+names its function among the 24 that converged under D4/L15); censuses (400 528 → 549 rows; 421
+76 → 77 empty / 41 → 42 sql — the 21st door; 409 § 1.1 the four (site, code) pairs now 25, § 1.3
+58 → 38); 356 § 14.3 `_case_caps` hash moved by L20's S5 line. `425` (tester's, `3c91d86a`):
+§ 2.0 back to 47/47; `3.1 NO MOVEMENT have: 45 / want: 0` and `3.2 MIRROR have: 48 / want: 57`
+— the mirror is 9 short, the tester's to attribute once backend parks green. Also this pass:
+`FUP-AE5-STAFF-S8-S5-PAIRING-NOW-CONTINGENT` filed (the S8 comment's "member_can_for's third
+conjunct" claim was false — it is `is_member_of_for`, measured). Loop: T7 verification iteration
+2 of 5; the P0 is a NEW cause, attributed to a lead ruling.
