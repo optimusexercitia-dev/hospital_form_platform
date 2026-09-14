@@ -1834,3 +1834,30 @@ classes (that second one is the structural reason third-party probes fail, and n
 scheme removes it: a bare `is_member_of` reads `auth.uid()` and cannot be asked about a subject who
 is not the caller). Moving that table into the manifest is right and it is mine to author — but
 it should be authored ONCE, against whichever mechanism is ruled, not twice.
+
+### 2026-09-14 — L9 revised on backend's measurement (L9′); L10 the keying axis for caller-only rows (lead)
+
+Backend stopped before building L9 (`8b94bd29` plan, `c5b79a8b` finding) on a live probe: for
+`staff4.ccih` × the targeted `form_versions` row the REAL door (RLS select) answers true while the
+declared limb answers false — RLS grants through `form_versions_select`'s `is_member_of` limb, which
+the declaration lacks. Substituting parameters into a transcribed expression is HOW the door became
+partial, so L9 as written would rebuild the defect. Drift is wider than the follow-up records: row 1
+fuses two live policies (`form_versions_select` + `form_versions_select_targeted`, OR'd by Postgres)
+and drops `is_tenancy_admin_of`; row 4 keeps two of six disjuncts of `profiles_select_self_or_admin`.
+**L9′ — RULED (lead): no transcription at all.** For a policy door the legacy probe is
+`select exists(select 1 from <rel> where id = '<fixture>')` under `set local role authenticated` +
+the cell's claims, so RLS evaluates the whole live policy set with `auth.uid()` session-bound;
+function doors are called directly with the cell's bound args. Drift becomes structurally
+impossible; `arm3Door.expression` stays documentation, and the comparison arm to `pg_policies.qual`
+still discharges the drift follow-up's first arm. The per-gate-arm fixture binding table (11 rows ×
+≤ 5 arms) is authored ONCE, by backend, as generator data (manifest / vector), not in `424`.
+**L10 — RULED (lead): a caller-keyed door has no third-party question.** A policy (or a bare
+`is_member_of` site) reads `auth.uid()` and cannot be asked about a subject who is not the caller,
+so `self_check = false` has no meaning there — that is ADR 0201 D3's subject declaration applied
+(matrix § 5.4 already carries subject per site). Encoding: the vector emits `keying` per row from
+§ 5.4 — `third-party-capable` (a `p_uid` door: third-party cells evaluate via that form, hat ignored,
+ADR 0201 D1) or `caller-only` (third-party cells are emitted with a NAMED skip rule so arm7 and the
+coverage JSON record the disposition; never evaluated as a synthetic third party, never dropped
+silently). The PO may override at the gate; § 6A's asymmetry statement is re-read against the
+emitted keying, not assumed. The CCIH-anchored scope fallback in `424` is retired by construction
+(the probe runs against the cell's own scope fixture).
