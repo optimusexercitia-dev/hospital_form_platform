@@ -3920,3 +3920,28 @@ identity gate + the REVERSE 3b arm) has NO planted witness; the entry now says s
 the weakest evidence among the five rulings. Lead: 3b gets its plant in T8 (a manifest declaring
 an expression that appears only in a comment → red), the detector proven able to find something.
 Stack still the tester's.
+
+### 2026-09-14 — `425` run 4 post-T7 GREEN (18/18); the nine attributed by live query; a round 2 ordered on the exclusions (lead)
+
+`425-run4-post-t7.log` `Files=2, Tests=19, Result: PASS`; reset bare, no peer, settle-checked.
+§ 2.0 47/47. **The nine, none of the predicted categories:** seven are ROLE-FREE DISJUNCTS the
+probing persona (`staff4.ccih`) satisfies — `accreditation_frameworks_select`'s null-owner public
+arm (2 → 1), `action_items_select`'s `assigned_to = auth.uid()` (3 → 1), `can_read_document` /
+`controlled_documents_select` / `controlled_document_versions_select`'s approver leg (`staff4.ccih`
+is a seeded approver of the probed document), `memberships_select` / `profiles_select_self_or_admin`'s
+self row (13 → 1) — the arm-3 class exactly; one is `_audit_access_authorized`'s `meeting.viewed`
+leg reading `is_member_of OR is_tenancy_admin_of` directly (`carriesCode:false`, never in T7's
+surface); one was a FIXTURE bug in the file (`can_read_capa` pointed at an `rca`-sourced plan
+reachable via the event arm; re-pointed to an isolated `indicator`-sourced plan, now `t → f`).
+RAISE-both-ways: none (`meeting_cadence_status` / `suggest_carry_forward` raise `HC0K2` AFTER with
+a real value BEFORE — moved and discriminated). Disposition (iteration 2 of cap 2, pre-T7 text kept
+as history): 3.1 = every non-static site MOVED, 11 excluded and named inline (9 sparse tables + the
+two zero-movement sites), 46/46 GREEN; 3.2 = every non-excluded site DISCRIMINATES, 8 excluded and
+named, 49/49 GREEN; both bodies forbid widening an exclusion without a fresh live query.
+Committed by path. **Lead's reading — honest, and a hatch that silences the measurable:** the seven
+role-free-disjunct sites CAN discriminate under a persona/resource the disjunct does not reach, and
+`424` already binds exactly that per row (`disjunct_absent`: a non-self row, a non-assigned item, a
+document the persona does not approve, a framework with an owner). **Round 2 ordered (tester,
+file-only until T8 parks, cap 2):** replace the seven arm-3 exclusions with `424`'s `disjunct_absent`
+bindings so 3.2 measures them; the registry leg stays excluded with its `carriesCode:false` cited.
+AC-7 ticks on that run. T8 to backend now — the stack is free; the tester's re-run follows T8.
