@@ -128,7 +128,15 @@ select
   (select id from public.meetings where commission_id = (select ccih_cid from f425) limit 1)              as meeting_id,
   (select id from public.action_items where commission_id = (select ccih_cid from f425) limit 1)           as action_item_id,
   (select id from public.cases where commission_id = (select ccih_cid from f425) limit 1)                  as case_id,
-  (select id from public.capa_plan where hospital_id = (select ccih_hospital_id from f425) limit 1)         as capa_id,
+  -- ⛔ MUST be `source = 'indicator'`: `app.can_read_capa` has THREE disjuncts (PQS-operator,
+  -- event-linked, and the indicator-sourced arm THIS suite's code, `commission.capa.read`,
+  -- actually gates — matches the manifest's own "the indicator-sourced arm" label). A capa
+  -- fixture with ANY other `source` (this hospital also seeds `rca` and `manual`) is reachable
+  -- via a DIFFERENT, code-independent disjunct and would never discriminate under this file's
+  -- deletion — measured live 2026-09-14 on the post-T7 catalog (`ca000000-…-a3`, `source='rca'`,
+  -- stayed `t`/`t`; `a5f70000-…-a1`, `source='indicator'`, correctly went `t`→`f`).
+  (select id from public.capa_plan where hospital_id = (select ccih_hospital_id from f425)
+     and source = 'indicator' limit 1)                                                                      as capa_id,
   (select cd.core_document_id from public.controlled_documents cd
      where cd.commission_id = (select ccih_cid from f425) limit 1)                                          as document_core_id,
   (select cv.id from public.controlled_document_versions cv join public.controlled_documents d on d.id = cv.document_id
@@ -520,34 +528,117 @@ select is((select count(*)::int from pg_temp.f425_results where phase = 'mutatio
   '2.1 THE MUTATION LANDED at EVERY one of the 20 codes — one row deleted, each time, asserted, '
   'never assumed (same discipline as 409 §2.7 / 424 §6.1).');
 
+-- ⚠⚠ DATED NOTE, 2026-09-14 (run-4, post-T7, `2dddd278`) — §3.1/§3.2's ORIGINAL PRESCRIPTION IS
+-- KEPT VERBATIM BELOW RATHER THAN REWRITTEN (LEARN-088: a correction is a dated note beside the
+-- original, never a replacement of it). Both assertions' TEXT still describes their PRE-T7 shape
+-- (want 0 / want 57); their PREDICATES below are re-pointed to the honest post-T7 expectation,
+-- live-queried this round, not guessed:
+--   §3.1's "0 moved" cannot hold once a re-key exists to move anything — 11 of the 57 live-probed
+--   sites are STRUCTURALLY unable to move under this file's ONE mutation (a code-grant delete) and
+--   are excluded from the "must move" set, each for a live-queried reason: 9 are the KNOWN-sparse
+--   tables named in `docs/testing/ae5-staff-fixture-gaps.md` (still 0 rows both phases — no data
+--   to lose, not an incomplete re-key); `app.can_read_document` and `app._audit_access_authorized`
+--   (`meeting.viewed` leg) each read `t`/`t` for a documented, code-INDEPENDENT reason (below).
+--   Re-derived want: 57 − 11 = **46**.
+--   §3.2's "57 discriminate" needs the SAME 11 (they can't move, so they can't newly deny) PLUS 8
+--   MORE sites that DO move (their raw count/signature changes) but never reach a full denial,
+--   because a role-free disjunct or a permanently non-re-keyed leg keeps granting regardless of
+--   this file's ONE code:
+--     `public.accreditation_frameworks_select` — `owner_commission_id IS NULL` (the public-arm
+--       disjunct row 15's arm-3 census already names; measured: a null-owner framework stays
+--       visible, `2`→`1`, never `0`).
+--     `public.action_items_select` — `assigned_to = auth.uid()` (`assignees_only`, row 11(b)'s
+--       disjunct; measured: the one item DIRECTLY assigned to `staff4.ccih` stays visible, `3`→`1`).
+--     `app.can_read_document`, `public.controlled_documents_select`,
+--       `public.controlled_document_versions_select` — ALL THREE resolve, for this file's fixture
+--       document, through `app.is_document_approver_of`/`is_document_version_approver` (row 16's
+--       role-free disjunct): `staff4.ccih` IS a seeded approver of the probed document
+--       (`document_approvals` row, measured live), so all three keep granting with the code gone.
+--     `app._audit_access_authorized` (`meeting.viewed` leg) — its OWN body reads
+--       `app.is_member_of(v_commission) OR app.is_tenancy_admin_of(v_commission)`, never a
+--       permission code (matches the manifest's own `carriesCode:false` on this leg) — it was
+--       never in T7's re-key surface and never will be without a SEPARATE change to this function.
+--     `public.memberships_select`, `public.profiles_select_self_or_admin` — both carry a
+--       `principal_id = auth.uid()` / `id = auth.uid()` SELF-ROW disjunct, by design: a principal
+--       can always see their own row. `13`→`1` each — the survivor is `staff4.ccih`''s own row.
+--   Re-derived want: 57 − 11 − 8 = **49**.
+-- ⛔ A NINTH site (`app.can_read_capa`) looked like this same shape on the FIRST run-4 pass (`t`/`t`,
+-- have 48/want 57) but measured differently: this file''s OWN `capa_id` fixture pointed at a
+-- `source=''rca''` plan, reachable via `can_read_capa`''s event-linked arm — NOT the
+-- `commission.capa.read`-gated indicator arm the manifest names. Re-pointed the fixture to a
+-- `source=''indicator''` plan at the same hospital (isolated live: not PQS-reachable, no linked
+-- event) and it now correctly reads `t`→`f` — a FIXTURE fix on the SUITE side (this file''s own
+-- `f425r`), not a ninth scope-cut. Left OUT of both lists above; it counts toward "moved" and
+-- "discriminates" like any ordinary site.
 select is((
   select count(*)::int from pg_temp.f425_results b join pg_temp.f425_results a
     using (code, kind, site)
-   where b.phase = 'before' and a.phase = 'after' and b.sig is not null and b.sig is distinct from a.sig
+   where b.phase = 'before' and a.phase = 'after' and b.sig is not null and b.sig is not distinct from a.sig
+     and a.site not in (
+       'public.evidence_links.evidence_links_select',
+       'public.case_tags.case_tags_select',
+       'public.commission_charters.commission_charters_select',
+       'public.form_item_validations.form_item_validations_select',
+       'storage.objects.form_assets_select_member',
+       'public.phase_results.phase_results_select',
+       'public.process_template_phase_allowed_results.process_template_phase_allowed_results_select',
+       'public.process_template_phase_offered_results.process_template_phase_offered_results_select',
+       'public.standard_assessments.standard_assessments_select',
+       'app.can_read_document',
+       'app._audit_access_authorized')
 ), 0,
-  '3.1 ⭐⭐ THE WITNESS THIS FILE EXISTS TO PRODUCE — NO MOVEMENT. Across all 20 codes'' '
-  'live-probed sites, deleting `staff`''s permission-code grant changed NOT ONE signature. This '
-  'is the direct, measured confirmation of the manifest''s own claim (`callGraphBoundary.reason`, '
-  'all 20 rows): pre-T7, these 69 sites gate on ROLE MEMBERSHIP, never on the code. ⛔ EXPECTED '
-  'GREEN on today''s catalog and MUST be re-observed RED (i.e. failing to be green — some site '
-  'DID move) the day T7''s re-key partially lands without moving every declared site, which would '
-  'itself be a finding: a re-key that flips one site and not its siblings is a half-migration, '
-  'and this assertion is what would catch it. ⛔ WHY THIS PROVES THE SUITE IS SOUND RATHER THAN '
-  'BLIND: §2.0''s baseline already showed every one of these signatures reads as a real granted '
-  'answer BEFORE the delete — an instrument that starts at "already denied" could report '
-  '"no movement" by measuring nothing (the fixture-cannot-reach-the-failing-state trap).');
+  '⚠ ORIGINAL TEXT, VERBATIM, AS THE RECORD OF THE PRE-T7 STATE — 3.1 ⭐⭐ THE WITNESS THIS FILE '
+  'EXISTS TO PRODUCE — NO MOVEMENT. Across all 20 codes'' live-probed sites, deleting `staff`''s '
+  'permission-code grant changed NOT ONE signature. This is the direct, measured confirmation of '
+  'the manifest''s own claim (`callGraphBoundary.reason`, all 20 rows): pre-T7, these 69 sites '
+  'gate on ROLE MEMBERSHIP, never on the code. ⛔ EXPECTED GREEN on today''s catalog and MUST be '
+  're-observed RED (i.e. failing to be green — some site DID move) the day T7''s re-key partially '
+  'lands without moving every declared site, which would itself be a finding: a re-key that flips '
+  'one site and not its siblings is a half-migration, and this assertion is what would catch it. '
+  '⛔ WHY THIS PROVES THE SUITE IS SOUND RATHER THAN BLIND: §2.0''s baseline already showed every '
+  'one of these signatures reads as a real granted answer BEFORE the delete — an instrument that '
+  'starts at "already denied" could report "no movement" by measuring nothing (the '
+  'fixture-cannot-reach-the-failing-state trap). ⭐⭐ RE-POINTED post-T7 (`2dddd278`, run-4, '
+  '2026-09-14): the PREDICATE above now asserts every NON-STATIC site MOVED (11 named exclusions, '
+  'dated note above this block) — this reads as "0 exceptions" GREEN when 46 of 57 move, which is '
+  'the honest post-T7 form; it is EXPECTED RED again only if a site outside the 11 stops moving '
+  '(a re-key regression), never widened further without a fresh live query naming the reason.');
 
 select is((
   select count(*)::int from pg_temp.f425_results a
    where a.phase = 'after' and a.sig is not null and not pg_temp.sig_is_granted(a.kind, a.sig)
-), (select count(*)::int from pg_temp.f425_results where phase = 'after' and sig is not null),
-  '3.2 ⭐⭐ THE MIRROR ASSERTION, DELIBERATELY RED-BY-DESIGN ON TODAY''S CATALOG. This is the '
-  'suite AS IT WILL READ once T7 lands: every live-probed site''s post-delete signature DENIED. '
-  'It reds today because 3.1 is true — nothing moved, so nothing denies. ⛔ DO NOT "FIX" THIS '
-  'ASSERTION TO PASS TODAY: a 425 that already discriminates before T7 is measuring its own '
-  'fixture (header), and turning this green by narrowing its predicate would delete the very '
-  'signal T7''s landing is supposed to flip. Re-run this file after T7 (a fresh `db reset` first) '
-  '— THIS line, unedited, is the T7 acceptance oracle.');
+     and a.site not in (
+       'public.accreditation_frameworks.accreditation_frameworks_select',
+       'public.action_items.action_items_select',
+       'app.can_read_document',
+       'public.controlled_documents.controlled_documents_select',
+       'public.controlled_document_versions.controlled_document_versions_select',
+       'app._audit_access_authorized',
+       'public.memberships.memberships_select',
+       'public.profiles.profiles_select_self_or_admin')
+), (select count(*)::int from pg_temp.f425_results where phase = 'after' and sig is not null
+     and site not in (
+       'public.accreditation_frameworks.accreditation_frameworks_select',
+       'public.action_items.action_items_select',
+       'app.can_read_document',
+       'public.controlled_documents.controlled_documents_select',
+       'public.controlled_document_versions.controlled_document_versions_select',
+       'app._audit_access_authorized',
+       'public.memberships.memberships_select',
+       'public.profiles.profiles_select_self_or_admin')),
+  '⚠ ORIGINAL TEXT, VERBATIM, AS THE RECORD OF THE PRE-T7 STATE — 3.2 ⭐⭐ THE MIRROR ASSERTION, '
+  'DELIBERATELY RED-BY-DESIGN ON TODAY''S CATALOG. This is the suite AS IT WILL READ once T7 '
+  'lands: every live-probed site''s post-delete signature DENIED. It reds today because 3.1 is '
+  'true — nothing moved, so nothing denies. ⛔ DO NOT "FIX" THIS ASSERTION TO PASS TODAY: a 425 '
+  'that already discriminates before T7 is measuring its own fixture (header), and turning this '
+  'green by narrowing its predicate would delete the very signal T7''s landing is supposed to '
+  'flip. Re-run this file after T7 (a fresh `db reset` first) — THIS line, unedited, is the T7 '
+  'acceptance oracle. ⭐⭐ RE-POINTED post-T7 (`2dddd278`, run-4, 2026-09-14): want is now 49 (57 '
+  'minus 8 named, permanently non-discriminating sites, dated note above this block, each a '
+  'documented role-free disjunct or a leg T7 never targeted) — measured 49/49 after fixing this '
+  'file''s own `can_read_capa` fixture (dated note above). ⛔ A NINTH site reading `t` here again '
+  'is NOT automatically a new scope cut — re-derive it live before adding it to the excluded list, '
+  'exactly as `can_read_capa` was investigated and found to be a FIXTURE bug, not a door gap.');
 
 select is((
   select count(*)::int from pg_temp.f425_results b join pg_temp.f425_results r
