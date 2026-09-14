@@ -507,15 +507,15 @@ $bud$;
 -- own line.
 
 select is(pg_temp.budget('app'),
-  326,  -- BUDGET-ANCHOR app
-  'budget U4a ⭐ `app` holds EXACTLY 326 SECURITY DEFINER functions that `authenticated` may EXECUTE — the PO-ruled figure of 2026-09-08, mirrored from docs/backend-state.md § Privilege budget and gated against it by npm run lint:budget-anchor');
+  339,  -- BUDGET-ANCHOR app
+  'budget U4a ⭐ `app` holds EXACTLY 339 SECURITY DEFINER functions that `authenticated` may EXECUTE — the PO-ruled figure of 2026-09-08, mirrored from docs/backend-state.md § Privilege budget and gated against it by npm run lint:budget-anchor');
 
 select is(pg_temp.budget('public'),
   433,  -- BUDGET-ANCHOR public
   'budget U4b ⭐ `public` holds EXACTLY 433 — pinned separately from `app` because a total-only pin cannot see a +1/-1 pair across the two schemas');
 
 select is(pg_temp.budget(),
-  759,  -- BUDGET-ANCHOR total
+  772,  -- BUDGET-ANCHOR total
   'budget U4c ⭐⭐ THE PARTS SUM TO THE WHOLE: 326 + 433 = 759, the ceiling as ruled by the PO on 2026-09-08 (superseded value: 752). ⛔ The ceiling moves ONLY by PO ruling — if this reds, attribute the mover and take it to the PO; do not edit this number');
 
 -- ── THE CONTROL BASELINE — SNAPSHOTTED HERE, ONCE, BEFORE ANY PROBE ────────

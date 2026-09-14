@@ -438,17 +438,38 @@ def row_keying(code, perms=None):
 def subject_keying(code, perms=None):
     """The SAME question answered from matrix § 5.4's per-site `subject`, for arm14 to compare
        against. A subject that does not begin `caller` names an explicit principal parameter
-       (`p_uid` / `p_user_id` / `p_signer`)."""
+       (`p_uid` / `p_user_id` / `p_signer`).
+
+       ⭐⭐ READS EITHER SURFACE (lead ruling L21). `armInterface` carries the per-arm subject
+       while a row is pending-rekey; `enforcementSites` carries it once the row re-keys. ⛔ THIS
+       FUNCTION READ ONLY THE FIRST UNTIL AE5 T7, and the consequence was not a red: T7 re-keyed
+       20 rows, every `armInterface` emptied, this returned None for EVERY row, and arm14(b)
+       compared None against each derived keying — a cross-check that had silently stopped
+       checking. The loud half was `_flip_keying` walking off the end of the row list; the quiet
+       half is the one that matters. A row is expected to move between the two surfaces exactly
+       once in its life, so reading both is the only form that survives the move."""
     perms = MANIFEST_PERMISSIONS if perms is None else perms
     if perms is None:
         return None
-    row = perms.get(code) or {}
-    sites = row.get('armInterface') or []
+    row = perms.get(code)
+    if not isinstance(row, dict):
+        return None
+    sites = (row.get('armInterface') or []) + (row.get('enforcementSites') or [])
     if not sites:
         return None
     return ('third-party-capable'
             if any(not str(a.get('subject', '')).startswith('caller') for a in sites)
             else 'caller-only')
+
+
+def _manifest_rows(perms):
+    """The permission ROWS, never the sibling `_*_note` keys that share the mapping.
+
+       ⛔ `manifest['permissions']` is a dict of rows PLUS documentation strings. Every scan
+       that iterated it raw was one unmatched row away from `'str' object has no attribute
+       'get'` — which is how a mutation helper reports "the catalog changed shape" as a stack
+       trace instead of a finding. Filter once, here."""
+    return [(c, r) for c, r in (perms or {}).items() if isinstance(r, dict)]
 
 
 def _lit(u):
@@ -1494,8 +1515,13 @@ def coverage(cells, skipped, reps_by_role, disposition=None, exclusions=None, ax
             continue
         _mm = _re.match(r'([a-z_]+\.[a-z_]+)\(', _pr.get('call') or '')
         _fn = _mm.group(1) if _mm else ''
-        _sites = [str(a.get('site', '')).split(' ')[0]
-                  for a in ((_perms.get(_x) or {}).get('armInterface') or [])]
+        # ⭐ EITHER SURFACE (L21), for subject_keying's reason: a re-keyed row's sites live in
+        # `enforcementSites`, and reading only `armInterface` left this scan with an EMPTY site
+        # list for all 20 AE5 rows — it then fell back to `arm3Door.expression` alone and
+        # stopped being a cross-check at the moment it had two surfaces to cross.
+        _row_x = _perms.get(_x) if isinstance(_perms.get(_x), dict) else {}
+        _sites = ([str(a.get('site', '')).split(' ')[0] for a in (_row_x.get('armInterface') or [])]
+                  + [(e['schema'] + '.' + e['name']) for e in (_row_x.get('enforcementSites') or [])])
         if not _fn or (_fn not in (_d.get('expression') or '') and _fn not in _sites):
             _wrongdoor.append((_x, _fn))
     if _wrongdoor:
@@ -1890,7 +1916,7 @@ if '--self-test' in sys.argv:
     def _pm_flat_reach(pm):
         """A scope-keyed reach flattened back to a persona list - the shape that flipped 40 cells
            at scopes where the named principal is not the assignee. arm14(g) must name it."""
-        for code, row in pm.items():
+        for code, row in _manifest_rows(pm):
             r = (row.get('arm3Door') or {}).get('reach')
             if r and r.get('byScope'):
                 r['personas'] = sorted({p for v in r['byScope'].values() for p in v})
@@ -1899,13 +1925,28 @@ if '--self-test' in sys.argv:
 
     def _flip_keying(pm):
         """A CALLER-ONLY row's probe rewritten to pass the cell's principal - fabricating a
-           third-party capability the production site does not have. arm14(b) must name it."""
-        for code, row in pm.items():
+           third-party capability the production site does not have. arm14(b) must name it.
+
+           ⛔⛔ REFUSES BY NAME WHEN THERE IS NO SUBJECT (lead ruling L21). This helper used to
+           scan to the end and fall off into `permissions`' `_*_note` keys, reporting an empty
+           subject population as `'str' object has no attribute 'get'`. Two different failures
+           wore one stack trace: a genuine shape change, and "no row is caller-only any more",
+           which is not a crash but a VOID FIXTURE — the mutation cannot be built, so arm14(b)
+           is asserted against nothing. A fixture that cannot be constructed must say so in its
+           own words, or the arm it feeds reports green for the wrong reason."""
+        for code, row in _manifest_rows(pm):
             pr = (row.get('arm3Door') or {}).get('probe')
-            if pr and subject_keying(code) == 'caller-only' and '{uid}' not in (pr.get('call') or ''):
+            if pr and subject_keying(code, pm) == 'caller-only' and '{uid}' not in (pr.get('call') or ''):
                 pr['kind'] = 'function-call'
                 pr['call'] = 'app.is_member_of_for({scope}::uuid, {uid}::uuid)'
                 return
+        raise SystemExit(
+            'gen-authz-differential-cells: arm14(b) has NO SUBJECT — not one manifest row reads '
+            'as `caller-only`, so the keying-flip fixture cannot be built and arm14(b) would be '
+            'asserted against an empty mutation. ⛔ This is a VOID CONTROL, not a passing one. '
+            'The cause is almost always that `subject`/`hat` are missing from the surface the '
+            'rows now declare (enforcementSites once a row re-keys, armInterface while it is '
+            'pending) — see fieldContracts.siteHats and lead ruling L21.')
 
     def _synth_badkeying():
         """The MANIFEST perturbed so a `caller-only` row's probe claims to take an explicit uid,
@@ -1913,12 +1954,16 @@ if '--self-test' in sys.argv:
            ⛔ Perturbs the AUTHORITY, not the cells, exactly as arm9/arm12's fixtures do: the
            keying is the matrix's claim, so the mutation has to be to the claim."""
         def _flip(pm):
-            for code, row in pm.items():
+            for code, row in _manifest_rows(pm):
                 pr = (row.get('arm3Door') or {}).get('probe')
-                if pr and pr.get('kind') == 'rls-select' and subject_keying(code) == 'caller-only':
+                if pr and pr.get('kind') == 'rls-select' and subject_keying(code, pm) == 'caller-only':
                     pr['kind'] = 'function-call'
                     pr['call'] = 'app.is_member_of_for({scope}::uuid, {uid}::uuid)'
                     return
+            raise SystemExit(
+                'gen-authz-differential-cells: arm14(b)\'s bad-keying fixture has no subject — '
+                'no row is both `rls-select`-probed and `caller-only`. Same void-control shape '
+                'as _flip_keying; see lead ruling L21.')
         return _pm_mutate(_flip)
 
     # ⛔ arm12's FIXTURES PERTURB THE MANIFEST AND NOTHING ELSE, exactly as arm9's do: the arm

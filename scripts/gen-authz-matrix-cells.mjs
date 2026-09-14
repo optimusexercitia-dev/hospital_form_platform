@@ -498,19 +498,54 @@ function manifestReport(spec, manifest, rawText) {
           }
         }
         const declaredResidual = residual.map((e) => e.gate)
+
+        // ⭐⭐ THIRD ACCEPTABLE ARM (lead ruling L24): a DELEGATION the row declares hop by hop.
+        // ⛔ THE RULE THIS RELAXES IS NOT RELAXED. What it forbids is an authorizer HIDING a
+        // grant path that never reaches a permission. A delegation to an object this same row
+        // declares as an enforcementSite, whose own declared composition terminates at
+        // `authz.has_permission`, hides nothing — every hop is written down and 410 § 8.1 walks
+        // the identical chain in the live catalog (L23). A chain that does NOT terminate at the
+        // permission arm, or that leaves the row's own declared sites, is still the defect.
+        // ⚠ Row 9 is why it exists: its door delegates to `app.has_case_capability` ->
+        // `app._case_caps` -> S5 -> `app.can_cases_deliberation_read_in_commission` -> authz,
+        // because the permission could not be a DISJUNCT beside the capability arm without
+        // walking around the hard denies that arm applies.
+        const siteComposition = new Map(
+          (Array.isArray(sites) ? sites : [])
+            .filter((x) => x.kind === 'function')
+            .map((x) => [`${x.schema}.${x.name}`, Array.isArray(x.composedWith) ? x.composedWith : []]),
+        )
+        const delegationReachesPermission = (fn, depth, seen) => {
+          if (depth <= 0 || seen.has(fn)) return false
+          if (!siteComposition.has(fn)) return false
+          seen.add(fn)
+          return siteComposition.get(fn).some(
+            (next) => next === PERMISSION_ARM || delegationReachesPermission(next, depth - 1, seen),
+          )
+        }
+
         for (const armFn of Array.isArray(da?.composedWith) ? da.composedWith : []) {
           if (armFn === PERMISSION_ARM) continue
-          if (!declaredResidual.includes(armFn)) {
-            F(`${at}: the authorizer composes "${armFn}", which is neither the permission arm (${PERMISSION_ARM}) nor a declared residualLegacyAuthority — a re-keyed row may not hide a non-permission grant path`)
-          }
+          if (declaredResidual.includes(armFn)) continue
+          if (delegationReachesPermission(armFn, 6, new Set())) continue
+          F(`${at}: the authorizer composes "${armFn}", which is neither the permission arm (${PERMISSION_ARM}), nor a declared residualLegacyAuthority, nor a declared enforcementSite whose own composition reaches the permission arm — a re-keyed row may not hide a non-permission grant path`)
         }
         for (const g of declaredResidual) {
           if (!(Array.isArray(da?.composedWith) ? da.composedWith : []).includes(g)) {
             F(`${at}.residualLegacyAuthority names "${g}", which the authorizer does not compose — a residual arm that is not there overstates what still has to be retired`)
           }
         }
-        if (!(Array.isArray(da?.composedWith) ? da.composedWith : []).includes(PERMISSION_ARM)) {
-          F(`${at} is re-keyed but its authorizer never composes ${PERMISSION_ARM} — "re-keyed" with no permission arm is the inert-catalog defect ADR 0176 was written to repair`)
+        // ⚠ THE PERMISSION MUST BE REACHED, DIRECTLY OR THROUGH THE DECLARED CHAIN (L24). The
+        // direct form stays the normal one; the chain form is accepted only because every hop of
+        // it is declared on this row and asserted against the catalog by 410 § 8.1 and § 3.5.
+        // ⛔ "Re-keyed with no permission arm anywhere" is still the inert-catalog defect.
+        {
+          const arms = Array.isArray(da?.composedWith) ? da.composedWith : []
+          const ok = arms.includes(PERMISSION_ARM)
+            || arms.some((a) => delegationReachesPermission(a, 6, new Set()))
+          if (!ok) {
+            F(`${at} is re-keyed but neither its authorizer nor its declared site chain ever reaches ${PERMISSION_ARM} — "re-keyed" with no permission arm is the inert-catalog defect ADR 0176 was written to repair`)
+          }
         }
       }
     } else {
@@ -550,6 +585,33 @@ function manifestReport(spec, manifest, rawText) {
       if (!fc.siteKinds.includes(s.kind)) F(`${sat}.kind "${s.kind}" is not one of ${fc.siteKinds.join(' | ')}`)
       if (s.kind === 'policy' && !isStr(s.relation)) F(`${sat} is a policy site but names no relation`)
       if (s.kind === 'function' && s.relation !== null) F(`${sat} is a function site and must carry relation: null`)
+
+      // ⭐⭐ M11b — THE PER-ARM SUBJECT AND HAT (lead ruling L21, ADR 0201 D3's data).
+      // ⛔⛔ WHY THIS FIELD MOVED HOME, AND WHAT IT COST WHILE IT HAD NONE. These two facts
+      // lived ONLY in `armInterface`, which a row sheds the moment it re-keys. AE5 T7 re-keyed
+      // 20 rows in one migration and the subject/hat declarations for all 20 simply
+      // disappeared — and with them the SUBJECT half of the differential generator's
+      // arm14(b), whose `subject_keying()` reads this data. That arm did not red: it went
+      // VOID, comparing `None` against every derived keying, which is the exact shape of
+      // "a green gate can mean the FIXTURE cannot reach the failing state". A re-keyed row
+      // has MORE need of this data than a pending one, not less, so it is required here.
+      if (!isStr(s.subject)) {
+        F(`${sat}.subject must name the principal the site binds — "caller" (or "caller (…)") when it binds auth.uid(), otherwise the parameter name. A site with no subject makes arm14(b) compare against nothing`)
+      }
+      if (!fc.siteHats.includes(s.hat)) F(`${sat}.hat "${s.hat}" is not one of ${fc.siteHats.join(' | ')}`)
+      // ⛔ RLS BINDS auth.uid() FROM THE SESSION. There is no way to ask a policy about a
+      // subject who is not the caller, so a policy site claiming an explicit principal is a
+      // claim the catalog cannot honour — and it is precisely the perturbation arm14(b) exists
+      // to notice, which is why it fails generation here rather than being described.
+      if (s.kind === 'policy' && !String(s.subject).startsWith('caller')) {
+        F(`${sat} is a POLICY site declaring subject "${s.subject}" — RLS binds auth.uid() from the session, so a policy arm is caller-keyed by construction`)
+      }
+      if (has(s, 'hatNote') && !isStr(s.hatNote)) F(`${sat}.hatNote must be a non-empty string when present`)
+      // ⭐ OPTIONAL, and the only place a site may explain its own signature: a row with TWO
+      // doors of different keying (row 9's case-keyed and commission-keyed pair, lead ruling
+      // L20) is unreadable without it, and a `_comment` would be the un-gated home ADR 0193
+      // exists to avoid.
+      if (has(s, 'signatureNote') && !isStr(s.signatureNote)) F(`${sat}.signatureNote must be a non-empty string when present`)
     }
 
     // M6 — THE ESCAPE-HATCH FENCE. `not-attributable-until-rekey` is honest on a row whose
@@ -632,8 +694,34 @@ function manifestReport(spec, manifest, rawText) {
         }
         // ⭐ PRESENT-AND-NULLABLE, never absent: `gate: null` says MEASURED, no gate at all
         // (`app._insert_block_child_rows`), and a missing key would say nobody looked.
+        //
+        // ⭐⭐ THIRD FORM ADDED AT AE5 T7 (lead ruling L22): `{kind: "identity", expression}`.
+        // ⛔ THE GAP IT CLOSES IS A FALSE CLAIM, not a missing one. `public.start_correction_draft`
+        // is a DEFINER writer of `responses` whose authority is
+        // `if auth.uid() is distinct from v_corrector then raise` — an identity predicate, not a
+        // function call. Only two values were expressible: a function name (there is none, and
+        // naming the liveness check `app.is_active` would read to an auditor as "gated only on
+        // liveness", the alarming misreading and the opposite of the truth) or `null`, which this
+        // file DEFINES as "no authority check at all" — flatly false. A gated field carrying a
+        // false claim is worse than one carrying none, so the vocabulary grew instead.
+        // ⚠ The expression is pinned against the COMMENT-STRIPPED body by 410 § 8.7, so a door
+        // cannot satisfy this by describing its gate in a comment it does not execute.
         if (!has(e, 'gate')) F(`${dat} is missing "gate" — use null to declare a door with no authority check, which is a finding, not an omission`)
-        else if (e.gate !== null && !isStr(e.gate)) F(`${dat}.gate must be a gate name or null`)
+        else if (e.gate !== null && !isStr(e.gate)) {
+          if (typeof e.gate !== 'object' || Array.isArray(e.gate)) {
+            F(`${dat}.gate must be a gate name, null, or an {kind, expression} object`)
+          } else {
+            if (!fc.gateKinds.includes(e.gate.kind)) {
+              F(`${dat}.gate.kind "${e.gate.kind}" is not one of ${fc.gateKinds.join(' | ')}`)
+            }
+            if (!isStr(e.gate.expression)) {
+              F(`${dat}.gate.expression must be the predicate as it appears in the body — an unquoted identity gate is a claim no arm can check`)
+            }
+            for (const k of Object.keys(e.gate)) {
+              if (!['kind', 'expression'].includes(k)) F(`${dat}.gate carries unknown key "${k}"`)
+            }
+          }
+        }
         for (const k of ['carriesCode', 'executableByAuthenticated']) {
           if (typeof e[k] !== 'boolean') F(`${dat}.${k} must be a boolean`)
         }
@@ -787,7 +875,8 @@ function emitManifest(manifest, manifestSha) {
   for (const code of codes) {
     for (const s of rows[code].enforcementSites) {
       siteRows.push(
-        `    (${q(code)}, ${q(s.kind)}, ${q(s.schema)}, ${qn(s.relation, 'text')}, ${q(s.name)}, ${arr(s.composedWith)})`,
+        `    (${q(code)}, ${q(s.kind)}, ${q(s.schema)}, ${qn(s.relation, 'text')}, ${q(s.name)}, ${arr(s.composedWith)}, ` +
+          `${q(s.subject)}, ${q(s.hat)})`,
       )
     }
   }
@@ -800,7 +889,14 @@ function emitManifest(manifest, manifestSha) {
   for (const code of codes) {
     for (const e of rows[code].definerSurface) {
       definerRows.push(
-        `    (${q(code)}, ${q(e.schema)}, ${q(e.name)}, ${arr(e.writes)}, ${qn(e.gate, 'text')}, ` +
+        `    (${q(code)}, ${q(e.schema)}, ${q(e.name)}, ${arr(e.writes)}, ` +
+          // ⭐ THREE-WAY, AND THE THIRD IS NOT A GATE NAME. A function gate emits into
+          // `gate` and leaves `gate_expression` null; an identity gate does the reverse; a
+          // measured-no-gate door emits null in both. 410 § 8.7 dispatches on which is set,
+          // so the two claims can never be checked by the same arm by accident.
+          `${qn(e.gate === null || typeof e.gate === 'object' ? null : e.gate, 'text')}, ` +
+          `${qn(e.gate !== null && typeof e.gate === 'object' ? e.gate.kind : null, 'text')}, ` +
+          `${qn(e.gate !== null && typeof e.gate === 'object' ? e.gate.expression : null, 'text')}, ` +
           `${e.carriesCode ? 'true' : 'false'}, ${e.executableByAuthenticated ? 'true' : 'false'})`,
       )
     }
@@ -810,8 +906,8 @@ function emitManifest(manifest, manifestSha) {
   }
   const definerBody =
     definerRows.length > 0
-      ? `select * from (values\n${definerRows.join(',\n')}\n  ) as t(code, fn_schema, fn_name, writes, gate, carries_code, exec_authenticated)`
-      : `select null::text as code, null::text as fn_schema, null::text as fn_name, null::text[] as writes, null::text as gate, null::boolean as carries_code, null::boolean as exec_authenticated where false`
+      ? `select * from (values\n${definerRows.join(',\n')}\n  ) as t(code, fn_schema, fn_name, writes, gate, gate_kind, gate_expression, carries_code, exec_authenticated)`
+      : `select null::text as code, null::text as fn_schema, null::text as fn_name, null::text[] as writes, null::text as gate, null::text as gate_kind, null::text as gate_expression, null::boolean as carries_code, null::boolean as exec_authenticated where false`
   const consumerBody =
     consumerRows.length > 0
       ? `select * from (values\n${consumerRows.join(',\n')}\n  ) as t(code, fn_schema, fn_name, consumer_kind, reason)`
@@ -833,8 +929,8 @@ function emitManifest(manifest, manifestSha) {
   // it degrades to a typed empty relation instead of vanishing.
   const sitesBody =
     siteRows.length > 0
-      ? `select * from (values\n${siteRows.join(',\n')}\n  ) as t(code, site_kind, site_schema, site_relation, site_name, composed_with)`
-      : `select null::text as code, null::text as site_kind, null::text as site_schema, null::text as site_relation, null::text as site_name, null::text[] as composed_with where false`
+      ? `select * from (values\n${siteRows.join(',\n')}\n  ) as t(code, site_kind, site_schema, site_relation, site_name, composed_with, site_subject, site_hat)`
+      : `select null::text as code, null::text as site_kind, null::text as site_schema, null::text as site_relation, null::text as site_name, null::text[] as composed_with, null::text as site_subject, null::text as site_hat where false`
 
   // ⭐⭐ `armInterface` REACHES THE pgTAP FIXTURE (L6, 2026-09-13). 410 § 6.2 derives a row's
   // hard-deny classes LIVE from the bodies at its roots, and it reads THIS FILE, never the JSON.

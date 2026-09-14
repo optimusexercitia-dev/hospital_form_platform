@@ -27,7 +27,8 @@
 -- before leaving the section; the whole file rolls back regardless.
 --
 -- RUN SHAPE: `Files=2, Tests=45` (44 here + 00_setup.sql's one).
--- §1 4 · §2 6 · §3 7 · §4 6 · §5 3 · §6 6 · §7 4 · §8 8 = 44.
+-- §1 4 · §2 6 · §3 8 · §4 6 · §5 3 · §6 6 · §7 4 · §8 8 = 45.
+-- ⚠ 44 -> 45 at AE5 T7 (2026-09-14): § 3.8, the per-site subject check (lead ruling L21).
 -- ⚠ 34 -> 40: § 8, the SITE-AXIS CLOSURE, added to close
 -- FUP-AE4-MANIFEST-HAS-NO-SITE-AXIS-CLOSURE after BUG-AE49-D6-REKEY-INCOMPLETE shipped through
 -- every green gate in this file. Read § 8's header before trusting anything below about sites.
@@ -44,7 +45,7 @@
 -- a -1 on the account of "delete the pin" (the follow-up's phrasing) will not find one.
 
 begin;
-select plan(44);
+select plan(45);
 
 \ir vectors/authz_enforcement_manifest.psql
 
@@ -75,8 +76,8 @@ select ok((select count(*) from authz_manifest_snapshot_permissions) > 0
   '1.3 ...and every other fixture relation is populated too. The snapshot lists are the ONLY '
   'thing §2 compares against the catalog; an empty one would make both set differences pass.');
 
-select is((select count(*)::int from authz_manifest_sites), 13,
-  '1.4 CARDINALITY CONTROL for §3 AND §8: exactly 13 enforcement sites are declared (6 policies '
+select is((select count(*)::int from authz_manifest_sites), 82,
+  '1.4 CARDINALITY CONTROL for §3 AND §8: exactly 82 enforcement sites are declared — ⚠ RE-PINNED 13 -> 78 -> 80 -> 82 at AE5 T7 (2026-09-14), observed RED first at each step. The last two are lead rulings, not drift: L23 un-retracted `meeting_signatures_insert` (a two-hop site the instrument can now follow) and L20 declared row 9''s SECOND, commission-keyed door, and L24 declared the two REMAINING HOPS of row 9''s grant chain (app.can_cases_deliberation_read and app.has_case_capability) so the path from the member surface to the permission is written down hop by hop instead of inferred. The delta is the 20 `staff` rows re-keyed: 42 policy + 23 function sites = 65 on top of the original 13. `public.sign_meeting` is NOT among them — it carries no layer-1 gate and delegates, so it moved to `definerSurface` as a writer. Previously: 13 enforcement sites are declared (6 policies '
   'for commission.forms.edit, 3 RPCs for org.professionals.create, 2 policies + 2 functions for '
   'org.professionals.read). §3 asserts each EXISTS and §8 asserts each ENFORCES; without this '
   'count, deleting site rows would shrink both domains and every remaining assertion would '
@@ -266,8 +267,13 @@ select is(
 select is(
   (select count(*)::int from authz_manifest_sites s, unnest(s.composed_with) as c(fn))
   + (select count(*)::int from authz_manifest_permissions m, unnest(m.authorizer_composed_with) as c(fn)),
-  21,
-  '3.6 CARDINALITY CONTROL for 3.5 AND 3.7: 13 (site, authority) pairs plus 8 (authorizer, '
+  110,
+  '3.6 CARDINALITY CONTROL for 3.5 AND 3.7: 82 (site, authority) pairs plus 28 (authorizer, '
+  '⚠ 107 -> 109 -> 110 at AE5 T7 (2026-09-14), observed RED first at each step: the sites '
+  'lead rulings L23, L20 and L24 added, each carrying exactly one composedWith authority — '
+  'and the AUTHORIZER side went 29 -> 28 in the same move, because L24 removed row 9''s '
+  'permission DISJUNCT. ⛔ A pair count that rose while an authorizer arm was deleted would '
+  'have hidden that; asserted as one number, the two changes are visible together. '
   'authority) pairs were checked. Both are "violations = 0" assertions over an UNNEST — '
   'emptying `composedWith` everywhere would satisfy both perfectly while checking nothing. '
   '⚠ The 8 authorizer pairs are 2 for can_edit_commission_forms, 2 for '
@@ -292,6 +298,50 @@ select is(
   'population change, in opposite directions: dropping the legacy arm locks out org_admin / '
   'hospital_admin, dropping the permission arm makes the catalog inert again, which is the '
   'exact defect ADR 0176 was written to repair.');
+
+-- ⭐⭐ § 3.8 — THE PER-SITE SUBJECT, CHECKED AGAINST THE LIVE SIGNATURE (lead ruling L21).
+-- ⛔⛔ WHY THIS ARM EXISTS AND WHAT ITS ABSENCE COST. `subject` and `hat` are ADR 0201 D3's
+-- per-arm data, and until AE5 T7 they lived ONLY on `armInterface` — a field a row SHEDS the
+-- moment it re-keys. T7 re-keyed 20 rows in one migration and all 20 subject declarations
+-- vanished with it. Nothing went red: the differential generator's `subject_keying()` simply
+-- returned null for every row, and arm14(b) — the arm whose whole job is to cross-check the
+-- DERIVED probe keying against the DECLARED subject — compared null to null and passed. A
+-- control that stops controlling reports the same colour as one that is satisfied.
+-- ⛔ SO THE DECLARATION MOVED TO `enforcementSites`, AND THIS IS THE ARM THAT MAKES IT A
+-- MEASUREMENT RATHER THAN A COPIED STRING: a subject that names a principal must name a
+-- parameter the site FUNCTION actually declares, read from `pg_get_function_identity_arguments`.
+-- ⚠ Caller-keyed sites are checked by the generator instead (M11b refuses a policy site that
+-- claims an explicit principal — RLS binds auth.uid() from the session, so there is no such
+-- thing), which is why this arm's domain is the function sites alone.
+select is(
+  (select coalesce(string_agg(t.v, '; ' order by t.v), '(none)') from (
+     select s.code || ' -> ' || s.site_schema || '.' || s.site_name
+              || ' declares subject `' || s.site_subject
+              || '` which is not a parameter of its live signature ('
+              || coalesce((select pg_get_function_identity_arguments(p.oid)
+                             from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                            where n.nspname = s.site_schema and p.proname = s.site_name
+                            limit 1), '<no such function>') || ')' as v
+       from authz_manifest_sites s
+      where s.site_kind = 'function'
+        and s.site_subject not like 'caller%'
+        and not exists (
+              select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+               where n.nspname = s.site_schema and p.proname = s.site_name
+                 and pg_get_function_identity_arguments(p.oid) ~ ('\m' || s.site_subject || '\M'))
+   ) t),
+  '(none)',
+  '3.8 ⭐⭐ EVERY EXPLICIT-PRINCIPAL SITE SUBJECT NAMES A REAL PARAMETER. The manifest says '
+  'which principal each arm binds; this asserts the name against the LIVE signature, so the '
+  'declaration is a measurement and not a string copied forward. ⛔ IT IS THE HALF THAT WAS '
+  'MISSING WHEN AE5 T7 DELETED ALL 20 SUBJECT DECLARATIONS AT ONCE: nothing red, because the '
+  'differential generator''s arm14(b) read null and compared null — VOID, not passing. '
+  '⚠ FUNCTION SITES ONLY, deliberately: a POLICY site cannot carry an explicit principal at '
+  'all (RLS binds auth.uid() from the session) and the generator''s M11b refuses one, so this '
+  'arm''s silence about policies is a division of labour and not a gap. ⚠ Its domain today is '
+  'the function sites whose subject is `p_uid` / `p_user_id` / `p_signer`; a caller-keyed site '
+  'is out of scope BY VALUE, so a row that quietly re-declares itself `caller` leaves this arm '
+  'silent and moves arm14(b) instead.');
 
 -- ============================================================================
 -- §4 — THE STATUS <-> CATALOG TRIPWIRE (ADR 0176 D3, the manifest countdown).
@@ -376,8 +426,8 @@ select is(
 select is(
   (select count(*)::int from authz_manifest_permissions where status = 'pending-rekey') || ' / ' ||
   (select count(*)::int from authz_manifest_permissions where status = 're-keyed')::text,
-  '58 / 3',
-  '4.5 ⭐ THE COUNTDOWN, PINNED, AS A PAIR. 40 pending-rekey and 3 re-keyed — the honest '
+  '38 / 23',
+  '4.5 ⭐ THE COUNTDOWN, PINNED, AS A PAIR. 38 pending-rekey and 23 re-keyed — ⚠ RE-PINNED 58/3 -> 38/23 at AE5 T7 (2026-09-14), observed RED first; the delta is exactly the 20 `staff` rows this increment re-keys. — the honest '
   'sentence ADR 0176 Consequences demands ("staff_admin runs on layer 1; N of 43 permissions '
   're-keyed, the rest pending-rekey") with N = 3, the PO-confirmed Gate AE4 minimum (D6: '
   'commission.forms.edit, org.professionals.create, org.professionals.read). ⛔ ASSERTED AS A '
@@ -391,6 +441,17 @@ select is(
   (select coalesce(string_agg(m.code || ' via ' || c.fn, '; ' order by m.code, c.fn), '(none)')
      from authz_manifest_permissions m, unnest(m.residual_legacy_authority) as c(fn)
     where m.status = 're-keyed'),
+  -- ⚠⚠ WITHDRAWN AT AE5 T7 BY LEAD RULING L24, WHICH SUPERSEDES L17 — AND THE WITHDRAWAL IS
+  -- THE FINDING, NOT A TIDY-UP. Under L17 row 9's authorizer composed `app.has_case_capability`
+  -- BESIDE the permission arm, and this string carried a sixth entry saying so. That `or` was a
+  -- WIDENING: the capability arm applies the STEP-4 hard denies and the explicit_grants_only
+  -- guard, the permission arm applies neither, and one true disjunct grants — a plain member
+  -- reached an explicit_grants_only case and an EXCLUDED RESPONDENT reached his own (233 M6·7,
+  -- `have: true / want: false`). L24 deleted the permission disjunct, so the capability path is
+  -- no longer a residual arm beside the permission: it is the only arm, and the permission is
+  -- enforced INSIDE it at app._case_caps S5. Nothing residual remains on row 9, and this string
+  -- is back to five entries. ⛔ A RETIREMENT MUST BE RECORDED, NOT ABSORBED — this caption says
+  -- so below, and this is the first time it has been exercised.
   'commission.forms.edit via app.is_tenancy_admin_of_for; '
   'org.professionals.create via app.can_manage_professional; '
   'org.professionals.read via app.can_manage_professional; '
@@ -454,9 +515,11 @@ select is(
     where m.authorizer is not null
       and exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
                    where n.nspname || '.' || p.proname = m.authorizer)),
-  3,
-  '5.2 CARDINALITY CONTROL for 5.1: all 3 declared authorizers exist at this head. ⛔ Without '
-  'this, 5.1 would be free to range over zero rows and report the same "(none)". ⚠ THIS '
+  23,
+  '5.2 CARDINALITY CONTROL for 5.1: all 23 declared authorizers exist at this head. ⛔ Without '
+  'this, 5.1 would be free to range over zero rows and report the same "(none)". ⚠ RE-PINNED 3 -> 23 AT AE5 T7 (2026-09-14), OBSERVED RED '
+  'FIRST: the 20 `staff` doors this increment creates all exist at this head, which is the '
+  'control doing its job. ⚠ THIS '
   'NUMBER READ 2 BEFORE THE RE-KEY LANDED (app.can_edit_commission_forms did not yet exist), '
   'and it moving to 3 is the control doing its job. It rises with each further re-key.');
 
@@ -713,13 +776,51 @@ select ok(
   -- ⛔ Leaving this conjunct naming only the re-keyed table would have left the control silent
   -- about the domain doing most of the work — the emptiness it exists to catch could have
   -- happened in the new table while this arm stayed green on the old one.
-  and (select count(*) from authz_manifest_permissions m join authz_manifest_arm_sites a on a.code = m.code
-        where m.hard_deny_provenance like 'measured-%') > 0
+  -- ⭐⭐ RE-RULED AT T7 (lead ruling L13): "arm-sites non-empty **OR** no row left pending-rekey".
+  -- ⛔ THIS CONJUNCT BECAME FALSE WHEN THE WORK SUCCEEDED, which is the shape that gets deleted in
+  -- a hurry. L6 added it because `authz_manifest_arm_sites` then supplied 20 of the 23 measured
+  -- rows; T7 re-keys every one of those rows, the sites move to `enforcementSites`, and the arm
+  -- table is emitted as the EMPTY typed form. A control that reds on completion is not a control.
+  -- ⚠ THE `OR` IS ONLY SAFE BECAUSE §§ 6.2/8 OWN THE CASE IT LETS THROUGH: once "nothing is
+  -- pending-rekey" can satisfy this, a row that re-keyed to NOTHING would otherwise sail past —
+  -- and § 6.2 reds on it with `have: (none)` while § 8.1 reds because an empty site list reaches
+  -- no code. Both halves are witnessed together (6a/6b), or this re-rule is a widening.
+  -- ⭐⭐ RE-RULED AGAIN AT AE5 T7 (lead ruling L13'). L13's `OR no row left pending-rekey`
+  -- was FALSE IN BOTH ARMS the moment T7 landed: the arm table emptied (correct — all 20 rows
+  -- that had arm sites re-keyed) while 38 rows stayed pending. It had assumed T7 would take
+  -- pending to zero. The predicate is now per-ROLE and per-ROW instead of global:
+  --
+  --   for every role with an approved suite, each of its pending-rekey rows that claims a
+  --   MEASURED hard-deny provenance declares at least one arm site.
+  --
+  -- ⛔ THE `not-attributable-until-rekey` CLASS IS EXCLUDED, AND THAT IS A PARTITION, NOT A
+  -- SILENCER. M6 in the generator already refuses that label to any row that ENUMERATES sites,
+  -- so the two are mutually exclusive by construction: a pending row is either DECLARED-unproven
+  -- (the hatch, no sites) or claims to be measured (and then owes its sites). Clean / unproven /
+  -- dirty, partitioned — the third state is what reds here. ⚠ MEASURED 2026-09-14: all 37 of
+  -- `staff_admin`'s pending rows and all 38 overall carry the hatch, so this arm ranges over
+  -- ZERO rows today and its discrimination half (6a) is what proves it can still bite.
+  -- ⚠ `staff` contributes no pending rows at all after T7; that half is vacuous BY SUCCESS,
+  -- which is exactly the state L13 tried and failed to express globally.
+  and not exists (
+        select 1
+          from authz_manifest_permissions m
+          join authz_manifest_approved_suites a on true
+          join authz.role_permissions rp
+            on rp.role_code = a.role_code and rp.permission_code = m.code
+         where m.status = 'pending-rekey'
+           and m.hard_deny_provenance like 'measured-%'
+           and not exists (select 1 from authz_manifest_arm_sites s where s.code = m.code))
   and (select count(*) from authz_manifest_hard_deny_vocab where gate is not null) > 0
   and (select count(*) from authz_manifest_permissions
         where hard_deny_provenance like 'measured-%') = 23,
   '6.3 CARDINALITY CONTROL for 6.2: all THREE of its domains are non-empty and the measured-row '
-  'population is exactly 23 — ⚠ RE-PINNED 3 -> 23 at AE5 increment 1 (2026-09-13) AFTER BEING '
+  'population is exactly 23. ⚠⚠ THE ARM-SITE CONJUNCT WAS RE-RULED AT AE5 T7 (lead ruling '
+  'L13''): L13''s global `OR no row left pending-rekey` went FALSE IN BOTH ARMS when T7 emptied '
+  'the arm table while 38 rows stayed pending, so it is now per-role and per-row — every '
+  'approved-suite role''s pending rows that claim a MEASURED provenance must declare an arm '
+  'site, with the M6-fenced `not-attributable-until-rekey` class partitioned out rather than '
+  'silenced. ⚠ RE-PINNED 3 -> 23 at AE5 increment 1 (2026-09-13) AFTER BEING '
   'OBSERVED RED, never pre-adjusted. The number is a POPULATION, not a semantic, change: 6.2 '
   'roots from `enforcementSites` u `domainAuthorizer` u `armInterface` since L6, so the 20 '
   '`pending-rekey` rows that declare their surface in `armInterface` now derive too. It '
@@ -842,18 +943,66 @@ create temp table t410_carriers on commit drop as
 -- ⚠ REUSES §3's `policy_body` / `fn_body` deliberately. One definition of "the body" across
 -- §3.5, §6.2 and §8 means a fix to the extraction cannot leave one arm reading a different text
 -- from another. Their bound (block comments are NOT stripped) is stated at their definition.
+-- ⭐⭐ THE DECLARED-COMPOSITION CHAIN (lead ruling L23). Hop 0 is the code as a literal in the
+-- body; hop 1 is a call to a function that carries the literal. ⛔ TWO HOPS WERE INVISIBLE, and
+-- the shape is not hypothetical: AE5 T7 routed `public.meeting_signatures / meeting_signatures_insert`
+-- through `app.can_sign_meeting`, which calls `app.can_meetings_minutes_sign`, which carries the
+-- literal. The policy IS re-keyed; the instrument could only see one hop, so § 8.1 read it as a
+-- declared site that does not enforce. ⛔ THE FIX IS NOT "FOLLOW ANY CALL". An unbounded call
+-- walk would make almost every policy reach almost every code and § 8.4's closure would stop
+-- discriminating. It follows the manifest's OWN `composedWith` declaration, and VERIFIES EACH
+-- HOP IN THE CATALOG: the body must really call the declared target, the target must itself be a
+-- DECLARED SITE of the same code, and the walk is depth-bounded. So an UNDECLARED two-hop route
+-- still reads as not-reaching — which is the finding § 8.1 exists to make — while a route the
+-- manifest states and the catalog confirms is followed.
+create or replace function pg_temp.site_body(
+  p_kind text, p_schema text, p_relation text, p_name text)
+returns text language sql stable as $$
+  select case p_kind
+           when 'policy' then coalesce(pg_temp.policy_body(p_schema, p_relation, p_name), '')
+           else               coalesce(pg_temp.fn_body(p_schema, p_name), '')
+         end;
+$$;
+
+create or replace function pg_temp.reaches_code_d(
+  p_kind text, p_schema text, p_relation text, p_name text, p_code text, p_depth int)
+returns boolean language sql stable as $$
+  with src as (select pg_temp.site_body(p_kind, p_schema, p_relation, p_name) as b)
+  select (select position('''' || p_code || '''' in src.b) > 0 from src)      -- hop 0
+      or exists (select 1 from t410_carriers c, src                            -- hop 1
+                  where c.code = p_code and position(c.fn || '(' in src.b) > 0)
+      or (p_depth > 0 and exists (
+            -- the DECLARED composition of THIS site, each hop verified in the catalog
+            select 1
+              from authz_manifest_sites me
+              cross join lateral unnest(me.composed_with) as g(fn)
+              join authz_manifest_sites tgt
+                on tgt.code = me.code
+               and tgt.site_kind = 'function'
+               and tgt.site_schema || '.' || tgt.site_name = g.fn
+             where me.code = p_code
+               and me.site_kind = p_kind
+               and me.site_schema = p_schema
+               and me.site_name = p_name
+               and me.site_relation is not distinct from p_relation
+               -- ⛔ VERIFIED, NOT TAKEN ON TRUST: the body must really make the declared call,
+               --    and the target must really exist as a function in the catalog.
+               and position(g.fn || '(' in (select b from src)) > 0
+               and pg_temp.fn_body(tgt.site_schema, tgt.site_name) is not null
+               and pg_temp.reaches_code_d(tgt.site_kind, tgt.site_schema, tgt.site_relation,
+                                          tgt.site_name, p_code, p_depth - 1)));
+$$;
+
 create or replace function pg_temp.reaches_code(
   p_kind text, p_schema text, p_relation text, p_name text, p_code text)
 returns boolean language sql stable as $$
-  with src as (
-    select case p_kind
-             when 'policy' then coalesce(pg_temp.policy_body(p_schema, p_relation, p_name), '')
-             else               coalesce(pg_temp.fn_body(p_schema, p_name), '')
-           end as b
-  )
-  select (select position('''' || p_code || '''' in src.b) > 0 from src)      -- hop 0
-      or exists (select 1 from t410_carriers c, src                            -- hop 1
-                  where c.code = p_code and position(c.fn || '(' in src.b) > 0);
+  -- ⚠ DEPTH 6, not 3 (lead ruling L24). Row 9's grant path is now a FIVE-hop declared
+  --    chain: can_reach_case_on_member_surface -> can_cases_deliberation_read ->
+  --    has_case_capability -> _case_caps -> can_cases_deliberation_read_in_commission, which
+  --    carries the literal. ⛔ The bound still matters: it is what stops this becoming an
+  --    unbounded call walk, and every hop must be DECLARED on the row, so raising it cannot
+  --    admit a route the manifest has not written down.
+  select pg_temp.reaches_code_d(p_kind, p_schema, p_relation, p_name, p_code, 6);
 $$;
 
 select is(
@@ -927,7 +1076,44 @@ select is(
             '; ' order by c.code, c.fn), '(none)')
      from t410_carriers c
      join authz_manifest_permissions m on m.code = c.code),
+  -- ⚠ RE-PINNED 4 -> 24 NAMES AT AE5 T7 (2026-09-14), OBSERVED RED FIRST. Every one of the
+  -- 20 new elements is an [authorizer] — the `staff` door this increment creates for its own
+  -- row. NOT ONE new [UNDECLARED] carrier appeared, which is the half of this arm that would
+  -- have been a finding; the fourth element's [declared site] text is unchanged.
+  -- ⚠ RE-PINNED 24 -> 25 NAMES at AE5 T7 (2026-09-14), observed RED first. The 25th is
+  -- `app.can_cases_deliberation_read_in_commission`, row 9's SECOND door (lead ruling L20):
+  -- it carries the permission literal, so it became a carrier the moment it existed, and it
+  -- reads [declared site] rather than [UNDECLARED] because the same ruling declares it in
+  -- that row's enforcementSites. ⭐ THE ARM CAUGHT IT AS [UNDECLARED] ON ITS FIRST RUN — this
+  -- string was updated after the ruling, never widened to absorb the new name.
+  -- ⚠ 25 -> 24 NAMES at AE5 T7 (2026-09-14), observed RED first. The name that LEFT is
+  -- `app.can_cases_deliberation_read`: lead ruling L24 removed its permission disjunct, so
+  -- row 9's domain authorizer no longer carries the code as a literal — the 21st door,
+  -- `app.can_cases_deliberation_read_in_commission`, carries it instead, one hop down the
+  -- declared chain. ⛔ A CARRIER LEAVING IS EXACTLY WHAT THIS ARM SAYS MUST BE RECORDED
+  -- RATHER THAN ABSORBED, and § 4.4 is the half that proves the code is still carried
+  -- somewhere: a row that stopped carrying its code ENTIRELY would red there, not here.
+  'commission.accreditation.read => app.can_accreditation_read [authorizer]; '
+  'commission.action_items.read => app.can_action_items_read [authorizer]; '
+  'commission.capa.read => app.can_capa_read [authorizer]; '
+  'commission.cases.deliberation.read => app.can_cases_deliberation_read_in_commission [declared site]; '
+  'commission.cases.vocabulary.read => app.can_cases_vocabulary_read [authorizer]; '
+  'commission.cases.vote => app.can_cases_vote [authorizer]; '
+  'commission.charter.read => app.can_charter_read [authorizer]; '
+  'commission.documents.read => app.can_documents_read [authorizer]; '
   'commission.forms.edit => app.can_edit_commission_forms [authorizer]; '
+  'commission.forms.read => app.can_forms_read [authorizer]; '
+  'commission.indicators.read => app.can_indicators_read [authorizer]; '
+  'commission.meetings.cases.shell.read => app.can_meetings_cases_shell_read [authorizer]; '
+  'commission.meetings.minutes.sign => app.can_meetings_minutes_sign [authorizer]; '
+  'commission.meetings.read => app.can_meetings_read [authorizer]; '
+  'commission.process_templates.read => app.can_process_templates_read [authorizer]; '
+  'commission.referrals.metadata.read => app.can_referrals_metadata_read [authorizer]; '
+  'commission.referrals.notes.author => app.can_referrals_notes_author [authorizer]; '
+  'commission.responses.create => app.can_responses_create [authorizer]; '
+  'commission.roster.read => app.can_roster_read [authorizer]; '
+  'commission.safety_events.read => app.can_safety_events_read [authorizer]; '
+  'commission.safety_events.report => app.can_safety_events_report [authorizer]; '
   'org.professionals.create => app.can_create_professional [authorizer]; '
   'org.professionals.read => app.can_read_professional_profile [authorizer]; '
   'org.professionals.read => app.current_professional_read_organizations [declared site]',
@@ -957,7 +1143,7 @@ select is(
     where m.status = 're-keyed'
       and pg_temp.reaches_code('policy', pol.schemaname, pol.tablename, pol.policyname, m.code))::text
   || ' / ' || (select count(*)::int from t410_carriers)::text,
-  '13 / 8 / 4',
+  '82 / 50 / 24',
   '8.6 CARDINALITY CONTROL for 8.1, 8.4 and 8.5, AS A TRIPLE: 13 declared sites on re-keyed '
   'rows, 8 catalog policies that reach a re-keyed code, 4 literal carriers. ⚠ 12 -> 13 on '
   '2026-09-07: `app.current_professional_read_organizations` became a declared site (8.5). The '
@@ -967,7 +1153,17 @@ select is(
   'a `reaches_code` that finds no policy, 8.5 by a carrier table that failed to build. Asserted '
   'as one string so the three cannot drift apart quietly. ⚠ 12 vs 8 is NOT an inconsistency: the '
   'declared 12 include 4 FUNCTION sites, which 8.4''s policy-only domain does not count. These '
-  'numbers RISE with each AE5 re-key; moving them is how an increment is recorded.');
+  'numbers RISE with each AE5 re-key; moving them is how an increment is recorded. ⚠ RE-PINNED '
+  '13 / 8 / 4 -> 82 / 50 / 24 AT AE5 T7 (2026-09-14), OBSERVED RED FIRST — all three moved '
+  'together, which is what a re-key of 20 rows looks like and what a SILENT swap would not. ⚠ THE SECOND '
+  'FIGURE MOVED 49 -> 50 ON THE INSTRUMENT, NOT ON THE CATALOG: lead ruling L23 taught '
+  '`reaches_code` to follow a DECLARED composition chain, so `meeting_signatures_insert` — '
+  'always re-keyed, always two hops from the literal — is now counted. A figure that moves '
+  'because the instrument got sharper is recorded as exactly that, never as a catalog '
+  'change. ⚠ AND THE THIRD FIGURE FELL, 25 -> 24, IN THE SAME MOVE THAT RAISED THE FIRST: '
+  'lead ruling L24 added two declared hops to row 9 while removing the permission literal '
+  'from its authorizer. ⛔ Asserted as one string precisely so a rise and a fall cannot '
+  'cancel each other out of sight.');
 
 -- ⛔⛔ § 8.7 / § 8.8 — THE TWO AXES A SITE-ONLY CLOSURE CANNOT SEE (ADR 0193 D5 / D7, PO ruling
 -- 2026-09-07). § 8.1/§ 8.4 close the POLICY axis in both directions. Two other kinds of catalog
@@ -983,6 +1179,15 @@ select is(
 --     `app.can_read_professional_profile` to decide what to RECORD, never what to permit.
 --     ⛔ Declaring it a site would make § 8.1/§ 8.4 measure a fiction; leaving it undeclared
 --     leaves the consumer axis open. It is a third state and it is declared as one.
+-- ⭐ L22: the body with `--` comments removed, line by line. An identity gate is pinned
+-- against THIS, never against the raw definition — "the door checks X" written in a comment is
+-- exactly the claim no arm could contradict before.
+create or replace function pg_temp.strip_sql_comments(p_body text)
+returns text language sql immutable as $$
+  select string_agg(regexp_replace(l, '--.*$', ''), E'\n')
+    from unnest(string_to_array(coalesce(p_body, ''), E'\n')) with ordinality as u(l, i);
+$$;
+
 create or replace function pg_temp.writes_relation(p_body text, p_schema text, p_relation text)
 returns boolean language sql immutable as $$
   select p_body ~ ('(insert into|update|delete from)[[:space:]]+(' || p_schema || '\.)?'
@@ -1026,17 +1231,39 @@ select is(
       where pg_temp.fn_body(d.fn_schema, d.fn_name) is not null
         and not pg_temp.writes_relation(pg_temp.fn_body(d.fn_schema, d.fn_name), 'public', w)
      union all
-     -- REVERSE 3: the declared gate disagrees with the body. `gate: null` is a CLAIM that the
-     -- door has no authority check at all, and it is checked as one.
+     -- REVERSE 3: the declared gate disagrees with the body. THREE FORMS, DISPATCHED, never
+     -- checked by the same arm by accident:
+     --   * a FUNCTION NAME  -> the body must call it;
+     --   * an IDENTITY expression (lead ruling L22) -> the predicate must appear in the
+     --     COMMENT-STRIPPED body, so a gate described in a comment does not count;
+     --   * `null`           -> a CLAIM that the door has no authority check at all, checked as
+     --     one against the legacy-gate regex.
      select d.code || ' -> ' || d.fn_schema || '.' || d.fn_name || ' declares gate '
-              || coalesce(d.gate, 'null') || ' which the body contradicts'
+              || coalesce(d.gate, d.gate_expression, 'null') || ' which the body contradicts'
        from authz_manifest_definer_surface d
       where pg_temp.fn_body(d.fn_schema, d.fn_name) is not null
         and ((d.gate is not null
               and position(d.gate || '(' in pg_temp.fn_body(d.fn_schema, d.fn_name)) = 0)
-          or (d.gate is null
+          or (d.gate_expression is not null
+              and position(d.gate_expression
+                           in pg_temp.strip_sql_comments(pg_temp.fn_body(d.fn_schema, d.fn_name))) = 0)
+          or (d.gate is null and d.gate_expression is null
               and pg_temp.fn_body(d.fn_schema, d.fn_name)
                   ~ '(app\.is_staff_admin_of|app\.is_tenancy_admin_of|app\.can_edit_commission_forms)\('))
+     union all
+     -- REVERSE 3b: an identity gate whose expression is a COMMENT and nothing else. ⛔ Without
+     -- this the stripped-body check above is satisfiable by prose: `position(... in stripped)`
+     -- would simply be 0 and the row would red — but a gate that appears in BOTH the comment
+     -- and the code is indistinguishable from one that appears only in the code, so the arm
+     -- states the stronger claim explicitly rather than relying on the reader to infer it.
+     select d.code || ' -> ' || d.fn_schema || '.' || d.fn_name
+              || ' declares an identity gate that appears ONLY in a comment'
+       from authz_manifest_definer_surface d
+      where d.gate_expression is not null
+        and pg_temp.fn_body(d.fn_schema, d.fn_name) is not null
+        and position(d.gate_expression in pg_temp.fn_body(d.fn_schema, d.fn_name)) > 0
+        and position(d.gate_expression
+                     in pg_temp.strip_sql_comments(pg_temp.fn_body(d.fn_schema, d.fn_name))) = 0
      union all
      -- REVERSE 4: carriesCode disagrees. The needle carries its quotes and uses `position`,
      -- for §4's reason: permission codes contain `.`, which a regex reads as "any character".

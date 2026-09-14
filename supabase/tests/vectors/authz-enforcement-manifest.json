@@ -408,6 +408,10 @@
       "measured-transitive-over-gated-classes",
       "not-attributable-until-rekey"
     ],
+    "gateKinds": [
+      "identity"
+    ],
+    "_gateKinds_note": "Lead ruling L22. The kinds a definerSurface `gate` may take in its OBJECT form, beside the two scalar forms (a function name, or null for a measured no-gate door). `identity` is an authority check written as a predicate rather than a call — `public.start_correction_draft` admits only the designated corrector. It exists because the two scalar forms could only express that door FALSELY: null means \"no authority check at all\", and naming its liveness check would read as \"gated only on liveness\". 410 § 8.7 pins `expression` against the COMMENT-STRIPPED body, so a gate described in a comment does not count.",
     "lifecycleProvenanceValues": [
       "architecture-rule",
       "axis-vocabulary-inapplicable",
@@ -466,6 +470,12 @@
       "policy",
       "function"
     ],
+    "siteHats": [
+      "required",
+      "conditional",
+      "ignored"
+    ],
+    "_siteHats_note": "Lead ruling L21. Whether the session HAT (the active-role claim) must be present for the arm to fire at that site. `required` = the site cannot grant without it; `conditional` = required at some callers and not others (the site takes an explicit principal, so a caller may pass a third party) — such an entry carries a `hatNote` naming which callers; `ignored` = the site propagates a principal it never re-checks. Carried on enforcementSites since AE5 T7, because a row SHEDS its armInterface when it re-keys and these two facts went with it — taking the subject half of the differential generator's arm14(b) VOID, not red.",
     "forbiddenDefaultKeys": [
       "*",
       "default",
@@ -1233,7 +1243,9 @@
           "name": "forms_staff_admin_write",
           "composedWith": [
             "app.can_edit_commission_forms"
-          ]
+          ],
+          "subject": "caller",
+          "hat": "required"
         },
         {
           "kind": "policy",
@@ -1242,7 +1254,9 @@
           "name": "form_versions_staff_admin_write",
           "composedWith": [
             "app.can_edit_commission_forms"
-          ]
+          ],
+          "subject": "caller",
+          "hat": "required"
         },
         {
           "kind": "policy",
@@ -1251,7 +1265,9 @@
           "name": "form_sections_staff_admin_write",
           "composedWith": [
             "app.can_edit_commission_forms"
-          ]
+          ],
+          "subject": "caller",
+          "hat": "required"
         },
         {
           "kind": "policy",
@@ -1260,7 +1276,9 @@
           "name": "form_items_staff_admin_write",
           "composedWith": [
             "app.can_edit_commission_forms"
-          ]
+          ],
+          "subject": "caller",
+          "hat": "required"
         },
         {
           "kind": "policy",
@@ -1269,7 +1287,9 @@
           "name": "form_item_options_staff_admin_write",
           "composedWith": [
             "app.can_edit_commission_forms"
-          ]
+          ],
+          "subject": "caller",
+          "hat": "required"
         },
         {
           "kind": "policy",
@@ -1278,7 +1298,9 @@
           "name": "form_item_validations_staff_admin_write",
           "composedWith": [
             "app.can_edit_commission_forms"
-          ]
+          ],
+          "subject": "caller",
+          "hat": "required"
         }
       ],
       "callGraphBoundary": null,
@@ -1523,10 +1545,31 @@
       "exception": null
     },
     "commission.meetings.cases.shell.read": {
-      "status": "pending-rekey",
-      "domainAuthorizer": null,
+      "status": "re-keyed",
+      "domainAuthorizer": {
+        "function": "app.can_meetings_cases_shell_read",
+        "signature": "p_meeting_id uuid, p_user_id uuid",
+        "composedWith": [
+          "authz.has_permission"
+        ],
+        "executableByAuthenticated": true,
+        "signatureNote": "MEETING-keyed (lead ruling L16): `public.meeting_cases` has no commission_id column, so the scope is resolved from the meeting INSIDE the door. One of twenty."
+      },
       "targetAuthorizer": null,
-      "enforcementSites": [],
+      "enforcementSites": [
+        {
+          "kind": "policy",
+          "schema": "public",
+          "relation": "meeting_cases",
+          "name": "meeting_cases_select",
+          "composedWith": [
+            "app.can_meetings_cases_shell_read"
+          ],
+          "subject": "caller",
+          "hat": "required",
+          "hatNote": "⚠ SHARED CODE — see commission.safety_events.report. The policy passes auth.uid() into app.can_reach_meeting, so the hat is required at this site."
+        }
+      ],
       "callGraphBoundary": {
         "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).",
         "reviewedBy": "backend/AE4.9-D5",
@@ -1557,11 +1600,7 @@
         "gate": "app.is_staff_admin_of_for",
         "expected": "identical"
       },
-      "pendingRekey": {
-        "layer1Gate": "app.holds_role_via_is_staff_admin_of",
-        "owner": "lead",
-        "expiry": "AE5-complete"
-      },
+      "pendingRekey": null,
       "exception": null,
       "memberGateArm": [
         "none",
@@ -1600,16 +1639,6 @@
           "probeReadsColumn": "meeting_id"
         }
       },
-      "armInterface": [
-        {
-          "site": "public.meeting_cases.meeting_cases_select",
-          "kind": "policy",
-          "subject": "caller",
-          "hat": "required",
-          "definerSurface": "none — policy arm",
-          "hatNote": "⚠ SHARED CODE — see commission.safety_events.report. The policy passes auth.uid() into app.can_reach_meeting, so the hat is required at this site."
-        }
-      ],
       "hardDenyMeasurement": {
         "closureSize": 7,
         "seedSites": 2,
@@ -2088,10 +2117,30 @@
       "exception": null
     },
     "commission.safety_events.report": {
-      "status": "pending-rekey",
-      "domainAuthorizer": null,
+      "status": "re-keyed",
+      "domainAuthorizer": {
+        "function": "app.can_safety_events_report",
+        "signature": "p_commission_id uuid, p_user_id uuid",
+        "composedWith": [
+          "authz.has_permission"
+        ],
+        "executableByAuthenticated": false
+      },
       "targetAuthorizer": null,
-      "enforcementSites": [],
+      "enforcementSites": [
+        {
+          "kind": "function",
+          "schema": "public",
+          "relation": null,
+          "name": "notify_safety_event",
+          "composedWith": [
+            "app.can_safety_events_report"
+          ],
+          "subject": "caller",
+          "hat": "required",
+          "hatNote": "⚠ SHARED CODE: this armInterface lists the site `staff` reaches it through (matrix row 18 — `if not app.is_member_of(p_reporting_commission_id) then raise`). staff_admin reaches the same door through the same membership term, so the entry is the union rather than a second list."
+        }
+      ],
       "callGraphBoundary": {
         "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).",
         "reviewedBy": "backend/AE4.9-D5",
@@ -2121,22 +2170,8 @@
         "gate": "app.is_staff_admin_of_for",
         "expected": "identical"
       },
-      "pendingRekey": {
-        "layer1Gate": "app.holds_role_via_is_staff_admin_of",
-        "owner": "lead",
-        "expiry": "AE5-complete"
-      },
+      "pendingRekey": null,
       "exception": null,
-      "armInterface": [
-        {
-          "site": "public.notify_safety_event",
-          "kind": "function",
-          "subject": "caller",
-          "hat": "required",
-          "definerSurface": "prosecdef=t, carriesCode:false",
-          "hatNote": "⚠ SHARED CODE: this armInterface lists the site `staff` reaches it through (matrix row 18 — `if not app.is_member_of(p_reporting_commission_id) then raise`). staff_admin reaches the same door through the same membership term, so the entry is the union rather than a second list."
-        }
-      ],
       "hardDenyMeasurement": {
         "closureSize": 7,
         "seedSites": 1,
@@ -2438,7 +2473,9 @@
           "name": "create_professional_profile",
           "composedWith": [
             "app.can_create_professional"
-          ]
+          ],
+          "subject": "caller",
+          "hat": "required"
         },
         {
           "kind": "function",
@@ -2447,7 +2484,9 @@
           "name": "ensure_professional_participant",
           "composedWith": [
             "app.can_create_professional"
-          ]
+          ],
+          "subject": "caller",
+          "hat": "required"
         },
         {
           "kind": "function",
@@ -2456,7 +2495,9 @@
           "name": "set_professional_link_state",
           "composedWith": [
             "app.can_create_professional"
-          ]
+          ],
+          "subject": "caller",
+          "hat": "required"
         }
       ],
       "callGraphBoundary": null,
@@ -2576,7 +2617,9 @@
           "name": "professional_profiles_select",
           "composedWith": [
             "app.can_read_professional_profile"
-          ]
+          ],
+          "subject": "caller",
+          "hat": "required"
         },
         {
           "kind": "policy",
@@ -2585,7 +2628,9 @@
           "name": "professional_participants_select",
           "composedWith": [
             "app.can_read_professional_profile"
-          ]
+          ],
+          "subject": "caller",
+          "hat": "required"
         },
         {
           "kind": "function",
@@ -2594,7 +2639,9 @@
           "name": "get_case_professional",
           "composedWith": [
             "app.can_read_professional_profile"
-          ]
+          ],
+          "subject": "caller",
+          "hat": "required"
         },
         {
           "kind": "function",
@@ -2603,7 +2650,9 @@
           "name": "current_professional_read_organizations",
           "composedWith": [
             "authz.authorized_scope_ids"
-          ]
+          ],
+          "subject": "caller",
+          "hat": "required"
         }
       ],
       "callGraphBoundary": null,
@@ -2666,10 +2715,117 @@
       "exception": null
     },
     "commission.forms.read": {
-      "status": "pending-rekey",
-      "domainAuthorizer": null,
+      "status": "re-keyed",
+      "domainAuthorizer": {
+        "function": "app.can_forms_read",
+        "signature": "p_commission_id uuid, p_user_id uuid",
+        "composedWith": [
+          "authz.has_permission"
+        ],
+        "executableByAuthenticated": true
+      },
       "targetAuthorizer": null,
-      "enforcementSites": [],
+      "enforcementSites": [
+        {
+          "kind": "policy",
+          "schema": "public",
+          "relation": "forms",
+          "name": "forms_select",
+          "composedWith": [
+            "app.can_forms_read"
+          ],
+          "subject": "caller",
+          "hat": "required"
+        },
+        {
+          "kind": "policy",
+          "schema": "public",
+          "relation": "form_versions",
+          "name": "form_versions_select",
+          "composedWith": [
+            "app.can_forms_read"
+          ],
+          "subject": "caller",
+          "hat": "required"
+        },
+        {
+          "kind": "policy",
+          "schema": "public",
+          "relation": "form_sections",
+          "name": "form_sections_select",
+          "composedWith": [
+            "app.can_forms_read"
+          ],
+          "subject": "caller",
+          "hat": "required"
+        },
+        {
+          "kind": "policy",
+          "schema": "public",
+          "relation": "form_items",
+          "name": "form_items_select",
+          "composedWith": [
+            "app.can_forms_read"
+          ],
+          "subject": "caller",
+          "hat": "required"
+        },
+        {
+          "kind": "policy",
+          "schema": "public",
+          "relation": "form_item_options",
+          "name": "form_item_options_select",
+          "composedWith": [
+            "app.can_forms_read"
+          ],
+          "subject": "caller",
+          "hat": "required"
+        },
+        {
+          "kind": "policy",
+          "schema": "public",
+          "relation": "form_item_validations",
+          "name": "form_item_validations_select",
+          "composedWith": [
+            "app.can_forms_read"
+          ],
+          "subject": "caller",
+          "hat": "required"
+        },
+        {
+          "kind": "policy",
+          "schema": "public",
+          "relation": "form_matrix_rows",
+          "name": "form_matrix_rows_select",
+          "composedWith": [
+            "app.can_forms_read"
+          ],
+          "subject": "caller",
+          "hat": "required"
+        },
+        {
+          "kind": "policy",
+          "schema": "public",
+          "relation": "form_matrix_columns",
+          "name": "form_matrix_columns_select",
+          "composedWith": [
+            "app.can_forms_read"
+          ],
+          "subject": "caller",
+          "hat": "required"
+        },
+        {
+          "kind": "policy",
+          "schema": "storage",
+          "relation": "objects",
+          "name": "form_assets_select_member",
+          "composedWith": [
+            "app.can_forms_read"
+          ],
+          "subject": "caller",
+          "hat": "required"
+        }
+      ],
       "callGraphBoundary": {
         "reason": "Enforcement is still membership-keyed: the sites are the 40 policies and 42 function bodies calling app.is_member_of(_for) -> app.has_role_any. Those calls ask a ROLE-SET question (any commission-tier role) and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3). ⛔ The per-arm subject/hat/definerSurface declarations ARE attributable today and are carried in `armInterface`, which is why that field exists separately from `enforcementSites`.",
         "reviewedBy": "backend/AE5-STAFF-T5",
@@ -2699,81 +2855,12 @@
         "gate": "app.is_member_of_for",
         "expected": "identical"
       },
-      "pendingRekey": {
-        "layer1Gate": "app.has_role_any_via_is_member_of",
-        "owner": "backend",
-        "expiry": "AE5-STAFF-complete"
-      },
+      "pendingRekey": null,
       "exception": null,
       "memberGateArm": [
         "none",
         "disjunct_present",
         "disjunct_absent"
-      ],
-      "armInterface": [
-        {
-          "site": "public.forms.forms_select",
-          "kind": "policy",
-          "subject": "caller",
-          "hat": "required",
-          "definerSurface": "none — policy arm"
-        },
-        {
-          "site": "public.form_versions.form_versions_select",
-          "kind": "policy",
-          "subject": "caller",
-          "hat": "required",
-          "definerSurface": "none — policy arm"
-        },
-        {
-          "site": "public.form_sections.form_sections_select",
-          "kind": "policy",
-          "subject": "caller",
-          "hat": "required",
-          "definerSurface": "none — policy arm"
-        },
-        {
-          "site": "public.form_items.form_items_select",
-          "kind": "policy",
-          "subject": "caller",
-          "hat": "required",
-          "definerSurface": "none — policy arm"
-        },
-        {
-          "site": "public.form_item_options.form_item_options_select",
-          "kind": "policy",
-          "subject": "caller",
-          "hat": "required",
-          "definerSurface": "none — policy arm"
-        },
-        {
-          "site": "public.form_item_validations.form_item_validations_select",
-          "kind": "policy",
-          "subject": "caller",
-          "hat": "required",
-          "definerSurface": "none — policy arm"
-        },
-        {
-          "site": "public.form_matrix_rows.form_matrix_rows_select",
-          "kind": "policy",
-          "subject": "caller",
-          "hat": "required",
-          "definerSurface": "none — policy arm"
-        },
-        {
-          "site": "public.form_matrix_columns.form_matrix_columns_select",
-          "kind": "policy",
-          "subject": "caller",
-          "hat": "required",
-          "definerSurface": "none — policy arm"
-        },
-        {
-          "site": "storage.objects.form_assets_select_member",
-          "kind": "policy",
-          "subject": "caller",
-          "hat": "required",
-          "definerSurface": "none — policy arm"
-        }
       ],
       "arm3Door": {
         "reach": {
@@ -2830,10 +2917,29 @@
       }
     },
     "commission.responses.create": {
-      "status": "pending-rekey",
-      "domainAuthorizer": null,
+      "status": "re-keyed",
+      "domainAuthorizer": {
+        "function": "app.can_responses_create",
+        "signature": "p_commission_id uuid, p_user_id uuid",
+        "composedWith": [
+          "authz.has_permission"
+        ],
+        "executableByAuthenticated": true
+      },
       "targetAuthorizer": null,
-      "enforcementSites": [],
+      "enforcementSites": [
+        {
+          "kind": "policy",
+          "schema": "public",
+          "relation": "responses",
+          "name": "responses_insert_own",
+          "composedWith": [
+            "app.can_responses_create"
+          ],
+          "subject": "caller",
+          "hat": "required"
+        }
+      ],
       "callGraphBoundary": {
         "reason": "Enforcement is still membership-keyed: the sites are the 40 policies and 42 function bodies calling app.is_member_of(_for) -> app.has_role_any. Those calls ask a ROLE-SET question (any commission-tier role) and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3). ⛔ The per-arm subject/hat/definerSurface declarations ARE attributable today and are carried in `armInterface`, which is why that field exists separately from `enforcementSites`.",
         "reviewedBy": "backend/AE5-STAFF-T5",
@@ -2856,38 +2962,84 @@
         "principal_inactive"
       ],
       "hardDenyProvenance": "measured-transitive-over-gated-classes",
-      "definerSurface": [],
+      "definerSurface": [
+        {
+          "schema": "public",
+          "name": "reject_correction",
+          "writes": [
+            "case_correction_requests",
+            "responses"
+          ],
+          "gate": "app.is_staff_admin_of",
+          "carriesCode": false,
+          "executableByAuthenticated": true
+        },
+        {
+          "schema": "public",
+          "name": "start_correction_draft",
+          "writes": [
+            "case_correction_requests",
+            "responses"
+          ],
+          "gate": {
+            "kind": "identity",
+            "expression": "auth.uid() is distinct from v_corrector"
+          },
+          "carriesCode": false,
+          "executableByAuthenticated": true
+        },
+        {
+          "schema": "public",
+          "name": "submit_targeted_case_response",
+          "writes": [
+            "responses"
+          ],
+          "gate": "app.can_access_targeted_response",
+          "carriesCode": false,
+          "executableByAuthenticated": true
+        },
+        {
+          "schema": "public",
+          "name": "supersede_response",
+          "writes": [
+            "responses"
+          ],
+          "gate": "app.is_staff_admin_of",
+          "carriesCode": false,
+          "executableByAuthenticated": true
+        },
+        {
+          "schema": "public",
+          "name": "target_case_response",
+          "writes": [
+            "responses"
+          ],
+          "gate": "app.is_staff_admin_of",
+          "carriesCode": false,
+          "executableByAuthenticated": true
+        },
+        {
+          "schema": "public",
+          "name": "withdraw_correction",
+          "writes": [
+            "case_correction_requests",
+            "responses"
+          ],
+          "gate": "app.is_staff_admin_of",
+          "carriesCode": false,
+          "executableByAuthenticated": true
+        }
+      ],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
       "legacyEquivalence": {
         "gate": "app.is_member_of_for",
         "expected": "identical"
       },
-      "pendingRekey": {
-        "layer1Gate": "app.has_role_any_via_is_member_of",
-        "owner": "backend",
-        "expiry": "AE5-STAFF-complete"
-      },
+      "pendingRekey": null,
       "exception": null,
       "memberGateArm": [
         "none"
-      ],
-      "armInterface": [
-        {
-          "site": "public.responses.responses_insert_own",
-          "kind": "policy",
-          "subject": "caller",
-          "hat": "required",
-          "definerSurface": "NOT empty: public.responses has 5 DEFINER writers (reject_correction, start_correction_draft, submit_targeted_case_response, supersede_response, target_case_response) and 4 INVOKER ones. NONE of the 5 is in the is_member_of population, so none sits on staff’s legacy gate ⇒ carriesCode:false, and all 5 are OUT of this row’s re-key surface."
-        },
-        {
-          "site": "src/lib/responses/actions.ts:282-287 authorizeMember",
-          "kind": "ts",
-          "subject": "caller",
-          "hat": "n/a",
-          "definerSurface": "none — defence in depth only",
-          "hatNote": "the TS layer reads no active_role"
-        }
       ],
       "hardDenyMeasurement": {
         "closureSize": 4,
@@ -2906,10 +3058,62 @@
       }
     },
     "commission.roster.read": {
-      "status": "pending-rekey",
-      "domainAuthorizer": null,
+      "status": "re-keyed",
+      "domainAuthorizer": {
+        "function": "app.can_roster_read",
+        "signature": "p_commission_id uuid, p_user_id uuid",
+        "composedWith": [
+          "authz.has_permission"
+        ],
+        "executableByAuthenticated": true
+      },
       "targetAuthorizer": null,
-      "enforcementSites": [],
+      "enforcementSites": [
+        {
+          "kind": "policy",
+          "schema": "public",
+          "relation": "memberships",
+          "name": "memberships_select",
+          "composedWith": [
+            "app.can_roster_read"
+          ],
+          "subject": "caller",
+          "hat": "required"
+        },
+        {
+          "kind": "policy",
+          "schema": "public",
+          "relation": "commissions",
+          "name": "commissions_select_member_or_admin",
+          "composedWith": [
+            "app.can_roster_read"
+          ],
+          "subject": "caller",
+          "hat": "required"
+        },
+        {
+          "kind": "policy",
+          "schema": "public",
+          "relation": "profiles",
+          "name": "profiles_select_self_or_admin",
+          "composedWith": [
+            "app.can_roster_read"
+          ],
+          "subject": "caller",
+          "hat": "required"
+        },
+        {
+          "kind": "policy",
+          "schema": "public",
+          "relation": "commission_member_titles",
+          "name": "member_titles_select",
+          "composedWith": [
+            "app.can_roster_read"
+          ],
+          "subject": "caller",
+          "hat": "required"
+        }
+      ],
       "callGraphBoundary": {
         "reason": "Enforcement is still membership-keyed: the sites are the 40 policies and 42 function bodies calling app.is_member_of(_for) -> app.has_role_any. Those calls ask a ROLE-SET question (any commission-tier role) and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3). ⛔ The per-arm subject/hat/definerSurface declarations ARE attributable today and are carried in `armInterface`, which is why that field exists separately from `enforcementSites`.",
         "reviewedBy": "backend/AE5-STAFF-T5",
@@ -2939,11 +3143,7 @@
         "gate": "app.is_member_of_for",
         "expected": "identical"
       },
-      "pendingRekey": {
-        "layer1Gate": "app.has_role_any_via_is_member_of",
-        "owner": "backend",
-        "expiry": "AE5-STAFF-complete"
-      },
+      "pendingRekey": null,
       "exception": null,
       "memberGateArm": [
         "none",
@@ -2951,36 +3151,6 @@
         "conjunct_unmet",
         "disjunct_present",
         "disjunct_absent"
-      ],
-      "armInterface": [
-        {
-          "site": "public.memberships.memberships_select",
-          "kind": "policy",
-          "subject": "caller",
-          "hat": "required",
-          "definerSurface": "none — policy arm"
-        },
-        {
-          "site": "public.commissions.commissions_select_member_or_admin",
-          "kind": "policy",
-          "subject": "caller",
-          "hat": "required",
-          "definerSurface": "none — policy arm"
-        },
-        {
-          "site": "public.profiles.profiles_select_self_or_admin",
-          "kind": "policy",
-          "subject": "caller",
-          "hat": "required",
-          "definerSurface": "none — policy arm"
-        },
-        {
-          "site": "public.commission_member_titles.member_titles_select",
-          "kind": "policy",
-          "subject": "caller",
-          "hat": "required",
-          "definerSurface": "none — policy arm"
-        }
       ],
       "arm3Door": {
         "reach": {
@@ -3038,10 +3208,51 @@
       }
     },
     "commission.charter.read": {
-      "status": "pending-rekey",
-      "domainAuthorizer": null,
+      "status": "re-keyed",
+      "domainAuthorizer": {
+        "function": "app.can_charter_read",
+        "signature": "p_commission_id uuid, p_user_id uuid",
+        "composedWith": [
+          "authz.has_permission"
+        ],
+        "executableByAuthenticated": true
+      },
       "targetAuthorizer": null,
-      "enforcementSites": [],
+      "enforcementSites": [
+        {
+          "kind": "policy",
+          "schema": "public",
+          "relation": "commission_charters",
+          "name": "commission_charters_select",
+          "composedWith": [
+            "app.can_charter_read"
+          ],
+          "subject": "caller",
+          "hat": "required"
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "relation": null,
+          "name": "meeting_cadence_status",
+          "composedWith": [
+            "app.can_charter_read"
+          ],
+          "subject": "caller",
+          "hat": "required"
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "relation": null,
+          "name": "suggest_carry_forward",
+          "composedWith": [
+            "app.can_charter_read"
+          ],
+          "subject": "caller",
+          "hat": "required"
+        }
+      ],
       "callGraphBoundary": {
         "reason": "Enforcement is still membership-keyed: the sites are the 40 policies and 42 function bodies calling app.is_member_of(_for) -> app.has_role_any. Those calls ask a ROLE-SET question (any commission-tier role) and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3). ⛔ The per-arm subject/hat/definerSurface declarations ARE attributable today and are carried in `armInterface`, which is why that field exists separately from `enforcementSites`.",
         "reviewedBy": "backend/AE5-STAFF-T5",
@@ -3073,37 +3284,10 @@
         "gate": "app.is_member_of_for",
         "expected": "identical"
       },
-      "pendingRekey": {
-        "layer1Gate": "app.has_role_any_via_is_member_of",
-        "owner": "backend",
-        "expiry": "AE5-STAFF-complete"
-      },
+      "pendingRekey": null,
       "exception": null,
       "memberGateArm": [
         "none"
-      ],
-      "armInterface": [
-        {
-          "site": "public.commission_charters.commission_charters_select",
-          "kind": "policy",
-          "subject": "caller",
-          "hat": "required",
-          "definerSurface": "none — policy arm"
-        },
-        {
-          "site": "public.meeting_cadence_status",
-          "kind": "function",
-          "subject": "caller",
-          "hat": "required",
-          "definerSurface": "prosecdef=t, carriesCode:false"
-        },
-        {
-          "site": "public.suggest_carry_forward",
-          "kind": "function",
-          "subject": "caller",
-          "hat": "required",
-          "definerSurface": "prosecdef=t, carriesCode:false"
-        }
       ],
       "hardDenyMeasurement": {
         "closureSize": 31,
@@ -3122,10 +3306,63 @@
       }
     },
     "commission.meetings.read": {
-      "status": "pending-rekey",
-      "domainAuthorizer": null,
+      "status": "re-keyed",
+      "domainAuthorizer": {
+        "function": "app.can_meetings_read",
+        "signature": "p_commission_id uuid, p_user_id uuid",
+        "composedWith": [
+          "authz.has_permission"
+        ],
+        "executableByAuthenticated": true
+      },
       "targetAuthorizer": null,
-      "enforcementSites": [],
+      "enforcementSites": [
+        {
+          "kind": "policy",
+          "schema": "public",
+          "relation": "meetings",
+          "name": "meetings_select",
+          "composedWith": [
+            "app.can_meetings_read"
+          ],
+          "subject": "caller",
+          "hat": "required"
+        },
+        {
+          "kind": "policy",
+          "schema": "public",
+          "relation": "commission_meeting_settings",
+          "name": "meeting_settings_select",
+          "composedWith": [
+            "app.can_meetings_read"
+          ],
+          "subject": "caller",
+          "hat": "required"
+        },
+        {
+          "kind": "policy",
+          "schema": "public",
+          "relation": "commission_meeting_types",
+          "name": "meeting_types_select",
+          "composedWith": [
+            "app.can_meetings_read"
+          ],
+          "subject": "caller",
+          "hat": "required"
+        },
+        {
+          "kind": "function",
+          "schema": "app",
+          "relation": null,
+          "name": "can_reach_meeting",
+          "composedWith": [
+            "app.can_meetings_read"
+          ],
+          "subject": "p_uid",
+          "hat": "conditional",
+          "hatNote": "required at its 5 policy callers, each passing auth.uid() (meeting_agenda_items_select, meeting_closed_sessions_select, meeting_cases_select, meeting_attendees_select, meeting_signatures_select) and at the 4 function callers passing v_uid; ignored at app.can_view_printed_document and app.can_read_full_case_content, which propagate p_uid"
+        }
+      ],
       "callGraphBoundary": {
         "reason": "Enforcement is still membership-keyed: the sites are the 40 policies and 42 function bodies calling app.is_member_of(_for) -> app.has_role_any. Those calls ask a ROLE-SET question (any commission-tier role) and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3). ⛔ The per-arm subject/hat/definerSurface declarations ARE attributable today and are carried in `armInterface`, which is why that field exists separately from `enforcementSites`.",
         "reviewedBy": "backend/AE5-STAFF-T5",
@@ -3145,8 +3382,7 @@
         "resolutionScopeKind": "commission"
       },
       "hardDenyClasses": [
-        "principal_inactive",
-        "respondent_exclusion"
+        "principal_inactive"
       ],
       "hardDenyProvenance": "measured-transitive-over-gated-classes",
       "definerSurface": [],
@@ -3156,55 +3392,12 @@
         "gate": "app.is_member_of_for",
         "expected": "identical"
       },
-      "pendingRekey": {
-        "layer1Gate": "app.has_role_any_via_is_member_of",
-        "owner": "backend",
-        "expiry": "AE5-STAFF-complete"
-      },
+      "pendingRekey": null,
       "exception": null,
       "memberGateArm": [
         "none",
         "conjunct_met",
         "conjunct_unmet"
-      ],
-      "armInterface": [
-        {
-          "site": "public.meetings.meetings_select",
-          "kind": "policy",
-          "subject": "caller",
-          "hat": "required",
-          "definerSurface": "none — policy arm"
-        },
-        {
-          "site": "public.commission_meeting_settings.meeting_settings_select",
-          "kind": "policy",
-          "subject": "caller",
-          "hat": "required",
-          "definerSurface": "none — policy arm"
-        },
-        {
-          "site": "public.commission_meeting_types.meeting_types_select",
-          "kind": "policy",
-          "subject": "caller",
-          "hat": "required",
-          "definerSurface": "none — policy arm"
-        },
-        {
-          "site": "app.can_reach_meeting",
-          "kind": "function",
-          "subject": "p_uid",
-          "hat": "conditional",
-          "definerSurface": "prosecdef=t, carriesCode:false",
-          "hatNote": "required at its 5 policy callers, each passing auth.uid() (meeting_agenda_items_select, meeting_closed_sessions_select, meeting_cases_select, meeting_attendees_select, meeting_signatures_select) and at the 4 function callers passing v_uid; ignored at app.can_view_printed_document and app.can_read_full_case_content, which propagate p_uid"
-        },
-        {
-          "site": "app._audit_access_authorized — 'meeting.viewed' and 'interview.viewed' legs",
-          "kind": "registry",
-          "subject": "caller (v_uid := auth.uid())",
-          "hat": "required",
-          "definerSurface": "prosecdef=t, carriesCode:false",
-          "hatNote": "mirrors this row, never a row of its own (matrix § 8.4)"
-        }
       ],
       "arm3Door": {
         "kind": "function",
@@ -3246,10 +3439,41 @@
       }
     },
     "commission.meetings.minutes.sign": {
-      "status": "pending-rekey",
-      "domainAuthorizer": null,
+      "status": "re-keyed",
+      "domainAuthorizer": {
+        "function": "app.can_meetings_minutes_sign",
+        "signature": "p_commission_id uuid, p_user_id uuid",
+        "composedWith": [
+          "authz.has_permission"
+        ],
+        "executableByAuthenticated": true
+      },
       "targetAuthorizer": null,
-      "enforcementSites": [],
+      "enforcementSites": [
+        {
+          "kind": "policy",
+          "schema": "public",
+          "relation": "meeting_signatures",
+          "name": "meeting_signatures_insert",
+          "composedWith": [
+            "app.can_sign_meeting"
+          ],
+          "subject": "caller",
+          "hat": "required"
+        },
+        {
+          "kind": "function",
+          "schema": "app",
+          "relation": null,
+          "name": "can_sign_meeting",
+          "composedWith": [
+            "app.can_meetings_minutes_sign"
+          ],
+          "subject": "p_signer",
+          "hat": "conditional",
+          "hatNote": "required at both live callers — meeting_signatures_insert passes auth.uid(); public.sign_meeting passes v_uid"
+        }
+      ],
       "callGraphBoundary": {
         "reason": "Enforcement is still membership-keyed: the sites are the 40 policies and 42 function bodies calling app.is_member_of(_for) -> app.has_role_any. Those calls ask a ROLE-SET question (any commission-tier role) and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3). ⛔ The per-arm subject/hat/definerSurface declarations ARE attributable today and are carried in `armInterface`, which is why that field exists separately from `enforcementSites`.",
         "reviewedBy": "backend/AE5-STAFF-T5",
@@ -3272,47 +3496,42 @@
         "principal_inactive"
       ],
       "hardDenyProvenance": "measured-transitive-over-gated-classes",
-      "definerSurface": [],
+      "definerSurface": [
+        {
+          "schema": "public",
+          "name": "reopen_meeting",
+          "writes": [
+            "meeting_signatures",
+            "meetings"
+          ],
+          "gate": "app.is_staff_admin_of",
+          "carriesCode": false,
+          "executableByAuthenticated": true
+        },
+        {
+          "schema": "public",
+          "name": "sign_meeting",
+          "writes": [
+            "meeting_signatures",
+            "meetings"
+          ],
+          "gate": "app.can_sign_meeting",
+          "carriesCode": false,
+          "executableByAuthenticated": true
+        }
+      ],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
       "legacyEquivalence": {
         "gate": "app.is_member_of_for",
         "expected": "identical"
       },
-      "pendingRekey": {
-        "layer1Gate": "app.has_role_any_via_is_member_of",
-        "owner": "backend",
-        "expiry": "AE5-STAFF-complete"
-      },
+      "pendingRekey": null,
       "exception": null,
       "memberGateArm": [
         "none",
         "conjunct_met",
         "conjunct_unmet"
-      ],
-      "armInterface": [
-        {
-          "site": "public.meeting_signatures.meeting_signatures_insert",
-          "kind": "policy",
-          "subject": "caller",
-          "hat": "required",
-          "definerSurface": "none — policy arm"
-        },
-        {
-          "site": "app.can_sign_meeting",
-          "kind": "function",
-          "subject": "p_signer",
-          "hat": "conditional",
-          "definerSurface": "prosecdef=t, carriesCode:false",
-          "hatNote": "required at both live callers — meeting_signatures_insert passes auth.uid(); public.sign_meeting passes v_uid"
-        },
-        {
-          "site": "public.sign_meeting",
-          "kind": "function",
-          "subject": "caller (v_uid)",
-          "hat": "required",
-          "definerSurface": "prosecdef=t AND IT WRITES public.meeting_signatures — the ADR 0193 D5 split, live on this row. public.reopen_meeting also writes the relation as DEFINER but is not on the staff gate. ⛔ Re-keying the POLICY alone leaves sign_meeting on the legacy gate; because both call app.can_sign_meeting, re-keying THE PREDICATE closes the split in one move — this row’s T7 instruction. carriesCode:false today."
-        }
       ],
       "arm3Door": {
         "kind": "function",
@@ -3354,10 +3573,79 @@
       }
     },
     "commission.cases.deliberation.read": {
-      "status": "pending-rekey",
-      "domainAuthorizer": null,
+      "status": "re-keyed",
+      "domainAuthorizer": {
+        "function": "app.can_cases_deliberation_read",
+        "signature": "p_case_id uuid, p_user_id uuid",
+        "composedWith": [
+          "app.has_case_capability"
+        ],
+        "executableByAuthenticated": false,
+        "signatureNote": "CASE-keyed (lead ruling L17, kept). ONE ARM since lead ruling L24: the permission disjunct was removed because `or` let it grant past the hard denies and past explicit_grants_only that the capability arm applies. The permission is enforced one level down, in app._case_caps S5, through app.can_cases_deliberation_read_in_commission."
+      },
       "targetAuthorizer": null,
-      "enforcementSites": [],
+      "enforcementSites": [
+        {
+          "kind": "function",
+          "schema": "app",
+          "relation": null,
+          "name": "_case_caps",
+          "composedWith": [
+            "app.can_cases_deliberation_read_in_commission"
+          ],
+          "subject": "p_uid",
+          "hat": "conditional",
+          "hatNote": "ignored wherever the caps resolver is asked about a third party, which is its normal use; required where a consumer passes auth.uid()"
+        },
+        {
+          "kind": "function",
+          "schema": "app",
+          "relation": null,
+          "name": "can_reach_case_on_member_surface",
+          "composedWith": [
+            "app.can_cases_deliberation_read"
+          ],
+          "subject": "p_uid",
+          "hat": "conditional"
+        },
+        {
+          "kind": "function",
+          "schema": "app",
+          "relation": null,
+          "name": "can_cases_deliberation_read_in_commission",
+          "composedWith": [
+            "authz.has_permission"
+          ],
+          "subject": "p_user_id",
+          "hat": "ignored",
+          "signatureNote": "THE SECOND DOOR of this row (lead ruling L20), COMMISSION-keyed where the first is CASE-keyed: app.can_cases_deliberation_read_in_commission(p_commission_id uuid, p_user_id uuid). It exists because the case-keyed door composes app.has_case_capability -> app._case_caps, so calling it from inside _case_caps would recurse; S5 needs the permission arm alone, keyed on the commission the case has already resolved. It carries the permission code as a literal, which is why it is a DECLARED site here rather than an UNDECLARED carrier at 410 § 8.5. ⛔ NO EXECUTE GRANT to anon or authenticated: its only caller is a SECURITY DEFINER body, and that is why the 21st door does not move R-4.",
+          "hatNote": "ignored: the door takes the principal as an explicit parameter and never reads the session hat. Its one caller, app._case_caps, is itself a (case, p_uid) resolver that routinely answers about a third party."
+        },
+        {
+          "kind": "function",
+          "schema": "app",
+          "relation": null,
+          "name": "can_cases_deliberation_read",
+          "composedWith": [
+            "app.has_case_capability"
+          ],
+          "subject": "p_user_id",
+          "hat": "ignored",
+          "signatureNote": "The row DOMAIN AUTHORIZER, declared as a site too (lead ruling L24) so the grant path is a chain the manifest states hop by hop and 410 § 8.1 can walk: it no longer carries the permission code itself, it delegates to app.has_case_capability."
+        },
+        {
+          "kind": "function",
+          "schema": "app",
+          "relation": null,
+          "name": "has_case_capability",
+          "composedWith": [
+            "app._case_caps"
+          ],
+          "subject": "p_uid",
+          "hat": "ignored",
+          "signatureNote": "The capability dispatcher: (case, uid, capability name) -> the app._case_caps bitmask. Declared as a hop on row 9 chain, not as a door of its own — it decides nothing, it projects one bit out of the resolver that applies the STEP-4 hard denies and the explicit_grants_only guard."
+        }
+      ],
       "callGraphBoundary": {
         "reason": "Enforcement is still membership-keyed: the sites are the 40 policies and 42 function bodies calling app.is_member_of(_for) -> app.has_role_any. Those calls ask a ROLE-SET question (any commission-tier role) and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3). ⛔ The per-arm subject/hat/definerSurface declarations ARE attributable today and are carried in `armInterface`, which is why that field exists separately from `enforcementSites`.",
         "reviewedBy": "backend/AE5-STAFF-T5",
@@ -3388,26 +3676,12 @@
         "gate": "app.is_member_of_for",
         "expected": "identical"
       },
-      "pendingRekey": {
-        "layer1Gate": "app.has_role_any_via_is_member_of",
-        "owner": "backend",
-        "expiry": "AE5-STAFF-complete"
-      },
+      "pendingRekey": null,
       "exception": null,
       "memberGateArm": [
         "none",
         "conjunct_met",
         "conjunct_unmet"
-      ],
-      "armInterface": [
-        {
-          "site": "app._case_caps — the S5 arm",
-          "kind": "function",
-          "subject": "p_uid",
-          "hat": "conditional",
-          "definerSurface": "prosecdef=t, carriesCode:false. ⛔ The named authorizer app.can_reach_case_on_member_surface (prosecdef=t) has ZERO production callers (matrix § 8.3) — declared so T7 WIRES it rather than only re-keying it.",
-          "hatNote": "ignored wherever the caps resolver is asked about a third party, which is its normal use; required where a consumer passes auth.uid()"
-        }
       ],
       "arm3Door": {
         "kind": "function",
@@ -3449,10 +3723,41 @@
       }
     },
     "commission.action_items.read": {
-      "status": "pending-rekey",
-      "domainAuthorizer": null,
+      "status": "re-keyed",
+      "domainAuthorizer": {
+        "function": "app.can_action_items_read",
+        "signature": "p_commission_id uuid, p_user_id uuid",
+        "composedWith": [
+          "authz.has_permission"
+        ],
+        "executableByAuthenticated": true
+      },
       "targetAuthorizer": null,
-      "enforcementSites": [],
+      "enforcementSites": [
+        {
+          "kind": "policy",
+          "schema": "public",
+          "relation": "action_items",
+          "name": "action_items_select",
+          "composedWith": [
+            "app.can_action_items_read"
+          ],
+          "subject": "caller",
+          "hat": "required"
+        },
+        {
+          "kind": "function",
+          "schema": "app",
+          "relation": null,
+          "name": "can_read_action_item",
+          "composedWith": [
+            "app.can_action_items_read"
+          ],
+          "subject": "p_uid",
+          "hat": "conditional",
+          "hatNote": "required at its 5 policy callers, all passing auth.uid() (action_item_assignments / _status_history / _reminders / _updates / _checklists_select); ignored at app.can_write_action_item_stake, public.compute_due_notifications and app.can_read_document, which pass a third party"
+        }
+      ],
       "callGraphBoundary": {
         "reason": "Enforcement is still membership-keyed: the sites are the 40 policies and 42 function bodies calling app.is_member_of(_for) -> app.has_role_any. Those calls ask a ROLE-SET question (any commission-tier role) and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3). ⛔ The per-arm subject/hat/definerSurface declarations ARE attributable today and are carried in `armInterface`, which is why that field exists separately from `enforcementSites`.",
         "reviewedBy": "backend/AE5-STAFF-T5",
@@ -3484,11 +3789,7 @@
         "gate": "app.is_member_of_for",
         "expected": "identical"
       },
-      "pendingRekey": {
-        "layer1Gate": "app.has_role_any_via_is_member_of",
-        "owner": "backend",
-        "expiry": "AE5-STAFF-complete"
-      },
+      "pendingRekey": null,
       "exception": null,
       "memberGateArm": [
         "none",
@@ -3496,23 +3797,6 @@
         "conjunct_unmet",
         "disjunct_present",
         "disjunct_absent"
-      ],
-      "armInterface": [
-        {
-          "site": "public.action_items.action_items_select",
-          "kind": "policy",
-          "subject": "caller",
-          "hat": "required",
-          "definerSurface": "none — policy arm"
-        },
-        {
-          "site": "app.can_read_action_item",
-          "kind": "function",
-          "subject": "p_uid",
-          "hat": "conditional",
-          "definerSurface": "prosecdef=t, carriesCode:false",
-          "hatNote": "required at its 5 policy callers, all passing auth.uid() (action_item_assignments / _status_history / _reminders / _updates / _checklists_select); ignored at app.can_write_action_item_stake, public.compute_due_notifications and app.can_read_document, which pass a third party"
-        }
       ],
       "arm3Door": {
         "reach": {
@@ -3587,10 +3871,29 @@
       }
     },
     "commission.cases.vote": {
-      "status": "pending-rekey",
-      "domainAuthorizer": null,
+      "status": "re-keyed",
+      "domainAuthorizer": {
+        "function": "app.can_cases_vote",
+        "signature": "p_commission_id uuid, p_user_id uuid",
+        "composedWith": [
+          "authz.has_permission"
+        ],
+        "executableByAuthenticated": false
+      },
       "targetAuthorizer": null,
-      "enforcementSites": [],
+      "enforcementSites": [
+        {
+          "kind": "function",
+          "schema": "public",
+          "relation": null,
+          "name": "cast_case_vote",
+          "composedWith": [
+            "app.can_cases_vote"
+          ],
+          "subject": "caller (_for + auth.uid())",
+          "hat": "required"
+        }
+      ],
       "callGraphBoundary": {
         "reason": "Enforcement is still membership-keyed: the sites are the 40 policies and 42 function bodies calling app.is_member_of(_for) -> app.has_role_any. Those calls ask a ROLE-SET question (any commission-tier role) and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3). ⛔ The per-arm subject/hat/definerSurface declarations ARE attributable today and are carried in `armInterface`, which is why that field exists separately from `enforcementSites`.",
         "reviewedBy": "backend/AE5-STAFF-T5",
@@ -3621,25 +3924,12 @@
         "gate": "app.is_member_of_for",
         "expected": "identical"
       },
-      "pendingRekey": {
-        "layer1Gate": "app.has_role_any_via_is_member_of",
-        "owner": "backend",
-        "expiry": "AE5-STAFF-complete"
-      },
+      "pendingRekey": null,
       "exception": null,
       "memberGateArm": [
         "none",
         "conjunct_met",
         "conjunct_unmet"
-      ],
-      "armInterface": [
-        {
-          "site": "public.cast_case_vote",
-          "kind": "function",
-          "subject": "caller (_for + auth.uid())",
-          "hat": "required",
-          "definerSurface": "prosecdef=t, carriesCode:false"
-        }
       ],
       "arm3Door": {
         "kind": "guard-expression",
@@ -3670,10 +3960,117 @@
       }
     },
     "commission.process_templates.read": {
-      "status": "pending-rekey",
-      "domainAuthorizer": null,
+      "status": "re-keyed",
+      "domainAuthorizer": {
+        "function": "app.can_process_templates_read",
+        "signature": "p_commission_id uuid, p_user_id uuid",
+        "composedWith": [
+          "authz.has_permission"
+        ],
+        "executableByAuthenticated": true
+      },
       "targetAuthorizer": null,
-      "enforcementSites": [],
+      "enforcementSites": [
+        {
+          "kind": "policy",
+          "schema": "public",
+          "relation": "process_templates",
+          "name": "process_templates_select",
+          "composedWith": [
+            "app.can_process_templates_read"
+          ],
+          "subject": "caller",
+          "hat": "required"
+        },
+        {
+          "kind": "policy",
+          "schema": "public",
+          "relation": "process_template_versions",
+          "name": "process_template_versions_select",
+          "composedWith": [
+            "app.can_process_templates_read"
+          ],
+          "subject": "caller",
+          "hat": "required"
+        },
+        {
+          "kind": "policy",
+          "schema": "public",
+          "relation": "process_template_phases",
+          "name": "process_template_phases_select",
+          "composedWith": [
+            "app.can_process_templates_read"
+          ],
+          "subject": "caller",
+          "hat": "required"
+        },
+        {
+          "kind": "policy",
+          "schema": "public",
+          "relation": "process_template_custom_fields",
+          "name": "process_template_custom_fields_select",
+          "composedWith": [
+            "app.can_process_templates_read"
+          ],
+          "subject": "caller",
+          "hat": "required"
+        },
+        {
+          "kind": "policy",
+          "schema": "public",
+          "relation": "process_template_narratives",
+          "name": "process_template_narratives_select",
+          "composedWith": [
+            "app.can_process_templates_read"
+          ],
+          "subject": "caller",
+          "hat": "required"
+        },
+        {
+          "kind": "policy",
+          "schema": "public",
+          "relation": "process_template_outcomes",
+          "name": "process_template_outcomes_select",
+          "composedWith": [
+            "app.can_process_templates_read"
+          ],
+          "subject": "caller",
+          "hat": "required"
+        },
+        {
+          "kind": "policy",
+          "schema": "public",
+          "relation": "process_template_phase_allowed_results",
+          "name": "process_template_phase_allowed_results_select",
+          "composedWith": [
+            "app.can_process_templates_read"
+          ],
+          "subject": "caller",
+          "hat": "required"
+        },
+        {
+          "kind": "policy",
+          "schema": "public",
+          "relation": "process_template_phase_offered_results",
+          "name": "process_template_phase_offered_results_select",
+          "composedWith": [
+            "app.can_process_templates_read"
+          ],
+          "subject": "caller",
+          "hat": "required"
+        },
+        {
+          "kind": "policy",
+          "schema": "public",
+          "relation": "phase_results",
+          "name": "phase_results_select",
+          "composedWith": [
+            "app.can_process_templates_read"
+          ],
+          "subject": "caller",
+          "hat": "required"
+        }
+      ],
       "callGraphBoundary": {
         "reason": "Enforcement is still membership-keyed: the sites are the 40 policies and 42 function bodies calling app.is_member_of(_for) -> app.has_role_any. Those calls ask a ROLE-SET question (any commission-tier role) and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3). ⛔ The per-arm subject/hat/definerSurface declarations ARE attributable today and are carried in `armInterface`, which is why that field exists separately from `enforcementSites`.",
         "reviewedBy": "backend/AE5-STAFF-T5",
@@ -3703,79 +4100,10 @@
         "gate": "app.is_member_of_for",
         "expected": "identical"
       },
-      "pendingRekey": {
-        "layer1Gate": "app.has_role_any_via_is_member_of",
-        "owner": "backend",
-        "expiry": "AE5-STAFF-complete"
-      },
+      "pendingRekey": null,
       "exception": null,
       "memberGateArm": [
         "none"
-      ],
-      "armInterface": [
-        {
-          "site": "public.process_templates.process_templates_select",
-          "kind": "policy",
-          "subject": "caller",
-          "hat": "required",
-          "definerSurface": "none — policy arm"
-        },
-        {
-          "site": "public.process_template_versions.process_template_versions_select",
-          "kind": "policy",
-          "subject": "caller",
-          "hat": "required",
-          "definerSurface": "none — policy arm"
-        },
-        {
-          "site": "public.process_template_phases.process_template_phases_select",
-          "kind": "policy",
-          "subject": "caller",
-          "hat": "required",
-          "definerSurface": "none — policy arm"
-        },
-        {
-          "site": "public.process_template_custom_fields.process_template_custom_fields_select",
-          "kind": "policy",
-          "subject": "caller",
-          "hat": "required",
-          "definerSurface": "none — policy arm"
-        },
-        {
-          "site": "public.process_template_narratives.process_template_narratives_select",
-          "kind": "policy",
-          "subject": "caller",
-          "hat": "required",
-          "definerSurface": "none — policy arm"
-        },
-        {
-          "site": "public.process_template_outcomes.process_template_outcomes_select",
-          "kind": "policy",
-          "subject": "caller",
-          "hat": "required",
-          "definerSurface": "none — policy arm"
-        },
-        {
-          "site": "public.process_template_phase_allowed_results.process_template_phase_allowed_results_select",
-          "kind": "policy",
-          "subject": "caller",
-          "hat": "required",
-          "definerSurface": "none — policy arm"
-        },
-        {
-          "site": "public.process_template_phase_offered_results.process_template_phase_offered_results_select",
-          "kind": "policy",
-          "subject": "caller",
-          "hat": "required",
-          "definerSurface": "none — policy arm"
-        },
-        {
-          "site": "public.phase_results.phase_results_select",
-          "kind": "policy",
-          "subject": "caller",
-          "hat": "required",
-          "definerSurface": "none — policy arm"
-        }
       ],
       "hardDenyMeasurement": {
         "closureSize": 10,
@@ -3794,10 +4122,51 @@
       }
     },
     "commission.indicators.read": {
-      "status": "pending-rekey",
-      "domainAuthorizer": null,
+      "status": "re-keyed",
+      "domainAuthorizer": {
+        "function": "app.can_indicators_read",
+        "signature": "p_commission_id uuid, p_user_id uuid",
+        "composedWith": [
+          "authz.has_permission"
+        ],
+        "executableByAuthenticated": true
+      },
       "targetAuthorizer": null,
-      "enforcementSites": [],
+      "enforcementSites": [
+        {
+          "kind": "policy",
+          "schema": "public",
+          "relation": "indicators",
+          "name": "indicators_select",
+          "composedWith": [
+            "app.can_indicators_read"
+          ],
+          "subject": "caller",
+          "hat": "required"
+        },
+        {
+          "kind": "policy",
+          "schema": "public",
+          "relation": "indicator_measurements",
+          "name": "indicator_measurements_select",
+          "composedWith": [
+            "app.can_indicators_read"
+          ],
+          "subject": "caller",
+          "hat": "required"
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "relation": null,
+          "name": "indicator_series",
+          "composedWith": [
+            "app.can_indicators_read"
+          ],
+          "subject": "caller",
+          "hat": "required"
+        }
+      ],
       "callGraphBoundary": {
         "reason": "Enforcement is still membership-keyed: the sites are the 40 policies and 42 function bodies calling app.is_member_of(_for) -> app.has_role_any. Those calls ask a ROLE-SET question (any commission-tier role) and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3). ⛔ The per-arm subject/hat/definerSurface declarations ARE attributable today and are carried in `armInterface`, which is why that field exists separately from `enforcementSites`.",
         "reviewedBy": "backend/AE5-STAFF-T5",
@@ -3827,37 +4196,10 @@
         "gate": "app.is_member_of_for",
         "expected": "identical"
       },
-      "pendingRekey": {
-        "layer1Gate": "app.has_role_any_via_is_member_of",
-        "owner": "backend",
-        "expiry": "AE5-STAFF-complete"
-      },
+      "pendingRekey": null,
       "exception": null,
       "memberGateArm": [
         "none"
-      ],
-      "armInterface": [
-        {
-          "site": "public.indicators.indicators_select",
-          "kind": "policy",
-          "subject": "caller",
-          "hat": "required",
-          "definerSurface": "none — policy arm"
-        },
-        {
-          "site": "public.indicator_measurements.indicator_measurements_select",
-          "kind": "policy",
-          "subject": "caller",
-          "hat": "required",
-          "definerSurface": "none — policy arm"
-        },
-        {
-          "site": "public.indicator_series",
-          "kind": "function",
-          "subject": "caller",
-          "hat": "required",
-          "definerSurface": "prosecdef=t, carriesCode:false"
-        }
       ],
       "hardDenyMeasurement": {
         "closureSize": 10,
@@ -3876,10 +4218,95 @@
       }
     },
     "commission.accreditation.read": {
-      "status": "pending-rekey",
-      "domainAuthorizer": null,
+      "status": "re-keyed",
+      "domainAuthorizer": {
+        "function": "app.can_accreditation_read",
+        "signature": "p_commission_id uuid, p_user_id uuid",
+        "composedWith": [
+          "authz.has_permission"
+        ],
+        "executableByAuthenticated": true
+      },
       "targetAuthorizer": null,
-      "enforcementSites": [],
+      "enforcementSites": [
+        {
+          "kind": "policy",
+          "schema": "public",
+          "relation": "accreditation_frameworks",
+          "name": "accreditation_frameworks_select",
+          "composedWith": [
+            "app.can_accreditation_read"
+          ],
+          "subject": "caller",
+          "hat": "required"
+        },
+        {
+          "kind": "policy",
+          "schema": "public",
+          "relation": "accreditation_standards",
+          "name": "accreditation_standards_select",
+          "composedWith": [
+            "app.can_accreditation_read"
+          ],
+          "subject": "caller",
+          "hat": "required"
+        },
+        {
+          "kind": "policy",
+          "schema": "public",
+          "relation": "evidence_links",
+          "name": "evidence_links_select",
+          "composedWith": [
+            "app.can_accreditation_read"
+          ],
+          "subject": "caller",
+          "hat": "required"
+        },
+        {
+          "kind": "policy",
+          "schema": "public",
+          "relation": "standard_assessments",
+          "name": "standard_assessments_select",
+          "composedWith": [
+            "app.can_accreditation_read"
+          ],
+          "subject": "caller",
+          "hat": "required"
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "relation": null,
+          "name": "get_standard_assessment",
+          "composedWith": [
+            "app.can_accreditation_read"
+          ],
+          "subject": "caller",
+          "hat": "required"
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "relation": null,
+          "name": "readiness_evidence",
+          "composedWith": [
+            "app.can_accreditation_read"
+          ],
+          "subject": "caller",
+          "hat": "required"
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "relation": null,
+          "name": "readiness_report",
+          "composedWith": [
+            "app.can_accreditation_read"
+          ],
+          "subject": "caller",
+          "hat": "required"
+        }
+      ],
       "callGraphBoundary": {
         "reason": "Enforcement is still membership-keyed: the sites are the 40 policies and 42 function bodies calling app.is_member_of(_for) -> app.has_role_any. Those calls ask a ROLE-SET question (any commission-tier role) and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3). ⛔ The per-arm subject/hat/definerSurface declarations ARE attributable today and are carried in `armInterface`, which is why that field exists separately from `enforcementSites`.",
         "reviewedBy": "backend/AE5-STAFF-T5",
@@ -3910,67 +4337,12 @@
         "gate": "app.is_member_of_for",
         "expected": "identical"
       },
-      "pendingRekey": {
-        "layer1Gate": "app.has_role_any_via_is_member_of",
-        "owner": "backend",
-        "expiry": "AE5-STAFF-complete"
-      },
+      "pendingRekey": null,
       "exception": null,
       "memberGateArm": [
         "none",
         "disjunct_present",
         "disjunct_absent"
-      ],
-      "armInterface": [
-        {
-          "site": "public.accreditation_frameworks.accreditation_frameworks_select",
-          "kind": "policy",
-          "subject": "caller",
-          "hat": "required",
-          "definerSurface": "none — policy arm"
-        },
-        {
-          "site": "public.accreditation_standards.accreditation_standards_select",
-          "kind": "policy",
-          "subject": "caller",
-          "hat": "required",
-          "definerSurface": "none — policy arm"
-        },
-        {
-          "site": "public.evidence_links.evidence_links_select",
-          "kind": "policy",
-          "subject": "caller",
-          "hat": "required",
-          "definerSurface": "none — policy arm"
-        },
-        {
-          "site": "public.standard_assessments.standard_assessments_select",
-          "kind": "policy",
-          "subject": "caller",
-          "hat": "required",
-          "definerSurface": "none — policy arm"
-        },
-        {
-          "site": "public.get_standard_assessment",
-          "kind": "function",
-          "subject": "caller",
-          "hat": "required",
-          "definerSurface": "prosecdef=t, carriesCode:false"
-        },
-        {
-          "site": "public.readiness_evidence",
-          "kind": "function",
-          "subject": "caller",
-          "hat": "required",
-          "definerSurface": "prosecdef=t, carriesCode:false"
-        },
-        {
-          "site": "public.readiness_report",
-          "kind": "function",
-          "subject": "caller",
-          "hat": "required",
-          "definerSurface": "prosecdef=t, carriesCode:false"
-        }
       ],
       "arm3Door": {
         "reach": {
@@ -4018,10 +4390,97 @@
       }
     },
     "commission.documents.read": {
-      "status": "pending-rekey",
-      "domainAuthorizer": null,
+      "status": "re-keyed",
+      "domainAuthorizer": {
+        "function": "app.can_documents_read",
+        "signature": "p_commission_id uuid, p_user_id uuid",
+        "composedWith": [
+          "authz.has_permission"
+        ],
+        "executableByAuthenticated": true
+      },
       "targetAuthorizer": null,
-      "enforcementSites": [],
+      "enforcementSites": [
+        {
+          "kind": "policy",
+          "schema": "public",
+          "relation": "controlled_documents",
+          "name": "controlled_documents_select",
+          "composedWith": [
+            "app.can_documents_read"
+          ],
+          "subject": "caller",
+          "hat": "required"
+        },
+        {
+          "kind": "policy",
+          "schema": "public",
+          "relation": "controlled_document_versions",
+          "name": "controlled_document_versions_select",
+          "composedWith": [
+            "app.can_documents_read"
+          ],
+          "subject": "caller",
+          "hat": "required"
+        },
+        {
+          "kind": "policy",
+          "schema": "public",
+          "relation": "securable_resources",
+          "name": "securable_resources_select",
+          "composedWith": [
+            "app.can_documents_read"
+          ],
+          "subject": "caller",
+          "hat": "required"
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "relation": null,
+          "name": "list_commission_documents",
+          "composedWith": [
+            "app.can_documents_read"
+          ],
+          "subject": "caller",
+          "hat": "required"
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "relation": null,
+          "name": "documents_due_for_review",
+          "composedWith": [
+            "app.can_documents_read"
+          ],
+          "subject": "caller",
+          "hat": "required"
+        },
+        {
+          "kind": "function",
+          "schema": "app",
+          "relation": null,
+          "name": "can_read_document",
+          "composedWith": [
+            "app.can_documents_read"
+          ],
+          "subject": "p_uid",
+          "hat": "conditional",
+          "hatNote": "required at its 3 policy callers, all passing auth.uid() (documents_select, document_versions_select, document_placements_select) and at issue_ethics_notification / set_ethics_decision_details / add_rca_evidence; ignored at app.resolve_document_version_bytes, app.can_read_file_object, app.can_read_document_version"
+        },
+        {
+          "kind": "function",
+          "schema": "app",
+          "relation": null,
+          "name": "can_read_document_of_version",
+          "composedWith": [
+            "app.can_documents_read"
+          ],
+          "subject": "p_uid",
+          "hat": "ignored",
+          "hatNote": "no live caller passes auth.uid()"
+        }
+      ],
       "callGraphBoundary": {
         "reason": "Enforcement is still membership-keyed: the sites are the 40 policies and 42 function bodies calling app.is_member_of(_for) -> app.has_role_any. Those calls ask a ROLE-SET question (any commission-tier role) and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3). ⛔ The per-arm subject/hat/definerSurface declarations ARE attributable today and are carried in `armInterface`, which is why that field exists separately from `enforcementSites`.",
         "reviewedBy": "backend/AE5-STAFF-T5",
@@ -4053,69 +4512,12 @@
         "gate": "app.is_member_of_for",
         "expected": "identical"
       },
-      "pendingRekey": {
-        "layer1Gate": "app.has_role_any_via_is_member_of",
-        "owner": "backend",
-        "expiry": "AE5-STAFF-complete"
-      },
+      "pendingRekey": null,
       "exception": null,
       "memberGateArm": [
         "none",
         "disjunct_present",
         "disjunct_absent"
-      ],
-      "armInterface": [
-        {
-          "site": "public.controlled_documents.controlled_documents_select",
-          "kind": "policy",
-          "subject": "caller",
-          "hat": "required",
-          "definerSurface": "none — policy arm"
-        },
-        {
-          "site": "public.controlled_document_versions.controlled_document_versions_select",
-          "kind": "policy",
-          "subject": "caller",
-          "hat": "required",
-          "definerSurface": "none — policy arm"
-        },
-        {
-          "site": "public.securable_resources.securable_resources_select",
-          "kind": "policy",
-          "subject": "caller",
-          "hat": "required",
-          "definerSurface": "none — policy arm"
-        },
-        {
-          "site": "public.list_commission_documents",
-          "kind": "function",
-          "subject": "caller",
-          "hat": "required",
-          "definerSurface": "prosecdef=t, carriesCode:false"
-        },
-        {
-          "site": "public.documents_due_for_review",
-          "kind": "function",
-          "subject": "caller",
-          "hat": "required",
-          "definerSurface": "prosecdef=t, carriesCode:false"
-        },
-        {
-          "site": "app.can_read_document",
-          "kind": "function",
-          "subject": "p_uid",
-          "hat": "conditional",
-          "definerSurface": "prosecdef=t, carriesCode:false",
-          "hatNote": "required at its 3 policy callers, all passing auth.uid() (documents_select, document_versions_select, document_placements_select) and at issue_ethics_notification / set_ethics_decision_details / add_rca_evidence; ignored at app.resolve_document_version_bytes, app.can_read_file_object, app.can_read_document_version"
-        },
-        {
-          "site": "app.can_read_document_of_version",
-          "kind": "function",
-          "subject": "p_uid",
-          "hat": "ignored",
-          "definerSurface": "prosecdef=t, carriesCode:false",
-          "hatNote": "no live caller passes auth.uid()"
-        }
       ],
       "arm3Door": {
         "reach": {
@@ -4174,10 +4576,30 @@
       }
     },
     "commission.safety_events.read": {
-      "status": "pending-rekey",
-      "domainAuthorizer": null,
+      "status": "re-keyed",
+      "domainAuthorizer": {
+        "function": "app.can_safety_events_read",
+        "signature": "p_commission_id uuid, p_user_id uuid",
+        "composedWith": [
+          "authz.has_permission"
+        ],
+        "executableByAuthenticated": false
+      },
       "targetAuthorizer": null,
-      "enforcementSites": [],
+      "enforcementSites": [
+        {
+          "kind": "function",
+          "schema": "app",
+          "relation": null,
+          "name": "can_read_event",
+          "composedWith": [
+            "app.can_safety_events_read"
+          ],
+          "subject": "p_user_id",
+          "hat": "conditional",
+          "hatNote": "required at its 11 policy callers and at the 9 event RPCs, all passing auth.uid(); ignored at app.can_read_capa, app.can_read_document and app._audit_access_authorized, which propagate"
+        }
+      ],
       "callGraphBoundary": {
         "reason": "Enforcement is still membership-keyed: the sites are the 40 policies and 42 function bodies calling app.is_member_of(_for) -> app.has_role_any. Those calls ask a ROLE-SET question (any commission-tier role) and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3). ⛔ The per-arm subject/hat/definerSurface declarations ARE attributable today and are carried in `armInterface`, which is why that field exists separately from `enforcementSites`.",
         "reviewedBy": "backend/AE5-STAFF-T5",
@@ -4207,24 +4629,10 @@
         "gate": "app.is_member_of_for",
         "expected": "identical"
       },
-      "pendingRekey": {
-        "layer1Gate": "app.has_role_any_via_is_member_of",
-        "owner": "backend",
-        "expiry": "AE5-STAFF-complete"
-      },
+      "pendingRekey": null,
       "exception": null,
       "memberGateArm": [
         "none"
-      ],
-      "armInterface": [
-        {
-          "site": "app.can_read_event",
-          "kind": "function",
-          "subject": "p_user_id",
-          "hat": "conditional",
-          "definerSurface": "prosecdef=t, carriesCode:false",
-          "hatNote": "required at its 11 policy callers and at the 9 event RPCs, all passing auth.uid(); ignored at app.can_read_capa, app.can_read_document and app._audit_access_authorized, which propagate"
-        }
       ],
       "hardDenyMeasurement": {
         "closureSize": 10,
@@ -4243,10 +4651,30 @@
       }
     },
     "commission.capa.read": {
-      "status": "pending-rekey",
-      "domainAuthorizer": null,
+      "status": "re-keyed",
+      "domainAuthorizer": {
+        "function": "app.can_capa_read",
+        "signature": "p_commission_id uuid, p_user_id uuid",
+        "composedWith": [
+          "authz.has_permission"
+        ],
+        "executableByAuthenticated": false
+      },
       "targetAuthorizer": null,
-      "enforcementSites": [],
+      "enforcementSites": [
+        {
+          "kind": "function",
+          "schema": "app",
+          "relation": null,
+          "name": "can_read_capa",
+          "composedWith": [
+            "app.can_capa_read"
+          ],
+          "subject": "p_user_id",
+          "hat": "conditional",
+          "hatNote": "required at its 4 policy callers, all passing auth.uid() (capa_plan / _action / _measure / _effectiveness_select) and at capa_viewer_can_manage; ignored at link_evidence, evidence_candidates, _audit_access_authorized"
+        }
+      ],
       "callGraphBoundary": {
         "reason": "Enforcement is still membership-keyed: the sites are the 40 policies and 42 function bodies calling app.is_member_of(_for) -> app.has_role_any. Those calls ask a ROLE-SET question (any commission-tier role) and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3). ⛔ The per-arm subject/hat/definerSurface declarations ARE attributable today and are carried in `armInterface`, which is why that field exists separately from `enforcementSites`.",
         "reviewedBy": "backend/AE5-STAFF-T5",
@@ -4276,26 +4704,12 @@
         "gate": "app.is_member_of_for",
         "expected": "identical"
       },
-      "pendingRekey": {
-        "layer1Gate": "app.has_role_any_via_is_member_of",
-        "owner": "backend",
-        "expiry": "AE5-STAFF-complete"
-      },
+      "pendingRekey": null,
       "exception": null,
       "memberGateArm": [
         "none",
         "conjunct_met",
         "conjunct_unmet"
-      ],
-      "armInterface": [
-        {
-          "site": "app.can_read_capa — the indicator-sourced arm",
-          "kind": "function",
-          "subject": "p_user_id",
-          "hat": "conditional",
-          "definerSurface": "prosecdef=t, carriesCode:false",
-          "hatNote": "required at its 4 policy callers, all passing auth.uid() (capa_plan / _action / _measure / _effectiveness_select) and at capa_viewer_can_manage; ignored at link_evidence, evidence_candidates, _audit_access_authorized"
-        }
       ],
       "arm3Door": {
         "kind": "function",
@@ -4337,10 +4751,65 @@
       }
     },
     "commission.referrals.metadata.read": {
-      "status": "pending-rekey",
-      "domainAuthorizer": null,
+      "status": "re-keyed",
+      "domainAuthorizer": {
+        "function": "app.can_referrals_metadata_read",
+        "signature": "p_commission_id uuid, p_user_id uuid",
+        "composedWith": [
+          "authz.has_permission"
+        ],
+        "executableByAuthenticated": false
+      },
       "targetAuthorizer": null,
-      "enforcementSites": [],
+      "enforcementSites": [
+        {
+          "kind": "function",
+          "schema": "app",
+          "relation": null,
+          "name": "can_read_referral_metadata",
+          "composedWith": [
+            "app.can_referrals_metadata_read"
+          ],
+          "subject": "p_uid",
+          "hat": "conditional",
+          "hatNote": "required at its 4 policy callers, all passing auth.uid(); ignored at app.can_read_referral and app.can_read_document, which propagate"
+        },
+        {
+          "kind": "function",
+          "schema": "app",
+          "relation": null,
+          "name": "can_read_referral_internal_note",
+          "composedWith": [
+            "app.can_referrals_metadata_read"
+          ],
+          "subject": "p_uid",
+          "hat": "ignored",
+          "hatNote": "no live caller passes auth.uid()"
+        },
+        {
+          "kind": "function",
+          "schema": "app",
+          "relation": null,
+          "name": "can_read_referral_internal_notes",
+          "composedWith": [
+            "app.can_referrals_metadata_read"
+          ],
+          "subject": "p_uid",
+          "hat": "ignored",
+          "hatNote": "no live caller passes auth.uid()"
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "relation": null,
+          "name": "get_referral_case_access_summary",
+          "composedWith": [
+            "app.can_referrals_metadata_read"
+          ],
+          "subject": "caller (_for + auth.uid())",
+          "hat": "required"
+        }
+      ],
       "callGraphBoundary": {
         "reason": "Enforcement is still membership-keyed: the sites are the 40 policies and 42 function bodies calling app.is_member_of(_for) -> app.has_role_any. Those calls ask a ROLE-SET question (any commission-tier role) and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3). ⛔ The per-arm subject/hat/definerSurface declarations ARE attributable today and are carried in `armInterface`, which is why that field exists separately from `enforcementSites`.",
         "reviewedBy": "backend/AE5-STAFF-T5",
@@ -4372,55 +4841,10 @@
         "gate": "app.is_member_of_for",
         "expected": "identical"
       },
-      "pendingRekey": {
-        "layer1Gate": "app.has_role_any_via_is_member_of",
-        "owner": "backend",
-        "expiry": "AE5-STAFF-complete"
-      },
+      "pendingRekey": null,
       "exception": null,
       "memberGateArm": [
         "none"
-      ],
-      "armInterface": [
-        {
-          "site": "app.can_read_referral_metadata",
-          "kind": "function",
-          "subject": "p_uid",
-          "hat": "conditional",
-          "definerSurface": "prosecdef=t, carriesCode:false",
-          "hatNote": "required at its 4 policy callers, all passing auth.uid(); ignored at app.can_read_referral and app.can_read_document, which propagate"
-        },
-        {
-          "site": "app.can_read_referral_internal_note",
-          "kind": "function",
-          "subject": "p_uid",
-          "hat": "ignored",
-          "definerSurface": "prosecdef=t, carriesCode:false",
-          "hatNote": "no live caller passes auth.uid()"
-        },
-        {
-          "site": "app.can_read_referral_internal_notes",
-          "kind": "function",
-          "subject": "p_uid",
-          "hat": "ignored",
-          "definerSurface": "prosecdef=t, carriesCode:false",
-          "hatNote": "no live caller passes auth.uid()"
-        },
-        {
-          "site": "public.get_referral_case_access_summary",
-          "kind": "function",
-          "subject": "caller (_for + auth.uid())",
-          "hat": "required",
-          "definerSurface": "prosecdef=t, carriesCode:false"
-        },
-        {
-          "site": "app._audit_access_authorized — 'referral.case_access_summary_viewed' leg",
-          "kind": "registry",
-          "subject": "caller (v_uid)",
-          "hat": "required",
-          "definerSurface": "prosecdef=t, carriesCode:false",
-          "hatNote": "mirrors this row (matrix § 8.4)"
-        }
       ],
       "hardDenyMeasurement": {
         "closureSize": 59,
@@ -4439,10 +4863,29 @@
       }
     },
     "commission.referrals.notes.author": {
-      "status": "pending-rekey",
-      "domainAuthorizer": null,
+      "status": "re-keyed",
+      "domainAuthorizer": {
+        "function": "app.can_referrals_notes_author",
+        "signature": "p_commission_id uuid, p_user_id uuid",
+        "composedWith": [
+          "authz.has_permission"
+        ],
+        "executableByAuthenticated": false
+      },
       "targetAuthorizer": null,
-      "enforcementSites": [],
+      "enforcementSites": [
+        {
+          "kind": "function",
+          "schema": "public",
+          "relation": null,
+          "name": "create_referral_internal_note",
+          "composedWith": [
+            "app.can_referrals_notes_author"
+          ],
+          "subject": "caller (_for + auth.uid())",
+          "hat": "required"
+        }
+      ],
       "callGraphBoundary": {
         "reason": "Enforcement is still membership-keyed: the sites are the 40 policies and 42 function bodies calling app.is_member_of(_for) -> app.has_role_any. Those calls ask a ROLE-SET question (any commission-tier role) and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3). ⛔ The per-arm subject/hat/definerSurface declarations ARE attributable today and are carried in `armInterface`, which is why that field exists separately from `enforcementSites`.",
         "reviewedBy": "backend/AE5-STAFF-T5",
@@ -4472,23 +4915,10 @@
         "gate": "app.is_member_of_for",
         "expected": "identical"
       },
-      "pendingRekey": {
-        "layer1Gate": "app.has_role_any_via_is_member_of",
-        "owner": "backend",
-        "expiry": "AE5-STAFF-complete"
-      },
+      "pendingRekey": null,
       "exception": null,
       "memberGateArm": [
         "none"
-      ],
-      "armInterface": [
-        {
-          "site": "public.create_referral_internal_note — arm 1",
-          "kind": "function",
-          "subject": "caller (_for + auth.uid())",
-          "hat": "required",
-          "definerSurface": "prosecdef=t, carriesCode:false. Its arm 2 (p_assigned_to) is a class-E managed-row property of the same body (matrix § 3.0a), ⛔ not an arm of this row."
-        }
       ],
       "hardDenyMeasurement": {
         "closureSize": 13,
@@ -4507,10 +4937,51 @@
       }
     },
     "commission.cases.vocabulary.read": {
-      "status": "pending-rekey",
-      "domainAuthorizer": null,
+      "status": "re-keyed",
+      "domainAuthorizer": {
+        "function": "app.can_cases_vocabulary_read",
+        "signature": "p_commission_id uuid, p_user_id uuid",
+        "composedWith": [
+          "authz.has_permission"
+        ],
+        "executableByAuthenticated": true
+      },
       "targetAuthorizer": null,
-      "enforcementSites": [],
+      "enforcementSites": [
+        {
+          "kind": "policy",
+          "schema": "public",
+          "relation": "case_narrative_types",
+          "name": "case_narrative_types_select",
+          "composedWith": [
+            "app.can_cases_vocabulary_read"
+          ],
+          "subject": "caller",
+          "hat": "required"
+        },
+        {
+          "kind": "policy",
+          "schema": "public",
+          "relation": "case_outcomes",
+          "name": "case_outcomes_select",
+          "composedWith": [
+            "app.can_cases_vocabulary_read"
+          ],
+          "subject": "caller",
+          "hat": "required"
+        },
+        {
+          "kind": "policy",
+          "schema": "public",
+          "relation": "case_tags",
+          "name": "case_tags_select",
+          "composedWith": [
+            "app.can_cases_vocabulary_read"
+          ],
+          "subject": "caller",
+          "hat": "required"
+        }
+      ],
       "callGraphBoundary": {
         "reason": "Enforcement is still membership-keyed: the sites are the 40 policies and 42 function bodies calling app.is_member_of(_for) -> app.has_role_any. Those calls ask a ROLE-SET question (any commission-tier role) and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3). ⛔ The per-arm subject/hat/definerSurface declarations ARE attributable today and are carried in `armInterface`, which is why that field exists separately from `enforcementSites`.",
         "reviewedBy": "backend/AE5-STAFF-T5",
@@ -4540,37 +5011,10 @@
         "gate": "app.is_member_of_for",
         "expected": "identical"
       },
-      "pendingRekey": {
-        "layer1Gate": "app.has_role_any_via_is_member_of",
-        "owner": "backend",
-        "expiry": "AE5-STAFF-complete"
-      },
+      "pendingRekey": null,
       "exception": null,
       "memberGateArm": [
         "none"
-      ],
-      "armInterface": [
-        {
-          "site": "public.case_narrative_types.case_narrative_types_select",
-          "kind": "policy",
-          "subject": "caller",
-          "hat": "required",
-          "definerSurface": "none — policy arm"
-        },
-        {
-          "site": "public.case_outcomes.case_outcomes_select",
-          "kind": "policy",
-          "subject": "caller",
-          "hat": "required",
-          "definerSurface": "none — policy arm"
-        },
-        {
-          "site": "public.case_tags.case_tags_select",
-          "kind": "policy",
-          "subject": "caller",
-          "hat": "required",
-          "definerSurface": "none — policy arm"
-        }
       ],
       "hardDenyMeasurement": {
         "closureSize": 7,

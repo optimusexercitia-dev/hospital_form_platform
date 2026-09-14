@@ -3264,6 +3264,9 @@ declare
   v_other    uuid := '00000000-0000-0000-0000-000000000006';  -- staff1.farm (other_commission_holder)
   v_status_a uuid;
   v_absent   uuid := 'a5f00000-0000-0000-0000-0000000000f4';  -- the ABSENT subject: never a persona
+  v_grantee  uuid := 'a5f00000-0000-0000-0000-0000000000f5';  -- T7: case grant, NO membership
+  v_chefe_ccih uuid := '00000000-0000-0000-0000-000000000002';
+
   v_cm_ccih  uuid := 'a5f00000-0000-0000-0000-0000000000f1';  -- co-member, CCIH ONLY
   v_cm_farma uuid := 'a5f00000-0000-0000-0000-0000000000f2';  -- co-member, Farmácia A ONLY
   v_cm_farmb uuid := 'a5f00000-0000-0000-0000-0000000000f3';  -- co-member, Farmácia B ONLY
@@ -3584,6 +3587,101 @@ begin
     ('a5f50000-0000-0000-0000-0000000000a1'::uuid, 'gap-global', 'Marco global (fixture arm-3 linha 15 — PUBLIC)', '1.0', null),
     ('a5f50000-0000-0000-0000-0000000000a2'::uuid, 'gap-ccih',   'Marco da CCIH (fixture arm-3 linha 15 — próprio)', '1.0', v_ccih),
     ('a5f50000-0000-0000-0000-0000000000a3'::uuid, 'gap-farmb',  'Marco de outra comissão (fixture arm-3 linha 15 — alheio)', '1.0', v_farmb);
+
+  -- ═══ T7 FIXTURES ══════════════════════════════════════════════════════════
+  -- Three gaps, each of which leaves a declared arm probed only by a static literal check.
+  -- ⛔ Every id is a FIXED LITERAL and none equals a persona-axis value — arm14(f) refuses a
+  -- resource fixture that doubles as a persona, and row 4's `gap.unpriv` collision is why.
+
+  -- ── (0) ROW 9's GRANT-HOLDER PERSONA — profile, affiliation, NO membership. ──
+  -- ⛔ NO CCIH membership, deliberately: that is the entire point. Every existing grant-holder on
+  -- the seeded stack is ALSO a member of the case's commission, so row 9's residual arm could only
+  -- ever fire alongside the permission arm and was declared but never exercised in isolation.
+  -- ⚠ The org affiliation IS written — an unaffiliated profile is a tenant orphan and 396 § 9.3 /
+  -- 400 § 1.6 assert the seed contributes none.
+  -- ⚠ This is the ONLY new PROFILE in the T7 fixture set, so it is the only thing that moves 387's
+  -- visibility pins; the closed-session, standards, notes and grant rows add no profile.
+  insert into auth.users (
+    instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+    recovery_sent_at, last_sign_in_at, raw_app_meta_data, raw_user_meta_data,
+    created_at, updated_at, confirmation_token, email_change, email_change_token_new, recovery_token
+  ) values (
+    '00000000-0000-0000-0000-000000000000', v_grantee, 'authenticated', 'authenticated',
+    'gap.casegrant@test.local', crypt('Test1234!', gen_salt('bf')), now(), now(), now(),
+    '{"provider":"email","providers":["email"]}'::jsonb,
+    jsonb_build_object('full_name', 'Concessao Gap Sem Vinculo'), now(), now(), '', '', '', ''
+  );
+  insert into public.organization_affiliations (principal_id, organization_id, started_on)
+  values (v_grantee, '0c000000-0000-0000-0000-00000000000a'::uuid, '2023-01-01'::date);
+
+  -- ── (1) ROW 9's GRANT ROW. ────────────────────────────────────────
+  -- ⛔ THE RESIDUAL ARM HAD NO WITNESS. L17 keeps `app.has_case_capability` on row 9's door
+  -- BECAUSE the case-grant reach is arm 3's whole subject — but measured on the seeded stack there
+  -- was NO principal holding a live `read_case_deliberation` grant who is NOT also a member of that
+  -- case's commission, so the arm could only ever be exercised together with the permission arm.
+  -- A declared authority nothing reaches in isolation is the shape C1 exists to fix, one layer down.
+  -- ⚠ NO membership in CCIH, deliberately — that is the entire point of the persona.
+  -- ⚠ Org affiliation IS written: an unaffiliated profile is a tenant orphan and 396 § 9.3 / 400
+  -- § 1.6 assert the seed contributes none.
+  insert into public.case_access_grants
+    (id, case_id, principal_id, source, read_case_content, read_case_deliberation,
+     read_standard_phi, read_restricted_phi, write_case_content, reason_code, granted_by)
+  values ('a5fb0000-0000-0000-0000-0000000000c1'::uuid,
+          'd0000000-0000-0000-0000-0000000000c1'::uuid,   -- CCIH case
+          v_grantee, 'manual_grant', true, true, false, false, false,
+          'coordinator_grant', v_chefe_ccih);
+
+  -- ── (2) accreditation_standards — EMPTY on the seeded stack. ──────────────
+  -- Four DEFINER doors (get_standard_assessment, readiness_evidence, readiness_report) read this
+  -- table; with zero rows they were probed only by a static literal check, so 425's post-migration
+  -- re-run could not tell an enforcing door from an absent one.
+  insert into public.accreditation_standards (id, framework_id, code, title, position) values
+    ('a5f50000-0000-0000-0000-0000000000b1'::uuid, 'a5f50000-0000-0000-0000-0000000000a2'::uuid,
+     'CCIH-1', 'Padrão de higienização (fixture T7)', 1),
+    ('a5f50000-0000-0000-0000-0000000000b2'::uuid, 'a5f50000-0000-0000-0000-0000000000a4'::uuid,
+     'FARMA-1', 'Padrão da Farmácia A (fixture T7 — escopo irmão)', 1);
+
+  -- ── (3) referral_internal_notes — EMPTY, and it is a PHI module. ──────────
+  -- ⛔ MIRRORS THE BASE SEED'S CLASS HANDLING FOR THIS TABLE: the note body carries NO patient
+  -- identifier, no clinical detail and no free-text describing a person — it is process text only,
+  -- exactly as the referral fixtures above it are written. Architecture Rule 12 keeps PHI to the
+  -- minimum necessary, and a fixture needs none of it to exercise a door.
+  insert into public.referral_internal_notes (id, referral_id, committee_id, body_md, kind, status, author_user_id)
+  values ('a5fb0000-0000-0000-0000-0000000000d1'::uuid,
+          'efa00000-0000-0000-0000-0000000000a1'::uuid, v_ccih,
+          'Nota interna de processo (fixture T7) — sem dados de paciente.', 'note', 'open', v_chefe_ccih);
+
+  -- ── (4) L18's CLOSED-SESSION FIXTURE — `meeting_closed_session_items` is EMPTY. ──
+  -- ⛔ WITHOUT IT L18's WITNESS IS UNBUILDABLE: `get_reserved_session_items` returns no rows for
+  -- any principal, so "reads withdrawals" and "is denied" would both be an EMPTY RESULT SET and
+  -- the pair would read identically for the wrong reason.
+  -- ⚠ HAND-SEEDED, AND THE 330 LESSON IS WHY THAT IS THE RIGHT CALL HERE. `public.add_reserved_item`
+  -- exists, but measured it carries AUTHORIZATION (staff_admin of the meeting's commission, the
+  -- case belongs to that commission, the author is not recused) and a computed `position` — NOT a
+  -- referential obligation like `controlled_documents.core_document_id`, which is what 330's
+  -- lesson is about. So there is no obligation a direct insert bypasses; the post-door state is
+  -- `position` assigned in order and blank text nulled, and that is reproduced explicitly below.
+  -- Going through the door would mint `gen_random_uuid()` ids, which the fixed-literal rule forbids.
+  -- ⚠ Two items on ONE session: one on a `commission_default` case and one on the
+  -- `explicit_grants_only` case — the pair is what makes the visibility_policy disjunct the
+  -- DIFFERENCE between the two rows rather than an untested constant.
+  insert into public.meeting_closed_sessions (id, meeting_id, opened_at)
+  values ('a5fc0000-0000-0000-0000-0000000000e1'::uuid,
+          'f1000000-0000-0000-0000-0000000000e1'::uuid, now() - interval '2 days');
+
+  insert into public.meeting_closed_session_items
+    (id, closed_session_id, case_id, position, quorum_met, withdrawals, substance, decision)
+  values ('a5fc0000-0000-0000-0000-0000000000e2'::uuid,
+          'a5fc0000-0000-0000-0000-0000000000e1'::uuid,
+          'd0000000-0000-0000-0000-0000000000c1'::uuid,   -- commission_default case
+          1, true, 'Retiradas registradas (fixture L18 — sessão de visibilidade padrão).',
+          'Substância reservada (fixture L18).', 'Decisão registrada (fixture L18).'),
+         ('a5fc0000-0000-0000-0000-0000000000e3'::uuid,
+          'a5fc0000-0000-0000-0000-0000000000e1'::uuid,
+          'ca000000-0000-0000-0000-0000000000e1'::uuid,   -- explicit_grants_only case
+          2, true, 'Retiradas registradas (fixture L18 — sessão restrita).',
+          'Substância reservada (fixture L18 — restrita).', 'Decisão registrada (fixture L18 — restrita).');
+
 
   -- ── ROW 16 — a document_approvals row naming the CLEAN staff ──────────────
   -- The four seeded rows name staff1.ccih / staff1.farm / chefe.farm, every one

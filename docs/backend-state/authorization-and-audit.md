@@ -168,14 +168,14 @@ both are stated here, not left to the gate record to imply.
 | **Tier 2** — `app` schema (`anon` holds no USAGE) | **320** | boundary = `FUP-APP-SCHEMA-PUBLIC-EXECUTE-IS-CONFIG-BOUNDED` — ⚠ **CLOSED 2026-09-08**, folded into `follow-ups-archive.md`; the boundary is now **gated** as `lint:config-schemas`, which pins `supabase/config.toml`'s `[api].schemas` key. ⛔ That gate proves the **FILE** never gains `app`; it does **not** prove the **deployed** PostgREST config matches the file. `app` is not PostgREST-exposed |
 | proposed revoke set | **233** | ⛔ **NONE EXECUTED — a scheduling fact, not an RV0 verdict.** RV0's partition (`docs/design/authz-ae1-revoke-partition.md` §5.1) **held 23**: 44 PROCEED property-rescued · 5 PROCEED name-rescued · **23 HOLD** · 161 UNCHANGED. The only rulings holding anything are RV1 (batch 4, **4**) + RV2 (`set_participant_patient`, **1**). ⚠ **Was *"all HELD under RV0"***, which reads as RV0 blocking the whole set when it cleared 49. ⛔ And UNCHANGED is **unexamined, not cleared** |
 
-**CEILING: 759.** ⛔ **Superseded value, quoted so the move is visible and not silent: `CEILING:
+**CEILING: 772.** ⚠ **Moved 759 → 772 by PO ruling R-4(a), 2026-09-14**, for AE5-STAFF T7's THIRTEEN policy-called layer-3 doors — the named justification is that unit's gate record: 13 doors, 42 policy sites fanning onto them, and 7 further doors that need NO grant because they are called only from DEFINER bodies. ⛔ The budget counts DOORS, not sites. Previously: ⛔ **Superseded value, quoted so the move is visible and not silent: `CEILING:
 752`** (the figure this file carried from 2026-08-27 to 2026-09-08). **Moved by PO ruling dated
 2026-09-08** — the ruling, its measured basis and the legitimacy argument are the subsection
 *"the ceiling MOVES to 759 by PO ruling"* at the end of this section. **MERGE RULE (unchanged):** no
 increment may raise the count without a **named justification in its own gate record**, and **the
 ceiling moves only by PO ruling**.
 
-<!-- BUDGET-ANCHOR ceiling=759 app=326 public=433 total=759 -->
+<!-- BUDGET-ANCHOR ceiling=772 app=339 public=433 total=772 -->
 
 ⚠ **This is the ceiling's ONE home** (ruling R10). The HTML comment above is machine-read by
 **`npm run lint:budget-anchor` (gate 15)**, which mirrors these four figures against the literals
