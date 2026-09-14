@@ -1622,3 +1622,26 @@ moving it. The open product question stays in
 `BUG-AE5-STAFF-PENDING-ACCOUNT-HAS-FULL-MEMBER-REACH`.
 
 Next: tester runs `424` (green + the able-to-fail witness), then T6.
+
+### 2026-09-14 — L8: the P1 flip becomes persona-aware; `action_items` limb (b) gets a fixture (lead)
+
+Backend's diagnosis of the post-ruling residual (its entry has the join query): the P1 flip
+predicate `gate == 'disjunct_present' and not exp` consulted neither `persona` nor `selfcheck`, so
+it flipped all 198 `disjunct_present` cells on all five rows (990) — but a role-free disjunct fires
+only where the fixture reaches the NAMED principal. Measured live: `accreditation.read` fires for
+everyone (resource-keyed NULL owner) → 0 wrong; `forms.read` fires for `gap.unpriv` only → 118
+wrong; `documents.read` for the two approvers → 114 wrong; `action_items.read` for NOBODY (no
+`assignees_only` assignment exists for any persona) → 198 wrong AND the coordinate is unreachable
+by the fixture; `roster.read`'s self leg fires on self-checks only → 0 wrong today but LATENT: the
+0 passes only under the pre-fix dispatch, and 96 third-party cells go red once the tester's row-4
+fix runs. ⭐ Two masks named: `forms`/`documents` cells that pass do so because limb 1 (`is_member_of`)
+grants anyway — masked by a legitimately-open arm.
+**L8 — RULED (lead):** the PO's P1 ruling is about the ENCODING (an approved exception where the
+legacy door grants through a role-free disjunct); cells where legacy does not grant are not
+divergent, so gating the flip on the door's own reach is faithful to the ruling, not a change of
+it. Backend applies: `accreditation` unconditional; `forms` only `unprivileged`; `documents` only
+the two approvers; `roster` only `selfcheck`; `action_items` after the seed gains an
+`assignees_only` item assigned to a named persona (⛔ the coordinate is NOT undeclared — an
+unreachable declared coordinate is the "fixture cannot reach the failing state" shape). The flip
+count is re-read as an OUTPUT (the 1218 no longer holds; the arm3 census restates it). Backend takes
+the stack for the seed; the tester's two dispatch fixes at `121648d0` stay; one authorized run after.
