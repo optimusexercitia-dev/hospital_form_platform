@@ -4216,12 +4216,16 @@ with 425's coverage of that site stated either way. **Errcodes bound:** `can_rea
 PRIVILEGE grounds); `can_sign_meeting` → `sign_meeting` line 24 raised **`HC033`** (the STATE guard;
 HC036 is the guard that failed to fire; `sign_meeting` carries HC033/HC035/HC036); direction
 `positive` = always-grant, from the harness's own record. **Merge** via
-`scripts/lib/merge-findings-baseline.sh` exit 0: committed 353 rows (36 BLIND · 294 COVERED · 23
-NOTICED) + subset 73 → **376** (36 · 317 · 23) — 0 lost, 0 changed, 23 added = EXACTLY the 23 gates
-the census arm called UNKNOWN (21 doors + both wrapper forms), every one COVERED, zero BLIND; `git
-diff --stat` 1499/355 read with the exit — provenance annotation, not verdict movement. ⚠
-Backend's own false alarm, stated by it: a `^\| *(app|public)\.` grep read the merge as 133 → 40
-rows — a regex artefact against the merged layout; parsed as tables, nothing dropped. **⭐⭐ Both
+`scripts/lib/merge-findings-baseline.sh` exit 0 — ⛔ **THIS PARAGRAPH WAS FALSE AS FIRST WRITTEN
+(corrected in place the same evening, see the entry "the merge GUTTED the baseline" below):** the
+helper's output was EXACTLY the 73-row subset — 353 → 73 top-level rows, all 36 BLIND gone — and
+its "0 lost" accounting did not notice. The reassuring "376 rows, 0 lost, 0 changed" recorded
+here came from backend's second parser, which counted the merge's INDENTED QUOTED COPIES inside
+provenance annotations as table rows; the crude `grep -c '^\|'` (87 vs 367) had been right and
+was explained away. The census arm caught it (205 unknown after the install, zero overlap with the
+23). Nothing committed; the baseline restored byte-identical to HEAD (cksum 1983823619 both). The
+23 new verdicts are exactly the census arm's 23 UNKNOWN gates, every one COVERED — that fact
+survives; the merge does not. **⭐⭐ Both
 NOTICED gates were ALREADY NOTICED in the committed baseline** — this run reproduces standing
 verdicts under a reset-bounded run with the retry net; neither is attributable to T7. **Ruled on
 the wrapper:** `is_commission_staff_of(_for)` COVERED with 0 production callers means a TEST (426)
@@ -4252,3 +4256,41 @@ count(*) from storage.objects`; the gap is two-fold — (1) no mutation arm reac
 reaches it but cannot discriminate because the table is EMPTY on the seeded stack (§ 2.0 excludes
 it; § 3.1/3.2 keep it in the denominator). The follow-up's closure requires both halves and says a
 COVERED earned while `storage.objects` holds zero rows is not a closure. Owed unchanged: (5)–(9).
+
+### 2026-09-14 — the merge GUTTED the baseline (353 → 73 rows, all 36 BLIND lost); caught by the census arm, restored, NOT committed; L25 rules the fold-in (lead)
+
+Backend, plainly: `merge-findings-baseline.sh` exited 0 and reported two statistics lines as its
+only drop; counting TOP-LEVEL table rows, the installed output was exactly the subset — **303 rows
+lost, including all 36 BLIND** — the documented hazard verbatim (*"a subset run has OVERWRITTEN the
+committed findings baseline with only its own cases … FROMFINDINGS arms get GREENER as that
+baseline gets EMPTIER"*). The helper is built for a FULL run's generated file, which legitimately
+regenerates every row; fed a subset it treats the 303 absent rows as regenerated away. **The census
+arm caught it independently:** 205 unknown gates after the install, zero overlap with the 23 it
+named before. **Backend's reporting was wrong twice, in opposite directions, and it said so:** (1)
+a grep artefact cried wolf (133 → 40); (2) the "correction" — a parser using
+`lstrip().startswith('|')` — counted the merge's indented quoted copies inside provenance
+annotations as rows and produced "376, 0 lost", which the lead recorded as fact and has now
+corrected in place above. The over-correction was the dangerous one; the crude `grep -cE '^\|'`
+(87 merged vs 367 baseline) was right and was dismissed the moment a friendlier number appeared —
+a parser that counts a quotation as the thing quoted. **State: safe** — `git diff --stat` on the
+findings file empty, cksum HEAD = on-disk 1983823619, census arm exit 1 with exactly the pre-merge
+23 unknown; nothing committed.
+
+**L25 (lead):** option (b) then (a). (b) `merge-findings-baseline.sh` gains a guard that ABORTS
+loudly when the generated file's row set is a strict subset of the baseline's (the accounting it
+already claims to do), proven by feeding it THIS subset file and requiring the abort, and by
+feeding it a full-shaped file and requiring the merge — the guard's discrimination half. (a) then
+the 23 rows folded in by a TARGETED insertion into the existing table (top-level rows counted
+before and after: 353 → 376, 36 BLIND before and after, verified by the crude `^\|` count AND by a
+parser that excludes indented lines, both quoted), the census arm re-run and quoted GREEN. (c) a
+full re-sweep is refused: many hours re-measuring 300+ gates T7 did not touch, for a defect that
+is the helper's, not the sweep's. The helper's subset-unsafety is filed as a follow-up only if (b)
+does not land in this unit; if it lands, its witness is the abort line.
+
+**Also this round:** write arm re-run after the snapshot refresh — `WRITE_ARM_EXIT=0`, `ARM-DOMAIN
+guard=0/13 policy=1/107`, `COVERED responses.responses_insert_own`, `=== RESULT: CLEAN — 1
+gate(s) measured, all COVERED ===`, verdict RE-EARNED (run 1 was `DIRTY / 1 ERROR` on `snapshot
+drift (with_check)`). `FUP-AE5-STAFF-DOOR-SWEEP-POLICY-ARM-EXCLUDES-STORAGE-SCHEMA` filed, gate 13
+= 0. Blocked behind L25: the census GREEN quote, the four plants (the census plant needs a green
+census), L22's plant, the set-valued run, `SELFTEST=1` ×2, commits, the T8 record. Uncommitted:
+`409` (a), the port, the write-path snapshot row, the storage follow-up. Stack idle and clean.
