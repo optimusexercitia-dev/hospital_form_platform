@@ -3962,3 +3962,33 @@ for `staff` re-checked), no peer seen — but one owner at a time is the rule an
 `pg_stat_activity` is not consent (a mid-reset catalog read returns a half-built catalog, measured
 today); told: derive from the committed vector or route through the lead. Held uncommitted; the
 run and the commit follow T8.
+
+### 2026-09-14 — T8 in progress: census, three arms green, `census` = 1 CORRECTLY (23 gates UNKNOWN); the door sweep RUNS and is the gate run; door surface FROZEN (lead)
+
+Backend, exits bare: two stacks on the host (ours + `escalume`, counted, untouched); `pg_stat_activity`
+0; settle 171/171. **Direct-call census** from comment-stripped bodies + quals: all 21 doors have
+callers (`can_forms_read` 0|9, `can_process_templates_read` 0|9, `can_accreditation_read` 3|4,
+`can_documents_read` 4|3, … `can_cases_deliberation_read_in_commission` 1|0 = `_case_caps` only, as
+designed); **the wrapper `is_commission_staff_of(_for)`: 0 and 0** — the deferral, still owed under
+its named unit. Arms: `hat` 0 · `floor` 0 · `FROMFINDINGS=1 wrapper` 0 (BLIND set 41, all
+allow-listed) · **`census` = 1, and that is CORRECT**: 23 gates NO sweep has ever seen — the 21
+doors + both wrapper forms — UNKNOWN, not BLIND (the sixteenth-stopper on a 21-door increment; the
+arm cannot be green before the sweep). `401` 0, `409` 0. Deriver exit 0, base `a02487bc`, 75
+cases: `SCOPE: 4 file(s) — 4 committed (a02487bc..HEAD), 0 worktree, 0 untracked | filter: none |
+derivation: catalog`. `410 §§ 7.3/7.4` were re-pinned 1 → 2 earlier in the unit, each observed RED
+first (7.3: two independent readings of the same flip; 7.4: observed red on the T4 seed). `409`
+control (a) re-stated against the post-T7 sites, NOT inherited: the nine `*_select` policies now
+compose `can_forms_read` beside `is_tenancy_admin_of`; the conclusion holds for a DIFFERENT reason
+(a PERMISSION fact where it was a MEMBERSHIP fact). **Door sweep, one invocation, both arms:**
+`ARM-DOMAIN predicate=34/150 policy=39/226`, own green baseline captured (`PASS, Files=275,
+Tests=9218`), on predicate case 1 of 34, each case a full-suite run — HOURS, detached. It warns up
+front that `form_assets_select_member` and `responses_insert_own` are names the PREDICATE arm cannot
+match, so it cannot end CLEAN by construction (3 UNPROVEN or 1 DIRTY); the policy arm and the write
+arm (`CASES="responses_insert_own"`) own those. **Ruling:** run to completion — it is AC-10's
+requirement and the `census` arm depends on it — and it is THE GATE RUN, not a rehearsal: the door
+surface (migrations, doors, policies) is FROZEN from now until the sweep ends; tests and docs may
+move. The tester waits (a reset destroys the sweep). Folding verdicts in is a MERGE, never a copy
+(`git diff --stat` on the findings file read together with the harness exit). Still owed after:
+the four plant + rollback proofs, L22's plant, the write arm, the set-valued cases, `SELFTEST=1`
+with the three `--- GROUP` lines and `bash --version`, `RESET_EVERY` port-then-prove, commits, the
+record entry. ⚠ A detached launch is verified by PID + START line, never by a file's presence.
