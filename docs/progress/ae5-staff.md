@@ -1351,3 +1351,41 @@ the PO checkpoint: P1 the divergence encoding (PA-F8 disposition (b), named exce
 expiry = the bug's fix unit) · P2 the per-class arm-3 values (`424` header, backend-reconciled) ·
 P3 AC-2's nine deny-class values — incl. row 5 `pending` → GRANTED (`is_active` never reads
 `email_confirmed_at`), a second finding to name.
+
+### 2026-09-13 — joint diagnosis of `424`'s iteration-4 cells; bugs filed; the checkpoint's shape (lead)
+
+Tester's iteration 4 (`ca59d464`, LF-normalised, fixture at Farmácia B since iteration 1): § 4.1/4.1b
+red on ~560 cells, tabled by class in `424` § 4. Backend ruled per class from the vector parse + live
+selects (its entry has the queries):
+- **(a) VECTOR, new — `conjunct_unmet`, 144 cells on 8 rows** (`action_items.read`, `capa.read`,
+  `cases.deliberation.read`, `cases.vote`, `meetings.cases.shell.read`, `meetings.minutes.sign`,
+  `meetings.read`, `roster.read`; 18 each): the vector sets `expected_legacy_granted = expected_granted`
+  there, but `conjunct_unmet` MEANS the door's further conjunct is false, so legacy DENIES where the
+  catalog GRANTS — the opposite direction from limb (b), missed by backend's own ruling; needs its
+  own label family (`arm3:divergent-approved:` is wrong: legacy is narrower) and an
+  `expected_legacy()` branch. ⛔ Not the tester's dispatch. → checkpoint item P2.
+- **(a) VECTOR, confirmed — row 15 `disjunct_present`, 198 cells**; the 990 accounting RESTATED:
+  990 is the vector rows owed the label, not cells that flip — only row 15's disjunct is
+  persona-independent; rows 4/11/16 fire only for named principals (4 · 3 · document approvers),
+  row 1 for none. → P1.
+- **(c) FIXTURE, backend's — `forms.read` limb (b) is UNCONSTRUCTIBLE today**: zero targeted-version
+  participants exist; backend declared the coordinate and seeded no row. Needs a
+  `responses.target_case_participant_id` chain reaching a CCIH form version.
+- **(b) SUITE, tester's — `roster.read` (214), `documents.read` (66), `action_items.read` (26),
+  `accreditation.read` × `none`/`disjunct_absent` (12)**: the dispatch must pass the published
+  `arm3Door` argument shape — row 4 `$1` = the caller's own profile id at `disjunct_present`, a
+  different profile elsewhere; row 16 `$3` = the caller and a document whose approver IS the persona;
+  row 11 `none`/`conjunct_met` selects the pre-existing committee-scope item; row 15
+  `disjunct_absent` selects the CCIH-owned framework, not the foreign-owned one.
+
+**Bugs filed** (`5d7f32c0`): `BUG-AE5-STAFF-INACTIVE-BYPASSES-ROLE-FREE-DISJUNCTS` (critical, not
+catastrophic — wrong authz answer, no PHI, no cross-tenant read; fix = its own unit
+`AE5-INACTIVE-DISJUNCT-GUARD` after this gate; `424` OBSERVES it, nothing GATES it) and
+`BUG-AE5-STAFF-PENDING-ACCOUNT-HAS-FULL-MEMBER-REACH` (medium; the vector is right, the product
+question stands). BUGS.md header sum re-derived 167, gate 13 agrees.
+
+**Routing.** Tester: the four (b) classes, no run. Backend: the row-1 fixture chain (owns the stack;
+one reset; commit), then holds. PO checkpoint P1 · P2 · P3 (next lead message). On the ruling:
+backend applies P1+P2 to the generator, regenerates (`t6-wip/P1-vector-change.md` is the prepared
+command; `staff_admin` 1728 stays byte-identical), tester runs `424` to green + the able-to-fail
+witness; then the stack goes to backend for the T6 red-first sequence and the `387` re-pin.
