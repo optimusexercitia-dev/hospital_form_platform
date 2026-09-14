@@ -4067,3 +4067,14 @@ act on is relayed immediately, not at the next ten.
 22 predicate verdicts, 22 COVERED, 0 NOTICED / DIRTY / ERROR / UNPROVEN; last
 `app.can_read_event(p_event_id uuid, p_user_id uuid)`. Pace since 10:19 incl. baseline and four
 periodic resets: ~8.4 min per case ⇒ ~10.5 h end to end, finish ≈ 21:00.
+
+### 2026-09-14 — sweep: first NOTICED — `app.can_read_referral_internal_note(p_note_id, p_uid)` (lead watcher)
+
+NOTICED = the suite reacted to the neutralized gate by RAISING rather than by a clean red assertion
+(the shape-reading-harness lesson: a test that raises turns COVERED into NOTICED) — evidence of
+coverage, quoted and dispositioned in the gate record, never read as a pass and never as BLIND.
+This door became probeable only with T7's `referral_internal_notes` seed row (PHI module, process
+text only); the raise is likely a PHI-audit or class-1 guard firing under a `select true` body.
+Backend asked to read the case's run log (`runlogs/pred_app_can_read_referral_internal_note_….log`,
+a file, not the DB) and name the raising test and its SQLSTATE now, so the disposition is ready at
+the merge. The sweep continues untouched.
