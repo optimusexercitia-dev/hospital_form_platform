@@ -233,4 +233,4 @@
 | 0208 | [Two conventions: the candidate fan-out `D` is a parametric structural invariant plus ac…](0208-the-candidate-fanout-is-structurally-dominated-and-empty-search-path-is-the-sole-forward-convention.md) | accepted | 2026-09-11 | – | – |
 | 0209 | [The ACT hat is a DOOR-level term on the professional-profile read door, evaluated befor…](0209-the-act-hat-is-a-door-level-term-on-the-professional-profile-read-door.md) | accepted | 2026-09-11 | amends 0201 | – |
 | 0210 | [The backend-state seam size warn line is raised to 200 KB (hard cap 250 KB)](0210-backend-state-seam-size-warn-line-raised-to-200-kb.md) | accepted | 2026-09-12 | amends 0196 | – |
-| 0211 | [`staff` gets its own single-role wrapper, and the cutover is proven without a candidate…](0211-staff-gets-its-own-single-role-wrapper.md) | ⚠ proposed | – | – | – |
+| 0211 | [`staff` gets its own single-role wrapper, and the cutover is proven without a candidate…](0211-staff-gets-its-own-single-role-wrapper.md) | ⚠ proposed | 2026-09-13 | – | – |

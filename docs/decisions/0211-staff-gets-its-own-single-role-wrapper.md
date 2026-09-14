@@ -1,6 +1,7 @@
 # 0211 — `staff` gets its own single-role wrapper, and the cutover is proven without a candidate twin
 
 **Status:** proposed
+**Amended:** 2026-09-13 — D2 aligned to the T6 plan review's conditions A1/A2; the deferred `authenticated` grant recorded in § Consequences
 **Area:** authorization / AE5 increment 1
 **Related:** 0174, 0201, 0207
 
@@ -119,6 +120,43 @@ three parts, and no one of them is sufficient:
    ⚠ This is a **constructed** oracle, and its bound is stated rather than hidden: it proves the
    wrapper agrees with the legacy predicate's `staff` slice, **not** that `holds_role` behaves under
    `test_validation` — it cannot, because `holds_role` refuses that state by design.
+
+   ⭐ **AMENDED 2026-09-13 at the T6 plan review — the differential owes TWO further populations,
+   and without them "every seeded principal" is a sentence the suite does not honour.** Both are
+   conditions of the ack and are built as NAMED cells in `426`, never as an aggregate:
+
+   **(i) THE HAT, BOTH POLARITIES, UNDER THREE CONTEXTS.** The SELF form
+   (`app.is_commission_staff_of`) is measured under `active_role ∈ {staff, staff_admin, none}` and
+   agreement asserted in each; the `_for` form is asserted **hat-blind** under the same three.
+   ⛔ ONE HAT PROVES ONE POLARITY ONLY: a suite running only the matching hat passes on a wrapper
+   that ignores the hat entirely, and one running only the self form passes on a wrapper that
+   applies it uniformly — the two failures the § 6A asymmetry sits between, and the exact pair
+   AE4.6's delegation ruling got wrong when it claimed `assignment_facts` inherited all four of
+   `app.has_role`'s gates (it carries three; the hat lives elsewhere).
+
+   **(ii) PRINCIPAL STATE, BY NAMED CELLS, AND WHERE `is_active` SITS IS NOT THE SAME ON BOTH
+   SIDES.** Measured on the live catalog 2026-09-13:
+
+   | predicate | calls `app.is_active`? |
+   | --- | --- |
+   | `app.has_role_any` | **no** |
+   | `app.is_member_of` | **yes** — at the WRAPPER level |
+   | `authz.holds_role` | **no** |
+   | `authz.assignment_facts` | **yes** — at the FACTS level |
+
+   ⇒ both sides apply it, so the **answers agree and there is no divergence to except**; the
+   **levels differ**, and that is the fact worth carrying. Two consequences the suite is built
+   around: the restricted legacy expression must spell out `app.is_active(u) and …` rather than
+   call `has_role_any` alone, or the two sides are unequal by construction on every inactive
+   principal and the natural repair is to delete the inactive cells — removing exactly the coverage
+   this clause adds; and a future change to `has_role_any` **alone** would not move the wrapper, so
+   the two are not one predicate wearing two names.
+   The population must contain a `staff` member at **each** `principalState` and the agreement is
+   asserted on each BY NAME — `staff4.ccih` (active) · `suspenso.temp` (suspended) · `gap.pending`
+   (pending, and it **GRANTS**: `app.is_active` never reads `email_confirmed_at`) ·
+   `gap.deactivated` (deactivated). ⛔ An aggregate `count(*) = 0` over the whole population passes
+   when an inactive principal is simply ABSENT from the fixture, because absent rows agree about
+   nothing.
 3. **PA-F8-STAFF-2's condition, asserted rather than assumed.** The hat-grain difference between
    `has_role_any` (the hat may match ANY role held in the scope) and `holds_role` (the hat must match
    the code asked about) is unreachable **only** while two structural facts hold, and both are
@@ -183,6 +221,18 @@ audit (`docs/testing/ae5-staff-fixture-gaps.md`) measured how few of `staff`'s c
 - ⚠ Neither `is_member_of`, `is_member_of_for` nor `has_role_any` carries a header comment today, so
   the three-deep template clause (ADR 0193 D5 · ADR 0200 · ADR 0201 D3) has **no carrier** on the
   predicates this increment cuts over. The new pair carries it from birth.
+- ⛔⛔ **THE GRANT TO `authenticated` IS DEFERRED TO T7, AND THE REASON IS A MEASURED CEILING.**
+  Measured 2026-09-13, the privilege budget is EXACTLY at its pin: `app=326  public=433
+  total=759`, ceiling **759** (`docs/backend-state/authorization-and-audit.md`'s `BUDGET-ANCHOR`,
+  mirrored by `320 § U4`, gate 15). Two new `prosecdef` functions executable by `authenticated`
+  make it `app=328 total=761` and **breach it**. That ceiling "moves only by PO ruling, with a
+  named justification in the raising increment's own gate record", and editing the pin to match
+  **inverts** the authority the gate enforces — so T6 grants `service_role` only. ⭐ This costs
+  nothing at T6 precisely because the wrapper has **zero callers by design**: nothing executes as
+  `authenticated` against it until T7 re-keys a site onto it, which is where the grant belongs.
+  A privilege with no consumer is a privilege that should not exist yet. ⚠ To mirror the ACLs
+  exactly instead, the PO raises the ceiling to 761 with its justification in this increment's
+  gate record — ⛔ one without the other is the inversion.
 - D3 leaves a dated obligation on a later increment. It is named here rather than left implicit
   because *"re-express `is_member_of`"* reads like tidy-up and is in fact the moment the member
   surface changes evaluator.
