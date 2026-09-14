@@ -3217,3 +3217,228 @@ insert into public.hospital_dpos (hospital_id, user_id)
 select '05000000-0000-0000-0000-00000000000a'::uuid, p.id
 from public.profiles p
 where p.email = 'staff1.ccih@test.local';
+
+-- ===========================================================================
+-- AE5-STAFF — the arm-3 / deny-class FIXTURE GAP rows (round 4 step 5).
+-- ===========================================================================
+-- Source: docs/testing/ae5-staff-fixture-gaps.md § 8 (tester), plus three rows
+-- backend measured and added to that list — row 19 (`capa_plan` held ONE row and
+-- its source was `rca`, so the `source = 'indicator'` coordinate had NO fixture
+-- at all), row 16 (the four `document_approvals` rows name CONTAMINATED staff),
+-- and row 12 (the guard is ethics-DETAILS existence, lead ruling L5, so the pair
+-- is a case WITH vs WITHOUT such a row rather than two statuses).
+--
+-- ⛔ EVERY ID BELOW IS NEW AND SHARED WITH NO OTHER CASE (plan :1144-1147). The
+-- `a5f…` prefix is this unit's and appears nowhere else in this file — grep it to
+-- see the whole fixture at once. A fixture id reused across two cases makes one
+-- case's failure look like the other's, and a shared id has already fabricated
+-- both a defect and an all-clear in this tree.
+--
+-- ⛔⛔ NO EXISTING PERSONA IS REPURPOSED, AND THAT DIVERGES FROM THE TESTER'S § 8
+-- ON PURPOSE. Its list asks for a `staff` membership on `novato.pendente` and
+-- `desativado.conta`. Those two are read by suites that assume they are
+-- committee-less, so granting them a membership changes the meaning of fixtures
+-- this unit has no finding against — the blast radius is other people's tests.
+-- Two NEW personas carry the two lifecycle coordinates instead. ⚠ Same
+-- coordinate, additive only; the tester renames its cases to these.
+--
+-- ⚠ NOT SEEDED HERE, and why: `principalState = offboarded`. The mechanism IS
+-- located — `public.hospital_affiliations` (`ended_on` / `voided_at`), written by
+-- `app.end_affiliation_impl` / `app.void_affiliation_impl` and read by
+-- `app.person_has_active_org_affiliation` / `app.person_is_anchorless` (ADR 0163)
+-- — but the coordinate is not constructible as a DISTINCT cell: measured, 32 of
+-- the seeded profiles already hold zero live affiliations, so an "offboarded"
+-- persona's cells would be byte-identical to its active ones. That is the same
+-- finding AE4 recorded when it EXCLUDED the value (EXCLUSIONS['principalState',
+-- 'offboarded']), and seeding a row here would not change it.
+-- ---------------------------------------------------------------------------
+
+do $a5f$
+declare
+  v_ccih     uuid := 'a0000000-0000-0000-0000-0000000000a1';  -- CCIH (Rede A)
+  v_farmb    uuid := 'c0000000-0000-0000-0000-0000000000c2';  -- Farmácia B (Rede B) — the cross-org home
+  v_orgb     uuid := '0c000000-0000-0000-0000-00000000000b';
+  v_hosp_a   uuid := '05000000-0000-0000-0000-00000000000a';
+  v_clean    uuid := '00000000-0000-0000-0000-00000000000a';  -- staff4.ccih — the CLEAN plain staff
+  v_xorg     uuid := 'a5f00000-0000-0000-0000-0000000000e1';  -- NEW: clean org-B staff-only
+  v_unpriv   uuid := 'a5f00000-0000-0000-0000-0000000000e2';  -- NEW: zero-role, zero-admin, active
+  v_pending  uuid := 'a5f00000-0000-0000-0000-0000000000e3';  -- NEW: pending + a staff membership
+  v_deact    uuid := 'a5f00000-0000-0000-0000-0000000000e4';  -- NEW: deactivated + a staff membership
+  v_users    jsonb;
+  u          jsonb;
+  v_mtype    uuid;
+  v_status   uuid;
+  v_docver   uuid;
+  v_indic    uuid;
+begin
+  -- ── PERSONAS ──────────────────────────────────────────────────────────────
+  v_users := jsonb_build_array(
+    jsonb_build_object('id', v_xorg,    'email', 'gap.xorg.b@test.local',   'name', 'Membro Gap Rede B'),
+    jsonb_build_object('id', v_unpriv,  'email', 'gap.unpriv@test.local',   'name', 'Sem Vinculo Gap'),
+    jsonb_build_object('id', v_pending, 'email', 'gap.pending@test.local',  'name', 'Pendente Gap'),
+    jsonb_build_object('id', v_deact,   'email', 'gap.deactivated@test.local', 'name', 'Desativada Gap')
+  );
+  for u in select * from jsonb_array_elements(v_users)
+  loop
+    insert into auth.users (
+      instance_id, id, aud, role, email, encrypted_password,
+      email_confirmed_at, recovery_sent_at, last_sign_in_at,
+      raw_app_meta_data, raw_user_meta_data,
+      created_at, updated_at, confirmation_token, email_change,
+      email_change_token_new, recovery_token
+    ) values (
+      '00000000-0000-0000-0000-000000000000', (u ->> 'id')::uuid,
+      'authenticated', 'authenticated', u ->> 'email',
+      crypt('Test1234!', gen_salt('bf')),
+      -- ⚠ `gap.pending` is UNCONFIRMED in auth.users AND in profiles. The AE4.5
+      -- re-measurement found the seed's only pending persona confirmed in the
+      -- table GoTrue reads, which made "it authenticates" a fact about one row
+      -- rather than about pending accounts. This one diverges in neither place.
+      case when (u ->> 'id')::uuid = v_pending then null else now() end,
+      now(), now(),
+      '{"provider":"email","providers":["email"]}'::jsonb,
+      jsonb_build_object('full_name', u ->> 'name'),
+      now(), now(), '', '', '', ''
+    );
+  end loop;
+
+  update public.profiles set email_confirmed_at = null where id = v_pending;
+  update public.profiles set is_active = false     where id = v_deact;
+
+  -- ⛔⛔ THE ORG AFFILIATION IS NOT OPTIONAL, AND LEAVING IT OUT BROKE FOUR SUITES.
+  -- Measured on the first run of this block: 387 (7), 393 (1), 396 (1), 400 (3).
+  -- `app.tenant_orphan_profiles()` returns every non-admin profile with no live
+  -- organization affiliation, and `396 § 9.3` asserts THE SEED CONTRIBUTES ZERO
+  -- ORPHANS while `400 § 1.6` pins the orphan set AS A LIST — so four unaffiliated
+  -- personas did not move a count, they falsified a property those suites exist to
+  -- hold. ⚠ The main persona loop threads `org` through `seed_persona_org` and the
+  -- affiliation is written at the top of this file, long before this block runs;
+  -- appending personas after that point means writing the row here, by hand, or
+  -- manufacturing orphans. ⭐ THIS IS THE SEED'S OWN RULE, not a workaround: its
+  -- affiliation header says the affiliation is "the ONLY anchor" since the AE2 drop.
+  insert into public.organization_affiliations (principal_id, organization_id, started_on) values
+    (v_xorg,    v_orgb, '2023-01-01'::date),
+    (v_unpriv,  '0c000000-0000-0000-0000-00000000000a'::uuid, '2023-01-01'::date),
+    (v_pending, '0c000000-0000-0000-0000-00000000000a'::uuid, '2023-01-01'::date),
+    (v_deact,   '0c000000-0000-0000-0000-00000000000a'::uuid, '2023-01-01'::date);
+
+  -- ⛔ The two lifecycle personas DO get a `staff` membership — that is the whole
+  -- point. Without it `app.is_member_of_for` returns false for the ABSENCE OF A
+  -- GRANT and the cell reads as a deny that the principal state never caused:
+  -- measured at r1, the `pending` row scored DENIED for the wrong reason and the
+  -- deny-class table's expected GRANTED could not be observed at all.
+  insert into public.memberships (id, principal_id, role, commission_id) values
+    ('a5f10000-0000-0000-0000-0000000000e1'::uuid, v_xorg,    'staff', v_farmb),
+    ('a5f10000-0000-0000-0000-0000000000e3'::uuid, v_pending, 'staff', v_ccih),
+    ('a5f10000-0000-0000-0000-0000000000e4'::uuid, v_deact,   'staff', v_ccih);
+  -- gap.unpriv gets NO membership and NO admin flag, by construction.
+
+  -- ── ROWS 6 / 7 — a participants_only meeting, and an attendee pair ────────
+  select id into v_mtype from public.commission_meeting_types
+   where commission_id = v_ccih order by created_at limit 1;
+
+  insert into public.meetings (id, commission_id, meeting_number, meeting_type_id, title,
+                               status, scheduled_start, visibility_policy, held_at)
+  -- ⚠ CREATED `commission_default` AND FLIPPED AFTER THE ATTENDEE EXISTS. A guard
+  -- (`HC0C3`, "uma reunião restrita aos participantes exige ao menos um
+  -- participante") refuses a participants_only meeting with no attendee, so the
+  -- obvious one-statement insert cannot build this fixture. The flip is the
+  -- fixture, not a workaround: the production path reaches the same state the
+  -- same way.
+  values ('a5f20000-0000-0000-0000-0000000000a1'::uuid, v_ccih, 9101, v_mtype,
+          'Reunião restrita (fixture arm-3 linha 6/7)', 'held',
+          now() - interval '10 days', 'commission_default', now() - interval '10 days');
+
+  -- the clean staff is NOT an attendee here: that IS the `conjunct_unmet` cell.
+  insert into public.meeting_attendees (id, meeting_id, user_id, attendance) values
+    ('a5f30000-0000-0000-0000-0000000000a1'::uuid, 'a5f20000-0000-0000-0000-0000000000a1'::uuid,
+     '00000000-0000-0000-0000-000000000003'::uuid, 'present');
+
+  update public.meetings set visibility_policy = 'participants_only'
+   where id = 'a5f20000-0000-0000-0000-0000000000a1'::uuid;
+
+  -- ── ROW 8 — an in_signature meeting with BOTH attendance polarities ───────
+  insert into public.meetings (id, commission_id, meeting_number, meeting_type_id, title,
+                               status, scheduled_start, visibility_policy, held_at)
+  -- ⚠ SAME SHAPE AS THE MEETING ABOVE, DIFFERENT GUARD: a meeting already at
+  -- `in_signature` refuses attendee writes (`23514`, "o conteúdo desta reunião
+  -- está bloqueado"). Created `held`, attendees added, THEN moved to
+  -- `in_signature` — which is also the order the product moves it in.
+  values ('a5f20000-0000-0000-0000-0000000000a2'::uuid, v_ccih, 9102, v_mtype,
+          'Ata em assinatura (fixture arm-3 linha 8)', 'held',
+          now() - interval '5 days', 'commission_default', now() - interval '5 days');
+
+  insert into public.meeting_attendees (id, meeting_id, user_id, attendance) values
+    -- present  -> the door GRANTS (conjunct_met)
+    ('a5f30000-0000-0000-0000-0000000000a2'::uuid, 'a5f20000-0000-0000-0000-0000000000a2'::uuid,
+     v_clean, 'present'),
+    -- absent   -> the door DENIES for a reason no permission expresses (conjunct_unmet)
+    ('a5f30000-0000-0000-0000-0000000000a3'::uuid, 'a5f20000-0000-0000-0000-0000000000a2'::uuid,
+     '00000000-0000-0000-0000-0000000000d2'::uuid, 'absent');
+
+  -- ⛔ A THIRD GUARD, and it is the one that says how this fixture must be built:
+  -- `app.trg_guard_meeting_state` refuses any status transition unless
+  -- `app.in_meeting_rpc` is `on` ("mudanças de estado da reunião devem passar
+  -- pelas RPCs de reunião"). ⚠ The flag is set here rather than calling
+  -- `public.conclude_meeting`, because that RPC authorises on `auth.uid()`, which
+  -- is NULL in a seed running as the owner — the call would fail for a reason
+  -- that has nothing to do with the fixture. Setting the flag is the same
+  -- mechanism the RPC uses, scoped `true` (transaction-local) so it cannot leak
+  -- into the rest of the seed.
+  perform set_config('app.in_meeting_rpc', 'on', true);
+  update public.meetings set status = 'in_signature'
+   where id = 'a5f20000-0000-0000-0000-0000000000a2'::uuid;
+  perform set_config('app.in_meeting_rpc', 'off', true);
+
+  -- ── ROW 11 — a non-`committee` action item, assigned to the clean staff ───
+  -- ⚠ `sort_order`, not `position` — and the status must be the commission's own
+  -- (the table is per-commission with a global fallback), so the lookup is
+  -- narrowed and the initial one is chosen by its FLAG rather than by order.
+  select id into v_status from public.action_item_statuses
+   where (commission_id = v_ccih or commission_id is null) and is_initial
+   order by commission_id nulls last, sort_order limit 1;
+
+  insert into public.action_items (id, commission_id, source_type, title, status_id,
+                                   visibility_scope, assigned_to, created_by)
+  values ('a5f40000-0000-0000-0000-0000000000a1'::uuid, v_ccih, 'manual',
+          'Item restrito aos responsáveis (fixture arm-3 linha 11)', v_status,
+          'assignees_only', v_clean, v_clean);
+  -- the limb-(b) deny half: same scope, assigned to SOMEONE ELSE.
+  insert into public.action_items (id, commission_id, source_type, title, status_id,
+                                   visibility_scope, assigned_to, created_by)
+  values ('a5f40000-0000-0000-0000-0000000000a2'::uuid, v_ccih, 'manual',
+          'Item restrito de outro responsável (fixture arm-3 linha 11b)', v_status,
+          'assignees_only', '00000000-0000-0000-0000-0000000000d2'::uuid, v_clean);
+
+  -- ── ROW 15 — the PUBLIC arm, and both of its comparators ──────────────────
+  -- ⛔ `owner_commission_id IS NULL` grants EVERY authenticated caller. Without
+  -- the NULL-owner row the `disjunct_present` cell is unconstructible; without
+  -- the other two, `disjunct_absent` cannot be distinguished from "no rows".
+  insert into public.accreditation_frameworks (id, key, name, version, owner_commission_id) values
+    ('a5f50000-0000-0000-0000-0000000000a1'::uuid, 'gap-global', 'Marco global (fixture arm-3 linha 15 — PUBLIC)', '1.0', null),
+    ('a5f50000-0000-0000-0000-0000000000a2'::uuid, 'gap-ccih',   'Marco da CCIH (fixture arm-3 linha 15 — próprio)', '1.0', v_ccih),
+    ('a5f50000-0000-0000-0000-0000000000a3'::uuid, 'gap-farmb',  'Marco de outra comissão (fixture arm-3 linha 15 — alheio)', '1.0', v_farmb);
+
+  -- ── ROW 16 — a document_approvals row naming the CLEAN staff ──────────────
+  -- The four seeded rows name staff1.ccih / staff1.farm / chefe.farm, every one
+  -- of which carries another non-role reach (matrix § 8.2), so none can measure
+  -- the approver disjunct in isolation.
+  select id into v_docver from public.controlled_document_versions order by created_at limit 1;
+  if v_docver is not null then
+    insert into public.document_approvals (id, document_version_id, approver_id)
+    values ('a5f60000-0000-0000-0000-0000000000a1'::uuid, v_docver, v_clean);
+  end if;
+
+  -- ── ROW 19 — an INDICATOR-sourced CAPA ────────────────────────────────────
+  -- Measured: `capa_plan` held exactly one row, `source = 'rca'`. The
+  -- `source = 'indicator'` conjunct — the whole of row 19's coordinate — had no
+  -- fixture at all, and the tester's § 8 did not list it because rows 12/16/19
+  -- were the three it could not verify.
+  select id into v_indic from public.indicators where commission_id = v_ccih order by created_at limit 1;
+  if v_indic is not null then
+    insert into public.capa_plan (id, code, source, source_indicator_id, hospital_id, opened_by)
+    values ('a5f70000-0000-0000-0000-0000000000a1'::uuid, 'CAPA-GAP-19', 'indicator',
+            v_indic, v_hosp_a, v_clean);
+  end if;
+end
+$a5f$;
