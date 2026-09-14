@@ -3945,3 +3945,20 @@ document the persona does not approve, a framework with an owner). **Round 2 ord
 file-only until T8 parks, cap 2):** replace the seven arm-3 exclusions with `424`'s `disjunct_absent`
 bindings so 3.2 measures them; the registry leg stays excluded with its `carriesCode:false` cited.
 AC-7 ticks on that run. T8 to backend now — the stack is free; the tester's re-run follows T8.
+
+### 2026-09-14 — `425` round 2 written (tester, uncommitted): the seven arm-3 sites probed on `424`'s `disjunct_absent` ids; a scope note (lead)
+
+Per site, `f425w` now holds the vector's own `disjunct_absent` fixed-literal id (a CCIH-owned
+framework, a committee-scoped item, a document/version the persona does not approve, a co-member's
+row) and `site_signature`'s primary probe targets it — all seven `t → f` / `1 → 0` under the
+deletion; the original disjunct-reachable probe kept as a SECOND measurement
+(`p1_survivor_signature`, § 3.3/3.3b: stays GRANTED across before/after/restored — PO ruling P1
+witnessed explicitly, 21 observations). Exclusions: 3.1 = 10 (9 sparse tables + the audit leg,
+`carriesCode:false` cited), want 47; 3.2 = the audit leg only, want 56; pre-T7 text kept, PASS 1 →
+PASS 2 history inline, no widening without a fresh live query. Plan 18 → 21 (§ 0.4 fixture control,
+§ 3.3, § 3.3b). ⚠ **Scope note, self-reported:** the tester derived the ids with rollback-safe reads
+against the stack while backend owned it for T8; no state changed (`role_permissions` 20 rows
+for `staff` re-checked), no peer seen — but one owner at a time is the rule and an empty
+`pg_stat_activity` is not consent (a mid-reset catalog read returns a half-built catalog, measured
+today); told: derive from the committed vector or route through the lead. Held uncommitted; the
+run and the commit follow T8.
