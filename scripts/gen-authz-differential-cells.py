@@ -312,6 +312,7 @@ def scope_id_for(scope):
 # 0201 D1). Counted and printed, never silenced; the PO may rule at the gate.
 _KEYING_CENSUS = []
 SKIP_NO_SCOPE_FIXTURE = 'no_resource_fixture_at_this_scope'
+SKIP_NOT_EXECUTABLE = 'door_is_a_write_guard_not_executable'
 
 
 def probe_reads(code, perms=None):
@@ -337,7 +338,7 @@ def _needs_resource(code):
     """Whether this row's probe names a RESOURCE at all. The bare rows do not — their probe is
        the membership predicate over the cell's scope, which every scope has by definition."""
     p = probe_for(code)
-    if not p:
+    if not p or p.get('kind') == 'not-executable':
         return False
     return p.get('kind') == 'rls-select' or '{resource}' in (p.get('call') or '')
 SKIP_CALLER_KEYED = 'self_check_undefined_for_caller_keyed_door'
@@ -429,7 +430,7 @@ def row_keying(code, perms=None):
     p = probe_for(code, perms)
     if not p:
         return None
-    if p.get('kind') == 'rls-select':
+    if p.get('kind') in ('rls-select', 'not-executable'):
         return 'caller-only'
     return 'third-party-capable' if '{uid}' in (p.get('call') or '') else 'caller-only'
 
@@ -488,7 +489,7 @@ def catalog_sql_for(code, principal, res, scope):
             % (_lit(principal), _lit(res), _lit(scope), _lit(code)))
 
 
-def arm3_limb_b_reach(code):
+def arm3_limb_b_reach(code, perms=None):
     """Limb (b)'s DECLARED reach for one representative, READ FROM THE ENFORCEMENT MANIFEST.
 
        ⛔⛔ NOT A PERSONA LIST IN THIS FILE, AND THAT IS THE WHOLE POINT (L8). "This
@@ -496,18 +497,19 @@ def arm3_limb_b_reach(code):
        matrix; a claim a generator makes about itself is not a detector (the arm9 lesson, and the
        same one L6 hit when `armInterface` existed only in the JSON). arm13 re-reads this on every
        run and refuses to emit when a row that sweeps `disjunct_present` declares no reach."""
-    if MANIFEST_PERMISSIONS is None:
+    perms = MANIFEST_PERMISSIONS if perms is None else perms
+    if perms is None:
         return None
-    row = MANIFEST_PERMISSIONS.get(code) or {}
+    row = perms.get(code) or {}
     return (row.get('arm3Door') or {}).get('reach')
 
 
-def limb_b_fires(code, persona, selfcheck):
+def limb_b_fires(code, persona, selfcheck, scope=None, perms=None):
     """Whether limb (b) can be TRUE at this coordinate. ⚠ Returns None — not False —
        when the row declares nothing, so "undeclared" stays distinguishable from "declared
        unreachable". Collapsing the two would let a missing declaration read as a measured
        absence, which is the UNKNOWN-vs-ABSENT shape a classifier must never flatten."""
-    r = arm3_limb_b_reach(code)
+    r = arm3_limb_b_reach(code, perms)
     if r is None:
         return None
     kind = r.get('kind')
@@ -516,6 +518,13 @@ def limb_b_fires(code, persona, selfcheck):
     if kind == 'selfcheck':
         return bool(selfcheck)
     if kind == 'personas':
+        # ⭐⭐ SCOPE × PERSONA. The fixtures are scope-keyed, so the principal the limb fires for
+        # differs per scope — row 11's assignee is measured diagonal (own→staff4.ccih,
+        # sibling→staff1.farm, foreign→gap.xorg.b). A persona-only reach named ONE principal for
+        # every scope and so flipped 40 cells where the door denies.
+        by = r.get('byScope')
+        if by is not None:
+            return persona in (by.get(scope) or [])
         return persona in (r.get('personas') or [])
     return None
 
@@ -872,6 +881,8 @@ NOT_ARM3_COVERAGE = ('arm3:not-in-gate', 'arm3:blocked:principal-state')
 
 
 def arm3_divergence(klass, persona, ctx, scope, state, selfcheck, exp, src, reach, gate, code):
+    # ⚠ `scope` was already a parameter and was NOT being used by the limb-(b) branch — the
+    # reach lied at every off-own scope while the fixtures had moved on without it.
     """Transcribed from the arm-3 derivation, in PRECEDENCE ORDER. Each branch names the catalog
        fact it stands for; none of them re-derives `expected_granted`."""
     # ⭐⭐ THE TWO memberGateArm BRANCHES ARE TESTED BEFORE THE `klass != ARM3_GATE`
@@ -901,7 +912,7 @@ def arm3_divergence(klass, persona, ctx, scope, state, selfcheck, exp, src, reac
     # 424 § 4.1b, every one reporting `legacy=false` against this column's `true`.
     # ⛔ A cell where the legacy door does not grant is NOT divergent, so the PO's P1 ruling
     # — which is about how an approved divergence is ENCODED — never reached it.
-    if gate == 'disjunct_present' and not exp and limb_b_fires(code, persona, selfcheck):
+    if gate == 'disjunct_present' and not exp and limb_b_fires(code, persona, selfcheck, scope):
         return 'arm3:divergent-approved:role-free-disjunct-ignores-principal-state'
     if klass != ARM3_GATE:
         return 'arm3:not-in-gate'
@@ -1119,6 +1130,13 @@ def build(personas, contexts, scopes, states, reaches, reps_by_role, exclusions,
                             # on these rows into a second self-check. ⛔ Skipped, never
                             # dropped silently: the rule is named, censused, and re-stated by
                             # arm7, so the coverage loss is visible as a number.
+                            # ⛔ A DOOR THAT CANNOT BE EXECUTED FOR A TRUTH VALUE IS SKIPPED
+                            # BY NAME, NEVER APPROXIMATED WITH A NEIGHBOURING PREDICATE. Row 12's
+                            # guard lives inside a WRITE that raises and takes a decision id; the
+                            # approximation measured a READ predicate with a different signature
+                            # and asserted nothing about the guard.
+                            if (probe_for(code) or {}).get('kind') == 'not-executable':
+                                skip(SKIP_NOT_EXECUTABLE); continue
                             _keying = row_keying(code)
                             if _keying == 'caller-only' and not selfcheck:
                                 skip(SKIP_CALLER_KEYED); continue
@@ -1209,7 +1227,13 @@ def coverage(cells, skipped, reps_by_role, disposition=None, exclusions=None, ax
     # ⛔ can_manage_external_participant (row 31) is NO LONGER covered by body identity — it has
     # its own rep. That reduction is retired, and 403 §2.3b now asserts the rep instead of the
     # identity.
-    _declared_classes = {r[1] for r in reps_flat}
+    # ⭐ ONE NARROW, NAMED EXEMPTION: a rep whose door is declared `not-executable` emits no
+    # cells BY RULE, and its absence is counted in the skip census with its reason string. ⛔ The
+    # exemption is keyed on that declaration, never on a class NAME — a hand-list here would
+    # silence the next silently-dropped rep, which is the only thing this arm exists to catch.
+    _unexecutable = {r[1] for r in reps_flat
+                     if (probe_for(r[0], permissions) or {}).get('kind') == 'not-executable'}
+    _declared_classes = {r[1] for r in reps_flat} - _unexecutable
     _emitted_classes = {c[5] for c in cells}
     if _declared_classes != _emitted_classes:
         f.append('arm3: swept legacy-equivalence classes do not match the declared REPS — '
@@ -1387,8 +1411,20 @@ def coverage(cells, skipped, reps_by_role, disposition=None, exclusions=None, ax
     _perms = permissions or {}
     _doorrows = [x for x in _staff_codes
                  if ((_perms.get(x) or {}).get('arm3Door') or {}).get('probe')]
-    _keymismatch = [(x, row_keying(x, _perms), subject_keying(x, _perms)) for x in _doorrows
-                    if subject_keying(x, _perms) is not None
+    # ⚠ A ROW MAY OVERRIDE ITS DERIVED KEYING, BUT ONLY BY DECLARING A RULING AND A REASON, and
+    # the overrides are PRINTED rather than merely skipped — an exemption nobody can see is how a
+    # weakened arm looks from the outside. Row 16 carries one (L11): it has a `p_uid` door but is
+    # probed through the policy leg, because the two production doors disagree on the inactive
+    # principal that P1 is about.
+    _overridden = sorted(x for x in _doorrows
+                         if (probe_for(x, _perms) or {}).get('keyingOverride'))
+    if _overridden:
+        _KEYING_CENSUS.extend('%s (override: %s)'
+                              % (x, (probe_for(x, _perms) or {})['keyingOverride'].get('ruling'))
+                              for x in _overridden)
+    _keymismatch = [(x, row_keying(x, _perms), subject_keying(x, _perms))
+                    for x in _doorrows if x not in set(_overridden)
+                    and subject_keying(x, _perms) is not None
                     and row_keying(x, _perms) != subject_keying(x, _perms)]
     if _keymismatch:
         f.append('arm14: %d arm-3 door representative(s) derive a keying from their PROBE that '
@@ -1418,6 +1454,56 @@ def coverage(cells, skipped, reps_by_role, disposition=None, exclusions=None, ax
             for _x in (_v.values() if isinstance(_v, dict) else [_v]):
                 if isinstance(_x, str) and _x != '{uid}' and _x.count('-') == 4:
                     _declared_ids.add(_x)
+    # ⭐ (f) NO RESOURCE FIXTURE MAY BE A PERSONA-AXIS ID. Row 4's `disjunct_absent` bound
+    # `gap.unpriv`, which is also the third-party CALLER, so the subject was the caller on every
+    # third-party cell and the door's self leg fired — a fabricated grant in one direction and a
+    # stuck deny in the other, which is the fixture-shared-ids shape exactly.
+    _persona_ids = {str(v).lower() for v in ((_fixtures().get('personaUid') or {}).values())}
+    _persona_ids.add(str(_fixtures().get('thirdPartyCaller') or '').lower())
+    _collide = sorted({c[19] for c in cells
+                       if c[19] and c[19].lower() in _persona_ids
+                       and (probe_for(c[4]) or {}).get('kind') == 'rls-select'
+                       and _resolved_fixture(c[4], c[1], c[15], c[3]) != principal_uid(c[1])})
+    if _collide:
+        f.append('arm14: %d resource fixture id(s) are also PERSONA-AXIS ids (first: %s) — a '
+                 'fixture that doubles as a persona makes the probe read the caller\'s own row, '
+                 'which fabricates a grant for that persona and leaves the real predicate '
+                 'unexercised for every other one' % (len(_collide), _collide[0]))
+    # ⭐ (g) A `personas` REACH MUST BE SCOPE-KEYED. The fixtures are; a persona-only reach names
+    # one principal for every scope and lies wherever the resource moved.
+    _flatreach = sorted({x for x in _staff_codes
+                         if (arm3_limb_b_reach(x, _perms) or {}).get('kind') == 'personas'
+                         and (arm3_limb_b_reach(x, _perms) or {}).get('byScope') is None})
+    if _flatreach:
+        f.append('arm14: representative(s) %s declare a `personas` reach with no `byScope` — the '
+                 'resource fixtures are scope-keyed, so the principal limb (b) fires for differs '
+                 'per scope and a flat list is wrong everywhere but one'
+                 % ', '.join('`%s`' % x for x in _flatreach))
+    # ⭐ (h) THE BOUND FUNCTION MUST BE THE ROW'S DECLARED DOOR. Row 12 was approximated with
+    # `app.can_read_case_committee` — a READ predicate with a different signature from the write
+    # guard the matrix cites — and measured false for every persona, so 4 cells asserted nothing
+    # about the door they name. ⛔ The bound name must appear in the row's own `arm3Door`
+    # declaration (its expression or one of its § 5.4 sites); a neighbouring predicate is a
+    # DIFFERENT test wearing the row's name.
+    import re as _re
+    _wrongdoor = []
+    for _x in _staff_codes:
+        _d = (_perms.get(_x) or {}).get('arm3Door') or {}
+        _pr = _d.get('probe')
+        if not _pr or _pr.get('kind') != 'function-call':
+            continue
+        _mm = _re.match(r'([a-z_]+\.[a-z_]+)\(', _pr.get('call') or '')
+        _fn = _mm.group(1) if _mm else ''
+        _sites = [str(a.get('site', '')).split(' ')[0]
+                  for a in ((_perms.get(_x) or {}).get('armInterface') or [])]
+        if not _fn or (_fn not in (_d.get('expression') or '') and _fn not in _sites):
+            _wrongdoor.append((_x, _fn))
+    if _wrongdoor:
+        f.append('arm14: %d representative(s) bind a function that is NOT the row\'s declared '
+                 'door (first: `%s` binds `%s`, which appears in neither its `arm3Door.expression` '
+                 'nor its § 5.4 sites) — a neighbouring predicate is a different test wearing the '
+                 'row\'s name, and it answers for the wrong door in silence'
+                 % (len(_wrongdoor), _wrongdoor[0][0], _wrongdoor[0][1] or '(unparsed)'))
     _noreadtable = sorted({x for x in _staff_codes
                            if _needs_resource(x) and not probe_reads(x, _perms)[0]})
     if _noreadtable:
@@ -1462,7 +1548,10 @@ def coverage(cells, skipped, reps_by_role, disposition=None, exclusions=None, ax
                  'to hard-code a persona list, which is a claim it cannot make about itself. '
                  'Declare `arm3Door.reach` (kind: unconditional | personas | selfcheck).'
                  % ', '.join('`%s`' % x for x in _undeclared))
-    _overreach = [c for c in cells if c[12] == _p1 and not limb_b_fires(c[4], c[1], c[8])]
+    # ⚠ THE CELL'S SCOPE IS PART OF THE PREDICATE since the reach became scope-keyed; omitting
+    # it made every byScope row read as unreachable and this arm fired on 56 correct cells.
+    _overreach = [c for c in cells
+                  if c[12] == _p1 and not limb_b_fires(c[4], c[1], c[8], c[3], _perms)]
     if _overreach:
         f.append('arm13: %d cell(s) carry the approved limb-(b) divergence on a coordinate where '
                  'the DECLARED reach says the disjunct cannot fire — the legacy door denies '
@@ -1575,7 +1664,12 @@ def coverage(cells, skipped, reps_by_role, disposition=None, exclusions=None, ax
                  'NO cell — the coordinate the matrix approved is not being measured'
                  % ', '.join(_lost))
 
-    declared = {r[0] for r in reps_flat}
+    # ⚠ SAME NARROW EXEMPTION AS arm3's, and keyed the same way: a rep whose door is declared
+    # `not-executable` emits nothing BY RULE and is counted in the skip census with its reason.
+    # ⛔ Keyed on the DECLARATION, never on a code name — a hand-list would silence the next
+    # genuinely-dropped rep, which is the one thing this arm is for.
+    declared = {r[0] for r in reps_flat
+                if (probe_for(r[0], permissions) or {}).get('kind') != 'not-executable'}
     emitted = {c[4] for c in cells}
     if declared - emitted:
         f.append('arm1b: representative(s) declared but never emitted: %s' % ', '.join(sorted(declared - emitted)))
@@ -1691,7 +1785,8 @@ if '--self-test' in sys.argv:
            QUIET on the true cell set; this proves it is LOUD."""
         out = list(base_cells)
         i = next((j for j, c in enumerate(out)
-                  if c[15] == 'disjunct_present' and limb_b_fires(c[4], c[1], c[8]) is False), None)
+                  if c[15] == 'disjunct_present'
+                  and limb_b_fires(c[4], c[1], c[8], c[3]) is False), None)
         assert i is not None, ('no cell sits at `disjunct_present` on an unreachable coordinate — '
                                'the synthesised arm13 fixture would perturb nothing')
         # ⛔ TAIL PRESERVED — see _one. Columns 14+ (`role`, `gate`, door) must survive.
@@ -1739,6 +1834,31 @@ if '--self-test' in sys.argv:
         own = _resolved_fixture(out[i][4], out[i][1], out[i][15], 'own_commission')
         out[i] = out[i][:19] + (str(own),) + out[i][20:]
         return out
+
+    def _synth_personacollide():
+        """ONE rls-select cell's `legacy_fixture_id` repointed at a PERSONA-AXIS id - row 4's
+           measured defect, where the `disjunct_absent` subject was also the third-party caller.
+           arm14(f) must name it."""
+        out = list(base_cells)
+        tgt = str((_fixtures().get('thirdPartyCaller') or '')).lower()
+        i = next((j for j, c in enumerate(out)
+                  if c[14] == 'staff' and c[19]
+                  and (probe_for(c[4]) or {}).get('kind') == 'rls-select'
+                  and c[1] != 'unprivileged'), None)
+        assert i is not None, ('no rls-select staff cell to repoint - the synthesised arm14(f) '
+                               'fixture would perturb nothing')
+        out[i] = out[i][:19] + (tgt,) + out[i][20:]
+        return out
+
+    def _pm_flat_reach(pm):
+        """A scope-keyed reach flattened back to a persona list - the shape that flipped 40 cells
+           at scopes where the named principal is not the assignee. arm14(g) must name it."""
+        for code, row in pm.items():
+            r = (row.get('arm3Door') or {}).get('reach')
+            if r and r.get('byScope'):
+                r['personas'] = sorted({p for v in r['byScope'].values() for p in v})
+                del r['byScope']
+                return
 
     def _flip_keying(pm):
         """A CALLER-ONLY row's probe rewritten to pass the cell's principal - fabricating a
@@ -1791,6 +1911,7 @@ if '--self-test' in sys.argv:
     _pm_door_unswept = _pm_mutate(_unsweep)
     _pm_bad_keying = _pm_mutate(_flip_keying)
     _pm_nonliteral = _pm_mutate(_pm_random_id)
+    _pm_flatreach = _pm_mutate(_pm_flat_reach)
 
     checks = [
         ('arm1 empty cell set',          [],                                                      base_skipped, REPS_BY_ROLE, None, None, None),
@@ -1906,6 +2027,10 @@ if '--self-test' in sys.argv:
          None, None, None, _pm_nonliteral),
         ('arm14 a cell bound across scopes', _synth_crossscope(), base_skipped, REPS_BY_ROLE,
          None, None, None, None),
+        ('arm14 a fixture id that is a persona', _synth_personacollide(), base_skipped,
+         REPS_BY_ROLE, None, None, None, None),
+        ('arm14 a reach with no byScope', base_cells, base_skipped, REPS_BY_ROLE,
+         None, None, None, _pm_flatreach),
     ]
     bad = 0
     # ⚠ THE TAIL IS PADDED, NOT TYPED OUT. Every arm added since has widened `coverage()`, and

@@ -2777,10 +2777,12 @@
       "arm3Door": {
         "reach": {
           "kind": "personas",
-          "personas": [
-            "unprivileged"
-          ],
-          "note": "`app.can_access_targeted_version($1, $2)` with `$2 = uid`: fires only for a principal linked through responses → case_participants → professional_participants → professional_profiles. MEASURED: only `gap.unpriv` (= persona `unprivileged`) holds that chain; the other three personas hold zero."
+          "byScope": {
+            "own_commission": [
+              "unprivileged"
+            ]
+          },
+          "note": "The targeted-version chain is built at CCIH for gap.unpriv alone (measured); `disjunct_present` is declared at no other scope."
         },
         "kind": "policy-qual",
         "row": 1,
@@ -2808,12 +2810,12 @@
               "foreign_org_commission": "a5fc0000-0000-0000-0000-0000000000b2"
             },
             "_default": {
-              "own_commission": "50000000-0000-0000-0000-00000000a001",
+              "own_commission": "50000000-0000-0000-0000-00000000a002",
               "sibling_commission": "a5fc0000-0000-0000-0000-0000000000b1",
               "foreign_org_commission": "a5fc0000-0000-0000-0000-0000000000b2"
             }
           },
-          "note": "⭐ The RLS probe is what fixed row 1: the DECLARED expression fused `form_versions_select` and `form_versions_select_targeted` into one hand-written term and dropped `app.is_tenancy_admin_of`. Measured: for staff4.ccih the real door GRANTS (the member limb) while the declared limb (b) DENIES. `disjunct_absent` is the version with no targeted chain.",
+          "note": "⛔ `_default` (the `none` baseline) MUST NOT be the version carrying the targeted chain. It was `…a001`, which gap.unpriv can read through `form_versions_select_targeted` — so the role-free arm leaked into the baseline cell and the door granted where the label said `arm3:not-in-gate` (12 measured cells). `…a001` is now reserved to `disjunct_present`; the baseline is `…a002`, which no principal reaches by a role-free path.",
           "probeReadsTable": "public.form_versions",
           "probeReadsColumn": "id"
         }
@@ -3003,19 +3005,24 @@
             "disjunct_present": {
               "_self": true
             },
+            "disjunct_absent": {
+              "own_commission": "a5f00000-0000-0000-0000-0000000000f4",
+              "sibling_commission": "a5f00000-0000-0000-0000-0000000000f4",
+              "foreign_org_commission": "a5f00000-0000-0000-0000-0000000000f4"
+            },
+            "conjunct_unmet": {
+              "own_commission": "a5f00000-0000-0000-0000-0000000000f3",
+              "sibling_commission": "a5f00000-0000-0000-0000-0000000000f1",
+              "foreign_org_commission": "a5f00000-0000-0000-0000-0000000000f1"
+            },
             "_default": {
               "own_commission": "a5f00000-0000-0000-0000-0000000000f1",
               "sibling_commission": "a5f00000-0000-0000-0000-0000000000f2",
               "foreign_org_commission": "a5f00000-0000-0000-0000-0000000000f3"
-            },
-            "disjunct_absent": {
-              "own_commission": "a5f00000-0000-0000-0000-0000000000e2",
-              "sibling_commission": "a5f00000-0000-0000-0000-0000000000e2",
-              "foreign_org_commission": "a5f00000-0000-0000-0000-0000000000e2"
             }
           },
           "note": "⚠ THE ONLY PERSONA-KEYED BINDING, and it has to be: `$1` is the SUBJECT PROFILE being read, so a fixed value across personas makes `subject_holder` a hidden SELF-read (424 § 4's own (b) finding). `disjunct_present` is the self leg — the subject IS the principal; `_default` is a genuine co-member in the commission that principal actually holds in.",
-          "scopeNote": "⛔ MY EARLIER READING HERE WAS REFUTED BY MEASUREMENT, and the note is kept rather than quietly replaced. It said a profile belongs to no commission so the subject could not be scope-keyed. But the door asks whether the SUBJECT holds a membership in some commission the CALLER is also in — so the subject IS scope-bound, through its memberships. The old binding used real co-members carrying other memberships, so `subject_holder` at `sibling_commission` probed a CCIH co-member: a true co-member fact at the WRONG SCOPE (measured legacy=true vs catalog=false). Each subject now holds EXACTLY ONE membership, and the leg is diagonal — measured true only where the caller shares that scope.",
+          "scopeNote": "⛔ MY EARLIER `scopeNote` HERE WAS REFUTED BY MEASUREMENT and is kept as a correction rather than quietly replaced: it claimed a profile belongs to no commission so the subject could not be scope-keyed. The door asks whether the SUBJECT holds a membership in some commission the CALLER also holds, so the subject IS scope-bound through its memberships. Each `_default` subject holds EXACTLY ONE, and the co-member leg measures diagonal.",
           "probeReadsTable": "public.profiles",
           "probeReadsColumn": "id"
         }
@@ -3504,10 +3511,18 @@
       "arm3Door": {
         "reach": {
           "kind": "personas",
-          "personas": [
-            "subject_holder"
-          ],
-          "note": "The published expression's limb (b) is the EXISTS over `action_item_assignments`. ⚠ SEEDED BY L8 — before it, NO persona held such a row and this coordinate was undeclarable in practice: the matrix declared it and no fixture could build it. Now `staff4.ccih` (subject_holder) owns item a5f40000-…-a1 and `ativo.registro` owns …-a2, so the limb is persona-keyed in BOTH directions. ⛔ The real door has two further disjuncts (`is_staff_admin_of_for`, `assigned_to = p_uid`) that this expression does NOT declare; the reach below describes the DECLARED limb, which is what the differential evaluates."
+          "byScope": {
+            "own_commission": [
+              "subject_holder"
+            ],
+            "sibling_commission": [
+              "other_commission_holder"
+            ],
+            "foreign_org_commission": [
+              "cross_org_actor"
+            ]
+          },
+          "note": "⛔ SCOPE × PERSONA, because the fixtures are scope-keyed and the assignee therefore differs per scope: measured diagonal — own→staff4.ccih, sibling→staff1.farm, foreign→gap.xorg.b. A persona-only reach said `subject_holder` everywhere and so flipped 40 cells at scopes where that principal is not the assignee and the door denies."
         },
         "kind": "policy-qual",
         "row": 11,
@@ -3627,20 +3642,9 @@
         "legacyClassSource": "TESTER'S",
         "stateColumn": "presence of a public.ethics_case_details row for the case (⛔ NOT public.cases.status — lead ruling L5)",
         "probe": {
-          "kind": "function-call",
-          "call": "app.can_read_case_committee({resource}::uuid, auth.uid())",
-          "fixtures": {
-            "conjunct_unmet": {
-              "own_commission": "d0000000-0000-0000-0000-0000000000c1"
-            },
-            "_default": {
-              "own_commission": "ca000000-0000-0000-0000-0000000000e1"
-            }
-          },
-          "note": "DOCUMENTED APPROXIMATION, named rather than hidden: `cast_case_vote` is a WRITE whose guard cannot be executed for its truth value without casting a vote, so the probe is the guard's own reachability predicate. The uid is bound to `auth.uid()`, NOT to the cell's principal, and that is the point: matrix 5.4 records this site's subject as `caller`, so the row is CALLER-ONLY and its third-party cells are skipped by rule. Binding the principal here would fabricate a third-party capability the guard does not have - which is what arm14(b) caught on its first run, on me.",
-          "scopeNote": "Declared at `own_commission` only: the fixture is a CCIH FK chain and no equivalent exists at the other two scopes. Cells at those scopes are skipped by the named rule, never probed against the CCIH row.",
-          "probeReadsTable": "public.cases",
-          "probeReadsColumn": "id"
+          "kind": "not-executable",
+          "skipRule": "door_is_a_write_guard_not_executable",
+          "reason": "`public.cast_case_vote(p_decision_id uuid, p_vote text, p_rationale_md text)` is a WRITE whose guard raises rather than returning, and it takes a DECISION id — there is no way to evaluate it for a truth value without casting a vote. ⛔ It was approximated with `app.can_read_case_committee(case, uid)`, a READ predicate with a different signature; measured FALSE for all four personas on both bound cases, which is 4 red cells asserting nothing about the guard. An approximated door is a different test wearing the row's name, so the row is SKIPPED BY NAME instead. Its write polarity belongs to T12."
         }
       },
       "hardDenyMeasurement": {
@@ -4100,11 +4104,13 @@
       "arm3Door": {
         "reach": {
           "kind": "personas",
-          "personas": [
-            "subject_holder",
-            "other_commission_holder"
-          ],
-          "note": "`app.is_document_approver_of($1, $3)` with `$3 = uid`. MEASURED: `staff4.ccih` (subject_holder) and `staff1.farm` (other_commission_holder) each hold one document_approvals row; cross_org_actor and unprivileged hold none."
+          "byScope": {
+            "own_commission": [
+              "subject_holder",
+              "other_commission_holder"
+            ]
+          },
+          "note": "The approver leg is constructible only at CCIH, and only for the two principals holding a `document_approvals` row there (measured). No reach at the other scopes."
         },
         "kind": "policy-qual",
         "row": 16,
@@ -4120,21 +4126,27 @@
         "legacyClassSource": "MINE",
         "stateColumn": "a public.document_approvals row naming the caller as approver-of-record",
         "probe": {
-          "kind": "function-call",
-          "call": "app.can_read_document({resource}::uuid, {uid}::uuid)",
+          "kind": "rls-select",
+          "relation": "public.controlled_documents",
+          "idColumn": "id",
+          "probeReadsTable": "public.controlled_documents",
+          "probeReadsColumn": "id",
           "fixtures": {
             "disjunct_present": {
-              "own_commission": "a5fe0000-0000-0000-0000-0000000000a1"
+              "own_commission": "d0c00000-0000-0000-0000-0000000000d1"
             },
             "_default": {
-              "own_commission": "a5fe0000-0000-0000-0000-0000000000a2",
-              "sibling_commission": "a5fe0000-0000-0000-0000-0000000000a3",
-              "foreign_org_commission": "a5fe0000-0000-0000-0000-0000000000a4"
+              "own_commission": "d0c00000-0000-0000-0000-0000000000d2",
+              "sibling_commission": "a5fd0000-0000-0000-0000-0000000000a1",
+              "foreign_org_commission": "a5fd0000-0000-0000-0000-0000000000a2"
             }
           },
-          "note": "⛔⛔ THE ID IS A `public.documents` ID, NOT A `controlled_documents` ONE. `app.can_read_document(p_document_id, p_uid)` looks its resource up in `public.documents` (joined to `securable_resources`) — MEASURED from its body, not recalled. The binding used `controlled_documents.id`, the lookup found no row, and the door denied EVERY persona including `subject_holder`@own. ⚠ The base seed's `documents` rows carry `gen_random_uuid()` ids and so cannot be bound; these hang off the same home resources with fixed ids. `disjunct_present` is the document whose home staff4.ccih approved.",
-          "probeReadsTable": "public.documents",
-          "probeReadsColumn": "id"
+          "note": "⭐⭐ L11 (2026-09-14): THIS ROW PROBES THE POLICY LEG, NOT THE `p_uid` FUNCTION. ⛔ TWO PRODUCTION DOORS DISAGREE ON EXACTLY THE AXIS P1 IS ABOUT. The policy's leg is `app.is_document_approver_of(id, auth.uid())`, whose body carries NO `app.is_active` term — that state-blindness IS the approved divergence P1 ruled and BUG-AE5-STAFF-INACTIVE-BYPASSES-ROLE-FREE-DISJUNCTS files. The function `app.can_read_document(p_document_id, p_uid)` opens with `if not app.is_active(p_uid) then return false`, so it DENIES the inactive principal the policy grants (both measured live). Probing the function therefore contradicted a PO ruling for 16 cells. L10's preference for a `p_uid` door yields to that here: the row is CALLER-ONLY and its third-party cells are skipped by L10's own named rule. ⚠ The second door's guard is a real finding about production, not about this fixture — the lead carries it to the bug register.",
+          "keyingOverride": {
+            "value": "caller-only",
+            "ruling": "L11 (2026-09-14)",
+            "reason": "This row HAS a `p_uid` door (`app.can_read_document`), so matrix 5.4 reads it as third-party-capable and L10 would prefer it. It is probed through the POLICY leg anyway, by ruling: the function opens with `if not app.is_active(p_uid) then return false` while the policy's `app.is_document_approver_of` leg carries no such term, so the two production doors DISAGREE on exactly the inactive principal that P1's approved divergence is about. Probing the function contradicted a PO ruling for 16 cells. The override is declared here rather than silencing arm14(b), so the exception is one row with a reason instead of a weakened arm."
+          }
         }
       },
       "hardDenyMeasurement": {
@@ -4286,13 +4298,13 @@
           "call": "app.can_read_capa({resource}::uuid, {uid}::uuid)",
           "fixtures": {
             "conjunct_unmet": {
-              "own_commission": "ca000000-0000-0000-0000-0000000000a3"
+              "own_commission": "a5f70000-0000-0000-0000-0000000000b1"
             },
             "_default": {
               "own_commission": "a5f70000-0000-0000-0000-0000000000a1"
             }
           },
-          "note": "`conjunct_unmet` is the RCA-sourced plan; the default the indicator-sourced one.",
+          "note": "`can_read_capa` is THREE OR'd disjuncts (pqs operator · can_read_event · the indicator-sourced member arm). The old `conjunct_unmet` plan had its indicator conjunct genuinely unmet but `can_read_event` GRANTED through its RCA's event — measured true for staff4.ccih, so the cell asserted an unmet conjunct while the door said yes for an unrelated reason. ⛔ An unmet-conjunct fixture is only a control when the OTHER disjuncts are false too: the manual-sourced plan has no source row, so `event_of_capa` is null. Measured FALSE for all four personas, while the default plan stays TRUE for subject_holder only.",
           "scopeNote": "Declared at `own_commission` only: the fixture is a CCIH FK chain and no equivalent exists at the other two scopes. Cells at those scopes are skipped by the named rule, never probed against the CCIH row.",
           "probeReadsTable": "public.capa_plan",
           "probeReadsColumn": "id"
