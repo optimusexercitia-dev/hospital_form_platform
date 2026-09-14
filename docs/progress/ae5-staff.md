@@ -3316,3 +3316,14 @@ auth.uid())` — composes the same authorizer, no bare call. Row 12's re-key tar
 `app.can_sign_meeting`; policy and command door inherit it. Net: 23 re-emissions + 1 re-declaration;
 hand policies 2 → 1 (`meeting_cases_select` via `can_reach_meeting`). Next: the 23 under `''`
 validated before placement, `23/23` in a rollback; then the rest. `supabase/` clean.
+
+### 2026-09-14 — the 42-policy input covered BOTH clauses; the two misreads traced to one habit (lead)
+
+Backend: the snapshot selected `coalesce(qual,'')` AND `coalesce(with_check,'')`, the generator
+counted and substituted across both; of the 42 sites, 40 carry a non-null `qual` and 2 a non-null
+`with_check` (the INSERT policies, no overlap) — so the 40/40 diff was over whole policies.
+`responses_insert_own` (logic in `with_check`) was generated correctly and read back after apply.
+The two earlier misreads (calling it a hand case; calling `meeting_signatures_insert` empty) came
+from the same `qual`-only reading habit, both corrected from the catalog. Standing counts: 42
+policies = 40 generated + 1 hand (`meeting_cases_select`) + 1 following its authorizer; 24
+functions = 23 to re-emit + 1 re-declared; 20 doors 13/7 at 339/433/772. Next pass: the 23.
