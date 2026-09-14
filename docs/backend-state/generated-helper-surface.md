@@ -4,7 +4,7 @@
 > one file you need and carries the maintenance rules in full. ⛔ A posted section is FROZEN:
 > correct it by APPENDING a `⚠ **Superseded** — … See <file> § <heading>.` marker, never in place.
 
-<!-- DATA-ACCESS-ANCHOR kind=helper schema=app rows=526 definer=415 invoker=111 trigger=176 aclnull=228 digest=5a4a5161f9c3830e7e267ab3f930ea5d -->
+<!-- DATA-ACCESS-ANCHOR kind=helper schema=app rows=528 definer=417 invoker=111 trigger=176 aclnull=228 digest=3aea2afbda0306957311158b6fce488e -->
 
 ⚙ **GENERATED FILE — do not edit by hand.** Every row below is derived from the LIVE
 CATALOG and from `src/` by `scripts/gen-data-access-surface.mjs`; rebuild with `npm run data-access:surface`.
@@ -19,11 +19,11 @@ handwritten in [`data-access.md`](data-access.md), which is frozen and posted (A
 D5). A catalog knows an ACL; it does not know that re-ordering an enum would open
 legal-privileged documents.
 
-**526 functions** in schema `app` — 415 `SECURITY DEFINER`, 111 invoker, 176 trigger functions, 228 with a NULL `proacl`.
+**528 functions** in schema `app` — 417 `SECURITY DEFINER`, 111 invoker, 176 trigger functions, 228 with a NULL `proacl`.
 
 ⚠ **A NULL `proacl` is rendered `<NULL=PUBLIC>` and means PUBLIC MAY EXECUTE** — it is the default, not an absence of grants. Reading it as "no grants" inverts the fact (the same trap `scripts/catalog-fingerprint.sql` names). ⚠ **A `definer` row's gate REPLACES RLS**, so its EXECUTE list is the whole boundary: `prosecdef` belongs beside `pg_policies`, never read alone (ADR 0078, ADR 0079).
 
-⚠ **176 of these are TRIGGER functions** — invoked only by a `CREATE TRIGGER`, never called by name. They are marked `*(trigger)*` in the Function cell and return `trigger`. This registry is the WHOLE `pg_proc` population of the schema, which is why a trigger's `prosecdef` and ACL are visible here at all; **the directly-callable count is 526 − 176 = 350**. (No `app` function is reachable over PostgREST; the schema is not exposed.)
+⚠ **176 of these are TRIGGER functions** — invoked only by a `CREATE TRIGGER`, never called by name. They are marked `*(trigger)*` in the Function cell and return `trigger`. This registry is the WHOLE `pg_proc` population of the schema, which is why a trigger's `prosecdef` and ACL are visible here at all; **the directly-callable count is 528 − 176 = 352**. (No `app` function is reachable over PostgREST; the schema is not exposed.)
 
 ## The generated function registry
 
@@ -331,6 +331,8 @@ legal-privileged documents.
 | `app.is_case_excluded` | `p_case_id uuid, p_uid uuid` | `boolean` | **definer** | stable | `authenticated=X/postgres,postgres=X/postgres,service_role=X/postgres` |
 | `app.is_case_respondent` | `p_case_id uuid, p_uid uuid` | `boolean` | **definer** | stable | `authenticated=X/postgres,postgres=X/postgres,service_role=X/postgres` |
 | `app.is_client_role` | — | `boolean` | invoker | stable | `<NULL=PUBLIC>` |
+| `app.is_commission_staff_of_for` | `p_commission_id uuid, p_user_id uuid` | `boolean` | **definer** | stable | `postgres=X/postgres,service_role=X/postgres` |
+| `app.is_commission_staff_of` | `p_commission_id uuid` | `boolean` | **definer** | stable | `postgres=X/postgres,service_role=X/postgres` |
 | `app.is_document_approver_of` | `p_document_id uuid, p_uid uuid` | `boolean` | **definer** | stable | `authenticated=X/postgres,postgres=X/postgres,service_role=X/postgres` |
 | `app.is_document_version_approver` | `p_version_id uuid, p_uid uuid` | `boolean` | **definer** | stable | `authenticated=X/postgres,postgres=X/postgres,service_role=X/postgres` |
 | `app.is_dpo_of_for` | `p_hospital_id uuid, p_user_id uuid` | `boolean` | **definer** | stable | `authenticated=X/postgres,postgres=X/postgres,service_role=X/postgres` |

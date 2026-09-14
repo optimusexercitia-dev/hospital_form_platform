@@ -2475,3 +2475,93 @@ proven on a known input BEFORE its contradictory reading is believed (a negative
 instrument), and the byte count is the guard. Not yet RUN — the stack is backend's for T6 (its step 2
 visible in the tree: the cutover migration placed, 426 modified); the run (`e2e:prod` once) is
 AC-10's.
+
+### 2026-09-14 — backend: T6, the atomic cutover APPLIED (`31b73837`)
+
+Red-first, in order. Every file:line the routing cited was re-verified before acting.
+
+**Step 1 — RED before the migration** (`65a22ff5`), the migration deliberately OUT of the tree:
+- `426` test 3 — *"0.3 FIXTURE CONTROL: `staff` is `authoritative`. ⛔ `authz.holds_role` refuses
+  a non-authoritative role, so before the cutover EVERY wrapper cell below would be false and the
+  whole suite would agree with a restricted predicate that is also false — two wrongs reading as a
+  green."* `have: test_validation` / `want: authoritative`; the suite then aborts (planned 26, ran 4).
+- `405` tests 28–29 — § 4.3b (the positive control on § 4.2b's `prosrc` regex) and § 4.3c
+  (both wrappers on the empty `search_path`). ⭐ § 4.2b itself PASSED, which is exactly why
+  § 4.3b exists: an absence measured over a function that does not exist is trivially true.
+- Exits bare: `00_setup + 426` = **1**, `00_setup + 405` = **1**.
+
+**Step 2 — the migration placed, then applied.** The four snapshot properties, before → after:
+
+| function | prosecdef | volatility | search_path | ACL (sorted) |
+| --- | --- | --- | --- | --- |
+| `is_commission_staff_of` | — → **t** | — → **s** | — → **empty** | — → postgres=X, service_role=X |
+| `is_commission_staff_of_for` | — → **t** | — → **s** | — → **empty** | — → postgres=X, service_role=X |
+| `is_member_of` | t → t | s → s | app, public, pg_catalog (unchanged) | unchanged, incl. its stray PUBLIC entry |
+| `is_member_of_for` · `is_staff_admin_of(_for)` | t → t | s → s | unchanged | unchanged |
+
+⛔ No PUBLIC on either new function, and **no `authenticated`** — deferred to T7, because two new
+`prosecdef` functions inside the BUDGET-ANCHOR ceiling (gate 15) need a PO ruling.
+Role states: `staff` → authoritative; **1 flipped, 2 authoritative, 0 left in `test_validation`**,
+count-verified inside the migration's own block.
+
+**⭐ THE CUTOVER'S EFFECT, MEASURED:** `authz.has_permission` (the RUNTIME resolver, authoritative
+only) now answers **TRUE** for a `staff` holder where it answered FALSE before — the grants seeded
+at T4 were INERT until this flip. Runtime vs candidate over the whole `staff` bundle:
+**80 pairs, 80 agree, 0 disagree.**
+
+**Step 3 — GREEN, and running `426` exposed two defects in MY OWN suite** (`b0740962`):
+1. The wrapper is not executable by `authenticated` — `permission denied for function
+   is_commission_staff_of`. ⛔ The repair is NOT to widen the grant so the suite goes green: that
+   moves a privilege ceiling to satisfy a test. New § 3.5 pins the ABSENCE of both grants and the
+   cells call as `service_role` — a DEFINER's answer does not depend on the caller's role, since
+   `auth.uid()`/`active_role()` come from the claims (measured identical under either).
+   ⚠ Those two cells go RED the day T7 grants it, on purpose.
+2. § 4.3a's "hat=ABSENT" was **unreachable**: `claims_for(u, false, null)` MINTS a hat when the
+   principal holds exactly one role type, so the cell re-measured the MATCHING hat under another
+   name and asserted DENY while the door GRANTED. Re-pointed onto `staff1.qual.b` (staff +
+   staff_admin, so nothing is minted — measured uid set, hat NULL), with a positive control on the
+   same principal and a cell pinning the mint itself. ⭐ The cell generator already carries this as
+   `absent_unreachable_for_single_role_principal`; this suite had to learn it independently, which
+   argues for naming such a rule where BOTH readers can see it.
+   ⚠ The plan said 26 against 35 real assertions — undetected because the pre-cutover run aborted at 4.
+
+**The pins the cutover moved** (`66603273`, `ed8387f3`), each observed RED and attributed:
+`401 § 3.2`'s tripwire fired a second time (`staff=test_validation` → `staff=authoritative`) ·
+`401 § 16.9b` now CONSTRUCTS the pre-cutover state for one cell, because its content is "the state
+gate bites", not "staff happens to be legacy" · `410 § 7.3` 1 → 2 authoritative, plus the manifest
+`catalogSnapshot` · `400` 526 → 528 · `411` artifact + md5 · `421` 890 → **892** (= 860 + 32),
+sql arm 11 → 13, and § 2a reports **13 visited / 0 findings** — both wrappers re-emit cleanly
+under their declared empty path, which is the property ADR 0208 D4 asks for, measured.
+⛔ **`403 § 3.2c` was NOT a pin move but a DERIVATION defect**: its right side read only
+`authz_differential_cells`, so after AE5 split the vector per role it counted `staff` as unswept and
+demanded it be in `test_validation`. It now unions both cell tables. Pinning the left side to
+`(none)` was the tempting repair and would have deleted the cross-check the assertion exists for.
+
+**⚠ ONE RED LEFT, AND IT IS NOT MINE TO EDIT.** `424` test 11 — § 3.2b's PRECONDITION
+*"`staff` sits in `test_validation`, which is what makes `candidate_has_permission` the oracle"*:
+`have: authoritative` / `want: test_validation`. With the cutover in the migration chain this can
+never hold on a fresh reset again. ⭐ The ORACLE is intact — measured above, the two resolvers
+agree 80/80 — so what needs re-ruling is the precondition's wording, not the suite's basis.
+Tester's file; untouched.
+
+**ADR 0211 D2's proof, as the PO reads it at the gate.** (1) The wrapper equals the legacy predicate
+RESTRICTED to `staff` rows — `426` §§ 2–5 — with § 1 showing the UNRESTRICTED comparison
+DISAGREES (`is_member_of_for` true, wrapper false, for a `staff_admin`-only principal), so the
+restriction is shown load-bearing rather than asserted. (2) **A1**, the hat in both polarities: the
+SELF form under matching / wrong / genuinely-absent hats, the `_for` form hat-blind under the same
+three. (3) **A2**, principal state by NAMED cells: active, `suspenso.temp`, `gap.pending`,
+`gap.deactivated`, each asserted individually, with § 0.1 proving all four hold a `staff`
+membership so no cell can agree by both sides denying an absent grant.
+**A3 — the zero-caller authority: no conformance gate reds on it.** `410`, `419` and `421` all
+pass with the wrappers present and uncalled, so no allow-list entry was needed and none was added.
+**PA-F8-STAFF-2**: the wrapper is now AVAILABLE and `is_member_of` is UNCHANGED — ADR 0211 D3 keeps
+it a role-SET predicate until the re-expression is ruled, so all 82 dependents keep their behaviour.
+
+`npm run test:db` on a fresh reset: **Files=274, Tests=9196**, one red file (`424`, 1 test).
+`npm run lint` **0** · `lint:authz-vectors` **0** · `gen:types` **no diff** — the wrappers live in
+`app`, outside the generated public types, so Rule 8 is satisfied with an empty delta, stated rather
+than skipped. ⚠ Gate 19's self-test reds if the `411` md5 literal does not sit ALONE on its line;
+an inline comment beside it broke it once here.
+⚠ The host carried TWO Supabase stacks throughout (ours 9 containers, `escalume` 11). `escalume`
+was counted and never touched; `pg_stat_activity` read **0** active peers before every reset, and
+each reset was verified afterwards on schema / profiles / role state.
