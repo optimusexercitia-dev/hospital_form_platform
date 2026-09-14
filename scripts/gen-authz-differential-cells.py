@@ -139,11 +139,33 @@ REPS = [
 # disagree. A generator's claim about its own coverage is not a detector (the arm9 lesson, one
 # axis over).
 REPS_STAFF = [
-    ('commission.process_templates.read', 'is_member_of_for', 'commission'),
-    ('commission.responses.create',       'is_member_of_for', 'commission'),
-    ('commission.meetings.read',          'is_member_of_for', 'commission'),
-    ('commission.accreditation.read',     'is_member_of_for', 'commission'),
-    ('commission.action_items.read',      'is_member_of_for', 'commission'),
+    # ⭐⭐ LEAD RULING L2 (2026-09-13) REPLACED THIS LIST. The previous five reps were keyed on
+    # `is_member_of_for` — the bare membership predicate — and the eleven-term axis was moved OUT of
+    # this generator because that predicate reads none of the terms. ⛔ THE WRONG HALF MOVED: ADR
+    # 0175 D3's shape is that an arm-3 row's LEGACY COLUMN CALLS THE REAL DOOR ("403 calls the real
+    # door now"). With the door as the legacy side the axis IS consumed, so the sweep belongs here
+    # and the reps are the eleven carrying rows themselves.
+    #
+    # ⛔ THE CLASS IS THE DOOR, NOT `is_member_of_for`, and that is the whole correction. Each entry
+    # is (code, legacy class, resolution scope); the class names what `424`'s legacy column calls,
+    # and the CALLABLE FORM plus its argument shape is declared as DATA in the enforcement manifest
+    # at `permissions[<code>].arm3Door` — arm12 binds the two and refuses generation if they part.
+    ('commission.forms.read',              'policy:form_matrix_select',          'commission'),
+    ('commission.roster.read',             'policy:profiles_select_self_or_admin', 'commission'),
+    ('commission.meetings.read',           'can_reach_meeting',                  'commission'),
+    ('commission.meetings.cases.shell.read', 'policy:meeting_cases_select',      'commission'),
+    ('commission.meetings.minutes.sign',   'can_sign_meeting',                   'commission'),
+    ('commission.cases.deliberation.read', 'has_case_capability:read_case_deliberation', 'commission'),
+    ('commission.action_items.read',       'policy:action_items_select',         'commission'),
+    ('commission.cases.vote',              'guard:cast_case_vote',               'commission'),
+    ('commission.accreditation.read',      'policy:accreditation_frameworks_select', 'commission'),
+    ('commission.documents.read',          'policy:controlled_documents_select',  'commission'),
+    ('commission.capa.read',               'can_read_capa',                      'commission'),
+    # ⭐ THE ONE NON-CARRYING REP, and it is not filler: `commission.responses.create` is the ONLY
+    # membership-gated WRITE policy in the database (matrix § 2), so it keeps the write polarity in
+    # the sweep and it is the subject at which `memberGateArm = none` is measured. Without a
+    # non-carrying rep the inert value would appear in no cell and arm7 would refuse.
+    ('commission.responses.create',        'is_member_of_for',                   'commission'),
 ]
 
 REPS_BY_ROLE = {'staff_admin': REPS, 'staff': REPS_STAFF}
@@ -164,40 +186,15 @@ AXIS_DISPOSITION = {
     # was a FOOTNOTE in this generator and a global sentinel in 403 §7.3; it is now a loop
     # coordinate, so every arm-3 answer is attributable to a cell instead of to a prose caveat.
     'caseReach':      'swept',
-    # ⭐⭐ AE5-STAFF (lead decision L1, 2026-09-13, option (a′)) — THE AXIS IS DECLARED, AND THIS
-    # GENERATOR IS NOT ITS SWEEPER. L1 ruled a `staff`-specific gate-arm axis sized by matrix
-    # § 5.3, and the axes file carries it in full, mandatory limb-(b) value included. What it
-    # cannot carry is a sweep HERE, and the reason is measured rather than preferred:
-    #
-    #   THE LEGACY SUBJECT OF EVERY `staff` REPRESENTATIVE IS `app.is_member_of_for`, AND THAT
-    #   PREDICATE CONSUMES NONE OF THE ELEVEN TERMS. `visibility_policy`, `attendance`,
-    #   `status='in_signature'`, `explicit_grants_only`, `visibility_scope`, the ethics-details
-    #   guard, `owner_commission_id IS NULL`, `source='indicator'`, the approver and
-    #   targeted-version disjuncts — every one of them lives in the CALLER (a policy qual or a
-    #   door body), never in the membership predicate the differential calls. So a cell swept
-    #   across this axis here would differ only in a column ITS OWN PREDICATE NEVER READS, which
-    #   is precisely the inflation the gate-scoped `caseReach` rule below deletes and measured at
-    #   2592 duplicate cells when it was tried on that axis.
-    #
-    # ⚠ WHY `caseReach` IS DIFFERENT AND NOT A PRECEDENT FOR SWEEPING THIS ONE: its carrying
-    # representative's legacy CLASS *is* the door (`can_read_professional_profile`), so the door
-    # is what the differential calls and the reach is a real input to the answer. No `staff`
-    # representative has a door as its class, because `staff` has exactly ONE legacy-equivalence
-    # gate (matrix § 3.0 — 40 policies and 42 function bodies, all resolving to
-    # `app.is_member_of_for`).
-    #
-    # ⛔ THE SWEEP IS OWED, AND ITS OWNER IS NAMED: the DOOR differential `425`
-    # (T12, the grant-present-vs-DELETED shape on real sites) is where these terms are inputs.
-    # ⚠ SURFACED TO THE LEAD as a fork on L1's implementation, not decided silently: L1's axis is
-    # built and approved-set-sized; only its sweeper moved. The per-class PROPOSED values live in
-    # matrix § 5.3 and in `424`'s header, reconciled 2026-09-13.
-    'memberGateArm':  'not-swept HERE, and the owner of the sweep is named: `app.is_member_of_for` '
-                      '— the legacy subject of every `staff` representative — consumes none of the '
-                      'eleven § 5.3 terms, so sweeping the axis in the RESOLVER differential '
-                      'produces cells differing only in a column their predicate never reads. The '
-                      'terms are inputs at the DOOR, so the sweep belongs to the door differential '
-                      '425 (T12). The axis is DECLARED and PO-coordinate-sized in the axes file; '
-                      'only its sweeper differs from lead decision L1\'s first reading.',
+    # ⭐⭐ AE5-STAFF, lead decision L1 (option (a′)) as CORRECTED by ruling L2, 2026-09-13.
+    # An earlier revision of this file dispositioned the axis `not-swept` here, on the measured
+    # ground that `app.is_member_of_for` reads none of the eleven terms. ⛔ THE MEASUREMENT WAS
+    # RIGHT AND THE CONCLUSION WAS WRONG: the fix is not to stop sweeping the axis, it is to stop
+    # using the bare membership predicate as the legacy side. ADR 0175 D3 — "403 calls the real
+    # door now" — is the shape, and REPS_STAFF now keys each carrying row on its DOOR, which does
+    # read its own term. ⭐ A vector column no assertion reads is a keystone that cannot fail; so
+    # is an axis deleted because nothing was reading it.
+    'memberGateArm':  'swept',
     'operation':      'not-swept: stood in for by the legacy-class REPS above. Per-permission '
                       'AXES are not observable until AE5 gives a role a partial map; per-permission '
                       'GRANT is covered by 401 §19.4 (403 header, PER-PERMISSION GRAIN).',
@@ -291,6 +288,23 @@ def member_gate_arms_for(code):
     return row.get('memberGateArm')
 
 
+def arm3_door_expr(code):
+    """The callable the differential's LEGACY column must evaluate for this row, from the manifest.
+
+       ⛔ Emitted INTO the vector as a column so `424` reads it from the cell rather than
+       re-deriving it — a suite that re-derives the door is a suite that can drift from the
+       declaration this file swept the axis against. `(none)` for a representative with no arm-3
+       door, which is the honest value: its legacy side is the membership predicate."""
+    if MANIFEST_PERMISSIONS is None:
+        return '(manifest unreadable)'
+    row = MANIFEST_PERMISSIONS.get(code) or {}
+    door = row.get('arm3Door')
+    if not door:
+        return '(none)'
+    return '%s :: %s' % (door.get('expression', '(no expression)'),
+                         ', '.join(door.get('args', [])) or '(no args)')
+
+
 # ── CONDITIONAL (GATE-SCOPED) EXCLUSIONS — the same reasoned-exclusion idiom, one grain finer. ──
 # EXCLUSIONS above deletes an axis value from the WHOLE population; an entry here deletes it only
 # where it is INERT, and it is held to the same bar: arm7 refuses an unreasoned one, because an
@@ -298,6 +312,21 @@ def member_gate_arms_for(code):
 # element is a RULE NAME, and `build()` implements the condition. The rule name is what the skip
 # census counts, so the deletion is always attributable to a sentence someone wrote.
 CONDITIONAL_EXCLUSIONS = {
+    ('memberGateArm', 'not_declared_for_this_representative'):
+        'GATE-SCOPED, EXACTLY AS `caseReach` IS, AND FOR THE SAME REASON. The eleven `staff` rows '
+        'that carry a matrix § 5.3 coordinate carry DIFFERENT ONES: six carry limb (a) only (a '
+        'further conjunct that can turn a grant into a deny), three carry limb (b) only (a '
+        'role-free disjunct that can satisfy a deny without the predicate), and two carry both. A '
+        'row that carries neither limb cannot answer differently at any value of this axis, so '
+        'sweeping it there emits cells differing only in a column its door never reads — the '
+        'duplicate-cell inflation measured at 2592 cells when the sibling axis was swept '
+        'unconditionally. ⛔⛔ THE VALUE SET PER ROW IS NOT THIS FILE\'S CLAIM: it is read from the '
+        'enforcement manifest at `permissions[<code>].memberGateArm`, beside the `arm3Door` that '
+        'says what the legacy column calls, and arm12 refuses to emit the moment REPS_STAFF and '
+        'those declarations disagree in either direction. ⚠ `disjunct_absent` is MANDATORY on every '
+        'limb-(b) row and may not be dropped to save cells: row 15\'s disjunct is a PUBLIC arm '
+        '(`owner_commission_id IS NULL` grants every authenticated caller), so a deny cell measured '
+        'anywhere else on that row CANNOT FAIL.',
     ('caseReach', 'inert_outside_the_arm3_gate'):
         'GATE-SCOPED, AND THE AXIS IS GATE-SPECIFIC BY CONSTRUCTION. `caseReach` coordinates ONE '
         'arm of ONE gate body: the case arm of app.can_read_professional_profile. A gate whose '
@@ -665,7 +694,8 @@ def arm3_divergence(klass, persona, ctx, scope, state, selfcheck, exp, src, reac
         % (src, reach, persona, ctx, scope, state, selfcheck))
 
 
-def build(personas, contexts, scopes, states, reaches, reps_by_role, exclusions):
+def build(personas, contexts, scopes, states, reaches, reps_by_role, exclusions, gates=None):
+    gates = list(spec['axes']['memberGateArm']['values'].keys()) if gates is None else gates
     """Returns (cells, skipped). EVERY skip counter counts CELLS, at one grain, so that
        `len(cells) + sum(skipped.values())` equals the full grid exactly — asserted below.
        ⛔ An earlier shape short-circuited excluded AXIS VALUES at their own loop level, so those
@@ -692,6 +722,7 @@ def build(personas, contexts, scopes, states, reaches, reps_by_role, exclusions)
                     for state in states:
                         for selfcheck in (True, False):
                           for reach in reaches:
+                           for gate in gates:
                             # ⭐ THE NAMED AXIS EXCLUSIONS (arm7's subject). Checked here, at cell
                             # grain, and attributed to the axis value that elided the cell.
                             axis_hit = next((('%s:%s' % (a, v))
@@ -732,12 +763,31 @@ def build(personas, contexts, scopes, states, reaches, reps_by_role, exclusions)
                             # is one new line instead of six moved ones.
                             if klass != ARM3_GATE and reach != ARM3_INERT_REACH:
                                 skip('caseReach_inert_outside_the_arm3_gate'); continue
+                            # ⭐ THE GATE-SCOPED memberGateArm RULE, and its premise is the
+                            # MANIFEST's, not this file's — same discipline as the caseReach rule
+                            # above, same reason: a generator's claim about its own coverage is not
+                            # a detector. `member_gate_arms_for` reads
+                            # permissions[<code>].memberGateArm; arm12 refuses to emit when that
+                            # declaration and REPS_STAFF disagree.
+                            _declared_gates = member_gate_arms_for(code) or [MEMBER_GATE_INERT]
+                            if gate not in _declared_gates:
+                                skip('memberGateArm_not_declared_for_this_representative'); continue
                             exp, src = expected(role, persona, ctx, scope, state, selfcheck, res)
                             # ⛔ `reach` IS IN THE CELL ID, AND IT HAS TO BE. Without it the four
                             # reach values collapse onto ONE id, 403 reports on cell_id, and three
                             # of every four cells become an invisible duplicate of the first.
+                            # ⛔ `gate` IS IN THE CELL ID for `caseReach`'s exact reason: without
+                            # it the declared gate values collapse onto ONE id, the suites report on
+                            # cell_id, and every value but the first becomes an invisible duplicate.
+                            # ⛔⛔ APPENDED ONLY WHEN NON-INERT, AND THAT IS NOT COSMETIC. Every
+                            # staff_admin cell sits at the inert value, so an unconditional suffix
+                            # would rewrite all 1728 of their ids — and `403` reports on, and joins
+                            # by, cell_id. Measured: appending unconditionally made the staff_admin
+                            # rows DIFFER from HEAD on the first regeneration, which is the whole
+                            # non-regression property this landing rests on.
                             cid = '|'.join([persona, role, ctx, scope, code, state,
-                                            'self' if selfcheck else 'third_party', reach])
+                                            'self' if selfcheck else 'third_party', reach]
+                                           + ([gate] if gate != MEMBER_GATE_INERT else []))
                             div = arm3_divergence(klass, persona, ctx, scope, state,
                                                   selfcheck, exp, src, reach)
                             # ⛔ APPENDED AS THE LAST COLUMN, NOT INSERTED BESIDE `exp`. Every
@@ -752,7 +802,8 @@ def build(personas, contexts, scopes, states, reaches, reps_by_role, exclusions)
                             # would silently re-point all of them at their neighbours — a
                             # whole-file mutation wearing a one-line diff.
                             cells.append((cid, persona, ctx, scope, code, klass, res, state,
-                                          selfcheck, exp, src, reach, div, exp_legacy, role))
+                                          selfcheck, exp, src, reach, div, exp_legacy, role,
+                                          gate, arm3_door_expr(code)))
     return cells, skipped
 
 
@@ -762,8 +813,10 @@ reps_flat_top = [r for _role in sorted(REPS_BY_ROLE) for r in REPS_BY_ROLE[_role
 # ⭐ THE CENSUS SUMS. Every cell of the declared grid is either emitted or attributed to exactly
 # one named rule. ⛔ Without this the header's "N skipped" is a number of nothing, and a rule that
 # quietly elides a coordinate twice (or not at all) is invisible.
+gates_all = list(spec['axes']['memberGateArm']['values'].keys())
 _GRID = (sum(len(v) for v in REPS_BY_ROLE.values())
-         * len(personas) * len(contexts) * len(scopes) * len(states) * 2 * len(reaches))
+         * len(personas) * len(contexts) * len(scopes) * len(states) * 2 * len(reaches)
+         * len(gates_all))
 assert len(cells) + sum(skipped.values()) == _GRID, (
     'the census does not sum: %d emitted + %d skipped != %d declared grid cells'
     % (len(cells), sum(skipped.values()), _GRID))
@@ -868,7 +921,7 @@ def coverage(cells, skipped, reps_by_role, disposition=None, exclusions=None, ax
     # NO named exclusion, which is exactly what arm7 refuses. So the saving cannot grow into a
     # silent axis deletion without this arm saying so.
     CELL_AXIS_COL = {'persona': 1, 'activeContext': 2, 'scope': 3, 'principalState': 7,
-                     'caseReach': 11, 'role': 14}
+                     'caseReach': 11, 'role': 14, 'memberGateArm': 15}
     for axis in sorted(axes):
         if axis not in disposition:
             f.append('arm7: axis `%s` is declared in the axes JSON with NO disposition — it is '
@@ -1000,6 +1053,48 @@ def coverage(cells, skipped, reps_by_role, disposition=None, exclusions=None, ax
                  'disagreement on exactly these cells, so an unattributed flip is an exemption '
                  'nobody ruled (first: %s)' % (len(_unattributed), _unattributed[0][0]))
 
+    # ⭐⭐ arm12 — THE PREMISE OF THE GATE-SCOPED memberGateArm RULE, READ FROM THE MANIFEST.
+    # The rule deletes every value this file does not declare for a representative, on the claim
+    # that the row carries those coordinates and no others. ⛔ That claim is the MATRIX's (§ 5.3,
+    # PO-approved), recorded in the enforcement manifest as `memberGateArm` beside the `arm3Door`
+    # that says what the legacy column calls — it is not this file's to assert. arm12 resolves the
+    # two against each other on EVERY run, in BOTH directions, which is what turns "the reps and
+    # the manifest agree" from a hope into a gate. Modelled on arm9 deliberately: same shape, same
+    # failure mode, one axis over.
+    if permissions is None:
+        f.append('arm12: the enforcement manifest could not be read (%s) — the gate-scoped '
+                 'memberGateArm rule\'s premise is then UNVERIFIED, and an unverified premise '
+                 'deleting cells is an unreasoned exclusion with a reason attached'
+                 % (_MANIFEST_ERR or 'not supplied'))
+    else:
+        for _code in sorted({r[0] for r in reps_flat}):
+            _row = permissions.get(_code) or {}
+            _vals = _row.get('memberGateArm')
+            _door = _row.get('arm3Door')
+            _carries = bool(_vals) and _vals != [MEMBER_GATE_INERT]
+            if _carries and not _door:
+                f.append('arm12: representative `%s` declares memberGateArm values %s but NO '
+                         '`arm3Door` — the axis would be swept with nothing for the differential\'s '
+                         'legacy column to call, which is a vector column no assertion reads '
+                         '(lead ruling L2)' % (_code, _vals))
+            if _door and not _carries:
+                f.append('arm12: representative `%s` declares an `arm3Door` but no memberGateArm '
+                         'values beyond the inert one — the door is named and never exercised, so '
+                         'the declaration is decorative' % _code)
+            if _door and not _door.get('expression'):
+                f.append('arm12: representative `%s`\'s `arm3Door` carries no `expression` — 424 '
+                         'has nothing to build its legacy side from' % _code)
+    _emitted_gates = {c[15] for c in cells}
+    _declared_gates = set()
+    if permissions is not None:
+        for _code in {r[0] for r in reps_flat}:
+            _declared_gates |= set((permissions.get(_code) or {}).get('memberGateArm') or [])
+    _lost = sorted(_declared_gates - _emitted_gates)
+    if _lost:
+        f.append('arm12: memberGateArm value(s) %s are DECLARED on a representative and appear in '
+                 'NO cell — the coordinate the matrix approved is not being measured'
+                 % ', '.join(_lost))
+
     declared = {r[0] for r in reps_flat}
     emitted = {c[4] for c in cells}
     if declared - emitted:
@@ -1080,6 +1175,32 @@ if '--self-test' in sys.argv:
         # ⛔ TAIL PRESERVED — see _one. Columns 14+ (`role`) must survive the synthesis.
         out[i] = out[i][:12] + (ARM3_PINNED_DEFECT, True) + out[i][14:]
         return out
+
+    # ⛔ arm12's FIXTURES PERTURB THE MANIFEST AND NOTHING ELSE, exactly as arm9's do: the arm
+    # exists because the value set and the door are the MATRIX's claim, not this file's, so the
+    # mutation has to be to the authority.
+    def _pm_mutate(fn):
+        import copy
+        pm = copy.deepcopy(MANIFEST_PERMISSIONS) if MANIFEST_PERMISSIONS else {}
+        fn(pm)
+        return pm
+
+    def _drop_door(pm):
+        for code, row in pm.items():
+            if row.get('arm3Door') and (row.get('memberGateArm') or []) != [MEMBER_GATE_INERT]:
+                del row['arm3Door']; return
+        raise AssertionError('no carrying representative has a door — the arm12 fixture '
+                             'would perturb nothing')
+
+    def _unsweep(pm):
+        for code, row in pm.items():
+            if row.get('arm3Door'):
+                row['memberGateArm'] = [MEMBER_GATE_INERT]; return
+        raise AssertionError('no representative carries a door — the arm12 fixture would '
+                             'perturb nothing')
+
+    _pm_no_door = _pm_mutate(_drop_door)
+    _pm_door_unswept = _pm_mutate(_unsweep)
 
     checks = [
         ('arm1 empty cell set',          [],                                                      base_skipped, REPS_BY_ROLE, None, None, None),
@@ -1165,6 +1286,20 @@ if '--self-test' in sys.argv:
         # the only arm that can speak: an arm caught by a neighbour's message is not proof.
         ('arm7 role value dropped', [c for c in base_cells if c[14] != 'staff'], base_skipped,
          {'staff_admin': REPS}, None, None, None),
+        # ⭐⭐ arm7 ON THE memberGateArm AXIS — LEAD RULING L2's LOUD HALF. Dropping every
+        # non-inert cell is the shape the rejected design produced BY CONSTRUCTION: the axis
+        # declared, the coordinate PO-approved, and no cell carrying it. ⛔ Before this landing
+        # arm7 COULD NOT SEE IT — memberGateArm had no CELL_AXIS_COL entry, so `emitted`
+        # defaulted to `declared` and the arm was silent on the very axis L1 added.
+        ('arm7 memberGateArm cells dropped',
+         [c for c in base_cells if c[15] == MEMBER_GATE_INERT], base_skipped, REPS_BY_ROLE,
+         None, None, None),
+        # ⭐ arm12's TWO DIRECTIONS, each on the REAL cell set — the defect lives in the
+        # AUTHORITY for the sweep, not in the population, so the population must be clean.
+        ('arm12 a carrying rep loses its door', base_cells, base_skipped, REPS_BY_ROLE,
+         None, None, None, _pm_no_door),
+        ('arm12 a door with no swept values',   base_cells, base_skipped, REPS_BY_ROLE,
+         None, None, None, _pm_door_unswept),
     ]
     bad = 0
     # ⚠ THE TAIL IS PADDED, NOT TYPED OUT. Every arm added since has widened `coverage()`, and
@@ -1221,6 +1356,38 @@ if '--self-test' in sys.argv:
         else:
             print('gen-authz-differential-cells --self-test: quiet — `%s` correctly silent (%s)'
                   % (want, why))
+    # ⭐⭐ LEAD RULING L2's ABSENT HALF, AS A PROPERTY RATHER THAN AS AN ARM — and the first
+    # draft got this wrong in a way worth recording. It was written as an arm7 QUIET fixture
+    # ('staff_admin's cells must not make arm7 complain'), and the quiet control CAUGHT IT: arm7
+    # is a GLOBAL axis-completeness arm, so asked about one role's subset it correctly reports
+    # the four values that subset never emits. ⛔ The fixture was asking an arm a question the
+    # arm is not designed to answer, and a green would have meant nothing. The claim L2 actually
+    # makes is about the CELLS, so it is asserted on the cells.
+    props = []
+    _sa_gates = {c[15] for c in base_cells if c[14] == 'staff_admin'}
+    if _sa_gates != {MEMBER_GATE_INERT}:
+        props.append('staff_admin cells carry gate value(s) %s — it has NO matrix § 5.3 row, so '
+                     'every one of its cells must sit at `%s`; a non-inert value there is a '
+                     'coordinate swept for a role that cannot answer differently at it'
+                     % (sorted(_sa_gates - {MEMBER_GATE_INERT}), MEMBER_GATE_INERT))
+    _st_gates = {c[15] for c in base_cells if c[14] == 'staff'}
+    _declared_all = set()
+    for _code, _k, _r in REPS_STAFF:
+        _declared_all |= set(member_gate_arms_for(_code) or [MEMBER_GATE_INERT])
+    if _st_gates != _declared_all:
+        props.append('staff cells carry gate values %s but its representatives declare %s — '
+                     'the eleven-coordinate axis lead ruling L2 restored is not fully emitted'
+                     % (sorted(_st_gates), sorted(_declared_all)))
+    _n_arm3 = sum(1 for c in base_cells if c[15] != MEMBER_GATE_INERT)
+    if _n_arm3 == 0:
+        props.append('ZERO arm-3 axis cells were emitted — the axis is declared and measured '
+                     'nowhere, which is the state L2 rejected')
+    for msg in props:
+        print('gen-authz-differential-cells --self-test: PROPERTY FAILED — %s' % msg); bad += 1
+    if not props:
+        print('gen-authz-differential-cells --self-test: property — arm-3 axis cells EMITTED '
+              'for staff (%d, values %s) and ABSENT for staff_admin (inert only)'
+              % (_n_arm3, sorted(_st_gates)))
     real = coverage(base_cells, base_skipped, REPS_BY_ROLE)
     if real:
         print('gen-authz-differential-cells --self-test: the REAL spec trips an arm — %s' % real[0]); bad += 1
@@ -1238,7 +1405,18 @@ assert cells, 'refusing to emit an empty differential'
 srcs = sorted({c[10] for c in cells})
 q = lambda x: "'" + str(x).replace("'", "''") + "'"
 b = lambda x: 'true' if x else 'false'
-def _render(cs):
+def _render(cs, wide):
+    """14 columns for staff_admin, 16 for staff. ⛔ NOT an oversight and NOT the "identical column
+       lists" an earlier revision promised: the two extra columns ARE the axis lead ruling L2
+       restored, and putting them on the shared shape would change `authz_differential_cells` —
+       the table `403` reads and whose 1728 rows this landing keeps byte-identical. A suite that
+       does not sweep the axis has nothing to do with the column."""
+    if wide:
+        return ',\n'.join(
+            '    (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)' % (
+                q(c[0]), q(c[1]), q(c[2]), q(c[3]), q(c[4]), q(c[5]), q(c[6]), q(c[7]),
+                b(c[8]), b(c[9]), q(c[10]), q(c[11]), q(c[12]), b(c[13]), q(c[15]), q(c[16]))
+            for c in cs)
     return ',\n'.join(
         '    (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)' % (
             q(c[0]), q(c[1]), q(c[2]), q(c[3]), q(c[4]), q(c[5]), q(c[6]), q(c[7]),
@@ -1253,9 +1431,12 @@ def _render(cs):
 # against. Split per role, `authz_differential_cells` keeps EXACTLY the columns and EXACTLY the
 # rows it had, so 403 is untouched and its greenness after this landing is evidence rather than
 # hope; `424` reads its own table with the identical column list.
-# ⛔ The column lists are deliberately IDENTICAL — a differential suite written against one shape
-# must port to the other without a rewrite, and a divergence here would be discovered by the next
-# role increment rather than by a gate.
+# ⛔ THE COLUMN LISTS ARE NOT IDENTICAL, AND THE DIFFERENCE IS THE POINT (lead ruling L2). The
+# staff table carries TWO MORE: `member_gate_arm`, the swept coordinate for the eleven rows matrix
+# § 5.3 found, and `legacy_door`, the callable `424`'s legacy column must evaluate for that row —
+# read from the manifest's `arm3Door` rather than re-derived, so the suite cannot drift from the
+# declaration the axis was swept against. Putting them on the shared shape would change the table
+# `403` reads, whose 1728 rows this landing keeps byte-identical.
 _by_role = {}
 for _c in cells:
     _by_role.setdefault(_c[14], []).append(_c)
@@ -1270,14 +1451,25 @@ assert not _missing_table, (
 _COLS = ('cell_id, persona, active_context, scope, permission_code, legacy_class,\n'
          '         resolution_scope_kind, principal_state, self_check, expected_granted, '
          'expected_source,\n         case_reach, arm3_divergence, expected_legacy_granted')
+_COLS_WIDE = _COLS + ',\n         member_gate_arm, legacy_door'
+_WIDE = {'staff'}
 
 tables = '\n\n'.join(
     'create temp table %s on commit drop as\n  select * from (values\n%s\n  ) as t(%s);'
-    % (_ROLE_TABLE[r], _render(_by_role[r]), _COLS)
+    % (_ROLE_TABLE[r], _render(_by_role[r], r in _WIDE), _COLS_WIDE if r in _WIDE else _COLS)
     for r in sorted(_by_role))
 
 _role_census = '\n'.join(
-    '--   %-14s %-38s %6d cells' % (r, _ROLE_TABLE[r], len(_by_role[r])) for r in sorted(_by_role))
+    '--   %-14s %-38s %6d cells  (%d columns)'
+    % (r, _ROLE_TABLE[r], len(_by_role[r]), 16 if r in _WIDE else 14)
+    for r in sorted(_by_role))
+# ⭐ THE ARM-3 CELL COUNT, PRINTED AS AN OUTPUT. The eleven carrying rows' non-inert cells are what
+# lead ruling L2 restored; stating the figure in the artifact means the next reader checks it
+# against the eleven rather than trusting a sentence.
+_arm3_cells = sum(1 for c in cells if c[15] != MEMBER_GATE_INERT)
+_arm3_rows = sorted({c[4] for c in cells if c[15] != MEMBER_GATE_INERT})
+_role_census += ('\n--   arm-3 axis cells (memberGateArm <> %s): %d over %d representative(s)'
+                 % (MEMBER_GATE_INERT, _arm3_cells, len(_arm3_rows)))
 
 # The per-label census, printed in the header so the NOT-COVERAGE count cannot be quoted as
 # coverage by anyone reading the total.

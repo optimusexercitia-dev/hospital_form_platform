@@ -80,9 +80,7 @@
     "are correct; collapsing layer into search depth was ours. ⭐ This file SHIPS as a fixture source,",
     "so it is the copy a future reader is likeliest to hit — the correction matters most here."
   ],
-
   "schemaVersion": 1,
-
   "catalogSnapshot": {
     "_comment": [
       "FIRST MEASURED 2026-09-02 on the local stack at migration head 20261003007260, read-only,",
@@ -100,7 +98,6 @@
     ],
     "measuredOn": "2026-09-13",
     "migrationHead": "20261003007440",
-
     "_permissionsComment": [
       "⭐⭐ THIS LIST IS DELIBERATELY REDUNDANT WITH THE KEYS OF `permissions` BELOW, AND THE",
       "REDUNDANCY IS THE GATE. If the manifest's row keys were their own snapshot, then",
@@ -174,22 +171,64 @@
       "commission.roster.read",
       "commission.safety_events.read"
     ],
-
     "roles": [
-      { "code": "hospital_admin",            "state": "legacy",        "sessionSelectable": true },
-      { "code": "nsp_coordinator",           "state": "legacy",        "sessionSelectable": true },
-      { "code": "nsp_org_admin",             "state": "legacy",        "sessionSelectable": true },
-      { "code": "org_admin",                 "state": "legacy",        "sessionSelectable": true },
-      { "code": "platform_admin",            "state": "legacy",        "sessionSelectable": true },
-      { "code": "pqs_member",                "state": "legacy",        "sessionSelectable": true },
-      { "code": "quality_reviewer",          "state": "legacy",        "sessionSelectable": true },
-      { "code": "staff",                     "state": "test_validation", "sessionSelectable": true },
-      { "code": "staff_admin",               "state": "authoritative", "sessionSelectable": true },
-      { "code": "technical_director",        "state": "legacy",        "sessionSelectable": true },
-      { "code": "technical_director_deputy", "state": "legacy",        "sessionSelectable": true }
+      {
+        "code": "hospital_admin",
+        "state": "legacy",
+        "sessionSelectable": true
+      },
+      {
+        "code": "nsp_coordinator",
+        "state": "legacy",
+        "sessionSelectable": true
+      },
+      {
+        "code": "nsp_org_admin",
+        "state": "legacy",
+        "sessionSelectable": true
+      },
+      {
+        "code": "org_admin",
+        "state": "legacy",
+        "sessionSelectable": true
+      },
+      {
+        "code": "platform_admin",
+        "state": "legacy",
+        "sessionSelectable": true
+      },
+      {
+        "code": "pqs_member",
+        "state": "legacy",
+        "sessionSelectable": true
+      },
+      {
+        "code": "quality_reviewer",
+        "state": "legacy",
+        "sessionSelectable": true
+      },
+      {
+        "code": "staff",
+        "state": "test_validation",
+        "sessionSelectable": true
+      },
+      {
+        "code": "staff_admin",
+        "state": "authoritative",
+        "sessionSelectable": true
+      },
+      {
+        "code": "technical_director",
+        "state": "legacy",
+        "sessionSelectable": true
+      },
+      {
+        "code": "technical_director_deputy",
+        "state": "legacy",
+        "sessionSelectable": true
+      }
     ]
   },
-
   "roleStateDomain": {
     "_comment": [
       "authz.role_state, MEASURED from the domain's CHECK constraint rather than transcribed from a",
@@ -208,10 +247,13 @@
       "it owes a suite at least as much as one already authoritative. C1 and C2 are kept as TWO",
       "arms rather than one wide arm so each names its own subject when it fires."
     ],
-    "values": ["legacy", "test_validation", "authoritative"],
+    "values": [
+      "legacy",
+      "test_validation",
+      "authoritative"
+    ],
     "legacyValue": "legacy"
   },
-
   "approvedSuites": {
     "_comment": [
       "Role -> the approved matrix and the differential suite that measure it. D5's third set",
@@ -230,7 +272,6 @@
       "differentialSuite": "supabase/tests/403_ae45_differential_oracle.sql"
     }
   },
-
   "hardDenyVocabulary": {
     "_comment": [
       "The classes layer 3 composes BEFORE the positive entitlement source (ADR 0176 D2 interface 3).",
@@ -271,15 +312,35 @@
       "`principal_inactive`, and one reaches `respondent_exclusion`.\" That was true and correctly",
       "disclosed; the depth-1 label and its zero are what this change retires."
     ],
-    "recusal_exclusion":          { "gate": "app.is_case_excluded",   "note": "the recused member is denied regardless of role (ADR 0078 exclusion perimeter)" },
-    "respondent_exclusion":       { "gate": "app.is_case_respondent", "note": "the respondent of a case may not act on it" },
-    "record_immutable_published": { "gate": null, "note": "Architecture Rule 5 — a published form version is immutable; editing clones to a new draft" },
-    "record_immutable_submitted": { "gate": null, "note": "Architecture Rule 3 — a submitted response and its answers/sign-offs are immutable" },
-    "tenant_mismatch":            { "gate": null, "note": "cross-org; matrix 6.1 measured this as enforced by the UUID id-space, NOT by an org term in the resolver" },
-    "principal_inactive":         { "gate": "app.is_active",          "note": "deactivated or suspended; 403 records that these two are NOT independently observable" },
-    "sensitivity_ceiling":        { "gate": null, "note": "Rule 12 / class-2 professional identity; ADR 0172 defers the column's runtime consumer" }
+    "recusal_exclusion": {
+      "gate": "app.is_case_excluded",
+      "note": "the recused member is denied regardless of role (ADR 0078 exclusion perimeter)"
+    },
+    "respondent_exclusion": {
+      "gate": "app.is_case_respondent",
+      "note": "the respondent of a case may not act on it"
+    },
+    "record_immutable_published": {
+      "gate": null,
+      "note": "Architecture Rule 5 — a published form version is immutable; editing clones to a new draft"
+    },
+    "record_immutable_submitted": {
+      "gate": null,
+      "note": "Architecture Rule 3 — a submitted response and its answers/sign-offs are immutable"
+    },
+    "tenant_mismatch": {
+      "gate": null,
+      "note": "cross-org; matrix 6.1 measured this as enforced by the UUID id-space, NOT by an org term in the resolver"
+    },
+    "principal_inactive": {
+      "gate": "app.is_active",
+      "note": "deactivated or suspended; 403 records that these two are NOT independently observable"
+    },
+    "sensitivity_ceiling": {
+      "gate": null,
+      "note": "Rule 12 / class-2 professional identity; ADR 0172 defers the column's runtime consumer"
+    }
   },
-
   "fieldContracts": {
     "_comment": [
       "Read by scripts/gen-authz-matrix-cells.mjs. Every key listed in `requiredPermissionKeys` is",
@@ -301,9 +362,21 @@
       "    zero rows — a declared-but-uncarried value is a slot for an unreviewed row later)."
     ],
     "requiredPermissionKeys": [
-      "status", "domainAuthorizer", "targetAuthorizer", "enforcementSites", "callGraphBoundary",
-      "axes", "catalog", "hardDenyClasses", "hardDenyProvenance", "residualLegacyAuthority",
-      "legacyEquivalence", "pendingRekey", "exception", "definerSurface", "nonEnforcementConsumers"
+      "status",
+      "domainAuthorizer",
+      "targetAuthorizer",
+      "enforcementSites",
+      "callGraphBoundary",
+      "axes",
+      "catalog",
+      "hardDenyClasses",
+      "hardDenyProvenance",
+      "residualLegacyAuthority",
+      "legacyEquivalence",
+      "pendingRekey",
+      "exception",
+      "definerSurface",
+      "nonEnforcementConsumers"
     ],
     "_residualLegacyAuthorityComment": [
       "⛔⛔ WHY THIS FIELD EXISTS — IMPOSED AS A CONDITION BY THE LEAD, 2026-09-02, on the ruling",
@@ -327,36 +400,100 @@
       "can_create_professional keeps its org-manager arm and can_read_professional_profile keeps",
       "three arms, one of which is MEASURED OPEN AND MASKING on the seed."
     ],
-    "statusValues": ["pending-rekey", "re-keyed"],
-    "hardDenyProvenanceValues": ["measured-transitive-over-gated-classes", "not-attributable-until-rekey"],
-    "lifecycleProvenanceValues": ["architecture-rule", "axis-vocabulary-inapplicable", "po-approved"],
-    "lifecycleValues": ["not_applicable", "draft", "published", "archived", "in_progress", "submitted"],
+    "statusValues": [
+      "pending-rekey",
+      "re-keyed"
+    ],
+    "hardDenyProvenanceValues": [
+      "measured-transitive-over-gated-classes",
+      "not-attributable-until-rekey"
+    ],
+    "lifecycleProvenanceValues": [
+      "architecture-rule",
+      "axis-vocabulary-inapplicable",
+      "po-approved"
+    ],
+    "lifecycleValues": [
+      "not_applicable",
+      "draft",
+      "published",
+      "archived",
+      "in_progress",
+      "submitted"
+    ],
     "_armInterfaceComment": [
-    "\u2b50 AE5-STAFF T5 \u2014 AC-1's per-arm obligation, AS DATA. ADR 0201 D3 requires every arm to",
-    "declare its SUBJECT and its HAT REQUIREMENT, and ADR 0193 D5 requires the DEFINER/policy split",
-    "declared as data rather than prose. r1 of the staff matrix satisfied that in PROSE and the",
-    "review (B2) refused it: a global statement is exactly where a wrong arm hides.",
-    "",
-    "\u26d4 THE HAT IS A PROPERTY OF THE SITE, NOT OF THE PREDICATE. Read off the global asymmetry",
-    "alone every `_for` predicate would be declared `ignored` \u2014 wrong wherever the live caller",
-    "passes auth.uid() into the `_for` form, which is the majority of the policy sites here. Each",
-    "`conditional` entry therefore carries a `hatNote` naming WHERE it is required and WHERE it is",
-    "ignored, measured from pg_policies / pg_proc.",
-    "",
-    "\u26a0 NOT in requiredPermissionKeys, and that is deliberate: the 40 pre-AE5 pending-rekey rows",
-    "have no such measurement behind them, and making the field required would put an empty list on",
-    "all of them \u2014 turning a declaration into the default it exists to prevent. It is required",
-    "instead on every row whose legacyEquivalence.gate is the staff bundle's."
-  ],
-  "armInterfaceKinds": ["policy", "function", "registry", "ts"],
-  "armSubjectKinds": ["caller", "parameter"],
-  "armHatValues": ["required", "ignored", "conditional", "n/a"],
-  "armInterfaceRequiredForGate": "app.is_member_of_for",
-  "memberGateArmValues": ["none", "conjunct_met", "conjunct_unmet", "disjunct_present", "disjunct_absent"],
-  "siteKinds": ["policy", "function"],
-    "forbiddenDefaultKeys": ["*", "default", "_default", "ELSE", "else", "fallback", "otherwise"]
+      "⭐ AE5-STAFF T5 — AC-1's per-arm obligation, AS DATA. ADR 0201 D3 requires every arm to",
+      "declare its SUBJECT and its HAT REQUIREMENT, and ADR 0193 D5 requires the DEFINER/policy split",
+      "declared as data rather than prose. r1 of the staff matrix satisfied that in PROSE and the",
+      "review (B2) refused it: a global statement is exactly where a wrong arm hides.",
+      "",
+      "⛔ THE HAT IS A PROPERTY OF THE SITE, NOT OF THE PREDICATE. Read off the global asymmetry",
+      "alone every `_for` predicate would be declared `ignored` — wrong wherever the live caller",
+      "passes auth.uid() into the `_for` form, which is the majority of the policy sites here. Each",
+      "`conditional` entry therefore carries a `hatNote` naming WHERE it is required and WHERE it is",
+      "ignored, measured from pg_policies / pg_proc.",
+      "",
+      "⚠ NOT in requiredPermissionKeys, and that is deliberate: the 40 pre-AE5 pending-rekey rows",
+      "have no such measurement behind them, and making the field required would put an empty list on",
+      "all of them — turning a declaration into the default it exists to prevent. It is required",
+      "instead on every row whose legacyEquivalence.gate is the staff bundle's."
+    ],
+    "armInterfaceKinds": [
+      "policy",
+      "function",
+      "registry",
+      "ts"
+    ],
+    "armSubjectKinds": [
+      "caller",
+      "parameter"
+    ],
+    "armHatValues": [
+      "required",
+      "ignored",
+      "conditional",
+      "n/a"
+    ],
+    "armInterfaceRequiredForGate": "app.is_member_of_for",
+    "memberGateArmValues": [
+      "none",
+      "conjunct_met",
+      "conjunct_unmet",
+      "disjunct_present",
+      "disjunct_absent"
+    ],
+    "siteKinds": [
+      "policy",
+      "function"
+    ],
+    "forbiddenDefaultKeys": [
+      "*",
+      "default",
+      "_default",
+      "ELSE",
+      "else",
+      "fallback",
+      "otherwise"
+    ],
+    "arm3DoorKinds": [
+      "function",
+      "policy-qual",
+      "guard-expression"
+    ],
+    "_arm3DoorComment": [
+      "⭐ LEAD RULING L2 (2026-09-13) — the eleven-coordinate axis is SWEPT in the resolver",
+      "differential, and this is what makes it CONSUMED rather than decorative. ADR 0175 D3's shape",
+      "is that the differential's legacy column calls the REAL DOOR for an arm-3 row (\"403 calls the",
+      "real door now\"), not the bare membership predicate. ⛔ A vector column no assertion reads is a",
+      "keystone that cannot fail — which is exactly what an earlier round produced by moving the",
+      "sweep out instead of moving the legacy side in.",
+      "",
+      "One entry per carrying row. `expression` is what 424's legacy column evaluates and `args` is",
+      "its positional shape; `limb` says which half of the matrix § 5.3 criterion the row carries, and",
+      "`memberGateArm` beside it is the value set the generator sweeps. The two are bound by arm12:",
+      "a rep declaring gate-arm values with no door, or a door with no values, refuses generation."
+    ]
   },
-
   "lifecycleDerivation": {
     "_comment": [
       "HOW `axes.resourceLifecycle` WAS DERIVED, stated so a reader can check it instead of trusting",
@@ -375,23 +512,44 @@
       "approval gives them an oracle."
     ]
   },
-
   "permissions": {
     "commission.accreditation.manage": {
       "status": "pending-rekey",
       "domainAuthorizer": null,
       "targetAuthorizer": null,
       "enforcementSites": [],
-      "callGraphBoundary": { "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).", "reviewedBy": "backend/AE4.9-D5", "reviewedOn": "2026-09-02" },
-      "axes": { "resourceLifecycle": ["not_applicable"], "resourceLifecycleProvenance": "axis-vocabulary-inapplicable", "sensitivity": "none" },
-      "catalog": { "resourceKind": "commission_content", "riskClass": "write", "sensitivityCeiling": "none", "resolutionScopeKind": "commission" },
+      "callGraphBoundary": {
+        "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).",
+        "reviewedBy": "backend/AE4.9-D5",
+        "reviewedOn": "2026-09-02"
+      },
+      "axes": {
+        "resourceLifecycle": [
+          "not_applicable"
+        ],
+        "resourceLifecycleProvenance": "axis-vocabulary-inapplicable",
+        "sensitivity": "none"
+      },
+      "catalog": {
+        "resourceKind": "commission_content",
+        "riskClass": "write",
+        "sensitivityCeiling": "none",
+        "resolutionScopeKind": "commission"
+      },
       "hardDenyClasses": [],
       "hardDenyProvenance": "not-attributable-until-rekey",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
-      "legacyEquivalence": { "gate": "app.is_staff_admin_of_for", "expected": "identical" },
-      "pendingRekey": { "layer1Gate": "app.holds_role_via_is_staff_admin_of", "owner": "lead", "expiry": "AE5-complete" },
+      "legacyEquivalence": {
+        "gate": "app.is_staff_admin_of_for",
+        "expected": "identical"
+      },
+      "pendingRekey": {
+        "layer1Gate": "app.holds_role_via_is_staff_admin_of",
+        "owner": "lead",
+        "expiry": "AE5-complete"
+      },
       "exception": null
     },
     "commission.action_items.manage": {
@@ -399,16 +557,38 @@
       "domainAuthorizer": null,
       "targetAuthorizer": null,
       "enforcementSites": [],
-      "callGraphBoundary": { "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).", "reviewedBy": "backend/AE4.9-D5", "reviewedOn": "2026-09-02" },
-      "axes": { "resourceLifecycle": ["not_applicable"], "resourceLifecycleProvenance": "axis-vocabulary-inapplicable", "sensitivity": "none" },
-      "catalog": { "resourceKind": "commission_content", "riskClass": "write", "sensitivityCeiling": "none", "resolutionScopeKind": "commission" },
+      "callGraphBoundary": {
+        "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).",
+        "reviewedBy": "backend/AE4.9-D5",
+        "reviewedOn": "2026-09-02"
+      },
+      "axes": {
+        "resourceLifecycle": [
+          "not_applicable"
+        ],
+        "resourceLifecycleProvenance": "axis-vocabulary-inapplicable",
+        "sensitivity": "none"
+      },
+      "catalog": {
+        "resourceKind": "commission_content",
+        "riskClass": "write",
+        "sensitivityCeiling": "none",
+        "resolutionScopeKind": "commission"
+      },
       "hardDenyClasses": [],
       "hardDenyProvenance": "not-attributable-until-rekey",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
-      "legacyEquivalence": { "gate": "app.is_staff_admin_of_for", "expected": "identical" },
-      "pendingRekey": { "layer1Gate": "app.holds_role_via_is_staff_admin_of", "owner": "lead", "expiry": "AE5-complete" },
+      "legacyEquivalence": {
+        "gate": "app.is_staff_admin_of_for",
+        "expected": "identical"
+      },
+      "pendingRekey": {
+        "layer1Gate": "app.holds_role_via_is_staff_admin_of",
+        "owner": "lead",
+        "expiry": "AE5-complete"
+      },
       "exception": null
     },
     "commission.audit.read": {
@@ -416,16 +596,38 @@
       "domainAuthorizer": null,
       "targetAuthorizer": null,
       "enforcementSites": [],
-      "callGraphBoundary": { "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).", "reviewedBy": "backend/AE4.9-D5", "reviewedOn": "2026-09-02" },
-      "axes": { "resourceLifecycle": ["not_applicable"], "resourceLifecycleProvenance": "axis-vocabulary-inapplicable", "sensitivity": "none" },
-      "catalog": { "resourceKind": "audit", "riskClass": "read", "sensitivityCeiling": "none", "resolutionScopeKind": "commission" },
+      "callGraphBoundary": {
+        "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).",
+        "reviewedBy": "backend/AE4.9-D5",
+        "reviewedOn": "2026-09-02"
+      },
+      "axes": {
+        "resourceLifecycle": [
+          "not_applicable"
+        ],
+        "resourceLifecycleProvenance": "axis-vocabulary-inapplicable",
+        "sensitivity": "none"
+      },
+      "catalog": {
+        "resourceKind": "audit",
+        "riskClass": "read",
+        "sensitivityCeiling": "none",
+        "resolutionScopeKind": "commission"
+      },
       "hardDenyClasses": [],
       "hardDenyProvenance": "not-attributable-until-rekey",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
-      "legacyEquivalence": { "gate": "app.is_staff_admin_of_for", "expected": "identical" },
-      "pendingRekey": { "layer1Gate": "app.holds_role_via_is_staff_admin_of", "owner": "lead", "expiry": "AE5-complete" },
+      "legacyEquivalence": {
+        "gate": "app.is_staff_admin_of_for",
+        "expected": "identical"
+      },
+      "pendingRekey": {
+        "layer1Gate": "app.holds_role_via_is_staff_admin_of",
+        "owner": "lead",
+        "expiry": "AE5-complete"
+      },
       "exception": null
     },
     "commission.cases.access.manage": {
@@ -433,16 +635,38 @@
       "domainAuthorizer": null,
       "targetAuthorizer": null,
       "enforcementSites": [],
-      "callGraphBoundary": { "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).", "reviewedBy": "backend/AE4.9-D5", "reviewedOn": "2026-09-02" },
-      "axes": { "resourceLifecycle": ["not_applicable"], "resourceLifecycleProvenance": "axis-vocabulary-inapplicable", "sensitivity": "none" },
-      "catalog": { "resourceKind": "commission_content", "riskClass": "authority", "sensitivityCeiling": "none", "resolutionScopeKind": "commission" },
+      "callGraphBoundary": {
+        "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).",
+        "reviewedBy": "backend/AE4.9-D5",
+        "reviewedOn": "2026-09-02"
+      },
+      "axes": {
+        "resourceLifecycle": [
+          "not_applicable"
+        ],
+        "resourceLifecycleProvenance": "axis-vocabulary-inapplicable",
+        "sensitivity": "none"
+      },
+      "catalog": {
+        "resourceKind": "commission_content",
+        "riskClass": "authority",
+        "sensitivityCeiling": "none",
+        "resolutionScopeKind": "commission"
+      },
       "hardDenyClasses": [],
       "hardDenyProvenance": "not-attributable-until-rekey",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
-      "legacyEquivalence": { "gate": "app.is_staff_admin_of_for", "expected": "identical" },
-      "pendingRekey": { "layer1Gate": "app.holds_role_via_is_staff_admin_of", "owner": "lead", "expiry": "AE5-complete" },
+      "legacyEquivalence": {
+        "gate": "app.is_staff_admin_of_for",
+        "expected": "identical"
+      },
+      "pendingRekey": {
+        "layer1Gate": "app.holds_role_via_is_staff_admin_of",
+        "owner": "lead",
+        "expiry": "AE5-complete"
+      },
       "exception": null
     },
     "commission.cases.lifecycle": {
@@ -450,16 +674,38 @@
       "domainAuthorizer": null,
       "targetAuthorizer": null,
       "enforcementSites": [],
-      "callGraphBoundary": { "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).", "reviewedBy": "backend/AE4.9-D5", "reviewedOn": "2026-09-02" },
-      "axes": { "resourceLifecycle": ["not_applicable"], "resourceLifecycleProvenance": "axis-vocabulary-inapplicable", "sensitivity": "none" },
-      "catalog": { "resourceKind": "commission_content", "riskClass": "irreversible", "sensitivityCeiling": "none", "resolutionScopeKind": "commission" },
+      "callGraphBoundary": {
+        "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).",
+        "reviewedBy": "backend/AE4.9-D5",
+        "reviewedOn": "2026-09-02"
+      },
+      "axes": {
+        "resourceLifecycle": [
+          "not_applicable"
+        ],
+        "resourceLifecycleProvenance": "axis-vocabulary-inapplicable",
+        "sensitivity": "none"
+      },
+      "catalog": {
+        "resourceKind": "commission_content",
+        "riskClass": "irreversible",
+        "sensitivityCeiling": "none",
+        "resolutionScopeKind": "commission"
+      },
       "hardDenyClasses": [],
       "hardDenyProvenance": "not-attributable-until-rekey",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
-      "legacyEquivalence": { "gate": "app.is_staff_admin_of_for", "expected": "identical" },
-      "pendingRekey": { "layer1Gate": "app.holds_role_via_is_staff_admin_of", "owner": "lead", "expiry": "AE5-complete" },
+      "legacyEquivalence": {
+        "gate": "app.is_staff_admin_of_for",
+        "expected": "identical"
+      },
+      "pendingRekey": {
+        "layer1Gate": "app.holds_role_via_is_staff_admin_of",
+        "owner": "lead",
+        "expiry": "AE5-complete"
+      },
       "exception": null
     },
     "commission.cases.manage": {
@@ -467,16 +713,38 @@
       "domainAuthorizer": null,
       "targetAuthorizer": null,
       "enforcementSites": [],
-      "callGraphBoundary": { "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).", "reviewedBy": "backend/AE4.9-D5", "reviewedOn": "2026-09-02" },
-      "axes": { "resourceLifecycle": ["not_applicable"], "resourceLifecycleProvenance": "axis-vocabulary-inapplicable", "sensitivity": "none" },
-      "catalog": { "resourceKind": "commission_content", "riskClass": "write", "sensitivityCeiling": "none", "resolutionScopeKind": "commission" },
+      "callGraphBoundary": {
+        "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).",
+        "reviewedBy": "backend/AE4.9-D5",
+        "reviewedOn": "2026-09-02"
+      },
+      "axes": {
+        "resourceLifecycle": [
+          "not_applicable"
+        ],
+        "resourceLifecycleProvenance": "axis-vocabulary-inapplicable",
+        "sensitivity": "none"
+      },
+      "catalog": {
+        "resourceKind": "commission_content",
+        "riskClass": "write",
+        "sensitivityCeiling": "none",
+        "resolutionScopeKind": "commission"
+      },
       "hardDenyClasses": [],
       "hardDenyProvenance": "not-attributable-until-rekey",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
-      "legacyEquivalence": { "gate": "app.is_staff_admin_of_for", "expected": "identical" },
-      "pendingRekey": { "layer1Gate": "app.holds_role_via_is_staff_admin_of", "owner": "lead", "expiry": "AE5-complete" },
+      "legacyEquivalence": {
+        "gate": "app.is_staff_admin_of_for",
+        "expected": "identical"
+      },
+      "pendingRekey": {
+        "layer1Gate": "app.holds_role_via_is_staff_admin_of",
+        "owner": "lead",
+        "expiry": "AE5-complete"
+      },
       "exception": null
     },
     "commission.cases.phi.dispose": {
@@ -484,16 +752,38 @@
       "domainAuthorizer": null,
       "targetAuthorizer": null,
       "enforcementSites": [],
-      "callGraphBoundary": { "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).", "reviewedBy": "backend/AE4.9-D5", "reviewedOn": "2026-09-02" },
-      "axes": { "resourceLifecycle": ["not_applicable"], "resourceLifecycleProvenance": "axis-vocabulary-inapplicable", "sensitivity": "phi" },
-      "catalog": { "resourceKind": "phi", "riskClass": "irreversible", "sensitivityCeiling": "phi", "resolutionScopeKind": "commission" },
+      "callGraphBoundary": {
+        "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).",
+        "reviewedBy": "backend/AE4.9-D5",
+        "reviewedOn": "2026-09-02"
+      },
+      "axes": {
+        "resourceLifecycle": [
+          "not_applicable"
+        ],
+        "resourceLifecycleProvenance": "axis-vocabulary-inapplicable",
+        "sensitivity": "phi"
+      },
+      "catalog": {
+        "resourceKind": "phi",
+        "riskClass": "irreversible",
+        "sensitivityCeiling": "phi",
+        "resolutionScopeKind": "commission"
+      },
       "hardDenyClasses": [],
       "hardDenyProvenance": "not-attributable-until-rekey",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
-      "legacyEquivalence": { "gate": "app.is_staff_admin_of_for", "expected": "identical" },
-      "pendingRekey": { "layer1Gate": "app.holds_role_via_is_staff_admin_of", "owner": "lead", "expiry": "AE5-complete" },
+      "legacyEquivalence": {
+        "gate": "app.is_staff_admin_of_for",
+        "expected": "identical"
+      },
+      "pendingRekey": {
+        "layer1Gate": "app.holds_role_via_is_staff_admin_of",
+        "owner": "lead",
+        "expiry": "AE5-complete"
+      },
       "exception": null
     },
     "commission.cases.phi.read": {
@@ -501,16 +791,38 @@
       "domainAuthorizer": null,
       "targetAuthorizer": null,
       "enforcementSites": [],
-      "callGraphBoundary": { "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).", "reviewedBy": "backend/AE4.9-D5", "reviewedOn": "2026-09-02" },
-      "axes": { "resourceLifecycle": ["not_applicable"], "resourceLifecycleProvenance": "axis-vocabulary-inapplicable", "sensitivity": "phi" },
-      "catalog": { "resourceKind": "phi", "riskClass": "read", "sensitivityCeiling": "phi", "resolutionScopeKind": "commission" },
+      "callGraphBoundary": {
+        "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).",
+        "reviewedBy": "backend/AE4.9-D5",
+        "reviewedOn": "2026-09-02"
+      },
+      "axes": {
+        "resourceLifecycle": [
+          "not_applicable"
+        ],
+        "resourceLifecycleProvenance": "axis-vocabulary-inapplicable",
+        "sensitivity": "phi"
+      },
+      "catalog": {
+        "resourceKind": "phi",
+        "riskClass": "read",
+        "sensitivityCeiling": "phi",
+        "resolutionScopeKind": "commission"
+      },
       "hardDenyClasses": [],
       "hardDenyProvenance": "not-attributable-until-rekey",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
-      "legacyEquivalence": { "gate": "app.is_staff_admin_of_for", "expected": "identical" },
-      "pendingRekey": { "layer1Gate": "app.holds_role_via_is_staff_admin_of", "owner": "lead", "expiry": "AE5-complete" },
+      "legacyEquivalence": {
+        "gate": "app.is_staff_admin_of_for",
+        "expected": "identical"
+      },
+      "pendingRekey": {
+        "layer1Gate": "app.holds_role_via_is_staff_admin_of",
+        "owner": "lead",
+        "expiry": "AE5-complete"
+      },
       "exception": null
     },
     "commission.cases.read": {
@@ -518,16 +830,38 @@
       "domainAuthorizer": null,
       "targetAuthorizer": null,
       "enforcementSites": [],
-      "callGraphBoundary": { "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).", "reviewedBy": "backend/AE4.9-D5", "reviewedOn": "2026-09-02" },
-      "axes": { "resourceLifecycle": ["not_applicable"], "resourceLifecycleProvenance": "axis-vocabulary-inapplicable", "sensitivity": "none" },
-      "catalog": { "resourceKind": "commission_content", "riskClass": "read", "sensitivityCeiling": "none", "resolutionScopeKind": "commission" },
+      "callGraphBoundary": {
+        "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).",
+        "reviewedBy": "backend/AE4.9-D5",
+        "reviewedOn": "2026-09-02"
+      },
+      "axes": {
+        "resourceLifecycle": [
+          "not_applicable"
+        ],
+        "resourceLifecycleProvenance": "axis-vocabulary-inapplicable",
+        "sensitivity": "none"
+      },
+      "catalog": {
+        "resourceKind": "commission_content",
+        "riskClass": "read",
+        "sensitivityCeiling": "none",
+        "resolutionScopeKind": "commission"
+      },
       "hardDenyClasses": [],
       "hardDenyProvenance": "not-attributable-until-rekey",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
-      "legacyEquivalence": { "gate": "app.is_staff_admin_of_for", "expected": "identical" },
-      "pendingRekey": { "layer1Gate": "app.holds_role_via_is_staff_admin_of", "owner": "lead", "expiry": "AE5-complete" },
+      "legacyEquivalence": {
+        "gate": "app.is_staff_admin_of_for",
+        "expected": "identical"
+      },
+      "pendingRekey": {
+        "layer1Gate": "app.holds_role_via_is_staff_admin_of",
+        "owner": "lead",
+        "expiry": "AE5-complete"
+      },
       "exception": null
     },
     "commission.cases.recusal.manage": {
@@ -535,16 +869,38 @@
       "domainAuthorizer": null,
       "targetAuthorizer": null,
       "enforcementSites": [],
-      "callGraphBoundary": { "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).", "reviewedBy": "backend/AE4.9-D5", "reviewedOn": "2026-09-02" },
-      "axes": { "resourceLifecycle": ["not_applicable"], "resourceLifecycleProvenance": "axis-vocabulary-inapplicable", "sensitivity": "none" },
-      "catalog": { "resourceKind": "commission_content", "riskClass": "authority", "sensitivityCeiling": "none", "resolutionScopeKind": "commission" },
+      "callGraphBoundary": {
+        "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).",
+        "reviewedBy": "backend/AE4.9-D5",
+        "reviewedOn": "2026-09-02"
+      },
+      "axes": {
+        "resourceLifecycle": [
+          "not_applicable"
+        ],
+        "resourceLifecycleProvenance": "axis-vocabulary-inapplicable",
+        "sensitivity": "none"
+      },
+      "catalog": {
+        "resourceKind": "commission_content",
+        "riskClass": "authority",
+        "sensitivityCeiling": "none",
+        "resolutionScopeKind": "commission"
+      },
       "hardDenyClasses": [],
       "hardDenyProvenance": "not-attributable-until-rekey",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
-      "legacyEquivalence": { "gate": "app.is_staff_admin_of_for", "expected": "identical" },
-      "pendingRekey": { "layer1Gate": "app.holds_role_via_is_staff_admin_of", "owner": "lead", "expiry": "AE5-complete" },
+      "legacyEquivalence": {
+        "gate": "app.is_staff_admin_of_for",
+        "expected": "identical"
+      },
+      "pendingRekey": {
+        "layer1Gate": "app.holds_role_via_is_staff_admin_of",
+        "owner": "lead",
+        "expiry": "AE5-complete"
+      },
       "exception": null
     },
     "commission.charter.manage": {
@@ -552,16 +908,38 @@
       "domainAuthorizer": null,
       "targetAuthorizer": null,
       "enforcementSites": [],
-      "callGraphBoundary": { "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).", "reviewedBy": "backend/AE4.9-D5", "reviewedOn": "2026-09-02" },
-      "axes": { "resourceLifecycle": ["not_applicable"], "resourceLifecycleProvenance": "axis-vocabulary-inapplicable", "sensitivity": "none" },
-      "catalog": { "resourceKind": "commission_content", "riskClass": "write", "sensitivityCeiling": "none", "resolutionScopeKind": "commission" },
+      "callGraphBoundary": {
+        "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).",
+        "reviewedBy": "backend/AE4.9-D5",
+        "reviewedOn": "2026-09-02"
+      },
+      "axes": {
+        "resourceLifecycle": [
+          "not_applicable"
+        ],
+        "resourceLifecycleProvenance": "axis-vocabulary-inapplicable",
+        "sensitivity": "none"
+      },
+      "catalog": {
+        "resourceKind": "commission_content",
+        "riskClass": "write",
+        "sensitivityCeiling": "none",
+        "resolutionScopeKind": "commission"
+      },
       "hardDenyClasses": [],
       "hardDenyProvenance": "not-attributable-until-rekey",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
-      "legacyEquivalence": { "gate": "app.is_staff_admin_of_for", "expected": "identical" },
-      "pendingRekey": { "layer1Gate": "app.holds_role_via_is_staff_admin_of", "owner": "lead", "expiry": "AE5-complete" },
+      "legacyEquivalence": {
+        "gate": "app.is_staff_admin_of_for",
+        "expected": "identical"
+      },
+      "pendingRekey": {
+        "layer1Gate": "app.holds_role_via_is_staff_admin_of",
+        "owner": "lead",
+        "expiry": "AE5-complete"
+      },
       "exception": null
     },
     "commission.dashboard.read": {
@@ -569,16 +947,38 @@
       "domainAuthorizer": null,
       "targetAuthorizer": null,
       "enforcementSites": [],
-      "callGraphBoundary": { "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).", "reviewedBy": "backend/AE4.9-D5", "reviewedOn": "2026-09-02" },
-      "axes": { "resourceLifecycle": ["submitted"], "resourceLifecycleProvenance": "architecture-rule", "sensitivity": "none" },
-      "catalog": { "resourceKind": "commission_content", "riskClass": "read", "sensitivityCeiling": "none", "resolutionScopeKind": "commission" },
+      "callGraphBoundary": {
+        "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).",
+        "reviewedBy": "backend/AE4.9-D5",
+        "reviewedOn": "2026-09-02"
+      },
+      "axes": {
+        "resourceLifecycle": [
+          "submitted"
+        ],
+        "resourceLifecycleProvenance": "architecture-rule",
+        "sensitivity": "none"
+      },
+      "catalog": {
+        "resourceKind": "commission_content",
+        "riskClass": "read",
+        "sensitivityCeiling": "none",
+        "resolutionScopeKind": "commission"
+      },
       "hardDenyClasses": [],
       "hardDenyProvenance": "not-attributable-until-rekey",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
-      "legacyEquivalence": { "gate": "app.is_staff_admin_of_for", "expected": "identical" },
-      "pendingRekey": { "layer1Gate": "app.holds_role_via_is_staff_admin_of", "owner": "lead", "expiry": "AE5-complete" },
+      "legacyEquivalence": {
+        "gate": "app.is_staff_admin_of_for",
+        "expected": "identical"
+      },
+      "pendingRekey": {
+        "layer1Gate": "app.holds_role_via_is_staff_admin_of",
+        "owner": "lead",
+        "expiry": "AE5-complete"
+      },
       "exception": null
     },
     "commission.documents.manage": {
@@ -586,16 +986,38 @@
       "domainAuthorizer": null,
       "targetAuthorizer": null,
       "enforcementSites": [],
-      "callGraphBoundary": { "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).", "reviewedBy": "backend/AE4.9-D5", "reviewedOn": "2026-09-02" },
-      "axes": { "resourceLifecycle": ["draft"], "resourceLifecycleProvenance": "architecture-rule", "sensitivity": "none" },
-      "catalog": { "resourceKind": "commission_content", "riskClass": "write", "sensitivityCeiling": "none", "resolutionScopeKind": "commission" },
+      "callGraphBoundary": {
+        "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).",
+        "reviewedBy": "backend/AE4.9-D5",
+        "reviewedOn": "2026-09-02"
+      },
+      "axes": {
+        "resourceLifecycle": [
+          "draft"
+        ],
+        "resourceLifecycleProvenance": "architecture-rule",
+        "sensitivity": "none"
+      },
+      "catalog": {
+        "resourceKind": "commission_content",
+        "riskClass": "write",
+        "sensitivityCeiling": "none",
+        "resolutionScopeKind": "commission"
+      },
       "hardDenyClasses": [],
       "hardDenyProvenance": "not-attributable-until-rekey",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
-      "legacyEquivalence": { "gate": "app.is_staff_admin_of_for", "expected": "identical" },
-      "pendingRekey": { "layer1Gate": "app.holds_role_via_is_staff_admin_of", "owner": "lead", "expiry": "AE5-complete" },
+      "legacyEquivalence": {
+        "gate": "app.is_staff_admin_of_for",
+        "expected": "identical"
+      },
+      "pendingRekey": {
+        "layer1Gate": "app.holds_role_via_is_staff_admin_of",
+        "owner": "lead",
+        "expiry": "AE5-complete"
+      },
       "exception": null
     },
     "commission.documents.publish": {
@@ -603,16 +1025,38 @@
       "domainAuthorizer": null,
       "targetAuthorizer": null,
       "enforcementSites": [],
-      "callGraphBoundary": { "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).", "reviewedBy": "backend/AE4.9-D5", "reviewedOn": "2026-09-02" },
-      "axes": { "resourceLifecycle": ["draft"], "resourceLifecycleProvenance": "architecture-rule", "sensitivity": "none" },
-      "catalog": { "resourceKind": "commission_content", "riskClass": "irreversible", "sensitivityCeiling": "none", "resolutionScopeKind": "commission" },
+      "callGraphBoundary": {
+        "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).",
+        "reviewedBy": "backend/AE4.9-D5",
+        "reviewedOn": "2026-09-02"
+      },
+      "axes": {
+        "resourceLifecycle": [
+          "draft"
+        ],
+        "resourceLifecycleProvenance": "architecture-rule",
+        "sensitivity": "none"
+      },
+      "catalog": {
+        "resourceKind": "commission_content",
+        "riskClass": "irreversible",
+        "sensitivityCeiling": "none",
+        "resolutionScopeKind": "commission"
+      },
       "hardDenyClasses": [],
       "hardDenyProvenance": "not-attributable-until-rekey",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
-      "legacyEquivalence": { "gate": "app.is_staff_admin_of_for", "expected": "identical" },
-      "pendingRekey": { "layer1Gate": "app.holds_role_via_is_staff_admin_of", "owner": "lead", "expiry": "AE5-complete" },
+      "legacyEquivalence": {
+        "gate": "app.is_staff_admin_of_for",
+        "expected": "identical"
+      },
+      "pendingRekey": {
+        "layer1Gate": "app.holds_role_via_is_staff_admin_of",
+        "owner": "lead",
+        "expiry": "AE5-complete"
+      },
       "exception": null
     },
     "commission.dsr.execute": {
@@ -620,16 +1064,38 @@
       "domainAuthorizer": null,
       "targetAuthorizer": null,
       "enforcementSites": [],
-      "callGraphBoundary": { "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).", "reviewedBy": "backend/AE4.9-D5", "reviewedOn": "2026-09-02" },
-      "axes": { "resourceLifecycle": ["not_applicable"], "resourceLifecycleProvenance": "axis-vocabulary-inapplicable", "sensitivity": "none" },
-      "catalog": { "resourceKind": "audit", "riskClass": "write", "sensitivityCeiling": "none", "resolutionScopeKind": "commission" },
+      "callGraphBoundary": {
+        "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).",
+        "reviewedBy": "backend/AE4.9-D5",
+        "reviewedOn": "2026-09-02"
+      },
+      "axes": {
+        "resourceLifecycle": [
+          "not_applicable"
+        ],
+        "resourceLifecycleProvenance": "axis-vocabulary-inapplicable",
+        "sensitivity": "none"
+      },
+      "catalog": {
+        "resourceKind": "audit",
+        "riskClass": "write",
+        "sensitivityCeiling": "none",
+        "resolutionScopeKind": "commission"
+      },
       "hardDenyClasses": [],
       "hardDenyProvenance": "not-attributable-until-rekey",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
-      "legacyEquivalence": { "gate": "app.is_staff_admin_of_for", "expected": "identical" },
-      "pendingRekey": { "layer1Gate": "app.holds_role_via_is_staff_admin_of", "owner": "lead", "expiry": "AE5-complete" },
+      "legacyEquivalence": {
+        "gate": "app.is_staff_admin_of_for",
+        "expected": "identical"
+      },
+      "pendingRekey": {
+        "layer1Gate": "app.holds_role_via_is_staff_admin_of",
+        "owner": "lead",
+        "expiry": "AE5-complete"
+      },
       "exception": null
     },
     "commission.forms.assets.upload": {
@@ -637,16 +1103,38 @@
       "domainAuthorizer": null,
       "targetAuthorizer": null,
       "enforcementSites": [],
-      "callGraphBoundary": { "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).", "reviewedBy": "backend/AE4.9-D5", "reviewedOn": "2026-09-02" },
-      "axes": { "resourceLifecycle": ["draft"], "resourceLifecycleProvenance": "architecture-rule", "sensitivity": "none" },
-      "catalog": { "resourceKind": "commission_content", "riskClass": "write", "sensitivityCeiling": "none", "resolutionScopeKind": "commission" },
+      "callGraphBoundary": {
+        "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).",
+        "reviewedBy": "backend/AE4.9-D5",
+        "reviewedOn": "2026-09-02"
+      },
+      "axes": {
+        "resourceLifecycle": [
+          "draft"
+        ],
+        "resourceLifecycleProvenance": "architecture-rule",
+        "sensitivity": "none"
+      },
+      "catalog": {
+        "resourceKind": "commission_content",
+        "riskClass": "write",
+        "sensitivityCeiling": "none",
+        "resolutionScopeKind": "commission"
+      },
       "hardDenyClasses": [],
       "hardDenyProvenance": "not-attributable-until-rekey",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
-      "legacyEquivalence": { "gate": "app.is_staff_admin_of_for", "expected": "identical" },
-      "pendingRekey": { "layer1Gate": "app.holds_role_via_is_staff_admin_of", "owner": "lead", "expiry": "AE5-complete" },
+      "legacyEquivalence": {
+        "gate": "app.is_staff_admin_of_for",
+        "expected": "identical"
+      },
+      "pendingRekey": {
+        "layer1Gate": "app.holds_role_via_is_staff_admin_of",
+        "owner": "lead",
+        "expiry": "AE5-complete"
+      },
       "exception": null
     },
     "commission.forms.edit": {
@@ -700,33 +1188,178 @@
       "status": "re-keyed",
       "domainAuthorizer": {
         "function": "app.can_edit_commission_forms",
-        "composedWith": ["authz.has_permission", "app.is_tenancy_admin_of_for"],
+        "composedWith": [
+          "authz.has_permission",
+          "app.is_tenancy_admin_of_for"
+        ],
         "executableByAuthenticated": true,
         "note": "app.can_edit_commission_forms(p_commission_id uuid, p_uid uuid) returns boolean, SECURITY DEFINER, search_path = app, public, pg_catalog; granted to authenticated + service_role. Two arms: the re-keyed permission check, and the PRESERVED tenancy-admin arm (org_admin / hospital_admin, both `legacy` roles whose catalog grants are inert)."
       },
       "targetAuthorizer": null,
       "enforcementSites": [
-        { "kind": "policy", "schema": "public", "relation": "forms",         "name": "forms_staff_admin_write",         "composedWith": ["app.can_edit_commission_forms"] },
-        { "kind": "policy", "schema": "public", "relation": "form_versions", "name": "form_versions_staff_admin_write", "composedWith": ["app.can_edit_commission_forms"] },
-        { "kind": "policy", "schema": "public", "relation": "form_sections", "name": "form_sections_staff_admin_write", "composedWith": ["app.can_edit_commission_forms"] },
-        { "kind": "policy", "schema": "public", "relation": "form_items",    "name": "form_items_staff_admin_write",    "composedWith": ["app.can_edit_commission_forms"] },
-        { "kind": "policy", "schema": "public", "relation": "form_item_options",     "name": "form_item_options_staff_admin_write",     "composedWith": ["app.can_edit_commission_forms"] },
-        { "kind": "policy", "schema": "public", "relation": "form_item_validations", "name": "form_item_validations_staff_admin_write", "composedWith": ["app.can_edit_commission_forms"] }
+        {
+          "kind": "policy",
+          "schema": "public",
+          "relation": "forms",
+          "name": "forms_staff_admin_write",
+          "composedWith": [
+            "app.can_edit_commission_forms"
+          ]
+        },
+        {
+          "kind": "policy",
+          "schema": "public",
+          "relation": "form_versions",
+          "name": "form_versions_staff_admin_write",
+          "composedWith": [
+            "app.can_edit_commission_forms"
+          ]
+        },
+        {
+          "kind": "policy",
+          "schema": "public",
+          "relation": "form_sections",
+          "name": "form_sections_staff_admin_write",
+          "composedWith": [
+            "app.can_edit_commission_forms"
+          ]
+        },
+        {
+          "kind": "policy",
+          "schema": "public",
+          "relation": "form_items",
+          "name": "form_items_staff_admin_write",
+          "composedWith": [
+            "app.can_edit_commission_forms"
+          ]
+        },
+        {
+          "kind": "policy",
+          "schema": "public",
+          "relation": "form_item_options",
+          "name": "form_item_options_staff_admin_write",
+          "composedWith": [
+            "app.can_edit_commission_forms"
+          ]
+        },
+        {
+          "kind": "policy",
+          "schema": "public",
+          "relation": "form_item_validations",
+          "name": "form_item_validations_staff_admin_write",
+          "composedWith": [
+            "app.can_edit_commission_forms"
+          ]
+        }
       ],
       "callGraphBoundary": null,
-      "axes": { "resourceLifecycle": ["draft"], "resourceLifecycleProvenance": "architecture-rule", "sensitivity": "none" },
-      "catalog": { "resourceKind": "commission_content", "riskClass": "write", "sensitivityCeiling": "none", "resolutionScopeKind": "commission" },
-      "hardDenyClasses": ["principal_inactive"],
+      "axes": {
+        "resourceLifecycle": [
+          "draft"
+        ],
+        "resourceLifecycleProvenance": "architecture-rule",
+        "sensitivity": "none"
+      },
+      "catalog": {
+        "resourceKind": "commission_content",
+        "riskClass": "write",
+        "sensitivityCeiling": "none",
+        "resolutionScopeKind": "commission"
+      },
+      "hardDenyClasses": [
+        "principal_inactive"
+      ],
       "hardDenyProvenance": "measured-transitive-over-gated-classes",
       "definerSurface": [
-        { "schema": "app",    "name": "_insert_block_child_rows",   "writes": ["form_item_options", "form_item_validations", "form_matrix_columns", "form_matrix_rows"], "gate": null, "carriesCode": false, "executableByAuthenticated": true },
-        { "schema": "app",    "name": "copy_version_children",      "writes": ["form_item_options", "form_item_validations", "form_items", "form_matrix_columns", "form_matrix_rows", "form_sections"], "gate": "app.is_staff_admin_of", "carriesCode": false, "executableByAuthenticated": true },
-        { "schema": "public", "name": "delete_block_library_entry", "writes": ["form_block_library"], "gate": "app.is_staff_admin_of", "carriesCode": false, "executableByAuthenticated": true },
-        { "schema": "public", "name": "insert_block_from_library",  "writes": ["form_items"], "gate": "app.is_staff_admin_of", "carriesCode": false, "executableByAuthenticated": true },
-        { "schema": "public", "name": "save_block_to_library",      "writes": ["form_block_library"], "gate": "app.is_staff_admin_of", "carriesCode": false, "executableByAuthenticated": true },
-        { "schema": "public", "name": "set_item_validations",       "writes": ["form_item_validations"], "gate": "app.can_edit_commission_forms", "carriesCode": false, "executableByAuthenticated": true },
-        { "schema": "public", "name": "update_block_library_entry", "writes": ["form_block_library"], "gate": "app.is_staff_admin_of", "carriesCode": false, "executableByAuthenticated": true },
-        { "schema": "public", "name": "upsert_matrix_axes",         "writes": ["form_matrix_columns", "form_matrix_rows"], "gate": "app.is_staff_admin_of", "carriesCode": false, "executableByAuthenticated": true }
+        {
+          "schema": "app",
+          "name": "_insert_block_child_rows",
+          "writes": [
+            "form_item_options",
+            "form_item_validations",
+            "form_matrix_columns",
+            "form_matrix_rows"
+          ],
+          "gate": null,
+          "carriesCode": false,
+          "executableByAuthenticated": true
+        },
+        {
+          "schema": "app",
+          "name": "copy_version_children",
+          "writes": [
+            "form_item_options",
+            "form_item_validations",
+            "form_items",
+            "form_matrix_columns",
+            "form_matrix_rows",
+            "form_sections"
+          ],
+          "gate": "app.is_staff_admin_of",
+          "carriesCode": false,
+          "executableByAuthenticated": true
+        },
+        {
+          "schema": "public",
+          "name": "delete_block_library_entry",
+          "writes": [
+            "form_block_library"
+          ],
+          "gate": "app.is_staff_admin_of",
+          "carriesCode": false,
+          "executableByAuthenticated": true
+        },
+        {
+          "schema": "public",
+          "name": "insert_block_from_library",
+          "writes": [
+            "form_items"
+          ],
+          "gate": "app.is_staff_admin_of",
+          "carriesCode": false,
+          "executableByAuthenticated": true
+        },
+        {
+          "schema": "public",
+          "name": "save_block_to_library",
+          "writes": [
+            "form_block_library"
+          ],
+          "gate": "app.is_staff_admin_of",
+          "carriesCode": false,
+          "executableByAuthenticated": true
+        },
+        {
+          "schema": "public",
+          "name": "set_item_validations",
+          "writes": [
+            "form_item_validations"
+          ],
+          "gate": "app.can_edit_commission_forms",
+          "carriesCode": false,
+          "executableByAuthenticated": true
+        },
+        {
+          "schema": "public",
+          "name": "update_block_library_entry",
+          "writes": [
+            "form_block_library"
+          ],
+          "gate": "app.is_staff_admin_of",
+          "carriesCode": false,
+          "executableByAuthenticated": true
+        },
+        {
+          "schema": "public",
+          "name": "upsert_matrix_axes",
+          "writes": [
+            "form_matrix_columns",
+            "form_matrix_rows"
+          ],
+          "gate": "app.is_staff_admin_of",
+          "carriesCode": false,
+          "executableByAuthenticated": true
+        }
       ],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [
@@ -736,7 +1369,10 @@
           "retiredBy": "AE5 — when org_admin flips to authoritative and holds commission.forms.edit"
         }
       ],
-      "legacyEquivalence": { "gate": "app.is_staff_admin_of_for", "expected": "identical" },
+      "legacyEquivalence": {
+        "gate": "app.is_staff_admin_of_for",
+        "expected": "identical"
+      },
       "pendingRekey": null,
       "exception": null
     },
@@ -745,16 +1381,38 @@
       "domainAuthorizer": null,
       "targetAuthorizer": null,
       "enforcementSites": [],
-      "callGraphBoundary": { "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).", "reviewedBy": "backend/AE4.9-D5", "reviewedOn": "2026-09-02" },
-      "axes": { "resourceLifecycle": ["draft"], "resourceLifecycleProvenance": "architecture-rule", "sensitivity": "none" },
-      "catalog": { "resourceKind": "commission_content", "riskClass": "irreversible", "sensitivityCeiling": "none", "resolutionScopeKind": "commission" },
+      "callGraphBoundary": {
+        "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).",
+        "reviewedBy": "backend/AE4.9-D5",
+        "reviewedOn": "2026-09-02"
+      },
+      "axes": {
+        "resourceLifecycle": [
+          "draft"
+        ],
+        "resourceLifecycleProvenance": "architecture-rule",
+        "sensitivity": "none"
+      },
+      "catalog": {
+        "resourceKind": "commission_content",
+        "riskClass": "irreversible",
+        "sensitivityCeiling": "none",
+        "resolutionScopeKind": "commission"
+      },
       "hardDenyClasses": [],
       "hardDenyProvenance": "not-attributable-until-rekey",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
-      "legacyEquivalence": { "gate": "app.is_staff_admin_of_for", "expected": "identical" },
-      "pendingRekey": { "layer1Gate": "app.holds_role_via_is_staff_admin_of", "owner": "lead", "expiry": "AE5-complete" },
+      "legacyEquivalence": {
+        "gate": "app.is_staff_admin_of_for",
+        "expected": "identical"
+      },
+      "pendingRekey": {
+        "layer1Gate": "app.holds_role_via_is_staff_admin_of",
+        "owner": "lead",
+        "expiry": "AE5-complete"
+      },
       "exception": null
     },
     "commission.indicators.manage": {
@@ -762,16 +1420,38 @@
       "domainAuthorizer": null,
       "targetAuthorizer": null,
       "enforcementSites": [],
-      "callGraphBoundary": { "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).", "reviewedBy": "backend/AE4.9-D5", "reviewedOn": "2026-09-02" },
-      "axes": { "resourceLifecycle": ["not_applicable"], "resourceLifecycleProvenance": "axis-vocabulary-inapplicable", "sensitivity": "none" },
-      "catalog": { "resourceKind": "commission_content", "riskClass": "write", "sensitivityCeiling": "none", "resolutionScopeKind": "commission" },
+      "callGraphBoundary": {
+        "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).",
+        "reviewedBy": "backend/AE4.9-D5",
+        "reviewedOn": "2026-09-02"
+      },
+      "axes": {
+        "resourceLifecycle": [
+          "not_applicable"
+        ],
+        "resourceLifecycleProvenance": "axis-vocabulary-inapplicable",
+        "sensitivity": "none"
+      },
+      "catalog": {
+        "resourceKind": "commission_content",
+        "riskClass": "write",
+        "sensitivityCeiling": "none",
+        "resolutionScopeKind": "commission"
+      },
       "hardDenyClasses": [],
       "hardDenyProvenance": "not-attributable-until-rekey",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
-      "legacyEquivalence": { "gate": "app.is_staff_admin_of_for", "expected": "identical" },
-      "pendingRekey": { "layer1Gate": "app.holds_role_via_is_staff_admin_of", "owner": "lead", "expiry": "AE5-complete" },
+      "legacyEquivalence": {
+        "gate": "app.is_staff_admin_of_for",
+        "expected": "identical"
+      },
+      "pendingRekey": {
+        "layer1Gate": "app.holds_role_via_is_staff_admin_of",
+        "owner": "lead",
+        "expiry": "AE5-complete"
+      },
       "exception": null
     },
     "commission.meetings.cases.decision.read": {
@@ -779,16 +1459,38 @@
       "domainAuthorizer": null,
       "targetAuthorizer": null,
       "enforcementSites": [],
-      "callGraphBoundary": { "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).", "reviewedBy": "backend/AE4.9-D5", "reviewedOn": "2026-09-02" },
-      "axes": { "resourceLifecycle": ["not_applicable"], "resourceLifecycleProvenance": "axis-vocabulary-inapplicable", "sensitivity": "none" },
-      "catalog": { "resourceKind": "commission_content", "riskClass": "read", "sensitivityCeiling": "none", "resolutionScopeKind": "commission" },
+      "callGraphBoundary": {
+        "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).",
+        "reviewedBy": "backend/AE4.9-D5",
+        "reviewedOn": "2026-09-02"
+      },
+      "axes": {
+        "resourceLifecycle": [
+          "not_applicable"
+        ],
+        "resourceLifecycleProvenance": "axis-vocabulary-inapplicable",
+        "sensitivity": "none"
+      },
+      "catalog": {
+        "resourceKind": "commission_content",
+        "riskClass": "read",
+        "sensitivityCeiling": "none",
+        "resolutionScopeKind": "commission"
+      },
       "hardDenyClasses": [],
       "hardDenyProvenance": "not-attributable-until-rekey",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
-      "legacyEquivalence": { "gate": "app.is_staff_admin_of_for", "expected": "identical" },
-      "pendingRekey": { "layer1Gate": "app.holds_role_via_is_staff_admin_of", "owner": "lead", "expiry": "AE5-complete" },
+      "legacyEquivalence": {
+        "gate": "app.is_staff_admin_of_for",
+        "expected": "identical"
+      },
+      "pendingRekey": {
+        "layer1Gate": "app.holds_role_via_is_staff_admin_of",
+        "owner": "lead",
+        "expiry": "AE5-complete"
+      },
       "exception": null
     },
     "commission.meetings.cases.shell.read": {
@@ -796,33 +1498,94 @@
       "domainAuthorizer": null,
       "targetAuthorizer": null,
       "enforcementSites": [],
-      "callGraphBoundary": { "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).", "reviewedBy": "backend/AE4.9-D5", "reviewedOn": "2026-09-02" },
-      "axes": { "resourceLifecycle": ["not_applicable"], "resourceLifecycleProvenance": "axis-vocabulary-inapplicable", "sensitivity": "none" },
-      "catalog": { "resourceKind": "commission_content", "riskClass": "read", "sensitivityCeiling": "none", "resolutionScopeKind": "commission" },
+      "callGraphBoundary": {
+        "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).",
+        "reviewedBy": "backend/AE4.9-D5",
+        "reviewedOn": "2026-09-02"
+      },
+      "axes": {
+        "resourceLifecycle": [
+          "not_applicable"
+        ],
+        "resourceLifecycleProvenance": "axis-vocabulary-inapplicable",
+        "sensitivity": "none"
+      },
+      "catalog": {
+        "resourceKind": "commission_content",
+        "riskClass": "read",
+        "sensitivityCeiling": "none",
+        "resolutionScopeKind": "commission"
+      },
       "hardDenyClasses": [],
       "hardDenyProvenance": "not-attributable-until-rekey",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
-      "legacyEquivalence": { "gate": "app.is_staff_admin_of_for", "expected": "identical" },
-      "pendingRekey": { "layer1Gate": "app.holds_role_via_is_staff_admin_of", "owner": "lead", "expiry": "AE5-complete" },
-      "exception": null
+      "legacyEquivalence": {
+        "gate": "app.is_staff_admin_of_for",
+        "expected": "identical"
+      },
+      "pendingRekey": {
+        "layer1Gate": "app.holds_role_via_is_staff_admin_of",
+        "owner": "lead",
+        "expiry": "AE5-complete"
+      },
+      "exception": null,
+      "memberGateArm": [
+        "none",
+        "conjunct_met",
+        "conjunct_unmet"
+      ],
+      "arm3Door": {
+        "kind": "policy-qual",
+        "row": 7,
+        "expression": "app.can_reach_meeting($1, $3) and not app.is_case_respondent($2, $3)",
+        "args": [
+          "meeting_id uuid",
+          "case_id uuid",
+          "uid uuid"
+        ],
+        "limb": "a",
+        "note": "Inherits row 6's conjunct AND adds a respondent hard-deny. ⚠ This code is SHARED with staff_admin and pre-dates AE5; the door declaration is new."
+      }
     },
     "commission.meetings.cases.substance.read": {
       "status": "pending-rekey",
       "domainAuthorizer": null,
       "targetAuthorizer": null,
       "enforcementSites": [],
-      "callGraphBoundary": { "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).", "reviewedBy": "backend/AE4.9-D5", "reviewedOn": "2026-09-02" },
-      "axes": { "resourceLifecycle": ["not_applicable"], "resourceLifecycleProvenance": "axis-vocabulary-inapplicable", "sensitivity": "none" },
-      "catalog": { "resourceKind": "commission_content", "riskClass": "read", "sensitivityCeiling": "none", "resolutionScopeKind": "commission" },
+      "callGraphBoundary": {
+        "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).",
+        "reviewedBy": "backend/AE4.9-D5",
+        "reviewedOn": "2026-09-02"
+      },
+      "axes": {
+        "resourceLifecycle": [
+          "not_applicable"
+        ],
+        "resourceLifecycleProvenance": "axis-vocabulary-inapplicable",
+        "sensitivity": "none"
+      },
+      "catalog": {
+        "resourceKind": "commission_content",
+        "riskClass": "read",
+        "sensitivityCeiling": "none",
+        "resolutionScopeKind": "commission"
+      },
       "hardDenyClasses": [],
       "hardDenyProvenance": "not-attributable-until-rekey",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
-      "legacyEquivalence": { "gate": "app.is_staff_admin_of_for", "expected": "identical" },
-      "pendingRekey": { "layer1Gate": "app.holds_role_via_is_staff_admin_of", "owner": "lead", "expiry": "AE5-complete" },
+      "legacyEquivalence": {
+        "gate": "app.is_staff_admin_of_for",
+        "expected": "identical"
+      },
+      "pendingRekey": {
+        "layer1Gate": "app.holds_role_via_is_staff_admin_of",
+        "owner": "lead",
+        "expiry": "AE5-complete"
+      },
       "exception": null
     },
     "commission.meetings.manage": {
@@ -830,16 +1593,38 @@
       "domainAuthorizer": null,
       "targetAuthorizer": null,
       "enforcementSites": [],
-      "callGraphBoundary": { "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).", "reviewedBy": "backend/AE4.9-D5", "reviewedOn": "2026-09-02" },
-      "axes": { "resourceLifecycle": ["not_applicable"], "resourceLifecycleProvenance": "axis-vocabulary-inapplicable", "sensitivity": "none" },
-      "catalog": { "resourceKind": "commission_content", "riskClass": "write", "sensitivityCeiling": "none", "resolutionScopeKind": "commission" },
+      "callGraphBoundary": {
+        "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).",
+        "reviewedBy": "backend/AE4.9-D5",
+        "reviewedOn": "2026-09-02"
+      },
+      "axes": {
+        "resourceLifecycle": [
+          "not_applicable"
+        ],
+        "resourceLifecycleProvenance": "axis-vocabulary-inapplicable",
+        "sensitivity": "none"
+      },
+      "catalog": {
+        "resourceKind": "commission_content",
+        "riskClass": "write",
+        "sensitivityCeiling": "none",
+        "resolutionScopeKind": "commission"
+      },
       "hardDenyClasses": [],
       "hardDenyProvenance": "not-attributable-until-rekey",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
-      "legacyEquivalence": { "gate": "app.is_staff_admin_of_for", "expected": "identical" },
-      "pendingRekey": { "layer1Gate": "app.holds_role_via_is_staff_admin_of", "owner": "lead", "expiry": "AE5-complete" },
+      "legacyEquivalence": {
+        "gate": "app.is_staff_admin_of_for",
+        "expected": "identical"
+      },
+      "pendingRekey": {
+        "layer1Gate": "app.holds_role_via_is_staff_admin_of",
+        "owner": "lead",
+        "expiry": "AE5-complete"
+      },
       "exception": null
     },
     "commission.meetings.minutes.transcript.read": {
@@ -847,16 +1632,38 @@
       "domainAuthorizer": null,
       "targetAuthorizer": null,
       "enforcementSites": [],
-      "callGraphBoundary": { "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).", "reviewedBy": "backend/AE4.9-D5", "reviewedOn": "2026-09-02" },
-      "axes": { "resourceLifecycle": ["not_applicable"], "resourceLifecycleProvenance": "axis-vocabulary-inapplicable", "sensitivity": "none" },
-      "catalog": { "resourceKind": "commission_content", "riskClass": "read", "sensitivityCeiling": "none", "resolutionScopeKind": "commission" },
+      "callGraphBoundary": {
+        "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).",
+        "reviewedBy": "backend/AE4.9-D5",
+        "reviewedOn": "2026-09-02"
+      },
+      "axes": {
+        "resourceLifecycle": [
+          "not_applicable"
+        ],
+        "resourceLifecycleProvenance": "axis-vocabulary-inapplicable",
+        "sensitivity": "none"
+      },
+      "catalog": {
+        "resourceKind": "commission_content",
+        "riskClass": "read",
+        "sensitivityCeiling": "none",
+        "resolutionScopeKind": "commission"
+      },
       "hardDenyClasses": [],
       "hardDenyProvenance": "not-attributable-until-rekey",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
-      "legacyEquivalence": { "gate": "app.is_staff_admin_of_for", "expected": "identical" },
-      "pendingRekey": { "layer1Gate": "app.holds_role_via_is_staff_admin_of", "owner": "lead", "expiry": "AE5-complete" },
+      "legacyEquivalence": {
+        "gate": "app.is_staff_admin_of_for",
+        "expected": "identical"
+      },
+      "pendingRekey": {
+        "layer1Gate": "app.holds_role_via_is_staff_admin_of",
+        "owner": "lead",
+        "expiry": "AE5-complete"
+      },
       "exception": null
     },
     "commission.meetings.reserved.author": {
@@ -864,16 +1671,38 @@
       "domainAuthorizer": null,
       "targetAuthorizer": null,
       "enforcementSites": [],
-      "callGraphBoundary": { "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).", "reviewedBy": "backend/AE4.9-D5", "reviewedOn": "2026-09-02" },
-      "axes": { "resourceLifecycle": ["not_applicable"], "resourceLifecycleProvenance": "axis-vocabulary-inapplicable", "sensitivity": "none" },
-      "catalog": { "resourceKind": "commission_content", "riskClass": "write", "sensitivityCeiling": "none", "resolutionScopeKind": "commission" },
+      "callGraphBoundary": {
+        "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).",
+        "reviewedBy": "backend/AE4.9-D5",
+        "reviewedOn": "2026-09-02"
+      },
+      "axes": {
+        "resourceLifecycle": [
+          "not_applicable"
+        ],
+        "resourceLifecycleProvenance": "axis-vocabulary-inapplicable",
+        "sensitivity": "none"
+      },
+      "catalog": {
+        "resourceKind": "commission_content",
+        "riskClass": "write",
+        "sensitivityCeiling": "none",
+        "resolutionScopeKind": "commission"
+      },
       "hardDenyClasses": [],
       "hardDenyProvenance": "not-attributable-until-rekey",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
-      "legacyEquivalence": { "gate": "app.is_staff_admin_of_for", "expected": "identical" },
-      "pendingRekey": { "layer1Gate": "app.holds_role_via_is_staff_admin_of", "owner": "lead", "expiry": "AE5-complete" },
+      "legacyEquivalence": {
+        "gate": "app.is_staff_admin_of_for",
+        "expected": "identical"
+      },
+      "pendingRekey": {
+        "layer1Gate": "app.holds_role_via_is_staff_admin_of",
+        "owner": "lead",
+        "expiry": "AE5-complete"
+      },
       "exception": null
     },
     "commission.process_templates.manage": {
@@ -881,16 +1710,38 @@
       "domainAuthorizer": null,
       "targetAuthorizer": null,
       "enforcementSites": [],
-      "callGraphBoundary": { "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).", "reviewedBy": "backend/AE4.9-D5", "reviewedOn": "2026-09-02" },
-      "axes": { "resourceLifecycle": ["not_applicable"], "resourceLifecycleProvenance": "axis-vocabulary-inapplicable", "sensitivity": "none" },
-      "catalog": { "resourceKind": "commission_content", "riskClass": "write", "sensitivityCeiling": "none", "resolutionScopeKind": "commission" },
+      "callGraphBoundary": {
+        "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).",
+        "reviewedBy": "backend/AE4.9-D5",
+        "reviewedOn": "2026-09-02"
+      },
+      "axes": {
+        "resourceLifecycle": [
+          "not_applicable"
+        ],
+        "resourceLifecycleProvenance": "axis-vocabulary-inapplicable",
+        "sensitivity": "none"
+      },
+      "catalog": {
+        "resourceKind": "commission_content",
+        "riskClass": "write",
+        "sensitivityCeiling": "none",
+        "resolutionScopeKind": "commission"
+      },
       "hardDenyClasses": [],
       "hardDenyProvenance": "not-attributable-until-rekey",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
-      "legacyEquivalence": { "gate": "app.is_staff_admin_of_for", "expected": "identical" },
-      "pendingRekey": { "layer1Gate": "app.holds_role_via_is_staff_admin_of", "owner": "lead", "expiry": "AE5-complete" },
+      "legacyEquivalence": {
+        "gate": "app.is_staff_admin_of_for",
+        "expected": "identical"
+      },
+      "pendingRekey": {
+        "layer1Gate": "app.holds_role_via_is_staff_admin_of",
+        "owner": "lead",
+        "expiry": "AE5-complete"
+      },
       "exception": null
     },
     "commission.referrals.manage": {
@@ -898,16 +1749,38 @@
       "domainAuthorizer": null,
       "targetAuthorizer": null,
       "enforcementSites": [],
-      "callGraphBoundary": { "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).", "reviewedBy": "backend/AE4.9-D5", "reviewedOn": "2026-09-02" },
-      "axes": { "resourceLifecycle": ["not_applicable"], "resourceLifecycleProvenance": "axis-vocabulary-inapplicable", "sensitivity": "none" },
-      "catalog": { "resourceKind": "commission_content", "riskClass": "write", "sensitivityCeiling": "none", "resolutionScopeKind": "commission" },
+      "callGraphBoundary": {
+        "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).",
+        "reviewedBy": "backend/AE4.9-D5",
+        "reviewedOn": "2026-09-02"
+      },
+      "axes": {
+        "resourceLifecycle": [
+          "not_applicable"
+        ],
+        "resourceLifecycleProvenance": "axis-vocabulary-inapplicable",
+        "sensitivity": "none"
+      },
+      "catalog": {
+        "resourceKind": "commission_content",
+        "riskClass": "write",
+        "sensitivityCeiling": "none",
+        "resolutionScopeKind": "commission"
+      },
       "hardDenyClasses": [],
       "hardDenyProvenance": "not-attributable-until-rekey",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
-      "legacyEquivalence": { "gate": "app.is_staff_admin_of_for", "expected": "identical" },
-      "pendingRekey": { "layer1Gate": "app.holds_role_via_is_staff_admin_of", "owner": "lead", "expiry": "AE5-complete" },
+      "legacyEquivalence": {
+        "gate": "app.is_staff_admin_of_for",
+        "expected": "identical"
+      },
+      "pendingRekey": {
+        "layer1Gate": "app.holds_role_via_is_staff_admin_of",
+        "owner": "lead",
+        "expiry": "AE5-complete"
+      },
       "exception": null
     },
     "commission.referrals.phi.read": {
@@ -915,16 +1788,38 @@
       "domainAuthorizer": null,
       "targetAuthorizer": null,
       "enforcementSites": [],
-      "callGraphBoundary": { "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).", "reviewedBy": "backend/AE4.9-D5", "reviewedOn": "2026-09-02" },
-      "axes": { "resourceLifecycle": ["not_applicable"], "resourceLifecycleProvenance": "axis-vocabulary-inapplicable", "sensitivity": "phi" },
-      "catalog": { "resourceKind": "phi", "riskClass": "read", "sensitivityCeiling": "phi", "resolutionScopeKind": "commission" },
+      "callGraphBoundary": {
+        "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).",
+        "reviewedBy": "backend/AE4.9-D5",
+        "reviewedOn": "2026-09-02"
+      },
+      "axes": {
+        "resourceLifecycle": [
+          "not_applicable"
+        ],
+        "resourceLifecycleProvenance": "axis-vocabulary-inapplicable",
+        "sensitivity": "phi"
+      },
+      "catalog": {
+        "resourceKind": "phi",
+        "riskClass": "read",
+        "sensitivityCeiling": "phi",
+        "resolutionScopeKind": "commission"
+      },
       "hardDenyClasses": [],
       "hardDenyProvenance": "not-attributable-until-rekey",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
-      "legacyEquivalence": { "gate": "app.is_staff_admin_of_for", "expected": "identical" },
-      "pendingRekey": { "layer1Gate": "app.holds_role_via_is_staff_admin_of", "owner": "lead", "expiry": "AE5-complete" },
+      "legacyEquivalence": {
+        "gate": "app.is_staff_admin_of_for",
+        "expected": "identical"
+      },
+      "pendingRekey": {
+        "layer1Gate": "app.holds_role_via_is_staff_admin_of",
+        "owner": "lead",
+        "expiry": "AE5-complete"
+      },
       "exception": null
     },
     "commission.responses.correct": {
@@ -932,16 +1827,38 @@
       "domainAuthorizer": null,
       "targetAuthorizer": null,
       "enforcementSites": [],
-      "callGraphBoundary": { "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).", "reviewedBy": "backend/AE4.9-D5", "reviewedOn": "2026-09-02" },
-      "axes": { "resourceLifecycle": ["submitted"], "resourceLifecycleProvenance": "architecture-rule", "sensitivity": "none" },
-      "catalog": { "resourceKind": "commission_content", "riskClass": "write", "sensitivityCeiling": "none", "resolutionScopeKind": "commission" },
+      "callGraphBoundary": {
+        "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).",
+        "reviewedBy": "backend/AE4.9-D5",
+        "reviewedOn": "2026-09-02"
+      },
+      "axes": {
+        "resourceLifecycle": [
+          "submitted"
+        ],
+        "resourceLifecycleProvenance": "architecture-rule",
+        "sensitivity": "none"
+      },
+      "catalog": {
+        "resourceKind": "commission_content",
+        "riskClass": "write",
+        "sensitivityCeiling": "none",
+        "resolutionScopeKind": "commission"
+      },
       "hardDenyClasses": [],
       "hardDenyProvenance": "not-attributable-until-rekey",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
-      "legacyEquivalence": { "gate": "app.is_staff_admin_of_for", "expected": "identical" },
-      "pendingRekey": { "layer1Gate": "app.holds_role_via_is_staff_admin_of", "owner": "lead", "expiry": "AE5-complete" },
+      "legacyEquivalence": {
+        "gate": "app.is_staff_admin_of_for",
+        "expected": "identical"
+      },
+      "pendingRekey": {
+        "layer1Gate": "app.holds_role_via_is_staff_admin_of",
+        "owner": "lead",
+        "expiry": "AE5-complete"
+      },
       "exception": null
     },
     "commission.responses.read": {
@@ -949,16 +1866,39 @@
       "domainAuthorizer": null,
       "targetAuthorizer": null,
       "enforcementSites": [],
-      "callGraphBoundary": { "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).", "reviewedBy": "backend/AE4.9-D5", "reviewedOn": "2026-09-02" },
-      "axes": { "resourceLifecycle": ["in_progress", "submitted"], "resourceLifecycleProvenance": "architecture-rule", "sensitivity": "none" },
-      "catalog": { "resourceKind": "commission_content", "riskClass": "read", "sensitivityCeiling": "none", "resolutionScopeKind": "commission" },
+      "callGraphBoundary": {
+        "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).",
+        "reviewedBy": "backend/AE4.9-D5",
+        "reviewedOn": "2026-09-02"
+      },
+      "axes": {
+        "resourceLifecycle": [
+          "in_progress",
+          "submitted"
+        ],
+        "resourceLifecycleProvenance": "architecture-rule",
+        "sensitivity": "none"
+      },
+      "catalog": {
+        "resourceKind": "commission_content",
+        "riskClass": "read",
+        "sensitivityCeiling": "none",
+        "resolutionScopeKind": "commission"
+      },
       "hardDenyClasses": [],
       "hardDenyProvenance": "not-attributable-until-rekey",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
-      "legacyEquivalence": { "gate": "app.is_staff_admin_of_for", "expected": "identical" },
-      "pendingRekey": { "layer1Gate": "app.holds_role_via_is_staff_admin_of", "owner": "lead", "expiry": "AE5-complete" },
+      "legacyEquivalence": {
+        "gate": "app.is_staff_admin_of_for",
+        "expected": "identical"
+      },
+      "pendingRekey": {
+        "layer1Gate": "app.holds_role_via_is_staff_admin_of",
+        "owner": "lead",
+        "expiry": "AE5-complete"
+      },
       "exception": null
     },
     "commission.safety_events.custody": {
@@ -966,16 +1906,38 @@
       "domainAuthorizer": null,
       "targetAuthorizer": null,
       "enforcementSites": [],
-      "callGraphBoundary": { "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).", "reviewedBy": "backend/AE4.9-D5", "reviewedOn": "2026-09-02" },
-      "axes": { "resourceLifecycle": ["not_applicable"], "resourceLifecycleProvenance": "axis-vocabulary-inapplicable", "sensitivity": "none" },
-      "catalog": { "resourceKind": "commission_content", "riskClass": "write", "sensitivityCeiling": "none", "resolutionScopeKind": "commission" },
+      "callGraphBoundary": {
+        "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).",
+        "reviewedBy": "backend/AE4.9-D5",
+        "reviewedOn": "2026-09-02"
+      },
+      "axes": {
+        "resourceLifecycle": [
+          "not_applicable"
+        ],
+        "resourceLifecycleProvenance": "axis-vocabulary-inapplicable",
+        "sensitivity": "none"
+      },
+      "catalog": {
+        "resourceKind": "commission_content",
+        "riskClass": "write",
+        "sensitivityCeiling": "none",
+        "resolutionScopeKind": "commission"
+      },
       "hardDenyClasses": [],
       "hardDenyProvenance": "not-attributable-until-rekey",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
-      "legacyEquivalence": { "gate": "app.is_staff_admin_of_for", "expected": "identical" },
-      "pendingRekey": { "layer1Gate": "app.holds_role_via_is_staff_admin_of", "owner": "lead", "expiry": "AE5-complete" },
+      "legacyEquivalence": {
+        "gate": "app.is_staff_admin_of_for",
+        "expected": "identical"
+      },
+      "pendingRekey": {
+        "layer1Gate": "app.holds_role_via_is_staff_admin_of",
+        "owner": "lead",
+        "expiry": "AE5-complete"
+      },
       "exception": null
     },
     "commission.safety_events.phi.read": {
@@ -983,16 +1945,38 @@
       "domainAuthorizer": null,
       "targetAuthorizer": null,
       "enforcementSites": [],
-      "callGraphBoundary": { "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).", "reviewedBy": "backend/AE4.9-D5", "reviewedOn": "2026-09-02" },
-      "axes": { "resourceLifecycle": ["not_applicable"], "resourceLifecycleProvenance": "axis-vocabulary-inapplicable", "sensitivity": "phi" },
-      "catalog": { "resourceKind": "phi", "riskClass": "read", "sensitivityCeiling": "phi", "resolutionScopeKind": "commission" },
+      "callGraphBoundary": {
+        "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).",
+        "reviewedBy": "backend/AE4.9-D5",
+        "reviewedOn": "2026-09-02"
+      },
+      "axes": {
+        "resourceLifecycle": [
+          "not_applicable"
+        ],
+        "resourceLifecycleProvenance": "axis-vocabulary-inapplicable",
+        "sensitivity": "phi"
+      },
+      "catalog": {
+        "resourceKind": "phi",
+        "riskClass": "read",
+        "sensitivityCeiling": "phi",
+        "resolutionScopeKind": "commission"
+      },
       "hardDenyClasses": [],
       "hardDenyProvenance": "not-attributable-until-rekey",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
-      "legacyEquivalence": { "gate": "app.is_staff_admin_of_for", "expected": "identical" },
-      "pendingRekey": { "layer1Gate": "app.holds_role_via_is_staff_admin_of", "owner": "lead", "expiry": "AE5-complete" },
+      "legacyEquivalence": {
+        "gate": "app.is_staff_admin_of_for",
+        "expected": "identical"
+      },
+      "pendingRekey": {
+        "layer1Gate": "app.holds_role_via_is_staff_admin_of",
+        "owner": "lead",
+        "expiry": "AE5-complete"
+      },
       "exception": null
     },
     "commission.safety_events.phi.write": {
@@ -1000,16 +1984,38 @@
       "domainAuthorizer": null,
       "targetAuthorizer": null,
       "enforcementSites": [],
-      "callGraphBoundary": { "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).", "reviewedBy": "backend/AE4.9-D5", "reviewedOn": "2026-09-02" },
-      "axes": { "resourceLifecycle": ["not_applicable"], "resourceLifecycleProvenance": "axis-vocabulary-inapplicable", "sensitivity": "phi" },
-      "catalog": { "resourceKind": "phi", "riskClass": "write", "sensitivityCeiling": "phi", "resolutionScopeKind": "commission" },
+      "callGraphBoundary": {
+        "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).",
+        "reviewedBy": "backend/AE4.9-D5",
+        "reviewedOn": "2026-09-02"
+      },
+      "axes": {
+        "resourceLifecycle": [
+          "not_applicable"
+        ],
+        "resourceLifecycleProvenance": "axis-vocabulary-inapplicable",
+        "sensitivity": "phi"
+      },
+      "catalog": {
+        "resourceKind": "phi",
+        "riskClass": "write",
+        "sensitivityCeiling": "phi",
+        "resolutionScopeKind": "commission"
+      },
       "hardDenyClasses": [],
       "hardDenyProvenance": "not-attributable-until-rekey",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
-      "legacyEquivalence": { "gate": "app.is_staff_admin_of_for", "expected": "identical" },
-      "pendingRekey": { "layer1Gate": "app.holds_role_via_is_staff_admin_of", "owner": "lead", "expiry": "AE5-complete" },
+      "legacyEquivalence": {
+        "gate": "app.is_staff_admin_of_for",
+        "expected": "identical"
+      },
+      "pendingRekey": {
+        "layer1Gate": "app.holds_role_via_is_staff_admin_of",
+        "owner": "lead",
+        "expiry": "AE5-complete"
+      },
       "exception": null
     },
     "commission.safety_events.report": {
@@ -1017,16 +2023,38 @@
       "domainAuthorizer": null,
       "targetAuthorizer": null,
       "enforcementSites": [],
-      "callGraphBoundary": { "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).", "reviewedBy": "backend/AE4.9-D5", "reviewedOn": "2026-09-02" },
-      "axes": { "resourceLifecycle": ["not_applicable"], "resourceLifecycleProvenance": "axis-vocabulary-inapplicable", "sensitivity": "none" },
-      "catalog": { "resourceKind": "commission_content", "riskClass": "write", "sensitivityCeiling": "none", "resolutionScopeKind": "commission" },
+      "callGraphBoundary": {
+        "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).",
+        "reviewedBy": "backend/AE4.9-D5",
+        "reviewedOn": "2026-09-02"
+      },
+      "axes": {
+        "resourceLifecycle": [
+          "not_applicable"
+        ],
+        "resourceLifecycleProvenance": "axis-vocabulary-inapplicable",
+        "sensitivity": "none"
+      },
+      "catalog": {
+        "resourceKind": "commission_content",
+        "riskClass": "write",
+        "sensitivityCeiling": "none",
+        "resolutionScopeKind": "commission"
+      },
       "hardDenyClasses": [],
       "hardDenyProvenance": "not-attributable-until-rekey",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
-      "legacyEquivalence": { "gate": "app.is_staff_admin_of_for", "expected": "identical" },
-      "pendingRekey": { "layer1Gate": "app.holds_role_via_is_staff_admin_of", "owner": "lead", "expiry": "AE5-complete" },
+      "legacyEquivalence": {
+        "gate": "app.is_staff_admin_of_for",
+        "expected": "identical"
+      },
+      "pendingRekey": {
+        "layer1Gate": "app.holds_role_via_is_staff_admin_of",
+        "owner": "lead",
+        "expiry": "AE5-complete"
+      },
       "exception": null
     },
     "commission.signoffs.read": {
@@ -1034,16 +2062,39 @@
       "domainAuthorizer": null,
       "targetAuthorizer": null,
       "enforcementSites": [],
-      "callGraphBoundary": { "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).", "reviewedBy": "backend/AE4.9-D5", "reviewedOn": "2026-09-02" },
-      "axes": { "resourceLifecycle": ["in_progress", "submitted"], "resourceLifecycleProvenance": "architecture-rule", "sensitivity": "none" },
-      "catalog": { "resourceKind": "commission_content", "riskClass": "read", "sensitivityCeiling": "none", "resolutionScopeKind": "commission" },
+      "callGraphBoundary": {
+        "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).",
+        "reviewedBy": "backend/AE4.9-D5",
+        "reviewedOn": "2026-09-02"
+      },
+      "axes": {
+        "resourceLifecycle": [
+          "in_progress",
+          "submitted"
+        ],
+        "resourceLifecycleProvenance": "architecture-rule",
+        "sensitivity": "none"
+      },
+      "catalog": {
+        "resourceKind": "commission_content",
+        "riskClass": "read",
+        "sensitivityCeiling": "none",
+        "resolutionScopeKind": "commission"
+      },
       "hardDenyClasses": [],
       "hardDenyProvenance": "not-attributable-until-rekey",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
-      "legacyEquivalence": { "gate": "app.is_staff_admin_of_for", "expected": "identical" },
-      "pendingRekey": { "layer1Gate": "app.holds_role_via_is_staff_admin_of", "owner": "lead", "expiry": "AE5-complete" },
+      "legacyEquivalence": {
+        "gate": "app.is_staff_admin_of_for",
+        "expected": "identical"
+      },
+      "pendingRekey": {
+        "layer1Gate": "app.holds_role_via_is_staff_admin_of",
+        "owner": "lead",
+        "expiry": "AE5-complete"
+      },
       "exception": null
     },
     "commission.signoffs.sign": {
@@ -1051,16 +2102,38 @@
       "domainAuthorizer": null,
       "targetAuthorizer": null,
       "enforcementSites": [],
-      "callGraphBoundary": { "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).", "reviewedBy": "backend/AE4.9-D5", "reviewedOn": "2026-09-02" },
-      "axes": { "resourceLifecycle": ["in_progress"], "resourceLifecycleProvenance": "architecture-rule", "sensitivity": "none" },
-      "catalog": { "resourceKind": "commission_content", "riskClass": "write", "sensitivityCeiling": "none", "resolutionScopeKind": "commission" },
+      "callGraphBoundary": {
+        "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).",
+        "reviewedBy": "backend/AE4.9-D5",
+        "reviewedOn": "2026-09-02"
+      },
+      "axes": {
+        "resourceLifecycle": [
+          "in_progress"
+        ],
+        "resourceLifecycleProvenance": "architecture-rule",
+        "sensitivity": "none"
+      },
+      "catalog": {
+        "resourceKind": "commission_content",
+        "riskClass": "write",
+        "sensitivityCeiling": "none",
+        "resolutionScopeKind": "commission"
+      },
       "hardDenyClasses": [],
       "hardDenyProvenance": "not-attributable-until-rekey",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
-      "legacyEquivalence": { "gate": "app.is_staff_admin_of_for", "expected": "identical" },
-      "pendingRekey": { "layer1Gate": "app.holds_role_via_is_staff_admin_of", "owner": "lead", "expiry": "AE5-complete" },
+      "legacyEquivalence": {
+        "gate": "app.is_staff_admin_of_for",
+        "expected": "identical"
+      },
+      "pendingRekey": {
+        "layer1Gate": "app.holds_role_via_is_staff_admin_of",
+        "owner": "lead",
+        "expiry": "AE5-complete"
+      },
       "exception": null
     },
     "commission.staff.manage": {
@@ -1068,16 +2141,38 @@
       "domainAuthorizer": null,
       "targetAuthorizer": null,
       "enforcementSites": [],
-      "callGraphBoundary": { "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).", "reviewedBy": "backend/AE4.9-D5", "reviewedOn": "2026-09-02" },
-      "axes": { "resourceLifecycle": ["not_applicable"], "resourceLifecycleProvenance": "axis-vocabulary-inapplicable", "sensitivity": "none" },
-      "catalog": { "resourceKind": "identity", "riskClass": "authority", "sensitivityCeiling": "none", "resolutionScopeKind": "commission" },
+      "callGraphBoundary": {
+        "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).",
+        "reviewedBy": "backend/AE4.9-D5",
+        "reviewedOn": "2026-09-02"
+      },
+      "axes": {
+        "resourceLifecycle": [
+          "not_applicable"
+        ],
+        "resourceLifecycleProvenance": "axis-vocabulary-inapplicable",
+        "sensitivity": "none"
+      },
+      "catalog": {
+        "resourceKind": "identity",
+        "riskClass": "authority",
+        "sensitivityCeiling": "none",
+        "resolutionScopeKind": "commission"
+      },
       "hardDenyClasses": [],
       "hardDenyProvenance": "not-attributable-until-rekey",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
-      "legacyEquivalence": { "gate": "app.is_staff_admin_of_for", "expected": "identical" },
-      "pendingRekey": { "layer1Gate": "app.holds_role_via_is_staff_admin_of", "owner": "lead", "expiry": "AE5-complete" },
+      "legacyEquivalence": {
+        "gate": "app.is_staff_admin_of_for",
+        "expected": "identical"
+      },
+      "pendingRekey": {
+        "layer1Gate": "app.holds_role_via_is_staff_admin_of",
+        "owner": "lead",
+        "expiry": "AE5-complete"
+      },
       "exception": null
     },
     "commission.titles.manage": {
@@ -1085,16 +2180,38 @@
       "domainAuthorizer": null,
       "targetAuthorizer": null,
       "enforcementSites": [],
-      "callGraphBoundary": { "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).", "reviewedBy": "backend/AE4.9-D5", "reviewedOn": "2026-09-02" },
-      "axes": { "resourceLifecycle": ["not_applicable"], "resourceLifecycleProvenance": "axis-vocabulary-inapplicable", "sensitivity": "none" },
-      "catalog": { "resourceKind": "vocabulary", "riskClass": "write", "sensitivityCeiling": "none", "resolutionScopeKind": "commission" },
+      "callGraphBoundary": {
+        "reason": "Enforcement is still role-keyed: the sites are among the 63 policies and 151 function bodies calling app.is_staff_admin_of. Those calls ask a ROLE question and carry no permission code, so they are NOT attributable to an individual code — attribution becomes possible only when the site is re-keyed to a domain authorizer (ADR 0176 D2 interface 3).",
+        "reviewedBy": "backend/AE4.9-D5",
+        "reviewedOn": "2026-09-02"
+      },
+      "axes": {
+        "resourceLifecycle": [
+          "not_applicable"
+        ],
+        "resourceLifecycleProvenance": "axis-vocabulary-inapplicable",
+        "sensitivity": "none"
+      },
+      "catalog": {
+        "resourceKind": "vocabulary",
+        "riskClass": "write",
+        "sensitivityCeiling": "none",
+        "resolutionScopeKind": "commission"
+      },
       "hardDenyClasses": [],
       "hardDenyProvenance": "not-attributable-until-rekey",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
-      "legacyEquivalence": { "gate": "app.is_staff_admin_of_for", "expected": "identical" },
-      "pendingRekey": { "layer1Gate": "app.holds_role_via_is_staff_admin_of", "owner": "lead", "expiry": "AE5-complete" },
+      "legacyEquivalence": {
+        "gate": "app.is_staff_admin_of_for",
+        "expected": "identical"
+      },
+      "pendingRekey": {
+        "layer1Gate": "app.holds_role_via_is_staff_admin_of",
+        "owner": "lead",
+        "expiry": "AE5-complete"
+      },
       "exception": null
     },
     "org.case_vocabulary.manage": {
@@ -1102,9 +2219,24 @@
       "domainAuthorizer": null,
       "targetAuthorizer": null,
       "enforcementSites": [],
-      "callGraphBoundary": { "reason": "Gated by app.can_manage_case_vocabulary, which asks a ROLE question through the org ascent and carries no permission code. 401 § 19.2b asserts from prosrc that this body is IDENTICAL to can_create_professional's and can_manage_external_participant's — so re-keying one of the three without the others would silently break that identity, which is why this row's re-key is sequenced with theirs rather than attributed to a site now.", "reviewedBy": "backend/AE4.9-D5", "reviewedOn": "2026-09-02" },
-      "axes": { "resourceLifecycle": ["not_applicable"], "resourceLifecycleProvenance": "axis-vocabulary-inapplicable", "sensitivity": "none" },
-      "catalog": { "resourceKind": "vocabulary", "riskClass": "write", "sensitivityCeiling": "none", "resolutionScopeKind": "organization" },
+      "callGraphBoundary": {
+        "reason": "Gated by app.can_manage_case_vocabulary, which asks a ROLE question through the org ascent and carries no permission code. 401 § 19.2b asserts from prosrc that this body is IDENTICAL to can_create_professional's and can_manage_external_participant's — so re-keying one of the three without the others would silently break that identity, which is why this row's re-key is sequenced with theirs rather than attributed to a site now.",
+        "reviewedBy": "backend/AE4.9-D5",
+        "reviewedOn": "2026-09-02"
+      },
+      "axes": {
+        "resourceLifecycle": [
+          "not_applicable"
+        ],
+        "resourceLifecycleProvenance": "axis-vocabulary-inapplicable",
+        "sensitivity": "none"
+      },
+      "catalog": {
+        "resourceKind": "vocabulary",
+        "riskClass": "write",
+        "sensitivityCeiling": "none",
+        "resolutionScopeKind": "organization"
+      },
       "hardDenyClasses": [],
       "hardDenyProvenance": "not-attributable-until-rekey",
       "definerSurface": [],
@@ -1115,7 +2247,11 @@
         "expected": "identical",
         "qualifier": "✅ RESOLVED 2026-09-09 (pre-AE5 Batch 9, unit AE5-OPENING-ADR, FUP-ENFORCEMENT-MANIFEST-COMMENT-DESCRIBES-A-RED-THAT-IS-GREEN). THE RULING THIS COMMENT AWAITED WAS TAKEN, AND THE HISTORY IS KEPT VERBATIM BELOW BECAUSE THE RULING IS NOT LEGIBLE WITHOUT IT — ⛔ this row is NOT closed by deleting the comment. CURRENT VALUE: 401 § 19.2b expects 2 and MEASURES 2; § 19.2c expects 1 and MEASURES 1 — both GREEN. WITNESS, exit code read BARE, on a fresh `supabase db reset --local`: `npx supabase test db --local supabase/tests/00_setup.sql 401 403 410` -> `All tests successful. Files=4, Tests=189`, `Result: PASS`, 0 `not ok`, exit 0 — ⚠ this is the run that POST-DATES this comment, i.e. it exercised the resolved text you are reading. (⚠ WITNESS SUBSTITUTED 2026-09-10, QA finding MINOR-5: this field previously quoted `Files=2, Tests=122` from a `401`-alone run taken on the same fresh reset but BEFORE the change, so it witnessed the superseded comment rather than this one. Nothing else in this field moved. ⛔ Note also that `401` cannot run alone — without `00_setup.sql` it dies at `ERROR: schema \"test_helpers\" does not exist`, `Bad plan`, exit 3 with 0 `not ok`, a HARNESS result and never a finding.) And the two expressions re-measured DIRECTLY against the same fresh catalog, independently of any harness: 19.2b = 2, 19.2c = 1. WHAT WAS RULED: 19.2b's expected value WAS moved 1 -> 2, and the objection this comment raised against that move — that a bare count of 2 over three functions is satisfied by ANY of the three pairings, so re-numbering would green the test and delete its subject — was answered NOT by editing 19.2b alone but by ADDING § 19.2c, which pins WHICH pair still agrees. 403 gained a FOURTH representative (org.case_vocabulary.manage) plus its own § 2.3b asserting the co-sharing that licenses one rep for both. ⇒ the reduction is restored AND the subject is preserved; the count can no longer green itself by any pairing. ⛔ 19.2b MUST STILL RED ON A FOURTH SPLIT — do not raise it to 3 to match a new reality; raise it only after a representative exists for whatever split off. An expected value that tracks reality by being edited is not an assertion. ⚠ Both md5s cited below were RE-MEASURED 2026-09-09 on the fresh reset and are UNCHANGED (rows 31/32 share 3a86b023, can_create_professional is f17a0c42). --- HISTORY, THE SUPERSEDED TEXT QUOTED IN FULL: \"⛔ COVERAGE GAP OPENED BY THE AE4.9 D6 RE-KEY — MEASURED 2026-09-02, NOT PREDICTED AWAY. 401 § 19.2b justified the AE4.5 sweep running THREE representatives for SIX legacy-equivalence classes on the ground that rows 31, 32 and 43 share ONE comment-stripped body, so org.professionals.create spoke for all three. Re-keying row 43 SPLIT that body: `select count(distinct prosrc)` over the three is now 2 (this row and org.participants.external.manage still share md5 3a86b023…; can_create_professional is now f17a0c42…). So the create representative NO LONGER SPEAKS FOR THIS ROW. 19.2b is RED on exactly this and must not be re-numbered to 2 — that would green the test and delete its subject. ⚠ Rows 31 and 32 still share a body with each other, so ONE further representative would restore the reduction. AWAITING A LEAD RULING; no compatibility exception is claimed here, because claiming one is a decision this row's author does not get to make.\""
       },
-      "pendingRekey": { "layer1Gate": "app.can_manage_case_vocabulary", "owner": "lead", "expiry": "AE5-complete" },
+      "pendingRekey": {
+        "layer1Gate": "app.can_manage_case_vocabulary",
+        "owner": "lead",
+        "expiry": "AE5-complete"
+      },
       "exception": null
     },
     "org.participants.external.manage": {
@@ -1123,9 +2259,24 @@
       "domainAuthorizer": null,
       "targetAuthorizer": null,
       "enforcementSites": [],
-      "callGraphBoundary": { "reason": "Gated by app.can_manage_external_participant, which asks a ROLE question through the org ascent and carries no permission code. 401 § 19.2b asserts from prosrc that this body is IDENTICAL to can_create_professional's and can_manage_case_vocabulary's — so re-keying one of the three without the others would silently break that identity, which is why this row's re-key is sequenced with theirs rather than attributed to a site now.", "reviewedBy": "backend/AE4.9-D5", "reviewedOn": "2026-09-02" },
-      "axes": { "resourceLifecycle": ["not_applicable"], "resourceLifecycleProvenance": "axis-vocabulary-inapplicable", "sensitivity": "none" },
-      "catalog": { "resourceKind": "identity", "riskClass": "write", "sensitivityCeiling": "none", "resolutionScopeKind": "organization" },
+      "callGraphBoundary": {
+        "reason": "Gated by app.can_manage_external_participant, which asks a ROLE question through the org ascent and carries no permission code. 401 § 19.2b asserts from prosrc that this body is IDENTICAL to can_create_professional's and can_manage_case_vocabulary's — so re-keying one of the three without the others would silently break that identity, which is why this row's re-key is sequenced with theirs rather than attributed to a site now.",
+        "reviewedBy": "backend/AE4.9-D5",
+        "reviewedOn": "2026-09-02"
+      },
+      "axes": {
+        "resourceLifecycle": [
+          "not_applicable"
+        ],
+        "resourceLifecycleProvenance": "axis-vocabulary-inapplicable",
+        "sensitivity": "none"
+      },
+      "catalog": {
+        "resourceKind": "identity",
+        "riskClass": "write",
+        "sensitivityCeiling": "none",
+        "resolutionScopeKind": "organization"
+      },
       "hardDenyClasses": [],
       "hardDenyProvenance": "not-attributable-until-rekey",
       "definerSurface": [],
@@ -1136,7 +2287,11 @@
         "expected": "identical",
         "qualifier": "✅ RESOLVED 2026-09-09 (pre-AE5 Batch 9, unit AE5-OPENING-ADR, FUP-ENFORCEMENT-MANIFEST-COMMENT-DESCRIBES-A-RED-THAT-IS-GREEN). Resolved on BOTH rows rather than once, for the same reason this gap was RECORDED on both: a resolution written down on only one of the two affected rows is found by whoever reads that row and missed by whoever reads this one. CURRENT VALUE: 401 § 19.2b expects 2 and MEASURES 2; § 19.2c expects 1 and MEASURES 1 — both GREEN. WITNESS, exit code read BARE, on a fresh `supabase db reset --local`: `npx supabase test db --local supabase/tests/00_setup.sql 401 403 410` -> `All tests successful. Files=4, Tests=189`, `Result: PASS`, 0 `not ok`, exit 0 — ⚠ this is the run that POST-DATES this comment, i.e. it exercised the resolved text you are reading. (⚠ WITNESS SUBSTITUTED 2026-09-10, QA finding MINOR-5: this field previously quoted `Files=2, Tests=122` from a `401`-alone run taken on the same fresh reset but BEFORE the change, so it witnessed the superseded comment rather than this one. Nothing else in this field moved. ⛔ Note also that `401` cannot run alone — without `00_setup.sql` it dies at `ERROR: schema \"test_helpers\" does not exist`, `Bad plan`, exit 3 with 0 `not ok`, a HARNESS result and never a finding.) And the two expressions re-measured DIRECTLY against the same fresh catalog, independently of any harness: 19.2b = 2, 19.2c = 1. WHAT WAS RULED: 19.2b moved 1 -> 2 AND § 19.2c was added to pin WHICH pair survives, so the move did not delete the assertion's subject; 403's fourth representative (org.case_vocabulary.manage) plus its § 2.3b carry the co-sharing this row depends on. ⛔ Not closed by deleting the comment, and ⛔ 19.2b must still red on a fourth split. ⚠ md5 3a86b023 (shared with org.case_vocabulary.manage) RE-MEASURED 2026-09-09 on the fresh reset and UNCHANGED. --- HISTORY, THE SUPERSEDED TEXT QUOTED IN FULL: \"⛔ COVERAGE GAP OPENED BY THE AE4.9 D6 RE-KEY — the same one recorded on org.case_vocabulary.manage, and recorded on BOTH rows rather than once, because a gap written down on only one of the two affected rows is found by whoever reads that row and missed by whoever reads this one. 401 § 19.2b's three-shared-bodies premise is now false: can_create_professional was re-keyed and its body diverged, so the create representative no longer speaks for this row. This row and org.case_vocabulary.manage STILL share a body (md5 3a86b023…), so one further representative covers both. AWAITING A LEAD RULING; no compatibility exception is claimed.\""
       },
-      "pendingRekey": { "layer1Gate": "app.can_manage_external_participant", "owner": "lead", "expiry": "AE5-complete" },
+      "pendingRekey": {
+        "layer1Gate": "app.can_manage_external_participant",
+        "owner": "lead",
+        "expiry": "AE5-complete"
+      },
       "exception": null
     },
     "org.professionals.create": {
@@ -1171,20 +2326,60 @@
       "status": "re-keyed",
       "domainAuthorizer": {
         "function": "app.can_create_professional",
-        "composedWith": ["authz.has_permission", "app.can_manage_professional"],
+        "composedWith": [
+          "authz.has_permission",
+          "app.can_manage_professional"
+        ],
         "executableByAuthenticated": false,
         "note": "Re-keyed IN PLACE, signature (p_org uuid, p_uid uuid) unchanged. NOT client-callable by design — reached only through the three RPC sites below. MEASURED post-re-key: the former `app.is_org_commission_staff_admin` arm is the one that became the permission check; the `app.can_manage_professional` org-manager arm is PRESERVED."
       },
       "targetAuthorizer": null,
       "enforcementSites": [
-        { "kind": "function", "schema": "public", "relation": null, "name": "create_professional_profile",   "composedWith": ["app.can_create_professional"] },
-        { "kind": "function", "schema": "public", "relation": null, "name": "ensure_professional_participant", "composedWith": ["app.can_create_professional"] },
-        { "kind": "function", "schema": "public", "relation": null, "name": "set_professional_link_state",   "composedWith": ["app.can_create_professional"] }
+        {
+          "kind": "function",
+          "schema": "public",
+          "relation": null,
+          "name": "create_professional_profile",
+          "composedWith": [
+            "app.can_create_professional"
+          ]
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "relation": null,
+          "name": "ensure_professional_participant",
+          "composedWith": [
+            "app.can_create_professional"
+          ]
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "relation": null,
+          "name": "set_professional_link_state",
+          "composedWith": [
+            "app.can_create_professional"
+          ]
+        }
       ],
       "callGraphBoundary": null,
-      "axes": { "resourceLifecycle": ["not_applicable"], "resourceLifecycleProvenance": "axis-vocabulary-inapplicable", "sensitivity": "class2_professional_identity" },
-      "catalog": { "resourceKind": "identity", "riskClass": "write", "sensitivityCeiling": "class2_professional_identity", "resolutionScopeKind": "organization" },
-      "hardDenyClasses": ["principal_inactive"],
+      "axes": {
+        "resourceLifecycle": [
+          "not_applicable"
+        ],
+        "resourceLifecycleProvenance": "axis-vocabulary-inapplicable",
+        "sensitivity": "class2_professional_identity"
+      },
+      "catalog": {
+        "resourceKind": "identity",
+        "riskClass": "write",
+        "sensitivityCeiling": "class2_professional_identity",
+        "resolutionScopeKind": "organization"
+      },
+      "hardDenyClasses": [
+        "principal_inactive"
+      ],
       "hardDenyProvenance": "measured-transitive-over-gated-classes",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
@@ -1195,7 +2390,10 @@
           "retiredBy": "AE5 — when the org-manager roles flip to authoritative and hold org.professionals.create"
         }
       ],
-      "legacyEquivalence": { "gate": "app.can_create_professional", "expected": "identical" },
+      "legacyEquivalence": {
+        "gate": "app.can_create_professional",
+        "expected": "identical"
+      },
       "pendingRekey": null,
       "exception": null
     },
@@ -1209,16 +2407,38 @@
       "domainAuthorizer": null,
       "targetAuthorizer": null,
       "enforcementSites": [],
-      "callGraphBoundary": { "reason": "Gated by app.can_manage_professional, which asks a ROLE question and carries no permission code. Not among the three AE4 representatives (ADR 0176 D6), and it is additionally the code staff_admin does NOT hold, so a re-key here has no staff_admin observable to differential against until AE5 gives the code a holder.", "reviewedBy": "backend/AE4.9-D5", "reviewedOn": "2026-09-02" },
-      "axes": { "resourceLifecycle": ["not_applicable"], "resourceLifecycleProvenance": "axis-vocabulary-inapplicable", "sensitivity": "class2_professional_identity" },
-      "catalog": { "resourceKind": "identity", "riskClass": "authority", "sensitivityCeiling": "class2_professional_identity", "resolutionScopeKind": "organization" },
+      "callGraphBoundary": {
+        "reason": "Gated by app.can_manage_professional, which asks a ROLE question and carries no permission code. Not among the three AE4 representatives (ADR 0176 D6), and it is additionally the code staff_admin does NOT hold, so a re-key here has no staff_admin observable to differential against until AE5 gives the code a holder.",
+        "reviewedBy": "backend/AE4.9-D5",
+        "reviewedOn": "2026-09-02"
+      },
+      "axes": {
+        "resourceLifecycle": [
+          "not_applicable"
+        ],
+        "resourceLifecycleProvenance": "axis-vocabulary-inapplicable",
+        "sensitivity": "class2_professional_identity"
+      },
+      "catalog": {
+        "resourceKind": "identity",
+        "riskClass": "authority",
+        "sensitivityCeiling": "class2_professional_identity",
+        "resolutionScopeKind": "organization"
+      },
       "hardDenyClasses": [],
       "hardDenyProvenance": "not-attributable-until-rekey",
       "definerSurface": [],
       "nonEnforcementConsumers": [],
       "residualLegacyAuthority": [],
-      "legacyEquivalence": { "gate": "app.can_manage_professional", "expected": "identical" },
-      "pendingRekey": { "layer1Gate": "app.can_manage_professional", "owner": "lead", "expiry": "AE5-complete" },
+      "legacyEquivalence": {
+        "gate": "app.can_manage_professional",
+        "expected": "identical"
+      },
+      "pendingRekey": {
+        "layer1Gate": "app.can_manage_professional",
+        "owner": "lead",
+        "expiry": "AE5-complete"
+      },
       "exception": null
     },
     "org.professionals.read": {
@@ -1242,21 +2462,72 @@
       "status": "re-keyed",
       "domainAuthorizer": {
         "function": "app.can_read_professional_profile",
-        "composedWith": ["authz.has_permission", "app.is_admin_for", "app.can_manage_professional", "app.can_read_case_committee"],
+        "composedWith": [
+          "authz.has_permission",
+          "app.is_admin_for",
+          "app.can_manage_professional",
+          "app.can_read_case_committee"
+        ],
         "executableByAuthenticated": true,
         "note": "Re-keyed IN PLACE, signature (p_profile_id uuid, p_uid uuid) unchanged. Client-reachable AND policy-embedded; the grant is required by the two RLS sites. MEASURED post-re-key: the former `app.can_create_professional` call was INLINED into its two arms (permission check + can_manage_professional) so this gate keys on `org.professionals.read` rather than borrowing the create code — the arm list grew by one as a result."
       },
       "targetAuthorizer": null,
       "enforcementSites": [
-        { "kind": "policy",   "schema": "public", "relation": "professional_profiles",     "name": "professional_profiles_select",     "composedWith": ["app.can_read_professional_profile"] },
-        { "kind": "policy",   "schema": "public", "relation": "professional_participants", "name": "professional_participants_select", "composedWith": ["app.can_read_professional_profile"] },
-        { "kind": "function", "schema": "public", "relation": null,                        "name": "get_case_professional",            "composedWith": ["app.can_read_professional_profile"] },
-        { "kind": "function", "schema": "app", "relation": null, "name": "current_professional_read_organizations", "composedWith": ["authz.authorized_scope_ids"] }
+        {
+          "kind": "policy",
+          "schema": "public",
+          "relation": "professional_profiles",
+          "name": "professional_profiles_select",
+          "composedWith": [
+            "app.can_read_professional_profile"
+          ]
+        },
+        {
+          "kind": "policy",
+          "schema": "public",
+          "relation": "professional_participants",
+          "name": "professional_participants_select",
+          "composedWith": [
+            "app.can_read_professional_profile"
+          ]
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "relation": null,
+          "name": "get_case_professional",
+          "composedWith": [
+            "app.can_read_professional_profile"
+          ]
+        },
+        {
+          "kind": "function",
+          "schema": "app",
+          "relation": null,
+          "name": "current_professional_read_organizations",
+          "composedWith": [
+            "authz.authorized_scope_ids"
+          ]
+        }
       ],
       "callGraphBoundary": null,
-      "axes": { "resourceLifecycle": ["not_applicable"], "resourceLifecycleProvenance": "axis-vocabulary-inapplicable", "sensitivity": "class2_professional_identity" },
-      "catalog": { "resourceKind": "identity", "riskClass": "read", "sensitivityCeiling": "class2_professional_identity", "resolutionScopeKind": "organization" },
-      "hardDenyClasses": ["principal_inactive", "respondent_exclusion"],
+      "axes": {
+        "resourceLifecycle": [
+          "not_applicable"
+        ],
+        "resourceLifecycleProvenance": "axis-vocabulary-inapplicable",
+        "sensitivity": "class2_professional_identity"
+      },
+      "catalog": {
+        "resourceKind": "identity",
+        "riskClass": "read",
+        "sensitivityCeiling": "class2_professional_identity",
+        "resolutionScopeKind": "organization"
+      },
+      "hardDenyClasses": [
+        "principal_inactive",
+        "respondent_exclusion"
+      ],
       "hardDenyProvenance": "measured-transitive-over-gated-classes",
       "definerSurface": [],
       "nonEnforcementConsumers": [
@@ -1288,8 +2559,13 @@
       "legacyEquivalence": {
         "gate": "app.can_read_professional_profile",
         "expected": "identical",
-        "openArms": ["app.is_admin_for", "app.can_manage_professional", "authz.has_permission", "app.can_read_case_committee"],
-        "qualifier": "✅ RETIRED FOR ARM 3 — 2026-09-11 (unit AE5-MATRIX-ARM3-CELLS, ADR 0175 D3 delivered as WORK; PO rulings R1 and R2). THE CONDITION THE SUPERSEDED TEXT SET IS MET, NOT EDITED AWAY: arm 3 (app.can_read_case_committee) now has a CHECKED consumer. WHAT CHECKS IT: 403 § 7.3 — REPLACED, not renumbered (the old sentinel 'ARM 3 CANNOT GRANT IN THIS FIXTURE' occurs 0 times) — asserts the whole grant_keyed column of the case_reach axis with one PO-approved legacy answer per derived partition; § 7.3b measures all four reaches (none · unreachable · role_keyed · grant_keyed) live at ONE coordinate where arms 1 and 2 are false, and `unreachable` and `grant_keyed` differ by exactly one case_access_grants row, which is what makes a deny mean _case_caps denied rather than an empty join — i.e. the differential now observes the coordinate the sentence below demanded ('a coordinate where NO other arm is open'); § 7.4 pins the filed defect (BUG-AE5-MATRIX-ARM3-CELLS-CASE-GRANT-ARM-MAKES-THE-HAT-TERM-UNENFORCEABLE — a case grant standing in for the missing ACT hat; PINNED, never approved); § 7.5 is the class-4 guard R2 requires on that bug's fix; § 4.1b pays for § 4.1's carve-out with a value. WHERE THE VALUES LIVE: authz_differential_cells.psql carries the case_reach axis and the arm3_divergence label (generator-side, PO ruling R1), gate-scoped to this row by a named rule that coverage arm9 binds to THIS field's sibling `openArms` on every run — if any other permission ever arms app.can_read_case_committee, arm9 reds; R2's approved GRANT values landed in the 14th column expected_legacy_granted, and expected_granted (what § 5.1 compares against authz.candidate_has_permission, a resolver that correctly has NO arm 3) is byte-unmoved. DERIVED, NOT EYEBALLED: arm 3 carries no org term (ADR 0175 D3 CONFIRMED against the live catalog), no role lookup at its S3/S4 case-grant sources — the other _case_caps sources do route through role lookups — so it survives an absent hat, and _case_caps STEP 2 gates on app.is_active, which `pending` is not — so a pending professional stays reachable through it; the population is a PARTITION (blocked · masking · three divergent classes), and the PO ruled a value per CLASS: cross-org and not-a-holder reach through a case grant APPROVED as designed reach, the hat-substitution class a BUG. MUTATION-PROVEN on scratch copies (the committed 403 untouched): an org check inside arm 3, or the grant row removed, reds §§ 4.1b/7.3b/7.4/7.5; a ROLE-KEYED hat check inside arm 3 — the naive fix — reds § 7.4 and § 4.1b and leaves § 7.5 GREEN, which is the PO's caveat demonstrated AND widened: the fix may add neither an org term nor a role-keyed hat check, because S3 is role-free by design. ⛔ SCOPE OF THIS RETIREMENT: ARM 3 ONLY. ARM 1 (app.is_admin_for) REMAINS EXERCISED BUT NOT ORACLED — 403 § 7.2 still bounds it by fixture, ADR 0175's Consequence is NARROWED to arm 1 (not closed), and the Gate-AE4 qualifier that ADR demands is still owed FOR ARM 1. The sentence 'arms 1 and 3 are EXERCISED BUT NOT ORACLED' below is therefore now true of arm 1 alone. WITNESS: this field is narrative-only (not emitted into authz_enforcement_manifest.psql; only .gate/.expected reach pgTAP), so the run that exercises the sections named here is the unit's gate at its tip, recorded with bare exit codes in docs/progress/ae5-matrix-arm3-cells.md § Session log (2026-09-11); the pre-gate lead run of 00_setup.sql + 403 is there too (Files=2, Tests=28, 0 not ok, exit 0). ⛔ NOT closed by deleting the sentence — HISTORY, THE SUPERSEDED TEXT QUOTED IN FULL: \"⛔ DO NOT LEAN ON 403 § 7.2/§ 7.3's 'arms 1 and 3 cannot grant in this fixture'. That claim is true of 403's OWN FIXTURE and is NOT true of the seed — a real filter cited for a conclusion it does not bound. RE-MEASURED HERE 2026-09-02: the single seeded professional_profiles row fb00…00e1 has a professional_participants row, and the arm-3 traversal (app.can_read_case_committee) GRANTS for chefe.ccih@test.local. So arms 1 and 3 are EXERCISED BUT NOT ORACLED, and arm 3 is OPEN AND MASKING: a re-key of the permission arm can be measured green while arm 3 is what is actually answering. Any equivalence differential for this code must observe a coordinate where NO other arm is open, or it measures nothing. ⚠ THE RE-KEY MADE THIS WORSE, NOT BETTER: the authorizer now has FOUR arms, not three (can_create_professional was inlined into a permission check plus can_manage_professional), so there is one more way for a green to be somebody else's answer. \u26a0 CORRECTED 2026-09-10 (unit AE5-MATRIX-ARM3-CELLS, at open): `openArms` above said THREE and still named `app.can_create_professional`, which this very sentence says was inlined away \u2014 the re-key moved the emitted half and left the narrative half behind, so the row contradicted itself for eight days and NOTHING RED, because `openArms` and `qualifier` are narrative-only: neither is emitted into authz_enforcement_manifest.psql (grep -c qualifier over it = 0) and only `.gate`/`.expected` reach pgTAP. `openArms` now names the FOUR grant terms read from the LIVE catalog at head pair (20261003007390, 528) \u2014 is_admin_for | can_manage_professional | has_permission | can_read_case_committee \u2014 which is exactly the emitted `authorizer_composed_with` set that was right all along. \u26d4 This is a CORRECTION, not the retirement: the qualifier retires when arm 3 gets a CHECKED consumer, never by deleting the sentence.\" ⚠ CORRECTED 2026-09-11 (unit ARM3-HAT-TERM-FIX; ADR 0209, migration 20261003007400) — APPENDED, NOT REWRITTEN, because this field's own rule is that superseded text is quoted and never deleted. ONE CITATION ABOVE IS NOW FALSE. THE FALSE CLAUSE, QUOTED IN FULL: \"§ 7.4 pins the filed defect (BUG-AE5-MATRIX-ARM3-CELLS-CASE-GRANT-ARM-MAKES-THE-HAT-TERM-UNENFORCEABLE — a case grant standing in for the missing ACT hat; PINNED, never approved)\". ⛔ 403 § 7.4 NO LONGER EXISTS: ARM3-HAT-TERM-FIX FIXED the defect it pinned and DELETED the section by the route § 7.4's own message named, replacing it with § 7.4b — a head-on pin of the DOOR-LEVEL act-hat term on the LIVE door, in both polarities plus the hatless-holder value the differential vector cannot carry. ⛔ THE RETIREMENT THIS FIELD RECORDS IS UNAFFECTED, which is the load-bearing half: it rested on § 7.3 / § 7.3b / § 7.5 and § 4.1b, every one of which stands and none of which was renumbered. ⚠ THE SAME STALE CITATION APPEARS IN THIS ROW'S residualArms ENTRY for app.can_read_case_committee and is corrected there on the same date. ⚠ THE PARTITION MOVED WITH THE FIX: the hat-substitution class the PO ruled A BUG is no longer a divergence at all — its 10 cells, plus 8 cross-org SELF-checks re-ruled by ADR 0209 D5, are DENY under `arm3:pre-empted:door-hat-term`. ⛔ Neither the fix nor this correction re-rules anything the PO approved: arm 3 gained no org term and no role lookup, and a principal holding no live role keeps its grant reach at every hat."
+        "openArms": [
+          "app.is_admin_for",
+          "app.can_manage_professional",
+          "authz.has_permission",
+          "app.can_read_case_committee"
+        ],
+        "qualifier": "✅ RETIRED FOR ARM 3 — 2026-09-11 (unit AE5-MATRIX-ARM3-CELLS, ADR 0175 D3 delivered as WORK; PO rulings R1 and R2). THE CONDITION THE SUPERSEDED TEXT SET IS MET, NOT EDITED AWAY: arm 3 (app.can_read_case_committee) now has a CHECKED consumer. WHAT CHECKS IT: 403 § 7.3 — REPLACED, not renumbered (the old sentinel 'ARM 3 CANNOT GRANT IN THIS FIXTURE' occurs 0 times) — asserts the whole grant_keyed column of the case_reach axis with one PO-approved legacy answer per derived partition; § 7.3b measures all four reaches (none · unreachable · role_keyed · grant_keyed) live at ONE coordinate where arms 1 and 2 are false, and `unreachable` and `grant_keyed` differ by exactly one case_access_grants row, which is what makes a deny mean _case_caps denied rather than an empty join — i.e. the differential now observes the coordinate the sentence below demanded ('a coordinate where NO other arm is open'); § 7.4 pins the filed defect (BUG-AE5-MATRIX-ARM3-CELLS-CASE-GRANT-ARM-MAKES-THE-HAT-TERM-UNENFORCEABLE — a case grant standing in for the missing ACT hat; PINNED, never approved); § 7.5 is the class-4 guard R2 requires on that bug's fix; § 4.1b pays for § 4.1's carve-out with a value. WHERE THE VALUES LIVE: authz_differential_cells.psql carries the case_reach axis and the arm3_divergence label (generator-side, PO ruling R1), gate-scoped to this row by a named rule that coverage arm9 binds to THIS field's sibling `openArms` on every run — if any other permission ever arms app.can_read_case_committee, arm9 reds; R2's approved GRANT values landed in the 14th column expected_legacy_granted, and expected_granted (what § 5.1 compares against authz.candidate_has_permission, a resolver that correctly has NO arm 3) is byte-unmoved. DERIVED, NOT EYEBALLED: arm 3 carries no org term (ADR 0175 D3 CONFIRMED against the live catalog), no role lookup at its S3/S4 case-grant sources — the other _case_caps sources do route through role lookups — so it survives an absent hat, and _case_caps STEP 2 gates on app.is_active, which `pending` is not — so a pending professional stays reachable through it; the population is a PARTITION (blocked · masking · three divergent classes), and the PO ruled a value per CLASS: cross-org and not-a-holder reach through a case grant APPROVED as designed reach, the hat-substitution class a BUG. MUTATION-PROVEN on scratch copies (the committed 403 untouched): an org check inside arm 3, or the grant row removed, reds §§ 4.1b/7.3b/7.4/7.5; a ROLE-KEYED hat check inside arm 3 — the naive fix — reds § 7.4 and § 4.1b and leaves § 7.5 GREEN, which is the PO's caveat demonstrated AND widened: the fix may add neither an org term nor a role-keyed hat check, because S3 is role-free by design. ⛔ SCOPE OF THIS RETIREMENT: ARM 3 ONLY. ARM 1 (app.is_admin_for) REMAINS EXERCISED BUT NOT ORACLED — 403 § 7.2 still bounds it by fixture, ADR 0175's Consequence is NARROWED to arm 1 (not closed), and the Gate-AE4 qualifier that ADR demands is still owed FOR ARM 1. The sentence 'arms 1 and 3 are EXERCISED BUT NOT ORACLED' below is therefore now true of arm 1 alone. WITNESS: this field is narrative-only (not emitted into authz_enforcement_manifest.psql; only .gate/.expected reach pgTAP), so the run that exercises the sections named here is the unit's gate at its tip, recorded with bare exit codes in docs/progress/ae5-matrix-arm3-cells.md § Session log (2026-09-11); the pre-gate lead run of 00_setup.sql + 403 is there too (Files=2, Tests=28, 0 not ok, exit 0). ⛔ NOT closed by deleting the sentence — HISTORY, THE SUPERSEDED TEXT QUOTED IN FULL: \"⛔ DO NOT LEAN ON 403 § 7.2/§ 7.3's 'arms 1 and 3 cannot grant in this fixture'. That claim is true of 403's OWN FIXTURE and is NOT true of the seed — a real filter cited for a conclusion it does not bound. RE-MEASURED HERE 2026-09-02: the single seeded professional_profiles row fb00…00e1 has a professional_participants row, and the arm-3 traversal (app.can_read_case_committee) GRANTS for chefe.ccih@test.local. So arms 1 and 3 are EXERCISED BUT NOT ORACLED, and arm 3 is OPEN AND MASKING: a re-key of the permission arm can be measured green while arm 3 is what is actually answering. Any equivalence differential for this code must observe a coordinate where NO other arm is open, or it measures nothing. ⚠ THE RE-KEY MADE THIS WORSE, NOT BETTER: the authorizer now has FOUR arms, not three (can_create_professional was inlined into a permission check plus can_manage_professional), so there is one more way for a green to be somebody else's answer. ⚠ CORRECTED 2026-09-10 (unit AE5-MATRIX-ARM3-CELLS, at open): `openArms` above said THREE and still named `app.can_create_professional`, which this very sentence says was inlined away — the re-key moved the emitted half and left the narrative half behind, so the row contradicted itself for eight days and NOTHING RED, because `openArms` and `qualifier` are narrative-only: neither is emitted into authz_enforcement_manifest.psql (grep -c qualifier over it = 0) and only `.gate`/`.expected` reach pgTAP. `openArms` now names the FOUR grant terms read from the LIVE catalog at head pair (20261003007390, 528) — is_admin_for | can_manage_professional | has_permission | can_read_case_committee — which is exactly the emitted `authorizer_composed_with` set that was right all along. ⛔ This is a CORRECTION, not the retirement: the qualifier retires when arm 3 gets a CHECKED consumer, never by deleting the sentence.\" ⚠ CORRECTED 2026-09-11 (unit ARM3-HAT-TERM-FIX; ADR 0209, migration 20261003007400) — APPENDED, NOT REWRITTEN, because this field's own rule is that superseded text is quoted and never deleted. ONE CITATION ABOVE IS NOW FALSE. THE FALSE CLAUSE, QUOTED IN FULL: \"§ 7.4 pins the filed defect (BUG-AE5-MATRIX-ARM3-CELLS-CASE-GRANT-ARM-MAKES-THE-HAT-TERM-UNENFORCEABLE — a case grant standing in for the missing ACT hat; PINNED, never approved)\". ⛔ 403 § 7.4 NO LONGER EXISTS: ARM3-HAT-TERM-FIX FIXED the defect it pinned and DELETED the section by the route § 7.4's own message named, replacing it with § 7.4b — a head-on pin of the DOOR-LEVEL act-hat term on the LIVE door, in both polarities plus the hatless-holder value the differential vector cannot carry. ⛔ THE RETIREMENT THIS FIELD RECORDS IS UNAFFECTED, which is the load-bearing half: it rested on § 7.3 / § 7.3b / § 7.5 and § 4.1b, every one of which stands and none of which was renumbered. ⚠ THE SAME STALE CITATION APPEARS IN THIS ROW'S residualArms ENTRY for app.can_read_case_committee and is corrected there on the same date. ⚠ THE PARTITION MOVED WITH THE FIX: the hat-substitution class the PO ruled A BUG is no longer a divergence at all — its 10 cells, plus 8 cross-org SELF-checks re-ruled by ADR 0209 D5, are DENY under `arm3:pre-empted:door-hat-term`. ⛔ Neither the fix nor this correction re-rules anything the PO approved: arm 3 gained no org term and no role lookup, and a principal holding no live role keeps its grant reach at every hat."
       },
       "exception": null
     },
@@ -1400,7 +2676,18 @@
           "hat": "required",
           "definerSurface": "none — policy arm"
         }
-      ]
+      ],
+      "arm3Door": {
+        "kind": "policy-qual",
+        "row": 1,
+        "expression": "app.is_member_of(app.commission_of_version($1)) or app.can_access_targeted_version($1, $2)",
+        "args": [
+          "form_version_id uuid",
+          "uid uuid"
+        ],
+        "limb": "b",
+        "note": "The limb-(b) disjunct is `app.can_access_targeted_version`, measured role-free (a case_participants join professional_profiles walk, no role term). ⛔ The tenancy arm is OMITTED from the callable on purpose: it is a sibling-ROLE arm, false for a staff-only persona by construction, and including it would make every cell grant."
+      }
     },
     "commission.responses.create": {
       "status": "pending-rekey",
@@ -1501,6 +2788,8 @@
       "exception": null,
       "memberGateArm": [
         "none",
+        "conjunct_met",
+        "conjunct_unmet",
         "disjunct_present",
         "disjunct_absent"
       ],
@@ -1533,7 +2822,18 @@
           "hat": "required",
           "definerSurface": "none — policy arm"
         }
-      ]
+      ],
+      "arm3Door": {
+        "kind": "policy-qual",
+        "row": 4,
+        "expression": "($1 = $2) or (app.is_active($2) and exists (select 1 from public.memberships them where them.commission_id is not null and them.principal_id = $1 and app.is_member_of(them.commission_id)))",
+        "args": [
+          "profile_id uuid",
+          "uid uuid"
+        ],
+        "limb": "a+b",
+        "note": "BOTH limbs on one row. Limb (a) is the co-member EXISTS — the answer depends on the TARGET profile's memberships, which no axis varies. Limb (b) is the role-free SELF-read `$1 = $2`. ⛔ `disjunct_present` here means the caller is reading its OWN row, at which a deny cell cannot fail."
+      }
     },
     "commission.charter.read": {
       "status": "pending-rekey",
@@ -1681,7 +2981,18 @@
           "definerSurface": "prosecdef=t, carriesCode:false",
           "hatNote": "mirrors this row, never a row of its own (matrix § 8.4)"
         }
-      ]
+      ],
+      "arm3Door": {
+        "kind": "function",
+        "row": 6,
+        "expression": "app.can_reach_meeting($1, $2)",
+        "args": [
+          "meeting_id uuid",
+          "uid uuid"
+        ],
+        "limb": "a",
+        "note": "The conjunct is `visibility_policy = 'commission_default' OR the caller is a meeting_attendees row`. `conjunct_unmet` = a participants_only meeting the caller does not attend."
+      }
     },
     "commission.meetings.minutes.sign": {
       "status": "pending-rekey",
@@ -1749,7 +3060,18 @@
           "hat": "required",
           "definerSurface": "prosecdef=t AND IT WRITES public.meeting_signatures — the ADR 0193 D5 split, live on this row. public.reopen_meeting also writes the relation as DEFINER but is not on the staff gate. ⛔ Re-keying the POLICY alone leaves sign_meeting on the legacy gate; because both call app.can_sign_meeting, re-keying THE PREDICATE closes the split in one move — this row’s T7 instruction. carriesCode:false today."
         }
-      ]
+      ],
+      "arm3Door": {
+        "kind": "function",
+        "row": 8,
+        "expression": "app.can_sign_meeting($1, $2)",
+        "args": [
+          "attendee_id uuid",
+          "signer uuid"
+        ],
+        "limb": "a",
+        "note": "The conjunct is `a.attendance = 'present' AND m.status = 'in_signature'`. ⚠ `in_signature` is NOT one of resourceLifecycle's six declared values, which is why this is an arm-3 coordinate and not a lifecycle one."
+      }
     },
     "commission.cases.deliberation.read": {
       "status": "pending-rekey",
@@ -1803,7 +3125,18 @@
           "definerSurface": "prosecdef=t, carriesCode:false. ⛔ The named authorizer app.can_reach_case_on_member_surface (prosecdef=t) has ZERO production callers (matrix § 8.3) — declared so T7 WIRES it rather than only re-keying it.",
           "hatNote": "ignored wherever the caps resolver is asked about a third party, which is its normal use; required where a consumer passes auth.uid()"
         }
-      ]
+      ],
+      "arm3Door": {
+        "kind": "function",
+        "row": 9,
+        "expression": "app.has_case_capability($1, $2, 'read_case_deliberation')",
+        "args": [
+          "case_id uuid",
+          "uid uuid"
+        ],
+        "limb": "a",
+        "note": "The S5 arm of app._case_caps, reached through its public projection. The conjunct is `not v_eg` (visibility_policy <> 'explicit_grants_only'), plus the STEP-4 respondent / recusal hard denies. ⛔ NOT app.can_read_case — that asks for read_case_content, which S5 does not confer (matrix row 10)."
+      }
     },
     "commission.action_items.read": {
       "status": "pending-rekey",
@@ -1866,7 +3199,20 @@
           "definerSurface": "prosecdef=t, carriesCode:false",
           "hatNote": "required at its 5 policy callers, all passing auth.uid() (action_item_assignments / _status_history / _reminders / _updates / _checklists_select); ignored at app.can_write_action_item_stake, public.compute_due_notifications and app.can_read_document, which pass a third party"
         }
-      ]
+      ],
+      "arm3Door": {
+        "kind": "policy-qual",
+        "row": 11,
+        "expression": "(($3 = 'committee' and app.is_member_of($2)) or ($3 = 'assignees_only' and exists (select 1 from public.action_item_assignments a where a.action_item_id = $1 and a.user_id = $4 and a.completed_at is null)))",
+        "args": [
+          "action_item_id uuid",
+          "commission_id uuid",
+          "visibility_scope text",
+          "uid uuid"
+        ],
+        "limb": "a+b",
+        "note": "BOTH limbs. Limb (a) is `visibility_scope = 'committee'` gating the member leg; limb (b) is the role-free assignee disjunct. ⚠ app.can_read_action_item($1,$4) is the equivalent callable and carries an is_case_excluded hard deny the policy does not."
+      }
     },
     "commission.cases.vote": {
       "status": "pending-rekey",
@@ -1919,7 +3265,19 @@
           "hat": "required",
           "definerSurface": "prosecdef=t, carriesCode:false"
         }
-      ]
+      ],
+      "arm3Door": {
+        "kind": "guard-expression",
+        "row": 12,
+        "expression": "exists (select 1 from public.ethics_case_details d where d.case_id = $1) and app.is_member_of_for($2, $3)",
+        "args": [
+          "case_id uuid",
+          "commission_id uuid",
+          "uid uuid"
+        ],
+        "limb": "a",
+        "note": "⛔ A GUARD EXPRESSION, NOT A CALLABLE. public.cast_case_vote(p_decision_id, p_vote, p_rationale_md) RETURNS uuid and WRITES; a read differential must not call it. ⭐ CORRECTED 2026-09-13 (lead ruling L5): the HC0J0 guard is an ethics-DETAILS EXISTENCE test, NOT a case-status test — measured in the live body. The fixture pair is a case WITH and a case WITHOUT an ethics_case_details row, ⛔ not two case statuses."
+      }
     },
     "commission.process_templates.read": {
       "status": "pending-rekey",
@@ -2186,7 +3544,17 @@
           "hat": "required",
           "definerSurface": "prosecdef=t, carriesCode:false"
         }
-      ]
+      ],
+      "arm3Door": {
+        "kind": "policy-qual",
+        "row": 15,
+        "expression": "($1 is null) or app.is_member_of($1)",
+        "args": [
+          "owner_commission_id uuid"
+        ],
+        "limb": "b",
+        "note": "⭐ THE VACUOUS SHAPE, AND THE REASON `disjunct_absent` IS MANDATORY. `owner_commission_id IS NULL` is a PUBLIC arm: every authenticated caller passes, so a deny cell measured at `disjunct_present` CANNOT FAIL. ⚠ accreditation_frameworks holds ZERO rows today (measured) — the coordinate is unconstructible until the gap rows land."
+      }
     },
     "commission.documents.read": {
       "status": "pending-rekey",
@@ -2283,7 +3651,19 @@
           "definerSurface": "prosecdef=t, carriesCode:false",
           "hatNote": "no live caller passes auth.uid()"
         }
-      ]
+      ],
+      "arm3Door": {
+        "kind": "policy-qual",
+        "row": 16,
+        "expression": "app.is_member_of($2) or app.is_document_approver_of($1, $3)",
+        "args": [
+          "document_id uuid",
+          "commission_id uuid",
+          "uid uuid"
+        ],
+        "limb": "b",
+        "note": "The limb-(b) disjunct is `app.is_document_approver_of`, measured role-free (a document_approvals lookup). ⚠ document_approvals holds 4 rows today, so `disjunct_present` is constructible — whether its approver is a CLEAN staff is a fixture question."
+      }
     },
     "commission.safety_events.read": {
       "status": "pending-rekey",
@@ -2389,7 +3769,18 @@
           "definerSurface": "prosecdef=t, carriesCode:false",
           "hatNote": "required at its 4 policy callers, all passing auth.uid() (capa_plan / _action / _measure / _effectiveness_select) and at capa_viewer_can_manage; ignored at link_evidence, evidence_candidates, _audit_access_authorized"
         }
-      ]
+      ],
+      "arm3Door": {
+        "kind": "function",
+        "row": 19,
+        "expression": "app.can_read_capa($1, $2)",
+        "args": [
+          "capa_id uuid",
+          "uid uuid"
+        ],
+        "limb": "a",
+        "note": "The conjunct is `capa_plan.source = 'indicator'` — a PROVENANCE column no axis carries. ⚠ capa_plan holds ONE row and its source is 'rca' (measured), so `conjunct_met` has NO fixture at all until the gap rows land."
+      }
     },
     "commission.referrals.metadata.read": {
       "status": "pending-rekey",
