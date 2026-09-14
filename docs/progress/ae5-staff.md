@@ -3238,3 +3238,22 @@ two seed tables, the manifest flip with L13, the anchor + `320 § U4` literals. 
 `supabase/`. Lead's guards for the next pass: generate rewrites FROM the live qual and DIFF the live
 result against the expectation post-apply (`42/42 identical` quoted); touched DEFINERs re-emitted
 whole via `pg_get_functiondef` (ALTER never re-validates a body).
+
+### 2026-09-14 — T7 step 2, second pass (backend, scratchpad): 40/42 policies re-keyed and DIFFED, two matcher traps caught (lead)
+
+`part2_policies.sql`: 40 of 42 policy re-keys generated FROM the live `pg_policies` snapshot
+(`INPUT_live_quals.txt` kept), one substitution each, every other conjunct carried through;
+applied in a rolled-back transaction and diffed back out of the catalog — **40/40 identical**, and
+the discrimination half: **40/40 live quals now contain a layer-3 door, 0 still contain a bare
+`app.is_member_of(`**. `HAND_policies.md`: the 2 non-uniform sites with old text quoted
+(`meeting_cases_select` via `can_reach_meeting`; `meeting_signatures_insert`, INSERT with empty qual
+and empty with_check). **Two traps, backend's own, caught before they cost anything:** (1) a regex
+matcher reported ZERO bare calls in `storage.objects.form_assets_select_member`, whose argument
+nests three deep (`app.is_member_of(((storage.foldername(name))[1])::uuid)`) — it would have been
+hand-treated as an exception it is not; replaced by a paren balancer that also rejects
+`is_member_of_for(` explicitly, hand list 3 → 2, generated 39 → 40 (the `_for` word-boundary
+lesson's sibling: a matcher must parse what it matches); (2) `EXPECT` records were newline-joined
+while quals CONTAIN newlines, so the verifier shredded every multi-line record and read 1 record
+instead of 40 — now ``-separated (serialization destroys the boundary the pattern needs). Both
+LESSONS candidates at Record. Still in the scratchpad: 2 hand policies, 24 function re-keys, C1
+wiring, two seed tables, manifest flip + L13, anchor + `320 § U4`. Nothing in `supabase/`.
