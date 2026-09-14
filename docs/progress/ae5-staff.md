@@ -4193,3 +4193,39 @@ the two names the predicate arm cannot match; the four plant + rollback proofs; 
 set-valued run proving the `RESET_EVERY` port; `SELFTEST=1` on the deriver + door harness with
 `PASS · FAIL · SKIPPED`, the three `--- GROUP` lines and `bash --version`; commits by path; the T8
 record entry. The stack stays backend's through the plants (they mutate); the tester's runs after.
+
+### 2026-09-14 — sweep exit READ BARE: 3 = UNPROVEN (PARTIAL) by construction, RULED; errcodes bound; merge 353 → 376 with 0 lost; both NOTICED were STANDING (lead)
+
+**The claim, read together:** `READ_ARM_EXIT=3` from the harness's own stdout — `=== RESULT:
+UNPROVEN (PARTIAL) — 73 gate(s) measured, 0 BLIND · 0 ERROR, but these were requested and matched
+NO gate: form_assets_select_member responses_insert_own … NOT a pass. ===`; `SWEPT: 73 COVERED: 71
+BLIND: 0 NOTICED: 2 ERROR(harness): 0`; `ARM-DOMAIN predicate=34/150 policy=39/226
+out-of-domain-bool=35`; `POLICY ARM HALF: using ONLY — a COVERED on a FOR ALL policy is a READ-half
+claim`; `resets=16 (RESET_EVERY=5 — set EXPLICITLY)`; `committed baseline VERIFIED unchanged
+(cksum)`. Deriver `SCOPE: 4 file(s) — 4 committed (a02487bc..HEAD), 0 worktree, 0 untracked |
+filter: none | derivation: catalog`, exit 0. **Ruled (CLAUDE.md § 6 step 1: the exit IS the claim
+and is RULED here):** exit 3 is the harness refusing to call a partial run clean — the two
+unmatched names are dispositioned by construction: `responses_insert_own` (INSERT, `with_check`) by
+the WRITE ARM, launched with `RESET_EVERY=5`; `form_assets_select_member` is a `storage.objects`
+policy, outside the predicate arm's function domain AND the policy arm's `public` domain — an
+explicit disposition, and, because T7 RE-KEYED it (the three-deep nested call the paren balancer
+caught), a follow-up: the sweep's policy domain excludes `storage`, so a re-keyed policy has no
+mutation arm — `FUP-AE5-STAFF-DOOR-SWEEP-POLICY-ARM-EXCLUDES-STORAGE-SCHEMA` (medium, backend),
+with 425's coverage of that site stated either way. **Errcodes bound:** `can_read_referral_internal_note`
+→ `log_audit_access` raised **`42501`** (insufficient_privilege — the Rule 11 writer refused on
+PRIVILEGE grounds); `can_sign_meeting` → `sign_meeting` line 24 raised **`HC033`** (the STATE guard;
+HC036 is the guard that failed to fire; `sign_meeting` carries HC033/HC035/HC036); direction
+`positive` = always-grant, from the harness's own record. **Merge** via
+`scripts/lib/merge-findings-baseline.sh` exit 0: committed 353 rows (36 BLIND · 294 COVERED · 23
+NOTICED) + subset 73 → **376** (36 · 317 · 23) — 0 lost, 0 changed, 23 added = EXACTLY the 23 gates
+the census arm called UNKNOWN (21 doors + both wrapper forms), every one COVERED, zero BLIND; `git
+diff --stat` 1499/355 read with the exit — provenance annotation, not verdict movement. ⚠
+Backend's own false alarm, stated by it: a `^\| *(app|public)\.` grep read the merge as 133 → 40
+rows — a regex artefact against the merged layout; parsed as tables, nothing dropped. **⭐⭐ Both
+NOTICED gates were ALREADY NOTICED in the committed baseline** — this run reproduces standing
+verdicts under a reset-bounded run with the retry net; neither is attributable to T7. **Ruled on
+the wrapper:** `is_commission_staff_of(_for)` COVERED with 0 production callers means a TEST (426)
+reddens when it opens; it says nothing about production wiring and does not touch the deferral
+follow-up — written that way, never as coverage. Uncommitted: the merged baseline, `409` (a), the
+port. In flight: the write arm; owed: plants, L22's plant, the set-valued run, `SELFTEST=1`,
+commits, the T8 entry with the census arm re-run GREEN.
