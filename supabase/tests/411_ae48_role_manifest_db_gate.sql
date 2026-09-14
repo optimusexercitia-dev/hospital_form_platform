@@ -70,7 +70,7 @@ select is(
             code || '|' || scope_kind || '|' || session_selectable || '|' ||
             system_managed || '|' || state, '|' order by code collate "C"))
      from role_manifest_pin),
-  'a6b2308068d4b0f3e59e3f74e4539245',
+  'abfc8621f6c3e82935c98c2e9bfc8424',
   '§ 0b CONTENT PIN: the artifact''s CONTENT, not merely its count. A role swapped for '
   'another keeps § 0a green and moves this.');
 

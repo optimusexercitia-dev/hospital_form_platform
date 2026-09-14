@@ -362,8 +362,8 @@ select lives_ok(
 
 select is(
   (select array_agg(distinct role_code order by role_code) from authz.role_permissions),
-  array['staff_admin'],
-  '4.8 ⛔ `authz.role_permissions` IS UNTOUCHED: still exactly one granting role. ADR 0207 D5 '
+  array['staff', 'staff_admin'],
+  '4.8 ⛔ `authz.role_permissions` has exactly TWO granting roles — ⚠ RE-PINNED array[''staff_admin''] -> array[''staff'',''staff_admin''] at AE5 increment 1 (2026-09-13), AFTER BEING OBSERVED RED on the T4 seed (`20261003007440`) — T4 seeded the staff bundle of 20 codes and granted the 18 new ones to staff_admin as well. ⛔ Never pre-adjusted. ⚠ THIS SUITE IS ADR 0207 D5, NOT AE5 INCREMENT 1, and the assertion it makes is unchanged in KIND: the role-catalog compat unit deleted a ROLE ROW and nothing else, and this still proves that delete did not cascade into the grants. It is an EXACT SET, not a count, so a third granting role appearing without a ruling still reds. Historical wording: IS UNTOUCHED: still exactly one granting role. ADR 0207 D5 '
   'step 4 deletes a ROLE ROW and nothing else; a delete that had cascaded into the permission '
   'grants would be a silent scope change, and the FK that made the row deletable (zero '
   'dependents) is what this re-measures from the other side.');

@@ -143,7 +143,7 @@ select is((select count(*)::int from authz.roles), 11,
 select is(
   (select coalesce(string_agg(code || '=' || state::text, ', ' order by code), '(none)')
      from authz.roles where state <> 'legacy'),
-  'staff_admin=authoritative',
+  'staff=test_validation, staff_admin=authoritative',
   '3.2 ⚠⚠ TRIPWIRE — FIRED AS DESIGNED AT AE4.6 AND CHANGED DELIBERATELY, 2026-09-01. It '
   'previously asserted that EVERY role is `legacy`, and it went red the moment the cutover '
   'flipped `staff_admin` to `authoritative` — which is the moment it was built for. It is NOT '
@@ -823,16 +823,17 @@ select throws_ok(
   'only thing standing between a permission and an unreachable resolution scope (411 §4.2 '
   'holds the other side). ⛔ The assertion itself is UNCHANGED and still earns its place: '
   'the two domains are independent, and a future widening of either must not be assumed to '
-  'have been ruled on for the other.');
+  'have been ruled on for the other. '
+  '⚠ RE-PINNED `staff_admin=authoritative` -> `staff=test_validation, staff_admin=authoritative` at AE5 increment 1 (2026-09-13), AFTER BEING OBSERVED RED on the T4 seed (`20261003007440`) — T4 flipped `staff` to `test_validation`, which is REQUIRED: authz.candidate_has_permission sees that state and authz.has_permission does not, so the differential can read the new grants and no production door can. ⛔ Never pre-adjusted. ⭐ THE TRIPWIRE DID ITS JOB TWICE NOW — it named the ONE non-legacy role after AE4.6 and it named the SECOND the moment AE5 increment 1 flipped one. It is still not widened: a THIRD role, or the wrong second one, still reds here.');
 
-select is((select count(*)::int from authz.permissions), 43,
-  '14.6 exactly 43 permission codes - the PO-approved matrix count, 42 (2026-09-01) plus row 43 '
+select is((select count(*)::int from authz.permissions), 61,
+  '14.6 exactly 61 permission codes — ⚠ RE-PINNED 43 -> 61 at AE5 increment 1 (2026-09-13), AFTER BEING OBSERVED RED on the T4 seed (`20261003007440`) — T4 inserted the 18 codes of the PO-approved `staff` matrix § 5.2. ⛔ Never pre-adjusted. Historical note below, kept because it records how the 43 was reached: exactly 43 permission codes - the PO-approved matrix count, 42 (2026-09-01) plus row 43 '
   '`org.professionals.create`, approved the same day as the FIRST amendment to that approval '
   'under its own rule that "a 43rd row needs its own approval" (matrix § 12.8.5)');
 
 select is(
-  (select count(*)::int from authz.role_permissions where role_code = 'staff_admin'), 42,
-  '14.7 ⭐ staff_admin holds 42 OF 43 - and the ONE it does not hold is the whole of AE4.7c. '
+  (select count(*)::int from authz.role_permissions where role_code = 'staff_admin'), 60,
+  '14.7 ⭐ staff_admin holds 60 OF 61 — ⚠ RE-PINNED 42 -> 60 at AE5 increment 1 (2026-09-13), AFTER BEING OBSERVED RED on the T4 seed (`20261003007440`) — PO item 4: every `staff` site is gated by the role-SET predicate app.has_role_any, which `staff_admin` satisfies too, so all 18 new codes are `staff_admin` behaviour TODAY and withholding them would silently under-grant the baseline role at the T7 re-key. ⛔ Never pre-adjusted. The ONE it still does not hold is unchanged and is the whole of AE4.7c. Historical: staff_admin holds 42 OF 43 - and the ONE it does not hold is the whole of AE4.7c. '
   'Row 30 `org.professionals.manage` was REVOKED from it: a staff_admin may ADD a professional '
   '(row 43) and never MODIFY one. ⛔ The count is unchanged at 42 while the catalog grew to 43, '
   'so a reader checking only this number sees nothing move — 14.7b is what names the gap.');
@@ -849,9 +850,8 @@ select is(
   'assertion that would red if that ever stops being true in either direction.');
 
 select is(
-  (select count(*)::int from authz.role_permissions where role_code <> 'staff_admin'), 0,
-  '14.8 ...and NO other role has a grant. AE4.2: "zero role_permissions rows except '
-  'staff_admin''s". AE5 substitutes the remaining ten, one at a time.');
+  (select count(*)::int from authz.role_permissions where role_code <> 'staff_admin'), 20,
+  '14.8 ...and exactly ONE other role has grants: `staff`, with its 20 PO-approved codes. ⚠ RE-PINNED 0 -> 20 at AE5 increment 1 (2026-09-13), AFTER BEING OBSERVED RED on the T4 seed (`20261003007440`) — T4 seeded the staff bundle — the first AE5 substitution. ⛔ Never pre-adjusted. ⛔ THE ASSERTION CHANGED MEANING AND THE OLD WORDING IS DELETED, NOT MARKED: it read "NO other role has a grant", quoting the AE4.2 "zero role_permissions rows except staff_admin rows". That sentence was TRUE FOR AE4 AND IS NOW FALSE, and leaving it beside a count of 20 would be a message contradicting its own expected value. ⚠ The count is still a BOUND, not a free number: nine roles remain and each further AE5 increment moves it, so a jump this assertion did not predict still reds.');
 
 select is(
   (select count(*)::int
@@ -1322,8 +1322,8 @@ select is(
 select is(
   (select count(distinct em.legacy_gate)::int
      from authz.permissions pm join authz_manifest_permissions em on em.code = pm.code),
-  6,
-  '19.2 ...and it partitions the 43 into exactly SIX legacy-equivalence classes: '
+  7,
+  '19.2 ...and it partitions the 61 into exactly SEVEN legacy-equivalence classes — ⚠ RE-PINNED 6 over 43 -> 7 over 61 at AE5 increment 1 (2026-09-13), AFTER BEING OBSERVED RED on the T4 seed (`20261003007440`) — the 18 new rows all carry `legacyEquivalence.gate = app.is_member_of_for`, which is a class the catalog did not have: the staff surface resolves through ONE role-SET gate. ⛔ Never pre-adjusted. The six AE4 classes are unchanged: '
   'app.is_staff_admin_of_for (38 commission codes), app.can_manage_professional (row 30), '
   'app.can_create_professional (row 43), app.can_manage_external_participant (row 31), '
   'app.can_manage_case_vocabulary (row 32), app.can_read_professional_profile (row 33). ⚠ It '
@@ -1442,8 +1442,8 @@ select is(
   'resolving (a grant lost), and if the two happen together (a swap that a count could not see). '
   '⛔ Changing it back to `(none)` is how the revoke gets silently reverted.');
 
-select is((select count(*)::int from authz.permissions), 43,
-  '19.5 CARDINALITY CONTROL for § 19.4: the probe ranged over all 43 codes. A truncated '
+select is((select count(*)::int from authz.permissions), 61,
+  '19.5 CARDINALITY CONTROL — ⚠ RE-PINNED 43 -> 61 at AE5 increment 1 (2026-09-13), AFTER BEING OBSERVED RED on the T4 seed (`20261003007440`) — T4 inserted 18 codes; the section 19.4 probe must range over all of them or it passes having checked fewer. ⛔ Never pre-adjusted.  for § 19.4: the probe ranged over all 43 codes. A truncated '
   'catalog would make 19.4 pass having checked fewer. ⚠ 42 -> 43: row 43 org.professionals.create '
   '(matrix § 12.8.5), approved as the first amendment to the 42-row approval.');
 

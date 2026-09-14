@@ -199,8 +199,8 @@ select is((select count(*)::int from pg_temp.code_sites() where code = 'org.prof
   '0182). The count is re-derived from 1.1''s own expected string, not remembered.');
 
 select is((select count(*)::int from authz.permissions
-            where code not in (select code from pg_temp.code_sites())), 40,
-  '1.3 THE COUNTDOWN, PINNED: 40 of the 43 permissions carry NO enforcement-site literal — they '
+            where code not in (select code from pg_temp.code_sites())), 58,
+  '1.3 THE COUNTDOWN, PINNED — ⚠ RE-PINNED 40 of 43 -> 58 of 61 at AE5 increment 1 (2026-09-13), AFTER BEING OBSERVED RED on the T4 seed (`20261003007440`) — the 18 new codes arrive `pending-rekey` and carry no site literal, which is T4 doing exactly what it says: it seeds a catalog and re-keys nothing. ⛔ The SECOND number of the pair (3 re-keyed) did NOT move, and a landing that moved both would be a re-key hiding inside a seed. ⛔ Never pre-adjusted. 58 of the 61 permissions carry NO enforcement-site literal — they '
   'are the `pending-rekey` population (0176 D5/D6). ⛔ This number is meant to FALL, one AE5 role '
   'increment at a time. It is asserted here so that "N of 43 re-keyed" is a measured figure and '
   'not a sentence in a gate record.');
