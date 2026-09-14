@@ -110,7 +110,9 @@ T8 census/arms → T10 seam slice → AC-10 gate → QA → PO approval → Reco
 
 ### Blockers
 
-None ruling-shaped (R-4, R-5 ruled `f8a66457`). ⚠ For the PO at the T7 gate: the `staff` wrapper stands with ZERO
+None ruling-shaped (R-4, R-5 ruled `f8a66457`). ⛔ T7 is IN THE TREE, UNCOMMITTED, with a P0 found by its own
+verification (`_case_caps` S5 arm keyed on the wrong id — fails CLOSED, local only) under fix as L20 (a 21st,
+DEFINER-only door outside R-4's ruled set); nobody else resets until backend parks green. ⚠ For the PO at the T7 gate: the `staff` wrapper stands with ZERO
 production callers for one unit under a named bound (L14); T7 touches 23 frozen-path DEFINER bodies and
 converges them under ADR 0208 D4 as written (L15), `419` 860 → 837 attributed by name. ⚠ A second Supabase stack (`*_escalume`) runs on this host and made two resets
 fail at the CLI's post-reset step; AC-10's runs need it stopped or the reset re-verified. ⛔ ADR 0211 D2 is reviewed by the PO at the T6 gate (put in front of the PO on

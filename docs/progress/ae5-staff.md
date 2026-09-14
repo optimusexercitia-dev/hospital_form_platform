@@ -3630,3 +3630,70 @@ generated + 1 hand; 13 `authenticated` grants; 0 legacy paths), the seed block, 
 24 named for `419`, `425`'s pair, L13's 6a/6b mutants, `410 § 8` now-green, full `test:db`, lint,
 `gen:types`; NOTHING COMMITTED. ⚠ An uncommitted live migration sits in the tree by intent now; the
 tester and the PO session stay off the stack until backend parks with the suite green.
+
+### 2026-09-14 — T7 STOP-AND-REPORT: a P0 in the migration (fails closed) + four mechanism rulings L20–L23; nothing committed (lead)
+
+Backend's full verification pass found, before any commit:
+
+**P0 — `app._case_caps` S5 arm rewritten across a signature change.** Pre-T7 `v_member :=
+app.is_member_of_for(v_commission, p_uid)`; post-T7 `app.can_cases_deliberation_read(v_commission,
+p_uid)` — L17's door is CASE-keyed, both args `uuid`, so it compiles, looks up `cases.id =
+v_commission`, finds nothing, `has_permission(…, NULL, …)` is false: **S5 `committee_member_default`
+permanently FALSE — every ordinary member loses `read_case_deliberation` on every case**. Fails
+CLOSED (a narrowing, not a leak); local only; found by `425 § 2.0`'s baseline (`have 46 / want 47`,
+the one denied site named) and confirmed by sweeping every call of the two non-commission-keyed
+doors with its first argument: exactly ONE wrong-keyed call site in the catalog. The obvious fix
+recurses (`can_cases_deliberation_read` → `has_case_capability` → `_case_caps`). **L20 (lead):
+option (B) — a commission-keyed, permission-only sibling door for row 9
+(`app.can_cases_deliberation_read_in_commission(p_commission_id, p_user_id)` or the generator's
+naming), composing `authz.has_permission` alone (no residual arm, hence no recursion), DEFINER-only
+(called from `_case_caps`'s body; NO `authenticated` grant), declared on row 9 as its second
+door with a `signatureNote`. R-4 untouched: the 13 policy-called doors and their caller mapping are
+unchanged, the live count stays 339/433/772 — stated to the PO at the gate as a 21st door OUTSIDE
+the ruled set, not as headroom used. (A) would make the machinery a second literal carrier; (C)
+leaves a legacy gate at a site AC-7 says is re-pointed.** Witness: 425 § 2.0 back to 47/47; a member
+without a case grant reads deliberation via S5 before and after; the same member with row 9's
+grant deleted is denied via S5 (the sibling's discrimination half).
+
+**L21 — the flip deleted `armInterface` tree-wide and with it every per-site `subject`/`hat`.**
+0 of 63 rows carry an `armInterface`; `subject_keying()` returns `None` for every row; arm14(b)
+compares nothing; gate 12 crashes in `_flip_keying` walking off the end into the `_*_note` keys.
+Ruling: `enforcementSites` entries GAIN `subject` and `hat` (ADR 0201 D3's per-arm data, which
+lived only on `armInterface`), populated for the 20 rows from the pre-flip capture and checked
+against each door's signature; the generator reads them from either surface; arm14(b) restored
+and shown able to red; `_flip_keying` refuses BY NAME when no `caller-only` row exists instead of
+walking into note keys (a self-test that crashes is NOTICED, not a red).
+
+**L13′ — the § 6.3 re-rule was wrong in its assumption**, not its intent: 38 rows remain
+`pending-rekey` because they belong to roles NOT YET APPROVED (they never had arm sites). Re-rule:
+*for every role in `approvedSuites`, each of its `pending-rekey` rows has ≥ 1 arm site* — keyed on
+the fact the gate can see; with both commission roles re-keyed the predicate is vacuously true and
+its 6a half (an approved-suite pending row with zero arm sites → RED) is what keeps it honest.
+
+**L22 — `start_correction_draft`'s authority is an identity check** (`auth.uid() is distinct from
+v_corrector → raise`), and `gate: null` means "no authority check", a false claim. Ruling: `gate`
+admits a third form `{ "kind": "identity", "expression": "…" }`, emitted, and § 8.7 pins the
+expression's presence in the comment-stripped body (text is not truth: the declaration is checked
+against `prosrc`).
+
+**L23 — `meeting_signatures_insert` retracted as a 2-hop site.** The policy composes
+`can_sign_meeting`, which composes row 12's door; `reaches_code` follows one hop. Ruling: the policy
+stays a site with `composed_with: [app.can_sign_meeting]`, and `reaches_code` follows a DECLARED
+composition chain, each hop verified in the catalog; an undeclared second hop stays red.
+
+**Tester item — `425` aborts:** after the grant deletion `meeting_cadence_status` RAISES `HC0K2`
+where pre-T7 it returned falsy (the raise path existed for non-members; the harness ran as a member
+whose gate now denies) — `site_signature` must trap and record the SQLSTATE as the signature (a
+raise is a deny with a code), so § 3.1/3.2's lines can run.
+
+**Green, all observed red first, every delta attributed (uncommitted):** `387` exit 0 — B2 35 → 36,
+B3 44 → 45, and `md5(id-set MINUS f5)` reproduces the OLD pins byte-for-byte (the attribution
+proven, not narrated); C1 9 of 99 hot policies changed, each a named door swap; `419` exit 0, 860 →
+836 pure deletion (24 removed / 0 added), gate 18 in sync; `421`/`396`/`400` exit 0; `410` 9 red → 2
+red (§ 6.3, § 8.7 above) with each fix measured — `_audit_access_authorized` calls neither of two
+declared doors (a T7 copy-paste, removed); `meetings.read`'s `respondent_exclusion` came only from
+the registry root (re-measured per root against the pre-T7 capture: a root-set change, not an
+authority regression), `hardDenyClasses` now `["principal_inactive"]`. Gates 7/9/13/15/18/19 = 0,
+gate 12 = 1 (L21). Files touched, all uncommitted: the migration, the manifest, `410`, `387`,
+`419`, `421`, `320`, `seed.sql`, the seam file, three regenerated `.psql`. Loop count on T7's
+verification: iteration 1; the P0 is a NEW cause.
