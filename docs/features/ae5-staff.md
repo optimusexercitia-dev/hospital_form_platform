@@ -32,7 +32,7 @@ Each is the template step it names; the witness for every box is a dated entry i
       boundaries), every row citing its plane and a live-catalog query; per arm its **subject** and
       **hat requirement** declared (ADR 0200 · ADR 0201 D3), per row its `definerSurface` (ADR 0193
       D5) — **PO-approved** before any seed row is written.
-- [ ] **AC-2 Deny-class effects** for `staff` over the declared `denyClasses` axis, each class in axis
+- [x] **AC-2 Deny-class effects** ✅ **PO-RULED 2026-09-14** (P3, record § PO rulings) — for `staff` over the declared `denyClasses` axis, each class in axis
       coordinates; expected values PO-approved.
 - [ ] **AC-3 Generators multi-role.** Both cell generators range over `staff` + `staff_admin`; the
       `role` axis gets a real disposition; `npm run lint:authz-vectors` green and the self-test
@@ -93,35 +93,22 @@ posted, not executed.
 
 ### In progress
 
-**Round 4 landed** (eight commits, `39d6e43d`…`df37700e`): the arm-3 axis in the resolver differential
-with each row's door declared in the manifest (`arm3Door` → `legacy_door`), vector 9936 cells; pins
-moved after observed reds; `403` § 3.2b re-claused + § 3.2c able to fail; fixtures seeded as four new
-`gap.*` personas; the INERT-seed defect (no closure edges for the 18 codes) repaired forward-only.
-Gate 9 discharged by the first ADR 0140 review (`1c1229ba`). `lint` 0 · `typecheck` 0 · `test:db` red
-on `387` (pins) and `424` (not yet runnable). `tester` now runs `424` on the new vector; `backend`
-writes the T6 cutover plan under ADR 0211 and re-derives `387`'s pins after.
-
-**L6 + the `387` re-pin landed** (`33fbfbca`, `aa95c723`). `410` § 6.2's roots are now
-`enforcementSites` ∪ `domainAuthorizer` ∪ `armInterface` — which first required the generator to
-EMIT `armInterface` at all (it did not; a second half the ruling had not anticipated), now
-`authz_manifest_arm_sites`, 69 sites over 20 rows. § 6.3 re-pinned 3 → 23, decomposing as 3 re-keyed
-+ 20 pending-rekey, disjoint. Both discrimination plants witnessed and rolled back. `387` re-pinned
-across 9 tests, each old → new attributed to a named persona or row. `410` 44/44, `387` 25/25,
-gate 12 green; `test:db` bare leaves only `424` (2, the tester's, down from 8).
+**PO ruled P1 · P2 · P3 on 2026-09-14** (verbatim in the record: *"P1 accept the exception, P2
+intended composition, P3 pending GRANTED"*). `backend` applies P1 + P2 to the generator and
+regenerates the vector (no DB); then `tester` runs `424` to green with the able-to-fail witness; then
+the stack goes to `backend` for the T6 red-first sequence (files held in the session scratchpad
+`t6-wip/` since the incident). `410` § 6.2 reads `armInterface` (L6, both discrimination halves
+witnessed); `387` re-pinned with every delta attributed; `npm run lint` exit 0.
 
 ### Next
 
-`424` green → PO checkpoint (T11 plan review): confirm the per-class arm-3 values and AC-2's
-deny-class values. Lead reviews the T6 plan (full review). Then T6, T7, T8–T10, gate.
+`424` green → T6 (the wrapper cutover under ADR 0211, acked with conditions A1–A4) → T7 re-key →
+T8 census/arms → T10 seam slice → AC-10 gate → QA → PO approval → Record. T9 runbook is drafted.
 
 ### Blockers
 
-⛔ **The PO's ruling on P1 · P2 · P3** (checkpoint of 2026-09-13, record § "joint diagnosis"): P1 the
-inactive-principal divergence as an approved exception citing
-`BUG-AE5-STAFF-INACTIVE-BYPASSES-ROLE-FREE-DISJUNCTS`; P2 the door-conjunct-unmet class (legacy
-narrower, 144 cells) as the intended composition; P3 the nine deny-class values. Until then the
-vector is not regenerated and `424` is not run. `npm run lint` exit 0 and `test:db` leaves only
-`424` red (re-measured 2026-09-14 after `aa95c723`). ⛔ ADR 0211 D2 is unreviewed by the PO until
-T6's plan is presented with the gate.
-⚠ Owed to T7/T13, not blocking now: `app.can_reach_case_on_member_surface` has ZERO production
-callers (matrix § 8.3); 6 of 9 seeded CCIH `staff` personas carry a non-role case reach (§ 8.2).
+None ruling-shaped. ⛔ ADR 0211 D2 is reviewed by the PO at the T6 gate (put in front of the PO on
+2026-09-14 as readable now). ⚠ Owed to T7/T13, not blocking: `app.can_reach_case_on_member_surface`
+has ZERO production callers (matrix § 8.3); 6 of 9 seeded CCIH `staff` personas carry a non-role
+case reach (§ 8.2). ⚠ T7's manifest edits must be checked against what the generator EMITS, not
+what the JSON holds (L6's second half: a field the gate could not see).
