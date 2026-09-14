@@ -948,3 +948,179 @@ Three things the operator needs from this table:
    cannot grant"* is true of **`403`'s own fixture** and is **not** true of the seed; it is a real
    filter cited for a conclusion it does not bound, and leaning on it here is how a site-3 rollback
    gets verified by nothing.
+
+---
+
+## 7. Worked example — reverting AE5 increment 1 (`staff`)
+
+⭐ **Written BEFORE the cutover ships, deliberately** ([PA-F9]). A runbook written after an incident
+is a runbook whose author already knows which half went wrong; this one is the plan's own output, so
+the operator inherits the reasoning and not just the steps. AE5 increment 1 = ADR
+[0211](../decisions/0211-staff-gets-its-own-single-role-wrapper.md), migration
+`20261003007460` (T6) — the `staff` wrapper pair plus the state flip.
+
+⭐ **The out-of-chain SQL for the § 7.2 half is [`authz-rollback-template.sql`](authz-rollback-template.sql) § SECTION F** — lettered F because
+A–E were already taken in that file; two sections sharing a letter is how an operator copies the
+wrong one under time pressure, so the letter was read off the file rather than assumed. Its `F1b`
+guard REFUSES TO RUN once any function body or policy calls the wrapper — § 7.3.1 enforced rather
+than written down, which is the difference between a rule and a hope.
+
+⛔ **THIS SECTION IS NOT § 6 WITH DIFFERENT NAMES.** § 6 reverts a **re-key**: policies and door
+bodies that were re-pointed onto a permission authorizer, where the hazard is restoring a *disjunct*
+without flattening the body. AE5 increment 1 re-keyed **nothing**. It created two functions with
+**zero callers** and flipped one row of `authz.roles`. So its revert is almost entirely § 2a, and
+its § 2b half is a **template for T7 to fill**, not a worked site — the sites are not chosen yet.
+
+### 7.0 What T6 actually changed — the whole list, so the revert has a bound
+
+| change | revert |
+| --- | --- |
+| `app.is_commission_staff_of(uuid)` created | ⛔ **leave it** — § 7.2 |
+| `app.is_commission_staff_of_for(uuid, uuid)` created | ⛔ **leave it** — § 7.2 |
+| `authz.roles.staff` `test_validation` → `authoritative` | **this is the revert** — § 7.2 |
+| enforcement sites | **none touched.** All 18 manifest rows stayed `pending-rekey`; `410 § 4.5` stayed `58 / 3` |
+| `authz.permissions` / `role_permissions` | **none touched** (T4 seeded them; ⛔ they are NOT part of this revert) |
+
+⇒ **the revert is one UPDATE plus a verification.** If a proposed rollback contains a `drop
+function`, a `delete from authz.*`, or a policy edit, it is not reverting this increment.
+
+### 7.1 Pre-flight — revalidate the FOUR PROPERTIES first, before writing a line
+
+Runbook § 1 applies unchanged and is not optional here: the revert does not drop anything, but the
+**verification** in § 7.5 compares against these, and a signature you assumed rather than read is how
+a later step invalidates dependents. Capture and paste into the record:
+
+```sql
+select n.nspname, p.proname, pg_get_function_identity_arguments(p.oid) as args,
+       p.prosecdef, p.provolatile, p.proconfig,
+       pg_get_userbyid(p.proowner) as owner,
+       (select array_agg(a order by a) from unnest(p.proacl::text[]) a) as acl_sorted
+  from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+ where n.nspname = 'app'
+   and p.proname in ('is_commission_staff_of', 'is_commission_staff_of_for',
+                     'is_staff_admin_of', 'is_staff_admin_of_for',
+                     'is_member_of', 'is_member_of_for')
+ order by p.proname;
+
+select code, state from authz.roles where state <> 'legacy' order by code;
+```
+
+⛔ **The ACL is read SORTED and compared as an array, never as a count** — a count cannot tell a lost
+grant from a swapped one. ⚠ Expect `app.is_commission_staff_of(_for)` to carry
+`{postgres=X/postgres, service_role=X/postgres}` and **no `authenticated`**: the grant was deferred
+to T7 because the privilege budget sat exactly at its ceiling (`app=326 total=759`). If you find
+`authenticated` there, T7 has already landed — **stop and read § 7.3 first**, because the ordering
+rule below applies.
+
+### 7.2 Shape § 2a — the wrapper cutover
+
+```sql
+-- ⛔ test_validation, NEVER legacy.
+update authz.roles set state = 'test_validation'
+ where code = 'staff' and state = 'authoritative';
+-- expect exactly 1 row. Zero means the world moved under this rollback: stop.
+```
+
+Three rules, each with its reason:
+
+1. ⛔ **`test_validation`, not `legacy`.** Both make `authz.has_permission` — the RUNTIME evaluator —
+   refuse the role, which is the whole of the rollback. The difference is what the **oracle** can
+   still see: `authz.candidate_has_permission` admits `test_validation` and not `legacy`, so
+   reverting to `test_validation` leaves the differential suite able to re-verify the catalog before
+   anyone re-forwards. Reverting to `legacy` blinds your own instrument at the moment you most need
+   it, and it is not more conservative — the grants are untouched either way.
+2. ⛔ **Leave both wrappers in place.** They delegate to `authz.holds_role`, which requires
+   `authoritative`, so after the flip they return **false for everyone** — which is exactly correct
+   for a rolled-back cutover. Dropping them invalidates dependents (§ 1) for no benefit, and a
+   re-forward becomes a one-line `update` instead of a re-create. ⚠ At T6 they have **zero callers**,
+   so "returns false for everyone" affects nothing at all.
+3. ⛔ **Delete no catalog data.** `authz.roles`, `authz.permissions`, `authz.role_permissions` and the
+   assignment projection stay exactly as they are. The catalog going quiet IS the rollback; emptying
+   it is data loss no forward step can undo.
+
+### 7.3 Shape § 2b — a re-keyed enforcement site ⛔ **TEMPLATE, NOT A WORKED SITE**
+
+AE5 increment 1 re-keyed no site, so there is nothing here to work through yet. T7 fills this in,
+and the shape it must fill is § 2b's, with one addition that is specific to `staff`:
+
+- restore the **pre-re-key disjunct**, never the whole body — a `staff` site's body will read
+  `app.can_<x>(...)` where it used to read `app.is_member_of(commission_id)`, often beside an
+  `app.is_tenancy_admin_of` arm that was **never part of the cutover** and must survive verbatim
+  (measured: **28 of the 40** `is_member_of` policies carry that arm);
+- `FOR ALL` policies have **two halves** — restore and verify `USING` *and* `WITH CHECK`;
+- ⭐ **and the `staff`-specific one: the pre-re-key predicate is `app.is_member_of`, a role-SET
+  predicate, NOT the new single-role wrapper.** Restoring a site to
+  `app.is_commission_staff_of(...)` would look like a rollback and would be a **narrowing**: it
+  denies every `staff_admin` the site used to admit. ⛔ The revert target is the text that was
+  there, and for these sites that text names membership, not the role.
+
+#### 7.3.1 ⛔⛔ ORDERING — a T6 rollback is safe ONLY while T7 has not landed
+
+This is the one hazard the increment's shape creates, and it is invisible from § 7.2 alone.
+
+- **Before T7** — the wrappers have zero callers. Flipping `staff` back to `test_validation` changes
+  the answer of *nothing that runs*. The rollback is DB-only and needs no deploy.
+- **After T7** — enforcement sites call the wrapper. The same flip makes the wrapper return false at
+  every one of them, so **every plain `staff` member loses the reach T7 re-keyed**, instantly and
+  silently, while `is_member_of` sites keep working. That is not a rollback; it is a partial
+  revocation wearing one.
+
+⇒ **Revert T7 first, then T6.** A partial revert is worse than either end state (§ 6.6's rule,
+inherited). If you are reverting under time pressure and T7 has landed, § 7.2's `update` is **not**
+the smallest safe step — the smallest safe step is T7's site restore.
+
+### 7.4 Compatibility, stated in BOTH directions
+
+| direction | before T7 | after T7 |
+| --- | --- | --- |
+| **old app ← new db** (rolled-back db, current app) | ✅ no effect. No application code references `app.is_commission_staff_of(_for)` — measured **0 callers** in `pg_proc`, `pg_policies` and `src/**`. | ⛔ **breaks**: re-keyed sites deny every plain `staff`. Revert T7 first. |
+| **new app ← old db** (re-forwarding) | ✅ one `update` back to `authoritative`; the wrappers were never dropped, so nothing is re-created. | ✅ same, **after** T7's sites are restored. |
+
+⚠ **No client deploy is coupled to T6 in either direction** — `src/**` gained nothing in this
+increment. State that in the record explicitly rather than leaving it inferred: an unstated
+compatibility direction is the one an operator assumes.
+
+### 7.5 Verify — on the catalog, and read every exit code directly
+
+```sql
+-- 1. the state moved, and ONLY for staff
+select code, state from authz.roles where state <> 'legacy' order by code;
+--    expect exactly: staff=test_validation, staff_admin=authoritative
+
+-- 2. the wrappers are STILL THERE and still correct (they were not the revert)
+select p.proname, p.prosecdef, p.proconfig,
+       (select array_agg(a order by a) from unnest(p.proacl::text[]) a) as acl_sorted
+  from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+ where n.nspname = 'app' and p.proname like 'is_commission_staff_of%';
+
+-- 3. and they now answer FALSE, which is the rollback working
+select app.is_commission_staff_of_for(
+         '<A COMMISSION THE SUBJECT IS A staff OF>'::uuid, '<THAT SUBJECT>'::uuid);
+--    expect false. ⛔ TRUE means the flip did not land.
+
+-- 4. the catalog was NOT emptied
+select (select count(*) from authz.permissions)                                   as permissions,
+       (select count(*) from authz.role_permissions where role_code = 'staff')    as staff_grants;
+--    expect 61 and 20 — unchanged by the rollback.
+```
+
+⭐ **Check 4 is the one operators skip and it is the one that catches the worst mistake.** Checks 1–3
+all pass on a rollback that also emptied `role_permissions`; only this one distinguishes "the catalog
+went quiet" from "the catalog was destroyed", and the second cannot be undone by re-forwarding.
+
+### 7.6 ⛔ What goes RED after this revert — correctly, and what it would mean to "fix" it
+
+A revert moves committed pins. **Each of these reds is the revert being observed, not a defect**, and
+⛔ none may be silenced by editing the assertion *before* the revert is recorded:
+
+| suite | § | what it does | ⛔ do not |
+| --- | --- | --- | --- |
+| `401` | 3.2 | the non-legacy tripwire reads `staff=test_validation, staff_admin=authoritative` again | — this is it working; it named the flip forward and names it back |
+| `403` | 3.2c | expects `staff` in `test_validation` again — green again after the revert | ⛔ do not "correct" it while forward |
+| `426` | 0.3 | `staff` is `authoritative` — **reds**, and that is its entire purpose: it exists so `426` cannot pass on a catalog where the cutover did not happen | ⛔ never relax it; a green `426` on a reverted catalog would be two dead instruments agreeing |
+| `421`/`414`/`419` | — | **unchanged** — the wrappers are left in place, so the DEFINER populations do not move | — |
+| gate 15 | — | **unchanged** — `authenticated` was never granted (§ 7.1) | — |
+
+⚠ **The revert record names each red and its expected value**, the same way the forward increment
+did. A rollback that leaves a suite red with no entry saying why is indistinguishable, a week later,
+from a rollback that broke something.

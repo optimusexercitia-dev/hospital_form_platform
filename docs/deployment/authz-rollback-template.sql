@@ -268,3 +268,155 @@ commit;
 -- ⛔ Read every exit code DIRECTLY. A pipe, a `| tail`, or a trailing echo erases it — this
 --    program has already recorded two runs reported as exit 0 that were exit 1.
 -- =====================================================================================
+
+-- =====================================================================================
+-- SECTION F — AE5 PER-ROLE INCREMENT: revert the ROLE-STATE cutover (runbook § 7).
+--
+-- ⚠ LETTERED F, AND THE LETTER TOOK TWO TRIES. This file already has a `SECTION D —
+--    post-conditions` AND a `SECTION E — the half that is not SQL`; the first draft of this
+--    block was D and the second E, and each collided. Two sections sharing a letter is how
+--    an operator copies the wrong one under time pressure, so the letter was taken from the
+--    file rather than assumed. F1–F4 below are this section's own steps.
+--
+-- ⭐ USE THIS, NOT SECTION A/B/C, WHEN THE THING TO UNDO IS A ROLE GOING `authoritative`.
+--    Sections A–C revert a re-POINTED wrapper or a re-KEYED site — bodies and policies.
+--    An AE5 increment's cutover creates a single-role wrapper with ZERO callers and flips one
+--    row of `authz.roles`; its revert is one UPDATE plus a verification, and a proposed
+--    rollback for it that contains a `drop function`, a `delete from authz.*` or a policy edit
+--    is not reverting that increment.
+--
+-- ⛔⛔ ORDERING, AND IT IS THE ONE HAZARD THIS SHAPE CREATES (runbook § 7.3.1):
+--    BEFORE the re-key increment (T7) the wrapper has zero callers and this revert changes the
+--    answer of nothing that runs. AFTER it, the same flip makes the wrapper return false at
+--    every re-keyed site, so every member of that role loses the reach the re-key gave it,
+--    instantly, while the untouched legacy sites keep working. That is a partial revocation
+--    wearing a rollback. ⇒ REVERT THE RE-KEY FIRST, THEN THIS.
+--    Section F1 refuses to run when it detects that ordering violation.
+-- =====================================================================================
+
+begin;
+
+-- -------------------------------------------------------------------------------------
+-- F1 — GUARDS. Keep all of them; each refuses a different wrong world.
+-- -------------------------------------------------------------------------------------
+do $$
+declare
+  v_state   text;
+  v_callers integer;
+begin
+  -- F1a. The role is where the pre-flight said it was.
+  select state::text into v_state from authz.roles where code = '<ROLE CODE>';
+  if v_state is null then
+    raise exception 'ROLLBACK ABORTED: role <ROLE CODE> is not in authz.roles at all. Re-run '
+                    'runbook section 1; the tree moved under this rollback.';
+  end if;
+  if v_state <> 'authoritative' then
+    raise exception 'ROLLBACK ABORTED: role <ROLE CODE> is `%`, not `authoritative`. There is '
+                    'nothing here to revert, and forcing the update would move a state nobody '
+                    'recorded moving forward.', v_state;
+  end if;
+
+  -- F1b. ⛔ THE ORDERING GUARD. If any function body or policy already calls the wrapper, the
+  -- re-key increment has landed and THIS revert would silently revoke at every one of those
+  -- sites. Refuse, and name the count so the operator knows what to revert first.
+  select count(*) into v_callers from (
+    select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname in ('app', 'public', 'authz')
+        and p.proname not like '<WRAPPER NAME>%'
+        and regexp_replace(p.prosrc, '--[^\n]*', '', 'g') ~ '<WRAPPER NAME>'
+    union all
+    select 1 from pg_policies
+      where regexp_replace(coalesce(qual, '') || ' ' || coalesce(with_check, ''),
+                           '--[^\n]*', '', 'g') ~ '<WRAPPER NAME>'
+  ) t;
+  if v_callers <> 0 then
+    raise exception 'ROLLBACK ABORTED: % site(s) already call <WRAPPER NAME>, so the re-key '
+                    'increment has landed. Flipping the role back now would deny every member '
+                    'at every one of those sites while the untouched legacy sites keep working '
+                    '— a partial revocation, not a rollback. Revert the RE-KEY first (runbook '
+                    'sections 2b / 7.3), then run this. ⛔ Do not delete this guard to proceed.',
+                    v_callers;
+  end if;
+end $$;
+
+-- -------------------------------------------------------------------------------------
+-- F2 — THE REVERT. One statement.
+--
+-- ⛔ `test_validation`, NEVER `legacy`. Both make authz.has_permission (the RUNTIME evaluator)
+--    refuse the role, which is the whole of the rollback. The difference is what your own
+--    INSTRUMENT can still see: authz.candidate_has_permission admits `test_validation` and not
+--    `legacy`, so reverting to `test_validation` leaves the differential able to re-verify the
+--    catalog before anyone re-forwards. `legacy` blinds the oracle at the moment you most need
+--    it, and it is not more conservative — the grants are untouched either way.
+-- -------------------------------------------------------------------------------------
+update authz.roles set state = 'test_validation'
+ where code = '<ROLE CODE>' and state = 'authoritative';
+
+do $$
+declare v_n integer;
+begin
+  get diagnostics v_n = row_count;
+  if v_n <> 1 then
+    raise exception 'ROLLBACK ABORTED: expected to flip exactly 1 role, flipped %.', v_n;
+  end if;
+end $$;
+
+-- -------------------------------------------------------------------------------------
+-- F3 — WHAT THIS SECTION DELIBERATELY DOES NOT CONTAIN.
+--
+-- ⛔ NO `drop function` on the wrapper pair. They delegate to authz.holds_role, which requires
+--    `authoritative`, so after F2 they return FALSE for everyone — which is exactly correct for
+--    a rolled-back cutover. Dropping them invalidates dependents for no benefit and turns the
+--    re-forward from a one-line update into a re-create.
+-- ⛔ NO `delete from authz.roles / permissions / role_permissions`, and no touch of the
+--    assignment projection. The catalog going QUIET is the rollback. Emptying it is data loss
+--    that no forward step can undo, and it passes every "did the flip land" check.
+-- ⛔ NO `revoke` on the wrapper's ACLs. They were snapshotted at pre-flight and are asserted
+--    unchanged at F4; a revoke here would be an unrecorded privilege change inside a rollback.
+-- -------------------------------------------------------------------------------------
+
+-- -------------------------------------------------------------------------------------
+-- F4 — VERIFY IN-TRANSACTION, before you commit. Runbook section 7.5 is the fuller list.
+-- -------------------------------------------------------------------------------------
+do $$
+declare
+  v_nonlegacy text;
+  v_perms     integer;
+  v_grants    integer;
+  v_wrappers  integer;
+begin
+  select string_agg(code || '=' || state::text, ', ' order by code) into v_nonlegacy
+    from authz.roles where state <> 'legacy';
+  raise notice 'ROLLBACK: non-legacy roles are now: %', coalesce(v_nonlegacy, '(none)');
+
+  -- ⭐ THE CHECK OPERATORS SKIP, AND THE ONE THAT CATCHES THE WORST MISTAKE. Every other check
+  -- here passes on a rollback that also emptied the grants; only this distinguishes "the
+  -- catalog went quiet" from "the catalog was destroyed", and the second is unrecoverable.
+  select count(*) into v_perms  from authz.permissions;
+  select count(*) into v_grants from authz.role_permissions where role_code = '<ROLE CODE>';
+  if v_perms <> <PERMISSION COUNT AT PRE-FLIGHT>
+     or v_grants <> <ROLE GRANT COUNT AT PRE-FLIGHT> then
+    raise exception 'ROLLBACK ABORTED: authz.permissions=% (pre-flight: <PERMISSION COUNT AT '
+                    'PRE-FLIGHT>) and <ROLE CODE> grants=% (pre-flight: <ROLE GRANT COUNT AT '
+                    'PRE-FLIGHT>). This revert does not touch either table, so a difference means '
+                    'something ELSE ran — stop and find out what before committing.',
+                    v_perms, v_grants;
+  end if;
+
+  -- The wrapper pair is still present. It was not the revert.
+  select count(*) into v_wrappers
+    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'app' and p.proname like '<WRAPPER NAME>%';
+  if v_wrappers <> 2 then
+    raise exception 'ROLLBACK ABORTED: expected the wrapper PAIR (2 functions) to survive this '
+                    'revert, found %. A revert that dropped them is not this section.', v_wrappers;
+  end if;
+end $$;
+
+-- ⛔ Then: behavioural check OUTSIDE this transaction, on a real subject —
+--    select app.<WRAPPER NAME>_for('<A COMMISSION THE SUBJECT HOLDS THE ROLE AT>'::uuid,
+--                                  '<THAT SUBJECT>'::uuid);
+--    expect FALSE. A structural check can pass while the decision did not move; this is the
+--    probe that cannot.
+
+commit;
