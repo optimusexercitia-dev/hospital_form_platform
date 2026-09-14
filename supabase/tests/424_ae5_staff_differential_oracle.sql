@@ -335,7 +335,16 @@ begin
       or app.is_member_of(case p_gate_arm when 'disjunct_present' then null::uuid
                                            when 'disjunct_absent'  then f.own_cid
                                            else v_scope_id end)
-    when v_scope_id <> f.own_cid then app.is_member_of_for(v_scope_id, v_principal)
+    -- ⚠ FIXED (this round, iteration 2 of 2 — NOT re-run, exceeds the allowed cap): the fallback
+    -- must exclude ONLY `conjunct_unmet` (the resource-anchored coordinate whose own conjunct must
+    -- decide regardless of the caller's own commission — P2's `door-conjunct-unmet`, measured:
+    -- falling back to bare membership let an off-CCIH persona's OWN membership mask a conjunct that
+    -- should have denied them). The FIRST attempt narrowed this to `= 'none'` alone and REGRESSED
+    -- `conjunct_met` and `disjunct_absent` at off-CCIH scopes (measured on the SAME run: 24-30 new
+    -- reds per row on `conjunct_met`, 22 on `disjunct_absent` — those two values ARE ordinary
+    -- baseline-shaped, same as `none`, and need the fallback just as much). ⛔ NOT verified by a
+    -- third run — the iteration cap for this round is exhausted; the lead authorizes the next run.
+    when v_scope_id <> f.own_cid and p_gate_arm <> 'conjunct_unmet' then app.is_member_of_for(v_scope_id, v_principal)
 
     when p_class = 'rls_form_matrix_targeted_version' then
       -- ⚠ WIRED per backend's fixture (f2dd7d00): `disjunct_present` uses `v_form_version`, the ONE
