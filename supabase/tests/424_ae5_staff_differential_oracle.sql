@@ -46,12 +46,13 @@
 -- ⚠ THE ABLE-TO-FAIL PROOF (§6, mirrors 403 §6 — direct `delete`/`insert`, reversed by its own
 -- inverse, NOT a bare SAVEPOINT, which discards assertions made after a rollback to it).
 --
--- RUN SHAPE: `plan(22)` — one more than the pre-mechanism-change file: §2.6 is new (the per-class
--- fixture-existence control `legacy_fixture_id` makes possible). Re-derived against what is
--- actually written below, not predicted.
+-- RUN SHAPE: `plan(23)` — §2.6 (the fixture-existence control, now reading the vector's own
+-- `probe_table`/`probe_column` rather than a name this file infers) plus §2.6a (its discrimination
+-- half: a deliberately-absent id must be reported absent). Re-derived against what is actually
+-- written below, not predicted.
 
 begin;
-select plan(22);
+select plan(23);
 
 \ir vectors/authz_differential_cells.psql
 
@@ -79,7 +80,15 @@ select cmp_ok((select count(*)::int from authz_differential_cells_staff), '>', 2
   -- resource are now a NAMED skip (`no_resource_fixture_at_this_scope`), counted in the coverage
   -- census rather than emitted as a cell that could never agree with `catalog`. The floor is
   -- lowered to match, never raised to hide a further shrink — read here, not guessed.
-  '2.1 CARDINALITY CONTROL: the generated `staff` cell set is populated (3708 at `f40babdc`). An '
+  -- ⚠ RE-MEASURED again (backend round 4, seed `cea002eb`, vector `c5ef5fef`): 3348, down from
+  -- 3708 — 648 `cast_case_vote_guard` cells (row 12, `commission.cases.vote`) are GONE from this
+  -- table entirely, named-skipped as `door_is_a_write_guard_not_executable` (that door WRITES;
+  -- T12's `425` polarity-flip owns it, never this file).
+  -- ⚠ RE-MEASURED a third time (backend round 5, vector `d5015060`): 3024, down from 3348 — rows
+  -- 4/11's `disjunct_absent`/`conjunct_unmet` bindings were re-derived from door truth tables
+  -- (skips 2376/2160/648 named in backend's own count). Old -> new, all three measurements:
+  -- 6372 -> 3708 -> 3348 -> 3024.
+  '2.1 CARDINALITY CONTROL: the generated `staff` cell set is populated (3024 at `d5015060`). An '
   'empty or truncated vector file would let §§4-5 iterate nothing and pass having asserted nothing.');
 
 select ok(
@@ -87,10 +96,14 @@ select ok(
   and (select count(*) from authz_differential_cells_staff where not expected_granted) > 0,
   '2.2 ⭐ the EXPECTED column carries BOTH answers for `staff`.');
 
-select is((select count(distinct legacy_class)::int from authz_differential_cells_staff), 12,
-  '2.3 TWELVE legacy-equivalence classes (measured against the live vector, not guessed): the '
-  'ELEVEN arm-3 door classes plus `is_member_of_for` (`commission.responses.create`, the inert '
-  '12th representative). ⭐⭐ A CONSEQUENCE of REPS_STAFF, not an adjustment: if this reds, the '
+select is((select count(distinct legacy_class)::int from authz_differential_cells_staff), 11,
+  -- ⚠ RE-MEASURED (backend round 4): 11, down from 12 — `cast_case_vote_guard` (row 12) no longer
+  -- has ANY cell in this table (`door_is_a_write_guard_not_executable`, 648 cells named-skipped;
+  -- `public.cast_case_vote` WRITES and is T12's job, never a read differential's). Old -> new: 12
+  -- -> 11. ⚠ RE-VERIFIED at backend round 5 (vector `d5015060`): still 11 — unchanged.
+  '2.3 ELEVEN legacy-equivalence classes (measured against the live vector, not guessed): TEN '
+  'arm-3 door classes plus `is_member_of_for` (`commission.responses.create`, the inert 11th '
+  'representative). ⭐⭐ A CONSEQUENCE of REPS_STAFF, not an adjustment: if this reds, the '
   'question is which class gained or lost a representative, never "what number matches today".');
 
 select ok(
@@ -116,44 +129,53 @@ select is(
   '2.5 ⭐ MASKING CONTROL: `staff4.ccih`''s id names no `professional_participants` row via any '
   '`case_participants` link.');
 
+-- ⚠ FIXED (this round): the control used to infer the probed TABLE from the `legacy_class` NAME —
+-- a hand-maintained mapping this file owned. That is exactly the blindness that kept the prior
+-- smoke green while the door measured nothing: row 16's real door reads `public.documents`, not
+-- `public.controlled_documents` (the name the class suggests), and row 6's `can_reach_meeting_
+-- not_respondent` keys on `meeting_id` in `public.meeting_cases`, not `id`. The vector now DECLARES
+-- both facts per cell (`probe_table`, `probe_column`, from the manifest's `probeReadsTable` /
+-- `probeReadsColumn`, derived by reading each door's body) — the control reads THAT, never a name
+-- it infers itself.
+create or replace function pg_temp.probe_exists(p_table text, p_column text, p_id uuid) returns boolean
+language plpgsql stable as $pe$
+declare v_exists boolean;
+begin
+  execute format('select exists(select 1 from %s where %I = %L::uuid)', p_table, p_column, p_id)
+    into v_exists;
+  return v_exists;
+end;
+$pe$;
+
+select is(pg_temp.probe_exists('public.profiles', 'id', '00000000-0000-0000-0000-000000000000'::uuid), false,
+  '2.6a ⭐ DISCRIMINATION HALF, KEPT: a deliberately-absent id is reported ABSENT by the same '
+  '`probe_exists` check §2.6 below uses. Without this, §2.6 passing could mean either "every '
+  'fixture is present" or "the check cannot see a missing row" — a control that never reds first '
+  'is not a control.');
+
 create or replace function pg_temp.fixture_control() returns text
 language plpgsql volatile as $fc$
 declare
-  r record; v_tbl text; v_exists boolean; v_missing text[] := array[]::text[];
+  r record; v_missing text[] := array[]::text[];
 begin
   -- ⭐ "A control per class, not per cell" — ONE existence check per DISTINCT
-  -- (legacy_class, legacy_fixture_id) pair the vector actually names (≈25 pairs, not 6372 cells),
-  -- run AS THE SUITE'S OWN ROLE (RLS-bypassed, per the instruction) so a `false` legacy answer can
-  -- never be silently caused by a missing row instead of a real denial. `''`, `'(none)'` (no
-  -- fixture needed — `is_member_of_for`) and `'{uid}'` (the SELF-read coordinate of
-  -- `rls_profiles_comember_or_self`, whose OTHER fixture ids for the same class already exercise
-  -- this control) are excluded by name, not silently skipped.
+  -- (probe_table, probe_column, legacy_fixture_id) triple the vector actually names (≈36 pairs per
+  -- backend's own smoke, not 3708 cells). `''`/`'(none)'` (no fixture needed — `is_member_of_for`)
+  -- and `'{uid}'` (the SELF-read coordinate of `rls_profiles_comember_or_self`, whose OTHER fixture
+  -- ids for the same class already exercise this control) are excluded by name, not silently
+  -- skipped; a null/blank `probe_table` is reported, never silently passed.
   for r in
-    select distinct legacy_class, legacy_fixture_id
+    select distinct probe_table, probe_column, legacy_fixture_id
       from authz_differential_cells_staff
      where legacy_fixture_id not in ('', '(none)', '{uid}')
   loop
-    v_tbl := case r.legacy_class
-      when 'can_reach_meeting' then 'public.meetings'
-      when 'can_reach_meeting_not_respondent' then 'public.meetings'
-      when 'can_sign_meeting' then 'public.meeting_attendees'
-      when 'can_read_action_item' then 'public.action_items'
-      when 'can_read_capa' then 'public.capa_plan'
-      when 'case_caps_deliberation' then 'public.cases'
-      when 'cast_case_vote_guard' then 'public.cases'
-      when 'rls_accreditation_frameworks_owner_null' then 'public.accreditation_frameworks'
-      when 'rls_controlled_documents_approver' then 'public.controlled_documents'
-      when 'rls_form_matrix_targeted_version' then 'public.form_versions'
-      when 'rls_profiles_comember_or_self' then 'public.profiles'
-      else null end;
-    if v_tbl is null then
-      v_missing := v_missing || (r.legacy_class || ': no table mapping declared for this class');
+    if r.probe_table is null or r.probe_table = '' then
+      v_missing := v_missing || (r.legacy_fixture_id || ': no probe_table declared for this fixture id');
       continue;
     end if;
-    execute format('select exists(select 1 from %s where id = %L::uuid)', v_tbl, r.legacy_fixture_id)
-      into v_exists;
-    if not v_exists then
-      v_missing := v_missing || (r.legacy_class || ':' || r.legacy_fixture_id || ' NOT FOUND in ' || v_tbl);
+    if not pg_temp.probe_exists(r.probe_table, r.probe_column, r.legacy_fixture_id::uuid) then
+      v_missing := v_missing || (r.probe_table || '.' || r.probe_column || '=' || r.legacy_fixture_id
+                                  || ' NOT FOUND');
     end if;
   end loop;
   return coalesce(nullif(array_to_string(v_missing, ' | '), ''), '(none)');
@@ -161,9 +183,9 @@ end;
 $fc$;
 
 select is(pg_temp.fixture_control(), '(none)',
-  '2.6 ⭐ FIXTURE CONTROL (RLS-bypassed, one check per class, not per cell): every '
-  '`legacy_fixture_id` the vector names actually exists in its table. Without this, a missing row '
-  'and a genuine denial are indistinguishable from the `false` §4/§5 would otherwise compare.');
+  '2.6 ⭐ FIXTURE CONTROL (RLS-bypassed, one check per (probe_table, probe_column, fixture id), not '
+  'per cell): every `legacy_fixture_id` exists at the vector''s OWN declared probe coordinate — '
+  'never a table this file infers from the class name.');
 
 -- ============================================================================
 -- §3 — the driver. Materialises each cell's principal state and claims, then EXECUTEs the vector's
@@ -354,15 +376,23 @@ select cmp_ok(pg_temp.disagreements(), '>', 0,
 -- §7 — arm-3 census bound.
 -- ============================================================================
 
+-- ⚠ RE-MEASURED (backend round 4): `cast_case_vote_guard` (row 12) DROPPED from this array — its
+-- door is a write guard, never executable in a read differential, named-skipped as
+-- `door_is_a_write_guard_not_executable` (T12's `425` owns its polarity). Row 12 is still one of
+-- the matrix § 5.3's eleven arm-3 ROWS; this assertion is now about the TEN classes 424 actually
+-- executes, not the eleven-row matrix count — the two numbers answer different questions and
+-- neither is guessed from the other. ⚠ RE-VERIFIED at backend round 5 (vector `d5015060`): the
+-- same ten names — unchanged.
 select is(
   (select array_agg(distinct legacy_class order by legacy_class)
      from authz_differential_cells_staff where member_gate_arm <> 'none')::text,
   (array['can_reach_meeting','can_reach_meeting_not_respondent','can_read_action_item','can_read_capa',
-         'can_sign_meeting','case_caps_deliberation','cast_case_vote_guard',
+         'can_sign_meeting','case_caps_deliberation',
          'rls_accreditation_frameworks_owner_null','rls_controlled_documents_approver',
          'rls_form_matrix_targeted_version','rls_profiles_comember_or_self'])::text,
-  '7.1 the emitted arm-3 coordinate set is exactly the eleven matrix § 5.3 rows, named — never a '
-  'count.');
+  '7.1 the emitted arm-3 coordinate set is exactly TEN of the matrix § 5.3''s eleven rows, named — '
+  'row 12 (`cast_case_vote_guard`) is named-skipped here (a write guard, T12''s job) and is not '
+  'expected in this array.');
 
 select * from finish();
 rollback;
