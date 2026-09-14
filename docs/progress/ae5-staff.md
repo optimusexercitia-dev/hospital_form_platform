@@ -3327,3 +3327,18 @@ The two earlier misreads (calling it a hand case; calling `meeting_signatures_in
 from the same `qual`-only reading habit, both corrected from the catalog. Standing counts: 42
 policies = 40 generated + 1 hand (`meeting_cases_select`) + 1 following its authorizer; 24
 functions = 23 to re-emit + 1 re-declared; 20 doors 13/7 at 339/433/772. Next pass: the 23.
+
+### 2026-09-14 — T7 step 2, function half: 23/23 converged in a rollback; counts corrected by one (lead)
+
+Backend, `part3_functions.sql` applied with parts 1 in a rolled-back transaction and read back over
+all 24 declared function sites: **23/23 `proconfig = search_path=""`**, **0** bare
+`is_member_of(_for)(` left; `sign_meeting` alone stays frozen (untouched by design — it composes
+`can_sign_meeting`, so D4's "on touch" never fires; re-declared to `definerSurface` as a writer).
+The apply validated the 7 `sql` bodies at CREATE under their new `proconfig` (`ON_ERROR_STOP=1`,
+exit 0); the 15 `plpgsql` bodies still need `plpgsql_check` before placement. **Corrected for the
+gate record:** 23 re-keyed, of which 1 was already on `''` (`can_reach_meeting`) ⇒ **22 leave the
+frozen set, `419` 860 → 838** (not 837); language split 7 / 15; substitutions 9 bare + 21 `_for`
+(not 14 — the earlier classification under-counted `_for` sites). Built: parts 1–3 with input
+snapshots and expectations. Remaining: the checker on the 15, `meeting_cases_select`, C1's wiring,
+two seed tables, manifest flip + L13 + `sign_meeting`'s re-declaration, anchor + `320 § U4`; then
+move-in and steps 2–7. `supabase/` clean.
