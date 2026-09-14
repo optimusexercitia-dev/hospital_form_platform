@@ -256,6 +256,67 @@ if [ ! -s "$BASELINE" ]; then
   exit 0
 fi
 
+# ── 0a. ⛔⛔ THE SUBSET GUARD (lead ruling L25, 2026-09-14) — ABORT, never merge ──────────
+# THE FAILURE IT CLOSES, MEASURED ON THIS FILE. AE5 T8 fed this helper a SUBSET run's
+# generated report. It exited 0, printed "REPLACED 2 baseline line(s) as regenerated
+# statistics (the only legitimate drop)" — and the output table held 73 rows where the
+# baseline held 353. 303 rows were dropped, INCLUDING ALL 36 BLIND. That is the hazard the
+# door harness warns about in its own banner ("a subset run has OVERWRITTEN the committed
+# baseline with only its own cases … and FROMFINDINGS arms get GREENER as that baseline gets
+# EMPTIER"), and nothing here refused it. The accounting this file already claims to do is
+# now DONE.
+#
+# ⚠ THE PREDICATE IS "THE GENERATED FILE IS MISSING BASELINE ROWS", NOT "STRICT SUBSET".
+# Measured on that exact case: the subset report carried 23 keys the baseline did not have
+# (the gates T7 introduced), so it was NOT a subset of the baseline — a literal subset test
+# would have PASSED it and the baseline would have been gutted anyway. What matters is the
+# DROP, in one direction only: a FULL run legitimately regenerates every row and drops none,
+# so `missing = 0` is exactly the full-run property. New rows are always welcome.
+#
+# ⛔ ABORT, not a warning: the caller's next act is to install $OUT over the baseline.
+# ⚠ TOP-LEVEL ROWS ONLY. A row quoted INSIDE a provenance annotation is indented, and
+# counting it as a row is how "0 rows lost" was reported for a merge that lost 303 — a
+# parser that counts a quotation as the thing quoted. `^\|` with no leading whitespace.
+merge_row_keys () {  # $1 = file; prints the first-cell key of every TOP-LEVEL verdict row
+  awk -F'|' '
+    /^\|/ {
+      for (i = 2; i <= NF; i++) {
+        v = $i; gsub(/^[ \t]+|[ \t]+$/, "", v)
+        if (v == "COVERED" || v == "BLIND" || v == "NOTICED" || v == "ERROR" || v == "UNSUPPORTED") {
+          k = $2; gsub(/^[ \t`]+|[ \t`]+$/, "", k); if (k != "") print k
+          break
+        }
+      }
+    }' "$1" | sort -u
+}
+merge_row_keys "$BASELINE"  > "$T/guard_base_keys"
+merge_row_keys "$GENERATED" > "$T/guard_gen_keys"
+GUARD_BASE=$(grep -c . "$T/guard_base_keys" || true)
+GUARD_GEN=$(grep -c . "$T/guard_gen_keys" || true)
+comm -23 "$T/guard_base_keys" "$T/guard_gen_keys" > "$T/guard_missing"
+GUARD_MISSING=$(grep -c . "$T/guard_missing" || true)
+# ⚠⚠ SCOPED TO REAL RUNS. The helper's OWN self-test feeds deliberately-shrunken generated
+# files to exercise the CARRY path (scenarios "C: hand row with an EMPTY note is carried" and
+# "E: unchanged/changed/disappeared/new"), and the guard aborted 5 of them. Carrying a row the
+# generated report no longer contains is CORRECT behaviour for a FULL run over a catalog that
+# lost a gate; it is only catastrophic when the shrink is an artefact of a SUBSET selection.
+# SELFTEST=1 is already this file's signal for "synthetic inputs, not a sweep" (see the
+# MERGE_FAULT/MERGE_VERIFY refusal above), so the guard stands down there and its own proof is
+# the pair recorded in the AE5-STAFF T8 gate record: the subset report ABORTS, a full-shaped
+# file and a superset PROCEED.
+if [ "${SELFTEST:-0}" != "1" ] && [ "${GUARD_MISSING:-0}" -gt 0 ]; then
+  printf 'MERGE-ABORT: the GENERATED report is missing %s row(s) the baseline carries.\n' "$GUARD_MISSING" >&2
+  printf '  baseline top-level rows : %s\n  generated top-level rows: %s\n' "$GUARD_BASE" "$GUARD_GEN" >&2
+  printf '  crude cross-check (grep -cE "^\\|"): baseline=%s generated=%s\n' \
+    "$(grep -cE '^\|' "$BASELINE" || true)" "$(grep -cE '^\|' "$GENERATED" || true)" >&2
+  printf '  first missing rows:\n' >&2
+  head -5 "$T/guard_missing" | sed 's/^/    - /' >&2
+  printf '  ⛔ This is a SUBSET report being merged into a FULL baseline. A full run drops NO\n' >&2
+  printf '     baseline rows; fold a subset in by targeted insertion instead (ADR 0079 Amdt 1).\n' >&2
+  exit 2
+fi
+note "SUBSET GUARD: generated covers all $GUARD_BASE baseline row(s); $GUARD_GEN generated row(s). No drop."
+
 # ── 0. the shared table grammar ─────────────────────────────────────────────────────
 # ⛔ Columns are separated by UNESCAPED `|`. A markdown `\|` is CONTENT (the door baseline
 #    carries `^(is_\|can_\|has_\|…)` inside a note), and the naive `split($0, c, "|")` this
