@@ -3446,3 +3446,18 @@ consumer and warned against a predicate retired by `20260814000000`; the new one
 Remaining: the four inline-copy deletions with census 0 → 4; seed tables + this persona; manifest
 flip (L13, `sign_meeting`, row 7's and row 9's signatures + residual) with dry-run; anchor + `320
 § U4`. `419` 860 → 836 with the 24 named.
+
+### 2026-09-14 — `part6_seed.sql`: the three fixtures (lead)
+
+Backend: (1) row 9's isolating persona — a `case_access_grants` row with `read_case_deliberation` on
+CCIH case `d0000000-…-c1`, held by a principal with NO CCIH membership, org-A affiliated (an
+unaffiliated profile is a tenant orphan; `396 § 9.3` / `400 § 1.6` assert the seed contributes
+none); (2) `accreditation_standards` — two rows, CCIH + Farmácia A, per-scope pattern, so three
+readiness doors are probed live; (3) `referral_internal_notes` — one note, PHI module: process
+text only, no patient identifier, no clinical detail, no free text describing a person (Rule 12
+minimum-necessary, the base seed's referral pattern). All fixed-literal ids, none a persona-axis
+value (arm14(f) green). Three declare vars threaded into `seed.sql` on landing (`v_grantee`,
+`v_chefe_ccih`, `v_ccih`) — noted so it is not found at reset time. Parts 1–6 in `t7-wip/` with
+inputs and expectations. Remaining before move-in: the four inline-copy deletions (census 0 → 4),
+the persona's profile/affiliation rows, `387` re-derived and attributed + scoped `396`/`400`, the
+manifest flip dry-run, anchor + `320 § U4`. `419` 860 → 836 with the 24 named.
