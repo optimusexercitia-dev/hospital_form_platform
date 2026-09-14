@@ -491,7 +491,14 @@
       "One entry per carrying row. `expression` is what 424's legacy column evaluates and `args` is",
       "its positional shape; `limb` says which half of the matrix § 5.3 criterion the row carries, and",
       "`memberGateArm` beside it is the value set the generator sweeps. The two are bound by arm12:",
-      "a rep declaring gate-arm values with no door, or a door with no values, refuses generation."
+      "a rep declaring gate-arm values with no door, or a door with no values, refuses generation.",
+      "",
+      "⭐ ONE NAME PER ROW, NO SYNONYMS (tester request, 2026-09-13). `legacyClass` is the canonical",
+      "string the vector's `legacy_class` column carries and the suite dispatches on; `legacyClassSource`",
+      "says whether it is the tester's proposed string adopted verbatim or backend's, so neither side has",
+      "to guess which list won. `stateColumn` names the CONCRETE table column (or row presence) that",
+      "carries the row's arm-3 state, which is what a fixture has to construct — `memberGateArm` is the",
+      "abstract coordinate, this is the thing in the database."
     ]
   },
   "lifecycleDerivation": {
@@ -1546,7 +1553,10 @@
           "uid uuid"
         ],
         "limb": "a",
-        "note": "Inherits row 6's conjunct AND adds a respondent hard-deny. ⚠ This code is SHARED with staff_admin and pre-dates AE5; the door declaration is new."
+        "note": "Inherits row 6's conjunct AND adds a respondent hard-deny. ⚠ This code is SHARED with staff_admin and pre-dates AE5; the door declaration is new.",
+        "legacyClass": "can_reach_meeting_not_respondent",
+        "legacyClassSource": "TESTER'S",
+        "stateColumn": "public.meetings.visibility_policy + meeting_attendees, AND public.case_recusals/respondent state via app.is_case_respondent"
       }
     },
     "commission.meetings.cases.substance.read": {
@@ -2686,7 +2696,10 @@
           "uid uuid"
         ],
         "limb": "b",
-        "note": "The limb-(b) disjunct is `app.can_access_targeted_version`, measured role-free (a case_participants join professional_profiles walk, no role term). ⛔ The tenancy arm is OMITTED from the callable on purpose: it is a sibling-ROLE arm, false for a staff-only persona by construction, and including it would make every cell grant."
+        "note": "The limb-(b) disjunct is `app.can_access_targeted_version`, measured role-free (a case_participants join professional_profiles walk, no role term). ⛔ The tenancy arm is OMITTED from the callable on purpose: it is a sibling-ROLE arm, false for a staff-only persona by construction, and including it would make every cell grant.",
+        "legacyClass": "rls_form_matrix_targeted_version",
+        "legacyClassSource": "MINE",
+        "stateColumn": "the targeted-version participation walk (public.case_participants ⋈ public.professional_participants ⋈ public.professional_profiles reaching the form version) — presence/absence IS the coordinate"
       }
     },
     "commission.responses.create": {
@@ -2832,7 +2845,10 @@
           "uid uuid"
         ],
         "limb": "a+b",
-        "note": "BOTH limbs on one row. Limb (a) is the co-member EXISTS — the answer depends on the TARGET profile's memberships, which no axis varies. Limb (b) is the role-free SELF-read `$1 = $2`. ⛔ `disjunct_present` here means the caller is reading its OWN row, at which a deny cell cannot fail."
+        "note": "BOTH limbs on one row. Limb (a) is the co-member EXISTS — the answer depends on the TARGET profile's memberships, which no axis varies. Limb (b) is the role-free SELF-read `$1 = $2`. ⛔ `disjunct_present` here means the caller is reading its OWN row, at which a deny cell cannot fail.",
+        "legacyClass": "rls_profiles_comember_or_self",
+        "legacyClassSource": "TESTER'S",
+        "stateColumn": "limb (a): the TARGET profile’s own public.memberships rows (does it share a commission with the caller); limb (b): profile_id = auth.uid()"
       }
     },
     "commission.charter.read": {
@@ -2991,7 +3007,10 @@
           "uid uuid"
         ],
         "limb": "a",
-        "note": "The conjunct is `visibility_policy = 'commission_default' OR the caller is a meeting_attendees row`. `conjunct_unmet` = a participants_only meeting the caller does not attend."
+        "note": "The conjunct is `visibility_policy = 'commission_default' OR the caller is a meeting_attendees row`. `conjunct_unmet` = a participants_only meeting the caller does not attend.",
+        "legacyClass": "can_reach_meeting",
+        "legacyClassSource": "TESTER'S",
+        "stateColumn": "public.meetings.visibility_policy, plus a public.meeting_attendees row for the caller"
       }
     },
     "commission.meetings.minutes.sign": {
@@ -3070,7 +3089,10 @@
           "signer uuid"
         ],
         "limb": "a",
-        "note": "The conjunct is `a.attendance = 'present' AND m.status = 'in_signature'`. ⚠ `in_signature` is NOT one of resourceLifecycle's six declared values, which is why this is an arm-3 coordinate and not a lifecycle one."
+        "note": "The conjunct is `a.attendance = 'present' AND m.status = 'in_signature'`. ⚠ `in_signature` is NOT one of resourceLifecycle's six declared values, which is why this is an arm-3 coordinate and not a lifecycle one.",
+        "legacyClass": "can_sign_meeting",
+        "legacyClassSource": "MINE",
+        "stateColumn": "public.meetings.status (= ‘in_signature’) AND public.meeting_attendees.attendance (= ‘present’)"
       }
     },
     "commission.cases.deliberation.read": {
@@ -3135,7 +3157,10 @@
           "uid uuid"
         ],
         "limb": "a",
-        "note": "The S5 arm of app._case_caps, reached through its public projection. The conjunct is `not v_eg` (visibility_policy <> 'explicit_grants_only'), plus the STEP-4 respondent / recusal hard denies. ⛔ NOT app.can_read_case — that asks for read_case_content, which S5 does not confer (matrix row 10)."
+        "note": "The S5 arm of app._case_caps, reached through its public projection. The conjunct is `not v_eg` (visibility_policy <> 'explicit_grants_only'), plus the STEP-4 respondent / recusal hard denies. ⛔ NOT app.can_read_case — that asks for read_case_content, which S5 does not confer (matrix row 10).",
+        "legacyClass": "case_caps_deliberation",
+        "legacyClassSource": "TESTER'S",
+        "stateColumn": "public.cases.visibility_policy (v_eg = ‘explicit_grants_only’), plus the STEP-4 respondent / recusal hard denies"
       }
     },
     "commission.action_items.read": {
@@ -3211,7 +3236,10 @@
           "uid uuid"
         ],
         "limb": "a+b",
-        "note": "BOTH limbs. Limb (a) is `visibility_scope = 'committee'` gating the member leg; limb (b) is the role-free assignee disjunct. ⚠ app.can_read_action_item($1,$4) is the equivalent callable and carries an is_case_excluded hard deny the policy does not."
+        "note": "BOTH limbs. Limb (a) is `visibility_scope = 'committee'` gating the member leg; limb (b) is the role-free assignee disjunct. ⚠ app.can_read_action_item($1,$4) is the equivalent callable and carries an is_case_excluded hard deny the policy does not.",
+        "legacyClass": "can_read_action_item",
+        "legacyClassSource": "TESTER'S",
+        "stateColumn": "public.action_items.visibility_scope; limb (b) additionally public.action_item_assignments.user_id / action_items.assigned_to = auth.uid()"
       }
     },
     "commission.cases.vote": {
@@ -3276,7 +3304,10 @@
           "uid uuid"
         ],
         "limb": "a",
-        "note": "⛔ A GUARD EXPRESSION, NOT A CALLABLE. public.cast_case_vote(p_decision_id, p_vote, p_rationale_md) RETURNS uuid and WRITES; a read differential must not call it. ⭐ CORRECTED 2026-09-13 (lead ruling L5): the HC0J0 guard is an ethics-DETAILS EXISTENCE test, NOT a case-status test — measured in the live body. The fixture pair is a case WITH and a case WITHOUT an ethics_case_details row, ⛔ not two case statuses."
+        "note": "⛔ A GUARD EXPRESSION, NOT A CALLABLE. public.cast_case_vote(p_decision_id, p_vote, p_rationale_md) RETURNS uuid and WRITES; a read differential must not call it. ⭐ CORRECTED 2026-09-13 (lead ruling L5): the HC0J0 guard is an ethics-DETAILS EXISTENCE test, NOT a case-status test — measured in the live body. The fixture pair is a case WITH and a case WITHOUT an ethics_case_details row, ⛔ not two case statuses.",
+        "legacyClass": "cast_case_vote_guard",
+        "legacyClassSource": "TESTER'S",
+        "stateColumn": "presence of a public.ethics_case_details row for the case (⛔ NOT public.cases.status — lead ruling L5)"
       }
     },
     "commission.process_templates.read": {
@@ -3553,7 +3584,10 @@
           "owner_commission_id uuid"
         ],
         "limb": "b",
-        "note": "⭐ THE VACUOUS SHAPE, AND THE REASON `disjunct_absent` IS MANDATORY. `owner_commission_id IS NULL` is a PUBLIC arm: every authenticated caller passes, so a deny cell measured at `disjunct_present` CANNOT FAIL. ⚠ accreditation_frameworks holds ZERO rows today (measured) — the coordinate is unconstructible until the gap rows land."
+        "note": "⭐ THE VACUOUS SHAPE, AND THE REASON `disjunct_absent` IS MANDATORY. `owner_commission_id IS NULL` is a PUBLIC arm: every authenticated caller passes, so a deny cell measured at `disjunct_present` CANNOT FAIL. ⚠ accreditation_frameworks holds ZERO rows today (measured) — the coordinate is unconstructible until the gap rows land.",
+        "legacyClass": "rls_accreditation_frameworks_owner_null",
+        "legacyClassSource": "MINE",
+        "stateColumn": "public.accreditation_frameworks.owner_commission_id IS NULL (the PUBLIC arm)"
       }
     },
     "commission.documents.read": {
@@ -3662,7 +3696,10 @@
           "uid uuid"
         ],
         "limb": "b",
-        "note": "The limb-(b) disjunct is `app.is_document_approver_of`, measured role-free (a document_approvals lookup). ⚠ document_approvals holds 4 rows today, so `disjunct_present` is constructible — whether its approver is a CLEAN staff is a fixture question."
+        "note": "The limb-(b) disjunct is `app.is_document_approver_of`, measured role-free (a document_approvals lookup). ⚠ document_approvals holds 4 rows today, so `disjunct_present` is constructible — whether its approver is a CLEAN staff is a fixture question.",
+        "legacyClass": "rls_controlled_documents_approver",
+        "legacyClassSource": "MINE",
+        "stateColumn": "a public.document_approvals row naming the caller as approver-of-record"
       }
     },
     "commission.safety_events.read": {
@@ -3779,7 +3816,10 @@
           "uid uuid"
         ],
         "limb": "a",
-        "note": "The conjunct is `capa_plan.source = 'indicator'` — a PROVENANCE column no axis carries. ⚠ capa_plan holds ONE row and its source is 'rca' (measured), so `conjunct_met` has NO fixture at all until the gap rows land."
+        "note": "The conjunct is `capa_plan.source = 'indicator'` — a PROVENANCE column no axis carries. ⚠ capa_plan holds ONE row and its source is 'rca' (measured), so `conjunct_met` has NO fixture at all until the gap rows land.",
+        "legacyClass": "can_read_capa",
+        "legacyClassSource": "MINE",
+        "stateColumn": "public.capa_plan.source (= ‘indicator’)"
       }
     },
     "commission.referrals.metadata.read": {

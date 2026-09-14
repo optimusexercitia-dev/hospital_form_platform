@@ -150,16 +150,16 @@ REPS_STAFF = [
     # is (code, legacy class, resolution scope); the class names what `424`'s legacy column calls,
     # and the CALLABLE FORM plus its argument shape is declared as DATA in the enforcement manifest
     # at `permissions[<code>].arm3Door` — arm12 binds the two and refuses generation if they part.
-    ('commission.forms.read',              'policy:form_matrix_select',          'commission'),
-    ('commission.roster.read',             'policy:profiles_select_self_or_admin', 'commission'),
+    ('commission.forms.read',              'rls_form_matrix_targeted_version',          'commission'),
+    ('commission.roster.read',             'rls_profiles_comember_or_self', 'commission'),
     ('commission.meetings.read',           'can_reach_meeting',                  'commission'),
-    ('commission.meetings.cases.shell.read', 'policy:meeting_cases_select',      'commission'),
+    ('commission.meetings.cases.shell.read', 'can_reach_meeting_not_respondent',      'commission'),
     ('commission.meetings.minutes.sign',   'can_sign_meeting',                   'commission'),
-    ('commission.cases.deliberation.read', 'has_case_capability:read_case_deliberation', 'commission'),
-    ('commission.action_items.read',       'policy:action_items_select',         'commission'),
-    ('commission.cases.vote',              'guard:cast_case_vote',               'commission'),
-    ('commission.accreditation.read',      'policy:accreditation_frameworks_select', 'commission'),
-    ('commission.documents.read',          'policy:controlled_documents_select',  'commission'),
+    ('commission.cases.deliberation.read', 'case_caps_deliberation', 'commission'),
+    ('commission.action_items.read',       'can_read_action_item',         'commission'),
+    ('commission.cases.vote',              'cast_case_vote_guard',               'commission'),
+    ('commission.accreditation.read',      'rls_accreditation_frameworks_owner_null', 'commission'),
+    ('commission.documents.read',          'rls_controlled_documents_approver',  'commission'),
     ('commission.capa.read',               'can_read_capa',                      'commission'),
     # ⭐ THE ONE NON-CARRYING REP, and it is not filler: `commission.responses.create` is the ONLY
     # membership-gated WRITE policy in the database (matrix § 2), so it keeps the write polarity in
@@ -1081,6 +1081,16 @@ def coverage(cells, skipped, reps_by_role, disposition=None, exclusions=None, ax
                 f.append('arm12: representative `%s` declares an `arm3Door` but no memberGateArm '
                          'values beyond the inert one — the door is named and never exercised, so '
                          'the declaration is decorative' % _code)
+            _lc = (_door or {}).get('legacyClass')
+            if _door and not _lc:
+                f.append('arm12: representative `%s`\'s `arm3Door` carries no `legacyClass` — '
+                         'the vector and the suite would each pick their own name for the same row, '
+                         'which is the synonym drift one-name-per-row exists to stop' % _code)
+            elif _lc and _lc not in {r[1] for r in reps_flat if r[0] == _code}:
+                f.append('arm12: representative `%s` is swept as legacy class `%s` but its '
+                         '`arm3Door.legacyClass` says `%s` — the vector column and the manifest '
+                         'disagree about the row\'s ONE name'
+                         % (_code, sorted({r[1] for r in reps_flat if r[0] == _code}), _lc))
             if _door and not _door.get('expression'):
                 f.append('arm12: representative `%s`\'s `arm3Door` carries no `expression` — 424 '
                          'has nothing to build its legacy side from' % _code)
