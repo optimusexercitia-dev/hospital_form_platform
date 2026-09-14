@@ -4061,3 +4061,9 @@ verdicts with the verdict breakdown, any `NOTICED` / `DIRTY` / `ERROR` / `UNPROV
 moment it lands, and a line if the sweep's parent process (3951) dies — exit at 75/75. Read-only on
 a file; the DB stays the sweep's. Each event is relayed to the PO as a status line; a verdict to
 act on is relayed immediately, not at the next ten.
+
+### 2026-09-14 13:24 — sweep status 22/75: all COVERED so far (lead watcher)
+
+22 predicate verdicts, 22 COVERED, 0 NOTICED / DIRTY / ERROR / UNPROVEN; last
+`app.can_read_event(p_event_id uuid, p_user_id uuid)`. Pace since 10:19 incl. baseline and four
+periodic resets: ~8.4 min per case ⇒ ~10.5 h end to end, finish ≈ 21:00.
