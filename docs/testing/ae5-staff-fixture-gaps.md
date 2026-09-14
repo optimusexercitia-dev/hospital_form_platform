@@ -187,3 +187,10 @@ it **in isolation** from ordinary membership — every seeded grant-holder would
 membership path regardless, so a probe against any of them proves nothing about the residual arm
 specifically. Backend is seeding one such principal in T7. No fixture id proposed here — backend's
 call, in T7's own seed work.
+
+**`public.meeting_closed_session_items` — empty (measured by backend, not this round)**: **0** rows
+system-wide, so `get_reserved_session_items` returns nothing for any principal today. The fourth C1
+site's witness — withdrawals visible in a `commission_default` session, denied in a restricted one —
+is therefore an **empty set, not a decision**: a probe against it today observes absence-of-data, not
+a grant/deny answer, and cannot be read as either polarity. Backend seeds one session with two items
+in T7. No fixture id proposed here — backend's call, in T7's own seed work.
