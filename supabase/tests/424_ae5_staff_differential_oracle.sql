@@ -73,8 +73,13 @@ select
 -- §2 — the cell set, and its controls.
 -- ============================================================================
 
-select cmp_ok((select count(*)::int from authz_differential_cells_staff), '>', 5000,
-  '2.1 CARDINALITY CONTROL: the generated `staff` cell set is populated (6372 at `a0723554`). An '
+select cmp_ok((select count(*)::int from authz_differential_cells_staff), '>', 2000,
+  -- ⚠ RE-MEASURED after the two named-defect fixes (`5ace5d91`, HEAD `f40babdc`): 3708, down from
+  -- 6372 — the population SHRANK because 2664 cells that used to probe a scope-mismatched CCIH
+  -- resource are now a NAMED skip (`no_resource_fixture_at_this_scope`), counted in the coverage
+  -- census rather than emitted as a cell that could never agree with `catalog`. The floor is
+  -- lowered to match, never raised to hide a further shrink — read here, not guessed.
+  '2.1 CARDINALITY CONTROL: the generated `staff` cell set is populated (3708 at `f40babdc`). An '
   'empty or truncated vector file would let §§4-5 iterate nothing and pass having asserted nothing.');
 
 select ok(
