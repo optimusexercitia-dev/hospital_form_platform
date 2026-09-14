@@ -1293,3 +1293,23 @@ never `legacy`, never a committed migration; every red named before it moves.
 
 Backend writes the SQL now (migration, `405` § 4.2b/4.3b, `426`, ADR 0211 D2 aligned to A1/A2) but
 ⛔ runs nothing until the lead hands the stack back after the tester's `424` run.
+
+### 2026-09-13 — INCIDENT: a written-but-unrun migration was applied by the tester's reset (lead)
+
+**What happened.** The lead told backend to *write* T6's SQL and *run nothing* while the tester held
+the stack. The tester's `supabase db reset --local` (exit 0) applied the UNTRACKED
+`supabase/migrations/20261003007460_ae5_staff_wrapper_cutover.sql` — a reset applies every `.sql`
+physically present in the directory, tracked or not — flipping `staff` to `authoritative` and
+creating both wrappers, which breaks `424`'s precondition (`staff = test_validation`, the fact that
+makes `candidate_has_permission` the oracle). ⭐ The tester noticed BEFORE running `test:db`, measured
+the catalog, and stopped rather than adapting § 3.2b to tolerate `authoritative` — the correct call:
+the differential runs before the cutover by template, never after.
+**Cause: the lead's instruction.** "Write but do not run" is not a safe state for a migration file
+in a shared checkout: the file IS the run the moment anyone resets. ⛔ Not backend's fault.
+**Remedy.** Backend moved the migration and `426` to the session scratchpad (`t6-wip/`) and saved
+its `405` edit as a patch; the lead restored `405` from HEAD (`git checkout --`, lead-only). The
+tester resets again (the catalog still carries the applied migration until then) and runs `424`.
+**Lesson candidate (LESSONS at the Record step):** *a migration file in the tree is live for every
+session that resets, tracked or not; unrun SQL waits OUTSIDE `supabase/migrations/`.* Extends
+`shared-local-stack-single-owner` ("db reset applies the directory you stand in") with: the
+directory includes what git does not track.
