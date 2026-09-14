@@ -93,17 +93,16 @@ posted, not executed.
 
 ### In progress
 
-**PO ruled P1 · P2 · P3 on 2026-09-14** (verbatim in the record: *"P1 accept the exception, P2
-intended composition, P3 pending GRANTED"*). `backend`'s
-vector fix round is committed (`8aed9422`: doors' READ tables declared as data, `probe_table` /
-`probe_column` emitted, every cell smoked with a planted-absent control); run 3 was attributed twice
-independently (tester A–H, backend) with zero disagreement on mechanism and one ruling, **L11** (row 16
-probes the policy leg P1 was ruled on; its function door's `is_active` guard carried to the bug
-register); backend's round 5 is committed (`774edd50`: door truth tables measured before binding, L11
-applied to all eleven P1 doors, and every cell's EXPECTATION smoked — 3024/3024); **`424` GREEN
-on run 5** (24/24, committed `9c19fbdd`); § 6 witness QUOTED (`ok 19 … makes the oracle RED` / `ok 21 … RESTORE IS COMPLETE`); **AC-5 ticked** (full suite `Result: PASS` on `test-db-run6-full.log`, 330 + 387 fixed with every delta named); the stack is with `backend` for the T6 red-first sequence (files held in the session scratchpad
-`t6-wip/` since the incident). `410` § 6.2 reads `armInterface` (L6, both discrimination halves
-witnessed); `387` re-pinned with every delta attributed; `npm run lint` exit 0.
+**AC-5 closed 2026-09-14.** The `staff` differential (`424`) went through five iterations of the
+execute-and-compare mechanism (458 → 268 → 204 → 60 → 0 red cells, every round's causes named in the
+record) and two of the full-suite loop; the vector's expectations are now smoked by the generator
+before handover (3024/3024). Rulings made on the way, all mechanism, the PO's P1/P2/P3 untouched:
+L6–L10 (record) and **L11** — every P1 coordinate probes the policy leg P1 was ruled on; two function
+doors (`can_read_action_item`, `can_read_document`) carry an `is_active` gate the policy leg lacks,
+noted on the inactive-bypass bug for its fix unit. **T6 is with `backend`**: the wrapper cutover
+under ADR 0211, red-first per the acked plan (record `:677`, ack + A1–A4 `:1266`), the three held
+files returning from the session scratchpad in order (426 + 405 patch first, observed RED; the
+migration only then). `tester` idle. `npm run lint` exit 0 at HEAD.
 
 ### Next
 
