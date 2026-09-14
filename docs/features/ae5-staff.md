@@ -116,9 +116,10 @@ deny-class values. Lead reviews the T6 plan (full review). Then T6, T7, T8–T10
 
 ### Blockers
 
-⚠ `npm run lint` is RED on gates 9 (proposed-ADR stamp drifted by 0211) and 19 (`411` md5 pin) and
-`test:db` carries 11 count-pin reds + `403` § 3.2b red by instruction — all routed (record L3/L4,
-gate 9 review), none a behaviour finding. ⛔ ADR 0211 D2 (how the cutover is proven without a
+⚠ ~~`npm run lint` is RED on gates 9 (proposed-ADR stamp drifted by 0211) and 19 (`411` md5 pin) and
+`test:db` carries 11 count-pin reds + `403` § 3.2b red by instruction~~ — **CLEARED 2026-09-14**,
+re-measured not recalled: `npm run lint` **exit 0** (eslint `--max-warnings=0`; gates 9, 12, 13, 19
+all green) and `test:db` leaves only `424` (the tester's) after the `387` re-pin (`aa95c723`). ⛔ ADR 0211 D2 (how the cutover is proven without a
 `candidate_holds_role`) is unreviewed by the PO until T6's plan.
 ⚠ Owed to T7/T13, not blocking now: `app.can_reach_case_on_member_surface` has ZERO production
 callers (matrix § 8.3); 6 of 9 seeded CCIH `staff` personas carry a non-role case reach (§ 8.2).
