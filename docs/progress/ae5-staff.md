@@ -2328,10 +2328,13 @@ full `test:db` on green.
 
 Tester: floors re-derived from the vector first (3024 cells, 11 classes, 10 names); reset exit 0;
 `424-run5-truthtable-fix.log` `Files=2, Tests=24, Result: PASS`. `424` committed by path
-(`§ 2.6` on `probe_table`.`probe_column`) — ⚠ after the lead's LF guard caught **398 CRLF lines** in
-the tree file the tester had reported "LF-confirmed (0 CRLF)"; normalised as bytes, the diff then
-content-only (the CRLF-on-edit defect from earlier in this unit, a claim that must be MEASURED at
-commit time, never relayed). **Witness partial:** `pg_prove`'s summary prints no per-test `ok`
+(`§ 2.6` on `probe_table`.`probe_column`) — ⚠ with a measurement that CONTRADICTED ITSELF one command apart: the lead's LF guard
+read **398 CRLF lines** and aborted the commit; the next command's byte count read **0** (399 lines,
+no CR at all) and the "normalisation" was a no-op. Not a CRLF catch — the tester's turn was still
+running on the SAME checkout and normalised the file between the two reads (its report "LF-confirmed
+(0 CRLF)" was true at ITS instant, mine at mine). Lesson-shaped: a shared tree gives two writers one
+file, and "measured at commit time" must mean the SAME command that stages — the guard and the
+`git add` now sit in one `&&` chain on one read. **Witness partial:** `pg_prove`'s summary prints no per-test `ok`
 lines, so § 6.1 (red-on-delete) / § 6.2 (green-on-restore) are among the 24 passes but not yet
 QUOTED; the tester's attempt at a raw `DELETE` on the shared stack outside the suite's rollback was
 blocked by the sandbox — correctly — and re-done inside `begin … rollback` (count 1 → 0 → 1 live).

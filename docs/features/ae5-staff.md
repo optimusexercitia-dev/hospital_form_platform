@@ -100,8 +100,11 @@ vector fix round is committed (`8aed9422`: doors' READ tables declared as data, 
 independently (tester A–H, backend) with zero disagreement on mechanism and one ruling, **L11** (row 16
 probes the policy leg P1 was ruled on; its function door's `is_active` guard carried to the bug
 register); backend's round 5 is committed (`774edd50`: door truth tables measured before binding, L11
-applied to all eleven P1 doors, and every cell's EXPECTATION smoked — 3024/3024); `tester` runs
-`424` run 5, the last iteration on this mechanism, to green with the able-to-fail witness; then the stack goes to `backend` for the T6 red-first sequence (files held in the session scratchpad
+applied to all eleven P1 doors, and every cell's EXPECTATION smoked — 3024/3024); **`424` GREEN
+on run 5** (24/24, committed `9c19fbdd`); owed before AC-5 ticks: the § 6 witness lines verbatim, and
+the full suite green — `330` (controlled document without a core `documents` row: the row-16
+fixtures) and `387` (profile-visibility md5 pins moved by the `gap.*` personas) are with `backend`,
+every delta attributed; then the stack goes to `backend` for the T6 red-first sequence (files held in the session scratchpad
 `t6-wip/` since the incident). `410` § 6.2 reads `armInterface` (L6, both discrimination halves
 witnessed); `387` re-pinned with every delta attributed; `npm run lint` exit 0.
 
