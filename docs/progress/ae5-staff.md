@@ -310,6 +310,194 @@ error the review found — a summary sentence disagreeing with the table under i
 **Gates:** `npm run lint:registers` and `npm run lint:progress`, exit codes read bare, before the
 commit.
 
+### 2026-09-13 — round 3: T3+T5 · T4 · ADR 0211 (backend)
+
+Commits `97e90f82` (T3+T5) · `562c184a` (T4) · this entry with ADR 0211 + the bug filing.
+Stack: I own it; **one `supabase db reset --local`, exit 0**, after checking `pg_stat_activity`
+for peer sessions (none non-idle). Transport and evidence rules as in the r1 entry.
+
+**L1 recorded, and its implementation forked — surfaced, not decided silently.** Lead decision L1
+(option (a′)) is a `staff`-specific gate-arm axis sized by matrix § 5.3's eleven coordinates, with
+limb (b)'s role-free disjuncts given an `unreachable`-style mandatory value. ⭐ **The axis is BUILT
+exactly so** — `memberGateArm` in `authz-matrix-axes.json`, five values, `disjunct_absent` mandatory
+and carrying row 15's PUBLIC-arm reason. ⛔ **What moved is its SWEEPER, and the reason is measured:**
+`app.is_member_of_for` — the legacy subject of every `staff` representative — **consumes none of the
+eleven terms**. They live in the CALLER (a policy qual or a door body), never in the membership
+predicate the differential calls. Sweeping the axis in the RESOLVER differential would emit cells
+differing only in a column their own predicate never reads: the exact inflation the gate-scoped
+`caseReach` rule deletes, measured at 2592 duplicate cells when it was tried there.
+⚠ **`caseReach` is not a precedent for sweeping it**: its carrying rep's legacy CLASS *is* the door
+(`can_read_professional_profile`), so the reach is a real input. No `staff` rep has a door as its
+class, because `staff` has exactly ONE legacy-equivalence gate. ⇒ the sweep's owner is the DOOR
+differential `425` (T12), named in the disposition string so it cannot be lost. **⛔ This is a fork
+on L1's implementation for the lead to accept or reject; the axis and its PO-approved coordinate
+sizing are unaffected either way.**
+
+⭐ **The reconciliation with `424`'s header CHANGED MY DESIGN, and the tester was right.** My
+in-flight version made the gate arm move `expected_legacy_granted` (`conjunct_unmet` → legacy denies;
+`disjunct_present` → legacy grants). `424`'s header says the opposite: *"`expected_legacy_granted`
+for these rows is `expected_granted` UNLESS the PO names a divergence — none is proposed here."*
+Checked rather than argued: **424's legacy side is `is_member_of_for`**, which knows nothing about
+`visibility_policy` or `owner_commission_id IS NULL`, so neither column moves. My reading was wrong
+and it is the reading that produced the whole sweep design. ⇒ **no disagreement remains** with
+424's per-class table; my § 5.3 values map onto it (`conjunct_met`/`conjunct_unmet` ↔ its GRANTED/
+DENIED conjunct rows; `disjunct_present`/`disjunct_absent` ↔ its role-free rows).
+
+**⛔ ONE MEASURED CORRECTION TO BOTH DOCUMENTS — row 12 is not a status guard.** `424`'s table says
+*"ethics-case status guard (HC0J0) precedes membership · votable status / non-votable status"* and my
+matrix § 5.3 said *"the ethics-case status guard"*. Measured in `public.cast_case_vote`'s live body:
+
+```
+if not exists (select 1 from public.ethics_case_details d where d.case_id = v_case_id)
+  then raise exception '…' using errcode = 'HC0J0'
+```
+
+It is an **ethics-details EXISTENCE** guard, not a status guard. The fixture pair is a case WITH and
+a case WITHOUT an `ethics_case_details` row — ⛔ not two case statuses, which is what both documents
+would have had the tester build. Both are wrong in the same direction and neither is corrected in
+this commit (424 is the tester's; my § 5.3 correction is owed with the next matrix touch).
+
+**The tester's three unverified rows, answered by targeted query** (its § 8 asked for exactly this):
+`ROW 12` — `public.cases` holds `completed x1, pending x3, not_started x4`, and per the above the
+axis is the wrong one entirely. `ROW 16` — `document_approvals` has **4 rows**, so limb (b)'s
+`disjunct_present` is constructible today (whether the approver is a *clean* staff still needs
+checking). `ROW 19` — ⛔ **`capa_plan` holds ONE row and its `source` is `rca`, not `indicator`**, so
+row 19's `conjunct_met` coordinate has **no fixture at all**; a gap the report did not list and which
+I add to § 8's list. Confirmed from the same sweep: `accreditation_frameworks` **0 rows** (row 15),
+all meetings `held` (row 8 needs `in_signature`), all `commission_default` (rows 6/7), one
+`committee` action item (row 11).
+**`offboarded`, located:** `public.hospital_affiliations` (`ended_on` / `voided_at`), ended by
+`app.end_affiliation_impl` / `app.void_affiliation_impl`, read by
+`app.person_has_active_org_affiliation` / `app.person_is_anchorless`. Live: **5 rows, 0 voided, and
+32 profiles already hold zero live affiliations** — which is why AE4 excluded the coordinate: most
+personas are ALREADY offboarded, so an `offboarded` cell is byte-identical to their active cell
+unless a purpose-built pair is seeded.
+
+**T3+T5 (`97e90f82`).** Axes: `subjectRoles = [staff, staff_admin]`; the `role` axis gains `staff`;
+the scope rule restated at the commission TIER; `memberGateArm` added; `resourceLifecycle`'s
+per-operation map declared non-empty for row 20 in the manifest. Generator: `REPS_BY_ROLE` with
+**five** `staff` reps, each a code `staff` HOLDS and chosen to cover every `memberGateArm` value; the
+`len(subject_roles) == 1` assert **replaced, not deleted**, by a bound fusing `subjectRoles` to the
+rep lists (this side's mirror of the `.mjs` ARM C3); `role` enters the cell tuple at column **14**
+and `CELL_AXIS_COL` — which makes the old arm7 exemption comment false, so it is rewritten rather
+than left; arms **2, 4 and 5 now run PER ROLE**, because over the union each is satisfiable by
+`staff_admin` alone (the AE4.7c masked-arm shape). **arm5 re-predicated** on the role's own
+resolution scopes.
+⭐ **The output is ONE TABLE PER ROLE, and that is what keeps AE4 non-regressive.**
+`authz_differential_cells` keeps its columns and its **1728 rows — verified byte-identical to HEAD
+by a sorted diff** — so `403` needed no edit and its greenness after the landing is evidence, not
+hope. `staff` gets `authz_differential_cells_staff` (**1080 rows**), identical column list.
+⛔ The alternative (one shared table + a `role` filter in 403) would have forced ~20 count-pinned
+sections in a suite this increment has no finding against.
+**Cell totals, as OUTPUTS:** matrix cells **4004** (was 2002 — the role axis doubles it), differential
+cells **2808** = 1728 + 1080, manifest rows **61**.
+**Self-test: 23 fixtures, each firing its OWN arm** (LEARN-103), plus the two the lead named —
+`arm7 role value dropped` (**a fixture that could not exist before this landing**: `role` had no
+column, so arm7 fell back to `emitted = declared` and could not fire for it) and **arm5's QUIET
+half**, a new negative-control block asserting the re-predicated arm does NOT false-red a
+commission-only role. Both halves of arm5 are therefore proven: loud on `staff_admin`, silent on
+`staff`.
+**T5:** `approvedSuites.staff` naming the two design docs and `424` (named, not created); snapshot
+43 → 61; 18 `pending-rekey` rows with the `staff`-shaped `layer1Gate` `app.has_role_any_via_is_member_of`;
+a new **`armInterface`** field carrying matrix § 5.4's subject / hat / `definerSurface` **per site**,
+with each `conditional` hat carrying a `hatNote` naming where it is required and where ignored.
+⚠ `armInterface` is deliberately **not** in `requiredPermissionKeys`: the 40 pre-AE5 rows have no
+such measurement behind them and making it required would put an empty list on all of them, turning
+a declaration into the default it exists to prevent.
+
+**T4 (`562c184a`).** Migration `20261003007440_ae5_staff_seed.sql`, one paragraph as acked: it
+mirrors `20261003007160` and differs in three ruled ways — it INSERTS 18 permissions (43 → 61), it
+grants them to `staff_admin` too (42 → 60, PO item 4), and it flips `authz.roles.staff` to
+`test_validation`; `staff` gets its 20 approved codes; a count-verified `do` block asserts
+61 / 20 / 60, that exactly one role flipped, and that exactly one `authoritative` and one
+`test_validation` role remain; it re-keys nothing and seeds no implication edges.
+**Rename by grep, not recall:** 3 files carried `commission.responses.fill`. The matrix is the live
+one — renamed at row 2 and § 9.3 with a dated marker, § 8.1 given the ruling, item 7's options kept
+as history (ADR 0105). The record and the review keep the old name: they are historical documents.
+
+**`test:db` on the fresh reset — 16 reds of 9133 observed, 11 after the in-scope repairs.**
+`410` went **4 reds → GREEN**: § 1.2 (43 → 61), § 4.5 (40/3 → **58/3** — the second number did NOT
+move, because T4 seeds a catalog and re-keys nothing; a landing that moved both would be a re-key
+hiding inside a seed) and § 7.4 (1 → 2 suites), each re-pinned **after** being observed red and each
+carrying a dated marker saying so; § 2.5 fixed by correcting the manifest's `catalogSnapshot`
+(`staff` → `test_validation`, head → `20261003007440`), **not** by editing the test.
+`role_manifest.psql` regenerated so the artifact follows the catalog again (`411` 2 reds → 1).
+⛔ **`403 § 3.2b` is RED and LEFT RED**, as instructed — its own message says *"Do not 'fix' a red
+here by repointing the suite back — record it."*
+
+**PROPOSED (not applied) — how `403 § 3.2b` is re-claused.** Today it asserts
+`count(*) from authz.roles where state = 'test_validation' = 0`, standing in for the property it
+actually guards: that `candidate_has_permission` and `has_permission` are indistinguishable **over
+this suite's own fixture**, which is what makes 403 evidence about the runtime path too.
+⇒ **Re-clause it from a GLOBAL count to a SUBJECT-SCOPED one**: assert that no role appearing in
+`authz_differential_cells` — staff_admin-only since the per-role split — is in `test_validation`,
+which is exactly the property, and is what the global count meant while only one role existed.
+**Pair it with a new § 3.2c** pinning the SET of `test_validation` roles BY NAME against the
+manifest's `approvedSuites` minus this suite's own subject, so a second role entering that state is
+still **asserted** rather than merely tolerated, and the suite names which other suite owns that
+role's evidence. ⛔ Without the second half the re-clause is a weakening: the first half alone goes
+quiet on exactly the event the original was watching for.
+
+**⚠ REDS OUT OF THIS ROUND'S OWNERSHIP — reported, not touched.** All are count pins the seed moved;
+none is a behaviour finding.
+- `401` (6): § 3.2 the non-legacy-role tripwire (now two), § 14.6 (43), § 14.7 (42 of 43),
+  § 14.8 (*"no other role has a grant"*), § 19.2 (six classes over 43), § 19.5 (cardinality 43).
+- `409` (2): § 1.3 (40 of 43 carry no literal → 58 of 61), § 5.5 (the named entitlement list).
+- `411` (1): § 0b, the `role_manifest.psql` **md5 content pin** — `a6b2308068d4b0f3e59e3f74e4539245`
+  → `abfc8621f6c3e82935c98c2e9bfc8424`.
+- `422` (1): § 4.8 (*"`authz.role_permissions` … still exactly one granting role"*).
+- ⛔ **Gate 19 (`lint:role-manifest`) is RED for ONE COUPLED REASON**: the generator's own message is
+  *"Regenerate, then move the pin"*, and the pin lives in `411`. Regenerating was correct and in
+  scope; moving the pin is not. ⚠ I kept the correct artifact rather than reverting to keep a gate
+  green — a stale artifact that matches its pin is a false record, and the coupling is better
+  visible than hidden.
+- ⛔ **Gate 9 (`lint:adr-index`) is RED**: adding a `proposed` ADR drifts
+  `docs/decisions/proposed-review.json`'s stamped set. ⚠ **I did NOT add `0211` to that array.** The
+  stamp records the set as of the last REVIEW, and its own comment says discharging means re-reading
+  each of the eight listed ADRs against what is built. Adding my id without doing that would claim a
+  review that did not happen — the stamp-with-unenumerated-readers shape. The file is also outside
+  this round's ownership.
+
+**ADR 0211 — `docs/decisions/0211-staff-gets-its-own-single-role-wrapper.md`, Status `proposed`.**
+Number **re-measured at the moment of creation** across all 10 local + remote refs: highest is
+**0210** ⇒ **0211** (`adr:index` independently reports *"next free 0212"* after the write).
+D1 `app.is_commission_staff_of(_for)` delegating to `authz.holds_role(…,'staff','commission',…)`,
+`search_path = ''` + schema-qualified body, the pair created together (ADR 0200).
+D2 the cutover is proven by a **three-part** obligation because no `candidate_holds_role` exists —
+the migration's own snapshot/assert over the four properties, a pgTAP differential under
+`test_validation` against the **constructed** equivalent (`has_role_any` restricted to `staff` rows,
+because an unrestricted comparison would report every `staff_admin`-only membership as a divergence),
+and PA-F8-STAFF-2's condition asserted as cells (`memberships_one_commission_role_uq` + the two-value
+tier). ⭐ The three are not redundant: the first sees a changed property and no answer, the second a
+changed answer and no property, the third guards the premise that makes the second total.
+D3 `is_member_of` stays a role-set predicate until BOTH commission roles are `authoritative` —
+`holds_role` returns false for a non-authoritative role, so re-expressing early is a silent
+revocation across **82** catalog objects.
+⚠ Two link slugs in the first draft were written from memory and resolved to nothing (`0078`,
+`0174`); caught by resolving every link against the filesystem before `adr:index`. Same class as the
+r2 finding — a location is a measurement.
+
+**Bug filed.** `BUG-AE5-STAFF-RESPONSE-OWNERSHIP-SURVIVES-REVOCATION` (open · high · responses) with
+a per-bug doc, carrying § 8.1's transcript verbatim. **PA-F8-STAFF-1 is withdrawn as a PA-F8 item**
+under the item-7(A) ruling — ⛔ the finding is not downgraded, only its register moved, and the doc
+says so at the top. ⚠ **Regression protection: NONE today**, and that is part of the filing: no cell
+constructs "membership revoked while a draft is open", and T7 is exactly when re-keying the five
+ownership policies would silently break every lapsed member's draft while looking like tidying up.
+⚠ `BUGS.md`'s header sum was re-derived in the same edit (48 + 5 + 111 = 164 → **48 + 6 + 111 = 165**):
+the sum IS the check, and a sum one short reads exactly like a sum that is right.
+
+**⛔ FIXTURE GAP ROWS ARE NOT SEEDED — left to a follow-on commit, as the lead's option allows.**
+The tester's § 8 list plus my additions (row 19's missing `indicator`-sourced `capa_plan`; row 12's
+corrected mechanism) touch personas many other suites read — adding a `staff` membership to
+`novato.pendente` / `desativado.conta` in particular could move suites that assume they are
+committee-less — and validating that needs its own full `test:db`. Scoping it against a 9133-test
+suite in the same commit as the seed would have made a red ambiguous between the two changes.
+
+**Gates, exit codes read bare.** `lint:authz-vectors` **0** · `lint:registers` **0** ·
+`lint:progress` **0** · `lint:adr-index` **1** (the `proposed` stamp, above) ·
+`lint:role-manifest` **1** (the `411` md5 coupling, above) · `test:db` **1** (11 reds of 9133; `410`
+green, `403 § 3.2b` red by instruction, the rest out of ownership).
+
 ## T3 plan — generators MULTI-ROLE ⛔ NOT EXECUTED; awaiting the lead's ack
 
 Read-only inspection of `scripts/gen-authz-differential-cells.py` (1218 lines) and
