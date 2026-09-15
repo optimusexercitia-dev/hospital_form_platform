@@ -4874,3 +4874,18 @@ added a scope-less audited row (which one: measurement D, tester) and it now is.
 defect + a seed row of ours that reached it. Four reds, four surfaces; the fix for this one is the
 spec's own claim made into its query (the feed is scope-less, so resolve with the three `is.null`
 predicates) — after D shows the 14 rows are one scope-less + 13 scoped chains.
+
+### 2026-09-14 — `e2e:prod` batch 16 RED: `phase17-documents` AC-10 anchors the hospital register on `DOC-0002` "(still unique)" — this unit's arm-3 row-16 fixture coded its Farmácia documents `DOC-0002` (lead)
+
+Batch 15 green (65). **Batch 16:** `66 passed · 1 failed · 67/67 · pw_exit 1` —
+`phase17-documents.spec.ts:617 AC-10: hospital_admin sees the cross-commission register`; at `:625`
+`locator('tr').filter({ hasText: 'DOC-0002' })` — strict-mode violation, 2 rows: `DOC-0002v1 POP de
+Isolamento` (CCIH, the base seed's `:2851`) and `DOC-0002 Documento da Farmá…` (this unit's seed
+diff `:344–348`, "Documento da Farmácia A/B (fixture arm-3 linha 16)", `policy`, `effective`). The
+spec's own comment at `:619–620`: "Farmácia (same hospital) also has a DOC-0001 … Anchor on DOC-0002
+(still unique)". The domain's uniqueness is `controlled_documents_commission_code_uq (commission_id,
+code)` (`20260713000000_controlled_docs_core.sql:42`) — a code is unique PER COMMISSION, and the
+register is cross-commission, so the anchor rested on a seed coincidence, stated as such in the
+comment, which this unit's fixture ended. Latent spec premise + a fixture of ours. Five reds; this
+one's fix is the spec's anchor (the CCIH row by code AND commission or title), tester's, unless the
+tester's measurements change the picture.
