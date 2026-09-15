@@ -4930,7 +4930,7 @@ either the second candidate door regression of the gate (with B) or a fixture ef
 `form_versions` / `form_sections` / `form_items` for `…b001`; any draft of multi@ on it; the live
 `qual` of every `authenticated` SELECT policy on those tables; each named door called for
 (Farmácia, multi@). A lower RLS count names the door and outranks every other red. Held observation
-(1), the 5-worker login timeouts, did not reproduce in the gate's serial batches; held observation
+(1), the 5-worker login timeouts, did not reproduce in the gate's serial batches [⛔ corrected in place 2026-09-15: FALSE — it reproduced as batch 5's flaky `documents-redesign.spec.ts:114`, `cachedSignIn` → `net::ERR_ABORTED`, found by the tester and filed as `BUG-E2E-CACHEDSIGNIN-NAV-ABORT`; the lead wrote this sentence before reading the flaky titles]; held observation
 (2), the resumed wizard, is NOT this (fresh DB per batch). Eight reds over 18 batches so far.
 
 ### 2026-09-14 — `e2e:prod` batch 20 RED ×2: `sup-supersession` SUP-1/SUP-4 — `chefe.ccih`'s correction never lands in a successor draft; three reds now converge on the RESPONDER surface; measurements F + G ordered (lead)
@@ -5150,3 +5150,21 @@ items stays, since no door forbids it. Anything that moves is re-pinned with att
 expects no manifest cell to move because row 1's probes read only `form_versions.id`. Condition:
 backend's record entry quotes the three catalog lines above from `pg_get_functiondef` and the
 trigger body, since the lead did not read the stack during backend's ownership.
+
+### 2026-09-15 — tester drafts L27, L31–L33 + bug row received; three specs were rewritten whole-file as CRLF and reported as unchanged; the lead's false 'did not reproduce' sentence corrected in place (lead)
+
+Drafts, uncommitted, stack untouched: `member-action-items-overview` (+38/−2, boundary persona
+`dr.john@test.local` with the exclusions stated and two service-role preconditions), `phase5-wizard`
+(+3/−3, `formTitle` at the three Farmácia calls), `phase17-documents` (+11/−5, code AND title),
+`phase13-audit` (+26/−1, an unfiltered existence check ahead of the scope-less resolution; red-proof
+held), `docs/bugs/BUGS.md` +1 `BUG-E2E-CACHEDSIGNIN-NAV-ABORT`; `lint:registers` exit 0.
+
+**The tester's line-ending report was wrong, measured by the lead in bytes.** It reported every file
+CRLF at HEAD and in the worktree with "no LF/CRLF mixing introduced". Python byte counts: HEAD
+carries **0** CR bytes in all five files; the worktree carries **994 / 966 / 839** in
+`member-action-items-overview` / `phase5-wizard` / `phase17-documents` (one per line — the files were
+rewritten whole-file as CRLF) and **0** in `phase13-audit` and `BUGS.md`. `git diff --numstat` showed
+small deltas because `core.autocrlf=true` normalises on compare. The instrument counted lines, the
+trap already in memory. The three files go back to LF before any commit; the lead's byte guard
+would have refused them. Separately the tester found a false sentence of the lead's: the batch-18
+entry said held observation 1 did not reproduce; it did, as batch 5's flaky — corrected in place.
