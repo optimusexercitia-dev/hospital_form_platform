@@ -62,7 +62,7 @@ Each is the template step it names; the witness for every box is a dated entry i
       1 → 2 only after being observed RED at 1.
 - [x] **AC-9 Runbook** ✅ **2026-09-15** (record: § 7.0b/7.3/7.3.1 + template SECTION G verified on the catalog `5976bde0`, zero `⏳ verify` markers, every section A–G parsed inside `begin … rollback`, a stripped-quote plant reds). Was: `staff` worked example in the rollback runbook + template, both revert shapes;
       ⛔ never a committed migration ([PA-F9]).
-- [ ] **AC-10 Gate.** CLAUDE.md §6 step 1 in full: the four authz arms; the door sweep BOTH arms in one
+- [x] **AC-10 Gate.** ✅ **2026-09-15** (record: AC-10 gate record — build complete at `a3740cdb`, declaring `e2e:prod` GREEN at `dc08f96f` 1270 passed · 0 failed). Was: CLAUDE.md §6 step 1 in full: the four authz arms; the door sweep BOTH arms in one
       invocation with the deriver's `SCOPE:` line quoted and its exit read bare; the set-valued home;
       `SELFTEST=1` with `bash --version`; `RESET_EVERY` checked (port, then prove); NOTICED quoted as
       evidence; CARRIED rows dispositioned; lint · typecheck · `test:db` on a fresh reset ·
@@ -93,22 +93,19 @@ posted, not executed.
 
 ### In progress
 
-**AC-10 BLOCKED — `e2e:prod` GATE RED 2026-09-14:** `1253 passed · 10 failed · 3 flaky · 6 did-not-run ·
-21 batches`, `gate-exit` 1. Step 1 green on a fresh reset (`af2c4566`): lint 0, typecheck 0, `test:db`
-275 files / 9218 tests PASS, the four arms HOLD, budget 339/433/772, sweep scope identical by
-checksum. Every AE5 spec passed. **All ten reds are this unit's seed rows, measured; none is a T7
-regression.** Backend's seed moves are committed and parked (`3391fd00`): the restricted meeting's
-link moved off the P3 masked case (chefe `t/t/1` there), the fixture draft's author moved off chefe,
-and both fixture versions gained their default section; `test:db` 275 / 9218 PASS on a fresh reset,
-`387` B8 re-pinned 8 → 7 with its mechanism corrected. A full `e2e:prod` pre-run on 2026-09-15 read `1262 passed · 1 failed · 4 flaky · 5 did-not-run`: every
-fix is green on the production build, and the one red is R-6's. `phase17-documents` AC-7 reds only
-under `next dev`, so it is ruled outside the gate and filed low. Fix loop iteration 1 of 5 closed. AC-1, 2, 5, 6, 7, 8, 9 ticked. `npm run lint` exit 0 at HEAD.
+**AC-10 ✅ 2026-09-15 — the Phase Gate's steps 1 and 2 are met.** Build complete at `a3740cdb` on one fresh
+reset: lint 0, typecheck 0, `test:db` 275 files / 9219 tests PASS, the four arms HOLD, budget 339/433/772,
+the door-sweep scope re-derived equal to T8's (read arm exit 3 RULED partial-by-construction, write arm
+CLEAN, 0 BLIND, 0 ERROR). The declaring `e2e:prod` at `dc08f96f` is GREEN: `1270 passed · 0 failed · 2
+flaky · 0 did-not-run`, both flakes matching filed bugs, one infra retry recovered. The first full run's
+ten reds were all this unit's seed rows, none a T7 regression; rulings L27–L33 and the PO's R-6 (option
+(a)) cleared them. All ten acceptance criteria ticked. `npm run lint` exit 0 at HEAD.
 
 ### Next
 
-Tester's measurements → rulings per red (fixture relocations and spec anchors by tester/backend
-ownership; R-6 by the PO) → a fresh `e2e:prod` → AC-9 verified on the catalog and committed → the
-AC-10 gate record → T14 QA → PO approval → Record.
+T14 QA review (`docs/reviews/ae5-staff-review.md`, APPROVED or CHANGES REQUESTED) → PO approval with the
+visibility items below → Record (ledger row, hub → `complete`, bug status cells, follow-ups dispositioned,
+run logs deleted, LESSONS candidates, the stale handoff flagged).
 
 ### Blockers
 

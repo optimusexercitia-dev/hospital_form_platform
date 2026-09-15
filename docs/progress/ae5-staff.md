@@ -5707,3 +5707,64 @@ Farmácia A and R-6. The lead checked every changed line of the diff is a commen
 0 CR bytes, and `npm run lint` exit 0.
 
 **Next:** the declaring full `e2e:prod` at this commit, launched by the tester and watched by the lead.
+
+### 2026-09-15 — AC-10 GATE RECORD: build complete at `a3740cdb`; declaring `e2e:prod` GREEN at `dc08f96f`, 1270 passed · 0 failed; AC-10 ticked; T14 QA next (lead)
+
+Phase Gate § 6 steps 1 and 2 for unit AE5-STAFF. Every exit below was read from its own output, never
+from a pipe; every figure was re-read by the lead from the log or catalog it names.
+
+**Step 1 — build complete, one fresh reset, at `a3740cdb`** (backend, re-read by the lead). Reset exit 0,
+`information_schema.tables` 445 three times, profiles 45. `npm run lint` 0 · `npm run typecheck` 0.
+`npm run test:db` exit 0 `Files=275, Tests=9219, Result: PASS`, `grep -c '^not ok'` 0. The authz ARMS:
+`census` 0 `=== INVARIANT HOLDS ===`; `hat` 0 `=== INVARIANT HOLDS ===`; `floor` 0 `=== INVARIANT HOLDS ===`;
+`FROMFINDINGS=1 wrapper` 0 `BLIND set size: 41` · `=== INVARIANT HOLDS ===`. Live budget app 339 · public
+433 · total 772 against the anchor. **The door sweep, both arms, T8's gate run, still covering this
+commit:** read arm `READ_ARM_EXIT=3 === RESULT: UNPROVEN (PARTIAL) — 73 gate(s) measured, 0 BLIND · 0 ERROR`
+RULED partial-by-construction (the two requested names that match no gate are
+`responses_insert_own`, dispositioned by the write arm, and `form_assets_select_member`, a storage policy
+no arm can reach, filed as `FUP-AE5-STAFF-DOOR-SWEEP-POLICY-ARM-EXCLUDES-STORAGE-SCHEMA`); write arm
+`WRITE_ARM_EXIT=0 === RESULT: CLEAN`; 73 swept, 71 COVERED, 2 NOTICED standing (errcodes 42501 and HC033),
+**0 BLIND, 0 ERROR**. Its scope line, quoted:
+`SCOPE: 4 file(s) — 4 committed (a02487bc..HEAD), 0 worktree, 0 untracked | filter: none | derivation: catalog`.
+Re-derived at `a3740cdb`: 75 names, `sha256(sorted)=c2934944fc881ded`, equal to T8's, by the recipe
+`tr ' ,' '\n\n' | grep . | LC_ALL=C sort -u | sha256sum | cut -c1-16`. SELFTEST ×2 green at T8 (46 / 0 / 0
+with the three `--- GROUP` lines; `SELFTEST TOTAL: 33/33`; bash 5.2.37).
+
+**Between `a3740cdb` and `dc08f96f`:** only documentation commits and one spec COMMENT
+(`e2e/ae5-staff-landing.spec.ts:30`); no file under `supabase/` or `src/` changed, measured with
+`git diff --name-only a3740cdb..dc08f96f -- supabase src` (empty). Step 1 therefore stands for the
+declaring run's commit.
+
+**Step 2 — the declaring `e2e:prod` at `dc08f96f`** (tester launched it detached, verified by PID 1504 and
+the banner `125 spec files → 21 batches · ≤70 tests/server · reset=1 · retries=1 · infra_retry=1`; the lead
+watched every batch). `gate-exit`: `GATE_EXIT=0 · verdict=GATE GREEN — 1270 passed, 2 flaky, accounted
+1272/1284 · finished=2026-09-15T06:08:07-0300`. Summary: `1270 passed · 0 failed · 0 infra · 2 flaky ·
+0 did-not-run · 21 batches`. The 12 not accounted are exactly the batches' skipped tests (1 + 1 + 1 + 5 + 1 +
+2 + 1 = 12, summed from the batch lines), so 1270 + 2 + 12 = 1284. **Build:** `reusing existing standalone
+build`, the one the R-6 subset gate built minutes earlier from the same app source; every batch printed
+`(identity) serving the tree this run staged · … build=hHPw2G3DjXYd2mgl7Xkby`. Seed data is applied by each
+batch's own reset and specs are read at run time, so neither needed a rebuild.
+
+**Targeted lines, read by the lead:** batch 6 `ok 19 … ethics-e2-procedure.spec.ts:486:5 › GATE-D` and
+`ok 30 … :977:5 › FLOW-7 cast votes`, with **0** `(retry #1)` lines in the batch — R-6's red is gone, and
+`BUG-E2E-ETHICS-GATED-NOVADECISAO-RETRY-FLAKY`'s close condition is met (its status cell moves at Record).
+Batch 16 `ok 34 … phase17-documents.spec.ts:494:5 › AC-7` and `ok 37 … :617:5 › AC-10`. Batches 10, 11, 14,
+18 and 20 green on every other L27–L33 target.
+
+**Flaky, both matching filed bugs, both passing on retry:** batch 1 `act-role-assumption.spec.ts:164` "The
+switch …", first attempt `locator.click: Test timeout of 30000ms exceeded … getByRole('menuitem', { name:
+/revisor\(a\) da qualidade/i })` — `BUG-E2E-ACTROLE-HATSWITCH-MENUITEM-TIMEOUT`, now in all three full runs;
+batch 12 `perf-sweep-wave2.spec.ts:453 P3-submissions-tamper`, first attempt `page.goto: net::ERR_ABORTED;
+maybe frame was detached? … navigating to "http://localhost:3000/"` — the signature of
+`BUG-E2E-CACHEDSIGNIN-NAV-ABORT`, recurring in a second spec (the row gains that sighting at Record).
+Batch 12's other `(retry #1)` lines are its serial describe re-running after that failure, not flakes.
+
+**Infra, once, recovered by the gate:** batch 10's first attempt `Timed out waiting 120000ms from
+config.webServer` before any test ran; the gate's `INFRA_RETRY=1` re-ran it on a fresh server and DB,
+40 / 40. This is the second such event across the unit's runs (the pre-run's batch 11 was the first); a
+third makes it a bug row.
+
+**Loop account.** Fix loop iteration 1 of 5 took the first run's 10 reds to 1 (the pre-run), all with new
+measured causes; R-6 cleared the last. No red recurred unchanged.
+
+**AC-10 ticked.** Next: T14 QA review (`docs/reviews/ae5-staff-review.md`), then PO approval, then Record.
