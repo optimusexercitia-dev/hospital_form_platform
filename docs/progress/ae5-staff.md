@@ -7651,3 +7651,37 @@ and it sits behind the `meeting_attendees`, `meeting_agenda_items`, `meeting_clo
   Q-2 (B). The final N is stated in the gate record.
 
 **State.** Nothing is executed. `tester3` is still working on F2 and F3.
+
+### 2026-09-15 — Q-1, Q-2 and Q-4 RULED by the PO: Q-2 (C) all 81 helper-routed policies in this unit, with a full plan for the PHI modules first; Q-1 convert the six AE4 forms FOR ALL policies; Q-4 raise the budget ceiling to 772 + N; AC-11 re-cut (lead)
+
+**The rulings, verbatim from the PO's answers:**
+- **Q-2:** *"All 81 in this unit"*. The option read: a full plan for the three patient-data modules comes first, then
+  all 81 are converted here.
+- **Q-1:** *"Convert them (Recommended)"*.
+- **Q-4:** *"Approve 772 + N"*. N is one per wrapper, and the final N and its justification go in the gate record.
+
+**The lead's reading of Q-2's scope, written down so the PO can correct it.** The subject is per-row catalog
+resolution on RLS paths that filter many rows.
+- **In scope:** every SELECT policy, and the USING clause of every UPDATE, DELETE or FOR ALL policy, among the 81.
+- **Stays scalar:** a policy whose only reach is an INSERT `WITH CHECK`. It is evaluated once per written row. The plan
+  already ruled `responses_insert_own` that way, and F2's behavioural probes target those checks.
+
+Each such exclusion is listed by name with its reason in the amended plan. Excluding one silently is not allowed.
+
+**What "full plan first" binds.** Nothing is executed on any path until the lead has reviewed the amended plan:
+- the per-door design for the Class-1 modules (safety event / RCA / CAPA, referrals, cases and interviews);
+- for each door, its conjuncts, hard denies, audit obligations under Rule 11 / Rule 12, and its equivalence argument;
+- the `_case_caps` content-bit finding (S5 resolves for a question it cannot answer).
+
+The mechanical set (40 T7 + 6 AE4) waits with the rest, so ADR 0212 and `428` are authored once, on the whole scope.
+
+**Execution plan for the planning step.** Under the PO's multi-subagent authorization:
+1. `backend3` emits the exact partition of the 81 from the live catalog, by reaching helper and module family.
+2. Planners work family by family, read-only, each writing a plan fragment.
+3. `backend3` integrates the fragments into ONE amended plan entry and checks that the union equals the partition:
+   none missing, none duplicated.
+
+**AC-11 re-cut in the hub** so it names its whole scope: the 40 T7 policies, the 6 AE4 forms FOR ALL policies, and
+the 81 helper-routed policies, less any INSERT-only exclusions named in the plan.
+
+**State.** `tester3` is still working on F2 and F3.

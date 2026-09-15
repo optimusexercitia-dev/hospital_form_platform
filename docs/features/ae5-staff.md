@@ -69,7 +69,7 @@ Each is the template step it names; the witness for every box is a dated entry i
       `e2e:prod` once green. Then QA (`docs/reviews/ae5-staff-review.md`), PO approval, Record —
       including the authz seam's slice + `## Current state` re-cut.
 
-- [ ] **AC-11 Performance (R-8 (a), T14 F1).** Every batch policy path T7 re-keyed resolves the permission once per STATEMENT through a caller-bound set-returning wrapper over `authz.authorized_scope_ids` (ADR 0182 extended, new ADR), with every OR arm and exclusion conjunct kept; `_case_caps` S5 computed only when `not v_eg` (mask unchanged, zero sibling calls on locked cases); a `staff` performance acceptance shows permission resolutions scale with distinct scopes, not protected rows, in both polarities, with function counts and plans recorded and a semantic ablation that reds.
+- [ ] **AC-11 Performance (R-8 (a) · Q-1 · Q-2 (C) · Q-4, T14 F1).** Every RLS path that filters many rows through a commission-scoped catalog permission resolves it once per STATEMENT, not once per row: the 40 T7 policies, the 6 AE4 forms FOR ALL policies, and the 81 helper-routed policies (the Class-1 modules planned per door first). INSERT-only `WITH CHECK` sites stay scalar, each named in the plan. Every OR arm, hard deny and audit obligation is kept; `_case_caps` resolves no permission a caller's bit cannot use; a `staff` performance acceptance (`428` + harness) shows resolutions scale with distinct scopes, not protected rows, in both polarities, with function counts, plans, and a semantic ablation that reds. Budget ceiling 772 + N (Q-4).
 
 ## Current state
 
@@ -108,13 +108,13 @@ The earlier gate witnesses stand for `cea431c7`, but they no longer declare the 
 
 ### Next
 
-F1 / AC-11 plan ACCEPTED as design (`b6b5de7b`); Q-3 ruled (A); Q-2 residue sized (record) → PO rules
-Q-1 · Q-2 · Q-4 → ADR 0212 + `428` red-first → migration; in parallel F2 + F3 in `425` (`tester3`) → F1 migration → `425` re-run on it → Phase Gate step 1 in full → `e2e:prod` → QA again →
+F1 / AC-11 plan ACCEPTED as design (`b6b5de7b`); Q-3 ruled (A); Q-1 · Q-2 (C) · Q-4 ruled → partition the 81 →
+family plans (Class-1 per door) → integrated plan, lead review → ADR 0212 + `428` red-first → migration; in parallel F2 + F3 in `425` (`tester3`) → F1 migration → `425` re-run on it → Phase Gate step 1 in full → `e2e:prod` → QA again →
 PO approval → Record.
 
 ### Blockers
 
-⏸ **Q-1 · Q-2 · Q-4 — PO to rule** (record: the Q-2 residue sized). ✅ **R-8 RULED 2026-09-15: option (a)** — F1 is resolved in this unit under AC-11; F2 and F3 go to the tester after F1's migration.
+✅ **Q-1 convert · Q-2 (C) all 81 · Q-4 772 + N — RULED 2026-09-15.** ✅ **R-8 RULED 2026-09-15: option (a)** — F1 is resolved in this unit under AC-11; F2 and F3 go to the tester after F1's migration.
 For the PO at approval, recorded and unchanged: two P0s were caught before commit (one from the lead's
 L17, now L24) and closed with witnesses, and the high closure-gate follow-up stays open; the `staff`
 wrapper has ZERO production callers for one unit under a named bound (L14); T7 converged 24 frozen
