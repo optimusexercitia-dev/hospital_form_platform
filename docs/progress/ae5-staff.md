@@ -7590,3 +7590,64 @@ AC-7's cut qualifier.
 (`6abe24ae` before `b6b5de7b`). backend3's commit touched only its own entry. The lead's `6abe24ae` did not capture
 any of backend3's text: the diff is 25 lines, all the lead's own. Both entries are dated 2026-09-15, and nothing is
 moved.
+
+### 2026-09-15 — the Q-2 residue SIZED: every measured helper-routed path pays one catalog resolution per row, and every one was introduced by this unit; on `cases` / `case_interviews` those resolutions can never grant; Q-1, Q-2 and Q-4 put to the PO (lead)
+
+**Measured by `backend3`, read-only.**
+- **Instrument.** Flushed counters (`pg_stat_force_next_flush()`, `pg_stat_get_function_calls` deltas). Calibration C0
+  read Δ = 1 on both `can_forms_read` and `has_permission`.
+- **Conditions.** Staff4.ccih under the `staff` hat, read as `authenticated`, on the post-E2E stack. 0 non-service
+  backends. Nothing was edited or committed.
+- **Artifacts** are in backend3's scratchpad: `f1-residue-probe.sql/.out`, `f1-residue-attr.out`.
+- **How tables were chosen.** A grep of `from('<table>')` under `src/lib`. Its bound: lists served through RPCs are not
+  covered.
+- **How "introduced by this unit" was decided.** From migration text, as intent: T7 Part 3's per-helper annotations, and
+  each helper's last defining migration at `a02487bc`, which read `is_member_of_for` / `has_role_any`.
+
+| Table / policy | Depth | Reaching path → T7 authorizer | Rows vis / phys | Δ `has_permission` | Introduced by AE5 | Class |
+| --- | ---: | --- | ---: | ---: | --- | --- |
+| `meeting_attendees_select` | 2 | `can_reach_meeting` → `can_meetings_read` | 32 / 33 | **33** | yes | ii, non-PHI |
+| `patient_safety_event_select` | 2 | `can_read_event` → `can_safety_events_read` ×2 | 3 / 5 | 10 | yes | iii, Class-1 |
+| `case_interviews_select` | 6 | `can_read_interview` → … → `_case_caps` S5 | 0 / 13 | 13 | yes | iii |
+| `cases_select` (staff) | 4 | `can_read_case` → `has_case_capability` → `_case_caps` S5 | 0 / 8 | 7 | yes | iii |
+| `cases_select` (chefe.ccih, `staff_admin`) | 4 | same; the FOR ALL write arm covers the CCIH rows | 6 / 8 | 2 | yes | iii |
+| `meeting_cases_select` | 1 + 2 | shell-read conjunct (in the 40) + `can_reach_meeting` | 1 / 4 | 7 | yes | i + ii |
+| `documents_select` | 2 | `can_read_document` (5) + `can_read_interview` → S5 (1) | 2 / 6 | 6 | yes | ii (+ iii) |
+| `case_referral_select_readable` | 2 | `can_read_referral_metadata` | 3 / 4 | 5 | yes | iii, Class-1 |
+| `capa_plan_select` | 2 | `can_read_capa` → `can_read_event` / `can_capa_read` | 2 / 3 | 3 | yes | iii |
+| `rca_select` | 2 | `can_read_event` ×2 | 1 / 1 | 2 | yes | iii |
+| `case_decisions_select` | 5 | `can_read_case_committee` → … → S5 | 0 / 0 | not measurable, no rows | yes | iii |
+
+`action_items`, `controlled_documents` and `controlled_document_versions` were also measured (4, 5 and 3). They are
+depth-1 sites already in the plan's 40.
+
+**Verified by the lead on the live catalog.**
+- **The claim that matters most:** `app.can_read_case(uuid,uuid)` is exactly
+  `select app.has_case_capability(p_case_id, p_uid, 'read_case_content')`.
+- **The mask test:** `app.has_case_capability` computes `(app._case_caps(p_case_id, p_uid) & v_bit) <> 0`.
+- **What S5 sets:** its live text is `if v_member and not v_eg then v_caps := v_caps | app._cap_bit('read_case_deliberation')`,
+  the deliberation bit only.
+- **The consequence.** On every path that asks `read_case_content`, the resolution S5 makes can **never** grant. The
+  plan's § 4 reorder removes it only for locked cases: 1 of the 8 on `cases`, leaving 6 of its 7.
+- **`meeting_attendees_select`'s qual** is exactly `app.can_reach_meeting(meeting_id, (SELECT auth.uid()))`.
+
+**What this changes for Q-2.** The 40 (or 46) mechanical conversions do not close F1 for the PHI-module lists or
+the meetings family. No depth-2 to 6 path is mechanically convertible. `can_reach_meeting` is one non-PHI helper,
+and it sits behind the `meeting_attendees`, `meeting_agenda_items`, `meeting_closed_sessions`, `meeting_signatures` and
+`meeting_cases` SELECT policies.
+
+**Options put to the PO.**
+- **Q-2 (A)** — all 81 stay out. AC-11 is bounded to the converted set, and a follow-up carries the residue.
+- **Q-2 (B), lead recommendation.** Two parts:
+  - **In this unit:** the mechanical set plus a lift of `can_reach_meeting`. That is a new meeting-reach set shape,
+    added to the plan as an amendment the lead reviews before execution; the hottest measured residue is non-PHI.
+  - **A successor unit, before AE5 increment 2 opens:** the Class-1 paths, each with its own full plan under Rule 12.
+    It includes the finding that `_case_caps` resolves S5 for a content-bit question that S5 cannot answer.
+
+  AC-11 names both the converted set and the carried residue.
+- **Q-2 (C)** — all 81 in this unit, with a full plan for the three PHI modules first.
+- **Q-1** — lead recommendation: convert the six AE4 forms FOR ALL policies.
+- **Q-4** — the budget ceiling moves from 772 to 772 + N. N is 12 under Q-1, plus any meeting-reach wrapper under
+  Q-2 (B). The final N is stated in the gate record.
+
+**State.** Nothing is executed. `tester3` is still working on F2 and F3.

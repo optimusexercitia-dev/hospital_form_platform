@@ -108,13 +108,13 @@ The earlier gate witnesses stand for `cea431c7`, but they no longer declare the 
 
 ### Next
 
-F1 / AC-11 plan ACCEPTED as design (`b6b5de7b`); Q-3 ruled (A); `backend3` sizing the Q-2 residue → PO rules
+F1 / AC-11 plan ACCEPTED as design (`b6b5de7b`); Q-3 ruled (A); Q-2 residue sized (record) → PO rules
 Q-1 · Q-2 · Q-4 → ADR 0212 + `428` red-first → migration; in parallel F2 + F3 in `425` (`tester3`) → F1 migration → `425` re-run on it → Phase Gate step 1 in full → `e2e:prod` → QA again →
 PO approval → Record.
 
 ### Blockers
 
-✅ **R-8 RULED 2026-09-15: option (a)** — F1 is resolved in this unit under AC-11; F2 and F3 go to the tester after F1's migration.
+⏸ **Q-1 · Q-2 · Q-4 — PO to rule** (record: the Q-2 residue sized). ✅ **R-8 RULED 2026-09-15: option (a)** — F1 is resolved in this unit under AC-11; F2 and F3 go to the tester after F1's migration.
 For the PO at approval, recorded and unchanged: two P0s were caught before commit (one from the lead's
 L17, now L24) and closed with witnesses, and the high closure-gate follow-up stays open; the `staff`
 wrapper has ZERO production callers for one unit under a named bound (L14); T7 converged 24 frozen
