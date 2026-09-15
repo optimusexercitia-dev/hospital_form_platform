@@ -1980,6 +1980,13 @@ Before the unit, `readRoleVocabularyFromCatalog` was an UNEXPORTED local in two 
 **Status:** open
 **Body:** [FUP-AE5-STAFF-PERIODIC-RESET-LINE-PRINTS-THE-RUNNING-TOTAL.md](FUP-AE5-STAFF-PERIODIC-RESET-LINE-PRINTS-THE-RUNNING-TOTAL.md)
 
+### 🟢 FUP-AE5-STAFF-MERGE-GUARD-IS-OUTSIDE-ITS-OWN-SELFTEST (owner: backend)
+
+**Filed:** 2026-09-14 (unit `AE5-STAFF`, T8, by the lead) · **Owner:** backend · **Severity:** low — the merge helper's missing-baseline-rows guard (`34117443`, L25) is scoped to `SELFTEST != 1`: it aborted 5 of the helper's 18 carry scenarios, so its discrimination rests on a one-off run quoted in the record, and the self-test is green on a carry the real run refuses.
+**Closes when:** the helper's self-test holds both halves with the guard ON — a subset scenario requiring the `missing N row(s)` abort (exit 2) and the carry scenarios re-stated as what the real run does — counted in `--- GROUP merge helper:` and shown able to red inside the self-test.
+**Status:** open
+**Body:** [FUP-AE5-STAFF-MERGE-GUARD-IS-OUTSIDE-ITS-OWN-SELFTEST.md](FUP-AE5-STAFF-MERGE-GUARD-IS-OUTSIDE-ITS-OWN-SELFTEST.md)
+
 ### 🟡 FUP-AE5-STAFF-ARM1-HARNESSES-DO-NOT-READ-RESET-EVERY — two of ARM 1's three sweeps accept the knob and drop it (owner: backend)
 
 **Filed:** 2026-09-14 (unit `AE5-STAFF`, T8) · **Owner:** backend · **Severity:** medium — no wrong verdict is known to have come from it; what is missing is the BOUND on how much drift a verdict may carry, in two harnesses that run the FULL suite per case.

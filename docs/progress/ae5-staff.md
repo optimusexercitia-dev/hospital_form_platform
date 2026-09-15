@@ -4527,3 +4527,31 @@ SELFTEST=1 p0-authz-door-audit.sh      exit 0   SELFTEST TOTAL: 33/33 ok, 0 fail
 that breaks its own harness's self-test is a regression, not a hardening.
 
 `npm run lint` exit 0 (all gates). Loop: T8 iteration 4 of 5; each iteration closed a NEW cause.
+
+### 2026-09-14 — T8 PARKED and VERIFIED by the lead (`34117443` … `eeb59466`); AC-8 ticked; stack to the tester for `425` round 2 (lead)
+
+Verified, not relayed: six commits by path on `ae5-staff` — `34117443` the merge guard (aborts on
+missing baseline rows), `4c6100a3` the fold-in (353 → 376, `23 insertions(+)`), `1f139a08` REVERSE
+3b repaired + `409` control (a), `49c5adfe` the `RESET_EVERY` port + write-path snapshot row,
+`36359cf3` two follow-ups, `eeb59466` the T8 record entry (167 lines); tree = the tester's `425`
+addendum + run logs, nothing else; `npm run lint` **exit 0** at HEAD, consumed (`LINT_EXIT=0`). The
+T8 entry quotes every witness the gate needs, read by the lead at its line: the `SCOPE:` line
+(`4 file(s) — 4 committed (a02487bc..HEAD), 0 worktree, 0 untracked | filter: none | derivation:
+catalog`), `RESET-POLICY: RESET_EVERY=1 — 3 reset(s) performed`, the three `--- GROUP` lines (20 ·
+18 · 8, all pass) and `SELFTEST TOTAL: 33/33`, `GNU bash 5.2.37(1)-release`, the four plant rows, the
+census `=== INVARIANT HOLDS ===`, `410` 45/45. Backend's own account names its three misses (the
+gutted merge reported twice in opposite directions; 3b unsatisfiable; `can_capa_read` left neutralized
+by the kill) — all three caught by the checks, all three already in this record above.
+
+**Two lead observations on the T8 state, for the AC-10 gate record and QA:** (1) the merge guard is
+scoped to `SELFTEST != 1` because it aborted 5 of the helper's 18 self-test scenarios, which
+legitimately exercise the CARRY path — so the guard's discrimination rests on backend's one-off
+proof (subset → exit 2 `missing 303 row(s)`; full-shaped and superset → exit 0), not on a standing
+scenario; and the helper's self-test now proves a merge the real run refuses. Filed low as
+`FUP-AE5-STAFF-MERGE-GUARD-IS-OUTSIDE-ITS-OWN-SELFTEST`. (2) No full `test:db` after T8's test-file
+edits (`409`, `410` scoped-green only) — owed at AC-10's fresh-reset run, as backend states.
+
+**AC-8 ticked** on this entry. **Stack handed to the tester** (backend idle by ListAgents, nothing
+running): fresh reset + settle-check, `00_setup` + `425` round 2 to a new log (want 3.1 47 / 3.2 56;
+§ 3.3/3.3b the P1 survivor), counts reported, the lead commits by path → AC-7; then T13's five specs
+on a dev server, `e2e:prod` reserved for AC-10.

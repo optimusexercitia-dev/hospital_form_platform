@@ -57,7 +57,7 @@ Each is the template step it names; the witness for every box is a dated entry i
       row (ADR 0203 D1 bound 2); DEFINER writers DECLARED, never silently counted (re-review N4); any
       new/touched DEFINER on `search_path = ''` (ADR 0208 D4); the grant-deletion differential
       (`425`) flips every policy door both polarities, observed RED on the pre-migration catalog.
-- [ ] **AC-8 Census + arms.** Direct-call census committed; G8 arms re-derived and each shown able to
+- [x] **AC-8 Census + arms** ✅ **2026-09-14** (record: T8 gate record `eeb59466`, verified by the lead; census `INVARIANT HOLDS`; all four arms RED by plant / GREEN on rollback; door sweep 73/73 exit 3 RULED). Was: Direct-call census committed; G8 arms re-derived and each shown able to
       red; `409`'s vacuity control re-stated if a `staff` read site moved; `410 §§ 7.3/7.4` re-pinned
       1 → 2 only after being observed RED at 1.
 - [ ] **AC-9 Runbook.** `staff` worked example in the rollback runbook + template, both revert shapes;
@@ -93,21 +93,21 @@ posted, not executed.
 
 ### In progress
 
-**T7 COMMITTED green 2026-09-14** (`2dddd278` atomic set … `9fe05301` gate record): the 20 `staff`
-codes re-keyed onto 21 layer-3 doors (13 `authenticated` / 8 DEFINER-only), 42 policy and 23 function
-sites, 22 frozen bodies converged (`419` 860 → 836), row 9's authority wired at its four sites, live
-budget **339/433/772** as R-4 requires; 275 files / 9215 tests, one red — `425`, the tester's, being
-re-pointed to the post-T7 catalog (run 4 in flight, nine sites to attribute). Two P0s were found by
-T7's own red-first verification BEFORE commit and closed with witnesses: a wrong-keyed call (fails
-closed, L20) and an OR-around widening of Class-1 content caused by the lead's L17 (superseded by
-L24; the closure gate that stayed green through it is a high follow-up). Rulings L20–L24, L13′ in
-the record. `backend` on T10 (seam slice, docs only); T8 (census + arms) after the tester parks.
-T13's specs committed, unrun until AC-10. `npm run lint` exit 0 at HEAD.
+**T8 PARKED green 2026-09-14** (`34117443` … `eeb59466`, verified by the lead): the door sweep as THE
+gate run — 73/73, 71 COVERED · 2 NOTICED (both standing, errcodes 42501 / HC033) · 0 BLIND · 0 ERROR,
+exit 3 RULED partial-by-construction (`SCOPE:` line quoted in the record); write arm CLEAN re-earned;
+census arm `INVARIANT HOLDS` after the 23 T7 verdicts were folded in by targeted insertion (the merge
+helper had gutted the baseline 353 → 73 at exit 0 — caught by the census arm, restored, the helper now
+aborts on missing baseline rows); all four arms RED by plant / GREEN on rollback; `RESET_EVERY` ported
+and proven; SELFTEST ×2 green. L22's plant found `410` REVERSE 3b compared a string with itself —
+repaired, 45/45. **Now:** the tester holds the stack for `425` round 2 (→ AC-7) then T13's five specs;
+then AC-10's fresh-reset run (full `test:db` owed after T8's test edits), the gate record, QA, PO.
+`npm run lint` exit 0 at HEAD.
 
 ### Next
 
-`424` green → T6 (the wrapper cutover under ADR 0211, acked with conditions A1–A4) → T7 re-key →
-T8 census/arms → T10 seam slice → AC-10 gate → QA → PO approval → Record. T9 runbook is drafted.
+`425` round 2 (AC-7) → T13 specs → AC-10 gate (fresh reset: lint/typecheck/`test:db`, arms re-quoted,
+`e2e:prod`) → T14 QA review → PO approval (visibility items in Blockers) → Record. T9 runbook is drafted.
 
 ### Blockers
 
