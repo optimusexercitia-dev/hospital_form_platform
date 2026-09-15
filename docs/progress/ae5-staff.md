@@ -6020,3 +6020,54 @@ the lesson of the first `e2e:prod` run's ten reds. The discriminating cell is sh
 owned by the tester (`424`, `425`) is routed back rather than edited. Then build-complete runs at the
 final commit on one fresh reset. Then the tester runs the production gate on every spec the new fixture
 can touch, and the declaring full `e2e:prod` once. AC-4 ticks on that, and the QA pause follows.
+
+### 2026-09-15 — backend's R-7 (a) + F2 plan from files; L35 rules the respondent cell as B2′ with a before/after access witness; a control that cannot fail found in the tester's `424 § 2.5` (lead)
+
+**Backend's plan, from files only; the stack is untouched while the tester holds it.**
+
+**Job A (F2).** A new backend-owned suite, `427_ae5_staff_t7_fixture_bindings.sql`, takes the file count
+from 275 to 276. It is new because the suites that call these doors predate T7 and carry their own
+fixtures and plan counts. It binds the row-9 grantee `a5f0…f5`, which reads deliberation on `d0…c1` with
+grant `a5fb…c1` and not after the grant is deleted inside the test. It binds L18's items through
+`get_reserved_session_items` on meeting `f1…e1`: `…e2` shows `withdrawals`, `…e3` shows null, and
+`has_bit = f` on both. Each carries a rolled-back red-proof.
+
+**Job B, measured.**
+- **The persona is forced.** The generator's `HOLDS_AT` maps only `subject_holder` (staff4.ccih) to
+  `own_commission`, so the respondent must be staff4.ccih.
+- **staff4.ccih is already `respondent_doctor`** on ethics case `ca000000-…-e1` (seed ETH·E1, professional
+  profile `fb000000-…-e1`), so the seed change is ONE `meeting_cases` row.
+- **The meeting is row 8's fixture `a5f20000-…-a2`.** It is commission_default, staff4 is a present
+  attendee, and no e2e file or suite names it. The link goes in before the `in_signature` flip, because the
+  child lock refuses it after.
+- **⚠ The case is named by 8 specs.** Backend's grep found none that reads that case's meeting links or
+  prints its dossier. It named the residual risk itself: AXIS F would deny full content on `ca00…e1` to
+  anyone who cannot reach `a2`.
+- **Every alternative is worse.** `dc00…a2` already carries L28's link, so the row-7 cell there would deny
+  for two reasons. Every other CCIH case is named by specs. A new case breaks quality-oversight's "exactly
+  5 readable CCIH cases".
+
+**L35 (lead).** **(1) B2′.** One coordinate carries a LIST of fixtures in the manifest and generator:
+`conjunct_unmet: [a1 meeting-unreachable, a2 respondent]`, one cell per fixture. Every existing cell
+stays byte-identical and the new cells are additions. B1 is refused: it would buy the respondent cell by
+deleting row 7's policy-level cell for the `can_reach_meeting` conjunct, trading one unexercised deny for
+another. B2 is refused because it changes the PO-approved coordinate set. **There is no automatic fallback
+to B1.** If the generator's single-fixture assumption runs deeper than the arm checks, backend stops and
+reports, because losing a cell is a ruling. **(2) A before/after access witness before the seed commit.**
+This is L28's shape again, where a meeting link on a case another surface reads masked an admitted caller.
+Inside one rolled-back transaction, backend lists every principal for whom
+`app.can_read_full_case_content('ca000000-…-e1', principal)` is true, inserts the link, and lists them
+again. The two sets must be identical. Any principal who loses access stops the seed, and the list is
+reported. The same check runs for `app.can_view_printed_document('case', …)`. **(3)** Row 8's cells must
+not move. Backend confirms that on `can_sign_meeting`'s live body and on the generated diff, which should
+add cells and change none.
+
+**Finding in `424 § 2.5`, the tester's file, routed and not blocking Job B.** The masking control reads
+`where pr.id = (select uid from f424)`, which compares a `professional_profiles.id` with staff4's USER id.
+The two can never be equal, so the control cannot fail. It is also false in substance today: staff4 has
+profile `fb000000-…-e1` with a respondent link on `ca00…e1`. Its stated concern, row 1's targeted-version
+disjunct, holds only because no targeted response names that participant. The routed change: compare
+`pr.user_id`, and narrow the property to its intent — "no `case_participants` link of staff4 is the
+`target_case_participant_id` of any response". The corrected control must be observed passing on the
+current seed and shown able to red by a rolled-back targeted response that names staff4's participant. It
+goes to the tester after F1 parks.
