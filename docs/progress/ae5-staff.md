@@ -1127,6 +1127,28 @@ NOTICED = evidence; CARRIED = a step.
   of the four properties, the restricted differential `426` observed RED then GREEN, the
   PA-F8-STAFF-2 condition. ⛔ PO: accept ADR 0211 (proposed → accepted) or change it; AC-6 ticks on
   acceptance.
+- **R-6 — the unconfirmed persona on CCIH's voter roster (e2e:prod batch 6).** ⛔ **OPEN, opened
+  2026-09-15 by the lead.** Measured: `app.eligible_voters` counts `gap.pending` for CCIH's ethics
+  case because its live body filters membership, expiry, `app.is_active`, recusal and respondent,
+  and nothing reads `email_confirmed_at`; `ethics-e2-procedure` FLOW-7 mirrors that definition
+  faithfully and mints a token per eligible voter, which GoTrue refuses. The membership is literally
+  bound to CCIH by `426 § 0.1` (count 4 at CCIH) and by `387 B4/B5`'s pinned profile-set hash (13
+  rows, "+ the two CCIH members"); the landing spec and `426 § 3.4` need only SOME staff membership.
+  No other spec enumerates a CCIH roster with tokens. Options, each with its measured cost:
+  **(a)** move the membership to Farmácia A (Rede A, so no persona crosses orgs): re-scope `426`'s
+  `st_pending` cells and split § 0.1's pin 3 at CCIH + 1 at Farmácia A, re-pin `387 B4/B5` 13 → 12
+  with attribution; the ethics roster returns to its base shape; the domain behaviour stays pinned by
+  `426 § 3.4` and a follow-up. **(b)** keep it at CCIH and change FLOW-7's premise from "every eligible
+  voter votes" to "every voter who can authenticate votes", asserting the refused one IS counted;
+  the quorum threshold `issue_decision` enforces (HC0J8) must then be measured to still be met — a
+  change to an existing phase's spec premise. **(c)** change the domain so `app.eligible_voters`
+  excludes unconfirmed principals — a behaviour change outside this unit; a new unit.
+  **Lead recommends (a)** now, with the definition question filed as
+  `FUP-AE5-STAFF-ELIGIBLE-VOTERS-COUNTS-UNCONFIRMED` whatever is ruled. Why it is the PO's: the lead
+  wrote the bar before measuring ("a relocation is a lead ruling only if nothing requires CCIH"), and
+  two suites filter CCIH in their queries, so the bar is met as written. That the CCIH filter is
+  incidental to what those two suites measure is the lead's reading, not a measurement. Only
+  batch 6 waits on R-6; the other nine reds do not.
 
 ### 2026-09-13 — matrix review r1 received from the PO; lead evaluation; fix round routed (lead)
 
@@ -4989,3 +5011,30 @@ membership (`a5f10000-…-e3`) — every pgTAP / mutation / manifest / spec refe
 requires CCIH, whether any pins a count including it, which other specs enumerate CCIH rosters, and
 which seeded commission's roster nothing enumerates. A relocation of the membership is a lead
 ruling only if nothing requires CCIH; otherwise it goes to the PO as R-6 with the options measured.
+
+### 2026-09-15 — what binds `gap.pending`'s CCIH membership, measured by a read-only search; R-6 opened for the PO; the domain behaviour filed (lead)
+
+A read-only search found every reference to the profile id, the membership id, `gap.pending` and
+`v_pending`, and discarded three look-alike `…e3` ids by name. **Binds CCIH literally:**
+`426_ae5_staff_wrapper_differential.sql:95–99` § 0.1 `count(*) = 4` over the four principal-state
+personas' CCIH `staff` rows; `387_initplan_wrap_and_profiles_arm_identity.sql:211–212` history
+("10 → 12 + the two CCIH members") and `:304–312` the live B4/B5 pin `md5 = 379100bf…` over 13 rows;
+`e2e/ethics-e2-procedure.spec.ts:329–361` `computeEligibleVoters()` on `COMMISSION_A`; the domain
+`app.eligible_voters` (commission of the case). **Needs only some staff membership:**
+`e2e/ae5-staff-landing.spec.ts:135–138` (refused at GoTrue before commission resolution) and
+`426 § 3.4a/b` with ADR 0211 `:187–190` (the wrapper's `is_active` gate never reads
+`email_confirmed_at`, so a pending principal GRANTS). **Counts that include it:** 426 § 0.1 (4, exact)
+and 387 B4/B5 (13-row hash, exact); `phase10-meetings.spec.ts:444–445` `eligible_member_count >= 3`
+(an unfiltered count, so it cannot break). **Other roster readers:** none that mint tokens —
+`mem-memberships-collapse.spec.ts:290` takes one arbitrary CCIH staff row for a write-lockdown probe
+and never reads confirmation. **Rosters nothing enumerates:** Farmácia B (`c0…c2`, Rede B) —
+`e2e/` has no hit, and pgTAP has one, `426:49`, used only as a cross-product scope; Farmácia A's roster
+is read by `phase13-audit.spec.ts:817–825` for a leak check, not with tokens. Farmácia B crosses orgs
+for a Rede A persona, which CLAUDE.md § 9 forbids, so option (a) names Farmácia A.
+
+**R-6 opened** (§ Open rulings above, recommendation (a)). **Filed regardless:**
+`FUP-AE5-STAFF-ELIGIBLE-VOTERS-COUNTS-UNCONFIRMED` (medium, backend). An unconfirmed principal
+counts toward the eligible-voter set and so toward quorum, and no gate constructs that principal
+against the definition. The lead's own bar ("a relocation is a lead ruling only if nothing requires
+CCIH") is met as written, so R-6 goes to the PO even though the lead reads the CCIH filters in 426 and
+387 as incidental. The other nine reds do not wait on it; the fresh tester's measurements decide them.

@@ -1987,6 +1987,13 @@ Before the unit, `readRoleVocabularyFromCatalog` was an UNEXPORTED local in two 
 **Status:** open
 **Body:** [FUP-AE5-STAFF-MERGE-GUARD-IS-OUTSIDE-ITS-OWN-SELFTEST.md](FUP-AE5-STAFF-MERGE-GUARD-IS-OUTSIDE-ITS-OWN-SELFTEST.md)
 
+### 🟡 FUP-AE5-STAFF-ELIGIBLE-VOTERS-COUNTS-UNCONFIRMED (owner: backend)
+
+**Filed:** 2026-09-15 (unit `AE5-STAFF`, AC-10 `e2e:prod` batch 6, by the lead) · **Owner:** backend · **Severity:** medium — `app.eligible_voters` filters membership, expiry, `app.is_active`, recusal and respondent, and nothing reads `email_confirmed_at`, so a principal GoTrue refuses a password grant still counts as an eligible voter; no pgTAP test constructs that principal against the definition.
+**Closes when:** the intended behaviour for an unconfirmed principal is written (ADR 0073 amendment or successor) and a pgTAP test constructs one against `app.eligible_voters` and the quorum check `issue_decision` applies (HC0J8), shown able to red by flipping the confirmation state.
+**Status:** open
+**Body:** [FUP-AE5-STAFF-ELIGIBLE-VOTERS-COUNTS-UNCONFIRMED.md](FUP-AE5-STAFF-ELIGIBLE-VOTERS-COUNTS-UNCONFIRMED.md)
+
 ### 🟡 FUP-AE5-STAFF-ARM1-HARNESSES-DO-NOT-READ-RESET-EVERY — two of ARM 1's three sweeps accept the knob and drop it (owner: backend)
 
 **Filed:** 2026-09-14 (unit `AE5-STAFF`, T8) · **Owner:** backend · **Severity:** medium — no wrong verdict is known to have come from it; what is missing is the BOUND on how much drift a verdict may carry, in two harnesses that run the FULL suite per case.

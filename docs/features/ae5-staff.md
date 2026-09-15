@@ -93,31 +93,31 @@ posted, not executed.
 
 ### In progress
 
-**T8 PARKED green 2026-09-14** (`34117443` … `eeb59466`, verified by the lead): the door sweep as THE
-gate run — 73/73, 71 COVERED · 2 NOTICED (both standing, errcodes 42501 / HC033) · 0 BLIND · 0 ERROR,
-exit 3 RULED partial-by-construction (`SCOPE:` line quoted in the record); write arm CLEAN re-earned;
-census arm `INVARIANT HOLDS` after the 23 T7 verdicts were folded in by targeted insertion (the merge
-helper had gutted the baseline 353 → 73 at exit 0 — caught by the census arm, restored, the helper now
-aborts on missing baseline rows); all four arms RED by plant / GREEN on rollback; `RESET_EVERY` ported
-and proven; SELFTEST ×2 green. L22's plant found `410` REVERSE 3b compared a string with itself —
-repaired, 45/45. **Now:** `425` round 2 21/21 committed (AC-7 ✅); the tester holds the stack for T13's five specs;
-then AC-10's fresh-reset run (full `test:db` owed after T8's test edits), the gate record, QA, PO.
-`npm run lint` exit 0 at HEAD.
+**AC-10 BLOCKED — `e2e:prod` GATE RED 2026-09-14:** `1253 passed · 10 failed · 3 flaky · 6 did-not-run ·
+21 batches`, `gate-exit` 1. Step 1 green on a fresh reset (`af2c4566`): lint 0, typecheck 0, `test:db`
+275 files / 9218 tests PASS, the four arms HOLD, budget 339/433/772, sweep scope identical by
+checksum. Every AE5 spec passed; all ten reds land on rows this unit's seed added. Six are measured
+spec premises the seed ended: the ethics voter roster (R-6), the action-items empty-state persona,
+the audit `(occurred_at, seq)` key, and the `DOC-0002` anchor. Four are not yet classified:
+printed documents, the wizard ×3 and supersession ×2. As `chefe.ccih` the full-content door DENIES
+on the masked case now linked to this unit's restricted meeting — a refusal, nothing widened — and a
+rolled-back discriminator decides fixture vs T7. The session process exited mid-measurement on
+2026-09-15. A fresh tester is finishing the measurements, and backend's runbook § 2b edits (AC-9)
+are held uncommitted for catalog verification. AC-1, 2, 5, 6, 7, 8 ticked. `npm run lint` exit 0 at HEAD.
 
 ### Next
 
-`425` round 2 (AC-7) → T13 specs → AC-10 gate (fresh reset: lint/typecheck/`test:db`, arms re-quoted,
-`e2e:prod`) → T14 QA review → PO approval (visibility items in Blockers) → Record. T9 runbook is drafted.
+Tester's measurements → rulings per red (fixture relocations and spec anchors by tester/backend
+ownership; R-6 by the PO) → a fresh `e2e:prod` → AC-9 verified on the catalog and committed → the
+AC-10 gate record → T14 QA → PO approval → Record.
 
 ### Blockers
 
-None ruling-shaped (R-4, R-5 ruled `f8a66457`). ⚠ For the PO at the T7 gate, from T7's verification: two P0s caught pre-commit (one the lead's ruling L17,
-now L24) — both closed with witnesses; a high follow-up on the closure gate that stayed green through the
-second (`FUP-AE5-STAFF-HARD-DENY-CLOSURE-IS-BLIND-TO-OR-AROUND`). ⚠ For the PO at the T7 gate: the `staff` wrapper stands with ZERO
-production callers for one unit under a named bound (L14); T7 touches 23 frozen-path DEFINER bodies and
-converges them under ADR 0208 D4 as written (L15), `419` 860 → 837 attributed by name. ⚠ A second Supabase stack (`*_escalume`) runs on this host and made two resets
-fail at the CLI's post-reset step; AC-10's runs need it stopped or the reset re-verified. ⛔ ADR 0211 D2 is reviewed by the PO at the T6 gate (put in front of the PO on
-2026-09-14 as readable now). ⚠ Owed to T7/T13, not blocking: `app.can_reach_case_on_member_surface`
-has ZERO production callers (matrix § 8.3); **4 of 12** seeded CCIH `staff` personas carry a non-role
-case reach (§ 8.2 said 6 of 9; re-measured 2026-09-14 after this unit's own seeding moved both halves: 3 via `case_access_grants`, 1 via `case_participants`). ⚠ T7's manifest edits must be checked against what the generator EMITS, not
-what the JSON holds (L6's second half: a field the gate could not see).
+⛔ **R-6 (PO):** where the unconfirmed persona's staff membership lives. The lead recommends Farmácia A;
+record § Open rulings has the three options with measured costs. It blocks only batch 6's red.
+For the PO at approval, recorded and unchanged: two P0s were caught before commit (one from the lead's
+L17, now L24) and closed with witnesses, and the high closure-gate follow-up stays open; the `staff`
+wrapper has ZERO production callers for one unit under a named bound (L14); T7 converged 24 frozen
+DEFINER bodies under ADR 0208 D4 as written (`419` 860 → 836, L15); a 21st DEFINER-only door sits
+outside R-4's ruled set (L20). ⚠ A second Supabase stack (`*_escalume`) runs on this host; count it
+and never touch it.
