@@ -6902,3 +6902,25 @@ F2 and F3 are accepted by the lead under either option; they change tests only.
 
 **State.** CHANGES REQUESTED loops the unit to Phase Gate step 1. AC-7 is un-ticked with its bound. **Next:**
 R-8, then routing.
+
+### 2026-09-15 — R-8 RULED by the PO: option (a) — F1 is resolved in this unit; AC-11 (performance) added; branch pushed to origin before work begins (lead)
+
+**The ruling, verbatim:** *"Proceed with option (a). However, before you begin, commit all changes and push to
+origin."*
+
+**Scope, as written in the analysis entry above, and nothing wider:**
+- **F1 → backend:** a new ADR extending ADR 0182 to commission scope. Caller-bound, fixed-permission
+  set-returning wrappers over `authz.authorized_scope_ids` go on every batch policy path T7 re-keyed, found by
+  enumeration. Every OR arm, meeting-visibility, case-exclusion and targeted-access conjunct stays in place.
+- **`_case_caps` S5** is computed only when `not v_eg`.
+- **A `staff` performance acceptance, AC-11.**
+- **F2 and F3 → tester** (`425`), after F1's migration.
+- **Then Phase Gate step 1 in full,** followed by `e2e:prod`, QA again, PO approval and Record.
+
+**Not approved by this ruling:** any change to the permission matrix, the `staff` bundle, the hard-deny
+classes, or the scalar authorizers' use on genuinely scalar checks.
+
+**Push.** Before any work, branch `ae5-staff` was pushed to `origin` with its upstream set, at the commit
+carrying this entry. No tracked change was outstanding. The 73 untracked repo-root run logs (`*.log`,
+`424-run5-witness.txt`) were deliberately **not** committed: they are gate-run artifacts the Record step
+deletes, and their witnesses are quoted in this record.

@@ -69,6 +69,8 @@ Each is the template step it names; the witness for every box is a dated entry i
       `e2e:prod` once green. Then QA (`docs/reviews/ae5-staff-review.md`), PO approval, Record —
       including the authz seam's slice + `## Current state` re-cut.
 
+- [ ] **AC-11 Performance (R-8 (a), T14 F1).** Every batch policy path T7 re-keyed resolves the permission once per STATEMENT through a caller-bound set-returning wrapper over `authz.authorized_scope_ids` (ADR 0182 extended, new ADR), with every OR arm and exclusion conjunct kept; `_case_caps` S5 computed only when `not v_eg` (mask unchanged, zero sibling calls on locked cases); a `staff` performance acceptance shows permission resolutions scale with distinct scopes, not protected rows, in both polarities, with function counts and plans recorded and a semantic ablation that reds.
+
 ## Current state
 
 **Updated:** 2026-09-15
@@ -106,13 +108,13 @@ The earlier gate witnesses stand for `cea431c7`, but they no longer declare the 
 
 ### Next
 
-R-8 (PO) → F1 to backend (new ADR extending ADR 0182, set-returning wrappers, `_case_caps` lazy S5, a `staff`
+F1 to backend (new ADR extending ADR 0182, set-returning wrappers, `_case_caps` lazy S5, a `staff`
 performance acceptance) → F2 and F3 to tester (`425`) → Phase Gate step 1 in full → `e2e:prod` → QA again →
 PO approval → Record.
 
 ### Blockers
 
-⏸ **R-8 — PO to rule:** (a) resolve F1 in this unit with a performance AC (recommended), or (b) file it high and block AE5 increment 2 from opening.
+✅ **R-8 RULED 2026-09-15: option (a)** — F1 is resolved in this unit under AC-11; F2 and F3 go to the tester after F1's migration.
 For the PO at approval, recorded and unchanged: two P0s were caught before commit (one from the lead's
 L17, now L24) and closed with witnesses, and the high closure-gate follow-up stays open; the `staff`
 wrapper has ZERO production callers for one unit under a named bound (L14); T7 converged 24 frozen
