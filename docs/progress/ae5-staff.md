@@ -7803,3 +7803,731 @@ the flushed instrument. Each writes one fragment and commits nothing:
 **Next.** backend3 integrates the five fragments into ONE amended plan entry. It reconciles offered against consumed
 interfaces and checks that the union equals the partition, then the lead reviews it. Nothing is executed before
 that review.
+
+### 2026-09-15 — F1 / AC-11 INTEGRATED PLAN — 40 T7 + 6 AE4 + 81 helper-routed policies, five families reconciled (backend3) ⛔ NOT EXECUTED; awaiting the lead's review and the rulings
+
+**Bound.**
+- **Plan only.** No migration, test, gate file or catalog change; no reset.
+- **Inputs.** The five fragments, `partition.tsv`, `families.md` and `planner-brief.md` (all in `q2/` of the lead's
+  session scratchpad), plus my plan entry above and the lead's entries after it.
+- **New measurements for this step.** All read-only catalog reads, with 0 non-service backends:
+  - live budget population `app 339 · public 433 · total 772` (by `320`'s own predicate);
+  - `prosecdef ∧ proretset ∧ uuid` in app/public/authz = 5;
+  - empty-path DEFINERs 77, non-empty 836;
+  - none of the 33 proposed function names exists (`to_regproc` null for all);
+  - `app.has_case_capability` proconfig = `search_path=app, public, pg_catalog`.
+- **Union check.** `q2/union.py` → `q2/union.out`. It reads the partition, each fragment's §1 scope section, and my
+  `pg_policies` dump `f1-cat1.out`.
+- ⛔ **The scratchpad is not durable.** Every count, interface, decision and ruling below is stated in this entry;
+  fragment sections are cited for derivations only.
+- ⚠ **Label collision.** The fragments reuse function labels (F-CASE D1–D7, F-DOCS D1–D5). This entry writes them as
+  CASE-D1… and DOCS-D1….
+
+#### 1. Union check
+
+**Instrument: `union.py`.**
+- For each partition row, it matches the owner fragment: 68 by policy name, 13 by table name (where a fragment tables a
+  range such as `rca_{…}` or `action_item_{…}`).
+- It parses F-CASE's classes from its scope table.
+- A duplicate is a partition policy tabled in a non-owner fragment's §1.
+- The 40 + 6 come from my live `pg_policies` dump.
+
+| Check | Result |
+| --- | --- |
+| partition rows | 81 |
+| missing from owner fragment | **0** |
+| tabled in a non-owner fragment's scope | **0** |
+| F-CASE parsed classes = partition F-CASE rows | true (A 19 · B 17 · X 2) |
+| F-CASE X rows = partition `no-insert-only` rows of F-CASE | true |
+| T7 mechanical (41 T7 sites minus `responses_insert_own`) | 40 |
+| AE4 forms.edit FOR ALL | 6 |
+| overlap of the 46 with the partition | ∅ |
+| total distinct in-scope policies | **127** |
+
+| Family | converted-new-text | converted-by-removal | insert-only-scalar | Sum |
+| --- | ---: | ---: | ---: | ---: |
+| F-CASE | 17 | 19 | 2 | 38 |
+| F-NSP | 18 | 0 | 0 | 18 |
+| F-REF | 6 | 0 | 0 | 6 |
+| F-PROF | 2 | 0 | 0 | 2 |
+| F-MEET | 4 | 0 | 1 | 5 |
+| F-DOCS | 12 | 0 | 0 | 12 |
+| **Partition** | **59** | **19** | **3** | **81** |
+| mechanical (backend3) | 46 | 0 | 0 | 46 |
+| **All 127** | **105 altered by DDL** | **19** | **3** | **127** |
+
+`responses_insert_own` sits outside the 127: the first plan already keeps it scalar.
+
+**Insert-only policies, which stay scalar.**
+- **`case_events_writer_insert` and `meeting_cases_staff_admin_insert`** (F-CASE X): one check per written row.
+- **`meeting_signatures_insert`** (F-MEET): one check per written row. Its production path is `public.sign_meeting`,
+  which re-asserts `can_sign_meeting`; `425` F2 probes both.
+- ⚠ **A side effect, not a conversion.** The two F-CASE insert policies, and the UPDATE `WITH CHECK` halves of
+  `meeting_cases_staff_admin_update` and `case_events_writer_update`, stop paying S5 because of CASE-D3. Their text is
+  unchanged.
+
+**Converted by removal — 19 policies.** The text is byte-unchanged, and each makes 0 resolutions after CASE-D1…D3:
+`cases_select`, `case_conflict_declarations_select`, `case_correction_requests_select`,
+`case_custom_field_values_select`, `case_events_select`, `case_narrative_revisions_select`, `case_narratives_select`,
+`case_offered_outcomes_select`, `case_participants_select`, `case_phase_allowed_results_select`,
+`case_phase_offered_results_select`, `case_phases_select`, `case_recusals_select`, `case_reopenings_select`,
+`case_tag_assignments_select`, `meeting_cases_staff_admin_delete`, `meeting_cases_staff_admin_update` (USING),
+`case_events_writer_delete`, `case_events_writer_update` (USING).
+
+**Policies receiving hunks from more than one plan: exactly two.** Both are `D1MIXED` rows of the partition, and the
+union script confirms both are among the 40. Each gets ONE generated `alter policy` carrying BOTH hunks, placed in
+the later of its two migrations (§4). Neither appears in the mechanical migration.
+
+1. **`public.meeting_cases.meeting_cases_select`** — backend3's shell-read hunk plus F-MEET's reach hunk. This
+   supersedes my plan §3's cell, which kept `can_reach_meeting`.
+   ```sql
+   (meeting_id IN (SELECT app.current_reachable_meetings()))
+   AND (app.commission_of_meeting(meeting_id) IN (SELECT app.current_meetings_cases_shell_read_commissions()))
+   AND (NOT app.is_case_respondent(case_id, (SELECT auth.uid())))
+   ```
+   The respondent HARD DENY stays verbatim in its last AND position. Recusal is still not a deny (`241` K10).
+2. **`public.action_items.action_items_select`** — backend3's committee hunk plus F-CASE's case_restricted hunk. The
+   assignees_only arm is verbatim.
+   ```sql
+   ((visibility_scope = 'committee') AND (commission_id IN (SELECT app.current_action_items_read_commissions())))
+   OR ((visibility_scope = 'case_restricted') AND C-COMMITTEE(COALESCE(source_case_id, linked_case_id)))
+   OR ((visibility_scope = 'assignees_only') AND (app.is_staff_admin_of(commission_id) OR ((assigned_to IS NOT NULL) AND (assigned_to = auth.uid())) OR (EXISTS (SELECT 1 FROM action_item_assignments a WHERE a.action_item_id = action_items.id AND a.user_id = auth.uid() AND a.completed_at IS NULL))))
+   ```
+   The EXISTS still runs under `action_item_assignments_select`, which itself becomes `AI(action_item_id)` (F-DOCS).
+
+**Why one statement.** A second `alter policy` either refuses at its preflight md5, because the live pre-image is now the
+first statement's post-image, or, with a stale snapshot, silently reverts the first hunk (F-MEET §4).
+
+#### 2. Interface reconciliation
+
+**Canonical templates.** Each is defined once. Every embedding site is byte-identical, checked by the postflight and by
+`428` §2.
+
+```sql
+-- C-COMMITTEE(E) ≡ app.can_read_case_committee(E, auth.uid())      (CASE §5.2)
+CASE app.case_committee_verdict(E) WHEN 1 THEN true
+  WHEN 2 THEN (app.commission_of_case(E) IN (SELECT app.current_cases_deliberation_read_commissions()))
+  ELSE false END
+-- C-INTERVIEW(E) ≡ app.can_read_interview(E, auth.uid())           (CASE §5.3)
+CASE app.interview_read_verdict(E) WHEN 1 THEN true
+  WHEN 2 THEN (app.commission_of_case(app.case_of_interview(E)) IN (SELECT app.current_cases_deliberation_read_commissions()))
+  ELSE false END
+-- EVT(E) ≡ app.can_read_event(E, auth.uid())                        (NSP §5)
+((app.owner_commission_of_event(E) IN (SELECT app.current_safety_events_read_commissions()))
+ OR (app.commission_of_event(E) IN (SELECT app.current_safety_events_read_commissions()))
+ OR app.is_pqs_operator_of_for(app.hospital_of_event(E), auth.uid()))
+-- CAPA(C) ≡ app.can_read_capa(C, auth.uid())                        (NSP §5)
+(app.is_pqs_operator_of_for(app.hospital_of_capa(C), auth.uid())
+ OR EVT(app.event_of_capa(C))
+ OR (app.indicator_commission_of_capa(C) IN (SELECT app.current_capa_read_commissions())))
+```
+
+**Consumer rules, carried over unchanged.**
+- **F-CASE R1–R6.** Use a verdict only through the CASE, never `verdict = 1 OR … IN I2`. Consumer conjuncts go outside
+  as AND. The THEN uses the same E as the verdict call. Current principal only. No case-id set.
+- **F-NSP contract 1–6.** Same E and posture; current principal; positive positions only; no deny inside; count per
+  instance.
+- **F-REF RF-a…RF-c.**
+
+**F-DOCS's eight consumed interfaces.**
+
+| F-DOCS id | Required semantics | Offered | Chosen | Composed term in F-DOCS text | NULL behaviour | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| `S_CASE_CONTENT` | `{c : can_read_case(c,u)}` | F-CASE I1 scalar (0 resolutions after CASE-D3); no set (R6) | F-DOCS's alternative form, with I1 as the fragment | `(k IS NOT NULL AND app.can_read_case(k, (SELECT auth.uid())))` | never NULL: `has_case_capability` returns `(mask & bit) <> 0`; a NULL k reaches STEP 3 and gets 0 | **reconciled, conditional** on ruling (d) (per-row `holds_role` inside `_case_caps_core`) and ruling (k) (`311` §5.1) |
+| `S_CASE_COMMITTEE` | `{c : can_read_case_committee(c,u)}` | F-CASE I3 + C-COMMITTEE | offered | `(k IS NOT NULL AND C-COMMITTEE(k))` | never NULL: the verdict is never NULL; branch 2's left side is non-NULL (verdict 2 needs the case row, STEP 3); I2 has no NULL element | reconciled |
+| `S_CASE_DELIBERATION` | `{c : has_case_capability(c,u,'read_case_deliberation')}` | **nothing satisfies it**: I2 is a commission set, and F-CASE offers no deliberation verdict | — | — | — | ⛔ **OPEN — ruling (j)** |
+| `S_INTERVIEW` | `{i : can_read_interview(i,u)}` | F-CASE I4 + C-INTERVIEW | offered | `(k IS NOT NULL AND C-INTERVIEW(k))` | never NULL (as C-COMMITTEE; clearance is evaluated inside CASE-D6 before it returns 1 or 2) | reconciled; ruling (k) |
+| `S_MEETING_REACH` | `{m : can_reach_meeting(m,u)}` | F-MEET `current_reachable_meetings()` | offered | `(k IS NOT NULL AND k IN (SELECT app.current_reachable_meetings()))` | two-valued: elements are `meetings.id` (NOT NULL), key columns NOT NULL | reconciled |
+| `S_REFERRAL_METADATA` | `{r : can_read_referral_metadata(r,u)}` | F-REF RF1 `current_readable_referral_ids()` | offered | `(k IS NOT NULL AND k IN (SELECT app.current_readable_referral_ids()))` | two-valued (`case_referral.id`); per RF-a, k comes from a DEFINER route column | reconciled |
+| `S_EVENT` | `{e : can_read_event(e,u)}` | F-NSP EVT template (not a set: F-NSP R2 rejected an event-id set) | F-DOCS's alternative form, EVT | `(r.event_id IS NOT NULL AND EVT(r.event_id))` | **can be NULL** (owner arm NULL ∨ false). Admissible because it sits only in DOC's positive OR, never inside PRINT | reconciled; E = `app.event_of_rca(v_resource)`, computed inside DOCS-D2 (DEFINER), per contract 1 |
+| `S_CAPA` | `{p : can_read_capa(p,u)}` | F-NSP CAPA template | F-DOCS's alternative form, CAPA | `(r.capa_plan_id IS NOT NULL AND CAPA(r.capa_plan_id))` | can be NULL; DOC only, positive | reconciled; C = `(select capa_id from public.capa_action where id = v_resource)` inside DOCS-D2 (DEFINER), per contract 1(i); no extra function |
+
+**F-DOCS amendment forced by these choices.** DOCS §8 D8 forbids `CASE` in the 12 policy texts, while F-CASE R1 requires
+the CASE. D8 becomes:
+- no `CASE` other than byte-pinned C-COMMITTEE / C-INTERVIEW (/ C-DELIB under (j)) instances;
+- no `coalesce(…, true)`;
+- no `NOT (… IN (SELECT`.
+
+**The composed F-DOCS fragments.** Generated. `⟨j⟩` marks the one term pending ruling (j).
+
+```sql
+AI(x) := ( SELECT (r.committee_commission_id IS NOT NULL AND r.committee_commission_id IN (SELECT app.current_action_items_read_commissions()))
+               OR (r.case_restricted_case_id IS NOT NULL AND C-COMMITTEE(r.case_restricted_case_id))
+               OR r.direct_ok
+             FROM app.action_item_read_route(x) r )
+
+PRINT(k, s) := ( SELECT bool_or(o.is_anchor)
+                   AND coalesce(bool_and(coalesce(
+                          (o.obligation = 'direct'            AND o.direct_ok)
+                       OR (o.obligation = 'meeting_reach'     AND o.key_id IN (SELECT app.current_reachable_meetings()))
+                       OR (o.obligation = 'case_content'      AND app.can_read_case(o.key_id, (SELECT auth.uid())))
+                       OR (o.obligation = 'case_deliberation' AND ⟨j⟩)
+                       OR (o.obligation = 'interview'         AND C-INTERVIEW(o.key_id))
+                       OR (o.obligation = 'case_committee'    AND C-COMMITTEE(o.key_id))
+                       OR (o.obligation = 'referral'          AND o.key_id IN (SELECT app.current_readable_referral_ids())), false)), false)
+                 FROM app.printed_source_read_route(k, s) o )
+
+DOC(x) := ( SELECT (r.documents_commission_id IS NOT NULL AND r.documents_commission_id IN (SELECT app.current_documents_read_commissions()))
+                OR r.approver_ok
+                OR (r.case_id        IS NOT NULL AND app.can_read_case(r.case_id, (SELECT auth.uid())))
+                OR (r.interview_id   IS NOT NULL AND C-INTERVIEW(r.interview_id))
+                OR (r.action_item_id IS NOT NULL AND AI(r.action_item_id))
+                OR (r.referral_id    IS NOT NULL AND r.referral_id IN (SELECT app.current_readable_referral_ids()))
+                OR (r.event_id       IS NOT NULL AND EVT(r.event_id))
+                OR (r.capa_plan_id   IS NOT NULL AND CAPA(r.capa_plan_id))
+                OR (r.print_source_id IS NOT NULL AND PRINT(r.print_source_kind, r.print_source_id))
+              FROM app.document_read_route(x) r )
+```
+
+**The printed-document all-of argument, against the chosen interfaces.**
+- **When PRINT is TRUE.** Exactly when the route emitted ≥ 1 anchor row AND every emitted row's test is TRUE. With 0
+  rows, `bool_or` is NULL, the result is NULL, and the row is denied (the scalar returns false by guard).
+- **Fail closed.** Each row carries exactly one obligation. Its test is `obligation = X AND T_X(key)`, and the other
+  disjuncts are false on the discriminator. `coalesce(test, false)` maps any NULL to "this obligation fails".
+- **NULL can arise only from a NULL key.**
+  - `current_reachable_meetings` and `current_readable_referral_ids` are NULL-free sets over NOT NULL key columns.
+  - `can_read_case` never returns NULL.
+  - C-COMMITTEE and C-INTERVIEW never return NULL: the verdicts are total and branch 2's left side is non-NULL.
+  - ⟨j⟩ must meet the same bar.
+  - Route key columns are NOT NULL (`meeting_cases.case_id`, `.meeting_id`, `case_interviews.case_id`,
+    `case_referral.source_case_id`, `printed_documents.source_id`; pinned in `428` §2).
+
+  So no test is NULL on a live row, and the coalesce is a backstop, not load-bearing on today's schema.
+- **Equal to the scalar.** `bool_and` over the coalesced tests equals the scalar's conjunction: the anchor plus
+  `can_read_full_{meeting,case}_content`'s universally quantified child checks (De Morgan of the live `NOT EXISTS`,
+  DOCS §5). ⛔ `coalesce(…, true)` anywhere is the fail-open form, and its absence is pinned.
+- **Cost, not semantics.** SQL does not guarantee left-to-right `AND`, so a test for another obligation may still evaluate
+  its interface on a key of the wrong kind. Every chosen interface returns false on a foreign key without error: a verdict
+  on a non-case id hits STEP 3 and returns 0, and `IN` on a foreign id is false. Whether unrouted sets stay
+  `never executed` on the real text is owed (`428` §5).
+
+**F-PROF against F-CASE.** P1's WHERE carries `C-COMMITTEE(cp.case_id)` byte-for-byte (R1, R3), and its ACT hat term sits
+OUTSIDE the CASE as an AND (R2). No departure. The per-row fallback (a verdict pair `&&` I2) is NOT adopted: ruling (f).
+
+**No other cross-family dependency.** F-NSP and F-REF consume nothing from F-CASE (both re-derived on live bodies). Only
+F-DOCS's PRINT consumes F-MEET's reach set. F-CASE's NOT-position caller `can_read_full_case_content` keeps the scalar
+(F-MEET §5).
+
+**Unreconciled, stated as rulings rather than papered over.**
+- `S_CASE_DELIBERATION`: ruling (j).
+- `S_CASE_CONTENT` rests on ruling (d).
+- The 6 F-DOCS sites red `311` §5.1 by token co-occurrence: ruling (k).
+
+**The shape proposed if (j) is ruled in.** F-CASE's owner proves it, with the same proof as CASE §5.2 minus the content
+conjunct:
+
+```sql
+app.case_deliberation_verdict(p_case_id uuid) returns smallint   -- plpgsql, STABLE, DEFINER, '', authenticated+service_role
+  v := app._case_caps_core(p_case_id, (select auth.uid()), false);
+  if (v & app._cap_bit('read_case_deliberation')) <> 0 then return 1; end if;
+  if (v & 1073741824) <> 0 then return 2; end if;
+  return 0;
+-- C-DELIB(E): CASE app.case_deliberation_verdict(E) WHEN 1 THEN true
+--   WHEN 2 THEN (app.commission_of_case(E) IN (SELECT app.current_cases_deliberation_read_commissions())) ELSE false END
+```
+
+- **Why it is the identity.** `has(c,u,2) = (B&2)≠0 ∨ S5t`, and `S5t ≠ 0 ⟺ 2^30 set ∧ perm(commission)` (CASE §5.1).
+- **Without it,** `printed_documents_select` and DOC's print arm keep a per-row S5 resolution for every
+  `case_deliberation` obligation row.
+
+#### 3. Function inventory
+
+**New functions: 32, or 33 under ruling (j).**
+- **Common attributes:** `SECURITY DEFINER`, `STABLE`, `set search_path = ''`, and `revoke all … from public`.
+- **Bodies:** fully qualified `$function$` bodies, never `BEGIN ATOMIC` (`prosqlbody` would blind every `prosrc` reader,
+  F-MEET §3).
+- **Names:** all verified free on the live catalog.
+
+| # | Function → return | Lang | Grants | Family | Budget |
+| ---: | --- | --- | --- | --- | ---: |
+| 1–12 | `app.current_{forms_read, forms_edit, accreditation_read, action_items_read, cases_vocabulary_read, charter_read, documents_read, indicators_read, meetings_read, meetings_cases_shell_read, process_templates_read, roster_read}_commissions()` → `setof uuid` | sql | authenticated, service_role | mechanical (`forms_edit` per Q-1) | +12 |
+| 13 | `app._case_caps_core(uuid, uuid, boolean)` → `int` | plpgsql | **postgres only** | F-CASE | 0 |
+| 14 | `app.current_cases_deliberation_read_commissions()` → `setof uuid` | sql | authenticated, service_role | F-CASE | +1 |
+| 15 | `app.case_committee_verdict(uuid)` → `smallint` | plpgsql | authenticated, service_role | F-CASE | +1 |
+| 16 | `app.interview_read_verdict(uuid)` → `smallint` | plpgsql | authenticated, service_role | F-CASE | +1 |
+| (j) | `app.case_deliberation_verdict(uuid)` → `smallint` | plpgsql | authenticated, service_role | F-CASE (for F-DOCS) | (+1) |
+| 17 | `app.current_reachable_meetings()` → `setof uuid` | sql | authenticated, service_role | F-MEET | +1 |
+| 18–19 | `app.current_{safety_events_read, capa_read}_commissions()` → `setof uuid` | sql | authenticated, service_role | F-NSP | +2 |
+| 20 | `app.owner_commission_of_event(uuid)` → `uuid` | sql | authenticated, service_role | F-NSP | +1 |
+| 21 | `app.hospital_of_capa(uuid)` → `uuid` | sql | authenticated, service_role | F-NSP | +1 |
+| 22 | `app.indicator_commission_of_capa(uuid)` → `uuid` | sql | authenticated, service_role | F-NSP | +1 |
+| 23 | `app.current_referrals_metadata_read_commissions()` → `setof uuid` | sql | **per ruling (e)**; recommended: postgres only | F-REF | 0 (+1 if authenticated) |
+| 24 | `app.current_readable_referral_ids()` → `setof uuid` | sql | authenticated, service_role | F-REF | +1 |
+| 25 | `app.current_readable_referral_internal_note_ids()` → `setof uuid` | sql | authenticated, service_role | F-REF | +1 |
+| 26 | `app.current_case_seated_professional_profile_ids()` → `setof uuid` | sql | authenticated, service_role | F-PROF | +1 |
+| 27 | `app.organization_of_professional_profile(uuid)` → `uuid` | sql | authenticated, service_role | F-PROF | +1 |
+| 28 | `app.action_item_read_route(uuid)` → `table(committee_commission_id uuid, case_restricted_case_id uuid, direct_ok boolean)` | plpgsql | authenticated, service_role | F-DOCS | +1 |
+| 29 | `app.document_read_route(uuid)` → `table(documents_commission_id uuid, approver_ok boolean, case_id uuid, interview_id uuid, action_item_id uuid, referral_id uuid, event_id uuid, capa_plan_id uuid, print_source_kind text, print_source_id uuid)` | plpgsql | authenticated, service_role | F-DOCS | +1 |
+| 30 | `app.printed_source_read_route(text, uuid)` → `table(is_anchor boolean, obligation text, key_id uuid, direct_ok boolean)` | plpgsql | authenticated, service_role | F-DOCS | +1 |
+| 31 | `app.document_of_version(uuid)` → `uuid` | sql | authenticated, service_role | F-DOCS | +1 |
+| 32 | `app.document_ids_of_file_object(uuid)` → `setof uuid` | sql | authenticated, service_role | F-DOCS | +1 |
+
+**Literal carriers** (a permission code in the body): the 12, plus #14, #18–19 and #23 = **16**. Routes, verdicts,
+derivations and the other SRFs carry none.
+
+**Budget (gate 15; Q-4 approved 772 + N).** New authenticated-executable `app` DEFINERs: **30**.
+
+| | Today (live) | After | With (j) | With (j) and W1 authenticated |
+| --- | ---: | ---: | ---: | ---: |
+| app | 339 | 369 | 370 | 371 |
+| public | 433 | 433 | 433 | 433 |
+| total | 772 | **802** | 803 | 804 |
+
+**Existing functions whose body changes: 2, both F-CASE.** Each is generated offline from the live `pg_get_functiondef`,
+emitted as literal text and md5-preflighted — never a runtime `replace()`.
+- **`app._case_caps(uuid,uuid)`** becomes the delegation `begin return app._case_caps_core(p_case_id, p_uid, true); end;`.
+  - Unchanged: signature, `prosecdef`, `provolatile`, `proconfig = ''`, `proacl`, and every mask for every caller and
+    every `p_uid` (CASE §5.1).
+  - **Supersedes my plan §4:** the S5 reorder now lives in CASE-D1's hunks, as one re-emit.
+- **`app.has_case_capability(uuid,uuid,text)`** keeps the `HC0A2` guard first and then does
+  `return (app._case_caps_core(p_case_id, p_uid, (v_bit & app._cap_bit('read_case_deliberation')) <> 0) & v_bit) <> 0;`.
+  - ⛔ **Departure from the F-CASE fragment.** The fragment keeps the live `search_path=app, public, pg_catalog` so that
+    `419` is untouched.
+  - **Why it departs.** ADR 0208 D4 (and AC-7's "any new/touched DEFINER on `search_path = ''`") requires a touched
+    DEFINER to converge.
+  - **What happens instead.** It is re-emitted under `''`; the body is already qualified. That is a pure deletion from
+    `419`'s frozen set, 836 → 835.
+
+Every other existing function is byte-unchanged, including every scalar authorizer and every helper the templates mirror
+(drift-pinned in `428` §2).
+
+**Functions left with zero production callers (LEARN-018): 8.**
+- **The bound.** They fall under Q-3 (A)'s bound, extended by ruling (q).
+- **Why each stays.** `428`'s differential and drift pin read it, and the SECTION H revert restores the policies that call
+  it.
+- **The five T7 authorizers Q-3 already named:** `app.can_forms_read`, `app.can_roster_read`,
+  `app.can_cases_vocabulary_read`, `app.can_process_templates_read`, `app.can_meetings_cases_shell_read`.
+- **Three F-DOCS helpers, new to the bound:** `app.can_read_document_of_version`, `app.can_read_document_version`,
+  `app.can_read_file_object`.
+
+**Not zero-caller,** per the fragments' caller sweeps:
+- `can_read_event` (12 DEFINER callers) and `can_read_capa` (5);
+- `can_reach_meeting` (6);
+- `can_read_referral_metadata` (5) and `can_read_referral_internal_note` (3);
+- `can_read_professional_profile` (2);
+- `can_read_case_committee` (4) and `can_read_interview` (2);
+- `can_read_action_item`, `can_read_document`, `can_view_printed_document`, and the T7 authorizers not listed above.
+
+#### 4. Migration structure
+
+**Seven migrations, in dependency order**, all after `20261003007470`. Each preserves equivalence on its own, so an
+intermediate catalog is correct and merely partly converted. The one-migration precedent (T7's C3) is ruling (o).
+
+| # | File | Contents | Depends on |
+| --- | --- | --- | --- |
+| 1 | `20261003007480_ae5_staff_f1_commission_wrappers.sql` | the 16 literal-carrier wrappers (#1–12, #14, #18–19, #23); no policy change | — |
+| 2 | `20261003007490_ae5_staff_f1_mechanical_policies.sql` | 44 policies: the 40 T7 minus `meeting_cases_select` and `action_items_select`, plus the 6 AE4 forms FOR ALL (USING = WITH CHECK; the tenancy arm moves into policy text, my plan §3) | 1 |
+| 3 | `20261003007500_ae5_staff_f1_case_module.sql` | #13, #15, #16 (+ (j)); re-emit `_case_caps` and `has_case_capability`; the 17 B policies; `action_items_select` (both hunks). The A policies get no DDL | 1 |
+| 4 | `20261003007510_ae5_staff_f1_meetings.sql` | #17; 4 policies; `meeting_cases_select` (both hunks) | 1 |
+| 5 | `20261003007520_ae5_staff_f1_patient_safety.sql` | #20–22; 18 policies | 1 |
+| 6 | `20261003007530_ae5_staff_f1_referrals_professionals.sql` | #24–27; 6 F-REF + 2 F-PROF policies | 1, 3 (P1 composes I2 and I3) |
+| 7 | `20261003007540_ae5_staff_f1_documents.sql` | #28–32; 12 policies | 1, 3, 4, 5, 6 |
+
+**One preflight / postflight scheme, shared by all seven.**
+- **Authoring snapshot.** Settle-checked first: two equal consecutive counts. It is committed as vectors under
+  `supabase/tests/vectors/`:
+  - `f1_policy_preimage.tsv` — schema, table, policy, cmd, and the `pg_get_expr` text of qual and with_check under
+    `search_path = ''`, with an md5 of each, for the 127 policies plus every sibling policy on a touched table;
+  - `f1_policy_postimage.tsv` — the generated post-image of the 105;
+  - `f1_function_preimage.tsv` — the comment-stripped md5 of every body a template mirrors or a migration re-emits, and
+    the full text of the 2 re-emitted bodies.
+- **Generator.** `scripts/gen-f1-policy-rewrites.py` (new, committed) reads the pre-image vector and emits the migrations'
+  literal DDL. It has four shape branches:
+  1. **substitution** — one call subterm replaced in place: mechanical 44; F-MEET 4; F-REF 6; F-CASE B 17; F-DOCS
+     `document_approvals_select` (72);
+  2. **template re-emission** — the whole USING rebuilt from a template, with arguments extracted from the pre-image:
+     F-NSP 18 (EVT / CAPA / CAPA-P), F-DOCS 11 (AI / DOC / PRINT), F-PROF 2 (the decomposition) (31);
+  3. **multi-hunk single statement** — `meeting_cases_select` and `action_items_select` (2);
+  4. **removal-only** — F-CASE A 19: no policy DDL; the effect is the two body re-emits.
+
+  72 + 31 + 2 = 105 altered by DDL.
+- **Preflight** (each migration refuses on any failure):
+  - the live md5 of every policy it alters and every body a template mirrors equals the pre-image vector;
+  - every function it creates is absent (`to_regprocedure` null);
+  - every function it re-emits matches its pre-image md5, and each hunk's source text occurs exactly once;
+  - the RLS-bypass preconditions hold for every table a new DEFINER reads: owner `rolbypassrls = t` and
+    `relforcerowsecurity = f`. (F-MEET measured that `postgres` is not a superuser here.)
+- **Postflight** (each migration):
+  - each altered policy's deparsed text, read after apply under `search_path = ''`, equals the post-image vector;
+  - no converted site still contains its replaced scalar token;
+  - every sibling policy on a touched table keeps its md5;
+  - every new function has the expected `prosecdef`, `provolatile`, `proconfig`, `proacl`, `prolang`, and
+    `prosqlbody is null`;
+  - templates are byte-identical across embedding sites;
+  - a bounded agreement smoke per new set or verdict, against its scalar: a deterministic sample with both answers counted,
+    per the 7320 precedent. The exhaustive differential is `428`'s job;
+  - migration 3 also runs CASE §5.1's mask identity over every (profile ∪ NULL) × case.
+- **Headers.** Each migration carries a `door-sweep-targets:` block naming every function it creates or re-emits (the T7
+  precedent), so `scripts/door-sweep-cases.sh` derives its cases.
+
+#### 5. `428` — one design
+
+**One file,** `supabase/tests/428_ae5_staff_statement_scoped_reads.sql` (the highest existing file is 427).
+- **Why one.** The shared instruments (calibration, Δ capture, plan-JSON walker, ablation install and restore) are written
+  once, and one fixture root serves every family's N₁/N₂.
+- **Split fallback,** ruling (p): `428` holds §0–§2, the mechanical sites and F-MEET; `429` holds the Class-1 families and
+  F-DOCS. Only if the first run's runtime is measured as unacceptable.
+
+**Conventions.**
+- One rolled-back transaction, with dedicated fixture ids that share nothing with `424`–`427`.
+- `plan()` is always fully emitted, and a refusal is a red TAP line, never a raise (LEARN-105).
+- Values are captured under `lives_ok` (LEARN-083). Write `ok(a is not null and a = b)`, never `is(NULL, NULL)`.
+- In-transaction `pg_stat_get_xact_function_calls` deltas only.
+
+| § | Content (sources) | Red when |
+| --- | --- | --- |
+| **§0 instruments** | C0 for each counted door (one direct call reads Δ 1): `can_forms_read`, `_case_caps_core`, `can_capa_read`, `can_referrals_metadata_read`; plus a live-counter discrimination half (N calls in one statement read N; `select 1` reads 0) | Δ ≠ expected; then every count below VOID-reds |
+| **§1 fixture** | Defined below this table. Preconditions are asserted by pinned id, never `limit 1` | a precondition fails (red line) |
+| **§2 catalog, drift, text** | Defined below this table | any drift |
+| **§3 differentials (exhaustive)** | Defined below this table | any disagreement; any required class without both a grant cell and a deny cell |
+| **§4 row independence** | For G, H and G under the wrong hat (plus P, C and T where the family has those arms): Δ `has_permission`(N₂) = Δ(N₁) and Δ `authorized_scope_ids`(N₂) = Δ(N₁), on the statement lists below this table. Live-fixture witnesses: Δ of the per-row derivation or route ≥ N₂ − N₁ | growth with N; a non-zero removal statement; a witness unmet |
+| **§4c controls (GREEN before the change)** | Pre-image quals and bodies re-installed from the vectors: Δ(N₂) − Δ(N₁) ≥ N₂ − N₁ per family, and ≥ 3(N₂ − N₁) for `G_admin` on `case_interviews` (P4's shape) | the instrument cannot see per-row resolution; §4 then VOID-reds |
+| **§5 plan shape** | `explain (analyze, format json)` walked. Every node naming a set has `Actual Loops = 1`, nested sets included (CAPA-P inside parent RLS; `interview_session_attendance`'s two E occurrences; `profiles`' EXISTS; `accreditation_standards`; `indicator_measurements`; every DOC/PRINT sublink). Route Function Scans have loops = rows. Lazy guards: unrouted F-DOCS sets are `never executed` on a controlled-documents-only statement, and C-COMMITTEE's branch-2 set is `never executed` when no row reaches branch 2 (`G_admin`). Negative control on the pre-image: no set node | loops > 1; an unrouted set executed; the probe passes with no set term |
+| **§6 semantic ablation** | Per set or verdict, empty and universal bodies installed in the transaction, each with its exact pinned residue and a restored-md5 assertion: my plan §7; CASE F6a–e; MEET E1–E5; NSP N.7a–c; REF R.7a–d (including the five conjunct ablations and the hat-filter no-op half); PROF F.7a–d; DOCS 7a–7d | as each fragment states |
+| **§7 hard-deny dominance** | Defined below this table | a plant stays green |
+| **§8 S5 and removal** | CASE F8, 20 calls on an unlocked case: the content question reads Δ sibling 0; the deliberation question reads Δ 20; a locked case reads Δ 0 on both. Supersedes my plan §5's §8 row | a sibling call on a content question |
+| **§9 audit** | CASE F9: `get_case_detail` and `get_case_patients` as `G_admin` and `G_resp` add the same audit rows as under the pre-image re-install. Every new function has `provolatile = 's'` and no `audit_write(` token | any difference |
+
+**§1 fixture.**
+- **Commissions:** X, plus foreign Y, in one hospital and org.
+- **Principals:** `G_staff`, `G_admin`, `G_s8` (administrativo `read_cases`), `G_qr` (quality reviewer, oversight
+  visible), `G_resp`, `G_rec`, `G_clr` (clearance grant), `H` (staff in Y), `P` (pqs_member), `C` (nsp_coordinator), `T`
+  and `T′` (technical director and deputy), an NSP org admin, a platform admin, a role-less grant holder, an inactive
+  principal, a dual `staff` + `pqs_member`, and Z (no `sub`).
+- **Constructed rows the seed lacks:**
+  - events with owner ≠ reporting, in both directions;
+  - a CAPA per source: event, rca, indicator (foreign), manual, meeting;
+  - rows in `capa_action_evidence` and `rca_evidence`;
+  - referral children, and `referral_messages` with receipts;
+  - draft and sent commission-target and TD-target referrals, and source and target notes on draft and on sent;
+  - `professional_participants` at N, including a profile seated in two cases (verdicts 1 and 2) and a respondent-only
+    seating;
+  - `case_restricted` action items; `case_votes`; `case_decisions`;
+  - `printed_documents` of kinds `form_response`, `meeting` and `case`: a meeting print with an agenda note linked to a
+    case, and a case print with ≥ 1 child on every axis B–G;
+  - enforcing labels on a case home and an interview home, with and without clearance;
+  - a `participants_only` meeting with a non-member attendee, a foreign `staff_admin` attendee and an external attendee;
+  - every `securable_resources.resource_type` as a non-print home.
+- **Scale:** N₁ = 20 → N₂ = 200 per statement kind.
+
+**§2 catalog, drift and text.**
+- **Catalog.**
+  - The attributes of all 32 (+1) functions, as typed constants: each ACL exactly as ruled, and CASE-D1 and W1 not
+    executable by authenticated, anon or PUBLIC, per (e).
+  - Body tokens per fragment (M1, N.1, R.1, F.1, D1, CASE F1).
+  - `authz.authorized_scope_ids` is not executable by `authenticated`.
+  - Every `_cap_bit` value is < 2^30, and the 2^30 literal occurs once in CASE-D1 and once per verdict.
+  - The RLS-bypass preconditions.
+- **Drift pins** (comment-stripped md5):
+  - every converted-code scalar is a bare `has_permission`;
+  - meetings: `can_reach_meeting`, `commission_of_meeting`;
+  - patient safety: `can_read_event`, `can_read_capa`, `commission_of_event`, `hospital_of_event`, `event_of_rca`,
+    `event_of_capa`;
+  - referrals: `can_read_referral_metadata`, `can_read_referral_internal_note`, `can_read_referral` (still exactly the
+    metadata call), `is_pqs_operator_of_for`, `is_nsp_coordinator_of_for`, `is_pqs_member_of_for`,
+    `is_technical_director_of_for`, `has_role`, `hospital_of_commission`;
+  - professionals: `can_read_professional_profile`, `is_admin_for`, `can_manage_professional`, `is_org_admin_of_for`,
+    `authz.assignment_facts`, `authz.entailed_grants`, `current_professional_read_organizations`;
+  - documents: the six F-DOCS scalars and both `can_read_full_*_content` helpers;
+  - CASE F2 structure: exactly one sibling call, inside `if p_resolve_s5` inside `if not v_eg`; STEP 4 before STEP 5;
+    the delegation body;
+  - route key columns' `attnotnull`, and `printed_documents_document_uniq`.
+- **Text.**
+  - The 105 post-images equal the vector; the 19 A, the 3 X and all siblings equal the pre-image vector.
+  - Templates are byte-identical at every embedding site.
+  - The D8-amended NULL / COALESCE / CASE surface holds.
+  - No consumed set yields a NULL for any §1 principal.
+  - The zero-caller census of the 8 functions (plus Q-3's bound).
+
+**§3 differentials.** Principals are derived from the catalog, not a hand list, and crossed with the hats they hold ∪
+{absent, `staff`, `staff_admin`, `platform_admin`} and with every row.
+- **3.1** Each of the 16 wrappers against `has_permission` per commission; and `authz.candidate_authorized_scope_ids`
+  against `candidate_has_permission`.
+- **3.2** F-CASE:
+  - F3(a): masks against the re-installed pre-image bodies, with GAINED = LOST = 0;
+  - F3(b): C-COMMITTEE;
+  - F3(c): C-INTERVIEW (and C-DELIB under (j));
+  - F3(d): row sets, with non-vacuity per verdict class, clearance polarity and `case_restricted` polarity.
+- **3.3** F-MEET: M3 at the function grain; M4 on the policy surface; M5 narrowness (the SRF as the caller = `select id
+  from meetings` as the caller = the SRF as the owner).
+- **3.4** F-NSP: N.3 plus N.3a/b/c/f. On the 4 audited tables, the qual equals `_audit_access_authorized` for every
+  non-admin cell.
+- **3.5** F-REF R.3 (each arm class has ≥ 1 grant cell) and F-PROF F.3 (old policy against new, and the ELSE
+  decomposition against the scalar).
+- **3.6** F-DOCS D2 at the route layer (scalar arms substituted for the sets) and D3 through RLS.
+- **3.7** The 46 mechanical sites' row sets as `authenticated` equal the pre-image quals evaluated as owner. The storage
+  policy `form_assets_select_member` is included.
+- **3.8 Command context.** `UPDATE public.capa_plan … RETURNING` as a PQS operator (N.3g), and `case_referral` draft ↔
+  sent RETURNING as target manager and as source manager (R.8): the pre-image and installed quals return the same rows.
+  Discrimination half: the rejected inline-column form must differ, or the case records that the new-row path is
+  unreachable, with the guard's SQLSTATE.
+- **3.9 Special principals.**
+  - A platform admin with `active_role = 'platform_admin'`: policy = pre-image = false, while the audit gate says true.
+    This is the pinned pre-existing asymmetry (N.3d).
+  - A role flipped to `test_validation` inside the transaction: every family's post-image and pre-image deny it, and
+    the candidate twins agree (N.3e).
+  - The null uid, and an inactive principal.
+
+**§4 statement lists.**
+- **Mechanical:** the statements in my plan §5.
+- **F-CASE:** `cases`, `case_phases`, `case_events` writer UPDATE USING (via `explain analyze update` in the transaction),
+  `case_votes`, `ethics_case_details`, `case_interviews`, `interview_sessions`, `interview_session_attendance`,
+  `action_items`. **Every removal statement reads Δ = 0 at both N for every principal.**
+- **F-MEET:** all five meeting tables, including `meeting_cases` growth.
+- **F-NSP:** N.5, with the short-circuit profile held fixed across N.
+- **F-REF:** `case_referral` and each referral child.
+- **F-PROF:** populated `professional_participants` and `professional_profiles`.
+- **F-DOCS:** `documents`, `document_versions`, `document_version_files`, `file_objects`, `document_approvals`,
+  `action_item_updates`.
+
+**§7 hard-deny dominance.**
+- **CASE F7(i):** respondent and recused principals read 0 under a universal I2.
+- **CASE F7(ii), the L17 plant:** each B qual re-installed as `(app.case_committee_verdict(E) = 1) OR
+  (app.commission_of_case(E) IN (SELECT app.current_cases_deliberation_read_commissions()))` (and the interview analogue)
+  MUST red F7(i), §2's branch-2 pin and §3.2's F3(d).
+- **MEET M9:** the respondent under E2; the attendee under E3.
+- **DOCS 7c:**
+  - an inactive principal;
+  - a principal respondent or recused on an item's anchor case;
+  - an enforcing label without clearance, under universal case sets;
+  - a respondent's meeting print;
+  - a case print with an empty deliberation set.
+- **NSP N.7b:** a `manual`, `meeting` or `audit_finding` CAPA never appears.
+- **PROF 7c:** a respondent-only seating under a universal I2; the hat-conjunct ablation over-grants.
+- **Cross-family L17 plant:** DOC re-installed with its `case_id` arm moved OUTSIDE the route subquery, as
+  `OR app.can_read_case(x_case, uid)`, MUST red DOCS 7c's enforcing-label cell.
+
+**Red-first (T15.2).**
+- **Meaningful reds on today's catalog:** §4 (per-row growth), §5 (no set node), §8 (a sibling call on the content
+  question).
+- **Vacuous reds** (the objects do not exist yet): §2, §3, §6, §7.
+- **GREEN before the change:** §4c and §5's negative control.
+
+**Harness — evidence, not the gate.** `scripts/authz-ae5-staff-perf-acceptance.sql` (my plan §5(ii)), extended to 1k and
+10k rows per family statement:
+- a hashed-plan check at scale (loops = 1 at 10k) on every nested set term;
+- set-size cost of `current_reachable_meetings` (many commissions × 20 years of meetings), `current_readable_referral_ids`
+  (a hospital-scale PQS operator) and P1 (every live seating);
+- P4 linearity of the per-row residue that is not permission resolution: `commission_of_*`, `_case_caps_core`'s non-S5
+  arms, the EVT/CAPA derivations, the routes;
+- DC1 and DC2 on the pre-change predicates;
+- the AE4 harnesses' P7 "fallback never executed" probe, re-read against `professional_profiles_select`'s new ELSE shape
+  before any run (LEARN-027).
+
+**Door-sweep and storage coverage replacements.**
+- **Storage.** `form_assets_select_member` stays outside the POLICY arm (open follow-up) and is covered by §3.7 and §6.
+- **F-DOCS route targeted cases** (DOCS §9). The plants drop the exclusion guard, `is_active` or the ceiling; make a print
+  row emit `documents_commission_id`; or make D3 emit no deliberation rows. `428` §3.6 and §7 must red under each.
+- **`authz-setvalued-targeted-cases.sh`** gains every new `SETOF uuid` (21), each with a universal-body plant that §3 and
+  §6 must red.
+- **Outside that harness's population:** routes (`table`), verdicts (`smallint`) and scalar `uuid` derivations. Ruling
+  (n).
+
+#### 6. Gate consequences (union of the plan and all five fragments)
+
+| Gate / artifact | Verdict | Detail |
+| --- | --- | --- |
+| Privilege budget (gate 15; `320` U4a/U4c) | **CHANGES** | Measured today: app 339 / public 433 / total 772. After: app 369, total 802; +1 under (j), +1 more if W1 is authenticated. Update `authorization-and-audit.md:169,:176` and `320:510,:518` in one commit, with the justification in the gate record (Q-4). Fix `320` U4c's stale prose "326 + 433 = 759" while re-pinning. U1 unchanged (everything is revoked from PUBLIC) |
+| `421` | **CHANGES** | §0c `913 = 836 + 77` → `945 = 835 + 110` (+32 new, +1 converged `has_case_capability`); §0d plpgsql 35 → 42 (+6 new, +1 converged), sql 42 → 68; §2a visited 42 → 68. (j) adds 1 plpgsql |
+| `419` / gate 18 | **CHANGES** | 836 → 835, a pure deletion (`has_case_capability`); regenerate the freeze artifact with `gen-definer-search-path-freeze.mjs --write` |
+| `414` | unchanged | it pins the schema-name set only |
+| `400` + `generated-helper-surface.md` (gate 17) | **CHANGES** | rows 549 → 581, definer +32, new digest (`npm run data-access:surface`) |
+| `409` | **CHANGES** | §1.1: 24 → 40 carrier pairs, each RE-RULED per the test's own text. §2.1 (six write policies call `can_edit_commission_forms`) goes to 0 under Q-1: re-pin. §1.3 and §1.4 unchanged |
+| `410` + manifest + generated `.psql` (`lint:authz-vectors`) | **CHANGES** | The site declarations are listed below this table. §3.5, §3.6 (`110`), §8.5 and §8.6 (`82 / 50 / 24`) are re-derived by the generator on the catalog, never hand-computed. §6.2 is re-measured (owed); its green is not evidence of dominance (`FUP-AE5-STAFF-HARD-DENY-CLOSURE-IS-BLIND-TO-OR-AROUND` stays open, and `428` §7 carries dominance) |
+| `413` | **CHANGES** | §8 (`like '%can_read_professional_profile%'`) goes RED: re-pin it to the three ELSE-arm tokens. §7 unchanged |
+| `356` | **CHANGES** | §13.3: the `\ycan_read_case_committee\y` policy list becomes `[]`. A new pin, `\ycase_committee_verdict\y`, lists **22** policies: the 11 today + 5 `action_item_*` + 5 DOC sites + `printed_documents`. Classified MOVED one hop up, not ADDED (ruling (l)). §13.4 unchanged (4 routines). A new §13.4b pins the routines that reference the verdict: {`app.interview_read_verdict`, `app.current_case_seated_professional_profile_ids`}; `case_deliberation_verdict` does not reference it. §14.3's md5 target moves to CASE-D1; §14.4's `member_can_for` now sits in CASE-D1 |
+| `311` | **CHANGES** | §5.1 reds on the 6 F-DOCS sites, whose policy text holds both `case_of_interview(` and `app.can_read_case(` — ruling (k). The `:362` by-name fence moves to CASE-D1 |
+| `230:187`, `231:436`, `231:458` | **CHANGES** | by-name `_case_caps` fences, re-pointed to `_case_caps_core`; they red loudly if missed |
+| `387` | **CHANGES** | C1's hot-set md5 moves for the F-CASE B sites (and for any mechanical site in the hot set: owed). Re-pin with attribution: an md5 over the set minus the changed ids must reproduce the old pin. A1 unchanged |
+| `authz-setvalued-targeted-cases.sh` | **CHANGES** | the §4b population goes 5 → 26 (+21 `SETOF uuid`), each added to `IN_SCOPE` with a universal-body `run_case`; header updated. Routes, verdicts and uuid derivations: ruling (n) |
+| Door sweep (diff-scoped, both arms) | **scope changes** | Detailed below this table. BLIND blocks |
+| Census (ARM 3) | **CHANGES** | 23 newcomers (`proretset ∧ authenticated EXECUTE`): the 12, #14, #17, #18–19, #24–26, #28–30, #32. Each owes a verdict row. W1 joins only if authenticated |
+| Hat (ARM 4) | ⏳ owed | every new function joins the scan. S1 and P1 read raw `memberships` with `app.active_role(` in the same chunk: expected clean, unmeasured |
+| Floor (ARM 2), wrapper (ARM 5, `FROMFINDINGS=1`) | unchanged | their domains are `public` only |
+| `authz-blind-allowlist.txt:116-117` | ⏳ re-earn | the `can_reach_meeting` REPRESENTED-BY-GROUP rows: the representative keystone must red under the new predicate, or a re-measurement note is owed (LEARN-080) |
+| Mutation scripts | **CHANGES** | Detailed below this table |
+| Rollback runbook + `authz-rollback-template.sql` | **CHANGES** | Detailed below this table |
+| AE4 harnesses (`authz-ae4-perf-harness.sql`, `authz-ae4-p2-invocation-count.sql`) | ⏳ re-read | They re-install literal pre-change `professional_profiles_select` text and restore by md5, which still works. But P7's "fallback never executed" names a call that is now three OR arms |
+| pgTAP behavioural re-runs (inside `test:db`) | re-run | `150`, `171`, `198`, `240`, `241` (K10), `246`, `251`, `252`, `254`, `295`, `298`, `300`, `312`, `313`, `321`, `328`, `340`, `342`, `368`, `403`, `415`, `424`, `426`, `427`: content unchanged. `425` is re-run on the converted catalog (T15.6, AC-7's evidence) |
+| `src/lib/types/database.ts` | unchanged; run `gen:types` anyway (Rule 8) | no `public` function added |
+| `e2e:prod` | re-run once, green | behaviour is preserved by construction |
+| Follow-ups | **CHANGES** | Listed below this table |
+
+**`410` and manifest — what gets declared.**
+- **Function sites composed with `authz.authorized_scope_ids`:** the 16 carriers.
+- **Composite function sites:**
+  - `current_reachable_meetings` → the meetings wrapper;
+  - S1 → W1, `is_pqs_operator_of_for`, `is_technical_director_of_for`;
+  - S2 → W1;
+  - P1 → I2, I3, `commission_of_case`;
+  - CASE-D1 → the sibling;
+  - `_case_caps` and `has_case_capability` → CASE-D1.
+- **Policy sites:**
+  - the 46 mechanical sites;
+  - the 18 F-CASE B sites (`410` §8.4 reaches D4 at hop 1);
+  - 5 F-MEET, 18 F-NSP, 6 F-REF (ruling (g));
+  - 2 F-PROF, with `composedWith` rewritten;
+  - 12 F-DOCS (§8.4 forces them).
+- **`hatNote`s that become false,** re-declared: `can_reach_meeting` (5), the `meeting_cases_select` site,
+  `can_read_event` (11), `can_read_capa` ("4", already 7 live), `can_read_action_item` (5),
+  `can_read_document_of_version` (3).
+
+**Door sweep, both arms.**
+- **POLICY arm:** the 105 altered `public` policies become cases. `form_assets_select_member` stays UNPROVEN (PARTIAL),
+  as at T8.
+- **PREDICATE arm:** `has_case_capability` (bool). The new non-bool functions "owe a TARGETED case".
+- **Findings rows re-earned** with re-measurement notes (LEARN-080):
+  - every altered policy row;
+  - every helper row whose coverage ran through a policy path: `can_read_event` :458, `can_read_capa` :453,
+    `can_read_referral_metadata`, `can_read_referral_internal_note` (NOTICED today), `can_read_professional_profile`
+    ~:461, F-DOCS :402, :404, :405, :452, :457, and `can_view_printed_document` :417 (NOTICED today).
+
+**Mutation scripts.**
+- **Retarget** `pg_get_functiondef('app._case_caps…')` to CASE-D1 in `a2-mutation-audit.sh`:53,
+  `b-mutation-audit.sh`:33/45/50, `q1-quality-mutation-audit.sh`:64/259, `p3-case-print-mutation-audit.sh`:69/98/107/285/289.
+- **Move `q1`:183–245's policy `replace('app.can_read_case_committee(')`** to the verdict tokens: on converted quals it is
+  a no-op.
+- **Every script asserts** that its `replace()` matched exactly once.
+- **Re-read the verdicts** of `p0b-isolation`, `dm4-referral-doors-matrix`, `w4-technical-director-referrals-audit`,
+  `m1`:138, `m5`:137, `q1`:211 and `b1`:131/138: their coverage moves off the RLS path.
+
+**Rollback runbook and template.**
+- **Stale text:** §7.3's intro and §7.3a become false (`can_reach_meeting` is converted); §7.3b's S5 line now lives in
+  CASE-D1; §7.0b/§7.1 counts are stale (`app=326 total=759` was already); the aggregate md5s over the 99 hot-subset
+  policies (~:786) are re-derived.
+- **New:** §7.4 worked examples, and **SECTION H** — seven blocks in reverse migration order (7540 → 7480). Each:
+  1. refuses if its post-image is absent (LEARN-059);
+  2. restores the pre-image quals;
+  3. re-emits `_case_caps` and `has_case_capability` from the pre-image;
+  4. drops, in order: routes, then SRFs and verdicts, then CASE-D1, then wrappers.
+- **Order:** SECTION G runs only after H; otherwise its text match of the post-T7 `meeting_cases_select` would no-op.
+- **G3a's literal counts** include the 16 wrappers.
+- **Parsed** inside `begin … rollback`, as AC-9's were.
+
+**Follow-ups.**
+- **Close** `FUP-PROFESSIONAL-PARTICIPANTS-SELECT-STILL-PER-ROW` only after §4 runs on a populated table.
+- **File:**
+  - the FOR ALL write-policy per-row residue (h);
+  - the 8 zero-caller functions (q);
+  - the per-row `holds_role` residue (d);
+  - the row-keyed list RPCs (plan §1(b));
+  - the `interview.viewed` gate (i);
+  - the stale `app.can_read_case` comment ("234 K3 re-pins it");
+  - PUBLIC EXECUTE on `can_read_referral_internal_note(s)`, `is_nsp_coordinator_of_for`, `is_pqs_member_of_for`,
+    `can_read_correction_response` and `commission_of_version` (observed, not changed).
+
+#### 7. ADR 0212
+
+**Number 0212.** The highest number on any branch is 0211: `ae5-staff`, `origin/ae5-staff`, and
+`docs-workflow-restructure`, where it is the same file. The peer session's clone is not visible from here; gate 9 settles
+any collision at rebase.
+
+**Title:** *Many-row RLS paths resolve permissions once per statement.*
+
+**Header.**
+- Status: proposed.
+- Area: authz.
+- **Amends: 0182** — F-PROF rewrites `professional_profiles_select` and drops its ELSE branch's dead per-row resolution.
+- Related: 0183, 0205, 0208, 0211.
+
+**Decision.**
+1. Every SELECT policy, and the USING clause of every UPDATE, DELETE and FOR ALL policy, that reaches a commission-scoped
+   catalog permission — the 40 T7 sites, the 6 AE4 forms FOR ALL sites and the 81 helper-routed sites — resolves that
+   permission once per statement. It does so through zero-argument, caller-bound, STABLE `SECURITY DEFINER` interfaces
+   with `search_path = ''`: one wrapper per permission code over `authz.authorized_scope_ids`, and, per resource family,
+   a readability set, a smallint verdict consumed only through a fixed CASE, or a key-emitting route — with every hard
+   deny evaluated before any permission set is consulted.
+2. Scalar authorizers and helpers stay byte-unchanged, with two exceptions: `_case_caps` delegates to one parametrized
+   core that skips S5 for non-deliberation questions, and `has_case_capability` passes that flag. The scalars remain the
+   authority for single-resource checks, DEFINER RPCs, third-party questions, and INSERT `WITH CHECK` policies, which stay
+   scalar.
+3. Nothing is reused across statements, and no caller-supplied set or principal is accepted. Equivalence is proven by
+   exhaustive differentials against the untouched scalars under every hat, in both command contexts, and under ablation
+   and L17 plants — not by timing. Row independence, plan shape and semantic ablation in pgTAP `428` are the gate; the
+   timing harness is evidence.
+
+#### 8. Rulings
+
+| # | Ruling | Owner | Recommendation |
+| --- | --- | --- | --- |
+| (a) | F-CASE: one parametrized `_case_caps_core` (CASE-D1…D3), or an untouched `_case_caps` plus a generated S5-free twin | LEAD | **A single core.** A twin is a second copy of a Class-1 authority body; the harnesses that plant into `_case_caps` and the by-name fences cannot see it, which masks an arm. The fallback's obligations are named in CASE §3 R1 |
+| (b) | Do the 19 policies "converted by removal" (text unchanged, 0 resolutions) satisfy AC-11? | LEAD (PO informed at approval) | **Yes, stated as such.** AC-11's tick names 59 new-text + 19 by removal + 46 mechanical, with `428` §4's Δ = 0 on every removal statement as the witness |
+| (c) | The F-DOCS routes are a structural oracle about the caller: for any known document or print id they reveal home keys (case, interview, event, CAPA plan, referral), even when the caller cannot read the document | **PO** (Rule 12 disclosure surface) | **Accept as a named exception in ADR 0212.** Bounds: ids only, never labels or content; the subject is the caller only (today's scalars already answer about ANY principal); the column list is pinned in `428` §2; no `anon` grant; a follow-up to revisit if a document-id enumeration path ever appears |
+| (d) | Is per-row `authz.holds_role` → `assignment_facts` (inside `_case_caps_core`'s non-S5 arms, F-DOCS `direct_ok`, `is_staff_admin_of`) a "resolution" under AC-11? | LEAD | **No.** AC-11's measured subject is `authz.has_permission` and `authz.authorized_scope_ids`; `holds_role` is the layer-1 projection these paths already paid before AE5. Record it as a named per-row residue, with a follow-up |
+| (e) | F-REF W1's ACL: `service_role` only, or `authenticated, service_role` | LEAD | **Owner only, no grants,** like CASE-D1 and the sibling: only the DEFINER S1 and S2 call it. `428` §2 types the exception; budget +0 |
+| (f) | The F-PROF per-row fallback (verdict pair `&&` I2), which departs from F-CASE R1 | LEAD | **Not pre-approved.** Rule on it only if the harness measures P1's all-seatings cost as unacceptable, with that measurement attached |
+| (g) | Declare the 6 referral policies as manifest sites (`410` §8.4 does not force it) | LEAD | **Declare them** (composedWith S1/S2), consistent with F-DOCS's forced 12, so that `410` §3.5 checks the set token at each site |
+| (h) | The 12 F-NSP FOR ALL `*_write` policies (and the 4 UPDATE/DELETE ones) still run per row on SELECT, at 0 resolutions | LEAD | **Follow-up**, scoped by enumerating every FOR ALL policy whose USING runs per row on SELECT (e.g. `cases_staff_admin_write`), not by this family's list. Not an AC-11 subject |
+| (i) | The `interview.viewed` audit authorization (`is_member_of ∨ is_tenancy_admin_of`) is weaker than the interview read door: a member who cannot read an interview can record viewing it | LEAD (PO visibility: Class-1 audit) | **A bug row** in `docs/bugs/BUGS.md` — audit integrity on a Class-1 door, not a read leak. Not fixed in this unit |
+| (j) | `S_CASE_DELIBERATION` has no offered interface | LEAD | **Add `app.case_deliberation_verdict(uuid)`** (owned by F-CASE; shape and identity in §2), +1 budget. Otherwise `printed_documents_select` and DOC's print arm keep a per-row S5 resolution, and AC-11 is unmet for them |
+| (k) | `311` §5.1 (no policy text holding both `case_of_interview(` and `app.can_read_case(`) reds on the 6 F-DOCS sites | LEAD | **Re-pin 5.1 as its derived set plus these 6 named sites, each with its reason:** the case arm is keyed to case-homed rows only, and the interview arm goes through C-INTERVIEW. Add a `428` behavioural cell: a quality reviewer (content without committee) reads 0 interview-homed documents and 0 case prints. ⛔ Do not dodge the token with a new derivation; that blinds 5.1's family detector |
+| (l) | `356` §13.3's committee door set becomes 22 policies carrying the verdict | LEAD | **Re-pin as MOVED:** one hop up, from helper bodies into policy text, with the same semantic blast radius. Keystones: `428` §3.2 and §3.6, per 356's own ADDED/RENAMED/REMOVED header |
+| (m) | `has_case_capability` keeps a non-empty `search_path` (F-CASE), against ADR 0208 D4 convergence | LEAD | **Converge it to `''`.** D4 binds a touched DEFINER, and `419` 836 → 835 is a pure deletion gate 18 accepts |
+| (n) | Where coverage lives for `authenticated`-executable DEFINERs that return neither bool nor `SETOF uuid`: verdicts (`smallint`), routes (`table`), scalar `uuid` derivations | LEAD | **Extend `authz-setvalued-targeted-cases.sh`'s population** to `prosecdef ∧ authenticated EXECUTE ∧ prorettype ≠ bool` in `app`, classified per function. Verdicts and routes get plant cases. The pure derivations (`owner_commission_of_event`, `hospital_of_capa`, `indicator_commission_of_capa`, `organization_of_professional_profile`, `document_of_version`) are allowlisted as structure-only, each with a reason, per the `commission_of_*` precedent |
+| (o) | Seven migrations, or one (T7's C3) | LEAD | **Seven, in dependency order.** Each preserves equivalence on its own and is reviewable and red-first per family. SECTION H has one refusing block per migration |
+| (p) | One `428`, or `428` + `429` | LEAD | **One**, split only on a measured runtime problem |
+| (q) | Extend the zero-caller bound from 5 functions to 8 | LEAD | **Extend Q-3 (A)'s bound** with the 3 F-DOCS helpers, under the same close condition |
+| (r) | ADR 0212 carries `Amends: 0182` | LEAD | **Yes** (gate 9 back-pointer), because F-PROF rewrites the policy ADR 0182 authored and drops its dead ELSE resolution |
+| (s) | The AE4 harness P7 probe on the new `professional_profiles_select` shape | LEAD | **Re-specify it before T15.5's run**, since the fallback is now three OR arms. Never score the old probe against the new text |
+
+No PO ruling is needed on the budget beyond Q-4: N = 30 (31 with (j)), stated in the gate record.
+
+#### 9. Contradictions found by the planners (listed; not fixed here)
+
+| # | Where | What the catalog shows | Source | Correction owner |
+| ---: | --- | --- | --- | --- |
+| 1 | this record, the Q-2 residue entry (`ae5-staff.md:7631`): "removes it only for locked cases: 1 of the 8 on `cases`, leaving 6 of its 7" | for staff4.ccih it removes **0 of 7**: the one locked case already returns at STEP 4, because staff4 is its respondent | F-CASE §10 | lead |
+| 2 | `docs/backend-state/authorization-and-audit.md:989` | `can_read_event` has no "admin" arm. `event_patient_select` calls `app.can_read_event_patient`, not `can_read_event`, and `authenticated` holds no grant on `event_patient` | F-NSP §10.8 | lead (seam, at Record) |
+| 3 | `docs/backend-state/cases-and-ethics.md:891` | a receipt also needs the message's PHI door: the message lookup runs under `referral_messages_select_phi` | F-REF §10.5 | lead (seam) |
+| 4 | `docs/backend-state/cases-and-ethics.md:894` | `can_read_referral_internal_note` also requires `n.committee_id` to be that side's commission; dropping that conjunct over-grants 19 cells | F-REF §10.5 | lead (seam) |
+| 5 | manifest `commission.capa.read` `hatNote` (json ~:4678): "4 policy callers" | 7 live; the 3 CAPA-P policies are omitted | F-NSP §10.8 | backend (T15.4 manifest edit) |
+| 6 | `docs/backend-state/meetings-and-governance.md:322-329` | `can_reach_meeting`'s body is `can_meetings_read(commission_of_meeting(…), p_uid) AND (…)`, not `is_member_of_for(…)` | F-MEET §2, §10 | lead (seam) |
+| 7 | my plan §3 (`meeting_cases_select`'s post-image kept `can_reach_meeting`) and §4 (S5 hunk 2) | superseded by §1 and §3 of this entry | F-MEET §4; F-CASE §3 | backend3 (recorded here) |
+| 8 | my plan §0 and §3 describe the probes as run by a "superuser" | `postgres` has `rolsuper = f`; the RLS bypass rests on `rolbypassrls = t` and `relforcerowsecurity = f` (now pinned) | F-MEET §2 | backend3 (recorded here) |
+| 9 | the lead's review entry (Q-3 bound): "the five scalar authorizers" | 8 functions become zero-caller | F-DOCS §2, §10 | lead (follow-up text) |
+| 10 | the partition's `reaching_helper_chain` for `printed_documents_select` (shortest chain only) | its case kind also reaches `has_permission` through `can_read_case` / `_case_caps` and the `can_read_full_*_content` helpers, which are in no family's helper list | F-DOCS §1 | backend3 (recorded here; the column is shortest-path by construction) |
+| 11 | F-CASE §3 D3 ("`search_path` stays … so `419`'s frozen row is unchanged") | contradicts ADR 0208 D4 and AC-7 for a touched DEFINER | this integration | backend3 (§3 above) |
+| 12 | `app.can_read_case`'s live comment, "234 K3 re-pins it" | K3 no longer exists | F-CASE §10 | backend (follow-up; not re-emitted here) |
+| 13 | `320` U4c message "326 + 433 = 759"; runbook §7.1 `app=326 total=759` | live values are 339 / 433 / 772 | F-NSP §9; Explore sweep | backend (T15.4 re-pin) |
+| 14 | ADR 0182 | silent on the ELSE branch's dead per-row `org.professionals.read` resolution, which never grants there | F-PROF §10.3 | ADR 0212 (records it) |
+
+#### 10. Owed measurements
+
+| # | Measurement | Owner run |
+| ---: | --- | --- |
+| 1 | the hashed plan at 1k and 10k for every nested set term (`profiles`, `accreditation_standards`, `indicator_measurements`, CAPA-P, `interview_session_attendance`, the DOC/PRINT sublinks) | harness (T15.5) |
+| 2 | P4 linearity of the per-row residue that is not permission resolution (`commission_of_*`, `_case_caps_core`'s non-S5 arms, EVT/CAPA derivations, routes, `holds_role`) | harness |
+| 3 | set-size costs: `current_reachable_meetings` (many meetings), `current_readable_referral_ids` (a hospital-scale PQS operator), P1 (every live seating) | harness |
+| 4 | the AE4 P7 probe re-specified on the new F-PROF shape (s) | harness, before its run |
+| 5 | C-COMMITTEE's branch-2 set is `never executed` when no row reaches branch 2; F-DOCS's unrouted sets are `never executed` on the real text | `428` §5 |
+| 6 | every target count: F-CASE P1–P7 → 0; F-MEET 1 or 2 per statement; F-NSP 2/3/6 × candidates; F-REF 1; F-PROF 2; F-DOCS 1 + routed constants | `428` §4 |
+| 7 | `UPDATE … RETURNING` equivalence on `capa_plan` (N.3g) and `case_referral` (R.8) | `428` §3.8 |
+| 8 | the platform-admin hat and audit short-circuit (N.3d); the `test_validation` flip for every family (N.3e) | `428` §3.9 |
+| 9 | the empty-table constructions (§1 fixture) without which §3, §4 and §6 cannot fail on the 4 referral children, the 2 evidence tables, participants, prints, `case_restricted` items, votes and decisions | `428` §1 |
+| 10 | the runtime of the combined `428` (ruling (p)) | first `428` run (T15.2) |
+| 11 | the carrier status of today's helpers under `410` §8.4 (`t410_carriers`), before any count is pinned | backend, before T15.4 |
+| 12 | `410` §6.2's outcome after the manifest edit | Phase Gate step 1 (`test:db`) |
+| 13 | the hat arm (ARM 4) on every new function; the census verdict rows | Phase Gate step 1 (arms) |
+| 14 | door-sweep re-earning (LEARN-080) for every altered policy row and the helper rows listed in §6; the `authz-blind-allowlist` meeting group | Phase Gate step 1 (door sweep, both arms) |
+| 15 | whether any mechanical site is in `387` C1's hot set | backend, at re-pin (T15.4) |
+| 16 | counter pollution: no concurrent probing during any harness or `428` counting run | process, every run |
+
+#### 11. Task order, owners, files (supersedes my plan §8 where they differ)
+
+| # | Owner | Task | Files (one owner each) |
+| --- | --- | --- | --- |
+| T15.0 | lead (the PO for (c)) | rule (a)–(s) | hub, record |
+| T15.1 | backend | ADR 0212, then `npm run adr:index` | `docs/decisions/0212-…md`, `docs/decisions/INDEX.md` |
+| T15.2 | backend | settle-checked authoring snapshot, vectors and generator; `428` red-first on today's catalog | `supabase/tests/vectors/f1_*.tsv`, `scripts/gen-f1-policy-rewrites.py`, `supabase/tests/428_…sql` |
+| T15.3 | backend | the seven migrations, in order, each applied and postflighted before the next; `gen:types` | `supabase/migrations/20261003007480` … `20261003007540`, `src/lib/types/database.ts` |
+| T15.4 | backend | the re-pins, after the rulings (§6 CHANGES rows) | `320`, `421`, the `419` artifact, `409`, `410` + manifest + `.psql`, `413`, `356`, `311`, `230`, `231`, `387`, `400` + helper surface, the mutation scripts, `authz-setvalued-targeted-cases.sh`, the findings md, runbook, template |
+| T15.5 | backend | the harness run, in a DB window with peers checked | `scripts/authz-ae5-staff-perf-acceptance.sql` |
+| T15.6 | tester | `425` re-run on the converted catalog (AC-7) | `supabase/tests/425_…sql` (content unchanged) |
+| T15.7 | backend | Phase Gate step 1 in full, on a fresh reset | record entry |
+| T15.8 | tester | `e2e:prod` | run logs |
+| T15.9 | lead | follow-ups, the bug row (i), and the seam slice plus current-state re-cut at Record | `docs/followups/follow-ups-open.md`, `docs/bugs/BUGS.md`, seams |
+
+**Order:** T15.0 → T15.1 ∥ T15.2 → T15.3 → T15.4 → T15.5 → T15.6 → T15.7 → T15.8 → QA.
+
+**State.** The integrated plan is posted and **not executed**. Rulings (a)–(s) are open. The one unreconciled interface is
+`S_CASE_DELIBERATION`, under ruling (j). **Next:** the lead reviews and rules.
