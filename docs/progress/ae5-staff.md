@@ -6350,3 +6350,54 @@ CCIH-1's `readiness_report` row, before and after the seed (columns: level, asse
 evidence_valida, atencao, vencida, restrita): `…||` + `0|0|0|0` → `…|parcial|` + `0|1|0|0`.
 
 **Parked.** Own client sessions **0**; `staff=authoritative, staff_admin=authoritative`; `profiles` 45; the R-7 link row and both L36 rows present on the reset. The stack belongs to the tester for the production gate on the specs the new fixtures can touch, then the declaring `e2e:prod`.
+
+### 2026-09-15 — backend's R-7 (a) / L36 / F2 pass VERIFIED; build complete at `9f4a326b`; a grant-bit finding routed for classification; two of backend's claims contradicted by measurement (lead)
+
+**Verified in git by the lead.** `9f4a326b` touches exactly seven files by path:
+`scripts/gen-authz-differential-cells.py` (242+), `supabase/seed.sql` (53+), the new
+`427_ae5_staff_t7_fixture_bindings.sql` (154+, `select plan(12)`), the manifest JSON,
+`authz-matrix-coverage.json`, and the two generated `.psql` files. `64032221` is backend's record entry.
+The tree is clean apart from run logs, and `ls supabase/tests/*.sql | wc -l` reads 276.
+
+**Backend's witnesses, as its entry quotes them.**
+- **L35 access witness on `ca00…e1`, taken before the seed:** the full-content and printed-document
+  readers were `{chefe.ccih}` with and without the link; 0 of 45 principals moved.
+- **R-7 (a):** one `meeting_cases` row links row 8's meeting `a2` to `ca00…e1`, inserted before the
+  `in_signature` flip. Row 8's 216 cells are unchanged, and `can_sign_meeting`'s live body has no case or
+  respondent term. As staff4, the respondent cell's probe reads `f` with the respondent row live and `t`
+  without it, while meeting reach and shell-read hold throughout.
+- **B2′:** 36 cells added, 0 changed, 0 removed; only the new cells carry the suffix `|fixture:respondent`.
+  The three formerly scalar-only checks each redded on a planted bad second element with their own
+  messages ("do not appear as a FIXED LITERAL", "the declaration does not resolve", "PERSONA-AXIS ids"),
+  and those plants now live in the generator's self-test.
+- **L36:** one `standard_assessments` row and one `evidence_links` row on CCIH-1, shaped as the writing
+  doors would write them. CCIH staff read both; `gap.unpriv` and `staff1.farm` read neither. CCIH-1's
+  `readiness_report` moved from `…|0|0|0|0` to `…|parcial|0|1|0|0`.
+- **`427`:** asserts row 9's grant arm with and without the grant, and L18's items as `dr.john`, each
+  redding under a one-fact plant. 2.4, the recusal precondition, is not planted, and backend gave its
+  reason.
+
+**Build complete at `9f4a326b`, one fresh reset.** Tables 445 three times, profiles 45. Lint 0, typecheck 0.
+`test:db` exit 0 `Files=276, Tests=9231, Result: PASS`, `not ok` 0 (9219 plus `427`'s 12). Census, hat and
+floor each exit 0 `=== INVARIANT HOLDS ===`; `FROMFINDINGS=1 wrapper` exit 0 `BLIND set size: 41`. Budget 339
+· 433 · 772. `door-sweep-cases.sh a02487bc` gives 75 names with checksum `c2934944fc881ded`, equal to T8's.
+
+**Two of backend's claims, contradicted by the lead's measurement.**
+- Backend reported that `e2e/ae5-staff-landing.spec.ts:30` still says `gap.pending` is staff at CCIH. The
+  file reads `staff @ Farmácia A (Rede A)` at `:30`, committed at `dc08f96f`, so the claim is false.
+- Backend corrected the lead's go note: it says its generator and manifest edits were not in the tree at
+  the go, because it had parked them in its scratchpad. The lead's `git status --short`, taken just before
+  that go, listed both files as modified. The two accounts describe different instants. The record keeps
+  both, and neither changes a result.
+
+**Finding routed for classification, not yet ruled.** A `case_access_grants` row with
+`read_case_deliberation = false` and `read_case_content = true` still yields the deliberation bit;
+`_case_caps` reads 6 either way. That is case-deliberation content, adjacent to Rule 12. Backend classifies
+it in two halves:
+1. From files, while the tester holds the stack: the design authority for the two bits, whether T7 or L20
+   changed `_case_caps`'s grant arm against the pre-unit definition, and which suites assert the bits
+   separately.
+2. Read-only, after the tester parks: the live body, and the 6-vs-6 reading reproduced in a rolled-back
+   transaction.
+
+No fix or bug row until the lead classifies it as pre-existing or introduced, and as by design or a defect.
