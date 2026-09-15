@@ -4580,3 +4580,33 @@ sparse − the audit leg), § 3.2 want **56** (57 − the audit leg only), both 
 46/49 derivation replaced with its reason stated in the file. **AC-7 ticked** on this entry: every
 re-keyed site moves under the grant deletion except the ten attributed, and the P1 survivors are
 measured, not inferred. Tester on T13 (five specs, dev server).
+
+### 2026-09-14 — T13 run: 3/5 green (serial), 2 red on the SPEC's own false premise, not the app; L26 redesigns the two coordinates red-first (lead)
+
+Tester's run (`playwright-t13-run1.log` 5 workers — all 5 red on login timeouts; `run2` `--workers=1`
+— 3/5 green: `staff4.ccih` landing, both `multi@` form-fill tests incl. the keyboard-only one, AC-5's
+keyboard requirement met). The two reds, traced by the tester with a direct GoTrue password grant
+and a read of `src/lib/auth/actions.ts`, and CONFIRMED by the lead in the code: (1) `gap.pending`
+(`email_confirmed_at IS NULL`, seeded that way, never a real signup) — GoTrue answers
+`400 email_not_confirmed` regardless of `enable_confirmations = false` (that knob governs signup,
+not an existing unconfirmed row); `signIn` maps any 400 to the generic `invalidCredentials` on
+purpose (`:156–160`, non-disclosure), so the page never leaves `/login`. The spec's header (`:36`)
+claimed the opposite as "confirmed live" — **a comment that was an assertion, and false**. (2)
+`gap.deactivated` — GoTrue grants; `signIn`'s **BE-6 gate** (`:165`) signs out before any session
+and shows the pt-BR notice (`:45`), by design, to avoid the redirect loop against the login-bounce
+middleware; `/conta-inativa` is reachable only by a principal ACTIVE at login and deactivated
+mid-session. Neither is a regression; no bug row — the premise was the spec's. The tester reported
+before rewriting assertions, as the ownership rule requires.
+
+**L26 (lead): option (a), red-first, this round.** (i) The `gap.deactivated` fresh-login test asserts
+the DESIGNED behaviour — stays on `/login`, the BE-6 notice text, and NO session cookie afterwards —
+and is renamed to say so. (ii) A NEW transition test proves the landing seam the coordinate was for:
+log in as an ACTIVE staff persona this spec alone uses, deactivate it through the admin client the
+existing specs already use for fixture state (never a UI shortcut, never `seed.sql`), navigate, expect
+`/conta-inativa`; restore the row in `finally` so `e2e:prod`'s batches see the seed state. Red first:
+show the assertion fails against the fresh-login construction before the transition passes. (iii)
+`gap.pending` asserts refusal at login with the generic message and no session; the header comment
+at `:36` is rewritten to say what GoTrue actually does, with the curl's `error_code` quoted — the
+false "confirmed live" line is deleted, not softened. (iv) No bug rows; the false comment is this
+entry. (v) The 5-worker login-timeout pass is an OBSERVATION for AC-10: `e2e:prod` is batched with
+restarts; if it reproduces there it becomes a bug row then, not now. Tester owns `e2e/**` only.
