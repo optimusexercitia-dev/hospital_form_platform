@@ -4638,3 +4638,69 @@ step 1** (fresh reset + settle-check; `npm run lint` / `typecheck`; FULL `test:d
 test edits; the four arms re-quoted at HEAD; gate 15 budget 339/433/772 live; proof that no
 migration landed after the sweep's HEAD so its `SCOPE:` line still covers HEAD); then the tester's
 `e2e:prod` once.
+
+### 2026-09-14 — AC-10 step 1: BUILD COMPLETE on a fresh reset, at HEAD `4ee17f7c`
+
+Every exit read BARE, never through a pipe. Logs under the session scratchpad `ac10/`:
+`reset.log` · `lint.log` · `typecheck.log` · `testdb.log` · `arm_census.log` · `arm_hat.log` ·
+`arm_floor.log` · `arm_wrapper.log` · `cases.log`.
+
+**Stack claim.** Working tree clean of modifications at start. **2** Supabase stacks on the host —
+ours `supabase_db_azkbbhskturikxpgmafq` and `supabase_db_escalume`, **counted, never touched**.
+Own non-idle sessions on our container: **0**, re-checked before every catalog read.
+
+**1 · Fresh reset.** `supabase db reset --local` → **exit 0**, `Finished supabase db reset on
+branch ae5-staff.` Settle-check, `information_schema.tables` twice: **171 then 171**. Post-reset
+state verified rather than assumed:
+
+| profiles | authoritative roles | 21st door present | `_case_caps` S5 | `staff` codes |
+| --- | --- | --- | --- | --- |
+| **45** | **2** | **1** | **2** (the `read_case_deliberation` bit) | **20** |
+
+**2 · `npm run lint` exit 0 · `npm run typecheck` exit 0.**
+
+**3 · FULL `npm run test:db` on that reset — owed since T8's edits to `409` / `410`:**
+```
+Files=275, Tests=9218, 314 wallclock secs
+Result: PASS            TESTDB_EXIT=0        `grep -c '^not ok'` = 0
+```
+⭐ **275 files counted independently** (`ls supabase/tests/*.sql | wc -l` = 275), so the suite's own
+figure is not the only witness. **9218** is the actual number: 9215 at T7's landing plus the 3 the
+tester's `425` gained (`plan(18) → plan(21)`). Zero `not ok`, so the `Result: PASS` is not a
+summary hiding unrun tests.
+
+**4 · The four authz arms at HEAD — no plants (the plants are T8's, already recorded):**
+
+| arm | exit | verdict line |
+| --- | --- | --- |
+| `census` | **0** | `=== INVARIANT HOLDS ===` |
+| `hat` | **0** | `=== INVARIANT HOLDS ===` |
+| `floor` | **0** | `=== INVARIANT HOLDS ===` |
+| `FROMFINDINGS=1 wrapper` | **0** | `BLIND set size: 41` · `OK: every BLIND wrapper is on the allowlist.` · `=== INVARIANT HOLDS ===` |
+
+**5 · Gate 15, the privilege budget, LIVE** — `320 § U4`'s own predicate (`prosecdef` ∧
+`has_function_privilege('authenticated', …, 'EXECUTE')` over `app` + `public`), run against the
+catalog rather than read off the test:
+```
+ app 339 | public 433 | total 772
+```
+matching the committed anchor `<!-- BUDGET-ANCHOR ceiling=772 app=339 public=433 total=772 -->`
+(`docs/backend-state/authorization-and-audit.md:176`). **R-4 unmoved.**
+
+**6 · The sweep's SCOPE still covers HEAD.**
+`git diff --stat 0323935d..HEAD -- supabase/migrations supabase/seed.sql` → **EMPTY**, and
+`--name-only | wc -l` → **0**, measured two ways because an empty `--stat` and an empty diff are
+not the same evidence. The door surface has not moved since the sweep's base.
+
+The deriver re-run at HEAD reproduces the T8 run exactly:
+```
+SCOPE: 4 file(s) — 4 committed (a02487bc..HEAD), 0 worktree, 0 untracked | filter: none | derivation: catalog
+AC-10 : 75 names   sha256(sorted)=c2934944fc881ded
+T8    : 75 names   sha256(sorted)=c2934944fc881ded
+```
+⭐ Compared as a **sorted checksum**, not as a count — a count is satisfied by a swap, which is the
+same reasoning `410 § 8.5` and `409 § 1.1` are pinned by name for. Identical, so **no re-sweep
+decision arises**; T8's door-sweep verdicts stand for this gate.
+
+**Nothing was fixed in this step.** No app code, no migration, no `seed.sql` — the only write is
+this record entry.
