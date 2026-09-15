@@ -34,7 +34,7 @@ Each is the template step it names; the witness for every box is a dated entry i
       D5) — **PO-approved** before any seed row is written.
 - [x] **AC-2 Deny-class effects** ✅ **PO-RULED 2026-09-14** (P3, record § PO rulings) — for `staff` over the declared `denyClasses` axis, each class in axis
       coordinates; expected values PO-approved.
-- [ ] **AC-3 Generators multi-role.** Both cell generators range over `staff` + `staff_admin`; the
+- [x] **AC-3 Generators multi-role.** ✅ **2026-09-15** (record: round 3 cells 1728 → 2808 over both roles, `lint:authz-vectors` 0 then and inside `npm run lint` at HEAD; ⚠ bound: the self-test asserts WHICH arm fired at the arm-prefix grain only — `FUP-AE5-STAFF-SELFTEST-WRONG-ARM-CHECK-COMPARES-ON-THE-ARM-PREFIX`, medium, open). Was: Both cell generators range over `staff` + `staff_admin`; the
       `role` axis gets a real disposition; `npm run lint:authz-vectors` green and the self-test
       asserts WHICH arm fired (LEARN-103); `arm9`/`arm10` still bind.
 - [ ] **AC-4 Seed + `test_validation`.** `staff` grants seeded; `authz.roles.staff` = `test_validation`;
@@ -99,7 +99,7 @@ the door-sweep scope re-derived equal to T8's (read arm exit 3 RULED partial-by-
 CLEAN, 0 BLIND, 0 ERROR). The declaring `e2e:prod` at `dc08f96f` is GREEN: `1270 passed · 0 failed · 2
 flaky · 0 did-not-run`, both flakes matching filed bugs, one infra retry recovered. The first full run's
 ten reds were all this unit's seed rows, none a T7 regression; rulings L27–L33 and the PO's R-6 (option
-(a)) cleared them. Eight of ten acceptance criteria ticked; AC-3 and AC-4 (T3/T4 deliverables) were never ticked and are being checked against their recorded witnesses. `npm run lint` exit 0 at HEAD.
+(a)) cleared them. Nine of ten acceptance criteria ticked. AC-4 waits on two witnesses the record never held: `410 § 7.2` observed red, and the fixture-gap list dispositioned with distinct ids. `npm run lint` exit 0 at HEAD.
 
 ### Next
 

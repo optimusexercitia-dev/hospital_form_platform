@@ -5780,3 +5780,30 @@ from 2026-09-13, never ticked; the lead wrote "all ten" without counting. The hu
 in place. The commit message cannot be amended and stays false; this entry is its correction. The
 lead now checks each criterion against its recorded witnesses, and ticks it or routes what is missing,
 before the QA review starts.
+
+### 2026-09-15 — AC-3 ticked with its bound; AC-4 NOT ticked — two of its clauses have no recorded witness; routed to backend before QA (lead)
+
+**AC-3, clause by clause.** Both generators range over `staff` + `staff_admin`: round 3's cell total
+moved 1728 (`staff_admin` only) to 2808, the entry of 2026-09-13 "tester's T13/T11 skeleton received;
+round 3 received". `npm run lint:authz-vectors` read 0 in round 3 (`:496`), and it is inside today's
+`npm run lint` chain (`package.json` checked), which read 0 at HEAD. `arm9`/`arm10` binding: the plan
+clause and the green check. The self-test asserts WHICH arm fired, at the arm-prefix grain:
+`FUP-AE5-STAFF-SELFTEST-WRONG-ARM-CHECK-COMPARES-ON-THE-ARM-PREFIX` (medium, open) records that a
+fixture caught by a sibling `arm14` sub-check reads as caught by its own, and says itself it does not
+block increment 1's gate. **Ticked, with that bound written into the tick.**
+
+**AC-4, clause by clause.** `staff` grants seeded under `test_validation`: round 3 (`:411–423`), met.
+`403 § 3.2b` observed RED and recorded: L4's verbatim `Failed test 11 … have: 1 / want: 0` (`:591`), met.
+**`410 § 7.2` RED until the manifest names the suite: NO witness.** The record holds only the plan line
+(`:1042`). T3 and T5 were approved to land as one commit, so no state existed between them in which the
+red could be observed; the clause was never witnessed, and saying it was would be false.
+**Fixture gaps filled without ids shared across cases: NO disposition.** Round 3 left the § 8 gap rows
+unseeded (`:489`); later rounds seeded fixtures (T7's five, the § 9 addendum), but no entry maps each
+listed gap to the commit that filled it or checks the ids are distinct.
+
+**Routed to backend (the stack is unowned; QA starts after backend parks, because a plant touches what
+QA reads):** (1) `410 § 7.2` shown able to red by a rolled-back plant that removes `approvedSuites.staff`
+from the loaded manifest, with the red line and the rollback's green quoted; (2) a table of every gap
+in `docs/testing/ae5-staff-fixture-gaps.md` § 8 and § 9 with the commit that filled it or the reason it
+stays open, and a query showing no fixture id is shared across the cases that bind them. **AC-4 ticks on
+that entry.**
