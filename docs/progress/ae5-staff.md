@@ -5541,3 +5541,116 @@ the AC-10 gate record cites a single commit: `npm run lint`, `typecheck`, full `
 the live budget 339/433/772, and the door-sweep case list re-derived with its sorted checksum compared
 with T8's `c2934944fc881ded`. Then the tester runs the production gate on the specs the move can touch,
 and then the declaring `e2e:prod` once.
+
+### 2026-09-15 — backend: R-6 option (a) executed (`a3740cdb`); `426 § 0.1` split 3 + 1, § 3.4 re-scoped, `387 B4/B5` 13 → 12 proven byte for byte; BUILD COMPLETE at `a3740cdb` on one fresh reset; parked (backend)
+
+Scope as the lead wrote it: option (a) only. `app.eligible_voters` and `e2e/ethics-e2-procedure.spec.ts`
+untouched. Stack: own client sessions **0** at open, before each reset, and at park.
+
+**1 · Readers of the Farmácia A roster, grepped BEFORE the edit.**
+- `e2e/phase13-audit.spec.ts:817–825` (`COMMISSION_B = 'b0000000-…-b1'`) reads
+  `memberships?commission_id=eq.${COMMISSION_B}` with the service key and requires none of those ids in
+  chefe.ccih's visible audit `entity_id`s. It is the only e2e read of that roster. Measured on the gate
+  reset: the moved membership's audit row is scoped to Farmácia A (`1 | b0000000-…-b1`, RLS bypassed),
+  and **chefe[staff_admin] sees 0** audit rows for `a5f10000-…-e3`. The leak check's premise holds.
+- `e2e/ae5-staff-multi-commission.spec.ts`: 0 roster reads. Its matches for
+  `membership|member|roster|gap.|count` were a JSDoc line and a text check.
+- Other e2e Farmácia readers (`c/farmacia` near `membro|member|attendee|vot|roster|usuarios`):
+  - `phase3-admin-members` (404 for chefe.ccih; access for org_admin);
+  - `mem-memberships-collapse` (a link is visible).
+  - Neither counts. No `toHaveCount`/`toHaveLength` over a Farmácia roster. Votes / eligible voters
+    appear only in `ethics-e2-procedure`.
+- pgTAP: of the 14 files naming `b0000000-…-b1`, **0** `memberships` reads carry a Farmácia A scope
+  within 5 lines. The manifest (6 `memberships` mentions) and the cells (540) key on persona uids, not
+  roster counts. The full suite below is the confirmation: **nothing moved beyond the two named files.**
+- ⚠ `e2e/ae5-staff-landing.spec.ts:30`'s JSDoc still says `gap.pending@test.local` is "`staff` @ CCIH
+  (Rede A)". That is a stale comment in the tester's file. The spec never reaches a session, so no
+  assertion depends on it. Reported, not edited.
+
+**2 · The move** (`supabase/seed.sql`, attributed in place). Membership `a5f10000-…-e3` for
+`v_pending` now has `commission_id = v_farma`. The id is kept, because no suite, manifest or spec binds
+it (grep: 0 references outside the seed). `gap.pending` stays unconfirmed in both tables.
+Pre-move measurements (before the edit), as chefe.ccih[staff_admin] and as staff1.ccih[staff]:
+13 rows each, md5 `379100bf45262c79bb2f7bc49ea36648` (= the committed pin), and the **same set minus
+`a5f00000-…-e3` → `f28de9999801848fe0dfc3a8e1f09367`**. `eligible_voters(ca000000-…-e1)` was 9, with
+`…e3` among them.
+
+**3 · Observed RED first** (fresh reset, seed moved, tests untouched,
+`supabase test db 00_setup.sql 387 426`):
+- `387` # 8 and # 9: `have: f28de9999801848fe0dfc3a8e1f09367 / want: 379100bf45262c79bb2f7bc49ea36648`;
+- `426` # 1: `have: 3 / want: 4`;
+- `426` # 16 and # 17 (§ 3.4a/b at CCIH): `have: false / want: true`.
+- Summary: `Files=3, Tests=63, Result: FAIL`.
+- ⚠ The first targeted run omitted `00_setup.sql`, so `test_helpers` did not exist and both files
+  ABORTED (`Bad plan. You planned 25 tests but ran 4` / `37 … ran 19`). It is not cited as the red.
+
+**4 · The re-pins** (each attributed in the test's own comment):
+- **`426`:**
+  - § 0.1 now pins 3 at CCIH over active / suspended / deactivated.
+  - New **§ 0.1b** pins 1 at Farmácia A for `st_pending`, so a pending persona that lost its grant
+    reds 0.1b, and one that drifted back to CCIH reds 0.1.
+  - § 3.4a/b re-scoped `ccih` → `farm`.
+  - The fixture header and `st_pending` comment say why. `plan(37)` → `plan(38)`.
+- **`387` B4/B5:** `f28de9999801848fe0dfc3a8e1f09367` over 12 rows, with the proof in B4's comment. The
+  header table says 13 → 12 at R-6.
+- Targeted green: `Files=3, Tests=64, Result: PASS`.
+- **§ 3.4 shown able to red at the new scope**, one rolled-back transaction with claims cleared (W11–W13
+  below). ⚠ The first attempt ran with staff1's claims still set and was refused by
+  `guard_profile_privileged_columns` (`only an admin may change is_admin/is_active`). It measured
+  nothing and was redone.
+
+**5 · Witnesses, on the gate reset at `a3740cdb`:**
+```
+W1  eligible_voters(ca000000-...-e1) count | e3 among       | 8 | f
+W2  gap.pending memberships count | rows                     | 1 | a5f10000-...-e3:staff@Comissão de Farmácia e Terapêutica (b0000000-...-b1)
+W3  gap.pending unconfirmed auth.users | profiles | is_active | t | t | t
+W4  426 0.1  CCIH staff over active/suspended/pending/deact.  | 3
+W5  426 0.1b Farmácia A staff for pending                     | 1
+W6  Farmácia A roster by role                                 | staff=5, staff_admin=1
+W8  B4 chefe.ccih[staff_admin] profiles count | md5 | e3      | 12 | f28de9999801848fe0dfc3a8e1f09367 | f
+W10 B5 staff1.ccih[staff]      profiles count | md5 | e3      | 12 | f28de9999801848fe0dfc3a8e1f09367 | f
+W11 3.4 before: wrapper @farm | restricted legacy @farm | wrapper @ccih | t | t | f
+W12 3.4 RED-PROOF, is_active=false: wrapper @farm | restricted legacy  | f | f
+W13 after rollback: is_active | wrapper @farm                          | t | t
+```
+⭐ W8 = W10 = the pre-move "13-row set minus `…e3`" hash, byte for byte. That is the attribution: exactly
+that one profile left the set, and nothing else changed. W6 is on a fresh reset. A pre-move read on the
+tester's post-run stack had shown `staff 4 · staff_admin 2`, the extra `staff_admin` being a spec
+leftover (`registro.0-1789456116623-1@test.local`), so that read is not a baseline.
+
+**6 · BUILD COMPLETE at `a3740cdb`, ONE fresh reset.** Every step ran in one chain. Each exit was read
+bare, into its own log under the session scratchpad `r6gate/`.
+
+| step | exit | reading |
+| --- | --- | --- |
+| own sessions → `supabase db reset --local` | 0 · **0** | settle `information_schema.tables` 445 · 445 · 445, `profiles` 45 |
+| `npm run test:db` | **0** | `Files=275, Tests=9219`, `Result: PASS`, `grep -c '^not ok'` **0**; 275 files counted by `ls` (9219 = 9218 + § 0.1b) |
+| `ARM=census` | **0** | `=== INVARIANT HOLDS ===` |
+| `ARM=hat` | **0** | `=== INVARIANT HOLDS ===` |
+| `ARM=floor` | **0** | `OK: every never-called door is on the floor allowlist.` · `OK: every floor-allowlist entry resolves to a live door.` · `=== INVARIANT HOLDS ===` |
+| `FROMFINDINGS=1 ARM=wrapper` | **0** | `BLIND set size: 41` · `OK: every BLIND wrapper is on the allowlist.` · `=== INVARIANT HOLDS ===` |
+| live budget, `320 § U4`'s predicate | 0 | `app 339` · `public 433` · `total 772` |
+| `scripts/door-sweep-cases.sh a02487bc` | **0** | `SCOPE: 4 file(s) — 4 committed (a02487bc..HEAD), 0 worktree, 0 untracked \| filter: none \| derivation: catalog` |
+| sorted checksum | — | **75 names, `sha256(sorted)=c2934944fc881ded`, equal to T8's** |
+| `npm run lint` · `npm run typecheck` | **0 · 0** | at `a3740cdb`, not DB-bound, run beside the chain |
+
+Budget query:
+`select n.nspname, count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where
+n.nspname in ('app','public') and p.prosecdef and has_function_privilege('authenticated', p.oid,
+'EXECUTE') group by n.nspname`, plus the same without the group-by for the total.
+
+⚠ **The checksum's recipe, written because the record never stated it:** the deriver prints the 75 names
+on ONE space-separated line, so a whole-line `sort | sha256sum` hashes one line (`96d9ab3819e4ccff`, n=1).
+T8's figure is reproduced by `tr ' ,' '\n\n' | grep . | LC_ALL=C sort -u | sha256sum | cut -c1-16`. The
+comparison is by NAME set, not by line.
+
+The floor arm reads function-call counters, so it ran after `test:db` and before any witness call. The
+witnesses in § 5 were taken only after the chain printed `CHAIN-DONE`.
+
+**Commits:** `a3740cdb` (`supabase/seed.sql`, `426`, `387`; CR 0 each; committed behind `npm run lint &&
+npm run typecheck &&` the CR guard `&& git add`). This entry is committed behind `npm run lint:progress
+&& npm run lint:registers &&` the CR guard. The earlier park's gate-13 red (the hub's `Updated`)
+no longer holds: `npm run lint` exits 0 at `a3740cdb`.
+
+**Parked.** Own client sessions **0**; `staff` still `authoritative` (W13's transaction rolled back). The
+stack belongs to the tester for the production gate on the specs the move can touch.
