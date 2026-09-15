@@ -8711,7 +8711,7 @@ be tagged with its bug id and never asserted as the intended value, so the plan 
 **Why local `main` and not `origin/main`.** Local `main` (`a02487bc`) is ahead of `origin/main` (`44f69ff6`), which has
 never been pushed. The setup script defaults to `origin/main`, so the base was passed explicitly.
 
-**Migration numbering, measured, and why the hotfix does not go after F1.**
+**Migration numbering, measured, and why the hotfix does not go after F1.** ⛔ **CORRECTED 2026-09-15 (hotfix-backend's plan, re-measured by the lead): the range below is WRONG.** The scan compared against `origin/main`, not local `main`. Local `main` already holds `7400`–`7430`; this unit's own migrations are `7440`–`7470`. The hotfix uses `7431`–`7439`, free on every ref. The in-place argument below still holds for the corrected range:
 - **The gap.** `main`'s newest migration is `20261003007390`; the first migration added on `ae5-staff` is
   `20261003007400`. A scan of every local and `origin` branch found none strictly between them, so the hotfix takes
   `7391`–`7399`.
@@ -9435,3 +9435,61 @@ and the write are not atomic.
   `e5fe6968` adds 661 lines with 0 deletions. HEAD holds each entry exactly once.
 - **Rule from here:** the lead does not write this record while a teammate has been asked to append to it. The lead waits
   for the teammate's commit notification instead.
+
+### 2026-09-15 — focused re-review of amendment 1: DEFECTS (2 P1, 5 P2, 7 P3; the tenant gate itself HOLDS); amendment 2 routed to backend3, text-only while the hotfix holds the stack; PRE-4 candidate noted; the shared stack handed to HOTFIX-CLASS1-WRITE-GUARDS (lead)
+
+**The review.** `amend-review` (Opus, read-only). Report: `q2/amend-review.md` in the lead's scratchpad.
+- **The gate holds.** It was prototyped rolled back and swept over every persona, every hat (including none and platform
+  admin) and every id of 9 kinds: 11 610 cells, **0** where a scalar grants and the gate denies. No gate lookup runs
+  under the caller's RLS.
+- **The enumeration matches.** The reviewer's own closure over the 13 scalars gives 62 functions, as backend3 counted.
+- **No new function** is granted to `anon` or PUBLIC.
+- **The atomicity claim holds:** 33 files carry explicit `begin;`/`commit;`. The local `db reset` path is still unproven.
+
+**P1-A — ruling (j)'s `app.case_deliberation_verdict` is a case existence and lock oracle.**
+- **Why:** the deferred-S5 bit is set for anyone past the hard denies, and (j) returns 2 on that bit alone.
+- **Measured, rolled back:** staff1.qual.b (Rede B), whose RLS shows 0 rows on each case, gets (j) = 2 on three unlocked
+  Rede A cases and 0 on the locked case and on a non-existent id. Across the seed, 828 of 1 080 cells get a non-zero (j)
+  while `can_read_case` is false.
+- **Consequences:** the amended disclosure item 8 says the opposite, and `428`'s foreign-org cell would fail against the
+  body as specified.
+- **Lead ruling:** (j) returns 0 unless `_caller_may_reach('case', …)` passes, with a plant in which (j) without the gate
+  fails the foreign-org cell.
+
+**P1-B — the residual-disclosure list omits the largest residuals.**
+- **#30, case prints.** The only pre-check is `can_read_case`, so every case-content reader (quality reviewer,
+  administrativo, PQS/NSP, grant holders, assignees) receives every child key. Measured as `quality.a` on `d0…c1`: RLS
+  shows 0 interviews, meeting links, referrals and action items; the route returned 13 interview ids, 1 meeting id,
+  1 referral id and four signals.
+- **#28 and #29.** The "verdict ≠ 0" pre-check admits content-only readers. Measured: `quality.a` has verdict 2 on 13 of 13
+  interviews and `can_read_interview` true on 0.
+- **Lead ruling: NARROW FURTHER, consistent with ruling (c).** When a verdict is 2 and the caller has no seat at the case's
+  commission, the route emits one failing row and stops, which costs zero resolutions. The print route emits a child axis's
+  keys only to a caller whose own read of that child's table would pass, or it re-states per axis why that is impossible at
+  zero cost. `428` gains content-only-reader cells on #28, #29 and #30.
+- **The PO receives the disclosure list only after amendment 2 and a check that it is correct.**
+
+**The five P2s, dispositioned for amendment 2.**
+
+| P2 | Finding | Required change |
+| --- | --- | --- |
+| P2-1 | The gate ignores hat, expiry, account state and relation state. A hospital admin, an inactive member and an expired member all received #20's custody commission. | The gate must honour `is_active`, membership expiry and relation state, or the list must name those recipients. Lead preference: honour them. |
+| P2-2 | Item 9 names 5 functions; there are 91 PUBLIC-executable `app` functions with arguments (54 DEFINER). | Name the class and its measured count. |
+| P2-3 | The meeting-print anchor obligation has no plant. | Add one, and state the case-anchor mutual redundancy. |
+| P2-4 | N.3g-1 and N.3g-3 are untagged, although they fall inside PRE-2. N.3g-d and R.8-d only work while the bug exists, so they fail at rebase once the hotfix lands. | Tag them, and move them to non-frozen columns. The hotfix freezes `case_referral` source and target columns, `capa_plan.hospital_id` and the `source_*` columns, `rca.event_id`, and `case_interviews.case_id` and `commission_id`, so every `428` cell that edits one of those must move. |
+| P2-5 | Two Supabase CLIs are installed: 2.113.0 on PATH (scoop), 2.115.0 in `node_modules`. | The step-0 atomicity measurement pins its binary, and the gate record names it. |
+
+The seven P3s are dispositioned by backend3 one by one.
+
+**PRE-4 candidate, not yet reproduced by the lead.** `app.answer_map` is DEFINER, PUBLIC-executable, and has no guard. The
+reviewer reports that Rede B's staff1.qual.b received a Rede A case-phase response's answer object (2 keys, 61 bytes;
+values not printed). Reach is direct SQL as `authenticated` only: `app` is not API-exposed and `anon` has no USAGE on
+`app`. Six same-shape functions were named but not probed. The lead reproduces it before filing and before any scope
+decision. It is lower reach than PRE-1 to PRE-3 and is not in the hotfix.
+
+**Stack handover.** From this entry the shared local stack belongs to HOTFIX-CLASS1-WRITE-GUARDS, whose unit-record entry
+says the same. That unit resets it to `main`'s catalog to re-measure its five holes and build red-first `429`. Until the
+lead records the handback:
+- backend3's amendment 2 is text-only, with no catalog probes;
+- any AE5-STAFF probe or measurement waits;
+- after the handback, AE5-STAFF's next stack use starts with a fresh reset of this branch.
