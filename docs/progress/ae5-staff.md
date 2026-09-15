@@ -4857,3 +4857,20 @@ none. The tester is instructed to measure (i) the door's verdict for chefe and (
 ROW COUNT for the case, as chefe, first thing after the gate's summary, and to say FIRST if (i) is
 false. Three reds, three seed additions of this unit on three surfaces the E2E suite's personas and
 cases already bound.
+
+### 2026-09-14 — `e2e:prod` batch 14 RED: `phase13-audit` AC-3f-platform resolves a displayed row by `(occurred_at, seq)` and finds 14 — a key that was never unique, exposed by a seq=1 scope-less row at the seed's instant (lead)
+
+Batches 12–13 green (45/57). **Batch 14:** `60 passed · 1 failed · 61/61 · pw_exit 1` —
+`phase13-audit.spec.ts:1000 AC-3f-platform: platform@ /admin/audit shows only scope-less rows`; at
+`:1062` `occurred_at=2026-09-15T01:38:10.694921+00:00 seq=1: resolves to exactly one audit_log row —
+Expected: 1, Received: 14`. The spec reads each displayed row's `<time datetime>` and printed `seq`,
+then `GET audit_log?occurred_at=eq.X&seq=eq.N` with NO scope predicate and requires exactly one
+match. **The unique key is `(commission_id, seq)`** (`20260620000000_baseline.sql:1050`,
+`audit_log_commission_seq_key`); `seq` is a per-chain counter, so every chain's first row is seq=1
+and a seed transaction gives them all one `now()`. The timestamp is the batch's reset instant, so
+the 14 are seed rows. The resolution key was never unique — the spec held at the base only because
+the platform feed's FIRST displayed row was not a seq=1 row at the seed instant; this unit's seed
+added a scope-less audited row (which one: measurement D, tester) and it now is. Latent spec
+defect + a seed row of ours that reached it. Four reds, four surfaces; the fix for this one is the
+spec's own claim made into its query (the feed is scope-less, so resolve with the three `is.null`
+predicates) — after D shows the 14 rows are one scope-less + 13 scoped chains.
