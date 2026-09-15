@@ -4945,3 +4945,41 @@ AC-10 does NOT tick. Six of the ten are traced to this unit's seed rows ending s
 four (batches 11, 18 ×3, 20 ×2 — the responder / print surfaces) are unclassified between a T7 door
 regression and a fixture effect until the tester's measurements A–G land on the now-free stack.
 No fix is assigned before the measurements; no bug row is filed before a cause is measured.
+
+### 2026-09-15 — session process exited mid-measurement; the tester's A and partial B recovered from its transcript: the domain COUNTS the unconfirmed persona as a voter, and chefe's full-content door DENIES on the masked case now linked to this unit's restricted meeting (lead)
+
+**Interruption, stated:** the Claude process exited at 02:14 UTC while the tester was inside
+measurement B; no teammate survived the restart (ListAgents lists none). Every one of the tester's
+statements ran inside `begin … rollback` or was a plain read; stack own sessions measured 0 after
+the restart; the tree holds only backend's held runbook/template edits. Results below are the
+tester's tool RESULTS read from its transcript by the lead, not its summary (it never wrote one).
+
+**Gate report (step 1), confirmed:** `gate-exit` `GATE_EXIT=1 · verdict=GATE RED — 10 real
+failure(s), 0 infra, 6 did-not-run, accounted 1272/1284`. Batch 1 ran every AE5 spec green
+(`ae5-staff-landing` ×4, `ae5-staff-multi-commission` incl. the keyboard-only fill). Batch 6's flaky is
+`GATE-D "Processo ético" tab` (`x … (retry #1)`); batches 1 and 5's flaky titles are still owed.
+
+**A — measured: the DOMAIN counts `gap.pending`.** `app.eligible_voters(p_case_id uuid)` (SECURITY
+DEFINER, `sql`) for FLOW-7's `CASE_ID ca000000-…-0000000000e1` returns nine principals including
+`a5f00000-0000-0000-0000-0000000000e3` (`exists … = t`). Its live body filters exactly: membership in
+`app.commission_of_case(p_case_id)`, `expires_at is null or > now()`, `app.is_active(principal)`, not
+recused, not respondent — **no confirmation term**. So the spec's mirror is FAITHFUL to the
+definition; the definition counts toward quorum a principal who cannot authenticate. The domain
+definition is not this unit's to change. What this unit owns is the fixture that put such a
+principal on the only roster two ethics specs enumerate; what binds its CCIH membership is being
+measured before any ruling (a fixture relocation is a lead ruling only if nothing requires CCIH).
+
+**B — partial, measured as chefe (`sub …0002`, `active_role staff_admin`), rolled back:**
+`app.can_view_printed_document('case', d0…c1, …0002)` = **f**; `public.print_source_state('case',
+d0…c1)` count **0**; `app.can_read_case` = **t**; `app.can_read_full_case_content` = **f**. The case
+now carries TWO `meeting_cases` rows: the base seed's `1f0e6d69…` → `Reunião Ordinária — Junho/2026`,
+and this unit's `a5f20000-…-b1` → `a5f20000-…-a1 "Reunião restrita (fixture arm-3 linha 6/7)"`. The
+tester was calling `app.can_reach_meeting` on the restricted meeting when the process died.
+**Reading, NOT a finding until discriminated:** a full-content axis that denies when the case is
+linked to a meeting the caller cannot reach would make this a FIXTURE effect (a narrowing, fails
+closed); a T7 body change would make it a regression. The discriminator is ordered: inside `begin …
+rollback`, delete ONLY `a5f20000-…-b1` and re-call both doors for chefe — t means the fixture, f
+means T7. Either way nothing widened: chefe is refused, the refused-caller half passed.
+
+Remaining for the tester (resumed): B's discriminator + the quoted meeting axis of
+`can_read_full_case_content`; C, D, E, F; then G on a fresh reset.
