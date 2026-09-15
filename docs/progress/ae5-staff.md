@@ -5823,3 +5823,135 @@ records the analysis here, routes any accepted change to its owner, and loops to
 step 1 if changes are requested. Not changed by this instruction: § 6's order (step 4, PO approval,
 still follows the review), and the review report's home `docs/reviews/ae5-staff-review.md`, which the
 lead commits by path once the PO provides it.
+
+### 2026-09-15 — backend: AC-4's two unwitnessed clauses — `410 § 7.2` shown able to red by a plant (restored byte-identical), and the § 8 / § 9 fixture-gap list dispositioned row by row; no id shared; three gaps filled but not gated, one open by design; parked (backend)
+
+No committed change except this entry. Stack: own client sessions **0** at open and at park. The
+plant driver, the queries and their outputs are in the session scratchpad `ac4/`.
+
+**1 · `410 § 7.2` able to red: a plant, not a commit.**
+
+BEFORE: the assertion, `supabase/tests/410_ae49_d5_enforcement_manifest.sql:864–874`:
+```
+  864: select is(
+  865:   (select coalesce(string_agg(r.code || ' (' || r.state::text || ')', ', ' order by r.code), '(none)')
+  866:      from authz.roles r
+  867:     where r.state::text <> 'legacy'
+  868:       and not exists (select 1 from authz_manifest_approved_suites a where a.role_code = r.code)),
+  869:   '(none)',
+  870:   '7.2 ...and the STRICTLY WIDER form: NON-LEGACY - approved suites. authz.role_state is '
+```
+It reads `authz_manifest_approved_suites`, which `410:50` loads with `\ir
+vectors/authz_enforcement_manifest.psql`. That generated instance, `:267–271`, is
+`create temp table authz_manifest_approved_suites … values ('staff'), ('staff_admin') … as t(role_code)`
+(from the manifest's `approvedSuites.staff` / `.staff_admin`). `.psql` sha256 before
+`889049decb9a34f802a0d6e5134c1b9f778651ca620a79781a43f465e4a4cb00`; JSON sha256
+`6b7a0f112b95a83c587ff9fdc042885217829dad51c0a8234969d5e92aea9d3b`.
+
+**PLANT:** the `('staff'),` row was removed from the `.psql` (sha256 `01c2dfa5…`). The original bytes were
+saved first and restored in a `finally`.
+```
+supabase test db supabase/tests/00_setup.sql supabase/tests/410_ae49_d5_enforcement_manifest.sql   → exit 1
+# Failed test 35: "7.2 ...and the STRICTLY WIDER form: NON-LEGACY - approved suites. authz.role_state is {legacy, test_validation, authoritative}, …"
+#         have: staff (authoritative)
+#         want: (none)
+```
+The same plant also reds `# Failed test 34` (7.1: `have: staff`) and `# Failed test 37` (7.4:
+`have: 1 / want: 2`). Both are expected on that plant. Summary: `Tests: 45 Failed: 3`, `Result: FAIL`.
+
+**RESTORED:** `.psql` sha256 `889049de…` again, byte-identical (`back == orig` True). Same command →
+**exit 0**, `410 … ok`, `Result: PASS`. JSON sha256 unchanged. `git diff --stat --
+supabase/tests/vectors/authz-enforcement-manifest.json
+supabase/tests/vectors/authz_enforcement_manifest.psql` → exit 0, **empty**.
+
+⇒ § 7.2 is a control that can fail, and it fails on exactly the removal AC-4 names.
+
+**2 · The fixture-gap disposition** (`docs/testing/ae5-staff-fixture-gaps.md` § 8 and § 9). One row per
+gap.
+- *Commit* is the first commit that added the id (`git log --reverse -S <id> -- supabase/seed.sql`).
+- *Seed line* is the id's first line in `seed.sql` at `a3740cdb`.
+- *Bound by* counts literal references in the manifest (`man`), the generated staff cells (`cells`),
+  `supabase/tests/*.sql` and `e2e/`; `e2e` is 0 for every id below. Where an id is reached through a
+  door's table walk rather than by literal, that walk is named.
+
+| § | gap | filled by — commit · seed line · id | bound by |
+| --- | --- | --- | --- |
+| 8 | `persona=cross_org_actor` | `5f9d71f5` · `:3274` profile `a5f00000-…-e1` (gap.xorg.b) · `:3377` membership `a5f10000-…-e1` (staff @ Farmácia B) | man 1 · cells 672 (caller uid of every cross_org cell) · `424` |
+| 8 | `principalState=pending` | `5f9d71f5` · `:3276` `a5f00000-…-e3` (gap.pending, unconfirmed in both tables) · `:3378` `a5f10000-…-e3`, moved CCIH → Farmácia A at `a3740cdb` (R-6) | `426` § 0.1b and § 3.4a/b (red-proof recorded at R-6). ⚠ § 8 named `novato.pendente`; a NEW persona carries it, because suites read the named one as committee-less (`5f9d71f5` message) |
+| 8 | `principalState=deactivated` | `5f9d71f5` · `:3277` `a5f00000-…-e4` · `:3379` `a5f10000-…-e4` (staff @ CCIH) | `426` § 0.1 and § 3.3a/b. The same substitution as pending (`desativado.conta` not repurposed). A separate membership id from pending's: `…e3` ≠ `…e4` |
+| 8 | `principalState=offboarded` | **OPEN, not seeded** | Mechanism located (`public.hospital_affiliations.ended_on` / `voided_at`, ADR 0163), but not constructible as a DISTINCT cell: 32 seeded profiles already hold zero live affiliations (`5f9d71f5` message; seed comment `:3245`). The cells vector excludes it by name, `authz_differential_cells.psql:21–22`: "`principalState.offboarded` is FILLABLE and awaiting a PO expected value". |
+| 8 | `persona=unprivileged` | `5f9d71f5` · `:3275` `a5f00000-…-e2` (gap.unpriv) | man 2 · cells 1008 · `424`; also the persona of row 1 limb (b)'s targeted chain (`f2dd7d00`) |
+| 8 | row 6 / row 7 | `5f9d71f5` · `:3394` meeting `a5f20000-…-a1` (participants_only) · `:3400` attendee `a5f30000-…-a1` (staff1.ccih) · `a16debbe` · `:3554` `meeting_cases a5f20000-…-b1`, re-linked to case `dc000000-…-a2` at `3391fd00` (L28) | man rows 6 (function-call) and 7 (rls-select on `meeting_cases.meeting_id`), `conjunct_unmet/own_commission = …a1` · cells 108. The attendee is reached by `app.can_reach_meeting`'s `meeting_attendees` read, the link row by row 7's `probe_table`. ⚠ **Partly open:** § 8 also asked for "a distinct `meeting_cases` respondent fixture". None was seeded, and row 7's manifest fixtures are `conjunct_unmet` + `_default` only, so this unit's cells never exercise the `NOT is_case_respondent` term |
+| 8 | row 8 | `5f9d71f5` · `:3413` meeting `a5f20000-…-a2` (in_signature) · `:3419` attendee `a5f30000-…-a2` (present, staff4.ccih) · `:3422` `a5f30000-…-a3` (absent, ativo.registro) | man row 8, `_default = …a2`, `conjunct_unmet = …a3` · cells 144 / 72; the meeting is reached from its attendee rows by `app.can_sign_meeting` |
+| 8 | row 11 (a) and (b) | `5f9d71f5` · `:3456` `a5f40000-…-a1` (assignees_only, staff4.ccih) · `:3462` `…a2` (assigned to someone else) · `08384d18` · `:3477` / `:3484` assignments `…b1` / `…b2` (L8) · `b873b955` · `:3506–3510` committee items `…c1` / `…c2` / `…c3` · `:3515` / `:3517` off-CCIH assignees_only `…d1` / `…d2` · `:3520` / `:3522` assignments `…e1` / `…e2` | man row 11: `disjunct_present` a1/d1/d2, `disjunct_absent` = `_default` c1/c2/c3, `conjunct_unmet` a2 · cells 36–108 per id · `425` `f425w.action_item_id_absent = …c1`. The assignments are reached by `app.can_read_action_item` (`action_item_assignments` in 468 cell lines) |
+| 8 | row 15 | `5f9d71f5` · `:3638` `a5f50000-…-a1` (NULL owner) · `:3639` `…a2` (CCIH) · `:3640` `…a3` (Farmácia B) · `b873b955` · `:3572` `…a4` (Farmácia A) | man row 15: `disjunct_present = …a1` at all three scopes (the PUBLIC arm, by design), `_default` a2 / a4 / a3 · cells 72–108 · `425` `f425w.framework_id_absent = …a2` |
+| 8 | row 12 | **no seed row needed** | Measured in `5f9d71f5`: CCIH already holds 1 case with an `ethics_case_details` row and 5 without. The manifest's row 12 probe is `not-executable` and binds no fixture |
+| 8 | row 16 | `5f9d71f5` · `:3744` `document_approvals a5f60000-…-a1` (approver staff4.ccih) · `b873b955` · `:3607` / `:3609` controlled documents `a5fd0000-…-a1` / `…a2` · `a16debbe` · `:3623` / `:3625` core documents `a5fe0000-…-a3` / `…a4` | Measured: `…a5f6-a1` → version `d0c00000-…-d101` → document **`d0c00000-…-d1` = man row 16 `disjunct_present/own_commission`**, reached by the approver walk. `_default` sibling / foreign = `a5fd…a1` / `…a2` · cells 72. The `a5fe…` rows are bound by `330` DM3·X1's every-document `core_document_id IS NOT NULL` assertion, not by a probe |
+| 8 | row 19 | `5f9d71f5` · `:3755` `capa_plan a5f70000-…-a1` (indicator-sourced) · `cea002eb` · `:3567` `…b1` (manual, all three disjuncts false) | man row 19: `_default = …a1`, `conjunct_unmet = …b1` · cells 144 / 72 · `425` `f425r.capa_id` resolves `source = 'indicator'` by query (…a1) |
+| 9 | `accreditation_standards` empty | `2dddd278` · `:3690` `a5f50000-…-b1` (CCIH framework) · `:3692` `…b2` (Farmácia A framework) | ⛔ **FILLED, NOT BOUND.** 0 literal references in man / cells / suites / e2e. `425:440–446` still returns `null` for `public.get_standard_assessment`, `readiness_evidence`, `readiness_report` ("NOT live-probed this round … the 4 fixture-gapped reads"), and `425:43–47`'s header still says the table is EMPTY |
+| 9 | `referral_internal_notes` empty | `2dddd278` · `:3701` `a5fb0000-…-d1` | ⛔ **FILLED, NOT BOUND.** Same `425` branch: `app.can_read_referral_internal_note` returns `null`. 0 literal references |
+| 9 | row 9 residual arm, isolation | `2dddd278` · `:3267` persona `a5f00000-…-f5` (gap.casegrant: profile + org affiliation, no membership) · `:3680` grant `a5fb0000-…-c1` on `d0000000-…-c1` | ⚠ **Witnessed once, not gated.** The rolled-back triple in this record, 2026-09-14 "row 9's witness triple": (a) grant, no role `t → t`; (b) neither `f → f`; (c) role, grant deleted `t → f`. 0 literal references in man / cells / suites; row 9's manifest fixtures are cases (`ca00…e1`, `d0…c1`), and no persona axis value is the grantee |
+| 9 | `meeting_closed_session_items` empty | `2dddd278` · `:3720` session `a5fc0000-…-e1` on meeting `f1000000-…-e1` · `:3725` item `…e2` (case `d0…c1`, commission_default) · `:3730` `…e3` (case `ca00…e1`, explicit_grants_only) | ⚠ **Witnessed once, not gated.** "L18's witness", 2026-09-14, rolled back: the default row shows `withdrawals`, the restricted row null, `has_bit = f` on both. 0 literal references in suites. The five suites calling `get_reserved_session_items` (243, 245, 248, 351, 382) name no `a5fc0000` id |
+
+**3 · No id is bound by two cases where the test needs them distinct — one query, on the live stack.**
+The query runs inside `begin … rollback`: the generated cells file is loaded, the manifest's arm-3 probe
+fixtures are inlined as `man(code, coord, scope, rid)` (`_default` normalised to `none`), and
+everything is checked together. Its core:
+
+```sql
+with man(code, coord, scope, rid) as (values …46 bindings from authz-enforcement-manifest.json…),
+cel as (select distinct c.permission_code, c.member_gate_arm, c.scope, c.legacy_fixture_id::uuid
+          from authz_differential_cells_staff c where c.legacy_fixture_id ~ '^<uuid>$'),
+bind as (select 'manifest', * from man union all select 'cells', * from cel),
+must_differ(a, b) as (values ('conjunct_met','conjunct_unmet'), ('disjunct_present','disjunct_absent'),
+                             ('none','conjunct_unmet'), ('none','disjunct_present')),
+chk_a as (select distinct x.code, x.scope, x.rid, x.coord || ' = ' || y.coord
+            from bind x join bind y on x.code = y.code and x.scope = y.scope and x.rid = y.rid
+            join must_differ d on (x.coord, y.coord) = (d.a, d.b)),
+chk_b as (select distinct b.rid from bind b join public.profiles p on p.id = b.rid),
+chk_c as (select … from man m1 join cel c1 on (m1.code, m1.coord, m1.scope) = (c1.code, c1.coord, c1.scope)
+           where m1.rid <> c1.rid),
+gap(rid) as (values …the 43 ids in the table above…), chk_d as (…distinct coordinates per gap id…)
+select … one row per check …
+```
+
+Result:
+```
+cells staff rows loaded                                           | 3024
+A same-scope id on two must-differ coordinates                    | 0 | (none)
+B resource fixture id that is also a profiles.id                  | 8 | …e1, …f4, …0006, …f1, …f3, …e2, …000a, …f2
+C manifest vs cells disagree on the id for one coordinate         | 0 | (none)
+D gap-list ids (43): bound by literal | carrying >1 coordinate     | 20 | 10
+E population: bindings manifest | cells | distinct ids            | 46 | 75 | 35
+```
+**B was measured, not dismissed.** Extracting each cell's caller uid from its `catalog_sql`:
+- every profile-resource cell is `commission.roster.read` (row 4), whose probe reads `public.profiles`,
+  so the resource is a profile by construction;
+- the 8 split in two. `…e1 / …e2 / …000a / …0006` appear as a resource ONLY in `disjunct_present`, the
+  self coordinate, with **resource = caller in all 12 such cells**. `…f1–…f4` (co-members and the
+  absent subject) are the non-self resources in **432** cells;
+- **B4: profile-resource ids that are ALSO a caller somewhere while a non-self resource elsewhere = 0.**
+
+D1, the 10 gap ids carrying more than one coordinate, has only baseline-compatible sets:
+- `a5f30000…a2` {conjunct_met, none};
+- `a5f40000…c1/c2/c3` {conjunct_met, disjunct_absent, none}, each at its own scope;
+- `a5f50000…a2/a3/a4` {disjunct_absent, none};
+- `a5f70000…a1` {conjunct_met, none};
+- `a5fd0000…a1/a2` {disjunct_absent, none}.
+
+None is a must-differ pair; A = 0 proves it. ⇒ **no shared id**, so nothing to stop on. Per § 8's own
+rule, the two lifecycle memberships carry separate ids (`a5f10000…e3` ≠ `…e4`).
+
+**4 · Findings, not fixed (outside this task, or the tester's files):**
+- **(F1)** `425` never re-wired the four doors whose fixtures T7 seeded (the three standards doors and
+  `app.can_read_referral_internal_note`). It still returns `null` for them, and its header still says
+  both tables are EMPTY. The § 9 gap is closed in the seed and open in the probe.
+- **(F2)** The row 9 grant persona and the L18 closed-session items are bound by no committed suite;
+  their only witnesses are one rolled-back measurement each.
+- **(F3)** § 8's row-6/7 respondent fixture was never seeded.
+- **(F4)** `offboarded` stays open by design, awaiting a PO expected value.
+
+Whether AC-4's "fixture gaps … are filled" is met with F1–F3 standing is the lead's ruling. The
+fill-without-shared-ids half is measured above.
+
+**Parked.** Own client sessions 0; nothing committed but this entry.
