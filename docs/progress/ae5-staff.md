@@ -5472,3 +5472,34 @@ runs on the dev server, and it cost this unit one isolation round.
 specs could have moved, and finding that while R-6 waits is cheaper than after it. The pre-run does
 not declare green, because batch 6's ethics red stays expected until R-6 is ruled. The declaring run
 comes after R-6.
+
+### 2026-09-15 — `e2e:prod` PRE-RUN: `1262 passed · 1 failed · 0 infra · 4 flaky · 5 did-not-run · 21 batches`; the one red is the R-6 red; every L27–L33 fix green on the production build (lead)
+
+Watched by the lead's monitor batch by batch; the gate's own `gate-exit` read at the end:
+`GATE_EXIT=1 · verdict=GATE RED — 1 real failure(s), 0 infra, 5 did-not-run, accounted 1272/1284 ·
+finished=2026-09-15T04:09:28-0300`. This run does not declare green, as ruled before launch.
+
+**The one failure is the expected one.** Batch 6, `ethics-e2-procedure.spec.ts:977 FLOW-7`,
+`Error: token for gap.pending@test.local: 400 {"code":400,"error_code":"email_not_confirmed"}`, with
+the serial describe's five did-not-run behind it. Only R-6 clears it.
+
+**Every other red of the first gate run is green on the production build:** batch 10 action items
+(40 / 40), batch 11 printed documents (67 passed, 68 / 68, on the infra re-run), batch 14 audit
+(61 / 61), batch 16 documents (66 passed, AC-10 `ok 37` and AC-7 `ok 34`), batch 18 wizard (58 / 58),
+batch 20 supersession (70 / 70). Totals against the first run: 1253 → 1262 passed, 10 → 1 failed.
+
+**Infra, once, recovered by the gate:** batch 11's first attempt crashed with `Timed out waiting
+120000ms from config.webServer` before any test ran; the server log shows the server did come up.
+The gate's `INFRA_RETRY=1` re-ran it on a fresh server and fresh DB, green.
+
+**Flaky, four, each passed on retry.** Two repeat from the first gate run, which meets the bar this
+record set for a held observation becoming a bug row: `act-role-assumption.spec.ts:164` "The switch …"
+(batch 1 in both runs) and `ethics-e2-procedure.spec.ts:486 GATE-D "Processo ético" tab` (batch 6 in
+both runs). The tester files a low row for each. Two are first sightings, recorded only:
+`bulk-case-creation.spec.ts:762 AC8 (keyboard-only grid)` (batch 2) and `phase2-auth-shell.spec.ts:268
+Logout` (batch 16). Batch 6's `GATE-A`, `GATE-B`, `GATE-C`, `GATE-C2` `(retry #1)` lines are the serial
+describe re-running after a failure in the group, not flakes of their own. `BUG-E2E-CACHEDSIGNIN-NAV-ABORT`
+(batch 5 in the first run) did not recur.
+
+**State:** AC-10's only open red is R-6's. The declaring `e2e:prod` runs once R-6 is ruled and its
+fixture change lands. Fix loop iteration 1 of 5 closed with nine of ten reds cleared and none new.

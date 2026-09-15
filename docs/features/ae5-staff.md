@@ -100,8 +100,9 @@ checksum. Every AE5 spec passed. **All ten reds are this unit's seed rows, measu
 regression.** Backend's seed moves are committed and parked (`3391fd00`): the restricted meeting's
 link moved off the P3 masked case (chefe `t/t/1` there), the fixture draft's author moved off chefe,
 and both fixture versions gained their default section; `test:db` 275 / 9218 PASS on a fresh reset,
-`387` B8 re-pinned 8 → 7 with its mechanism corrected. The tester is running the six affected spec
-files on its four drafted premise fixes. Fix loop iteration 1 of 5. AC-1, 2, 5, 6, 7, 8, 9 ticked. `npm run lint` exit 0 at HEAD.
+`387` B8 re-pinned 8 → 7 with its mechanism corrected. A full `e2e:prod` pre-run on 2026-09-15 read `1262 passed · 1 failed · 4 flaky · 5 did-not-run`: every
+fix is green on the production build, and the one red is R-6's. `phase17-documents` AC-7 reds only
+under `next dev`, so it is ruled outside the gate and filed low. Fix loop iteration 1 of 5 closed. AC-1, 2, 5, 6, 7, 8, 9 ticked. `npm run lint` exit 0 at HEAD.
 
 ### Next
 
