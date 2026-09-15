@@ -1994,6 +1994,13 @@ Before the unit, `readRoleVocabularyFromCatalog` was an UNEXPORTED local in two 
 **Status:** open
 **Body:** [FUP-AE5-STAFF-ELIGIBLE-VOTERS-COUNTS-UNCONFIRMED.md](FUP-AE5-STAFF-ELIGIBLE-VOTERS-COUNTS-UNCONFIRMED.md)
 
+### 🟢 FUP-AE5-STAFF-AC7-UPLOAD-SILENT-UNDER-NEXT-DEV (owner: frontend)
+
+**Filed:** 2026-09-15 (unit `AE5-STAFF`, AC-10 fix loop, by the lead) · **Owner:** frontend · **Severity:** low — `phase17-documents` AC-7 reds deterministically under `next dev` (the version-2 upload sends no request after the reload) and passes on the production build (gate batch 16 and a one-file gate, 13/13); no branch commit touches the documents path.
+**Closes when:** the cause is measured under `next dev` and either the app is fixed so AC-7 passes there, or the spec's dev-only limitation cites that measurement.
+**Status:** open
+**Body:** [FUP-AE5-STAFF-AC7-UPLOAD-SILENT-UNDER-NEXT-DEV.md](FUP-AE5-STAFF-AC7-UPLOAD-SILENT-UNDER-NEXT-DEV.md)
+
 ### 🟡 FUP-AE5-STAFF-ROLLBACK-TEMPLATE-PARSED-BY-NO-GATE (owner: backend)
 
 **Filed:** 2026-09-15 (unit `AE5-STAFF`, AC-9 catalog pass, ordered by the lead) · **Owner:** backend · **Severity:** medium — `docs/deployment/authz-rollback-template.sql` is SQL an operator copies during an incident, and no gate parses it (`lint` reads no SQL under `docs/`, `test:db` never loads `docs/deployment/`); SECTION G's guards once shipped unparseable and F2's row-count guard could never pass, both found by hand.

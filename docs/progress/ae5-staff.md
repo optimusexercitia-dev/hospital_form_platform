@@ -5455,3 +5455,20 @@ batch 16, and the seed moves become the suspects. No ruling and no bug row until
 
 **Committed by the lead, by path:** the four spec files and the bug row
 `BUG-E2E-CACHEDSIGNIN-NAV-ABORT`, every file 0 CR bytes by Python count, `npm run lint` exit 0.
+
+### 2026-09-15 — AC-7 GREEN on the production build: ruled dev-server-only, not a gate blocker; follow-up filed; a full `e2e:prod` pre-run ordered while R-6 waits (lead)
+
+The tester launched `SPECS="e2e/phase17-documents.spec.ts" npm run e2e:prod` detached and verified it by
+PID and start banner. `gate-exit`: `GATE_EXIT=0 · verdict=GATE GREEN — 13 passed, 0 flaky, accounted
+13/13`. AC-7's line: `ok 7 [chromium] › phase17-documents.spec.ts:494:5 › AC-7 … (3.8s)`.
+
+**Ruling (lead):** AC-7's red is specific to `next dev`. It is green on the build the Phase Gate uses,
+twice (batch 16 and this run), and red on the dev server three times out of three. No commit on this
+branch touches the documents path. It does not block AC-10. Filed as
+`FUP-AE5-STAFF-AC7-UPLOAD-SILENT-UNDER-NEXT-DEV` (low, frontend), because it misleads any fix loop that
+runs on the dev server, and it cost this unit one isolation round.
+
+**Pre-run ordered:** one full `e2e:prod` now. Backend's seed moves touch shared fixtures, so other
+specs could have moved, and finding that while R-6 waits is cheaper than after it. The pre-run does
+not declare green, because batch 6's ethics red stays expected until R-6 is ruled. The declaring run
+comes after R-6.
