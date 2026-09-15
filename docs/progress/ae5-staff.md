@@ -10029,3 +10029,25 @@ The hat residual stays on that list by design. The harness still owes the cost o
 
 **PRE-4 (`app.answer_map`)** is still not reproduced by the lead. It waits for the hotfix unit's main-catalog
 re-measurement to finish, on a seeded response id; the reviewer's id was post-E2E data that the reset erases.
+
+### 2026-09-15 — PRE-4 (`app.answer_map`) reproduced and BOUNDED: the direct call leaks, the API-exposed callers guard; filed as a medium follow-up, not a bug (lead)
+
+**Measured on `main`'s catalog.** This is the hotfix unit's fresh reset; the lead ran short read-only probes with 0 peers,
+while the stack is owned by HOTFIX-CLASS1-WRITE-GUARDS. Scripts and outputs are in the lead's scratchpad, `pre4_*.sql` and
+`lead-pre4*.out`.
+1. **The direct call leaks.** As staff1.qual.b (Rede B), RLS shows 0 response and 0 answer rows for Rede A response
+   `28228b83-…`. `app.answer_map` returned a 6-key, 200-byte object, the same size as `postgres` gets.
+   - **Grants:** `authenticated` has EXECUTE and USAGE on `app`; `anon` has EXECUTE but no USAGE on `app`.
+2. **The first probe of the exposed callers was VOID.** On that `submitted` response, `get_response_for_signoff` refused
+   (`P0002`) through its status guard, before its caller check. It proved nothing about the caller check: an earlier guard
+   firing leaves the later one untested.
+3. **The second probe satisfies the earlier guards.** Response `e0000000-…-e1` is in progress with 1 pending sign-off.
+   - **Positive control:** b1's `staff_admin` (`…05`) RECEIVED 1 137 bytes with 3 answer keys.
+   - **Subject:** staff1.qual.b was REFUSED `P0002` by the caller check.
+   - **`get_response_validation_errors`:** INVOKER, it returns early because the subject sees 0 `responses` rows.
+     **Bound:** there is no positive control for this door, because no seeded response has validation errors.
+
+**Verdict: not a live exposure.** The only API-exposed paths to the answer family guard the caller, and `app` is not
+API-exposed. What remains is an unguarded PUBLIC-executable DEFINER returning answers by id: a defence-in-depth gap that
+becomes an exposure only if `app` is ever exposed or a new caller forgets its guard. **Filed:** `FUP-AE5-STAFF-ANSWER-FAMILY-DEFINERS-PUBLIC-EXECUTABLE-AND-UNGUARDED` (medium, backend).
+It is not a hotfix item and not in AE5-STAFF's scope.

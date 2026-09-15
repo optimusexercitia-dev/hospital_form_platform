@@ -2015,6 +2015,13 @@ Before the unit, `readRoleVocabularyFromCatalog` was an UNEXPORTED local in two 
 **Status:** open
 **Body:** [FUP-AE5-STAFF-QUALITY-OVERSIGHT-LOCKED-COUNT-IS-ORDER-DEPENDENT.md](FUP-AE5-STAFF-QUALITY-OVERSIGHT-LOCKED-COUNT-IS-ORDER-DEPENDENT.md)
 
+### 🟡 FUP-AE5-STAFF-ANSWER-FAMILY-DEFINERS-PUBLIC-EXECUTABLE-AND-UNGUARDED (owner: backend)
+
+**Filed:** 2026-09-15 (unit `AE5-STAFF`, F1 re-review candidate PRE-4, reproduced and bounded by the lead) · **Owner:** backend · **Severity:** medium — not a live exposure: `app.answer_map` (DEFINER, PUBLIC-executable, unguarded) returned a Rede A response's answers to a Rede B user on a direct call, but both API-exposed callers refuse that user (measured with a positive control).
+**Closes when:** EXECUTE is revoked from PUBLIC and `authenticated` on the answer family, or each function gets a guard. Proven by a foreign-org direct-call refusal in pgTAP, with both exposed callers still green under a positive control. The 91-function class is re-counted and scoped.
+**Status:** open
+**Body:** [FUP-AE5-STAFF-ANSWER-FAMILY-DEFINERS-PUBLIC-EXECUTABLE-AND-UNGUARDED.md](FUP-AE5-STAFF-ANSWER-FAMILY-DEFINERS-PUBLIC-EXECUTABLE-AND-UNGUARDED.md)
+
 ### 🟡 FUP-AE5-STAFF-ROLLBACK-TEMPLATE-PARSED-BY-NO-GATE (owner: backend)
 
 **Filed:** 2026-09-15 (unit `AE5-STAFF`, AC-9 catalog pass, ordered by the lead) · **Owner:** backend · **Severity:** medium — `docs/deployment/authz-rollback-template.sql` is SQL an operator copies during an incident, and no gate parses it (`lint` reads no SQL under `docs/`, `test:db` never loads `docs/deployment/`); SECTION G's guards once shipped unparseable and F2's row-count guard could never pass, both found by hand.
