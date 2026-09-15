@@ -99,11 +99,11 @@ the door-sweep scope re-derived equal to T8's (read arm exit 3 RULED partial-by-
 CLEAN, 0 BLIND, 0 ERROR). The declaring `e2e:prod` at `dc08f96f` is GREEN: `1270 passed · 0 failed · 2
 flaky · 0 did-not-run`, both flakes matching filed bugs, one infra retry recovered. The first full run's
 ten reds were all this unit's seed rows, none a T7 regression; rulings L27–L33 and the PO's R-6 (option
-(a)) cleared them. Nine of ten acceptance criteria ticked. AC-4: `410 § 7.2` now reds by plant and no fixture id is shared, row 7's respondent fixture is being seeded (R-7 ruled (a); `offboarded` deferred) and two seeded fixtures are being bound (L34). `npm run lint` exit 0 at HEAD.
+(a)) cleared them. Nine of ten acceptance criteria ticked. AC-4: `410 § 7.2` now reds by plant and no fixture id is shared, row 7's respondent fixture is being seeded (R-7 ruled (a); `offboarded` deferred), two seeded fixtures are being bound (L34 F2), and two empty tables are being seeded so four `425` sites measure something (L36); `425`'s F1 is done (`60b43348`). `npm run lint` exit 0 at HEAD.
 
 ### Next
 
-F1 (tester) → F2 + the respondent fixture (backend) → build complete → production gate subset + declaring `e2e:prod` → AC-4 → ⏸ PAUSE: the PO runs T14 with an EXTERNAL auditor and returns the review for the lead's analysis → PO approval with the
+Backend: the respondent fixture (B2′), L36's two rows, `427` and build complete → tester: `424 § 2.5` and `425`'s four sites → production gate subset + declaring `e2e:prod` → AC-4 → ⏸ PAUSE: the PO runs T14 with an EXTERNAL auditor and returns the review for the lead's analysis → PO approval with the
 visibility items below → Record (ledger row, hub → `complete`, bug status cells, follow-ups dispositioned,
 run logs deleted, LESSONS candidates, the stale handoff flagged).
 
