@@ -212,6 +212,7 @@ $$;
 --      9     B5    staff1.ccih       (staff)            10 -> 12   + the same two (shares B4's value)
 --      10    B6    orgadmin.b        (org_admin, Rede B) 5 -> 6    + gap.xorg.b
 --      12    B8    public.responses, staff_admin's read  7 -> 8    + the row-1 targeted-version response
+--                  ⚠ and 8 -> 7 at L29 (2026-09-15) — see B8's own message: the +1 was AUTHORSHIP, not role
 --      15    B11   the RLS-bypassed totals              13 -> 14   + the same one response
 --      19    D1b   restore control for B1               —          moves WITH test 5, by construction
 --
@@ -341,10 +342,23 @@ select is(
   1,
   'B7 case_events -- 7 rewritten policies, the most of any table -- still reads 1 row for staff_admin. ⚠ WEAK BY CONSTRUCTION: the fixture holds exactly 1 row TOTAL (see B11), so this is a presence check and CANNOT demonstrate selectivity');
 
+-- ⛔⛔ RE-PINNED 8 -> 7 at AE5-STAFF L29 (2026-09-15), OBSERVED RED FIRST on a fresh reset
+--    (`Failed test 12`, the full `test:db` run of that date), and the 2026-09-13 re-pin's
+--    MECHANISM was wrong while its number was right. `responses_select` (live qual) is
+--    `created_by = auth.uid() OR (status = 'submitted' AND is_staff_admin_of(commission_id))
+--    OR can_read_correction_response(id, auth.uid())`: staff_admin reads OTHER people's rows only
+--    once SUBMITTED. The row-1 fixture draft `a5fb0000-…-a1` is `in_progress`, so chefe read it
+--    because chefe AUTHORED it, not because it is a staff_admin. L29 moved the author to
+--    `ativo.registro` (…d2) to free chefe's one-draft slot on `…a001` (sup-supersession SUP-1/SUP-4).
+--    Measured with this file's own caller setup, one rolled-back transaction: chefe[staff_admin]
+--    reads 7 of 14, reads the fixture row 0 times; `ativo.registro`[staff] reads it 1 time (its only
+--    visible response); setting `created_by` back to chefe inside the same transaction moves chefe
+--    to 8 — so the whole delta is attributable to the author column, and the RLS-bypassed total
+--    (B11) stays 14. ⭐ The differential survives in the stronger direction: 7 < 14.
 select is(
   (select count(*)::int from public.responses),
-  8,
-  'B8 responses: staff_admin still reads 8 of the 14 rows in the table -- a genuine differential, so the count is filtered, not merely non-zero. ⚠ RE-PINNED 7/13 -> 8/14 at AE5 increment 1 (2026-09-13) after being observed RED: the AE5-STAFF row-1 targeted-version fixture adds ONE response to the CCIH chain, which staff_admin can see. ⭐ The DIFFERENTIAL, not the count, is the assertion -- 7<13 became 8<14, so the gap SURVIVED the fixture. Had the new row been visible to everyone the count would have moved without the gap moving, and that is the case this re-pin had to rule out.');
+  7,
+  'B8 responses: staff_admin still reads 7 of the 14 rows in the table -- a genuine differential, so the count is filtered, not merely non-zero. ⚠ RE-PINNED 7/13 -> 8/14 at AE5 increment 1 (2026-09-13) and 8/14 -> 7/14 at AE5-STAFF L29 (2026-09-15), each observed RED first: the row-1 targeted-version fixture draft is in_progress, and staff_admin reads another author''s response only once submitted -- chefe read it as its AUTHOR; L29 moved the author to ativo.registro. ⭐ The DIFFERENTIAL, not the count, is the assertion -- 7<14 still holds, and a count that moved without the author moving would be the leak this pin exists to catch.');
 
 select is(
   (select count(*)::int from public.answers),
@@ -367,7 +381,7 @@ select is(
                 (select count(*) from public.answers),
                 (select count(*) from public.case_referral)]::int[]),
   array[1, 14, 50, 4]::int[],
-  'B11 ⭐ the RLS-BYPASSED totals are 1 / 14 / 50 / 4 -- so B8 (8<14), B9 (26<50) and B10 (3<4) are real differentials, and B7 (1 of 1) demonstrably is NOT. The weakness is measured here instead of being unstated. ⚠ RE-PINNED 13 -> 14 at AE5 increment 1 (2026-09-13) after being observed RED, and ONLY the responses total moved: case_events 1, answers 50 and case_referral 4 were RE-MEASURED and are unchanged, so the fixture is attributable to one table rather than assumed to be.');
+  'B11 ⭐ the RLS-BYPASSED totals are 1 / 14 / 50 / 4 -- so B8 (7<14, re-pinned 8 -> 7 at L29 with this total UNCHANGED), B9 (26<50) and B10 (3<4) are real differentials, and B7 (1 of 1) demonstrably is NOT. The weakness is measured here instead of being unstated. ⚠ RE-PINNED 13 -> 14 at AE5 increment 1 (2026-09-13) after being observed RED, and ONLY the responses total moved: case_events 1, answers 50 and case_referral 4 were RE-MEASURED and are unchanged, so the fixture is attributable to one table rather than assumed to be.');
 
 
 -- ===========================================================================

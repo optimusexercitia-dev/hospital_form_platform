@@ -3520,9 +3520,28 @@ begin
   -- Row 6 — the restricted meeting had NO `meeting_cases` row, so `shell.read`'s
   -- `conjunct_unmet` probe bound a meeting_id absent from the table the policy reads. Found by
   -- sweeping every class's ids against its door's table, not by a red cell.
+  -- ⛔⛔ THE CASE IS `dc000000-…-a2` (Caso 5), NOT `d0000000-…-c1` (Caso 0001) — L28, AE5-STAFF
+  -- 2026-09-15. Linking a participants_only meeting to a case is NOT inert: it arms
+  -- `app.can_read_full_case_content`'s AXIS F (`exists meeting_cases mc where mc.case_id = p_case_id
+  -- and not app.can_reach_meeting(mc.meeting_id, p_uid)`) for EVERY caller who does not attend it.
+  -- On `d0…c1` it denied `chefe.ccih` the dossier `e2e/pdf-printing-cases.spec.ts` P3 asserts it is
+  -- ADMITTED to (`SEED_MASKED_CASE`): measured by the tester, deleting only this row flipped chefe
+  -- from `f / f / 0` to `t / t / 1` (`can_read_full_case_content`, `can_view_printed_document('case')`,
+  -- `print_source_state` count). The fixture destroyed a domain state another phase asserts.
+  -- ⚠ WHY `dc000000-…-a2`, BY GREP (2026-09-15): its id and its label ("Análise de incidente —
+  -- Central A") appear in NO `e2e/` file; its id appears in ONE pgTAP file, `298`, as the related
+  -- case of a `referral_cases` row whose row count is all 298 asserts about it; no suite or spec
+  -- calls `can_read_full_case_content` / `can_view_printed_document` on it. Every other CCIH case is
+  -- named by at least one spec file (`d0…c2` 6, `d0cf…c1` 4, `dca0…a1` 1, `ca00…e1` 8).
+  -- ⚠ THE PROBE'S PROPERTY IS PRESERVED: the row-7 policy is `can_reach_meeting(meeting_id, uid) AND
+  -- can_meetings_cases_shell_read(meeting_id, uid) AND NOT is_case_respondent(case_id, uid)`, and the
+  -- `conjunct_unmet` cell must deny for the MEETING, never for the respondent term. Measured
+  -- `app.is_case_respondent(case, staff4.ccih)` = f on both cases (and f for staff1.ccih, the
+  -- attendee, on both); `dc00…a2` has zero `case_participants`. Same commission (CCIH), so
+  -- `app.guard_meeting_cases` (HC032) admits it; the meeting is `held`, so the child lock admits it.
   insert into public.meeting_cases (id, meeting_id, case_id) values
     ('a5f20000-0000-0000-0000-0000000000b1'::uuid, 'a5f20000-0000-0000-0000-0000000000a1'::uuid,
-     'd0000000-0000-0000-0000-0000000000c1'::uuid);
+     'dc000000-0000-0000-0000-0000000000a2'::uuid);
 
   -- ⭐⭐ Row 19 — a CAPA plan whose three disjuncts are ALL false, which the previous
   -- `conjunct_unmet` binding was not. `app.can_read_capa` is
@@ -3543,12 +3562,33 @@ begin
           'Marco da Farmácia A (fixture arm-3 linha 15 — escopo irmão)', '1.0', v_farma);
 
   -- Row 1 — a form + published version at each off-CCIH scope.
+  -- ⛔⛔ EACH VERSION OWNS ITS DEFAULT SECTION — L30′, AE5-STAFF 2026-09-15. The rows were inserted
+  -- `published` with ZERO sections, a state no door can produce: `public.create_form` writes the
+  -- draft version AND `form_sections (form_version_id, position, is_default) values (v_version_id, 0,
+  -- true)` in one transaction, `app.copy_version_children` copies sections on clone, and
+  -- `public.guard_default_section_delete` refuses to delete the default section while it is the
+  -- only one. `publish_form_version` itself counts NO sections — the invariant is the TABLE's,
+  -- whichever door holds it, and a direct insert bypasses all of them (the 330 lesson again).
+  -- Measured cost of the bypass: `e2e/phase5-wizard.spec.ts` opened this form and rendered
+  -- `Seção 0 de 0` (measurement G).
+  -- ⚠ ORDER IS FORCED BY TWO GUARDS: `guard_published_structure` blocks any section INSERT on a
+  -- published version, and `guard_published_version` blocks a status change unless
+  -- `app.in_publish_rpc` is `on`. So: insert draft, add the section, flip under the flag with
+  -- `published_at` stamped — the same sequence `create_form` + `publish_form_version` walk.
+  -- No input items, deliberately: the manifest's row-1 probe reads `form_versions.id` only.
   insert into public.forms (id, commission_id, title) values
     ('a5fc0000-0000-0000-0000-0000000000f1'::uuid, v_farma, 'Formulário da Farmácia A (fixture arm-3 linha 1)'),
     ('a5fc0000-0000-0000-0000-0000000000f2'::uuid, v_farmb, 'Formulário da Farmácia B (fixture arm-3 linha 1)');
   insert into public.form_versions (id, form_id, version_number, status) values
-    ('a5fc0000-0000-0000-0000-0000000000b1'::uuid, 'a5fc0000-0000-0000-0000-0000000000f1'::uuid, 1, 'published'),
-    ('a5fc0000-0000-0000-0000-0000000000b2'::uuid, 'a5fc0000-0000-0000-0000-0000000000f2'::uuid, 1, 'published');
+    ('a5fc0000-0000-0000-0000-0000000000b1'::uuid, 'a5fc0000-0000-0000-0000-0000000000f1'::uuid, 1, 'draft'),
+    ('a5fc0000-0000-0000-0000-0000000000b2'::uuid, 'a5fc0000-0000-0000-0000-0000000000f2'::uuid, 1, 'draft');
+  insert into public.form_sections (id, form_version_id, position, is_default) values
+    ('a5fc0000-0000-0000-0000-0000000000d1'::uuid, 'a5fc0000-0000-0000-0000-0000000000b1'::uuid, 0, true),
+    ('a5fc0000-0000-0000-0000-0000000000d2'::uuid, 'a5fc0000-0000-0000-0000-0000000000b2'::uuid, 0, true);
+  perform set_config('app.in_publish_rpc', 'on', true);
+  update public.form_versions set status = 'published', published_at = now()
+   where id in ('a5fc0000-0000-0000-0000-0000000000b1'::uuid, 'a5fc0000-0000-0000-0000-0000000000b2'::uuid);
+  perform set_config('app.in_publish_rpc', 'off', true);
 
   -- Row 16 — a controlled document at each off-CCIH scope (the NON-approver comparator; the
   -- approver leg stays CCIH-only and is skipped by rule elsewhere).
@@ -3736,7 +3776,26 @@ declare
   v_ccih     uuid := 'a0000000-0000-0000-0000-0000000000a1';
   v_case     uuid := 'd0000000-0000-0000-0000-0000000000c1';   -- a CCIH case
   v_unpriv   uuid := 'a5f00000-0000-0000-0000-0000000000e2';   -- gap.unpriv — no membership at all
-  v_author   uuid := '00000000-0000-0000-0000-000000000002';   -- chefe.ccih mints the targeted response
+  v_author   uuid := '00000000-0000-0000-0000-000000000002';   -- chefe.ccih adds the participant rows
+  -- ⛔⛔ THE DRAFT'S AUTHOR IS `ativo.registro` (…d2), NOT `chefe.ccih` — L29, AE5-STAFF 2026-09-15.
+  -- `responses_one_draft_per_user_idx` allows ONE `in_progress` draft per (created_by, version), so a
+  -- chefe-authored fixture draft on `…a001` made the product refuse every chefe draft there:
+  -- `e2e/sup-supersession.spec.ts` SUP-1/SUP-4 (`FORM_A_VERSION_ID = …a001`) got "Você já tem um
+  -- preenchimento em andamento para esta versão do formulário…" from "Iniciar correção", and
+  -- chefe's insert on `…a001` failed 23505 (measurement F). chefe is named in 104 spec files, and
+  -- `…a001` is named by sup-supersession, perf-sweep-wave2, ui-batch-2026-07, phase15-indicators,
+  -- phase8-dashboard and (by form id) casos-reading-surface-differential.
+  -- ⚠ WHY MOVE THE AUTHOR AND NOT THE VERSION: `app.can_access_targeted_version` walks
+  -- `responses.form_version_id` ⋈ `target_case_participant_id` ⋈ professional_participants ⋈
+  -- professional_profiles.user_id and reads NO `created_by` (live body, 2026-09-15), so the author is
+  -- free. The version is not: the manifest pins row 1's `disjunct_present` to `…a001` and its
+  -- `_default` to `…a002` (36 / 72 generated cells). A fixture-owned CCIH version would re-pin both
+  -- AND add a card to CCIH's form list — the first-card coincidence L31 fixes at Farmácia.
+  -- ⚠ WHY `ativo.registro`: an active, confirmed CCIH `staff` (so `commission.responses.create`),
+  -- named in ONE spec (`user-registration.spec.ts`: deactivate / reactivate / sign-in, no form, draft
+  -- or response step), zero `responses` references in the three pgTAP files naming its id (180, 381,
+  -- 385), and zero differential cells pairing its uid with `responses`.
+  v_draft_author uuid := '00000000-0000-0000-0000-0000000000d2';   -- ativo.registro owns the targeted draft
   v_role     uuid;
   v_fv       uuid;
 begin
@@ -3779,7 +3838,7 @@ begin
   -- `target_case_participant_id` is what makes the walk terminate.
   insert into public.responses (id, form_version_id, commission_id, created_by, status,
                                 target_case_participant_id)
-  values ('a5fb0000-0000-0000-0000-0000000000a1'::uuid, v_fv, v_ccih, v_author, 'in_progress',
+  values ('a5fb0000-0000-0000-0000-0000000000a1'::uuid, v_fv, v_ccih, v_draft_author, 'in_progress',
           'a5fa0000-0000-0000-0000-0000000000a1'::uuid);
 end
 $a5fr1$;
