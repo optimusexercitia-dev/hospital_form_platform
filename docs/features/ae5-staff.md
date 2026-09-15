@@ -108,8 +108,8 @@ The earlier gate witnesses stand for `cea431c7`, but they no longer declare the 
 
 ### Next
 
-F1 to backend (new ADR extending ADR 0182, set-returning wrappers, `_case_caps` lazy S5, a `staff`
-performance acceptance) → F2 and F3 to tester (`425`) → Phase Gate step 1 in full → `e2e:prod` → QA again →
+In parallel: F1 / AC-11 plan (`backend3`, lead reviews before any migration) and F2 + F3 in `425`
+(`tester3`) → F1 migration → `425` re-run on it → Phase Gate step 1 in full → `e2e:prod` → QA again →
 PO approval → Record.
 
 ### Blockers

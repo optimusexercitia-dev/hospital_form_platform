@@ -6924,3 +6924,28 @@ classes, or the scalar authorizers' use on genuinely scalar checks.
 carrying this entry. No tracked change was outstanding. The 73 untracked repo-root run logs (`*.log`,
 `424-run5-witness.txt`) were deliberately **not** committed: they are gate-run artifacts the Record step
 deletes, and their witnesses are quoted in this record.
+
+### 2026-09-15 — F2 and F3 re-sequenced to run IN PARALLEL with F1's plan; PO authorizes multiple subagents; teammates `backend3` (F1 plan) and `tester3` (F2 + F3) spawned (lead)
+
+**PO, verbatim:** *"you are authorized to use multiple subagents when needed"*.
+
+**Re-sequencing (lead decision, within R-8 (a)'s scope).** The analysis entry routed F2 and F3 *after* F1's
+migration. They now start at once, for two measured reasons:
+- **F2's seven sites stay scalar under F1.** They are write-path guards and INSERT `with_check` policies:
+  `responses_insert_own`, `meeting_signatures_insert`, `cast_case_vote`, `create_referral_internal_note`,
+  `notify_safety_event`, `get_referral_case_access_summary` and `sign_meeting`. F1 converts batch SELECT paths
+  only.
+- **F3 is a fixture pin.**
+
+**The cost, stated.** `425` re-derives its policy-site table once F1's migration lands, so the tester re-runs
+it then, and the result at that commit is the one AC-7 cites.
+
+**Owners and files.**
+- **`backend3`** (Opus) writes the F1 / AC-11 plan into this record. It is not executed; no migration and no
+  reset.
+- **`tester3`** (Sonnet) owns `425`, `424` (the § 7.1 comment that names `425` as owner of row 12's polarity)
+  and `docs/testing/ae5-staff-fixture-gaps.md`. It runs scoped `425` only, rolled back, and reports to the lead,
+  who records. Nothing touches the same file twice.
+
+**The stack** held only service connections at spawn. Peer session `hospital-form-platform-8f` is idle, and
+`*_escalume` is not touched.
