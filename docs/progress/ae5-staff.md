@@ -4725,3 +4725,38 @@ T7's own bodies, § 7.3.1 restated (T7 before T6; what `F1b` does now, measured 
 caller count under L14), the template's next section, every catalog-dependent line `⏳ verify` until
 the stack frees. AC-9 ticks on that commit, not on the draft. Lesson shape: a criterion ticked "if
 unchanged" was going to be ticked BECAUSE unchanged — the runbook's stability was the defect.
+
+### 2026-09-14 — AC-9 § 2b DRAFTED (uncommitted, 10 `⏳ verify` markers pending the stack); three of the lead's counts corrected; `F1b` found keyed to the wrong subject (lead)
+
+Backend's draft (docs only, stack untouched, lint 0, gate 13 = 0): runbook 1126 → 1281, template
+422 → 541. § 7's preamble corrected in place and says so; **§ 7.0b** T7's bound as a second table
+with revert cells; **§ 7.3** two worked § 2b sites chosen for being least mechanical —
+`meeting_cases_select` (the one hand policy, L16: T7 ADDED a conjunct to a predicate already
+carrying a hard deny, so § 6's hazard appears in conjunct form: flattening DROPS A DENY; `NOT
+app.is_case_respondent(...)` sits last, where a hand-edited `using (…)` gets truncated) and
+`app._case_caps` S5 (both obvious reverts are wrong: the recorded whole body re-introduces the false
+S8 comment; the one-line "revert" is L20's defect exactly; and `can_cases_deliberation_read` must
+not return to its first T7 shape, that `or` being L24's widening — *the revert target is the text
+that was correct, not the text that was there*); **§ 7.3.1** in the present tense; **template
+SECTION G** (letter read off the file), guard keyed on the re-keyed surface, `G1b` refusing the
+opposite ordering, `G3` a before/after deny-term count because a structural "policy exists" check
+cannot see a flattened predicate.
+
+**Three counts in the lead's brief corrected by counting the committed migration:** `create or
+replace function` = **22**, not 21 — 20 row authorizers + L20's sibling + `app.can_reach_case_on_member_surface`,
+a SITE not a row authorizer (the 21 doors stand; the table keeps them apart); re-emitted bodies =
+**27** carrying `SET search_path TO ''` (`pg_get_functiondef` output is upper-case, a lower-case grep
+undercounts — the lead's "23"); **24** left `419`'s frozen set (860 → 836), not "22" as the hub's
+In-progress block says. ⚠ The hub carries "23 function sites, 22 frozen bodies converged" and a
+Blockers line "860 → 837": to be re-derived on the catalog at the gate record and corrected there,
+not carried.
+
+⭐ **`F1b` is keyed to the wrong subject.** The T6 template's guard counts callers of the WRAPPER,
+on the premise a re-key wires it; under L14 T7 wired `authz.has_permission` and the wrapper measured
+0 / 0 callers at T8 — so `F1b` PASSES and lets the operator flip the role while 21 doors depend on
+it. Not broken; keyed to a subject the increment never used, on the rollback path. Backend put the
+interim query in prose; **the lead orders it as a gate:** `F1b` gains a second predicate — refuse
+when the role's permission codes appear as literals at any app/public site (the re-keyed surface,
+the same count `G`'s guard uses) — because a rule is a hint and a guard is the thing (CLAUDE.md § 8).
+Verification of the 10 markers waits for the tester to park `e2e:prod` (batch 1 of the gate:
+65 passed · 0 failed · 1 flaky · 1 skipped, 67/67 accounted — the flaky title to be read at the end).
