@@ -210,6 +210,8 @@ $$;
 --      7     B3    platform_admin    (all rows)         36 -> 40   + all four gap personas
 --      8     B4    chefe.ccih        (staff_admin)      10 -> 12   + the two CCIH members
 --      9     B5    staff1.ccih       (staff)            10 -> 12   + the same two (shares B4's value)
+--                  ⚠ B4/B5 13 -> 12 at PO ruling R-6 (2026-09-15) — gap.pending's membership moved to
+--                  Farmácia A; see B4's own comment for the byte-for-byte attribution
 --      10    B6    orgadmin.b        (org_admin, Rede B) 5 -> 6    + gap.xorg.b
 --      12    B8    public.responses, staff_admin's read  7 -> 8    + the row-1 targeted-version response
 --                  ⚠ and 8 -> 7 at L29 (2026-09-15) — see B8's own message: the +1 was AUTHORSHIP, not role
@@ -302,15 +304,23 @@ select test_helpers.claims_for('00000000-0000-0000-0000-000000000002', false, 's
 set local role authenticated;
 select is(
   (select md5(coalesce(string_agg(id::text, ',' order by id), '')) from public.profiles),
-  '379100bf45262c79bb2f7bc49ea36648',
-  'B4 staff_admin (chefe.ccih, 13 rows) sees the IDENTICAL set of profiles.id');
+  -- ⚠ RE-PINNED AT PO RULING R-6 option (a) (2026-09-15), OBSERVED RED FIRST. 13 -> 12 rows:
+  --    `gap.pending` (`a5f00000-...-e3`) is no longer a CCIH co-member — its only membership moved
+  --    to Farmácia A. PROVEN, not narrated: BEFORE the move, as chefe.ccih[staff_admin], the 13-row
+  --    set hashed to the old pin 379100bf45262c79bb2f7bc49ea36648 and the SAME set MINUS
+  --    `a5f00000-...-e3` hashed to f28de9999801848fe0dfc3a8e1f09367; AFTER the move on a fresh reset
+  --    the live 12-row set hashes to f28de9999801848fe0dfc3a8e1f09367 byte for byte, with `...e3`
+  --    absent. So the delta is that one profile and no other. staff1.ccih (B5) measured identically.
+  'f28de9999801848fe0dfc3a8e1f09367',
+  'B4 staff_admin (chefe.ccih, 12 rows) sees the IDENTICAL set of profiles.id');
 
 select test_helpers.claims_for('00000000-0000-0000-0000-000000000003', false, 'staff');
 set local role authenticated;
 select is(
   (select md5(coalesce(string_agg(id::text, ',' order by id), '')) from public.profiles),
-  '379100bf45262c79bb2f7bc49ea36648',
-  'B5 staff (staff1.ccih, 13 rows) sees the IDENTICAL set of profiles.id');
+  -- ⚠ RE-PINNED 13 -> 12 AT R-6 (2026-09-15) with B4, same attribution (minus `a5f00000-...-e3`).
+  'f28de9999801848fe0dfc3a8e1f09367',
+  'B5 staff (staff1.ccih, 12 rows) sees the IDENTICAL set of profiles.id');
 
 -- ⚠ …b2 holds TWO live roles, so the hat MUST be passed explicitly here or
 --    claims_for mints none and this measures the self-only arm.  See the header.

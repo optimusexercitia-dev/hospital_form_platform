@@ -35,10 +35,14 @@
 -- move the wrapper, so the two are not one predicate wearing two names.
 
 begin;
-select plan(37);
+select plan(38);  -- 37 -> 38 at R-6 (2026-09-15): § 0.1 split into 0.1 (CCIH) + 0.1b (Farmácia A)
 
 -- ---------------------------------------------------------------------------
--- FIXTURE — every principal is a `staff` of CCIH and nothing else in that scope.
+-- FIXTURE — every principal is a `staff` of CCIH and nothing else in that scope, EXCEPT `st_pending`,
+-- which is a `staff` of FARMÁCIA A since PO ruling R-6 option (a) (2026-09-15): at CCIH the unconfirmed
+-- persona sat on CCIH's ethics voter roster (`app.eligible_voters` reads no `email_confirmed_at`) and
+-- `e2e/ethics-e2-procedure.spec.ts` FLOW-7 could not mint its token. Every `st_pending` cell below is
+-- scoped to `farm`; the property § 3.4 pins is about PRINCIPAL STATE, not about which commission.
 -- ⛔ Named, never derived by a filter: a filter that silently matched zero rows would make every
 -- assertion below vacuous, and `count(*) = 0` reads identically to "they all agreed".
 -- ---------------------------------------------------------------------------
@@ -49,7 +53,7 @@ select
   'c0000000-0000-0000-0000-0000000000c2'::uuid as farmb,         -- another org
   '00000000-0000-0000-0000-00000000000a'::uuid as st_active,     -- staff4.ccih   — clean, active
   '00000000-0000-0000-0000-0000000000d3'::uuid as st_suspended,  -- suspenso.temp — suspended
-  'a5f00000-0000-0000-0000-0000000000e3'::uuid as st_pending,    -- gap.pending   — unconfirmed
+  'a5f00000-0000-0000-0000-0000000000e3'::uuid as st_pending,    -- gap.pending   — unconfirmed, staff @ FARMÁCIA A (R-6)
   'a5f00000-0000-0000-0000-0000000000e4'::uuid as st_deactivated,-- gap.deactivated
   '00000000-0000-0000-0000-000000000002'::uuid as sa_only,       -- chefe.ccih — staff_admin, NOT staff
   -- ⭐ THE ONLY PRINCIPAL FOR WHICH "NO HAT" IS CONSTRUCTIBLE. `test_helpers.claims_for`
@@ -92,13 +96,31 @@ grant execute on function pg_temp.legacy_staff_at(uuid, uuid) to service_role;
 -- ===========================================================================
 -- § 0  FIXTURE CONTROLS — the population is non-empty and is what it claims.
 -- ===========================================================================
+-- ⛔⛔ SPLIT AT PO RULING R-6 option (a), 2026-09-15 — OBSERVED RED FIRST: after the seed moved
+--    `gap.pending`'s membership (`a5f10000-…-e3`) from CCIH to Farmácia A, the old single pin read
+--    `have: 3 / want: 4` (run of 00_setup + 387 + 426 on a fresh reset). The 4 was never "four at
+--    CCIH" as a property; it was "every principal-state persona holds a grant somewhere the § 3
+--    cells look". So it is split, not loosened: 3 named principals at CCIH, and the pending one at
+--    Farmácia A, each pinned to its own scope — a pending persona that lost its membership reds
+--    0.1b, and one that drifted back to CCIH reds 0.1.
 select is((select count(*)::int from public.memberships m, f426 f
             where m.commission_id = f.ccih and m.role = 'staff'
-              and m.principal_id in (f.st_active, f.st_suspended, f.st_pending, f.st_deactivated)),
-          4,
-  '0.1 FIXTURE CONTROL: all four principalState principals hold a `staff` membership at CCIH. '
-  '⛔ Without this every § 3 cell could agree by both sides returning false for the ABSENCE OF A '
-  'GRANT — the shape measured at r1, where the pending persona scored DENIED for the wrong reason.');
+              and m.principal_id in (f.st_active, f.st_suspended, f.st_deactivated)),
+          3,
+  '0.1 FIXTURE CONTROL: the three CCIH principalState principals (active, suspended, deactivated) '
+  'hold a `staff` membership at CCIH. ⛔ Without this every § 3 cell could agree by both sides '
+  'returning false for the ABSENCE OF A GRANT — the shape measured at r1, where the pending persona '
+  'scored DENIED for the wrong reason. ⚠ RE-PINNED 4 -> 3 at R-6 (2026-09-15): `gap.pending` moved '
+  'to Farmácia A and is pinned by 0.1b.');
+
+select is((select count(*)::int from public.memberships m, f426 f
+            where m.commission_id = f.farm and m.role = 'staff'
+              and m.principal_id = f.st_pending),
+          1,
+  '0.1b FIXTURE CONTROL (added at R-6, 2026-09-15): the PENDING principal (gap.pending) holds its '
+  '`staff` membership at FARMÁCIA A, where § 3.4 now asks. ⛔ Same reason as 0.1: without a grant '
+  'at the asked scope, § 3.4a/b would read FALSE for the absence of a membership and the pending '
+  'deny-class would be unobservable.');
 
 select is((select count(*)::int from public.memberships m, f426 f
             where m.commission_id = f.ccih and m.principal_id = f.sa_only and m.role = 'staff_admin'),
@@ -186,13 +208,17 @@ select is(app.is_commission_staff_of_for((select ccih from f426), (select st_dea
 select is(pg_temp.legacy_staff_at((select ccih from f426), (select st_deactivated from f426)), false,
   '3.3b principalState=deactivated (gap.deactivated): the RESTRICTED LEGACY predicate denies.');
 
-select is(app.is_commission_staff_of_for((select ccih from f426), (select st_pending from f426)), true,
-  '3.4a ⭐ principalState=pending (gap.pending): the WRAPPER GRANTS, and this is the cell most '
+-- ⚠ RE-SCOPED ccih -> farm at R-6 (2026-09-15), OBSERVED RED FIRST (both cells `have: false` at
+--    CCIH once the membership moved). Shown able to red at the NEW scope, one rolled-back
+--    transaction on the seeded stack: wrapper @farm `t`; `update profiles set is_active = false`
+--    for gap.pending → wrapper @farm `f` and the restricted legacy predicate `f`; after rollback `t`.
+select is(app.is_commission_staff_of_for((select farm from f426), (select st_pending from f426)), true,
+  '3.4a ⭐ principalState=pending (gap.pending, staff @ Farmácia A since R-6): the WRAPPER GRANTS, and this is the cell most '
   'likely to be "fixed". `app.is_active` reads `is_active` and `suspended_until` and NEVER '
   '`email_confirmed_at`, so pending denies at no layer the resolver can see — the AE4.5 deny-class '
   'ruling, re-measured here on a persona that is unconfirmed in `auth.users` AND in `profiles`.');
-select is(pg_temp.legacy_staff_at((select ccih from f426), (select st_pending from f426)), true,
-  '3.4b principalState=pending (gap.pending): the RESTRICTED LEGACY predicate also grants.');
+select is(pg_temp.legacy_staff_at((select farm from f426), (select st_pending from f426)), true,
+  '3.4b principalState=pending (gap.pending, staff @ Farmácia A since R-6): the RESTRICTED LEGACY predicate also grants.');
 
 -- ===========================================================================
 -- § 3.5 ⭐⭐ THE GRANT THE MIGRATION DELIBERATELY WITHHELD, PINNED AS A FACT.

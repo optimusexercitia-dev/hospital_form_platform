@@ -3362,9 +3362,20 @@ begin
   -- GRANT and the cell reads as a deny that the principal state never caused:
   -- measured at r1, the `pending` row scored DENIED for the wrong reason and the
   -- deny-class table's expected GRANTED could not be observed at all.
+  -- ⛔⛔ `gap.pending`'s membership is at FARMÁCIA A, NOT CCIH — PO ruling R-6 option (a), verbatim
+  -- "Proceed with (a)", AE5-STAFF 2026-09-15. At CCIH it put an UNCONFIRMED principal on CCIH's
+  -- voter roster: `app.eligible_voters` filters membership, expiry, `app.is_active`, recusal and
+  -- respondent and reads no `email_confirmed_at`, so it counted `gap.pending` for the ethics case
+  -- `ca000000-…-e1` (9 voters), and `e2e/ethics-e2-procedure.spec.ts` FLOW-7 — faithful to that
+  -- definition — could not mint the ninth token (GoTrue refuses an unconfirmed password grant).
+  -- Farmácia A is Rede A and Hospital Central A like CCIH, so no persona crosses orgs or hospitals.
+  -- What the persona is FOR survives the move: `426 § 3.4` needs SOME `staff` membership for the
+  -- pending principal (re-scoped to Farmácia A there), and the landing spec never reaches a session.
+  -- The DOMAIN question (should an unconfirmed principal vote?) is not answered by this move — it is
+  -- `FUP-AE5-STAFF-ELIGIBLE-VOTERS-COUNTS-UNCONFIRMED`. Membership id kept: nothing binds it to CCIH.
   insert into public.memberships (id, principal_id, role, commission_id) values
     ('a5f10000-0000-0000-0000-0000000000e1'::uuid, v_xorg,    'staff', v_farmb),
-    ('a5f10000-0000-0000-0000-0000000000e3'::uuid, v_pending, 'staff', v_ccih),
+    ('a5f10000-0000-0000-0000-0000000000e3'::uuid, v_pending, 'staff', v_farma),
     ('a5f10000-0000-0000-0000-0000000000e4'::uuid, v_deact,   'staff', v_ccih);
   -- gap.unpriv gets NO membership and NO admin flag, by construction.
 
