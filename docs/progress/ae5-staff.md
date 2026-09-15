@@ -5654,3 +5654,39 @@ no longer holds: `npm run lint` exits 0 at `a3740cdb`.
 
 **Parked.** Own client sessions **0**; `staff` still `authoritative` (W13's transaction rolled back). The
 stack belongs to the tester for the production gate on the specs the move can touch.
+
+### 2026-09-15 — R-6 option (a) executed by backend and VERIFIED by the lead; build complete at `a3740cdb`; the tester runs the production gate on the specs the move can touch (lead)
+
+Verified in git, not relayed. `a3740cdb` touches exactly `supabase/seed.sql` (13+),
+`387_initplan_wrap_and_profiles_arm_identity.sql` (18+) and `426_ae5_staff_wrapper_differential.sql`
+(50+); `3ea02f89` is backend's record entry (113+). The tree is clean apart from run logs.
+`seed.sql:3378` now reads `('a5f10000-0000-0000-0000-0000000000e3'::uuid, v_pending, 'staff', v_farma)`,
+so the membership id is kept and only the commission moved. `426` reads `select plan(38)` with its
+comment `37 -> 38 at R-6 (2026-09-15)`. In `387`, both live assertions (`:314`, `:322`) pin
+`f28de9999801848fe0dfc3a8e1f09367`; the old `379100bf…` survives only in the history comment at `:310`.
+
+Backend's witnesses as its entry quotes them: both re-pins observed red before editing (`426` test 1
+`have: 3 / want: 4` and § 3.4a/b `have: false`; `387` tests 8 and 9 `have: f28de999…`); the 387 pin
+proven as the old 13-row set minus `a5f00000-…-e3`, byte for byte; `426 § 3.4` still reds at
+Farmácia A (`t`, then `f` once deactivated, then `t`, rolled back); `app.eligible_voters(ca000000-…-e1)`
+= 8 without `…e3`; `gap.pending` holds 1 membership, at Farmácia A. The only e2e reader of Farmácia A's
+roster, `phase13-audit.spec.ts:817–825`, still holds its leak check.
+
+**Build-complete at `a3740cdb`, one fresh reset:** reset exit 0, `information_schema.tables` 445 three
+times, profiles 45; `test:db` exit 0, `Files=275, Tests=9219`, `Result: PASS`, `not ok` 0 (9218 + the
+new § 0.1b); `census`, `hat`, `floor`, `FROMFINDINGS=1 wrapper` each exit 0 `=== INVARIANT HOLDS ===`
+(wrapper `BLIND set size: 41`); budget app 339 · public 433 · total 772; `door-sweep-cases.sh a02487bc`
+`SCOPE: 4 file(s) — 4 committed (a02487bc..HEAD), 0 worktree, 0 untracked`, 75 names,
+`sha256(sorted)=c2934944fc881ded`, equal to T8's; lint 0, typecheck 0.
+
+**A recipe the record never stated, found by backend:** the deriver prints the 75 names on one line, so
+a plain `sort | sha256sum` gives `96d9ab3819e4ccff`. T8's figure is reproduced only by splitting to one
+name per line first: `tr ' ,' '
+
+' | grep . | LC_ALL=C sort -u | sha256sum | cut -c1-16`. The
+AC-10 gate record quotes the recipe with the checksum, since a checksum without its recipe cannot be
+re-taken.
+
+**Next:** the tester corrects the stale JSDoc at `e2e/ae5-staff-landing.spec.ts:30` (it still says
+CCIH), then runs the production gate on the seven specs the move can touch. The declaring full
+`e2e:prod` follows on its result.
