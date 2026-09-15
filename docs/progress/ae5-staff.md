@@ -4760,3 +4760,25 @@ when the role's permission codes appear as literals at any app/public site (the 
 the same count `G`'s guard uses) — because a rule is a hint and a guard is the thing (CLAUDE.md § 8).
 Verification of the 10 markers waits for the tester to park `e2e:prod` (batch 1 of the gate:
 65 passed · 0 failed · 1 flaky · 1 skipped, 67/67 accounted — the flaky title to be read at the end).
+
+### 2026-09-14 — `F1b` gated on the re-keyed surface; cross-checking the two copies found SECTION G's guards DID NOT PARSE (quotes eaten by a quoting layer) — repaired; a parse check ordered for every template section (lead)
+
+Backend: `F1b` now carries two refusal predicates — the wrapper caller count (kept; right for an
+increment that wires the wrapper) and `F1b(ii)`, the count of the role's permission codes as string
+literals at any `app`/`public` site, byte-identical to `G`'s guard so the two sections cannot
+disagree about whether a re-key has landed; the refusal text ends "do not substitute the wrapper
+caller count for it: that is the check that passed on AE5 T7". **Found while making them
+identical:** `G1a` and `G3a` read `position( || rp.permission_code ||  in p.prosrc) > 0` — the
+`''''` literals STRIPPED by the Python triple-quoted string SECTION G was written through; both
+guards were invalid SQL, and an operator would have got a parse error where a refusal belongs.
+Repaired; all three sites byte-identical under `cat -A`; the template re-scanned for the signature,
+nothing else. Template 422 → 579, runbook 1126 → 1281, lint 0, uncommitted, stack untouched.
+Backend's own words: a quoting layer between it and the file silently ate content that looked fine
+in the diff; a single copy would have shipped broken. The lead's addition: **no gate parses the
+template's SQL** — it is a file a human copies under time pressure, and a guard that does not parse
+was invisible to lint, to `test:db` and to every arm. Ordered for the verification pass: every
+section of `authz-rollback-template.sql` (A–G) is fed to the catalog inside `begin; … rollback;`
+so Postgres parses it, the exit and any error quoted; and a follow-up filed (backend, medium): the
+template's SQL is parse-checked by no gate — closes when a gate parses each section on a fresh
+reset and is shown to red on a stripped-quote plant. LESSONS candidate: *a template nobody executes
+is a comment with SQL syntax.*
