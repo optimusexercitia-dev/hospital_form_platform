@@ -7685,3 +7685,68 @@ The mechanical set (40 T7 + 6 AE4) waits with the rest, so ADR 0212 and `428` ar
 the 81 helper-routed policies, less any INSERT-only exclusions named in the plan.
 
 **State.** `tester3` is still working on F2 and F3.
+
+### 2026-09-15 — F2 and F3 landed in `425` (`075e298a`, tester3), verified by the lead on a scoped re-run: plan 1..34, tests 1–34 all `ok`, 0 `not ok`; every write-site probe carries its own in-suite RED half (lead)
+
+**The commit.** `075e298a` changes `425`, `424` § 7.1's comments, and `docs/testing/ae5-staff-fixture-gaps.md`
+§ 10. It touches no app code, seed or migration. `npm run lint` exited 0 (tester3).
+
+**The lead's verification, not the tester's summary.**
+- **The run.** `425` ran alone in ONE outer transaction: pgTAP, then `00_setup.sql` lines 1–629, then the suite, closed
+  by the suite's own `rollback`. 0 non-service backends before.
+- **The result.** `1..34`; numbered `ok` lines for exactly tests 1–34; 0 `not ok`; 0 `ERROR`; no planned/ran mismatch.
+- ⛔ **Instrument note.** A bare `^ *ok ` count reads 36. The two extra matches (log lines 107 and 122) are psql result
+  column headers (`ok` above a `----` rule, from two `select ok(…)` statements printed as result sets in the log), not
+  test lines. Only numbered `ok N -` lines are counted.
+- **After the run:**
+  - `test_helpers` absent;
+  - `authz.role_permissions` for `staff` = 20, as before;
+  - `public.case_decisions` = 0;
+  - 0 `public`/`app` bodies containing `if false and`;
+  - `responses_insert_own` and `meeting_signatures_insert` read back with their `can_*` conjuncts intact.
+- **Log:** `lead-425-verify.log`, in the lead's scratchpad.
+
+**F2, closed in `425`.** Seven sites, each run through the full cycle before-success → delete the one grant → deny
+with an exact SQLSTATE → restore → after-success. Each denial targets a fresh row, so a duplicate guard (`HC0J4`,
+`HC035`) can never impersonate the denial.
+
+| Site | Code | Denial |
+| --- | --- | --- |
+| `cast_case_vote` | `commission.cases.vote` | `42501` |
+| `create_referral_internal_note` | `commission.referrals.notes.author` | `42501` |
+| `notify_safety_event` | `commission.safety_events.report` | `42501` |
+| `get_referral_case_access_summary` | `commission.referrals.metadata.read` | `42501` |
+| `sign_meeting` | `commission.meetings.minutes.sign` | `HC036` |
+| `meeting_signatures_insert` | `commission.meetings.minutes.sign` | `42501` |
+| `responses_insert_own` | `commission.responses.create` | `42501` |
+
+**The RED halves live in the committed suite, not in a one-off run.** The lead read them at `425`:1361–1548: the
+`if false and not app.can_…(` body replacements, and `alter policy … with check` neutered then restored from the
+live `pg_policies` text. So every `test:db` run re-proves that the probes can fail.
+
+**Bound, named by the lead.** `get_referral_case_access_summary` has three enforcement points on one code: the RPC's
+own check, `_audit_access_authorized`'s `referral.case_access_summary_viewed` arm, and `app.can_read_referral`'s
+source-side disjunct. Its RED half neutralizes all three together. That proves the code is enforced on the
+operation; it does not prove the RPC's own check is load-bearing alone. That is recorded as the bound, not as a
+defect.
+
+**Fixture gap, recorded.** `seed.sql` carries zero `case_decisions` rows system-wide (fixture-gaps row 12, now § 10).
+`425` builds its vote fixture with suite-internal DML that is rolled back. A seeded fixture for other suites is
+backend's, and stays recommended.
+
+**F3, closed.**
+- **The attendee.** `attendee_id` is pinned to `a5f30000-…-a2`. A new test 0.2b asserts signer, commission,
+  `present` and `in_signature` before the differential.
+- **A second landmine of the same shape**, found by tester3. `action_item_id`'s unordered `limit 1` could land on
+  an `assignees_only` item assigned to staff4. That makes `can_read_action_item` true through a role-free disjunct,
+  so it is now pinned to `visibility_scope = 'committee'`.
+- **The meeting.** `meeting_id` gains `visibility_policy = 'commission_default'`.
+- **Every other `f425r` selection** is ordered, with its reason written inline.
+- **Removed:** the unused `framework_id`.
+- **Widened:** test 0.2's NULL sweep now also covers the three L34 columns.
+
+**`424`.** § 7.1's comments now point to `425` § 6 as the home of row 12's behavioural polarity. The skip logic is
+unchanged.
+
+**AC-7 stays un-ticked.** Its evidence must be `425` re-run on the converted catalog after the F1 migration (T15.6).
+Only then is the both-polarities clause answered on the final policy shapes. `tester3` is parked.

@@ -109,7 +109,7 @@ The earlier gate witnesses stand for `cea431c7`, but they no longer declare the 
 ### Next
 
 F1 / AC-11 plan ACCEPTED as design (`b6b5de7b`); Q-3 ruled (A); Q-1 · Q-2 (C) · Q-4 ruled → partition the 81 →
-family plans (Class-1 per door) → integrated plan, lead review → ADR 0212 + `428` red-first → migration; in parallel F2 + F3 in `425` (`tester3`) → F1 migration → `425` re-run on it → Phase Gate step 1 in full → `e2e:prod` → QA again →
+family plans (Class-1 per door) → integrated plan, lead review → ADR 0212 + `428` red-first → migration; F2 + F3 DONE in `425` (`075e298a`, verified 34/34) → F1 migration → `425` re-run on it → Phase Gate step 1 in full → `e2e:prod` → QA again →
 PO approval → Record.
 
 ### Blockers
