@@ -303,6 +303,7 @@ do $$
 declare
   v_state   text;
   v_callers integer;
+  v_rekeyed integer;
 begin
   -- F1a. The role is where the pre-flight said it was.
   select state::text into v_state from authz.roles where code = '<ROLE CODE>';
@@ -316,9 +317,21 @@ begin
                     'recorded moving forward.', v_state;
   end if;
 
-  -- F1b. ⛔ THE ORDERING GUARD. If any function body or policy already calls the wrapper, the
-  -- re-key increment has landed and THIS revert would silently revoke at every one of those
-  -- sites. Refuse, and name the count so the operator knows what to revert first.
+  -- F1b. ⛔⛔ THE ORDERING GUARD — TWO PREDICATES, AND IT NEEDS BOTH.
+  --
+  -- ⛔ WHY THERE ARE TWO. The first predicate asks "does anything CALL THE WRAPPER?" and its
+  -- premise is that a re-key increment wires the wrapper. AE5 T7 DID NOT: under lead ruling
+  -- L14 the `staff` doors were re-keyed onto `authz.has_permission` and the domain
+  -- authorizers, and `app.is_commission_staff_of(_for)` was left with ZERO callers (measured
+  -- at T8, comment-stripped bodies and policy quals: 0 and 0). ⇒ on that increment this guard
+  -- PASSED, raised nothing, and would have let the operator flip the role while 21 doors
+  -- depended on it. It was not broken — it was KEYED TO THE WRONG SUBJECT, on the rollback
+  -- path, which is this program's standing failure wearing a new hat.
+  --
+  -- ⚠ THE FIRST PREDICATE IS KEPT, NOT REPLACED. It is still the right question for an
+  -- increment that DOES wire the wrapper — which the deferred re-expression
+  -- (`FUP-AE5-STAFF-MEMBER-PREDICATE-REEXPRESSION-DEFERRED`) will make true. Two questions,
+  -- two predicates; either one firing is enough to refuse.
   select count(*) into v_callers from (
     select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
       where n.nspname in ('app', 'public', 'authz')
@@ -337,6 +350,31 @@ begin
                     'sections 2b / 7.3), then run this. ⛔ Do not delete this guard to proceed.',
                     v_callers;
   end if;
+
+  -- F1b(ii). ⭐⭐ THE SECOND PREDICATE, KEYED ON THE RE-KEYED SURFACE — the same count
+  -- SECTION G's guard uses, so the two sections cannot disagree about whether a re-key has
+  -- landed. A permission code held by this role that appears as a STRING LITERAL in an
+  -- app/public function body IS a re-keyed code (ADR 0176 D7's "statically greppable at the
+  -- enforcement sites"). ⚠ `prosrc` deliberately, NOT a call-graph walk: the literal is the
+  -- thing the re-key put there, and a walk would answer a different question.
+  -- ⛔ THIS FIRES WHETHER OR NOT THE WRAPPER HAS CALLERS. That is the whole point.
+  select count(*) into v_rekeyed
+    from authz.role_permissions rp
+   where rp.role_code = '<ROLE CODE>'
+     and exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                  where n.nspname in ('app', 'public')
+                    and position('''' || rp.permission_code || '''' in p.prosrc) > 0);
+  if v_rekeyed <> 0 then
+    raise exception 'ROLLBACK ABORTED: % permission code(s) held by <ROLE CODE> are enforced at '
+                    'app/public sites, so a re-key increment has landed even though the wrapper '
+                    'may have no callers at all. `authz.has_permission` is authoritative-roles '
+                    'ONLY, so flipping this role back makes EVERY one of those doors return '
+                    'false at once, while untouched legacy sites keep working — a partial '
+                    'revocation, not a rollback. Revert the RE-KEY first (runbook section 7.3, '
+                    'template SECTION G), verify, and only then run this. ⛔ Do not delete this '
+                    'guard to proceed, and do not substitute the wrapper caller count for it: '
+                    'that is the check that passed on AE5 T7.', v_rekeyed;
+  end if;
 end $$;
 
 -- -------------------------------------------------------------------------------------
@@ -349,12 +387,20 @@ end $$;
 --    catalog before anyone re-forwards. `legacy` blinds the oracle at the moment you most need
 --    it, and it is not more conservative — the grants are untouched either way.
 -- -------------------------------------------------------------------------------------
-update authz.roles set state = 'test_validation'
- where code = '<ROLE CODE>' and state = 'authoritative';
-
+-- ⛔⛔ THE UPDATE IS INSIDE THE BLOCK, AND IT HAS TO BE (measured 2026-09-15, the AC-9 parse pass).
+--    This used to read `update …;` followed by a SEPARATE `do $$ … get diagnostics v_n = row_count`.
+--    GET DIAGNOSTICS reads the last command run INSIDE its own plpgsql block, so the separate block
+--    always saw 0: on the live catalog the UPDATE flipped `staff` to test_validation and the guard
+--    raised "flipped 0" in the same transaction. A guard that can never pass is one an operator under
+--    time pressure deletes. Nobody saw it because F1b(ii) refuses first on any post-T7 catalog, so no
+--    run ever reached F2. Measured both ways after the move: the first run flips 1 and passes (F4
+--    then passes behind it); a second run in the same transaction finds nothing authoritative and
+--    raises "flipped 0".
 do $$
 declare v_n integer;
 begin
+  update authz.roles set state = 'test_validation'
+   where code = '<ROLE CODE>' and state = 'authoritative';
   get diagnostics v_n = row_count;
   if v_n <> 1 then
     raise exception 'ROLLBACK ABORTED: expected to flip exactly 1 role, flipped %.', v_n;
@@ -420,3 +466,126 @@ end $$;
 --    probe that cannot.
 
 commit;
+
+-- =====================================================================================
+-- SECTION G — AE5 PER-ROLE INCREMENT, THE RE-KEY HALF: revert the per-site re-key
+--             (runbook § 7.3). Use this BEFORE Section F, never after.
+--
+-- ⚠ LETTERED G, READ OFF THE FILE. A–C are the generic shapes, D post-conditions, E the
+--    non-SQL half, F the role-state cutover. Two sections sharing a letter is how an
+--    operator copies the wrong one under time pressure.
+--
+-- ⭐ USE THIS WHEN THE THING TO UNDO IS "policies and function bodies now call a domain
+--    authorizer instead of a role/membership predicate". That is AE5 T7's shape:
+--    20 row authorizers + 1 commission-keyed sibling created, 41 policies altered,
+--    27 function bodies re-emitted, 5 C1 call sites wired.
+--
+-- ⛔⛔ WHY THIS SECTION EXISTS AT ALL, AND IT IS A DEFECT IN F1b.
+--    Section F1b enforces the ordering rule by counting callers of THE WRAPPER. Its premise
+--    is that the re-key increment wires the wrapper. AE5 T7 DID NOT: under lead ruling L14
+--    the doors were re-keyed onto `authz.has_permission` and the domain authorizers, and
+--    `app.is_commission_staff_of(_for)` was left with ZERO callers (measured at T8, from
+--    comment-stripped bodies and policy quals: 0 and 0). ⇒ F1b PASSES after T7, raises
+--    nothing, and lets the operator flip the role while 21 doors depend on it. The guard is
+--    keyed to the wrong subject: it asks "does anything call the wrapper?" when the question
+--    is "has this role's authority been re-keyed onto the permission layer?".
+--    ⛔ DO NOT DELETE F1b — it is still correct for an increment that DOES wire the wrapper,
+--    which the deferred re-expression will make true. Two guards, two questions.
+-- =====================================================================================
+
+-- -------------------------------------------------------------------------------------
+-- G1 — THE GUARD, keyed on the RE-KEYED SURFACE. Run this FIRST, and read its exception.
+-- -------------------------------------------------------------------------------------
+do $$
+declare
+  v_rekeyed int;
+  v_state   text;
+begin
+  -- G1a. Is this role's authority on layer 3 at all? A permission code that appears as a
+  -- STRING LITERAL in an app/public function body is a re-keyed code (ADR 0176 D7's
+  -- "statically greppable at the enforcement sites"). ⚠ `prosrc` is used deliberately, NOT
+  -- a call-graph walk: the literal is the thing the re-key put there.
+  select count(*) into v_rekeyed
+    from authz.role_permissions rp
+   where rp.role_code = '<ROLE CODE>'
+     and exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                  where n.nspname in ('app', 'public')
+                    and position('''' || rp.permission_code || '''' in p.prosrc) > 0);
+  if v_rekeyed = 0 then
+    raise exception 'ROLLBACK ABORTED: no permission code held by <ROLE CODE> appears at any '
+                    'app/public enforcement site, so there is no re-key here to revert. If you '
+                    'meant to undo the ROLE-STATE cutover, that is SECTION F.';
+  end if;
+
+  -- G1b. ⛔ THE ORDERING GUARD, THE OTHER WAY ROUND FROM F1b. Section F must not have run
+  -- yet: if the role is already back to `test_validation`, the doors are already denying and
+  -- restoring the sites now leaves a window where NEITHER path grants.
+  select r.state::text into v_state from authz.roles r where r.code = '<ROLE CODE>';
+  if v_state is distinct from 'authoritative' then
+    raise exception 'ROLLBACK ABORTED: <ROLE CODE> is already `%`, so SECTION F ran FIRST. '
+                    'That is the wrong order (runbook § 7.3.1): the role flip already revoked '
+                    'at every re-keyed door. Restore the role to `authoritative`, run THIS '
+                    'section, verify, and only then run F.', v_state;
+  end if;
+end $$;
+
+-- -------------------------------------------------------------------------------------
+-- G2 — THE SITE RESTORE. One statement per site, each from a RECORDED predicate.
+--
+-- ⛔⛔ THE THREE WAYS THIS GOES WRONG, ALL MEASURED IN AE5 (runbook § 7.3a / § 7.3b):
+--   1. FLATTENING. A re-keyed predicate usually has arms the cutover never touched — a
+--      tenancy-admin disjunct, a `can_reach_*` conjunct, and (at least once) a hard deny
+--      `NOT app.is_case_respondent(...)` sitting LAST, exactly where a hand-edited `using (…)`
+--      gets truncated. Dropping a deny is a widening, not a rollback.
+--   2. RESTORING THE WHOLE BODY when the change was ONE LINE. AE5 T7 rewrote a stale COMMENT
+--      in the same function it re-keyed; restoring the recorded body restores the false claim.
+--   3. RESTORING "THE PREVIOUS TEXT" WHEN THE PREVIOUS TEXT WAS THE DEFECT. One AE5 door's
+--      first shape OR-ed a permission arm past the hard denies the other arm carried (a
+--      Class-1 widening, caught pre-commit). ⛔ The revert target is the text that was
+--      CORRECT, which is not always the text that was THERE.
+--
+-- ⚠ Every predicate below must be read from `pg_policies` / `pg_get_functiondef` in THIS database
+--    before it is used. Migration text is stale by design (ADR 0078). Measured on the post-T7
+--    catalog 2026-09-15 (runbook § 7.3; record of that date): `meeting_cases_select` is cmd SELECT
+--    with a NULL with_check (one half to restore), and `app._case_caps` S5 reads
+--    `v_member := app.can_cases_deliberation_read_in_commission(v_commission, p_uid);`.
+--    A measurement is a fact about that database on that day, not about yours.
+-- -------------------------------------------------------------------------------------
+-- alter policy <POLICY NAME> on <SCHEMA>.<TABLE>
+--   using (<THE RECORDED PRE-RE-KEY PREDICATE, VERBATIM>)
+--   -- with check (…)  ⛔ REQUIRED TOO if cmd is ALL/INSERT/UPDATE — verify `cmd` first;
+--   --                    a half-restored FOR ALL policy is two different decisions.
+-- ;
+
+-- -------------------------------------------------------------------------------------
+-- G3 — POST-CONDITIONS, in the same transaction.
+-- -------------------------------------------------------------------------------------
+do $$
+declare v_left int;
+begin
+  -- G3a. No site still names a re-keyed code for this role.
+  select count(*) into v_left
+    from authz.role_permissions rp
+   where rp.role_code = '<ROLE CODE>'
+     and exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                  where n.nspname in ('app', 'public')
+                    and position('''' || rp.permission_code || '''' in p.prosrc) > 0);
+  if v_left <> 0 then
+    raise exception 'REVERT INCOMPLETE: % code(s) still appear at app/public sites. A PARTIAL '
+                    'revert is worse than either end state (runbook § 6.6) — finish or roll '
+                    'the transaction back.', v_left;
+  end if;
+
+  -- G3b. ⛔ THE DENY TERMS SURVIVED. Count them BEFORE and AFTER and compare; this is the
+  -- check that catches a flattened predicate, and a structural "the policy exists" check
+  -- cannot. Fill in the recorded before-count.
+  -- select count(*) from pg_policies
+  --  where coalesce(qual,'') || coalesce(with_check,'') like '%is_case_respondent%';
+  --  expected: <THE RECORDED PRE-REVERT COUNT>
+end $$;
+
+-- ⛔ Then, OUTSIDE this transaction: the behavioural pair, on a real subject. A structural
+--    check can pass while the decision did not move.
+--      a plain member of the role, on an ordinary resource   -> expect the reach RESTORED
+--      the same member on an excluded / restricted resource  -> expect STILL DENIED
+--    The second probe is the one that catches a flattened deny, and it is the one people skip.

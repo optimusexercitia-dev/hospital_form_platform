@@ -1994,6 +1994,13 @@ Before the unit, `readRoleVocabularyFromCatalog` was an UNEXPORTED local in two 
 **Status:** open
 **Body:** [FUP-AE5-STAFF-ELIGIBLE-VOTERS-COUNTS-UNCONFIRMED.md](FUP-AE5-STAFF-ELIGIBLE-VOTERS-COUNTS-UNCONFIRMED.md)
 
+### 🟡 FUP-AE5-STAFF-ROLLBACK-TEMPLATE-PARSED-BY-NO-GATE (owner: backend)
+
+**Filed:** 2026-09-15 (unit `AE5-STAFF`, AC-9 catalog pass, ordered by the lead) · **Owner:** backend · **Severity:** medium — `docs/deployment/authz-rollback-template.sql` is SQL an operator copies during an incident, and no gate parses it (`lint` reads no SQL under `docs/`, `test:db` never loads `docs/deployment/`); SECTION G's guards once shipped unparseable and F2's row-count guard could never pass, both found by hand.
+**Closes when:** a gate parses each template section A–G on a fresh reset — placeholders filled from a recorded map, DO blocks compiled without executing, statements run inside `begin … rollback` — and is shown to red on a stripped-quote plant.
+**Status:** open
+**Body:** [FUP-AE5-STAFF-ROLLBACK-TEMPLATE-PARSED-BY-NO-GATE.md](FUP-AE5-STAFF-ROLLBACK-TEMPLATE-PARSED-BY-NO-GATE.md)
+
 ### 🟡 FUP-AE5-STAFF-ARM1-HARNESSES-DO-NOT-READ-RESET-EVERY — two of ARM 1's three sweeps accept the knob and drop it (owner: backend)
 
 **Filed:** 2026-09-14 (unit `AE5-STAFF`, T8) · **Owner:** backend · **Severity:** medium — no wrong verdict is known to have come from it; what is missing is the BOUND on how much drift a verdict may carry, in two harnesses that run the FULL suite per case.

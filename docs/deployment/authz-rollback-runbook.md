@@ -967,9 +967,15 @@ than written down, which is the difference between a rule and a hope.
 
 ⛔ **THIS SECTION IS NOT § 6 WITH DIFFERENT NAMES.** § 6 reverts a **re-key**: policies and door
 bodies that were re-pointed onto a permission authorizer, where the hazard is restoring a *disjunct*
-without flattening the body. AE5 increment 1 re-keyed **nothing**. It created two functions with
-**zero callers** and flipped one row of `authz.roles`. So its revert is almost entirely § 2a, and
-its § 2b half is a **template for T7 to fill**, not a worked site — the sites are not chosen yet.
+without flattening the body. AE5 increment 1's **T6** re-keyed **nothing**. It created two functions with
+**zero callers** and flipped one row of `authz.roles`, so *that* half's revert is § 2a.
+
+⚠⚠ **UPDATED AFTER T7 LANDED (2026-09-14, `2dddd278`, migration `20261003007470`).** Until then
+this section said its § 2b half was "a template for T7 to fill … the sites are not chosen yet".
+The sites are chosen and shipped: **§ 7.0 now carries two tables** (T6's and T7's), **§ 7.3 is a
+worked § 2b site**, and **§ 7.3.1's ordering rule is no longer conditional — the "after T7" branch
+is the present tense.** ⛔ A runbook that still describes the increment it is meant to reverse as
+unfinished is worse than no runbook: it reads as authoritative and its verbs are all future.
 
 ### 7.0 What T6 actually changed — the whole list, so the revert has a bound
 
@@ -981,8 +987,36 @@ its § 2b half is a **template for T7 to fill**, not a worked site — the sites
 | enforcement sites | **none touched.** All 18 manifest rows stayed `pending-rekey`; `410 § 4.5` stayed `58 / 3` |
 | `authz.permissions` / `role_permissions` | **none touched** (T4 seeded them; ⛔ they are NOT part of this revert) |
 
-⇒ **the revert is one UPDATE plus a verification.** If a proposed rollback contains a `drop
-function`, a `delete from authz.*`, or a policy edit, it is not reverting this increment.
+⇒ **the T6 revert is one UPDATE plus a verification.** If a proposed rollback of *T6* contains a
+`drop function`, a `delete from authz.*`, or a policy edit, it is not reverting that increment.
+
+#### 7.0b What T7 changed — the second bound, and it is nothing like the first
+
+Counted from the committed migration `20261003007470` (the source, not a memory). Every line that
+names a **body** was drafted as pending verification, because migration text is stale by design (ADR
+0078) and the catalog is what you are about to change. **Verified on the live catalog 2026-09-15**
+(fresh `db reset` on branch `ae5-staff`, the AC-9 pass; every query is quoted in
+`docs/progress/ae5-staff.md` § Session log of that date), and each cell below now carries the measured
+value. ⛔ A measurement is a fact about THAT database on THAT day: re-read each body on the catalog you
+are about to change before executing.
+
+| change | count | revert cell |
+| --- | --- | --- |
+| **row authorizers created** — `app.can_<domain>(uuid, uuid)`, one per re-keyed `staff` code | **20** | ⛔ **leave them.** Dropping a door is not a revert; the revert is at the SITES that call it. A door nothing calls is inert (§ 6.5's rule) |
+| **the 21st door** `app.can_cases_deliberation_read_in_commission(uuid, uuid)` (lead ruling L20) | **1** | ⛔ **leave it** — and see § 7.3's function site: its ONE caller is `app._case_caps`, so the revert is that caller's line, never this body |
+| **`app.can_reach_case_on_member_surface` rewritten** as a thin delegate (C1 wiring) | 1 | restore the pre-T7 body. **Measured 2026-09-15:** one overload, `LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO ''`, body `select app.can_cases_deliberation_read(p_case_id, p_uid);` — the thin delegate, as recorded. ⚠ It is in the same `create or replace` group as the doors but is a **SITE**, not a row authorizer — 22 `create or replace function` statements = 20 + 1 + this (re-counted in the file 2026-09-15: 22 lower-case statements, 27 upper-case re-emitted bodies) |
+| **`EXECUTE` granted to `authenticated`** | **13** | leave; R-4's mapping. The other **8** doors are DEFINER-only (incl. the 21st, which takes **no grant at all**) — 21 = 13 + 8. **Measured 2026-09-15** on `pg_proc`: 21 of 21 `prosecdef`, 21 of 21 `proconfig = {search_path=""}`, one overload each; **13** carry `authenticated=X/postgres` in `proacl` and `has_function_privilege('authenticated', oid, 'EXECUTE')` is true for exactly those 13; the other **8** read `{postgres=X/postgres,service_role=X/postgres}`, except the 21st, `{postgres=X/postgres}` |
+| **policies altered** | **41** = 40 generated + **1 by hand** (`meeting_cases_select`, lead ruling L16) | **this is the § 2b revert** — § 7.3 works the hand one, because it is the one whose revert is least mechanical |
+| **function bodies re-emitted verbatim** under `set search_path = ''` (`pg_get_functiondef` output, hence upper-case in the file) | **27** | restore the recorded body. ⚠ **NOT the 23 an earlier plan note said** — measured 27 in the committed file, all 27 carrying `SET search_path TO ''`. **Verified 2026-09-15** on `pg_proc`: all 27 names resolve to exactly one overload, all 27 are `prosecdef`, and all 27 carry `proconfig = {search_path=""}` |
+| of those, **signatures that LEFT `419`'s frozen non-empty set** | **24** (860 → 836, a PURE DELETION, 0 added). **Measured 2026-09-15:** the live `prosecdef` population over app/public/authz with a NON-empty `search_path` is **836**, `419` § 0c pins the frozen artifact at 836 rows, and `419` is green, so live = frozen | ⛔ **do not restore the legacy `search_path`.** ADR 0208 D4 is "converge on touch" and the convergence is not part of this increment's semantics — reverting it re-opens an injection surface for no rollback benefit |
+| **C1 call sites wired** to `app.can_reach_case_on_member_surface` | **5** (`app._project_meeting_case`, `app._project_meeting_agenda_item`, `public.get_reserved_session_items`, `app.resolve_document_version_bytes`, plus the authority itself) | restore the four inline copies the wiring replaced. **Measured 2026-09-15:** exactly these 4 functions name `can_reach_case_on_member_surface` in a comment-stripped `prosrc` (the authority excluded), and 0 policies do |
+| **seed fixtures added** (`supabase/seed.sql`) | **5** (the `…f5` grant persona + its org affiliation, 2 accreditation standards, 1 referral internal note, 1 closed session + 2 items) | ⛔ **leave them.** A revert of a cutover does not un-seed fixtures; removing them breaks suites that now bind them |
+| `authz.roles` / `authz.permissions` / `role_permissions` | **none touched by T7** | ⛔ **not part of this revert** — the role flip is T6's, § 7.2 |
+
+⇒ **the T7 revert is 41 policy predicates + a handful of function bodies, each restored from a
+recorded text and verified on the catalog.** It contains no `drop function`, no `delete from
+authz.*`, and no `update authz.roles` — if a proposed T7 rollback contains any of those, it is
+reverting something else.
 
 ### 7.1 Pre-flight — revalidate the FOUR PROPERTIES first, before writing a line
 
@@ -1038,10 +1072,14 @@ Three rules, each with its reason:
    assignment projection stay exactly as they are. The catalog going quiet IS the rollback; emptying
    it is data loss no forward step can undo.
 
-### 7.3 Shape § 2b — a re-keyed enforcement site ⛔ **TEMPLATE, NOT A WORKED SITE**
+### 7.3 Shape § 2b — TWO WORKED SITES from T7
 
-AE5 increment 1 re-keyed no site, so there is nothing here to work through yet. T7 fills this in,
-and the shape it must fill is § 2b's, with one addition that is specific to `staff`:
+⚠ **This section was headed "TEMPLATE, NOT A WORKED SITE" until 2026-09-14.** T7 landed
+(`2dddd278`), so it is worked here on the real bodies. Both sites were chosen because their revert
+is the LEAST mechanical of their kind — a worked example on the easy case teaches the operator
+nothing they would not have guessed.
+
+The § 2b shape applies, with one addition specific to `staff`:
 
 - restore the **pre-re-key disjunct**, never the whole body — a `staff` site's body will read
   `app.can_<x>(...)` where it used to read `app.is_member_of(commission_id)`, often beside an
@@ -1054,20 +1092,147 @@ and the shape it must fill is § 2b's, with one addition that is specific to `st
   denies every `staff_admin` the site used to admit. ⛔ The revert target is the text that was
   there, and for these sites that text names membership, not the role.
 
-#### 7.3.1 ⛔⛔ ORDERING — a T6 rollback is safe ONLY while T7 has not landed
+#### 7.3a Policy site — `public.meeting_cases / meeting_cases_select` (the ONE hand policy, L16)
 
-This is the one hazard the increment's shape creates, and it is invisible from § 7.2 alone.
+**Why this one.** The other 40 policies were generated by a single substitution: one arm swapped,
+nothing else moved, and their revert is the inverse substitution. This one T7 edited **by hand**
+because it did not fit the generator, and it is the only policy where T7 **ADDED A CONJUNCT** to a
+predicate that already carried a hard deny. That makes it the one place where "restore the
+disjunct without flattening the body" (§ 6's hazard) appears in its **conjunct** form, where it is
+easier to get wrong: flattening here does not widen, it **DROPS A DENY**.
 
-- **Before T7** — the wrappers have zero callers. Flipping `staff` back to `test_validation` changes
-  the answer of *nothing that runs*. The rollback is DB-only and needs no deploy.
-- **After T7** — enforcement sites call the wrapper. The same flip makes the wrapper return false at
-  every one of them, so **every plain `staff` member loses the reach T7 re-keyed**, instantly and
-  silently, while `is_member_of` sites keep working. That is not a rollback; it is a partial
-  revocation wearing one.
+Recorded pre-T7 predicate, captured from the LIVE catalog before the migration ran (not from the
+migration text):
+
+```
+(app.can_reach_meeting(meeting_id, ( SELECT auth.uid() AS uid))
+ AND (NOT app.is_case_respondent(case_id, ( SELECT auth.uid() AS uid))))
+```
+
+Post-T7 predicate — **verified on the catalog 2026-09-15** (`pg_policies.qual`, token for token; the
+catalog prints it on one line). Re-read it before executing:
+
+```
+(app.can_reach_meeting(meeting_id, ( SELECT auth.uid() AS uid))
+ AND app.can_meetings_cases_shell_read(meeting_id, ( SELECT auth.uid() AS uid))
+ AND (NOT app.is_case_respondent(case_id, ( SELECT auth.uid() AS uid))))
+```
+
+⇒ the revert removes **the middle conjunct only**.
+
+- ⛔ **`app.can_reach_meeting(...)` was NOT part of the cutover.** It was there before and must
+  survive verbatim. An operator who "restores the pre-re-key predicate" by writing what they
+  remember will drop it.
+- ⛔⛔ **`NOT app.is_case_respondent(...)` is a HARD DENY and dropping it is a PHI-adjacent
+  widening.** It is the last conjunct, which is exactly where a hand-edited `alter policy … using
+  (…)` gets truncated. This unit has already shipped one defect of precisely this family in the
+  opposite direction — an `or` arm that walked around the case hard denies (lead ruling L24,
+  `FUP-AE5-STAFF-HARD-DENY-CLOSURE-IS-BLIND-TO-OR-AROUND`) — so the deny term is the thing to
+  diff, not the thing to assume.
+- ⚠ **`FOR ALL` check**: `cmd` on `pg_policies`, **measured 2026-09-15: `SELECT`, `PERMISSIVE`, roles
+  `{authenticated}`, `with_check` NULL**, so there is one half to restore. If the catalog you are
+  changing reads anything but `SELECT`, restore and verify **both** `USING` and `WITH CHECK`; a
+  half-restored `FOR ALL` policy is two different predicates deciding reads and writes.
+
+**Verification is a DIFF, not a read.** Capture the predicate before and after and compare them to
+the recorded pre-T7 text character by character; "it looks right" has been wrong twice in this unit.
+
+#### 7.3b Function site — `app._case_caps`'s S5 arm, and the trap next to it
+
+**Why this one.** It is a ~150-line `plpgsql` resolver whose T7 change is **ONE LINE**, and both
+obvious ways to revert it are wrong.
+
+Recorded pre-T7 line (live capture):
+
+```sql
+  v_member   := app.is_member_of_for(v_commission, p_uid);
+```
+
+Post-T7 — **verified on the catalog 2026-09-15** (`pg_get_functiondef` of `app._case_caps`, one
+overload, its only `v_member :=` line):
+
+```sql
+  v_member   := app.can_cases_deliberation_read_in_commission(v_commission, p_uid);
+```
+
+- ⛔ **Do NOT revert by restoring the whole recorded body.** T7 also rewrote the S8 comment block
+  in this function, and that comment's claim about `app.member_can_for`'s third conjunct was
+  **false before the rewrite**. Restoring the old body restores the false claim — a revert that
+  re-introduces a documented defect. Revert the **assignment line**, keep the corrected comment.
+- ⛔⛔ **Do NOT "revert" it to `app.can_cases_deliberation_read(v_commission, p_uid)`.** That door
+  is **CASE-keyed**; both arguments are `uuid`, so the call compiles, resolves `cases.id =
+  v_commission`, finds nothing, and makes the member-default arm **permanently false**. That is
+  the exact defect lead ruling L20 was written to close, and it fails CLOSED — silent, and green
+  on every type check.
+- ⭐ **The trap next door**: `app.can_cases_deliberation_read` itself must **NOT** be restored to
+  its first T7 shape. That shape was `authz.has_permission(…) OR app.has_case_capability(…)`, and
+  the `or` walked around the STEP-4 hard denies and the `explicit_grants_only` guard — a measured
+  Class-1 widening (L24). ⛔ **The revert target is not "the previous text"; it is the text that
+  was correct.** If a rollback plan says "restore the body as it was at `2dddd278`", it is
+  restoring a widening.
+
+**Verification** (after the revert): re-read `app._case_caps` from the catalog and check the S5 line
+names `app.is_member_of_for` (it read `app.can_cases_deliberation_read_in_commission` on 2026-09-15, so
+a line still naming that one has not been reverted), then exercise it — a plain `staff` member with no case grant on a
+`commission_default` case must read the `read_case_deliberation` bit, and the same member on an
+`explicit_grants_only` case, or an excluded respondent, must not.
+
+#### 7.3.1 ⛔⛔ ORDERING — T7 HAS LANDED, so this is the present tense
+
+⚠ **RESTATED 2026-09-14.** This subsection used to be conditional ("safe ONLY while T7 has not
+landed"). T7 landed at `2dddd278`. The "after" branch below is now the world you are in.
+
+- ~~**Before T7**~~ — historical. The wrappers had zero callers, so flipping `staff` back to
+  `test_validation` changed the answer of nothing that ran.
+- **Now** — 21 doors resolve `staff`'s authority through `authz.has_permission`, which is
+  authoritative-roles-only. Flipping `staff` back to `test_validation` makes **every one of those
+  doors return false**, so **every plain `staff` member loses the reach T7 re-keyed**, instantly and
+  silently, while the untouched `is_member_of` sites keep working. That is not a rollback; it is a
+  partial revocation wearing one.
 
 ⇒ **Revert T7 first, then T6.** A partial revert is worse than either end state (§ 6.6's rule,
-inherited). If you are reverting under time pressure and T7 has landed, § 7.2's `update` is **not**
-the smallest safe step — the smallest safe step is T7's site restore.
+inherited). Under time pressure, § 7.2's `update` is **not** the smallest safe step — the smallest
+safe step is T7's site restore (§ 7.3).
+
+##### ⛔⛔ AND THE TEMPLATE'S `F1b` GUARD DOES NOT CATCH THIS — measured
+
+`authz-rollback-template.sql` § F1b was written to enforce this ordering automatically: it counts
+function bodies and policies whose text names **the wrapper**, and refuses when that count is
+non-zero. Its premise is that the re-key increment wires the wrapper.
+
+**T7 did not wire the wrapper.** Under lead ruling L14 the `staff` doors were re-keyed onto
+`authz.has_permission` and the domain authorizers; `app.is_commission_staff_of` was left with
+**zero callers** and is held open by a renewed allow-list
+(`FUP-AE5-STAFF-MEMBER-PREDICATE-REEXPRESSION-DEFERRED`). Measured on the live catalog at T8, from
+comment-stripped bodies and policy quals: **`app.is_commission_staff_of` 0 callers ·
+`app.is_commission_staff_of_for` 0 callers** — **re-measured 2026-09-15: 0 · 0** in
+comment-stripped `prosrc` over app/public/authz (the wrapper pair excluded), **0 · 0** in policy quals,
+and 0 raw mentions, so no comment is hiding a caller. Re-read before executing — it is a count, and a
+count ages.
+
+⇒ **`F1b` passes.** It does not refuse, it raises nothing, and the operator proceeds to the flip
+that revokes at 21 doors. The guard is not broken — **it is keyed to the wrong subject**: it asks
+"does anything call the wrapper?" when the question is "has the role's authority been re-keyed
+onto the permission layer?". A gate whose label names one axis and whose predicate reads another is
+the standing failure of this program, and it is on the rollback path.
+
+**What the operator does instead, until the template is fixed** (§ SECTION G, added with this
+revision, keys on the re-keyed surface and is the one to use):
+
+```sql
+-- Does this role's authority run through layer 3 anywhere? (2026-09-15: 20 — all 20 staff grants)
+-- Non-zero  =>  REVERT THE RE-KEY FIRST. Do not flip the role.
+select count(*) as rekeyed_codes
+  from authz.role_permissions rp
+ where rp.role_code = 'staff'
+   and exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                where n.nspname in ('app', 'public')
+                  and position('''' || rp.permission_code || '''' in p.prosrc) > 0);
+```
+
+⛔ Do not substitute "count the wrapper's callers" for this, and do not delete `F1b` — it is still
+correct for an increment that DOES wire the wrapper, which is what the re-expression will make
+true. Two guards, two questions.
 
 ### 7.4 Compatibility, stated in BOTH directions
 
