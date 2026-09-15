@@ -4981,5 +4981,11 @@ closed); a T7 body change would make it a regression. The discriminator is order
 rollback`, delete ONLY `a5f20000-…-b1` and re-call both doors for chefe — t means the fixture, f
 means T7. Either way nothing widened: chefe is refused, the refused-caller half passed.
 
-Remaining for the tester (resumed): B's discriminator + the quoted meeting axis of
+Remaining for the tester (⛔ corrected in place the same hour: NOT resumed — the old tester was unreachable after the restart, `No agent named 'tester' is reachable`; a FRESH tester was spawned with a self-contained brief, and the backend teammate is equally gone, its runbook/template edits held uncommitted in the tree): B's discriminator + the quoted meeting axis of
 `can_read_full_case_content`; C, D, E, F; then G on a fresh reset.
+
+**Also dispatched (lead, 2026-09-15):** a read-only search of what binds `gap.pending`'s CCIH `staff`
+membership (`a5f10000-…-e3`) — every pgTAP / mutation / manifest / spec reference, whether any
+requires CCIH, whether any pins a count including it, which other specs enumerate CCIH rosters, and
+which seeded commission's roster nothing enumerates. A relocation of the membership is a lead
+ruling only if nothing requires CCIH; otherwise it goes to the PO as R-6 with the options measured.
