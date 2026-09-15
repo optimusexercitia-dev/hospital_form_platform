@@ -5375,3 +5375,37 @@ Commit `5976bde0` (runbook 1126 → 1291, template 422 → 591, FUP body, regist
 LESSONS candidate: *a rollback guard that reads `row_count` in its own `do` block, apart from the
 statement it checks, can never pass, and a correct guard before it hides that from every straight run.
 Run each guarded step on its own.*
+
+### 2026-09-15 — backend's park VERIFIED by the lead; AC-9 ticked; gate 13's hub-date red cleared; the stack to the tester (lead)
+
+Verified in git, not relayed: four backend commits by path — `3391fd00` (`seed.sql` 69+, `387` 20+),
+`5976bde0` (runbook 201+, template 181+, the follow-up body and its register row), `cd7668cc` its
+park entry, `6c44fbcb` that entry corrected in place. The tree holds only the tester's five drafted
+files. `grep -c '⏳ verify'` returns **0** in both the runbook and the template.
+
+Backend's witnesses as its entry quotes them. **L28:** the link moved to `dc000000-…-a2` (named in no
+spec; one pgTAP row count in `298`); chefe on `d0…c1` `t / t / 1` through `test_helpers.claims_for`,
+and the denial moved with the link (`f / f / 0` on `dc00…a2`). The row-7 probe was checked against a
+comparison read, after backend's first raw-claims read returned 0 everywhere, which backend itself
+called a dead instrument. **L29:** the author moved to `ativo.registro` because
+`app.can_access_targeted_version` never reads `created_by` and the version is pinned in 108 manifest
+cells; chefe holds 0 drafts on `…a001`. **`387` B8 8 → 7:** the 2026-09-13 re-pin had the right number
+for the wrong reason (chefe saw the draft as its AUTHOR, not as staff_admin); setting the author back
+in a rolled-back transaction gives 8. **L30′:** both versions published with 1 default section and 0
+items; zero published versions table-wide lack a section; the three catalog lines quoted; no manifest
+cell and no 424/425/426 pin moved. **Gate:** `test:db` run 1 FAIL on `387` #12 only, run 2 on a second
+fresh reset `Files=275, Tests=9218, Result: PASS`, `not ok` 0.
+
+**AC-9:** the 10 markers replaced by measurement; 27 re-emitted bodies carry `search_path=""`; the 21
+doors are all SECURITY DEFINER, 13 granted to `authenticated` and 8 not, the 21st holding only its
+owner's EXECUTE; `419` live 836 = frozen; wrapper callers 0 / 0. Sections A–E ran clean both compiled
+and executed; F and G refuse on today's catalog at F1b(ii) and G3a; a quote-stripped copy of G fails
+to parse. **New defect found and fixed in the template:** F2's row-count guard read `row_count` in a
+separate DO block, where it is always 0, so it could never pass; the UPDATE moved inside the block, and
+a second run in the same transaction reds. `FUP-AE5-STAFF-ROLLBACK-TEMPLATE-PARSED-BY-NO-GATE` filed;
+its body notes a parse-only gate would have stayed green on F2. **AC-9 ticked.**
+
+**Backend's own miss, stated by it:** its park entry was committed over gate 13's red because the
+chain joined `lint:registers` to the commit with `;`, so the exit printed and nothing gated on it. The
+red itself was the lead's to clear: the hub's `Updated` date predated backend's code commit. Cleared
+here. The stack is the tester's for the six spec files and the two red-able proofs.

@@ -60,7 +60,7 @@ Each is the template step it names; the witness for every box is a dated entry i
 - [x] **AC-8 Census + arms** ✅ **2026-09-14** (record: T8 gate record `eeb59466`, verified by the lead; census `INVARIANT HOLDS`; all four arms RED by plant / GREEN on rollback; door sweep 73/73 exit 3 RULED). Was: Direct-call census committed; G8 arms re-derived and each shown able to
       red; `409`'s vacuity control re-stated if a `staff` read site moved; `410 §§ 7.3/7.4` re-pinned
       1 → 2 only after being observed RED at 1.
-- [ ] **AC-9 Runbook.** `staff` worked example in the rollback runbook + template, both revert shapes;
+- [x] **AC-9 Runbook** ✅ **2026-09-15** (record: § 7.0b/7.3/7.3.1 + template SECTION G verified on the catalog `5976bde0`, zero `⏳ verify` markers, every section A–G parsed inside `begin … rollback`, a stripped-quote plant reds). Was: `staff` worked example in the rollback runbook + template, both revert shapes;
       ⛔ never a committed migration ([PA-F9]).
 - [ ] **AC-10 Gate.** CLAUDE.md §6 step 1 in full: the four authz arms; the door sweep BOTH arms in one
       invocation with the deriver's `SCOPE:` line quoted and its exit read bare; the set-valued home;
@@ -71,7 +71,7 @@ Each is the template step it names; the witness for every box is a dated entry i
 
 ## Current state
 
-**Updated:** 2026-09-14
+**Updated:** 2026-09-15
 
 ### Objective
 
@@ -97,11 +97,11 @@ posted, not executed.
 21 batches`, `gate-exit` 1. Step 1 green on a fresh reset (`af2c4566`): lint 0, typecheck 0, `test:db`
 275 files / 9218 tests PASS, the four arms HOLD, budget 339/433/772, sweep scope identical by
 checksum. Every AE5 spec passed. **All ten reds are this unit's seed rows, measured; none is a T7
-regression:** removing only our restricted-meeting link restored chefe's admitted read (`f/f/0` →
-`t/t/1`), the wizard persona's RLS counts equal no-RLS, and both personas' inserts succeed. Rulings
-L27–L33: backend moves three fixtures (the meeting link, chefe's fixture draft, the 0-section form if
-publish forbids it) and verifies AC-9 on the catalog; the tester re-points four spec premises that were
-seed coincidences and files the reproduced login-cache flake. Fix loop iteration 1 of 5. AC-1, 2, 5, 6, 7, 8 ticked. `npm run lint` exit 0 at HEAD.
+regression.** Backend's seed moves are committed and parked (`3391fd00`): the restricted meeting's
+link moved off the P3 masked case (chefe `t/t/1` there), the fixture draft's author moved off chefe,
+and both fixture versions gained their default section; `test:db` 275 / 9218 PASS on a fresh reset,
+`387` B8 re-pinned 8 → 7 with its mechanism corrected. The tester is running the six affected spec
+files on its four drafted premise fixes. Fix loop iteration 1 of 5. AC-1, 2, 5, 6, 7, 8, 9 ticked. `npm run lint` exit 0 at HEAD.
 
 ### Next
 
