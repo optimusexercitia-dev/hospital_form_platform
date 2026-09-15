@@ -6558,3 +6558,27 @@ alone.
 If both hold, the red is ruled a subset artefact, and a low follow-up is filed for the spec's
 order-dependent literal. If either fails, the seed is suspect again and is measured with the link and
 rows removed.
+
+### 2026-09-15 — R-7 subset production gate ended: 179 passed, 2 failed, both the `quality-oversight` locked-count KPI; batch 3 green, including every accreditation spec on L36's rows (lead)
+
+Read by the lead's monitor from the gate's own files. `gate-exit`: `GATE_EXIT=1 · verdict=GATE RED — 2 real
+failure(s), 0 infra, 0 did-not-run, accounted 181/183 · finished=2026-09-15T07:53:44-0300`. Summary:
+`179 passed · 2 failed · 0 infra · 0 flaky · 0 did-not-run · 3 batches`. The 2 not accounted are the skipped
+tests in batch 1.
+
+- **Batch 1** (`case-access`, `case-surface-split-increment-2`, `ethics-e1-access-spine`, `ethics-e2-procedure`):
+  67 passed, 0 failed, 2 skipped.
+- **Batch 2** (`ethics-e3a-surfacing`, `ethics-e4-participants`, `quality-oversight`, `pdf-printing-meetings`,
+  `phase16-accreditation-clone`): 66 passed, 2 failed. Both failures are `quality-oversight`'s «Casos
+  restritos» reading 9 against a literal 1, recorded in the two entries above.
+- **Batch 3** (`phase16-accreditation-core`, `-freshness`, `-hospital`, `-restricted`, `phase10-meetings`,
+  `ae5-staff-landing`): 46 passed, 0 failed.
+
+**What this settles.** Every spec that names the ethics case now carrying row 7's meeting link passed,
+apart from the KPI still under measurement. So did all five accreditation specs with L36's
+`standard_assessments` and `evidence_links` rows, the meetings spec, and the landing spec. No failure
+touches row 8's meeting `a5f20000-…-a2` or CCIH-1's standard `a5f50000-…-b1`.
+
+**Still open.** The two `quality-oversight` failures, pending the tester's two measurements. Both are now
+running under the lead's second monitor: the locked-case count on a fresh reset, and `quality-oversight`
+alone as a one-spec production gate. The declaring full `e2e:prod` waits for that ruling.
