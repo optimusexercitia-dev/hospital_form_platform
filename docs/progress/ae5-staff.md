@@ -4932,3 +4932,16 @@ fresh reset, then ONE traced isolated run each of the wizard "branch Sim" and SU
 server-action/RPC response body (pt-BR text + any `HC0…` code) extracted from the trace; a pass in
 isolation is itself a finding (batch-order or load shape). Ten reds over 20 batches. A refused
 insert or a lower RLS count is a T7 regression and is ruled before any fixture fix.
+
+### 2026-09-14 — `e2e:prod` GATE RED: `1253 passed · 10 failed · 0 infra · 3 flaky · 6 did-not-run · 21 batches` (lead)
+
+Batch 21 green (43). Verbatim from the gate's log: `[23:08:50] GATE SUMMARY: 1253 passed · 10 failed ·
+0 infra · 3 flaky · 6 did-not-run · 21 batches` / `GATE RED — 10 real failure(s).` The ten, by batch:
+6 `ethics-e2-procedure` FLOW-7 (+5 did-not-run behind it); 10 `member-action-items-overview` AC-9;
+11 `pdf-printing-cases` P3 admitted half; 14 `phase13-audit` AC-3f-platform; 16 `phase17-documents`
+AC-10; 18 `phase5-wizard` AC2 ×2 + AC4; 20 `sup-supersession` SUP-1 + SUP-4 (+1 did-not-run). Three
+flaky (batches 1, 5, 6 — titles owed by the tester; batch 6's is `GATE-D "Processo ético" tab`).
+AC-10 does NOT tick. Six of the ten are traced to this unit's seed rows ending spec premises;
+four (batches 11, 18 ×3, 20 ×2 — the responder / print surfaces) are unclassified between a T7 door
+regression and a fixture effect until the tester's measurements A–G land on the now-free stack.
+No fix is assigned before the measurements; no bug row is filed before a cause is measured.
