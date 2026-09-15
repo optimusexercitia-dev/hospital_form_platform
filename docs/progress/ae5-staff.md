@@ -6925,6 +6925,582 @@ carrying this entry. No tracked change was outstanding. The 73 untracked repo-ro
 `424-run5-witness.txt`) were deliberately **not** committed: they are gate-run artifacts the Record step
 deletes, and their witnesses are quoted in this record.
 
+### 2026-09-15 — F1 / AC-11 PLAN — statement-scoped permission resolution for the batch policy paths (backend3) ⛔ NOT EXECUTED; awaiting the lead's review
+
+**Bound.** This is a plan only: no migration, no catalog change, no reset, no SQL written to the repo.
+- **Catalog reads** were read-only.
+- **Probes** ran as `postgres` in `begin read only … rollback`, with `request.jwt.claims` set, on the post-E2E stack at
+  `7a6468f4` (migration head `20261003007470`).
+- **Peers:** `pg_stat_activity` showed 0 non-service client backends before each probe. `*_escalume` was not touched.
+- **Artifacts:** scripts and outputs are in the session scratchpad, `f1-cat{1..4}.*` and `f1-probe{1..5}.*`.
+- **Delegation:** the gate-consequence sweep in §6 was delegated to a read-only Explore subagent. Its file:line cites
+  are re-read at execution, never quoted as measured.
+
+⛔ **Instrument correction — my own, this session.** Probes 1–3 read `pg_stat_get_xact_function_calls` in successive
+transactions on one backend. That accessor returns counts that have not been flushed yet, and those carry across
+transactions. A `form_item_options` read reported **123 `can_roster_read` calls**, and those calls belonged to the
+statement before it. **Probes 1–3 are void.** Every count below comes from probe 5, which uses AE4 acceptance §16.2's
+instrument:
+- a top-level `pg_stat_force_next_flush()` before each read;
+- `pg_stat_get_function_calls` deltas, keyed by OID;
+- calibration C0: one direct `app.can_forms_read` call reads Δ `has_permission` = 1 and Δ `can_forms_read` = 1.
+
+#### 0. Baseline, measured (probe 5)
+
+| Statement (principal, hat) | Visible / physical rows | `has_permission` | via `can_forms_read` | via `can_edit_commission_forms` | via `can_roster_read` | `commission_of_version` |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| P1 — options of version `…a001` (staff4.ccih, `staff`) | 10 / 10 | 20 | 10 | 10 | 0 | 20 |
+| P1b — all `form_item_options` (staff4.ccih, `staff`) | 10 / 18 | 36 | 18 | 18 | 0 | 44 |
+| P2 — same options (staff1.farm, `staff`, no CCIH seat) | 0 / 10 | 20 | 10 | 10 | 0 | 30 |
+| P2h — same options (staff4.ccih, WRONG hat `staff_admin`) | 0 / 10 | 20 | 10 | 10 | 0 | 30 |
+| P3 — same options (chefe.ccih, `staff_admin`) | 10 / 10 | 10 | 0 | 10 | 0 | 10 |
+| P4 — `profiles` (staff4.ccih, `staff`) | 12 / 45 | 117 | 0 | 0 | 117 | 0 |
+| P5 — `commissions` (staff4.ccih, `staff`) | 1 / 6 | 6 | 0 | 0 | 6 | 0 |
+| P6 — `memberships` (staff4.ccih, `staff`) | 12 / 49 | 23 | 0 | 0 | 23 | 0 |
+
+**P7 — the locked-case probe.** 50 calls of `app._case_caps('ca…e1', staff2.ccih)`, on an `explicit_grants_only` case
+where staff2 holds 0 grants. Every mask is 0. The counters read 100 `_case_caps` and 100
+`can_cases_deliberation_read_in_commission`. The probe evaluates the call twice per row (`min(m)`, `max(m)` over a
+pulled-up subquery), so the real ratio is **1 sibling call per `_case_caps` call**.
+
+⭐ **Why P1 is 20, not 10.** Here is P1's live RLS plan (`explain analyze` as `authenticated`). The permissive policies
+combine as:
+
+```text
+app.can_edit_commission_forms(app.commission_of_version(form_version_id), (InitPlan 1).col1)
+  OR app.can_access_targeted_version(form_version_id, (InitPlan 2).col1)
+  OR app.can_forms_read(app.commission_of_version(form_version_id), (InitPlan 3).col1)
+  OR app.is_tenancy_admin_of(app.commission_of_version(form_version_id))
+```
+
+AE4's `form_item_options_staff_admin_write` is a FOR ALL policy, and its USING clause is evaluated **first**, on every
+row. That is the extra 10.
+
+#### 1. Site inventory (live catalog)
+
+**Query Q1.** Across all schemas, take every `pg_policies` row whose `qual || with_check` matches `app\.<f>\(`, where
+`<f>` is any `app` function with `prosrc ~ 'authz\.(candidate_)?has_permission'`. There are 23 such functions: the 20
+T7 authorizers that call `has_permission` directly, plus `can_edit_commission_forms`, `can_create_professional` and
+`can_read_professional_profile`.
+
+**Q1 returns 49 rows:**
+- **41 from T7.**
+- **6 from AE4:** the `*_staff_admin_write` FOR ALL policies on `can_edit_commission_forms`.
+- **2 from AE4 professional:** `professional_profiles_select` (already ADR 0182) and `professional_participants_select`
+  (`FUP-PROFESSIONAL-PARTICIPANTS-SELECT-STILL-PER-ROW`).
+
+**Cross-check.** T7's `alter policy` lines (464–628 plus 1936) are set-equal with the 41 catalog rows: none missing,
+none extra. Query R (below) reaches the same 41 at depth 1 from all 21 T7 doors, including
+`can_cases_deliberation_read`.
+
+**What the authorizers look like.** All 21 T7 codes resolve at `commission`
+(`authz.permissions.resolution_scope_kind`).
+- **19 bodies** are exactly `select authz.has_permission(p_user_id, 'commission', p_commission_id, '<code>')`.
+- **`can_meetings_cases_shell_read`** derives its commission as
+  `(select m.commission_id from public.meetings m where m.id = p_meeting_id)`.
+- **`can_cases_deliberation_read`** goes through `has_case_capability`.
+
+**(a) Convert — 40 T7 sites, 11 codes** (all SELECT). E is the row-derived scope argument.
+
+| Code | Sites | E |
+| --- | --- | --- |
+| `commission.forms.read` | `forms_select`; `form_versions_select`; `form_sections_select`; `form_items_select`; `form_item_options_select`; `form_item_validations_select`; `form_matrix_columns_select`; `form_matrix_rows_select`; `storage.objects.form_assets_select_member` | `commission_id`; `app.commission_of_version(id)`; `app.commission_of_version(form_version_id)` ×6; `((storage.foldername(name))[1])::uuid` |
+| `commission.accreditation.read` | `accreditation_frameworks_select`; `accreditation_standards_select` (in an EXISTS over `accreditation_frameworks f`); `evidence_links_select`; `standard_assessments_select` | `owner_commission_id`; `f.owner_commission_id`; `commission_id` ×2 |
+| `commission.action_items.read` | `action_items_select` (committee arm only) | `commission_id` |
+| `commission.cases.vocabulary.read` | `case_narrative_types_select`; `case_outcomes_select`; `case_tags_select` | `commission_id` |
+| `commission.charter.read` | `commission_charters_select` | `commission_id` |
+| `commission.documents.read` | `controlled_documents_select`; `controlled_document_versions_select`; `securable_resources_select` | `commission_id`; `app.commission_of_document(document_id)`; `commission_id` |
+| `commission.indicators.read` | `indicators_select`; `indicator_measurements_select` (in an EXISTS over `indicators i`) | `commission_id`; `i.commission_id` |
+| `commission.meetings.read` | `meetings_select`; `meeting_settings_select`; `meeting_types_select` | `commission_id` |
+| `commission.meetings.cases.shell.read` | `meeting_cases_select` | `meeting_id` — see §3 |
+| `commission.process_templates.read` | `process_templates_select`; `phase_results_select`; `process_template_versions_select`; `process_template_{phases,custom_fields,narratives,outcomes}_select`; `process_template_phase_{allowed,offered}_results_select` | `commission_id` ×2; `app.commission_of_template(template_id)`; `app.commission_of_template_version(template_version_id)` ×4; `app.commission_of_template_phase(template_phase_id)` ×2 |
+| `commission.roster.read` | `commissions_select_member_or_admin`; `memberships_select`; `profiles_select_self_or_admin` (in an EXISTS over `memberships them`); `member_titles_select` | `id`; `commission_id`; `them.commission_id`; `commission_id` |
+
+Count: 9 + 4 + 1 + 3 + 1 + 3 + 2 + 3 + 1 + 9 + 4 = **40**.
+
+**(a′) The 6 AE4 FOR ALL policies — need a ruling (Q-1).** The six are `forms_staff_admin_write`,
+`form_versions_staff_admin_write`, `form_sections_staff_admin_write`, `form_items_staff_admin_write`,
+`form_item_options_staff_admin_write` and `form_item_validations_staff_admin_write`.
+- **Outside the written scope.** They are not T7 sites, so R-8 does not name them.
+- **But on the SELECT path.** A FOR ALL policy's USING applies to SELECT, and it plans first (§0).
+- **Measured effect.** Without them, the forms family keeps one per-row resolution for every non-`staff_admin` reader,
+  in all three polarities (P1, P2 and P2h: 10 of the 20 calls). **AC-11 cannot pass on form items or options.**
+- **Recommendation:** rule them in, adding one more wrapper for `commission.forms.edit`.
+
+**(b) Stay scalar, with the reason for each.**
+- **`responses_insert_own`** (INSERT, WITH CHECK). It checks each inserted row on a write; it is not a batch read. F2's
+  behavioural probes also target this exact policy next.
+- **The 29 DEFINER functions that call a T7 authorizer** (list Q2): the `can_read_*` helpers, `can_reach_meeting`,
+  `can_sign_meeting`, `_case_caps` and `_audit_access_authorized`, plus RPC guards such as `cast_case_vote`,
+  `notify_safety_event`, `create_referral_internal_note`, `get_referral_case_access_summary` and `sign_meeting`. Each call
+  asks about one resource or one parameter.
+  - **Genuinely scalar list RPCs.** Some keep a parameter-keyed call: `list_commission_documents`,
+    `documents_due_for_review`, `get_standard_assessment`, `readiness_report` and `readiness_evidence` pass
+    `p_commission`, and `indicator_series` passes one indicator's commission.
+  - ⚠ **Row-keyed calls inside list RPCs exist, and they stay per output row.**
+    - `get_case_meeting_links` calls `can_reach_meeting(mc.meeting_id)`.
+    - `get_reserved_session_items` calls `can_reach_case_on_member_surface(i.case_id)`.
+    - `suggest_carry_forward` calls `can_read_action_item(ai.id)`.
+    - `evidence_candidates` calls `can_read_case` and `can_read_capa`.
+    - `readiness_report` and `readiness_evidence` call `can_read_case(el.artifact_id)`.
+
+    None of these is a policy path, so none is R-8's subject. They go to a follow-up (T15.9).
+- **`_case_caps`** is reordered only (§4).
+
+**(c) Indirect policy paths — enumerated, NOT converted by this plan (Q-2).**
+
+**Query R.** A recursive closure over `app` functions whose `prosrc` contains a qualified `app.<callee>(`, running from
+the 21 T7 authorizers out to `pg_policies`, keyed on minimum depth. ⚠ **Bound:** an unqualified call under a non-empty
+`search_path` is not followed, so R can under-count.
+
+| Min depth | Policies | Commands | Nearest reaching function(s) |
+| ---: | ---: | --- | --- |
+| 1 | 41 | SELECT, INSERT | the T7 authorizer itself |
+| 2 | 38 | SELECT, INSERT | `can_read_action_item`, `can_read_capa`, `can_read_event`, `can_read_document(_of_version)`, `can_read_referral_metadata`, `can_read_referral_internal_note`, `can_reach_meeting`, `can_sign_meeting` |
+| 3 | 3 | SELECT | `can_read_document_version`, `can_read_file_object`, `can_view_printed_document` |
+| 4 | 21 | SELECT, INSERT, UPDATE, DELETE | `can_read_case`, `can_write_case_content` |
+| 5 | 10 | SELECT | `can_read_case_committee` |
+| 6 | 9 | SELECT | `can_read_interview`, `can_read_professional_profile` |
+
+**Why these 81 are in scope by the ruling's word, and still not converted here.**
+- **They are paths T7 re-keyed.** T7 Part 3 re-emitted the depth-2 helpers onto the T7 authorizers, and the ruling's word
+  is "path".
+- **The rewrite is not mechanical.** Each helper wraps the permission in resource-specific conjuncts:
+  - `can_read_action_item` returns false on `is_case_excluded` **before** it reaches the arm;
+  - `can_read_event` ORs two commission columns with a PQS arm;
+  - `can_read_referral_metadata` gates the target commission on referral status;
+  - `can_read_document` routes by resource type, then by confidentiality.
+- **It lands on Class-1 PHI doors.** Three of these modules are Class-1 PHI (event/RCA, CAPA, referral). Lifting the
+  permission into 81 policies would put a new RLS shape on audited doors, which owes its own full plan.
+- ⛔ **Considered and rejected:** passing the precomputed set into the helper as a parameter. The helpers are
+  `authenticated`-executable, so a caller could hand in a forged set.
+
+**Recommendation:** leave these out of this increment, file a follow-up carrying this list, and **bound AC-11's claim to
+the converted set**. The lead or PO rules otherwise.
+
+**The `storage.objects` site.** There is one, in (a). The door sweep's policy arm reads the `public` schema only
+(`FUP-AE5-STAFF-DOOR-SWEEP-POLICY-ARM-EXCLUDES-STORAGE-SCHEMA`, open), so coverage comes from two other places:
+- `428`'s behavioural differential and ablation on `storage.objects` (§5);
+- `425`'s `f425_sites` behavioural signature, which already lists the site.
+
+#### 2. Wrapper design
+
+- **Grain: one wrapper per permission code.** That makes 11, or 12 under Q-1.
+  - ⛔ **Not** a generic `app.current_commissions_with(code)`. That would give `authenticated` a readable map of its whole
+    capability surface for any code (ADR 0182's narrowness argument), and the code would stop being a literal at the
+    enforcement site.
+- **Names** follow `app.current_professional_read_organizations()`:
+  - `app.current_forms_read_commissions()`, `app.current_accreditation_read_commissions()`,
+    `app.current_action_items_read_commissions()`, `app.current_cases_vocabulary_read_commissions()`;
+  - `app.current_charter_read_commissions()`, `app.current_documents_read_commissions()`,
+    `app.current_indicators_read_commissions()`, `app.current_meetings_read_commissions()`;
+  - `app.current_meetings_cases_shell_read_commissions()`, `app.current_process_templates_read_commissions()`,
+    `app.current_roster_read_commissions()`;
+  - under Q-1, also `app.current_forms_edit_commissions()`.
+- **Shape.** The one difference from the precedent is `search_path = ''` (ADR 0208 D4). The precedent's path is non-empty,
+  which is why it sits in `419`'s frozen set.
+
+```sql
+create or replace function app.current_forms_read_commissions()
+returns setof uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $function$
+  select authz.authorized_scope_ids((select auth.uid()), 'commission', 'commission.forms.read');
+$function$;
+revoke all on function app.current_forms_read_commissions() from public;
+grant execute on function app.current_forms_read_commissions() to authenticated, service_role;
+```
+
+- **No principal argument.** `auth.uid()` is bound inside the body. `authz.authorized_scope_ids` keeps its live
+  `proacl = {postgres=X/postgres}`, and the wrapper reaches it as that owner. `428` §1 asserts
+  `has_function_privilege('authenticated', 'authz.authorized_scope_ids(uuid,text,text)', 'EXECUTE') = false`.
+- **Hat.** Every converted site passes `(select auth.uid())` as the principal, so `entailed_grants`' `hat_ok` takes its
+  SELF branch: `role_code is not distinct from app.active_role()`. The wrapper passes that same value to the same
+  resolver, so it takes the same branch. With the wrong hat (P2h), both paths must return nothing; `428` §3 sweeps every
+  hat each principal holds, plus an absent hat.
+- **Why it is equivalent.**
+  - `app.can_<x>(c, auth.uid())` ≡ `authz.has_permission(auth.uid(), 'commission', c, code)`. That is the live body for 10
+    of the 11 codes; shell-read is covered in §3.
+  - That in turn ≡ `c ∈ authz.authorized_scope_ids(auth.uid(), 'commission', code)`, by ADR 0182's identity. At commission
+    kind only the same-kind arm of `scope_reaches` can propose a candidate. `has_permission` then confirms every
+    candidate, so a wrong proposal can only deny.
+  - A null `auth.uid()` gives `assignment_facts(null)` = ∅ (because `is_active(null)` is false), and the scalar returns
+    false. Same answer.
+- **Volatility is STABLE, so nothing is reused across statements.**
+  - ⛔ Not IMMUTABLE. The planner could fold an IMMUTABLE call at plan time, and a cached generic plan would then carry one
+    principal's set across executions — exactly the cross-statement reuse ADR 0182 rejects.
+  - A STABLE uncorrelated sublink runs once per statement **execution**, including each re-execution of a prepared plan.
+    No GUC, temp table or claim holds the set.
+  - Revocation timing matches the scalar path, because both read under the same snapshot: under READ COMMITTED the next
+    statement sees a revocation, under REPEATABLE READ the next transaction does.
+  - `rows 1000` and `parallel unsafe` stay at their defaults, as in the precedent (see risk 3).
+- **No `candidate_` twin in `app`.** No policy consults `test_validation`. A future role's differential uses
+  `authz.candidate_authorized_scope_ids`, which has existed since `20261003007320`, against
+  `authz.candidate_has_permission`, inside pgTAP. That is where the twin belongs.
+- **Drift guard.** The identity holds only while every converted code's scalar authorizer stays a bare `has_permission`.
+  If a later increment added an arm to one of them (a residual legacy arm, a hard deny), the set path would silently
+  diverge. `428` §2 pins each body, comment-stripped, so that change reds.
+- ⚠ **Q-3 — five authorizers left with zero callers (LEARN-018).** After conversion, `can_forms_read`, `can_roster_read`,
+  `can_cases_vocabulary_read`, `can_process_templates_read` and `can_meetings_cases_shell_read` have no caller left. Q1 and
+  Q2 show that their only callers are the converted policies, within the qualified-name bound. Each row's manifest
+  `domainAuthorizer` would then be a designated authority with no production caller.
+  - **(A) Recommended, as ruled.** Declare each wrapper as a `kind: function` enforcement site with
+    `composedWith: ["authz.authorized_scope_ids"]` (the precedent is manifest `:2649-2659`). Keep each scalar door, with a
+    written bound.
+  - **(B) Alternative.** The wrapper proposes commission ids from `authz.assignment_facts` and confirms each one through
+    the scalar authorizer.
+    - **Gain:** one authority per code, and no new literal carriers, so 409 §1.1, 410 §8.5 and template G3a are
+      unchanged.
+    - **Cost:** it departs from R-8's wording ("over `authz.authorized_scope_ids`"), and `app` would call layer 1
+      directly, a shape the authz seam names as a finding.
+
+#### 3. Per-site rewrite
+
+**The rule.**
+- **The substitution.** In each qual, and in the WITH CHECK under Q-1, replace the one subterm
+  `app.can_<x>(E, ( SELECT auth.uid() AS uid))` in place with `(E) IN (SELECT app.current_<x>_commissions())`. No other
+  token moves.
+- **Generated, not hand-written.** The `alter policy` statements are generated from the live `pg_policies` snapshot, as
+  T7 Part 2's were.
+- **Preflight.** It refuses if any site's live `qual` or `with_check` md5 differs from the authoring snapshot.
+- **Postflight.** It asserts that each post-image equals its pre-image with exactly that substitution, and that no
+  converted site still contains `app.can_<x>(`.
+
+**Why it is equivalent for every principal, at every site.**
+- **(i)** E is the same expression, evaluated on the same row.
+- **(ii)** For a non-null E, the two terms agree by §2's identity.
+- **(iii)** For a null E, the scalar gives false and `IN` gives NULL. Every converted subterm sits in a positive position:
+  under AND, OR or an EXISTS `WHERE`, never under NOT, CASE, COALESCE or IS [NOT] DISTINCT. I checked this site by site
+  against the live quals. A policy passes a row only on TRUE, so false and NULL cannot be told apart.
+- **(iv)** The OR that combines the permissive policies is untouched.
+
+So `staff_admin`, the tenancy admins, the quality reviewer, the NSP roles, targeted-version respondents and approvers all
+keep exactly the arms they had. A `test_validation` role is invisible to both paths.
+
+| Site(s) | After — the converted term in its position; every other arm verbatim | Arms and conjuncts preserved |
+| --- | --- | --- |
+| `forms_select` | `commission_id IN (SELECT app.current_forms_read_commissions()) OR app.is_tenancy_admin_of(commission_id)` | tenancy |
+| `form_versions_select` | `app.commission_of_version(id) IN (…) OR app.is_tenancy_admin_of(app.commission_of_version(id))` | tenancy; `form_versions_select_targeted` untouched |
+| `form_{sections,items,item_options,item_validations}_select` | `app.commission_of_version(form_version_id) IN (…) OR app.is_tenancy_admin_of(…)` | tenancy; the `*_select_targeted` policies untouched |
+| `form_matrix_{columns,rows}_select` | as above, `OR app.can_access_targeted_version(form_version_id, uid)` | tenancy, targeted access |
+| `storage.objects` `form_assets_select_member` | `bucket_id = 'form-assets' AND (app.is_tenancy_admin_of(E) OR E IN (…))`, with E = `((storage.foldername(name))[1])::uuid` | bucket conjunct, tenancy |
+| `accreditation_frameworks_select` | `owner_commission_id IS NULL OR owner_commission_id IN (…)` | the global-framework arm |
+| `accreditation_standards_select` | `EXISTS (SELECT 1 FROM accreditation_frameworks f WHERE f.id = framework_id AND (f.owner_commission_id IS NULL OR f.owner_commission_id IN (…)))` | the EXISTS and the global arm; `f` stays under its own RLS, as today |
+| `evidence_links_select`, `standard_assessments_select` | `commission_id IN (…)` | — |
+| `action_items_select` | `(visibility_scope = 'committee' AND commission_id IN (…)) OR (case_restricted arm) OR (assignees_only arm)` | the `can_read_case_committee` arm; the staff-admin, assignee and assignment-EXISTS arms |
+| `case_{narrative_types,outcomes,tags}_select` | `commission_id IN (…) OR app.is_tenancy_admin_of(commission_id)` | tenancy |
+| `commission_charters_select` | `commission_id IN (…)` | — |
+| `controlled_documents_select` | `commission_id IN (…) OR app.is_document_approver_of(id, auth.uid())` | approver |
+| `controlled_document_versions_select` | `app.commission_of_document(document_id) IN (…) OR app.is_document_version_approver(id, auth.uid())` | version approver |
+| `securable_resources_select`, `indicators_select`, `meeting_{settings,types}_select`, `member_titles_select`, `process_templates_select`, `phase_results_select` | `commission_id IN (…) OR app.is_tenancy_admin_of(commission_id)` | tenancy |
+| `indicator_measurements_select` | `EXISTS (SELECT 1 FROM indicators i WHERE i.id = indicator_id AND i.commission_id IN (…))` | the EXISTS; `i` stays under its own RLS |
+| `meetings_select` | `commission_id IN (…) AND (visibility_policy = 'commission_default' OR EXISTS (attendee = uid))` | meeting visibility, in the same AND position |
+| `meeting_cases_select` | `app.can_reach_meeting(meeting_id, uid) AND app.commission_of_meeting(meeting_id) IN (SELECT app.current_meetings_cases_shell_read_commissions()) AND NOT app.is_case_respondent(case_id, uid)` | meeting reach and the respondent HARD DENY, all three AND positions |
+| `process_template_versions_select` | `app.commission_of_template(template_id) IN (…) OR app.is_tenancy_admin_of(…)` | tenancy |
+| `process_template_{phases,custom_fields,narratives,outcomes}_select` | `app.commission_of_template_version(template_version_id) IN (…) OR app.is_tenancy_admin_of(…)` | tenancy |
+| `process_template_phase_{allowed,offered}_results_select` | `app.commission_of_template_phase(template_phase_id) IN (…) OR app.is_tenancy_admin_of(…)` | tenancy |
+| `commissions_select_member_or_admin` | `id IN (SELECT app.current_roster_read_commissions()) OR is_org_admin_of(organization_id) OR is_hospital_admin_of(hospital_id) OR is_pqs_operator_of(hospital_id) OR is_nsp_org_admin_of(organization_id) OR (is_quality_reviewer_of(hospital_id) AND quality_oversight = 'visible')` | tenancy, PQS, NSP org admin, quality reviewer plus the oversight conjunct |
+| `memberships_select` | `principal_id = uid OR is_admin() OR (commission_id IS NOT NULL AND (commission_id IN (…) OR is_tenancy_admin_of(commission_id))) OR (org arm) OR (hospital arm)` | self row, platform, tenancy, org, hospital |
+| `profiles_select_self_or_admin` | `… OR (is_active(uid) AND EXISTS (SELECT 1 FROM memberships them WHERE them.commission_id IS NOT NULL AND them.principal_id = profiles.id AND them.commission_id IN (…))) OR …` | self row, affiliation, tenancy EXISTS, the `is_active` conjunct, hospital arms |
+| Q-1: the six `*_staff_admin_write` (USING = WITH CHECK) | `E IN (SELECT app.current_forms_edit_commissions()) OR app.is_tenancy_admin_of(E)` | ⚠ the tenancy arm MOVES — see the next paragraph |
+
+**Q-1, the tenancy arm.** Today the arm sits inside `can_edit_commission_forms`, whose body is
+`p_uid is not null and (has_permission(…) or is_tenancy_admin_of_for(c, p_uid))`. Under Q-1 it moves out into the policy
+text. That is still equivalent:
+- the live `is_tenancy_admin_of(x)` is `is_tenancy_admin_of_for(x, (select auth.uid()))`;
+- a null uid denies both arms, because `is_active(null)` is false.
+
+The manifest's `residualLegacyAuthority` for the forms.edit row has to be re-declared.
+
+**`meeting_cases_select` — why a DEFINER helper, not an inline subquery.** The scalar derives the commission inside its
+DEFINER body, which bypasses RLS. `app.commission_of_meeting` is DEFINER too: it reads the same column of the same row and
+returns the same value. ⛔ An inline `(select m.commission_id from meetings m …)` in the policy would run as the caller,
+under `meetings_select`, and that policy's visibility conjunct would change the answer. The same reason keeps every
+`commission_of_*` derivation as a helper call.
+
+**The row-derived indirections stay per row.** `commission_of_version`, `commission_of_template*`,
+`commission_of_document`, `commission_of_meeting` and the storage cast are DEFINER functions, so they are never inlined;
+each is one or two index lookups per row.
+
+Measured on `form_item_options` (18 rows, superuser, explicit predicate):
+
+| Predicate | Buffers | Composition |
+| --- | ---: | --- |
+| scalar | 447 | — |
+| set | 145 | the SRF costs 32, once, at `loops=1`; about 6 per row is `commission_of_version` |
+| bare scan | 1 | — |
+
+- P1b's 44 `commission_of_version` calls for 18 rows follow from two policies each deriving it.
+- A semi-join over `form_versions` ids was considered and rejected: that subquery would run under
+  `form_versions_select`, as the caller.
+- Linear growth at scale is **owed** (AC-11 harness, P4).
+
+**Nested sites, at seed scale.** A set term inside a correlated EXISTS under an OR (the `profiles` shape; superuser,
+explicit predicate) planned as `ANY (id = (hashed SubPlan 6).col1)`, with the SRF's `ProjectSet` at `loops=1`. The real
+RLS plans for `profiles`, `accreditation_standards` and `indicator_measurements` at scale are **owed** (risk 3).
+
+#### 4. `_case_caps` S5
+
+**What the live body is.** `pg_get_functiondef` shows plpgsql, STABLE, SECURITY DEFINER, with `search_path=""`. With
+comments stripped, `v_member` appears exactly **3** times:
+1. the declaration;
+2. STEP 5: `v_member := app.can_cases_deliberation_read_in_commission(v_commission, p_uid);`;
+3. its only consumer, S5: `if v_member and not v_eg then`.
+
+**The change: two hunks, no other byte.**
+
+```sql
+-- STEP 5: the eager `v_member := …` line is deleted.
+-- S5 becomes:
+  if not v_eg then
+    v_member := app.can_cases_deliberation_read_in_commission(v_commission, p_uid);
+    if v_member then
+      v_caps := v_caps | app._cap_bit('read_case_deliberation');
+    end if;
+  end if;
+```
+
+The IF is nested on purpose, rather than `not v_eg and app.can_…()`. With a nested IF, zero calls on a locked case is
+guaranteed by plpgsql control flow, not merely observed from expression evaluation order. This is ADR 0182's CASE argument
+applied here.
+
+**Why the mask is unchanged in every branch.**
+- **STEPS 1–4 are untouched.** The returns for a null uid, `is_active`, an unknown case, and a respondent or recusal still
+  come before every positive arm, so L24's hard-deny position holds.
+- **`v_eg` is never NULL past STEP 3.** `cases.visibility_policy` has `attnotnull = t` live.
+- **Locked case (`v_eg` true).** The old S5 evaluated `v_member and false`, which is false. The new S5 skips the branch.
+  Nothing is set either way.
+- **Unlocked case (`v_eg` false).** The same STABLE function runs with the same arguments, so the bit comes out the same.
+- **Nothing else reads `v_member`.** S6, S1, S2, S7, S8, S3 and S4 never do. The callee only reads, and bitwise OR does
+  not depend on order, so removing a call cannot change any other arm's input.
+- **Locked case with explicit grants.** The S3 loop does not depend on `v_member`, so its bits do not change.
+- **The one observable difference.** An error raised inside the callee (a `statement_timeout`, for example) can no longer
+  surface on a locked case.
+
+**Baseline and target.** P7 above: every mask 0, one sibling call per `_case_caps` call. After the change the target is 0
+sibling calls, with masks still 0. The S8 comment that cites "the call that assigned v_member" is corrected in the same
+re-emit.
+
+**How it is re-emitted.**
+- **Source.** The full body comes from the live `pg_get_functiondef` at authoring time.
+- **Preflight.** It asserts that the comment-stripped md5 still equals the authoring snapshot.
+- **Postflight.** It asserts that `prosecdef`, `provolatile`, `proconfig` and `proacl` are unchanged, and that the sibling
+  is called exactly once, inside the `not v_eg` block.
+
+#### 5. AC-11 acceptance design
+
+**(i) pgTAP `supabase/tests/428_ae5_staff_statement_scoped_batch_reads.sql` — this is THE gate.** The highest existing
+file is 427.
+- It runs as one rolled-back transaction, with dedicated fixture ids that share nothing with 424–427.
+- `plan()` is always fully emitted, and a refusal is a red TAP line, never a raise (LEARN-105).
+- Values are captured under `lives_ok` (LEARN-083).
+
+| § | What it asserts | Red when |
+| --- | --- | --- |
+| §0 calibration | With `set local track_functions = 'all'`, one direct `app.can_forms_read` call reads Δ `pg_stat_get_xact_function_calls` = 1 for `has_permission` and 1 for `can_forms_read`. Deltas are taken within the transaction only; ⛔ across transactions this accessor carries unflushed counts (measured today). | Δ ≠ 1 — then every count below reds rather than skipping |
+| §1 catalog | Per wrapper: `prosecdef`; `provolatile = 's'`; `proretset`; 0 arguments; `proconfig = {search_path=""}`; `proacl` exactly `{postgres=X, authenticated=X, service_role=X}`; the body carries its code literal and `authz.authorized_scope_ids(`. `authz.authorized_scope_ids` is NOT executable by `authenticated`. | any attribute drifts |
+| §2 drift pin | Each converted code's scalar authorizer body, comment-stripped, is the bare `has_permission` call. | an arm is added to a scalar authorizer |
+| §3 differential | For every principal with a membership or `is_admin`, × every commission, × each converted code — with claims set to that principal under EACH hat it holds, plus an absent hat — `app.can_<x>(c, uid)` equals `c IN (SELECT app.current_<x>_commissions())`. Also `authz.candidate_has_permission` ≡ `authz.candidate_authorized_scope_ids`. | any disagreement; or, for some code, not at least 1 granting cell and 1 denying cell |
+| §4 policy surface | The committed site list is compared with the catalog. Each converted site carries its wrapper token, no `app.can_<converted>(` token, and the preserved-arm tokens from §3's table. The catalog-derived site count equals the committed 40 (46 under Q-1). | a site is missed, an arm is lost, or a newcomer appears |
+| §5 row independence, both polarities plus the hat | Setup and the three assertions are spelled out below this table. | any permission resolution grows with N, or the fixture did not scale |
+| §5c control | The pre-change quals are re-installed in the same transaction, with text taken from the migration's committed pre-image vector (never retyped). Then Δ `has_permission`(N₂) − Δ(N₁) ≥ N₂ − N₁ must hold. | the instrument cannot see per-row resolution — §5 then reds, and never reads as a pass |
+| §6 plan shape (P7-style) | `explain (analyze, format json)` of each §5 statement as G, walked with `jsonb_path_query`: every node referencing `current_<x>_commissions` has `Actual Loops` = 1. ⛔ Negative control on the pre-change quals: the probe must find NO such node. | loops > 1 anywhere; or the probe "passes" on a predicate with no set term in it |
+| §7 semantic ablation (DC3-style) | Each wrapper is `create or replace`d in the transaction. **7a:** an empty body ⇒ G's visible rows in X drop to **0** on every §5 statement. §5's fixture guard asserts G holds no tenancy, targeted-response, approver or admin arm. ⚠ Unlike AE4's DC3a there is no ELSE fallback here, so 0 is the PASS condition. **7b:** a universal body (`select id from public.commissions`) ⇒ H sees more than 0 of X's rows. **7c:** the restored body's md5 equals the pinned md5. | 7a still leaves rows (the set arm is not load-bearing); 7b finds none (the arm is not consulted) |
+| §8 `_case_caps` S5 | On X: locked case, no grant ⇒ mask 0 and Δsibling = 0 over 20 calls, for G. Locked case with an explicit `read_case_content` grant ⇒ the mask is the `read_case_content` and `read_case_deliberation` bits, and Δsibling = 0. Unlocked case ⇒ G's mask carries the S5 bit with Δsibling = 20; H's mask does not carry it. | any sibling call on a locked case; any mask that differs from its constant |
+
+**§5 in detail.**
+- **Fixture.**
+  - Commissions X, which is the caller's, and Y.
+  - G holds a `staff` seat in X only. H holds a `staff` seat in Y only.
+  - G is also run under the wrong hat, `staff_admin`.
+  - Rows in X grow from N₁ = 20 to N₂ = 200.
+- **Statements**, each run at N₁ and N₂:
+  - `form_item_options`, by version and as a whole table;
+  - `form_items`;
+  - `profiles` and `memberships`, with the rows as members of X;
+  - `commissions`, as N commissions in the org with G seated in one.
+- **Invocation counts.** For G, for H, and for G under the wrong hat: Δ `has_permission`(N₂) = Δ(N₁), and
+  Δ `authorized_scope_ids`(N₂) = Δ(N₁).
+- **Rows.** G sees exactly X's rows; H sees 0 of X's rows; G under the wrong hat sees 0.
+- **Live fixture witness.** On the forms statements, Δ `commission_of_version`(N₂) − Δ(N₁) ≥ N₂ − N₁. The per-row
+  indirection proves the rows really were evaluated.
+
+**(ii) Harness `scripts/authz-ae5-staff-perf-acceptance.sql` — timing evidence, not the gate.** It is modelled on
+`scripts/authz-ae4-p2-invocation-count.sql`.
+- **Execution.** It runs with `ON_ERROR_STOP`. Exit 0 means clear; exit 3 means FAIL or VOID; the exit is read bare.
+  Every mutation happens inside `begin … rollback`, and a postflight proves restoration.
+- **Scale.** N = 1 000 and 10 000 protected rows per statement, `ANALYZE`d.
+- **Instrument.** `pg_stat_get_function_calls` deltas behind a top-level forced flush, with the §0 calibration.
+- **Machine-asserted conditions:**
+  - **P4 growth** on the live path: t(10k) / t(1k) ≤ 30.
+  - **P5**, live path against the pre-AE5 `app.is_member_of` predicate: ≤ 4. ⚠ This is expected to land far below 1
+    (§13.3's reading hazard). P5 then stops discriminating, and 428's §6 and §7 carry the weight.
+  - **A1:** Δ `has_permission` is constant across N.
+  - **DC2L**, on the pre-change quals: at least 5× across N.
+- ⛔ **Enumerated, not remembered (LEARN-027).** On the live path the flattened curve would VOID both DC1 and DC2, so both
+  run on the pre-change predicate instead. P4 stays on the live path, where "at worst linear" is still answerable. No
+  threshold moves.
+- **Result bound.** This is not a production latency prediction; the fixture is cache-resident.
+
+#### 6. Gate consequences (N = 11, or 12 under Q-1)
+
+| Gate or artifact | Verdict | Detail |
+| --- | --- | --- |
+| Privilege budget (gate 15, `320` U4a/U4c) | **CHANGES** | N new `app` DEFINER functions become executable by `authenticated`: `app` 339 → 339+N, total 772 → 772+N; `public` unchanged. The ceiling moves **only by PO ruling** (Q-4), with the justification in the gate record. `authorization-and-audit.md:169,:176` and `320:510,:518` change in one commit. `ARM=floor` reads `public` only, so it is unchanged. |
+| `419` and gate 18 — the frozen non-empty-path set | unchanged | the wrappers use `''`; `_case_caps` already does, and keeps it |
+| `421` | **CHANGES** | §0c `913 = 836 + 77` → `+N`; §0d sql `42` → `42+N`; §2a `42 visited` → `42+N`. Wrapper bodies stay fully qualified. |
+| `414` | unchanged | it asserts only the set of schema names |
+| `410` and the manifest (`supabase/tests/vectors/authz-enforcement-manifest.json`, `npm run lint:authz-vectors`) | **CHANGES** | §3.5: each policy site's `composedWith` becomes its wrapper, and each wrapper is declared a `kind: function` site composed with `authz.authorized_scope_ids`. §3.6's `110` and §8.6's `82 / 50 / 24` are re-derived. §8.5's carrier set gains N `[declared site]` entries. Under Q-1, forms.edit's `residualLegacyAuthority` is re-declared. ⏳ §6.2's hard-deny walk now also roots through `authorized_scope_ids`; its outcome is **owed on the catalog**. §8.1, §8.4 and §8.8 are expected unchanged. |
+| `409` | **CHANGES** | §1.1's named carrier pairs go 24 → 24+N; its own text says a further site for a code must be RE-RULED (Q-3). §1.4 is unchanged, because the policies call `app`, never `authz`. §2.1 (six write policies call `can_edit_commission_forms`) changes only under Q-1. |
+| `413`, `423` | unchanged | they pin `current_professional_read_organizations` and the `authz` resolver bodies, none of which is touched |
+| `424`, `426`, `427` | unchanged | none of them reads policy text |
+| `425` (tester) | re-run; content unchanged | `f425_sites` and `site_signature` are behavioural, so they must stay green on the converted catalog. ⛔ The wrappers are NOT added to `f425_sites`: its unhandled-site guard would raise. F2 and F3 follow the migration, as ruled. |
+| `356` §14.3 — the `_case_caps` md5 pin | **CHANGES** | the pin hashes the body minus the [S8, S3) span, and both hunks fall outside that span |
+| `230`, `231`, `311`, `319` — readers of `_case_caps` | unchanged | text-presence regexes, or runtime capture |
+| Door sweep (`p0-authz-door-audit.sh`, `scripts/door-sweep-cases.sh`) | **scope changes; the domain does not** | the 40 (or 46) altered policies become POLICY-arm cases; `form_assets_select_member` stays UNPROVEN (PARTIAL), as at T8; the wrappers (`SETOF uuid`) and `_case_caps` (int) sit outside `PRED_DOMAIN`, so they are reported as "owes a TARGETED case" |
+| `authz-setvalued-targeted-cases.sh` | **CHANGES** | its §4b exact-cardinality check (5) **aborts with exit 2** as soon as one wrapper exists. Each wrapper is added to `IN_SCOPE` with a `run_case` that plants a universal-commission body; 428 §3 and §7b must go red under it, which is what makes the case COVERED. |
+| Census arm (ARM 3) | **CHANGES** | each wrapper is a newcomer (`proretset AND authenticated EXECUTE`), so the arm reports CENSUS VIOLATED until the wrapper has a verdict row in `docs/reviews/authz-door-audit-findings.md`, from the harness above |
+| Hat arm (ARM 4) | ⏳ owed | the wrappers join the scanned population. They have the same shape as `current_professional_read_organizations`, which is not allowlisted, so they are expected clean — but that is **unmeasured** |
+| Floor arm (ARM 2), wrapper arm (`FROMFINDINGS=1`, ARM 5) | unchanged | their domains are `public` only, and `public` INVOKER plpgsql |
+| Rollback runbook (§7.3 intro, §7.3a's `meeting_cases_select` qual, §7.3b's `_case_caps` S5 line) and `authz-rollback-template.sql` SECTION G | **CHANGES** | The quoted text moves. G3a counts code literals in `prosrc`, and the wrappers carry those literals, so it would keep printing REVERT INCOMPLETE. The fix is a new §7.4 worked example and a SECTION H: the revert restores each scalar subterm, then drops the wrappers (and restores both halves of each FOR ALL policy under Q-1). They are parsed inside `begin … rollback`, as AC-9's were. |
+| `400` and `docs/backend-state/generated-helper-surface.md` (gate 17) | **CHANGES** | rows 549 → 549+N, definer +N, new digest; regenerate with `npm run data-access:surface` |
+| `src/lib/types/database.ts` | unchanged; run anyway (Rule 8) | only `public` is generated |
+| T8's direct-call census prose (record `:4414-4426`) | goes stale | a new census entry goes in the record; the old one is never edited |
+| `docs/backend-state/authorization-and-audit.md` — slice and `## Current state` | **CHANGES** | at Record |
+| `e2e:prod` | re-run once, green | behaviour is preserved by construction; E2E is not a performance instrument |
+
+#### 7. ADR
+
+**Number: 0212.**
+- **Why 0212.** The highest number on any live branch is 0211, on `ae5-staff` (local and `origin`). `main` and
+  `definer-undeclared-class-remedy` are at 0210, the other local branches at 0209, and the `origin/authz-*` branches at
+  0193 or below.
+- ⚠ **The number is not final.** The other interactive session's checkout is not visible from here, so gate 9 settles any
+  collision at rebase.
+
+**Title:** *Batch policy paths resolve commission-scoped permissions once per statement.*
+
+**Header:**
+- **Status:** proposed.
+- **Area:** authz.
+- **Related:** 0182, 0183, 0208, 0211.
+- Not `Amends` 0182: that decision is unchanged, only extended to a new resolution kind.
+
+**The decision, in three sentences.**
+1. Every batch SELECT path that T7 re-keyed onto a scalar commission authorizer tests its row's commission against a
+   caller-bound, fixed-permission, zero-argument `SETOF uuid` wrapper over `authz.authorized_scope_ids`, one wrapper per
+   permission code, evaluated once per statement and never reused across statements, with every other arm of the policy
+   left in place.
+2. Scalar authorizers remain the authority for single-resource and parameter-keyed checks, for write checks, and for the
+   helper-routed paths enumerated as out of scope, and `_case_caps` resolves S5's permission only for cases that are not
+   locked.
+3. The equivalence rests on ADR 0182's identity plus a pin that each converted authorizer is a bare `has_permission`,
+   proven by an exhaustive set-versus-scalar differential in both polarities under the active-role hat, and bounded by
+   pgTAP `428`'s row-independence, plan-shape and semantic-ablation assertions rather than by any timing ratio.
+
+#### 8. Task order, owners, files
+
+| # | Owner | Task | Files, each with one owner |
+| --- | --- | --- | --- |
+| T15.0 | lead (the PO for Q-4; the lead or PO for Q-1, Q-2 and Q-3) | rule Q-1 to Q-4 | hub, record |
+| T15.1 | backend | ADR 0212, then `npm run adr:index` | `docs/decisions/0212-…md`, `docs/decisions/INDEX.md` |
+| T15.2 | backend | pgTAP `428`, **red-first on the current catalog** (details below the table) | `supabase/tests/428_…sql` |
+| T15.3 | backend | migration `20261003007480_ae5_staff_f1_statement_scoped_batch_reads.sql`: `door-sweep-targets` header, preflight snapshots, wrappers, generated `alter policy` statements, `_case_caps`, and a postflight covering agreement in both polarities plus the substitution check; then `npm run gen:types` | the migration; `src/lib/types/database.ts` |
+| T15.4 | backend | the re-pins, after Q-4 | `320`, `421`, `409`, `410`, the manifest json and its generated `.psql`, `356`, `400`, `generated-helper-surface.md`, `authz-setvalued-targeted-cases.sh`, `authz-door-audit-findings.md`, the runbook, the template |
+| T15.5 | backend | the harness, plus one run in a DB window with peers checked | `scripts/authz-ae5-staff-perf-acceptance.sql`, and a fixture/teardown file if AE4's is not reused |
+| T15.6 | tester | F2 and F3 in `425`; re-run `425` on the converted catalog | `supabase/tests/425_…sql`, `docs/bugs/BUGS.md` |
+| T15.7 | backend | Phase Gate step 1 in full, on a fresh reset | none beyond its record entry |
+| T15.8 | tester | `e2e:prod` | run logs |
+| T15.9 | lead | follow-ups (the Q-2 residue, and the row-keyed list-RPC class from §1(b)), QA routing, the seam at Record | `docs/followups/follow-ups-open.md`, hub, seam |
+
+**T15.2's red-first, in detail.**
+- **Meaningful reds:** §5 (resolutions grow with N), §6 (there is no set node yet) and §8 (sibling calls on locked cases).
+- **Vacuous reds:** §1–§3 and §7 are red only because the wrappers do not exist yet. They do **not** count as red-first.
+- **Must be GREEN before the change:** §5c and §6's negative control, because both read the pre-change shape.
+
+**Order.** T15.0 → T15.1 and T15.2 in parallel → T15.3 → T15.4 → T15.5 → T15.6 → T15.7 → T15.8 → QA.
+- T15.2 must land before T15.3 (red-first).
+- Q-4 must be ruled before T15.4's budget pin lands; otherwise `320` reds at T15.7.
+
+**The record file.** Each role appends its own dated entry, as this unit already does, and nobody edits another role's
+entry.
+
+#### 9. Risks and unknowns — owed measurements, never guesses
+
+1. **Scope (Q-1, Q-2) decides whether AC-11 can be true as written.**
+   - Without the six FOR ALL policies, the forms family keeps one per-row resolution per reader row (measured: P1, P2,
+     P2h).
+   - Without the 81 helper-routed policies, "every batch policy path T7 re-keyed" is false by the ruling's own word,
+     "path".
+   - So the AC-11 tick must name its converted set, or it repeats AC-7's cut qualifier.
+2. **410 §6.2's outcome** is owed on the catalog after the migration. A red there is a re-measurement of hard-deny
+   closure, not a re-pin.
+3. **Plan shape at scale.** At seed scale the nested set terms hash at `loops=1` (probe S1). At 10k rows the planner may
+   pick a non-hashed correlated SubPlan (work_mem, cost) and re-enter the SRF for every outer row.
+   - 428 §6 runs at seed scale only; the harness is the measurement at scale.
+   - A `ROWS` setting on the wrappers is a knob to try only after a measured regression.
+4. **Per-row cost that is not a permission resolution stays.**
+   - It includes the `commission_of_*` DEFINER calls, the `is_tenancy_admin_of` arms (P2: 30 `commission_of_version`
+     calls for 10 denied rows), `can_access_targeted_version`, and arms unrelated to T7 (`can_read_case_committee` on
+     `action_items`).
+   - AC-11 bounds permission resolutions, not total per-row cost. P4 linearity at scale is owed.
+5. **LEARN-018 on five scalar authorizers (Q-3).** Design (A) or (B) must be ruled before the manifest is edited.
+6. **The budget ceiling (Q-4)** needs a PO ruling; nothing lands without it.
+7. **The hat arm's outcome** is unmeasured.
+8. **Two instrument hazards, measured this session and designed out in §5.**
+   - `pg_stat_get_xact_function_calls` read across transactions (probes 1–3 void).
+   - A probe that references a STABLE call twice per row doubles the counts (P7).
+9. **ADR number collision** with a checkout this session cannot see.
+10. **`action_items_select`'s `case_restricted` arm** passes a bare `auth.uid()` into `can_read_case_committee`. This is
+    pre-existing and untouched, and is noted so nobody "tidies" it inside this migration.
+
+#### 10. Where the live catalog contradicted the review or the lead's analysis
+
+- **The options read makes 20 resolutions, not 10.**
+  - **The lead's F1 entry says:** "the extra 10 are from reading seeded form version `…a001`'s options … 10 calls".
+    That count is correct for `can_forms_read`, but incomplete.
+  - **The catalog shows:** the same read makes **10 more** `has_permission` resolutions through AE4's
+    `form_item_options_staff_admin_write` FOR ALL USING, which plans first in the permissive OR (P1 = 20).
+  - **Consequence:** converting T7's 41 sites alone leaves 10.
+- **The `profiles` figure is reproduced.**
+  - **The lead's F1 entry says:** "The `profiles` figure of 117 `can_roster_read` calls was **not reproduced**".
+  - **The catalog shows:** with the flushed instrument it reproduces exactly. P4 = 117 `can_roster_read` = 117
+    `has_permission`, for 12 visible and 45 physical rows.
+- **The `_case_caps` call shape is reproduced.**
+  - **The lead's entry says:** the auditor's "100-call and ~92 ms figures were **not reproduced**".
+  - **The catalog shows:** the call shape reproduces — one sibling call per `_case_caps` call on locked `ca…e1` for
+    staff2, with every mask 0 (P7). The ~92 ms was not timed.
+- **The door-sweep follow-up is closed.**
+  - **The brief says:** "widening `FUP-DOOR-SWEEP-DOMAIN-MISSES-THE-AUTHZ-RESOLVERS`".
+  - **The registers show:** that follow-up is **RESOLVED** (follow-ups archive `:9824`, 2026-09-07, ADR 0191 D3, jointly
+    with `FUP-DOOR-SWEEP-DOMAIN-GAP-WIDENED-BY-SET-VALUED-RESOLVERS`). Set-valued resolvers were given a targeted harness
+    instead of a wider `PRED_DOMAIN`.
+  - **Consequence:** new targeted cases in that harness, plus its §4b abort — not the widening of an open follow-up.
+- **The routing's scope is wider than listed.**
+  - **The routing says:** "every batch policy path T7 re-keyed (forms and their children, roster, `profiles`,
+    `memberships`, `commissions`, and the rest …)".
+  - **The enumeration shows:** **41 direct and 81 helper-routed** policies reach a T7 authorizer, and T7 Part 3
+    re-emitted the depth-2 helpers.
+
+#### Questions for the lead (and the PO where marked)
+
+- **Q-1 — the six AE4 forms FOR ALL policies.** Convert their USING and WITH CHECK (adding one `forms.edit` wrapper and
+  moving the tenancy arm into policy text), or accept that AC-11 cannot pass on form items and options?
+  Recommendation: convert.
+- **Q-2 — the 81 helper-routed policies.** Keep them out of this increment, with a follow-up and AC-11 bounded to the
+  converted set, or rule them in (which would need a separate full plan for the three PHI modules)?
+  Recommendation: keep them out.
+- **Q-3 — the zero-caller scalar authorizers.** Design (A), wrappers over `authorized_scope_ids` as ruled, or design (B),
+  wrappers that confirm through the scalar authorizer? Recommendation: (A), with a written bound per scalar door.
+- **Q-4 (PO) — the privilege-budget ceiling.** Raise it from 772 to 772+N (N = 11, or 12 under Q-1), with the named
+  justification recorded in this increment's gate record.
+
+**State.** Plan posted and **not executed**. No SQL, migration, test or gate file was written. **Next:** the lead reviews
+the plan and rules Q-1 to Q-4.
+
 ### 2026-09-15 — F2 and F3 re-sequenced to run IN PARALLEL with F1's plan; PO authorizes multiple subagents; teammates `backend3` (F1 plan) and `tester3` (F2 + F3) spawned (lead)
 
 **PO, verbatim:** *"you are authorized to use multiple subagents when needed"*.
