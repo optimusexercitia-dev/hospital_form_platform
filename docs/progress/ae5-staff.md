@@ -5409,3 +5409,19 @@ its body notes a parse-only gate would have stayed green on F2. **AC-9 ticked.**
 chain joined `lint:registers` to the commit with `;`, so the exit printed and nothing gated on it. The
 red itself was the lead's to clear: the hub's `Updated` date predated backend's code commit. Cleared
 here. The stack is the tester's for the six spec files and the two red-able proofs.
+
+### 2026-09-15 — tester's post-park run: three premise fixes green so far; a NEW red, `phase17-documents` AC-7, which passed in the gate's batch 16; isolated before any ruling (lead)
+
+On a fresh reset (settle 174/174, profiles 45) with a dev server: `member-action-items-overview`
+exit 0 `15 passed` (L27), `phase5-wizard` exit 0 `12 passed` (L31; the three reds now pass),
+`phase17-documents` exit 1 `1 failed · 12 passed` — AC-10 (L32) green; the red is **AC-7 "each version
+upload lands at a NEW storage path (Rule 6)"**: `waitForVersionFile` (`e2e/helpers/documents.ts:243`)
+timed out after 30 s waiting for `upload_state = "unscanned_accepted"`, received `null`, for version
+`d42beb02-…`. The tester stopped as instructed. **Measured by the lead from the gate log:** AC-7 passed
+in `e2e:prod` batch 16 (`batch-16.log:37 ok 34 … AC-7 … (4.0s)`) on this unit's seed before backend's
+L28–L30′ moves. What differs since: a dev server instead of the prod standalone build, and three seed
+moves that touch meetings, one targeted draft and two form versions — none touches documents. Neither
+difference is yet shown to be the cause. `upload_state` is what `src/lib/documents/actions.ts:178/227`
+reads. Ordered: the other three specs and the L27/L33 red-able proofs continue; then AC-7 alone twice
+with the dev server's output captured, the finalize response quoted, and the version's scan columns and
+storage object read from the database after a failure. No ruling and no bug row until that lands.
