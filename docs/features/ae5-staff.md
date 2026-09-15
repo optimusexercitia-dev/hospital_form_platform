@@ -37,7 +37,7 @@ Each is the template step it names; the witness for every box is a dated entry i
 - [x] **AC-3 Generators multi-role.** ✅ **2026-09-15** (record: round 3 cells 1728 → 2808 over both roles, `lint:authz-vectors` 0 then and inside `npm run lint` at HEAD; ⚠ bound: the self-test asserts WHICH arm fired at the arm-prefix grain only — `FUP-AE5-STAFF-SELFTEST-WRONG-ARM-CHECK-COMPARES-ON-THE-ARM-PREFIX`, medium, open). Was: Both cell generators range over `staff` + `staff_admin`; the
       `role` axis gets a real disposition; `npm run lint:authz-vectors` green and the self-test
       asserts WHICH arm fired (LEARN-103); `arm9`/`arm10` still bind.
-- [ ] **AC-4 Seed + `test_validation`.** `staff` grants seeded; `authz.roles.staff` = `test_validation`;
+- [x] **AC-4 Seed + `test_validation`.** ✅ **2026-09-15** (record: AC-10 re-declared on the R-7 (a) / L36 seed — `410 § 7.2` reds by plant, no shared fixture ids, the unbound gaps bound (L34, L36), row 7's respondent cell added (R-7 (a)); `offboarded` deferred by the PO). Was: `staff` grants seeded; `authz.roles.staff` = `test_validation`;
       `403 § 3.2b` observed RED (recorded, never re-pointed) and `410 § 7.2` RED until the manifest
       names the suite; fixture gaps the tester lists are filled without ids shared across cases.
 - [x] **AC-5 Differential oracle** ✅ **2026-09-14** (record: run 5 green, § 6 witness quoted, full suite `Result: PASS`) (`424`): two assertions per cell — `is(legacy, catalog)` AND
@@ -93,19 +93,20 @@ posted, not executed.
 
 ### In progress
 
-**AC-10 ✅ 2026-09-15 — the Phase Gate's steps 1 and 2 are met.** Build complete at `a3740cdb` on one fresh
-reset: lint 0, typecheck 0, `test:db` 275 files / 9219 tests PASS, the four arms HOLD, budget 339/433/772,
-the door-sweep scope re-derived equal to T8's (read arm exit 3 RULED partial-by-construction, write arm
-CLEAN, 0 BLIND, 0 ERROR). The declaring `e2e:prod` at `dc08f96f` is GREEN: `1270 passed · 0 failed · 2
-flaky · 0 did-not-run`, both flakes matching filed bugs, one infra retry recovered. The first full run's
-ten reds were all this unit's seed rows, none a T7 regression; rulings L27–L33 and the PO's R-6 (option
-(a)) cleared them. Nine of ten acceptance criteria ticked. AC-4: `410 § 7.2` now reds by plant and no fixture id is shared, its remaining work is done: row 7's respondent fixture is seeded as B2′ cells (R-7 (a); `offboarded` deferred), the two unbound fixtures are asserted in `427`, L36's rows let four `425` sites measure again, and `424 § 2.5` is corrected. The production-gate subset was green apart from a ruled batch-composition artefact; AC-4 ticks on the declaring run. `npm run lint` exit 0 at HEAD.
+**All ten acceptance criteria ticked, 2026-09-15.** AC-10 is re-declared on the final seed. Build complete at
+`d540274a` on one fresh reset: lint 0, typecheck 0, `test:db` 276 files / 9231 tests PASS; the four arms,
+budget 339/433/772 and door-sweep scope carry from `9f4a326b` by an empty migrations/seed diff. The declaring
+`e2e:prod` at `9d49f816` is GREEN: `1268 passed · 0 failed · 4 flaky · 0 did-not-run · 0 infra`. Three of the
+flakes match filed bugs; one is a first sighting. One batch's build-identity check was inconclusive, so its
+three specs are being re-run for a confirmed identity. Since the first declaring run the unit added: R-6 (a)
+and R-7 (a) from the PO, L34–L36, suite `427`, and a grant deliberation-bit finding classified pre-existing
+and by design. `npm run lint` exit 0 at HEAD.
 
 ### Next
 
-Build complete re-run at `1526c03b` (backend) → declaring full `e2e:prod` (tester) → AC-4 → ⏸ PAUSE: the PO runs T14 with an EXTERNAL auditor and returns the review for the lead's analysis → PO approval with the
-visibility items below → Record (ledger row, hub → `complete`, bug status cells, follow-ups dispositioned,
-run logs deleted, LESSONS candidates, the stale handoff flagged).
+Batch-13 identity re-run (tester) → ⏸ PAUSE: the PO runs T14 with an EXTERNAL auditor and returns the review
+for the lead's finding-by-finding analysis → PO approval → Record (ledger row, hub → `complete`, bug status
+cells, follow-ups dispositioned, run logs deleted, LESSONS candidates, the stale handoff flagged).
 
 ### Blockers
 

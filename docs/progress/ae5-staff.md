@@ -6653,3 +6653,75 @@ run only scoped since. Stack: own client sessions **0** before the reset and aft
   without moving their plans.
 
 **Parked.** Own client sessions **0**. The stack belongs to the tester for the declaring `e2e:prod`.
+
+### 2026-09-15 — AC-10 re-declared on the R-7 (a) / L36 seed: declaring `e2e:prod` GREEN at `9d49f816`, 1268 passed · 0 failed; build complete at `d540274a`; AC-4 ticked; one batch's build identity inconclusive and re-run to confirm (lead)
+
+The seed changed at `9f4a326b` after the first declaring run at `dc08f96f`, so AC-10 is re-declared here.
+Every figure below was read by the lead from the gate's own files, never from a teammate's summary.
+
+**Step 1 — build complete at `d540274a`, one fresh reset** (backend's entry `9d49f816`, verified by the lead):
+- **Reset:** tables 445 three times, profiles 45.
+- **Lint and typecheck:** both exit 0.
+- **`test:db`:** exit 0, `Files=276, Tests=9231, Result: PASS`, `grep -c '^not ok'` 0.
+
+**What carries from `9f4a326b`.** The four arms, the budget 339 · 433 · 772, and the door-sweep checksum
+`c2934944fc881ded` carry over. The proof is that `git diff --name-only 9f4a326b..HEAD -- supabase/migrations
+supabase/seed.sql` is empty, measured by the lead at `9d49f816` as well. **The commit the lead did not plan
+for:** backend's run was briefed at `1526c03b`, but the lead committed a hub-only re-cut (`d540274a`) seconds
+into it. The reset read one sha and lint the other. That commit touched nothing a suite reads, so backend
+cited `d540274a`. The lead's error is recorded in memory: no commits while a teammate's gate run holds HEAD.
+
+**Step 2 — the declaring `e2e:prod` at `9d49f816`.** The tester claimed the stack and quoted HEAD `9d49f816`
+with a clean tree. The launch was verified by PID 1192 and the banner `125 spec files → 21 batches ·
+reset=1 · retries=1 · infra_retry=1`. The lead watched every batch and made no commit during the run. HEAD
+still read `9d49f816` with a clean tree at the end.
+- **`gate-exit`:** `GATE_EXIT=0 · verdict=GATE GREEN — 1268 passed, 4 flaky, accounted 1272/1284 ·
+  finished=2026-09-15T09:21:38-0300`.
+- **Summary:** `1268 passed · 0 failed · 0 infra · 4 flaky · 0 did-not-run · 21 batches`.
+- **Accounting:** the 12 not accounted are exactly the batches' skipped tests, summed from the batch lines,
+  so 1268 + 4 + 12 = 1284.
+
+**Targeted lines, read by the lead:**
+- **Batch 6:** `ok 19 … ethics-e2-procedure.spec.ts:486:5 › GATE-D` and `ok 30 … :977:5 › FLOW-7`, with 0
+  `(retry #1)` lines in the batch.
+- **Batch 16:** `ok 34 … phase17-documents.spec.ts:494:5 › AC-7` and `ok 37 … :617:5 › AC-10`.
+- **Batch 20:** no failed `quality-oversight` title. In the full run it shares no batch with an ethics spec.
+- **Batches 10, 11, 14 and 18:** every earlier L27–L33 target is green again.
+
+**Flaky, four, each passing on retry:**
+- **Batch 1:** `act-role-assumption.spec.ts:164`, the same menu-item timeout — `BUG-E2E-ACTROLE-HATSWITCH-MENUITEM-TIMEOUT`.
+- **Batch 2:** `bulk-case-creation.spec.ts:762` AC8 (keyboard-only grid), `toBeFocused()` failed on the "Criar
+  1 casos" button. This is the second full-run sighting after the pre-run, so a bug row is filed by the tester.
+- **Batch 5:** `dsr-subject-requests.spec.ts:91`, `page.goto: net::ERR_ABORTED; maybe frame was detached?`
+  navigating to `/`. It is the third spec showing `BUG-E2E-CACHEDSIGNIN-NAV-ABORT`'s signature, and the
+  sighting is added.
+- **Batch 9:** `meeting-audio-minutes.spec.ts:222`, "Ata aplicada com sucesso." not visible. First sighting,
+  recorded only. No spec names row 8's meeting.
+
+The other `(retry #1)` lines in batches 5 and 9 are serial groups re-running after the first failure.
+
+**Build identity, with its bound.** The gate reused the standalone build from the one-spec run. The tester
+checked that no file under `src`, `supabase`, `next.config.*` or the package files is newer than
+`.next/standalone/server.js`. **20 of 21 batches** printed `(identity) serving the tree this run staged ·
+… build=Zc6RvrXPl8D3pLLtg7neD`. **Batch 13 did not.** At 08:58:37 it printed `(identity) build-nonce
+INCONCLUSIVE — /_next/static/__gate-nonce.txt returned HTTP 000 and a body that is not nonce-shaped`. Two
+facts point to our build serving it:
+- `server-batch-13.log` shows the gate's own `Next.js 16.3.2` ready on `:3000` and handling request streams.
+- No listener-ownership INCONCLUSIVE line was printed.
+
+That is an inference, not the gate's confirmation, and batch 13 carries `phase10-meetings`, which the new
+meeting link can touch. **So batch 13's three specs** (`phase-multitenancy`, `phase10-meetings`,
+`phase11-interviews`) **are re-run as a subset gate after this commit, for a confirmed identity line.** It
+passed 57 / 57 here.
+
+**AC-4 ticked** on this entry and the AC-4 witness entries above. AC-4's clauses:
+- `staff` seeded under `test_validation`;
+- `403 § 3.2b` observed red;
+- `410 § 7.2` shown able to red by plant;
+- the fixture gaps filled or dispositioned, with no shared ids;
+- the four seeded-but-unbound gaps bound (L34, L36);
+- row 7's respondent cell added (R-7 (a));
+- `offboarded` deferred by the PO.
+
+**All ten acceptance criteria are now ticked.** Next: the batch-13 identity re-run, then the ⏸ PAUSE for the
+PO's external QA review.
