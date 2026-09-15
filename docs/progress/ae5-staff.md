@@ -4814,3 +4814,23 @@ fix is the spec's filter, `e2e/**`, tester's. If YES — the domain counts towar
 who cannot log in; that is a PO question (R-6) about the definition, and the spec is faithful. The
 tester is instructed to read it first thing after the gate ends, before any ruling. The gate is RED
 either way until re-run green after the fix; the two flaky titles are dispositioned then.
+
+### 2026-09-14 — `e2e:prod` batch 10 RED too: `member-action-items-overview` AC-9 empty state — THIS UNIT's arm-3 fixture assigned an item to `staff4.ccih`, the spec's "no assigned items" boundary persona (lead)
+
+Batches 7–9 green (70/41/67, 0 failed). **Batch 10:** `39 passed · 1 failed · 40/40 accounted ·
+pw_exit 1` — `member-action-items-overview.spec.ts:657 AC-9: empty state renders for a persona with
+no assigned items`: `getByRole('heading', { name: /você não tem itens de ação atribuídos/i })` not
+found (`batch-10.log:47–66`). The spec's comment at `:661`: "staff4.ccih is the boundary persona — no
+attribution, no assigned items." **Measured in the seed diff since the base:** T7's fixtures insert
+`action_items` `a5f4…a1` in CCIH, `assignees_only`, `assigned_to = v_clean`, and an
+`action_item_assignments` row `a5f4…b1` (`a1`, `v_clean`, `owner`); `v_clean` is declared
+`'00000000-0000-0000-0000-00000000000a' -- staff4.ccih — the CLEAN plain staff` (`seed.sql:3262`).
+Two artefacts chose the same persona for the same property — a plain staff with nothing — and the
+fixture CONSUMED the property the spec's empty state depended on (both disjuncts of
+`can_read_action_item`'s `assignees_only` limb now fire for it, by design of L8's assignment rows).
+Not an app defect; a fixture regression of this unit's, like batch 6's. Two reds, one shape: **the
+seed diff was checked against pgTAP's pins and never against the E2E specs' persona premises** —
+the "4 of 12 seeded CCIH `staff` personas carry a non-role case reach" re-measurement was the
+hint, read as a count rather than as a list of specs to grep. Ruling after the tester's eligibility
+query lands (batch 6's fix depends on it); batch 10's fix is `e2e/**`-shaped on its face — a
+MEASURED boundary persona, not another comment — unless the query changes the picture.
