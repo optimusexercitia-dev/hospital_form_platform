@@ -6504,3 +6504,26 @@ corrected run exited 0.
 
 **The classification stands: pre-existing, by design, not a defect.** Next: the tester runs the 15-spec
 production gate subset recorded above, and the declaring full `e2e:prod` follows.
+
+### 2026-09-15 — R-7 subset production gate, batch 2 RED: `quality-oversight` reads «Casos restritos» 9 where 1 is expected; the only change since the green declaring run is the seed at `9f4a326b`; cause not yet measured (lead)
+
+Launched by the tester at `213aec10` and verified by PID 1997 and its banner (`15 spec files → 3 batches`).
+Batch 1: 67 passed, 0 failed, 2 skipped, 69 / 69 accounted. **Batch 2:** `66 passed, 2 failed, 68 / 68, pw_exit 1`.
+The two failures, read by the lead from `/tmp/e2e-prod-gate/batch-2.log`:
+- `quality-oversight.spec.ts:309` «quality.a: exactly 5 readable CCIH cases + exact KPI values; Caso 0006
+  (locked) is invisible».
+- `quality-oversight.spec.ts:1061` «READ PATH: quality.a's board gains Farmácia once the database says
+  visible».
+
+Both fail on the same KPI: `getByRole('region', { name: 'Visão geral' })` «Casos restritos», expected `"1"`,
+received `"9"`.
+
+**What is known.** The declaring `e2e:prod` at `dc08f96f` passed this spec. Between that commit and this
+run, only `9f4a326b` touched the seed. It added the `meeting_cases` link from row 8's meeting `a5f20000-…-a2`
+to ethics case `ca000000-…-e1`, and L36's two accreditation rows on CCIH-1; it also added suite `427` and
+generator changes, which do not run in E2E. So the red is this unit's seed. **What is not known.** Whether
+the KPI now counts correctly and the spec's expected value no longer holds, or whether one link multiplies
+rows in the KPI's query. A jump from 1 to 9 on one link makes a fan-out plausible, not proven. The KPI's
+query is traced in code first. Then, after the gate ends, its live count for `quality.a` is measured with
+and without the new link and rows in rolled-back transactions. No ruling until then. Loop: AC-10's fix
+loop, iteration 2 of 5; a new cause.
