@@ -27,8 +27,10 @@ import { cachedSignIn, DEFAULT_PASSWORD } from './helpers/auth'
  *
  * Personas (supabase/seed.sql "round 4 (backend)" block, `a5f…` prefix — built for
  * the AE5-STAFF authz differential, T13 reuses them here rather than inventing new
- * ones): `gap.pending@test.local` — `staff` @ CCIH (Rede A), account UNCONFIRMED
- * (`profiles.email_confirmed_at IS NULL` / `auth.users.email_confirmed_at IS NULL`);
+ * ones): `gap.pending@test.local` — `staff` @ Farmácia A (Rede A), account UNCONFIRMED
+ * (`profiles.email_confirmed_at IS NULL` / `auth.users.email_confirmed_at IS NULL`).
+ * Moved off CCIH to Farmácia A per R-6 (ruled option (a), landed `a3740cdb`): the
+ * persona is no longer on CCIH's voter roster;
  * `gap.deactivated@test.local` — `staff` @ CCIH, `profiles.is_active = false`;
  * `gap.comember.ccih@test.local` — `staff` @ CCIH, ACTIVE, single membership, used
  * ONLY by this file (confirmed: no other `e2e/**` spec references it), so the

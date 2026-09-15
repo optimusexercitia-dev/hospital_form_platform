@@ -5690,3 +5690,20 @@ re-taken.
 **Next:** the tester corrects the stale JSDoc at `e2e/ae5-staff-landing.spec.ts:30` (it still says
 CCIH), then runs the production gate on the seven specs the move can touch. The declaring full
 `e2e:prod` follows on its result.
+
+### 2026-09-15 — R-6 subset production gate GREEN 91/91: ethics FLOW-7 passes and GATE-D is not retried; the landing JSDoc corrected; the declaring `e2e:prod` is next (lead)
+
+The tester ran `SPECS` over the seven specs the move can touch: `ethics-e2-procedure`, `ae5-staff-landing`,
+`phase13-audit`, `ae5-staff-multi-commission`, `phase10-meetings`, `mem-memberships-collapse`,
+`phase3-admin-members`. The lead's monitor read `gate-exit`: `GATE_EXIT=0 · verdict=GATE GREEN — 91 passed,
+0 flaky, accounted 91/91`, summary `91 passed · 0 failed · 0 infra · 0 flaky · 0 did-not-run · 2 batches`.
+From `batch-1.log`, read by the lead: `ok 22 … ethics-e2-procedure.spec.ts:977:5 › FLOW-7 cast votes` and
+`ok 11 … ethics-e2-procedure.spec.ts:486:5 › GATE-D` on its first attempt, no `(retry #1)`. So the only
+red of the pre-run is cleared on the production build, and GATE-D behaves as its contingent bug row
+predicted; that row closes on the declaring run, as written.
+
+**Committed with this entry:** `e2e/ae5-staff-landing.spec.ts`, the JSDoc at `:30` only, now naming
+Farmácia A and R-6. The lead checked every changed line of the diff is a comment (0 non-comment lines),
+0 CR bytes, and `npm run lint` exit 0.
+
+**Next:** the declaring full `e2e:prod` at this commit, launched by the tester and watched by the lead.
