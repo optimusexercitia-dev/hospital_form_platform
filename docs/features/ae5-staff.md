@@ -99,7 +99,7 @@ the door-sweep scope re-derived equal to T8's (read arm exit 3 RULED partial-by-
 CLEAN, 0 BLIND, 0 ERROR). The declaring `e2e:prod` at `dc08f96f` is GREEN: `1270 passed · 0 failed · 2
 flaky · 0 did-not-run`, both flakes matching filed bugs, one infra retry recovered. The first full run's
 ten reds were all this unit's seed rows, none a T7 regression; rulings L27–L33 and the PO's R-6 (option
-(a)) cleared them. All ten acceptance criteria ticked. `npm run lint` exit 0 at HEAD.
+(a)) cleared them. Eight of ten acceptance criteria ticked; AC-3 and AC-4 (T3/T4 deliverables) were never ticked and are being checked against their recorded witnesses. `npm run lint` exit 0 at HEAD.
 
 ### Next
 

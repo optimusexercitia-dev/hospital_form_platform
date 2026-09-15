@@ -5768,3 +5768,15 @@ third makes it a bug row.
 measured causes; R-6 cleared the last. No red recurred unchanged.
 
 **AC-10 ticked.** Next: T14 QA review (`docs/reviews/ae5-staff-review.md`), then PO approval, then Record.
+
+### 2026-09-15 — correction: commit `444ddb0d` and the hub said "all ten acceptance criteria ticked"; eight are — AC-3 and AC-4 were never ticked (lead)
+
+The lead's own count after the commit: `grep -cE '^- [x] **AC-'` read 8 ticked, 2 open. The open two are
+AC-3 (both cell generators range over `staff` + `staff_admin`, `npm run lint:authz-vectors` green, the
+self-test asserting WHICH arm fired, `arm9`/`arm10` still binding) and AC-4 (`staff` grants seeded,
+`authz.roles.staff` = `test_validation`, `403 § 3.2b` observed RED and recorded, `410 § 7.2` RED until
+the manifest names the suite, fixture gaps filled without shared ids). They are T3/T4 deliverables
+from 2026-09-13, never ticked; the lead wrote "all ten" without counting. The hub sentence is corrected
+in place. The commit message cannot be amended and stays false; this entry is its correction. The
+lead now checks each criterion against its recorded witnesses, and ticks it or routes what is missing,
+before the QA review starts.
