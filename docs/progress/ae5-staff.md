@@ -7628,7 +7628,7 @@ depth-1 sites already in the plan's 40.
 - **What S5 sets:** its live text is `if v_member and not v_eg then v_caps := v_caps | app._cap_bit('read_case_deliberation')`,
   the deliberation bit only.
 - **The consequence.** On every path that asks `read_case_content`, the resolution S5 makes can **never** grant. The
-  plan's § 4 reorder removes it only for locked cases: 1 of the 8 on `cases`, leaving 6 of its 7.
+  plan's § 4 reorder removes it only for locked cases: 1 of the 8 on `cases`, leaving 6 of its 7. ⛔ **CORRECTED 2026-09-15 (plan-case, F-CASE fragment):** wrong for staff4. It removes **0** of the 7. The only locked case already returns at STEP 4, because staff4 is its respondent, so all 7 resolutions come from unlocked cases.
 - **`meeting_attendees_select`'s qual** is exactly `app.can_reach_meeting(meeting_id, (SELECT auth.uid()))`.
 
 **What this changes for Q-2.** The 40 (or 46) mechanical conversions do not close F1 for the PHI-module lists or
@@ -8531,3 +8531,55 @@ No PO ruling is needed on the budget beyond Q-4: N = 30 (31 with (j)), stated in
 
 **State.** The integrated plan is posted and **not executed**. Rulings (a)–(s) are open. The one unreconciled interface is
 `S_CASE_DELIBERATION`, under ruling (j). **Next:** the lead reviews and rules.
+
+### 2026-09-15 — the integrated F1 / AC-11 plan RECEIVED (`e2ae138f`): 127 policies, 32 new functions, seven migrations; an independent adversarial review is spawned BEFORE any ruling; the budget's size is re-surfaced to the PO (lead)
+
+**Received, not yet ruled.** backend3's integrated entry sits directly above this one. Its headline figures are
+backend3's; the lead has not re-measured them.
+- **81 partition rows reconciled**, none missing, none duplicated:
+
+  | Disposition | Policies |
+  | --- | ---: |
+  | new policy text | 59 |
+  | converted by removal (F-CASE, text unchanged, 0 resolutions) | 19 |
+  | insert-only, staying scalar | 3 |
+
+- **Also in scope:** the 40 T7 policies and the 6 AE4 forms policies. Total 127, of which 105 are altered by DDL.
+  `meeting_cases_select` and `action_items_select` each get one combined `alter policy`.
+- **32 new functions,** 33 under ruling (j). 30 are `authenticated`-executable.
+- **Two existing bodies change:** `_case_caps` delegates to a new `_case_caps_core`, and `has_case_capability` passes it
+  a flag and converges to `search_path = ''`, which takes the frozen set from 836 to 835.
+- **Eight functions end with zero production callers.**
+- **Seven migrations,** `20261003007480`–`7540`, in dependency order.
+- **One interface was not reconciled:** F-DOCS needs a per-case deliberation check for prints, and ruling (j) proposes
+  `app.case_deliberation_verdict`.
+- **Rulings (a)–(s)** are listed there, with recommendations. Only (c) is the PO's: F-DOCS routes reveal the home ids
+  of documents the caller cannot read.
+
+**Why no ruling yet.** The design was produced by five planners working separately and integrated by one of them. It
+rewrites Class-1 access on case, safety-event, CAPA, referral and professional-identity doors. The lead is not
+qualified to rule the lead-owned items by reading an integrator's summary: *verify, don't comply*. So an independent
+adversarial reviewer, `plan-review` (Opus, read-only, no stake in the plan), was spawned first. It attacks:
+- hard-deny dominance, including F-CASE's verdict CASE and `_case_caps_core(p_resolve_s5)`;
+- NULL and fail-open positions;
+- what each new argument-taking function exposes to any caller, and the ACLs;
+- hat semantics;
+- RLS context and UPDATE…RETURNING;
+- equivalence after each of the seven migrations alone;
+- vacuity in `428`;
+- audit gates;
+- scope completeness against an independent catalog sample;
+- the budget arithmetic.
+
+Its report goes to `q2/plan-review.md`. The lead rules after reading it.
+
+**The budget, re-surfaced.** Q-4 was put to the PO as *"772 + N — N = 11 base, 12 with Q-1, plus one if the meetings
+helper is converted"*, which is 783–785. The PO approved *"Approve 772 + N"*, and the option said the final N goes in
+the gate record. Under Q-2 (C) the integrated plan gives **802–804**, about 30 more `authenticated`-executable DEFINER
+functions. The approval's words cover it, but the magnitude it was approved on does not. So the number is put to the
+PO again, together with ruling (c), rather than carried silently.
+
+**Correction applied in place** to the lead's Q-2 residue entry: the "6 of its 7" on `cases` is wrong for staff4. The
+§ 4 reorder removes **0**, because staff4's only locked case returns at the respondent hard deny.
+
+**State.** Nothing is executed. `tester3` is parked. The planners are done.
