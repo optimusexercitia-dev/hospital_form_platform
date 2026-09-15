@@ -85,7 +85,15 @@ select cmp_ok((select count(*)::int from authz_differential_cells_staff), '>', 2
   -- ⚠ RE-MEASURED again (backend round 4, seed `cea002eb`, vector `c5ef5fef`): 3348, down from
   -- 3708 — 648 `cast_case_vote_guard` cells (row 12, `commission.cases.vote`) are GONE from this
   -- table entirely, named-skipped as `door_is_a_write_guard_not_executable` (that door WRITES;
-  -- T12's `425` polarity-flip owns it, never this file).
+  -- this file's own SELECT-count differential cannot execute it — see the correction below for
+  -- where its BEHAVIOURAL polarity actually lives).
+  -- ⭐⭐ CORRECTED 2026-09-15 (external QA review F2, tester3) — "T12's `425` polarity-flip owns
+  -- it" was a STATIC claim only: pre-fix, `425` returned NULL for `cast_case_vote` and proved
+  -- nothing about enforcement (the reviewer's own finding). The behavioural polarity now lives
+  -- at `425`'s §6 (`§6 — F2: BEHAVIOURAL GRANT-DELETION PROBES`, added this round): an allow ->
+  -- delete-the-grant -> deny-through-the-real-RPC (exact SQLSTATE `42501`) -> restore -> allow
+  -- cycle, plus a discrimination half proving the denial can go RED. This file's own row-12 skip
+  -- is unchanged and still correct — a SELECT-count probe genuinely cannot execute a write door.
   -- ⚠ RE-MEASURED a third time (backend round 5, vector `d5015060`): 3024, down from 3348 — rows
   -- 4/11's `disjunct_absent`/`conjunct_unmet` bindings were re-derived from door truth tables
   -- (skips 2376/2160/648 named in backend's own count). Old -> new, all three measurements:
@@ -402,11 +410,17 @@ select cmp_ok(pg_temp.disagreements(), '>', 0,
 
 -- ⚠ RE-MEASURED (backend round 4): `cast_case_vote_guard` (row 12) DROPPED from this array — its
 -- door is a write guard, never executable in a read differential, named-skipped as
--- `door_is_a_write_guard_not_executable` (T12's `425` owns its polarity). Row 12 is still one of
--- the matrix § 5.3's eleven arm-3 ROWS; this assertion is now about the TEN classes 424 actually
--- executes, not the eleven-row matrix count — the two numbers answer different questions and
--- neither is guessed from the other. ⚠ RE-VERIFIED at backend round 5 (vector `d5015060`): the
--- same ten names — unchanged.
+-- `door_is_a_write_guard_not_executable`. Row 12 is still one of the matrix § 5.3's eleven
+-- arm-3 ROWS; this assertion is now about the TEN classes 424 actually executes, not the
+-- eleven-row matrix count — the two numbers answer different questions and neither is guessed
+-- from the other. ⚠ RE-VERIFIED at backend round 5 (vector `d5015060`): the same ten names —
+-- unchanged.
+-- ⭐⭐ CORRECTED 2026-09-15 (external QA review F2, tester3) — this comment used to say "425
+-- owns its polarity", a STATIC claim only (425 returned NULL for this door pre-fix, per the
+-- review). Its BEHAVIOURAL polarity now lives at `425`'s §6 (added this round): allow -> delete
+-- `staff`'s `commission.cases.vote` grant -> deny through the real `cast_case_vote` RPC (exact
+-- SQLSTATE `42501`) -> restore -> allow, plus a discrimination half proving the denial goes RED
+-- when the RPC's own check is neutered. This file's row-12 skip is unchanged and still correct.
 select is(
   (select array_agg(distinct legacy_class order by legacy_class)
      from authz_differential_cells_staff where member_gate_arm <> 'none')::text,
@@ -415,8 +429,9 @@ select is(
          'rls_accreditation_frameworks_owner_null','rls_controlled_documents_approver',
          'rls_form_matrix_targeted_version','rls_profiles_comember_or_self'])::text,
   '7.1 the emitted arm-3 coordinate set is exactly TEN of the matrix § 5.3''s eleven rows, named — '
-  'row 12 (`cast_case_vote_guard`) is named-skipped here (a write guard, T12''s job) and is not '
-  'expected in this array.');
+  'row 12 (`cast_case_vote_guard`) is named-skipped here (a write guard, never executable in a '
+  'SELECT-count differential; its behavioural polarity lives at `425` §6, F2, 2026-09-15) and is '
+  'not expected in this array.');
 
 select * from finish();
 rollback;

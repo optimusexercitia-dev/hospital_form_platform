@@ -213,3 +213,30 @@ site's witness — withdrawals visible in a `commission_default` session, denied
 is therefore an **empty set, not a decision**: a probe against it today observes absence-of-data, not
 a grant/deny answer, and cannot be read as either polarity. Backend seeds one session with two items
 in T7. No fixture id proposed here — backend's call, in T7's own seed work.
+
+---
+
+## 10. 2026-09-15 addendum (external QA review F2, `425` §6, tester3) — row 12 (§ 6 above) verified: `case_decisions` is EMPTY system-wide
+
+**Row 12 was "NOT VERIFIED THIS ROUND" in § 6 above.** It now is: `select count(*) from
+public.case_decisions` = **0**, live-measured, system-wide, no commission filter — not a CCIH-only
+gap. `public.cast_case_vote`'s own first business check (`select case_id into v_case_id from
+public.case_decisions where id = p_decision_id; if v_case_id is null then raise ... 'decisão não
+encontrada' P0002`) can never be reached without one. `ethics_case_details` carries exactly **1**
+row system-wide (also live-measured) — so even the case side of the fixture is thin.
+
+**Not blocking `425` any further.** Rather than wait on a seed migration, `425` §6 (F2's behavioural
+grant-deletion probe for `cast_case_vote`) supplies its own **suite-internal** fixture via bare DML,
+inside its own transaction, rolled back at the file's end — never `supabase/seed.sql`: one CCIH case
+(`a5fc0000-…-f1`, `ethics_investigation`, `ethics_case_details` marked) and two decisions
+(`a5fc0000-…-f2`/`…-f3`), created by `chefe.ccih@test.local`, owned by CCIH's real organization. The
+member being probed, `staff4.ccih@test.local`, is a REAL, already-seeded CCIH `staff` — only the
+case/decisions are fixture-created, never a new principal or membership. This is the same idiom
+`254_ethics_e2_votes.sql` already uses for its own bootstrap fixture (a fully separate
+commission/members via `test_helpers.bootstrap()`); `425`'s version is narrower, reusing the real
+seeded CCIH commission and staff4.ccih's real membership rather than bootstrapping a parallel one.
+
+**Still recommended for backend, unchanged from § 6's original entry**: a PERMANENT `case_decisions`
+fixture in `seed.sql` (an ethics case + at least one open decision in CCIH) would let other suites
+reuse this scenario without each one re-deriving its own bare-DML workaround. `425` §6's fixture is
+scoped to its own transaction and does not close this gap for `seed.sql` itself — only for `425`.

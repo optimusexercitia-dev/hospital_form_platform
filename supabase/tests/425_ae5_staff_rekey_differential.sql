@@ -130,7 +130,9 @@
 -- this block is a target for step 4's author to check against, never a claim about today's stack.
 
 begin;
-select plan(21);
+-- 34 = the original 21 + 0.2b (F3 pin control, this round) + 12 in §6 (F2 behavioural
+-- grant-deletion probes + their discrimination half, this round).
+select plan(34);
 
 -- ============================================================================
 -- §0 — FIXTURES + PRECONDITIONS
@@ -151,31 +153,83 @@ grant select on f425 to authenticated;
 
 create temp table f425r on commit drop as
 select
-  (select id from public.meetings where commission_id = (select ccih_cid from f425) limit 1)              as meeting_id,
-  (select id from public.action_items where commission_id = (select ccih_cid from f425) limit 1)           as action_item_id,
-  (select id from public.cases where commission_id = (select ccih_cid from f425) limit 1)                  as case_id,
-  -- ⛔ MUST be `source = 'indicator'`: `app.can_read_capa` has THREE disjuncts (PQS-operator,
-  -- event-linked, and the indicator-sourced arm THIS suite's code, `commission.capa.read`,
-  -- actually gates — matches the manifest's own "the indicator-sourced arm" label). A capa
-  -- fixture with ANY other `source` (this hospital also seeds `rca` and `manual`) is reachable
-  -- via a DIFFERENT, code-independent disjunct and would never discriminate under this file's
-  -- deletion — measured live 2026-09-14 on the post-T7 catalog (`ca000000-…-a3`, `source='rca'`,
-  -- stayed `t`/`t`; `a5f70000-…-a1`, `source='indicator'`, correctly went `t`→`f`).
+  -- ⭐⭐ F3 HYGIENE PASS (2026-09-15, this round, external QA review F3) — every selection
+  -- below now carries an EXPLICIT business precondition (a predicate, an `order by` on a
+  -- seeded id, or a literal pin) reviewed against the SITE that actually consumes it (its
+  -- authorizer's own disjuncts), not merely "resolves to a real row". §2.0's own positive-
+  -- control assertion is the existing general safety net that would catch a wrong pick (it
+  -- DID, for `attendee_id`, before this fix: `not ok 11 — have 53, want 54` / `not ok 13`) —
+  -- this pass makes each reason explicit rather than relying on 2.0 to catch a regression
+  -- after the fact.
+  (select id from public.meetings where commission_id = (select ccih_cid from f425)
+     and visibility_policy = 'commission_default' order by id limit 1)                                    as meeting_id,
+  -- `visibility_policy='commission_default'` PINNED: `app.can_reach_meeting`'s own body is
+  -- `can_meetings_read(...) AND (visibility_policy='commission_default' OR is_attendee)` — an
+  -- AND, not a disjunct that bypasses the code, so ANY meeting still discriminates correctly
+  -- under the code's own deletion; this predicate only protects the BEFORE baseline (§2.0)
+  -- from picking CCIH's one `participants_only` meeting (of 9, live-measured this round)
+  -- where staff4.ccih is not an attendee, which would read as a false "not granted" for a
+  -- reason unrelated to the code.
+  (select id from public.action_items where commission_id = (select ccih_cid from f425)
+     and visibility_scope = 'committee' order by id limit 1)                                              as action_item_id,
+  -- ⭐⭐ GENUINE LANDMINE FOUND AND FIXED THIS ROUND (same shape as F3's own attendee bug,
+  -- live-measured, never present in a committed run because ties happened to break the safe
+  -- way — but never asserted, so a reseed could have flipped it silently). An unordered
+  -- `limit 1` over CCIH's 4 action_items could land on `a5f40000-…-a1`
+  -- (`visibility_scope='assignees_only'`, `assigned_to = staff4.ccih` DIRECTLY):
+  -- `app.can_read_action_item` then returns true via the ASSIGNEE disjunct
+  -- (`is_staff_admin_of_for(...) OR assigned_to = p_uid OR …`), a route that never consults
+  -- `commission.action_items.read` at all — the exact role-free-disjunct trap `f425w`
+  -- already fixes for the POLICY sibling `action_items_select`, but THIS value feeds the
+  -- DEFINER function `app.can_read_action_item`, a separate probe with no `f425w` guard of
+  -- its own. Pinning `visibility_scope='committee'` forces the ONLY code-gated branch
+  -- (`app.can_action_items_read(v_commission_id, p_uid)`); 2 of CCIH's 4 action_items
+  -- qualify (live-measured), so `order by id limit 1` is deterministic.
+  (select id from public.cases where commission_id = (select ccih_cid from f425) limit 1)                 as case_id,
+  -- ⛔ REVIEWED, LEFT UNCHANGED — `app._case_caps`'s S5/residual-arm complexity is this
+  -- file's own header block ("NAMED EXPECTATIONS FOR STEP 4"), which explicitly says "do not
+  -- implement... before the fixtures exist"; this round adds no such fixture. §2.0's own
+  -- positive control already passes for whatever case this resolves to today —
+  -- re-deriving `_case_caps`'s own dedicated fixture is step 4's job, not F3's.
   (select id from public.capa_plan where hospital_id = (select ccih_hospital_id from f425)
-     and source = 'indicator' limit 1)                                                                      as capa_id,
+     and source = 'indicator' order by id limit 1)                                                        as capa_id,
+  -- (unchanged: the `source='indicator'` predicate is the pre-existing, already-correct fix
+  -- from run-4; `order by` added only for determinism — only 1 such row exists today anyway.)
   (select cd.core_document_id from public.controlled_documents cd
-     where cd.commission_id = (select ccih_cid from f425) limit 1)                                          as document_core_id,
+     where cd.commission_id = (select ccih_cid from f425) order by cd.id limit 1)                         as document_core_id,
+  -- ⛔ DELIBERATELY approver-reachable (unchanged behaviour) — this file's own comment at the
+  -- `app.can_read_document` dispatch (§2) already documents that THIS id is the P1-survivor
+  -- witness's resource, never the primary `commission.documents.read` probe (which uses
+  -- `f425w.document_core_id_absent` instead). `order by` added only for determinism.
   (select cv.id from public.controlled_document_versions cv join public.controlled_documents d on d.id = cv.document_id
-     where d.commission_id = (select ccih_cid from f425) limit 1)                                           as document_version_id,
-  (select id from public.accreditation_frameworks limit 1)                                                  as framework_id,
-  (select id from public.indicators where commission_id = (select ccih_cid from f425) limit 1)              as indicator_id,
-  (select id from public.patient_safety_event where reporting_commission_id = (select ccih_cid from f425) limit 1) as event_id,
+     where d.commission_id = (select ccih_cid from f425) order by cv.id limit 1)                          as document_version_id,
+  -- `app.can_read_document_of_version` is a pure `can_documents_read(commission, uid)` call,
+  -- NO disjunct (confirmed live via `pg_get_functiondef`) — any CCIH version discriminates
+  -- correctly; `order by` added only for determinism.
+  (select id from public.indicators where commission_id = (select ccih_cid from f425) order by id limit 1) as indicator_id,
+  (select id from public.patient_safety_event where reporting_commission_id = (select ccih_cid from f425)
+     order by id limit 1)                                                                                  as event_id,
+  -- `app.can_read_event`'s other two disjuncts (`current_owner_commission_id`'s own grant, a
+  -- PQS operator of the event's hospital) don't apply to staff4.ccih on this stack
+  -- (live-confirmed: she holds no `nsp_coordinator`/`pqs_member` membership anywhere) —
+  -- `reporting_commission_id = ccih_cid` is the only disjunct she can reach, so any
+  -- CCIH-reported event discriminates correctly; `order by` added only for determinism.
   (select id from public.case_referral
      where source_commission_id = (select ccih_cid from f425) or target_commission_id = (select ccih_cid from f425)
-     limit 1)                                                                                                as referral_id,
-  (select ma.id from public.meeting_attendees ma join public.meetings mm on mm.id = ma.meeting_id
-     where mm.commission_id = (select ccih_cid from f425) and ma.user_id = (select staff_uid from f425)
-     limit 1)                                                                                                as attendee_id,
+     order by id limit 1)                                                                                  as referral_id,
+  -- CCIH is SOURCE on all 3 of its seeded referrals (live-measured; never target on this
+  -- stack), and neither `app.can_referrals_metadata_read` nor
+  -- `can_read_referral_internal_note{,s}` carries a status-gated disjunct on the source
+  -- side — any of the 3 discriminates correctly; `order by` added only for determinism.
+  -- ⭐⭐ F3 — THE CONFIRMED DEFECT, FIXED: pinned to the SEEDED signing fixture
+  -- (`seed.sql:3419`), never a `limit 1` again. Three attendee rows match staff4.ccih in
+  -- CCIH (live-measured this round, unchanged from the review's own table): `60c5e4ef-…`
+  -- (summoned/held), `9d7be371-…` (summoned/in_signature), and THIS one (present/
+  -- in_signature — the ONLY one `app.can_sign_meeting` can ever grant). 0.2b below asserts
+  -- its signer, commission, attendance and status BEFORE the differential runs, so a future
+  -- reseed that moves this id fails as a NAMED fixture assertion, never as a silent
+  -- authorization regression (the review's own F3 bound).
+  'a5f30000-0000-0000-0000-0000000000a2'::uuid                                                              as attendee_id,
   -- ⭐⭐ T13/L34 addendum, 2026-09-15 — the FOUR fixture-gap DEFINER sites re-pointed (F1: 425 was
   -- returning NULL for all four; the fixtures T7 seeded in `2dddd278` closed the gap, header +
   -- "Ten of 59" note corrected above/below). Both accreditation ids are derived relationally off
@@ -187,18 +241,18 @@ select
   (select s.id from public.accreditation_standards s
      join public.accreditation_frameworks f on f.id = s.framework_id
      where f.owner_commission_id = (select ccih_cid from f425)
-     limit 1)                                                                                                as accreditation_standard_id,
+     order by s.id limit 1)                                                                                as accreditation_standard_id,
   (select s.framework_id from public.accreditation_standards s
      join public.accreditation_frameworks f on f.id = s.framework_id
      where f.owner_commission_id = (select ccih_cid from f425)
-     limit 1)                                                                                                as accreditation_framework_id,
+     order by s.id limit 1)                                                                                as accreditation_framework_id,
   (select n.id from public.referral_internal_notes n
      where n.referral_id in (
        select cr.id from public.case_referral cr
         where cr.source_commission_id = (select ccih_cid from f425)
            or cr.target_commission_id = (select ccih_cid from f425)
      )
-     limit 1)                                                                                                as referral_internal_note_id;
+     order by n.id limit 1)                                                                                as referral_internal_note_id;
 
 grant select on f425r to authenticated;
 
@@ -247,14 +301,32 @@ select is((select count(*)::int from f425 where staff_uid is not null and ccih_c
 select is((select count(*)::int from f425r where
              meeting_id is not null and action_item_id is not null and case_id is not null
              and capa_id is not null and document_core_id is not null and document_version_id is not null
-             and framework_id is not null and indicator_id is not null and event_id is not null
-             and referral_id is not null and attendee_id is not null), 1,
+             and indicator_id is not null and event_id is not null
+             and referral_id is not null and attendee_id is not null
+             and accreditation_standard_id is not null and accreditation_framework_id is not null
+             and referral_internal_note_id is not null), 1,
   '0.2 FIXTURE CONTROL: every resource id this file probes resolved to a REAL CCIH row — none of '
-  'the 69 sites'' probes runs against a fabricated uuid. ⛔ `accreditation_standards` and '
-  '`referral_internal_notes` are DELIBERATELY ABSENT from this table: both are EMPTY on the '
-  'seeded stack (measured 2026-09-14; count(*) = 0 for each), which is a FIXTURE GAP, filed in '
-  '`docs/testing/ae5-staff-fixture-gaps.md`, not a suite defect — the 4 DEFINER functions needing '
-  'those ids are covered by §3''s static check only (header names them).');
+  'the 69 sites'' probes runs against a fabricated uuid. ⛔ The dead `framework_id` column (never '
+  'consumed by any dispatch — `accreditation_framework_id` is the one actually used, for '
+  '`readiness_report`) was REMOVED this round rather than left as an unchecked, unused selection. '
+  'The three L34/L36 columns (`accreditation_standard_id`, `accreditation_framework_id`, '
+  '`referral_internal_note_id`) are folded into this control for the first time — they were added '
+  'to `f425r` without ever joining 0.2''s own NULL sweep, a gap this pass closes too.');
+
+select is((
+  select ma.user_id = (select staff_uid from f425)
+     and mm.commission_id = (select ccih_cid from f425)
+     and ma.attendance = 'present'
+     and mm.status = 'in_signature'
+  from public.meeting_attendees ma join public.meetings mm on mm.id = ma.meeting_id
+  where ma.id = (select attendee_id from f425r)
+), true,
+  '0.2b ⭐⭐ F3 PIN CONTROL: the pinned attendee (`a5f30000-…-a2`) is staff4.ccih''s OWN row, on a '
+  'CCIH meeting, PRESENT, `in_signature` — the exact four preconditions `app.can_sign_meeting` '
+  'requires. A future reseed that moves or retypes this id now fails HERE, as a named fixture '
+  'assertion, never silently as an authorization regression read off §2/§3''s aggregate counts '
+  '(the review''s own F3 bound: "a routine scoped re-run can report an authorization regression '
+  'because it selected unrelated test data").');
 
 select is((select state::text from authz.roles where code = 'staff'), 'authoritative',
   '0.3 PRECONDITION: `staff` is `authoritative` (T6, `31b73837`) — the grant rows this file '
@@ -946,13 +1018,20 @@ select is((select count(*)::int from (values
   '`readiness_report`, `can_read_referral_internal_note`) are NOW ALSO live-probed (header + §2 '
   'above) — kept here too, redundantly but harmlessly, since the CALLING function''s own body '
   'never embeds the code literal either way (it calls `app.can_accreditation_read`/`app.can_'
-  'referrals_metadata_read`, which DO — a different `p_fn`, never asserted by this row). Only the '
-  '4 volatile writers still lack live coverage entirely.');
+  'referrals_metadata_read`, which DO — a different `p_fn`, never asserted by this row). '
+  '⭐⭐ RE-DERIVED 2026-09-15 (F2, this round) — "lack live coverage entirely" is no longer true '
+  'of these 4: §6 below calls each one for real, through its actual write door, with the grant '
+  'present and absent (exact SQLSTATE both ways) — a BEHAVIOURAL live probe, distinct in kind '
+  'from §2''s SELECT-count differential (which still cannot run against a write RPC without '
+  'mutating). This §5.1 literal-absence check stays as a second, independent, non-mutating proof '
+  'that the code is never hardcoded in the CALLING function''s own body either.');
 
 select ok(not pg_temp.body_mentions_code('public.sign_meeting', 'commission.meetings.minutes.sign'),
-  '5.2 `public.sign_meeting` also does not consult its own code as a literal — the live half '
-  '(2.6f-style pair) is NOT attempted here because it WRITES (`provolatile = ''v''`); this is its '
-  'static-only coverage.');
+  '5.2 `public.sign_meeting` also does not consult its own code as a literal — the live '
+  'DIFFERENTIAL (2.6f-style SELECT-count pair) is NOT attempted here because it WRITES '
+  '(`provolatile = ''v''`); §6 below is its live BEHAVIOURAL coverage instead (F2, this round), '
+  'exercised through the real RPC and the real `meeting_signatures_insert` policy — this '
+  'assertion remains its static-only, non-mutating literal-absence proof.');
 
 select is((select count(*)::int from pg_temp.f425_results where phase in ('before','after','restored') and sig is null and kind in ('function','registry')),
   (select count(*)::int from f425_sites where kind in ('function','registry') and site in (
@@ -965,7 +1044,532 @@ select is((select count(*)::int from pg_temp.f425_results where phase in ('befor
   '⭐⭐ RE-DERIVED 2026-09-15 (L34, F1): was 9 (×3=27) before the fixture gap closed; '
   '`get_standard_assessment`/`readiness_evidence`/`readiness_report`/`can_read_referral_internal_'
   'note` moved OUT of the NULL-returning set (header + §2 above) and into live probing, leaving '
-  'only the 5 volatile writers (×3=15) still short-circuited to NULL.');
+  'only the 5 volatile writers (×3=15) still short-circuited to NULL HERE — §6 below is where '
+  'their live coverage now lives (F2, this round), through the real door, never through '
+  '`pg_temp.site_signature`''s SELECT-count shape.');
+
+-- ============================================================================
+-- §6 — F2: BEHAVIOURAL GRANT-DELETION PROBES for the seven write-path sites §2/§3 could
+-- not exercise as a SELECT `count(*)` probe: two INSERT/WITH-CHECK policies
+-- (`responses_insert_own`, `meeting_signatures_insert`) and five DEFINER writers
+-- (`cast_case_vote`, `create_referral_internal_note`, `notify_safety_event`,
+-- `get_referral_case_access_summary`, `sign_meeting`). External QA review F2
+-- (`docs/reviews/ae5-staff-review.md`): §5's static absence-of-literal check proves the
+-- code is not hardcoded in the caller — it proves NOTHING about whether the caller
+-- actually ENFORCES the callee's answer. This section is the missing behavioural half:
+-- allow (grant present) -> DELETE the ONE role_permissions row governing the site -> deny
+-- through the REAL door with its EXACT SQLSTATE -> RESTORE -> allow again — for each site,
+-- on a target the SAME operation cannot re-use to fake a denial (a duplicate vote/
+-- signature raises a DIFFERENT code, never confused with 42501/HC036 here) — PLUS a
+-- discrimination half proving each denial assertion is capable of going RED (LESSONS.md:
+-- "a negative control cannot see a dead instrument").
+--
+-- Fixture note (report to the lead, `docs/testing/ae5-staff-fixture-gaps.md` § 10): seed.sql
+-- carries ZERO `case_decisions` rows anywhere on this stack (live-measured this round,
+-- `select count(*) from public.case_decisions` = 0) — a genuine, pre-existing fixture gap
+-- (already flagged, unresolved, as row 12 of that doc's § 6). `cast_case_vote`'s own first
+-- business check (`decisão não encontrada`, P0002) can never be reached without one, so §6.0
+-- below supplies a self-contained fixture (one ethics-typed CCIH case + two decisions) via
+-- bare DML in THIS suite's own transaction — never `seed.sql`, same idiom `254_ethics_e2_
+-- votes.sql` already uses for its own bootstrap fixture, and the same "bare DML, proven
+-- landed, never a SAVEPOINT" discipline this file's own header already commits to.
+-- ============================================================================
+
+-- ---------------------------------------------------------------------------
+-- §6.0 — the `cast_case_vote` fixture: a CCIH ethics case + two decisions, via bare DML
+-- (this suite's own transaction; `staff4.ccih` is a REAL, already-seeded CCIH member —
+-- only the case/decisions are fixture-created, never a new principal or membership).
+-- ---------------------------------------------------------------------------
+
+insert into public.cases
+  (id, commission_id, case_number, created_by, organization_id, visibility_policy, confidentiality_level)
+values
+  ('a5fc0000-0000-0000-0000-0000000000f1', (select ccih_cid from f425), 701,
+   (select p.id from public.profiles p where p.email = 'chefe.ccih@test.local'),
+   (select c.organization_id from public.commissions c where c.id = (select ccih_cid from f425)),
+   'commission_default', 'ethics_investigation');
+
+insert into public.ethics_case_details (case_id) values ('a5fc0000-0000-0000-0000-0000000000f1');
+
+insert into public.case_decisions (id, case_id, decision_type, summary_md, status) values
+  ('a5fc0000-0000-0000-0000-0000000000f2', 'a5fc0000-0000-0000-0000-0000000000f1', 'ethics_ruling',
+   'F2 §6 fixture decision A (the BEFORE-phase target).', 'proposed'),
+  ('a5fc0000-0000-0000-0000-0000000000f3', 'a5fc0000-0000-0000-0000-0000000000f1', 'ethics_ruling',
+   'F2 §6 fixture decision B (the deny/restore/discrimination-cycle target).', 'proposed');
+
+select is((select count(*)::int from public.case_decisions where case_id = 'a5fc0000-0000-0000-0000-0000000000f1'), 2,
+  '6.0 FIXTURE CONTROL: the §6.0 ethics-case fixture landed — exactly 2 decisions, on a case '
+  'the CATALOG (not this suite'' own say-so) confirms staff4.ccih can vote on cleanly (0.0b '
+  'below), never a third, fourth, or zero.');
+
+select ok(
+  not app.is_recused_from_case('a5fc0000-0000-0000-0000-0000000000f1', (select staff_uid from f425))
+  and not app.is_case_respondent('a5fc0000-0000-0000-0000-0000000000f1', (select staff_uid from f425))
+  and (select count(*)::int from public.ethics_case_details where case_id = 'a5fc0000-0000-0000-0000-0000000000f1') = 1,
+  '6.0b FIXTURE CONTROL: staff4.ccih is CLEAN on the fixture case (not recused, not '
+  'respondent — both structurally guaranteed by construction, since no `case_recusals`/'
+  '`ethics_allegations` row can reference an id that did not exist before this transaction, '
+  'but asserted rather than assumed) and the case is genuinely ethics-typed — so `cast_case_'
+  'vote`''s (c) and (e) checks pass regardless of the (d) authority check §6 exists to probe, '
+  'making the grant the ONLY variable.');
+
+-- ---------------------------------------------------------------------------
+-- §6.1-6.5 — the structural cycle, all seven sites, driven off one dispatch table.
+-- ---------------------------------------------------------------------------
+
+create temp table f425_f2_sites (site text, code text, expected_sqlstate text, target_before text, target_cycle text) on commit drop;
+insert into f425_f2_sites (site, code, expected_sqlstate, target_before, target_cycle) values
+  ('cast_case_vote', 'commission.cases.vote', '42501',
+   'a5fc0000-0000-0000-0000-0000000000f2', 'a5fc0000-0000-0000-0000-0000000000f3'),
+  -- `create_referral_internal_note`/`notify_safety_event`/`get_referral_case_access_summary`
+  -- carry NO uniqueness constraint on their target (a fresh note/event row every call; the
+  -- read-only summary has none at all) — `target_before`/`target_cycle` are unused (the
+  -- dispatch function below resolves `f425r`/`f425` directly), kept NULL rather than a
+  -- placeholder id that would silently look load-bearing.
+  ('create_referral_internal_note', 'commission.referrals.notes.author', '42501', null, null),
+  ('notify_safety_event', 'commission.safety_events.report', '42501', null, null),
+  ('get_referral_case_access_summary', 'commission.referrals.metadata.read', '42501', null, null),
+  -- `sign_meeting` and `meeting_signatures_insert` share ONE seeded eligible attendee
+  -- (`a5f30000-…-a2` — the SAME F3-pinned fixture; live-measured this round, it is the ONLY
+  -- present/`in_signature`/unsigned attendee row for staff4.ccih anywhere on the stack under
+  -- role `staff` — a genuine scarcity, not a suite shortcut). `pg_temp.f2_cleanup` below
+  -- deletes the signature (and, for the RPC path, reverts the meeting''s auto-flipped status)
+  -- between every use, so the SAME row is safe to reuse sequentially — never concurrently,
+  -- never across sites without an intervening cleanup, both of which this file''s own linear
+  -- `do` block already guarantees.
+  ('sign_meeting', 'commission.meetings.minutes.sign', 'HC036',
+   'a5f30000-0000-0000-0000-0000000000a2', 'a5f30000-0000-0000-0000-0000000000a2'),
+  ('meeting_signatures_insert', 'commission.meetings.minutes.sign', '42501',
+   'a5f30000-0000-0000-0000-0000000000a2', 'a5f30000-0000-0000-0000-0000000000a2'),
+  -- `responses_insert_own`: Rule 3's "one `in_progress` draft per user/version" partial
+  -- unique index means the SAME form_version is only reusable if the prior draft is deleted
+  -- first — `pg_temp.f2_cleanup` does exactly that via the table''s own `responses_delete_
+  -- own_draft` policy (self, `in_progress` only), never a superuser bypass of RLS on the
+  -- CLEANUP path either.
+  ('responses_insert_own', 'commission.responses.create', '42501',
+   '50000000-0000-0000-0000-00000000a001', '50000000-0000-0000-0000-00000000a001');
+grant select on f425_f2_sites to authenticated;
+
+select is((select count(*)::int from f425_f2_sites), 7,
+  '6.1a THE DECLARED F2 SITE COUNT: exactly seven, matching the review''s own list '
+  '(`docs/reviews/ae5-staff-review.md` F2) — two INSERT policies + five DEFINER writers.');
+
+-- The dispatch function attempts ONE write operation for ONE site and returns its outcome
+-- as text: `OK:<returned identifier>` (a genuine row landed — the identifier is `RETURNING`-
+-- captured or the function''s own `.id`, never merely "no exception was raised") or
+-- `RAISE:<sqlstate>` (trapped, never left to abort the whole file — same discipline as
+-- `pg_temp.site_signature`''s own trap in §2).
+create or replace function pg_temp.f2_attempt(p_site text, p_target text)
+returns text language plpgsql as $f2a$
+declare
+  v_result text;
+  v_sqlstate text;
+  v_uid uuid := (select staff_uid from f425);
+  v_cid uuid := (select ccih_cid from f425);
+  v_id uuid;
+  v_jsonb jsonb;
+begin
+  begin
+    case p_site
+      when 'cast_case_vote' then
+        select public.cast_case_vote(p_target::uuid, 'approve', 'F2 §6 probe vote') into v_id;
+        v_result := 'OK:' || v_id::text;
+      when 'create_referral_internal_note' then
+        select (public.create_referral_internal_note((select referral_id from f425r), v_cid,
+                  'F2 §6 probe note body.')).id into v_id;
+        v_result := 'OK:' || v_id::text;
+      when 'notify_safety_event' then
+        select (public.notify_safety_event(v_cid, 'F2 §6 probe event')).id into v_id;
+        v_result := 'OK:' || v_id::text;
+      when 'get_referral_case_access_summary' then
+        select public.get_referral_case_access_summary((select referral_id from f425r), v_cid) into v_jsonb;
+        v_result := 'OK:' || coalesce(v_jsonb->>'case_id', 'null');
+      when 'sign_meeting' then
+        select (public.sign_meeting(p_target::uuid, 'internal_eauth', 'F2 §6 probe')).id into v_id;
+        v_result := 'OK:' || v_id::text;
+      when 'meeting_signatures_insert' then
+        -- The direct-INSERT door (invoker path), never the RPC — `sign_meeting` is
+        -- SECURITY DEFINER and bypasses this table''s own RLS entirely (its own body says
+        -- so), so this is the ONLY way to exercise `meeting_signatures_insert`''s own
+        -- `with_check` as the actual member, not the function owner.
+        insert into public.meeting_signatures (meeting_id, attendee_id, signer_id, method, status, content_hash, note)
+        values ((select meeting_id from public.meeting_attendees where id = p_target::uuid), p_target::uuid,
+                v_uid, 'internal_eauth', 'signed', 'f2probehash', 'F2 §6 probe direct insert')
+        returning id into v_id;
+        v_result := 'OK:' || v_id::text;
+      when 'responses_insert_own' then
+        insert into public.responses (form_version_id, commission_id, created_by)
+        values (p_target::uuid, v_cid, v_uid)
+        returning id into v_id;
+        v_result := 'OK:' || v_id::text;
+      else
+        raise exception 'pg_temp.f2_attempt: unhandled site %', p_site;
+    end case;
+  exception when others then
+    get stacked diagnostics v_sqlstate = returned_sqlstate;
+    v_result := 'RAISE:' || v_sqlstate;
+  end;
+  return v_result;
+end;
+$f2a$;
+
+grant execute on function pg_temp.f2_attempt(text, text) to authenticated;
+
+-- Resets a site''s consumed target back to "virgin" between phases (bare DML, superuser —
+-- the SAME idiom this file already uses for `authz.role_permissions` itself). A no-op for
+-- the three sites with no uniqueness constraint.
+create or replace function pg_temp.f2_cleanup(p_site text, p_target text) returns void
+language plpgsql as $f2c$
+begin
+  case p_site
+    when 'cast_case_vote' then
+      delete from public.case_votes where decision_id = p_target::uuid and voter_id = (select staff_uid from f425);
+    when 'meeting_signatures_insert' then
+      delete from public.meeting_signatures where attendee_id = p_target::uuid;
+    when 'sign_meeting' then
+      delete from public.meeting_signatures where attendee_id = p_target::uuid;
+      -- The auto-flip inside `sign_meeting` (required=1 for THIS attendee''s meeting —
+      -- live-measured) advances status to ''signed''; `app.guard_meeting_status` only
+      -- allows ''signed''->''distributed''/''held'' (never straight back to ''in_signature''),
+      -- so the revert goes through the SAME two-hop path the guard''s own transition graph
+      -- allows, under the RPC flag the guard itself checks (`app.in_meeting_rpc`) — never a
+      -- direct UPDATE the guard would reject with `check_violation`.
+      perform set_config('app.in_meeting_rpc', 'on', true);
+      update public.meetings set status = 'held'
+       where id = (select meeting_id from public.meeting_attendees where id = p_target::uuid) and status = 'signed';
+      update public.meetings set status = 'in_signature'
+       where id = (select meeting_id from public.meeting_attendees where id = p_target::uuid) and status = 'held';
+      perform set_config('app.in_meeting_rpc', 'off', true);
+    when 'responses_insert_own' then
+      delete from public.responses
+       where form_version_id = p_target::uuid and created_by = (select staff_uid from f425) and status = 'in_progress';
+    else
+      null;
+  end case;
+end;
+$f2c$;
+
+create table pg_temp.f425_f2_results (site text, phase text, result text) on commit drop;
+grant select, insert on pg_temp.f425_f2_results to authenticated;
+
+do $$
+declare
+  v_site record;
+  v_del int; v_ins int;
+  v_r text;
+begin
+  for v_site in select * from f425_f2_sites order by site loop
+    -- BEFORE: grant present, the operation must SUCCEED as staff4.ccih.
+    perform test_helpers.reset_role_and_claims();
+    perform test_helpers.claims_for((select staff_uid from f425), false, 'staff');
+    set local role authenticated;
+    v_r := pg_temp.f2_attempt(v_site.site, v_site.target_before);
+    reset role;
+    insert into pg_temp.f425_f2_results values (v_site.site, 'before', v_r);
+    perform pg_temp.f2_cleanup(v_site.site, v_site.target_before);
+
+    -- DELETE the ONE role_permissions row governing this site''s code.
+    delete from authz.role_permissions where role_code = 'staff' and permission_code = v_site.code;
+    get diagnostics v_del = row_count;
+    insert into pg_temp.f425_f2_results values (v_site.site, 'grant_deleted_count', v_del::text);
+
+    -- DENIED: the SAME operation, through the REAL door, on a target this SAME site has
+    -- never touched before (never the `target_before` row) — so a unique-violation state
+    -- guard (HC0J4/HC035) can never be mistaken for the authority denial this asserts.
+    perform test_helpers.reset_role_and_claims();
+    perform test_helpers.claims_for((select staff_uid from f425), false, 'staff');
+    set local role authenticated;
+    v_r := pg_temp.f2_attempt(v_site.site, v_site.target_cycle);
+    reset role;
+    insert into pg_temp.f425_f2_results values (v_site.site, 'denied', v_r);
+    perform pg_temp.f2_cleanup(v_site.site, v_site.target_cycle);  -- no-op unless the denial wrongly landed a row
+
+    -- RESTORE.
+    insert into authz.role_permissions (role_code, permission_code) values ('staff', v_site.code);
+    get diagnostics v_ins = row_count;
+    insert into pg_temp.f425_f2_results values (v_site.site, 'grant_restored_count', v_ins::text);
+
+    -- AFTER: the SAME operation SUCCEEDS again, on the now-cleaned `target_cycle` row.
+    perform test_helpers.reset_role_and_claims();
+    perform test_helpers.claims_for((select staff_uid from f425), false, 'staff');
+    set local role authenticated;
+    v_r := pg_temp.f2_attempt(v_site.site, v_site.target_cycle);
+    reset role;
+    insert into pg_temp.f425_f2_results values (v_site.site, 'after', v_r);
+    perform pg_temp.f2_cleanup(v_site.site, v_site.target_cycle);
+  end loop;
+end $$;
+
+select is((select count(*)::int from pg_temp.f425_f2_results where phase = 'before' and result like 'OK:%'), 7,
+  '6.1 BEFORE: all seven sites'' operation SUCCEEDED as staff4.ccih with the grant present — '
+  'each `OK:<id>` a genuine `RETURNING`/`.id`-captured identifier, not merely "raised nothing".');
+
+select is((select count(*)::int from pg_temp.f425_f2_results where phase = 'grant_deleted_count' and result = '1'), 7,
+  '6.2 the mutation landed at all seven sites'' governing code — one row deleted each time, '
+  'asserted, never assumed (same discipline as §2.1 / 409 §2.7 / 424 §6.1).');
+
+select is((
+  select count(*)::int from pg_temp.f425_f2_results r join f425_f2_sites s using (site)
+   where r.phase = 'denied' and r.result = 'RAISE:' || s.expected_sqlstate
+), 7,
+  '6.3 ⭐⭐ DENIED: all seven sites refused the SAME operation through the REAL door once the '
+  'grant was gone, each with its OWN expected SQLSTATE — 42501 for six sites, `HC036` for '
+  '`sign_meeting` (its own explicit re-check, since it is SECURITY DEFINER and bypasses the '
+  'table''s RLS entirely, raises a DIFFERENT code than the direct-insert policy path does for '
+  'the SAME underlying grant). Never a generic catch-all, and never confused with a state '
+  'guard (`HC0J4` double-vote, `HC035` double-sign) firing on a reused target, since every '
+  'denial target above is a target this site has never touched before this cycle.');
+
+select is((select count(*)::int from pg_temp.f425_f2_results where phase = 'grant_restored_count' and result = '1'), 7,
+  '6.4 the restore INSERT landed exactly once per site, all seven.');
+
+select is((select count(*)::int from pg_temp.f425_f2_results where phase = 'after' and result like 'OK:%'), 7,
+  '6.5 AFTER: all seven sites'' operation SUCCEEDED AGAIN once the grant was restored — the '
+  'full allow -> deny -> allow cycle, proven through the real door on real fixture rows, '
+  'never a static literal check standing in for enforcement.');
+
+-- ---------------------------------------------------------------------------
+-- §6.6 — THE DISCRIMINATION HALF. Each denial assertion above must be able to go RED, or
+-- it proves nothing (LESSONS.md: "a negative control cannot see a dead instrument"). For
+-- each site, its OWN authority check is neutered (`X` -> `false and X`, the identical
+-- minimal-diff idiom the external reviewer used to demonstrate F2 in the first place —
+-- `docs/reviews/ae5-staff-review.md`'s own "Mutation witness") INSIDE this suite's own
+-- transaction — never a SAVEPOINT (which would discard the pgTAP assertions already
+-- recorded above it, LESSONS.md), but plain DDL, which IS transactional and is undone by
+-- this file's own trailing `rollback;` — the exact idiom 424 §6's own
+-- `authz.candidate_has_permission` fail-proof already uses on a live catalog function.
+-- The grant is deleted AGAIN and the SAME operation is attempted on a target §6.1-6.5 has
+-- already cleaned: with the check neutered, it now WRONGLY SUCCEEDS. The function/policy
+-- is restored via its ORIGINAL definition CAPTURED LIVE at the top of each site's cycle
+-- (`pg_get_functiondef`/`pg_policies.with_check`), never hand-retyped — "migration file
+-- text is stale, read pg_proc" (LESSONS.md).
+-- ---------------------------------------------------------------------------
+
+create table pg_temp.f425_f2_disc (site text, step text, ok boolean, detail text) on commit drop;
+grant select, insert on pg_temp.f425_f2_disc to authenticated;
+
+do $$
+declare
+  v_orig text; v_neutered text; v_r text; v_check boolean;
+  v_orig_check text; v_neutered_check text;
+  v_orig_rd text;
+begin
+  -- ---- cast_case_vote ----
+  v_orig := pg_get_functiondef('public.cast_case_vote'::regproc);
+  v_neutered := replace(v_orig,
+    'if not app.can_cases_vote(v_commission, auth.uid()) then',
+    'if false and not app.can_cases_vote(v_commission, auth.uid()) then');
+  insert into pg_temp.f425_f2_disc values ('cast_case_vote', 'operands_differ', v_neutered is distinct from v_orig, null);
+  execute v_neutered;
+  select count(*) = 1 into v_check from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.proname = 'cast_case_vote'
+     and position('if false and not app.can_cases_vote' in p.prosrc) > 0;
+  insert into pg_temp.f425_f2_disc values ('cast_case_vote', 'neutered_applied', v_check, null);
+
+  delete from authz.role_permissions where role_code = 'staff' and permission_code = 'commission.cases.vote';
+  perform test_helpers.reset_role_and_claims();
+  perform test_helpers.claims_for((select staff_uid from f425), false, 'staff');
+  set local role authenticated;
+  v_r := pg_temp.f2_attempt('cast_case_vote', 'a5fc0000-0000-0000-0000-0000000000f3');
+  reset role;
+  insert into pg_temp.f425_f2_disc values ('cast_case_vote', 'goes_red', v_r like 'OK:%', v_r);
+  perform pg_temp.f2_cleanup('cast_case_vote', 'a5fc0000-0000-0000-0000-0000000000f3');
+  insert into authz.role_permissions (role_code, permission_code) values ('staff', 'commission.cases.vote');
+
+  execute v_orig;
+  select (pg_get_functiondef('public.cast_case_vote'::regproc) = v_orig) into v_check;
+  insert into pg_temp.f425_f2_disc values ('cast_case_vote', 'restored', v_check, null);
+
+  -- ---- create_referral_internal_note ----
+  v_orig := pg_get_functiondef('public.create_referral_internal_note'::regproc);
+  v_neutered := replace(v_orig,
+    'not app.can_referrals_notes_author(p_committee_id, auth.uid())',
+    '(false and not app.can_referrals_notes_author(p_committee_id, auth.uid()))');
+  insert into pg_temp.f425_f2_disc values ('create_referral_internal_note', 'operands_differ', v_neutered is distinct from v_orig, null);
+  execute v_neutered;
+  select count(*) = 1 into v_check from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.proname = 'create_referral_internal_note'
+     and position('(false and not app.can_referrals_notes_author(p_committee_id, auth.uid()))' in p.prosrc) > 0;
+  insert into pg_temp.f425_f2_disc values ('create_referral_internal_note', 'neutered_applied', v_check, null);
+
+  delete from authz.role_permissions where role_code = 'staff' and permission_code = 'commission.referrals.notes.author';
+  perform test_helpers.reset_role_and_claims();
+  perform test_helpers.claims_for((select staff_uid from f425), false, 'staff');
+  set local role authenticated;
+  v_r := pg_temp.f2_attempt('create_referral_internal_note', null);
+  reset role;
+  insert into pg_temp.f425_f2_disc values ('create_referral_internal_note', 'goes_red', v_r like 'OK:%', v_r);
+  insert into authz.role_permissions (role_code, permission_code) values ('staff', 'commission.referrals.notes.author');
+
+  execute v_orig;
+  select (pg_get_functiondef('public.create_referral_internal_note'::regproc) = v_orig) into v_check;
+  insert into pg_temp.f425_f2_disc values ('create_referral_internal_note', 'restored', v_check, null);
+
+  -- ---- notify_safety_event ----
+  v_orig := pg_get_functiondef('public.notify_safety_event'::regproc);
+  v_neutered := replace(v_orig,
+    'not (app.can_safety_events_report(p_reporting_commission_id, (select auth.uid())))',
+    '(false and not (app.can_safety_events_report(p_reporting_commission_id, (select auth.uid()))))');
+  insert into pg_temp.f425_f2_disc values ('notify_safety_event', 'operands_differ', v_neutered is distinct from v_orig, null);
+  execute v_neutered;
+  select count(*) = 1 into v_check from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.proname = 'notify_safety_event'
+     and position('(false and not (app.can_safety_events_report' in p.prosrc) > 0;
+  insert into pg_temp.f425_f2_disc values ('notify_safety_event', 'neutered_applied', v_check, null);
+
+  delete from authz.role_permissions where role_code = 'staff' and permission_code = 'commission.safety_events.report';
+  perform test_helpers.reset_role_and_claims();
+  perform test_helpers.claims_for((select staff_uid from f425), false, 'staff');
+  set local role authenticated;
+  v_r := pg_temp.f2_attempt('notify_safety_event', null);
+  reset role;
+  insert into pg_temp.f425_f2_disc values ('notify_safety_event', 'goes_red', v_r like 'OK:%', v_r);
+  insert into authz.role_permissions (role_code, permission_code) values ('staff', 'commission.safety_events.report');
+
+  execute v_orig;
+  select (pg_get_functiondef('public.notify_safety_event'::regproc) = v_orig) into v_check;
+  insert into pg_temp.f425_f2_disc values ('notify_safety_event', 'restored', v_check, null);
+
+  -- ---- get_referral_case_access_summary ----
+  -- ⭐⭐ THREE call sites, not one, share this code's downstream reach for THIS specific
+  -- probe: (1) the RPC's own authority IF (neutered below), and its own closing
+  -- `log_audit_access('referral.case_access_summary_viewed', ...)` call, which (2)
+  -- re-enforces via `app._audit_access_authorized`'s OWN arm for that action
+  -- (`is_member_of_for(...) AND can_read_referral(...)` — a SEPARATE, already live-
+  -- differentially-tested `f425_sites` row, `registry` kind), which itself calls (3)
+  -- `app.can_read_referral` -> `can_read_referral_metadata`'s source-side disjunct, the
+  -- SAME code again. Neutering only (1) still correctly denies via (2)/(3) — a genuine
+  -- defence-in-depth finding, not a suite bug — so THIS discrimination-half additionally
+  -- neuters `app.can_read_referral` (shared by both (1) and (2)) to isolate (1)'s own
+  -- check as the question being asked; it is restored alongside (1) below.
+  v_orig_rd := pg_get_functiondef('app.can_read_referral'::regproc);
+  execute replace(v_orig_rd, 'select app.can_read_referral_metadata(p_referral_id, p_uid);', 'select true;');
+
+  v_orig := pg_get_functiondef('public.get_referral_case_access_summary'::regproc);
+  v_neutered := replace(replace(v_orig,
+    'not app.can_referrals_metadata_read(p_commission_id, auth.uid())',
+    '(false and not app.can_referrals_metadata_read(p_commission_id, auth.uid()))'),
+    'not app.can_read_referral(p_referral_id, auth.uid())',
+    '(false and not app.can_read_referral(p_referral_id, auth.uid()))');
+  insert into pg_temp.f425_f2_disc values ('get_referral_case_access_summary', 'operands_differ', v_neutered is distinct from v_orig, null);
+  execute v_neutered;
+  select count(*) = 1 into v_check from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.proname = 'get_referral_case_access_summary'
+     and position('(false and not app.can_referrals_metadata_read' in p.prosrc) > 0;
+  insert into pg_temp.f425_f2_disc values ('get_referral_case_access_summary', 'neutered_applied', v_check, null);
+
+  delete from authz.role_permissions where role_code = 'staff' and permission_code = 'commission.referrals.metadata.read';
+  perform test_helpers.reset_role_and_claims();
+  perform test_helpers.claims_for((select staff_uid from f425), false, 'staff');
+  set local role authenticated;
+  v_r := pg_temp.f2_attempt('get_referral_case_access_summary', null);
+  reset role;
+  insert into pg_temp.f425_f2_disc values ('get_referral_case_access_summary', 'goes_red', v_r like 'OK:%', v_r);
+  insert into authz.role_permissions (role_code, permission_code) values ('staff', 'commission.referrals.metadata.read');
+
+  execute v_orig;
+  execute v_orig_rd;
+  select (pg_get_functiondef('public.get_referral_case_access_summary'::regproc) = v_orig
+          and pg_get_functiondef('app.can_read_referral'::regproc) = v_orig_rd) into v_check;
+  insert into pg_temp.f425_f2_disc values ('get_referral_case_access_summary', 'restored', v_check, null);
+
+  -- ---- sign_meeting ----
+  v_orig := pg_get_functiondef('public.sign_meeting'::regproc);
+  v_neutered := replace(v_orig,
+    'if not app.can_sign_meeting(p_attendee_id, v_uid) then',
+    'if false and not app.can_sign_meeting(p_attendee_id, v_uid) then');
+  insert into pg_temp.f425_f2_disc values ('sign_meeting', 'operands_differ', v_neutered is distinct from v_orig, null);
+  execute v_neutered;
+  select count(*) = 1 into v_check from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.proname = 'sign_meeting' and position('if false and not app.can_sign_meeting' in p.prosrc) > 0;
+  insert into pg_temp.f425_f2_disc values ('sign_meeting', 'neutered_applied', v_check, null);
+
+  delete from authz.role_permissions where role_code = 'staff' and permission_code = 'commission.meetings.minutes.sign';
+  perform test_helpers.reset_role_and_claims();
+  perform test_helpers.claims_for((select staff_uid from f425), false, 'staff');
+  set local role authenticated;
+  v_r := pg_temp.f2_attempt('sign_meeting', 'a5f30000-0000-0000-0000-0000000000a2');
+  reset role;
+  insert into pg_temp.f425_f2_disc values ('sign_meeting', 'goes_red', v_r like 'OK:%', v_r);
+  perform pg_temp.f2_cleanup('sign_meeting', 'a5f30000-0000-0000-0000-0000000000a2');
+  insert into authz.role_permissions (role_code, permission_code) values ('staff', 'commission.meetings.minutes.sign');
+
+  execute v_orig;
+  select (pg_get_functiondef('public.sign_meeting'::regproc) = v_orig) into v_check;
+  insert into pg_temp.f425_f2_disc values ('sign_meeting', 'restored', v_check, null);
+
+  -- ---- meeting_signatures_insert (POLICY — captured/restored live, never hand-retyped) ----
+  select with_check into v_orig_check from pg_policies
+   where schemaname = 'public' and tablename = 'meeting_signatures' and policyname = 'meeting_signatures_insert';
+  v_neutered_check := replace(v_orig_check,
+    ' AND app.can_sign_meeting(attendee_id, ( SELECT auth.uid() AS uid))', '');
+  insert into pg_temp.f425_f2_disc values ('meeting_signatures_insert', 'operands_differ', v_neutered_check is distinct from v_orig_check, v_neutered_check);
+  execute format('alter policy meeting_signatures_insert on public.meeting_signatures with check (%s)', v_neutered_check);
+  select with_check not like '%can_sign_meeting%' into v_check from pg_policies
+   where schemaname = 'public' and tablename = 'meeting_signatures' and policyname = 'meeting_signatures_insert';
+  insert into pg_temp.f425_f2_disc values ('meeting_signatures_insert', 'neutered_applied', v_check, null);
+
+  delete from authz.role_permissions where role_code = 'staff' and permission_code = 'commission.meetings.minutes.sign';
+  perform test_helpers.reset_role_and_claims();
+  perform test_helpers.claims_for((select staff_uid from f425), false, 'staff');
+  set local role authenticated;
+  v_r := pg_temp.f2_attempt('meeting_signatures_insert', 'a5f30000-0000-0000-0000-0000000000a2');
+  reset role;
+  insert into pg_temp.f425_f2_disc values ('meeting_signatures_insert', 'goes_red', v_r like 'OK:%', v_r);
+  perform pg_temp.f2_cleanup('meeting_signatures_insert', 'a5f30000-0000-0000-0000-0000000000a2');
+  insert into authz.role_permissions (role_code, permission_code) values ('staff', 'commission.meetings.minutes.sign');
+
+  execute format('alter policy meeting_signatures_insert on public.meeting_signatures with check (%s)', v_orig_check);
+  select (with_check = v_orig_check) into v_check from pg_policies
+   where schemaname = 'public' and tablename = 'meeting_signatures' and policyname = 'meeting_signatures_insert';
+  insert into pg_temp.f425_f2_disc values ('meeting_signatures_insert', 'restored', v_check, null);
+
+  -- ---- responses_insert_own (POLICY — captured/restored live, never hand-retyped) ----
+  select with_check into v_orig_check from pg_policies
+   where schemaname = 'public' and tablename = 'responses' and policyname = 'responses_insert_own';
+  v_neutered_check := replace(v_orig_check,
+    ' AND app.can_responses_create(commission_id, ( SELECT auth.uid() AS uid))', '');
+  insert into pg_temp.f425_f2_disc values ('responses_insert_own', 'operands_differ', v_neutered_check is distinct from v_orig_check, v_neutered_check);
+  execute format('alter policy responses_insert_own on public.responses with check (%s)', v_neutered_check);
+  select with_check not like '%can_responses_create%' into v_check from pg_policies
+   where schemaname = 'public' and tablename = 'responses' and policyname = 'responses_insert_own';
+  insert into pg_temp.f425_f2_disc values ('responses_insert_own', 'neutered_applied', v_check, null);
+
+  delete from authz.role_permissions where role_code = 'staff' and permission_code = 'commission.responses.create';
+  perform test_helpers.reset_role_and_claims();
+  perform test_helpers.claims_for((select staff_uid from f425), false, 'staff');
+  set local role authenticated;
+  v_r := pg_temp.f2_attempt('responses_insert_own', '50000000-0000-0000-0000-00000000a001');
+  reset role;
+  insert into pg_temp.f425_f2_disc values ('responses_insert_own', 'goes_red', v_r like 'OK:%', v_r);
+  perform pg_temp.f2_cleanup('responses_insert_own', '50000000-0000-0000-0000-00000000a001');
+  insert into authz.role_permissions (role_code, permission_code) values ('staff', 'commission.responses.create');
+
+  execute format('alter policy responses_insert_own on public.responses with check (%s)', v_orig_check);
+  select (with_check = v_orig_check) into v_check from pg_policies
+   where schemaname = 'public' and tablename = 'responses' and policyname = 'responses_insert_own';
+  insert into pg_temp.f425_f2_disc values ('responses_insert_own', 'restored', v_check, null);
+end $$;
+
+select is((select count(*)::int from pg_temp.f425_f2_disc where step = 'operands_differ' and ok), 7,
+  '6.6a OPERANDS-DIFFER PRECONDITION: all seven neutered bodies/policies are textually '
+  'DIFFERENT from their captured originals — never comparing a thing with itself '
+  '(LESSONS.md).');
+
+select is((select count(*)::int from pg_temp.f425_f2_disc where step = 'neutered_applied' and ok), 7,
+  '6.6b the neutralization landed at all seven sites, confirmed by reading the LIVE catalog '
+  'back (never assumed from the `execute` succeeding).');
+
+select is((select count(*)::int from pg_temp.f425_f2_disc where step = 'goes_red' and ok), 7,
+  '6.6c ⭐⭐ THE DISCRIMINATION HALF: with each site''s OWN authority check neutered, the SAME '
+  'operation that §6.3 showed DENIED now WRONGLY SUCCEEDS — proving every denial assertion '
+  'above is a live instrument, not a dead one. Each attempt ran with the grant freshly '
+  'deleted again, on a target §6.1-6.5''s own cleanup already returned to virgin, never a '
+  'reused/still-consumed target.');
+
+select is((select count(*)::int from pg_temp.f425_f2_disc where step = 'restored' and ok), 7,
+  '6.6d every neutered function/policy reads back BYTE-IDENTICAL to its captured original — '
+  'the restore is proven, not assumed (409 §2.16 / 424 §6.2 idiom).');
 
 select * from finish();
 rollback;
