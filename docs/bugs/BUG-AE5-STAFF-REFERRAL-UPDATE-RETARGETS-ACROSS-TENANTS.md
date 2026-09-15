@@ -31,6 +31,8 @@ Rolled back, live catalog, post-E2E local stack: `q2/review/ref_move_probe.sql` 
 
 Cross-tenant disclosure of a Class-1 PHI referral (existence of a patient, the linked case id) to another organization, by a legitimate writer acting through PostgREST on the exposed `public` schema. Also: a target-side coordinator can overwrite source-side draft fields it cannot read (sub-review measured).
 
+**Exposure ruling (PO, 2026-09-15):** the project is pre-pilot with no active users, and a full remote database reset will be performed, so no hosted check is run. The hole is still a defect on `main` and is fixed by a separate hotfix unit cut from `main`.
+
 ## Investigation
 
 Found by the AE5-STAFF F1 adversarial plan review (`q2/review/ref-prof-subreview.md` P1-2), re-measured by the review lead and by the unit lead. Not introduced by AE5-STAFF: the policy exists on `main` since `20260620000000_baseline.sql`, last redefined `20261003004710`. Hosted database not measured. ADR 0079 covers foreign-org users, not a writer moving a row.

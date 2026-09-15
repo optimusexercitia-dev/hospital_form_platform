@@ -31,6 +31,8 @@ Rolled back: `q2/review/clearance_probe.sql` (lead scratchpad). As postgres set 
 
 PHI exposure inside the tenant past a confidentiality ceiling (legally privileged interviews), to principals the read door refuses.
 
+**Exposure ruling (PO, 2026-09-15):** the project is pre-pilot with no active users, and a full remote database reset will be performed, so no hosted check is run. The hole is still a defect on `main` and is fixed by a separate hotfix unit cut from `main`.
+
 ## Investigation
 
 Found by the AE5-STAFF F1 adversarial plan review (`q2/plan-review.md` P1-3 / PRE-3), measured by the review lead and reproduced by the unit lead. On `main` since the baseline; last redefined `20261003004710`. Hosted database not measured.

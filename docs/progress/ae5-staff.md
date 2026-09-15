@@ -8664,3 +8664,35 @@ setting exposed `app`. That setting is unverifiable from the repo, and
    - the 0-row route compared NULL-safely.
 
 Nothing is executed. The PO is asked: how PRE-1, PRE-2 and PRE-3 are dispositioned, and the budget size (802–804).
+
+### 2026-09-15 — PRE-1/2/3, budget size and hosted check RULED by the PO: hotfix off `main`; budget approved up to about 810; no hosted check, because the project is pre-pilot with no active users and a full remote reset will be performed (lead)
+
+**The rulings, verbatim from the PO's answers:**
+- **The three catastrophic holes:** *"Hotfix off main (Recommended)"*. The option read: a separate unit in its own worktree, cut from
+  `main`; policy fixes that re-check the updated row, with before/after pgTAP proofs, released without waiting for AE5-STAFF; the F1
+  plan written to work either way.
+- **The budget:** *"Approve (up to ~810)"*. The option read: the ceiling rises to the final N, recorded with its justification in the
+  gate record; anything above 810 comes back to the PO.
+- **The hosted check,** answered in the PO's own words: *"This project is pre pilot and has no active users. A full remote database
+  reset will be performed"*.
+
+**What the lead takes from the third answer, and what it does not authorize.**
+- **No hosted catalog check is run.** The bug rows and docs now carry the PO's exposure ruling instead of "hosted state not measured".
+- **The remote reset is the PO's operation.** The lead has not been asked to run it and will not run `npm run db:reset:linked`.
+- **One hazard for the PO, from this project's memory.** A remote reset through the CLI seeds the remote with `supabase/seed.sql`,
+  which is the E2E fixture: fixed personas, one shared password, and synthetic patient rows. If the reset is meant to leave a clean
+  pilot database, it must not load the E2E seed as-is.
+
+**Consequences for the F1 plan.** backend3's amendment brief (sent before these answers) already requires every PRE-1 / PRE-2 cell to
+be tagged with its bug id and never asserted as the intended value, so the plan works whether the hotfix lands before or after F1.
+- **If the hotfix merges first,** `ae5-staff` rebases onto it before the F1 migration is written, so F1's pre-images are generated from
+  the fixed policies.
+- **Otherwise,** the fixed policies reach F1 at rebase time, and F1's generated pre-image preflight refuses on the md5 drift, as
+  designed. That refusal is the signal to regenerate, never to override.
+
+**Next.**
+1. Open the hotfix unit in its own worktree from `main`: hub, record, branch.
+2. Its owner is a backend teammate; the tester writes the red-first behavioural proofs.
+3. Its local-stack windows are serialized with AE5-STAFF's. `db reset` applies the migrations of the directory it runs from, so only
+   one checkout owns the stack at a time.
+4. backend3 continues amendment 1, plan only.

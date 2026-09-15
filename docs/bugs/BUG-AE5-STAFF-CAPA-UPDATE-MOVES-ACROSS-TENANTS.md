@@ -31,6 +31,8 @@ Rolled back: `q2/review/capa_move_probe.sql` (lead scratchpad). As nspcoord.a (`
 
 Cross-tenant disclosure of a Class-1 patient-safety CAPA to another organization, and loss of the moving organization's own access. The sub-review also measured the same shape through `rca.event_id` (not re-run by the lead).
 
+**Exposure ruling (PO, 2026-09-15):** the project is pre-pilot with no active users, and a full remote database reset will be performed, so no hosted check is run. The hole is still a defect on `main` and is fixed by a separate hotfix unit cut from `main`.
+
 ## Investigation
 
 Found by the AE5-STAFF F1 adversarial plan review (`q2/plan-review.md` PRE-2), reproduced by the review lead and the unit lead. On `main` since the baseline; last redefined `20260928000500`. Hosted database not measured.
