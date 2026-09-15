@@ -6071,3 +6071,26 @@ disjunct, holds only because no targeted response names that participant. The ro
 `target_case_participant_id` of any response". The corrected control must be observed passing on the
 current seed and shown able to red by a rolled-back targeted response that names staff4's participant. It
 goes to the tester after F1 parks.
+
+### 2026-09-15 — backend's B1/B2′ sizing crossed L35; B2′ stands with three conditions on the checks that would skip a list (lead)
+
+Backend sized both options from files. Row 7 today has 108 cells, all `own_commission`, 36 each at
+`none`, `conjunct_met` and `conjunct_unmet`. **B1** re-binds the 36 `conjunct_unmet` cells from `a1` to
+`a2`: cell count and ids unchanged, and no expected value moves, since all 36 already deny. **B2′** adds
+36 cells, but three facts shape it. `cell_id` is built at `gen-authz-differential-cells.py:1129`, and
+`424:276` joins on it, so the new cells need a discriminating suffix; the generator already suffixes
+conditionally for `caseReach` (`:1118–1129`). `probe_fixture` returns one id. And arm14's declared-id
+sweep, non-literal check and binding check read scalars, so a list is SKIPPED by `isinstance(str)` and
+the three checks would go blind to the new id. Backend expects no change to `424` (row 7 appears only
+in its class list, `:400`) or `425` (only as the policy site, `:310`).
+
+**Ruling kept: B2′.** B1 is smaller, but it removes row 7's policy-level `can_reach_meeting` cell, and
+removing a cell needs a ruling, not a size comparison. The skip-on-scalar behaviour is the real hazard:
+a check that silently passes over a new shape is a control that cannot fail. **Conditions, each to be
+witnessed in backend's entry.** (1) Only the new cells get the suffix; `--check` plus the generated diff
+show 36 added, 0 changed, 0 removed. (2) Each of the three checks accepts the list shape and is shown
+able to red with a bad id planted as the SECOND list element — a non-existent id, a literal where a
+reference belongs, an unbound id — with each red line quoted. `probe_fixture` returns per-fixture results
+for a list and still one id for a scalar. (3) arm14's self-test gains a list-form fixture per check, so
+the property stays gated rather than proven once. (4) If `424` or `425` needs a change, backend stops and
+routes it. L35's before/after full-content access witness on `ca00…e1`, and row 8's unmoved cells, stand.
