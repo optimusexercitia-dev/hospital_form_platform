@@ -50,7 +50,7 @@ Each is the template step it names; the witness for every box is a dated entry i
       `search_path` · ACLs snapshotted before and asserted after; `staff` → `authoritative` with the
       count-verified `do` block; direct-call census derived per site from the comment-stripped
       catalog; ⛔ never `legacy OR new`, proven by a pgTAP grep.
-- [ ] **AC-7 Re-key.** Every site `staff`'s bundle touches re-pointed at a layer-3 authorizer carrying
+- [x] **AC-7 Re-key.** ✅ **2026-09-14** (record: `425` round 2 21/21 on the post-T7 catalog, `e2d1d3b8`; § 3.1 47/47 · § 3.2 56/56 · § 3.3 P1 survivors measured). Was: Every site `staff`'s bundle touches re-pointed at a layer-3 authorizer carrying
       the code as a greppable literal; manifest rows `pending-rekey` → `re-keyed` with
       `enforcementSites` · `domainAuthorizer.composedWith` · `residualLegacyAuthority` ·
       `definerSurface` populated and a `staff`-shaped `layer1Gate`; `hardDenyClasses` re-measured per
@@ -100,7 +100,7 @@ census arm `INVARIANT HOLDS` after the 23 T7 verdicts were folded in by targeted
 helper had gutted the baseline 353 → 73 at exit 0 — caught by the census arm, restored, the helper now
 aborts on missing baseline rows); all four arms RED by plant / GREEN on rollback; `RESET_EVERY` ported
 and proven; SELFTEST ×2 green. L22's plant found `410` REVERSE 3b compared a string with itself —
-repaired, 45/45. **Now:** the tester holds the stack for `425` round 2 (→ AC-7) then T13's five specs;
+repaired, 45/45. **Now:** `425` round 2 21/21 committed (AC-7 ✅); the tester holds the stack for T13's five specs;
 then AC-10's fresh-reset run (full `test:db` owed after T8's test edits), the gate record, QA, PO.
 `npm run lint` exit 0 at HEAD.
 

@@ -4555,3 +4555,28 @@ edits (`409`, `410` scoped-green only) — owed at AC-10's fresh-reset run, as b
 running): fresh reset + settle-check, `00_setup` + `425` round 2 to a new log (want 3.1 47 / 3.2 56;
 § 3.3/3.3b the P1 survivor), counts reported, the lead commits by path → AC-7; then T13's five specs
 on a dev server, `e2e:prod` reserved for AC-10.
+
+### 2026-09-14 — `425` round 2 GREEN on the post-T7 catalog, committed by the lead (`e2d1d3b8`); AC-7 ticked (lead)
+
+Tester's run, verified by the lead from the log file, not the message: `425-run4-round2-post-t7.log`
+holds `All tests successful. / Files=2, Tests=22 / Result: PASS` — `00_setup` (1) + `425` (21), the
+file's `select plan(21)` (`:107`); no `not ok` line. ⚠ The log is the pg_prove SUMMARY (364 bytes):
+the per-test lines the tester quoted (§ 3.1 "47 of 57 move" 47/47; § 3.2 "want is now 56 (57 minus
+ONLY `app._audit_access_authorized`'s `meeting.viewed` leg)" 56/56; § 3.3 "21 observations (7 sites ×
+3 phases), all GRANTED"; § 3.3b "exactly seven P1-survivor probes ran") come from its verbose run and
+are NOT in the file — the summary is the gating witness, the tails are the tester's word; AC-10's
+fresh-reset `test:db` re-takes the file with the rest. Reset `reset-run4-round2.log` exit 0, the T7
+migration applied, settle-check 445/445 twice, profiles 45; `pg_stat_activity` 0 own sessions before
+and after; `*_escalume` untouched; `pgtap` extension count 0 after the raw-capture read; `staff`
+still 20 `role_permissions` rows.
+
+**What the addendum is (the lead read the diff before committing, 220+/64−):** `plan(18) → plan(21)`;
+`f425w` — arm-3 sites keyed on `424`'s `disjunct_absent` ids via `probe_table`/`probe_column`, the
+vector-bound ids, never a second literal; the seven role-free-disjunct sites' ORIGINAL blind probe
+kept as a SEPARATE measurement, `pg_temp.p1_survivor_signature` in `p1_before` / `p1_after` /
+`p1_restored` phases — PO ruling P1's own witness (the accepted exception still GRANTS with the role's
+grant deleted, § 3.3), never folded into § 3.1/3.2's counts; § 3.1 want re-derived **47** (57 − 9
+sparse − the audit leg), § 3.2 want **56** (57 − the audit leg only), both live-queried, the earlier
+46/49 derivation replaced with its reason stated in the file. **AC-7 ticked** on this entry: every
+re-keyed site moves under the grant deletion except the ten attributed, and the P1 survivors are
+measured, not inferred. Tester on T13 (five specs, dev server).
