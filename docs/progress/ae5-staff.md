@@ -4889,3 +4889,24 @@ register is cross-commission, so the anchor rested on a seed coincidence, stated
 comment, which this unit's fixture ended. Latent spec premise + a fixture of ours. Five reds; this
 one's fix is the spec's anchor (the CCIH row by code AND commission or title), tester's, unless the
 tester's measurements change the picture.
+
+### 2026-09-14 — `e2e:prod` batch 18 RED ×3: `phase5-wizard` as `multi@` (a `staff`) on Farmácia's sectioned form never renders S1 — possibly a T7 DOOR regression on the form-fill surface; measurement E ordered, ranks with B (lead)
+
+Batch 17 green (69). **Batch 18:** `55 passed · 3 failed · 58/58 · pw_exit 1` —
+`phase5-wizard.spec.ts:269 AC2 branch Sim` (`heading /Inspeção de armazenamento/ level 2` not found,
+`:286`), `:344 AC2 branch Não` and `:457 AC4` (click timeouts 120 s / 150 s in the same wizard).
+Persona `multi@test.local`, `staff` of Farmácia; form `FORM_B_VERSION 50000000-…-00000000b001`. The
+Playwright `error-context.md` was cleaned with the batch's `test-results`; the batch's server log
+shows only `The destination stream closed early` (aborted requests, no 500). **Not the seeded
+draft:** this unit's `responses` row `a5fb…a1` is `in_progress` for `chefe.ccih` (`v_author …0002`)
+on a CCIH published version, chosen by query — not multi@, not FORM_B. **What changed for multi@:**
+T7 re-keyed all 20 `staff` codes onto 21 doors, among them the forms / sections / items read
+policies a `staff` filler depends on; the T13 multi-commission spec filled a Farmácia form as
+multi@ in batch 1 and passed (unless it was batch 1's flaky — the tester names it). So this is
+either the second candidate door regression of the gate (with B) or a fixture effect not yet seen.
+**Measurement E ordered** (tester, read-only, as multi@): RLS vs no-RLS row counts on
+`form_versions` / `form_sections` / `form_items` for `…b001`; any draft of multi@ on it; the live
+`qual` of every `authenticated` SELECT policy on those tables; each named door called for
+(Farmácia, multi@). A lower RLS count names the door and outranks every other red. Held observation
+(1), the 5-worker login timeouts, did not reproduce in the gate's serial batches; held observation
+(2), the resumed wizard, is NOT this (fresh DB per batch). Eight reds over 18 batches so far.
