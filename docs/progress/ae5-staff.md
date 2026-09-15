@@ -7750,3 +7750,56 @@ unchanged.
 
 **AC-7 stays un-ticked.** Its evidence must be `425` re-run on the converted catalog after the F1 migration (T15.6).
 Only then is the both-polarities clause answered on the final policy shapes. `tester3` is parked.
+
+### 2026-09-15 — the 81 helper-routed policies PARTITIONED (backend3): exactly 81, an unqualified-call control found none extra; 78 in scope, 3 insert-only; five family planners spawned, read-only (lead)
+
+**The partition.** backend3 re-ran Query R over every function in `app`, `public` and `authz`, in two modes:
+- **q:** qualified `schema.name(` calls only;
+- **u:** q plus unqualified `name(` calls whose schema is on the caller's declared `search_path`.
+
+Policy text came from `pg_get_expr` over `pg_policy`, across all schemas, under `search_path = ''`.
+- **The modes agree exactly:** 139 reached functions, per-depth counts 41 / 38 / 3 / 21 / 10 / 9, and no edge or policy
+  that only u finds.
+- **The zero is discriminating, not blind.** The same unqualified matcher finds 4 real unqualified pairs elsewhere,
+  e.g. `app.guard_affiliation_no_delete()` → `public.end_affiliation`.
+- **Bounds:** overloads are treated as one node; dynamic `EXECUTE` bodies are unread (0 of them name a T7
+  authorizer); operator, cast and trigger paths are not followed.
+- **Artifacts** are in the lead's scratchpad `q2/`: `partition.tsv` (81 rows), `families.md`, `partition.sql`,
+  `controls.out`.
+
+| Family | Policies |
+| --- | ---: |
+| F-MEET (meetings) | 5 |
+| F-DOCS (documents, files, printed documents, nested action items) | 12 |
+| F-CASE (Class-1 case module) | 38 |
+| F-NSP (Class-1 events, RCA, CAPA) | 18 |
+| F-REF (Class-1 referral) | 6 |
+| F-PROF (Class-2 professional identity) | 2 |
+| **Sum** | **81** |
+
+- **In scope: 78.** Every UPDATE and DELETE among them has the helper in USING.
+- **Insert-only, staying scalar: 3,** each named: `case_events_writer_insert`, `meeting_cases_staff_admin_insert`,
+  `meeting_signatures_insert`.
+- **Two depth-1 policies also carry a helper-routed term** beyond their T7 term, which is already in the 40:
+  - `action_items_select`'s `case_restricted` arm, through `can_read_case_committee`, is assigned to F-CASE;
+  - `meeting_cases_select`'s `can_reach_meeting` conjunct is assigned to F-MEET.
+
+**Fan-out.** Under the PO's multi-subagent authorization the lead spawned five read-only Opus planners. They are
+bound by one shared contract, `q2/planner-brief.md`: the live catalog as truth, per-door equivalence across every
+principal class, hard-deny dominance, unchanged audit, DEFINER callers' answers kept, and a baseline measured with
+the flushed instrument. Each writes one fragment and commits nothing:
+- `plan-case` (F-CASE);
+- `plan-nsp` (F-NSP);
+- `plan-ref` (F-REF and F-PROF);
+- `plan-meet` (F-MEET);
+- `plan-docs` (F-DOCS).
+
+**Interface ownership, to prevent two designs of one check.**
+- **Offered:** F-CASE, F-NSP and F-REF each offer a readability interface.
+- **Consumed:** F-DOCS consumes those three and designs only its routing and its non-Class-1 branches. F-NSP and
+  F-REF consume F-CASE's interface wherever they reach the case module.
+- **Also F-CASE's to resolve:** `_case_caps` resolving S5 for a content-bit question it cannot answer.
+
+**Next.** backend3 integrates the five fragments into ONE amended plan entry. It reconciles offered against consumed
+interfaces and checks that the union equals the partition, then the lead reviews it. Nothing is executed before
+that review.
