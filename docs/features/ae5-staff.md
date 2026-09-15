@@ -50,7 +50,7 @@ Each is the template step it names; the witness for every box is a dated entry i
       `search_path` · ACLs snapshotted before and asserted after; `staff` → `authoritative` with the
       count-verified `do` block; direct-call census derived per site from the comment-stripped
       catalog; ⛔ never `legacy OR new`, proven by a pgTAP grep.
-- [x] **AC-7 Re-key.** ✅ **2026-09-14** (record: `425` round 2 21/21 on the post-T7 catalog, `e2d1d3b8`; § 3.1 47/47 · § 3.2 56/56 · § 3.3 P1 survivors measured). Was: Every site `staff`'s bundle touches re-pointed at a layer-3 authorizer carrying
+- [ ] **AC-7 Re-key.** ⚠ **RE-OPENED 2026-09-15 by T14 F2** — `425` covers two INSERT policies and five DEFINER writers statically only, so the both-polarities clause is unmet for them. Was ticked ✅ **2026-09-14** (record: `425` round 2 21/21 on the post-T7 catalog, `e2d1d3b8`; § 3.1 47/47 · § 3.2 56/56 · § 3.3 P1 survivors measured). Was: Every site `staff`'s bundle touches re-pointed at a layer-3 authorizer carrying
       the code as a greppable literal; manifest rows `pending-rekey` → `re-keyed` with
       `enforcementSites` · `domainAuthorizer.composedWith` · `residualLegacyAuthority` ·
       `definerSurface` populated and a `staff`-shaped `layer1Gate`; `hardDenyClasses` re-measured per
@@ -93,24 +93,26 @@ posted, not executed.
 
 ### In progress
 
-**All ten acceptance criteria ticked, 2026-09-15.** AC-10 is re-declared on the final seed. Build complete at
-`d540274a` on one fresh reset: lint 0, typecheck 0, `test:db` 276 files / 9231 tests PASS; the four arms,
-budget 339/433/772 and door-sweep scope carry from `9f4a326b` by an empty migrations/seed diff. The declaring
-`e2e:prod` at `9d49f816` is GREEN: `1268 passed · 0 failed · 4 flaky · 0 did-not-run · 0 infra`. Three of the
-flakes match filed bugs; one is a first sighting. One batch's build-identity check was inconclusive; its three
-specs re-ran green, 57 / 57, on the confirmed build, so all 21 batches rest on a verified build. Since the first declaring run the unit added: R-6 (a)
-and R-7 (a) from the PO, L34–L36, suite `427`, and a grant deliberation-bit finding classified pre-existing
-and by design. `npm run lint` exit 0 at HEAD.
+**T14 external QA returned CHANGES REQUESTED at `cea431c7`** (`docs/reviews/ae5-staff-review.md`). The lead's
+analysis is in the record:
+- **F1 (P1) CONFIRMED and reproduced.** Batch policies call the catalog authorizer once per row, 4.68× the
+  former membership check, 23 000 vs 5 000 buffers. The set path is 1.6 ms. That exceeds AE4's K = 4 bar.
+- **F2 (P2) CONFIRMED as scoped.** `425` covers two INSERT policies and five writers statically only. The full
+  gate does catch the auditor's mutation (`254` reds 3/25). AC-7 is re-opened.
+- **F3 (P2) CONFIRMED.** The attendee fixture is unordered and picks arbitrary rows on a post-E2E stack.
+- **The `_case_caps` eager S5 note CONFIRMED** on the live body.
+
+The earlier gate witnesses stand for `cea431c7`, but they no longer declare the unit.
 
 ### Next
 
-⏸ PAUSE: the PO runs T14 with an EXTERNAL auditor and returns the review
-for the lead's finding-by-finding analysis → PO approval → Record (ledger row, hub → `complete`, bug status
-cells, follow-ups dispositioned, run logs deleted, LESSONS candidates, the stale handoff flagged).
+R-8 (PO) → F1 to backend (new ADR extending ADR 0182, set-returning wrappers, `_case_caps` lazy S5, a `staff`
+performance acceptance) → F2 and F3 to tester (`425`) → Phase Gate step 1 in full → `e2e:prod` → QA again →
+PO approval → Record.
 
 ### Blockers
 
-✅ **R-6 RULED 2026-09-15: option (a)** — the unconfirmed persona's staff membership moves to Farmácia A; backend executes it and re-runs build-complete at the final commit, then the declaring `e2e:prod`.
+⏸ **R-8 — PO to rule:** (a) resolve F1 in this unit with a performance AC (recommended), or (b) file it high and block AE5 increment 2 from opening.
 For the PO at approval, recorded and unchanged: two P0s were caught before commit (one from the lead's
 L17, now L24) and closed with witnesses, and the high closure-gate follow-up stays open; the `staff`
 wrapper has ZERO production callers for one unit under a named bound (L14); T7 converged 24 frozen

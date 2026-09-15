@@ -6761,3 +6761,144 @@ closed. AC-10 stands on 21 of 21 batches with a verified build identity, 1268 pa
 **State.** All ten acceptance criteria are ticked. The lead made no commit during the re-run. **Next: the ⏸ PAUSE.**
 The PO runs T14 with an external auditor on the commit named in the package the lead hands over, and returns
 the review for the lead's finding-by-finding analysis.
+
+### 2026-09-15 — T14 external QA review returned CHANGES REQUESTED at `cea431c7`: the lead's finding-by-finding analysis — F1 CONFIRMED and reproduced, F2 CONFIRMED as the auditor scoped it (the full gate is not blind to its mutation; AC-7's grant-deletion clause is unmet for seven sites), F3 CONFIRMED on live rows, the `_case_caps` note CONFIRMED on the live body; R-8 to the PO (lead)
+
+**The report.** `docs/reviews/ae5-staff-review.md`, committed with this entry exactly as the PO returned it.
+Verdict **CHANGES REQUESTED**, reviewed commit `cea431c7`, baseline `a02487bc`. It has three findings: F1
+(P1), F2 (P2) and F3 (P2), plus one additional performance note.
+
+**Method and bound of the lead's analysis.** Every probe was read-only or ran inside a transaction that was
+rolled back. There was no reset and no commit during the probes. The stack's 9 client backends were all
+service connections (PostgREST, storage, realtime); `tester2` and `backend2` were parked; `*_escalume` was
+not touched. The probe scripts and logs are in the session scratchpad (`qa-f1-repro.*`, `qa-probes-f2.sh`,
+`qa-f2-254-*.log`). The stack is post-E2E, the same state the auditor measured.
+
+#### F1 (P1): batch reads pay the catalog authorization cost once per row — **CONFIRMED, reproduced**
+
+- **Policy text (live).** `form_items_select` and `form_item_options_select` read
+  `app.can_forms_read(app.commission_of_version(form_version_id), (select auth.uid()))`, with a row-derived
+  first argument (`pg_policies`). `can_forms_read` and `can_roster_read` are STABLE DEFINER functions with
+  `authenticated` EXECUTE. `authz.authorized_scope_ids(uuid,text,text)` grants EXECUTE to `postgres` only.
+  `app.current_professional_read_organizations()` is its narrow `authenticated` wrapper (ADR 0182).
+- **The auditor's statement, re-run by the lead.** Staff4.ccih's claims were set, all three paths warmed,
+  then three `explain (analyze, buffers, timing off)` rounds were run in one session:
+
+  | Path | R1 | R2 | R3 | Median | Buffers |
+  | --- | ---: | ---: | ---: | ---: | ---: |
+  | `app.is_member_of(id)` | 147.383 | 195.145 | 160.352 | **160.352 ms** | 5 000 |
+  | `app.can_forms_read(id, uid)` | 750.280 | 769.793 | 668.935 | **750.280 ms** | 23 000 |
+  | `authz.authorized_scope_ids` set | 1.567 | 1.495 | 1.618 | **1.567 ms** | 32 |
+
+  The median is **4.68×**, against the auditor's 4.71×. The buffer counts match the auditor's exactly. The set
+  path plans `ProjectSet … loops=1`. Transaction function counts were `app.can_forms_read` **4 010**
+  (= 4 × 1 000 + 10) and `authz.authorized_scope_ids` **4**. The extra 10 are from reading seeded form version
+  `50000000-…-a001`'s options as `authenticated`, which returned 10 rows and made 10 calls. That matches the
+  auditor's per-row claim.
+- **Against the project's own bar.** AE5-STAFF's acceptance criteria carry no performance acceptance: a grep of
+  the hub, the record, the matrix and ADR 0211 found none. AE4's
+  `docs/design/authz-ae4-performance-acceptance.md` § 6.1 has two conditions that apply:
+  - **P5** bounds the permission arm at ≤ 4× the legacy arm (K = 4). AE4 failed P5 per-row, at 5–6×.
+  - **P4** names super-linear per-row growth as *"precisely the hazard AE5 multiplies across eleven roles."*
+
+  ADR 0182's answer was the statement-scoped set. **Bound:** the 4.68× comes from the auditor's synthetic
+  statement, not AE4's harness, so it is not a P5 verdict. It is the same invocation shape ADR 0182 measured
+  and removed.
+- **Not verified:** *"the user's explicit lookup-performance requirement"*. No such sentence was found in this
+  unit's documents. The ruling rests on AE4's K = 4 and ADR 0182 instead. The `profiles` figure of 117
+  `can_roster_read` calls was **not reproduced**; the mechanism is consistent with the live policy text,
+  which calls the authorizer inside an `EXISTS` over `memberships`.
+- **Lead's ownership.** The template copy (ADR 0211, T7) re-keyed every site onto scalar authorizers, and no
+  task re-asked AE4's performance question on the new call sites. The per-row cost comes from this unit.
+
+#### F2 (P2): write-path grant deletion is not exercised — **CONFIRMED as scoped by the auditor; its severity is bounded by a lead measurement**
+
+- **The skips are real.** `425`:399–400 returns NULL for `responses_insert_own` and
+  `meeting_signatures_insert`. `425`:492–495 returns NULL for `cast_case_vote`,
+  `create_referral_internal_note`, `notify_safety_event`, `get_referral_case_access_summary` and
+  `sign_meeting`. § 5.1/5.2 are static absence-of-literal checks, which prove nothing about enforcement, as
+  the auditor says.
+- **A circular deferral, this unit's own.** `424` § 7.1's comment says row 12's polarity is *"T12's `425`"*,
+  and `425` covers it statically only. Neither suite owns the behavioural polarity.
+- **AC-7's tick overstates.** It says the differential *"flips every policy door both polarities."* The T12
+  entry (record :3258) disclosed the two INSERT skips, but the tick carries no bound. The qualifier was cut at
+  tick time. **AC-7 is re-opened.**
+- **The rebuttal in part, measured.** The auditor's exact mutation was applied inside a rolled-back
+  transaction: `if not app.can_cases_vote(` → `if false and not app.can_cases_vote(`, with its site count
+  asserted as 1. The project's own `254_ethics_e2_votes.sql` was run under it (with `00_setup` lines 1–629,
+  pgTAP):
+  - **Baseline:** plan 1..25, 0 `not ok`.
+  - **Mutated:** 3 `not ok` of 25. Test 13 *"cast_case_vote: a non-member is refused with 42501 not HC0J5"*
+    reads `caught: no exception / wanted: 42501`. Tests 21 and 23 fail on the vote that then went through.
+  - **Afterwards:** the body read back restored, and `test_helpers` was absent.
+
+  The 2026-09-14 sweep entry had already recorded behavioural denials catching a neutralized
+  `can_sign_meeting`: `120` test 22 and `251` test 23 (`meeting_signatures_insert DENY 42501`). **So the
+  blindness to this mutation is local to `425`, exactly as the auditor bounded it.**
+- **What stays open.** `254`, `120` and `251` deny a non-member or non-attendee. None deletes the role
+  permission from a member who otherwise passes and observes the refusal. AC-7's grant-deletion clause is
+  unmet for these seven sites.
+
+#### F3 (P2): the signing fixture selects an arbitrary attendee — **CONFIRMED**
+
+`425`:175–178 has no `order by` and no attendance or status predicate. On the live post-E2E stack, three rows
+match staff4.ccih in CCIH:
+
+| Attendee | Attendance | Meeting status | Note |
+| --- | --- | --- | --- |
+| `60c5e4ef-…` | summoned | held | the row the auditor's run picked |
+| `9d7be371-…` | summoned | in_signature | |
+| `a5f30000-…-a2` | present | in_signature | the seeded fixture, `seed.sql:3419` |
+
+**Bound:** on a fresh reset the two E2E-minted rows do not exist, so the recorded fresh-reset passes stand.
+The same class covers the other unordered `limit 1` selections in `f425r` (`:154–178`).
+
+#### Additional: `_case_caps` computes S5's member arm eagerly — **CONFIRMED on the live body**
+
+In `pg_get_functiondef('app._case_caps(uuid,uuid)')`, line 48 assigns
+`v_member := app.can_cases_deliberation_read_in_commission(…)` before its only consumer at line 83,
+`if v_member and not v_eg`. Pre-AE5 the assignment was `app.is_member_of_for`
+(`20261003000500_case_caps_s8_administrativo_read.sql`:187). The eager order predates AE5; the cost does not.
+The auditor's 100-call and ~92 ms figures were **not reproduced**.
+
+#### What the review did not do
+
+- It did not answer the handover's 17 numbered checks item by item.
+- It re-ran `424`–`427` and the generators, but not `test:db`, `e2e:prod`, the arms or the sweep. The report
+  states this itself.
+
+Silence on a check is not a pass. The PO decides at approval whether the uncovered checks need a second look.
+
+#### Proposed routing (awaits R-8)
+
+- **F1 → backend** (Opus), with a new ADR extending ADR 0182 to commission scope:
+  - caller-bound, fixed-permission set-returning wrappers over `authz.authorized_scope_ids`, on every batch
+    policy path T7 re-keyed (forms and their children, roster, `profiles`, `memberships`, `commissions`, and
+    the rest by enumeration, never by recall);
+  - every OR arm, meeting-visibility, case-exclusion and targeted-access conjunct kept in place;
+  - `_case_caps` S5 computed only when `not v_eg`, with an unchanged mask and zero sibling calls on locked
+    cases;
+  - a `staff` performance acceptance: permission resolutions scale with distinct scopes, not protected rows;
+    both polarities; function counts; plans; and a semantic ablation, because a flattened curve cannot red a
+    timing control.
+
+  Consequences: the new SRFs sit outside the door sweep's `PRED_DOMAIN`, which widens
+  `FUP-DOOR-SWEEP-DOMAIN-MISSES-THE-AUTHZ-RESOLVERS`. The budget, `419`, `410`'s manifest, the census and
+  arms, the runbook's § 7.3 worked sites and `e2e:prod` are all re-derived.
+- **F2 → tester** (`425`): behavioural, rolled-back probes for the two INSERT policies and the five writers.
+  Each goes allow → delete the one grant → deny through the real door → restore → allow, in separate attempts
+  so a duplicate never impersonates a denial.
+- **F3 → tester** (`425`): pin `a5f30000-…-a2` and assert its signer, commission, `present` and
+  `in_signature` before the differential; make every other `f425r` selection's preconditions explicit.
+- **Order:** F1's migration first, since `425` re-derives on the new policy shapes, then F2 and F3, then Phase
+  Gate step 1 in full.
+
+**R-8 (PO to rule).**
+- **(a) Recommended:** resolve F1 in this unit as routed above, adding a performance acceptance criterion.
+- **(b)** Record F1 as a high follow-up that blocks AE5 increment 2 from opening. This goes against AE4's
+  K = 4 and ADR 0182, and every later role would inherit the per-row shape.
+
+F2 and F3 are accepted by the lead under either option; they change tests only.
+
+**State.** CHANGES REQUESTED loops the unit to Phase Gate step 1. AC-7 is un-ticked with its bound. **Next:**
+R-8, then routing.
