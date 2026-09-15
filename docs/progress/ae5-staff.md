@@ -6488,3 +6488,19 @@ committed the three files with this entry. Own sessions 0.
 
 **Next:** backend's read-only half 2 on `_case_caps`'s live S3 lines. Then the 15-spec production gate
 subset, and the declaring full `e2e:prod`.
+
+### 2026-09-15 — grant deliberation-bit classification CONFIRMED on the live catalog; the stack goes to the production gate subset (lead)
+
+Backend's read-only half 2, with own sessions 0 before and after. The live S3 grants loop in
+`pg_get_functiondef('app._case_caps')` (lines 143–180) is the hard cut's closure: `if v_g.read_case_content
+then v_caps := v_caps | app._cap_bit('read_case_content') | app._cap_bit('read_case_deliberation'); end if;`
+The deliberation column adds only its own bit. It differs from `20260802000000` only in the comment about
+`view_case_overview`. In one rolled-back transaction on `dc000000-…-a2`, two principals with 0
+memberships, 0 grants and caps 0 beforehand read: `gap.unpriv` with content only gets caps **6** and
+deliberation `t`; `a5f0…f4` with both bits gets caps **6** and deliberation `t` (deliberation is bit 2,
+content bit 4). No fixture grant survived the rollback, and the base body was not re-emitted. Backend's
+first script run died on a parenthesis error before its transaction opened, so nothing executed; the
+corrected run exited 0.
+
+**The classification stands: pre-existing, by design, not a defect.** Next: the tester runs the 15-spec
+production gate subset recorded above, and the declaring full `e2e:prod` follows.
