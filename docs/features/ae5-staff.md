@@ -97,14 +97,14 @@ posted, not executed.
 `d540274a` on one fresh reset: lint 0, typecheck 0, `test:db` 276 files / 9231 tests PASS; the four arms,
 budget 339/433/772 and door-sweep scope carry from `9f4a326b` by an empty migrations/seed diff. The declaring
 `e2e:prod` at `9d49f816` is GREEN: `1268 passed · 0 failed · 4 flaky · 0 did-not-run · 0 infra`. Three of the
-flakes match filed bugs; one is a first sighting. One batch's build-identity check was inconclusive, so its
-three specs are being re-run for a confirmed identity. Since the first declaring run the unit added: R-6 (a)
+flakes match filed bugs; one is a first sighting. One batch's build-identity check was inconclusive; its three
+specs re-ran green, 57 / 57, on the confirmed build, so all 21 batches rest on a verified build. Since the first declaring run the unit added: R-6 (a)
 and R-7 (a) from the PO, L34–L36, suite `427`, and a grant deliberation-bit finding classified pre-existing
 and by design. `npm run lint` exit 0 at HEAD.
 
 ### Next
 
-Batch-13 identity re-run (tester) → ⏸ PAUSE: the PO runs T14 with an EXTERNAL auditor and returns the review
+⏸ PAUSE: the PO runs T14 with an EXTERNAL auditor and returns the review
 for the lead's finding-by-finding analysis → PO approval → Record (ledger row, hub → `complete`, bug status
 cells, follow-ups dispositioned, run logs deleted, LESSONS candidates, the stale handoff flagged).
 

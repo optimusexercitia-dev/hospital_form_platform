@@ -6741,3 +6741,23 @@ PO's external QA review.
 the first `(retry #1)` line in the batch. That line is a serial re-run; the numbered failure in
 `/tmp/e2e-prod-gate/batch-5.log` is `:223`, re-checked by the lead before this commit. Corrected in place in
 the entry above.
+
+### 2026-09-15 — batch 13's build identity CONFIRMED on re-run: 57 / 57 green; all 21 batches of the declaring run now rest on a verified build; the unit reaches the QA pause (lead)
+
+**The re-run.** Batch 13's three specs (`phase-multitenancy`, `phase10-meetings`, `phase11-interviews`) were
+re-run by the tester at HEAD `0bc51d77` as their own production gate, launched detached to
+`e2e-prod-batch13-identity.log`. The lead's monitor read the gate's files:
+- **Identity:** `(identity) serving the tree this run staged · gate555-b1-a1-1789475210
+  build=Zc6RvrXPl8D3pLLtg7neD`. That is the same build id the other 20 batches of the declaring run confirmed.
+- **`gate-exit`:** `GATE_EXIT=0 · verdict=GATE GREEN — 57 passed, 0 flaky, accounted 57/57 ·
+  finished=2026-09-15T09:28:40-0300`.
+- **Summary:** `57 passed · 0 failed · 0 infra · 0 flaky · 0 did-not-run · 1 batches`.
+
+**What this settles.** In the declaring run at `9d49f816`, batch 13's nonce check was inconclusive (HTTP 000).
+The same three specs now pass on a confirmed build, and no file a spec or the app reads changed between
+`9d49f816` and `0bc51d77`: only the record and `docs/bugs/BUGS.md`. So the bound stated in the gate record is
+closed. AC-10 stands on 21 of 21 batches with a verified build identity, 1268 passed and 0 failed.
+
+**State.** All ten acceptance criteria are ticked. The lead made no commit during the re-run. **Next: the ⏸ PAUSE.**
+The PO runs T14 with an external auditor on the commit named in the package the lead hands over, and returns
+the review for the lead's finding-by-finding analysis.
