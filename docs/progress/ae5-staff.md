@@ -8696,3 +8696,38 @@ be tagged with its bug id and never asserted as the intended value, so the plan 
 3. Its local-stack windows are serialized with AE5-STAFF's. `db reset` applies the migrations of the directory it runs from, so only
    one checkout owns the stack at a time.
 4. backend3 continues amendment 1, plan only.
+
+### 2026-09-15 — hotfix unit HOTFIX-CLASS1-WRITE-GUARDS OPENED from local `main` in its own worktree; migration range `7391`–`7399` checked free; the shared stack stays with AE5-STAFF until the lead hands it over (lead)
+
+**The unit.**
+- **Worktree:** `worktrees/hotfix-class1-write-guards`, created by `scripts/worktree-setup.sh`, which installed the
+  worktree's own `node_modules`.
+- **Branch:** `hotfix-class1-write-guards`, cut from local `main @ a02487bc`.
+- **Opening commit:** `fc3f9a1c` holds the hub, the record and the regenerated features index. `npm run lint` exited 0
+  in the worktree.
+- **Scope:** it fixes the three catastrophic rows filed here. The ids keep AE5-STAFF's code as provenance, and the fixing
+  unit is named in each row's text.
+
+**Why local `main` and not `origin/main`.** Local `main` (`a02487bc`) is ahead of `origin/main` (`44f69ff6`), which has
+never been pushed. The setup script defaults to `origin/main`, so the base was passed explicitly.
+
+**Migration numbering, measured, and why the hotfix does not go after F1.**
+- **The gap.** `main`'s newest migration is `20261003007390`; the first migration added on `ae5-staff` is
+  `20261003007400`. A scan of every local and `origin` branch found none strictly between them, so the hotfix takes
+  `7391`–`7399`.
+- **Rejected: numbering after F1's range** (an Explore summary suggested `7550` or higher). On `ae5-staff`, that would
+  apply a fix authored against `main`'s pre-T7 policy text AFTER T7 and F1. It could silently re-install legacy
+  predicates on the policies it touches.
+- **What in-place numbering gives.** The fix applies in its true place in `main`'s history. If T7 or F1 later re-emits
+  a function or policy it changed, the hotfix's own red-first pgTAP reds on `ae5-staff` at rebase.
+- **The planner's brief** asks it to enumerate exactly those overlaps.
+
+**Stack ownership.** The one local stack holds the `ae5-staff` catalog, and AE5-STAFF's `backend3` is probing it. A
+`db reset` from the worktree applies `main`'s migrations and erases that catalog. `hotfix-backend` (Opus) is spawned
+PLAN-ONLY in the worktree, with no reset, no `test:db` and read-only catalog queries. Every result is labelled as
+describing the `ae5-staff` catalog, and whatever differs from `main` is marked for re-measurement in a stack window the
+lead grants and records in both records.
+
+**Also noticed, not acted on.** A peer session's worktree, `worktrees/docs-workflow-restructure`, sits at `fb10345a`
+(an `ae5-staff` commit) with no commits of its own. It shares HEAD history with this branch only through that base. It is
+left alone.

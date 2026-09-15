@@ -115,7 +115,7 @@ PO approval → Record.
 
 ### Blockers
 
-⛔ **PO: three pre-existing catastrophic Class-1 holes reproduced** (`BUG-AE5-STAFF-REFERRAL-UPDATE-RETARGETS-ACROSS-TENANTS`, `BUG-AE5-STAFF-CAPA-UPDATE-MOVES-ACROSS-TENANTS`, `BUG-AE5-STAFF-INTERVIEW-CHILDREN-BYPASS-CLEARANCE-VIA-WRITE-POLICIES`) — PO 2026-09-15: HOTFIX unit off `main` (separate worktree); budget approved up to ~810; pre-pilot, no hosted check. ✅ **Q-1 convert · Q-2 (C) all 81 · Q-4 772 + N — RULED 2026-09-15.** ✅ **R-8 RULED 2026-09-15: option (a)** — F1 is resolved in this unit under AC-11; F2 and F3 go to the tester after F1's migration.
+⛔ **PO: three pre-existing catastrophic Class-1 holes reproduced** → unit `HOTFIX-CLASS1-WRITE-GUARDS` opened (`fc3f9a1c`, worktree) (`BUG-AE5-STAFF-REFERRAL-UPDATE-RETARGETS-ACROSS-TENANTS`, `BUG-AE5-STAFF-CAPA-UPDATE-MOVES-ACROSS-TENANTS`, `BUG-AE5-STAFF-INTERVIEW-CHILDREN-BYPASS-CLEARANCE-VIA-WRITE-POLICIES`) — PO 2026-09-15: HOTFIX unit off `main` (separate worktree); budget approved up to ~810; pre-pilot, no hosted check. ✅ **Q-1 convert · Q-2 (C) all 81 · Q-4 772 + N — RULED 2026-09-15.** ✅ **R-8 RULED 2026-09-15: option (a)** — F1 is resolved in this unit under AC-11; F2 and F3 go to the tester after F1's migration.
 For the PO at approval, recorded and unchanged: two P0s were caught before commit (one from the lead's
 L17, now L24) and closed with witnesses, and the high closure-gate follow-up stays open; the `staff`
 wrapper has ZERO production callers for one unit under a named bound (L14); T7 converged 24 frozen
