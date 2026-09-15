@@ -8731,3 +8731,664 @@ lead grants and records in both records.
 **Also noticed, not acted on.** A peer session's worktree, `worktrees/docs-workflow-restructure`, sits at `fb10345a`
 (an `ae5-staff` commit) with no commits of its own. It shares HEAD history with this branch only through that base. It is
 left alone.
+
+### 2026-09-15 — F1 / AC-11 PLAN AMENDMENT 1 — review dispositions (backend3) ⛔ NOT EXECUTED
+
+**Bound.**
+- **Plan only.** No migration, no catalog change, no reset.
+- **Inputs:**
+  - the adversarial review `q2/plan-review.md` and its four sub-reviews (`q2/review/{nsp,ref-prof,meet}-subreview.md`,
+    `q2/review/docs/docs-subreview.md`);
+  - the lead's entries `090a0c09` (rulings (a)–(s), routed items 1–9) and `cb98aeef`. The PO has ruled: PRE-1/2/3 go to a
+    hotfix unit cut from `main`; the budget is approved up to about 810; there is no hosted check, because the project is
+    pre-pilot and a full remote reset is planned.
+- **New read-only measurements this step** (0 non-service client backends; scratch `am1/`, not durable):
+  - the route-closure arm enumeration (`am1/arms.out`);
+  - the live bodies of `can_read_full_case_content`, `can_read_full_meeting_content`, `can_view_printed_document` and the
+    corridor helpers (`am1/defs.out`);
+  - the Supabase CLI migration-apply source at the installed version, `supabase --version` = 2.115.0
+    (`am1/cli-file-v2.115.0.go`).
+- ⛔ **Every decision, count and interface is stated in this entry.** Where this amendment and the integrated plan
+  (`e2ae138f`) disagree, this amendment governs.
+
+#### 0. What changed
+
+| Item | Integrated plan (`e2ae138f`) | Amendment 1 |
+| --- | --- | --- |
+| Ruling (c) | routes emit keys to any active, non-excluded caller | routes and every argument-taking new derivation emit nothing unless a superset **tenant gate** passes; zero-resolution anchor pre-checks are added (§1) |
+| New functions | 32 (+1 under (j)) | **34**: (j) accepted, plus the owner-only gate `app._caller_may_reach` |
+| `authenticated`-executable | 30 | **31** |
+| Budget app / public / total | 369 / 433 / 802 | **370 / 433 / 803** (PO: up to about 810) |
+| Print route | a prose spec | exact SQL per axis, one plant per obligation source (§2) |
+| Migrations | 7, implicit apply | 7, each explicitly `begin; … commit;`; atomicity cited for the remote path, owed for the local path; prefix-equivalence table (§9) |
+| Ruling (k) | named-site exemption | region cut, no exemption, a discrimination plant, a positive QR twin (§6) |
+| Ruling (j) | proposed | accepted; L1 proven for hospital- and org-scope entailment; fallback text stated (§10) |
+| Fixture | one hospital, one org | O1 {H1, H2} + O2 {H3}, plus only-failing-axis principals (§5) |
+
+#### 1. Ruling (c) NARROW — the tenant gate
+
+**1.1 Arm enumeration, measured.**
+- **Method.** Take the closure of qualified calls (depth ≤ 10) from the 13 scalars the routes and derivations mirror:
+  `can_read_document`, `can_view_printed_document`, `can_read_action_item`, `can_read_event`, `can_read_capa`,
+  `can_read_referral_metadata`, `can_read_referral_internal_note`, `can_read_professional_profile`, `can_read_interview`,
+  `can_read_case_committee`, `can_read_case`, `can_reach_meeting`, `has_case_capability`.
+- **Size.** The closure holds **62** functions.
+- **Every column compared to the principal** (comment-stripped `prosrc`):
+
+| Table (function) | Column | Kind |
+| --- | --- | --- |
+| `memberships` (`has_role`, `has_role_any`, `authz.assignment_facts` → `holds_role` / `has_permission`; `is_member_of_for`) | `principal_id` | **seat** |
+| `profiles` (`is_active`, `is_admin_for`, `assignment_facts`' platform fact) | `id` | activity / platform |
+| `case_access_grants` (`_case_caps` S3; the clearance ceiling) | `principal_id` | role-free relation (S3); ceiling |
+| `case_phases`, `case_narratives` (`_case_caps` S4) | `assigned_to` | role-free |
+| `action_items` (`can_read_action_item`) | `assigned_to` | role-free |
+| `action_item_assignments` (`can_read_action_item`; full-case axis E) | `user_id` | role-free |
+| `document_approvals` (`is_document_approver_of`) | `approver_id` | role-free |
+| `responses` (`can_view_printed_document`) | `created_by` | role-free |
+| `case_correction_requests` (`can_read_correction_response`) | `permitted_corrector` | role-free |
+| `professional_profiles` via `case_participants` (`can_access_targeted_response`) | `user_id` | role-free |
+| `professional_profiles` via participants (`is_case_respondent`); `case_recusals` | `user_id` | deny |
+| `meeting_attendees` (`can_reach_meeting`) | `user_id` | a conjunct under `meetings.read`, never a standalone arm |
+| `commission_administrativo_capabilities` (`member_can_for`) | `user_id` | a conjunct under `is_member_of_for` (a seat) |
+
+- **Platform admin has no arm on any route, derivation or verdict path.**
+  - The admin tokens appear only in `authz.assignment_facts` (the platform fact), `app.is_admin_for` and
+    `app.can_read_professional_profile`.
+  - `platform_admin` holds **0** `role_permissions` rows, and its fact carries `scope_kind = 'none'`, which `scope_reaches`
+    never matches.
+  - Its one arm is F-PROF's ELSE `is_admin_for` term, which does not consume #27's output.
+- **Roles:** `staff` and `staff_admin` are `authoritative`; the nine others are `legacy`. Legacy roles act only through
+  `has_role` / `holds_role` seat arms.
+
+**1.2 A permission arm needs a seat at the scope it names** (structural, from the live bodies).
+- **Commission permission.** At resolution kind `commission`, `authorized_scope_ids` proposes only facts with
+  `scope_kind = 'commission'`, and `scope_reaches` admits only `p_assignment_id = p_requested_id`. Facts come from
+  `memberships` (plus the platform fact). So `has_permission(u,'commission',c,·)` ⇒ ∃ membership of u with
+  `commission_id = c`.
+- **Other arms:**
+  - `has_role` at hospital scope ⇒ `hospital_id = h`;
+  - `holds_role(staff_admin, commission c)` ⇒ `commission_id = c`;
+  - `is_member_of_for(c)` ⇒ a commission seat at c.
+- **Organization-scope arms** exist only on F-PROF's path: CMP (`org_admin`), and `org.professionals.read` at
+  organization kind, where commission and hospital facts ascend to their organization.
+
+**1.3 The gate: `app._caller_may_reach(p_kind text, p_id uuid) → boolean`.**
+- **Attributes:** plpgsql, STABLE, DEFINER, `search_path = ''`, **owner only, no grants** (budget +0).
+- **Principal:** binds `(select auth.uid())`; a NULL uid → false.
+- ⛔ **It deliberately ignores** `is_active`, hats, membership expiry, grant revocation or expiry, assignment completion and
+  case exclusion. Each of those only ever narrows an arm, so ignoring them keeps the gate a superset.
+
+**Building blocks.**
+- `SEAT(C, H)` := ∃ `memberships` m with `m.principal_id = uid` and (`m.commission_id = any(C)` or
+  `m.hospital_id = any(H)`).
+- `ORGSEAT(O)` := ∃ m with `coalesce(m.organization_id, c.organization_id, h.organization_id) = any(O)`, via
+  `commissions` and `hospitals`.
+- `RCASE(c)` := ∃ a `case_access_grants` row (`case_id = c`, `principal_id = uid`, in any state), or ∃ `case_phases` /
+  `case_narratives` on c with `assigned_to = uid`.
+
+| `p_kind` | C (commission seats) | H (hospital seats) | Role-free relations | Arms covered (live) |
+| --- | --- | --- | --- | --- |
+| `case` | `cases.commission_id` | `hospital_of_commission(that)` | `RCASE(c)` | S1 `holds_role`, S5 permission, S8 `member_can_for` → C; S6 PQS, S7 QR → H; S3, S4 → `RCASE`. S2 sets only the manage bit, never a read bit |
+| `interview` | as `case`, on `case_of_interview(i)` | same | `RCASE(case)` | `can_read_interview` = committee(case) ∧ clearance |
+| `action_item` | `action_items.commission_id`, plus the anchor case's C | the anchor case's H | `assigned_to = uid`; any `action_item_assignments.user_id = uid`; `RCASE(anchor)` | committee permission; `staff_admin`; assignee arms; case_restricted → committee(anchor) |
+| `meeting` | `meetings.commission_id` | — | — | `can_reach_meeting` (the attendee term is a conjunct) |
+| `document` | by home: meeting / controlled → `securable_resources.commission_id`; case, interview, action_item → that kind; case_referral → `referral`; rca → `event(event_of_rca)`; capa_action → `capa(capa_action.capa_id)`; a print present → its source kind | same dispatch | controlled: the approver (`document_approvals ⋈ controlled_document_versions`) | `can_read_document`'s dispatch, print arm first |
+| `form_response` | `responses.commission_id` | — | `created_by = uid`; any `case_correction_requests.permitted_corrector = uid` on the response's phase; `professional_profiles.user_id = uid` on `target_case_participant_id` (any `removed_at`) | the four form_response corridors |
+| `referral` | `source_commission_id`, `target_commission_id` | `hospital_of_commission(source)`, `hospital_of_commission(target)`, `target_hospital_id` | — | the five metadata arms |
+| `event` | `current_owner_commission_id`, `reporting_commission_id` | `hospital_of_event(e)` | — | EVT's three arms |
+| `capa` | the indicator commission (join, when source = indicator) | `capa_plan.hospital_id` | the `event` gate of `event_of_capa(p)` | CAPA's three arms |
+| `professional_profile` | — | — | — (`ORGSEAT` on `professional_profiles.organization_id`) | #27's consumers: the WHEN org set and CMP |
+
+Unknown kind → false.
+
+**The superset lemma.** For every kind, every arm the live body can make TRUE for u on x needs, by 1.2, either a seat at a
+scope in C(x) / H(x) / O(x), or one of the listed relation rows, and the gate tests exactly those. So
+`scalar(x, u) = true ⇒ gate(x, u) = true`. The gate never grants; it only lets a route emit.
+
+**1.4 Where the gate sits.** It applies to every argument-taking new function executable by `authenticated`.
+
+| # | Function | Gate, and zero-resolution pre-check |
+| --- | --- | --- |
+| 28 | `action_item_read_route(i)` | `_caller_may_reach('action_item', i)` after load, before any key. For case_restricted items, emit only if `case_committee_verdict(anchor) <> 0` |
+| 29 | `document_read_route(d)` | `_caller_may_reach('document', d)` after the guards and ceiling. Case home: emit only if `app.can_read_case(case, uid)`. Interview home: only if `interview_read_verdict(i) <> 0`. Action-item home: #28's pre-check. Print: #30's pre-checks |
+| 30 | `printed_source_read_route(k, s)` | the gate for the source kind, plus the pre-checks in §2 (case anchor; form_response corridor; meeting visibility) |
+| 31 | `document_of_version(v)` | returns the document id only if `_caller_may_reach('document', doc)`; otherwise NULL |
+| 32 | `document_ids_of_file_object(fo)` | keeps only documents that pass `_caller_may_reach('document', ·)` |
+| 20 | `owner_commission_of_event(e)` | `_caller_may_reach('event', e)`, otherwise NULL |
+| 21, 22 | `hospital_of_capa(p)`, `indicator_commission_of_capa(p)` | `_caller_may_reach('capa', p)`, otherwise NULL |
+| 27 | `organization_of_professional_profile(p)` | `_caller_may_reach('professional_profile', p)`, otherwise NULL |
+| 15, 16, (j) | the three verdicts | no gate: `_case_caps_core` returns 0 unless an arm sets a bit, so a caller with no arm (or a missing id) reads 0 |
+
+**Why equivalence is unchanged.** Output is suppressed only where the gate (a superset of the arms) is false, or where a
+pre-check — the policy's own zero-resolution test on the same key — is false. In both cases the policy's test is already
+false. **Cost:** the pre-checks evaluate `_case_caps_core` twice for each case- or interview-homed row. That is owed to the
+harness; if it is too costly, ruling (c′) below applies.
+
+**1.5 `428` cells.**
+- **§2 — gate ⊇ arms.** For every §1 principal × hat × fixture id × kind, count the cells where the scalar is true and
+  `_caller_may_reach` is false; it must be 0.
+  - Scalars used: `can_read_case`, `can_read_interview`, `can_read_action_item`, `can_reach_meeting`, `can_read_document`,
+    `can_view_printed_document`, `can_read_referral_metadata`, `can_read_event`, `can_read_capa`, and F-PROF's WHEN/CMP
+    components.
+  - Non-vacuity: ≥ 1 gate-false cell per kind, and ≥ 1 cell per role-free relation in which that relation is the ONLY
+    thing making the gate true (grant-only foreign principal; assignee-only; approver-only; creator-only; corrector-only;
+    targeted-only).
+- **§7 — the foreign-org cell.**
+  - **Subject:** principal `F` (active, seated only in O2, with no relation).
+  - **Crossed with every Class-1 fixture id:** cases, interviews, action items, meetings, documents of every home type,
+    prints of every kind, events, CAPAs, referrals, notes, profiles, versions and file objects.
+  - **And with every argument-taking new function:** #15, #16, (j), #20–22, #27–32.
+  - **Expected:** routes return 0 rows, derivations NULL, verdicts 0.
+  - **Positive twins:** `F_grant` (O2, with an S3 grant on one O1 case) sees routes emit for that case's documents and
+    prints only; `F_owner` (a member of the O2 commission that currently owns an O1-reported event) gets #20's value.
+- **Plants:**
+  - a gate body of `select true` reds the foreign-org cell;
+  - a gate body of `select false` reds §3 (over-deny);
+  - dropping each role-free relation from the gate, one at a time, reds its relation-only cell (6 plants).
+
+**1.6 Residual disclosure after narrowing — for the PO.**
+
+**Primary control.** `app` is not in PostgREST's exposed schemas (`supabase/config.toml:71`, local). Per the PO (`cb98aeef`)
+there is no hosted check, because the project is pre-pilot and a full remote reset is planned. Every item below is reachable
+**only by direct SQL as `authenticated`**.
+
+1. **#29 document route:**
+   - **(a) Home keys of documents the caller cannot read,** to a caller who passes that home's gate:
+     - with a seat at the home commission, or as approver: the home commission id of a meeting- or controlled-homed
+       document;
+     - seated at a tested scope of the referral, event or CAPA (source/target commission or hospital; owner/reporting
+       commission or hospital; CAPA hospital or indicator commission): the referral id / event id / CAPA plan id homed on
+       the document.
+   - **(b) Label presence.** To a caller whose case or interview test passes but who lacks clearance, the absence of the
+     row reveals an enforcing label.
+2. **#30 print route, meeting prints.** To a caller seated at the meeting's commission, for whom the meeting is visible,
+   but who fails `meetings.read` (e.g. the wrong hat): the case ids linked to agenda items, and which agenda items carry
+   notes. Case and form_response prints emit only to callers whose anchor passes.
+3. **#28 action-item route.** To a caller seated at the item's commission, or to an assignee: the committee commission id,
+   and for assignees_only items the three-way assignee boolean.
+4. **#20–22.** An event's current owner commission (custody — not obtainable today), and a CAPA's hospital and indicator
+   commission, to callers seated at a scope the event's or CAPA's arms test.
+5. **#27.** A professional profile's organization, to callers with any membership in that organization.
+6. **#31, #32.** Version → document and file-object → document ids, to callers who pass the document gate.
+7. **Cross-org, through a role-free relation.** A foreign-org caller holding a case grant, an assignment, an approval, or a
+   response creator / corrector / target relation gets items 1–6 for THAT resource only.
+8. **Verdicts #15, #16, (j).** The caller's own capability class (0/1/2) on any case or interview id. A 2 reveals only that
+   the case is not `explicit_grants_only` and that deliberation would rest on the commission permission — for cases where
+   the caller already has content reach.
+9. **Pre-existing and unchanged, and larger than items 1–8** (not introduced here; listed so the PO sees the whole surface):
+   - `app._case_caps(uuid,uuid)` and the scalar authorizers and helpers that take an arbitrary principal, all
+     `authenticated`-executable;
+   - ungated id → owner lookups (`commission_of_case`, `commission_of_meeting`, `commission_of_document_version`,
+     `case_of_interview`, `hospital_of_event`, `event_of_rca`, `event_of_capa`, …);
+   - PUBLIC-executable `is_pqs_member_of_for`, `is_nsp_coordinator_of_for`, `can_read_event_patient`,
+     `can_read_correction_response` and `commission_of_version`.
+
+#### 2. Print route — exact SQL per obligation axis (DOCS-D3, #30)
+
+- **Source.** Live `can_view_printed_document`, `can_read_full_case_content` (postgres-only) and
+  `can_read_full_meeting_content`, read 2026-09-15.
+- **Signature change.** The return type gains `axis text`, which PRINT ignores and `428` uses for per-axis attribution. The
+  PRINT fragment itself is unchanged.
+
+```sql
+create or replace function app.printed_source_read_route(p_source_kind text, p_source_id uuid)
+returns table(is_anchor boolean, axis text, obligation text, key_id uuid, direct_ok boolean)
+language plpgsql stable security definer set search_path = ''
+as $function$
+declare
+  v_uid uuid := (select auth.uid());
+  v_resp public.responses;
+  v_commission uuid;
+  v_visibility text;
+begin
+  if v_uid is null or p_source_id is null then return; end if;
+  if p_source_kind = 'form_response' then
+    select * into v_resp from public.responses r where r.id = p_source_id;
+    if v_resp.id is null or not app._caller_may_reach('form_response', p_source_id) then return; end if;
+    if not (v_resp.created_by = v_uid
+            or (v_resp.status = 'submitted' and app.is_staff_admin_of_for(v_resp.commission_id, v_uid))
+            or app.can_read_correction_response(p_source_id, v_uid)
+            or app.can_access_targeted_response(p_source_id, v_uid)) then return; end if;
+    return query select true, 'anchor', 'direct', null::uuid, true;
+  elsif p_source_kind = 'meeting' then
+    select m.commission_id, m.visibility_policy into v_commission, v_visibility from public.meetings m where m.id = p_source_id;
+    if v_commission is null or not app._caller_may_reach('meeting', p_source_id) then return; end if;
+    if not (v_visibility = 'commission_default'
+            or exists (select 1 from public.meeting_attendees a where a.meeting_id = p_source_id and a.user_id = v_uid)) then return; end if;
+    return query select true, 'anchor', 'meeting_reach', p_source_id, null::boolean;
+    return query                                          -- live: exists mc on ai.id where is_case_respondent(mc.case_id, u)
+      select false, 'M-respondent', 'direct', null::uuid, false
+        from public.meeting_agenda_items ai join public.meeting_cases mc on mc.agenda_item_id = ai.id
+       where ai.meeting_id = p_source_id and app.is_case_respondent(mc.case_id, v_uid);
+    return query                                          -- live: notes present and exists mc where not deliberation
+      select false, 'M-deliberation', 'case_deliberation', mc.case_id, null::boolean
+        from public.meeting_agenda_items ai join public.meeting_cases mc on mc.agenda_item_id = ai.id
+       where ai.meeting_id = p_source_id
+         and (ai.description is not null or ai.discussion_notes is not null or ai.resolution is not null);
+  elsif p_source_kind = 'case' then
+    select c.commission_id into v_commission from public.cases c where c.id = p_source_id;
+    if v_commission is null or not app._caller_may_reach('case', p_source_id) then return; end if;
+    if not app.can_read_case(p_source_id, v_uid) then return; end if;               -- anchor pre-check, 0 resolutions
+    return query select true,  'anchor', 'case_content',      p_source_id, null::boolean;
+    return query select false, 'A',      'case_deliberation', p_source_id, null::boolean;
+    return query select false, 'B', 'direct', null::uuid,
+      (app.is_staff_admin_of_for(v_commission, v_uid)
+       or not exists (select 1 from public.case_events e where e.case_id = p_source_id and e.visibility <> 'case_readers'));
+    return query                                          -- C: INNER JOIN responses, exactly as live
+      select false, 'C', 'direct', null::uuid, app.can_view_printed_document('form_response', r.id, v_uid)
+        from public.case_phases cp join public.responses r on r.id = cp.current_response_id
+       where cp.case_id = p_source_id;
+    return query select false, 'D', 'interview', ci.id, null::boolean
+                   from public.case_interviews ci where ci.case_id = p_source_id;
+    return query                                          -- E: keyed on coalesce(source_case_id, linked_case_id), exactly as live
+      select false, 'E-committee', 'case_committee', p_source_id, null::boolean
+       where exists (select 1 from public.action_items ai
+                      where coalesce(ai.source_case_id, ai.linked_case_id) = p_source_id
+                        and ai.visibility_scope = 'case_restricted');
+    return query
+      select false, 'E-assignee', 'direct', null::uuid,
+             (app.is_staff_admin_of_for(ai.commission_id, v_uid)
+              or (ai.assigned_to is not null and ai.assigned_to = v_uid)
+              or exists (select 1 from public.action_item_assignments a
+                          where a.action_item_id = ai.id and a.user_id = v_uid and a.completed_at is null))
+        from public.action_items ai
+       where coalesce(ai.source_case_id, ai.linked_case_id) = p_source_id
+         and ai.visibility_scope = 'assignees_only';
+    return query select false, 'F', 'meeting_reach', mc.meeting_id, null::boolean
+                   from public.meeting_cases mc where mc.case_id = p_source_id;
+    return query select false, 'G', 'referral', cr.id, null::boolean
+                   from public.case_referral cr where cr.source_case_id = p_source_id;
+  end if;                                                 -- any other kind, 'interview' included: 0 rows (the live ELSE)
+end;
+$function$;
+```
+
+**Equivalence per axis** (each is the live sub-predicate or its De Morgan dual):
+- **B** is `¬(¬staff_admin ∧ ∃ coordinator-only event)`.
+- **C** is `∀` phases with a joined response: `can_view_printed_document`.
+- **E-assignee** is the dual of `¬staff_admin ∧ (assigned_to is null ∨ ≠ u) ∧ ¬∃ open assignment`.
+- **M-respondent** is a failing row per respondent-linked agenda case.
+- **M-deliberation** keys each noted agenda item's linked case to C-DELIB.
+- **Nullable join keys.** The `agenda_item_id IS NULL` and `current_response_id IS NULL` rows are excluded by the joins,
+  exactly as live.
+
+**Plants: one per obligation source.** Each is a route-body mutation installed in a rolled-back transaction. It must red a
+D0 cell whose principal has ONLY that axis failing. That is asserted as a precondition by recomputing every other axis's live
+sub-predicate as true for the principal.
+
+| Plant | Only-failing-axis principal and fixture |
+| --- | --- |
+| drop M-respondent | `P_mresp`: reaches meeting M; respondent on a case linked to an agenda item; deliberation true on every noted linked case |
+| drop M-deliberation | `P_mdel`: reaches M; not a respondent; lacks deliberation on one noted linked case |
+| drop A | `P_A`: content true, deliberation false (S7 or S8); B–G all pass |
+| drop B | `P_B`: all else passes; the case has a coordinator-only event; not `staff_admin` |
+| drop C / C without the inner join | `P_C`: one phase response it cannot view. **Join twin:** a case with a NULL-response phase and a granting principal must stay readable, so the "iterate `case_phases`" plant reds it (over-deny) |
+| drop D | `P_D`: one interview it cannot read (clearance) |
+| drop E-assignee / E keyed on `source_case_id` only | `P_Ea`: a **linked-only** assignees_only item (source NULL, linked = c) it is not assigned to. **Over-emission twin:** a source ≠ linked item (source = c1, linked = c2) must not appear for c2, so the `source = s OR linked = s` plant reds a c2 print cell |
+| drop F | `P_F`: the case is linked to a `participants_only` meeting it does not attend |
+| drop G | `P_G`: the case has a draft referral whose target is `P_G`'s commission |
+| give `interview`-kind prints an arm (DOCS F12) | a D0 `interview`-kind print: must stay 0 |
+
+⛔ **E-committee is structurally redundant, so its plant cannot red — stated, not skipped.**
+- It tests `can_read_case_committee(c)`, which is content ∧ deliberation (CASE §2 identity).
+- The anchor already requires content, and axis A requires deliberation.
+- So E-committee fails only when A fails, and no only-failing principal exists (LEARN-026 by construction).
+- The row is kept for fidelity to the live body.
+
+**D0 fixture rows added:**
+- a linked-only case_restricted item and a linked-only assignees_only item;
+- a source ≠ linked item;
+- a NULL-response phase with a granting principal;
+- an `interview`-kind print.
+
+#### 3. `F3(d)` on the 7 C-INTERVIEW tables, with principals whose every sibling is closed
+
+**Tables:** `case_interviews`, `case_interview_subjects`, `case_interview_interviewers`, `interview_sessions`,
+`interview_session_attendance`, `interview_summaries`, `interview_topics`.
+
+**Known siblings** (review, live): `case_interview_subjects_write`, `case_interview_interviewers_write` and
+`interview_sessions_write`. These are FOR ALL policies: `can_write_interview(interview_id, uid) [AND NOT is_case_excluded]`,
+with no clearance term. (`case_interview_links_write` is the same shape, on the C-COMMITTEE table #24.) Siblings on the
+other tables are derived in `428` from the vector, never from a hand list.
+
+**Principals.**
+- **`G_s8_noclr`** — administrativo `read_cases` on a `staff` seat; neither `staff_admin` nor interviewer, so
+  `can_write_interview` is false.
+- **`G_clr`** — `G_s8_noclr` plus a `legal_privileged` clearance grant.
+- **Precondition, asserted per table:** every sibling SELECT-applicable qual (from the vector) evaluates false for the
+  principal on the fixture row.
+
+**Expected.**
+- On a `legal_privileged` interview: `G_s8_noclr` reads 0 on all 7 tables; `G_clr` reads the rows.
+- On a `non_phi_internal` interview: both read.
+
+**The walk-around cells.** Cells where a `staff_admin` or interviewer without clearance reads children through the siblings
+are tagged **`BUG-AE5-STAFF-INTERVIEW-CHILDREN-BYPASS-CLEARANCE-VIA-WRITE-POLICIES`**.
+- They are compared A/B only — outcome equality — and **never asserted as the intended value**.
+- If the hotfix closes the sibling first, the cells still compare equal.
+
+#### 4. Command-context cells (§3.8), re-specified
+
+**Mechanism.**
+- **Precondition:** `ok(current_setting('session_replication_role') = 'origin')` at file start and before every cell.
+- **The outcome probe.** `pg_temp.f1_outcome(stmt)` runs `with u as (<stmt>) select count(*), md5(string_agg(id::text,
+  ',' order by id)) from u`.
+  - It runs inside `begin … exception` and captures the count and md5.
+  - Then it raises a sentinel, so the attempt rolls back. Any other error is captured as its SQLSTATE.
+- **A/B.** A is the table's pre-image SELECT-applicable policy set, re-installed from the vector. B is the post-image.
+- **The assertion is outcome-class equality only:** `ok(a.sqlstate is not distinct from b.sqlstate and a.n is not distinct
+  from b.n and a.md5 is not distinct from b.md5)`.
+- The observed outcome is printed with `diag` and **never asserted**.
+
+| Cell | Reachable statement under `origin` | Tag |
+| --- | --- | --- |
+| N.3g-1 | a PQS operator of H1 moves an open CAPA's `hospital_id` from H1 to H2 (same org O1), RETURNING id | — |
+| N.3g-2 | the same move H1 → H3 (O2) | `BUG-AE5-STAFF-CAPA-UPDATE-MOVES-ACROSS-TENANTS` |
+| N.3g-3 | `update rca set event_id = <O1 event> where id = X returning id`, as a PQS operator | — |
+| N.3g-4 | the same, to an O2 event | `BUG-AE5-STAFF-CAPA-UPDATE-MOVES-ACROSS-TENANTS` (PRE-2 includes `rca_update`) |
+| N.3g-d | discrimination: R1's column form installed as B for N.3g-1 must give a different outcome class from A | — |
+| R.8-c1 | a source manager makes a non-status edit to its own draft, RETURNING | — |
+| R.8-c4 | a target manager makes a non-status edit to a source-side draft, RETURNING | `BUG-AE5-STAFF-REFERRAL-UPDATE-RETARGETS-ACROSS-TENANTS` |
+| R.8-c5 | a source manager sets `source_commission_id` to an O2 commission, RETURNING | `BUG-AE5-STAFF-REFERRAL-UPDATE-RETARGETS-ACROSS-TENANTS` |
+| R.8-c6 | a TD edits a TD-target draft addressed to its hospital, RETURNING | — |
+| R.8-d | discrimination: the inline-column form for c5 must differ from A | `BUG-AE5-STAFF-REFERRAL-UPDATE-RETARGETS-ACROSS-TENANTS` |
+
+**Not a cell.** Status changes raise HC070 in every variant (`guard_referral_status`).
+
+**Robust to the hotfix ordering.**
+- **Hotfix first:** A and B raise the same SQLSTATE, so equality holds. Rebasing onto the fix regenerates the pre-images.
+- **Hotfix later:** the md5 preflight refuses, which is the signal to regenerate (lead, `cb98aeef`).
+
+**Correction recorded.** F-REF §5's claim "an UPDATE…RETURNING row is judged on its old version by both" was measured under
+`session_replication_role = replica`. `sent → draft` is forbidden by `guard_referral_status`, so the claim is false as
+written.
+
+#### 5. Fixture topology (`428` §1)
+
+**Organizations, hospitals and commissions.**
+- **O1:** H1 {X, Xb}, H2 {Y2}.
+- **O2:** H3 {Z}.
+
+**Principals added:**
+- **Hospital roles:** `P1`/`C1`/`T1`/`T1′` (PQS, NSP coordinator, TD, deputy) at H1, and `P2`/`C2`/`T2`/`T2′` at H2.
+- **Foreign-org callers:** `F`, `F_grant`, `F_owner`.
+- **Label cells:** `P_lbl`, `P_lbl_i`.
+- **Inactive corridor holders:** `A_off` (an approver), `S_off` (an assignee).
+- **Sibling-closed:** `G_s8_noclr`.
+- **Only-failing-axis:** `P_mresp`, `P_mdel`, `P_A` … `P_G`.
+- **Other classes:** active principals with zero memberships (NSP P3-2), and a dual `staff` + `pqs_member`.
+
+**Rows.**
+- **Referrals:**
+  - X → Y2, sent and draft;
+  - a TD target at H2 from X, sent and draft;
+  - an X → Xb pair (same hospital);
+  - source-side and target-side notes on draft and on sent.
+- **Events:** reported by X and owned by Z (O2), and the reverse (N.3a: crossing hospital AND org, both directions).
+- **CAPAs:** one per source — event, rca, indicator (foreign), manual, meeting, audit_finding — including an event-sourced
+  CAPA on a foreign event.
+- **Meeting `M_p`** (`participants_only`): an agenda item, a closed session, and a signature by the member attendee (M4 / E4).
+- **Plus** every D0 row from §2, and the interview and label documents from §3 and §7.
+
+**Required cells and plants.**
+- **R.3 cells:**
+  - "PQS at the target hospital only": a grant for `P2` on X → Y2, sent and draft.
+  - "Source TD on a TD target at another hospital": a deny for `T1` on the H2 TD target.
+- **R.7c plants:**
+  - S1 without the target-PQS branch: under-grant ≥ 1.
+  - The TD arm keyed on the source hospital: over-grant ≥ 1.
+- **Inheritance:** F-DOCS `S_REFERRAL_METADATA` inherits this fixture.
+- **N.3 plants A** (EVT without the owner arm) and **C** (the PQS arm keyed on the owner commission's hospital) are
+  mandatory: each must give ≥ 1 mismatch.
+
+#### 6. Ruling (k) re-specified — `311` §5.1
+
+- **Region cut.** From each policy qual, remove every exact canonical instance of C-INTERVIEW, C-COMMITTEE and C-DELIB, as
+  deparsed by the catalog.
+  - The match is a regex built from the committed deparse vector.
+  - A backreference forces the THEN E to equal the verdict E (R3).
+- **Test.** Apply the unchanged co-occurrence test (`~ 'case_of_interview\('` ∧ `~ 'app\.can_read_case\('`) to ALL `public`
+  policies; the expected result is `''`. **No name exemption.** §5.1b's non-vacuity stays, on the uncut text.
+- **Discrimination plants** (rolled back):
+  - replace one C-INTERVIEW instance in `documents_select` with
+    `app.can_read_case(app.case_of_interview(r.interview_id), (SELECT auth.uid()))` — 5.1 must red;
+  - a C-INTERVIEW instance whose THEN uses a different E is not cut — 5.1 must red.
+- **Behavioural twin in `428`:** `G_qr` reads 0 interview-homed documents and 0 case prints, AND ≥ 1 case-homed document and
+  ≥ 1 case-homed document version.
+- **Owner:** backend, `311`, at T15.4.
+
+#### 7. The L17 plant (`428` §7)
+
+This replaces the integrated plan's "universal `S_CASE_CONTENT` / `S_INTERVIEW` stand-ins" and its undefined `x_case`.
+
+**Case arm.**
+- **Principal `P_lbl`** (`staff_admin` of X, no clearance grant), with asserted preconditions
+  `app.can_read_case(c_lbl, P_lbl) = t` ∧ `app.confidentiality_clearance_ok(c_lbl, 'legal_privileged', P_lbl) = f`.
+- **Document `d_lbl`:** homed on case `c_lbl` (resource type `case`), `confidentiality_level = 'legal_privileged'`.
+- **Post-image:** `P_lbl` reads `d_lbl` = 0.
+- **Plant 1** (the case arm moved outside the route):
+  `alter policy documents_select … using ( DOC(id) OR app.can_read_case(home_resource_id, (SELECT auth.uid())) )`.
+  - The per-row case derivation is the row's own `home_resource_id`; for a non-case home, `can_read_case` hits STEP 3 and
+    returns false.
+  - It MUST red: `P_lbl` reads `d_lbl` = 1.
+
+**Interview twin.**
+- **Principal `P_lbl_i`**, with asserted `can_read_interview(i_lbl, u) = t` ∧
+  `confidentiality_clearance_ok(case_of_interview(i_lbl), 'legal_privileged', u) = f`.
+- **Document `d_lbl_i`:** homed on interview `i_lbl`, labelled.
+- **Plant 2:** `DOC(id) OR C-INTERVIEW(home_resource_id)`. It MUST red.
+
+**Discrimination half.** `G_clr` (cleared) reads `d_lbl` and `d_lbl_i` = 1 under the post-image AND under both plants.
+
+#### 8. Inactive cells per table, and plant (b)
+
+| Table(s) | Inactive principal with no corridor | Inactive corridor holder |
+| --- | --- | --- |
+| `action_item_{assignments,checklists,reminders,status_history,updates}` | 0 | `S_off` (inactive assignee): 0. The live check is `is_active` first |
+| `documents`, `document_versions`, `document_placements`, `document_version_files`, `file_objects` | 0 | `A_off` (inactive approver): 0 (the live check is `is_active` first) |
+| `document_approvals` | 0 | `A_off` reads their own approval rows through `approver_id = auth.uid()`, which is hat- and activity-free on both images (pinned equal to the scalar) |
+| `printed_documents` | 0 | an inactive response creator reads = the scalar (visible: PRINT has no `is_active`, live) |
+
+**Plant (b)** (drop `is_active`):
+- on #28 it must red the `S_off` cell;
+- on #29 it must red the `A_off` document cell;
+- ⛔ #30 is removed from the plant list: it has no `is_active` to drop.
+
+#### 9. Ruling (o) — atomicity, and equivalence of every prefix
+
+**The remote apply path — cited.** Supabase CLI `v2.115.0` (the installed version), `apps/cli-go/pkg/migration/file.go`,
+`ExecBatch`:
+- **One batch per file.** Every statement of a file that is not pipeline-incompatible goes into ONE `pgconn.Batch`.
+  Pipeline-incompatible means `CREATE INDEX`, `REINDEX`, `VACUUM`, `ALTER SYSTEM` or `CLUSTER`.
+- **The history row rides with it.** `INSERT INTO supabase_migrations.schema_migrations` is appended to that same batch.
+- **One implicit transaction.** The batch is sent by one `PgConn().ExecBatch(...).ReadAll()`: one pipeline, one implicit
+  transaction. A failing statement rolls back the file's DDL AND the history row.
+- **The exception.** A pipeline-incompatible statement flushes the batch and runs alone, which splits atomicity.
+
+**The local `db reset` path — UNPROVEN.** The same source's comment says local `db start` / `db reset` no longer go through
+`ExecBatch`: they use a TypeScript bootstrap port. That code was not located at the installed tag.
+
+**Decision — atomicity that does not depend on the client.**
+- **Explicit transaction.** Each of the seven files wraps its body in an explicit `begin;` … `commit;`. Precedent: 33 applied
+  migrations do, e.g. `20260927000330` … `360`, and they apply on every fresh local reset.
+- **No split-prone statements.** No file carries a pipeline-incompatible statement; the generator refuses one.
+- **Postflights inside.** Every postflight `do` block sits before `commit;`.
+- **Why that is enough.** A raise aborts the explicit transaction, and `commit;` then ends it as a rollback. In the remote
+  pipeline, the statements after the error, including the history insert, are skipped until Sync.
+
+**Owed measurement — T15.3 step 0, before any real migration, never on the shared stack.**
+- **Setup:** a disposable Supabase stack, and a copy of migration 1 with a planted failing final postflight.
+- **Apply it through both paths:** (i) local `supabase db reset`; (ii) `supabase db push --db-url` against a throwaway
+  database.
+- **Read back:** 0 of its functions, no `schema_migrations` row, and a CLI exit ≠ 0.
+- **Stop condition:** a partial state or a history row in (i) stops the plan and is reported.
+
+**Prefix equivalence** (each prefix 1…k, standing alone):
+
+| After | Policies changed | Why equivalent |
+| --- | --- | --- |
+| 1 | none | functions only (the wrappers and `_caller_may_reach`) |
+| 1–2 | 44 mechanical | each substitution is equivalent against untouched scalars (plan §3); migration 2's postflight asserts `meeting_cases_select` and `action_items_select` still equal their pre-image |
+| 1–3 | + 17 B + `action_items_select` | `_case_caps` / `has_case_capability` give identical answers (CASE §5.1); the B compositions ≡ the scalars (§5.2, §5.3); the A policies' text and answers are unchanged; migration 3's postflight asserts `meeting_cases_select` is untouched |
+| 1–4 | + 4 meetings + `meeting_cases_select` | F-MEET §5 (uses only migration 1's wrappers and #17) |
+| 1–5 | + 18 NSP | F-NSP §5 (migration 1's wrappers, and 5's gated derivations) |
+| 1–6 | + 6 REF + 2 PROF | F-REF / F-PROF §5 (P1 uses migration 3's verdicts; #27 is gated) |
+| 1–7 | + 12 DOCS | F-DOCS §5, with this amendment's §1 and §2 |
+
+**The general argument.**
+- Every post-image references only functions created in its own or an earlier migration.
+- Every unconverted policy still calls byte-unchanged scalars.
+- Each migration's alterations are individually equivalent against those scalars.
+
+So any prefix is equivalent. The reviewer measured the meetings MID state once.
+
+**Per-migration preflight body lists.** Migration k md5-checks only bodies that no migration before k re-emits.
+`_case_caps` and `has_case_capability` are checked against the pre-image in migration 3, and against the post-migration-3
+vector in migrations 4–7.
+
+#### 10. Ruling (j) — L1 proven for hospital- and org-entailed deliberation; the fallback text
+
+**Claim.** For every principal u and commission c, `c ∈ current_cases_deliberation_read_commissions()` ⟺
+`has_permission(u,'commission',c,'commission.cases.deliberation.read')` — including principals whose roles are held at
+hospital or organization scope.
+
+**Proof, from the live bodies.**
+- **The scalar side.** `has_permission` requires the code's `resolution_scope_kind = 'commission'`. `entailed_grants` then
+  requires `scope_reaches(af.scope_kind, af.scope_id, 'commission', c)`, whose only true branch is same kind ∧
+  `p_assignment_id = c`; every other kind is `false`, with no descent. So a hospital- or org-scope fact never satisfies it.
+- **The set side.** `authorized_scope_ids` proposes `af.scope_id` only when `af.scope_kind = 'commission'` (other kinds yield
+  NULL and are filtered out), and confirms through the same `has_permission`.
+- **Result.** For a principal with only hospital- or org-scope facts, both sides are false on every commission; for everyone
+  else they are equal.
+- **No over-deny class.** This is structural, independent of today's grants (the review's resolved item DOCS F8b).
+
+**`428` §3.1b.**
+- **Construction:** inside the transaction, an authoritative role at hospital scope that holds the code, seated at H1.
+- **Expected:** both sides deny every commission in H1.
+- **Discrimination half:** the same role as a commission-scope membership at X — both sides grant X.
+
+**Fallback if (j) is ever withdrawn.**
+- PRINT's `case_deliberation` term becomes `app.has_case_capability(o.key_id, (SELECT auth.uid()), 'read_case_deliberation')`.
+- AC-11 is then unmet on `printed_documents_select` and on the print arm of the 5 DOC sites (one per-row S5 resolution per
+  deliberation obligation row), and the AC-11 tick says so.
+
+#### 11. Rulings (q), (e) and (f), carried
+
+- **(q)** Each of the 8 zero-caller functions gets a findings row reading *"ORACLE-ONLY — no production caller (Q-3 bound,
+  LEARN-018); a COVERED score means `428`'s differential sees its neutralization, not that production is protected"*. Never a
+  bare COVERED. `428` §2 pins the caller census, so a caller that reappears is a deliberate event.
+- **(e)** W1 `app.current_referrals_metadata_read_commissions()` is owner-only: `proacl = {postgres=X/postgres}`, not
+  executable by `authenticated`, `service_role`, `anon` or PUBLIC. R.1 is typed that way, which supersedes the F-REF
+  fragment's `service_role` text.
+- **(f)** The five conditions, written into the ruling (REF P2-6):
+  1. the boolean is "∃ a live seating with verdict = 1", never "≥ 1";
+  2. the `uuid[]` holds `commission_of_case` of verdict-2 live seatings only;
+  3. `removed_at is null` is checked inside;
+  4. the hat term stays an AND outside;
+  5. a `428` plant that builds the array from all seatings must red F.7c.
+
+#### 12. Disposition table — every review finding
+
+| Id | Finding | Disposition | Change (where) |
+| --- | --- | --- | --- |
+| P1-1 | routes disclose beyond (c) | **Accept** | §1: gate, pre-checks, foreign-org cell, residual list to the PO |
+| P1-2 | PRINT axes C and E; one plant for 9 sources | **Accept** | §2: exact SQL, per-axis plants, D0 rows; E-committee proven structurally redundant |
+| P1-3 | F3(d) clearance masked by siblings | **Accept** | §3 |
+| P1-4 | command-context cells unrunnable, pin PRE-1/2 | **Accept** | §4 |
+| P1-5 | a one-hospital fixture | **Accept** | §5 |
+| P1-6 | (k)'s name exemption | **Accept** | §6 |
+| P1-7 | the L17 plant cannot execute | **Accept** | §7 |
+| P1-8 | inactive cells and plant (b) contradict the live scalar | **Accept** | §8 |
+| P2-1 | the set-valued harness aborts on `document_ids_of_file_object` | **Accept** | #32 goes in ruling (n)'s derivation allowlist as structure-only (gated), with its reason, as the harness's §4a/§4b entry, before the Phase Gate |
+| P2-2 | comparator over all permissive policies (63 tables with > 1) | **Accept** | §3.7, F3(d), N.3, M4, R.3 and D3 compare A/B: the table's whole pre-image SELECT-applicable policy set, re-installed from the vector, against the post-image set, both read as `authenticated`. Discrimination cells use principals whose every sibling qual evaluates false, derived per table in `428` and asserted |
+| P2-3 | row-independence coverage | **Accept** | all 46 mechanical sites get a Δ-vs-N statement at N₁ = 5 → N₂ = 50, generated from the manifest site list, with the count asserted = 46. Family lists keep 20 → 200. For the 81, each policy maps to an (interface × E-derivation × nesting) class in a committed `f1_policy_shape_class.tsv`; every class has ≥ 1 witnessed statement, and `428` asserts every policy's class is witnessed. Ablation 7a runs per class |
+| P2-4 | migration atomicity unproven | **Accept** | §9 |
+| P2-5 | zero-caller verdicts read COVERED | **Accept** | §11 (q) |
+| P2-6 | the plan-shape walker sees nothing without VERBOSE | **Accept** | `explain (analyze, verbose, format json)`; the walker keys on `Subplan Name` nodes referenced by the parent `Filter` and on the function name in `Output`; ≥ 1 matched node is required; its pass condition run on the pre-image must FAIL |
+| P2-7 | the post-image vector must be the catalog's deparse | **Accept** | the vector is produced by applying the generated DDL in a rolled-back authoring transaction and reading `pg_get_expr` under `search_path = ''`, then committed. Texts shown in the plan are logical, not byte forms |
+| P2-8 | M4 / E4 blind on 3 meeting tables | **Accept** | §5 `M_p` rows; M4 non-vacuity per table |
+| P2-9 | M5's first half is circular | **Accept** | M5's right-hand side is computed as owner over the pre-image `meetings_select` text from the vector; labelled one-polarity (over-grant) |
+| P2-10 | derivation oracles missing from (c) | **Accept** | §1.4 gates on #20–22, #27, #31, #32; §1.6 items 4–6 |
+| P2-11 | N.3a must cross hospital and org | **Accept** | §5 |
+| P2-12 | N.7b credits a dead conjunct | **Accept** | reworded: a manual CAPA hides because every key is NULL. N.2 pins `pg_get_constraintdef('capa_plan_source_shape')` and `convalidated` |
+| P2-13 | R.7c's hat-filter half | **Accept** | relabelled informational (a by-construction no-op), not a red condition |
+| P2-14 | F.7c needs a positive twin | **Accept** | the same principal and hat read ≥ 1 profile seated in a non-respondent case of the same commission, in the same run |
+| P2-15 | F.2's hat-chunk extraction | **Accept** | `ok(a is not null and length(a) > 40 and a = b)` on both extracts |
+| P2-16 | F.3 lacks the cross-org grant class | **Accept** | `F_grant` (O2) with a case grant seats an O1 profile: a grant on both old and new |
+| P2-17 | ruling (f) must carry its conditions | **Accept** | §11 (f) |
+| P2-18 | D6's lazy-guard list is stale | **Accept** | Re-derived list: I2 inside the C-COMMITTEE / C-INTERVIEW / C-DELIB branch 2; `current_reachable_meetings`; `current_readable_referral_ids`; `current_safety_events_read_commissions` (EVT ×2); `current_capa_read_commissions`; `current_documents_read_commissions`; `current_action_items_read_commissions`. I1 has no subplan and is not listed |
+| P2-19 | 7a′'s discrimination half discriminates nothing | **Accept** | the real half: committee children go from ≥ 1 (a pinned precondition) to 0. The assignees residue stays as a no-change control |
+| P2-20 | 7b's residue overstates | **Accept** | "no case, interview, action_item, case_referral, rca or capa_action home and no print outside Y" |
+| P2-21 | 7c's empty-deliberation cell is over-deny polarity | **Accept** | moved to §6, principal named: an S5-only (verdict 2) principal reads 0 case prints under an empty I2; a verdict-1 principal is unchanged |
+| P2-22 | (j) has no fallback text | **Accept** | §10 |
+| P2-23 | `printed_documents` has column-level SELECT only | **Accept** | every as-`authenticated` read of it selects `id` only; precondition `has_column_privilege('authenticated','public.printed_documents','id','SELECT')`; no `select *` on any of the 12 tables |
+| P2-24 | D2's non-vacuity keyed per resource type, not per guard | **Accept** | ≥ 1 cell in which each guard is the only deny: exclusion, the `is_active` corridor, ceiling, backstop, fail-closed ELSE, and the new tenant gate |
+| P3 (review) | §3.1 is near-tautological | **Accept** | codes typed per wrapper name as a constant table; §3.1 credited only for the code literal, ACL and hat; §3.1b added (§10) |
+| P3 (review) | F3(a) has no third-party cells | **Accept** | A/B masks for `has_case_capability(c, other_uid, bit)` called with claims ≠ `other_uid` (the `get_referral_case_access_summary` shape), all bits |
+| P3 (review) | F3(d)'s V1 cells masked for S1 principals | **Accept** | V1 cells from S3 (a content grant), S4 (an assignee) and S6 (PQS, flag on, referral-touched) |
+| P3 (review) | per-migration preflight lists unspecified | **Accept** | §9 |
+| P3 (review) | (c) should state its primary control | **Accept** | §1.6 |
+| MEET P3-1 | fragment §1's "other 13" description | **Accept** | correction recorded: the 13 are agenda ×3, attendees ×3, `meeting_cases_staff_admin_{delete,insert,update}` and `meetings_*` ×4 |
+| MEET P3-2 | M5's second half is equal by construction | **Accept** | dropped (redundant with M1's `prosecdef` pin) |
+| MEET P3-3 | migrations 2/3 don't assert the multi-hunk policies untouched | **Accept** | §9 |
+| MEET P3-4 | the `relforcerowsecurity` precondition is over-strict | **Accept** | the pin stays; its message names `rolbypassrls = t` as load-bearing and `relforcerowsecurity = f` as informational |
+| MEET P3-5 | E2 / M9 residues are seed numbers | **Accept** | every pinned residue is derived on `428`'s §1 fixture |
+| NSP P3-1 | N.3 needs a row-set arm as `authenticated` | **Accept** | covered by P2-2's A/B comparator |
+| NSP P3-2 | active principals with no memberships omitted | **Accept** | §5 principals |
+| NSP P3-3 | N.3e "both deny" is false for a PQS holder | **Accept** | the claim is scoped to the resolver arms; a PQS holder keeps its PQS rows |
+| NSP P3-4 | N.3d measured 4/828 | **Accept** | pinned as "every audit = true / policy = false cell carries the platform-admin hat"; the count is printed, not asserted |
+| NSP P3-5 | `track_functions` must be set in-file | **Accept** | `set local track_functions = 'all'` at file start (measured settable in-transaction as `postgres`) |
+| NSP P3-6 | `rca_update` is a second new-row site | **Accept** | §4 |
+| NSP P3-7 | a fifth audit trigger | **Accept** | correction recorded: `audit_event_custody_trg` (AFTER INSERT; read-irrelevant) |
+| NSP P3-8 | CAPA fixtures owed | **Accept** | §5 (meeting and audit_finding sources; an event-sourced CAPA on a foreign event) |
+| NSP P2-4 (demoted) | fragment's ACL text on the PQS inner helpers | **Accept** | correction recorded: NULL `proacl` = PUBLIC EXECUTE; listed in §1.6 item 9 |
+| REF P3-1 | W1 ACL text conflict | **Accept** | §11 (e) |
+| REF P3-2 | the child-table privilege sentence | **Accept** | corrected: table-level SELECT on `referral_assignments`, `referral_case_links`, `referral_read_receipts`; column-level on `referral_internal_notes`, `referral_resolutions`, `referral_messages` |
+| REF P3-3 | `is_admin_for` in the ELSE reads as new | **Accept** | ADR 0212 names it as pre-existing (arm 1 of `can_read_professional_profile`) |
+| REF P3-4 | pre-existing audit asymmetries | **Accept** | recorded in ADR 0212 as pre-existing; no change |
+| DOCS F10 | `can_read_document`'s caller list is incomplete | **Accept** | corrected: add `app.can_write_document`, `public.begin_document_upload`, `public.mint_printed_document` |
+| DOCS F12 | no `interview`-kind print in D0 | **Accept** | a D0 row; the route returns 0 rows, and a plant giving it an arm must red (§2) |
+| DOCS F13 | stale TS comments | **Accept** | `src/lib/queries/document-hashes.ts:18` and the `src/lib/queries/action-item-*.ts` comments are updated in migration 7's commit |
+| DOCS F14 | the D2 differential must be NULL-safe | **Accept** | `coalesce(DOC_SCALARARMS, false) = can_read_document(x, u)`, and likewise for AI and PRINT |
+| MEET P3-6 / DOCS F8b | resolved during the review | no change | `track_functions` is settable in-transaction (§0 C0 guards regardless); F8b is used in §10 |
+| PRE-1 / 2 / 3 | pre-existing Class-1 holes | registered by the lead; PO ruled a hotfix off `main` | §3 (PRE-3 tags) and §4 (PRE-1/2 tags); never asserted as intended values |
+
+**Counts:** 59 findings dispositioned (P1 8 · P2 24 · P3 27) — **59 accepted, 0 rejected**. Also: 2 resolved-during-review
+items with no change, and 3 PRE items tagged.
+
+#### 13. Function inventory and gate deltas, re-stated
+
+- **New functions: 34.** The integrated plan's 32, plus:
+  - `app.case_deliberation_verdict(uuid) → smallint` — plpgsql, `authenticated, service_role`, +1; (j) accepted;
+  - `app._caller_may_reach(text, uuid) → boolean` — plpgsql, owner only, +0.
+- **Signature change:** #30 now returns `table(is_anchor boolean, axis text, obligation text, key_id uuid, direct_ok boolean)`.
+- **`authenticated`-executable: 31.**
+- **Budget:** app 339 → **370**, public 433, total 772 → **803**, within the PO's approval of up to about 810.
+
+| Gate | Integrated plan | Amendment 1 |
+| --- | --- | --- |
+| `421` §0c | 945 = 835 + 110 | **948 = 835 + 113** |
+| `421` §0d plpgsql / sql | 42 / 68 | **44** (+8 new: CASE-D1, D5, D6, (j), DOCS-D1–D3, the gate; +1 converged) / 68 |
+| `421` §2a | 68 | 68 |
+| `400` / helper surface | 581 | **583** (definer +34) |
+| `419` | 835 | 835 |
+| Census newcomers | 23 | 23 (the gate is owner-only; (j) returns smallint) |
+| Set-valued harness population | 26 | 26 |
+| `409` carriers | 40 | 40 (neither the gate nor any verdict carries a code) |
+| Door sweep | — | `_caller_may_reach` returns bool. Whether it falls inside `PRED_DOMAIN` is owed. Its keystones are §1.5's foreign-org cell (the `select true` plant) and §3 (the `select false` plant); if it is outside `PRED_DOMAIN`, it owes a targeted case |
+
+#### 14. Still open
+
+- **UNPROVEN:** atomicity of the local `db reset` apply path. Owed at T15.3 step 0 (§9).
+- **Owed to the harness:** the cost of the tenant gate and the anchor pre-checks (a double `_case_caps_core` on case- and
+  interview-homed rows).
+- **Owed:** whether `_caller_may_reach` is inside `PRED_DOMAIN`.
+- **LEAD — ruling (c′):** keep the zero-resolution anchor pre-checks (narrower residual, cost owed), or run the gate only (the
+  §1.6 list then grows: child and home keys to every caller seated at a tested scope).
+- **PO:** the §1.6 residual disclosure list.
+- **Stated, not a coverage gap:** E-committee's plant cannot red (§2).
+- **Task deltas:**
+  - **T15.3** gains step 0, the atomicity measurement.
+  - **T15.4** gains the `311` region-cut re-pin, the ruling (n) allowlist entry for #32, the (q) findings rows, and the
+    DOCS F13 comment updates.
+  - The fixture of §5 is backend's `428`.
