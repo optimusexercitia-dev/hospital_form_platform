@@ -1046,6 +1046,28 @@ test('AC-3f-platform: platform@ /admin/audit shows only scope-less rows — the 
   }
 
   for (const { occurredAt, seq } of pairs) {
+    // Unfiltered count FIRST, kept as its own assertion: if this pair resolves
+    // to zero rows at all, that is a DIFFERENT defect (the feed rendered a row
+    // with no DB backing at all) from the scoped query below returning zero
+    // (the row exists but carries a scope — a leak). Without this, a leaked row
+    // would vanish into the scoped query's "Received: 0" with no way to tell
+    // the two apart.
+    const unfiltered = await restGet<{ id: string }>(
+      request,
+      `audit_log?occurred_at=eq.${encodeURIComponent(occurredAt)}&seq=eq.${seq}&select=id`,
+      SUPABASE_SERVICE_KEY,
+    )
+    expect(
+      unfiltered.length,
+      `occurred_at=${occurredAt} seq=${seq}: resolves to at least one audit_log row (unfiltered) — the platform feed rendered a row with no DB backing at all`,
+    ).toBeGreaterThanOrEqual(1)
+
+    // `(occurred_at, seq)` alone is NOT a unique key (no gate 1050's comment) —
+    // a scope-less row and any number of tenant-scoped rows can share the same
+    // seed-instant timestamp and a low per-chain seq. Scope the resolution to
+    // scope-less rows explicitly and require exactly one: a non-scope-less
+    // match at this (occurred_at, seq) is a genuine leak, not noise the query
+    // should absorb.
     const matches = await restGet<{
       organization_id: string | null
       hospital_id: string | null
@@ -1053,12 +1075,15 @@ test('AC-3f-platform: platform@ /admin/audit shows only scope-less rows — the 
     }>(
       request,
       `audit_log?occurred_at=eq.${encodeURIComponent(occurredAt)}&seq=eq.${seq}` +
+        `&organization_id=is.null&hospital_id=is.null&commission_id=is.null` +
         `&select=organization_id,hospital_id,commission_id`,
       SUPABASE_SERVICE_KEY,
     )
     expect(
       matches.length,
-      `occurred_at=${occurredAt} seq=${seq}: resolves to exactly one audit_log row`,
+      `occurred_at=${occurredAt} seq=${seq}: resolves to exactly one SCOPE-LESS audit_log row ` +
+        `(unfiltered count was ${unfiltered.length}) — a lower scoped count than the unfiltered ` +
+        `one means the platform feed leaked a tenant-scoped row at this (occurred_at, seq)`,
     ).toBe(1)
     const [row] = matches
     expect(

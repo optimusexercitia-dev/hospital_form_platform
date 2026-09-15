@@ -73,6 +73,15 @@ const COMM_FARM_ID = 'b0000000-0000-0000-0000-0000000000b1'
 const STAFF1_CCIH = '00000000-0000-0000-0000-000000000003' // staff, commission A
 const STAFF2_CCIH = '00000000-0000-0000-0000-000000000004' // staff, commission A
 const CHEFE_CCIH = '00000000-0000-0000-0000-000000000002' // staff_admin, commission A
+// AC-9 boundary persona (measured, tester, 2026-09-15): of the seven CCIH `staff`
+// principals holding zero `action_items.assigned_to` AND zero
+// `action_item_assignments` rows, dr.john is the one carrying neither a seed nor
+// a spec-time assignment fixture. Excluded: gap.comember.ccih (mutated by
+// ae5-staff-landing.spec.ts), staff2.ccih/staff3.ccih/multi@ (the seed's Caso
+// 0001 narrative fixture makes staff2 the assignee and staff3/multi grantees;
+// notifications.spec.ts also assigns CAPA actions to staff3/multi at runtime),
+// suspenso.temp (an active `suspended_until` — cannot complete a normal sign-in).
+const DR_JOHN_CCIH = '00000000-0000-0000-0000-0000000000a1' // staff, commission A
 
 // Seeded fixtures (seed.sql).
 const SEEDED_CASE_ID = 'd0000000-0000-0000-0000-0000000000c1' // Caso 0001, pendente
@@ -656,9 +665,36 @@ test('AC-8: page is read-only (no status-change controls)', async ({ page }) => 
 // AC-9: empty state for a persona with no assigned items.
 test('AC-9: empty state renders for a persona with no assigned items', async ({
   page,
+  request,
 }) => {
-  // staff4.ccih is the boundary persona — no attribution, no assigned items.
-  await signInAs(page, 'staff4.ccih@test.local')
+  // dr.john is the boundary persona — measured (tester, 2026-09-15) to hold
+  // zero `action_items.assigned_to` and zero `action_item_assignments` rows in
+  // CCIH; see the constant's comment for why the other six zero-of-both
+  // candidates were excluded. staff4.ccih was the prior anchor, but a later
+  // seed fixture gave it exactly one of each — a coincidence, not a property
+  // this test owns — which is why the choice is now asserted as a precondition
+  // rather than taken on faith.
+  const preconditionItems = await svcSelect<{ id: string }>(
+    request,
+    'action_items',
+    `commission_id=eq.${COMM_CCIH_ID}&assigned_to=eq.${DR_JOHN_CCIH}&select=id`,
+  )
+  expect(
+    preconditionItems.length,
+    'PRECONDITION: dr.john@test.local must hold zero action_items.assigned_to rows in CCIH — boundary persona invalidated',
+  ).toBe(0)
+  const preconditionAssignments = await svcSelect<{ id: string }>(
+    request,
+    'action_item_assignments',
+    `user_id=eq.${DR_JOHN_CCIH}&select=id,action_items!inner(commission_id)` +
+      `&action_items.commission_id=eq.${COMM_CCIH_ID}`,
+  )
+  expect(
+    preconditionAssignments.length,
+    'PRECONDITION: dr.john@test.local must hold zero action_item_assignments rows in CCIH — boundary persona invalidated',
+  ).toBe(0)
+
+  await signInAs(page, 'dr.john@test.local')
   await page.goto(`/o/${ORG_A}/c/${COMM_CCIH}/meus-itens-de-acao`)
 
   await expect(

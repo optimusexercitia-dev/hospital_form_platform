@@ -275,7 +275,7 @@ test.describe('AC2 — Sectioned form: both branches of the conditional section'
     // S0 rather than resuming mid-wizard.
     await clearFormBDraft(page, USER_MULTI)
     await signInAs(page, 'multi@test.local')
-    await enterWizard(page, 'farmacia')
+    await enterWizard(page, 'farmacia', /Inspeção de Armazenamento/i)
 
     // Sectioned wizard shows a progress bar.
     await expect(page.getByRole('progressbar')).toBeVisible({ timeout: 10_000 })
@@ -348,7 +348,7 @@ test.describe('AC2 — Sectioned form: both branches of the conditional section'
     // Clear any leftover draft so this starts FRESH at S0 (order-independent).
     await clearFormBDraft(page, USER_STAFF2_FARM)
     await signInAs(page, 'staff2.farm@test.local')
-    await enterWizard(page, 'farmacia')
+    await enterWizard(page, 'farmacia', /Inspeção de Armazenamento/i)
 
     // S0 intro → next.
     await page.getByRole('button', { name: /próximo/i }).click()
@@ -472,7 +472,7 @@ test('AC4 — Controlling-answer change: warns dialog appears and orphaned answe
   // starts FRESH at S0 — order-independent.
   await clearFormBDraft(page, USER_MULTI)
   await signInAs(page, 'multi@test.local')
-  await enterWizard(page, 'farmacia')
+  await enterWizard(page, 'farmacia', /Inspeção de Armazenamento/i)
 
   // S0 intro → next.
   await page.getByRole('button', { name: /próximo/i }).click()

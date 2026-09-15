@@ -5425,3 +5425,33 @@ difference is yet shown to be the cause. `upload_state` is what `src/lib/documen
 reads. Ordered: the other three specs and the L27/L33 red-able proofs continue; then AC-7 alone twice
 with the dev server's output captured, the finalize response quoted, and the version's scan columns and
 storage object read from the database after a failure. No ruling and no bug row until that lands.
+
+### 2026-09-15 — L27, L31, L32, L33 GREEN and shown able to red; bug row filed; AC-7 reproduces on a dev server only so far, and the upload request is never sent (lead)
+
+Tester's run on a fresh reset (settle 174/174, profiles 45), each exit consumed:
+`member-action-items-overview` 15 passed, `phase5-wizard` 12 passed, `phase17-documents` 12 passed and
+1 failed (AC-7), `phase13-audit` 27 passed, `sup-supersession` 5 passed, `pdf-printing-cases` 11 passed.
+Every targeted red from the gate is green: L27, L28, L29, L30′, L31, L32 and L33.
+
+**Red-able proofs, scratch files created and deleted in the round.** L27 pointed at `staff4.ccih` read
+PRECONDITION staff4.ccih@test.local must hold zero action_items.assigned_to rows in CCIH, expected 0,
+received 1. L33 fed a known CCIH-scoped row (seq 143, `action_item.created`) read its own leak
+message, expected 1, received 0, with the unfiltered count 1 in the message. The real files re-ran
+green, 15 and 27 passed.
+
+**AC-7, isolated twice on the dev server, both red, deterministic.** The dev server log and a full
+network trace show exactly one begin, one signed PUT and one finalize, all for version 1. After the
+reload and the blank-draft replacement, the version-2 upload sends no request at all. The database
+agrees: both failing version-2 rows have `core_document_version_id` NULL, no `file_objects` row
+exists for them, and `document_version_files` holds only version 1's binding. So there is no finalize
+response to quote, because the route was never called.
+
+**Measured by the lead:** the tester's documents-spec edit sits only inside AC-10 (hunks at lines
+618 to 627, AC-7 starts at 494), `e2e/helpers/` is unchanged, and no commit on this branch touches
+`src/lib/documents` or `src/app`. AC-7 passed on the production build in gate batch 16. The
+discriminator is ordered: the production gate on that one spec file with its own reset and build.
+A pass there means a dev-server-only behaviour outside the gate. A red means a regression since
+batch 16, and the seed moves become the suspects. No ruling and no bug row until then.
+
+**Committed by the lead, by path:** the four spec files and the bug row
+`BUG-E2E-CACHEDSIGNIN-NAV-ABORT`, every file 0 CR bytes by Python count, `npm run lint` exit 0.

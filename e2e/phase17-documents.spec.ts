@@ -615,13 +615,19 @@ test('AC-9: a foreign-hospital user cannot be named approver (pt-BR error)', asy
 // ===========================================================================
 
 test('AC-10: hospital_admin sees the cross-commission register; a foreign-hospital admin sees empty', async ({ page }) => {
-  // Codes are per-commission, so DOC-0001 alone is no longer unique on this
-  // cross-commission page — Farmácia (same hospital) also has a DOC-0001 (its
-  // S4·CH regimento). Anchor on DOC-0002 (still unique) to find CCIH's own
-  // per-commission table, then assert DOC-0001 is in THAT same table.
+  // A code is unique PER COMMISSION only
+  // (controlled_documents_commission_code_uq (commission_id, code)) — not across
+  // this cross-commission register, so DOC-0002 alone cannot anchor a row here:
+  // Farmácia (same hospital) also has a DOC-0002 (this unit's arm-3 linha 16
+  // fixture). Anchor CCIH's row on CODE AND TITLE together (both from the base
+  // seed, :2851 — "POP de Isolamento de Contato"), which stays unique even when
+  // the code alone is not.
   await signInAs(page, 'hospitaladmin.a1@test.local')
   await page.goto('/o/rede-a/manage/documentos')
-  const doc0002Row = page.locator('tr').filter({ hasText: 'DOC-0002' })
+  const doc0002Row = page
+    .locator('tr')
+    .filter({ hasText: 'DOC-0002' })
+    .filter({ hasText: /POP de Isolamento/i })
   await expect(doc0002Row).toBeVisible({ timeout: 15_000 })
   const ccihTable = page.locator('table').filter({ has: doc0002Row })
   await expect(ccihTable.locator('tr').filter({ hasText: 'DOC-0001' })).toBeVisible()
