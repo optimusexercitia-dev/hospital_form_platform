@@ -6793,8 +6793,7 @@ not touched. The probe scripts and logs are in the session scratchpad (`qa-f1-re
   The median is **4.68×**, against the auditor's 4.71×. The buffer counts match the auditor's exactly. The set
   path plans `ProjectSet … loops=1`. Transaction function counts were `app.can_forms_read` **4 010**
   (= 4 × 1 000 + 10) and `authz.authorized_scope_ids` **4**. The extra 10 are from reading seeded form version
-  `50000000-…-a001`'s options as `authenticated`, which returned 10 rows and made 10 calls. That matches the
-  auditor's per-row claim.
+  `50000000-…-a001`'s options as `authenticated`, which returned 10 rows and made 10 calls. That matches the auditor's per-row claim. ⛔ **CORRECTED 2026-09-15 (backend3's plan, verified by the lead on `pg_policies`):** 10 is the `can_forms_read` share only. The same read makes **20** `has_permission` resolutions, because AE4's `form_item_options_staff_admin_write` FOR ALL policy applies its USING clause on every SELECT (`can_edit_commission_forms`), and six such policies exist.
 - **Against the project's own bar.** AE5-STAFF's acceptance criteria carry no performance acceptance: a grep of
   the hub, the record, the matrix and ADR 0211 found none. AE4's
   `docs/design/authz-ae4-performance-acceptance.md` § 6.1 has two conditions that apply:
@@ -6805,8 +6804,7 @@ not touched. The probe scripts and logs are in the session scratchpad (`qa-f1-re
   statement, not AE4's harness, so it is not a P5 verdict. It is the same invocation shape ADR 0182 measured
   and removed.
 - **Not verified:** *"the user's explicit lookup-performance requirement"*. No such sentence was found in this
-  unit's documents. The ruling rests on AE4's K = 4 and ADR 0182 instead. The `profiles` figure of 117
-  `can_roster_read` calls was **not reproduced**; the mechanism is consistent with the live policy text,
+  unit's documents. The ruling rests on AE4's K = 4 and ADR 0182 instead. ⛔ **CORRECTED 2026-09-15:** the lead wrote that the `profiles` figure of 117 `can_roster_read` calls was **not reproduced**. The lead never ran it. backend3 reproduced it exactly with the flushed instrument (117 `can_roster_read` = 117 `has_permission`, 12 of 45 rows visible); the mechanism is consistent with the live policy text,
   which calls the authorizer inside an `EXISTS` over `memberships`.
 - **Lead's ownership.** The template copy (ADR 0211, T7) re-keyed every site onto scalar authorizers, and no
   task re-asked AE4's performance question on the new call sites. The per-row cost comes from this unit.
@@ -6859,7 +6857,7 @@ In `pg_get_functiondef('app._case_caps(uuid,uuid)')`, line 48 assigns
 `v_member := app.can_cases_deliberation_read_in_commission(…)` before its only consumer at line 83,
 `if v_member and not v_eg`. Pre-AE5 the assignment was `app.is_member_of_for`
 (`20261003000500_case_caps_s8_administrativo_read.sql`:187). The eager order predates AE5; the cost does not.
-The auditor's 100-call and ~92 ms figures were **not reproduced**.
+The auditor's 100-call and ~92 ms figures were **not reproduced** by the lead. ⛔ **CORRECTED 2026-09-15:** backend3 reproduced the call shape — one sibling call per `_case_caps` call on the locked case, every mask 0. The ~92 ms is still untimed.
 
 #### What the review did not do
 
@@ -6882,8 +6880,7 @@ Silence on a check is not a pass. The PO decides at approval whether the uncover
     both polarities; function counts; plans; and a semantic ablation, because a flattened curve cannot red a
     timing control.
 
-  Consequences: the new SRFs sit outside the door sweep's `PRED_DOMAIN`, which widens
-  `FUP-DOOR-SWEEP-DOMAIN-MISSES-THE-AUTHZ-RESOLVERS`. The budget, `419`, `410`'s manifest, the census and
+  Consequences: the new SRFs sit outside the door sweep's `PRED_DOMAIN`, which widens `FUP-DOOR-SWEEP-DOMAIN-MISSES-THE-AUTHZ-RESOLVERS`. ⛔ **CORRECTED 2026-09-15:** that follow-up was RESOLVED on 2026-09-07 (ADR 0191 D3, archive `:9824`). The real consequence is new targeted cases in `authz-setvalued-targeted-cases.sh`, whose §4b cardinality check aborts once a wrapper exists. The budget, `419`, `410`'s manifest, the census and
   arms, the runbook's § 7.3 worked sites and `e2e:prod` are all re-derived.
 - **F2 → tester** (`425`): behavioural, rolled-back probes for the two INSERT policies and the five writers.
   Each goes allow → delete the one grant → deny through the real door → restore → allow, in separate attempts
@@ -7525,3 +7522,71 @@ it then, and the result at that commit is the one AC-7 cites.
 
 **The stack** held only service connections at spawn. Peer session `hospital-form-platform-8f` is idle, and
 `*_escalume` is not touched.
+
+### 2026-09-15 — the lead's review of backend3's F1 / AC-11 plan: ACCEPTED as a design; four corrections to the lead's analysis applied in place; Q-3 ruled (A) by the lead; Q-1, Q-2 and Q-4 go to the PO once the Q-2 residue is sized (lead)
+
+**Verified by the lead on the live catalog, not taken from the report.**
+- **Six AE4 FOR ALL policies.** `pg_policies` shows exactly six `*_staff_admin_write` policies with `cmd = ALL` and a
+  qual on `app.can_edit_commission_forms(…)`. `form_item_options_staff_admin_write` is one of them, so the options read
+  really carries a second per-row resolution.
+- **The closed follow-up.** `FUP-DOOR-SWEEP-DOMAIN-MISSES-THE-AUTHZ-RESOLVERS` sits in the follow-ups archive as
+  resolved.
+
+**Corrections applied in place** to the lead's T14 analysis entry, each marked ⛔ CORRECTED:
+- the options read makes 20 resolutions, not 10;
+- the `profiles` 117 figure is reproduced;
+- the `_case_caps` call shape is reproduced;
+- the door-sweep follow-up was already closed.
+
+**The lead's own error, named.** Two of those sentences said "not reproduced" about measurements the lead never
+attempted. What they should have said is "not attempted". That wording reads as a failed reproduction.
+
+**Accepted as designed.**
+- one wrapper per permission code, zero arguments, bound to `auth.uid()`, `search_path = ''`, STABLE;
+- `authz.authorized_scope_ids` stays closed to `authenticated`;
+- the generated in-place substitution, with preflight and postflight md5 checks;
+- the null-E argument, positive positions only, checked site by site;
+- the `commission_of_*` DEFINER helpers kept, so the derivation never runs under the caller's RLS;
+- `_case_caps` S5 as a nested IF;
+- `428` as the gate: calibration, catalog, drift pin, exhaustive differential under every hat, row independence in both
+  polarities with its re-installed pre-change control, plan shape with a negative control, semantic ablation, and the
+  S5 check;
+- the timing harness as evidence only, with DC1 and DC2 run on the pre-change predicate;
+- the gate-consequence table;
+- ADR 0212, provisional under gate 9.
+
+**Superseded in the plan's text, not edited in its entry.** § 6's `425` row and T15.6 say "F2 and F3 follow the
+migration, as ruled". The re-sequencing entry below supersedes both: `tester3` is already working on `425`. T15.6
+keeps only the re-run of `425` on the converted catalog.
+
+**Q-3 RULED by the lead: design (A).** The wrappers call `authz.authorized_scope_ids`, which is R-8 (a)'s own wording.
+Design (B) would have `app` call layer 1 directly, a shape the authz seam names as a finding.
+- **The bound is LEARN-018, written down.** After T15.3 the five scalar authorizers (`can_forms_read`,
+  `can_roster_read`, `can_cases_vocabulary_read`, `can_process_templates_read`, `can_meetings_cases_shell_read`) have
+  zero production callers.
+- **They stay for two reasons:** `428` §2/§3's differential identity and drift pin read them, and the § 7.4/SECTION H
+  revert restores them.
+- **The manifest declares the WRAPPER as each converted site's `composedWith` authority.** A scalar door with no caller
+  is never declared as the enforcing authority.
+- **A follow-up records the zero-caller state,** with its close condition: either a caller exists again, or the scalar
+  doors are retired together with the revert path. The same family already holds the `staff` wrapper (L14).
+
+**Held for the PO; nothing is executed before these are ruled.**
+- **Q-1:** convert the six AE4 forms FOR ALL policies. That moves the tenancy arm into the policy text and touches
+  `staff_admin`'s write surface, which is outside R-8's written scope. **Lead recommendation: convert.** Without it,
+  AC-11 cannot pass on form items and options, the review's own named surfaces.
+- **Q-2:** the 81 helper-routed policies. ⚠ **The lead does not yet recommend.** Keeping them out may leave F1
+  half-fixed on the hottest lists: `cases` is reached at depth 4 through `can_read_case`. A partial fix must never read
+  as a complete one. `backend3` is sizing that residue now (read-only), per list read a staff member issues: Δ
+  `has_permission`, whether this unit introduced the cost, and whether the conversion is mechanical, a resource-specific
+  rewrite, or a Class-1 PHI module. Q-2 goes to the PO with that table.
+- **Q-4:** the privilege-budget ceiling moves from 772 to 772 + N (N = 11, or 12 under Q-1). This is the PO's ruling
+  alone.
+
+**AC-11's wording** will be re-cut to name its converted set when Q-1 and Q-2 are ruled, so the tick cannot repeat
+AC-7's cut qualifier.
+
+**Record order.** backend3's plan entry sits above the re-sequencing entry, although that entry was committed first
+(`6abe24ae` before `b6b5de7b`). backend3's commit touched only its own entry. The lead's `6abe24ae` did not capture
+any of backend3's text: the diff is 25 lines, all the lead's own. Both entries are dated 2026-09-15, and nothing is
+moved.

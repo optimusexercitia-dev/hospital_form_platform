@@ -108,8 +108,8 @@ The earlier gate witnesses stand for `cea431c7`, but they no longer declare the 
 
 ### Next
 
-In parallel: F1 / AC-11 plan (`backend3`, lead reviews before any migration) and F2 + F3 in `425`
-(`tester3`) → F1 migration → `425` re-run on it → Phase Gate step 1 in full → `e2e:prod` → QA again →
+F1 / AC-11 plan ACCEPTED as design (`b6b5de7b`); Q-3 ruled (A); `backend3` sizing the Q-2 residue → PO rules
+Q-1 · Q-2 · Q-4 → ADR 0212 + `428` red-first → migration; in parallel F2 + F3 in `425` (`tester3`) → F1 migration → `425` re-run on it → Phase Gate step 1 in full → `e2e:prod` → QA again →
 PO approval → Record.
 
 ### Blockers
