@@ -9493,3 +9493,500 @@ lead records the handback:
 - backend3's amendment 2 is text-only, with no catalog probes;
 - any AE5-STAFF probe or measurement waits;
 - after the handback, AE5-STAFF's next stack use starts with a fresh reset of this branch.
+
+### 2026-09-15 — F1 / AC-11 PLAN AMENDMENT 2 — re-review dispositions (backend3) ⛔ NOT EXECUTED
+
+**Bound.**
+- **Text only.** The shared local stack belongs to HOTFIX-CLASS1-WRITE-GUARDS from the lead's re-review entry onwards, so
+  this amendment ran no catalog query, no probe and no reset.
+- **Owed measurements.** Every decision that needs one names it in §10, with its exact query, to run after the lead records
+  the handback and after a fresh reset of this branch.
+- **Inputs:**
+  - the focused re-review `q2/amend-review.md` (2 P1, 5 P2, 7 P3; the tenant gate held over 11 610 cells);
+  - the lead's entry `focused re-review of amendment 1: DEFECTS …`, with its rulings on P1-A, P1-B and P2-1…P2-5;
+  - the hotfix hub `docs/features/hotfix-class1-write-guards.md` (worktree): migrations `7431`–`7433`, pgTAP `429`;
+    M1 column-UPDATE revokes, M2 interview-child policy split plus clearance on the links SELECT policy, M3a INSERT revoke
+    on `case_referral`.
+- ⛔ **Precedence.** Where this amendment and amendment 1 or the integrated plan disagree, this amendment governs. Every
+  changed decision, count and interface is stated in this entry.
+
+#### 0. What changed
+
+| Item | Amendment 1 | Amendment 2 |
+| --- | --- | --- |
+| (j) `case_deliberation_verdict` | ungated: 2 for any active non-excluded caller on any unlocked case (the P1-A oracle) | returns 0 unless `_caller_may_reach('case', …)`; plant added |
+| Verdict-2 callers on #28 / #29 | "verdict ≠ 0" emits the key | a verdict-2 caller without an active, unexpired seat at the case's commission gets one failing row, and the route stops |
+| #30 case / meeting prints | anchor pre-check, then every child key | **fail-fast**: every obligation decidable at zero resolutions is decided first, and any failure returns one failing row. Child keys go only to callers whose own read of that child could pass (§2) |
+| Gate states | ignored hat, expiry, `is_active`, relation state | honours `is_active` (except form_response prints), live relation state, and the hospital role each hospital-scope arm needs. Membership expiry is honoured once owed measurement Q1 confirms it is inside every seat arm. The hat stays unhonoured, and its recipients are listed (§3) |
+| Gate kinds | 10 | 12: adds `commission_seat` (the verdict-2 rule) and folds #29's pre-checks into `document` (so #31 / #32 inherit them) |
+| Command-context cells | edit frozen scope columns | move to permitted, non-frozen edits; the frozen-column cells and both "-d" cells are dropped, and their recorded pre-hotfix measurements stand (§6) |
+| Functions / budget | 34 / 803 | **unchanged: 34 / app 370 · public 433 · total 803**. Bodies change only: (j), the gate, #28–#32 |
+
+#### 1. P1-A — (j) gated
+
+`app.case_deliberation_verdict(p_case_id uuid)`, amended body:
+
+```sql
+declare v int;
+begin
+  if not app._caller_may_reach('case', p_case_id) then return 0; end if;       -- P1-A
+  v := app._case_caps_core(p_case_id, (select auth.uid()), false);
+  if (v & app._cap_bit('read_case_deliberation')) <> 0 then return 1; end if;
+  if (v & 1073741824) <> 0 then return 2; end if;
+  return 0;
+end;
+```
+
+**Why the gate does not over-deny.** Every deliberation source is a gate term on kind `case`:
+- S1 (`holds_role staff_admin` at the case commission) → a commission seat;
+- S3 (grant) and S4 (assignment) → live relations;
+- S5 (the permission) → a commission seat (amendment 1 §1.2);
+- S6 (PQS role at the case hospital) → a hospital role.
+
+S7 and S8 set content only.
+
+**Why it is safe for the C-DELIB consumers.** C-DELIB is consumed only in PRINT, on keys #30 emits after its own gate. A
+0 from the gate therefore coincides with a false axis.
+
+**`428`.**
+- **§7 foreign-org cell:** `F` reads (j) = 0 on every O1 case.
+- **New plant:** (j)'s body without its first line MUST red that cell (the reviewer measured 2 on unlocked foreign cases).
+- **Discrimination half:** `F_grant` reads (j) = 1 on the case it holds a live grant for.
+
+**§1.4 and item 8 of amendment 1 are superseded** by §3's table and §8's list.
+
+#### 2. P1-B — narrow further (ruled: NARROW, not disclose)
+
+**2.1 The verdict-2 rule.** Uses the new gate kind `commission_seat`, see §3.
+- **The rule.** When the verdict is 2 and `_caller_may_reach('commission_seat', <case commission>)` is false, the route
+  returns one failing row and stops.
+- **Why it is exact.** Verdict 2 means content ∧ no non-S5 deliberation ∧ not locked. C-COMMITTEE / C-INTERVIEW / C-DELIB
+  are then true only if `commission_of_case ∈ I2`. That membership requires an active, unexpired commission-scope fact at
+  the case's commission (amendment 1 §1.2; `assignment_facts` filters both `is_active` and expiry). So no seat ⇒ the policy
+  test is false, at zero resolutions.
+
+**Where it applies.**
+- **#28 case_restricted:**
+  - verdict 1 → emit `(NULL, anchor, false)`;
+  - verdict 2 with a seat → emit;
+  - verdict 2 without a seat, or verdict 0 → emit `(NULL, NULL, false)` and stop.
+- **#29 interview home:** the same rule on `interview_read_verdict(i)` and the interview's case commission.
+- **#29 case home:** `app.can_read_case(case, uid)` stays. A caller who passes it reads the case row through `cases_select`,
+  so the case id is not new; only label presence remains (§8).
+
+**2.2 #30 — fail-fast print route.** The body replaces amendment 1 §2's `case` and `meeting` branches. The `form_response`
+branch is unchanged, and still uses no `is_active` (live corridor).
+- **Signature, plus a helper.** The table columns are unchanged (`is_anchor, axis, obligation, key_id, direct_ok`).
+- **The helper.** `pg_temp`-free inline macro `FAIL` = `return query select true, 'fail', 'direct', null::uuid, false; return;`.
+  PRINT then evaluates `bool_or(true) ∧ bool_and(false)` = false.
+
+**Case source, in order:**
+1. The gate on kind `case` (states honoured, §3), then `can_read_case(s, uid)`. Either false → 0 rows.
+2. **Axis A.** `d := app.case_deliberation_verdict(s)`.
+   - `d = 0` → `FAIL`.
+   - `d = 2` and no `commission_seat` at the case commission → `FAIL`.
+3. **Axis B** (exact, zero resolutions): `staff_admin` holds_role at the case commission, or no coordinator-only event.
+   False → `FAIL`.
+4. **Axis C** (exact): `∀` phase ⋈ response (INNER JOIN): `can_view_printed_document('form_response', r.id, uid)`. Any false
+   → `FAIL`.
+5. **Axis E-assignee** (exact, keyed on `coalesce(source_case_id, linked_case_id)`, assignees_only): any false → `FAIL`.
+6. **Axis D**, per interview `ci` of s: `v := interview_read_verdict(ci.id)`.
+   - `v = 0` → `FAIL`.
+   - `v = 2` and no seat at the case commission → `FAIL`.
+7. **Axis F**, per `meeting_cases mc` of s:
+   - not seated at `meetings.commission_id` of `mc.meeting_id` → `FAIL`;
+   - visibility false (not `commission_default` and the caller not an attendee) → `FAIL`.
+8. **Axis G**, per `case_referral cr` with `source_case_id = s`:
+   - **zero-cost arms:** PQS operator at the source or target hospital (`is_pqs_operator_of_for`), or (status ≠ draft ∧
+     `target_type = 'technical_director'` ∧ `is_technical_director_of_for(target_hospital_id)`). If true, this referral is
+     decided true and emits no key.
+   - **otherwise**, seated at `source_commission_id`, or (status ≠ draft ∧ seated at `target_commission_id`) → keep for key
+     emission;
+   - **otherwise** `FAIL`.
+9. **Emit.** Only now:
+   - the anchor row `(true,'anchor','case_content',s)`;
+   - A as `(false,'A','case_deliberation',s)` — only when `d = 2`; when `d = 1` it is decided;
+   - D keys only for `v = 2` interviews (`v = 1` interviews are decided true and emit nothing);
+   - F keys `('meeting_reach', mc.meeting_id)` for every surviving meeting;
+   - G keys `('referral', cr.id)` for referrals not decided true by a zero-cost arm.
+10. **E-committee is emitted nowhere.** It stays implied by anchor ∧ A (amendment 1 §2).
+
+**Meeting source, in order:**
+1. The gate on kind `meeting` (a seat at the meeting commission; states honoured) and the visibility conjunct. Either false
+   → 0 rows.
+2. **M-respondent** (exact): any respondent-linked agenda case → `FAIL`.
+3. **M-deliberation**, per noted agenda item's linked case c: `v := case_deliberation_verdict(c)`.
+   - `v = 0` → `FAIL`.
+   - `v = 2` and no seat at c's commission → `FAIL`.
+4. **Emit:** the anchor `('meeting_reach', m)`, plus `('case_deliberation', c)` only for `v = 2` cases.
+
+**Why fail-fast is equivalent.**
+- Every early `FAIL` fires only when an obligation is **exactly** false (B, C, E-assignee, M-respondent, `v = 0`) or
+  **provably** false (verdict 2 without a seat, by 2.1; a meeting without a seat or without visibility, because reach needs
+  both; a referral with no zero-cost arm and no seat, because every remaining arm is a commission permission).
+- Every obligation decided true emits nothing, so PRINT's all-of loses only TRUE conjuncts.
+- The remaining keys are exactly the undecidable obligations, which PRINT then tests against the sets.
+- ⛔ **No child row is ever silently dropped.** A decided-false child ends the route with `FAIL`, never by omission, so
+  `bool_and` cannot be emptied of a false conjunct.
+
+**2.3 Who still receives a child key, per axis** — the "impossible at zero cost" statement the ruling asks for.
+
+| Axis | Key emitted to | Why a narrower test is impossible at zero resolutions |
+| --- | --- | --- |
+| A (the case itself) | verdict-2 callers with a seat | the key is the print's own source, already known; no child is disclosed |
+| D (interview id) | verdict-2 callers with an active, unexpired seat at the case commission | the remaining term, `commission ∈ I2`, is a permission resolution; the caller's own `case_interviews` read would pass except under a hat that holds no deliberation role at that seat |
+| F (meeting id) | callers seated at the meeting commission, with visibility passing | the remaining term, `meetings.read` at that commission, is a permission resolution; excluded only by the hat |
+| G (referral id) | callers seated at the source commission (or at the target, when sent) with no zero-cost arm | the remaining terms are the two commission permissions; excluded only by the hat |
+| M-deliberation (linked case id) | verdict-2 callers with a seat at that case's commission, already reaching the meeting | as D |
+
+⇒ **The one residual class is a seated, active, unexpired caller whose hat carries no role holding the code**, e.g. a
+`staff_admin` seat under a `staff` hat that lacks it, or the reverse. A hat check at zero cost would mean reading
+`authz.role_permissions` and the implication closure outside `has_permission`: a second implementation of the resolver,
+rejected by ADR 0182's "no second implementation" rule. So the class goes on the PO list (§8).
+
+**2.4 `428` content-only-reader cells** (P1-B ruling).
+
+| Principal | Source of content | #28 (a case_restricted item on c) | #29 (an interview-homed document on c) | #30 (print of c) |
+| --- | --- | --- | --- | --- |
+| `G_qr` | S7, no commission seat | `(NULL,NULL,false)` | one failing row | one failing row |
+| `G_s8` under a hat whose role lacks deliberation | S8 (seat) | a key, only if the seated verdict-2 residual applies — asserted as the named residual cell | as #28 | keys only for undecidable axes, asserted as the residual cell |
+| `F_grant` (live `read_case_content` grant) | S3 (content ⇒ deliberation) | verdict 1 → the anchor key | verdict 1 → the interview key | keys limited to undecidable axes |
+| `S4` assignee | S4 | as `F_grant` | as `F_grant` | as `F_grant` |
+
+**The general assertion,** over every §1 principal and every #28 / #29 / #30 call: emitted child keys ⊆ the ids the same
+principal reads through that child table's RLS, except the rows of the named residual class. Those rows are asserted to
+belong to it: a seated, active, unexpired caller whose hat role lacks the code.
+
+**Plants (MUST red):**
+- the verdict-2 rule removed from #28 / #29 / #30 → the `G_qr` rows show keys;
+- each early `FAIL` in §2.2 removed one at a time (10 plants) → an only-failing-axis principal's print cell reds (§7 P3-2
+  preconditions);
+- a `FAIL` replaced by silently skipping the child → the same cell reds (fail-open witness).
+
+#### 3. P2-1 — the gate honours account, membership and relation state
+
+**Definition.** `app._caller_may_reach(p_kind text, p_id uuid) → boolean`, unchanged attributes (plpgsql, STABLE, DEFINER,
+`''`, owner only).
+- **`SEAT_C(C)`** := ∃ `memberships` m with `principal_id = uid`, `commission_id = any(C)`, `(expires_at is null or
+  expires_at > now())` ⟨E⟩, and `app.is_active(uid)`.
+- **`SEAT_H(H, roles)`** := ∃ m with `hospital_id = any(H)`, `role = any(roles)`, ⟨E⟩, and `is_active(uid)`.
+- **`ORGSEAT(O)`** := as amendment 1, plus ⟨E⟩ and `is_active(uid)`.
+- **⟨E⟩, the expiry term,** is applied only to the seat classes owed measurement Q1 (§10) confirms filter `expires_at` in
+  every arm function they pass through. Until Q1 runs, the plan assumes it holds for `has_permission` / `assignment_facts`
+  (live body read 2026-09-15: `(m.expires_at is null or m.expires_at > now())`) and for `has_role` (quoted by the F-NSP
+  fragment), and treats the rest as unconfirmed.
+
+| `p_kind` | Seat terms | Relation terms (live state) | Activity |
+| --- | --- | --- | --- |
+| `commission_seat` (new) | `SEAT_C({p_id})` | — | honoured |
+| `case` | `SEAT_C({cases.commission_id})` ∪ `SEAT_H({hospital_of_commission}, {pqs_member, nsp_coordinator, quality_reviewer})` | a grant with `revoked_at is null ∧ (expires_at is null ∨ > now())`; `case_phases` / `case_narratives.assigned_to = uid` | honoured (`_case_caps` STEP 2) |
+| `interview` | `case` on `case_of_interview(i)` | as `case` | honoured |
+| `action_item` | `SEAT_C({item commission})` ∪ the anchor's `case` terms | `assigned_to = uid`; an assignment with `completed_at is null`; the anchor's live case relations | honoured (the scalar's first line) |
+| `meeting` | `SEAT_C({meetings.commission_id})` | — | honoured (through `has_permission`) |
+| `document` | by home: meeting / controlled → `SEAT_C({securable_resources.commission_id})`; case → `case` terms AND `can_read_case(home, uid)`; interview → `interview` terms AND (verdict = 1, or verdict = 2 ∧ `commission_seat`); action_item → `action_item` terms AND the #28 rule; referral / rca / capa_action → that kind; print present → that print kind's terms | controlled: an approver row keyed `controlled_document_versions.document_id = documents.home_resource_id` (P3-1) | honoured (`can_read_document`'s first lines) |
+| `form_response` | `SEAT_C({responses.commission_id})` | `created_by = uid`; a corrector row with status ∈ {requested, in_progress, resubmitted, under_review, rejected}; a targeted profile with `cp.removed_at is null` | ⛔ **NOT honoured** (the live corridor has no `is_active`) |
+| `referral` | `SEAT_C({source, target})` ∪ `SEAT_H({hospital_of_commission(source), hospital_of_commission(target)}, {pqs_member, nsp_coordinator})` ∪ `SEAT_H({target_hospital_id}, {technical_director, technical_director_deputy})` | — | honoured (every arm function checks it) |
+| `event` | `SEAT_C({owner, reporting})` ∪ `SEAT_H({hospital_of_event}, {pqs_member, nsp_coordinator})` | — | honoured |
+| `capa` | `SEAT_C({indicator commission})` ∪ `SEAT_H({capa_plan.hospital_id}, {pqs_member, nsp_coordinator})` ∪ the `event` terms of `event_of_capa` | — | honoured |
+| `professional_profile` | `ORGSEAT({organization_id})` | — | honoured (WHEN via `assignment_facts`; CMP via `is_org_admin_of_for`) |
+
+**The role lists.** They are the role literals of the arm functions:
+- `is_nsp_coordinator_of_for` / `is_pqs_member_of_for` → {`nsp_coordinator`, `pqs_member`} (F-NSP fragment, live);
+- `is_technical_director_of_for` → {`technical_director`, `technical_director_deputy`} (F-REF fragment, live);
+- `is_quality_reviewer_of_for` → {`quality_reviewer`}. This one is **UNCONFIRMED** until Q1 reads its body; until then the
+  `case` kind keeps a role-free `SEAT_H` term for S7 (superset).
+
+**The superset lemma still holds.** Each honoured state is a conjunct of every arm on that kind's path:
+- **`is_active`:** `assignment_facts`, the PQS / TD helpers, `_case_caps` STEP 2, and the first lines of
+  `can_read_action_item` and `can_read_document`. form_response is excluded, since its corridor has no activity check.
+- **Expiry:** `assignment_facts` and `has_role`, and the rest per Q1.
+- **Grant state:** the `_case_caps` S3 loop.
+- **Assignment completion:** `can_read_action_item` and axis E.
+- **Corrector status:** `can_read_correction_response`.
+- **Targeted `removed_at`:** `can_access_targeted_response`.
+- **Hospital roles:** the arm helpers' role literals.
+
+**The hat is not honoured.** A hat conjunct inside every arm would have to be confirmed (Q1). Honouring a hat that some arm
+does not check would over-deny, so recipients under a wrong hat stay listed (§8).
+
+**`428` additions.**
+- **§2 gate ⊇ arms,** re-run over the new states: inactive, expired-membership, revoked-grant, completed-assignment,
+  non-live corrector / removed-target, and hospital_admin / TD / QR on kinds with no arm for them. The expected gate is
+  false on each.
+- **Discrimination plants** (MUST red): each honoured state removed one at a time → its cell (e.g. `hospitaladmin.a1` on
+  `event`; an expired seat on `action_item`).
+- **Superset controls:** each honoured state applied where an arm does NOT check it (`is_active` on `form_response`) → the
+  inactive creator's print cell reds (over-deny).
+
+#### 4. P2-2 — item 9 names the class
+
+Item 9 now reads: **"91 PUBLIC-executable `app` / `authz` functions that take arguments, 54 of them DEFINER"** — measured by
+`amend-review`, 2026-09-15, on the ae5-staff catalog. Among them is the answer family (`answer_map`, `answer_map_scoped`,
+`answer_map_by_item_scoped`, `instance_answer_map`, `matrix_cells_by_item`, `references_by_item`, `risk_matrix_by_item`,
+`response_validation_errors`), which returns response answer content by id: the PRE-4 candidate, not yet reproduced by the
+lead.
+
+- **Re-measure after the handback** (Q6, §10). The count is a figure, so it carries its query.
+- **The class is not F1's to close.** No F1 function joins it (every new function revokes PUBLIC, and `anon` has no USAGE on
+  `app`).
+
+#### 5. P2-3 — the meeting-print anchor plant, and the case anchor redundancy
+
+**The meeting anchor.**
+- **Fixture:** `P_manchor` holds an active, unexpired `staff_admin` seat at M's commission and uses the `staff` hat. M is
+  `commission_default`, with no respondent-linked agenda case and no noted item.
+- **Preconditions** (asserted): `_caller_may_reach('meeting', M) = t`, visibility true, `can_reach_meeting(M, P_manchor) = f`.
+- **Plant:** drop the anchor row from #30's meeting branch, keeping the gate and visibility → `P_manchor` reads the print.
+  It MUST red.
+
+⚠ **Its principal class is now the wrong hat only.** Amendment 1's review also named expired and inactive seats; §3's gate
+excludes those.
+
+**The case anchor and its pre-check are mutually redundant.**
+- **Why.** The anchor row's obligation (`case_content` → `can_read_case`) and the route's pre-check (`can_read_case`) are
+  the same predicate on the same key. Dropping either one alone changes no outcome: without the pre-check, the anchor row
+  still fails; without the anchor row, the pre-check still stops the route.
+- **So neither single plant can red,** by construction (stated, like E-committee).
+- **The double plant, which must red:** drop both. `P_S5` (a plain `staff` member: S5 deliberation, no content) on a
+  commission_default case with no children, no events, no phases and no links then reads the print.
+
+#### 6. P2-4 — tags, and the hotfix before or after F1
+
+**The hotfix scope, as ruled** (lead; hub `docs/features/hotfix-class1-write-guards.md`):
+- **REVOKE column UPDATE for `authenticated`:**
+  - `case_referral` {`source_commission_id`, `source_case_id`, `target_type`, `target_commission_id`, `target_hospital_id`,
+    `target_case_id`, `parent_referral_id`};
+  - `capa_plan` {`hospital_id`, `source`, `source_*_id`};
+  - `rca.event_id`;
+  - `case_interviews` {`case_id`, `commission_id`}.
+- **REVOKE INSERT** on `case_referral`.
+- **SPLIT** the FOR ALL policies on `case_interview_{subjects,interviewers,links}` and `interview_sessions`, and **ADD**
+  clearance to `case_interview_links_select`.
+- **Migrations:** `7431`–`7433`, all below F1's `7480`–`7540`.
+
+**6.1 Command-context cells, re-derived** so that none depends on a bug or a frozen column.
+
+| Cell | Amendment 1 | Amendment 2 |
+| --- | --- | --- |
+| N.3g-1 | a PQS operator moves `hospital_id` H1 → H2 | **moved:** a PQS operator edits a non-frozen, `authenticated`-updatable column of an open CAPA (chosen by Q3), RETURNING id. **Tagged** `BUG-AE5-STAFF-CAPA-UPDATE-MOVES-ACROSS-TENANTS`: it exercises PRE-2's `capa_plan_update` |
+| N.3g-2 | `hospital_id` H1 → H3 | **dropped.** The column is frozen after the hotfix; the pre-hotfix measurement stands in the record (NSP sub-review `probe2b.out`) |
+| N.3g-3 | `rca.event_id` → an O1 event | **moved:** a non-frozen `rca` column (Q3), RETURNING id. **Tagged** PRE-2 (`rca_update`) |
+| N.3g-4 | `rca.event_id` → an O2 event | **dropped** (frozen) |
+| N.3g-d | R1's column form discriminates | **re-anchored** on `INSERT INTO public.capa_plan … RETURNING id` as a PQS operator, **if** Q2 shows `authenticated` INSERT plus a permissive INSERT policy. There the new row is invisible to the id-keyed lookup in both A and B, while the column form reads the new row's `hospital_id`. **Otherwise dropped**, and R1's rejection rests on the recorded pre-hotfix measurement |
+| R.8-c1 | source manager, non-status edit of own draft | **kept**, on a non-frozen column (e.g. `subject`) |
+| R.8-c4 | target manager, non-status edit of a source-side draft | **kept**, non-frozen column, **tagged** `BUG-AE5-STAFF-REFERRAL-UPDATE-RETARGETS-ACROSS-TENANTS` (the blind target-side write) |
+| R.8-c5 | source manager sets `source_commission_id` | **dropped** (frozen) |
+| R.8-c6 | a TD edits a TD-target draft | **kept**, non-frozen column (0 rows in both images if the TD is not a manager — equality still holds) |
+| R.8-d | the inline form discriminates on c5 | **dropped.** After the hotfix no `authenticated` statement outside an RPC can change an S1 input (status is RPC-only; the scope columns are frozen). The rejection rests on the recorded measurement (`ref-ret2.out`, REF sub-review `probeB.out`) |
+
+**Every remaining cell** asserts A/B outcome-class equality only, under `origin`. Its observed outcome is `diag`, never an
+assertion, and it holds identically before and after the hotfix.
+
+**6.2 F1 policy rewrites that touch the hotfix's objects.**
+- **`case_interview_links_select`** (F-CASE #24, B): the hotfix adds a clearance conjunct.
+  - **If the hotfix merges first:** F1's migration `7500` preflight refuses on this policy's md5, as designed.
+  - **Regeneration step.** Rebase `ae5-staff` onto the hotfix, then on a fresh reset of the rebased branch:
+    1. re-run the settle-checked authoring snapshot;
+    2. regenerate the pre- and post-image vectors with the generator, in a rolled-back authoring transaction (the post-image
+       is the catalog deparse);
+    3. re-run the partition census (Query R and the `pg_depend` census) and diff it against 81 / 127;
+    4. re-run `428` red-first;
+    5. never hand-edit an md5.
+  - **The post-image** is still a single substitution: `C-COMMITTEE(app.case_of_interview(interview_id))` in place of the
+    committee subterm, with the hotfix's clearance conjunct carried verbatim.
+- **The split interview-child policies.**
+  - They are not in the partition: `can_write_interview` reaches no T7 door, which the census in step 3 above re-confirms.
+  - F3(d)'s sibling-closed preconditions are derived from the catalog at test time, so they follow the split automatically.
+  - The PRE-3-tagged cells compare A/B only.
+- **Sibling-md5 sets on touched tables** (`case_referral`, `capa_plan`, `rca`, the interview children): the hotfix changes
+  their UPDATE / INSERT / FOR ALL policies, so the pre-image vectors are regenerated in the same step.
+- **Unaffected by the revokes:** F-NSP (`hospital_of_capa`, `event_of_capa`), F-REF (S1 / S2) and F-CASE read those columns
+  and never write them.
+- **The hotfix merges after F1:** the hotfix's own preflight and `429` see F1's post-images. The lead's `cb98aeef` rule
+  applies to whichever lands second: refusal means regenerate, never override.
+
+#### 7. The seven P3s
+
+| P3 | Finding | Disposition |
+| --- | --- | --- |
+| P3-1 | the controlled-approver relation must key `controlled_document_versions.document_id = documents.home_resource_id` | **Accept.** §3's `document` row now says so |
+| P3-2 | only-failing-axis preconditions never assert the target axis FALSE (e.g. a `P_G` seated at the source commission reads the draft through the source arm) | **Accept.** Every only-failing-axis principal asserts its target axis's live sub-predicate = false AND every other axis = true. `P_G` is seated only at the draft's target commission. The same holds for §2.2's 10 fail-fast plants |
+| P3-3 | the L17 discrimination half needs `G_clr`'s clearance on `c_lbl` and `case_of_interview(i_lbl)` | **Accept.** `G_clr` holds live `legal_privileged` grants on both, and `confidentiality_clearance_ok(…) = t` is asserted for each |
+| P3-4 | `428` must assert the flags its arms need | **Accept.** Preconditions `app.feature_enabled('technical_director')`, `('case_referrals')` and `('administrativo')` = true. A false flag is a red line, never a skip |
+| P3-5 | with an explicit `commit;`, the remote history insert runs after the file's transaction | **Accept, as a named residual.** A failure of that one insert leaves the DDL applied and unrecorded. The only realistic cause is a duplicate version, which the CLI checks before applying. **Detection:** a re-apply of an unrecorded F1 migration refuses at its md5 preflight (the live policies already equal the post-image), and the push-schema rule already requires verifying the remote catalog after `db push`. The explicit wrap stays, because the local path is unproven (§9 amendment 1; step 0) |
+| P3-6 | scope "no principal argument" to `authenticated`-executable functions | **Accept.** Restated: no `authenticated`-executable new function takes a principal argument or a caller-supplied set; `_case_caps_core` (#13) takes `p_uid` and is owner-only |
+| P3-7 | `311` §5.1, even region-cut, cannot see a verdict-branch mutation inside C-INTERVIEW (e.g. `WHEN 2 THEN true`) | **Accept.** At the (k) pin: that class is carried by the template byte-equality pin (`428` §2, the canonical text per site) and by `G_qr`'s behavioural twin (0 interview-homed documents, 0 case prints). The 5.1 message names both as the complementary carriers |
+
+**P2-5** (binary pinning) is dispositioned in §9, and **P2-1…P2-4** above.
+
+#### 8. Corrected residual-disclosure list — for the PO, after the lead's check
+
+**Primary control.** `app` is not in PostgREST's exposed schemas (`supabase/config.toml:71`, local), and `anon` has no
+USAGE on `app` (`amend-review`, measured). Every item is reachable **only by direct SQL as `authenticated`**, and returns
+ids, booleans or smallints — never content. The PO ruled no hosted check (pre-pilot, full remote reset planned).
+
+**Recipient terms used below.**
+- **"Seated"** = an active account holding an unexpired `memberships` row at the named commission, **under any hat**.
+  (Expiry is subject to Q1 for the seat classes it has not confirmed.)
+- **"Hospital-role holder"** = an active account holding the arm's own role at the named hospital, under any hat.
+- **"Live relation"** = a grant that is neither revoked nor expired, an open assignment, an approver row, or a response
+  creator / open-status corrector / non-removed target.
+
+1. **#29 `document_read_route`:**
+   - **(a) Meeting or controlled home:** the home commission id → seated members of that commission, and approvers.
+   - **(b) Referral, rca or capa_action home:** the referral id / event id / CAPA plan id →
+     - members seated at a commission that resource's arms test (source or target; owner or reporting; indicator);
+     - PQS-role holders at a tested hospital;
+     - TD-role holders at a TD referral's target hospital.
+   - **(c) Case home:** label presence → `can_read_case` holders, who already read the case row.
+   - **(d) Interview home:** the interview id and label presence →
+     - verdict-1 callers, who read the interview row;
+     - **verdict-2 callers seated at the case's commission whose hat role lacks `commission.cases.deliberation.read`** (the
+       hat residual).
+   - **(e) Action-item home:** as item 3.
+   - **(f) Prints:** as item 2.
+2. **#30 `printed_source_read_route`:**
+   - **(a) Case prints** — keys only after every zero-cost obligation passes:
+     - interview ids to seated verdict-2 callers;
+     - meeting ids to callers seated at the meeting's commission with visibility passing;
+     - referral ids to callers seated at the source commission (or the target, when sent) with no zero-cost arm.
+     - Every such recipient lacks the permission **only through the hat**; everyone else receives one failing row, which
+       reveals no more than PRINT's own answer.
+   - **(b) Meeting prints** — agenda-linked case ids of noted items, to seated verdict-2 callers already reaching the
+     meeting's commission and visibility (the hat residual).
+   - **(c) form_response prints** — nothing beyond the scalar, for any account state (the live corridor has no activity
+     check).
+3. **#28 `action_item_read_route`:**
+   - **committee** → the item's commission id, to members seated at the item's commission, members seated at the anchor
+     case's commission, anchor-hospital PQS or QR role holders, and live relation holders of the item or its anchor case;
+   - **case_restricted** → the anchor case id, to verdict-1 callers and seated verdict-2 callers (the hat residual);
+   - **assignees_only** → the scope class and the caller's own assignee boolean, to the same population as committee.
+4. **#20–22:**
+   - the event's current owner commission → members seated at the owner or reporting commission, and PQS-role holders at
+     the reporting commission's hospital;
+   - the CAPA's hospital and indicator commission → PQS-role holders at the CAPA hospital, members seated at the indicator
+     commission, and the event's population.
+5. **#27:** a professional profile's organization → active accounts with an unexpired membership of any role in that
+   organization.
+6. **#31 / #32:** version → document and file object → document ids → callers passing the `document` gate, which now
+   includes #29's pre-checks (so the same population as item 1).
+7. **Foreign-org holders of a live relation:** items 1–6 for that one resource only.
+8. **Verdicts:**
+   - #15 / #16 → 0 / 1 / 2 to content readers of that case or interview;
+   - (j) → 0 / 1 / 2 to callers passing the `case` gate: seated members, S6/S7 hospital-role holders, and live case relation
+     holders. A 2 reveals that the case is not `explicit_grants_only` — including to seated members without content
+     (S5-only), about cases in their own commission.
+9. **Pre-existing and unchanged:**
+   - **91 PUBLIC-executable `app` / `authz` functions that take arguments, 54 of them DEFINER** (`amend-review`, 2026-09-15;
+     re-measured by Q6), including the answer family, which returns response answer content by id (the PRE-4 candidate,
+     not yet reproduced);
+   - every `authenticated`-executable scalar that takes `p_uid`, plus `app._case_caps(uuid,uuid)`;
+   - the ungated id → owner lookups.
+
+**Conditional on Q1:** if Q1 finds an arm function without an expiry filter, members with an expired seat on that arm class
+rejoin items 1–5. If `is_quality_reviewer_of_for` carries a role literal other than `quality_reviewer`, the `case` kind's
+S7 term is re-stated.
+
+#### 9. P2-5 — step 0 pins the CLI binary
+
+Two CLIs are installed (`amend-review`): `supabase` on PATH is **2.113.0** (scoop), and `node_modules/.bin/supabase` is
+**2.115.0** (resolved by `npm run` scripts). CLAUDE.md's bare `supabase db reset --local` resolves the PATH binary.
+
+**Step 0** (T15.3, disposable stack, never the shared one) runs the planted-failure migration through **both** binaries:
+- `node_modules/.bin/supabase db reset` (2.115.0);
+- the PATH `supabase db reset --local` (2.113.0);
+- and remote `db push --db-url` through the binary the gate record will name.
+
+**Recorded per run:**
+- the exact binary path;
+- its `--version` output;
+- `where supabase`;
+- CLI exit code;
+- functions from the migration left in the catalog (expected 0);
+- the `supabase_migrations.schema_migrations` row count for that version (expected 0).
+
+The gate record for F1 names the binary it used. A result that differs between the two binaries is a stop, reported to the
+lead.
+
+#### 10. Owed measurements (after the handback; exact queries)
+
+**Q1 — the states inside every seat arm** (gates ⟨E⟩, the hospital role lists and any future hat term):
+
+```sql
+select p.oid::regprocedure,
+       regexp_replace(regexp_replace(p.prosrc, '--[^\n]*', '', 'g'), '\s+', ' ', 'g') as body,
+       p.prosrc ~ 'expires_at' as has_expiry, p.prosrc ~ 'is_active' as has_active,
+       p.prosrc ~ 'active_role' as has_hat
+  from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+ where (n.nspname, p.proname) in (('app','has_role'), ('app','has_role_any'), ('app','is_member_of_for'),
+                                  ('authz','holds_role'), ('app','is_staff_admin_of_for'), ('app','member_can_for'),
+                                  ('app','is_quality_reviewer_of_for'), ('app','is_pqs_member_of_for'),
+                                  ('app','is_nsp_coordinator_of_for'), ('app','is_technical_director_of_for'),
+                                  ('app','is_org_admin_of_for'), ('authz','assignment_facts'))
+ order by 1;
+```
+
+Rule: ⟨E⟩ applies to a seat class only if every function its arm passes through shows `has_expiry`, or delegates to one that
+does. The hat is honoured only if the same holds for `has_hat` on every arm of the kind; otherwise it stays unhonoured.
+
+**Q2 — can `capa_plan` INSERT … RETURNING be reached** (N.3g-d re-anchor):
+
+```sql
+select has_table_privilege('authenticated', 'public.capa_plan', 'INSERT') as can_insert,
+       (select string_agg(polname || ':' || polcmd || ':' || polpermissive::text, ', ')
+          from pg_policy where polrelid = 'public.capa_plan'::regclass) as policies;
+```
+
+**Q3 — non-frozen, `authenticated`-updatable columns** (N.3g-1, N.3g-3, R.8 cells). Run on the rebased catalog if the hotfix
+merged first, otherwise with the hotfix's revoke list subtracted by hand from the result and the subtraction recorded:
+
+```sql
+select table_name, column_name
+  from information_schema.column_privileges
+ where grantee = 'authenticated' and privilege_type = 'UPDATE' and table_schema = 'public'
+   and table_name in ('capa_plan', 'rca', 'case_referral')
+ order by 1, 2;
+```
+
+**Q4 — is `_caller_may_reach` inside `PRED_DOMAIN`** (carried from amendment 1): apply the `PRED_DOMAIN` predicate from
+`supabase/tests/mutation/p0-authz-door-audit.sh` to `app._caller_may_reach(text,uuid)` once migration 1 exists (step 0's
+disposable stack).
+
+**Q5 — step 0,** per §9.
+
+**Q6 — item 9's count:**
+
+```sql
+select count(*) filter (where true) as total, count(*) filter (where p.prosecdef) as definer
+  from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+ where n.nspname in ('app', 'authz') and p.pronargs > 0
+   and has_function_privilege('public', p.oid, 'EXECUTE');
+```
+
+⚠ **Q6 guard.** `has_function_privilege('public', …)` is the PUBLIC pseudo-role check. If it errors, use
+`p.proacl is null or exists (select 1 from aclexplode(p.proacl) a where a.grantee = 0 and a.privilege_type = 'EXECUTE')`.
+Record which form ran.
+
+#### 11. Inventory and gates
+
+- **Functions: 34, unchanged.**
+  - **No new function.** `commission_seat` is a kind of `_caller_may_reach`, and #29's pre-checks fold into its `document`
+    kind.
+  - **Bodies amended:** (j), `_caller_may_reach`, #28, #29, #30, #31, #32.
+- **Budget: app 370 · public 433 · total 803, unchanged** (the PO approved up to about 810).
+- **`421` / `400` / `419` / census / set-valued harness / `409`: unchanged** from amendment 1 §13. No function is added and no
+  ACL changes.
+- **`428`:** §1 adds `P_manchor`, `P_S5`, and the state principals (inactive, expired seat, revoked grant, completed
+  assignment, non-live corrector, removed target, hospital_admin / TD / QR); §2 adds the state plants and the superset
+  controls; §3.8 is re-derived (§6); §7 adds the (j) plant and the content-only-reader cells; the fail-fast plants are in
+  §2.2.
+
+#### 12. Unresolved
+
+- **Q1–Q6 are owed.**
+  - **Q1 gates** ⟨E⟩, the QR role literal, and whether the hat could ever be honoured.
+  - **Q2/Q3 fix** the cells in §6.1.
+- **The hat residual** (§2.3, §8) stays for the PO. A zero-cost hat test would duplicate the resolver.
+- **Cost owed to the harness:** the fail-fast route evaluates `_case_caps_core` per interview and per noted meeting case,
+  plus one seat lookup per undecidable child.
+- **The local-path atomicity** stays UNPROVEN until step 0 runs on both binaries.
