@@ -109,13 +109,13 @@ The earlier gate witnesses stand for `cea431c7`, but they no longer declare the 
 ### Next
 
 F1 / AC-11 plan ACCEPTED as design (`b6b5de7b`); Q-3 ruled (A); Q-1 · Q-2 (C) · Q-4 ruled → 81 partitioned (78 in scope, 3 insert-only) →
-integrated plan `e2ae138f` (127 policies, 32 functions, 7 migrations) → adversarial plan review
-(`plan-review`) → lead rulings + PO (c) and budget size → ADR 0212 + `428` red-first → migration; F2 + F3 DONE in `425` (`075e298a`, verified 34/34) → F1 migration → `425` re-run on it → Phase Gate step 1 in full → `e2e:prod` → QA again →
+integrated plan `e2ae138f` (127 policies, 32 functions, 7 migrations) → adversarial review: BLOCKING (acceptance + route
+disclosure; equivalence holds) → lead rulings (a)–(s) → backend3 amends the plan → PO: PRE-1/2/3 + budget size → ADR 0212 + `428` red-first → migration; F2 + F3 DONE in `425` (`075e298a`, verified 34/34) → F1 migration → `425` re-run on it → Phase Gate step 1 in full → `e2e:prod` → QA again →
 PO approval → Record.
 
 ### Blockers
 
-✅ **Q-1 convert · Q-2 (C) all 81 · Q-4 772 + N — RULED 2026-09-15.** ✅ **R-8 RULED 2026-09-15: option (a)** — F1 is resolved in this unit under AC-11; F2 and F3 go to the tester after F1's migration.
+⛔ **PO: three pre-existing catastrophic Class-1 holes reproduced** (`BUG-AE5-STAFF-REFERRAL-UPDATE-RETARGETS-ACROSS-TENANTS`, `BUG-AE5-STAFF-CAPA-UPDATE-MOVES-ACROSS-TENANTS`, `BUG-AE5-STAFF-INTERVIEW-CHILDREN-BYPASS-CLEARANCE-VIA-WRITE-POLICIES`) — disposition to rule; budget now 802–804. ✅ **Q-1 convert · Q-2 (C) all 81 · Q-4 772 + N — RULED 2026-09-15.** ✅ **R-8 RULED 2026-09-15: option (a)** — F1 is resolved in this unit under AC-11; F2 and F3 go to the tester after F1's migration.
 For the PO at approval, recorded and unchanged: two P0s were caught before commit (one from the lead's
 L17, now L24) and closed with witnesses, and the high closure-gate follow-up stays open; the `staff`
 wrapper has ZERO production callers for one unit under a named bound (L14); T7 converged 24 frozen

@@ -8583,3 +8583,84 @@ PO again, together with ruling (c), rather than carried silently.
 § 4 reorder removes **0**, because staff4's only locked case returns at the respondent hard deny.
 
 **State.** Nothing is executed. `tester3` is parked. The planners are done.
+
+### 2026-09-15 — adversarial plan review: BLOCKING DEFECTS in the plan's acceptance and route disclosure, none in its equivalence; three PRE-EXISTING cross-tenant / clearance holes in Class-1 modules reproduced by the lead and filed catastrophic; lead rulings on (a)–(s); plan amendments routed to backend3 (lead)
+
+**The review.** `plan-review` (Opus, read-only) delegated four family sub-reviews (docs, ref/prof, meet, nsp). Its
+report and the sub-reports are in the lead's scratchpad `q2/plan-review.md` and `q2/review/*`, with their probes.
+- **Verdict:** **BLOCKING DEFECTS.** No P0 is introduced by the plan.
+- **Equivalence holds** for all five families and the 46 mechanical sites.
+- **Independent census:** 128 policies reach a permission resolution. That is the plan's 127 plus `responses_insert_own`,
+  with nothing missing in either direction.
+- **The budget holds** at 339 / 433 / 772 live, plus 30.
+
+**The lead's own reproductions**, live catalog, each script read first, rolled back, 0 peers, data read back unchanged:
+
+| Hole | What the lead measured | Filed |
+| --- | --- | --- |
+| **PRE-1** | chefe.ccih moved draft referral `efa…a1` into Rede B's commission `c0…c1`. staff1.qual.b (Rede B) went 0 → 1 row, `has_patient = t`, linked to Rede A case `d0…c1`. | `BUG-AE5-STAFF-REFERRAL-UPDATE-RETARGETS-ACROSS-TENANTS` |
+| **PRE-2** | nspcoord.a moved open CAPA `a5f7…b1` to Rede B hospital `05…0b`. pqs.b went 0 → 1 row; the mover went 1 → 0. | `BUG-AE5-STAFF-CAPA-UPDATE-MOVES-ACROSS-TENANTS` |
+| **PRE-3** | With interview `f2…e1` set `legal_privileged`, chefe.ccih (no clearance) read 0 interview rows (`can_read_interview = f`). The same user read 2 subjects (`external_name`, `clinical_role`, `note`), 2 interviewers, 1 link and 2 sessions through the FOR ALL `*_write` policies (`can_write_interview = t`). | `BUG-AE5-STAFF-INTERVIEW-CHILDREN-BYPASS-CLEARANCE-VIA-WRITE-POLICIES` |
+
+- **Severity:** all three are `catastrophic`, per the register's legend (PHI exposure, or a cross-tenant read). Each has its
+  own per-bug doc.
+- **Pre-existing:** each policy is defined from `20260620000000_baseline.sql` and last redefined before the branch point
+  `a02487bc`, so all three are on `main`. The hosted database is **not measured**.
+- **Also filed, `medium`:** `BUG-AE5-STAFF-INTERVIEW-VIEWED-AUDIT-GATE-WEAKER-THAN-READ-DOOR`. The `interview.viewed` audit gate checks membership, not the read door. Found by
+  plan-case; not yet reproduced by the lead.
+
+These go to the PO now. They are not this unit's regressions, but they are live Class-1 exposure, and `428` must not pin
+them as expected values.
+
+**Document-route disclosure: P1, not P0, by measured reach.** The routes are reachable only by direct SQL as
+`authenticated`, and `supabase/config.toml:71` exposes `public` and `graphql_public` only. It would become P0 if the hosted
+setting exposed `app`. That setting is unverifiable from the repo, and
+`FUP-AUTHZ-NO-BEHAVIOURAL-PROOF-APP-SCHEMA-UNREACHABLE-OVER-POSTGREST` is open.
+
+**Lead rulings.**
+
+| # | Ruling |
+| --- | --- |
+| (a) | ONE parametrized `_case_caps_core`, no twin. |
+| (b) | YES: "converted by removal" satisfies AC-11, stated explicitly, with `428` showing 0 resolutions. |
+| (d) | `authz.holds_role` per row is NOT a catalog permission resolution under AC-11. It is residue with a follow-up. |
+| (e) | The referral commission wrapper is owner-only, with no grants. The ref fragment's `service_role` text and R.1 follow. |
+| (g) | Declare the 6 referral policies in the manifest. |
+| (h) | Follow-up for FOR ALL write policies left per-row at 0 resolutions, enumerated across all such policies. |
+| (i) | Bug row filed (above). |
+| (l) | Re-pin `356` §13.3 as moved, not added. |
+| (m) | Converge `has_case_capability` to `search_path = ''` by CREATE re-emit, never ALTER. `419` goes 836 → 835. |
+| (o) | **Seven migrations, CONDITIONAL.** Each must prove it applies atomically, with a failing postflight rolling back the whole file. The plan must state how (the review found none of the 18 recent migrations wraps an explicit transaction), and prove each prefix of the seven is equivalent on its own. |
+| (p) | One `428`, split only on measured runtime. |
+| (q) | Extend the zero-caller bound to 8 functions. The review adds that they would read COVERED while production no longer calls them, so each gets a named verdict, never COVERED by default. |
+| (r) | ADR 0212 `Amends: 0182`. |
+| (s) | Re-specify the AE4 P7 probe before any harness run. |
+| **(c)** | **Lead ruling: NARROW, do not disclose.** A route returns 0 rows to a caller with no possible arm on that tenant. It is proven against every non-membership arm, and `428` adds a foreign-org cell over every Class-1 fixture id. Ruling (c) therefore no longer asks the PO to accept a disclosure. Any residual disclosure the narrowed design still has is listed and goes to the PO. |
+| **(f)** | Not pre-approved. If ever used, it carries every condition in ref-prof P2-6. |
+| **(j)** | ACCEPT `app.case_deliberation_verdict` (+1), conditional on backend3's L1 being proven for deliberation entailed from hospital and org roles. The fallback text is stated (docs F8). |
+| **(k)** | REJECT the name exemption. Strip the byte-pinned C-INTERVIEW and C-COMMITTEE templates from the policy text first, run `311` §5.1 on all policies with no exemption, add a planted bare form that must red, and add a positive quality-reviewer twin. |
+
+**Routed to backend3: amend the integrated plan, not execute.**
+1. The narrowed routes (c).
+2. Exact print-route SQL per obligation axis: axis E keyed on `coalesce(source_case_id, linked_case_id)`, axis C inner-joins
+   `responses`. One plant per obligation source, each against a principal whose only failing axis is that one.
+3. Principals with every sibling policy closed for `F3(d)`, on all 7 interview tables.
+4. Command-context cells re-specified:
+   - `session_replication_role = 'origin'` asserted;
+   - reachable edits only;
+   - outcomes compared inside exception blocks;
+   - `rca_update` added;
+   - every PRE-1 / PRE-2 cell tagged with its bug id, never recorded as the intended value.
+5. A second hospital with PQS, NSP coordinator, TD and deputy, plus cross-hospital referrals and both mutants as plants.
+6. The (k) re-specification.
+7. The L17 plant: constructed principal and document, explicit plant text, and an interview twin.
+8. The inactive cells restated per table, with an inactive approver and an inactive assignee added.
+9. Every P2 and P3 in `q2/plan-review.md`, dispositioned one by one, including:
+   - the set-valued harness preflight abort on `document_ids_of_file_object`;
+   - row-set comparators over every permissive policy;
+   - §4 row independence over all 46 mechanical sites, or a stated sample rule;
+   - `explain (verbose)` for the plan-shape probe;
+   - `printed_documents` column-level SELECT;
+   - the 0-row route compared NULL-safely.
+
+Nothing is executed. The PO is asked: how PRE-1, PRE-2 and PRE-3 are dispositioned, and the budget size (802–804).
