@@ -5130,3 +5130,23 @@ runs the six affected spec files serially on a fresh reset after backend parks. 
 LESSONS candidate: *a seed addition is checked against every pgTAP pin and never against the E2E
 specs' premises; five specs rested on coincidences of the seed, and one fixture destroyed a domain
 state another phase asserts.*
+
+### 2026-09-15 — L30 amended to L30′: the invariant is upstream of publish, so the 0-section fixture gains its default section (lead)
+
+Backend measured the live catalog before changing anything. `public.publish_form_version` (plpgsql,
+INVOKER) checks draft status, `visible_when`, group layout, matrix axes, choice items without options,
+a bad `default_value` (HC080) and `flaggedWhen` (HC046). It counts neither sections nor input items,
+and the TS publish action adds no such check. The invariant sits upstream: `public.create_form`
+inserts `form_sections (form_version_id, position, is_default) values (v_version_id, 0, true)` in the
+same transaction as the draft version; `app.copy_version_children` copies sections on clone; the
+trigger `public.guard_default_section_delete` raises `cannot delete the default section while it is
+the only section of its version`. No door produces a version with zero sections. The fixture's
+direct insert skipped `create_form`'s obligation, the same shape as the rows that broke `330`.
+
+**L30′ (lead):** L30 keyed the rule on the publish door, which was the wrong subject. The rule is
+the table invariant, whichever door holds it. Fixture versions `a5fc…b1` and `a5fc…b2` each gain
+the one default section `create_form` writes (`position 0`, `is_default true`, no items); zero input
+items stays, since no door forbids it. Anything that moves is re-pinned with attribution; backend
+expects no manifest cell to move because row 1's probes read only `form_versions.id`. Condition:
+backend's record entry quotes the three catalog lines above from `pg_get_functiondef` and the
+trigger body, since the lead did not read the stack during backend's ownership.
