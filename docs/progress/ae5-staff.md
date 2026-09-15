@@ -1151,7 +1151,7 @@ NOTICED = evidence; CARRIED = a step.
   two suites filter CCIH in their queries, so the bar is met as written. That the CCIH filter is
   incidental to what those two suites measure is the lead's reading, not a measurement. Only
   batch 6 waits on R-6; the other nine reds do not.
-- **R-7 — AC-4's unfilled fixture gaps: row 7's respondent fixture, and the `offboarded` expected value.** ⛔ **OPEN, opened
+- **R-7 — AC-4's unfilled fixture gaps: row 7's respondent fixture, and the `offboarded` expected value.** ⭐ **RULED 2026-09-15 (PO, in the lead session): verbatim "Proceed with (a), and defer offboarded" — row 7's respondent fixture is seeded now with its cells; `offboarded` is deferred to `FUP-AE5-STAFF-OFFBOARDED-EXPECTED-VALUE-DEFERRED`.** Was: ⛔ **OPEN, opened
   2026-09-15 by the lead.** Measured by backend (`8b92d026`): § 8's row 6/7 respondent fixture was never
   seeded, so no generated cell exercises the `NOT app.is_case_respondent(...)` term L16 hand-added to
   `meeting_cases_select`. That is the one hand-written policy, and its deny term is the part the cells
@@ -6001,3 +6001,22 @@ L18's two closed-session items, asserted in a suite backend owns, each shown abl
 `offboarded` are a scope decision**, because filling F3 changes the seed the declaring run passed. They are
 opened as **R-7** in § Open rulings, recommending (a) for row 7 and deferral for `offboarded`. **AC-4 is
 not ticked** until R-7 is ruled and its work lands. The QA pause follows that.
+
+### 2026-09-15 — PO RULING on R-7: verbatim "Proceed with (a), and defer offboarded"; the respondent fixture routed to backend with F2; `offboarded` filed as a follow-up (lead)
+
+The PO replied, verbatim: *"Proceed with (a), and defer offboarded"*.
+
+**Scope, written rather than inferred.** **Approved:** option (a) for row 7. § 8's row 6/7 respondent
+fixture is seeded, and its cells are added, so that a generated cell exercises the
+`NOT app.is_case_respondent(...)` term L16 hand-added to `meeting_cases_select`. That change costs a fresh
+`test:db`, a build-complete re-run at the final commit, and a new declaring `e2e:prod` before the QA pause,
+because it changes the seed the run at `dc08f96f` passed. **Deferred:** the `offboarded` expected value.
+No value is approved by this reply, and the class stays excluded from the cells vector. It is filed as
+`FUP-AE5-STAFF-OFFBOARDED-EXPECTED-VALUE-DEFERRED`, where the PO states the value.
+
+**Routed.** Backend takes F2 (L34) and the respondent fixture as one seed-and-suite pass after the
+tester parks F1. The persona and case are chosen by grep over `e2e/` as well as `supabase/tests/`,
+the lesson of the first `e2e:prod` run's ten reds. The discriminating cell is shown able to red. A file
+owned by the tester (`424`, `425`) is routed back rather than edited. Then build-complete runs at the
+final commit on one fresh reset. Then the tester runs the production gate on every spec the new fixture
+can touch, and the declaring full `e2e:prod` once. AC-4 ticks on that, and the QA pause follows.

@@ -2001,6 +2001,13 @@ Before the unit, `readRoleVocabularyFromCatalog` was an UNEXPORTED local in two 
 **Status:** open
 **Body:** [FUP-AE5-STAFF-AC7-UPLOAD-SILENT-UNDER-NEXT-DEV.md](FUP-AE5-STAFF-AC7-UPLOAD-SILENT-UNDER-NEXT-DEV.md)
 
+### 🟡 FUP-AE5-STAFF-OFFBOARDED-EXPECTED-VALUE-DEFERRED (owner: lead)
+
+**Filed:** 2026-09-15 (unit `AE5-STAFF`, R-7, by the lead) · **Owner:** lead · **Severity:** medium — the `offboarded` principal state is excluded from the `staff` differential cells because no per-coordinate expected value was ever approved; the PO deferred it in R-7.
+**Closes when:** the PO states the expected value per `staff` coordinate for an `offboarded` principal, the cells vector includes the class with those values and a fixture binding one offboarded `staff` principal, and one cell is shown able to red.
+**Status:** open
+**Body:** [FUP-AE5-STAFF-OFFBOARDED-EXPECTED-VALUE-DEFERRED.md](FUP-AE5-STAFF-OFFBOARDED-EXPECTED-VALUE-DEFERRED.md)
+
 ### 🟡 FUP-AE5-STAFF-ROLLBACK-TEMPLATE-PARSED-BY-NO-GATE (owner: backend)
 
 **Filed:** 2026-09-15 (unit `AE5-STAFF`, AC-9 catalog pass, ordered by the lead) · **Owner:** backend · **Severity:** medium — `docs/deployment/authz-rollback-template.sql` is SQL an operator copies during an incident, and no gate parses it (`lint` reads no SQL under `docs/`, `test:db` never loads `docs/deployment/`); SECTION G's guards once shipped unparseable and F2's row-count guard could never pass, both found by hand.
