@@ -112,8 +112,7 @@ AC-10 gate record → T14 QA → PO approval → Record.
 
 ### Blockers
 
-⛔ **R-6 (PO):** where the unconfirmed persona's staff membership lives. The lead recommends Farmácia A;
-record § Open rulings has the three options with measured costs. It blocks only batch 6's red.
+✅ **R-6 RULED 2026-09-15: option (a)** — the unconfirmed persona's staff membership moves to Farmácia A; backend executes it and re-runs build-complete at the final commit, then the declaring `e2e:prod`.
 For the PO at approval, recorded and unchanged: two P0s were caught before commit (one from the lead's
 L17, now L24) and closed with witnesses, and the high closure-gate follow-up stays open; the `staff`
 wrapper has ZERO production callers for one unit under a named bound (L14); T7 converged 24 frozen

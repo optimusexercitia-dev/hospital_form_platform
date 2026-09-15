@@ -1127,7 +1127,7 @@ NOTICED = evidence; CARRIED = a step.
   of the four properties, the restricted differential `426` observed RED then GREEN, the
   PA-F8-STAFF-2 condition. ⛔ PO: accept ADR 0211 (proposed → accepted) or change it; AC-6 ticks on
   acceptance.
-- **R-6 — the unconfirmed persona on CCIH's voter roster (e2e:prod batch 6).** ⛔ **OPEN, opened
+- **R-6 — the unconfirmed persona on CCIH's voter roster (e2e:prod batch 6).** ⭐ **RULED 2026-09-15 (PO, in the lead session): option (a) — verbatim "Proceed with (a)"; the membership moves to Farmácia A; execution in the session-log entry of the same date.** Was: ⛔ **OPEN, opened
   2026-09-15 by the lead.** Measured: `app.eligible_voters` counts `gap.pending` for CCIH's ethics
   case because its live body filters membership, expiry, `app.is_active`, recusal and respondent,
   and nothing reads `email_confirmed_at`; `ethics-e2-procedure` FLOW-7 mirrors that definition
@@ -5523,3 +5523,21 @@ timeout. `BUG-E2E-ETHICS-GATED-NOVADECISAO-RETRY-FLAKY` (low) — re-worded at t
 the tester's own evidence showed GATE-D passes on its first attempt in both runs and reds only under the
 serial file's `Retry #1`, forced by FLOW-7's R-6 red against a DB the first pass already moved. It is
 contingent and closes when the declaring run after R-6 shows FLOW-7 green and no GATE-D retry.
+
+### 2026-09-15 — PO RULING on R-6: option (a), verbatim "Proceed with (a)"; routed to backend with the build-complete re-run at the final commit (lead)
+
+The PO replied, verbatim: *"Proceed with (a)"*. **Scope, written rather than inferred:** option (a) as
+R-6 states it in § Open rulings — `gap.pending@test.local`'s `staff` membership `a5f10000-…-e3` moves
+from CCIH to Farmácia A (Rede A, so no persona crosses orgs); `426`'s `st_pending` cells are re-scoped
+and § 0.1's pin splits 3 at CCIH + 1 at Farmácia A; `387 B4/B5` re-pins 13 → 12 with attribution. Not
+approved by this word: any change to `app.eligible_voters` (option (c), which stays a question under
+`FUP-AE5-STAFF-ELIGIBLE-VOTERS-COUNTS-UNCONFIRMED`), and any change to the ethics spec (option (b)).
+
+**Routed (backend holds the stack):** the seed move and the two re-pins, with a pre-move grep for any
+other reader of the Farmácia A roster that the added member could move; witnesses that FLOW-7's case now
+has 8 eligible voters, none of them unconfirmed, and that `426 § 3.4`'s wrapper-grants-pending property
+still holds at the new scope. Then, at that final commit and on one fresh reset, build-complete again so
+the AC-10 gate record cites a single commit: `npm run lint`, `typecheck`, full `test:db`, the four arms,
+the live budget 339/433/772, and the door-sweep case list re-derived with its sorted checksum compared
+with T8's `c2934944fc881ded`. Then the tester runs the production gate on the specs the move can touch,
+and then the declaring `e2e:prod` once.
