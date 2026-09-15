@@ -9392,3 +9392,46 @@ items with no change, and 3 PRE items tagged.
   - **T15.4** gains the `311` region-cut re-pin, the ruling (n) allowlist entry for #32, the (q) findings rows, and the
     DOCS F13 comment updates.
   - The fixture of §5 is backend's `428`.
+
+### 2026-09-15 — plan amendment 1 RECEIVED (`e5fe6968`): 59 of 59 review findings accepted; 34 functions; budget 803 (within the PO's ~810); routes narrowed behind a tenant gate; a residual-disclosure list for the PO; a focused re-review spawned before that list reaches the PO; one concurrent-write near miss on this file, measured clean (lead)
+
+**Received, not yet verified by the lead.** The headline figures are backend3's.
+- **Findings:** 59 dispositioned (8 P1, 24 P2, 27 P3): 59 accepted, 0 rejected. The PRE-1, PRE-2 and PRE-3 cells are
+  tagged with their bug ids and never asserted as intended values.
+- **Functions:** 34 new. The two added since the integrated plan are:
+  - `app.case_deliberation_verdict(uuid)`, under ruling (j), with an L1 proof for hospital- and org-scope roles;
+  - `app._caller_may_reach(text, uuid)`, the tenant gate, owner-only and +0 to the budget.
+- **Budget:** 31 functions `authenticated`-executable, so app 339 → 370, public 433, total 772 → **803**.
+- **Other counts:** `421` → 948 = 835 + 113; `400` → 583 rows.
+
+**Ruling (c), as amended.**
+- **The gate.** Before any key is emitted it requires a membership at a commission or hospital that the resource's own
+  arms check, or a direct relation (grant, assignment, approver, response creator, corrector, targeted participant).
+- **The anchor pre-checks.** Where it costs no permission resolution, a route first runs the policy's own test.
+- **The residual disclosure list** has nine classes, all reachable only by direct SQL as `authenticated`, because `app` is
+  not API-exposed. The list is not put to the PO until the re-review below confirms it is complete and accurate.
+
+**Could not resolve (backend3).**
+- **Local `db reset` atomicity is unproven.** The mitigation is an explicit `begin; … commit;` in each file. A measurement
+  on a throwaway stack is step 0 of T15.3.
+- **The cost of the gate and pre-checks is owed to the harness.** If it is too costly, ruling (c′) goes to the PO: keep the
+  pre-checks, or gate only and accept a longer disclosure list.
+- **Owed:** whether `_caller_may_reach` sits in the door sweep's predicate domain.
+
+**Focused re-review before the PO.** `amend-review` (Opus, read-only) answers three questions:
+1. Can the gate over-deny or under-deny any arm? It re-derives the arm enumeration itself.
+2. Is the disclosure list complete and accurate for every new argument-taking function, and does any item expose Class-1
+   content?
+3. Are the eight P1 dispositions APPLIED in the text, and does the atomicity mitigation hold?
+
+Its report goes to the lead's scratchpad, `q2/amend-review.md`.
+
+**Concurrent-write near miss on this record, measured.** The lead committed `ef48eacc` while backend3 was writing its
+block. The lead's guard (no uncommitted edits to this file) ran immediately before its script read the file, but the check
+and the write are not atomic.
+- **What happened:** backend3 reports its block first landed above the lead's entry, and it moved the block to the end,
+  after verifying the file equalled HEAD plus its block.
+- **Measured by the lead:** `ef48eacc` changes 35 lines of this file, all the lead's own, and contains no amendment text.
+  `e5fe6968` adds 661 lines with 0 deletions. HEAD holds each entry exactly once.
+- **Rule from here:** the lead does not write this record while a teammate has been asked to append to it. The lead waits
+  for the teammate's commit notification instead.
