@@ -110,7 +110,7 @@ The earlier gate witnesses stand for `cea431c7`, but they no longer declare the 
 
 F1 / AC-11 plan ACCEPTED as design (`b6b5de7b`); Q-3 ruled (A); Q-1 · Q-2 (C) · Q-4 ruled → 81 partitioned (78 in scope, 3 insert-only) →
 integrated plan `e2ae138f` (127 policies, 32 functions, 7 migrations) → adversarial review: BLOCKING (acceptance + route
-disclosure; equivalence holds) → lead rulings (a)–(s) → amendment 1 `e5fe6968` (59/59 accepted, 34 functions, budget 803) → re-review DEFECTS (2 P1: (j) oracle; disclosure list incomplete) → amendment 2 (text-only; stack with the hotfix) → (PO ruled PRE-1/2/3 hotfix off `main`, budget ≤ ~810) → ADR 0212 + `428` red-first → migration; F2 + F3 DONE in `425` (`075e298a`, verified 34/34) → F1 migration → `425` re-run on it → Phase Gate step 1 in full → `e2e:prod` → QA again →
+disclosure; equivalence holds) → lead rulings (a)–(s) → amendment 1 `e5fe6968` (59/59 accepted, 34 functions, budget 803) → re-review DEFECTS (2 P1: (j) oracle; disclosure list incomplete) → amendment 2 `c9527d12` (text-only) → after stack handback: Q1–Q6 + verify the disclosure list → PO → (PO ruled PRE-1/2/3 hotfix off `main`, budget ≤ ~810) → ADR 0212 + `428` red-first → migration; F2 + F3 DONE in `425` (`075e298a`, verified 34/34) → F1 migration → `425` re-run on it → Phase Gate step 1 in full → `e2e:prod` → QA again →
 PO approval → Record.
 
 ### Blockers

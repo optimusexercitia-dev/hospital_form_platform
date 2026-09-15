@@ -9990,3 +9990,42 @@ Record which form ran.
 - **Cost owed to the harness:** the fail-fast route evaluates `_case_caps_core` per interview and per noted meeting case,
   plus one seat lookup per undecidable child.
 - **The local-path atomicity** stays UNPROVEN until step 0 runs on both binaries.
+
+### 2026-09-15 — plan amendment 2 RECEIVED (`c9527d12`, text-only): both re-review P1s addressed on paper; 34 functions and budget 803 unchanged; the disclosure list is held from the PO until it is verified on the catalog, which waits for the stack handback (lead)
+
+**Received, not verified.** backend3 wrote amendment 2 without touching the catalog, as instructed, and appended it only
+after the lead's `624b59aa`. The figures are backend3's.
+- **P1-A.** `case_deliberation_verdict` returns 0 unless `_caller_may_reach('case', …)` passes. A plant with the gate line
+  removed must fail the foreign-org cell.
+- **P1-B, #28 and #29.** A verdict-2 caller with no active, unexpired seat at the case's commission gets one failing row and
+  the route stops. backend3 argues this is exact, because verdict 2 can only grant through the commission permission.
+- **P1-B, #30.** Fail-fast: every zero-cost obligation is settled before any child key is emitted. For axes A, D, F, G and
+  meeting deliberation the entry argues why a narrower zero-cost test is impossible. What remains is a class of caller
+  seated at the right commission whose current hat lacks the permission.
+- **P2-1.** The gate honours account activity (form-response prints excepted, since the live corridor has no activity
+  check), live relation state and the specific hospital role. It does NOT honour the hat, because that would duplicate
+  the resolver. Membership expiry is honoured only if query Q1 confirms every seat arm filters it.
+- **P2-4.** Command-context cells now edit only columns the hotfix leaves updatable. Cells that exist only while the bug
+  exists are dropped, and their pre-hotfix measurements stand. The regeneration step for migration 7500's preflight after
+  the hotfix merges is spelled out: rebase, fresh reset, snapshot, vectors, census diff against 81/127, then `428`
+  red-first. An md5 is never hand-edited.
+- **Everything else.** P2-2, P2-3, P2-5 and all seven P3s are dispositioned. The functions and the budget are unchanged:
+  34, and app 370 / public 433 / total 803 against the PO's ~810.
+
+**Why the disclosure list is not yet put to the PO.** Two things, and both need the `ae5-staff` catalog, which the hotfix
+holds:
+- **The narrowed routes have not been checked.** The previous list was wrong in ways only a prototype-and-sweep found
+  (P1-A, P1-B), and this one rests on new route bodies no one has run.
+- **Open queries decide list items.** Q1 (expiry, the quality-reviewer role literal, hat) changes items 1–5. Q6 re-counts
+  item 9.
+
+**Owed after the stack handback, in this order:**
+1. a fresh reset of `ae5-staff`, proven;
+2. backend3 runs Q1–Q6, including Q5, the local `db reset` atomicity through both CLI binaries (2.113.0 and 2.115.0);
+3. a focused verification pass prototypes the amended #28–#30, (j) and the gate, then re-sweeps the disclosure list;
+4. only then does the list go to the PO.
+
+The hat residual stays on that list by design. The harness still owes the cost of the fail-fast route.
+
+**PRE-4 (`app.answer_map`)** is still not reproduced by the lead. It waits for the hotfix unit's main-catalog
+re-measurement to finish, on a seeded response id; the reviewer's id was post-E2E data that the reset erases.
