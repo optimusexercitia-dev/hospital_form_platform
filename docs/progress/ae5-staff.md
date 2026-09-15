@@ -4910,3 +4910,25 @@ either the second candidate door regression of the gate (with B) or a fixture ef
 (Farmácia, multi@). A lower RLS count names the door and outranks every other red. Held observation
 (1), the 5-worker login timeouts, did not reproduce in the gate's serial batches; held observation
 (2), the resumed wizard, is NOT this (fresh DB per batch). Eight reds over 18 batches so far.
+
+### 2026-09-14 — `e2e:prod` batch 20 RED ×2: `sup-supersession` SUP-1/SUP-4 — `chefe.ccih`'s correction never lands in a successor draft; three reds now converge on the RESPONDER surface; measurements F + G ordered (lead)
+
+Batch 19 green (52). **Batch 20:** `68 passed · 2 failed · 70/70 · pw_exit 1` —
+`sup-supersession.spec.ts:133 SUP-1` and `:293 SUP-4 (keyboard-only)`: as `chefe.ccih` (staff_admin),
+"Corrigir envio" → dialog → "Iniciar correção" → `waitForURL(/\/responder\//)` 20 s timeout. The
+RPC is `public.start_correction_draft` (the L22 identity-gate function) — NOT among T7's 27
+re-emitted bodies (grep of `20261003007470`: no match); the batch's server log carries no SQL error
+signature (`does not exist` / `42P01` / `42883` / `permission denied` / `PGRST`: none in batches 11,
+18, 20). **Convergence, stated as a hypothesis to be measured, not a finding:** batch 18 (a `staff`
+filler cannot render S1 of a form — the wizard opens a draft), batch 20 (a `staff_admin` cannot
+open a successor draft) and perhaps batch 11 (a staff_admin's print context) all cross the
+`responses` table, and T7 changed `responses_insert_own`'s `with_check` (the drift the write arm
+tripped on at T8). Against it: the T13 multi-commission spec filled a Farmácia form as multi@ in
+batch 1 and passed. **Ordered (tester, after A–E):** F — the live `pg_policy` rows on `responses`
+(`using` + `with_check` by `pg_get_expr`), a rolled-back INSERT as multi@ on `…b001` and as chefe on
+a CCIH version with the SQLSTATE quoted, every named door called for both personas, and which of
+`staff` / `staff_admin` holds each `commission.responses.*` code in `authz.role_permissions`; G — a
+fresh reset, then ONE traced isolated run each of the wizard "branch Sim" and SUP-1, the failing
+server-action/RPC response body (pt-BR text + any `HC0…` code) extracted from the trace; a pass in
+isolation is itself a finding (batch-order or load shape). Ten reds over 20 batches. A refused
+insert or a lower RLS count is a T7 regression and is ruled before any fixture fix.
