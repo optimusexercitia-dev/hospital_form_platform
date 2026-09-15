@@ -6401,3 +6401,28 @@ it in two halves:
    transaction.
 
 No fix or bug row until the lead classifies it as pre-existing or introduced, and as by design or a defect.
+
+### 2026-09-15 — the production-gate spec subset for the R-7 (a) / L36 seed, chosen by grep before the tester's run (lead)
+
+The seed at `9f4a326b` adds one `meeting_cases` link (row 8's meeting `a5f20000-...-a2` to the ethics case
+`ca000000-...-e1`) and two accreditation rows on CCIH-1 `a5f50000-...-b1`. Greps over `e2e/`, run by the lead:
+
+- **No spec names the new fixture ids:** 0 hits for the CCIH-1 standard, its framework `a5f50000-...-a2`
+  and `Marco da CCIH`, `CCIH-1`, or row 8's meeting `a5f20000-...-a2`.
+- **Name the ethics case:** `case-access`, `case-surface-split-increment-2`, `ethics-e1-access-spine`,
+  `ethics-e2-procedure`, `ethics-e3a-surfacing`, `quality-oversight`, and the helpers `accreditation.ts`
+  and `pdf-printing-meetings.ts`.
+- **Import those helpers:** `pdf-printing-meetings` and the five `phase16-accreditation-*` specs (clone, core,
+  freshness, hospital, restricted). Four of the five also assert readiness or evidence, which L36's rows can
+  shift.
+- **Added by the lead:** `ethics-e4-participants`, which binds staff4.ccih's respondent link per backend's
+  measurement, and `phase10-meetings`, because a meeting gained a case link.
+- **Matched the readiness/evidence words but read other tables, so excluded:** `dm5-nsp-evidence`,
+  `patient-index`, `phase-f2-attachments`, `phase14c-rca`, `phase14d-capa`, `phase2-auth-shell`.
+
+**The subset, 15 spec files:** case-access, case-surface-split-increment-2, ethics-e1-access-spine,
+ethics-e2-procedure, ethics-e3a-surfacing, ethics-e4-participants, quality-oversight, pdf-printing-meetings,
+phase16-accreditation-clone, phase16-accreditation-core, phase16-accreditation-freshness,
+phase16-accreditation-hospital, phase16-accreditation-restricted, phase10-meetings, and ae5-staff-landing.
+It runs after the tester parks its `424`/`425` pass. The subset reduces risk; it does not declare. The
+full declaring `e2e:prod` follows at the final commit.
