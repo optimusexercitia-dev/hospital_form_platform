@@ -174,6 +174,25 @@ transaction — same read-only discipline as § 0 above.
 
 No fixture ids proposed here — backend's call, in T7's own seed work.
 
+⭐⭐ **CLOSED, 2026-09-15 (tester).** Both rows above are stale — the table is not this doc's format
+to rewrite in place (it stays as the dated record of the original finding), so the closure is this
+note beside it. T7's seed migration (`2dddd278`) gave `public.accreditation_standards` TWO rows
+(`a5f50000-…-b1` "CCIH-1", `a5f50000-…-b2` "FARMA-1") and `public.referral_internal_notes` ONE
+(`a5fb0000-…-d1`) — `425` re-pointed all four blocked sites at these ids (L34, finding F1):
+`readiness_report` and `can_read_referral_internal_note` discriminate live (`1`→`0`, `true`→`false`
+under `staff`'s `commission.accreditation.read` / `commission.referrals.metadata.read` grant
+deletion, rolled back). `get_standard_assessment` and `readiness_evidence` did NOT yet discriminate
+at that point — they read FROM `public.standard_assessments` / `public.evidence_links`
+respectively, and BOTH of those tables were still empty at F1's measurement (not part of this
+addendum's original two-table finding — discovered separately, in `425`'s own "Ten of 59"
+paragraph). Backend closed THAT residual gap too (L36): one `standard_assessments` row
+(`a5f50000-…-c1`, `status='parcial'`) and one `evidence_links` row (`a5f50000-…-d1`), both on
+CCIH-1. `get_standard_assessment`, `readiness_evidence`, and their two POLICY siblings
+(`standard_assessments_select`, `evidence_links_select`) all now read a genuine `1`→`0` under the
+same mutation, live-measured, rolled back. Every site this addendum and `425`'s own discovery ever
+named as fixture-blocked on the accreditation/referral surface now has a real fixture row and a
+real verdict — nothing here remains fixture-gapped.
+
 ⛔ These are DISTINCT from row 15's `accreditation_frameworks` gap (§ 6 above, § 8): frameworks and
 standards are different tables (`accreditation_standards` presumably FKs to a framework), and this
 addendum's emptiness was not implied by that earlier finding — verify both independently, do not

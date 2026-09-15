@@ -115,21 +115,34 @@ select ok(
   'class carries both any more (`keying=caller-only` classes are self-check only, BY DESIGN, not '
   'an omission — see the header) — this control is over the WHOLE cell set, which still does.');
 
+-- ⭐⭐ CORRECTED 2026-09-15 (L35, backend's finding) — the predicate compared
+-- `professional_profiles.id` (a profile PK) with `f424.uid` (staff4's USER id, `auth.users`/
+-- `profiles.id`) — two different id spaces that can never equal, so the control could not fail
+-- REGARDLESS of the real fixture (measured: `pr.id = uid` is false for every row, always). It was
+-- also false in SUBSTANCE: staff4.ccih HAS a professional profile (`fb000000-…-e1`, "Dra.
+-- Denunciada", `user_id` correctly set) with a `case_participants` link (`fd000000-…-e1`) on
+-- `ca000000-…-e1` — she IS a case respondent there. The control's STATED concern (row 1's
+-- targeted-version disjunct: `app.can_access_targeted_version`'s role-free grant fires when a
+-- RESPONSE targets one of the caller's OWN `case_participants` links, regardless of membership)
+-- is narrower than "carries no participation link at all" — narrowed here to its actual property:
+-- no such link is ever the `target_case_participant_id` of any response. Comparing via
+-- `pr.user_id` (not `pr.id`) and joining through `responses` rather than merely enumerating
+-- `case_participants` rows.
 select is(
-  (select count(*)::int from public.case_participants cp
+  (select count(*)::int from public.responses r
+     join public.case_participants cp on cp.id = r.target_case_participant_id
      join public.professional_participants pp on pp.participant_id = cp.participant_id
     where pp.professional_profile_id in (
       select pr.id from public.professional_profiles pr
-      -- Row 1's masking control (matrix header; 409 §0(b)'s own control shape): the chosen
-      -- `subject_holder` (staff4.ccih) must carry NO participation link, or
-      -- `app.can_access_targeted_version`'s role-free disjunct grants regardless of membership and
-      -- row 1's cells stop measuring bare membership. Unaffected by the mechanism change — this
-      -- checks the FIXTURE, not the dispatch.
-      where pr.id = (select uid from f424)
+      where pr.user_id = (select uid from f424)
     )),
   0,
-  '2.5 ⭐ MASKING CONTROL: `staff4.ccih`''s id names no `professional_participants` row via any '
-  '`case_participants` link.');
+  '2.5 ⭐ MASKING CONTROL, CORRECTED (L35, 2026-09-15 — was comparing the wrong id space, '
+  '`pr.id` vs a user id, which could never fail): no `case_participants` link of `staff4.ccih` is '
+  'the `target_case_participant_id` of any response — row 1''s cells measure bare membership, not '
+  'the targeted-version role-free disjunct, even though she DOES hold a case_participants link '
+  '(`fd000000-…-e1`, respondent on `ca000000-…-e1`) — that link is simply never a response''s '
+  'target.');
 
 -- ⚠ FIXED (this round): the control used to infer the probed TABLE from the `legacy_class` NAME —
 -- a hand-maintained mapping this file owned. That is exactly the blindness that kept the prior

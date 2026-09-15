@@ -6464,3 +6464,27 @@ since base and live differ only at line 43.
 deliberation exists only on role arms, S7 by ADR 0100 D4 and S8 on a locked case by ADR 0134. The lead
 also notes the ADR's inconsistent `:146` line for the Record step's LESSONS or doc-fix candidates. There is
 no work item for this unit.
+
+### 2026-09-15 — tester's L35/L36 pass: `424 § 2.5` corrected and shown able to red; `425`'s four L36 sites measured again; fixture-gap list closed; committed by the lead (lead)
+
+**`424 § 2.5`.** The masking control compared `pr.id` with a user id, so it could never fail. It now compares
+`pr.user_id`, and the property is narrowed to its intent: no `case_participants` link of staff4 is the
+`target_case_participant_id` of any response. staff4.ccih does hold profile `fb000000-…-e1` with participant
+link `fd000000-…-e1` (respondent on `ca000000-…-e1`), so a naive column swap would have redded on the seed.
+The narrowed query reads 0 on the current seed. With a temporary plant it read `Failed test 5: «2.5 MASKING
+CONTROL, CORRECTED ...» have: 1 / want: 0`; the plant was removed. `select plan(23)` unchanged.
+
+**`425`, L36.** Under the grant deletion, rolled back, `get_standard_assessment`, `readiness_evidence`,
+`standard_assessments_select` and `evidence_links_select` each moved 1 to 0 on backend's seeded rows
+(`standard_assessments a5f50000-…-c1`, `evidence_links a5f50000-…-d1`). Wants were re-derived live and
+attributed in the file: § 2.0 excluded 12 → 7 (both sides 54); § 3.1 must-move 48 → 52, all 52 move,
+0 exceptions. § 3.2 needed no change. The bound: each site's able-to-red witness is its own movement under
+the suite's grant deletion, not a separate plant.
+
+**Run.** Fresh reset, settle 174 / 174, profiles 45; `00_setup` + `424` + `425`: `Files=3, Tests=45, Result: PASS`.
+`docs/testing/ae5-staff-fixture-gaps.md` § 9 gained a dated CLOSED note naming each table's filling commit
+and the sites it closes. The lead read the diff (3 files, 81+ / 44−) and the byte counts (0 CR in each), and
+committed the three files with this entry. Own sessions 0.
+
+**Next:** backend's read-only half 2 on `_case_caps`'s live S3 lines. Then the 15-spec production gate
+subset, and the declaring full `e2e:prod`.

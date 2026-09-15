@@ -61,6 +61,16 @@
 --       live-measured this round, rolled back: `1`→`0` and `true`→`false`.
 --       `docs/testing/ae5-staff-fixture-gaps.md`'s row for this gap is stale and owed a closing
 --       entry (not this file's to edit — `supabase/tests/425_*` only).
+--   (c) ⭐⭐⭐ CORRECTED FURTHER, 2026-09-15 (L36, backend's fixture) — (b)'s "still cannot
+--       DISCRIMINATE" is now ALSO closed: backend seeded ONE `standard_assessments` row
+--       (`a5f50000-…-c1`, `status='parcial'`) and ONE `evidence_links` row (`a5f50000-…-d1`,
+--       `artifact_kind='action_item'`), both on CCIH-1 (`a5f50000-…-b1`). `get_standard_assessment`,
+--       `readiness_evidence`, AND their two POLICY siblings (`standard_assessments_select`,
+--       `evidence_links_select`) all now read a genuine `1`→`0` under the mutation (live-measured,
+--       rolled back) — ALL FOUR removed from §2.0/§3.1's exclusion lists below; nothing in the
+--       original "Ten of 59" class remains fixture-empty on the accreditation surface.
+--       `docs/testing/ae5-staff-fixture-gaps.md`'s row is closed by this same pass (dated note in
+--       that file, per its own ownership — `supabase/tests/425_*` predicates only, here).
 -- The FIVE volatile writers are still covered by the STATIC half (§3): a `prosrc` literal-string
 -- search for the code, the same technique 409 §1.1/§1.3 uses for its own attribution table — it
 -- needs no fixture and cannot mutate anything, so it stands in for the live pair without
@@ -665,58 +675,51 @@ end $$;
 -- ONLY from 2.0's positive-control claim, which needs a REAL positive to be meaningful.
 -- ⚠ DATED NOTE, 2026-09-15 (L34, F1) — `accreditation_standards` is NO LONGER one of the ten:
 -- `2dddd278` gave it 2 rows (header above), so `accreditation_standards_select`'s `staff4.ccih`
--- count is now a real `1` (her own CCIH standard), not the `0` this paragraph recorded — left
--- EXCLUDED below anyway (harmless conservatism, not this file's mandate to loosen; the name stays
--- for historical accuracy of the list this assertion's predicate actually uses). `evidence_links`
--- and `standard_assessments` remain genuinely empty (re-measured this round, same `0`) — TWO
--- MORE names join this list below, `public.get_standard_assessment` and
--- `public.readiness_evidence`, the DEFINER functions that read those same two tables: now
--- live-probed (header above) but reading `0` before the code-grant deletion too, so they need the
--- SAME §2.0 exclusion as their table's own POLICY site, or this positive control would break on a
--- non-positive `0` it cannot tell apart from a denial.
+-- count is now a real `1` (her own CCIH standard). `evidence_links`/`standard_assessments` were
+-- STILL empty at F1's measurement (re-checked that round, still `0`) — see the FURTHER dated note
+-- immediately below for what changed since.
+-- ⚠⚠ DATED NOTE, 2026-09-15 (L36, backend's fixture) — `evidence_links` and `standard_assessments`
+-- are ALSO no longer empty: backend seeded ONE row each on CCIH-1 (`a5f50000-…-b1`) —
+-- `standard_assessments` row `a5f50000-…-c1` (`status='parcial'`), `evidence_links` row
+-- `a5f50000-…-d1` (`artifact_kind='action_item'`). Both POLICY sites
+-- (`standard_assessments_select`, `evidence_links_select`) AND both DEFINER functions
+-- (`get_standard_assessment`, `readiness_evidence`, which read those exact tables) now read a
+-- real `1` for `staff4.ccih` before the code-grant deletion (live-measured, rolled back) — ALL
+-- FOUR removed from this exclusion list; F1's "harmless conservatism" that kept
+-- `accreditation_standards_select` excluded is corrected too, since it was never actually needed
+-- and L36 is the round that closes every remaining fixture-empty accreditation site. Only the
+-- ORIGINAL eight sparse-table sites remain excluded.
 select is((select count(*)::int from pg_temp.f425_results where phase = 'before' and sig is not null
             and site not in (
-              'public.accreditation_standards.accreditation_standards_select',
-              'public.evidence_links.evidence_links_select',
-              'public.standard_assessments.standard_assessments_select',
               'public.case_tags.case_tags_select',
               'public.commission_charters.commission_charters_select',
               'public.form_item_validations.form_item_validations_select',
               'storage.objects.form_assets_select_member',
               'public.phase_results.phase_results_select',
               'public.process_template_phase_allowed_results.process_template_phase_allowed_results_select',
-              'public.process_template_phase_offered_results.process_template_phase_offered_results_select',
-              'public.get_standard_assessment',
-              'public.readiness_evidence')
+              'public.process_template_phase_offered_results.process_template_phase_offered_results_select')
             and pg_temp.sig_is_granted(kind, sig)),
           (select count(*)::int from pg_temp.f425_results where phase = 'before' and sig is not null
             and site not in (
-              'public.accreditation_standards.accreditation_standards_select',
-              'public.evidence_links.evidence_links_select',
-              'public.standard_assessments.standard_assessments_select',
               'public.case_tags.case_tags_select',
               'public.commission_charters.commission_charters_select',
               'public.form_item_validations.form_item_validations_select',
               'storage.objects.form_assets_select_member',
               'public.phase_results.phase_results_select',
               'public.process_template_phase_allowed_results.process_template_phase_allowed_results_select',
-              'public.process_template_phase_offered_results.process_template_phase_offered_results_select',
-              'public.get_standard_assessment',
-              'public.readiness_evidence')),
+              'public.process_template_phase_offered_results.process_template_phase_offered_results_select')),
   '2.0 ⭐ BASELINE, GRANT PRESENT: every LIVE-PROBED site''s signature reads as a non-empty / '
   'truthy answer for `staff4.ccih` on her own CCIH commission — a positive control that this '
   'file''s fixtures are real rows a `staff` holder can actually see, not an accidental universal '
   'denial that would make every later "no movement" line vacuous. ⚠ 10 sites excluded, named '
   'above — genuinely empty tables, not denials (measured as `postgres`, still 0). ⭐⭐ RE-POINTED '
-  '2026-09-15 (L34, F1): 12 sites excluded now — the original 10 PLUS '
-  '`public.get_standard_assessment`/`public.readiness_evidence`, live-probed for the first time '
-  'this round (dated note above) but reading their own still-empty backing tables'' `0`, the same '
-  'non-positive shape as the ten. `public.readiness_report` and '
-  '`app.can_read_referral_internal_note`, the OTHER two re-pointed sites, need no exclusion — '
-  'live-measured `1` / `true`, genuine positives, counted normally. Live-derived both sides equal '
-  '`49` (fresh `db reset` + scoped `00_setup`+`425` run, 2026-09-15) — the assertion PASSES on the '
-  'live equality, never on this literal; `49` is reported here as the derivation, not re-encoded '
-  'into the predicate.');
+  '2026-09-15 (L34, F1): 12 sites excluded — the original 10 PLUS '
+  '`public.get_standard_assessment`/`public.readiness_evidence`. ⭐⭐⭐ RE-POINTED AGAIN 2026-09-15 '
+  '(L36, backend''s fixture rows on CCIH-1): DOWN TO 7 excluded — `accreditation_standards_select`, '
+  '`evidence_links_select`, `standard_assessments_select`, `get_standard_assessment` and '
+  '`readiness_evidence` all removed, all now reading a genuine `1`. Live-derived both sides equal '
+  '`54` (fresh `db reset` + scoped `00_setup`+`425` run, 2026-09-15) — the assertion PASSES on the '
+  'live equality, never on this literal.');
 
 -- ---------- THE MUTATION, PER CODE ----------
 do $$
@@ -803,7 +806,6 @@ select is((
     using (code, kind, site)
    where b.phase = 'before' and a.phase = 'after' and b.sig is not null and b.sig is not distinct from a.sig
      and a.site not in (
-       'public.evidence_links.evidence_links_select',
        'public.case_tags.case_tags_select',
        'public.commission_charters.commission_charters_select',
        'public.form_item_validations.form_item_validations_select',
@@ -811,9 +813,6 @@ select is((
        'public.phase_results.phase_results_select',
        'public.process_template_phase_allowed_results.process_template_phase_allowed_results_select',
        'public.process_template_phase_offered_results.process_template_phase_offered_results_select',
-       'public.standard_assessments.standard_assessments_select',
-       'public.get_standard_assessment',
-       'public.readiness_evidence',
        'app._audit_access_authorized')
 ), 0,
   '⚠ ORIGINAL TEXT, VERBATIM, AS THE RECORD OF THE PRE-T7 STATE — 3.1 ⭐⭐ THE WITNESS THIS FILE '
@@ -836,7 +835,13 @@ select is((
   'exclusion list is now 12 (10 PLUS `get_standard_assessment`/`readiness_evidence`, header + §2.0 '
   'above), and the live-measured "must move" universe is `48`, ALL 48 move — 0 exceptions, still '
   'GREEN. `readiness_report` and `can_read_referral_internal_note` are the two NEW movers (1→0, '
-  't→f); `get_standard_assessment`/`readiness_evidence` are excluded, not silently dropped.');
+  't→f); `get_standard_assessment`/`readiness_evidence` are excluded, not silently dropped. '
+  '⭐⭐⭐ RE-DERIVED AGAIN 2026-09-15 (L36, backend''s fixture rows, same fresh-reset scoped run): '
+  'exclusion list DOWN TO 7 (the original sparse-table names minus `standard_assessments_select`, '
+  'which moves OUT here — `evidence_links_select` was never in THIS list to begin with); '
+  '`get_standard_assessment`/`readiness_evidence`/`standard_assessments_select`/'
+  '`evidence_links_select` all join the movers, live-measured `1`→`0` each (rolled back). '
+  'Live-derived "must move" universe is `52`, ALL 52 move — 0 exceptions, still GREEN.');
 
 select is((
   select count(*)::int from pg_temp.f425_results a
