@@ -6611,3 +6611,45 @@ entry's commit, and proves with `git diff --name-only 9f4a326b..HEAD -- supabase
 that the rest still holds. The tester then runs the declaring full `e2e:prod` at that commit.
 
 **Loop:** AC-10's fix loop, iteration 2, closed with no seed or app change.
+
+### 2026-09-15 — backend: build-complete re-cited at `d540274a` (= `1526c03b` + one hub-only docs commit) on one fresh reset — `276 files / 9231 tests PASS`, lint 0, typecheck 0; arms, budget and sweep checksum carried from `9f4a326b` by an empty migrations/seed diff; parked (backend)
+
+Why re-cited: `424` and `425` changed at `394e30bb` after the last build-complete at `9f4a326b`, and had
+run only scoped since. Stack: own client sessions **0** before the reset and after the run;
+`*_escalume` counted (**11** containers) and left alone.
+
+**1 · Claim.**
+- `git rev-parse --short HEAD` → `1526c03b`; `git status --short --untracked-files=no` → empty.
+- ⚠ **HEAD moved during the run.** The reset chain recorded `HEAD=1526c03b` at its start. The lint and
+  typecheck job, started seconds later, recorded `HEAD=d540274a`.
+- `d540274a` (`2026-09-15 08:01:23 -0300`, "docs(ae5-staff): hub re-cut …") changed ONE file:
+  `git diff --name-only 1526c03b..d540274a` → `docs/features/ae5-staff.md`.
+- For the same range, `-- supabase scripts src e2e package.json package-lock.json` → **empty**.
+- So every input `test:db` reads is byte-identical at both commits, and lint and typecheck ran at
+  `d540274a` itself. ⇒ **The build-complete is cited at `d540274a`.**
+
+**2 · What still holds from `9f4a326b`.**
+- `git diff --name-only 9f4a326b..1526c03b -- supabase/migrations supabase/seed.sql` → `[]` (count 0).
+- Re-taken at `d540274a` → `[]`.
+- No migration and no seed change since the last full gate, so the door surface, the definer population
+  and the fixture ids those instruments read are unchanged.
+- ⇒ **The four authz arms (census, hat, floor, `FROMFINDINGS=1` wrapper), the live budget 339/433/772
+  and the sweep checksum `c2934944fc881ded` were NOT re-run**, by the lead's instruction. Their
+  `9f4a326b` readings stand on this empty diff, not on a new measurement.
+
+**3 · Fresh reset.**
+- `supabase db reset --local` → exit **0**.
+- Settle check: `information_schema.tables` **445 · 445 · 445**; `profiles` **45**.
+
+**4 · Gates** (each exit read bare; logs under the session scratchpad `bc1526/`).
+
+| gate | exit | reading |
+| --- | --- | --- |
+| `npm run lint` | **0** | at `d540274a` |
+| `npm run typecheck` | **0** | at `d540274a` |
+| `npm run test:db` | **0** | `Files=276, Tests=9231`, `Result: PASS`, `grep -c '^not ok'` = **0** |
+
+- 276 files as expected. 9231 tests is the same count as `9f4a326b`: `394e30bb` changed `424` and `425`
+  without moving their plans.
+
+**Parked.** Own client sessions **0**. The stack belongs to the tester for the declaring `e2e:prod`.
