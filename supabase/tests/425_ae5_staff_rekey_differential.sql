@@ -29,7 +29,7 @@
 -- denial (discriminates, red-by-design), then restore the grant with a bare `insert` and PROVE
 -- the restore with a third capture (idiom: 409 §2.16 / 424 §6.2).
 --
--- ⛔ SCOPE CUT, NAMED RATHER THAN HIDDEN — 9 of the 25 distinct DEFINER functions are NOT called
+-- ⛔ SCOPE CUT, NAMED RATHER THAN HIDDEN — 5 of the 25 distinct DEFINER functions are NOT called
 -- live this round:
 --   (a) FIVE are `provolatile = 'v'` (write / audit-logging side effects): `public.cast_case_vote`,
 --       `public.create_referral_internal_note`, `public.notify_safety_event`,
@@ -39,18 +39,34 @@
 --       spec from the manifest, risks a real mutation on the shared local stack — the exact
 --       category `docs/lead-playbook.md` and this session's whole discipline treat as
 --       "modify shared resources", never done without an explicit rollback-safe plan.
---   (b) FOUR are blocked by a genuine FIXTURE GAP, not a suite defect: `public.get_standard_
---       assessment`, `public.readiness_evidence`, `public.readiness_report` all require a real
---       `accreditation_standards.id`, and `app.can_read_referral_internal_note` requires a real
---       `referral_internal_notes.id` — BOTH tables are EMPTY on the seeded local stack (measured
---       this round: `select count(*) from public.accreditation_standards` = 0, `select count(*)
---       from public.referral_internal_notes` = 0). Filed as a new row in
---       `docs/testing/ae5-staff-fixture-gaps.md` (T13's register) rather than fabricated with a
---       nonexistent uuid, which would assert a denial for "no such row" and not for authority.
--- All NINE are still covered by the STATIC half (§3): a `prosrc` literal-string search for the
--- code, the same technique 409 §1.1/§1.3 uses for its own attribution table — it needs no
--- fixture and cannot mutate anything, so it stands in for the live pair without weakening the
--- "is the code consulted anywhere" question the whole file exists to answer.
+--   (b) ⭐⭐ CORRECTED 2026-09-15 (L34, finding F1) — the FOUR that used to be blocked by a
+--       genuine FIXTURE GAP (`public.get_standard_assessment`, `public.readiness_evidence`,
+--       `public.readiness_report`, `app.can_read_referral_internal_note`) are NO LONGER cut: T7's
+--       seed migration `2dddd278` added the fixture rows this file was missing —
+--       `public.accreditation_standards` now carries TWO rows (`a5f50000-…-b1` "CCIH-1", owned by
+--       CCIH's own framework `a5f50000-…-a2`; `a5f50000-…-b2` "FARMA-1", a sibling-scope row on
+--       Farmácia's framework, unused here) and `public.referral_internal_notes` carries ONE
+--       (`a5fb0000-…-d1`, on the SAME referral `f425r.referral_id` already resolves to). All four
+--       are now live-probed below (`f425r`'s `accreditation_standard_id` / `accreditation_
+--       framework_id` / `referral_internal_note_id` columns), replacing the null they used to
+--       return. ⚠ `public.get_standard_assessment` and `public.readiness_evidence` still cannot
+--       DISCRIMINATE under this file's mutation, for a reason that is not a suite defect: they
+--       read FROM `public.standard_assessments` / `public.evidence_links` respectively, and BOTH
+--       of those tables remain genuinely EMPTY (live-measured 2026-09-15, as `postgres`:
+--       `select count(*) from public.standard_assessments` = 0, `select count(*) from
+--       public.evidence_links` = 0) — the exact "Ten of 59" class already excluded below via
+--       those tables' own POLICY siblings (`standard_assessments_select`, `evidence_links_select`).
+--       `public.readiness_report` (reads FROM `accreditation_standards`, now non-empty) and
+--       `app.can_read_referral_internal_note` (reads the one seeded note) DO discriminate —
+--       live-measured this round, rolled back: `1`→`0` and `true`→`false`.
+--       `docs/testing/ae5-staff-fixture-gaps.md`'s row for this gap is stale and owed a closing
+--       entry (not this file's to edit — `supabase/tests/425_*` only).
+-- The FIVE volatile writers are still covered by the STATIC half (§3): a `prosrc` literal-string
+-- search for the code, the same technique 409 §1.1/§1.3 uses for its own attribution table — it
+-- needs no fixture and cannot mutate anything, so it stands in for the live pair without
+-- weakening the "is the code consulted anywhere" question the whole file exists to answer. The
+-- four re-pointed reads keep their STATIC §5.1 coverage too (redundant now, harmless — a second,
+-- independent proof the code isn't a literal in THEIR OWN body, distinct from the helper they call).
 -- ⛔ TWO of the 42 POLICY sites are also named-skipped (`public.responses.responses_insert_own`,
 -- `public.meeting_signatures.meeting_signatures_insert`): both are INSERT/WITH-CHECK policies,
 -- and this file's generic policy probe is a `count(*)` SELECT — it would silently exercise
@@ -149,7 +165,30 @@ select
      limit 1)                                                                                                as referral_id,
   (select ma.id from public.meeting_attendees ma join public.meetings mm on mm.id = ma.meeting_id
      where mm.commission_id = (select ccih_cid from f425) and ma.user_id = (select staff_uid from f425)
-     limit 1)                                                                                                as attendee_id;
+     limit 1)                                                                                                as attendee_id,
+  -- ⭐⭐ T13/L34 addendum, 2026-09-15 — the FOUR fixture-gap DEFINER sites re-pointed (F1: 425 was
+  -- returning NULL for all four; the fixtures T7 seeded in `2dddd278` closed the gap, header +
+  -- "Ten of 59" note corrected above/below). Both accreditation ids are derived relationally off
+  -- `ccih_cid`, never a second hardcoded literal — `accreditation_standard_id` and
+  -- `accreditation_framework_id` resolve to the SAME CCIH-owned standard/framework pair
+  -- (`a5f50000-…-b1` / `a5f50000-…-a2`, live-queried, not assumed) regardless of a future
+  -- id change; `referral_internal_note_id` resolves off the SAME `f425r.referral_id` join
+  -- condition (repeated here, not referenced — a SELECT list cannot reference a sibling alias).
+  (select s.id from public.accreditation_standards s
+     join public.accreditation_frameworks f on f.id = s.framework_id
+     where f.owner_commission_id = (select ccih_cid from f425)
+     limit 1)                                                                                                as accreditation_standard_id,
+  (select s.framework_id from public.accreditation_standards s
+     join public.accreditation_frameworks f on f.id = s.framework_id
+     where f.owner_commission_id = (select ccih_cid from f425)
+     limit 1)                                                                                                as accreditation_framework_id,
+  (select n.id from public.referral_internal_notes n
+     where n.referral_id in (
+       select cr.id from public.case_referral cr
+        where cr.source_commission_id = (select ccih_cid from f425)
+           or cr.target_commission_id = (select ccih_cid from f425)
+     )
+     limit 1)                                                                                                as referral_internal_note_id;
 
 grant select on f425r to authenticated;
 
@@ -437,10 +476,11 @@ begin
       'public.sign_meeting') then
     raise exception 'pg_temp.site_signature: unhandled site %', p_site;
   end if;
-  -- NOT live-probed this round (see header): the 5 volatile writers + the 4 fixture-gapped reads.
+  -- NOT live-probed this round (see header): the 5 volatile writers only. The 4 fixture-gapped
+  -- reads (L34/F1, 2026-09-15) are re-pointed at the seeded ids below and live-probed like any
+  -- other site — `2dddd278` closed the fixture gap the original 9-site cut named.
   if p_site in ('public.cast_case_vote', 'public.create_referral_internal_note', 'public.notify_safety_event',
-                'public.get_referral_case_access_summary', 'public.get_standard_assessment',
-                'public.readiness_evidence', 'public.readiness_report', 'app.can_read_referral_internal_note',
+                'public.get_referral_case_access_summary',
                 'public.sign_meeting') then
     return null;
   end if;
@@ -499,6 +539,23 @@ begin
         elsif p_code = 'commission.referrals.metadata.read' then
           select app._audit_access_authorized('referral.case_access_summary_viewed', (select referral_id from f425r), (select ccih_cid from f425))::text into v_result;
         end if;
+      -- ⭐⭐ L34/F1 (2026-09-15) — re-pointed at the seeded fixture ids (`2dddd278`), no longer
+      -- returning NULL. `get_standard_assessment`/`readiness_evidence` read their OWN backing
+      -- tables (`standard_assessments`/`evidence_links`), which are STILL empty (measured this
+      -- round, header + "Ten of 59" note below) — their `count(*)` is `0` before AND after the
+      -- code-grant deletion, the SAME non-discriminating shape as those tables' own POLICY
+      -- siblings (`standard_assessments_select`/`evidence_links_select`, already excluded from
+      -- §2.0/§3.1). `readiness_report` reads FROM `accreditation_standards` (now 2 fixture rows,
+      -- LEFT JOINing the still-empty tables) and `can_read_referral_internal_note` reads the ONE
+      -- seeded `referral_internal_notes` row — both DISCRIMINATE live-measured 1→0 / t→f.
+      when 'public.get_standard_assessment' then
+        select count(*)::text from public.get_standard_assessment((select ccih_cid from f425), (select accreditation_standard_id from f425r)) into v_result;
+      when 'public.readiness_evidence' then
+        select count(*)::text from public.readiness_evidence((select ccih_cid from f425), (select accreditation_standard_id from f425r)) into v_result;
+      when 'public.readiness_report' then
+        select count(*)::text from public.readiness_report((select ccih_cid from f425), (select accreditation_framework_id from f425r)) into v_result;
+      when 'app.can_read_referral_internal_note' then
+        select app.can_read_referral_internal_note((select referral_internal_note_id from f425r), r.staff_uid)::text into v_result;
     end case;
   exception when others then
     get stacked diagnostics v_sqlstate = returned_sqlstate;
@@ -606,6 +663,17 @@ end $$;
 -- `docs/testing/ae5-staff-fixture-gaps.md`. They stay IN 3.1/3.2's denominator (a 0-before/
 -- 0-after pair is still a valid, if uninformative, "no movement" observation) and are excluded
 -- ONLY from 2.0's positive-control claim, which needs a REAL positive to be meaningful.
+-- ⚠ DATED NOTE, 2026-09-15 (L34, F1) — `accreditation_standards` is NO LONGER one of the ten:
+-- `2dddd278` gave it 2 rows (header above), so `accreditation_standards_select`'s `staff4.ccih`
+-- count is now a real `1` (her own CCIH standard), not the `0` this paragraph recorded — left
+-- EXCLUDED below anyway (harmless conservatism, not this file's mandate to loosen; the name stays
+-- for historical accuracy of the list this assertion's predicate actually uses). `evidence_links`
+-- and `standard_assessments` remain genuinely empty (re-measured this round, same `0`) — TWO
+-- MORE names join this list below, `public.get_standard_assessment` and
+-- `public.readiness_evidence`, the DEFINER functions that read those same two tables: now
+-- live-probed (header above) but reading `0` before the code-grant deletion too, so they need the
+-- SAME §2.0 exclusion as their table's own POLICY site, or this positive control would break on a
+-- non-positive `0` it cannot tell apart from a denial.
 select is((select count(*)::int from pg_temp.f425_results where phase = 'before' and sig is not null
             and site not in (
               'public.accreditation_standards.accreditation_standards_select',
@@ -617,7 +685,9 @@ select is((select count(*)::int from pg_temp.f425_results where phase = 'before'
               'storage.objects.form_assets_select_member',
               'public.phase_results.phase_results_select',
               'public.process_template_phase_allowed_results.process_template_phase_allowed_results_select',
-              'public.process_template_phase_offered_results.process_template_phase_offered_results_select')
+              'public.process_template_phase_offered_results.process_template_phase_offered_results_select',
+              'public.get_standard_assessment',
+              'public.readiness_evidence')
             and pg_temp.sig_is_granted(kind, sig)),
           (select count(*)::int from pg_temp.f425_results where phase = 'before' and sig is not null
             and site not in (
@@ -630,12 +700,23 @@ select is((select count(*)::int from pg_temp.f425_results where phase = 'before'
               'storage.objects.form_assets_select_member',
               'public.phase_results.phase_results_select',
               'public.process_template_phase_allowed_results.process_template_phase_allowed_results_select',
-              'public.process_template_phase_offered_results.process_template_phase_offered_results_select')),
+              'public.process_template_phase_offered_results.process_template_phase_offered_results_select',
+              'public.get_standard_assessment',
+              'public.readiness_evidence')),
   '2.0 ⭐ BASELINE, GRANT PRESENT: every LIVE-PROBED site''s signature reads as a non-empty / '
   'truthy answer for `staff4.ccih` on her own CCIH commission — a positive control that this '
   'file''s fixtures are real rows a `staff` holder can actually see, not an accidental universal '
   'denial that would make every later "no movement" line vacuous. ⚠ 10 sites excluded, named '
-  'above — genuinely empty tables, not denials (measured as `postgres`, still 0).');
+  'above — genuinely empty tables, not denials (measured as `postgres`, still 0). ⭐⭐ RE-POINTED '
+  '2026-09-15 (L34, F1): 12 sites excluded now — the original 10 PLUS '
+  '`public.get_standard_assessment`/`public.readiness_evidence`, live-probed for the first time '
+  'this round (dated note above) but reading their own still-empty backing tables'' `0`, the same '
+  'non-positive shape as the ten. `public.readiness_report` and '
+  '`app.can_read_referral_internal_note`, the OTHER two re-pointed sites, need no exclusion — '
+  'live-measured `1` / `true`, genuine positives, counted normally. Live-derived both sides equal '
+  '`49` (fresh `db reset` + scoped `00_setup`+`425` run, 2026-09-15) — the assertion PASSES on the '
+  'live equality, never on this literal; `49` is reported here as the derivation, not re-encoded '
+  'into the predicate.');
 
 -- ---------- THE MUTATION, PER CODE ----------
 do $$
@@ -731,6 +812,8 @@ select is((
        'public.process_template_phase_allowed_results.process_template_phase_allowed_results_select',
        'public.process_template_phase_offered_results.process_template_phase_offered_results_select',
        'public.standard_assessments.standard_assessments_select',
+       'public.get_standard_assessment',
+       'public.readiness_evidence',
        'app._audit_access_authorized')
 ), 0,
   '⚠ ORIGINAL TEXT, VERBATIM, AS THE RECORD OF THE PRE-T7 STATE — 3.1 ⭐⭐ THE WITNESS THIS FILE '
@@ -748,7 +831,12 @@ select is((
   '2026-09-14): the PREDICATE above now asserts every NON-STATIC site MOVED (10 named exclusions, '
   'dated note above this block) — this reads as "0 exceptions" GREEN when 47 of 57 move, which is '
   'the honest post-T7 form; it is EXPECTED RED again only if a site outside the 10 stops moving '
-  '(a re-key regression), never widened further without a fresh live query naming the reason.');
+  '(a re-key regression), never widened further without a fresh live query naming the reason. '
+  '⭐⭐ RE-DERIVED 2026-09-15 (L34, F1, fresh `db reset` + scoped `00_setup`+`425` run): the '
+  'exclusion list is now 12 (10 PLUS `get_standard_assessment`/`readiness_evidence`, header + §2.0 '
+  'above), and the live-measured "must move" universe is `48`, ALL 48 move — 0 exceptions, still '
+  'GREEN. `readiness_report` and `can_read_referral_internal_note` are the two NEW movers (1→0, '
+  't→f); `get_standard_assessment`/`readiness_evidence` are excluded, not silently dropped.');
 
 select is((
   select count(*)::int from pg_temp.f425_results a
@@ -769,7 +857,12 @@ select is((
   'measure their `disjunct_absent` resource instead (site_signature, re-pointed this round) and '
   'correctly discriminate; their disjunct''s own survival moved to §3.3''s dedicated witness. '
   '⛔ A site reading `t` here again is NOT automatically a new scope cut — re-derive it live '
-  'before adding it to the excluded list, exactly as `can_read_capa` and these seven were.');
+  'before adding it to the excluded list, exactly as `can_read_capa` and these seven were. '
+  '⭐⭐ RE-DERIVED 2026-09-15 (L34, F1, fresh `db reset` + scoped `00_setup`+`425` run): '
+  'want is now `59` (grew from `56` — `readiness_report`/`can_read_referral_internal_note` '
+  'newly discriminate-to-denied, and `get_standard_assessment`/`readiness_evidence` need NO '
+  'exclusion here: their `0` after-signature already reads as not-granted, same as a real '
+  'denial) — live-measured 59/59, still GREEN.');
 
 -- ============================================================================
 -- §3.3 — THE P1-SURVIVOR WITNESS (run-4 addendum): the SEVEN role-free-disjunct sites' ORIGINAL
@@ -837,13 +930,19 @@ select is((select count(*)::int from (values
     ('public.readiness_report', 'commission.accreditation.read'),
     ('app.can_read_referral_internal_note', 'commission.referrals.metadata.read')
   ) as t(fn, code) where pg_temp.body_mentions_code(t.fn, t.code)), 0,
-  '5.1 ⭐ STATIC TWIN OF §2/§3''s live half, for the 8 DEFINER functions not called live this '
-  'round (the 9th, `public.sign_meeting`, is checked separately at 5.2 since its code is '
+  '5.1 ⭐ STATIC TWIN OF §2/§3''s live half — originally for the 8 DEFINER functions not called '
+  'live (the 9th, `public.sign_meeting`, is checked separately at 5.2 since its code is '
   '`commission.meetings.minutes.sign`, already covered live by its sibling `app.can_sign_meeting` '
   '— included here for completeness of the "code literal absent" claim). ZERO of these 8 function '
   'bodies contain their own governing permission code as a string literal — pre-T7, none of them '
   'consult the catalog either. ⛔ Same needle discipline as 409 §1.1: the code IS the literal, '
-  'quotes included, `position` not a regex (permission codes contain `.`).');
+  'quotes included, `position` not a regex (permission codes contain `.`). ⭐⭐ RE-DERIVED '
+  '2026-09-15 (L34, F1): 4 of these 8 (`get_standard_assessment`, `readiness_evidence`, '
+  '`readiness_report`, `can_read_referral_internal_note`) are NOW ALSO live-probed (header + §2 '
+  'above) — kept here too, redundantly but harmlessly, since the CALLING function''s own body '
+  'never embeds the code literal either way (it calls `app.can_accreditation_read`/`app.can_'
+  'referrals_metadata_read`, which DO — a different `p_fn`, never asserted by this row). Only the '
+  '4 volatile writers still lack live coverage entirely.');
 
 select ok(not pg_temp.body_mentions_code('public.sign_meeting', 'commission.meetings.minutes.sign'),
   '5.2 `public.sign_meeting` also does not consult its own code as a literal — the live half '
@@ -853,12 +952,15 @@ select ok(not pg_temp.body_mentions_code('public.sign_meeting', 'commission.meet
 select is((select count(*)::int from pg_temp.f425_results where phase in ('before','after','restored') and sig is null and kind in ('function','registry')),
   (select count(*)::int from f425_sites where kind in ('function','registry') and site in (
       'public.cast_case_vote','public.create_referral_internal_note','public.notify_safety_event',
-      'public.get_referral_case_access_summary','public.get_standard_assessment','public.readiness_evidence',
-      'public.readiness_report','app.can_read_referral_internal_note','public.sign_meeting')) * 3,
-  '5.3 DISCRIMINATION CONTROL for the NULL-signature convention: exactly the 9 named-skip '
+      'public.get_referral_case_access_summary','public.sign_meeting')) * 3,
+  '5.3 DISCRIMINATION CONTROL for the NULL-signature convention: exactly the 5 named-skip '
   'DEFINER sites (× 3 phases: before/after/restored) came back NULL from `pg_temp.site_signature` '
   '— not a wider set silently swallowed by the same NULL path, and not fewer (which would mean '
-  'one of the 9 was accidentally live-probed with no fixture, the exact trap the header names).');
+  'one of the 5 was accidentally live-probed with no fixture, the exact trap the header names). '
+  '⭐⭐ RE-DERIVED 2026-09-15 (L34, F1): was 9 (×3=27) before the fixture gap closed; '
+  '`get_standard_assessment`/`readiness_evidence`/`readiness_report`/`can_read_referral_internal_'
+  'note` moved OUT of the NULL-returning set (header + §2 above) and into live probing, leaving '
+  'only the 5 volatile writers (×3=15) still short-circuited to NULL.');
 
 select * from finish();
 rollback;

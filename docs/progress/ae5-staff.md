@@ -6094,3 +6094,37 @@ reference belongs, an unbound id — with each red line quoted. `probe_fixture` 
 for a list and still one id for a scalar. (3) arm14's self-test gains a list-form fixture per check, so
 the property stays gated rather than proven once. (4) If `424` or `425` needs a change, backend stops and
 routes it. L35's before/after full-content access witness on `ca00…e1`, and row 8's unmoved cells, stand.
+
+### 2026-09-15 — L34 F1 done by the tester: `425` green on a fresh reset, two doors discriminate, two still read empty tables; L36 seeds those tables in backend's pass; stack order set (lead)
+
+**The tester's F1, verified by the lead in the tree.** `425` diff +131 / −29, 0 CR bytes, `select plan(21)`
+unchanged. The four doors' live signatures are quoted in its report. The probes are re-pointed at T7's
+seeded rows, derived relationally with no new literal: standard `a5f50000-…-b1` (CCIH-1, framework
+`a5f50000-…-a2`) and internal note `a5fb0000-…-d1` (on the referral `f425r` already resolves). Under the
+grant deletion, rolled back: `readiness_report` 1 → 0 and `can_read_referral_internal_note` true → false,
+both discriminating, each shown to change verdict under a non-existent id in a scratch copy since deleted.
+`get_standard_assessment` and `readiness_evidence` read 0 → 0: their backing tables `standard_assessments`
+and `evidence_links` are still empty (`count(*) = 0` as postgres), so the tester extended the file's
+existing exclusion of those tables' policy sites to these two functions. Wants re-derived live and
+attributed in the file: § 2.0 excluded 10 → 12 (both sides 49); § 3.1 must-move 47 → 48, 0 exceptions;
+§ 3.2 must-discriminate 56 → 59; § 5.3 null-signature sites 9 → 5 (27 → 15). Fresh reset, settle 174 /
+174, profiles 45: `Files=2, Tests=22, Result: PASS`. Committed by the lead with this entry.
+
+**Correction to backend's gap table.** It counted all four doors as filled-but-unbound. Two were; the
+other two depend on tables T7 never seeded. § 9 of the fixture-gap list names `accreditation_standards`,
+which is now seeded, so AC-4's clause holds in letter. The residual is four sites that measure nothing:
+the two functions and the `standard_assessments_select` / `evidence_links_select` policies.
+
+**L36 (lead).** Backend seeds one `standard_assessments` row and one `evidence_links` row on the fixture
+standard `a5f50000-…-b1` in the R-7 pass. The seed changes in that pass anyway, and a full `e2e:prod`
+re-run is already owed, so the rows cost no extra run. Conditions: grep `e2e/` and `supabase/tests/` for
+the standard, its framework `Marco da CCIH` and every readiness or assessment surface a spec asserts,
+quoting the greps; honour each table's invariants as a door would (the L30′ lesson); and show a CCIH
+`staff` caller reads each row while a non-member does not. The tester then moves the four sites out of
+`425`'s exclusion and re-derives the wants.
+
+**Stack order.** Backend now: B2′, `427`, L35's access witness, L36, then build-complete at the final
+commit. Then the tester, in one pass: the `424 § 2.5` fix, and `425`'s four sites re-pointed. Then the
+production gate on the touched specs, and the declaring run. The two files modified in the tree
+(`scripts/gen-authz-differential-cells.py`, `supabase/tests/vectors/authz-enforcement-manifest.json`)
+are backend's own B2′ edits from files; `425` loads the unchanged generated `.psql`, so its run stands.
