@@ -6128,3 +6128,225 @@ commit. Then the tester, in one pass: the `424 § 2.5` fix, and `425`'s four sit
 production gate on the touched specs, and the declaring run. The two files modified in the tree
 (`scripts/gen-authz-differential-cells.py`, `supabase/tests/vectors/authz-enforcement-manifest.json`)
 are backend's own B2′ edits from files; `425` loads the unchanged generated `.psql`, so its run stands.
+
+### 2026-09-15 — backend: R-7 (a) respondent fixture as B2′ list cells, L36 accreditation rows, `427` binding F2, all at `9f4a326b`; build-complete on one fresh reset; parked (backend)
+
+Scope: PO ruling R-7 (a), lead rulings L34 F2, L35 (B2′), L36. The `offboarded` value is not touched,
+and neither are migrations, app code, `e2e/**`, `424` or `425`. Stack: own client sessions **0** at go,
+before each reset and at park; `*_escalume` counted (11), untouched.
+
+**0 · Before go (files only, stack untouched).**
+- B2′ was built and dry-run into the scratchpad. The patched generator and manifest were then PARKED
+  there, and HEAD bytes were restored in the tree (`git diff --stat` empty, `lint:authz-vectors` exit 0),
+  so the tester's gates stayed green while it held the stack.
+- ⚠ Correcting the lead's go note: the edits were not in the tree at the go; they were re-applied at step 4.
+- Finding, routed and not fixed: `424 § 2.5` compares `professional_profiles.id` with a USER id
+  (`where pr.id = (select uid from f424)`), so it cannot fail. In substance it is false: staff4.ccih has
+  profile `fb000000-…-e1` with a respondent link on `ca00…e1`.
+
+**1 · Live bodies read first** (fresh reset; `information_schema.tables` 445 · 445 · 445, profiles 45):
+- `meeting_cases_select` qual: `(app.can_reach_meeting(meeting_id, ( SELECT auth.uid() AS uid)) AND app.can_meetings_cases_shell_read(meeting_id, ( SELECT auth.uid() AS uid)) AND (NOT app.is_case_respondent(case_id, …)))`.
+- `app.is_case_respondent` walks `case_participants ⋈ case_participant_roles(key = 'respondent_doctor') ⋈ professional_participants ⋈ professional_profiles(user_id = p_uid)`, `removed_at is null`.
+- staff4's respondent row: `fd000000-…-e1 | ca000000-…-e1 | respondent_doctor | removed_at null | fb000000-…-e1 | …000a`.
+- ⭐ **Row 8's door `app.can_sign_meeting`**: `exists (meeting_attendees a join meetings m … a.id = p_attendee_id and a.user_id = p_signer and a.attendance = 'present' and m.status = 'in_signature' and app.can_meetings_minutes_sign(m.commission_id, p_signer))`. It carries NO case or respondent term, so a link on its meeting cannot move row 8.
+- Meeting `a5f20000-…-a2`: `in_signature | commission_default | CCIH | 0 links | …000a:present, …d2:absent`. `ca00…e1` had 0 meeting links.
+- `app.guard_meeting_child_lock` refuses child writes on `in_signature`; its ONLY stand-aside is `app.in_disposal_rpc` (disposal doors).
+- `public.get_reserved_session_items`: `withdrawals` shown when case-linked AND `not app.is_case_respondent(i.case_id, v_uid)` AND (`c.visibility_policy = 'commission_default'` OR `app.can_reach_case_on_member_surface(i.case_id, v_uid)`).
+
+**2 · L35 before/after full-content witness on `ca000000-…-e1`.** One transaction, claims cleared (both
+doors take `p_uid`). To reach the seeded END state on the already-`in_signature` meeting, the child lock's
+one named stand-aside was set transaction-locally around the insert; the seed itself inserts BEFORE the
+flip, with no bypass.
+```
+BEFORE full_content true|1|00000000-0000-0000-0000-000000000002
+BEFORE printed true|1|00000000-0000-0000-0000-000000000002
+link present in txn|1
+AFTER full_content true|1|00000000-0000-0000-0000-000000000002
+AFTER printed true|1|00000000-0000-0000-0000-000000000002
+PRINCIPALS WHOSE ANSWER MOVED (must be 0)|0|(none)
+population|45|45|45
+after rollback: link rows|0
+```
+⚠ The first attempt inserted without the stand-aside and raised `o conteúdo desta reunião está bloqueado
+(in_signature)`. That attempt measured nothing, and is the reason the seed puts the link before the flip.
+
+**3 · Seed** (`supabase/seed.sql`, attributed in place).
+
+R-7 link: `meeting_cases a5f20000-…-b2 (meeting …a2, case ca00…e1)`, in the row-8 block BEFORE the
+`in_signature` flip. Nothing else is new for R-7: the persona is FORCED. The generator's `HOLDS_AT` maps
+only `subject_holder` = staff4.ccih to own_commission, and staff4 is already `respondent_doctor` on
+`ca00…e1` (ETH·E1).
+
+Greps for the ids R-7 touches:
+- `a5f20000-…-b2`: seed 0, migrations 0, tests 0, e2e 0.
+- `a5f20000-…-a2` / "Ata em assinatura (fixture": e2e 0, tests 0.
+- ⚠ **the link DOES land on a case specs use.** `ca00…e1` is named by 8 e2e files: case-access,
+  case-surface-split-increment-2, ethics-e1/e2/e3a, helpers/accreditation, helpers/pdf-printing-meetings,
+  quality-oversight. None reads its meeting links or prints its dossier:
+  - ethics-e2 FLOW-9 creates its own hearing meeting;
+  - pdf-printing-meetings A7 creates a fresh meeting and links by RPC;
+  - quality-oversight asserts only Caso 0006 invisible;
+  - case-access's one meeting mention is not about that case;
+  - `228` uses its own fixture ids.
+  AXIS F was measured in § 2 above: 0 principals moved.
+
+L36 rows:
+- `standard_assessments a5f50000-…-c1` (CCIH, CCIH-1, `parcial`, `assessed_by` chefe.ccih).
+- `evidence_links a5f50000-…-d1` (CCIH, CCIH-1, `action_item` `a5f40000-…-c1`, `linked_by` chefe.ccih).
+
+Each honours its writing door, read live:
+- `set_standard_assessment`: `is_staff_admin_of(p_commission)`, the standard reachable
+  (`owner_commission_id` null or = commission), the status CHECK, and unique (commission, standard).
+- `link_evidence`: the same two gates, `app.artifact_belongs_to_commission`, and no duplicate (HC0QB).
+  The action_item kind carries no case/capa read gate.
+
+The only policies on these tables are SELECT (`app.can_accreditation_read`); the only triggers are audit.
+
+L36 greps before choosing:
+- `a5f50000-…-b1`: e2e 0, tests 0.
+- `a5f50000-…-a2`: e2e 0; tests `425`, manifest, cells (row 15's `disjunct_absent`).
+- "Marco da CCIH", "Padrão de higienização (fixture T7)", `gap-ccih`: 0 / 0.
+- `CCIH-1`: `425` only.
+- Surfaces:
+  - `helpers/accreditation`, phase16-core / freshness / restricted / hospital / clone: every one creates
+    its own framework (`create_framework`);
+  - phase16-core `:555` counts `evidence_links` for Farmácia on its own standard;
+  - 278 / 281 / 283 / 284 count only their own fixture ids.
+- `a5f40000-…-c1` and its title: e2e 0; tests `425` (row 11 `disjunct_absent`), manifest, cells.
+
+`readiness_report(CCIH, a2)` for CCIH-1 BEFORE, as staff4[staff]:
+`a5f50000-…-b1|CCIH-1|Padrão de higienização (fixture T7)|||0|0|0|0`; get_standard_assessment 0 rows,
+readiness_evidence 0 rows.
+
+**4 · B2′** (`scripts/gen-authz-differential-cells.py`, the manifest, the regenerated vectors).
+
+Row 7 `conjunct_unmet/own_commission` = `[{a1, meeting_unreachable}, {a2, respondent}]`. The first
+entry keeps its cell ids; later entries are suffixed `|fixture:<label>`.
+
+Changes:
+- `probe_fixture` returns `[(label, id), …]` for a list and one id for a scalar.
+- `fixture_entries` refuses a malformed list.
+- `_resolved_fixture` resolves by the cell_id label.
+- `legacy_sql_for` refuses a list without an explicit `fixture_id`.
+- The census subtracts derived list extras and asserts unique cell ids.
+- An `AUTHZ_DIFF_CELLS_OUT` override exists for dry runs.
+
+Generated diff against HEAD, row by row:
+```
+CELLS rows HEAD 4752 new 4788 | added 36 | changed 0 | removed 0
+added all row-7 + |fixture:respondent: True
+row 8 rows HEAD/new/changed: 216 216 0
+added-vs-its-a1-twin differing field positions: cell_id, legacy_sql, legacy_fixture_id (36 of 36)
+```
+The Node generator's outputs changed ONLY in the manifest sha: `authz-matrix-coverage.json`
+`"manifestSha256": "6b7a0f11…" → "026dd236…"` and `authz_enforcement_manifest.psql`
+`-- sourceSha256: 6b7a0f11… → 026dd236…`; `authz_matrix_cells.psql` unchanged. The cells header counts
+move with the +36 (4752 → 4788 total, staff 3024 → 3060, `door-conjunct-unmet` 36 → 72).
+
+The three scalar-only checks, each planted on a list's SECOND entry. Each fired arm14 ALONE and printed
+its own sub-check's message (`_MUST_SAY` enforces the phrase):
+```
+caught — arm14 a LIST binding whose second entry is not a literal [fired: arm14] (arm14: 1 bound fixture id(s) do not appear as a FIXED LITERAL in seed.sql or any migration (first: ac3f1301-49e3-4b2b-b904-6a2a4fea8cfc) …)
+caught — arm14 a LIST-suffixed cell bound to an id its entry does not declare [fired: arm14] (arm14: 1 cell(s) carry a `legacy_fixture_id` the declaration does not resolve for their (code, persona, gate arm) …)
+caught — arm14 a LIST-suffixed cell bound to a persona id [fired: arm14] (arm14: 1 resource fixture id(s) are also PERSONA-AXIS ids (first: a5f00000-0000-0000-0000-0000000000e2) …)
+```
+- ⚠ First run: the two synthesised plants passed a trailing `None` (the unreadable-manifest shape) and
+  fired arm9+arm12+arm13 beside arm14. Caught, but not isolated; fixed to the real manifest.
+- Property line: `probe_fixture` returns per-fixture results for the list, one id for the scalar.
+- `lint:authz-vectors` exit 0.
+
+`424`/`425` needed no change: `424` names row 7 only in its class list (`:400`), and `425` only as the
+policy site (`:310`).
+
+**5 · `427_ae5_staff_t7_fixture_bindings.sql`** (new, backend; plan 12; file count 275 → 276). § 0 holds
+fixture controls; § 1 is row 9 with and without grant `a5fb…c1` (deleted in-transaction); § 2 is L18 as
+caller dr.john. Red-proofs: each plant is a temp copy under `supabase/tests`, run with `00_setup`, and
+deleted in `finally` (`zz_ temp files left: []`).
+
+| plant (one fact flipped, rolled back) | red lines |
+| --- | --- |
+| none (clean) | `Files=2, Tests=13, Result: PASS`, exit 0 |
+| grant `expires_at` in the past | **1.1** `have: false / want: true` — alone |
+| grant persona gains a CCIH `staff` membership | **1.2** `have: true / want: false` (+ 0.2) |
+| `d0…c1` → explicit_grants_only | **2.1** `have: false`, **2.5** `have: false` (+ 0.3) |
+| `ca00…e1` → commission_default | **2.2** `have: false`, **2.6** `have: false` (+ 0.3, 0.4) |
+| item `…e3` deleted | **2.3** `have: 1 / want: 2` (+ 0.3, 2.2, 2.6 `NULL`) |
+
+- 2.4, the recusal precondition, is not planted: only a disabled recusal could red it. Bound stated.
+
+Caller choice was measured, not assumed:
+- staff1.ccih is recused on `ca00…e1`.
+- staff3.ccih holds a grant on `d0…c1`.
+- staff2.ccih keeps caps 6 on `d0…c1` through an explicit_grants_only flip.
+- For each of those three, 2.1 could not red. dr.john's caps on `d0…c1` are 2 seeded and 0 under the flip.
+
+⚠ Two dead plants, discarded and recorded:
+- `read_case_deliberation = false` on the grant redded only 0.1. Measured: caps stay 6 while
+  `read_case_content` is true.
+- staff3 and staff2 survived the visibility flip.
+
+⭐ FINDING, not fixed: a `case_access_grants` row with `read_case_deliberation = false` and
+`read_case_content = true` still yields the deliberation bit (`_case_caps` 6; content-only-false yields 2).
+Whether content implies deliberation on a grant is the lead's to classify.
+
+**6 · Build-complete at `9f4a326b`, ONE fresh reset.**
+Every step ran in one chain, each exit read bare into its own log under the scratchpad `r7gate2/`.
+The lint and typecheck runs are the ones chained into the commit itself (`npm run lint && npm run
+typecheck && <CR guard> && git add && git commit`) on the identical tree.
+
+| step | exit | reading |
+| --- | --- | --- |
+| own sessions → `supabase db reset --local` | 0 · **0** | settle `information_schema.tables` 445 · 445 · 445, `profiles` 45 |
+| `npm run lint` · `npm run typecheck` | **0 · 0** | in the commit chain of `9f4a326b` |
+| `npm run test:db` | **0** | `Files=276, Tests=9231`, `Result: PASS`, `grep -c '^not ok'` **0**; 276 files counted by `ls` (9219 + `427`'s 12); `387`, `410`, `419`, `424`, `425`, `426`, `427` each `ok` |
+| `ARM=census` | **0** | `=== INVARIANT HOLDS ===` |
+| `ARM=hat` | **0** | `=== INVARIANT HOLDS ===` |
+| `ARM=floor` | **0** | `OK: every never-called door is on the floor allowlist.` · `OK: every floor-allowlist entry resolves to a live door.` · `=== INVARIANT HOLDS ===` |
+| `FROMFINDINGS=1 ARM=wrapper` | **0** | `BLIND set size: 41` · `OK: every BLIND wrapper is on the allowlist.` · `=== INVARIANT HOLDS ===` |
+| live budget, `320 § U4`'s predicate | 0 | `app 339` · `public 433` · `total 772` |
+| `scripts/door-sweep-cases.sh a02487bc` | **0** | `SCOPE: 4 file(s) — 4 committed (a02487bc..HEAD), 0 worktree, 0 untracked \| filter: none \| derivation: catalog` |
+| sorted checksum (recorded recipe `tr ' ,' '\n\n' \| grep . \| LC_ALL=C sort -u \| sha256sum \| cut -c1-16`) | — | **75 names, `c2934944fc881ded`, equal to T8's** |
+
+⚠ **`425` stayed green with the L36 rows present.** Its § 2.0 exclusion of the two sites is now
+conservative rather than necessary; moving them out of that exclusion is the tester's, after this
+park.
+
+**7 · Post-gate witnesses on that reset.**
+**R-7 discrimination (L35 condition 4).** The generated cell under test, read from the committed
+vector:
+`subject_holder|staff|matching|own_commission|commission.meetings.cases.shell.read|active|self|none|conjunct_unmet|fixture:respondent`.
+- `legacy_class can_reach_meeting_not_respondent`, `expected_granted true (matrix-row)`,
+  `arm3_divergence arm3:divergent-narrower:door-conjunct-unmet`, **`expected_legacy_granted false`**,
+  `legacy_fixture_id a5f20000-…-a2`.
+- These are identical to its `a1` twin's labels and values: `true, true, 'matrix-row', 'none',
+  'arm3:divergent-narrower:door-conjunct-unmet', false`.
+
+Its legacy probe was run as the cell runs it (claims for staff4 with the `staff` hat, `set local role
+authenticated`), in one rolled-back transaction:
+```
+link row|a5f20000-0000-0000-0000-0000000000b2|a5f20000-0000-0000-0000-0000000000a2|ca000000-0000-0000-0000-0000000000e1
+staff4 respondent on ca00-e1 (before)|t
+staff4 reaches a2 / shell-read a2|t|t
+BEFORE (respondent row live): legacy probe as staff4|f
+staff4 respondent on ca00-e1 (row removed)|f
+AFTER (respondent row removed): legacy probe as staff4|t
+after rollback: staff4 respondent again|t
+```
+⇒ with meeting reach and shell-read both true, the respondent term alone turns the cell's expected
+refusal into a grant. It was restored by rollback. `424` executed all 36 new cells in the full run above.
+
+**L36 witnesses** (read-only):
+```
+rows|1|1
+STAFF staff4.ccih get_standard_assessment|parcial|Avaliação de fixture (L36) — sem dados de paciente.|Chefe CCIH
+STAFF staff4.ccih readiness_evidence|a5f50000-0000-0000-0000-0000000000d1|action_item|a5f40000-0000-0000-0000-0000000000c1|atencao|Item do comitê (fixture arm-3 linha 11 — escopo próprio)|f
+AFTER readiness_report(CCIH, a2) as staff4[staff]|a5f50000-0000-0000-0000-0000000000b1|CCIH-1|Padrão de higienização (fixture T7)||parcial|0|1|0|0
+NON-MEMBER gap.unpriv get_standard_assessment count|0
+NON-MEMBER gap.unpriv readiness_evidence count|0
+OTHER-COMMISSION staff1.farm get_standard_assessment count|0
+OTHER-COMMISSION staff1.farm readiness_evidence count|0
+```
+CCIH-1's `readiness_report` row, before and after the seed (columns: level, assessment_status,
+evidence_valida, atencao, vencida, restrita): `…||` + `0|0|0|0` → `…|parcial|` + `0|1|0|0`.
+
+**Parked.** Own client sessions **0**; `staff=authoritative, staff_admin=authoritative`; `profiles` 45; the R-7 link row and both L36 rows present on the reset. The stack belongs to the tester for the production gate on the specs the new fixtures can touch, then the declaring `e2e:prod`.
