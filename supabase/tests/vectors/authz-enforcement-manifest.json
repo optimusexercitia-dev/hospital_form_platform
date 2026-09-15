@@ -1627,13 +1627,16 @@
           "idColumn": "meeting_id",
           "fixtures": {
             "conjunct_unmet": {
-              "own_commission": "a5f20000-0000-0000-0000-0000000000a1"
+              "own_commission": [
+                { "id": "a5f20000-0000-0000-0000-0000000000a1", "label": "meeting_unreachable" },
+                { "id": "a5f20000-0000-0000-0000-0000000000a2", "label": "respondent" }
+              ]
             },
             "_default": {
               "own_commission": "f1000000-0000-0000-0000-0000000000e1"
             }
           },
-          "note": "Bound on `meeting_id`, not `id`: the policy is `can_reach_meeting(meeting_id, auth.uid()) AND NOT is_case_respondent(case_id, auth.uid())`, and the coordinate that moves is the MEETING's reachability.",
+          "note": "Bound on `meeting_id`, not `id`: the policy is `can_reach_meeting(meeting_id, auth.uid()) AND can_meetings_cases_shell_read(meeting_id, auth.uid()) AND NOT is_case_respondent(case_id, auth.uid())`. ⭐⭐ `conjunct_unmet` carries TWO fixtures, one cell per fixture (B2′, lead ruling L35; PO ruling R-7 (a), 2026-09-15), because the policy has two terms that deny a member and one fixture exercises only one. `meeting_unreachable` = `a5f20000-…-a1`, the participants_only meeting the principal does not attend: the MEETING term denies (these cells keep their original cell_ids). `respondent` = `a5f20000-…-a2`, the row-8 fixture meeting the principal ATTENDS and whose only `meeting_cases` row links `ca000000-…-e1`, on which `staff4.ccih` is `respondent_doctor`: meeting reach and the shell-read permission both hold, so the RESPONDENT term is the only thing that denies (these cells are suffixed `|fixture:respondent`). ⛔ The probe is keyed on `meeting_id`, so `a2` must carry that one link and no other.",
           "scopeNote": "Declared at `own_commission` only: the fixture is a CCIH FK chain and no equivalent exists at the other two scopes. Cells at those scopes are skipped by the named rule, never probed against the CCIH row.",
           "probeReadsTable": "public.meeting_cases",
           "probeReadsColumn": "meeting_id"

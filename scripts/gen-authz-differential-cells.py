@@ -26,7 +26,11 @@ for _s in (sys.stdout, sys.stderr):
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__))).replace('\\', '/')
 SRC = ROOT + '/supabase/tests/vectors/authz-matrix-axes.json'
-OUT = ROOT + '/supabase/tests/vectors/authz_differential_cells.psql'
+# ⚠ `AUTHZ_DIFF_CELLS_OUT` redirects the write AND `--check`'s comparison to another path. It exists
+# for one reason: a dry run that must not touch the committed vector while another session's pgTAP
+# run reads it (B2′, 2026-09-15 — the generator changed while the tester held the stack). Unset, the
+# path is the committed one and nothing about the gate changes.
+OUT = os.environ.get('AUTHZ_DIFF_CELLS_OUT') or (ROOT + '/supabase/tests/vectors/authz_differential_cells.psql')
 
 raw = io.open(SRC, 'rb').read()
 sha = hashlib.sha256(raw).hexdigest()
@@ -329,8 +333,55 @@ def probe_reads(code, perms=None):
     return (p.get('probeReadsTable'), p.get('probeReadsColumn') or 'id')
 
 
-def _resolved_fixture(code, persona, gate, scope):
+# ⭐⭐ B2′ — A COORDINATE MAY CARRY A LIST OF FIXTURES (lead ruling L35, 2026-09-15; PO ruling R-7 (a)).
+# Row 7's `conjunct_unmet` has TWO reasons to deny — the MEETING term (`can_reach_meeting`) and the
+# RESPONDENT term (`NOT app.is_case_respondent`) — and one fixture can exercise only one of them. A
+# list binding is `[{"id": …, "label": …}, …]`, one cell per entry, in declared order.
+# ⛔ THE FIRST ENTRY'S LABEL IS NEVER WRITTEN INTO A cell_id, so the cells that existed before the list
+# keep their ids and rows byte-identical; every later entry's cells are suffixed `|fixture:<label>`.
+# That is the `caseReach` / `gate` rule at `:1118–1129` again: suffix only what is new.
+# ⛔ EVERY CONSUMER OF A BINDING GOES THROUGH HERE. Before B2′ three arm14 checks read scalar values
+# and would have SKIPPED a list on `isinstance(str)` — three checks that could not fail on the new
+# shape. `--self-test` plants a bad SECOND entry for each and requires that check's own message.
+FIXTURE_SUFFIX = '|fixture:'
+
+
+def fixture_entries(v):
+    """One scope's LIST binding, validated and normalised to [(label, id), …] in declared order.
+       ⛔ Refuses, loudly, anything but ≥2 entries of `{id: uuid, label: [a-z][a-z0-9_]*}` with
+       unique labels: a malformed list is a binding nobody ruled, and silently reading its first
+       element is the scalar assumption this shape removes."""
+    assert isinstance(v, list) and len(v) >= 2, 'a LIST fixture binding needs at least two entries: %r' % (v,)
+    out = []
+    for e in v:
+        ok = (isinstance(e, dict) and set(e) == {'id', 'label'}
+              and isinstance(e['id'], str) and e['id'].count('-') == 4
+              and isinstance(e['label'], str) and e['label'][:1].isalpha()
+              and e['label'] == e['label'].lower()
+              and all(ch.isalnum() or ch == '_' for ch in e['label']))
+        assert ok, 'a LIST fixture entry must be {"id": <uuid>, "label": <snake_case>}: %r' % (e,)
+        out.append((e['label'], e['id']))
+    _labels = [lab for lab, _ in out]
+    assert len(set(_labels)) == len(_labels), 'duplicate labels in a LIST fixture binding: %r' % (_labels,)
+    return out
+
+
+def cid_fixture_label(cid):
+    """The list-entry label a cell_id carries, or None for an unsuffixed (first-entry or scalar) cell."""
+    return cid.rsplit(FIXTURE_SUFFIX, 1)[1] if (cid and FIXTURE_SUFFIX in cid) else None
+
+
+def _resolved_fixture(code, persona, gate, scope, cid=None):
+    """The ONE id a cell should carry. A list binding resolves by the cell_id's label: no label is
+       the FIRST entry; a label names a LATER entry; an unknown label resolves to None, which the
+       binding check then refuses (the cell names a row nobody declared)."""
     v = probe_fixture(code, persona, gate, scope)
+    if isinstance(v, list):
+        lab = cid_fixture_label(cid)
+        if lab is None:
+            v = v[0][1]
+        else:
+            v = next((x for i, (l, x) in enumerate(v) if i > 0 and l == lab), None)
     return principal_uid(persona) if v == '{uid}' else v
 
 
@@ -381,6 +432,11 @@ def probe_fixture(code, persona, gate, scope=None, perms=None):
             v = v.get(scope)
         else:
             v = v.get(persona)
+    # ⭐ B2′: a LIST binding comes back as its per-fixture results [(label, id), …]; a scalar stays
+    # ONE id, exactly as before. Callers that can only use one id must say which (see
+    # `legacy_sql_for`'s `fixture_id`) — none may take the first entry silently.
+    if isinstance(v, list):
+        return fixture_entries(v)
     return v
 
 
@@ -476,7 +532,7 @@ def _lit(u):
     return "'%s'" % str(u).replace("'", "''")
 
 
-def legacy_sql_for(code, persona, gate, uid, scope, scope_axis=None):
+def legacy_sql_for(code, persona, gate, uid, scope, scope_axis=None, fixture_id=None):
     """The cell's LEGACY probe, as executable SQL.
 
        ⛔ NO TRANSCRIPTION. A policy door is probed by selecting the fixture row: RLS then
@@ -488,7 +544,11 @@ def legacy_sql_for(code, persona, gate, uid, scope, scope_axis=None):
     p = probe_for(code)
     if not p:
         return None
-    fx = probe_fixture(code, persona, gate, scope_axis)
+    fx = fixture_id if fixture_id is not None else probe_fixture(code, persona, gate, scope_axis)
+    # ⛔ B2′: a LIST binding has no single answer here. Resolving it to one entry silently is the
+    # scalar assumption the list shape removes, so it is refused and the caller must pass `fixture_id`.
+    assert not isinstance(fx, list), (
+        'legacy_sql_for(%s, %s, %s): a LIST fixture binding needs an explicit fixture_id' % (code, persona, gate))
     if p.get('kind') == 'rls-select':
         if fx is None:
             return None
@@ -1162,30 +1222,38 @@ def build(personas, contexts, scopes, states, reaches, reps_by_role, exclusions,
                             if _keying == 'caller-only' and not selfcheck:
                                 skip(SKIP_CALLER_KEYED); continue
                             _fx = probe_fixture(code, persona, gate, scope)
-                            # The self leg's subject IS the principal, so the column carries the
-                            # resolved uid rather than the placeholder - it must be checkable
-                            # against seed.sql like every other bound id.
-                            if _fx == '{uid}':
-                                _fx = principal_uid(persona)
-                            # ⛔ NO RESOURCE AT THIS SCOPE => SKIPPED BY NAME, NEVER PROBED
-                            # ELSEWHERE. The alternative — fall back to the commission the fixture
-                            # happens to live in — is what made legacy and catalog measure
-                            # different resources, and it did so silently.
-                            if _needs_resource(code) and not _fx:
-                                skip(SKIP_NO_SCOPE_FIXTURE); continue
-                            _lsql = legacy_sql_for(code, persona, gate,
-                                                   principal_uid(persona), scope_id_for(scope),
-                                                   scope)
-                            cells.append((cid, persona, ctx, scope, code, klass, res, state,
-                                          selfcheck, exp, src, reach, div, exp_legacy, role,
-                                          gate, arm3_door_expr(code),
-                                          _lsql or '',
-                                          catalog_sql_for(code, principal_uid(persona),
-                                                          res, scope_id_for(scope)),
-                                          str(_fx or ''),
-                                          _keying or '',
-                                          probe_reads(code)[0] or '',
-                                          probe_reads(code)[1] or ''))
+                            # ⭐ B2′: a LIST binding is emitted entry by entry — one cell per
+                            # fixture, the first keeping `cid` exactly, each later one suffixed with
+                            # its label. A scalar is a one-entry list with no label, and takes the
+                            # original path byte for byte (no `fixture_id` is passed for it).
+                            _is_list = isinstance(_fx, list)
+                            _entries = _fx if _is_list else [(None, _fx)]
+                            for _ei, (_flabel, _fid) in enumerate(_entries):
+                                # The self leg's subject IS the principal, so the column carries the
+                                # resolved uid rather than the placeholder - it must be checkable
+                                # against seed.sql like every other bound id.
+                                if _fid == '{uid}':
+                                    _fid = principal_uid(persona)
+                                # ⛔ NO RESOURCE AT THIS SCOPE => SKIPPED BY NAME, NEVER PROBED
+                                # ELSEWHERE. The alternative — fall back to the commission the fixture
+                                # happens to live in — is what made legacy and catalog measure
+                                # different resources, and it did so silently.
+                                if _needs_resource(code) and not _fid:
+                                    skip(SKIP_NO_SCOPE_FIXTURE); break
+                                _cid = cid if _ei == 0 else cid + FIXTURE_SUFFIX + _flabel
+                                _lsql = legacy_sql_for(code, persona, gate,
+                                                       principal_uid(persona), scope_id_for(scope),
+                                                       scope, fixture_id=(_fid if _is_list else None))
+                                cells.append((_cid, persona, ctx, scope, code, klass, res, state,
+                                              selfcheck, exp, src, reach, div, exp_legacy, role,
+                                              gate, arm3_door_expr(code),
+                                              _lsql or '',
+                                              catalog_sql_for(code, principal_uid(persona),
+                                                              res, scope_id_for(scope)),
+                                              str(_fid or ''),
+                                              _keying or '',
+                                              probe_reads(code)[0] or '',
+                                              probe_reads(code)[1] or ''))
     return cells, skipped
 
 
@@ -1199,9 +1267,17 @@ gates_all = list(spec['axes']['memberGateArm']['values'].keys())
 _GRID = (sum(len(v) for v in REPS_BY_ROLE.values())
          * len(personas) * len(contexts) * len(scopes) * len(states) * 2 * len(reaches)
          * len(gates_all))
-assert len(cells) + sum(skipped.values()) == _GRID, (
-    'the census does not sum: %d emitted + %d skipped != %d declared grid cells'
-    % (len(cells), sum(skipped.values()), _GRID))
+# ⭐ B2′: a LIST binding emits one EXTRA cell per entry after the first, at a coordinate the grid
+# counts ONCE. The extras are DERIVED from their cell_id suffix — never from a counter the loop keeps,
+# which could drift from what was emitted — and subtracted, so the census still sums over the
+# declared grid. ⛔ And no two cells may share an id: a list entry whose label collided with another
+# would otherwise overwrite a row in every suite that joins on cell_id (424 does, at `:276`).
+_LIST_EXTRA = sum(1 for c in cells if FIXTURE_SUFFIX in c[0])
+assert len(cells) - _LIST_EXTRA + sum(skipped.values()) == _GRID, (
+    'the census does not sum: %d emitted (%d of them list-fixture extras) + %d skipped != %d declared grid cells'
+    % (len(cells), _LIST_EXTRA, sum(skipped.values()), _GRID))
+assert len({c[0] for c in cells}) == len(cells), (
+    'duplicate cell_id(s): %d cells, %d distinct ids' % (len(cells), len({c[0] for c in cells})))
 
 
 _UNSET = object()   # `None` is a LEGITIMATE value for `permissions` (an unreadable manifest), so
@@ -1473,8 +1549,12 @@ def coverage(cells, skipped, reps_by_role, disposition=None, exclusions=None, ax
         _pr = (_row.get('arm3Door') or {}).get('probe') or _row.get('legacyProbe')
         for _v in ((_pr or {}).get('fixtures') or {}).values():
             for _x in (_v.values() if isinstance(_v, dict) else [_v]):
-                if isinstance(_x, str) and _x != '{uid}' and _x.count('-') == 4:
-                    _declared_ids.add(_x)
+                # ⛔ B2′: a LIST binding is walked ENTRY BY ENTRY. The scalar-only form skipped it on
+                # `isinstance(str)`, which made every listed id invisible to (d) below — a check that
+                # could not fail on the new shape. `--self-test` plants a non-literal SECOND entry.
+                for _y in ([e.get('id') for e in _x if isinstance(e, dict)] if isinstance(_x, list) else [_x]):
+                    if isinstance(_y, str) and _y != '{uid}' and _y.count('-') == 4:
+                        _declared_ids.add(_y)
     # ⭐ (f) NO RESOURCE FIXTURE MAY BE A PERSONA-AXIS ID. Row 4's `disjunct_absent` bound
     # `gap.unpriv`, which is also the third-party CALLER, so the subject was the caller on every
     # third-party cell and the door's self leg fired — a fabricated grant in one direction and a
@@ -1484,7 +1564,7 @@ def coverage(cells, skipped, reps_by_role, disposition=None, exclusions=None, ax
     _collide = sorted({c[19] for c in cells
                        if c[19] and c[19].lower() in _persona_ids
                        and (probe_for(c[4]) or {}).get('kind') == 'rls-select'
-                       and _resolved_fixture(c[4], c[1], c[15], c[3]) != principal_uid(c[1])})
+                       and _resolved_fixture(c[4], c[1], c[15], c[3], c[0]) != principal_uid(c[1])})
     if _collide:
         f.append('arm14: %d resource fixture id(s) are also PERSONA-AXIS ids (first: %s) — a '
                  'fixture that doubles as a persona makes the probe read the caller\'s own row, '
@@ -1567,7 +1647,7 @@ def coverage(cells, skipped, reps_by_role, disposition=None, exclusions=None, ax
                  % (len(_nonliteral), _nonliteral[0]))
     _badbind = [c for c in cells
                 if c[14] == 'staff'
-                and c[19] != str(_resolved_fixture(c[4], c[1], c[15], c[3]) or '')]
+                and c[19] != str(_resolved_fixture(c[4], c[1], c[15], c[3], c[0]) or '')]
     if _badbind:
         f.append('arm14: %d cell(s) carry a `legacy_fixture_id` the declaration does not resolve '
                  'for their (code, persona, gate arm) — the binding table is the manifest\'s, and '
@@ -1871,11 +1951,11 @@ if '--self-test' in sys.argv:
         out = list(base_cells)
         i = next((j for j, c in enumerate(out)
                   if c[14] == 'staff' and c[3] != 'own_commission' and c[19]
-                  and _resolved_fixture(c[4], c[1], c[15], 'own_commission')
-                  and _resolved_fixture(c[4], c[1], c[15], 'own_commission') != c[19]), None)
+                  and _resolved_fixture(c[4], c[1], c[15], 'own_commission', c[0])
+                  and _resolved_fixture(c[4], c[1], c[15], 'own_commission', c[0]) != c[19]), None)
         assert i is not None, ('no off-own cell differs from its own-scope binding - the '
                                'synthesised arm14 cross-scope fixture would perturb nothing')
-        own = _resolved_fixture(out[i][4], out[i][1], out[i][15], 'own_commission')
+        own = _resolved_fixture(out[i][4], out[i][1], out[i][15], 'own_commission', out[i][0])
         out[i] = out[i][:19] + (str(own),) + out[i][20:]
         return out
 
@@ -1993,6 +2073,52 @@ if '--self-test' in sys.argv:
     _pm_door_unswept = _pm_mutate(_unsweep)
     _pm_bad_keying = _pm_mutate(_flip_keying)
     _pm_nonliteral = _pm_mutate(_pm_random_id)
+
+    # ⭐⭐ B2′ LIST-FORM PLANTS (lead ruling L35). One per check that used to read scalars only, each a
+    # bad SECOND entry — the entry a scalar-only reader would never see — and each REQUIRED to produce
+    # its own check's message (`_MUST_SAY` below), because `want in fired` cannot tell arm14's
+    # sub-checks apart and a neighbour catching the plant is not proof the check can fail.
+    def _pm_list_second_nonliteral(pm):
+        """The SECOND entry of a list binding replaced by an id in no seed file. Every emitted cell
+           still carries literal ids, so ONLY the declared-id sweep can see it: this proves the sweep
+           walks list entries."""
+        for code, row in pm.items():
+            pr = (row.get('arm3Door') or {}).get('probe') or {}
+            for arm, v in (pr.get('fixtures') or {}).items():
+                if isinstance(v, dict):
+                    for sc, x in v.items():
+                        if isinstance(x, list) and len(x) > 1:
+                            x[1]['id'] = 'ac3f1301-49e3-4b2b-b904-6a2a4fea8cfc'
+                            return
+        raise AssertionError('no LIST fixture binding in the manifest — the B2′ non-literal plant '
+                             'would perturb nothing')
+
+    _pm_list_nonliteral = _pm_mutate(_pm_list_second_nonliteral)
+
+    def _list_cell_index(cs):
+        i = next((j for j, c in enumerate(cs)
+                  if c[14] == 'staff' and FIXTURE_SUFFIX in c[0] and c[1] != 'unprivileged'), None)
+        assert i is not None, ('no list-suffixed staff cell — the B2′ list-form plants would perturb '
+                               'nothing')
+        return i
+
+    def _synth_list_unbound():
+        """A list-suffixed cell rebound to a literal, seeded id that its list entry does NOT declare
+           (the row's `_default` meeting). The binding check must resolve the entry through the
+           cell_id's label and refuse the cell."""
+        out = list(base_cells)
+        i = _list_cell_index(out)
+        out[i] = out[i][:19] + ('f1000000-0000-0000-0000-0000000000e1',) + out[i][20:]
+        return out
+
+    def _synth_list_persona():
+        """A list-suffixed rls-select cell repointed at a PERSONA-AXIS id (the third-party caller).
+           (f) must name it on the list form, resolving the entry through the cell_id's label."""
+        out = list(base_cells)
+        i = _list_cell_index(out)
+        tgt = str((_fixtures().get('thirdPartyCaller') or '')).lower()
+        out[i] = out[i][:19] + (tgt,) + out[i][20:]
+        return out
     _pm_flatreach = _pm_mutate(_pm_flat_reach)
     _pm_gatedp1 = _pm_mutate(_pm_gated_p1)
 
@@ -2116,7 +2242,23 @@ if '--self-test' in sys.argv:
          None, None, None, _pm_flatreach),
         ('arm14 a P1 class on a state-gated door', base_cells, base_skipped, REPS_BY_ROLE,
          None, None, None, _pm_gatedp1),
+        # ⭐⭐ B2′ (L35): the three scalar-only checks, each planted on a list's SECOND entry.
+        ('arm14 a LIST binding whose second entry is not a literal', base_cells, base_skipped,
+         REPS_BY_ROLE, None, None, None, _pm_list_nonliteral),
+        # ⚠ SEVEN fields, not eight: no trailing manifest slot means `_UNSET` = the REAL manifest.
+        # A trailing None is the unreadable-manifest shape, which fires arm9/arm12/arm13 beside the
+        # plant; measured on the first run — the plant was caught, but not in isolation.
+        ('arm14 a LIST-suffixed cell bound to an id its entry does not declare', _synth_list_unbound(),
+         base_skipped, REPS_BY_ROLE, None, None, None),
+        ('arm14 a LIST-suffixed cell bound to a persona id', _synth_list_persona(), base_skipped,
+         REPS_BY_ROLE, None, None, None),
     ]
+    # ⭐ Which sub-check a list-form plant must reach, by the phrase only that check prints.
+    _MUST_SAY = {
+        'arm14 a LIST binding whose second entry is not a literal': 'do not appear as a FIXED LITERAL',
+        'arm14 a LIST-suffixed cell bound to an id its entry does not declare': 'the declaration does not resolve',
+        'arm14 a LIST-suffixed cell bound to a persona id': 'PERSONA-AXIS ids',
+    }
     bad = 0
     # ⚠ THE TAIL IS PADDED, NOT TYPED OUT. Every arm added since has widened `coverage()`, and
     # widening it used to mean editing all fourteen tuples to append a `None` — a diff in which a
@@ -2148,10 +2290,14 @@ if '--self-test' in sys.argv:
         elif want not in fired:
             print('gen-authz-differential-cells --self-test: WRONG ARM — %s: expected `%s`, but '
                   'the failure(s) came from %s' % (name, want, ', '.join(fired))); bad += 1
+        elif name in _MUST_SAY and not any(_MUST_SAY[name] in g for g in got):
+            print('gen-authz-differential-cells --self-test: WRONG CHECK — %s: `%s` fired, but not '
+                  'the sub-check that says "%s"' % (name, want, _MUST_SAY[name])); bad += 1
         else:
-            msg = next(g for g in got if g.startswith(want + ':'))
+            msg = next((g for g in got if name in _MUST_SAY and _MUST_SAY[name] in g), None) \
+                or next(g for g in got if g.startswith(want + ':'))
             print('gen-authz-differential-cells --self-test: caught — %s [fired: %s] (%s)'
-                  % (name, '+'.join(fired), msg[:70]))
+                  % (name, '+'.join(fired), msg if name in _MUST_SAY else msg[:70]))
     # ⭐⭐ THE QUIET HALF. Every fixture above proves an arm CAN fire. arm5 was RE-PREDICATED by
     # this increment — from a constant to the role's own resolution scopes — and a re-predication
     # is only half-proven by its loud half: an arm rewritten to fire correctly for staff_admin
@@ -2198,6 +2344,22 @@ if '--self-test' in sys.argv:
     if _n_arm3 == 0:
         props.append('ZERO arm-3 axis cells were emitted — the axis is declared and measured '
                      'nowhere, which is the state L2 rejected')
+    # ⭐ B2′: probe_fixture returns PER-FIXTURE results for a list and ONE id for a scalar.
+    _list_subject = next(((c, a, sc) for c, r in (MANIFEST_PERMISSIONS or {}).items()
+                          if isinstance(r, dict)
+                          for a, v in (((r.get('arm3Door') or {}).get('probe') or {}).get('fixtures') or {}).items()
+                          if isinstance(v, dict)
+                          for sc, x in v.items() if isinstance(x, list)), None)
+    if _list_subject is None:
+        props.append('no LIST fixture binding exists in the manifest — B2′\'s list form has no subject')
+    else:
+        _lc, _la, _ls = _list_subject
+        _pl = probe_fixture(_lc, 'subject_holder', _la, _ls)
+        if not (isinstance(_pl, list) and len(_pl) >= 2 and all(isinstance(t, tuple) and len(t) == 2 for t in _pl)):
+            props.append('probe_fixture(%s, %s, %s) did not return per-fixture results: %r' % (_lc, _la, _ls, _pl))
+        _ps = probe_fixture(_lc, 'subject_holder', MEMBER_GATE_INERT, _ls)
+        if not isinstance(_ps, str):
+            props.append('probe_fixture(%s, <inert>, %s) did not return ONE id for a scalar binding: %r' % (_lc, _ls, _ps))
     for msg in props:
         print('gen-authz-differential-cells --self-test: PROPERTY FAILED — %s' % msg); bad += 1
     if not props:

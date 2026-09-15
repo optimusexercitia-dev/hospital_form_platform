@@ -3422,6 +3422,31 @@ begin
     ('a5f30000-0000-0000-0000-0000000000a3'::uuid, 'a5f20000-0000-0000-0000-0000000000a2'::uuid,
      '00000000-0000-0000-0000-0000000000d2'::uuid, 'absent');
 
+  -- ⭐⭐ ROW 7's RESPONDENT FIXTURE — PO ruling R-7 (a), lead ruling L35 (B2′), AE5-STAFF 2026-09-15.
+  -- `meeting_cases_select` (hand-written, L16) reads `can_reach_meeting(meeting_id, uid) AND
+  -- can_meetings_cases_shell_read(meeting_id, uid) AND NOT is_case_respondent(case_id, uid)` (live
+  -- `pg_policy` qual), and no generated cell exercised the respondent term: § 8's row-6/7 respondent
+  -- fixture was never seeded. This ONE row is that fixture. It links THIS meeting — commission_default,
+  -- staff4.ccih a PRESENT attendee, so meeting reach and the shell-read permission both hold — to the
+  -- ethics case `ca000000-…-e1`, on which staff4.ccih is ALREADY `respondent_doctor` (ETH·E1 above:
+  -- `case_participants fd000000-…-e1`, professional profile `fb000000-…-e1`). So the respondent term
+  -- is the ONLY thing that denies staff4 this row.
+  -- ⚠ NOTHING ELSE IS ADDED: the cells' only own-commission persona is `subject_holder` = staff4.ccih,
+  -- and it is already a respondent — no profile, participant, case or meeting is new. The manifest
+  -- binds this meeting as row 7's second `conjunct_unmet` fixture (`label: respondent`); the probe is
+  -- keyed on `meeting_id`, so this meeting must carry this one link and no other.
+  -- ⚠ HERE, BEFORE THE `in_signature` FLIP: `app.guard_meeting_child_lock` refuses a `meeting_cases`
+  -- write on an `in_signature` meeting, and its only stand-aside is the disposal doors'. The product
+  -- links cases while the meeting is `held` and then moves it to signature — this block's own order.
+  -- Same commission (CCIH), so `app.guard_meeting_cases` (HC032) admits it.
+  -- ⭐ MEASURED BEFORE SEEDING (L35): the principals for whom `app.can_read_full_case_content` and
+  -- `app.can_view_printed_document('case', …)` are true on `ca000000-…-e1` were `{chefe.ccih}` for
+  -- both, identical with and without this row (45 profiles, 0 moved) — it arms AXIS F for no one who
+  -- could read the dossier before. `app.can_sign_meeting` (row 8's door) reads no case term.
+  insert into public.meeting_cases (id, meeting_id, case_id) values
+    ('a5f20000-0000-0000-0000-0000000000b2'::uuid, 'a5f20000-0000-0000-0000-0000000000a2'::uuid,
+     'ca000000-0000-0000-0000-0000000000e1'::uuid);
+
   -- ⛔ A THIRD GUARD, and it is the one that says how this fixture must be built:
   -- `app.trg_guard_meeting_state` refuses any status transition unless
   -- `app.in_meeting_rpc` is `on` ("mudanças de estado da reunião devem passar
@@ -3691,6 +3716,34 @@ begin
      'CCIH-1', 'Padrão de higienização (fixture T7)', 1),
     ('a5f50000-0000-0000-0000-0000000000b2'::uuid, 'a5f50000-0000-0000-0000-0000000000a4'::uuid,
      'FARMA-1', 'Padrão da Farmácia A (fixture T7 — escopo irmão)', 1);
+
+  -- ── (2b) L36 — ONE assessment and ONE evidence link on CCIH-1. ─────────────────────────────
+  -- ⛔ WITHOUT THEM two of `425`'s re-pointed doors still read an EMPTY table: `get_standard_assessment`
+  -- reads `standard_assessments`, `readiness_evidence` reads `evidence_links`, and both were 0 rows
+  -- system-wide (measured 2026-09-15), so a live probe could not tell an enforcing door from an
+  -- absent one. (The AC-4 disposition said four doors were "filled but unbound"; L36 corrects it:
+  -- two were filled, these two were not.)
+  -- ⭐ EACH ROW HONOURS WHAT ITS WRITING DOOR WOULD IMPOSE (the L30′ lesson), read from the live bodies:
+  --   `set_standard_assessment` — caller `is_staff_admin_of(commission)`, so `assessed_by` is CCIH's
+  --     staff_admin; the standard must be reachable (`owner_commission_id` NULL or = the commission:
+  --     framework `…a2` is CCIH's own); `status` in the table CHECK; one row per (commission, standard).
+  --   `link_evidence` — the same staff_admin and reachability gates, `linked_by` = that caller;
+  --     `app.artifact_belongs_to_commission('action_item', …, CCIH)` true for the committee item `…c1`
+  --     (`commission_of_action_item`); no case/capa read gate applies to that kind; no duplicate row.
+  -- ⚠ WHY THE COMMITTEE ACTION ITEM `a5f40000-…-c1`: a fixture artifact this unit already owns, named in
+  --   NO e2e spec and in no suite by any evidence surface (grepped 2026-09-15); `425` binds it only as row
+  --   11's `disjunct_absent` resource, which an evidence link does not change. `evidence_status_of`
+  --   buckets it by its status category (an open item reads `atencao`).
+  -- ⚠ Neither id, CCIH-1, framework `…a2` nor either title appears in any e2e spec; the phase-16 specs
+  --   create their own frameworks, and 278/281/283/284 count only their own fixture ids. Process text
+  --   only — no patient identifier (Rule 12).
+  insert into public.standard_assessments (id, commission_id, standard_id, status, assessed_by, note_md)
+  values ('a5f50000-0000-0000-0000-0000000000c1'::uuid, v_ccih, 'a5f50000-0000-0000-0000-0000000000b1'::uuid,
+          'parcial', v_chefe_ccih, 'Avaliação de fixture (L36) — sem dados de paciente.');
+  insert into public.evidence_links (id, commission_id, standard_id, artifact_kind, artifact_id, note, linked_by)
+  values ('a5f50000-0000-0000-0000-0000000000d1'::uuid, v_ccih, 'a5f50000-0000-0000-0000-0000000000b1'::uuid,
+          'action_item', 'a5f40000-0000-0000-0000-0000000000c1'::uuid,
+          'Evidência de fixture (L36) — sem dados de paciente.', v_chefe_ccih);
 
   -- ── (3) referral_internal_notes — EMPTY, and it is a PHI module. ──────────
   -- ⛔ MIRRORS THE BASE SEED'S CLASS HANDLING FOR THIS TABLE: the note body carries NO patient
