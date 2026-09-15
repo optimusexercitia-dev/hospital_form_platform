@@ -6692,7 +6692,7 @@ still read `9d49f816` with a clean tree at the end.
 - **Batch 1:** `act-role-assumption.spec.ts:164`, the same menu-item timeout — `BUG-E2E-ACTROLE-HATSWITCH-MENUITEM-TIMEOUT`.
 - **Batch 2:** `bulk-case-creation.spec.ts:762` AC8 (keyboard-only grid), `toBeFocused()` failed on the "Criar
   1 casos" button. This is the second full-run sighting after the pre-run, so a bug row is filed by the tester.
-- **Batch 5:** `dsr-subject-requests.spec.ts:91`, `page.goto: net::ERR_ABORTED; maybe frame was detached?`
+- **Batch 5:** `dsr-subject-requests.spec.ts:223` [corrected in place the same hour: the lead first wrote `:91`, which is one of the serial group's re-runs, taken from the first retry line; the tester read the numbered failure and found `:223`, called at `:227`], `page.goto: net::ERR_ABORTED; maybe frame was detached?`
   navigating to `/`. It is the third spec showing `BUG-E2E-CACHEDSIGNIN-NAV-ABORT`'s signature, and the
   sighting is added.
 - **Batch 9:** `meeting-audio-minutes.spec.ts:222`, "Ata aplicada com sucesso." not visible. First sighting,
@@ -6725,3 +6725,19 @@ passed 57 / 57 here.
 
 **All ten acceptance criteria are now ticked.** Next: the batch-13 identity re-run, then the ⏸ PAUSE for the
 PO's external QA review.
+
+### 2026-09-15 — the tester's two bug-register edits committed; the lead's batch-5 line number corrected in place (lead)
+
+`docs/bugs/BUGS.md`, 2+ / 1−, 0 CR bytes, `npm run lint:registers` exit 0:
+- **New row `BUG-E2E-BULKCASE-AC8-FOCUS-TIMEOUT`** (open, low, e2e). `bulk-case-creation.spec.ts:762` AC8
+  (keyboard-only grid) flaked in batch 2 of the pre-run and of the second declaring run. First attempt:
+  `expect(locator).toBeFocused() failed` on the button `/^Criar 1 casos$/`, expected focused, received
+  inactive. The row notes it is a keyboard-only flow, which CLAUDE.md § 8 requires each phase to carry.
+- **A third sighting added to `BUG-E2E-CACHEDSIGNIN-NAV-ABORT`.** `dsr-subject-requests.spec.ts:223` failed
+  inside `cachedSignIn` (`e2e/helpers/auth.ts:133:16`), called from `:227`, with the same
+  `net::ERR_ABORTED; maybe frame was detached?` on `/`.
+
+**The lead's error, caught by the tester.** The lead's instruction and the gate record named `:91`, taken from
+the first `(retry #1)` line in the batch. That line is a serial re-run; the numbered failure in
+`/tmp/e2e-prod-gate/batch-5.log` is `:223`, re-checked by the lead before this commit. Corrected in place in
+the entry above.
