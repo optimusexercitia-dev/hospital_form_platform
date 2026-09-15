@@ -104,7 +104,7 @@
 -- this block is a target for step 4's author to check against, never a claim about today's stack.
 
 begin;
-select plan(18);
+select plan(21);
 
 -- ============================================================================
 -- §0 — FIXTURES + PRECONDITIONS
@@ -153,6 +153,44 @@ select
 
 grant select on f425r to authenticated;
 
+-- ⭐⭐ THE SEVEN ROLE-FREE-DISJUNCT SITES' `disjunct_absent` RESOURCE (run-4 addendum,
+-- 2026-09-14). 424's own vector (`authz_differential_cells_staff`) already binds, PER ROW, a
+-- fixed-literal resource its `disjunct_absent` gate arm does not reach — keyed by
+-- `probe_table`/`probe_column`, never a new id, never `seed.sql`. Live-queried this round
+-- (`legacy_class` in parens) and re-verified as a genuine before/after pair (see the dated note
+-- at §3.1/§3.2 below): a resource ONLY the ordinary commission grant reaches, never the disjunct
+-- (public-owner / assignee / approver / self), so deleting the code SHOULD (and now does) deny it.
+create temp table f425w on commit drop as
+select
+  'a5f50000-0000-0000-0000-0000000000a2'::uuid as framework_id_absent,       -- (rls_accreditation_frameworks_owner_null, disjunct_absent) — owner IS CCIH, not null
+  'a5f40000-0000-0000-0000-0000000000c1'::uuid as action_item_id_absent,     -- (can_read_action_item, disjunct_absent) — visibility_scope='committee', NOT assigned to staff4.ccih
+  'd0c00000-0000-0000-0000-0000000000d2'::uuid as controlled_document_id_absent, -- (rls_controlled_documents_approver, disjunct_absent) — staff4.ccih is NOT its approver
+  -- derived, not independently fixture-bound: the ONE version under the disjunct_absent document
+  -- above, and that document's OWN core `public.documents.id` — both resolved relationally from
+  -- the same vector-bound id, never a second literal (plan `:1144-1147`'s "no shared id" reads as
+  -- "no INDEPENDENT id" here; these two are DERIVED, not separately chosen).
+  (select cv.id from public.controlled_document_versions cv
+     where cv.document_id = 'd0c00000-0000-0000-0000-0000000000d2'::uuid limit 1)  as document_version_id_absent,
+  (select cd.core_document_id from public.controlled_documents cd
+     where cd.id = 'd0c00000-0000-0000-0000-0000000000d2'::uuid)                   as document_core_id_absent,
+  'a5f00000-0000-0000-0000-0000000000f1'::uuid as comember_id_absent;        -- (rls_profiles_comember_or_self, disjunct_absent) — a CCIH co-member, not `staff4.ccih` herself
+
+grant select on f425w to authenticated;
+
+-- The seven (code, site) pairs the P1-survivor witness (below) runs against — driven off this
+-- list rather than repeated inline in all three mutation phases, so there is exactly ONE place
+-- naming "these seven", matching everywhere else that number is cited in this file.
+create temp table f425_p1_sites (code text, site text) on commit drop;
+insert into f425_p1_sites (code, site) values
+  ('commission.accreditation.read', 'public.accreditation_frameworks.accreditation_frameworks_select'),
+  ('commission.action_items.read', 'public.action_items.action_items_select'),
+  ('commission.documents.read', 'app.can_read_document'),
+  ('commission.documents.read', 'public.controlled_documents.controlled_documents_select'),
+  ('commission.documents.read', 'public.controlled_document_versions.controlled_document_versions_select'),
+  ('commission.roster.read', 'public.memberships.memberships_select'),
+  ('commission.roster.read', 'public.profiles.profiles_select_self_or_admin');
+grant select on f425_p1_sites to authenticated;
+
 select is((select count(*)::int from f425 where staff_uid is not null and ccih_cid is not null and ccih_hospital_id is not null), 1,
   '0.1 FIXTURE CONTROL: the persona id and its CCIH commission/hospital all resolved. ⛔ A NULL '
   'scope denies for the wrong reason and asserts nothing (authz-handoff §7.2 case 4).');
@@ -173,6 +211,15 @@ select is((select state::text from authz.roles where code = 'staff'), 'authorita
   '0.3 PRECONDITION: `staff` is `authoritative` (T6, `31b73837`) — the grant rows this file '
   'deletes/restores are the LIVE, consulted-by-nothing-yet catalog rows, not a `test_validation` '
   'shadow copy.');
+
+select is((select count(*)::int from f425w where
+             framework_id_absent is not null and action_item_id_absent is not null
+             and controlled_document_id_absent is not null and document_version_id_absent is not null
+             and document_core_id_absent is not null and comember_id_absent is not null), 1,
+  '0.4 FIXTURE CONTROL for the seven role-free-disjunct sites'' `disjunct_absent` resources — all '
+  'six ids resolved (two derived relationally from the same vector-bound `controlled_documents` '
+  'id, never independently chosen). A NULL here would silently make §3.2''s discriminating '
+  'measurement for that site vacuous (an `exists` over nothing denies for the WRONG reason).');
 
 -- ============================================================================
 -- §1 — THE DECLARED SITE SET, AS DATA (the manifest's `armInterface`, transcribed once here so
@@ -303,6 +350,70 @@ begin
     if p_site in ('public.responses.responses_insert_own', 'public.meeting_signatures.meeting_signatures_insert') then
       return null;
     end if;
+    -- ⭐⭐ FOUR of the 42 policy sites carry a role-free disjunct wide enough that a blind
+    -- `count(*)` NEVER discriminates for `staff4.ccih` (run-4 addendum) — a public framework, an
+    -- item assigned directly to her, a document/version she approves. This file's PRIMARY
+    -- measurement for these four is a SCOPED existence check on the `disjunct_absent` resource
+    -- (`f425w`) the disjunct does NOT reach; the ORIGINAL blind-count probe survives separately as
+    -- the P1-survivor witness (below, `pg_temp.p1_survivor_signature`), never dropped.
+    if p_site = 'public.accreditation_frameworks.accreditation_frameworks_select' then
+      begin
+        select count(*)::text from public.accreditation_frameworks
+         where id = (select framework_id_absent from f425w) into v_result;
+      exception when others then
+        get stacked diagnostics v_sqlstate = returned_sqlstate; return 'RAISE:' || v_sqlstate;
+      end;
+      return v_result;
+    end if;
+    if p_site = 'public.action_items.action_items_select' then
+      begin
+        select count(*)::text from public.action_items
+         where id = (select action_item_id_absent from f425w) into v_result;
+      exception when others then
+        get stacked diagnostics v_sqlstate = returned_sqlstate; return 'RAISE:' || v_sqlstate;
+      end;
+      return v_result;
+    end if;
+    if p_site = 'public.controlled_documents.controlled_documents_select' then
+      begin
+        select count(*)::text from public.controlled_documents
+         where id = (select controlled_document_id_absent from f425w) into v_result;
+      exception when others then
+        get stacked diagnostics v_sqlstate = returned_sqlstate; return 'RAISE:' || v_sqlstate;
+      end;
+      return v_result;
+    end if;
+    if p_site = 'public.controlled_document_versions.controlled_document_versions_select' then
+      begin
+        select count(*)::text from public.controlled_document_versions
+         where id = (select document_version_id_absent from f425w) into v_result;
+      exception when others then
+        get stacked diagnostics v_sqlstate = returned_sqlstate; return 'RAISE:' || v_sqlstate;
+      end;
+      return v_result;
+    end if;
+    -- ⭐⭐ TWO MORE — `memberships_select`/`profiles_select_self_or_admin` — carry the SELF-ROW
+    -- disjunct (`principal_id = auth.uid()` / `id = auth.uid()`); the `disjunct_absent` resource
+    -- here is simply ANOTHER CCIH member's row (`comember_id_absent`), which the self-disjunct
+    -- structurally cannot reach but ordinary `can_roster_read` does.
+    if p_site = 'public.memberships.memberships_select' then
+      begin
+        select count(*)::text from public.memberships
+         where principal_id = (select comember_id_absent from f425w) into v_result;
+      exception when others then
+        get stacked diagnostics v_sqlstate = returned_sqlstate; return 'RAISE:' || v_sqlstate;
+      end;
+      return v_result;
+    end if;
+    if p_site = 'public.profiles.profiles_select_self_or_admin' then
+      begin
+        select count(*)::text from public.profiles
+         where id = (select comember_id_absent from f425w) into v_result;
+      exception when others then
+        get stacked diagnostics v_sqlstate = returned_sqlstate; return 'RAISE:' || v_sqlstate;
+      end;
+      return v_result;
+    end if;
     v_table := regexp_replace(p_site, '\.[^.]+$', ''); -- strip the trailing .policyname
     begin
       execute format('select count(*)::text from %s', v_table) into v_result;
@@ -359,7 +470,11 @@ begin
       when 'app.can_read_capa' then
         select app.can_read_capa((select capa_id from f425r), r.staff_uid)::text into v_result;
       when 'app.can_read_document' then
-        select app.can_read_document((select document_core_id from f425r), r.staff_uid)::text into v_result;
+        -- ⭐⭐ Uses `f425w`'s `disjunct_absent` document (run-4 addendum), NOT `f425r`'s approved
+        -- one — `f425r.document_core_id` is `is_document_approver_of`-reachable regardless of the
+        -- code (that's now the P1-survivor witness, `pg_temp.p1_survivor_signature`, below), so it
+        -- can never serve as this site's PRIMARY discriminating measurement.
+        select app.can_read_document((select document_core_id_absent from f425w), r.staff_uid)::text into v_result;
       when 'app.can_read_document_of_version' then
         select app.can_read_document_of_version((select document_version_id from f425r), r.staff_uid)::text into v_result;
       when 'app.can_read_event' then
@@ -392,6 +507,37 @@ begin
   return v_result;
 end;
 $sig$;
+
+-- ⭐⭐ THE P1-SURVIVOR WITNESS (run-4 addendum) — for the SAME seven sites, reproduces the
+-- ORIGINAL (pre-addendum) blind probe: whatever the disjunct itself makes visible, unfiltered.
+-- This is the accepted exception's OWN witness (PO ruling P1,
+-- `arm3:divergent-approved:role-free-disjunct-ignores-principal-state`) — it is expected to stay
+-- GRANTED both before and after the code deletion, proving the disjunct itself was never touched
+-- by this file's mutation, which is the OTHER half of "the disjunct is real, not a suite blind
+-- spot" (§3.2's re-pointed primary measurement, above, is the half proving the CODE-GATED path
+-- still moves). Never used for §3.1/§3.2's counts — only for §3.3 below.
+create or replace function pg_temp.p1_survivor_signature(p_site text)
+returns text language plpgsql stable as $p1$
+declare
+  r record; v_table text; v_result text; v_sqlstate text;
+begin
+  select * into r from f425 limit 1;
+  begin
+    if p_site = 'app.can_read_document' then
+      select app.can_read_document((select document_core_id from f425r), r.staff_uid)::text into v_result;
+    else
+      v_table := regexp_replace(p_site, '\.[^.]+$', '');
+      execute format('select count(*)::text from %s', v_table) into v_result;
+    end if;
+  exception when others then
+    get stacked diagnostics v_sqlstate = returned_sqlstate;
+    return 'RAISE:' || v_sqlstate;
+  end;
+  return v_result;
+end;
+$p1$;
+
+grant execute on function pg_temp.p1_survivor_signature(text) to authenticated;
 
 create or replace function pg_temp.code_signatures(p_code text)
 returns table(kind text, site text, sig text) language sql stable as $cs$
@@ -440,6 +586,9 @@ begin
   for v_code in select distinct code from f425_sites order by 1 loop
     for v_row in select * from pg_temp.code_signatures(v_code) loop
       insert into pg_temp.f425_results values (v_code, 'before', v_row.kind, v_row.site, v_row.sig);
+    end loop;
+    for v_row in select site from f425_p1_sites where code = v_code loop
+      insert into pg_temp.f425_results values (v_code, 'p1_before', 'policy_witness', v_row.site, pg_temp.p1_survivor_signature(v_row.site));
     end loop;
   end loop;
   reset role;
@@ -508,6 +657,9 @@ begin
     for v_row in select * from pg_temp.code_signatures(v_code) loop
       insert into pg_temp.f425_results values (v_code, 'after', v_row.kind, v_row.site, v_row.sig);
     end loop;
+    for v_row in select site from f425_p1_sites where code = v_code loop
+      insert into pg_temp.f425_results values (v_code, 'p1_after', 'policy_witness', v_row.site, pg_temp.p1_survivor_signature(v_row.site));
+    end loop;
     reset role;
 
     insert into authz.role_permissions (role_code, permission_code) values ('staff', v_code);
@@ -520,6 +672,9 @@ begin
     for v_row in select * from pg_temp.code_signatures(v_code) loop
       insert into pg_temp.f425_results values (v_code, 'restored', v_row.kind, v_row.site, v_row.sig);
     end loop;
+    for v_row in select site from f425_p1_sites where code = v_code loop
+      insert into pg_temp.f425_results values (v_code, 'p1_restored', 'policy_witness', v_row.site, pg_temp.p1_survivor_signature(v_row.site));
+    end loop;
     reset role;
   end loop;
 end $$;
@@ -531,45 +686,37 @@ select is((select count(*)::int from pg_temp.f425_results where phase = 'mutatio
 -- ⚠⚠ DATED NOTE, 2026-09-14 (run-4, post-T7, `2dddd278`) — §3.1/§3.2's ORIGINAL PRESCRIPTION IS
 -- KEPT VERBATIM BELOW RATHER THAN REWRITTEN (LEARN-088: a correction is a dated note beside the
 -- original, never a replacement of it). Both assertions' TEXT still describes their PRE-T7 shape
--- (want 0 / want 57); their PREDICATES below are re-pointed to the honest post-T7 expectation,
--- live-queried this round, not guessed:
---   §3.1's "0 moved" cannot hold once a re-key exists to move anything — 11 of the 57 live-probed
---   sites are STRUCTURALLY unable to move under this file's ONE mutation (a code-grant delete) and
---   are excluded from the "must move" set, each for a live-queried reason: 9 are the KNOWN-sparse
---   tables named in `docs/testing/ae5-staff-fixture-gaps.md` (still 0 rows both phases — no data
---   to lose, not an incomplete re-key); `app.can_read_document` and `app._audit_access_authorized`
---   (`meeting.viewed` leg) each read `t`/`t` for a documented, code-INDEPENDENT reason (below).
---   Re-derived want: 57 − 11 = **46**.
---   §3.2's "57 discriminate" needs the SAME 11 (they can't move, so they can't newly deny) PLUS 8
---   MORE sites that DO move (their raw count/signature changes) but never reach a full denial,
---   because a role-free disjunct or a permanently non-re-keyed leg keeps granting regardless of
---   this file's ONE code:
---     `public.accreditation_frameworks_select` — `owner_commission_id IS NULL` (the public-arm
---       disjunct row 15's arm-3 census already names; measured: a null-owner framework stays
---       visible, `2`→`1`, never `0`).
---     `public.action_items_select` — `assigned_to = auth.uid()` (`assignees_only`, row 11(b)'s
---       disjunct; measured: the one item DIRECTLY assigned to `staff4.ccih` stays visible, `3`→`1`).
---     `app.can_read_document`, `public.controlled_documents_select`,
---       `public.controlled_document_versions_select` — ALL THREE resolve, for this file's fixture
---       document, through `app.is_document_approver_of`/`is_document_version_approver` (row 16's
---       role-free disjunct): `staff4.ccih` IS a seeded approver of the probed document
---       (`document_approvals` row, measured live), so all three keep granting with the code gone.
---     `app._audit_access_authorized` (`meeting.viewed` leg) — its OWN body reads
---       `app.is_member_of(v_commission) OR app.is_tenancy_admin_of(v_commission)`, never a
---       permission code (matches the manifest's own `carriesCode:false` on this leg) — it was
---       never in T7's re-key surface and never will be without a SEPARATE change to this function.
---     `public.memberships_select`, `public.profiles_select_self_or_admin` — both carry a
---       `principal_id = auth.uid()` / `id = auth.uid()` SELF-ROW disjunct, by design: a principal
---       can always see their own row. `13`→`1` each — the survivor is `staff4.ccih`''s own row.
---   Re-derived want: 57 − 11 − 8 = **49**.
+-- (want 0 / want 57); their PREDICATES below are re-pointed twice now, both times live-queried,
+-- never guessed:
+--   PASS 1 (first run-4 measurement) excluded 11 sites from §3.1's "must move" and 8 from §3.2's
+--   "must discriminate" — SEVEN of those eight were later found to be silencing sites that CAN
+--   discriminate (PASS 2, below); only ONE (`app._audit_access_authorized`'s `meeting.viewed` leg)
+--   is a genuine, permanent exclusion.
+--   PASS 2 (this round) — for each of the seven, 424's own vector
+--   (`authz_differential_cells_staff`) already binds a `disjunct_absent`-class fixed-literal
+--   resource the disjunct does NOT reach (`f425w`, keyed by `probe_table`/`probe_column`, never a
+--   new id): a CCIH-owned framework (not null-owner), a `committee`-scoped item (not assigned to
+--   `staff4.ccih`), a document/version she does not approve, another CCIH member''s row (not her
+--   own). Re-pointing each site''s PRIMARY signature to that resource (site_signature, above) —
+--   ALL SEVEN now correctly `t`→`f` live-verified this round. The ORIGINAL blind probe (the
+--   disjunct-reachable resource) is KEPT as a SECOND, separate measurement — the P1-survivor
+--   witness (`pg_temp.p1_survivor_signature`, `p1_before`/`p1_after`/`p1_restored` phases, §3.3
+--   below) — so the disjunct''s own survival is still witnessed, never silently dropped.
+--   ⛔ ONLY `app._audit_access_authorized`''s `meeting.viewed` leg remains excluded from BOTH
+--   assertions: its body reads `app.is_member_of(v_commission) OR
+--   app.is_tenancy_admin_of(v_commission)` directly, never a permission code — matches the
+--   manifest''s own `carriesCode:false` on this leg. It was never in T7''s re-key surface and
+--   cannot move under this file''s mutation without a SEPARATE change to that function.
+--   Re-derived want, PASS 2: §3.1 = 57 − 10 (9 sparse + the audit leg) = **47** must move.
+--                             §3.2 = 57 − 1 (the audit leg only) = **56** must discriminate.
 -- ⛔ A NINTH site (`app.can_read_capa`) looked like this same shape on the FIRST run-4 pass (`t`/`t`,
 -- have 48/want 57) but measured differently: this file''s OWN `capa_id` fixture pointed at a
 -- `source=''rca''` plan, reachable via `can_read_capa`''s event-linked arm — NOT the
 -- `commission.capa.read`-gated indicator arm the manifest names. Re-pointed the fixture to a
 -- `source=''indicator''` plan at the same hospital (isolated live: not PQS-reachable, no linked
 -- event) and it now correctly reads `t`→`f` — a FIXTURE fix on the SUITE side (this file''s own
--- `f425r`), not a ninth scope-cut. Left OUT of both lists above; it counts toward "moved" and
--- "discriminates" like any ordinary site.
+-- `f425r`), not a scope cut of any kind. Never excluded from either list; it counts toward
+-- "moved" and "discriminates" like any ordinary site.
 select is((
   select count(*)::int from pg_temp.f425_results b join pg_temp.f425_results a
     using (code, kind, site)
@@ -584,7 +731,6 @@ select is((
        'public.process_template_phase_allowed_results.process_template_phase_allowed_results_select',
        'public.process_template_phase_offered_results.process_template_phase_offered_results_select',
        'public.standard_assessments.standard_assessments_select',
-       'app.can_read_document',
        'app._audit_access_authorized')
 ), 0,
   '⚠ ORIGINAL TEXT, VERBATIM, AS THE RECORD OF THE PRE-T7 STATE — 3.1 ⭐⭐ THE WITNESS THIS FILE '
@@ -598,34 +744,18 @@ select is((
   '⛔ WHY THIS PROVES THE SUITE IS SOUND RATHER THAN BLIND: §2.0''s baseline already showed every '
   'one of these signatures reads as a real granted answer BEFORE the delete — an instrument that '
   'starts at "already denied" could report "no movement" by measuring nothing (the '
-  'fixture-cannot-reach-the-failing-state trap). ⭐⭐ RE-POINTED post-T7 (`2dddd278`, run-4, '
-  '2026-09-14): the PREDICATE above now asserts every NON-STATIC site MOVED (11 named exclusions, '
-  'dated note above this block) — this reads as "0 exceptions" GREEN when 46 of 57 move, which is '
-  'the honest post-T7 form; it is EXPECTED RED again only if a site outside the 11 stops moving '
+  'fixture-cannot-reach-the-failing-state trap). ⭐⭐ RE-POINTED post-T7 (`2dddd278`, run-4 PASS 2, '
+  '2026-09-14): the PREDICATE above now asserts every NON-STATIC site MOVED (10 named exclusions, '
+  'dated note above this block) — this reads as "0 exceptions" GREEN when 47 of 57 move, which is '
+  'the honest post-T7 form; it is EXPECTED RED again only if a site outside the 10 stops moving '
   '(a re-key regression), never widened further without a fresh live query naming the reason.');
 
 select is((
   select count(*)::int from pg_temp.f425_results a
    where a.phase = 'after' and a.sig is not null and not pg_temp.sig_is_granted(a.kind, a.sig)
-     and a.site not in (
-       'public.accreditation_frameworks.accreditation_frameworks_select',
-       'public.action_items.action_items_select',
-       'app.can_read_document',
-       'public.controlled_documents.controlled_documents_select',
-       'public.controlled_document_versions.controlled_document_versions_select',
-       'app._audit_access_authorized',
-       'public.memberships.memberships_select',
-       'public.profiles.profiles_select_self_or_admin')
+     and a.site not in ('app._audit_access_authorized')
 ), (select count(*)::int from pg_temp.f425_results where phase = 'after' and sig is not null
-     and site not in (
-       'public.accreditation_frameworks.accreditation_frameworks_select',
-       'public.action_items.action_items_select',
-       'app.can_read_document',
-       'public.controlled_documents.controlled_documents_select',
-       'public.controlled_document_versions.controlled_document_versions_select',
-       'app._audit_access_authorized',
-       'public.memberships.memberships_select',
-       'public.profiles.profiles_select_self_or_admin')),
+     and site not in ('app._audit_access_authorized')),
   '⚠ ORIGINAL TEXT, VERBATIM, AS THE RECORD OF THE PRE-T7 STATE — 3.2 ⭐⭐ THE MIRROR ASSERTION, '
   'DELIBERATELY RED-BY-DESIGN ON TODAY''S CATALOG. This is the suite AS IT WILL READ once T7 '
   'lands: every live-probed site''s post-delete signature DENIED. It reds today because 3.1 is '
@@ -633,12 +763,38 @@ select is((
   'that already discriminates before T7 is measuring its own fixture (header), and turning this '
   'green by narrowing its predicate would delete the very signal T7''s landing is supposed to '
   'flip. Re-run this file after T7 (a fresh `db reset` first) — THIS line, unedited, is the T7 '
-  'acceptance oracle. ⭐⭐ RE-POINTED post-T7 (`2dddd278`, run-4, 2026-09-14): want is now 49 (57 '
-  'minus 8 named, permanently non-discriminating sites, dated note above this block, each a '
-  'documented role-free disjunct or a leg T7 never targeted) — measured 49/49 after fixing this '
-  'file''s own `can_read_capa` fixture (dated note above). ⛔ A NINTH site reading `t` here again '
-  'is NOT automatically a new scope cut — re-derive it live before adding it to the excluded list, '
-  'exactly as `can_read_capa` was investigated and found to be a FIXTURE bug, not a door gap.');
+  'acceptance oracle. ⭐⭐ RE-POINTED post-T7 (`2dddd278`, run-4 PASS 2, 2026-09-14): want is now '
+  '56 (57 minus ONLY `app._audit_access_authorized`''s `meeting.viewed` leg, `carriesCode:false`, '
+  'dated note above this block) — the seven role-free-disjunct sites PASS 1 excluded here now '
+  'measure their `disjunct_absent` resource instead (site_signature, re-pointed this round) and '
+  'correctly discriminate; their disjunct''s own survival moved to §3.3''s dedicated witness. '
+  '⛔ A site reading `t` here again is NOT automatically a new scope cut — re-derive it live '
+  'before adding it to the excluded list, exactly as `can_read_capa` and these seven were.');
+
+-- ============================================================================
+-- §3.3 — THE P1-SURVIVOR WITNESS (run-4 addendum): the SEVEN role-free-disjunct sites' ORIGINAL
+-- probe, now a SEPARATE measurement from §3.1/§3.2's re-pointed primary signal. PO ruling P1
+-- (`arm3:divergent-approved:role-free-disjunct-ignores-principal-state`) is an ACCEPTED
+-- exception, not a suite blind spot — this section is its witness, both polarities.
+-- ============================================================================
+
+select is((
+  select count(*)::int from pg_temp.f425_results
+   where phase in ('p1_before','p1_after','p1_restored') and sig is not null and pg_temp.sig_is_granted(kind, sig)
+), (select count(*)::int from pg_temp.f425_results where phase in ('p1_before','p1_after','p1_restored') and sig is not null),
+  '3.3 ⭐⭐ THE P1-SURVIVOR WITNESS: for all seven role-free-disjunct sites, the ORIGINAL '
+  '(disjunct-reachable) resource stays GRANTED before the deletion, after it, AND after the '
+  'restore — 21 observations (7 sites × 3 phases), all GRANTED. ⛔ THIS is what makes the '
+  'exclusion PASS 1 of this round carried (dated note above) an ACCEPTED, WITNESSED exception '
+  '(PO ruling P1, `arm3:divergent-approved:role-free-disjunct-ignores-principal-state`) rather '
+  'than a silent one: the disjunct itself is measured to survive the SAME mutation whose effect '
+  'on the CODE-GATED path §3.1/§3.2 now measure separately, above, via the `disjunct_absent` '
+  'resource.');
+
+select is((select count(*)::int from pg_temp.f425_results where phase = 'p1_before'), 7,
+  '3.3b CARDINALITY CONTROL: exactly seven P1-survivor probes ran (one per named site) — not '
+  'fewer (a site silently dropped) and not more (an eighth added without a live-queried reason, '
+  'the exact trap this round''s own re-derivation of §3.1/§3.2''s exclusion lists closed).');
 
 select is((
   select count(*)::int from pg_temp.f425_results b join pg_temp.f425_results r
