@@ -4782,3 +4782,35 @@ so Postgres parses it, the exit and any error quoted; and a follow-up filed (bac
 template's SQL is parse-checked by no gate — closes when a gate parses each section on a fresh
 reset and is shown to red on a stripped-quote plant. LESSONS candidate: *a template nobody executes
 is a comment with SQL syntax.*
+
+### 2026-09-14 — `e2e:prod` batch 6 RED: `ethics-e2-procedure` FLOW-7 cannot mint a token for `gap.pending` — THIS UNIT's seed put an unconfirmed persona on the CCIH roster the ethics spec enumerates (lead)
+
+Batches 1–5 green (65/66/70/62/67 passed, 0 failed, 1 flaky in 1 and 5, all accounted). **Batch 6:**
+`61 passed · 1 failed · 1 flaky · 1 skipped · 5 did-not-run · 69/69 accounted · pw_exit 1`. The
+failure, read from `/tmp/e2e-prod-gate/batch-6.log:96–98`: `ethics-e2-procedure.spec.ts:977 FLOW-7
+cast votes … the rest cast via RPC` — `Error: token for gap.pending@test.local: 400
+{"code":400,"error_code":"email_not_confirmed"}`; the five did-not-run are the serial describe's
+tail behind it; the flaky is `GATE-D "Processo ético" tab … toBeDisabled()` (passed on retry).
+
+**Cause, measured in git and the spec, not guessed:** the spec names no persona. Its
+`computeEligibleVoters()` (`:318–360`) mirrors ADR 0073 § D4 over base tables — CCIH `memberships`
+with role `staff`/`staff_admin`, `profiles.is_active`, not suspended, minus live recusals and the
+respondent — then mints a password-grant token for every eligible voter and requires
+`rpcApprovals === others.length` (100 % turnout so quorum is guaranteed whatever `issue_decision`
+enforces). `gap.pending@test.local` did not exist at the unit base: `git diff a02487bc..HEAD --
+supabase/seed.sql` ADDS it (`v_pending … -- NEW: pending + a staff membership`), unconfirmed in
+`auth.users` AND `profiles` by design (the AE4.5 re-measurement's finding that the seed's only
+pending persona was confirmed), WITH a `staff` membership in CCIH (`seed.sql:3367`). GoTrue refuses
+an unconfirmed row's password grant regardless of `enable_confirmations` (L26's finding, now biting a
+second spec). So the ethics roster gained a member who can never authenticate; the spec's mirror
+counts it; the token mint fails. **A regression caused by this unit's fixture** — the ethics spec was
+green at the base. The lesson shape already in this record: a fixture nothing binds still owes its
+table's invariants — here a fixture the ethics spec's ENUMERATION binds.
+
+**The question that decides the fix (not yet measured — the stack is the gate's until the SUMMARY
+line):** does the DOMAIN's own `app.eligible_voters(case)` count `gap.pending`? If NO — the spec's
+mirror diverges from the definition it claims to mirror (it never filtered confirmation) and the
+fix is the spec's filter, `e2e/**`, tester's. If YES — the domain counts toward quorum a principal
+who cannot log in; that is a PO question (R-6) about the definition, and the spec is faithful. The
+tester is instructed to read it first thing after the gate ends, before any ruling. The gate is RED
+either way until re-run green after the fix; the two flaky titles are dispositioned then.
