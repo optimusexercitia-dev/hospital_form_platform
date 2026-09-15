@@ -1141,7 +1141,9 @@ NOTICED = evidence; CARRIED = a step.
   `426 § 3.4` and a follow-up. **(b)** keep it at CCIH and change FLOW-7's premise from "every eligible
   voter votes" to "every voter who can authenticate votes", asserting the refused one IS counted;
   the quorum threshold `issue_decision` enforces (HC0J8) must then be measured to still be met — a
-  change to an existing phase's spec premise. **(c)** change the domain so `app.eligible_voters`
+  change to an existing phase's spec premise. **Measured 2026-09-15:** `issue_decision` requires
+  `greatest(coalesce(quorum_value, ceil(eligible / 2)), 1)` votes; CCIH's `quorum_value` is NULL and
+  FLOW-7's case has 9 eligible voters, so 5 are required and the 8 who can authenticate meet it. **(c)** change the domain so `app.eligible_voters`
   excludes unconfirmed principals — a behaviour change outside this unit; a new unit.
   **Lead recommends (a)** now, with the definition question filed as
   `FUP-AE5-STAFF-ELIGIBLE-VOTERS-COUNTS-UNCONFIRMED` whatever is ruled. Why it is the PO's: the lead
@@ -5503,3 +5505,21 @@ describe re-running after a failure in the group, not flakes of their own. `BUG-
 
 **State:** AC-10's only open red is R-6's. The declaring `e2e:prod` runs once R-6 is ruled and its
 fixture change lands. Fix loop iteration 1 of 5 closed with nine of ten reds cleared and none new.
+
+### 2026-09-15 — R-6 option (b)'s quorum cost measured; two repeat flakes filed as bug rows, one of them re-worded as a side effect of the R-6 red (lead)
+
+**Quorum, read from the live catalog with the stack unowned (own sessions 0).** `public.issue_decision`
+is the only function raising HC0J8. Its rule: `v_required := greatest(coalesce(v_quorum,
+ceil(v_eligible::numeric / 2)), 1)`, where `v_eligible` counts `app.eligible_voters(case)` and
+`v_quorum` is the commission's `commission_meeting_settings.quorum_value`. For CCIH that value is NULL.
+FLOW-7's case `ca000000-…-e1` has 9 eligible voters today, two of them this unit's personas
+(`a5f00000-…-e3` gap.pending and `a5f00000-…-f1`). So 5 votes are required, and the 8 who can
+authenticate meet it. Option (b) therefore carries no quorum risk on the seed, and R-6's text says so.
+
+**Bug rows, committed `71b41516` after the lead's CR byte count (0) and gate 13 (exit 0):**
+`BUG-E2E-ACTROLE-HATSWITCH-MENUITEM-TIMEOUT` (low) — `act-role-assumption.spec.ts:164` failed on its own
+first attempt in batch 1 of both full runs, the identical `menuitem /revisor(a) da qualidade/` click
+timeout. `BUG-E2E-ETHICS-GATED-NOVADECISAO-RETRY-FLAKY` (low) — re-worded at the lead's instruction after
+the tester's own evidence showed GATE-D passes on its first attempt in both runs and reds only under the
+serial file's `Retry #1`, forced by FLOW-7's R-6 red against a DB the first pass already moved. It is
+contingent and closes when the declaring run after R-6 shows FLOW-7 green and no GATE-D retry.
