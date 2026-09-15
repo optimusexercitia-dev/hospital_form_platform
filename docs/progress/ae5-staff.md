@@ -4704,3 +4704,24 @@ decision arises**; T8's door-sweep verdicts stand for this gate.
 
 **Nothing was fixed in this step.** No app code, no migration, no `seed.sql` — the only write is
 this record entry.
+
+### 2026-09-14 — AC-10 step 1 VERIFIED (`af2c4566`); `e2e:prod` launched by the tester; AC-9 found NOT MET as drafted — the runbook's § 7 is pre-T7 by its own words (lead)
+
+Backend's build-complete verified in the tree: one commit, the record only (66+), tree clean; the
+entry quotes `Files=275, Tests=9218 / Result: PASS / not ok = 0` on a fresh reset (settle 171/171,
+profiles 45, 2 authoritative roles, 21st door 1, `_case_caps` S5 2, `staff` codes 20), lint 0,
+typecheck 0, the four arms `INVARIANT HOLDS` (wrapper `BLIND set size: 41`, all allow-listed), the
+budget `app 339 | public 433 | total 772` live against the anchor, and the sweep's scope re-derived
+at HEAD: 75 names, `sha256(sorted)=c2934944fc881ded` both runs, migrations/seed diff since
+`0323935d` empty by `--stat` AND `--name-only` — so T8's door-sweep verdicts stand for this gate and
+no re-sweep arises. Tester launched on `npm run e2e:prod` (step 2), the stack theirs.
+
+**AC-9 measured, not assumed:** `authz-rollback-runbook.md` + `authz-rollback-template.sql` have
+ZERO commits since their draft `4d961b5a`; § 7 names only `20261003007460` (T6); § 7.3 is headed
+"TEMPLATE, NOT A WORKED SITE — the sites are not chosen yet"; § 7.3.1 holds only while T7 has not
+landed. T7 landed. The criterion says "both revert shapes"; § 2b is owed. Backend tasked (docs
+only, no stack until the tester parks): § 7.0's T7 bound (21/41/23/5/5), § 7.3 as a WORKED § 2b on
+T7's own bodies, § 7.3.1 restated (T7 before T6; what `F1b` does now, measured — the wrapper's
+caller count under L14), the template's next section, every catalog-dependent line `⏳ verify` until
+the stack frees. AC-9 ticks on that commit, not on the draft. Lesson shape: a criterion ticked "if
+unchanged" was going to be ticked BECAUSE unchanged — the runbook's stability was the defect.
