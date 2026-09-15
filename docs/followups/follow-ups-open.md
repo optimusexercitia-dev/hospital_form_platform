@@ -2008,6 +2008,13 @@ Before the unit, `readRoleVocabularyFromCatalog` was an UNEXPORTED local in two 
 **Status:** open
 **Body:** [FUP-AE5-STAFF-OFFBOARDED-EXPECTED-VALUE-DEFERRED.md](FUP-AE5-STAFF-OFFBOARDED-EXPECTED-VALUE-DEFERRED.md)
 
+### 🟢 FUP-AE5-STAFF-QUALITY-OVERSIGHT-LOCKED-COUNT-IS-ORDER-DEPENDENT (owner: tester)
+
+**Filed:** 2026-09-15 (unit `AE5-STAFF`, R-7 production gate subset, by the lead) · **Owner:** tester · **Severity:** low — `quality-oversight.spec.ts:343` pins the locked-case KPI to the literal `'1'`, so it reds whenever a spec that creates `explicit_grants_only` cases shares its batch and runs first; on the same seed the fresh count is 1 and the spec alone is green, 21/21.
+**Closes when:** the expected locked count is derived from the database or pinned to the seeded case by id, and the assertion is shown green after `ethics-e3a-surfacing` and `ethics-e4-participants` in one batch and red when the UI count is wrong.
+**Status:** open
+**Body:** [FUP-AE5-STAFF-QUALITY-OVERSIGHT-LOCKED-COUNT-IS-ORDER-DEPENDENT.md](FUP-AE5-STAFF-QUALITY-OVERSIGHT-LOCKED-COUNT-IS-ORDER-DEPENDENT.md)
+
 ### 🟡 FUP-AE5-STAFF-ROLLBACK-TEMPLATE-PARSED-BY-NO-GATE (owner: backend)
 
 **Filed:** 2026-09-15 (unit `AE5-STAFF`, AC-9 catalog pass, ordered by the lead) · **Owner:** backend · **Severity:** medium — `docs/deployment/authz-rollback-template.sql` is SQL an operator copies during an incident, and no gate parses it (`lint` reads no SQL under `docs/`, `test:db` never loads `docs/deployment/`); SECTION G's guards once shipped unparseable and F2's row-count guard could never pass, both found by hand.

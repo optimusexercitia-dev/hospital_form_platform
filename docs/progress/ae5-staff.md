@@ -6582,3 +6582,32 @@ touches row 8's meeting `a5f20000-…-a2` or CCIH-1's standard `a5f50000-…-b1`
 **Still open.** The two `quality-oversight` failures, pending the tester's two measurements. Both are now
 running under the lead's second monitor: the locked-case count on a fresh reset, and `quality-oversight`
 alone as a one-spec production gate. The declaring full `e2e:prod` waits for that ruling.
+
+### 2026-09-15 — the `quality-oversight` KPI red RULED a subset batch-composition artefact; follow-up filed; build complete re-run owed at the final commit before the declaring `e2e:prod` (lead)
+
+**The two deciding measurements, both as predicted.**
+1. A fresh reset (settle 174 / 174, profiles 45) read `select count(*) from public.cases where
+   commission_id = 'a0000000-…-a1' and visibility_policy = 'explicit_grants_only'` = **1**. That one case is
+   the ethics case `ca000000-…-e1`, the baseline the literal expects.
+2. `quality-oversight.spec.ts` ran alone as its own production gate, verified by PID 521 and its banner
+   `1 spec files → 1 batches`. It read `GATE_EXIT=0 · verdict=GATE GREEN — 21 passed, 0 flaky, accounted 21/21`,
+   on the same seed that failed in the subset.
+
+The other 8 locked cases in the subset were minted by `ethics-e3a-surfacing` and `ethics-e4-participants`
+through `create_case`, in the same batch and ahead of the spec.
+
+**Ruling (lead): not a seed defect, not an app defect.** The red comes from the subset's batch composition
+meeting a spec premise that predates this unit: a locked count pinned to a literal that sibling specs move.
+That is the class of L27, L32 and L33. It is filed as
+`FUP-AE5-STAFF-QUALITY-OVERSIGHT-LOCKED-COUNT-IS-ORDER-DEPENDENT` (low, tester). The rest of the subset stands
+green on the new seed: every spec touching the ethics case, the five accreditation specs on L36's rows, the
+meetings spec, and the landing spec.
+
+**Before the declaring run.** Build complete was last witnessed at `9f4a326b`. Since then `424` and `425`
+changed (`394e30bb`) and ran only scoped. Nothing under `supabase/migrations/` or `supabase/seed.sql` has
+changed, so the four arms, the budget and the sweep's scope still hold from `9f4a326b`. To cite one commit,
+backend re-runs `npm run lint`, `npm run typecheck` and the full `npm run test:db` on a fresh reset at this
+entry's commit, and proves with `git diff --name-only 9f4a326b..HEAD -- supabase/migrations supabase/seed.sql`
+that the rest still holds. The tester then runs the declaring full `e2e:prod` at that commit.
+
+**Loop:** AC-10's fix loop, iteration 2, closed with no seed or app change.
