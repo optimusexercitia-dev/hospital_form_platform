@@ -103,7 +103,7 @@ ten reds were all this unit's seed rows, none a T7 regression; rulings L27–L33
 
 ### Next
 
-T14 QA review (`docs/reviews/ae5-staff-review.md`, APPROVED or CHANGES REQUESTED) → PO approval with the
+AC-4's two witnesses (backend) → ⏸ PAUSE: the PO runs T14 with an EXTERNAL auditor and returns the review for the lead's analysis → PO approval with the
 visibility items below → Record (ledger row, hub → `complete`, bug status cells, follow-ups dispositioned,
 run logs deleted, LESSONS candidates, the stale handoff flagged).
 

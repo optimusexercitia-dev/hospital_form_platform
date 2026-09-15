@@ -5807,3 +5807,19 @@ from the loaded manifest, with the red line and the rollback's green quoted; (2)
 in `docs/testing/ae5-staff-fixture-gaps.md` § 8 and § 9 with the commit that filled it or the reason it
 stays open, and a query showing no fixture id is shared across the cases that bind them. **AC-4 ticks on
 that entry.**
+
+### 2026-09-15 — PO instruction: T14 QA review is performed by an EXTERNAL auditor; the lead pauses at the QA step (lead)
+
+The PO wrote, verbatim: *"The QA review will be performed by an external auditor. When it is time for
+the QA review. pause and I will run the QA review elsewhere. I will then provide the QA review to you
+for analysis."*
+
+**Scope, written rather than inferred.** The lead spawns no `qa` teammate for T14. When the unit
+reaches the QA step (after AC-4's witnesses land and AC-4 is ticked or ruled), the lead stops and hands
+the PO what an auditor needs: the commit to review, where each witness lives, and the check list the
+lead had drafted for an internal reviewer. The review is performed elsewhere. When the PO returns it,
+the lead analyses it finding by finding (confirm, refute with evidence, or mark unverifiable),
+records the analysis here, routes any accepted change to its owner, and loops to the Phase Gate's
+step 1 if changes are requested. Not changed by this instruction: § 6's order (step 4, PO approval,
+still follows the review), and the review report's home `docs/reviews/ae5-staff-review.md`, which the
+lead commits by path once the PO provides it.
