@@ -4610,3 +4610,31 @@ at `:36` is rewritten to say what GoTrue actually does, with the curl's `error_c
 false "confirmed live" line is deleted, not softened. (iv) No bug rows; the false comment is this
 entry. (v) The 5-worker login-timeout pass is an OBSERVATION for AC-10: `e2e:prod` is batched with
 restarts; if it reproduces there it becomes a bug row then, not now. Tester owns `e2e/**` only.
+
+### 2026-09-14 — T13 GREEN 6/6 under L26, committed by the lead (`c94fc639`); AC-10 step 1 handed to backend (lead)
+
+L26 executed by the tester, verified by the lead from the tree and the log: only
+`e2e/ae5-staff-landing.spec.ts` changed (122+/35−, 0 CR bytes); the red-first scratch spec
+`e2e/_tmp-red-check.spec.ts` created and deleted within the round, absent from the tree;
+`playwright-t13-final.log` line 20 `6 passed (17.5s)`; `npm run lint` exit 0 before the commit.
+**Red-first quoted (the wrong construction):** `expect(page).toHaveURL … Expected pattern:
+/\/conta-inativa(\/|$)/ Received string: "http://localhost:3000/login?redirect=%2F"` — BE-6 blocks the
+fresh login exactly as ruled; the transition version then green. The four tests as they now read
+(`:117/:132/:144/:156`): commission landing; unconfirmed refused (`email_not_confirmed` → generic
+message, `pathname === '/login'`, no `sb-*-auth-token` cookie); deactivated refused at login (BE-6
+notice, no session); **mid-session deactivation → `/conta-inativa`** on `gap.comember.ccih@test.local`
+(active `staff` @ CCIH, grep-confirmed unused by every other spec), deactivated through the
+service-role REST PATCH pattern `case-access.spec.ts` already uses, restored in `finally`. The header
+comment's false "confirmed live" line DELETED; the curl and its `error_code` quoted in its place.
+**Persona restore verified by a post-run read:** `gap.comember.ccih` `is_active = t`,
+`gap.deactivated` `f` (seed-correct), `gap.pending` unchanged.
+
+**Two observations HELD, not filed (a row only if `e2e:prod` reproduces them):** (1) the 5-worker
+first pass — all 5 red on login timeouts, serial clean; (2) a 5/6 on the Farmácia form-fill after the
+tester's own repeated runs against an un-reset DB left `multi@test.local` an `in_progress` response,
+so the wizard RESUMED past the intro heading — self-inflicted, cleared by a fresh reset
+(`reset-t13-final.log`), the E2E-leftovers trap CLAUDE.md § 9 names. **Stack to backend for AC-10
+step 1** (fresh reset + settle-check; `npm run lint` / `typecheck`; FULL `test:db` — owed since T8's
+test edits; the four arms re-quoted at HEAD; gate 15 budget 339/433/772 live; proof that no
+migration landed after the sweep's HEAD so its `SCOPE:` line still covers HEAD); then the tester's
+`e2e:prod` once.
