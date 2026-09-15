@@ -5367,6 +5367,7 @@ every block compiles; the follow-up says so without widening the lead's close co
 **Follow-up filed:** `FUP-AE5-STAFF-ROLLBACK-TEMPLATE-PARSED-BY-NO-GATE` (🟡 medium, backend), body file +
 register row. It closes when a gate parses each section A–G on a fresh reset and is shown to red on a
 stripped-quote plant. `npm run lint:registers` exit 0 (`longHeadings=97/97`). `npm run lint` exit 0.
+⚠ **CORRECTED IN PLACE, same session: those two exits were read BEFORE `3391fd00` landed and are not the tree's state now.** Re-run after this entry's own commit (`cd7668cc`): `lint:registers` **exit 1**, one finding, `[HUBS] docs/features/ae5-staff.md — Updated 2026-09-14 is older than the newest code commit on this branch (2026-09-15)`. The newest non-docs commit is my `3391fd00` (`git log -- . ':!docs'`), so my code commit made the lead's hub stale; the hub is the lead's, not edited. ⛔ And I committed `cd7668cc` over that red: the chain joined `lint:registers` to the commit with `;`, so the exit was printed and never consumed — LEARN-076 exactly. `lint:progress` exit 0.
 Commit `5976bde0` (runbook 1126 → 1291, template 422 → 591, FUP body, register; CR 0 each).
 
 **Parked.** Stack after the last run: client sessions other than the platform roles **0**; non-legacy roles `staff=authoritative, staff_admin=authoritative` (the rolled-back F2 runs left nothing); scratch schema `ac9_parse` present **0**; `profiles` 45. The stack is the tester's.
