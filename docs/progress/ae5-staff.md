@@ -6426,3 +6426,41 @@ phase16-accreditation-clone, phase16-accreditation-core, phase16-accreditation-f
 phase16-accreditation-hospital, phase16-accreditation-restricted, phase10-meetings, and ae5-staff-landing.
 It runs after the tester parks its `424`/`425` pass. The subset reduces risk; it does not declare. The
 full declaring `e2e:prod` follows at the final commit.
+
+### 2026-09-15 — grant deliberation-bit finding CLASSIFIED: pre-existing and by design; no bug row; one design tension noted (lead)
+
+**The finding.** A `case_access_grants` row with `read_case_content = true` and `read_case_deliberation = false`
+still yields the deliberation bit in `app._case_caps`.
+
+**Backend's half 1, from files.**
+- **Design:** ADR 0078's lattice places deliberation under content, and the backend-state seam calls the
+  closure the load-bearing lattice invariant, with S7 as its sole role-arm exception (ADR 0100 D4).
+- **History:** the grants arm entered with `20260802000000_authz_b_case_access_grants_hard_cut.sql`,
+  commented "Lattice closure applied on read". It is logically identical in `20261003000500`, the last
+  full definition before this unit's base, and in T7's `20261003007470`. T7 changed only line 43 of
+  `_case_caps`, L20's S5 member line.
+- **Suites:** `311 § 6.3` and `308 § 4.5` both assert that a content-only grant still reads deliberation.
+  No suite asserts the opposite for a grant. Both passed in the full run at `9f4a326b`.
+
+**Verified by the lead's own greps:**
+- ADR 0078 `:1316` reads `write_case_content ⇒ read_case_content ⇒ { view_case_overview , read_case_deliberation }`.
+  Its earlier summary at `:146` lists only `⇒ view_case_overview`, so the two lines of the ADR differ; the
+  fuller `:1316` is the one the resolver implements.
+- `311_oversight_readonly_perimeter.sql:352` reads `6.3 LATTICE S3 grant: content implies deliberation -
+  the grant ROW sets read_case_deliberation=false, and the resolver read-closure adds it anyway`.
+- `308_case_caps_s7.sql:256` reads `4.5 D6 EXCEPTION PATH: an explicit grant on a locked case admits via S3
+  (content + S3's read closure)`.
+- The hard cut's closure starts at `:312`.
+- **Not found:** the lead's pattern did not find backend's quoted A2 manual-grant contract line, so the ruling
+  rests on the lattice line and the two suites, not on that quote.
+
+**Ruling (lead): pre-existing, by design, not a defect; no bug row.** Backend's read-only half 2 still runs
+after the tester parks. It quotes the live S3 lines and reproduces the reading, because the catalog, not
+migration text, is truth. A mismatch reopens the classification. Backend does not re-emit the base body,
+since base and live differ only at line 43.
+
+**Design tension, noted rather than filed.** A grant row cannot express content without deliberation: its
+`read_case_deliberation` column only means something when `read_case_content` is false. Content without
+deliberation exists only on role arms, S7 by ADR 0100 D4 and S8 on a locked case by ADR 0134. The lead
+also notes the ADR's inconsistent `:146` line for the Record step's LESSONS or doc-fix candidates. There is
+no work item for this unit.
