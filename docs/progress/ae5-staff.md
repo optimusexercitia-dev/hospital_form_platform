@@ -1151,6 +1151,19 @@ NOTICED = evidence; CARRIED = a step.
   two suites filter CCIH in their queries, so the bar is met as written. That the CCIH filter is
   incidental to what those two suites measure is the lead's reading, not a measurement. Only
   batch 6 waits on R-6; the other nine reds do not.
+- **R-7 — AC-4's unfilled fixture gaps: row 7's respondent fixture, and the `offboarded` expected value.** ⛔ **OPEN, opened
+  2026-09-15 by the lead.** Measured by backend (`8b92d026`): § 8's row 6/7 respondent fixture was never
+  seeded, so no generated cell exercises the `NOT app.is_case_respondent(...)` term L16 hand-added to
+  `meeting_cases_select`. That is the one hand-written policy, and its deny term is the part the cells
+  cannot see. `offboarded` stays open by design: 32 seeded profiles already hold no live affiliation, and
+  the cells vector excludes the class while its expected value awaits the PO (the matrix approval of
+  2026-09-13 did not approve per-class expected values). Options: **(a)** seed the respondent fixture now
+  and add its cells; this changes the seed after the declaring E2E run, so it costs a fresh `test:db` and
+  another full `e2e:prod` (about 75 minutes) before QA. **(b)** file both as follow-ups and tick AC-4 with
+  the bound written into the tick; QA reviews that bound. For `offboarded`, the PO either states the
+  expected value, which then joins the cells in the same work as (a), or defers it to a follow-up.
+  **Lead recommends (a) for row 7**, because an unexercised deny term on the one hand-written policy is the
+  shape this program most often gets wrong, and **deferral for `offboarded`** unless the PO has the value.
 
 ### 2026-09-13 — matrix review r1 received from the PO; lead evaluation; fix round routed (lead)
 
@@ -5955,3 +5968,36 @@ Whether AC-4's "fixture gaps … are filled" is met with F1–F3 standing is the
 fill-without-shared-ids half is measured above.
 
 **Parked.** Own client sessions 0; nothing committed but this entry.
+
+### 2026-09-15 — AC-4's witnesses received and VERIFIED: `410 § 7.2` reds by plant; the gap disposition finds F1–F3; L34 binds F1 and F2 now; R-7 opened for F3 and `offboarded`; AC-4 not ticked (lead)
+
+Verified in git: backend's only commit is its record entry `8b92d026`, and `git diff --stat` on the
+manifest `.psql` is empty after the plant. **`410 § 7.2` can red, so that clause is met.** § 7.2
+(`410:864–874`) reads `authz_manifest_approved_suites`, loaded at `410:50` from
+`vectors/authz_enforcement_manifest.psql` (rows `('staff'), ('staff_admin')` at `:267–271`, sha256
+`889049de…`). Removing `('staff')` and running `00_setup` + `410` exited 1 with `Failed test 35: "7.2
+...and the STRICTLY WIDER form …"`, `have: staff (authoritative)`, `want: (none)`; 7.1 and 7.4 redded
+with it. Restored byte-identical, the same run exits 0.
+
+**Fixture-gap disposition** (one row per gap in backend's entry). Filled and bound: cross_org_actor,
+pending, deactivated, unprivileged, rows 8, 11, 15, 16 and 19. Row 12 needs no seed row, since the
+manifest marks its probe `not-executable`. `offboarded` is open by design. **No shared id:** one rolled-back
+query over 46 manifest bindings and 3,024 cells found 0 ids on two coordinates that must differ and 0
+manifest-cell disagreements. The 8 resource ids that are also profile ids all belong to
+`commission.roster.read`'s self and co-member coordinates, by construction.
+
+**Three findings, backend's, not fixed by it.** **F1:** `425` still returns `null` for the four doors whose
+fixtures T7 seeded (three accreditation-standards doors and `can_read_referral_internal_note`), and its
+header still says both tables are empty. **F2:** the row-9 grant persona `a5f0…f5` with grant `a5fb…c1`,
+and L18's closed-session items `a5fc…e1–e3`, are bound by no committed suite; each has only a rolled-back
+witness in this record. **F3:** § 8's row 6/7 respondent fixture was never seeded.
+
+**L34 (lead).** F1 and F2 are bound now, because they change tests only. No seed, migration or app file
+moves, so the declaring `e2e:prod` at `dc08f96f` stands. **F1 goes to the tester**, since `425` is the
+tester's: the four doors re-pointed at the seeded fixtures and the stale header corrected, each shown able
+to red. **F2 goes to backend** after the tester parks: the row-9 persona's grant and no-grant pair, and
+L18's two closed-session items, asserted in a suite backend owns, each shown able to red; then a full
+`test:db` and `npm run lint` at the final commit, so step 1 of the gate record is re-cited there. **F3 and
+`offboarded` are a scope decision**, because filling F3 changes the seed the declaring run passed. They are
+opened as **R-7** in § Open rulings, recommending (a) for row 7 and deferral for `offboarded`. **AC-4 is
+not ticked** until R-7 is ruled and its work lands. The QA pause follows that.
