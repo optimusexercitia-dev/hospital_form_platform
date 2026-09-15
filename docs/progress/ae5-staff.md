@@ -5168,3 +5168,209 @@ small deltas because `core.autocrlf=true` normalises on compare. The instrument 
 trap already in memory. The three files go back to LF before any commit; the lead's byte guard
 would have refused them. Separately the tester found a false sentence of the lead's: the batch-18
 entry said held observation 1 did not reproduce; it did, as batch 5's flaky — corrected in place.
+
+### 2026-09-15 — backend: L28 / L29 / L30′ seed moves witnessed, `387` B8 re-pinned 8 → 7 with its mechanism corrected; AC-9 markers measured, the template parsed section by section, and F2's row-count guard found unable to pass — fixed; parked (backend)
+
+Stack ownership: `pg_stat_activity` client sessions other than the platform roles **0** at open and
+before each reset; `*_escalume` counted (11 containers), untouched.
+
+**Job 1 — seed (`supabase/seed.sql`), one reset, witnesses on the settled stack** (`information_schema.tables`
+445 · 445 · 445, `profiles` 45, after each reset).
+
+**L28 — `meeting_cases a5f20000-…-b1` moved from `d0000000-…-c1` to `dc000000-…-a2` (Caso 5, "Análise de
+incidente — Central A").** What the row serves, by grep over `supabase/tests/`, `tests/mutation/`, the
+manifest, the vectors, `e2e/` and the seed: `a5f20000-…-b1` appears ONLY in the seed; `a5f20000-…-a1`
+(the meeting) in the manifest's row 6 (`app.can_reach_meeting`, function-call) and row 7
+(`meeting_cases_select`, rls-select on `meeting_id`) `conjunct_unmet` fixtures and the generated cells.
+The link row exists so row 7's probe reads a `meeting_cases` row for the restricted meeting. The case id
+enters the row-7 policy only through `NOT app.is_case_respondent(case_id, uid)`. Case choice, by grep
+over `e2e/` / `supabase/tests/` (ids and labels) per CCIH case: `d0…c2` 6 spec files + `330`;
+`d0cf…c1` 4 spec files; `dca0…a1` 1 spec file; `ca00…e1` 8 spec files + `228`, `298`, `330`, the
+manifest and the cells; **`dc00…a2` 0 spec files by id or label, 1 pgTAP file (`298`, the related case
+of a `referral_cases` row whose row count is all it asserts)**; no suite or spec calls
+`can_read_full_case_content` / `can_view_printed_document` on it. Property preserved:
+`app.is_case_respondent(case, staff4.ccih)` = f on both cases, and = f for `staff1.ccih` (the attendee)
+on both. `dc00…a2` has 0 `case_participants`; same commission, so `app.guard_meeting_cases` (HC032)
+admits it.
+Witnesses (post-reset):
+- `L28 link|a5f20000-…-b1|a5f20000-…-a1|dc000000-…-a2`; `d0…c1` meeting links 1 (only the ordinary
+  meeting `f1000000-…-e1`).
+- **chefe on `d0…c1`: `can_read_full_case_content` t · `can_view_printed_document('case')` t ·
+  `print_source_state('case', d0…c1)` count 1 (under `test_helpers.claims_for(chefe, false,
+  'staff_admin')`) — `t / t / 1`.** The axis moved with the row: chefe on `dc00…a2` `f / f / 0`.
+- Row 7's probe, each read under `claims_for(…, 'staff')` + `set local role authenticated`:
+  - staff4.ccih on `meeting_cases where meeting_id = a1` → **0** (`conjunct_unmet`);
+  - discrimination half, the same instrument on the `_default` meeting `f1…e1` → **1**;
+  - positive twin, staff1.ccih (the attendee) on `a1` → **1**.
+- `can_reach_meeting(a1, staff4)` f, `(a1, staff1)` t.
+- ⚠ My first read used raw `request.jwt.claims` with no `active_role`. It gave 0 for BOTH staff4 on
+  `f1…e1` and staff1 on `a1`, and chefe's `print_source_state` count was 0 — a dead instrument, caught
+  by the discrimination half and not reported as a witness. `424` / `425` / `426` all `ok` on both runs
+  (below).
+
+**L29 — the draft `a5fb0000-…-a1`'s author moved `chefe.ccih` → `ativo.registro` (…d2); the version stays
+`…a001`.** Why the author and not the version: `app.can_access_targeted_version`'s live body walks
+`resp.form_version_id` ⋈ `target_case_participant_id` ⋈ `professional_participants` ⋈
+`professional_profiles.user_id = p_uid` and reads no `created_by`. The manifest pins row 1's
+`disjunct_present` to `…a001` and `_default` / `disjunct_absent` to `…a002` (36 / 72 lines in the
+cells). A fixture-owned CCIH version would re-pin both and add a CCIH form card, the first-card
+coincidence L31 fixes at Farmácia. Specs naming `…a001` / Form A: sup-supersession, perf-sweep-wave2,
+ui-batch-2026-07, phase15-indicators, phase8-dashboard, casos-reading-surface-differential,
+views-labels-participants and eleven by title; chefe is named in 104 spec files. `ativo.registro`:
+active, confirmed CCIH `staff`, named in 1 spec (`user-registration`: deactivate / reactivate /
+sign-in; 0 hits for `responder|/forms|formul`), 0 `responses` references in the 3 pgTAP files naming
+its id (180, 381, 385), and 0 of its 108 cell lines mention `responses`. The participant rows keep
+`v_author` = chefe.
+Witnesses:
+- in-progress drafts on `…a001` `ativo.registro, staff1.ccih`; **chefe in-progress on `…a001` = 0**.
+- `a5fb-a1|…a001|…d2|in_progress|a5fa0000-…-a1`.
+- `can_access_targeted_version(…a001, gap.unpriv)` t, `(…a002)` f; RLS `form_versions` as gap.unpriv
+  `…a001` 1 / `…a002` 0.
+- Owner insert of a chefe draft on `…a001` in a rolled-back transaction: `INSERT 0 1`
+  (`responses_one_draft_per_user_idx` no longer occupied).
+- ⚠ The same insert as `authenticated` raised 42501 (RLS) before reaching the index, so it proves
+  nothing about the index and is not quoted as one.
+
+**`387` B8 moved, observed RED first** (run 1: `Failed test 12`, `Files=275, Tests=9218, Result: FAIL`,
+the only failure). The 2026-09-13 re-pin's number was right and its mechanism wrong. Live
+`responses_select`:
+
+```
+((created_by = ( SELECT auth.uid() AS uid)) OR ((status = 'submitted'::text) AND app.is_staff_admin_of(commission_id)) OR app.can_read_correction_response(id, ( SELECT auth.uid() AS uid)))
+```
+
+staff_admin reads another author's row only once it is submitted, so chefe read the in-progress
+fixture as its author. Measured with 387's own caller setup in one rolled-back transaction:
+- B11 total 14;
+- chefe[staff_admin] reads **7**, and reads the fixture row 0 times;
+- over-grant twin: ativo.registro[staff] reads it 1 time (its only visible response);
+- **discrimination: `created_by` set back to chefe → chefe reads 8.**
+
+Re-pinned 8 → 7 in the assertion, its message, the header table and B11's message, with attribution.
+The differential holds in the stronger direction, 7 < 14.
+
+**L30′ — the catalog lines the lead asked for, from `pg_get_functiondef`:**
+- `public.create_form`: `  insert into public.form_sections (form_version_id, position, is_default)` /
+  `  values (v_version_id, 0, true);`
+- `public.guard_default_section_delete`: `    if v_remaining = 0 then` / `      raise exception` /
+  `        'cannot delete the default section while it is the only section of its version'`
+- `public.publish_form_version`: `prosrc ilike '%form_sections%'` = **f**, `ilike '%count(%'` = **f**.
+  Its checks are, in order:
+  - `if v_status <> 'draft' then raise … 'apenas versões em rascunho podem ser publicadas'`;
+  - `perform public.validate_visible_when(p_form_version_id);`
+  - `perform app.validate_group_layout(…)`; `perform app.validate_matrix_axes(…)`;
+  - choice items with no `form_item_options`; bad `default_value` (HC080); `flaggedWhen` (HC046).
+  - `validate_visible_when` reads `form_sections` only to loop over sections' conditions. Every one of
+    its raises is about a condition ('a primeira seção não pode ter condição…', '…referencia a
+    pergunta…', '…deve referenciar uma pergunta de uma seção anterior', '…bloco repetível'), none
+    about a count.
+- Seed: both fixture versions are inserted `draft`, each gets
+  `form_sections (a5fc…d1 / a5fc…d2, position 0, is_default true)`, then flip to `published` with
+  `published_at = now()` under `app.in_publish_rpc = on`. That order is forced:
+  `guard_published_structure` raises on a section INSERT into a published version, and
+  `guard_published_version` refuses a status change without the flag. Zero input items.
+- Witness: `a5fc…b1|published|t|1|1|0` and `a5fc…b2|published|t|1|1|0` (status, `published_at` set,
+  sections, default-at-0, items).
+- Published versions with zero sections, whole table: **0**.
+- Nothing moved for it: no manifest cell, no `424` / `425` / `426` pin, both runs.
+
+**Gate, Job 1** (reset → settled → full suite, logs in the session scratchpad):
+- run 1: `Files=275, Tests=9218`, `Result: FAIL`, exit 1, 1 failure (387 #12, above).
+- **run 2, after the re-pin, on a second fresh reset: `Files=275, Tests=9218`, `Result: PASS`, `test-db-exit=0`, `^not ok` count **0**; `298`, `330`, `368`, `387`, `419`, `424`, `425`, `426` each `ok`**
+- `npm run typecheck` exit 0; `npm run lint` exit 0 (chain, with the tester's uncommitted specs in the
+  tree).
+- Commit `3391fd00` (`supabase/seed.sql`, `supabase/tests/387_…`, CR 0 each, staged by path).
+
+**Job 2 — AC-9, on the run-2 reset.** Ten markers replaced with measured values, none left
+(`⏳` count 0 in both files). Every query is a read in `begin read only … rollback`:
+- **§ 7.0b `can_reach_case_on_member_surface`:** 1 overload, `LANGUAGE sql STABLE SECURITY DEFINER
+  SET search_path TO ''`, body `select app.can_cases_deliberation_read(p_case_id, p_uid);`.
+- **27 re-emitted bodies** (names read from `20261003007470`: 22 lower-case `create or replace
+  function`, 27 upper-case, 27 `SET search_path TO ''`): 27 resolve, 27 one overload, **27 of 27
+  `proconfig = {search_path=""}`**, 27 of 27 `prosecdef`.
+- **21 / 13 / 8:** the 21 doors = the 22 lower-case names minus `can_reach_case_on_member_surface`.
+  - 21 of 21 `prosecdef`, 21 of 21 `search_path=""`.
+  - **13** carry `authenticated=X/postgres` in `proacl`, and `has_function_privilege('authenticated',
+    oid, 'EXECUTE')` is true for exactly those 13.
+  - **8** without: `can_capa_read`, `can_cases_deliberation_read`, `can_cases_vote`,
+    `can_referrals_metadata_read`, `can_referrals_notes_author`, `can_safety_events_read`,
+    `can_safety_events_report` read `{postgres=X/postgres,service_role=X/postgres}`, and
+    `can_cases_deliberation_read_in_commission` reads `{postgres=X/postgres}`.
+- **`419`:** live `prosecdef` in app/public/authz with a non-empty `search_path` = **836**; `419` § 0c
+  pins 836 and is `ok`, so live = frozen.
+- **C1 call sites:** exactly `app._project_meeting_agenda_item`, `app._project_meeting_case`,
+  `app.resolve_document_version_bytes`, `public.get_reserved_session_items` (comment-stripped
+  `prosrc`, the authority excluded); policies naming it 0.
+- **`meeting_cases_select`:** `public|meeting_cases|SELECT|PERMISSIVE|{authenticated}`, qual as in the
+  runbook token for token, `with_check` NULL.
+- **`app._case_caps`** (1 overload): its only `v_member :=` line is
+  `  v_member   := app.can_cases_deliberation_read_in_commission(v_commission, p_uid);`.
+- **Wrapper callers**, comment-stripped `prosrc` over app/public/authz with the pair excluded, then
+  policies: `is_commission_staff_of` **0 | 0**, `is_commission_staff_of_for` **0 | 0**; raw mentions 0.
+  The pair is present, both `prosecdef`.
+- **G1a / F1b(ii) query verbatim:** **20** (= all 20 `staff` grants); `authz.permissions` 61;
+  non-legacy `staff=authoritative, staff_admin=authoritative`.
+
+**Template parse, section by section.** Each `-- SECTION X` was cut off the file, placeholders filled
+from a written map, and run in two modes, each in `begin … rollback`:
+- PARSE compiles every `do` block as a `pg_temp` plpgsql function (raw-parses every embedded statement
+  without executing it);
+- EXEC runs the whole section with `ON_ERROR_STOP=1`.
+
+Quote literals byte-wise: template 3 `position('''' || rp.permission_code || '''' in p.prosrc)` sites,
+6 `''''`, 0 stripped signatures; the runbook's copy 1 site, 2 `''''`; CR 0 both.
+
+Run on the edited template (post-fix):
+
+| section | mode | DO blocks | exit | first error |
+| --- | --- | --- | --- | --- |
+| A | PARSE / EXEC | 1 | 0 / 0 | — |
+| B | PARSE / EXEC | 0 | 0 / 0 | — (body placeholder filled `select false`, in a scratch schema) |
+| C | PARSE / EXEC | 0 | 0 / 0 | — (`alter policy` on a scratch RLS table) |
+| D | PARSE / EXEC | 1 | 0 / 0 | — |
+| E | PARSE / EXEC | 0 | 0 / 0 | — (comments only) |
+| F | PARSE | 3 | 0 | — |
+| F | EXEC | — | 3 | `ROLLBACK ABORTED: 20 permission code(s) held by staff are enforced at app/public sites…` — **F1b(ii), the correct refusal** |
+| G | PARSE | 2 | 0 | — |
+| G | EXEC | — | 3 | `REVERT INCOMPLETE: 20 code(s) still appear at app/public sites…` — **G3a, correct: nothing was reverted** |
+| G | **PLANT** (every `''''` stripped) PARSE | 2 | **3** | `syntax error at or near "in"` |
+| F | F2 alone | — | 0 | — |
+| F | **F2 twice** (must red) | — | **3** | `ROLLBACK ABORTED: expected to flip exactly 1 role, flipped 0.` |
+| F | F2 then F4 | — | 0 | — |
+
+Filled placeholders (the map): A `app` / `is_commission_staff_of` / `p_commission_id uuid` / `true` /
+`meeting_cases` / `meeting_cases_select` / `can_meetings_cases_shell_read` / site count 0; D
+`authz.has_permission` / `app.is_member_of(` / `can_meetings_cases_shell_read` / `is_member_of`; F
+`staff` / `is_commission_staff_of` / 61 / 20; G `staff`. After filling, 0 placeholders remained
+outside comments in every section.
+
+⭐⭐ **F2's row-count guard could never pass, and nothing could reach it to show it.** F2 was
+`update authz.roles …;` then a separate `do $$ … get diagnostics v_n = row_count …`. GET DIAGNOSTICS
+reads the last command inside its own block. On the pre-fix text, one rolled-back transaction:
+
+```
+staff state now: authoritative
+staff state now: test_validation
+ERROR:  ROLLBACK ABORTED: expected to flip exactly 1 role, flipped 0.
+```
+
+A straight run of SECTION F never gets there: `F1b(ii)` refuses first on any post-T7 catalog, which is
+the correct refusal, so F2 and F4 were never executed. It was found by running F2 on its own. That is
+this program's "an earlier guard firing leaves the later one untested", on the rollback path. Fixed: the
+UPDATE moved inside the block, with the reason commented in place. Measured both ways (run in the table
+above): the first run flips 1 and passes, F4 then passes (`NOTICE: … staff=test_validation,
+staff_admin=authoritative`), and a second run in the same transaction raises `flipped 0`. `staff` read
+`authoritative` after every run. The PLANT row is the stripped-quote shape: PARSE reds, so the parse
+check is not a dead instrument. ⚠ A parse-only gate would have been green on the F2 defect, because
+every block compiles; the follow-up says so without widening the lead's close condition.
+
+**Follow-up filed:** `FUP-AE5-STAFF-ROLLBACK-TEMPLATE-PARSED-BY-NO-GATE` (🟡 medium, backend), body file +
+register row. It closes when a gate parses each section A–G on a fresh reset and is shown to red on a
+stripped-quote plant. `npm run lint:registers` exit 0 (`longHeadings=97/97`). `npm run lint` exit 0.
+Commit `5976bde0` (runbook 1126 → 1291, template 422 → 591, FUP body, register; CR 0 each).
+
+**Parked.** Stack after the last run: client sessions other than the platform roles **0**; non-legacy roles `staff=authoritative, staff_admin=authoritative` (the rolled-back F2 runs left nothing); scratch schema `ac9_parse` present **0**; `profiles` 45. The stack is the tester's.
+
+LESSONS candidate: *a rollback guard that reads `row_count` in its own `do` block, apart from the
+statement it checks, can never pass, and a correct guard before it hides that from every straight run.
+Run each guarded step on its own.*
