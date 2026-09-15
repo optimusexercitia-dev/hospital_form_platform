@@ -96,14 +96,12 @@ posted, not executed.
 **AC-10 BLOCKED — `e2e:prod` GATE RED 2026-09-14:** `1253 passed · 10 failed · 3 flaky · 6 did-not-run ·
 21 batches`, `gate-exit` 1. Step 1 green on a fresh reset (`af2c4566`): lint 0, typecheck 0, `test:db`
 275 files / 9218 tests PASS, the four arms HOLD, budget 339/433/772, sweep scope identical by
-checksum. Every AE5 spec passed; all ten reds land on rows this unit's seed added. Six are measured
-spec premises the seed ended: the ethics voter roster (R-6), the action-items empty-state persona,
-the audit `(occurred_at, seq)` key, and the `DOC-0002` anchor. Four are not yet classified:
-printed documents, the wizard ×3 and supersession ×2. As `chefe.ccih` the full-content door DENIES
-on the masked case now linked to this unit's restricted meeting — a refusal, nothing widened — and a
-rolled-back discriminator decides fixture vs T7. The session process exited mid-measurement on
-2026-09-15. A fresh tester is finishing the measurements, and backend's runbook § 2b edits (AC-9)
-are held uncommitted for catalog verification. AC-1, 2, 5, 6, 7, 8 ticked. `npm run lint` exit 0 at HEAD.
+checksum. Every AE5 spec passed. **All ten reds are this unit's seed rows, measured; none is a T7
+regression:** removing only our restricted-meeting link restored chefe's admitted read (`f/f/0` →
+`t/t/1`), the wizard persona's RLS counts equal no-RLS, and both personas' inserts succeed. Rulings
+L27–L33: backend moves three fixtures (the meeting link, chefe's fixture draft, the 0-section form if
+publish forbids it) and verifies AC-9 on the catalog; the tester re-points four spec premises that were
+seed coincidences and files the reproduced login-cache flake. Fix loop iteration 1 of 5. AC-1, 2, 5, 6, 7, 8 ticked. `npm run lint` exit 0 at HEAD.
 
 ### Next
 

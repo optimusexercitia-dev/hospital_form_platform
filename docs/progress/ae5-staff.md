@@ -5038,3 +5038,95 @@ counts toward the eligible-voter set and so toward quorum, and no gate construct
 against the definition. The lead's own bar ("a relocation is a lead ruling only if nothing requires
 CCIH") is met as written, so R-6 goes to the PO even though the lead reads the CCIH filters in 426 and
 387 as incidental. The other nine reds do not wait on it; the fresh tester's measurements decide them.
+
+### 2026-09-15 — measurements B–G: all ten `e2e:prod` reds are THIS UNIT'S FIXTURES, none a T7 regression; rulings L27–L33; AC-10 fix loop iteration 1 (lead)
+
+The fresh tester's report, read by the lead with its quoted outputs. **None of the three conditions
+that would have meant a T7 regression fired.**
+
+**B — printed documents (batch 11), fixture.** `app.can_view_printed_document`'s `case` branch is
+`app.can_read_case(...) and app.can_read_full_case_content(...)`; the latter's AXIS F returns false
+when `exists (select 1 from public.meeting_cases mc where mc.case_id = p_case_id and not
+app.can_reach_meeting(mc.meeting_id, p_uid))`. One rolled-back transaction as chefe on `d0…c1`:
+before `f / f / 0`; after deleting ONLY `meeting_cases a5f20000-…-b1` `t / t / 1`. The body is
+unchanged; this unit's link of a restricted meeting to the P3 spec's admitted-caller case is what
+AXIS F fails closed on. Both doors carry no `authenticated` EXECUTE grant (called as postgres with
+claims).
+
+**C — action items (batch 10), fixture.** The twelve CCIH `staff` memberships, measured before and
+after a fresh reset, identical: `staff4.ccih` now `assigned_to 1 · assignments 1`. Seven principals
+are active, confirmed and hold zero of both: `dr.john`, `gap.comember.ccih`, `multi`, `pqsdual.a`,
+`staff2.ccih`, `staff3.ccih`, `suspenso.temp`.
+
+**D — audit (batch 14), seed row + latent spec key.** On a fresh reset the 14 seq=1 rows at the seed
+instant are 13 scoped chains and exactly one scope-less row: `seq 1 · entity_type
+accreditation_framework · accreditation_framework.created`. (`audit_log` has `entity_type`, not
+`table_name`.)
+
+**E — wizard read path (batch 18): clean.** As multi@ on `…b001`: no-RLS `fv 1 · fs 5 · fi 7`, RLS
+`fv 1 · fs 5 · fi 7`; no draft; the three SELECT quals gate on `app.can_forms_read(...) OR
+app.is_tenancy_admin_of(...)` (+ `_select_targeted` on `app.can_access_targeted_version`);
+`can_forms_read(Farmácia, multi) = t`.
+
+**F — responses write path: clean.** `responses_insert_own` WITH CHECK `created_by = auth.uid() AND
+app.can_responses_create(commission_id, uid)`. multi@ insert on `…b001` succeeded (rolled back).
+chefe's insert on CCIH `…a001` failed `23505` on `responses_one_draft_per_user_idx` — chefe already
+holds this unit's fixture draft `a5fb0000-…-a1` on that version — and succeeded on `…a002`. Grants:
+`staff → commission.responses.create`; `staff_admin → commission.responses.{correct,create,read}`.
+
+**G — traced isolated runs on a fresh reset (profiles 45, table count 174 twice): both fail in
+isolation, so batch order is not the cause.** Wizard "branch Sim": the page rendered `Seção 0 de 0`
+for **"Formulário da Farmácia A (fixture arm-3 linha 1)"** (`forms/a5fc0000-…-f1/responder`), a
+published form with ZERO sections created at the same seed instant as Form B;
+`enterWizard(page, 'farmacia')` is called with no `formTitle` at `phase5-wizard.spec.ts:278, 351, 475`
+(every `ccih` call passes one) and clicks the first card. SUP-1: the "Iniciar correção" server
+action returned 200 with `{"ok":false,"error":"Você já tem um preenchimento em andamento para esta
+versão do formulário; conclua ou descarte-o antes de corrigir."}` — the same one-draft collision as
+F3, on the version the SUP submission belongs to.
+
+**Flaky titles:** batch 1 `act-role-assumption.spec.ts:164` (menu-item click timeout; neither held
+observation; first sighting, recorded only); batch 5 `documents-redesign.spec.ts:114` failed first
+inside `cachedSignIn` (`e2e/helpers/auth.ts:133`, `page.goto('/') → net::ERR_ABORTED; maybe frame was
+detached?`) — **held observation 1 reproduced under `e2e:prod`**, so it becomes a bug row as ruled;
+batch 6 `GATE-D` (recorded only).
+
+**The principle behind L27–L33 (lead).** Where another phase's spec states a legitimate DOMAIN state
+that this unit's fixture destroyed — an admitted staff_admin on its masked case, a staff_admin free
+to correct a submission, a published form that has sections — the SEED moves (backend). Where the
+spec's premise was a coincidence of the seed it could never guarantee — the first card on a page, a
+code unique across commissions, a key that is not unique, a persona clean by accident — the SPEC
+moves and is made to check its own premise (tester).
+
+- **L27 (tester):** `member-action-items-overview` AC-9 re-points to a boundary persona chosen from the
+  seven measured above, excluding any a spec mutates (`gap.comember.ccih`) or a seed fixture assigns;
+  a service-role precondition read asserts zero `assigned_to` and zero assignments for it in CCIH
+  before the empty state is asserted; the comment cites the measurement.
+- **L28 (backend):** the fixture `meeting_cases a5f20000-…-b1` moves off `d0…c1` to a CCIH case no spec
+  or suite uses as an admitted-caller differential, chosen by grep; anything in 424/425/426 that moves
+  is re-pinned with attribution. Witness: chefe on `d0…c1` `t / t / 1`; the arm-3 probe it serves
+  still binds.
+- **L29 (backend):** the fixture draft `a5fb0000-…-a1` stops occupying a (chefe, version) pair any spec
+  drafts or corrects on — a fixture-owned version, or an author no spec drafts as, chosen by grep;
+  re-pins attributed. Witness: chefe holds no `in_progress` draft on the SUP spec's version.
+- **L30 (backend, measure first):** read the live publish path. If it refuses a version with zero
+  sections or zero input items, fixture form `a5fc0000-…-f1` violates an invariant and gains the
+  minimum it requires. If it permits it, no seed change, and that is stated. A fixture nothing binds
+  still owes its table's invariants.
+- **L31 (tester):** `phase5-wizard` passes `formTitle` (Form B's title) at the three Farmácia call
+  sites, as the CCIH sites already do.
+- **L32 (tester):** `phase17-documents` AC-10 anchors CCIH's row by code AND title; the "(still
+  unique)" comment is rewritten to say codes are unique per commission
+  (`controlled_documents_commission_code_uq`).
+- **L33 (tester):** `phase13-audit` AC-3f-platform resolves each displayed row with the three scope
+  `is.null` predicates added AND keeps an unfiltered match count ≥ 1, so a leaked scoped row still reds
+  with its own message; both halves shown able to red with a scratch spec deleted in the same round.
+- **R-6 (PO)** stays open for batch 6. The batch-5 `cachedSignIn` flake is filed as a bug row by the
+  tester.
+
+**Order:** backend holds the stack for L28–L30, then the AC-9 catalog verification on that reset,
+then parks. Meanwhile the tester drafts L27, L31–L33 and the bug row without touching the stack, and
+runs the six affected spec files serially on a fresh reset after backend parks. Then one
+`e2e:prod`, once R-6 is ruled. Loop: AC-10 fix iteration 1 of 5; every red has a new, measured cause.
+LESSONS candidate: *a seed addition is checked against every pgTAP pin and never against the E2E
+specs' premises; five specs rested on coincidences of the seed, and one fixture destroyed a domain
+state another phase asserts.*
