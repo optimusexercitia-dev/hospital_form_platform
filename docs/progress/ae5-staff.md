@@ -4834,3 +4834,26 @@ the "4 of 12 seeded CCIH `staff` personas carry a non-role case reach" re-measur
 hint, read as a count rather than as a list of specs to grep. Ruling after the tester's eligibility
 query lands (batch 6's fix depends on it); batch 10's fix is `e2e/**`-shaped on its face — a
 MEASURED boundary persona, not another comment — unless the query changes the picture.
+
+### 2026-09-14 — `e2e:prod` batch 11 RED: `pdf-printing-cases` P3's ADMITTED half — `chefe.ccih` no longer sees "Documentos emitidos" on the masked case this unit's seed extended; door or oracle, to be measured (lead)
+
+Batch 11: `65 passed · 1 failed · 1 skipped · 1 did-not-run · 68/68 · pw_exit 1` —
+`pdf-printing-cases.spec.ts:1431 door-refused caller: the manage page RENDERS and the card is absent`.
+The refused half PASSED; the failure is the DIFFERENTIAL half (`:1530–1534`): `chefe.ccih` (staff_admin
+CCIH, the admitted caller) on `SEED_MASKED_CASE d0000000-…-0000000000c1` gets 200 but no
+`heading 'Documentos emitidos'`. The spec's own words for why that half exists: "a card that never
+renders for anyone … would pass the block above with full marks." Path, read in code:
+`getCasePrintContext` (`src/lib/queries/printed-documents.ts`) → `rpc('print_source_state', {case})
+.maybeSingle()` → null on no-single-row → no card; `print_source_state` is gated on
+`app.can_view_printed_document` (returns no row on refusal). **Two candidate causes, both this unit's,
+neither yet measured (the stack is the gate's):** (a) a DOOR regression — T7 re-emitted 27 bodies
+and `20261003007470:993` shows `open_printed_document`'s chain calling
+`app.can_view_printed_document(v_print_kind, v_print_source, p_uid)`; if that door now denies
+`chefe` on the case, it is a Class-1-surface regression and outranks everything else in this gate;
+(b) an ORACLE-shape regression — the seed diff adds on that very case a `meeting_cases` row
+(`a5f2…b1` → restricted meeting `a5f2…a1`, "Row 6") and two `meeting_closed_session_items`
+(`a5fc…e2`, L18), so a case arm that joins meetings could return TWO rows and `maybeSingle` returns
+none. The tester is instructed to measure (i) the door's verdict for chefe and (ii) the oracle's
+ROW COUNT for the case, as chefe, first thing after the gate's summary, and to say FIRST if (i) is
+false. Three reds, three seed additions of this unit on three surfaces the E2E suite's personas and
+cases already bound.
