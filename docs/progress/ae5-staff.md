@@ -6521,9 +6521,40 @@ received `"9"`.
 **What is known.** The declaring `e2e:prod` at `dc08f96f` passed this spec. Between that commit and this
 run, only `9f4a326b` touched the seed. It added the `meeting_cases` link from row 8's meeting `a5f20000-…-a2`
 to ethics case `ca000000-…-e1`, and L36's two accreditation rows on CCIH-1; it also added suite `427` and
-generator changes, which do not run in E2E. So the red is this unit's seed. **What is not known.** Whether
+generator changes, which do not run in E2E. So the red is this unit's seed [⛔ corrected in place the same hour: NOT ESTABLISHED — the inference read only the seed diff and ignored that the subset also changed which specs share a batch; see the next entry]. **What is not known.** Whether
 the KPI now counts correctly and the spec's expected value no longer holds, or whether one link multiplies
 rows in the KPI's query. A jump from 1 to 9 on one link makes a fan-out plausible, not proven. The KPI's
 query is traced in code first. Then, after the gate ends, its live count for `quality.a` is measured with
 and without the new link and rows in rolled-back transactions. No ruling until then. Loop: AC-10's fix
 loop, iteration 2 of 5; a new cause.
+
+### 2026-09-15 — batch 2's KPI red: a likely batch-composition artefact, not this unit's seed; the lead's inference corrected in place; two measurements queued to decide it (lead)
+
+**Traced in code by the lead.** The «Casos restritos» card (`src/components/quality/quality-kpi-strip.tsx:101`)
+shows `lockedCases`, summed over the board's commissions. That is `locked_cases` from `src/lib/queries/quality.ts`:
+the `explicit_grants_only` cases the oversight arm may count but never open. The spec derives «Casos
+visíveis» and «Em aberto» from what the page renders, because, in its own words at
+`quality-oversight.spec.ts:329–332`, «sibling specs in the same batch ... mint additional CCIH cases before
+this test runs». It hard-codes the locked count as `'1'` at `:343`.
+
+**The sibling specs.** `ethics-e3a-surfacing.spec.ts:267–270` and `ethics-e4-participants.spec.ts:260–268` each
+create fresh ethics cases as chefe through the real `create_case` RPC, and an ethics case type inherits
+`explicit_grants_only` (`ethics-e3a:29–30`). In this subset, batch 2 runs `ethics-e3a-surfacing`,
+`ethics-e4-participants`, then `quality-oversight`. In the declaring run at `dc08f96f`, `quality-oversight`
+sat in batch 20 with `qob-org-admin-content-wall`, `recommend-result`, `referral-registros` and
+`sup-supersession`, and no ethics spec.
+
+**Reading, not yet a finding.** The likely cause is batch composition: the ethics specs mint locked cases
+ahead of an assertion that pins the locked count to a seed coincidence. That is the same class of spec
+premise as L27, L32 and L33, and it predates this unit. The seed at `9f4a326b` adds no case. **The lead's
+earlier sentence «So the red is this unit's seed» is corrected in place:** it reasoned from the seed diff
+alone.
+
+**Queued for the tester, after the current gate ends, to decide it:**
+1. CCIH's `explicit_grants_only` case count on a fresh reset, as a plain read. It is expected to be 1.
+2. `quality-oversight.spec.ts` alone as a one-spec production gate, with its own reset and build. It is
+   expected to be green.
+
+If both hold, the red is ruled a subset artefact, and a low follow-up is filed for the spec's
+order-dependent literal. If either fails, the seed is suspect again and is measured with the link and
+rows removed.
