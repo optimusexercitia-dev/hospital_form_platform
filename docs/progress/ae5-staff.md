@@ -10051,3 +10051,59 @@ while the stack is owned by HOTFIX-CLASS1-WRITE-GUARDS. Scripts and outputs are 
 API-exposed. What remains is an unguarded PUBLIC-executable DEFINER returning answers by id: a defence-in-depth gap that
 becomes an exposure only if `app` is ever exposed or a new caller forgets its guard. **Filed:** `FUP-AE5-STAFF-ANSWER-FAMILY-DEFINERS-PUBLIC-EXECUTABLE-AND-UNGUARDED` (medium, backend).
 It is not a hotfix item and not in AE5-STAFF's scope.
+
+### 2026-09-16 — stack HANDED BACK — HOTFIX-CLASS1-WRITE-GUARDS is complete and merged into local `main`; what AE5-STAFF must reckon with at the rebase (lead)
+
+**The hotfix is closed.** PO approved 2026-09-16; local `main` fast-forwarded to `b99632f4` (verified identical to the
+branch tip, ancestry re-checked immediately before the ref move). ⛔ Nothing is pushed — `origin/main` is still
+`44f69ff6`. The shared local stack is FREE; AE5-STAFF may reset from this checkout again.
+
+**Scope grew from three holes to EIGHT**, each found by a fresh adversarial pass rather than by the previous fix. Seven
+migrations, `20261003007431`–`7437`:
+
+| # | Closes |
+| --- | --- |
+| M1 `…7431` | scope-column freeze: `case_referral` (7), `capa_plan` (7), `rca.event_id`, `case_interviews` (2) |
+| M2 `…7432` | 4 interview-child FOR ALL policies → 12 INSERT/UPDATE/DELETE; `can_read_interview` ANDed into `case_interview_links_select` |
+| M3a `…7433` | INSERT revoked on `case_referral` |
+| M4 `…7434` | INSERT revoked + `user_id` frozen on `case_interview_interviewers` and `rca_members` |
+| M5 `…7435` | `add_rca_member` gains the `HC0U2` tenancy gate; `rca_members.role` frozen |
+| M6 `…7436` | `update_rca_member_role` gains the same gate |
+| M7 `…7437` | parent pointers frozen: `rca_members.rca_id`, `case_interview_interviewers.interview_id` |
+
+**Gate:** step 1 green (`test:db` 273 files / 9327 tests; four ARMs rc 0, census 589 live / 616 verdicts; `p0b` 69/69
+RED-PROVEN; SELFTEST 46/0/0; set-valued CLEAN); step 2 green (`e2e:prod` 1264 passed · 0 failed · 2 flaky · 0
+did-not-run, `GATE_EXIT=0`); step 3 QA (in-house, per the PO's 2026-09-15 ruling) **APPROVED** after five rounds.
+
+**⚠ What F1 must reckon with at the rebase — this is the list, not a summary:**
+1. **Migration `7500`'s preflight WILL refuse.** `case_interview_links_select` now carries an added
+   `app.can_read_interview(interview_id, …)` conjunct (M2). F1's vectors predate it: regenerate against the merged
+   catalog — rebase, fresh reset, snapshot, vectors, census diff, `428` red-first. ⛔ Never hand-edit an md5.
+2. **The four `*_write` FOR ALL policies F1's partition names NO LONGER EXIST** — `case_interview_{subjects,interviewers,links}_write`
+   and `interview_sessions_write` were dropped by M2 and replaced by 12 per-command policies. An F1 fragment naming any of
+   the four names a gate that is gone.
+3. **`387` conflict is expected.** C1/C2 were re-baselined by inversion to `fa23c07f8f0550b36f522af19c106c57` / 105.
+4. **Grants and column privileges changed on six tables.** F1 converts policies, not grants, but any F1 cell asserting a
+   column is updatable on `case_referral`, `capa_plan`, `rca`, `case_interviews`, `rca_members` or
+   `case_interview_interviewers` must be re-derived: the frozen sets are now `{source_commission_id, source_case_id,
+   target_type, target_commission_id, target_hospital_id, target_case_id, parent_referral_id}`, `{hospital_id, source,
+   source_*_id}`, `{event_id}`, `{case_id, commission_id}`, `{rca_id, user_id, role}` and `{interview_id, user_id}`.
+5. **Two findings baselines moved:** the writepath file gained the 12 split verdicts by hand-merge and a header marker for
+   two now-unearnable verdicts; the door file lost four orphaned rows. `ARM=census` reads both.
+6. **Three `BUG-AE5-STAFF-*` rows stay HERE and are owed a status change at the rebase** (lead ruling R4): referral
+   retarget, CAPA move, interview-children clearance — all three are FIXED by ADR 0213's migrations, but the rows live on
+   this branch because no `AE5-STAFF` code is registered on the hotfix branch (gate 13). Set them `fixed`, citing ADR 0213.
+7. **ADR 0213 exists now** (+ A1–A6, D1–D6), and its "AE5-STAFF, at rebase" section inventories every object this unit
+   changed. Read it before regenerating anything.
+
+**⚠ Before any `db push` to the hosted project:** the migrations' preflights read ACLs and per-column grants, so a hosted
+catalog that has drifted will REFUSE. The remote catalog must be read first. (The PO has ruled a full remote reset, which
+makes this moot if the reset happens first.)
+
+**Open by ruling, not oversight:** `BUG-HOTFIX-CLASS1-WRITE-GUARDS-MEETING-ATTENDEE-SELF-GRANTS-REACH` (high, in-tenant)
+and nine follow-ups. The one AE5-STAFF should care about: the still-FOR-ALL `rca_*_write` read-past-event leak, now
+**MEASURED** — a same-hospital, non-commission `lead` reads 5 RCA child rows with `can_read_event` false — which M5's
+deliberately wider seating population makes more load-bearing, not less.
+
+**Next for AE5-STAFF:** fresh reset from this checkout (proven), backend3's Q1–Q6 from amendment 2, the focused
+verification pass over the amended #28–#30 and the disclosure list, then the rebase onto the merged `main`.
