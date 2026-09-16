@@ -113,6 +113,12 @@ integrated plan `e2ae138f` (127 policies, 32 functions, 7 migrations) → advers
 disclosure; equivalence holds) → lead rulings (a)–(s) → amendment 1 `e5fe6968` (59/59 accepted, 34 functions, budget 803) → re-review DEFECTS (2 P1: (j) oracle; disclosure list incomplete) → amendment 2 `c9527d12` (text-only) → after stack handback: Q1–Q6 + verify the disclosure list → PO → (PO ruled PRE-1/2/3 hotfix off `main`, budget ≤ ~810) → ADR 0212 + `428` red-first → migration; F2 + F3 DONE in `425` (`075e298a`, verified 34/34) → F1 migration → `425` re-run on it → Phase Gate step 1 in full → `e2e:prod` → QA again →
 PO approval → Record.
 
+⏸ **PARKED 2026-09-16 — continues in a SEPARATE SESSION (PO).** The shared stack is FREE: HOTFIX-CLASS1-WRITE-GUARDS is
+complete and merged into local `main` (`b99632f4`, never pushed). A fresh session starts from the record entry of
+2026-09-16, which inventories what F1 must reckon with at the rebase — `7500`’s preflight will refuse on the altered
+`case_interview_links_select`, the four `*_write` FOR ALL policies its partition names no longer exist, `387` moved, six
+tables’ column grants moved, both findings baselines moved, and the three `BUG-AE5-STAFF-*` rows here are owed a `fixed`
+status (R4).
 ### Blockers
 
 ⛔ **PO: three pre-existing catastrophic Class-1 holes reproduced** → unit `HOTFIX-CLASS1-WRITE-GUARDS` opened (`fc3f9a1c`, worktree) (`BUG-AE5-STAFF-REFERRAL-UPDATE-RETARGETS-ACROSS-TENANTS`, `BUG-AE5-STAFF-CAPA-UPDATE-MOVES-ACROSS-TENANTS`, `BUG-AE5-STAFF-INTERVIEW-CHILDREN-BYPASS-CLEARANCE-VIA-WRITE-POLICIES`) — PO 2026-09-15: HOTFIX unit off `main` (separate worktree); budget approved up to ~810; pre-pilot, no hosted check. ✅ **Q-1 convert · Q-2 (C) all 81 · Q-4 772 + N — RULED 2026-09-15.** ✅ **R-8 RULED 2026-09-15: option (a)** — F1 is resolved in this unit under AC-11; F2 and F3 go to the tester after F1's migration.
