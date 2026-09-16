@@ -42,6 +42,12 @@ yarn-error.log*
 # ad-hoc run logs captured during gate runs (redirected output, never source)
 /playwright-*.txt
 /prod-server*.log
+# ad-hoc debug-session output redirected by hand (e.g. `cmd > 424-run.log 2>&1`) —
+# nothing in this repo writes these; they land here only when a manual command's
+# stdout/stderr is piped to a root-relative filename instead of the scratchpad/$TMPDIR.
+# Redirect new ones to .run-logs/ (below) instead of the repo root.
+/*.log
+/.run-logs/
 # e2e-generated temp upload fixtures (written at runtime by specs, never source)
 e2e/__tmp_*
 
